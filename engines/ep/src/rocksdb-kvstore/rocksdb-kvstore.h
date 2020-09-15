@@ -218,7 +218,8 @@ public:
     void optimizeWrites(std::vector<queued_item>&) {
     }
 
-    bool compactDB(std::shared_ptr<compaction_ctx>) override {
+    bool compactDB(std::unique_lock<std::mutex>&,
+                   std::shared_ptr<compaction_ctx>) override {
         // Explicit compaction is not needed.
         // Compaction is continuously occurring in separate threads
         // under RocksDB's control

@@ -965,7 +965,8 @@ static int time_purge_hook(Db* d,
     return COUCHSTORE_COMPACT_KEEP_ITEM;
 }
 
-bool CouchKVStore::compactDB(std::shared_ptr<compaction_ctx> hook_ctx) {
+bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
+                             std::shared_ptr<compaction_ctx> hook_ctx) {
     bool result = false;
 
     try {

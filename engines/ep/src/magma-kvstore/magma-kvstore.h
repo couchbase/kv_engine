@@ -321,7 +321,8 @@ public:
     //    need to support a synchronous call. When compactDB is called, it will
     //    save the compaction_ctx passed in to compactDB and will use it
     //    to perform compaction.
-    bool compactDB(std::shared_ptr<compaction_ctx> ctx) override;
+    bool compactDB(std::unique_lock<std::mutex>& vbLock,
+                   std::shared_ptr<compaction_ctx> ctx) override;
 
     Vbid getDBFileId(const cb::mcbp::Request&) override;
 

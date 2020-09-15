@@ -253,7 +253,8 @@ public:
      */
     bool snapshotVBucket(Vbid vbucketId, const vbucket_state& vbstate) override;
 
-    bool compactDB(std::shared_ptr<compaction_ctx> ctx) override;
+    bool compactDB(std::unique_lock<std::mutex>& vbLock,
+                   std::shared_ptr<compaction_ctx> ctx) override;
 
     /**
      * Return the database file id from the compaction request

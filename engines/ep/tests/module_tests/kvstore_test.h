@@ -43,10 +43,15 @@ protected:
 
     void TearDown() override;
 
+    std::unique_lock<std::mutex> getVbLock() {
+        return std::unique_lock<std::mutex>{vbLock};
+    }
+
     std::string data_dir;
     Collections::VB::Manifest manifest;
     VB::Commit flush;
-    Vbid vbid = Vbid(0);
+    const Vbid vbid = Vbid(0);
+    std::mutex vbLock;
 };
 
 // class that takes the backend configuration parameter only and initialises

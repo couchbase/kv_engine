@@ -1150,18 +1150,10 @@ void EPBucket::compactionCompletionCallback(compaction_ctx& ctx) {
 void EPBucket::compactInternal(std::unique_lock<std::mutex>& vbLock,
                                CompactionConfig& config,
                                uint64_t purgeSeqno) {
-    // Check if the underlying storage engine allows writes concurrently
-    // as the database file is being compacted. If not, a lock needs to
-    // be held in order to serialize access to the database file between
-    // the writer and compactor threads
-    if (getStorageProperties().hasConcWriteCompact()) {
-        vbLock.unlock();
-    }
-
     auto ctx = makeCompactionContext(config, purgeSeqno);
     auto* shard = vbMap.getShardByVbId(config.db_file_id);
     auto* store = shard->getRWUnderlying();
-    bool result = store->compactDB(ctx);
+    bool result = store->compactDB(vbLock, ctx);
 
     VBucketPtr vb = getVBucket(config.db_file_id);
     if (vb) {

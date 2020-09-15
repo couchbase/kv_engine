@@ -761,11 +761,17 @@ public:
     /**
      * Compact a database file.
      *
+     * @param vbLock a lock to serialize compaction and flusher to the
+     *               specific vbucket. When called the lock is _HELD_
+     *               so engines who don't need exclusive access should
+     *               release the lock. The lock may be held or released
+     *               upon return, the caller will take the appropriate action.
      * @param c shared_ptr to the compaction_ctx that includes various callbacks
      *          and compaction parameters
      * @return true if the compaction was successful
      */
-    virtual bool compactDB(std::shared_ptr<compaction_ctx> c) = 0;
+    virtual bool compactDB(std::unique_lock<std::mutex>& vbLock,
+                           std::shared_ptr<compaction_ctx> c) = 0;
 
     /**
      * Return the database file id from the compaction request

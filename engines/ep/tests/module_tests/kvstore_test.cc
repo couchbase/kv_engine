@@ -706,7 +706,8 @@ TEST_P(KVStoreParamTest, CompactAndScan) {
         config.db_file_id = Vbid(0);
         auto cctx = std::make_shared<compaction_ctx>(config, 0);
         for (int i = 0; i < 10; i++) {
-            EXPECT_TRUE(kvstore->compactDB(cctx));
+            auto lock = getVbLock();
+            EXPECT_TRUE(kvstore->compactDB(lock, cctx));
         }
     };
 
@@ -966,8 +967,10 @@ TEST_P(KVStoreParamTest, reuseSeqIterator) {
     compactionConfig.drop_deletes = 0;
     compactionConfig.db_file_id = vbid;
     auto cctx = std::make_shared<compaction_ctx>(compactionConfig, 0);
-
-    EXPECT_TRUE(kvstore->compactDB(cctx));
+    {
+        auto lock = getVbLock();
+        EXPECT_TRUE(kvstore->compactDB(lock, cctx));
+    }
 
     kvstore->scan(*scanCtx);
 

@@ -165,7 +165,8 @@ protected:
             CompactionConfig compactionConfig;
             compactionConfig.db_file_id = vbid;
             auto cctx = std::make_shared<compaction_ctx>(compactionConfig, 0);
-            EXPECT_TRUE(kvstore->compactDB(cctx));
+            auto vb = store->getLockedVBucket(vbid);
+            EXPECT_TRUE(kvstore->compactDB(vb.getLock(), cctx));
         }
 #endif
         return count;

@@ -2553,7 +2553,10 @@ TEST_P(DurabilityEPBucketTest, DoNotExpirePendingItem) {
     auto* kvstore = store->getOneRWUnderlying();
 
     // Compact. Nothing should be expired
-    EXPECT_TRUE(kvstore->compactDB(cctx));
+    {
+        auto vb = store->getLockedVBucket(vbid);
+        EXPECT_TRUE(kvstore->compactDB(vb.getLock(), cctx));
+    }
 
     // Check the committed item on disk.
     auto gv = kvstore->get(DiskDocKey(key), Vbid(0));
@@ -2609,7 +2612,10 @@ TEST_P(DurabilityEPBucketTest,
         EXPECT_EQ(2, kvstore->getItemCount(vbid));
     }
 
-    EXPECT_TRUE(kvstore->compactDB(cctx));
+    {
+        auto vb = store->getLockedVBucket(vbid);
+        EXPECT_TRUE(kvstore->compactDB(vb.getLock(), cctx));
+    }
 
     // Check the Prepare on disk
     gv = kvstore->get(prefixedKey, Vbid(0));
@@ -2683,8 +2689,10 @@ TEST_P(DurabilityEPBucketTest, RemoveCommittedPreparesAtCompaction) {
         EXPECT_EQ(2, kvstore->getItemCount(vbid));
     }
 
-    EXPECT_TRUE(kvstore->compactDB(cctx));
-
+    {
+        auto vb = store->getLockedVBucket(vbid);
+        EXPECT_TRUE(kvstore->compactDB(vb.getLock(), cctx));
+    }
     // Check the committed item on disk.
     gv = kvstore->get(DiskDocKey(key), Vbid(0));
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
@@ -2742,7 +2750,11 @@ TEST_P(DurabilityEPBucketTest, RemoveAbortedPreparesAtCompaction) {
     CompactionConfig config;
     auto cctx = std::make_shared<compaction_ctx>(config, 0);
     cctx->expiryCallback = std::make_shared<FailOnExpiryCallback>();
-    EXPECT_TRUE(kvstore->compactDB(cctx));
+
+    {
+        auto vb = store->getLockedVBucket(vbid);
+        EXPECT_TRUE(kvstore->compactDB(vb.getLock(), cctx));
+    }
 
     // Check the Abort on disk. We won't remove it until the purge interval has
     // passed because we need it to ensure we can resume a replica that had an
@@ -2753,7 +2765,10 @@ TEST_P(DurabilityEPBucketTest, RemoveAbortedPreparesAtCompaction) {
 
     config.purge_before_ts = std::numeric_limits<uint64_t>::max();
     cctx = std::make_shared<compaction_ctx>(config, 0);
-    EXPECT_TRUE(kvstore->compactDB(cctx));
+    {
+        auto vb = store->getLockedVBucket(vbid);
+        EXPECT_TRUE(kvstore->compactDB(vb.getLock(), cctx));
+    }
 
     // Now the Abort should be gone
     gv = kvstore->get(prefixedKey, Vbid(0));

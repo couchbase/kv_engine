@@ -99,7 +99,10 @@ TEST_F(CouchKVStoreTest, CompactStatsTest) {
     compactionConfig.db_file_id = Vbid(0);
     auto cctx = std::make_shared<compaction_ctx>(compactionConfig, 0);
 
-    EXPECT_TRUE(kvstore->compactDB(cctx));
+    {
+        auto vbLock = getVbLock();
+        EXPECT_TRUE(kvstore->compactDB(vbLock, cctx));
+    }
     // Check statistics are correct.
     std::map<std::string, std::string> stats;
     kvstore->addStats(add_stat_callback, &stats, "");
@@ -856,7 +859,9 @@ TEST_F(CouchKVStoreErrorInjectionTest, compactDB_compact_db_ex) {
                 .WillOnce(Return(COUCHSTORE_ERROR_OPEN_FILE))
                 .RetiresOnSaturation();
         EXPECT_CALL(ops, open(_, _, _, _)).Times(1).RetiresOnSaturation();
-        kvstore->compactDB(cctx);
+        std::mutex mutex;
+        std::unique_lock<std::mutex> lock(mutex);
+        kvstore->compactDB(lock, cctx);
     }
 }
 
@@ -1219,7 +1224,9 @@ TEST_F(CouchKVStoreErrorInjectionTest, CompactFailedStatsTest) {
                 .WillOnce(Return(COUCHSTORE_ERROR_OPEN_FILE))
                 .RetiresOnSaturation();
         EXPECT_CALL(ops, open(_, _, _, _)).Times(1).RetiresOnSaturation();
-        kvstore->compactDB(cctx);
+        std::mutex vbmutex;
+        std::unique_lock<std::mutex> vblock(vbmutex);
+        kvstore->compactDB(vblock, cctx);
     }
 
     // Check the fail compaction statistic is correct.
@@ -1566,7 +1573,9 @@ TEST_F(CouchstoreTest, MB40415_regression_test) {
     // Verify that if we would "fail" the precommit hook for some reason
     // the entire compaction would fail...
     kvstore->setMb40415RegressionHook(true);
-    EXPECT_FALSE(kvstore->compactDB(ctx));
+    std::mutex mutex;
+    std::unique_lock<std::mutex> lock(mutex);
+    EXPECT_FALSE(kvstore->compactDB(lock, ctx));
 }
 
 class CouchKVStoreMetaData : public ::testing::Test {};

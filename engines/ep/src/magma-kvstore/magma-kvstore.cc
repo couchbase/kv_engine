@@ -1843,7 +1843,9 @@ ENGINE_ERROR_CODE MagmaKVStore::getAllKeys(
     return ENGINE_SUCCESS;
 }
 
-bool MagmaKVStore::compactDB(std::shared_ptr<compaction_ctx> ctx) {
+bool MagmaKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
+                             std::shared_ptr<compaction_ctx> ctx) {
+    vbLock.unlock();
     auto res = compactDBInternal(std::move(ctx));
 
     if (!res) {

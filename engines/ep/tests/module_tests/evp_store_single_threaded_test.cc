@@ -5578,7 +5578,10 @@ TEST_P(STParamMagmaBucketTest, implicitCompactionContext) {
     // And compact
     auto cctx = magmaKVStore->makeCompactionContext(vbid);
 
-    EXPECT_TRUE(magmaKVStore->compactDB(cctx));
+    {
+        auto vb = store->getLockedVBucket(vbid);
+        EXPECT_TRUE(magmaKVStore->compactDB(vb.getLock(), cctx));
+    }
 
     // Check the first key on disk - should not exist
     gv = magmaKVStore->get(DiskDocKey(firstDeletedKey), Vbid(0));
