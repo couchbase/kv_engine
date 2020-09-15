@@ -1135,13 +1135,13 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
     compactionConfig.purge_before_ts = payload->getPurgeBeforeTs();
     compactionConfig.purge_before_seq = payload->getPurgeBeforeSeq();
     compactionConfig.drop_deletes = payload->getDropDeletes();
-    const auto vbid = compactionConfig.db_file_id = req.getVBucket();
+    compactionConfig.db_file_id = req.getVBucket();
 
     ENGINE_ERROR_CODE err;
     if (e->getEngineSpecific(cookie) == nullptr) {
         ++stats.pendingCompactions;
         e->storeEngineSpecific(cookie, e);
-        err = e->compactDB(vbid, compactionConfig, cookie);
+        err = e->compactDB(compactionConfig, cookie);
     } else {
         e->storeEngineSpecific(cookie, nullptr);
         err = ENGINE_SUCCESS;
@@ -6331,8 +6331,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteVBucket(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::compactDB(
-        Vbid vbid, const CompactionConfig& c, const void* cookie) {
-    return kvBucket->scheduleCompaction(vbid, c, cookie);
+        const CompactionConfig& c, const void* cookie) {
+    return kvBucket->scheduleCompaction(c, cookie);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(

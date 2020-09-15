@@ -111,8 +111,7 @@ public:
     /// Stops the background fetcher for each shard.
     void stopBgFetcher();
 
-    ENGINE_ERROR_CODE scheduleCompaction(Vbid vbid,
-                                         const CompactionConfig& c,
+    ENGINE_ERROR_CODE scheduleCompaction(const CompactionConfig& c,
                                          const void* ck) override;
 
     ENGINE_ERROR_CODE cancelCompaction(Vbid vbid) override;

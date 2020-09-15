@@ -977,8 +977,7 @@ void EPBucket::stopBgFetcher() {
     }
 }
 
-ENGINE_ERROR_CODE EPBucket::scheduleCompaction(Vbid vbid,
-                                               const CompactionConfig& c,
+ENGINE_ERROR_CODE EPBucket::scheduleCompaction(const CompactionConfig& c,
                                                const void* cookie) {
     ENGINE_ERROR_CODE errCode = checkForDBExistence(c.db_file_id);
     if (errCode != ENGINE_SUCCESS) {
@@ -986,7 +985,7 @@ ENGINE_ERROR_CODE EPBucket::scheduleCompaction(Vbid vbid,
     }
 
     /* Obtain the vbucket so we can get the previous purge seqno */
-    VBucketPtr vb = vbMap.getBucket(vbid);
+    VBucketPtr vb = vbMap.getBucket(c.db_file_id);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
     }

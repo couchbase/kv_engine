@@ -195,7 +195,7 @@ void Flush::checkAndTriggerPurge(Vbid vbid, KVBucket& bucket) const {
 void Flush::triggerPurge(Vbid vbid, KVBucket& bucket) {
     CompactionConfig config;
     config.db_file_id = vbid;
-    bucket.scheduleCompaction(vbid, config, nullptr);
+    bucket.scheduleCompaction(config, nullptr);
 }
 
 void Flush::updateStats(const DocKey& key,
