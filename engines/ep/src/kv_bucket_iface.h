@@ -460,15 +460,6 @@ public:
     virtual ENGINE_ERROR_CODE cancelCompaction(Vbid vbid) = 0;
 
     /**
-     * Get the database file id for the compaction request
-     *
-     * @param req compaction request structure
-     *
-     * returns the database file id from the underlying KV store
-     */
-    virtual Vbid getDBFileId(const cb::mcbp::Request& req) = 0;
-
-    /**
      * Reset a given vbucket from memory and disk. This differs from vbucket
      * deletion in that it does not delete the vbucket instance from memory hash
      * table.

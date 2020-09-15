@@ -1754,10 +1754,6 @@ ENGINE_ERROR_CODE MagmaKVStore::magmaErr2EngineErr(Status::Code err,
     return ENGINE_TMPFAIL;
 }
 
-Vbid MagmaKVStore::getDBFileId(const cb::mcbp::Request& req) {
-    return req.getVBucket();
-}
-
 MagmaDbStats MagmaKVStore::getMagmaDbStats(Vbid vbid) {
     MagmaDbStats dbStats;
 

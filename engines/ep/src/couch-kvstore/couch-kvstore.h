@@ -256,16 +256,6 @@ public:
     bool compactDB(std::unique_lock<std::mutex>& vbLock,
                    std::shared_ptr<CompactionContext> ctx) override;
 
-    /**
-     * Return the database file id from the compaction request
-     * @param compact_req request structure for compaction
-     *
-     * return database file id
-     */
-    Vbid getDBFileId(const cb::mcbp::Request& req) override {
-        return req.getVBucket();
-    }
-
     vbucket_state* getVBucketState(Vbid vbid) override;
 
     /**

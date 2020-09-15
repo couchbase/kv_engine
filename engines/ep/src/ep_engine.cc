@@ -1135,8 +1135,7 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
     compactionConfig.purge_before_ts = payload->getPurgeBeforeTs();
     compactionConfig.purge_before_seq = payload->getPurgeBeforeSeq();
     compactionConfig.drop_deletes = payload->getDropDeletes();
-    compactionConfig.db_file_id = e->getKVBucket()->getDBFileId(req);
-    Vbid vbid = req.getVBucket();
+    const auto vbid = compactionConfig.db_file_id = req.getVBucket();
 
     ENGINE_ERROR_CODE err;
     if (e->getEngineSpecific(cookie) == nullptr) {

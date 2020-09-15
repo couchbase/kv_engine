@@ -773,14 +773,6 @@ public:
     virtual bool compactDB(std::unique_lock<std::mutex>& vbLock,
                            std::shared_ptr<CompactionContext> c) = 0;
 
-    /**
-     * Return the database file id from the compaction request
-     * @param compact_req request structure for compaction
-     *
-     * return database file id
-     */
-    virtual Vbid getDBFileId(const cb::mcbp::Request& req) = 0;
-
     virtual vbucket_state* getVBucketState(Vbid vbid) = 0;
 
     void setVBucketState(Vbid vbid, const vbucket_state& vbs);

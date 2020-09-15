@@ -1106,11 +1106,6 @@ ENGINE_ERROR_CODE KVBucket::checkForDBExistence(Vbid db_file_id) {
     return ENGINE_SUCCESS;
 }
 
-Vbid KVBucket::getDBFileId(const cb::mcbp::Request& req) {
-    KVStore *store = vbMap.shards[0]->getROUnderlying();
-    return store->getDBFileId(req);
-}
-
 bool KVBucket::resetVBucket(Vbid vbid) {
     std::unique_lock<std::mutex> vbsetLock(vbsetMutex);
     // Obtain a locked VBucket to ensure we interlock with other

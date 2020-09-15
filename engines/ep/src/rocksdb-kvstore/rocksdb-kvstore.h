@@ -226,11 +226,6 @@ public:
         return true;
     }
 
-    Vbid getDBFileId(const cb::mcbp::Request&) override {
-        // Not needed if there is no explicit compaction
-        return Vbid(0);
-    }
-
     vbucket_state* getVBucketState(Vbid vbucketId) override {
         return cachedVBStates[vbucketId.get()].get();
     }

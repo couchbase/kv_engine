@@ -324,8 +324,6 @@ public:
     bool compactDB(std::unique_lock<std::mutex>& vbLock,
                    std::shared_ptr<CompactionContext> ctx) override;
 
-    Vbid getDBFileId(const cb::mcbp::Request&) override;
-
     size_t getNumPersistedDeletes(Vbid vbid) override {
         // TODO
         return 0;

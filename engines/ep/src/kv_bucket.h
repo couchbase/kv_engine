@@ -348,8 +348,6 @@ public:
 
     ENGINE_ERROR_CODE checkForDBExistence(Vbid db_file_id) override;
 
-    Vbid getDBFileId(const cb::mcbp::Request& req) override;
-
     bool resetVBucket(Vbid vbid) override;
 
     void visit(VBucketVisitor &visitor) override;
