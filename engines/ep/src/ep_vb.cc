@@ -753,9 +753,6 @@ void EPVBucket::bgFetch(const DocKey& key,
             key,
             std::make_unique<FrontEndBGFetchItem>(cookie, isMeta),
             getShard()->getBgFetcher());
-    if (getShard()) {
-        getShard()->getBgFetcher()->notifyBGEvent();
-    }
     EP_LOG_DEBUG("Queued a background fetch, now at {}",
                  uint64_t(bgfetch_size));
 }
@@ -789,8 +786,6 @@ void EPVBucket::bgFetchForCompactionExpiry(const DocKey& key,
             queueBGFetchItem(key,
                              std::make_unique<CompactionBGFetchItem>(item),
                              shard->getBgFetcher());
-    shard->getBgFetcher()->notifyBGEvent();
-
     EP_LOG_DEBUG("Queue a background fetch for compaction expiry, now at {}",
                  bgFetchSize);
 }

@@ -58,12 +58,12 @@ public:
     void start();
     void stop();
     bool run(GlobalTask *task);
-    void notifyBGEvent();
     void setTaskId(size_t newId) { taskId = newId; }
-    void addPendingVB(Vbid vbId) {
-        LockHolder lh(queueMutex);
-        pendingVbs.insert(vbId);
-    }
+
+    /**
+     * Add a Vbid to pendingVbs and notify the task if necessary
+     */
+    void addPendingVB(Vbid vbId);
 
 private:
     size_t doFetch(Vbid vbId, vb_bgfetch_queue_t& items);

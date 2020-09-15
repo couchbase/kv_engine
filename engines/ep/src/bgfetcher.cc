@@ -56,7 +56,11 @@ void BgFetcher::stop() {
     ExecutorPool::get()->cancel(taskId);
 }
 
-void BgFetcher::notifyBGEvent() {
+void BgFetcher::addPendingVB(Vbid vbid) {
+    { // Scope for queueMutex
+        LockHolder lh(queueMutex);
+        pendingVbs.insert(vbid);
+    }
     ++stats.numRemainingBgItems;
     wakeUpTaskIfSnoozed();
 }
