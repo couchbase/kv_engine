@@ -962,12 +962,18 @@ bool EPBucket::startBgFetcher() {
 void EPBucket::stopBgFetcher() {
     for (const auto& shard : vbMap.shards) {
         BgFetcher* bgfetcher = shard->getBgFetcher();
-        if (bgfetcher->pendingJob()) {
-            EP_LOG_WARN(
-                    "Shutting down engine while there are still pending data "
-                    "read for shard {} from database storage",
-                    shard->getId());
+        for (const auto vbid : shard->getVBuckets()) {
+            VBucketPtr vb = shard->getBucket(vbid);
+            if (vb && vb->hasPendingBGFetchItems()) {
+                EP_LOG_WARN(
+                        "Shutting down engine while there are still pending "
+                        "data "
+                        "read for shard {} from database storage",
+                        shard->getId());
+                break;
+            }
         }
+
         EP_LOG_INFO("Stopping bg fetcher for shard:{}", shard->getId());
         bgfetcher->stop();
     }

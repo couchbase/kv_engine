@@ -55,7 +55,7 @@ TEST_P(EPVBucketTest, GetBGFetchItemsPerformance) {
     auto mockEPBucket =
             engine->public_makeMockBucket(engine->getConfiguration());
     KVShard kvShard(*engine.get(), 0);
-    BgFetcher bgFetcher(*mockEPBucket.get(), kvShard);
+    BgFetcher bgFetcher(*mockEPBucket.get());
 
     for (unsigned int ii = 0; ii < 100000; ii++) {
         auto fetchItem =

@@ -21,7 +21,6 @@
 #include "ep_engine.h"
 #include "executorpool.h"
 #include "kv_bucket.h"
-#include "kvshard.h"
 #include "tasks.h"
 #include "vbucket_bgfetch_item.h"
 #include <phosphor/phosphor.h>
@@ -29,8 +28,7 @@
 #include <climits>
 #include <vector>
 
-BgFetcher::BgFetcher(KVBucket& s, KVShard& k)
-    : BgFetcher(s, k, s.getEPEngine().getEpStats()) {
+BgFetcher::BgFetcher(KVBucket& s) : BgFetcher(s, s.getEPEngine().getEpStats()) {
 }
 
 BgFetcher::~BgFetcher() {
@@ -88,7 +86,7 @@ size_t BgFetcher::doFetch(Vbid vbId, vb_bgfetch_queue_t& itemsToFetch) {
                     startTime.time_since_epoch())
                     .count());
 
-    shard.getROUnderlying()->getMulti(vbId, itemsToFetch);
+    store.getROUnderlying(vbId)->getMulti(vbId, itemsToFetch);
 
     std::vector<bgfetched_item_t> fetchedItems;
     for (const auto& fetch : itemsToFetch) {
@@ -143,7 +141,7 @@ bool BgFetcher::run(GlobalTask *task) {
     size_t num_fetched_items = 0;
 
     for (const auto vbId : bg_vbs) {
-        VBucketPtr vb = shard.getBucket(vbId);
+        VBucketPtr vb = store.getVBucket(vbId);
         if (vb) {
             // Requeue the bg fetch task if vbucket DB file is not created yet.
             if (vb->isBucketCreation()) {
@@ -165,14 +163,4 @@ bool BgFetcher::run(GlobalTask *task) {
     stats.numRemainingBgItems.fetch_sub(num_fetched_items);
 
     return true;
-}
-
-bool BgFetcher::pendingJob() const {
-    for (const auto vbid : shard.getVBuckets()) {
-        VBucketPtr vb = shard.getBucket(vbid);
-        if (vb && vb->hasPendingBGFetchItems()) {
-            return true;
-        }
-    }
-    return false;
 }

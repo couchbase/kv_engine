@@ -25,7 +25,6 @@
 // Forward declarations.
 class EPStats;
 class KVBucket;
-class KVShard;
 class GlobalTask;
 
 /**
@@ -38,11 +37,10 @@ public:
      * Construct a BgFetcher
      *
      * @param s  The store
-     * @param k  The shard to which this background fetcher belongs
      * @param st reference to statistics
      */
-    BgFetcher(KVBucket& s, KVShard& k, EPStats& st)
-        : store(s), shard(k), taskId(0), stats(st), pendingFetch(false) {
+    BgFetcher(KVBucket& s, EPStats& st)
+        : store(s), taskId(0), stats(st), pendingFetch(false) {
     }
 
     /**
@@ -52,16 +50,14 @@ public:
      * from KVBucket's reference to EPEngine's epstats.
      *
      * @param s The store
-     * @param k The shard to which this background fetcher belongs
      */
-    BgFetcher(KVBucket& s, KVShard& k);
+    BgFetcher(KVBucket& s);
 
     ~BgFetcher();
 
     void start();
     void stop();
     bool run(GlobalTask *task);
-    bool pendingJob() const;
     void notifyBGEvent();
     void setTaskId(size_t newId) { taskId = newId; }
     void addPendingVB(Vbid vbId) {
@@ -78,7 +74,6 @@ private:
     void wakeUpTaskIfSnoozed();
 
     KVBucket& store;
-    KVShard& shard;
     size_t taskId;
     std::mutex queueMutex;
     EPStats &stats;
