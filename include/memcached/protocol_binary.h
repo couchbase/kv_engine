@@ -1735,14 +1735,14 @@ static_assert(sizeof(ReturnMetaPayload) == 12, "Unexpected struct size");
  * Header: Contains the vbucket id. The vbucket id will be used
  *         to identify the database file if the backend is
  *         couchstore. If the vbucket id is set to 0xFFFF, then
- *         the db_file_id field will be used for compaction.
+ *         the vbid field will be used for compaction.
  * Body:
  * - purge_before_ts:  Deleted items whose expiry timestamp is less
  *                     than purge_before_ts will be purged.
  * - purge_before_seq: Deleted items whose sequence number is less
  *                     than purge_before_seq will be purged.
  * - drop_deletes:     whether to purge deleted items or not.
- * - db_file_id  :     Database file id for the underlying store.
+ * - vbid  :     Database file id for the underlying store.
  *
  * Response:
  *

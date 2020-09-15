@@ -340,7 +340,7 @@ void SingleThreadedKVBucketTest::runCompaction(uint64_t purgeBeforeSeq,
     CompactionConfig compactConfig;
     compactConfig.purge_before_seq = purgeBeforeSeq;
     compactConfig.drop_deletes = dropDeletes;
-    compactConfig.db_file_id = vbid;
+    compactConfig.vbid = vbid;
     store->scheduleCompaction(compactConfig, nullptr);
     // run the compaction task
     runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX],

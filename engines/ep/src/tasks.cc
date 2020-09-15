@@ -46,15 +46,14 @@ CompactTask::CompactTask(EPBucket& bucket,
       compactionConfig(c),
       purgeSeqno(purgeSeqno),
       cookie(ck) {
-    desc = "Compact DB file " +
-           std::to_string(compactionConfig.db_file_id.get());
+    desc = "Compact DB file " + std::to_string(compactionConfig.vbid.get());
 }
 
 bool CompactTask::run() {
     TRACE_EVENT1("ep-engine/task",
                  "CompactTask",
                  "file_id",
-                 compactionConfig.db_file_id.get());
+                 compactionConfig.vbid.get());
 
     /**
      * MB-30015: Check to see if tombstones that have invalid

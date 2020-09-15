@@ -105,7 +105,7 @@ struct CompactionConfig {
     uint64_t purge_before_ts = 0;
     uint64_t purge_before_seq = 0;
     uint8_t drop_deletes = 0;
-    Vbid db_file_id = Vbid(0);
+    Vbid vbid = Vbid(0);
     uint64_t purgeSeq = 0;
     bool retain_erroneous_tombstones = false;
 };

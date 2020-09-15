@@ -1135,7 +1135,7 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
     compactionConfig.purge_before_ts = payload->getPurgeBeforeTs();
     compactionConfig.purge_before_seq = payload->getPurgeBeforeSeq();
     compactionConfig.drop_deletes = payload->getDropDeletes();
-    compactionConfig.db_file_id = req.getVBucket();
+    compactionConfig.vbid = req.getVBucket();
 
     ENGINE_ERROR_CODE err;
     if (e->getEngineSpecific(cookie) == nullptr) {
@@ -1154,18 +1154,18 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
         --stats.pendingCompactions;
         EP_LOG_WARN(
                 "Compaction of {} failed because the db file doesn't exist!!!",
-                compactionConfig.db_file_id);
+                compactionConfig.vbid);
         return ENGINE_NOT_MY_VBUCKET;
     case ENGINE_EINVAL:
         --stats.pendingCompactions;
         EP_LOG_WARN("Compaction of {} failed because of an invalid argument",
-                    compactionConfig.db_file_id);
+                    compactionConfig.vbid);
         return ENGINE_EINVAL;
     case ENGINE_EWOULDBLOCK:
         EP_LOG_INFO(
                 "Compaction of {}, purge_before_ts:{}, purge_before_seq:{}, "
                 "drop_deletes:{} scheduled (awaiting completion).",
-                compactionConfig.db_file_id,
+                compactionConfig.vbid,
                 compactionConfig.purge_before_ts,
                 compactionConfig.purge_before_seq,
                 compactionConfig.drop_deletes);
@@ -1177,13 +1177,13 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
         EP_LOG_WARN(
                 "Request to compact {} hit a temporary failure and may need to "
                 "be retried",
-                compactionConfig.db_file_id);
+                compactionConfig.vbid);
         e->setErrorContext(cookie, "Temporary failure in compacting db file.");
         return ENGINE_TMPFAIL;
     default:
         --stats.pendingCompactions;
         EP_LOG_WARN("Compaction of {} failed: {}",
-                    compactionConfig.db_file_id,
+                    compactionConfig.vbid,
                     cb::to_string(cb::engine_errc(err)));
         e->setErrorContext(cookie,
                            "Failed to compact db file: " +

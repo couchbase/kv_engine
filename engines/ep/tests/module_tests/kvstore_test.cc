@@ -703,7 +703,7 @@ TEST_P(KVStoreParamTest, CompactAndScan) {
         config.purge_before_ts = 0;
 
         config.drop_deletes = 0;
-        config.db_file_id = Vbid(0);
+        config.vbid = Vbid(0);
         auto cctx = std::make_shared<CompactionContext>(config, 0);
         for (int i = 0; i < 10; i++) {
             auto lock = getVbLock();
@@ -965,7 +965,7 @@ TEST_P(KVStoreParamTest, reuseSeqIterator) {
     compactionConfig.purge_before_seq = 0;
     compactionConfig.purge_before_ts = 0;
     compactionConfig.drop_deletes = 0;
-    compactionConfig.db_file_id = vbid;
+    compactionConfig.vbid = vbid;
     auto cctx = std::make_shared<CompactionContext>(compactionConfig, 0);
     {
         auto lock = getVbLock();

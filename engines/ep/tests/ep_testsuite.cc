@@ -1517,7 +1517,7 @@ static enum test_result test_vbucket_compact(EngineIface* h) {
     compact_db(
             h,
             Vbid(0) /* vbucket_id */,
-            Vbid(0) /* db_file_id */,
+            Vbid(0) /* vbid */,
             2 /* purge_before_ts */,
             exp_purge_seqno - 1 /* purge_before_seq */,
             1 /* drop deletes (forces purge irrespective purge_before_seq) */);

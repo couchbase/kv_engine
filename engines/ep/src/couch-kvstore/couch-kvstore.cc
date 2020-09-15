@@ -818,8 +818,7 @@ static int notify_expired_item(DocInfo& info,
         }
     }
 
-    auto it = makeItemFromDocInfo(
-            ctx.compactConfig.db_file_id, info, metadata, data);
+    auto it = makeItemFromDocInfo(ctx.compactConfig.vbid, info, metadata, data);
 
     ctx.expiryCallback->callback(*it, currtime);
 
@@ -954,14 +953,14 @@ static int time_purge_hook(Db* d,
         auto key = makeDiskDocKey(info->id);
 
         try {
-            auto vbid{ctx->compactConfig.db_file_id};
+            auto vbid{ctx->compactConfig.vbid};
             ctx->bloomFilterCallback->callback(vbid, key.getDocKey(), deleted);
         } catch (std::runtime_error& re) {
             EP_LOG_WARN(
                     "time_purge_hook: exception occurred when invoking the "
                     "bloomfilter callback on {}"
                     " - Details: {}",
-                    ctx->compactConfig.db_file_id,
+                    ctx->compactConfig.vbid,
                     re.what());
         }
     }
@@ -977,7 +976,7 @@ bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                 "instance");
     }
 
-    auto vbid = hook_ctx->compactConfig.db_file_id.get();
+    auto vbid = hook_ctx->compactConfig.vbid.get();
     // Note that this isn't racy as we'll hold the vbucket lock when we're
     // calling the method for doing the check and when we'll set it to
     // true
@@ -999,7 +998,7 @@ bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                 "CouchKVStore::compactDB: exception while performing "
                 "compaction for {}"
                 " - Details: {}",
-                hook_ctx->compactConfig.db_file_id,
+                hook_ctx->compactConfig.vbid,
                 le.what());
         result = false;
     }
@@ -1036,7 +1035,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
     auto* def_iops = statCollectingFileOpsCompaction.get();
     std::chrono::steady_clock::time_point start =
             std::chrono::steady_clock::now();
-    Vbid vbid = hook_ctx->compactConfig.db_file_id;
+    Vbid vbid = hook_ctx->compactConfig.vbid;
 
     TRACE_EVENT1("CouchKVStore", "compactDB", "vbid", vbid.get());
 

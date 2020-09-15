@@ -1859,14 +1859,14 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<CompactionContext> ctx) {
             "MagmaKVStore::compactDBInternal: {} purge_before_ts:{} "
             "purge_before_seq:{} drop_deletes:{} purgeSeq:{} "
             "retain_erroneous_tombstones:{}",
-            ctx->compactConfig.db_file_id,
+            ctx->compactConfig.vbid,
             ctx->compactConfig.purge_before_ts,
             ctx->compactConfig.purge_before_seq,
             ctx->compactConfig.drop_deletes,
             ctx->compactConfig.purgeSeq,
             ctx->compactConfig.retain_erroneous_tombstones);
 
-    Vbid vbid = ctx->compactConfig.db_file_id;
+    Vbid vbid = ctx->compactConfig.vbid;
 
     auto dropped = getDroppedCollections(vbid);
     ctx->eraserContext =
@@ -2317,7 +2317,7 @@ std::shared_ptr<CompactionContext> MagmaKVStore::makeCompactionContext(
     }
 
     CompactionConfig config{};
-    config.db_file_id = vbid;
+    config.vbid = vbid;
 
     auto ctx = makeCompactionContextCallback(config, 0 /*purgeSeqno*/);
 
@@ -2339,7 +2339,7 @@ std::shared_ptr<CompactionContext> MagmaKVStore::makeCompactionContext(
             "MagmaKVStore::makeCompactionContext {} purge_before_ts:{} "
             "purge_before_seq:{}"
             " drop_deletes:{} purgeSeq:{} retain_erroneous_tombstones:{}",
-            ctx->compactConfig.db_file_id,
+            ctx->compactConfig.vbid,
             ctx->compactConfig.purge_before_ts,
             ctx->compactConfig.purge_before_seq,
             ctx->compactConfig.drop_deletes,
