@@ -1561,12 +1561,12 @@ TEST_F(CouchstoreTest, testV2WriteRead) {
 // we wouldn't potentially get a database header without the _local/document
 TEST_F(CouchstoreTest, MB40415_regression_test) {
     CompactionConfig config;
-    compaction_ctx cctx(config, 0);
+    auto ctx = std::make_shared<compaction_ctx>(config, 0);
 
     // Verify that if we would "fail" the precommit hook for some reason
     // the entire compaction would fail...
     kvstore->setMb40415RegressionHook(true);
-    EXPECT_FALSE(kvstore->compactDBInternal(&cctx, {}));
+    EXPECT_FALSE(kvstore->compactDB(ctx));
 }
 
 class CouchKVStoreMetaData : public ::testing::Test {};

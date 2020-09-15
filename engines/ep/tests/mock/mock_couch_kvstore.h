@@ -64,7 +64,6 @@ public:
                        dbFileRevMap) {
     }
 
-    using CouchKVStore::compactDBInternal;
     using CouchKVStore::setMb40415RegressionHook;
 
     /**
