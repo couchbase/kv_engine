@@ -1147,11 +1147,20 @@ void EPBucket::compactionCompletionCallback(compaction_ctx& ctx) {
     vb->decrNumTotalItems(ctx.stats.collectionsItemsPurged);
 }
 
-void EPBucket::compactInternal(CompactionConfig& config, uint64_t purgeSeqno) {
-    auto ctx = makeCompactionContext(config, purgeSeqno);
+void EPBucket::compactInternal(std::unique_lock<std::mutex>& vbLock,
+                               CompactionConfig& config,
+                               uint64_t purgeSeqno) {
+    // Check if the underlying storage engine allows writes concurrently
+    // as the database file is being compacted. If not, a lock needs to
+    // be held in order to serialize access to the database file between
+    // the writer and compactor threads
+    if (getStorageProperties().hasConcWriteCompact()) {
+        vbLock.unlock();
+    }
 
-    KVShard* shard = vbMap.getShardByVbId(config.db_file_id);
-    KVStore* store = shard->getRWUnderlying();
+    auto ctx = makeCompactionContext(config, purgeSeqno);
+    auto* shard = vbMap.getShardByVbId(config.db_file_id);
+    auto* store = shard->getRWUnderlying();
     bool result = store->compactDB(ctx);
 
     VBucketPtr vb = getVBucket(config.db_file_id);
@@ -1189,39 +1198,24 @@ bool EPBucket::doCompact(CompactionConfig& config,
                          uint64_t purgeSeqno,
                          const void* cookie) {
     ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
-    StorageProperties storeProp = getStorageProperties();
-    bool concWriteCompact = storeProp.hasConcWriteCompact();
     Vbid vbid = config.db_file_id;
 
-    /**
-     * Check if the underlying storage engine allows writes concurrently
-     * as the database file is being compacted. If not, a lock needs to
-     * be held in order to serialize access to the database file between
-     * the writer and compactor threads
-     */
-    if (concWriteCompact) {
-        auto vb = getVBucket(vbid);
-        if (vb) {
-            compactInternal(config, purgeSeqno);
-        }
-    } else {
-        auto vb = getLockedVBucket(vbid, std::try_to_lock);
-        if (!vb.owns_lock()) {
-            // VB currently locked; try again later.
-            return true;
-        }
+    auto vb = getLockedVBucket(config.db_file_id, std::try_to_lock);
+    if (!vb.owns_lock()) {
+        // VB currently locked; try again later.
+        return true;
+    }
 
-        if (vb) {
-            compactInternal(config, purgeSeqno);
-        } else if (cookie) {
-            err = ENGINE_NOT_MY_VBUCKET;
-            engine.storeEngineSpecific(cookie, nullptr);
-            /**
-             * Decrement session counter here, as memcached thread wouldn't
-             * visit the engine interface in case of a NOT_MY_VB notification
-             */
-            engine.decrementSessionCtr();
-        }
+    if (vb) {
+        compactInternal(vb.getLock(), config, purgeSeqno);
+    } else if (cookie) {
+        err = ENGINE_NOT_MY_VBUCKET;
+        engine.storeEngineSpecific(cookie, nullptr);
+        /**
+         * Decrement session counter here, as memcached thread wouldn't
+         * visit the engine interface in case of a NOT_MY_VB notification
+         */
+        engine.decrementSessionCtr();
     }
 
     updateCompactionTasks(vbid);

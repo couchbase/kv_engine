@@ -248,7 +248,9 @@ protected:
      *
      * @param config the configuration to use for running compaction
      */
-    void compactInternal(CompactionConfig& config, uint64_t purgeSeqno);
+    void compactInternal(std::unique_lock<std::mutex>& vbLock,
+                         CompactionConfig& config,
+                         uint64_t purgeSeqno);
 
     /**
      * Callback to be called on completion of the compaction (just before the

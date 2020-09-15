@@ -2567,6 +2567,12 @@ public:
         return lock.owns_lock();
     }
 
+    /// Get the underlying lock (to allow caller to release the lock and
+    /// reacquire it at a later time)
+    std::unique_lock<std::mutex>& getLock() {
+        return lock;
+    }
+
 private:
     VBucketPtr vb;
     std::unique_lock<std::mutex> lock;
