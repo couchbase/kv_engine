@@ -697,8 +697,7 @@ protected:
      * @return true indicating the compaction was successful.
      */
     bool compactDBInternal(std::unique_lock<std::mutex>& vbLock,
-                           compaction_ctx* hook_ctx,
-                           cb::couchstore::CompactRewriteDocInfoCallback dhook);
+                           compaction_ctx* hook_ctx);
 
     /// try to load _local/vbstate and patch the num_on_disk_prepares
     /// and subtract the number of prepares pruned

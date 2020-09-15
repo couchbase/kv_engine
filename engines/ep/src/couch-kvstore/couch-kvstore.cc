@@ -993,7 +993,7 @@ bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
 
     bool result = true;
     try {
-        result = compactDBInternal(vbLock, hook_ctx.get(), {});
+        result = compactDBInternal(vbLock, hook_ctx.get());
     } catch (const std::exception& le) {
         EP_LOG_WARN(
                 "CouchKVStore::compactDB: exception while performing "
@@ -1017,10 +1017,8 @@ static FileInfo toFileInfo(const cb::couchstore::Header& info) {
             info.docCount, info.deletedCount, info.fileSize, info.purgeSeqNum};
 }
 
-bool CouchKVStore::compactDBInternal(
-        std::unique_lock<std::mutex>& vbLock,
-        compaction_ctx* hook_ctx,
-        cb::couchstore::CompactRewriteDocInfoCallback docinfo_hook) {
+bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
+                                     compaction_ctx* hook_ctx) {
     if (isReadOnly()) {
         throw std::logic_error(
                 "CouchKVStore::compactDB: Cannot perform "
@@ -1121,7 +1119,7 @@ bool CouchKVStore::compactDBInternal(
                 [hook_ctx](Db& db, DocInfo* docInfo, sized_buf value) -> int {
                     return time_purge_hook(&db, docInfo, value, hook_ctx);
                 },
-                std::move(docinfo_hook),
+                {},
                 def_iops,
                 [hook_ctx, this](Db& compacted) {
                     // we don't try to delete the dropped collection document
@@ -1171,7 +1169,7 @@ bool CouchKVStore::compactDBInternal(
                 [hook_ctx](Db& db, DocInfo* docInfo, sized_buf value) -> int {
                     return time_purge_hook(&db, docInfo, value, hook_ctx);
                 },
-                std::move(docinfo_hook),
+                {},
                 def_iops,
                 [hook_ctx, this](Db& compacted) {
                     if (mb40415_regression_hook) {
