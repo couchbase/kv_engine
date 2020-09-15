@@ -5610,8 +5610,8 @@ TEST_P(STParamMagmaBucketTest, ResetPCursorAtPersistNonMetaItems) {
 
 // We want to test what happens during an implicit magma compaction (in
 // particular in regards to the CompactionConfig). Given that we call the same
-// functions with a slightly different compaction_ctx object we can just test
-// this by creating the compaction_ctx in the same way that we do for an
+// functions with a slightly different CompactionContext object we can just test
+// this by creating the CompactionContext in the same way that we do for an
 // implicit compaction and perform a normal compaction with this ctx.
 // This test requires the full engine to ensure that we get correct timestamps
 // for items as we delete them and all the required callbacks to perform

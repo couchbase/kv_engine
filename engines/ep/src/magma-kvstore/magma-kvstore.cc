@@ -231,7 +231,7 @@ static DiskDocKey makeDiskDocKey(const Slice& key) {
 }
 
 MagmaKVStore::MagmaCompactionCB::MagmaCompactionCB(
-        MagmaKVStore& magmaKVStore, std::shared_ptr<compaction_ctx> ctx)
+        MagmaKVStore& magmaKVStore, std::shared_ptr<CompactionContext> ctx)
     : magmaKVStore(magmaKVStore), ctx(std::move(ctx)) {
     magmaKVStore.logger->TRACE("MagmaCompactionCB constructor");
 }
@@ -1844,7 +1844,7 @@ ENGINE_ERROR_CODE MagmaKVStore::getAllKeys(
 }
 
 bool MagmaKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
-                             std::shared_ptr<compaction_ctx> ctx) {
+                             std::shared_ptr<CompactionContext> ctx) {
     vbLock.unlock();
     auto res = compactDBInternal(std::move(ctx));
 
@@ -1855,7 +1855,7 @@ bool MagmaKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
     return res;
 }
 
-bool MagmaKVStore::compactDBInternal(std::shared_ptr<compaction_ctx> ctx) {
+bool MagmaKVStore::compactDBInternal(std::shared_ptr<CompactionContext> ctx) {
     std::chrono::steady_clock::time_point start =
             std::chrono::steady_clock::now();
 
@@ -2312,11 +2312,12 @@ void MagmaKVStore::pendingTasks() {
     }
 }
 
-std::shared_ptr<compaction_ctx> MagmaKVStore::makeCompactionContext(Vbid vbid) {
+std::shared_ptr<CompactionContext> MagmaKVStore::makeCompactionContext(
+        Vbid vbid) {
     if (!makeCompactionContextCallback) {
         throw std::runtime_error(
                 "MagmaKVStore::makeCompactionContext: Have not set "
-                "makeCompactionContextCallback to create a compaction_ctx");
+                "makeCompactionContextCallback to create a CompactionContext");
     }
 
     CompactionConfig config{};

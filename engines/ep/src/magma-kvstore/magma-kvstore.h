@@ -313,16 +313,16 @@ public:
     //    manifest is updated.
     //
     //    Regardless of which type of compaction is running, all compactions
-    //    required a kv_engine callback to pick up compaction_ctx and all
+    //    required a kv_engine callback to pick up CompactionContext and all
     //    compactions can remove expired items or dropped collection items.
     //
     //    Synchronous compaction is supported for testing. Normally, kv_engine
     //    with magma store should never call compactDB. But for testing, we
     //    need to support a synchronous call. When compactDB is called, it will
-    //    save the compaction_ctx passed in to compactDB and will use it
+    //    save the CompactionContext passed in to compactDB and will use it
     //    to perform compaction.
     bool compactDB(std::unique_lock<std::mutex>& vbLock,
-                   std::shared_ptr<compaction_ctx> ctx) override;
+                   std::shared_ptr<CompactionContext> ctx) override;
 
     Vbid getDBFileId(const cb::mcbp::Request&) override;
 
@@ -568,7 +568,7 @@ public:
      * Construct a compaction context for use with implicit compactions. Calls
      * back up to the bucket to do so as we need certain callbacks and config.
      */
-    std::shared_ptr<compaction_ctx> makeCompactionContext(Vbid vbid);
+    std::shared_ptr<CompactionContext> makeCompactionContext(Vbid vbid);
 
     const KVStoreConfig& getConfig() const override;
 
@@ -591,7 +591,7 @@ protected:
     /**
      * CompactDB implementation. See comments on public compactDB.
      */
-    bool compactDBInternal(std::shared_ptr<compaction_ctx> ctx);
+    bool compactDBInternal(std::shared_ptr<CompactionContext> ctx);
 
     /*
      * The DB for each VBucket is created in a separated subfolder of
@@ -629,9 +629,9 @@ protected:
     /**
      * MagmaCompactionCB is the class invoked by magma compactions,
      * both implicit and explicit. For explict compactions, which come
-     * through compactDB, we pass the compaction_ctx thru to the callback
+     * through compactDB, we pass the CompactionContext thru to the callback
      * routine. For implicit compaction, we call makeCompactionCtx to
-     * create the compaction_ctx on the fly.
+     * create the CompactionContext on the fly.
      *
      * Since implicit compactions can run in a thread other than the
      * BG Writer thread, we keep track of MagmaDbStats stats during
@@ -641,7 +641,7 @@ protected:
     class MagmaCompactionCB : public magma::Magma::CompactionCallback {
     public:
         MagmaCompactionCB(MagmaKVStore& magmaKVStore,
-                          std::shared_ptr<compaction_ctx> ctx = nullptr);
+                          std::shared_ptr<CompactionContext> ctx = nullptr);
 
         ~MagmaCompactionCB() override;
         bool operator()(const magma::Slice& keySlice,
@@ -661,7 +661,7 @@ protected:
         // for each key we visit.
         std::stringstream itemKeyBuf;
 
-        std::shared_ptr<compaction_ctx> ctx;
+        std::shared_ptr<CompactionContext> ctx;
 
         MagmaDbStats magmaDbStats;
     };

@@ -110,8 +110,8 @@ struct CompactionConfig {
     bool retain_erroneous_tombstones = false;
 };
 
-struct compaction_ctx {
-    compaction_ctx(const CompactionConfig& config, uint64_t purgeSeq)
+struct CompactionContext {
+    CompactionContext(const CompactionConfig& config, uint64_t purgeSeq)
         : compactConfig(config), max_purged_seq(purgeSeq) {
     }
 
@@ -131,15 +131,15 @@ struct compaction_ctx {
      * A function to call on completion of compaction (before we swap our files)
      * to correctly set in memory state such as the purge seqno.
      */
-    std::function<void(compaction_ctx&)> completionCallback;
+    std::function<void(CompactionContext&)> completionCallback;
 
     /// The SyncRepl HCS, can purge any prepares before the HCS.
     uint64_t highCompletedSeqno = 0;
 };
 
 using MakeCompactionContextCallback =
-        std::function<std::shared_ptr<compaction_ctx>(CompactionConfig&,
-                                                      uint64_t)>;
+        std::function<std::shared_ptr<CompactionContext>(CompactionConfig&,
+                                                         uint64_t)>;
 
 struct kvstats_ctx {
     explicit kvstats_ctx(VB::Commit& commitData) : commitData(commitData) {
@@ -766,12 +766,12 @@ public:
      *               so engines who don't need exclusive access should
      *               release the lock. The lock may be held or released
      *               upon return, the caller will take the appropriate action.
-     * @param c shared_ptr to the compaction_ctx that includes various callbacks
-     *          and compaction parameters
+     * @param c shared_ptr to the CompactionContext that includes various
+     * callbacks and compaction parameters
      * @return true if the compaction was successful
      */
     virtual bool compactDB(std::unique_lock<std::mutex>& vbLock,
-                           std::shared_ptr<compaction_ctx> c) = 0;
+                           std::shared_ptr<CompactionContext> c) = 0;
 
     /**
      * Return the database file id from the compaction request

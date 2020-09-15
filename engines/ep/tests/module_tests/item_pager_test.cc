@@ -164,7 +164,8 @@ protected:
             // compactions to consume any memory
             CompactionConfig compactionConfig;
             compactionConfig.db_file_id = vbid;
-            auto cctx = std::make_shared<compaction_ctx>(compactionConfig, 0);
+            auto cctx =
+                    std::make_shared<CompactionContext>(compactionConfig, 0);
             auto vb = store->getLockedVBucket(vbid);
             EXPECT_TRUE(kvstore->compactDB(vb.getLock(), cctx));
         }

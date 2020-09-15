@@ -254,7 +254,7 @@ public:
     bool snapshotVBucket(Vbid vbucketId, const vbucket_state& vbstate) override;
 
     bool compactDB(std::unique_lock<std::mutex>& vbLock,
-                   std::shared_ptr<compaction_ctx> ctx) override;
+                   std::shared_ptr<CompactionContext> ctx) override;
 
     /**
      * Return the database file id from the compaction request
@@ -697,7 +697,7 @@ protected:
      * @return true indicating the compaction was successful.
      */
     bool compactDBInternal(std::unique_lock<std::mutex>& vbLock,
-                           compaction_ctx* hook_ctx);
+                           CompactionContext* hook_ctx);
 
     /// try to load _local/vbstate and patch the num_on_disk_prepares
     /// and subtract the number of prepares pruned

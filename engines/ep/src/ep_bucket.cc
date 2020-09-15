@@ -1108,13 +1108,13 @@ void EPBucket::dropKey(Vbid vbid,
     }
 }
 
-std::shared_ptr<compaction_ctx> EPBucket::makeCompactionContext(
+std::shared_ptr<CompactionContext> EPBucket::makeCompactionContext(
         CompactionConfig& config, uint64_t purgeSeqno) {
     config.purge_before_ts =
             ep_real_time() -
             getEPEngine().getConfiguration().getPersistentMetadataPurgeAge();
 
-    auto ctx = std::make_shared<compaction_ctx>(config, purgeSeqno);
+    auto ctx = std::make_shared<CompactionContext>(config, purgeSeqno);
 
     BloomFilterCBPtr filter(new BloomFilterCallback(*this));
     ctx->bloomFilterCallback = filter;
@@ -1137,7 +1137,7 @@ std::shared_ptr<compaction_ctx> EPBucket::makeCompactionContext(
     return ctx;
 }
 
-void EPBucket::compactionCompletionCallback(compaction_ctx& ctx) {
+void EPBucket::compactionCompletionCallback(CompactionContext& ctx) {
     auto vb = getVBucket(ctx.compactConfig.db_file_id);
     if (!vb) {
         return;

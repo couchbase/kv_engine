@@ -26,7 +26,7 @@ namespace VB {
 class Commit;
 }
 enum class ValueFilter;
-struct compaction_ctx;
+struct CompactionContext;
 
 /**
  * Eventually Persistent Bucket
@@ -223,7 +223,7 @@ public:
 
     void warmupCompleted();
 
-    std::shared_ptr<compaction_ctx> makeCompactionContext(
+    std::shared_ptr<CompactionContext> makeCompactionContext(
             CompactionConfig& config, uint64_t purgeSeqno);
 
     // implemented by querying StorageProperties for the buckets KVStore
@@ -256,7 +256,7 @@ protected:
      * Callback to be called on completion of the compaction (just before the
      * atomic switch of the files)
      */
-    void compactionCompletionCallback(compaction_ctx& ctx);
+    void compactionCompletionCallback(CompactionContext& ctx);
 
     /**
      * Remove completed compaction tasks or wake snoozed tasks

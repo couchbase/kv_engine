@@ -785,7 +785,7 @@ void CouchKVStore::getPersistedStats(std::map<std::string,
 static int notify_expired_item(DocInfo& info,
                                MetaData& metadata,
                                sized_buf item,
-                               compaction_ctx& ctx,
+                               CompactionContext& ctx,
                                time_t currtime) {
     sized_buf data{nullptr, 0};
     cb::compression::Buffer inflated;
@@ -829,7 +829,7 @@ static int notify_expired_item(DocInfo& info,
 static int time_purge_hook(Db* d,
                            DocInfo* info,
                            sized_buf item,
-                           compaction_ctx* ctx) {
+                           CompactionContext* ctx) {
     if (info == nullptr) {
         // Compaction finished
         return couchstore_set_purge_seq(d, ctx->max_purged_seq);
@@ -970,7 +970,7 @@ static int time_purge_hook(Db* d,
 }
 
 bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
-                             std::shared_ptr<compaction_ctx> hook_ctx) {
+                             std::shared_ptr<CompactionContext> hook_ctx) {
     if (isReadOnly()) {
         throw std::logic_error(
                 "CouchKVStore::compactDB() can't be called on read only "
@@ -1018,7 +1018,7 @@ static FileInfo toFileInfo(const cb::couchstore::Header& info) {
 }
 
 bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
-                                     compaction_ctx* hook_ctx) {
+                                     CompactionContext* hook_ctx) {
     if (isReadOnly()) {
         throw std::logic_error(
                 "CouchKVStore::compactDB: Cannot perform "
