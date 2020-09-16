@@ -266,7 +266,16 @@ EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
             engine.getConfiguration(), stats);
 
     vbMap.enablePersistence(*this);
-    for (size_t i = 0; i < vbMap.getNumShards(); i++) {
+
+    // Pre-7.0.0 BgFetchers were a part of KVShard so keep the same default
+    // scaling.
+    auto configBgFetcherLimit = config.getMaxNumBgfetchers();
+    auto bgFetcherLimit = configBgFetcherLimit == 0 ? vbMap.getNumShards()
+                                                    : configBgFetcherLimit;
+
+    // Limit BgFetchers by the number of vBuckets as any more would be useless.
+    bgFetcherLimit = std::min(bgFetcherLimit, config.getMaxVbuckets());
+    for (size_t i = 0; i < bgFetcherLimit; i++) {
         bgFetchers.emplace_back(std::make_unique<BgFetcher>(*this));
     }
 

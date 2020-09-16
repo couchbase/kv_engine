@@ -664,6 +664,12 @@
             "dynamic": false,
             "type": "size_t"
         },
+        "max_num_bgfetchers": {
+            "default": "0",
+            "descr": "Maximum number of bg fetcher objects (the number of concurrent bg fetch tasks we can run). 0 = auto-configure which means we use the same number as the number of shards (max_num_shards - for historic reasons). See also num_reader_threads.",
+            "dynamic": false,
+            "type": "size_t"
+        },
         "max_num_shards": {
             "default": "0",
             "descr": "Maximum mumber of shards (0 = auto-configure)",
