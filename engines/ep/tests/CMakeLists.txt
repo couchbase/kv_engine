@@ -110,7 +110,8 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
         ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
         ${Memcached_SOURCE_DIR}/logger/logger_test_fixture.cc)
 IF(EP_USE_MAGMA)
-    TARGET_SOURCES(ep-engine_ep_unit_tests PUBLIC module_tests/magma-kvstore_test.cc)
+    target_sources(ep-engine_ep_unit_tests PUBLIC
+            ${EventuallyPersistentEngine_SOURCE_DIR}/tests/module_tests/magma-kvstore_test.cc)
 ENDIF()
 
 TARGET_INCLUDE_DIRECTORIES(ep-engine_ep_unit_tests
