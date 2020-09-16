@@ -122,7 +122,8 @@ protected:
     EventuallyPersistentEngine &engine;
 
     AtomicQueue<std::weak_ptr<ConnHandler>> pendingNotifications;
-    std::shared_ptr<ConnNotifier> connNotifier_;
+
+    const std::shared_ptr<ConnNotifier> connNotifier;
 
     // ConnStore is pretty big (the header) so use PIMPL to avoid including it
     // wherever ConnMap is included

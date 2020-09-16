@@ -39,11 +39,10 @@ public:
     }
 
     void initialize() {
-        connNotifier_ = std::make_shared<ConnNotifier>(*this);
-        // We do not create a ConnNotifierCallback task
-        // We do not create a ConnManager task
-        // The ConnNotifier is deleted in the DcpConnMap
-        // destructor
+        // The ConnNotifier is created in the base-class ctor and deleted in the
+        // base-class dtor.
+        // We do not schedule any ConnNotifierCallback task.
+        // We do not schedule any ConnManager task.
     }
 
     void addConn(const void* cookie, std::shared_ptr<ConnHandler> conn);

@@ -210,10 +210,8 @@ DcpProducer* DcpConnMap::newProducer(const void* cookie,
 void DcpConnMap::shutdownAllConnections() {
     EP_LOG_INFO("Shutting down dcp connections!");
 
-    if (connNotifier_ != NULL) {
-        connNotifier_->stop();
-        manageConnections();
-    }
+    connNotifier->stop();
+    manageConnections();
 
     // Take a copy of the connection map (under lock), then using the
     // copy iterate across closing all streams and cancelling any

@@ -109,21 +109,18 @@ private:
 
 ConnMap::ConnMap(EventuallyPersistentEngine& theEngine)
     : engine(theEngine),
-      connNotifier_(nullptr),
+      connNotifier(std::make_shared<ConnNotifier>(*this)),
       connStore(std::make_unique<ConnStore>(theEngine)) {
 }
 
 void ConnMap::initialize() {
-    connNotifier_ = std::make_shared<ConnNotifier>(*this);
-    connNotifier_->start();
+    connNotifier->start();
     ExTask connMgr = std::make_shared<ConnManager>(&engine, this);
     ExecutorPool::get()->schedule(connMgr);
 }
 
 ConnMap::~ConnMap() {
-    if (connNotifier_) {
-        connNotifier_->stop();
-    }
+    connNotifier->stop();
 }
 
 void ConnMap::notifyPausedConnection(const std::shared_ptr<ConnHandler>& conn) {
@@ -146,11 +143,9 @@ void ConnMap::addConnectionToPending(const std::shared_ptr<ConnHandler>& conn) {
 
     if (conn.get() && conn->isPaused() && conn->isReserved()) {
         pendingNotifications.push(conn);
-        if (connNotifier_) {
-            // Wake up the connection notifier so that
-            // it can notify the event to a given paused connection.
-            connNotifier_->notifyMutationEvent();
-        }
+        // Wake up the connection notifier so that
+        // it can notify the event to a given paused connection.
+        connNotifier->notifyMutationEvent();
     }
 }
 
