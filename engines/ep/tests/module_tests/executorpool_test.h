@@ -40,15 +40,6 @@ public:
                   maxThreads, maxReaders, maxWriters, maxAuxIO, maxNonIO) {
     }
 
-    // Returns a vector of the registered ExecutorThreads, non-owning.
-    // WARNING: Not safe to reduce thread pool size while the result of
-    // this method is still in use.
-    ThreadQ getThreads() {
-        LockHolder lh(tMutex);
-        ThreadQ result = threadQ;
-        return result;
-    }
-
     ~TestExecutorPool() override = default;
 };
 

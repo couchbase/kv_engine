@@ -438,11 +438,12 @@ void CB3ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
         LockHolder lh(tMutex);
 
         // How many threads performing this task type there are currently
-        numItems = std::count_if(threadQ.begin(),
-                                 threadQ.end(),
-                                 [type](CB3ExecutorThread* thread) {
-                                     return thread->taskType == type;
-                                 });
+        numItems = std::count_if(
+                threadQ.begin(),
+                threadQ.end(),
+                [type](std::unique_ptr<CB3ExecutorThread>& thread) {
+                    return thread->taskType == type;
+                });
 
         if (numItems == desiredNumItems) {
             return;
@@ -457,7 +458,7 @@ void CB3ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
             // If we want to increase the number of threads, they must be
             // created and started
             for (size_t tidx = numItems; tidx < desiredNumItems; ++tidx) {
-                threadQ.push_back(new CB3ExecutorThread(
+                threadQ.push_back(std::make_unique<CB3ExecutorThread>(
                         this,
                         type,
                         typeName + "_worker_" + std::to_string(tidx)));
@@ -475,7 +476,7 @@ void CB3ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
                     (*itr)->stop(false);
 
                     // store temporarily
-                    removed.push_back(*itr);
+                    removed.push_back(std::move(*itr));
 
                     // remove from the threadQ
                     itr = ThreadQ::reverse_iterator(
@@ -506,7 +507,6 @@ void CB3ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
     auto itr = removed.begin();
     while (itr != removed.end()) {
         (*itr)->stop(true);
-        delete (*itr);
         itr = removed.erase(itr);
     }
 }
@@ -601,7 +601,7 @@ std::vector<ExTask> CB3ExecutorPool::_unregisterTaskable(Taskable& taskable,
 
         for (auto& tidx : threadQ) {
             tidx->stop(/*wait for threads */);
-            delete tidx;
+            tidx.reset();
         }
 
         for (size_t i = 0; i < numTaskSets; i++) {
@@ -692,13 +692,13 @@ void CB3ExecutorPool::doTaskQStat(Taskable& taskable,
 }
 
 static void addWorkerStats(const char* prefix,
-                           CB3ExecutorThread* t,
+                           CB3ExecutorThread& t,
                            const void* cookie,
                            const AddStatFn& add_stat) {
     std::array<char, 80> statname{};
 
     try {
-        std::string bucketName = t->getTaskableName();
+        std::string bucketName = t.getTaskableName();
         if (!bucketName.empty()) {
             checked_snprintf(
                     statname.data(), statname.size(), "%s:bucket", prefix);
@@ -708,15 +708,15 @@ static void addWorkerStats(const char* prefix,
 
         checked_snprintf(statname.data(), statname.size(), "%s:state", prefix);
         add_casted_stat(
-                statname.data(), t->getStateName().c_str(), add_stat, cookie);
+                statname.data(), t.getStateName().c_str(), add_stat, cookie);
         checked_snprintf(statname.data(), statname.size(), "%s:task", prefix);
-        add_casted_stat(statname.data(), t->getTaskName(), add_stat, cookie);
+        add_casted_stat(statname.data(), t.getTaskName(), add_stat, cookie);
 
-        if (strcmp(t->getStateName().c_str(), "running") == 0) {
+        if (strcmp(t.getStateName().c_str(), "running") == 0) {
             checked_snprintf(
                     statname.data(), statname.size(), "%s:runtime", prefix);
             const auto duration =
-                    std::chrono::steady_clock::now() - t->getTaskStart();
+                    std::chrono::steady_clock::now() - t.getTaskStart();
             add_casted_stat(
                     statname.data(),
                     std::chrono::duration_cast<std::chrono::microseconds>(
@@ -728,7 +728,7 @@ static void addWorkerStats(const char* prefix,
         checked_snprintf(
                 statname.data(), statname.size(), "%s:cur_time", prefix);
         add_casted_stat(statname.data(),
-                        to_ns_since_epoch(t->getCurTime()).count(),
+                        to_ns_since_epoch(t.getCurTime()).count(),
                         add_stat,
                         cookie);
     } catch (std::exception& error) {
@@ -747,7 +747,7 @@ void CB3ExecutorPool::doWorkerStat(Taskable& taskable,
     LockHolder lh(tMutex);
     // TODO: implement tracking per engine stats ..
     for (auto& tidx : threadQ) {
-        addWorkerStats(tidx->getName().c_str(), tidx, cookie, add_stat);
+        addWorkerStats(tidx->getName().c_str(), *tidx, cookie, add_stat);
     }
 }
 
@@ -818,7 +818,7 @@ void CB3ExecutorPool::doTasksStat(Taskable& taskable,
 
 void CB3ExecutorPool::_stopAndJoinThreads() {
     // Ask all threads to stop (but don't wait)
-    for (auto thread : threadQ) {
+    for (auto& thread : threadQ) {
         thread->stop(false);
     }
 
@@ -833,7 +833,7 @@ void CB3ExecutorPool::_stopAndJoinThreads() {
     }
 
     // Now reap/join those threads.
-    for (auto thread : threadQ) {
+    for (auto& thread : threadQ) {
         thread->stop(true);
     }
 }

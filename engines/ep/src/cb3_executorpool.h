@@ -80,7 +80,7 @@
 class TaskQueue;
 class CB3ExecutorThread;
 
-using ThreadQ = std::vector<CB3ExecutorThread*>;
+using ThreadQ = std::vector<std::unique_ptr<CB3ExecutorThread>>;
 using TaskQpair = std::pair<ExTask, TaskQueue*>;
 using TaskQ = std::vector<TaskQueue*>;
 
