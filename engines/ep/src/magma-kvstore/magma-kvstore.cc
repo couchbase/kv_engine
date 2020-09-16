@@ -2443,9 +2443,7 @@ void MagmaKVStore::setMagmaFragmentationPercentage(size_t value) {
 void MagmaKVStore::calculateAndSetMagmaThreads() {
     auto backendThreads = configuration.getStorageThreads();
     if (backendThreads == 0) {
-        backendThreads =
-                std::min(configuration.getNumWriterThreads(),
-                         configuration.getMagmaMaxDefaultStorageThreads());
+        backendThreads = configuration.getMagmaMaxDefaultStorageThreads();
     }
 
     auto flusherRatio =
