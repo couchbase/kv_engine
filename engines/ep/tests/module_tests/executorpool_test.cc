@@ -156,7 +156,7 @@ TYPED_TEST(ExecutorPoolTest, UnregisterTaskablesCancelsTasks) {
         // Access it's taskable - if this runs after unregisterTaskable() than
         // that would be invalid.
         taskablePtr->logRunTime(task.getTaskId(), {});
-        return true;
+        return false;
     };
     auto task = std::make_shared<LambdaTask>(
             *taskable, TaskId::ItemPager, 0, false, taskFn);
