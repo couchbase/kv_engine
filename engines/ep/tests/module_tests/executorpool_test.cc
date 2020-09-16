@@ -205,9 +205,6 @@ TYPED_TEST(ExecutorPoolTest, WakeMultiple) {
     // We expect the two wake-ups to be coaleacsed into one execution, _after_
     // this task run completes - i.e. the task shouldn't run again concurrently
     // in a different thread.
-    // Using a thread gate with count 2 - we only expect one thread to checkin
-    // to the gate, the second count will be used to unblock the task.
-    ThreadGate threadGate{2};
     SyncObject cv;
     int runCount = 0;
     auto task = std::make_shared<LambdaTask>(
@@ -227,34 +224,15 @@ TYPED_TEST(ExecutorPoolTest, WakeMultiple) {
                     }
                     cv.notify_one();
                 }
-                // Block on threadGate; will be unblocked later
-                // by main thread.
-                threadGate.threadUp();
 
                 return true;
             });
     this->pool->schedule(task);
 
-    // Test - wait for the task to run the first time (and hence wake() to have
-    // been called).
-    {
-        std::unique_lock<std::mutex> guard(cv);
-        cv.wait(guard, [&runCount] { return runCount >= 1; });
-    }
-
-    // Increment ThreadGate to allow the task to finish it's first execution
-    // and perform the second execution.
-    threadGate.threadUp();
+    // Test - wait for the task to run (hopefully only) two times.
     {
         std::unique_lock<std::mutex> guard(cv);
         cv.wait(guard, [&runCount] { return runCount >= 2; });
-    }
-
-    // Check runCount - shouldn't exceed 2.
-    {
-        std::unique_lock<std::mutex> guard(cv);
-        EXPECT_EQ(2, runCount)
-                << "Task should only have run twice after wakeup";
     }
 
     // Unregister the taskable. This should run any pending tasks to run
