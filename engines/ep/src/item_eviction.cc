@@ -69,9 +69,5 @@ uint8_t ItemEviction::convertFreqCountToNRUValue(uint8_t probCounter) {
 }
 
 void ItemEviction::copyFreqHistogram(HdrHistogram& hist) {
-    HdrHistogram::Iterator iter{
-            freqHistogram.makeLinearIterator(valueUnitsPerBucket)};
-    while (auto result = freqHistogram.getNextValueAndCount(iter)) {
-        hist.addValueAndCount(result->first, result->second);
-    }
+    hist = freqHistogram;
 }

@@ -18,12 +18,9 @@
 #include "thread_gate.h"
 
 #include <folly/portability/GTest.h>
-#include <hdr_histogram.h>
-#include <optional>
-
 #include <cmath>
-#include <iomanip>
 #include <memory>
+#include <optional>
 #include <random>
 #include <thread>
 #include <utility>
@@ -467,4 +464,61 @@ TEST(HdrHistogramTest, int64MaxSizeTest) {
 
     // Testing any higher than this gives us garbage results back but
     // unfortunately with no way of knowing that they're garbage.
+}
+
+static std::vector<std::optional<std::pair<uint64_t, double>>> getAllValues(
+        const HdrHistogram& histo, HdrHistogram::Iterator& iter) {
+    std::vector<std::optional<std::pair<uint64_t, double>>> values;
+    while (auto pair = histo.getNextValueAndPercentile(iter)) {
+        if (!pair.has_value())
+            break;
+        values.push_back(pair);
+    }
+    return values;
+}
+
+void resetThread(HdrHistogram& histo, ThreadGate& tg) {
+    EXPECT_EQ(histo.getValueCount(), 10);
+    tg.threadUp();
+    histo.reset();
+    EXPECT_EQ(histo.getValueCount(), 0);
+}
+
+/**
+ * Test to check that if you create an iterator on a HdrHistogram object, then
+ * call reset() on it in another thread and use the iterator that the iterator
+ * doesn't end up in an infinite loop.
+ */
+TEST(HdrHistogramTest, ResetItoratorInfLoop) {
+    Hdr2sfMicroSecHistogram histogram;
+    for (int i = 0; i < 10; i++) {
+        histogram.addValue(i);
+    }
+    {
+        auto iter = histogram.getHistogramsIterator();
+        auto values = getAllValues(histogram, iter);
+        EXPECT_EQ(values.size(), 20);
+    }
+
+    std::thread thread;
+    { // Scope that holds read lock for iterator
+        auto iter2 = histogram.getHistogramsIterator();
+        /**
+         * Create thread this should start running resetThread() at some point
+         * int time will be blocked at HdrHistogram::reset() till this scope is
+         * exited and iter2 is destroyed (releasing the read lock).
+         * We will also create a ThreadGat to ensure the reset thread is runing
+         * and is about to try and get an exclusive lock before reading values
+         * from the histogram.
+         */
+        ThreadGate tg(2);
+        thread = std::thread(resetThread, std::ref(histogram), std::ref(tg));
+        tg.threadUp();
+        auto values = getAllValues(histogram, iter2);
+        EXPECT_EQ(values.size(), 20);
+    } // iter2 read lock released
+
+    // wait for resetThread() to complete
+    thread.join();
+    EXPECT_EQ(histogram.getValueCount(), 0);
 }

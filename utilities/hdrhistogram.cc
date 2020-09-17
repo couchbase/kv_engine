@@ -16,8 +16,8 @@
  */
 
 #include "hdrhistogram.h"
+
 #include <folly/lang/Assume.h>
-#include <hdr_histogram.h>
 #include <nlohmann/json.hpp>
 #include <platform/cb_malloc.h>
 #include <iostream>
@@ -51,17 +51,17 @@ HdrHistogram::HdrHistogram(uint64_t lowestTrackableValue,
                 significantFigures,
                 &hist, // Pointer to initialise
                 cb_calloc);
-
-    histogram.reset(hist);
+    histogram.wlock()->reset(hist);
     defaultIterationMode = iterMode;
 }
 
 HdrHistogram& HdrHistogram::operator+=(const HdrHistogram& other) {
-    if (other.histogram != nullptr && other.getValueCount() > 0) {
+    if (other.histogram.rlock()->get() != nullptr &&
+        other.getValueCount() > 0) {
         // work out if we need to resize the receiving histogram
         uint64_t newMin = this->getMinTrackableValue();
         uint64_t newMax = this->getMaxTrackableValue();
-        int32_t newSigfig = this->histogram->significant_figures;
+        int32_t newSigfig = this->getSigFigAccuracy();
         bool resize = false;
 
         if (other.getMinTrackableValue() < this->getMinTrackableValue()) {
@@ -73,15 +73,14 @@ HdrHistogram& HdrHistogram::operator+=(const HdrHistogram& other) {
             resize = true;
         }
 
-        if (other.histogram->significant_figures >
-            this->histogram->significant_figures) {
-            newSigfig = other.histogram->significant_figures;
+        if (other.getSigFigAccuracy() > this->getSigFigAccuracy()) {
+            newSigfig = other.getSigFigAccuracy();
             resize = true;
         }
         if (resize) {
             this->resize(newMin, newMax, newSigfig);
         }
-        hdr_add(this->histogram.get(), other.histogram.get());
+        hdr_add(this->histogram.rlock()->get(), other.histogram.rlock()->get());
     }
     return *this;
 }
@@ -89,35 +88,39 @@ HdrHistogram& HdrHistogram::operator+=(const HdrHistogram& other) {
 bool HdrHistogram::addValue(uint64_t v) {
     // A hdr_histogram cannot store 0, therefore we add a bias of +1.
     int64_t vBiased = v + 1;
-    return hdr_record_value(histogram.get(), vBiased);
+    return hdr_record_value(histogram.rlock()->get(), vBiased);
 }
 
 bool HdrHistogram::addValueAndCount(uint64_t v, uint64_t count) {
     // A hdr_histogram cannot store 0, therefore we add a bias of +1.
     int64_t vBiased = v + 1;
-    return hdr_record_values(histogram.get(), vBiased, count);
+    return hdr_record_values(histogram.rlock()->get(), vBiased, count);
 }
 
 uint64_t HdrHistogram::getValueCount() const {
-    return static_cast<uint64_t>(histogram->total_count);
+    return static_cast<uint64_t>(histogram.rlock()->get()->total_count);
 }
 
 uint64_t HdrHistogram::getMinValue() const {
+    // check there are values in the histogram otherwise hdr_min() will return
+    // 0 which will cause use to return a UINT64_MAX.
     if (getValueCount()) {
-        return static_cast<uint64_t>(hdr_min(histogram.get()) - 1);
+        return static_cast<uint64_t>(hdr_min(histogram.rlock()->get()) - 1);
     }
     return 0;
 }
 
 uint64_t HdrHistogram::getMaxValue() const {
+    // check there are values in the histogram otherwise hdr_max() will return
+    // 0 which will cause use to return a UINT64_MAX.
     if (getValueCount()) {
-        return static_cast<uint64_t>(hdr_max(histogram.get()) - 1);
+        return static_cast<uint64_t>(hdr_max(histogram.rlock()->get()) - 1);
     }
     return 0;
 }
 
 void HdrHistogram::reset() {
-    hdr_reset(histogram.get());
+    hdr_reset(histogram.wlock()->get());
 }
 
 uint64_t HdrHistogram::getValueAtPercentile(double percentage) const {
@@ -125,40 +128,38 @@ uint64_t HdrHistogram::getValueAtPercentile(double percentage) const {
     // addValueToFreqHistogram).  Therefore need to minus the bias
     // before returning the value from the histogram.
     // Note: If the histogram is empty we just want to return 0;
-    uint64_t value = hdr_value_at_percentile(histogram.get(), percentage);
+    uint64_t value =
+            hdr_value_at_percentile(histogram.rlock()->get(), percentage);
     uint64_t result = getValueCount() > 0 ? (value - 1) : 0;
     return result;
 }
 
 HdrHistogram::Iterator HdrHistogram::makeLinearIterator(
         int64_t valueUnitsPerBucket) const {
-    HdrHistogram::Iterator iter{};
-    iter.type = Iterator::IterMode::Linear;
-    hdr_iter_linear_init(&iter, histogram.get(), valueUnitsPerBucket);
-    return iter;
+    HdrHistogram::Iterator itr(histogram, Iterator::IterMode::Linear);
+    hdr_iter_linear_init(&itr, itr.histoRLockPtr->get(), valueUnitsPerBucket);
+    return itr;
 }
 
 HdrHistogram::Iterator HdrHistogram::makeLogIterator(int64_t firstBucketWidth,
                                                      double log_base) const {
-    HdrHistogram::Iterator iter{};
-    iter.type = Iterator::IterMode::Log;
-    hdr_iter_log_init(&iter, histogram.get(), firstBucketWidth, log_base);
-    return iter;
+    HdrHistogram::Iterator itr(histogram, Iterator::IterMode::Log);
+    hdr_iter_log_init(
+            &itr, itr.histoRLockPtr->get(), firstBucketWidth, log_base);
+    return itr;
 }
 
 HdrHistogram::Iterator HdrHistogram::makePercentileIterator(
         uint32_t ticksPerHalfDist) const {
-    HdrHistogram::Iterator iter{};
-    iter.type = Iterator::IterMode::Percentiles;
-    hdr_iter_percentile_init(&iter, histogram.get(), ticksPerHalfDist);
-    return iter;
+    HdrHistogram::Iterator itr(histogram, Iterator::IterMode::Percentiles);
+    hdr_iter_percentile_init(&itr, itr.histoRLockPtr->get(), ticksPerHalfDist);
+    return itr;
 }
 
 HdrHistogram::Iterator HdrHistogram::makeRecordedIterator() const {
-    HdrHistogram::Iterator iter{};
-    iter.type = Iterator::IterMode::Recorded;
-    hdr_iter_recorded_init(&iter, histogram.get());
-    return iter;
+    HdrHistogram::Iterator itr(histogram, Iterator::IterMode::Recorded);
+    hdr_iter_recorded_init(&itr, itr.histoRLockPtr->get());
+    return itr;
 }
 
 HdrHistogram::Iterator HdrHistogram::makeIterator(
@@ -246,16 +247,16 @@ HdrHistogram::getNextValueAndPercentile(Iterator& iter) const {
 }
 
 void HdrHistogram::printPercentiles() const {
-    hdr_percentiles_print(histogram.get(), stdout, 5, 1.0, CLASSIC);
+    hdr_percentiles_print(histogram.rlock()->get(), stdout, 5, 1.0, CLASSIC);
 }
 
 void HdrHistogram::dumpLinearValues(int64_t bucketWidth) {
-    HdrHistogram::Iterator itr = makeLinearIterator(bucketWidth);
+    auto itr = makeLinearIterator(bucketWidth);
     std::cout << dumpValues(itr).str();
 }
 
 void HdrHistogram::dumpLogValues(int64_t firstBucketWidth, double log_base) {
-    HdrHistogram::Iterator itr = makeLogIterator(firstBucketWidth, log_base);
+    auto itr = makeLogIterator(firstBucketWidth, log_base);
     std::cout << dumpValues(itr).str();
 }
 
@@ -275,7 +276,7 @@ nlohmann::json HdrHistogram::to_json(Iterator::IterMode itrType) {
     nlohmann::json rootObj;
 
     // Five is the number of iteration steps per half-distance to 100%.
-    Iterator itr = makePercentileIterator(5);
+    auto itr = makePercentileIterator(5);
 
     rootObj["total"] = itr.total_count;
     // bucketsLow represents the starting value of the first bucket
@@ -302,11 +303,11 @@ std::string HdrHistogram::to_string() {
 }
 
 size_t HdrHistogram::getMemFootPrint() const {
-    return hdr_get_memory_size(histogram.get()) + sizeof(HdrHistogram);
+    return hdr_get_memory_size(histogram.rlock()->get()) + sizeof(HdrHistogram);
 }
 
 double HdrHistogram::getMean() const {
-    return hdr_mean(histogram.get()) - 1;
+    return hdr_mean(histogram.rlock()->get()) - 1;
 }
 
 void HdrHistogram::resize(uint64_t lowestTrackableValue,
@@ -331,6 +332,6 @@ void HdrHistogram::resize(uint64_t lowestTrackableValue,
                 &hist, // Pointer to initialise
                 cb_calloc);
 
-    hdr_add(hist, histogram.get());
-    histogram.reset(hist);
+    hdr_add(hist, histogram.rlock()->get());
+    histogram.wlock()->reset(hist);
 }
