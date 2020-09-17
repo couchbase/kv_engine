@@ -96,7 +96,7 @@ private:
     std::atomic<size_t>      taskId;
 
     std::atomic<bool> forceShutdownReceived;
-    std::queue<Vbid> hpVbs;
+    VBReadyQueue hpVbs;
     VBReadyQueue lpVbs;
     bool doHighPriority;
     size_t numHighPriority;

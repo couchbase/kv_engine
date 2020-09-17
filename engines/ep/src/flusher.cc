@@ -26,6 +26,7 @@ Flusher::Flusher(EPBucket* st, KVShard* k)
       _state(State::Initializing),
       taskId(0),
       forceShutdownReceived(false),
+      hpVbs(st->getVBuckets().getSize()),
       lpVbs(st->getVBuckets().getSize()),
       doHighPriority(false),
       numHighPriority(0),
@@ -248,7 +249,7 @@ bool Flusher::flushVB() {
         for (auto vbid : shard->getVBuckets()) {
             VBucketPtr vb = store->getVBucket(vbid);
             if (vb && vb->getHighPriorityChkSize() > 0) {
-                hpVbs.push(vbid);
+                hpVbs.pushUnique(vbid);
             }
         }
         numHighPriority = hpVbs.size();
@@ -258,15 +259,13 @@ bool Flusher::flushVB() {
     }
 
     // Flush a high priority vBucket if applicable
-    if (!hpVbs.empty()) {
-        Vbid vbid = hpVbs.front();
-        hpVbs.pop();
-
+    Vbid vbid;
+    if (hpVbs.popFront(vbid)) {
         const auto res = store->flushVBucket(vbid);
 
         if (res.moreAvailable == EPBucket::MoreAvailable::Yes) {
             // More items still available, add vbid back to pending set.
-            hpVbs.push(vbid);
+            hpVbs.pushUnique(vbid);
         }
 
         // Flushing may move the persistence cursor to a new checkpoint.
@@ -287,7 +286,6 @@ bool Flusher::flushVB() {
         doHighPriority = false;
     }
 
-    Vbid vbid;
     if (!lpVbs.popFront(vbid)) {
         // Return no more so we don't rewake the task
         return false;
