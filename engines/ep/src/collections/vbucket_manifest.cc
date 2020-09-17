@@ -255,7 +255,7 @@ void Manifest::addCollection(const WriteHandle& wHandle,
                                             optionalSeqno);
 
     EP_LOG_INFO(
-            "collections: {} adding collection:[name:{},id:{:#x}] to "
+            "collections: {} adding collection:[name:{},id:{}] to "
             "scope:{:#x}, "
             "maxTTL:{} {}, "
             "replica:{}, seqno:{}, manifest:{:#x}",
@@ -336,7 +336,7 @@ void Manifest::dropCollection(const WriteHandle& wHandle,
                                             optionalSeqno);
 
     EP_LOG_INFO(
-            "collections: {} drop of collection:{:#x} from scope:{:#x}"
+            "collections: {} drop of collection:{} from scope:{:#x}"
             ", replica:{}, seqno:{}, manifest:{:#x} tombstone:{}",
             vb.getId(),
             cid,

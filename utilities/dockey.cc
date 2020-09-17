@@ -36,7 +36,7 @@ bool operator==(CollectionIDType lhs, const CollectionID& rhs) {
 }
 
 std::ostream& operator<<(std::ostream& os, const CollectionID& cid) {
-    return os << std::hex << uint32_t(cid);
+    return os << "0x" << std::hex << uint32_t(cid);
 }
 
 std::string ScopeID::to_string() const {
