@@ -68,7 +68,7 @@ Setting the buffer size for a stream to zero is a special case for flow control.
 
 ### Buffering Messages
 
-Only Mutation, Deletion, Expiration, Snapshot Markers, Set VBucket State, and Stream End messages should be buffered. All other messages should be processed immediately and should not be counted as taking up buffer space. This is important because DCP connections should always be able to process [No-op](commands/no-op.md) messages quickly. Other messages like [Control](commands/control.md) messages do not take up significant memory space and can be applied immediatley without having to take up buffer space.
+Only Mutation, Deletion, Expiration, Snapshot Markers, OSO Snapshot Markers, Set VBucket State, and Stream End messages should be buffered. All other messages should be processed immediately and should not be counted as taking up buffer space. This is important because DCP connections should always be able to process [No-op](commands/no-op.md) messages quickly. Other messages like [Control](commands/control.md) messages do not take up significant memory space and can be applied immediatley without having to take up buffer space.
 
 ## Flow control policies in DCP Consumer (replica connection) on Couchbase Data Nodes
 There are 4 different types are of flow control policies that are supported by DCP consumers on couchbase data nodes. They are **(1) none (2) static (3) dynamic (4) aggressive**. One of these policies can be chosen by setting it in the configuration file.  The DCP consumers on couchbase data nodes are created for data replication from active to replica vbuckets.
