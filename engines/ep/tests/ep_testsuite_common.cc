@@ -543,6 +543,10 @@ bool isEphemeralBucket(EngineIface* h) {
     return get_str_stat(h, "ep_bucket_type") == "ephemeral";
 }
 
+bool isFollyExecutorPool(EngineIface* h) {
+    return get_str_stat(h, "ep_executor_pool_backend", "config") == "folly";
+}
+
 void checkPersistentBucketTempItems(EngineIface* h, int exp) {
     if (isPersistentBucket(h)) {
         checkeq(exp,

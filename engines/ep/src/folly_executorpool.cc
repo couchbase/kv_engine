@@ -751,7 +751,13 @@ bool FollyExecutorPool::snooze(size_t taskId, double toSleep) {
 void FollyExecutorPool::doWorkerStat(Taskable& taskable,
                                      const void* cookie,
                                      const AddStatFn& add_stat) {
-    std::abort();
+    // It's not possible directly introspect what a Folly ExecutorThread
+    // is running.
+    // We _could_ implement similar functionality by manually tracking what is
+    // running on each thread, but that would add additional costs & complexity
+    // to TaskProxy, and it's been rare that the per-thread currently-running
+    // task has been of use.
+    // As such, no worker stats currently provided.
 }
 
 void FollyExecutorPool::doTasksStat(Taskable& taskable,

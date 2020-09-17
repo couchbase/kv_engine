@@ -3823,6 +3823,10 @@ static enum test_result test_max_workload_stats(EngineIface* h) {
 }
 
 static enum test_result test_worker_stats(EngineIface* h) {
+    if (isFollyExecutorPool(h)) {
+        // FollyExecutorPool doesn't support 'worker' stats.
+        return SKIPPED;
+    }
     checkeq(ENGINE_SUCCESS,
             get_stats(h, "dispatcher"sv, {}, add_stats),
             "Failed to get worker stats");

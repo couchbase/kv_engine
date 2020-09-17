@@ -959,6 +959,12 @@ TEST_P(KVBucketParamTest, test_hlcEpochSeqno) {
 }
 
 TEST_F(KVBucketTest, DataRaceInDoWorkerStat) {
+    if (engine->getConfiguration().getExecutorPoolBackend() == "folly") {
+        // doWorkerStat() as required by this test below not yet implemented
+        // for FollyExecutorPool.
+        GTEST_SKIP();
+    }
+
     /* MB-23529: TSAN intermittently reports a data race.
      * This race appears to be caused by GGC's buggy string COW as seen
      * multiple times, e.g., MB-23454.

@@ -319,5 +319,8 @@ bool isPersistentBucket(EngineIface* h);
 // Returns true if the given engine is an ephemeral bucket (EphemeralBucket).
 bool isEphemeralBucket(EngineIface* h);
 
+// Returns true if the the given engine is using the FollyExecutorPool backend.
+bool isFollyExecutorPool(EngineIface* h);
+
 // Checks number of temp items in a persistent bucket (EPBucket).
 void checkPersistentBucketTempItems(EngineIface* h, int exp);
