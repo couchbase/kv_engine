@@ -20,8 +20,6 @@
 #include <xattr/key_validator.h>
 #include <xattr/utils.h>
 
-#include <nlohmann/json.hpp>
-
 #include <unordered_set>
 
 namespace cb::xattr {
