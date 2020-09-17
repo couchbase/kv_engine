@@ -18,6 +18,7 @@
 #pragma once
 
 #include <boost/optional/optional_fwd.hpp>
+#include <folly/Synchronized.h>
 #include <nlohmann/json_fwd.hpp>
 #include <chrono>
 #include <memory>
@@ -49,6 +50,11 @@ class HdrHistogram {
         void operator()(struct hdr_histogram* val);
     };
 
+    using SyncHdrHistogramPtr = folly::Synchronized<
+            std::unique_ptr<struct hdr_histogram, HdrDeleter>>;
+    using ConstRHistoLockedPtr = SyncHdrHistogramPtr::ConstRLockedPtr;
+    using WHistoLockedPtr = SyncHdrHistogramPtr::WLockedPtr;
+
 public:
     struct Iterator : public hdr_iter {
         /**
@@ -77,10 +83,28 @@ public:
              */
             Percentiles
         };
+
+        Iterator(const SyncHdrHistogramPtr& SyncHistoPtr,
+                 Iterator::IterMode mode)
+            : hdr_iter(), type(mode), histoRLockPtr(SyncHistoPtr.rlock()) {
+        }
+
+        Iterator(Iterator&& itr) = default;
+
         IterMode type;
         uint64_t lastVal = 0;
         uint64_t lastCumulativeCount = 0;
         bool isFirst = true;
+
+    private:
+        // allow HdrHistogram to access histoRLockPtr
+        friend class HdrHistogram;
+        /**
+         * Read lock that's held for the life time of the iterator. To prevent
+         * it being resized or reset while we're reading from the underlying
+         * data structure.
+         */
+        ConstRHistoLockedPtr histoRLockPtr;
     };
 
     /**
@@ -172,7 +196,10 @@ public:
     uint64_t getMaxValue() const;
 
     /**
-     * Clears the histogram.
+     * Clears the histogram. Please not that this takes a write lock on the
+     * underlying data structure and will wait till all read locks have been
+     * released before completing and thus, could result in dead lock
+     * situations.
      */
     void reset();
 
@@ -308,10 +335,7 @@ public:
      * @return minimum trackable value
      */
     uint64_t getMinTrackableValue() const {
-        // We subtract one from the lowest value as we have added a one offset
-        // as the underlying hdr_histogram cannot store 0 and
-        // therefore the value must be greater than or equal to 1.
-        return static_cast<uint64_t>(histogram->lowest_trackable_value) - 1;
+        return getMinTrackableValue(histogram.rlock());
     }
 
     /**
@@ -319,10 +343,7 @@ public:
      * @return maximum trackable value
      */
     uint64_t getMaxTrackableValue() const {
-        // We subtract one from the lowest value as we have added a one offset
-        // as the underlying hdr_histogram cannot store 0 and
-        // therefore the value must be greater than or equal to 1.
-        return static_cast<uint64_t>(histogram->highest_trackable_value) - 1;
+        return getMaxTrackableValue(histogram.rlock());
     }
 
     /**
@@ -332,7 +353,7 @@ public:
      * figures bing used
      */
     int getSigFigAccuracy() const {
-        return histogram->significant_figures;
+        return getSigFigAccuracy(histogram.rlock());
     }
 
     /**
@@ -342,9 +363,35 @@ public:
     double getMean() const;
 
 private:
-    void resize(uint64_t lowestTrackableValue,
+    void resize(WHistoLockedPtr& histoLockPtr,
+                uint64_t lowestTrackableValue,
                 uint64_t highestTrackableValue,
                 int significantFigures);
+
+    template <class LockType>
+    static uint64_t getMinTrackableValue(const LockType& histoLockPtr) {
+        // We subtract one from the lowest value as we have added a one offset
+        // as the underlying hdr_histogram cannot store 0 and
+        // therefore the value must be greater than or equal to 1.
+        return static_cast<uint64_t>(
+                       histoLockPtr->get()->lowest_trackable_value) -
+               1;
+    }
+
+    template <class LockType>
+    static uint64_t getMaxTrackableValue(const LockType& histoLockPtr) {
+        // We subtract one from the lowest value as we have added a one offset
+        // as the underlying hdr_histogram cannot store 0 and
+        // therefore the value must be greater than or equal to 1.
+        return static_cast<uint64_t>(
+                       histoLockPtr->get()->highest_trackable_value) -
+               1;
+    }
+
+    template <class LockType>
+    static int getSigFigAccuracy(const LockType& histoLockPtr) {
+        return histoLockPtr->get()->significant_figures;
+    }
 
     /**
      * Private method used to create an iterator for the specified mode
@@ -359,9 +406,9 @@ private:
     Iterator::IterMode defaultIterationMode;
 
     /**
-     * unique_ptr to a hdr_histogram structure
+     * Synchronized unique pointer to a struct hdr_histogram
      */
-    std::unique_ptr<struct hdr_histogram, HdrDeleter> histogram;
+    SyncHdrHistogramPtr histogram;
 };
 
 /** Histogram to store counts for microsecond intervals

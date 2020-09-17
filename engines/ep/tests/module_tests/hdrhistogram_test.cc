@@ -19,14 +19,21 @@
 
 #include <boost/optional.hpp>
 #include <folly/portability/GTest.h>
-#include <hdr_histogram.h>
-
 #include <cmath>
-#include <iomanip>
 #include <memory>
 #include <random>
 #include <thread>
 #include <utility>
+
+static std::vector<std::pair<uint64_t, uint64_t>> getValuesOnePerBucket(
+        HdrHistogram& histo) {
+    std::vector<std::pair<uint64_t, uint64_t>> values;
+    auto iter = histo.makeLinearIterator(/* valueUnitsPerBucket */ 1);
+    while (auto pair = histo.getNextValueAndCount(iter)) {
+        values.push_back(*pair);
+    }
+    return values;
+}
 
 /*
  * Unit tests for the HdrHistogram
@@ -79,13 +86,11 @@ TEST(HdrHistogramTest, linearIteratorTest) {
         histogram.addValue(ii);
     }
 
-    // Need to create the iterator after we have added the data
-    HdrHistogram::Iterator iter{
-            histogram.makeLinearIterator(/* valueUnitsPerBucket */ 1)};
     uint64_t valueCount = 0;
-    while (auto result = histogram.getNextValueAndCount(iter)) {
-        EXPECT_EQ(valueCount, result->first);
-        ++valueCount;
+    auto values = getValuesOnePerBucket(histogram);
+    EXPECT_EQ(256, values.size());
+    for (auto& result : values) {
+        EXPECT_EQ(valueCount++, result.first);
     }
 }
 
@@ -162,11 +167,12 @@ TEST(HdrHistogramTest, addValueAndCountTest) {
     HdrHistogram histogram{0, 255, 3};
 
     histogram.addValueAndCount(0, 100);
-    // Need to create the iterator after we have added the data
-    HdrHistogram::Iterator iter{histogram.makeLinearIterator(1)};
-    while (auto result = histogram.getNextValueAndCount(iter)) {
-        EXPECT_EQ(0, result->first);
-        EXPECT_EQ(100, result->second);
+
+    auto values = getValuesOnePerBucket(histogram);
+    EXPECT_EQ(1, values.size());
+    for (auto& result : values) {
+        EXPECT_EQ(0, result.first);
+        EXPECT_EQ(100, result.second);
     }
 }
 
@@ -287,14 +293,12 @@ TEST(HdrHistogramTest, addValueParallel) {
     ASSERT_EQ(maxVal - 1, histogram.getMaxValue());
     ASSERT_EQ(0, histogram.getMinValue());
 
-    HdrHistogram::Iterator iter{
-            histogram.makeLinearIterator(/* valueUnitsPerBucket */ 1)};
     uint64_t valueCount = 0;
-    // Assert that the right number of values were added to the histogram
-    while (auto result = histogram.getNextValueAndCount(iter)) {
-        ASSERT_EQ(valueCount, result->first);
-        ASSERT_EQ(threads.size() * numOfAddIterations, result->second);
-        ++valueCount;
+    auto values = getValuesOnePerBucket(histogram);
+    EXPECT_EQ(maxVal, values.size());
+    for (auto& result : values) {
+        ASSERT_EQ(valueCount++, result.first);
+        ASSERT_EQ(threads.size() * numOfAddIterations, result.second);
     }
 }
 
@@ -309,68 +313,64 @@ TEST(HdrHistogramTest, percentileWhenEmptyTest) {
 
 // Test the aggregation operator method
 TEST(HdrHistogramTest, aggregationTest) {
-    HdrHistogram histogramOne{0, 15, 3};
-    HdrHistogram histogramTwo{0, 15, 3};
+    const uint16_t numberOfValues = 15;
+    HdrHistogram histogramOne{0, numberOfValues, 3};
+    HdrHistogram histogramTwo{0, numberOfValues, 3};
 
-    for (int i = 0; i < 15; i++) {
+    for (int i = 0; i < numberOfValues; i++) {
         histogramOne.addValue(i);
         histogramTwo.addValue(i);
     }
     // Do aggregation
     histogramOne += histogramTwo;
 
-    HdrHistogram::Iterator iterOne{
-            histogramOne.makeLinearIterator(/* valueUnitsPerBucket */ 1)};
-    HdrHistogram::Iterator iterTwo{
-            histogramTwo.makeLinearIterator(/* valueUnitsPerBucket */ 1)};
+    auto histoOneValues = getValuesOnePerBucket(histogramOne);
+    EXPECT_EQ(numberOfValues, histoOneValues.size());
+
+    auto histoTwoValues = getValuesOnePerBucket(histogramTwo);
+    EXPECT_EQ(numberOfValues, histoTwoValues.size());
+
+    EXPECT_NE(histoOneValues, histoTwoValues);
+
     uint64_t valueCount = 0;
-    for (int i = 0; i < 15; i++) {
-        auto resultOne = histogramOne.getNextValueAndCount(iterOne);
-        auto resultTwo = histogramOne.getNextValueAndCount(iterTwo);
+    for (int i = 0; i < numberOfValues; i++) {
         // check values are the same for both histograms
-        EXPECT_EQ(valueCount, resultTwo->first);
-        EXPECT_EQ(valueCount, resultOne->first);
+        EXPECT_EQ(valueCount, histoTwoValues[i].first);
+        EXPECT_EQ(valueCount, histoOneValues[i].first);
         // check that the counts for each value is twice as much as
         // in a bucket in histogram one as it is in histogram two
-        EXPECT_EQ(resultOne->second, resultTwo->second * 2);
+        EXPECT_EQ(histoOneValues[i].second, histoTwoValues[i].second * 2);
         ++valueCount;
     }
 
     // Check the totals of each histogram
-    EXPECT_EQ(30, histogramOne.getValueCount());
-    EXPECT_EQ(15, histogramTwo.getValueCount());
+    EXPECT_EQ(numberOfValues * 2, histogramOne.getValueCount());
+    EXPECT_EQ(numberOfValues, histogramTwo.getValueCount());
 }
 
 // Test the aggregation operator method
 TEST(HdrHistogramTest, aggregationTestEmptyLhr) {
+    const uint16_t numberOfValues = 200;
     HdrHistogram histogramOne{0, 15, 3};
-    HdrHistogram histogramTwo{0, 200, 3};
+    HdrHistogram histogramTwo{0, numberOfValues, 3};
 
-    for (int i = 0; i < 200; i++) {
+    for (int i = 0; i < numberOfValues; i++) {
         histogramTwo.addValue(i);
     }
     // Do aggregation
     histogramOne += histogramTwo;
 
-    HdrHistogram::Iterator iterOne{
-            histogramOne.makeLinearIterator(/* valueUnitsPerBucket */ 1)};
-    HdrHistogram::Iterator iterTwo{
-            histogramTwo.makeLinearIterator(/* valueUnitsPerBucket */ 1)};
+    auto histoOneValues = getValuesOnePerBucket(histogramOne);
+    EXPECT_EQ(numberOfValues, histoOneValues.size());
 
-    // Max value of LHS should be updated too 200 thus counts should be the
-    // same for every value in both histograms
-    for (int i = 0; i < 200; i++) {
-        auto resultOne = histogramOne.getNextValueAndCount(iterOne);
-        auto resultTwo = histogramOne.getNextValueAndCount(iterTwo);
-        // check values are the same for both histograms
-        EXPECT_EQ(resultOne->first, resultTwo->first);
-        // check that the counts for each value are the same
-        EXPECT_EQ(resultOne->second, resultTwo->second);
-    }
+    auto histoTwoValues = getValuesOnePerBucket(histogramTwo);
+    EXPECT_EQ(numberOfValues, histoTwoValues.size());
+
+    EXPECT_EQ(histoTwoValues, histoOneValues);
 
     // Check the totals of each histogram
-    EXPECT_EQ(200, histogramOne.getValueCount());
-    EXPECT_EQ(200, histogramTwo.getValueCount());
+    EXPECT_EQ(numberOfValues, histogramOne.getValueCount());
+    EXPECT_EQ(numberOfValues, histogramTwo.getValueCount());
 }
 
 // Test the aggregation operator method
@@ -384,15 +384,13 @@ TEST(HdrHistogramTest, aggregationTestEmptyRhs) {
     // Do aggregation
     histogramOne += histogramTwo;
 
-    HdrHistogram::Iterator iter{
-            histogramOne.makeLinearIterator(/* valueUnitsPerBucket */ 1)};
-
-    uint64_t valueCount = 0;
     // make sure the histogram has expanded in size for all 200 values
-    while (auto result = histogramOne.getNextValueAndCount(iter)) {
-        EXPECT_EQ(valueCount, result->first);
-        EXPECT_EQ(1, result->second);
-        ++valueCount;
+    auto values = getValuesOnePerBucket(histogramOne);
+    EXPECT_EQ(200, values.size());
+    uint64_t valueCount = 0;
+    for (auto& result : values) {
+        EXPECT_EQ(valueCount++, result.first);
+        EXPECT_EQ(1, result.second);
     }
 
     // Check the totals of each histogram
@@ -415,11 +413,13 @@ TEST(HdrHistogramTest, int32MaxSizeTest) {
     EXPECT_EQ(0, histogram.getValueAtPercentile(100.0));
     EXPECT_EQ(0, histogram.getMinValue());
 
-    HdrHistogram::Iterator iter{histogram.getHistogramsIterator()};
-    auto res = histogram.getNextBucketLowHighAndCount(iter);
-    EXPECT_TRUE(res);
-    // The 3rd field [2] of the returned tuple is the count
-    EXPECT_EQ(limit, std::get<2>(*res));
+    { // iter read lock scope
+        HdrHistogram::Iterator iter{histogram.getHistogramsIterator()};
+        auto res = histogram.getNextBucketLowHighAndCount(iter);
+        EXPECT_TRUE(res);
+        // The 3rd field [2] of the returned tuple is the count
+        EXPECT_EQ(limit, std::get<2>(*res));
+    }
 
     // Add 1 more count (previously this would overflow the total_count field
     // in the iterator)
@@ -431,11 +431,13 @@ TEST(HdrHistogramTest, int32MaxSizeTest) {
     EXPECT_EQ(0, histogram.getValueAtPercentile(100.0));
     EXPECT_EQ(0, histogram.getMinValue());
 
-    HdrHistogram::Iterator iter2{histogram.getHistogramsIterator()};
-    auto res2 = histogram.getNextBucketLowHighAndCount(iter2);
-    EXPECT_TRUE(res2);
-    // The 3rd field [2] of the returned tuple is the count
-    EXPECT_EQ(limit, std::get<2>(*res2));
+    { // iter2 read lock scope
+        HdrHistogram::Iterator iter2{histogram.getHistogramsIterator()};
+        auto res2 = histogram.getNextBucketLowHighAndCount(iter2);
+        EXPECT_TRUE(res2);
+        // The 3rd field [2] of the returned tuple is the count
+        EXPECT_EQ(limit, std::get<2>(*res2));
+    }
 }
 
 TEST(HdrHistogramTest, int64MaxSizeTest) {
@@ -461,4 +463,61 @@ TEST(HdrHistogramTest, int64MaxSizeTest) {
 
     // Testing any higher than this gives us garbage results back but
     // unfortunately with no way of knowing that they're garbage.
+}
+
+static std::vector<boost::optional<std::pair<uint64_t, double>>> getAllValues(
+        const HdrHistogram& histo, HdrHistogram::Iterator& iter) {
+    std::vector<boost::optional<std::pair<uint64_t, double>>> values;
+    while (auto pair = histo.getNextValueAndPercentile(iter)) {
+        if (!pair.is_initialized())
+            break;
+        values.push_back(pair);
+    }
+    return values;
+}
+
+void resetThread(HdrHistogram& histo, ThreadGate& tg) {
+    EXPECT_EQ(histo.getValueCount(), 10);
+    tg.threadUp();
+    histo.reset();
+    EXPECT_EQ(histo.getValueCount(), 0);
+}
+
+/**
+ * Test to check that if you create an iterator on a HdrHistogram object, then
+ * call reset() on it in another thread and use the iterator that the iterator
+ * doesn't end up in an infinite loop.
+ */
+TEST(HdrHistogramTest, ResetItoratorInfLoop) {
+    Hdr2sfMicroSecHistogram histogram;
+    for (int i = 0; i < 10; i++) {
+        histogram.addValue(i);
+    }
+    {
+        auto iter = histogram.getHistogramsIterator();
+        auto values = getAllValues(histogram, iter);
+        EXPECT_EQ(values.size(), 20);
+    }
+
+    std::thread thread;
+    ThreadGate tg(2);
+    { // Scope that holds read lock for iterator
+        auto iter2 = histogram.getHistogramsIterator();
+        /**
+         * Create thread this should start running resetThread() at some point
+         * int time will be blocked at HdrHistogram::reset() till this scope is
+         * exited and iter2 is destroyed (releasing the read lock).
+         * We will also create a ThreadGat to ensure the reset thread is runing
+         * and is about to try and get an exclusive lock before reading values
+         * from the histogram.
+         */
+        thread = std::thread(resetThread, std::ref(histogram), std::ref(tg));
+        tg.threadUp();
+        auto values = getAllValues(histogram, iter2);
+        EXPECT_EQ(values.size(), 20);
+    } // iter2 read lock released
+
+    // wait for resetThread() to complete
+    thread.join();
+    EXPECT_EQ(histogram.getValueCount(), 0);
 }
