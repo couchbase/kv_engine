@@ -143,7 +143,7 @@ public:
      *
      * @return The id of this task.
      */
-    TaskId getTaskId() {
+    TaskId getTaskId() const {
         return taskId;
     }
 

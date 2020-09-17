@@ -29,6 +29,8 @@
 #include <platform/string_hex.h>
 #include <statistics/collector.h>
 
+using namespace std::string_literals;
+
 /**
  * Thread factory for CPU pool threads.
  *  - Gives each thread name based on the given prefix.
@@ -62,23 +64,21 @@ struct FollyExecutorPool::TaskProxy
       public std::enable_shared_from_this<TaskProxy> {
     TaskProxy(FollyExecutorPool& executor,
               folly::CPUThreadPoolExecutor& pool,
-              ExTask task)
-        : task(std::move(task)), executor(executor), cpuPool(pool) {
+              ExTask task_)
+        : task(std::move(task_)),
+          taskId(task->getId()),
+          executor(executor),
+          cpuPool(pool) {
     }
 
     ~TaskProxy() override {
-        // We are potentially the last (shared) owner of the GlobalTask,
-        // whose destruction may perform an arbitrary amount of work which we
-        // don't want to run on a non-CPU thread. As such, perform the actual
-        // destructor on the appropriate CPU pool.
-        ExTask taskToDelete;
-        task.swap(taskToDelete);
-        cpuPool.add([taskToDelete = std::move(taskToDelete)]() mutable {
-            // We must account the destruction of the GlobalTask to the bucket
-            // which owns it.
-            BucketAllocationGuard guard(taskToDelete->getEngine());
-            taskToDelete.reset();
-        });
+        // To ensure that we do not destruct GlobalTask objects on
+        // arbitrary threads (if the TaskProxy is the last owner), we
+        // should have already called task.reset() before desturction
+        // of the TaskProxy.
+        Expects(!task &&
+                "task shared_ptr should already be empty before destructing "
+                "TaskProxy");
     }
 
     void timeoutExpired() noexcept override {
@@ -136,11 +136,7 @@ struct FollyExecutorPool::TaskProxy
         // Perform work on the appropriate CPU pool.
         // Note this retains a reference to itself (TaskProxy).
         cpuPool.add([proxy = shared_from_this()] {
-            if (!proxy->task) {
-                // ExTask has been set to null - Taskable likely unregistered
-                // - nothing to do.
-                return;
-            }
+            Expects(proxy->task.get());
 
             bool runAgain = false;
             // Check if Task is still alive. If not don't run.
@@ -199,6 +195,41 @@ struct FollyExecutorPool::TaskProxy
         });
     }
 
+    void resetTaskPtrViaCpuPool() {
+        using namespace std::chrono;
+
+        EP_LOG_TRACE(
+                "TaskProxy::resetTaskPtrViaCpuPool() id:{} name:{} descr:'{}' "
+                "enqueuing func to reset 'task' shared_ptr",
+                task->getId(),
+                GlobalTask::getTaskName(task->getTaskId()),
+                task->getDescription());
+
+        // Move `task` from this object (leaving it as null)
+        cpuPool.add([ptrToReset = std::move(task), proxy = this]() mutable {
+            EP_LOG_TRACE(
+                    "FollyExecutorPool::resetTaskPtrViaCpuPool lambda() id:{} "
+                    "name:{}",
+                    ptrToReset->getId(),
+                    GlobalTask::getTaskName(ptrToReset->getTaskId()));
+
+            // Reset the shared_ptr, decrementing it's refcount and potentially
+            // deleting the owned object if no other objects (Engine etc) have
+            // retained a refcount.
+            // Must account this to the relevent bucket.
+            {
+                BucketAllocationGuard guard(ptrToReset->getEngine());
+                ptrToReset.reset();
+            }
+            // Finally, remove the taskProxy from taskOwners.
+            proxy->executor.futurePool->getEventBase()->runInEventBaseThread(
+                    [proxy] {
+                        auto& executor = proxy->executor;
+                        executor.removeTaskAfterRun(*proxy);
+                    });
+        });
+    }
+
     /**
      * Updates the timeout to the value of the GlobalTasks' wakeTime
      */
@@ -234,6 +265,15 @@ struct FollyExecutorPool::TaskProxy
         Expects(executor.futurePool->getEventBase()
                         ->inRunningEventBaseThread());
 
+        if (!task) {
+            // Task has been cancelled ('task' shared ptr reset to
+            // null via resetTaskPtrViaCpuPool), but TaskProxy not yet
+            // been cleaned up) - i.e. a wake and cancel have raced.
+            // Cannot wake (until GlobalTask is re-scheduled) -
+            // return.
+            return;
+        }
+
         // Cancel any previously set future execution of the
         // task.
         cancelTimeout();
@@ -254,9 +294,19 @@ struct FollyExecutorPool::TaskProxy
     /// shared_ptr to the GlobalTask.
     ExTask task;
 
+    // identifier of the task. This is a copy of data within
+    // `task`, because we reset `task` before removing the TaskProxy
+    // entry from taskOwners, and need the taskId for that.
+    const size_t taskId;
+
     // Flag used to block re-scheduling of a task while it's in the process
     // of running on CPU pool. See comments in timeoutExpired().
     bool scheduledOnCpuPool{false};
+
+    // Did we re-use the same TaskProxy after a re-schedule?  Used for
+    // sanity checking if removeTaskAfterRun() finds a non-null 'task'
+    // when executed.
+    bool proxyReused{false};
 
 private:
     // Associated FollyExecutorPool (needed for re-scheduling / cancelling
@@ -297,7 +347,7 @@ using TaskOwnerMap = std::unordered_map<const Taskable*, TaskLocator>;
  */
 struct FollyExecutorPool::State {
     void addTaskable(Taskable& taskable) {
-        taskOwners.insert({&taskable, {}});
+        taskOwners.try_emplace(&taskable);
     }
 
     void removeTaskable(Taskable& taskable) {
@@ -310,20 +360,35 @@ struct FollyExecutorPool::State {
      * @param executor FollyExecutorPool owning the task.
      * @param task The Task to schedule.
      */
-    void scheduleTask(FollyExecutorPool& executor,
+    bool scheduleTask(FollyExecutorPool& executor,
                       folly::CPUThreadPoolExecutor& pool,
                       ExTask task) {
         auto& tasksForOwner = taskOwners.at(&task->getTaskable());
-        auto result = tasksForOwner.try_emplace(
-                task->getId(),
-                std::make_shared<TaskProxy>(executor, pool, task));
-        auto& it = result.first;
+        auto [it, inserted] = tasksForOwner.try_emplace(
+                task->getId(), std::shared_ptr<TaskProxy>{});
+        if (!inserted) {
+            // taskId already present - i.e. this taskId has already been
+            // scheduled.
+            // It it only valid to re-schedule a task if it was previously
+            // cancelled, but we hadn't cleaned up the cancellation - the
+            // 'task' shared_ptr is null.
+            if (it->second->task) {
+                return false;
+            }
+            // re-assign task to the one passed in.
+            it->second->task = task;
+            it->second->proxyReused = true;
+        } else {
+            // Inserted a new entry into map - create a TaskProxy object for it.
+            it->second = std::make_shared<TaskProxy>(executor, pool, task);
+        }
 
         // If we are rescheduling a previously cancelled task, we should
         // reset the task state to the initial value of running.
-        task->setState(TASK_RUNNING, TASK_DEAD);
+        it->second->task->setState(TASK_RUNNING, TASK_DEAD);
 
         it->second->updateTimeoutFromWakeTime();
+        return true;
     }
 
     /**
@@ -389,8 +454,13 @@ struct FollyExecutorPool::State {
     std::vector<ExTask> cancelTasksOwnedBy(const Taskable& taskable,
                                            bool force) {
         std::vector<ExTask> removedTasks;
-        for (auto it : taskOwners.at(&taskable)) {
+        for (auto& it : taskOwners.at(&taskable)) {
             auto& tProxy = it.second;
+            if (!tProxy->task) {
+                // Task already cancelled (shared pointer reset to null) by
+                // canelTask() - skip.
+                continue;
+            }
             EP_LOG_DEBUG(
                     "FollyExecutorPool::unregisterTaskable(): Stopping "
                     "Task id:{} taskable:{} description:'{}'",
@@ -415,13 +485,12 @@ struct FollyExecutorPool::State {
     }
 
     /**
-     * Cancel the specified task, optionally removing it from taskOwners.
+     * Cancel the specified task.
      *
      * @param taskId Task to cancel
-     * @param eraseTask If true then erase the task from taskOwners.
      * @return True if task found, else false.
      */
-    bool cancelTask(size_t taskId, bool eraseTask) {
+    bool cancelTask(size_t taskId) {
         // Search for the given taskId across all buckets.
         // PERF: CB3ExecutorPool uses a secondary map (taskLocator)
         // to allow O(1) lookup by taskId, however cancel() isn't a
@@ -438,14 +507,70 @@ struct FollyExecutorPool::State {
                         taskId,
                         owner->getName());
 
-                it->second->task->cancel();
-                if (eraseTask) {
-                    tasks.erase(it);
+                if (!it->second->task) {
+                    // Task already cancelled (shared pointer reset to null) by
+                    // some previous call to cancelTask().
+                    return false;
                 }
-                // Note: We could potentially always erase here, given
-                // that this is running in the eventBase and hence
-                // there's no issue of racing with ourselves like
-                // there is for CB3ExecutorPool::_cancel.
+
+                it->second->task->cancel();
+
+                // Now `task` has been cancelled, we need to remove our
+                // reference (shared ownership) to the owned GlobalTask and from
+                // taskOwners.  Decrementing our refcount could delete the
+                // GlobalTask (if we are the last owner). This must occur on a
+                // CPU thread given GlobalTask destruction can be an arbitrary
+                // amount of work.
+                if (it->second->scheduledOnCpuPool) {
+                    // Currently scheduled on CPU pool - TaskProxy is "owned" by
+                    // CPU thread.  Given we just called cancel() on the
+                    // GlobalTask, we can rely on rescheduleTaskAfterRun to
+                    // reset the TaskProxy (when it calls cancelTask()).
+                    return true;
+                }
+
+                // Not currently scheduled on CPU pool - this thread (IO pool)
+                // owns it. To perform refcount drop on CPu thread, we move the
+                // shared_ptr from taskOwners (taskOwners entry remains but is
+                // null), then pass the moved shared_ptr to CPU pool to perform
+                // refcount decrement (and potential GlobalTask
+                // (IO pool) owns it.
+                // First cancel any pending timeout - shouldn't run again.
+                it->second->cancelTimeout();
+
+                // Next, to perform refcount drop on CPU thread, we move the
+                // shared_ptr from taskOwners (taskOwners entry remains but is
+                // null), then pass the moved shared_ptr to CPU pool to perform
+                // refcount decrement (and potential GlobalTask deletion).
+                // Finally CPU pool will schedule a final IO thread function to
+                // actually erase element from taskOwners.
+                it->second->resetTaskPtrViaCpuPool();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Remove the cancelled task from taskOwners.
+     *
+     * @param taskId Task to remove
+     * @return True if task found, else false.
+     */
+    bool removeTask(size_t taskId) {
+        for (auto& [owner, tasks] : taskOwners) {
+            auto it = tasks.find(taskId);
+            if (it != tasks.end()) {
+                EP_LOG_TRACE(
+                        "FollyExecutorPool::State::removeTask() erasing task "
+                        "id:{} for "
+                        "owner:'{}'",
+                        taskId,
+                        owner->getName());
+                Expects(!it->second->task &&
+                        "removeTask: 'proxy->task' should be null before "
+                        "removing element from taskOwners");
+                tasks.erase(it);
                 return true;
             }
         }
@@ -731,8 +856,8 @@ bool FollyExecutorPool::cancel(size_t taskId, bool eraseTask) {
     auto* eventBase = futurePool->getEventBase();
     bool found = false;
     eventBase->runInEventBaseThreadAndWait(
-            [&found, state = state.get(), taskId, eraseTask] {
-                state->cancelTask(taskId, eraseTask);
+            [&found, state = state.get(), taskId] {
+                state->cancelTask(taskId);
             });
     return found;
 }
@@ -941,14 +1066,11 @@ void FollyExecutorPool::rescheduleTaskAfterRun(
         // Deschedule the task, in case it was already scheduled
         proxy->cancelTimeout();
 
-        // Decrement the ref-count on the task, and remove from taskLocator
-        // (same pattern as CB3ExecutorPool -
-        // ExecutorThread::cancelCurrentTask())
-        state->cancelTask(proxy->task->getId(), true);
+        // Begin process of cancelling the task - mark as cancelled in
+        // taskOwners and schedule another CPU thread pool function to decrement
+        // the refcount and potentially delete the GlobalTask.
+        state->cancelTask(proxy->task->getId());
 
-        // At this point the ref-count on the TaskProxy is still at least one,
-        // via the `proxy` object. On return that will go out of scope so
-        // object may be deleted (if no other object has a ref-count).
         return;
     }
 
@@ -961,5 +1083,38 @@ void FollyExecutorPool::rescheduleTaskAfterRun(
     } else {
         // Due now - schedule directly on CPU pool.
         proxy->scheduleViaCPUPool();
+    }
+}
+
+void FollyExecutorPool::removeTaskAfterRun(TaskProxy& proxy) {
+    EP_LOG_TRACE("TaskProxy::removeTaskAfterRun() id:{} name:{}",
+                 proxy.taskId,
+                 proxy.task ? ("RESURRECTED:"s +
+                               GlobalTask::getTaskName(proxy.task->getTaskId()))
+                            : "<null>"s);
+
+    if (proxy.task) {
+        Expects(proxy.proxyReused);
+        return;
+    }
+
+    // Deschedule the task, in case it was already scheduled
+    proxy.cancelTimeout();
+
+    // Erase the task from taskOwners. If the TaskProxy is the last
+    // shared owner of the GlobalTask, that will be deleted here.
+
+    // PERF: CB3ExecutorPool uses a secondary map (taskLocator) to
+    // allow O(1) lookup of ownwe by taskId, however cancelling
+    // isn't a particularly hot function so I'm not sure if the
+    // extra complexity is warranted. If this shows up as hot then
+    // consider adding a similar structure to FollyExecutorPool.
+    bool taskFound = state->removeTask(proxy.taskId);
+    if (!taskFound) {
+        auto msg = fmt::format(
+                "FollyExecutorPool::rescheduleTaskAfterRun(): Failed to locate "
+                "an owner for task id:{}",
+                proxy.taskId);
+        throw std::logic_error(msg);
     }
 }

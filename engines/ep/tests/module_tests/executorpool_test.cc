@@ -171,6 +171,51 @@ TYPED_TEST(ExecutorPoolTest, UnregisterTaskablesCancelsTasks) {
     taskable.reset();
 }
 
+/**
+ * Test that after unregisterTaskable returns all tasks it owns (no references
+ * retained by others) are deleted.
+ * Regression test for MB-42049.
+ */
+TYPED_TEST(ExecutorPoolTest, UnregisterTaskablesDeletesTask) {
+    // Test Task which set the given flag to true deleted.
+    struct OnDeleteTask : public LambdaTask {
+        OnDeleteTask(Taskable& t, bool& deleted)
+            : LambdaTask(t,
+                         TaskId::ItemPager,
+                         /*sleeptime*/ 0,
+                         /*completeBeforeShutdown*/ false,
+                         [](LambdaTask&) {
+                             std::this_thread::yield();
+                             return true;
+                         }),
+              deleted(deleted) {
+        }
+        ~OnDeleteTask() override {
+            std::this_thread::yield();
+            deleted = true;
+        }
+        bool& deleted;
+    };
+
+    this->makePool(1);
+
+    // Not interested in any calls to logQTime when task runs - just ignore them
+    // using NiceMock.
+    NiceMock<MockTaskable> taskable;
+    this->pool->registerTaskable(taskable);
+
+    // Create an OnDeleteTask, and transfer ownership to ExecutorPool.
+    // This should be destructed before unregisterTaskable returns.
+    bool deleted = false;
+    this->pool->schedule(std::make_shared<OnDeleteTask>(taskable, deleted));
+
+    // Test: Unregister the taskable. 'deleted' should be true as soon as
+    // unregisterTaskable finishes.
+    this->pool->unregisterTaskable(taskable, false);
+    EXPECT_TRUE(deleted)
+            << "Task should be deleted when unregisterTaskable returns";
+}
+
 /// Test that tasks are run immediately when they are woken.
 TYPED_TEST(ExecutorPoolTest, Wake) {
     this->makePool(1);
