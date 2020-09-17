@@ -80,6 +80,14 @@ private:
     std::chrono::microseconds maxDuration;
 
     /**
+     * VBuckets the visitor has not yet visited.
+     * Vbs will be sorted according to visitor->getVBucketComparator().
+     * Once visited, vbuckets will be removed, so the visitor can resume after
+     * pausing at the first element.
+     */
+    std::deque<Vbid> vbucketsToVisit;
+
+    /**
      * Current VBucket.
      * RelaxedAtomic as this is used by getDescription to generate the task
      * description, which can be called by threads other than the one executing.

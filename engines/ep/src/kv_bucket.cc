@@ -2329,6 +2329,17 @@ VBCBAdaptor::VBCBAdaptor(KVBucket* s,
       label(l),
       maxDuration(std::chrono::microseconds::max()),
       currentvb(0) {
+    // populate the list of vbuckets to visit, and order them as needed by
+    // the visitor.
+    for (Vbid::id_type vbid = 0; vbid < store->getVBuckets().getSize();
+         ++vbid) {
+        if (visitor->getVBucketFilter()(Vbid(vbid))) {
+            vbucketsToVisit.emplace_front(vbid);
+        }
+    }
+    std::sort(vbucketsToVisit.begin(),
+              vbucketsToVisit.end(),
+              visitor->getVBucketComparator());
 }
 
 std::string VBCBAdaptor::getDescription() {
@@ -2337,19 +2348,19 @@ std::string VBCBAdaptor::getDescription() {
 
 bool VBCBAdaptor::run() {
     visitor->begin();
-    for (; currentvb < store->getVBuckets().getSize(); currentvb++) {
-        const auto vbid = Vbid(currentvb);
-        if (!visitor->getVBucketFilter()(vbid)) {
-            continue;
-        }
+
+    while (!vbucketsToVisit.empty()) {
+        const auto vbid = vbucketsToVisit.front();
         VBucketPtr vb = store->getVBucket(vbid);
         if (vb) {
+            currentvb = vbid.get();
             if (visitor->pauseVisitor()) {
                 snooze(0);
                 return true;
             }
             visitor->visitBucket(vb);
         }
+        vbucketsToVisit.pop_front();
     }
     visitor->complete();
 

@@ -17,6 +17,8 @@
 
 #pragma once
 
+#include "comparators.h"
+
 #include <atomic>
 #include <limits>
 #include <stdexcept>
@@ -74,31 +76,6 @@ using DefaultOrderReversedPolicy = ThrowExceptionPolicy<T>;
 #else
 using DefaultOrderReversedPolicy = IgnorePolicy<T>;
 #endif
-
-namespace cb {
-/**
- * Function object which returns true if lhs > rhs.
- * Equivalent to std::greater, but without having to pull in all of <functional>
- */
-template <typename T>
-struct greater {
-    constexpr bool operator()(const T& lhs, const T& rhs) const {
-        return lhs > rhs;
-    }
-};
-
-/**
- * Function object which returns true if lhs >= rhs.
- * Equivalent to std::greater_equal, but without having to pull in all of
- * <functional>
- */
-template <typename T>
-struct greater_equal {
-    constexpr bool operator()(const T& lhs, const T& rhs) const {
-        return lhs >= rhs;
-    }
-};
-} // namespace cb
 
 /**
  * Monotonic is a class template for simple types T. It provides guarantee
