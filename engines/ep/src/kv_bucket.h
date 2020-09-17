@@ -62,13 +62,26 @@ public:
     bool run(void);
 
 private:
-    std::queue<uint16_t>        vbList;
-    KVBucket  *store;
+    /**
+     * VBuckets the visitor has not yet visited.
+     * Vbs will be sorted according to visitor->getVBucketComparator().
+     * Once visited, vbuckets will be removed, so the visitor can resume after
+     * pausing at the first element.
+     */
+
+    std::deque<VBucket::id_type> vbList;
+    KVBucket* store;
     std::unique_ptr<VBucketVisitor> visitor;
     const char                 *label;
     double                      sleepTime;
     std::chrono::microseconds maxDuration;
-    std::atomic<uint16_t>       currentvb;
+
+    /**
+     * Current VBucket.
+     * RelaxedAtomic as this is used by getDescription to generate the task
+     * description, which can be called by threads other than the one executing.
+     */
+    Couchbase::RelaxedAtomic<VBucket::id_type> currentvb;
 
     DISALLOW_COPY_AND_ASSIGN(VBCBAdaptor);
 };

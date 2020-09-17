@@ -2226,19 +2226,24 @@ VBCBAdaptor::VBCBAdaptor(KVBucket* s,
       sleepTime(sleep),
       maxDuration(std::chrono::microseconds::max()),
       currentvb(0) {
+    // populate the list of vbuckets to visit, and order them as needed by
+    // the visitor.
     const VBucketFilter& vbFilter = visitor->getVBucketFilter();
     for (auto vbid : store->getVBuckets().getBuckets()) {
         if (vbFilter(vbid)) {
-            vbList.push(vbid);
+            vbList.push_back(vbid);
         }
     }
+    std::sort(vbList.begin(),
+              vbList.end(),
+              visitor->getVBucketComparator());
 }
 
 std::string VBCBAdaptor::getDescription() {
     return std::string(label) + " on vb " + std::to_string(currentvb.load());
 }
 
-bool VBCBAdaptor::run(void) {
+bool VBCBAdaptor::run() {
     if (!vbList.empty()) {
         currentvb.store(vbList.front());
         VBucketPtr vb = store->getVBucket(currentvb);
@@ -2249,7 +2254,7 @@ bool VBCBAdaptor::run(void) {
             }
             visitor->visitBucket(vb);
         }
-        vbList.pop();
+        vbList.pop_front();
     }
 
     bool isdone = vbList.empty();

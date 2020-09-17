@@ -19,6 +19,7 @@
 
 #include "config.h"
 
+#include "comparators.h"
 #include "hash_table.h"
 #include "vb_filter.h"
 
@@ -48,6 +49,18 @@ public:
 
     const VBucketFilter& getVBucketFilter() {
         return vBucketFilter;
+    }
+
+    /**
+     * Get a comparator used to order the vbucket IDs based on visitor-specific
+     * criteria, if necessary. This can be used to specify the order the visitor
+     * wishes to visit vbuckets.
+     *
+     * Default behaviour is to visit vbuckets in ascending order.
+     */
+    virtual std::function<bool(const uint16_t&, const uint16_t&)>
+    getVBucketComparator() const {
+        return cb::less<uint16_t>();
     }
 
     /**
