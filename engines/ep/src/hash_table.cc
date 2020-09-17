@@ -362,6 +362,7 @@ void HashTable::Statistics::prologue(const StoredValue& v) {
             --datatypeCounts[v.getDatatype()];
         }
     }
+    memChangedCallback(-ssize_t(v.size()));
 }
 
 void HashTable::Statistics::epilogue(const StoredValue& v) {
@@ -388,6 +389,17 @@ void HashTable::Statistics::epilogue(const StoredValue& v) {
             ++datatypeCounts[v.getDatatype()];
         }
     }
+    memChangedCallback(v.size());
+}
+
+void HashTable::Statistics::setMemChangedCallback(
+        std::function<void(int64_t delta)> callback) {
+    memChangedCallback = std::move(callback);
+}
+
+const std::function<void(int64_t delta)>&
+HashTable::Statistics::getMemChangedCallback() const {
+    return memChangedCallback;
 }
 
 void HashTable::Statistics::reset() {

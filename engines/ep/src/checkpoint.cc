@@ -89,11 +89,13 @@ std::ostream& operator<<(std::ostream& os, const CheckpointCursor& c) {
     return os;
 }
 
-Checkpoint::Checkpoint(EPStats& st,
-                       uint64_t id,
-                       uint64_t snapStart,
-                       uint64_t snapEnd,
-                       uint16_t vbid)
+Checkpoint::Checkpoint(
+        EPStats& st,
+        uint64_t id,
+        uint64_t snapStart,
+        uint64_t snapEnd,
+        uint16_t vbid,
+        const std::function<void(int64_t delta)>& memOverheadChangedCallback)
     : stats(st),
       checkpointId(id),
       snapStartSeqno(snapStart),
@@ -104,8 +106,10 @@ Checkpoint::Checkpoint(EPStats& st,
       numItems(0),
       numMetaItems(0),
       memOverhead(0),
+      memOverheadChangedCallback(memOverheadChangedCallback),
       effectiveMemUsage(0) {
     stats.coreLocal.get()->memOverhead.fetch_add(memorySize());
+    memOverheadChangedCallback(memorySize());
 }
 
 Checkpoint::~Checkpoint() {
@@ -113,6 +117,7 @@ Checkpoint::~Checkpoint() {
         "Checkpoint %" PRIu64 " for vbucket %d is purged from memory",
         checkpointId, vbucketId);
     stats.coreLocal.get()->memOverhead.fetch_sub(memorySize());
+    memOverheadChangedCallback(-ssize_t(memorySize()));
 }
 
 size_t Checkpoint::getNumMetaItems() const {
@@ -246,7 +251,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
         if (rv == queue_dirty_t::NEW_ITEM) {
             size_t newEntrySize = qi->getKey().size() +
                                   sizeof(index_entry) + sizeof(queued_item);
-            memOverhead += newEntrySize;
+            increaseMemoryOverhead(newEntrySize);
             stats.coreLocal.get()->memOverhead.fetch_add(newEntrySize);
         }
     }
@@ -365,7 +370,7 @@ size_t Checkpoint::mergePrevCheckpoint(Checkpoint *pPrevCheckpoint) {
      */
     setSnapshotStartSeqno(getLowSeqno());
 
-    memOverhead += newEntryMemOverhead;
+    increaseMemoryOverhead(newEntryMemOverhead);
     stats.coreLocal.get()->memOverhead.fetch_add(newEntryMemOverhead);
 
     return numNewItems;
@@ -518,8 +523,12 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id,
         id, vbucketId, snapStartSeqno);
 
     bool was_empty = checkpointList.empty() ? true : false;
-    auto checkpoint = std::make_unique<Checkpoint>(stats, id, snapStartSeqno,
-                                            snapEndSeqno, vbucketId);
+    auto checkpoint = std::make_unique<Checkpoint>(stats,
+                                                   id,
+                                                   snapStartSeqno,
+                                                   snapEndSeqno,
+                                                   vbucketId,
+                                                   overheadChangedCallback);
     // Add a dummy item into the new checkpoint, so that any cursor referring
     // to the actual first
     // item in this new checkpoint can be safely shifted left by 1 if the
@@ -1544,6 +1553,20 @@ size_t CheckpointManager::getNumOfMetaItemsFromCursor(const CheckpointCursor &cu
     return result;
 }
 
+void CheckpointManager::updateStatsForStateChange(vbucket_state_t from,
+                                                  vbucket_state_t to) {
+    LockHolder lh(queueLock);
+    if (from == vbucket_state_replica && to != vbucket_state_replica) {
+        // vbucket is changing state away from replica, it's memory usage
+        // should no longer be accounted for as a replica.
+        stats.replicaCheckpointOverhead -= getMemoryOverhead_UNLOCKED();
+    } else if (from != vbucket_state_replica && to == vbucket_state_replica) {
+        // vbucket is changing state to _become_ a replica, it's memory usage
+        // _should_ be accounted for as a replica.
+        stats.replicaCheckpointOverhead += getMemoryOverhead_UNLOCKED();
+    }
+}
+
 void CheckpointManager::decrCursorFromCheckpointEnd(const std::string &name) {
     LockHolder lh(queueLock);
     cursor_index::iterator it = connCursors.find(name);
@@ -1896,9 +1919,9 @@ queued_item CheckpointManager::createCheckpointItem(uint64_t id, uint16_t vbid,
     return qi;
 }
 
-uint64_t CheckpointManager::createNewCheckpoint() {
+uint64_t CheckpointManager::createNewCheckpoint(bool force) {
     LockHolder lh(queueLock);
-    if (checkpointList.back()->getNumItems() > 0) {
+    if (force || checkpointList.back()->getNumItems() > 0) {
         uint64_t chk_id = checkpointList.back()->getId();
         addNewCheckpoint_UNLOCKED(chk_id + 1);
     }

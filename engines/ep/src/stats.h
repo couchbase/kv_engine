@@ -243,6 +243,12 @@ public:
     // counters merge their info, this could be negative
     cb::CachelinePadded<Couchbase::RelaxedAtomic<int64_t>> estimatedTotalMemory;
 
+    // Total memory used by hashtable items for replica vbuckets.
+    Couchbase::RelaxedAtomic<int64_t> replicaHTMemory;
+
+    // Total memory used by checkpoints for replica vbuckets.
+    Couchbase::RelaxedAtomic<int64_t> replicaCheckpointOverhead;
+
     //! Core-local statistics
     CoreStore<cb::CachelinePadded<CoreLocalStats>> coreLocal;
 

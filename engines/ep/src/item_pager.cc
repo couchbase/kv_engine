@@ -230,21 +230,33 @@ PagingVisitor::PagingVisitor(KVBucket& s,
             return;
         }
 
-        // skip active vbuckets if active resident ratio is lower than replica
-        double current =
-                static_cast<double>(stats.getEstimatedTotalMemoryUsed());
-        double lower = static_cast<double>(stats.mem_low_wat);
-        double high = static_cast<double>(stats.mem_high_wat);
-        if (vb->getState() == vbucket_state_active && current < high &&
-            store.getActiveResidentRatio() <
-            store.getReplicaResidentRatio())
-        {
-            return;
+        double current = store.getPageableMemCurrent();
+        double lower = store.getPageableMemLowWatermark();
+
+        // Non-ephemeral: skip active vbuckets if active resident ratio is
+        // lower than replica.
+        // (Ephemeral can _only_ evict from active so don't want to skip them!)
+        if (!isEphemeral && vb->getState() == vbucket_state_active) {
+            double high = store.getPageableMemHighWatermark();
+            if (current < high && store.getActiveResidentRatio() <
+                                          store.getReplicaResidentRatio()) {
+                return;
+            }
         }
 
         if (current > lower) {
             double p = (current - static_cast<double>(lower)) / current;
             adjustPercent(p, vb->getState());
+
+            LOG(EXTENSION_LOG_DEBUG,
+                "PagingVisitor::visitBucket() vb:%d current:%f lower:%f p:%f "
+                "percent:%f",
+                vb->getId(),
+                current,
+                lower,
+                p,
+                percent);
+
             if (vBucketFilter(vb->getId())) {
                 currentBucket = vb;
                 maxCas = currentBucket->getMaxCas();
@@ -482,9 +494,9 @@ bool ItemPager::run(void) {
     notified.store(false);
 
     KVBucket* kvBucket = engine.getKVBucket();
-    double current = static_cast<double>(stats.getEstimatedTotalMemoryUsed());
-    double upper = static_cast<double>(stats.mem_high_wat);
-    double lower = static_cast<double>(stats.mem_low_wat);
+    double current = engine.getKVBucket()->getPageableMemCurrent();
+    double upper = engine.getKVBucket()->getPageableMemHighWatermark();
+    double lower = engine.getKVBucket()->getPageableMemLowWatermark();
 
     // If we dynamically switch from the hifi_mfu policy to the 2-bit_lru
     // policy or vice-versa, we will not be in a valid phase.  Therefore

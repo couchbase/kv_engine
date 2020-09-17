@@ -346,6 +346,11 @@ std::string to_string(queue_dirty_t value);
  * and system events - for meta-items like checkpoint start/end they share the
  * same sequence number as the associated op - for checkpoint_start that is the
  * ID of the following op, for checkpoint_end the ID of the proceeding op.
+ *
+ * Checkpoints call the provided memOverheadChangedCallback on any action that
+ * changes the memory overhead of the checkpoint - that is, the memory required
+ * _beyond_ that of the Items the Checkpoint holds. This occurs at
+ * creation/destruction or when queuing new items.
  */
 class Checkpoint {
 public:
@@ -353,7 +358,9 @@ public:
                uint64_t id,
                uint64_t snapStart,
                uint64_t snapEnd,
-               uint16_t vbid);
+               uint16_t vbid,
+               const std::function<void(int64_t delta)>&
+                       memOverheadChangedCallback);
 
     ~Checkpoint();
 
@@ -587,6 +594,14 @@ public:
     static const StoredDocKey SetVBucketStateKey;
 
 private:
+    /**
+     * Increase the tracked overhead of the checkpoint. See getMemoryOverhead
+     */
+    void increaseMemoryOverhead(size_t delta) {
+        memOverhead += delta;
+        memOverheadChangedCallback(delta);
+    }
+
     EPStats                       &stats;
     uint64_t                       checkpointId;
     uint64_t                       snapStartSeqno;
@@ -604,6 +619,9 @@ private:
     /* Index for meta keys like "dummy_key" */
     checkpoint_index               metaKeyIndex;
     size_t                         memOverhead;
+
+    // Reference to callback owned by checkpoint manager for stat tracking
+    const std::function<void(int64_t delta)>& memOverheadChangedCallback;
 
     // The following stat is to contain the memory consumption of all
     // the queued items in the given checkpoint.
@@ -847,9 +865,12 @@ public:
 
     /**
      * Create a new open checkpoint by force.
+     *
+     * @param force create a new checkpoint even if the existing one
+     *        contains no non-meta items
      * @return the new open checkpoint id
      */
-    uint64_t createNewCheckpoint();
+    uint64_t createNewCheckpoint(bool force = false);
 
     void resetCursors(checkpointCursorInfoList &cursors);
 
@@ -946,6 +967,27 @@ public:
         return ++lastBySeqno;
     }
 
+    /**
+     * Sets the callback to be invoked whenever memory usage changes due to a
+     * new queued item or checkpoint removal (or checkpoint expelling, in
+     * versions this is implemented in). This allows changes in checkpoint
+     * memory usage to be monitored.
+     */
+    void setOverheadChangedCallback(
+            std::function<void(int64_t delta)> callback) {
+        LockHolder lh(queueLock);
+        overheadChangedCallback = std::move(callback);
+
+        size_t initialOverhead = 0;
+        for (const auto& checkpoint : checkpointList) {
+            initialOverhead += checkpoint->memorySize();
+        }
+
+        overheadChangedCallback(initialOverhead);
+    }
+
+    void updateStatsForStateChange(vbucket_state_t from, vbucket_state_t to);
+
     void dump() const;
 
     static const std::string pCursorName;
@@ -971,6 +1013,16 @@ protected:
      */
     void updateDiskQueueStats(VBucket& vbucket, size_t curr_remains,
                               size_t new_remains);
+
+    /**
+     * function to invoke whenever memory usage changes due to a new
+     * queued item or checkpoint removal (or checkpoint expelling, in versions
+     * this ins implemented in).
+     * Must be declared before checkpointList to ensure it still exists
+     * when any Checkpoints within the list are destroyed during destruction
+     * of this CheckpointManager.
+     */
+    std::function<void(int64_t delta)> overheadChangedCallback{[](int64_t) {}};
 
     CheckpointList checkpointList;
 

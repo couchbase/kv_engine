@@ -797,6 +797,7 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
     if (vb) {
         vbucket_state_t oldstate = vb->getState();
         vbMap.decVBStateCount(oldstate);
+        vb->updateStatsForStateChange(oldstate, to);
         if (vbStateLock) {
             vb->setState_UNLOCKED(to, *vbStateLock);
         } else {
@@ -1976,9 +1977,10 @@ bool KVBucket::isMemoryUsageTooHigh() {
     return memoryUsed > (maxSize * backfillMemoryThreshold);
 }
 
-// Trigger memory reduction (ItemPager) if we've exceeded high water
+// Trigger memory reduction (ItemPager) if we've exceeded the pageable high
+// watermark.
 void KVBucket::checkAndMaybeFreeMemory() {
-    if (stats.getEstimatedTotalMemoryUsed() > stats.mem_high_wat) {
+    if (getPageableMemCurrent() > getPageableMemHighWatermark()) {
         attemptToFreeMemory();
     }
 }

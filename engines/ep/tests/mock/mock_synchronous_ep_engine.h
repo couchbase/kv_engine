@@ -74,4 +74,10 @@ public:
     bool public_enableTraffic(bool enable) {
         return enableTraffic(enable);
     }
+
+    // re-create the checkpoint config from the engine config.
+    // For use after altering the engine config.
+    void updateCheckpointConfig() {
+        *checkpointConfig = CheckpointConfig(*this);
+    }
 };

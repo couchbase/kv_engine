@@ -301,6 +301,20 @@ EphemeralVBucket::makeRangeIterator(bool isBackfill) {
     return seqList->makeRangeIterator(isBackfill);
 }
 
+void EphemeralVBucket::updateStatsForStateChange(vbucket_state_t from,
+                                                 vbucket_state_t to) {
+    checkpointManager->updateStatsForStateChange(from, to);
+    if (from == vbucket_state_replica && to != vbucket_state_replica) {
+        // vbucket is changing state away from replica, it's memory usage
+        // should no longer be accounted for as a replica.
+        stats.replicaHTMemory -= ht.getCacheSize();
+    } else if (from != vbucket_state_replica && to == vbucket_state_replica) {
+        // vbucket is changing state to _become_ a replica, it's memory usage
+        // _should_ be accounted for as a replica.
+        stats.replicaHTMemory += ht.getCacheSize();
+    }
+}
+
 /* Vb level backfill queue is for items in a huge snapshot (disk backfill
    snapshots from DCP are typically huge) that could not be fit on a
    checkpoint. They update all stats, checkpoint seqno, but are not put
