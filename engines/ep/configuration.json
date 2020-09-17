@@ -420,7 +420,7 @@
             }
         },
         "executor_pool_backend": {
-            "default": "cb3",
+            "default": "folly",
             "descr": "Executor Pool backend in use",
             "dynamic": false,
             "type": "std::string",
