@@ -3651,9 +3651,7 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
                 checkne(opaque, producers.last_opaque, "Unexpected opaque");
             };
 
-    if (get_str_stat(h, "ep_dcp_flow_control_policy") != "none") {
-        dcpStepAndExpectControlMsg("connection_buffer_size"s);
-    }
+    dcpStepAndExpectControlMsg("connection_buffer_size"s);
 
     if (get_bool_stat(h, "ep_dcp_enable_noop")) {
         // MB-29441: Check that the GetErrorMap message is sent
@@ -5262,15 +5260,10 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
 
     /* Add snapshot marker bytes to unacked bytes. Since we are shipping out
        acks by calling dcp->step(), the unacked bytes will increase */
-    const auto flowCtlEabled =
-            get_str_stat(h, "ep_dcp_flow_control_policy") != "none";
-    if (flowCtlEabled) {
-        exp_unacked_bytes += dcp_snapshot_marker_base_msg_bytes;
-        checkeq(exp_unacked_bytes,
-                get_int_stat(h, flow_ctl_stat_buf.c_str(), "dcp"),
-                "Consumer flow ctl snapshot marker bytes not accounted "
-                "correctly");
-    }
+    exp_unacked_bytes += dcp_snapshot_marker_base_msg_bytes;
+    checkeq(exp_unacked_bytes,
+            get_int_stat(h, flow_ctl_stat_buf.c_str(), "dcp"),
+            "Consumer flow ctl snapshot marker bytes not accounted correctly");
 
     // Ensure that we don't accept invalid opaque values
     const DocKey docKey{key, DocKeyEncodesCollectionId::No};
@@ -5294,13 +5287,10 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
 
     /* Add mutation bytes to unacked bytes. Since we are shipping out
        acks by calling dcp->step(), the unacked bytes will increase */
-    if (flowCtlEabled) {
-        exp_unacked_bytes +=
-                (dcp_mutation_base_msg_bytes + key.length() + dataLen);
-        checkeq(exp_unacked_bytes,
-                get_int_stat(h, flow_ctl_stat_buf.c_str(), "dcp"),
-                "Consumer flow ctl mutation bytes not accounted correctly");
-    }
+    exp_unacked_bytes += (dcp_mutation_base_msg_bytes + key.length() + dataLen);
+    checkeq(exp_unacked_bytes,
+            get_int_stat(h, flow_ctl_stat_buf.c_str(), "dcp"),
+            "Consumer flow ctl mutation bytes not accounted correctly");
 
     // Send snapshot marker
     checkeq(ENGINE_SUCCESS,
@@ -5314,13 +5304,10 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
                                  {} /*maxVisibleSeqno*/),
             "Failed to send marker!");
 
-    if (flowCtlEabled) {
-        exp_unacked_bytes += dcp_snapshot_marker_base_msg_bytes;
-        checkeq(exp_unacked_bytes,
-                get_int_stat(h, flow_ctl_stat_buf.c_str(), "dcp"),
-                "Consumer flow ctl snapshot marker bytes not accounted "
-                "correctly");
-    }
+    exp_unacked_bytes += dcp_snapshot_marker_base_msg_bytes;
+    checkeq(exp_unacked_bytes,
+            get_int_stat(h, flow_ctl_stat_buf.c_str(), "dcp"),
+            "Consumer flow ctl snapshot marker bytes not accounted correctly");
 
     // Consume an DCP mutation
     checkeq(ENGINE_SUCCESS,
@@ -5341,13 +5328,10 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
                           0),
             "Failed dcp mutate.");
 
-    if (flowCtlEabled) {
-        exp_unacked_bytes +=
-                (dcp_mutation_base_msg_bytes + key.length() + dataLen);
-        checkeq(exp_unacked_bytes,
-                get_int_stat(h, flow_ctl_stat_buf.c_str(), "dcp"),
-                "Consumer flow ctl mutation bytes not accounted correctly");
-    }
+    exp_unacked_bytes += (dcp_mutation_base_msg_bytes + key.length() + dataLen);
+    checkeq(exp_unacked_bytes,
+            get_int_stat(h, flow_ctl_stat_buf.c_str(), "dcp"),
+            "Consumer flow ctl mutation bytes not accounted correctly");
 
     wait_for_stat_to_be(h, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
 
@@ -5446,12 +5430,10 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h) {
                           {}),
             "Failed dcp delete.");
 
-    if (get_str_stat(h, "ep_dcp_flow_control_policy") != "none") {
-        exp_unacked_bytes += dcp_deletion_base_msg_bytes + key.length();
-        checkeq(exp_unacked_bytes,
-                get_int_stat(h, "eq_dcpq:unittest:unacked_bytes", "dcp"),
-                "Consumer flow ctl mutation bytes not accounted correctly");
-    }
+    exp_unacked_bytes += dcp_deletion_base_msg_bytes + key.length();
+    checkeq(exp_unacked_bytes,
+            get_int_stat(h, "eq_dcpq:unittest:unacked_bytes", "dcp"),
+            "Consumer flow ctl mutation bytes not accounted correctly");
 
     wait_for_stat_to_be(h, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
 
@@ -5543,12 +5525,10 @@ static enum test_result test_dcp_consumer_expire(EngineIface* h) {
                             {}),
             "Failed dcp expire.");
 
-    if (get_str_stat(h, "ep_dcp_flow_control_policy") != "none") {
-        exp_unacked_bytes += dcp_expiration_base_msg_bytes + key.length();
-        checkeq(exp_unacked_bytes,
-                get_int_stat(h, "eq_dcpq:unittest:unacked_bytes", "dcp"),
-                "Consumer flow ctl expiration bytes not accounted correctly");
-    }
+    exp_unacked_bytes += dcp_expiration_base_msg_bytes + key.length();
+    checkeq(exp_unacked_bytes,
+            get_int_stat(h, "eq_dcpq:unittest:unacked_bytes", "dcp"),
+            "Consumer flow ctl expiration bytes not accounted correctly");
 
     wait_for_stat_to_be(h, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
 

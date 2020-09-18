@@ -882,7 +882,7 @@
             "type": "size_t"
         },
         "dcp_flow_control_policy": {
-            "default": "none",
+            "default": "aggressive",
             "descr": "Flow control policy used on consumer side buffer",
             "dynamic": false,
             "type": "std::string",
