@@ -1041,34 +1041,6 @@ TEST_F(DCPLoopbackStreamTest, MB_36948_SnapshotEndsOnPrepare) {
     EXPECT_EQ(2, replicaVB->checkpointManager->getVisibleSnapshotEndSeqno());
 }
 
-TEST_F(DCPLoopbackStreamTest, MB_41255_dcp_delete_evicted_xattr) {
-    auto k1 = makeStoredDocKey("k1");
-    EXPECT_EQ(ENGINE_SUCCESS, storeSet(k1, true /*xattr*/));
-
-    auto route0_1 = createDcpRoute(Node0, Node1);
-    EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
-    route0_1.transferSnapshotMarker(0, 1, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
-    route0_1.transferMutation(k1, 1);
-
-    flushNodeIfPersistent(Node1);
-    flushNodeIfPersistent(Node0);
-
-    // Evict our key in the replica VB, we go direct to the vbucket to avoid
-    // the !replica check in KVBucket
-    {
-        const char* msg;
-        auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
-        auto cHandle = replicaVB->lockCollections(k1);
-        EXPECT_EQ(cb::mcbp::Status::Success,
-                  replicaVB->evictKey(&msg, cHandle));
-    }
-
-    EXPECT_EQ(ENGINE_SUCCESS, del(k1));
-    route0_1.transferSnapshotMarker(2, 2, MARKER_FLAG_MEMORY);
-    // Must not fail, with MB-41255 this would error with 'would block'
-    route0_1.transferDeletion(k1, 2);
-}
-
 class DCPLoopbackSnapshots : public DCPLoopbackStreamTest,
                              public ::testing::WithParamInterface<int> {
 public:

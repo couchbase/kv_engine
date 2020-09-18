@@ -4634,6 +4634,86 @@ TEST_P(STParameterizedBucketTest, MB_34380) {
     EXPECT_NO_THROW(vb->getShard()->getRWUnderlying()->getDbFileInfo(vbid));
 }
 
+// Test that an evicted xattr value can be deleted by DCP
+TEST_P(STParameterizedBucketTest, MB_41255_evicted_xattr) {
+    // Make vbucket replica so can add passive stream
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    const void* cookie = create_mock_cookie();
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
+
+    // Add passive stream
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer->addStream(/*opaque*/ 0,
+                                  vbid,
+                                  /*flags*/ 0));
+
+    consumer->snapshotMarker(/*opaque*/ 1,
+                             /*vbucket*/ vbid,
+                             /*start_seqno*/ 1,
+                             /*end_seqno*/ 1,
+                             /*flags set to MARKER_FLAG_MEMORY*/ 0x5,
+                             {},
+                             {});
+
+    // Store value with an xattr
+    auto key = makeStoredDocKey("k1");
+    auto data = createXattrValue(R"({"json":"yes"})");
+    cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(data.data()),
+                                data.size()};
+    consumer->mutation(1, // opaque
+                       key,
+                       value,
+                       0, // priv bytes
+                       PROTOCOL_BINARY_DATATYPE_XATTR,
+                       1, // cas
+                       vbid, // vbucket
+                       0, // flags
+                       1, // by_seqno
+                       0, // rev seqno
+                       0, // expiration
+                       0, // lock time
+                       {}, // meta
+                       0); // nru
+
+    // flush and evict
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    if (persistent()) {
+        auto replicaVB = engine->getKVBucket()->getVBucket(vbid);
+        const char* msg;
+        auto cHandle = replicaVB->lockCollections(key);
+        EXPECT_EQ(cb::mcbp::Status::Success,
+                  replicaVB->evictKey(&msg, cHandle));
+    }
+
+    // now delete the key
+    consumer->snapshotMarker(/*opaque*/ 1,
+                             /*vbucket*/ vbid,
+                             /*start_seqno*/ 2,
+                             /*end_seqno*/ 2,
+                             /*flags*/ 5,
+                             {},
+                             {});
+
+    // With MB-41255 this would error with 'would block' (for value eviction)
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->deletion(/*opaque*/ 1,
+                                 /*key*/ key,
+                                 /*value*/ {},
+                                 /*priv_bytes*/ 0,
+                                 /*datatype*/ PROTOCOL_BINARY_RAW_BYTES,
+                                 /*cas*/ 1,
+                                 /*vbucket*/ vbid,
+                                 /*bySeqno*/ 2,
+                                 /*revSeqno*/ 0,
+                                 /*meta*/ {}));
+    // Close stream
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(/*opaque*/ 0, vbid));
+    destroy_mock_cookie(cookie);
+}
+
 INSTANTIATE_TEST_SUITE_P(XattrSystemUserTest,
                          XattrSystemUserTest,
                          ::testing::Bool());
