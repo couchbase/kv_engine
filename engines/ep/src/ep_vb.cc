@@ -809,7 +809,7 @@ size_t EPVBucket::getNumPersistedDeletes() const {
         // If creation is true then no disk file exists
         return 0;
     }
-    return shard->getROUnderlying()->getNumPersistedDeletes(getId());
+    return shard->getRWUnderlying()->getNumPersistedDeletes(getId());
 }
 
 void EPVBucket::dropKey(int64_t bySeqno,
