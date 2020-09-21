@@ -23,6 +23,7 @@
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "failover-table.h"
+#include "flusher.h"
 #include "item.h"
 #include "kvshard.h"
 #include "stored_value_factories.h"
@@ -1107,4 +1108,12 @@ void EPVBucket::setNumTotalItems(KVStore& kvstore) {
     vbItemCount -= vbState->onDiskPrepares;
 
     setNumTotalItems(vbItemCount - lockCollections().getSystemEventItemCount());
+}
+
+void EPVBucket::notifyFlusher() {
+    auto shard = getShard();
+    if (shard) {
+        auto ptr = shard->getBucket(getId());
+        shard->getFlusher()->notifyFlushEvent(ptr);
+    }
 }

@@ -196,8 +196,9 @@ private:
     KVBucket& epstore;
 };
 
-void NotifyFlusherCB::callback(Vbid& vb) {
-    if (shard->getBucket(vb)) {
+void NotifyFlusherCB::callback(Vbid& vbid) {
+    auto vb = shard->getBucket(vbid);
+    if (vb) {
         shard->getFlusher()->notifyFlushEvent(vb);
     }
 }

@@ -263,6 +263,8 @@ public:
      */
     void setNumTotalItems(KVStore& kvstore);
 
+    void notifyFlusher() override;
+
 protected:
     /**
      * queue a background fetch of the specified item.

@@ -14,6 +14,7 @@
 #include "utility.h"
 #include "vb_ready_queue.h"
 #include <executor/cb3_executorthread.h>
+#include "vbucket_fwd.h"
 
 #include <memcached/vbucket.h>
 
@@ -44,14 +45,8 @@ public:
 
     const char * stateName() const;
 
-    void notifyFlushEvent(Vbid vbid) {
-        if (!lpVbs.pushUnique(vbid)) {
-            // Something is already in the queue, no need to wake the flusher
-            return;
-        }
+    void notifyFlushEvent(VBucketPtr vb);
 
-        wake();
-    }
     void setTaskId(size_t newId) { taskId = newId; }
 
     // Testing hook - if non-empty, called from step() just before snoozing

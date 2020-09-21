@@ -75,7 +75,8 @@ TEST_F(FlusherTest, MissingWakeupBeforeSnooze) {
     // event just before we have decided to snooze (but before snooze() is
     // actually called).
     flusher->stepPreSnoozeHook = [this]() {
-        this->flusher->notifyFlushEvent(vbid0);
+        auto vb = engine->getKVBucket()->getVBucket(vbid0);
+        this->flusher->notifyFlushEvent(vb);
     };
 
     // Test: Run the flusher task. This should flush the oustanding setVBstate

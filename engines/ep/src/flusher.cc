@@ -203,7 +203,6 @@ bool Flusher::step(GlobalTask *task) {
             /// If there's still work to do for this shard, wake up the Flusher
             /// to run again.
             const bool shouldSnooze = hpVbs.empty() &&
-                                      shard->highPriorityCount.load() == 0 &&
                                       !more;
 
             // Testing hook
@@ -245,22 +244,14 @@ bool Flusher::flushVB() {
     }
 
     // Search for any high priority vBuckets to flush.
-    if (!doHighPriority && shard->highPriorityCount.load() > 0) {
-        for (auto vbid : shard->getVBuckets()) {
-            VBucketPtr vb = store->getVBucket(vbid);
-            if (vb && vb->getHighPriorityChkSize() > 0) {
-                hpVbs.pushUnique(vbid);
-            }
-        }
+    if (!doHighPriority && hpVbs.size() > 0) {
         numHighPriority = hpVbs.size();
-        if (!hpVbs.empty()) {
-            doHighPriority = true;
-        }
+        doHighPriority = true;
     }
 
     // Flush a high priority vBucket if applicable
     Vbid vbid;
-    if (hpVbs.popFront(vbid)) {
+    if (doHighPriority && hpVbs.popFront(vbid)) {
         const auto res = store->flushVBucket(vbid);
 
         if (res.moreAvailable == EPBucket::MoreAvailable::Yes) {
@@ -317,4 +308,17 @@ size_t Flusher::getLPQueueSize() const {
 
 size_t Flusher::getHighPriorityCount() const {
     return shard->highPriorityCount.load();
+}
+
+void Flusher::notifyFlushEvent(VBucketPtr vb) {
+    auto shouldWake = false;
+    if (vb->getHighPriorityChkSize() > 0) {
+        shouldWake = hpVbs.pushUnique(vb->getId());
+    } else {
+        shouldWake = lpVbs.pushUnique(vb->getId());
+    }
+
+    if (shouldWake) {
+        wake();
+    }
 }

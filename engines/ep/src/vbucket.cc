@@ -3892,6 +3892,7 @@ VBucket::getHighPriorityNotifications(EventuallyPersistentEngine& engine,
             entry = hpVBReqs.erase(entry);
         } else {
             ++entry;
+            notifyFlusher();
         }
     }
     numHpVBReqs.store(hpVBReqs.size());

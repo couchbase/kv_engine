@@ -1715,6 +1715,14 @@ public:
         EventuallyPersistentEngine& engine;
     };
 
+    /**
+     * Notify the flusher that this vBucket needs flushing
+     */
+    virtual void notifyFlusher(){
+            // Does nothing by default as some VBucket types may not require
+            // persistence
+    };
+
 protected:
     /**
      * This function checks for the various states of the value & depending on
