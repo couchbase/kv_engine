@@ -38,6 +38,7 @@
 
 #include <phosphor/phosphor.h>
 #include <memory>
+#include <utility>
 
 static const size_t MAX_PERSISTENCE_QUEUE_SIZE = 1000000;
 
@@ -329,6 +330,32 @@ void PagingVisitor::complete() {
         // ignore a request.
         store.checkAndMaybeFreeMemory();
     }
+}
+
+std::function<bool(const Vbid&, const Vbid&)>
+PagingVisitor::getVBucketComparator() const {
+    // Get the pageable mem used and state of each vb _once_ and cache it.
+    // Fetching these values repeatedly in the comparator could cause issues
+    // as the values can change _during_ a given sort call.
+
+    std::map<Vbid, std::pair<bool, size_t>>
+            stateAndPageableMemUsed;
+
+    for (const auto& vbid : store.getVBuckets().getBuckets()) {
+        auto vb = store.getVBucket(vbid);
+        if (vb) {
+            stateAndPageableMemUsed[vbid] = {
+                    vb->getState() == vbucket_state_replica,
+                    vb->getPageableMemUsage()};
+        }
+    }
+
+    return [stateAndPageableMemUsed = std::move(stateAndPageableMemUsed)](
+                   const Vbid& a, const Vbid& b) mutable {
+        // sort replicas before all other vbucket states, then sort by
+        // pageableMemUsed
+        return stateAndPageableMemUsed[a] > stateAndPageableMemUsed[b];
+    };
 }
 
 // Removes checkpoints that are both closed and unreferenced, thereby
