@@ -2192,3 +2192,7 @@ BgFetcher& EPBucket::getBgFetcher(Vbid vbid) {
     auto id = vbid.get() % bgFetchers.size();
     return *bgFetchers.at(id);
 }
+
+Flusher* EPBucket::getOneFlusher() {
+    return vbMap.getShard(EP_PRIMARY_SHARD)->getFlusher();
+}

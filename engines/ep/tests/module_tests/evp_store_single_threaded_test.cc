@@ -4505,7 +4505,7 @@ TEST_P(STParamPersistentBucketTest,
 
     EXPECT_EQ(WarmupState::State::CheckForAccessLog, warmup->getWarmupState());
 
-    auto flusher = store->getFlusher(0);
+    auto flusher = store->getOneFlusher();
     EXPECT_EQ(0, flusher->getLPQueueSize());
 
     // Check that the on disk state shows a change in failover table

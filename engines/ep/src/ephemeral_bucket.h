@@ -153,6 +153,11 @@ public:
         return false;
     }
 
+    Flusher* getOneFlusher() override {
+        // No flusher for ephemeral
+        return nullptr;
+    }
+
 protected:
     std::unique_ptr<VBucketCountVisitor> makeVBCountVisitor(
             vbucket_state_t state) override;

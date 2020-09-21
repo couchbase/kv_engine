@@ -539,8 +539,6 @@ public:
      */
     virtual Position endPosition() const = 0;
 
-    virtual const Flusher* getFlusher(uint16_t shardId) = 0;
-
     virtual Warmup* getWarmup() const = 0;
 
     /**
@@ -699,7 +697,14 @@ public:
 
     virtual void resetUnderlyingStats() = 0;
     virtual const KVStore* getOneROUnderlying() const = 0;
-    virtual KVStore *getOneRWUnderlying() = 0;
+    virtual KVStore* getOneRWUnderlying() = 0;
+
+    /**
+     * @return A single Flusher pointer that belongs to this Bucket. May be
+     *         nullptr if none exist. No assumption should be made as to which
+     *         Flusher object is returned.
+     */
+    virtual Flusher* getOneFlusher() = 0;
 
     virtual EvictionPolicy getItemEvictionPolicy() const = 0;
 

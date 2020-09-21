@@ -2914,7 +2914,7 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStats(
     collector.addStat(Key::ep_expired_pager, epstats.expired_pager);
     collector.addStat(Key::ep_queue_size, epstats.diskQueueSize);
     collector.addStat(Key::ep_diskqueue_items, epstats.diskQueueSize);
-    auto* flusher = kvBucket->getFlusher(EP_PRIMARY_SHARD);
+    auto* flusher = kvBucket->getOneFlusher();
     if (flusher) {
         collector.addStat(Key::ep_commit_num, epstats.flusherCommits);
         collector.addStat(Key::ep_commit_time, epstats.commit_time);

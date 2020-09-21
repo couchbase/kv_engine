@@ -371,8 +371,6 @@ public:
 
     Position endPosition() const override;
 
-    const Flusher* getFlusher(uint16_t shardId) override;
-
     Warmup* getWarmup() const override;
 
     cb::engine_errc getKeyStats(const DocKey& key,
@@ -571,7 +569,7 @@ public:
 
     void resetUnderlyingStats() override;
     const KVStore* getOneROUnderlying() const override;
-    KVStore *getOneRWUnderlying() override;
+    KVStore* getOneRWUnderlying() override;
 
     EvictionPolicy getItemEvictionPolicy() const override {
         return eviction_policy;

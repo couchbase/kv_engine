@@ -497,10 +497,6 @@ KVBucket::~KVBucket() {
     EP_LOG_INFO_RAW("Deleted KvBucket.");
 }
 
-const Flusher* KVBucket::getFlusher(uint16_t shardId) {
-    return vbMap.shards[shardId]->getFlusher();
-}
-
 Warmup* KVBucket::getWarmup() const {
     return nullptr;
 }
