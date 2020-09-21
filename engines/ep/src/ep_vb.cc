@@ -448,6 +448,14 @@ bool EPVBucket::eligibleToPageOut(const HashTable::HashBucketLock& lh,
     return v.eligibleForEviction(eviction);
 }
 
+size_t EPVBucket::getPageableMemUsage() {
+    if (eviction == FULL_EVICTION) {
+        return ht.getItemMemory();
+    } else {
+        return ht.getItemMemory() - ht.getMetadataMemory();
+    }
+}
+
 void EPVBucket::queueBackfillItem(queued_item& qi,
                                   const GenerateBySeqno generateBySeqno) {
     LockHolder lh(backfill.mutex);

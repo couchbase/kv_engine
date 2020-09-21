@@ -184,8 +184,10 @@ public:
         run();
     }
 
-    void runCurrentTask() {
+    std::string runCurrentTask() {
+        auto name = getTaskName();
         run();
+        return name;
     }
 
     ProcessClock::time_point completeCurrentTask() {

@@ -96,6 +96,8 @@ public:
     bool eligibleToPageOut(const HashTable::HashBucketLock& lh,
                            const StoredValue& v) const override;
 
+    size_t getPageableMemUsage() override;
+
     bool areDeletedItemsAlwaysResident() const override;
 
     void addStats(bool details, ADD_STAT add_stat, const void* c) override;

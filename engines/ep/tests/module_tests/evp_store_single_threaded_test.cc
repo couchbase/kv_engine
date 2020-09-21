@@ -54,12 +54,13 @@ ProcessClock::time_point SingleThreadedKVBucketTest::runNextTask(
     return executor.completeCurrentTask();
 }
 
-ProcessClock::time_point SingleThreadedKVBucketTest::runNextTask(TaskQueue& taskQ) {
+std::pair<ProcessClock::time_point, std::string>
+SingleThreadedKVBucketTest::runNextTask(TaskQueue& taskQ) {
     CheckedExecutor executor(task_executor, taskQ);
 
     // Run the task
-    executor.runCurrentTask();
-    return executor.completeCurrentTask();
+    auto name = executor.runCurrentTask();
+    return {executor.completeCurrentTask(), name};
 }
 
 void SingleThreadedKVBucketTest::SetUp() {

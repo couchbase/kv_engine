@@ -46,7 +46,8 @@ public:
     /*
      * Run the next task from the taskQ
      */
-    ProcessClock::time_point runNextTask(TaskQueue& taskQ);
+    std::pair<ProcessClock::time_point, std::string> runNextTask(
+            TaskQueue& taskQ);
 
     /*
      * DCP helper. Create a MockDcpProducer configured with (or without)

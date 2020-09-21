@@ -1033,6 +1033,15 @@ public:
                                    const StoredValue& v) const = 0;
 
     /**
+     * Check how much memory could be reclaimed if every resident item
+     * were evicted.
+     * Note, the real amount of reclaimable memory will be lower than this,
+     * as certain items (prepares, dirty items, system events,
+     * deletes for ephemeral) cannot be evicted.
+     */
+    virtual size_t getPageableMemUsage() = 0;
+
+    /**
      * Add an item in the store
      *
      * @param itm the item to add. On success, this will have its seqno and

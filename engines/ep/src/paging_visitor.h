@@ -82,6 +82,9 @@ public:
 
     void complete() override;
 
+    std::function<bool(const uint16_t&, const uint16_t&)> getVBucketComparator()
+            const override;
+
     /**
      * Get the number of items ejected during the visit.
      */

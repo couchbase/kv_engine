@@ -300,6 +300,33 @@ PagingVisitor::PagingVisitor(KVBucket& s,
         }
     }
 
+    std::function<bool(const VBucket::id_type&, const VBucket::id_type&)>
+    PagingVisitor::getVBucketComparator() const {
+        // Get the pageable mem used of each vb _once_ and cache it.
+        // Fetching these values repeatedly in the comparator could cause issues
+        // as the values can change _during_ a given sort call.
+
+        std::map<VBucket::id_type, size_t> pageableMemUsed;
+
+        for (const auto& vbid : store.getVBuckets().getBuckets()) {
+            auto vb = store.getVBucket(vbid);
+            pageableMemUsed[vbid] = vb ? vb->getPageableMemUsage() : 0;
+        }
+
+        // Capture initializers are C++14
+        return [pageableMemUsed, this](const VBucket::id_type& a,
+                                       const VBucket::id_type& b) mutable {
+            auto vbA = store.getVBucket(a);
+            auto vbB = store.getVBucket(b);
+            bool aReplica = vbA && vbA->getState() == vbucket_state_replica;
+            bool bReplica = vbB && vbB->getState() == vbucket_state_replica;
+            // sort replicas before all other vbucket states, then sort by
+            // pageableMemUsed
+            return std::make_pair(aReplica, pageableMemUsed[a]) >
+                   std::make_pair(bReplica, pageableMemUsed[b]);
+        };
+    }
+
     void PagingVisitor::update() {
         store.deleteExpiredItems(expired, ExpireBy::Pager);
 
