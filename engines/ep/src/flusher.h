@@ -24,14 +24,13 @@
 #define RETRY_FLUSH_VBUCKET (-1)
 
 class EPBucket;
-class KVShard;
 
 /**
  * Manage persistence of data for an EPBucket.
  */
 class Flusher {
 public:
-    Flusher(EPBucket* st, KVShard* k);
+    Flusher(EPBucket* st, size_t flusherId);
 
     ~Flusher();
 
@@ -47,8 +46,6 @@ public:
 
     void notifyFlushEvent(VBucketPtr vb);
 
-    void setTaskId(size_t newId) { taskId = newId; }
-
     // Testing hook - if non-empty, called from step() just before snoozing
     // the task.
     TestingHook<> stepPreSnoozeHook;
@@ -56,8 +53,6 @@ public:
     size_t getHPQueueSize() const;
 
     size_t getLPQueueSize() const;
-
-    size_t getHighPriorityCount() const;
 
 private:
     enum class State {
@@ -97,7 +92,11 @@ private:
     size_t numHighPriority;
     std::atomic<bool> pendingMutation;
 
-    KVShard *shard;
+    /**
+     * UID of this flusher. Required for to name the various FlusherTasks that
+     * we create.
+     */
+    size_t flusherId;
 
     DISALLOW_COPY_AND_ASSIGN(Flusher);
 };

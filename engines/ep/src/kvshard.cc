@@ -66,7 +66,7 @@ KVShard::KVShard(EventuallyPersistentEngine& engine, id_type id)
 }
 
 void KVShard::enablePersistence(EPBucket& ep) {
-    flusher = std::make_unique<Flusher>(&ep, this);
+    flusher = std::make_unique<Flusher>(&ep, getId());
 }
 
 // Non-inline destructor so we can destruct

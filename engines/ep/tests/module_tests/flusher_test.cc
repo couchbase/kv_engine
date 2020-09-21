@@ -58,7 +58,7 @@ protected:
     Flusher* flusher;
 
     static constexpr const char* flusherName =
-            "Running a flusher loop: shard 0";
+            "Running a flusher loop: flusher 0";
 
     const Vbid vbid0 = Vbid(0);
 };
@@ -123,16 +123,16 @@ TEST_F(FlusherTest, GetToLowPrioWhenSomeHighPriIsPending) {
     // Simulate a SEQNO_PERSISTENCE request. Note that hpVBucket is empty.
     auto hpVBucket = engine->getVBucket(hpVbid);
     ASSERT_EQ(0, hpVBucket->getHighSeqno());
-    ASSERT_EQ(0, flusher->getHighPriorityCount());
+    ASSERT_EQ(0, hpVBucket->getHighPriorityChkSize());
     hpVBucket->checkAddHighPriorityVBEntry(
             1 /*seqno*/, nullptr /*cookie*/, HighPriorityVBNotify::Seqno);
-    ASSERT_EQ(1, flusher->getHighPriorityCount());
+    ASSERT_EQ(1, hpVBucket->getHighPriorityChkSize());
 
     // Run the flusher
     task_executor->runNextTask(WRITER_TASK_IDX, flusherName);
     // hpVBucket is still in high-priority queue as we have never
     // received and flushed any seqno:1
-    ASSERT_EQ(1, flusher->getHighPriorityCount());
+    ASSERT_EQ(1, hpVBucket->getHighPriorityChkSize());
 
     // Receive an item for the low-priority vbucket
     ASSERT_EQ(0, flusher->getLPQueueSize());

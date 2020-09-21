@@ -21,7 +21,7 @@
 #include <chrono>
 #include <thread>
 
-Flusher::Flusher(EPBucket* st, KVShard* k)
+Flusher::Flusher(EPBucket* st, size_t flusherId)
     : store(st),
       _state(State::Initializing),
       taskId(0),
@@ -31,7 +31,7 @@ Flusher::Flusher(EPBucket* st, KVShard* k)
       doHighPriority(false),
       numHighPriority(0),
       pendingMutation(false),
-      shard(k) {
+      flusherId(flusherId) {
 }
 
 Flusher::~Flusher() {
@@ -149,8 +149,8 @@ void Flusher::initialize() {
 void Flusher::schedule_UNLOCKED() {
     ExecutorPool* iom = ExecutorPool::get();
     ExTask task = std::make_shared<FlusherTask>(
-            ObjectRegistry::getCurrentEngine(), this, shard->getId());
-    this->setTaskId(task->getId());
+            ObjectRegistry::getCurrentEngine(), this, flusherId);
+    taskId = task->getId();
     iom->schedule(task);
 }
 
@@ -304,10 +304,6 @@ size_t Flusher::getHPQueueSize() const {
 
 size_t Flusher::getLPQueueSize() const {
     return lpVbs.size();
-}
-
-size_t Flusher::getHighPriorityCount() const {
-    return shard->highPriorityCount.load();
 }
 
 void Flusher::notifyFlushEvent(VBucketPtr vb) {
