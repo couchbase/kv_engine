@@ -123,7 +123,8 @@ bool BloomFilterCallback::initTempFilter(Vbid vbucketId) {
     size_t estimated_count;
     size_t num_deletes = 0;
     try {
-        num_deletes = store.getROUnderlying(vbucketId)->getNumPersistedDeletes(vbucketId);
+        num_deletes = store.getRWUnderlying(vbucketId)->getNumPersistedDeletes(
+                vbucketId);
     } catch (std::runtime_error& re) {
         EP_LOG_WARN(
                 "BloomFilterCallback::initTempFilter: runtime error while "

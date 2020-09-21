@@ -110,6 +110,7 @@ public:
     /**
      * Run the compaction task
      * @param purgeBeforeSeq purge tombstones with seqnos less than this
+     * @param dropDeletes drop all deletes
      */
     void runCompaction(uint64_t purgeBeforeSeq = 0, bool dropDeletes = false);
 
@@ -510,6 +511,13 @@ protected:
             couchstore_error_t failureCode, bool vbDeletion = false);
     void testFlushFailureAtPersistDelete(couchstore_error_t failureCode,
                                          bool vbDeletion = false);
+
+    /**
+     * Test to check that we update and use persistedDeletes correctly.
+     *
+     * @param dropDeletes compaction config param
+     */
+    void testCompactionPersistedDeletes(bool dropDeletes);
 
 protected:
     EPBucket& getEPBucket();

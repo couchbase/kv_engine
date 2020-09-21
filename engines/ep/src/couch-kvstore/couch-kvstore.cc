@@ -3012,6 +3012,10 @@ ENGINE_ERROR_CODE CouchKVStore::couchErr2EngineErr(couchstore_error_t errCode) {
 }
 
 size_t CouchKVStore::getNumPersistedDeletes(Vbid vbid) {
+    // cachedDeletes isn't tracked correctly for the RO store as it's only set
+    // on write so we can't read the stat from it.
+    Expects(!readOnly);
+
     size_t delCount = cachedDeleteCount[vbid.get()];
     if (delCount != (size_t) -1) {
         return delCount;
