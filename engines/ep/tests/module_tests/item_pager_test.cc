@@ -342,6 +342,10 @@ protected:
 // Test that the ItemPager is scheduled when the Server Quota is reached, and
 // that items are successfully paged out.
 TEST_P(STItemPagerTest, ServerQuotaReached) {
+    // MB-41568 Disabled
+    if (isMagma()) {
+        return;
+    }
     size_t count = populateUntilTmpFail(vbid);
     ASSERT_GE(count, 50) << "Too few documents stored";
 
