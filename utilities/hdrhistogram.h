@@ -90,6 +90,45 @@ public:
 
         Iterator(Iterator&& itr) = default;
 
+        /**
+         * Gets the next value and corresponding count from the histogram
+         * Returns an optional pair, comprising of:
+         * 1) value
+         * 2) count associated with the value
+         * The pair is optional because iterating past the last value in the
+         * histogram will return no result.
+         */
+        std::optional<std::pair<uint64_t, uint64_t>> getNextValueAndCount();
+
+        /**
+         * Gets the next value and corresponding percentile from the histogram
+         * Returns an optional pair, comprising of:
+         * 1) highest equivalent value
+         * 2) next percentile that the iterator moves to
+         * The pair is optional because iterating past the last value in the
+         * histogram will return no result.
+         */
+        std::optional<std::pair<uint64_t, double>> getNextValueAndPercentile();
+
+        /**
+         * Method used to get buckets from the histogram with the widths defined
+         * by the iteration method being used by the iterator. The starting and
+         * end values of the bucket is returned as a string in the format
+         * low,high e.g. 10,20. The count of this bucket is returned as uint64_t
+         * value.
+         * @return the bucket data, first part of the pair containing a string
+         * of the low and high values of the bucket. The second part of the pair
+         * containing the count as a uint64_t for the bucket.
+         */
+        std::optional<std::tuple<uint64_t, uint64_t, uint64_t>>
+        getNextBucketLowHighAndCount();
+
+        /**
+         * Dumps the histograms count data to a string
+         * @return a string containing the histogram dump
+         */
+        std::string dumpValues();
+
         IterMode type;
         uint64_t lastVal = 0;
         uint64_t lastCumulativeCount = 0;
@@ -145,14 +184,7 @@ public:
      * @return returns this HdrHistogram, which is now a copy of the other
      * HdrHistogram
      */
-    HdrHistogram& operator=(const HdrHistogram& other) {
-        // reset this object to make sure we are in a state to copy too
-        this->reset();
-        // take advantage of the code already written in for the addition
-        // assigment operator
-        *this += other;
-        return *this;
-    };
+    HdrHistogram& operator=(const HdrHistogram& other);
 
     /**
      * Addition assigment operator for aggregation of histograms
@@ -247,42 +279,6 @@ public:
     Iterator getHistogramsIterator() const;
 
     /**
-     * Gets the next value and corresponding count from the histogram
-     * Returns an optional pair, comprising of:
-     * 1) value
-     * 2) count associated with the value
-     * The pair is optional because iterating past the last value in the
-     * histogram will return no result.
-     */
-    std::optional<std::pair<uint64_t, uint64_t>> getNextValueAndCount(
-            Iterator& iter) const;
-
-    /**
-     * Gets the next value and corresponding percentile from the histogram
-     * Returns an optional pair, comprising of:
-     * 1) highest equivalent value
-     * 2) next percentile that the iterator moves to
-     * The pair is optional because iterating past the last value in the
-     * histogram will return no result.
-     */
-    std::optional<std::pair<uint64_t, double>> getNextValueAndPercentile(
-            Iterator& iter) const;
-
-    /**
-     * Method used to get buckets from the histogram with the widths defined
-     * by the iteration method being used by the iterator. The starting and
-     * end values of the bucket is returned as a string in the format
-     * low,high e.g. 10,20. The count of this bucket is returned as uint64_t
-     * value.
-     * @param itr HdrHistogram::Iterator being used to iterate over the data
-     * @return the bucket data, first part of the pair containing a string of
-     * the low and high values of the bucket. The second part of the pair
-     * containing the count as a uint64_t for the bucket.
-     */
-    std::optional<std::tuple<uint64_t, uint64_t, uint64_t>>
-    getNextBucketLowHighAndCount(Iterator& iter) const;
-
-    /**
      * prints the histogram counts by percentiles to stdout
      */
     void printPercentiles() const;
@@ -292,36 +288,26 @@ public:
      * @param firstBucketWidth range of the first bucket
      * @param log_base base of the logarithmic iterator
      */
-    void dumpLogValues(int64_t firstBucketWidth, double log_base);
+    void dumpLogValues(int64_t firstBucketWidth, double log_base) const;
 
     /**
      * dumps the histogram to stdout using a linear iterator
      * @param bucketWidth size of each bucket in terms of range
      */
-    void dumpLinearValues(int64_t bucketWidth);
-
-    /**
-     * Dumps the histograms count data to a string stream
-     * using the iterator its called with
-     * @param itr iterator to be used to access the histogram data
-     * @return a string stream containing the histogram dump
-     */
-    std::stringstream dumpValues(Iterator& itr);
+    void dumpLinearValues(int64_t bucketWidth) const;
 
     /**
      * Method to get the histogram as a json object
-     * itrType method which to iterate over the data
      * @return a nlohmann::json containing the histograms data iterated
-     * over by itrType. Which by default is Percentiles
+     * over by Percentiles
      */
-    nlohmann::json to_json(
-            Iterator::IterMode itrType = Iterator::IterMode::Percentiles);
+    nlohmann::json to_json() const;
 
     /**
      * Dumps the histogram data to json in a string form
      * @return a string of histogram json data
      */
-    std::string to_string();
+    std::string to_string() const;
 
     /**
      * Method to get the total amount of memory being used by this histogram

@@ -20,9 +20,9 @@
 #include <folly/lang/Assume.h>
 #include <nlohmann/json.hpp>
 #include <platform/cb_malloc.h>
+#include <spdlog/fmt/fmt.h>
 #include <iostream>
 #include <optional>
-#include <sstream>
 
 // Custom deleter for the hdr_histogram struct.
 void HdrHistogram::HdrDeleter::operator()(struct hdr_histogram* val) {
@@ -81,6 +81,17 @@ HdrHistogram& HdrHistogram::operator+=(const HdrHistogram& other) {
             this->resize(newMin, newMax, newSigfig);
         }
         hdr_add(this->histogram.rlock()->get(), other.histogram.rlock()->get());
+    }
+    return *this;
+}
+
+HdrHistogram& HdrHistogram::operator=(const HdrHistogram& other) {
+    if (this != &other) {
+        // reset this object to make sure we are in a state to copy too
+        this->reset();
+        // take advantage of the code already written in for the addition
+        // assigment operator
+        *this += other;
     }
     return *this;
 }
@@ -187,26 +198,26 @@ HdrHistogram::Iterator HdrHistogram::getHistogramsIterator() const {
     return makeIterator(defaultIterationMode);
 }
 
-std::optional<std::pair<uint64_t, uint64_t>> HdrHistogram::getNextValueAndCount(
-        Iterator& iter) const {
+std::optional<std::pair<uint64_t, uint64_t>>
+HdrHistogram::Iterator::getNextValueAndCount() {
     std::optional<std::pair<uint64_t, uint64_t>> valueAndCount;
-    if (hdr_iter_next(&iter)) {
-        auto value = static_cast<uint64_t>(iter.value);
+    if (hdr_iter_next(this)) {
+        auto value = static_cast<uint64_t>(this->value);
         uint64_t count = 0;
-        switch (iter.type) {
+        switch (type) {
         case Iterator::IterMode::Log:
-            count = iter.specifics.log.count_added_in_this_iteration_step;
+            count = specifics.log.count_added_in_this_iteration_step;
             break;
         case Iterator::IterMode::Linear:
-            count = iter.specifics.linear.count_added_in_this_iteration_step;
+            count = specifics.linear.count_added_in_this_iteration_step;
             break;
         case Iterator::IterMode::Percentiles:
-            value = iter.highest_equivalent_value;
-            count = iter.cumulative_count - iter.lastCumulativeCount;
-            iter.lastCumulativeCount = iter.cumulative_count;
+            value = highest_equivalent_value;
+            count = cumulative_count - lastCumulativeCount;
+            lastCumulativeCount = cumulative_count;
             break;
         case Iterator::IterMode::Recorded:
-            count = iter.count;
+            count = this->count;
             break;
         }
 
@@ -220,59 +231,61 @@ std::optional<std::pair<uint64_t, uint64_t>> HdrHistogram::getNextValueAndCount(
 }
 
 std::optional<std::tuple<uint64_t, uint64_t, uint64_t>>
-HdrHistogram::getNextBucketLowHighAndCount(Iterator& iter) const {
+HdrHistogram::Iterator::getNextBucketLowHighAndCount() {
     std::optional<std::tuple<uint64_t, uint64_t, uint64_t>> bucketHighLowCount;
-    auto valueAndCount = getNextValueAndCount(iter);
+    auto valueAndCount = getNextValueAndCount();
     if (valueAndCount.has_value()) {
-        bucketHighLowCount = std::make_tuple(
-                iter.lastVal, valueAndCount->first, valueAndCount->second);
-        iter.lastVal = valueAndCount->first;
+        bucketHighLowCount = {
+                lastVal, valueAndCount->first, valueAndCount->second};
+        lastVal = valueAndCount->first;
     }
     return bucketHighLowCount;
 }
 
 std::optional<std::pair<uint64_t, double>>
-HdrHistogram::getNextValueAndPercentile(Iterator& iter) const {
+HdrHistogram::Iterator::getNextValueAndPercentile() {
     std::optional<std::pair<uint64_t, double>> valueAndPer;
-    if (iter.type == Iterator::IterMode::Percentiles) {
-        if (hdr_iter_next(&iter)) {
+    if (type == Iterator::IterMode::Percentiles) {
+        if (hdr_iter_next(this)) {
             // We subtract one from the lowest value as we have added a one
             // offset as the underlying hdr_histogram cannot store 0 and
             // therefore the value must be greater than or equal to 1.
-            valueAndPer = std::make_pair(iter.highest_equivalent_value - 1,
-                                         iter.specifics.percentiles.percentile);
+            valueAndPer = {highest_equivalent_value - 1,
+                           specifics.percentiles.percentile};
         }
     }
     return valueAndPer;
+}
+
+std::string HdrHistogram::Iterator::dumpValues() {
+    fmt::memory_buffer dump;
+    while (auto pair = getNextValueAndCount()) {
+        fmt::format_to(dump,
+                       "Value[{}-{}]\tCount:{}\t\n",
+                       value_iterated_from,
+                       value_iterated_to,
+                       pair->second);
+    }
+    fmt::format_to(dump, "Total:\t{}\n", total_count);
+    return {dump.data(), dump.size()};
 }
 
 void HdrHistogram::printPercentiles() const {
     hdr_percentiles_print(histogram.rlock()->get(), stdout, 5, 1.0, CLASSIC);
 }
 
-void HdrHistogram::dumpLinearValues(int64_t bucketWidth) {
-    auto itr = makeLinearIterator(bucketWidth);
-    std::cout << dumpValues(itr).str();
+void HdrHistogram::dumpLinearValues(int64_t bucketWidth) const {
+    HdrHistogram::Iterator itr = makeLinearIterator(bucketWidth);
+    fmt::print(stdout, itr.dumpValues());
 }
 
-void HdrHistogram::dumpLogValues(int64_t firstBucketWidth, double log_base) {
-    auto itr = makeLogIterator(firstBucketWidth, log_base);
-    std::cout << dumpValues(itr).str();
+void HdrHistogram::dumpLogValues(int64_t firstBucketWidth,
+                                 double log_base) const {
+    HdrHistogram::Iterator itr = makeLogIterator(firstBucketWidth, log_base);
+    fmt::print(stdout, itr.dumpValues());
 }
 
-std::stringstream HdrHistogram::dumpValues(Iterator& itr) {
-    std::stringstream dump;
-    while (auto pair = getNextValueAndCount(itr)) {
-        dump << "Value[" << itr.value_iterated_from << "-"
-             << itr.value_iterated_to << "]\tCount:\t" << pair->second
-             << std::endl;
-    }
-    dump << "Total:\t" << itr.total_count << std::endl;
-
-    return dump;
-}
-
-nlohmann::json HdrHistogram::to_json(Iterator::IterMode itrType) {
+nlohmann::json HdrHistogram::to_json() const {
     nlohmann::json rootObj;
 
     // Five is the number of iteration steps per half-distance to 100%.
@@ -285,7 +298,7 @@ nlohmann::json HdrHistogram::to_json(Iterator::IterMode itrType) {
     nlohmann::json dataArr;
 
     int64_t lastval = 0;
-    while (auto pair = getNextValueAndPercentile(itr)) {
+    while (auto pair = itr.getNextValueAndPercentile()) {
         if (!pair.has_value())
             break;
 
@@ -298,7 +311,7 @@ nlohmann::json HdrHistogram::to_json(Iterator::IterMode itrType) {
     return rootObj;
 }
 
-std::string HdrHistogram::to_string() {
+std::string HdrHistogram::to_string() const {
     return to_json().dump();
 }
 

@@ -80,7 +80,7 @@ TEST(HdrHistogramTest, linearIteratorTest) {
     HdrHistogram::Iterator iter{
             histogram.makeLinearIterator(/* valueUnitsPerBucket */ 1)};
     uint64_t valueCount = 0;
-    while (auto result = histogram.getNextValueAndCount(iter)) {
+    while (auto result = iter.getNextValueAndCount()) {
         EXPECT_EQ(valueCount, result->first);
         ++valueCount;
     }
@@ -104,7 +104,7 @@ TEST(HdrHistogramTest, logIteratorBaseTwoTest) {
 
     uint64_t countSum = 0;
     uint64_t bucketIndex = 0;
-    while (auto result = histogram.getNextValueAndCount(iter)) {
+    while (auto result = iter.getNextValueAndCount()) {
         // Check that the values of the buckets increase exponentially
         EXPECT_EQ(pow(iteratorBase, bucketIndex) - 1, result->first);
         // Check that the width of the bucket is the same number as the count
@@ -138,7 +138,7 @@ TEST(HdrHistogramTest, logIteratorBaseFiveTest) {
 
     uint64_t countSum = 0;
     uint64_t bucketIndex = 0;
-    while (auto result = histogram.getNextValueAndCount(iter)) {
+    while (auto result = iter.getNextValueAndCount()) {
         // Check that the values of the buckets increase exponentially
         EXPECT_EQ(pow(iteratorBase, bucketIndex) - 1, result->first);
         // Check that the width of the bucket is the same number as the count
@@ -161,7 +161,7 @@ TEST(HdrHistogramTest, addValueAndCountTest) {
     histogram.addValueAndCount(0, 100);
     // Need to create the iterator after we have added the data
     HdrHistogram::Iterator iter{histogram.makeLinearIterator(1)};
-    while (auto result = histogram.getNextValueAndCount(iter)) {
+    while (auto result = iter.getNextValueAndCount()) {
         EXPECT_EQ(0, result->first);
         EXPECT_EQ(100, result->second);
     }
@@ -288,7 +288,7 @@ TEST(HdrHistogramTest, addValueParallel) {
             histogram.makeLinearIterator(/* valueUnitsPerBucket */ 1)};
     uint64_t valueCount = 0;
     // Assert that the right number of values were added to the histogram
-    while (auto result = histogram.getNextValueAndCount(iter)) {
+    while (auto result = iter.getNextValueAndCount()) {
         ASSERT_EQ(valueCount, result->first);
         ASSERT_EQ(threads.size() * numOfAddIterations, result->second);
         ++valueCount;
@@ -322,8 +322,8 @@ TEST(HdrHistogramTest, aggregationTest) {
             histogramTwo.makeLinearIterator(/* valueUnitsPerBucket */ 1)};
     uint64_t valueCount = 0;
     for (int i = 0; i < 15; i++) {
-        auto resultOne = histogramOne.getNextValueAndCount(iterOne);
-        auto resultTwo = histogramOne.getNextValueAndCount(iterTwo);
+        auto resultOne = iterOne.getNextValueAndCount();
+        auto resultTwo = iterTwo.getNextValueAndCount();
         // check values are the same for both histograms
         EXPECT_EQ(valueCount, resultTwo->first);
         EXPECT_EQ(valueCount, resultOne->first);
@@ -357,8 +357,8 @@ TEST(HdrHistogramTest, aggregationTestEmptyLhr) {
     // Max value of LHS should be updated too 200 thus counts should be the
     // same for every value in both histograms
     for (int i = 0; i < 200; i++) {
-        auto resultOne = histogramOne.getNextValueAndCount(iterOne);
-        auto resultTwo = histogramOne.getNextValueAndCount(iterTwo);
+        auto resultOne = iterOne.getNextValueAndCount();
+        auto resultTwo = iterTwo.getNextValueAndCount();
         // check values are the same for both histograms
         EXPECT_EQ(resultOne->first, resultTwo->first);
         // check that the counts for each value are the same
@@ -386,7 +386,7 @@ TEST(HdrHistogramTest, aggregationTestEmptyRhs) {
 
     uint64_t valueCount = 0;
     // make sure the histogram has expanded in size for all 200 values
-    while (auto result = histogramOne.getNextValueAndCount(iter)) {
+    while (auto result = iter.getNextValueAndCount()) {
         EXPECT_EQ(valueCount, result->first);
         EXPECT_EQ(1, result->second);
         ++valueCount;
@@ -413,7 +413,7 @@ TEST(HdrHistogramTest, int32MaxSizeTest) {
     EXPECT_EQ(0, histogram.getMinValue());
 
     HdrHistogram::Iterator iter{histogram.getHistogramsIterator()};
-    auto res = histogram.getNextBucketLowHighAndCount(iter);
+    auto res = iter.getNextBucketLowHighAndCount();
     EXPECT_TRUE(res);
     // The 3rd field [2] of the returned tuple is the count
     EXPECT_EQ(limit, std::get<2>(*res));
@@ -429,7 +429,7 @@ TEST(HdrHistogramTest, int32MaxSizeTest) {
     EXPECT_EQ(0, histogram.getMinValue());
 
     HdrHistogram::Iterator iter2{histogram.getHistogramsIterator()};
-    auto res2 = histogram.getNextBucketLowHighAndCount(iter2);
+    auto res2 = iter2.getNextBucketLowHighAndCount();
     EXPECT_TRUE(res2);
     // The 3rd field [2] of the returned tuple is the count
     EXPECT_EQ(limit, std::get<2>(*res2));
@@ -457,7 +457,7 @@ TEST(HdrHistogramTest, int64MaxSizeTest) {
     EXPECT_EQ(0, histogram.getMinValue());
 
     HdrHistogram::Iterator iter{histogram.getHistogramsIterator()};
-    auto res = histogram.getNextBucketLowHighAndCount(iter);
+    auto res = iter.getNextBucketLowHighAndCount();
     EXPECT_TRUE(res);
     // The 3rd field [2] of the returned tuple is the count
     EXPECT_EQ(limit, std::get<2>(*res));
@@ -469,7 +469,7 @@ TEST(HdrHistogramTest, int64MaxSizeTest) {
 static std::vector<std::optional<std::pair<uint64_t, double>>> getAllValues(
         const HdrHistogram& histo, HdrHistogram::Iterator& iter) {
     std::vector<std::optional<std::pair<uint64_t, double>>> values;
-    while (auto pair = histo.getNextValueAndPercentile(iter)) {
+    while (auto pair = iter.getNextValueAndPercentile()) {
         if (!pair.has_value())
             break;
         values.push_back(pair);

@@ -43,7 +43,7 @@ void StatCollector::addStat(const cb::stats::StatDef& k,
         histData.sampleCount = v.getValueCount();
 
         HdrHistogram::Iterator iter{v.getHistogramsIterator()};
-        while (auto result = v.getNextBucketLowHighAndCount(iter)) {
+        while (auto result = iter.getNextBucketLowHighAndCount()) {
             auto [lower, upper, count] = *result;
 
             histData.buckets.push_back({lower, upper, count});
