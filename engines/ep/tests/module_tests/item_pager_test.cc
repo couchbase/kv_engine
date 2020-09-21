@@ -1000,6 +1000,98 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
     EXPECT_LT(replicaRR, 5);
 }
 
+MATCHER_P(VBPtrVbidMatcher,
+          vbid,
+          "Check the provided VBucket pointer points to a vbucket with the "
+          "given vbid") {
+    return arg && arg->getId() == vbid;
+}
+
+TEST_P(STItemPagerTest, ItemPagerEvictionOrder) {
+    // MB-40531: Test that the paging visitor visits vbuckets ordered by:
+    // * replica vbuckets before active/pending
+    // * highest pageableMemUsage first
+
+    std::vector<Vbid> activeVBs = {Vbid(0), Vbid(1)};
+    std::vector<Vbid> replicaVBs = {Vbid(2), Vbid(3)};
+    std::vector<Vbid> allVBs = {Vbid(0), Vbid(1), Vbid(2), Vbid(3)};
+
+    // Set all vbs, including replicaVBs, as active initially (so we can
+    // populate them easily).
+    for (const auto& vbid : allVBs) {
+        setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    }
+
+    // populate the vbuckets with different numbers of equal sized items.
+    // Pageable mem usage should be proportional to the number of items.
+    // The visitor should therefore visit them in the commented order
+    for (const auto& setup : std::vector<std::pair<Vbid, int>>{
+                 {activeVBs[0], 30}, // 4th
+                 {activeVBs[1], 40}, // 3rd
+                 {replicaVBs[0], 20}, // 1st
+                 {replicaVBs[1], 10}, // 2nd
+         }) {
+        Vbid vbid;
+        int itemCount;
+        std::tie(vbid, itemCount) = setup;
+        for (int i = 0; i < itemCount; ++i) {
+            auto key = makeStoredDocKey("key-" + std::to_string(i));
+            auto item = make_item(vbid, key, std::string(100, 'x'));
+            ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
+        }
+    }
+
+    // flush all vbs
+    for (const auto& vbid : allVBs) {
+        flushDirectlyIfPersistent(Vbid(vbid));
+    }
+
+    // flip the replica vbs to the correct state
+    setVBucketStateAndRunPersistTask(replicaVBs[0], vbucket_state_replica);
+    setVBucketStateAndRunPersistTask(replicaVBs[1], vbucket_state_replica);
+
+    auto& stats = engine->getEpStats();
+    auto available = std::make_shared<std::atomic<bool>>();
+    auto& config = engine->getConfiguration();
+
+    auto pv = std::make_unique<MockPagingVisitor>(
+            *store,
+            stats,
+            EvictionRatios{1.0 /*active*/, 1.0 /*replica*/},
+            available,
+            ITEM_PAGER,
+            false,
+            VBucketFilter(ephemeral() ? activeVBs : allVBs),
+            config.getItemEvictionAgePercentage(),
+            config.getItemEvictionFreqCounterAgeThreshold());
+
+    using namespace testing;
+    InSequence s;
+
+    // set up expectations _before_ moving the pv into the VBCBAdaptor
+    if (!ephemeral()) {
+        // ephemeral cannot evict from replicas, so the pager visitor won't
+        // visit them at all.
+        EXPECT_CALL(*pv, visitBucket(VBPtrVbidMatcher(replicaVBs[0])));
+        EXPECT_CALL(*pv, visitBucket(VBPtrVbidMatcher(replicaVBs[1])));
+    }
+    EXPECT_CALL(*pv, visitBucket(VBPtrVbidMatcher(activeVBs[1])));
+    EXPECT_CALL(*pv, visitBucket(VBPtrVbidMatcher(activeVBs[0])));
+
+    auto label = "Item pager";
+    auto taskid = TaskId::ItemPagerVisitor;
+    VBCBAdaptor task(store,
+                     taskid,
+                     std::move(pv),
+                     label,
+                     /*shutdown*/ false);
+
+    // call the run method repeatedly until it returns false, indicating the
+    // visitor is definitely done, rather than paused
+    while (task.run())
+        ;
+}
+
 /**
  * Test fixture for Ephemeral-only item pager tests.
  */

@@ -21,6 +21,8 @@
 #include "paging_visitor.h"
 #include <string>
 
+#include <folly/portability/GMock.h>
+
 /**
  * Mock PagingVisitor class.  Provide access to ItemEviction data structure.
  */
@@ -44,6 +46,11 @@ public:
                         vbFilter,
                         agePercentage,
                         freqCounterAgeThreshold) {
+        using namespace testing;
+        ON_CALL(*this, visitBucket(_))
+                .WillByDefault(Invoke([this](const VBucketPtr& vb) {
+                    PagingVisitor::visitBucket(vb);
+                }));
     }
 
     ItemEviction& getItemEviction() {
@@ -61,4 +68,6 @@ public:
     void setCurrentBucket(VBucketPtr _currentBucket) {
         currentBucket = _currentBucket;
     }
+
+    MOCK_METHOD1(visitBucket, void(const VBucketPtr&));
 };
