@@ -20,9 +20,6 @@
 
 #include <queue>
 
-#define NO_VBUCKETS_INSTANTIATED 0xFFFF
-#define RETRY_FLUSH_VBUCKET (-1)
-
 class EPBucket;
 
 /**
