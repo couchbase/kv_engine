@@ -27,6 +27,7 @@
 CollectionsManifest::CollectionsManifest() {
     add(ScopeEntry::defaultS);
     add(CollectionEntry::defaultC);
+    updateUid(0);
 }
 
 CollectionsManifest::CollectionsManifest(NoDefault) {
