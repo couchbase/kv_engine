@@ -518,7 +518,7 @@ public:
         cachedResidentRatio.replicaRatio.store(replicaPerc);
     }
 
-    bool isMemoryUsageTooHigh() override;
+    bool isMemUsageAboveBackfillThreshold() override;
 
     /**
      * Check the status of memory used and maybe begin to free memory if

@@ -668,11 +668,7 @@ public:
 
     virtual bool isWarmingUp() = 0;
 
-    /**
-     * Checks the memory consumption.
-     * To be used by backfill tasks (DCP).
-     */
-    virtual bool isMemoryUsageTooHigh() = 0;
+    virtual bool isMemUsageAboveBackfillThreshold() = 0;
 
     virtual void addKVStoreStats(const AddStatFn& add_stat,
                                  const void* cookie,

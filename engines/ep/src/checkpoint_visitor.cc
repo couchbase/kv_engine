@@ -31,7 +31,7 @@ CheckpointVisitor::CheckpointVisitor(KVBucketIface* s,
       stats(st),
       removed(0),
       taskStart(std::chrono::steady_clock::now()),
-      wasHighMemoryUsage(s->isMemoryUsageTooHigh()),
+      wasAboveBackfillThreshold(s->isMemUsageAboveBackfillThreshold()),
       stateFinalizer(sfin) {
 }
 
@@ -66,8 +66,9 @@ void CheckpointVisitor::complete() {
                     std::chrono::steady_clock::now() - taskStart));
 
     // Wake up any sleeping backfill tasks if the memory usage is lowered
-    // below the high watermark as a result of checkpoint removal.
-    if (wasHighMemoryUsage && !store->isMemoryUsageTooHigh()) {
+    // below the backfill threshold as a result of checkpoint removal.
+    if (wasAboveBackfillThreshold &&
+        !store->isMemUsageAboveBackfillThreshold()) {
         store->getEPEngine().getDcpConnMap().notifyBackfillManagerTasks();
     }
 }

@@ -61,7 +61,7 @@ PagingVisitor::PagingVisitor(KVBucket& s,
       owner(caller),
       canPause(pause),
       isBelowLowWaterMark(false),
-      wasHighMemoryUsage(s.isMemoryUsageTooHigh()),
+      wasAboveBackfillThreshold(s.isMemUsageAboveBackfillThreshold()),
       taskStart(std::chrono::steady_clock::now()),
       agePercentage(agePercentage),
       freqCounterAgeThreshold(freqCounterAgeThreshold),
@@ -323,8 +323,9 @@ void PagingVisitor::complete() {
     (*stateFinalizer).compare_exchange_strong(inverse, true);
 
     // Wake up any sleeping backfill tasks if the memory usage is lowered
-    // below the high watermark as a result of checkpoint removal.
-    if (wasHighMemoryUsage && !store.isMemoryUsageTooHigh()) {
+    // below the backfill threshold as a result of item ejection.
+    if (wasAboveBackfillThreshold &&
+        !store.isMemUsageAboveBackfillThreshold()) {
         store.getEPEngine().getDcpConnMap().notifyBackfillManagerTasks();
     }
 

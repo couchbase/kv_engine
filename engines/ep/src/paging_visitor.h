@@ -142,9 +142,17 @@ private:
     std::shared_ptr<std::atomic<bool>> stateFinalizer;
     pager_type_t owner;
     bool canPause;
+
     /// Flag used to identify if memory usage is below the low watermark.
     bool isBelowLowWaterMark;
-    bool wasHighMemoryUsage;
+
+    /**
+     * Flag used to identify if memory usage was above the backfill threshold
+     * when the PagingVisitor started. Used to determine if we have to wake up
+     * snoozed backfills at PagingVisitor completion.
+     */
+    bool wasAboveBackfillThreshold;
+
     std::chrono::steady_clock::time_point taskStart;
 
     // The age percent used to select the age threshold.  The value is

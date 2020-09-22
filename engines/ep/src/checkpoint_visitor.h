@@ -43,6 +43,13 @@ private:
     EPStats& stats;
     size_t removed;
     std::chrono::steady_clock::time_point taskStart;
-    bool wasHighMemoryUsage;
+
+    /**
+     * Flag used to identify if memory usage was above the backfill threshold
+     * when the CheckpointVisitor started. Used to determine if we have to wake
+     * up snoozed backfills at CheckpointVisitor completion.
+     */
+    bool wasAboveBackfillThreshold;
+
     std::atomic<bool>& stateFinalizer;
 };

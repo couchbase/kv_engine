@@ -107,7 +107,7 @@
         },
         "backfill_mem_threshold": {
             "default": "96",
-            "desr": "Percentage of memory that backfill task is allowed to consume",
+            "desr": "Memory usage threshold (percentage of bucket quota) after which backfill will be snoozed.",
             "dynamic": true,
             "type": "size_t",
             "validator": {

@@ -2083,7 +2083,7 @@ bool KVBucket::maybeWaitForVBucketWarmup(const void* cookie) {
     return false;
 }
 
-bool KVBucket::isMemoryUsageTooHigh() {
+bool KVBucket::isMemUsageAboveBackfillThreshold() {
     auto memoryUsed =
             static_cast<double>(stats.getEstimatedTotalMemoryUsed());
     auto maxSize = static_cast<double>(stats.getMaxDataSize());
