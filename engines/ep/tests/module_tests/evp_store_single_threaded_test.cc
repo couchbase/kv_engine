@@ -376,6 +376,11 @@ void SingleThreadedKVBucketTest::replaceCouchKVStoreWithMock() {
     store->setRWRO(0, std::move(rw), std::move(rwro.ro));
 }
 
+cb::engine_errc SingleThreadedKVBucketTest::setCollections(
+        const void* c, std::string_view json) {
+    return engine->set_collection_manifest(c, json);
+}
+
 void STParameterizedBucketTest::SetUp() {
     if (!config_string.empty()) {
         config_string += ";";

@@ -52,35 +52,35 @@
 
 TEST_P(CollectionsParameterizedTest, uid_increment) {
     CollectionsManifest cm{CollectionEntry::meat};
-    EXPECT_EQ(store->setCollections(std::string{cm}).code(),
+    EXPECT_EQ(setCollections(cookie, std::string{cm}),
               cb::engine_errc::success);
     cm.add(CollectionEntry::vegetable);
-    EXPECT_EQ(store->setCollections(std::string{cm}).code(),
+    EXPECT_EQ(setCollections(cookie, std::string{cm}),
               cb::engine_errc::success);
 }
 
 TEST_P(CollectionsParameterizedTest, uid_decrement) {
     CollectionsManifest cm{CollectionEntry::meat};
-    EXPECT_EQ(store->setCollections(std::string{cm}).code(),
+    EXPECT_EQ(setCollections(cookie, std::string{cm}),
               cb::engine_errc::success);
     CollectionsManifest newCm{};
-    EXPECT_EQ(store->setCollections(std::string{newCm}).code(),
+    EXPECT_EQ(setCollections(cookie, std::string{newCm}),
               cb::engine_errc::cannot_apply_collections_manifest);
 }
 
 TEST_P(CollectionsParameterizedTest, uid_equal) {
     CollectionsManifest cm{CollectionEntry::meat};
-    EXPECT_EQ(store->setCollections(std::string{cm}).code(),
+    EXPECT_EQ(setCollections(cookie, std::string{cm}),
               cb::engine_errc::success);
 
     // An equal manifest is tolerated (and ignored)
-    EXPECT_EQ(store->setCollections(std::string{cm}).code(),
+    EXPECT_EQ(setCollections(cookie, std::string{cm}),
               cb::engine_errc::success);
 }
 
 TEST_P(CollectionsParameterizedTest, manifest_uid_equal_with_differences) {
     CollectionsManifest cm{CollectionEntry::meat};
-    EXPECT_EQ(store->setCollections(std::string{cm}).code(),
+    EXPECT_EQ(setCollections(cookie, std::string{cm}),
               cb::engine_errc::success);
 
     auto uid = cm.getUid();
@@ -88,7 +88,7 @@ TEST_P(CollectionsParameterizedTest, manifest_uid_equal_with_differences) {
     // force the uid back
     cm.updateUid(uid);
     // manifest is equal, but contains an extra collection, unexpected diversion
-    EXPECT_EQ(store->setCollections(std::string{cm}).code(),
+    EXPECT_EQ(setCollections(cookie, std::string{cm}),
               cb::engine_errc::cannot_apply_collections_manifest);
 }
 
@@ -389,7 +389,7 @@ TEST_P(CollectionsParameterizedTest, get_collection_id) {
     cm.add(ScopeEntry::shop2);
     cm.add(CollectionEntry::meat, ScopeEntry::shop2);
     std::string json = cm;
-    store->setCollections(json);
+    setCollections(cookie, json);
     // Check bad 'paths'
     auto rv = store->getCollectionID("");
     EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
@@ -446,7 +446,7 @@ TEST_P(CollectionsParameterizedTest, get_collection_id) {
     // Now we should fail getting _default
     cm.remove(CollectionEntry::defaultC);
     json = cm;
-    store->setCollections(json);
+    setCollections(cookie, json);
     rv = store->getCollectionID(".");
     EXPECT_EQ(cb::engine_errc::unknown_collection, rv.result);
     rv = store->getCollectionID("._default");
@@ -460,7 +460,7 @@ TEST_P(CollectionsParameterizedTest, get_scope_id) {
     cm.add(ScopeEntry::shop2);
     cm.add(CollectionEntry::meat, ScopeEntry::shop2);
     std::string json = cm;
-    store->setCollections(json);
+    setCollections(cookie, json);
 
     // Check bad 'paths', require 0 or 1 dot
     auto rv = store->getScopeID("..");
@@ -1252,7 +1252,7 @@ TEST_F(CollectionsWarmupTest, MB_38125) {
     resetEngineAndEnableWarmup();
 
     CollectionsManifest cm(CollectionEntry::fruit);
-    store->setCollections(std::string{cm});
+    setCollections(cookie, std::string{cm});
 
     // Now get the engine warmed up
     runReadersUntilWarmedUp();
@@ -1273,7 +1273,7 @@ TEST_F(CollectionsWarmupTest, LockedVBStateDuringManifestUpdate) {
     // complete warmup
     CollectionsManifest cm;
     cm.remove(CollectionEntry::defaultC);
-    store->setCollections(std::string{cm});
+    setCollections(cookie, std::string{cm});
 
     auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
     mockEPBucket->setCollectionsManagerPreSetStateAtWarmupHook([this]() {
@@ -1300,7 +1300,7 @@ TEST_P(CollectionsParameterizedTest, basic) {
     }
 
     CollectionsManifest cm(CollectionEntry::meat);
-    store->setCollections(std::string{cm});
+    setCollections(cookie, std::string{cm});
 
     // Check all vbuckets got the collections
     for (int vb = vbid.get(); vb <= (vbid.get() + extraVbuckets); vb++) {
@@ -1329,7 +1329,7 @@ TEST_P(CollectionsParameterizedTest, basic2) {
     }
 
     CollectionsManifest cm(CollectionEntry::meat);
-    store->setCollections(std::string{cm});
+    setCollections(cookie, std::string{cm});
 
     // Check all vbuckets got the collections
     for (int vb = vbid.get(); vb <= (vbid.get() + extraVbuckets); vb++) {
@@ -1673,7 +1673,7 @@ TEST_F(CollectionsTest, CollectionStatsIncludesScope) {
     cm.add(CollectionEntry::meat, ScopeEntry::shop2);
     cm.add(CollectionEntry::fruit, ScopeEntry::shop2);
     std::string json = cm;
-    store->setCollections(json);
+    setCollections(cookie, json);
 
     KVBucketTest::flushVBucketToDiskIfPersistent(vbid, 5);
 
@@ -2146,7 +2146,7 @@ TEST_F(CollectionsTest, GetScopeIdForGivenKeyNoVbid) {
     manifest.add(ScopeEntry::shop1)
             .add(CollectionEntry::dairy, ScopeEntry::shop1);
 
-    engine->set_collection_manifest(cookie, std::string{manifest});
+    setCollections(cookie, std::string{manifest});
     flush_vbucket_to_disk(vbid, 2);
 
     StoredDocKey keyDefault{"default", CollectionEntry::defaultC};
@@ -2237,7 +2237,7 @@ TEST_F(CollectionsTest, GetAllKeysNonCollectionConnection) {
 
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
-    engine->set_collection_manifest(cookie, std::string{cm});
+    setCollections(cookie, std::string{cm});
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Create and flush items for the default and meat collections
@@ -2260,7 +2260,7 @@ TEST_F(CollectionsTest, GetAllKeysNonCollectionConnectionMaxCountTen) {
 
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
-    engine->set_collection_manifest(cookie, std::string{cm});
+    setCollections(cookie, std::string{cm});
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Create and flush items for the default collection
@@ -2296,7 +2296,7 @@ TEST_F(CollectionsTest, GetAllKeysStartHalfWayForCollection) {
 
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
-    engine->set_collection_manifest(cookie, std::string{cm});
+    setCollections(cookie, std::string{cm});
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     store_items(
@@ -2324,7 +2324,7 @@ TEST_F(CollectionsTest, GetAllKeysForCollectionEmptyKey) {
 
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
-    engine->set_collection_manifest(cookie, std::string{cm});
+    setCollections(cookie, std::string{cm});
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     store_items(
@@ -2370,7 +2370,7 @@ TEST_F(CollectionsTest, GetAllKeysCollectionConnection) {
 
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
-    engine->set_collection_manifest(cookie, std::string{cm});
+    setCollections(cookie, std::string{cm});
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Create and flush items for the default and meat collections
@@ -2450,7 +2450,7 @@ TEST_F(CollectionsTest, TestGetKeyStatsBadVbids) {
 TEST_F(CollectionsTest, TestGetKeyStats) {
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
-    engine->set_collection_manifest(cookie, std::string{cm});
+    setCollections(cookie, std::string{cm});
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     store_item(vbid,
@@ -2502,7 +2502,7 @@ TEST_F(CollectionsTest, TestGetKeyStats) {
 TEST_F(CollectionsTest, TestGetVKeyStats) {
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
-    engine->set_collection_manifest(cookie, std::string{cm});
+    setCollections(cookie, std::string{cm});
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     store_item(vbid,
@@ -2617,7 +2617,7 @@ TEST_F(CollectionsRbacTest, GetAllKeysRbacCollectionConnection) {
     // Add the meat and dairy collections
     CollectionsManifest cm(CollectionEntry::meat);
     cm.add(CollectionEntry::dairy);
-    engine->set_collection_manifest(cookie, std::string{cm});
+    setCollections(cookie, std::string{cm});
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     // Create and flush items for the default and meat collections
@@ -2667,7 +2667,7 @@ TEST_F(CollectionsRbacTest, TestKeyStats) {
     mock_set_collections_support(cookie, true);
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
-    engine->set_collection_manifest(cookie, std::string{cm});
+    setCollections(cookie, std::string{cm});
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     store_item(vbid,
@@ -2714,7 +2714,7 @@ TEST_F(CollectionsRbacTest, TestVKeyStats) {
     mock_set_collections_support(cookie, true);
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
-    engine->set_collection_manifest(cookie, std::string{cm});
+    setCollections(cookie, std::string{cm});
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     store_item(vbid,
@@ -2776,28 +2776,28 @@ TEST_P(CollectionsPersistentParameterizedTest, SystemEventsDoNotCount) {
     // Run through some manifest changes and warmup a few times.
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit).add(CollectionEntry::meat);
-    store->setCollections(std::string{cm});
+    setCollections(cookie, std::string{cm});
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     // Now get the engine warmed up
     resetEngineAndWarmup();
     { EXPECT_EQ(0, store->getVBucket(vbid)->getNumTotalItems()); }
     cm.remove(CollectionEntry::meat);
-    store->setCollections(std::string{cm});
+    setCollections(cookie, std::string{cm});
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     resetEngineAndWarmup();
     { EXPECT_EQ(0, store->getVBucket(vbid)->getNumTotalItems()); }
 
     cm.remove(CollectionEntry::fruit);
-    store->setCollections(std::string{cm});
+    setCollections(cookie, std::string{cm});
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     resetEngineAndWarmup();
     { EXPECT_EQ(0, store->getVBucket(vbid)->getNumTotalItems()); }
 
     cm.remove(CollectionEntry::defaultC);
-    store->setCollections(std::string{cm});
+    setCollections(cookie, std::string{cm});
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     resetEngineAndWarmup();
@@ -2808,7 +2808,7 @@ TEST_P(CollectionsParameterizedTest, ScopeIDIsValid) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
     cm.add(ScopeEntry::shop1);
-    store->setCollections(std::string{cm});
+    setCollections(cookie, std::string{cm});
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     auto& manager = getCollectionsManager();
@@ -2832,7 +2832,7 @@ TEST_P(CollectionsParameterizedTest, OneScopeStatsByIdParsing) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
     cm.add(ScopeEntry::shop1);
-    store->setCollections(std::string{cm});
+    setCollections(cookie, std::string{cm});
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     auto& manager = getCollectionsManager();

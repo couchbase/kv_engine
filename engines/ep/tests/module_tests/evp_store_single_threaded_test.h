@@ -154,6 +154,11 @@ public:
      */
     void replaceCouchKVStoreWithMock();
 
+    /**
+     * Set the collections manifest using the engine API (and drive any tasks)
+     */
+    cb::engine_errc setCollections(const void* cookie, std::string_view json);
+
 protected:
     void SetUp() override;
 
