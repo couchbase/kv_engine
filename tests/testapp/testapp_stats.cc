@@ -496,7 +496,7 @@ TEST_P(StatsTest, TestTopkeysJson) {
     auto stats = conn.stats("topkeys_json").front();
     bool found = false;
     for (const auto& i : stats) {
-        for (const auto j : i) {
+        for (const auto& j : i) {
             if (name == j["key"]) {
                 found = true;
                 break;

@@ -392,7 +392,7 @@ RocksDBKVStore::RocksDBKVStore(RocksDBKVStoreConfig& configuration)
     openDB();
 
     // Read persisted VBs state
-    for (const auto vbh : vbHandles) {
+    for (const auto& vbh : vbHandles) {
         if (vbh) {
             loadVBStateCache(*vbh);
             // Update stats
@@ -1635,7 +1635,7 @@ bool RocksDBKVStore::getStatFromProperties(ColumnFamily cf,
                                            size_t& value) {
     value = 0;
     std::lock_guard<std::mutex> lg(vbhMutex);
-    for (const auto vbh : vbHandles) {
+    for (const auto& vbh : vbHandles) {
         if (vbh) {
             rocksdb::ColumnFamilyHandle* cfh = nullptr;
             switch (cf) {

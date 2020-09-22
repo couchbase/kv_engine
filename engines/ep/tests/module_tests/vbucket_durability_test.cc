@@ -1622,7 +1622,7 @@ void VBucketDurabilityTest::testConvertPassiveDMToActiveDM(
     // Check that the SyncWrite journey now proceeds to completion as expected
     ASSERT_EQ(0, adm.getNodeWriteSeqno(replica1));
     size_t expectedNumTracked = seqnos.size();
-    for (const auto s : seqnos) {
+    for (const auto& s : seqnos) {
         adm.seqnoAckReceived(replica1, s.seqno);
         vbucket->processResolvedSyncWrites();
 
@@ -2404,7 +2404,7 @@ TEST_P(VBucketDurabilityTest, ActiveDM_DoubleSetVBState) {
     ASSERT_EQ(seqnos.back().seqno, adm.getHighPreparedSeqno());
     ASSERT_EQ(0, adm.getNodeWriteSeqno(replica1));
     size_t expectedNumTracked = seqnos.size();
-    for (const auto s : seqnos) {
+    for (const auto& s : seqnos) {
         adm.seqnoAckReceived(replica1, s.seqno);
         vbucket->processResolvedSyncWrites();
         EXPECT_EQ(--expectedNumTracked, adm.getNumTracked());

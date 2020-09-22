@@ -1056,7 +1056,7 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs) {
     bool found_xattr = false;
     bool found_json = false;
 
-    for (const auto tag : datatype) {
+    for (const auto& tag : datatype) {
         if (tag.get<std::string>() == "xattr") {
             found_xattr = true;
         } else if (tag.get<std::string>() == "json") {
