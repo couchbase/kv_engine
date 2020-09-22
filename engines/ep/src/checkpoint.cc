@@ -350,8 +350,13 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
      * have multiple of the same key in some circumstances and the keyIndexes
      * allow us to perform de-duplication correctly on the active node and check
      * on the replica node that we have received a valid Checkpoint.
+     *
+     * However, when streaming from a pre 6.5.0 producer we might have an
+     * memory checkpoint updated to a disk checkpoint in which case we still
+     * need to update the key indexes, to insure that we don't leave dangling
+     * values in the indexes.
      */
-    if (qi->getKey().size() > 0 && !isDiskCheckpoint()) {
+    if (qi->getKey().size() > 0 && IsKeyIndexEnabled()) {
         ChkptQueueIterator last = end();
         // --last is okay as the list is not empty now.
         index_entry entry = {--last, qi->getBySeqno()};
@@ -465,10 +470,12 @@ CheckpointQueue Checkpoint::expelItems(
              ++expelItr) {
             const auto& toExpel = *expelItr;
 
-            // We don't put keys in the indexes for disk checkpoints so we:
+            // We don't put keys in the indexes for disk checkpoints unless this
+            // is a memory checkpoint that has been updated to a disk
+            // checkpoint, so we:
             //     a) can't test that the key is in the index
             //     b) can't invalidate the index entry as it does not exist
-            if (!toExpel->isCheckPointMetaItem() && !isDiskCheckpoint()) {
+            if (!toExpel->isCheckPointMetaItem() && IsKeyIndexEnabled()) {
                 auto& keyIndex = toExpel->isCommitted() ? committedKeyIndex
                                                         : preparedKeyIndex;
 
