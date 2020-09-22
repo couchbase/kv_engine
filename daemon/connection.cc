@@ -974,8 +974,8 @@ Connection::Connection(FrontEndThread& thr)
       connectedToSystemPort(false),
       base(nullptr),
       thread(thr),
-      peername("unknown"),
-      sockname("unknown"),
+      peername(R"({"ip":"unknown","port":0})"),
+      sockname(R"({"ip":"unknown","port":0})"),
       max_reqs_per_event(Settings::instance().getRequestsPerEventNotification(
               EventPriority::Default)),
       ssl(false) {
@@ -994,8 +994,8 @@ Connection::Connection(SOCKET sfd,
       base(b),
       thread(thr),
       parent_port(ifc.port),
-      peername(cb::net::getpeername(socketDescriptor)),
-      sockname(cb::net::getsockname(socketDescriptor)),
+      peername(cb::net::getPeerNameAsJson(socketDescriptor).dump()),
+      sockname(cb::net::getSockNameAsJson(socketDescriptor).dump()),
       max_reqs_per_event(Settings::instance().getRequestsPerEventNotification(
               EventPriority::Default)),
       ssl(ifc.isSslPort()) {
