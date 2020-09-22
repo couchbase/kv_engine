@@ -5840,3 +5840,94 @@ TEST_P(STParamCouchstoreBucketTest, FlusherMarksCleanBySeqno) {
     const auto* it = reinterpret_cast<const Item*>(res.second.get());
     EXPECT_EQ(2, it->getBySeqno());
 }
+
+TEST_P(STParamCouchstoreBucketTest, DeleteUpdatesPersistedDeletes) {
+    store->setVBucketState(vbid, vbucket_state_active);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    EXPECT_EQ(0, vb->getNumPersistedDeletes());
+
+    store_item(vbid,
+               makeStoredDocKey("keyA"),
+               "value",
+               0 /*exptime*/,
+               {cb::engine_errc::success} /*expected*/,
+               PROTOCOL_BINARY_RAW_BYTES);
+    delete_item(vbid, makeStoredDocKey("keyA"));
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Before the bug fix the stat would be wrong as we'd read from the RO
+    // store but only update the cached value in the RW store.
+    EXPECT_EQ(1, vb->getNumPersistedDeletes());
+}
+
+void STParamPersistentBucketTest::testCompactionPersistedDeletes(
+        bool dropDeletes) {
+    store->setVBucketState(vbid, vbucket_state_active);
+
+    flushVBucketToDiskIfPersistent(vbid, 0);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    ASSERT_NE(0, vb->getFilterSize());
+
+    // Stat should be correct and we should populate the cached value
+    EXPECT_EQ(0, vb->getNumPersistedDeletes());
+
+    // Persist first delete
+    store_item(vbid,
+               makeStoredDocKey("keyA"),
+               "value",
+               0 /*exptime*/,
+               {cb::engine_errc::success} /*expected*/,
+               PROTOCOL_BINARY_RAW_BYTES);
+    delete_item(vbid, makeStoredDocKey("keyA"));
+
+    store_item(vbid,
+               makeStoredDocKey("keyB"),
+               "value",
+               0 /*exptime*/,
+               {cb::engine_errc::success} /*expected*/,
+               PROTOCOL_BINARY_RAW_BYTES);
+    delete_item(vbid, makeStoredDocKey("keyB"));
+
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    EXPECT_EQ(2, vb->getNumPersistedDeletes());
+
+    runCompaction(0, dropDeletes);
+}
+
+TEST_P(STParamCouchstoreBucketTest, CompactionUpdatesPersistedDeletes) {
+    testCompactionPersistedDeletes(true /*dropDeletes*/);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    // Before the bug fix the stat would be wrong as we'd read from the RO
+    // store but only update the cached value in the RW store. This won't be 0
+    // even though we have 2 deletes as we keep the last item during a
+    // compaction.
+    EXPECT_EQ(1, vb->getNumPersistedDeletes());
+}
+
+TEST_P(STParamCouchstoreBucketTest, CompactionUpdatesBloomFilter) {
+    engine->getConfiguration().setBfilterKeyCount(1);
+
+    testCompactionPersistedDeletes(false /*dropDeletes*/);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    // Before the bug fix the stat would be wrong as we'd read from the RO
+    // store but only update the cached value in the RW store.
+    EXPECT_EQ(2, vb->getNumPersistedDeletes());
+
+    auto expected = 29;
+    if (fullEviction()) {
+        expected = 10;
+    }
+    EXPECT_EQ(expected, vb->getFilterSize());
+}
