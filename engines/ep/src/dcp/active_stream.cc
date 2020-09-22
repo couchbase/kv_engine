@@ -1057,7 +1057,7 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                              isForceValueCompressionEnabled(),
                              isSnappyEnabled())) {
             auto finalItem = std::make_unique<Item>(*item);
-            finalItem->removeBodyAndOrXattrs(
+            const auto wasInflated = finalItem->removeBodyAndOrXattrs(
                     includeValue, includeXattributes, includeDeletedUserXattrs);
 
             if (isSnappyEnabled()) {
@@ -1072,12 +1072,23 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                     }
                 }
             } else {
-                if (mcbp::datatype::is_snappy(finalItem->getDataType())) {
+                // The purpose of this block is to uncompress compressed items
+                // as they are being streamed over a connection that doesn't
+                // support compression.
+                //
+                // MB-40493: IncludeValue::NoWithUnderlyingDatatype may reset
+                //  datatype to SNAPPY, even if the value has been already
+                //  decompressed (eg, the original value contained Body+Xattr
+                //  and Body have been removed) or if there is no value at all
+                //  (eg, the original value contained only a Body, now removed).
+                //  We need to avoid the call to Item::decompress in both cases,
+                //  we log an unnecessary warning otherwise.
+                if (mcbp::datatype::is_snappy(finalItem->getDataType()) &&
+                    (wasInflated == Item::WasValueInflated::No) &&
+                    (finalItem->getNBytes() > 0)) {
                     if (!finalItem->decompressValue()) {
                         log(spdlog::level::level_enum::warn,
-
-                            "{} Failed to snappy uncompress a compressed "
-                            "value",
+                            "{} Failed to snappy uncompress a compressed value",
                             logPrefix);
                     }
                 }

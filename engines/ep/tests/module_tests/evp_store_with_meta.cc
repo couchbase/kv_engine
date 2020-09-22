@@ -510,8 +510,11 @@ TEST_F(WithMetaTest, storeUncompressedInOffMode) {
          return;
     }
     std::string valueData{R"({"aaaaaaaaa":10000000000})"};
-    auto item = makeCompressibleItem(vbid, makeStoredDocKey("key"), valueData,
-                                     PROTOCOL_BINARY_RAW_BYTES, true);
+    auto item = makeCompressibleItem(vbid,
+                                     makeStoredDocKey("key"),
+                                     valueData,
+                                     PROTOCOL_BINARY_RAW_BYTES,
+                                     true);
 
     item->setCas();
 

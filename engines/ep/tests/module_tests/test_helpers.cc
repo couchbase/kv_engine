@@ -77,27 +77,35 @@ queued_item makePendingItem(StoredDocKey key,
 
 std::unique_ptr<Item> makeCompressibleItem(Vbid vbid,
                                            const DocKey& key,
-                                           const std::string& value,
+                                           const std::string& body,
                                            protocol_binary_datatype_t datatype,
                                            bool shouldCompress,
                                            bool makeXattrBody) {
     protocol_binary_datatype_t itemDataType = datatype;
-    std::string v = value;
+    std::string value = body;
     if (makeXattrBody) {
-        v = createXattrValue(value, true, false);
+        value = createXattrValue(body, true, false);
         itemDataType |= PROTOCOL_BINARY_DATATYPE_XATTR;
     }
     if (shouldCompress) {
         cb::compression::Buffer output;
-        cb::compression::deflate(cb::compression::Algorithm::Snappy, v, output);
+        cb::compression::deflate(
+                cb::compression::Algorithm::Snappy, value, output);
         itemDataType |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
         return std::make_unique<Item>(key, /*flags*/0, /*exp*/0,
                                       output.data(), output.size(),
                                       itemDataType);
     }
 
-    return std::make_unique<Item>(
-            key, /*flags*/ 0, /*exp*/ 0, v.c_str(), v.length(), itemDataType);
+    return std::make_unique<Item>(key,
+                                  0 /*flags*/,
+                                  0 /*exp*/,
+                                  value.c_str(),
+                                  value.length(),
+                                  itemDataType,
+                                  0 /*cas*/,
+                                  -1 /*seqno*/,
+                                  vbid);
 }
 
 bool queueNewItem(VBucket& vbucket, const std::string& key) {
