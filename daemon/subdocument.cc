@@ -460,7 +460,8 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
             SLAB_INCR(&cookie.getConnection(), cmd_set);
         } else {
             thread_stats->cmd_subdoc_lookup++;
-            thread_stats->bytes_subdoc_lookup_total += context->in_doc.size();
+            thread_stats->bytes_subdoc_lookup_total +=
+                    context->in_doc.view.size();
             thread_stats->bytes_subdoc_lookup_extracted += context->response_val_len;
 
             STATS_HIT(&cookie.getConnection(), get);
@@ -542,10 +543,12 @@ static bool subdoc_fetch(Cookie& cookie,
             // Assign a template JSON document of the correct type to operate
             // on.
             if (ctx.jroot_type == JSONSL_T_LIST) {
-                ctx.in_doc = {"[]", 2};
+                std::string in = "[]";
+                ctx.in_doc.reset(std::move(in));
                 ctx.in_datatype = PROTOCOL_BINARY_DATATYPE_JSON;
             } else if (ctx.jroot_type == JSONSL_T_OBJECT) {
-                ctx.in_doc = {"{}", 2};
+                std::string in = "{}";
+                ctx.in_doc.reset(std::move(in));
                 ctx.in_datatype = PROTOCOL_BINARY_DATATYPE_JSON;
             } else {
                 // Otherwise a wholedoc operation.
@@ -573,7 +576,7 @@ static bool subdoc_fetch(Cookie& cookie,
         }
     }
 
-    if (ctx.in_doc.data() == nullptr) {
+    if (ctx.in_doc.view.data() == nullptr) {
         // Retrieve the item_info the engine, and if necessary
         // uncompress it so subjson can parse it.
         auto status = ctx.get_document_for_searching(cas);
@@ -745,9 +748,8 @@ static cb::mcbp::Status subdoc_operate_wholedoc(
  * @throws std::bad_alloc if allocation fails
  */
 static bool operate_single_doc(SubdocCmdContext& context,
-                               std::string_view& doc,
+                               MemoryBackedBuffer& doc,
                                protocol_binary_datatype_t& doc_datatype,
-                               std::unique_ptr<char[]>& temp_buffer,
                                bool& modified) {
     modified = false;
     auto& operations = context.getOperations();
@@ -758,7 +760,7 @@ static bool operate_single_doc(SubdocCmdContext& context,
         case CommandScope::SubJSON:
             if (mcbp::datatype::is_json(doc_datatype)) {
                 // Got JSON, perform the operation.
-                op.status = subdoc_operate_one_path(context, op, doc);
+                op.status = subdoc_operate_one_path(context, op, doc.view);
             } else {
                 // No good; need to have JSON.
                 op.status = cb::mcbp::Status::SubdocDocNotJson;
@@ -766,7 +768,7 @@ static bool operate_single_doc(SubdocCmdContext& context,
             break;
 
         case CommandScope::WholeDoc:
-            op.status = subdoc_operate_wholedoc(context, op, doc);
+            op.status = subdoc_operate_wholedoc(context, op, doc.view);
         }
 
         if (op.status == cb::mcbp::Status::Success) {
@@ -779,6 +781,8 @@ static bool operate_single_doc(SubdocCmdContext& context,
                     new_doc_len += loc.length;
                 }
 
+                std::string next;
+                next.reserve(new_doc_len);
                 // TODO-PERF: We need to create a contiguous input
                 // region for the next subjson call, from the set of
                 // iovecs in the result. We can't simply write into
@@ -788,25 +792,20 @@ static bool operate_single_doc(SubdocCmdContext& context,
                 // permit subjson to take all the multipaths at once.
                 // For now we make a contiguous region in a temporary
                 // char[], and point in_doc at that.
-                std::unique_ptr<char[]> temp(new char[new_doc_len]);
-
-                size_t offset = 0;
                 for (auto& loc : op.result.newdoc()) {
-                    std::copy(loc.at, loc.at + loc.length, temp.get() + offset);
-                    offset += loc.length;
+                    next.insert(next.end(), loc.at, loc.at + loc.length);
                 }
 
                 // Copying complete - safe to delete the old temp_doc
                 // (even if it was the source of some of the newdoc
                 // iovecs).
-                temp_buffer.swap(temp);
-                doc = {temp_buffer.get(), new_doc_len};
+                doc.reset(std::move(next));
 
                 if (op.traits.scope == CommandScope::WholeDoc) {
                     // the entire document has been replaced as part of a
                     // wholedoc op update the datatype to match
                     JSON_checker::Validator validator;
-                    bool isValidJson = validator.validate(doc);
+                    bool isValidJson = validator.validate(doc.view);
 
                     // don't alter context.in_datatype directly here in case we
                     // are in xattrs phase
@@ -928,14 +927,13 @@ static inline void replace_xattrs(std::string_view new_xattr,
                                   const size_t bodysize) {
     auto total = new_xattr.size() + bodysize;
 
-    std::unique_ptr<char[]> full_document(new char[total]);
-    std::copy(new_xattr.begin(), new_xattr.end(), full_document.get());
-    std::copy(context.in_doc.data() + bodyoffset,
-              context.in_doc.data() + bodyoffset + bodysize,
-              full_document.get() + new_xattr.size());
-
-    context.temp_doc.swap(full_document);
-    context.in_doc = {context.temp_doc.get(), total};
+    std::string next;
+    next.reserve(total);
+    next.insert(next.end(), new_xattr.begin(), new_xattr.end());
+    next.insert(next.end(),
+                context.in_doc.view.data() + bodyoffset,
+                context.in_doc.view.data() + bodyoffset + bodysize);
+    context.in_doc.reset(std::move(next));
 
     if (new_xattr.empty()) {
         context.in_datatype &= ~PROTOCOL_BINARY_DATATYPE_XATTR;
@@ -960,10 +958,10 @@ static bool do_xattr_delete_phase(SubdocCmdContext& context) {
 
     // We need to remove the user keys from the Xattrs and rebuild the document
 
-    const auto bodyoffset = cb::xattr::get_body_offset(context.in_doc);
-    const auto bodysize = context.in_doc.size() - bodyoffset;
+    const auto bodyoffset = cb::xattr::get_body_offset(context.in_doc.view);
+    const auto bodysize = context.in_doc.view.size() - bodyoffset;
 
-    cb::char_buffer blob_buffer{(char*)context.in_doc.data(),
+    cb::char_buffer blob_buffer{(char*)context.in_doc.view.data(),
                                 (size_t)bodyoffset};
 
     const cb::xattr::Blob xattr_blob(
@@ -1027,15 +1025,15 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
         throw std::logic_error("do_xattr_phase: unknown SubdocPath");
     }
 
-    auto bodysize = context.in_doc.size();
+    auto bodysize = context.in_doc.view.size();
     auto bodyoffset = 0;
 
     if (mcbp::datatype::is_xattr(context.in_datatype)) {
-        bodyoffset = cb::xattr::get_body_offset(context.in_doc);;
+        bodyoffset = cb::xattr::get_body_offset(context.in_doc.view);
         bodysize -= bodyoffset;
     }
 
-    cb::char_buffer blob_buffer{(char*)context.in_doc.data(),
+    cb::char_buffer blob_buffer{(char*)context.in_doc.view.data(),
                                 (size_t)bodyoffset};
 
     const cb::xattr::Blob xattr_blob(
@@ -1066,18 +1064,17 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
         value_buf = { context.xattr_buffer.get(), total};
     }
 
-    std::unique_ptr<char[]> temp_doc;
-    std::string_view document{value_buf.data(), value_buf.size()};
+    MemoryBackedBuffer document{{value_buf.data(), value_buf.size()}};
 
     for (const auto m : {cb::xattr::macros::CAS,
                          cb::xattr::macros::SEQNO,
                          cb::xattr::macros::VALUE_CRC32C}) {
-        context.generate_macro_padding(document, m);
+        context.generate_macro_padding(document.view, m);
     }
 
     bool modified;
     auto datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-    if (!operate_single_doc(context, document, datatype, temp_doc, modified)) {
+    if (!operate_single_doc(context, document, datatype, modified)) {
         // Something failed..
         return false;
     }
@@ -1101,9 +1098,9 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
     // document.. create a copy we can use for replace.
     cb::xattr::Blob copy(xattr_blob);
 
-    if (document.size() > key.size()) {
-        const char* start = strchr(document.data(), ':') + 1;
-        const char* end = document.data() + document.size() - 1;
+    if (document.view.size() > key.size()) {
+        const char* start = strchr(document.view.data(), ':') + 1;
+        const char* end = document.view.data() + document.view.size() - 1;
 
         copy.set(key, {start, size_t(end - start)});
     } else {
@@ -1129,19 +1126,17 @@ static bool do_body_phase(SubdocCmdContext& context) {
     }
 
     size_t xattrsize = 0;
-    std::string_view document{context.in_doc};
+    MemoryBackedBuffer document{context.in_doc};
 
     if (mcbp::datatype::is_xattr(context.in_datatype)) {
         // We shouldn't have any documents like that!
-        xattrsize = cb::xattr::get_body_offset(document);
-        document.remove_prefix(xattrsize);
+        xattrsize = cb::xattr::get_body_offset(document.view);
+        document.view.remove_prefix(xattrsize);
     }
 
-    std::unique_ptr<char[]> temp_doc;
     bool modified;
 
-    if (!operate_single_doc(
-                context, document, context.in_datatype, temp_doc, modified)) {
+    if (!operate_single_doc(context, document, context.in_datatype, modified)) {
         return false;
     }
 
@@ -1154,20 +1149,19 @@ static bool do_body_phase(SubdocCmdContext& context) {
     // reallocate and move things around but just reuse the temporary
     // buffer we've already created.
     if (xattrsize == 0) {
-        context.temp_doc.swap(temp_doc);
-        context.in_doc = {context.temp_doc.get(), document.size()};
+        context.in_doc.swap(document);
         return true;
     }
 
     // Time to rebuild the full document.
-    auto total = xattrsize + document.size();
-    std::unique_ptr<char[]> full_document(new char[total]);;
-
-    memcpy(full_document.get(), context.in_doc.data(), xattrsize);
-    memcpy(full_document.get() + xattrsize, document.data(), document.size());
-
-    context.temp_doc.swap(full_document);
-    context.in_doc = { context.temp_doc.get(), total };
+    auto total = xattrsize + document.view.size();
+    std::string next;
+    next.reserve(total);
+    next.insert(next.end(),
+                context.in_doc.view.data(),
+                context.in_doc.view.data() + xattrsize);
+    next.insert(next.end(), document.view.begin(), document.view.end());
+    context.in_doc.reset(std::move(next));
 
     return true;
 }
@@ -1238,11 +1232,10 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
         !(context.no_sys_xattrs && context.do_delete_doc)) {
 
         if (ret == ENGINE_SUCCESS) {
-            context.out_doc_len = context.in_doc.size();
+            context.out_doc_len = context.in_doc.view.size();
             auto allocate_key = cookie.getConnection().makeDocKey(key);
-            const size_t priv_bytes =
-                cb::xattr::get_system_xattr_size(context.in_datatype,
-                                                 context.in_doc);
+            const size_t priv_bytes = cb::xattr::get_system_xattr_size(
+                    context.in_datatype, context.in_doc.view);
 
             // Calculate the updated document length - use the last operation result.
             try {
@@ -1290,16 +1283,21 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
         bucket_item_set_cas(connection, context.out_doc.get(), context.in_cas);
 
         // Obtain the item info (and it's iovectors)
-        item_info new_doc_info;
-        if (!bucket_get_item_info(
-                    connection, context.out_doc.get(), &new_doc_info)) {
-            cookie.sendResponse(cb::mcbp::Status::Einternal);
-            return ENGINE_FAILED;
-        }
+        if (!context.in_doc.view.empty()) {
+            item_info new_doc_info;
+            if (!bucket_get_item_info(
+                        connection, context.out_doc.get(), &new_doc_info)) {
+                cookie.sendResponse(cb::mcbp::Status::Einternal);
+                return ENGINE_FAILED;
+            }
 
-        // Copy the new document into the item.
-        char* write_ptr = static_cast<char*>(new_doc_info.value[0].iov_base);
-        std::memcpy(write_ptr, context.in_doc.data(), context.in_doc.size());
+            // Copy the new document into the item.
+            char* write_ptr =
+                    static_cast<char*>(new_doc_info.value[0].iov_base);
+            std::copy(context.in_doc.view.begin(),
+                      context.in_doc.view.end(),
+                      write_ptr);
+        }
     }
 
     // And finally, store the new document.

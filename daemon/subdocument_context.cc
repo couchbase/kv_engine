@@ -208,10 +208,10 @@ std::string_view SubdocCmdContext::expand_virtual_document_macro(
         // Calculate value_bytes (excluding XATTR). Note we use
         // in_datatype / in_doc here as they have already been
         // decompressed for us (see get_document_for_searching).
-        size_t value_bytes = in_doc.size();
+        size_t value_bytes = in_doc.view.size();
         if (mcbp::datatype::is_xattr(in_datatype)) {
             // strip off xattr
-            auto bodyoffset = cb::xattr::get_body_offset(in_doc);
+            auto bodyoffset = cb::xattr::get_body_offset(in_doc.view);
             value_bytes -= bodyoffset;
         }
         expandedVirtualMacrosBackingStore.emplace_back(
@@ -344,10 +344,10 @@ std::string_view SubdocCmdContext::get_document_vattr() {
         // Calculate value_bytes (excluding XATTR). Note we use
         // in_datatype / in_doc here as they have already been
         // decompressed for us (see get_document_for_searching).
-        size_t value_bytes = in_doc.size();
+        size_t value_bytes = in_doc.view.size();
         if (mcbp::datatype::is_xattr(in_datatype)) {
             // strip off xattr
-            auto bodyoffset = cb::xattr::get_body_offset(in_doc);
+            auto bodyoffset = cb::xattr::get_body_offset(in_doc.view);
             value_bytes -= bodyoffset;
         }
         doc["value_bytes"] = value_bytes;
@@ -415,8 +415,8 @@ std::string_view SubdocCmdContext::get_xtoc_vattr() {
         return std::string_view(xtoc_vattr.data(), xtoc_vattr.size());
     }
     if (xtoc_vattr.empty()) {
-        const auto bodyoffset = cb::xattr::get_body_offset(in_doc);
-        cb::char_buffer blob_buffer{const_cast<char*>(in_doc.data()),
+        const auto bodyoffset = cb::xattr::get_body_offset(in_doc.view);
+        cb::char_buffer blob_buffer{const_cast<char*>(in_doc.view.data()),
                                     (size_t)bodyoffset};
         cb::xattr::Blob xattr_blob(blob_buffer,
                                    mcbp::datatype::is_snappy(in_datatype));
@@ -468,8 +468,8 @@ cb::mcbp::Status SubdocCmdContext::get_document_for_searching(
 
     in_flags = info.flags;
     in_cas = client_cas ? client_cas : info.cas;
-    in_doc = {static_cast<char*>(info.value[0].iov_base),
-              info.value[0].iov_len};
+    in_doc = MemoryBackedBuffer{{static_cast<char*>(info.value[0].iov_base),
+                                 info.value[0].iov_len}};
     in_datatype = info.datatype;
     in_document_state = info.document_state;
 
@@ -477,9 +477,7 @@ cb::mcbp::Status SubdocCmdContext::get_document_for_searching(
         // Need to expand before attempting to extract from it.
         try {
             using namespace cb::compression;
-            if (!inflate(Algorithm::Snappy,
-                         in_doc,
-                         inflated_doc_buffer)) {
+            if (!inflate(Algorithm::Snappy, in_doc.view, inflated_doc_buffer)) {
                 char clean_key[KEY_MAX_LENGTH + 32];
                 if (buf_to_printable_buffer(
                             clean_key,
@@ -501,7 +499,7 @@ cb::mcbp::Status SubdocCmdContext::get_document_for_searching(
         }
 
         // Update document to point to the uncompressed version in the buffer.
-        in_doc = inflated_doc_buffer;
+        in_doc = MemoryBackedBuffer{inflated_doc_buffer};
         in_datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
     }
 
@@ -512,9 +510,9 @@ uint32_t SubdocCmdContext::computeValueCRC32C() {
     std::string_view value;
     if (mcbp::datatype::is_xattr(in_datatype)) {
         // Note: in the XAttr naming, body/value excludes XAttrs
-        value = cb::xattr::get_body(in_doc);
+        value = cb::xattr::get_body(in_doc.view);
     } else {
-        value = in_doc;
+        value = in_doc.view;
     }
     return crc32c(reinterpret_cast<const unsigned char*>(value.data()),
                   value.size(),

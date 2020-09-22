@@ -31,6 +31,32 @@
 #include <memory>
 #include <unordered_map>
 
+/**
+ * The MemoryBackedBuffer may be used for a "copy on write" context
+ * where we initially use it from a read-only-view, but at a later time
+ * we want to reset it to point to a different backing
+ */
+struct MemoryBackedBuffer {
+    MemoryBackedBuffer() = default;
+    explicit MemoryBackedBuffer(std::string_view view) : view(view) {
+    }
+
+    void reset(std::string&& next) {
+        backing.swap(next);
+        view = {backing.data(), backing.size()};
+    }
+
+    void swap(MemoryBackedBuffer& next) {
+        reset(std::move(next.backing));
+        next.view = {};
+    }
+
+    std::string_view view;
+
+protected:
+    std::string backing;
+};
+
 enum class MutationSemantics : uint8_t { Add, Replace, Set };
 
 // Used to describe which xattr keys the xtoc vattr should return
@@ -162,16 +188,7 @@ public:
     // Note this is *always* in a decompressed form (and hence can safely be
     // read / manipulated directly) - see get_document_for_searching().
     // TODO: Remove (b), and just use intermediate result.
-    std::string_view in_doc{};
-
-    // Temporary buffer to hold the inflated content in case of the
-    // document in the engine being compressed
-    cb::compression::Buffer inflated_doc_buffer;
-
-    // Temporary buffer used to hold the intermediate result document for
-    // multi-path mutations. {in_doc} is then updated to point to this to use
-    // as input for the next multi-path mutation.
-    std::unique_ptr<char[]> temp_doc;
+    MemoryBackedBuffer in_doc;
 
     // Temporary buffer used to hold the xattrs in use, as a get request
     // may hold pointers into the repacked xattr buckets
@@ -358,6 +375,13 @@ public:
     DocumentState createState = DocumentState::Alive;
 
 private:
+    // Temporary buffer to hold the inflated content in case of the
+    // document in the engine being compressed. It is only kept here
+    // to avoid an extra memory allocation and copy (in_doc will reference
+    // this section initially until someone tries to modify it.. at that
+    // time in_doc points to a temporary buffer)
+    cb::compression::Buffer inflated_doc_buffer;
+
     // The item info representing the input document
     item_info input_item_info = {};
 
