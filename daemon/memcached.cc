@@ -1078,6 +1078,20 @@ void DestroyBucketThread::destroy() {
         }
     }
 
+    auto num = bucket.items_in_transit.load();
+    int counter = 0;
+    while (num != 0) {
+        if (++counter % 100 == 0) {
+            LOG_INFO(
+                    R"({} Delete bucket [{}]. Still waiting: {} items still stuck in transfer.)",
+                    connection_id,
+                    name,
+                    num);
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds{10});
+        num = bucket.items_in_transit.load();
+    }
+
     LOG_INFO(
             "{} Delete bucket [{}]. Shut down the bucket", connection_id, name);
     bucket.destroyEngine(force);

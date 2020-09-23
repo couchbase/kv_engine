@@ -22,19 +22,10 @@ ItemSendBuffer::ItemSendBuffer(cb::unique_item_ptr itm,
                                std::string_view view,
                                Bucket& bucket)
     : SendBuffer(view), item(std::move(itm)), bucket(bucket) {
-    // We need to bump a reference to the bucket, because if we try to tear
-    // down the bucket and disconnect clients it might try to release the
-    // objects _AFTER_ the bucket started its deletion (because we decrement
-    // the reference
-    std::lock_guard<std::mutex> guard(bucket.mutex);
-    bucket.clients++;
+    bucket.items_in_transit++;
 }
 
 ItemSendBuffer::~ItemSendBuffer() {
     item.reset();
-    std::lock_guard<std::mutex> guard(bucket.mutex);
-    bucket.clients--;
-    if (bucket.clients == 0 && bucket.state == Bucket::State::Destroying) {
-        bucket.cond.notify_one();
-    }
+    bucket.items_in_transit--;
 }

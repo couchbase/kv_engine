@@ -78,7 +78,7 @@ public:
     DcpIface* getDcpIface() const;
 
     /**
-     * Mutex protecting the state and refcount. (@todo move to std::mutex).
+     * Mutex protecting the state and refcount.
      */
     mutable std::mutex mutex;
     mutable std::condition_variable cond;
@@ -95,6 +95,14 @@ public:
      * is_bucket_dying().
      */
     std::atomic<State> state{State::None};
+
+    /// The number of items in flight from the bucket (which keeps a reference
+    /// inside the bucket so we cannot kill the bucket until they're gone.
+    /// The atomic is _ALWAYS_ incremented while the connection holds
+    /// a reference in the "clients" member. When the clients member is 0
+    /// we'll just wait for this member to become 0 before we can drop
+    /// the bucket.
+    std::atomic<uint32_t> items_in_transit;
 
     /**
      * The type of bucket
