@@ -19,6 +19,7 @@
 #include "bucket_logger.h"
 #include "collections/collections_constants.h"
 #include "collections/collections_types.h"
+#include "collections/manifest_generated.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
 #include "statistics/collector.h"
@@ -299,6 +300,85 @@ nlohmann::json Manifest::toJson(
         }
     }
     return manifest;
+}
+
+flatbuffers::DetachedBuffer Manifest::toFlatbuffer() const {
+    flatbuffers::FlatBufferBuilder builder;
+    std::vector<flatbuffers::Offset<Collections::Persist::Scope>> fbScopes;
+
+    for (const auto& scope : scopes) {
+        std::vector<flatbuffers::Offset<Collections::Persist::Collection>>
+                fbCollections;
+
+        for (const auto& c : scope.second.collections) {
+            auto newEntry = Collections::Persist::CreateCollection(
+                    builder,
+                    uint32_t(c.id),
+                    c.maxTtl.has_value(),
+                    c.maxTtl.value_or(std::chrono::seconds(0)).count(),
+                    builder.CreateString(collections.at(c.id).name.data(),
+                                         collections.at(c.id).name.size()));
+            fbCollections.push_back(newEntry);
+        }
+        auto collectionVector = builder.CreateVector(fbCollections);
+
+        auto newEntry = Collections::Persist::CreateScope(
+                builder,
+                scope.first,
+                builder.CreateString(scope.second.name.data(),
+                                     scope.second.name.size()),
+                collectionVector);
+        fbScopes.push_back(newEntry);
+    }
+
+    auto scopeVector = builder.CreateVector(fbScopes);
+    auto toWrite =
+            Collections::Persist::CreateManifest(builder, uid, scopeVector);
+    builder.Finish(toWrite);
+    return builder.Release();
+}
+
+// sibling of toFlatbuffer, construct a Manifest from a flatbuffer format
+Manifest::Manifest(std::string_view flatbufferData, Manifest::FlatBuffers tag)
+    : defaultCollectionExists(false), scopes(), collections(), uid(0) {
+    flatbuffers::Verifier v(
+            reinterpret_cast<const uint8_t*>(flatbufferData.data()),
+            flatbufferData.size());
+    if (!v.VerifyBuffer<Collections::Persist::Manifest>(nullptr)) {
+        std::stringstream ss;
+        ss << "Collections::Manifest::Manifest(FlatBuffers): flatbufferData "
+              "invalid, ptr:"
+           << reinterpret_cast<const void*>(flatbufferData.data())
+           << ", size:" << flatbufferData.size();
+
+        throw std::invalid_argument(ss.str());
+    }
+
+    auto manifest = flatbuffers::GetRoot<Collections::Persist::Manifest>(
+            reinterpret_cast<const uint8_t*>(flatbufferData.data()));
+
+    uid = manifest->uid();
+    for (const Collections::Persist::Scope* scope : *manifest->scopes()) {
+        std::vector<CollectionEntry> scopeCollections;
+
+        for (const Collections::Persist::Collection* collection :
+             *scope->collections()) {
+            cb::ExpiryLimit maxTtl;
+            CollectionID cid(collection->collectionId());
+            if (collection->ttlValid()) {
+                maxTtl = std::chrono::seconds(collection->maxTtl());
+            }
+            this->collections.emplace(std::make_pair(
+                    cid,
+                    Collection{scope->scopeId(), collection->name()->str()}));
+            enableDefaultCollection(cid);
+            scopeCollections.push_back({cid, maxTtl});
+        }
+
+        this->scopes.emplace(
+                scope->scopeId(),
+                Scope{scope->name()->str(), std::move(scopeCollections)});
+    }
 }
 
 void Manifest::addCollectionStats(KVBucket& bucket,

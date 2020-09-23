@@ -19,6 +19,8 @@
 
 #include "globaltask.h"
 
+#include <optional>
+
 class EPBucket;
 
 namespace Collections {
@@ -33,17 +35,24 @@ public:
                         std::unique_ptr<Collections::Manifest> manifest,
                         const void* cookie);
 
-    bool run() override;
-
-    static std::unique_ptr<Manifest> tryAndLoad(const std::string& dbpath);
-
-    std::string getDescription() override {
-        return "PersistManifestTask";
-    }
+    std::string getDescription() override;
 
     std::chrono::microseconds maxExpectedDuration() override {
         return std::chrono::seconds(1);
     }
+
+    bool run() override;
+
+    /**
+     * Load back what this task writes.
+     *
+     * This returns an optional unique_ptr. If the optional has no value, then
+     * tryAndLoad failed - something went wrong (logged as CRITICAL).
+     *
+     * If the returned optional has a value, it could be a nullptr. This occurs
+     * for when there is no previous state to load (first warmup).
+     */
+    static std::optional<Manifest> tryAndLoad(std::string_view dbpath);
 
 private:
     /**

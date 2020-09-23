@@ -190,6 +190,14 @@ ADD_CUSTOM_COMMAND(OUTPUT
                     src/collections/events.fbs
                   COMMENT "Generating flatbuffers - collection events")
 
+ADD_CUSTOM_COMMAND(OUTPUT
+                     ${CMAKE_CURRENT_BINARY_DIR}/src/collections/manifest_generated.h
+                  COMMAND
+                     ${FLATC} -o ${CMAKE_CURRENT_BINARY_DIR}/src/collections/ --cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/collections/manifest.fbs
+                  DEPENDS
+                    src/collections/manifest.fbs
+                  COMMENT "Generating flatbuffers - collection manifest")
+
 # Custom build target to generate source files that we normally generate as part
 # of a build.
 add_custom_target(generated_source_files
@@ -202,6 +210,7 @@ add_custom_target(generated_source_files
             ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_generated.h
             ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_flatbuffers_schema.cc
             ${CMAKE_CURRENT_BINARY_DIR}/src/collections/events_generated.h
+            ${CMAKE_CURRENT_BINARY_DIR}/src/collections/manifest_generated.h
             generate_audit_descriptors)
 
 # Collections library for things required outside of ep-engine

@@ -324,7 +324,8 @@ private:
 
     friend std::ostream& operator<<(std::ostream& os, const Manager& manager);
 
-    /// Store the most recent (current) manifest received
+    /// Store the most recent (current) manifest received - this default
+    /// constructs as the 'epoch' Manifest
     folly::Synchronized<Manifest> currentManifest;
 
     /// Serialise updates to the manifest (set_collections core)

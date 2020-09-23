@@ -29,6 +29,10 @@
 
 class KVBucket;
 
+namespace flatbuffers {
+class DetachedBuffer;
+}
+
 namespace Collections {
 
 static const size_t MaxScopeOrCollectionNameSize = 251;
@@ -68,6 +72,9 @@ public:
      * @param json a buffer containing the JSON manifest data
      */
     explicit Manifest(std::string_view json);
+
+    struct FlatBuffers {};
+    explicit Manifest(std::string_view flatbufferData, FlatBuffers tag);
 
     bool doesDefaultCollectionExist() const {
         return defaultCollectionExists;
@@ -228,6 +235,11 @@ public:
      */
     nlohmann::json toJson(
             const Collections::IsVisibleFunction& isVisible) const;
+
+    /**
+     * @return flatbuffer representation of this object
+     */
+    flatbuffers::DetachedBuffer toFlatbuffer() const;
 
     /**
      * Add stats for collection. Each collection is tested for

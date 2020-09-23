@@ -1,0 +1,51 @@
+//
+//     Copyright 2020 Couchbase, Inc
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//   You may obtain a copy of the License at
+//
+//       http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//
+
+//
+// Flatbuffer types used in the serialisation of the Collections::Manifest
+// object. These are used to store as a file a copy of the current manifest
+// and use it in warm-up.
+//
+
+namespace Collections.Persist;
+
+table Collection {
+    collectionId:uint;
+    ttlValid:bool;
+    maxTtl:uint;
+    name:string;
+}
+
+table Scope {
+    scopeId:uint;
+    name:string;
+    collections:[Collection];
+}
+
+table Manifest {
+   uid:ulong;
+   scopes:[Scope];
+}
+
+table ManifestWithCrc {
+   crc:uint;
+   manifest:[ubyte];
+}
+
+// This is the main type representing a Collections::Manifest
+root_type Manifest;
+// This wraps the flatbuffer Manifest with a CRC for integrity checking
+root_type ManifestWithCrc;

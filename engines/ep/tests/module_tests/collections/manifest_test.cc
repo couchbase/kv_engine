@@ -19,6 +19,7 @@
 #include "collections_test_helpers.h"
 #include <utilities/test_manifest.h>
 
+#include <flatbuffers/flatbuffers.h>
 #include <folly/portability/GTest.h>
 #include <memcached/engine_error.h>
 
@@ -417,9 +418,8 @@ TEST(ManifestTest, validation) {
     for (auto& manifest : invalidManifests) {
         try {
             Collections::Manifest m(manifest);
-            EXPECT_TRUE(false)
-                    << "No exception thrown for invalid manifest:" << manifest
-                    << std::endl;
+            FAIL() << "No exception thrown for invalid manifest:" << manifest
+                   << std::endl;
         } catch (std::invalid_argument&) {
         }
     }
@@ -427,11 +427,11 @@ TEST(ManifestTest, validation) {
     for (auto& manifest : validManifests) {
         try {
             Collections::Manifest m(manifest);
+
         } catch (std::exception& e) {
-            EXPECT_TRUE(false)
-                    << "Exception thrown for valid manifest:" << manifest
-                    << std::endl
-                    << " what:" << e.what();
+            FAIL() << "Exception thrown for valid manifest:" << manifest
+                   << std::endl
+                   << " what:" << e.what();
         }
     }
 
@@ -445,9 +445,19 @@ TEST(ManifestTest, validation) {
         try {
             Collections::Manifest m1(manifest);
             Collections::Manifest m2(manifest);
-            Collections::Manifest m3(*itr);
+
+            auto fb = m1.toFlatbuffer();
+            std::string_view view(reinterpret_cast<const char*>(fb.data()),
+                                  fb.size());
+            Collections::Manifest m3(view,
+                                     Collections::Manifest::FlatBuffers{});
+
+            Collections::Manifest m4(*itr);
             EXPECT_EQ(m1, m2);
-            EXPECT_NE(m1, m3);
+            EXPECT_EQ(m1, m3);
+
+            EXPECT_NE(m1, m4);
+            EXPECT_NE(m3, m4);
         } catch (std::exception& e) {
             EXPECT_TRUE(false)
                     << "Exception thrown for valid manifest:" << manifest

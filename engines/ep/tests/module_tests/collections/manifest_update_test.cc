@@ -22,10 +22,13 @@
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "collections_test.h"
+#include "warmup.h"
 
 #include <platform/dirutils.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <utilities/test_manifest.h>
+
+#include <fstream>
 
 class CollectionsManifestUpdate : public CollectionsParameterizedTest {};
 
@@ -106,6 +109,37 @@ TEST_P(CollectionsManifestUpdatePersistent, update_fail_persist) {
     auto mockCookie = cookie_to_mock_cookie(cookie);
     EXPECT_EQ(cb::engine_errc::cannot_apply_collections_manifest,
               cb::engine_errc(mockCookie->status));
+}
+
+TEST_P(CollectionsManifestUpdatePersistent, update_corrupt_and_continue) {
+    CollectionsManifest cm, cm1;
+    cm.add(CollectionEntry::Entry{"fruit", 22});
+    setCollections(cookie, std::string{cm});
+    EXPECT_EQ(1, store->getVBucket(vbid)->lockCollections().getManifestUid());
+    EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().exists(22));
+
+    flush_vbucket_to_disk(vbid, 1);
+
+    std::string fname = engine->getConfiguration().getDbname() +
+                        cb::io::DirectorySeparator +
+                        std::string(Collections::ManifestFileName);
+
+    std::ofstream writer(fname, std::ofstream::trunc | std::ofstream::binary);
+    writer << "junk in here now";
+    writer.close();
+    EXPECT_TRUE(writer.good());
+
+    resetEngineAndWarmup();
+
+    EXPECT_TRUE(store->getWarmup()->isComplete());
+
+    // We are allowed to diverge without any force, KV has no idea.
+    // KV will not be able to tell that collection 22 is not fruit, any fruit
+    // in the simian collection will remain there.
+    cm1.add(CollectionEntry::Entry{"simians", 22});
+    setCollections(cookie, std::string{cm1});
+    EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().exists(22));
+    EXPECT_EQ(1, store->getVBucket(vbid)->lockCollections().getManifestUid());
 }
 
 INSTANTIATE_TEST_SUITE_P(CollectionsEphemeralOrPersistent,
