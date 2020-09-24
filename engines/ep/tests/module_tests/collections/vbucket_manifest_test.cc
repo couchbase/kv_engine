@@ -95,8 +95,8 @@ public:
             return false;
         }
         // Check all scopes can be found
-        for (const auto s : scopes) {
-            if (std::find(rhs.scopes.begin(), rhs.scopes.end(), s) ==
+        for (ScopeID sid : scopes) {
+            if (std::find(rhs.scopes.begin(), rhs.scopes.end(), sid) ==
                 rhs.scopes.end()) {
                 return false;
             }

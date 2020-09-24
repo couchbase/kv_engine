@@ -67,7 +67,7 @@ Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
         auto fbData =
                 flatbuffers::GetRoot<Collections::KVStore::OpenCollections>(
                         collections.data());
-        for (const auto& entry : *fbData->entries()) {
+        for (const auto* entry : *fbData->entries()) {
             cb::ExpiryLimit maxTtl;
             if (entry->ttlValid()) {
                 maxTtl = std::chrono::seconds(entry->maxTtl());
@@ -99,7 +99,7 @@ Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
                 scopes, "decodeManifest(scopes)");
         auto fbData = flatbuffers::GetRoot<Collections::KVStore::Scopes>(
                 scopes.data());
-        for (const auto& entry : *fbData->entries()) {
+        for (const auto* entry : *fbData->entries()) {
             auto emplaced = openScopes.emplace(entry->scopeId());
             // same scope exists many times
             if (!emplaced.second) {
@@ -135,7 +135,7 @@ std::vector<Collections::KVStore::DroppedCollection> decodeDroppedCollections(
     auto fbData =
             flatbuffers::GetRoot<Collections::KVStore::DroppedCollections>(
                     dc.data());
-    for (const auto& entry : *fbData->entries()) {
+    for (const auto* entry : *fbData->entries()) {
         rv.push_back({entry->startSeqno(),
                       entry->endSeqno(),
                       entry->collectionId()});

@@ -164,7 +164,7 @@ public:
         if (!expectedDropped.empty()) {
             EXPECT_TRUE(md.droppedCollectionsExist);
             EXPECT_EQ(expectedDropped.size(), dropped.size());
-            for (const auto cid : expectedDropped) {
+            for (CollectionID cid : expectedDropped) {
                 auto cmp = [cid](const Collections::KVStore::DroppedCollection&
                                          dropped) {
                     return dropped.collectionId == cid;
@@ -182,7 +182,7 @@ public:
                      const CollectionsManifest& cm) const {
         auto expectedScopes = getScopeEventVector(cm);
         EXPECT_EQ(expectedScopes.size(), md.scopes.size());
-        for (const auto scope : expectedScopes) {
+        for (const auto& scope : expectedScopes) {
             auto cmp =
                     [scope](const Collections::KVStore::OpenScope& openScope) {
                         return openScope.metaData == scope;

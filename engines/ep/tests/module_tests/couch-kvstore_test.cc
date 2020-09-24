@@ -987,7 +987,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, recordDbDump_open_doc_with_docinfo) {
 TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count1) {
     generate_items(6);
 
-    for (const auto item : items) {
+    for (const auto& item : items) {
         kvstore->begin(std::make_unique<TransactionContext>(vbid));
         kvstore->set(item);
         kvstore->commit(flush);
@@ -1018,7 +1018,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count1) {
 TEST_F(CouchKVStoreErrorInjectionTest, rollback_rewind_header) {
     generate_items(6);
 
-    for (const auto item : items) {
+    for (const auto& item : items) {
         kvstore->begin(std::make_unique<TransactionContext>(vbid));
         kvstore->set(item);
         kvstore->commit(flush);
@@ -1051,7 +1051,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_rewind_header) {
 TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count2) {
     generate_items(6);
 
-    for (const auto item : items) {
+    for (const auto& item : items) {
         kvstore->begin(std::make_unique<TransactionContext>(vbid));
         kvstore->set(item);
         kvstore->commit(flush);
@@ -1082,7 +1082,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count2) {
 TEST_F(CouchKVStoreErrorInjectionTest, readVBState_open_local_document) {
     generate_items(6);
 
-    for (const auto item : items) {
+    for (const auto& item : items) {
         kvstore->begin(std::make_unique<TransactionContext>(vbid));
         // Commit a valid vbstate
         flush.proposedVBState.lastSnapEnd = item->getBySeqno();
@@ -1176,7 +1176,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, savedocs_doc_infos_by_id) {
     // Insert some items into the B-Tree
     generate_items(6);
 
-    for (const auto item : items) {
+    for (const auto& item : items) {
         kvstore->begin(std::make_unique<TransactionContext>(vbid));
         kvstore->set(item);
         kvstore->commit(flush);

@@ -172,7 +172,7 @@ void StatsUpdate::remove(bool isCommitted, ssize_t diskSizeDelta) {
 
 void Flush::saveCollectionStats(
         std::function<void(CollectionID, PersistedStats)> cb) const {
-    for (const auto c : mutated) {
+    for (CollectionID c : mutated) {
         PersistedStats stats;
         {
             auto lock = manifest.lock(c);
