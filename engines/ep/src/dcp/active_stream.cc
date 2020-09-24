@@ -1062,8 +1062,23 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
 
             if (isSnappyEnabled()) {
                 if (isForceValueCompressionEnabled()) {
-                    if (!mcbp::datatype::is_snappy(finalItem->getDataType())) {
-                        if (!finalItem->compressValue()) {
+                    if (finalItem->getNBytes() > 0) {
+                        bool compressionFailed = false;
+
+                        if (!mcbp::datatype::is_snappy(
+                                    finalItem->getDataType())) {
+                            compressionFailed = !finalItem->compressValue();
+                        } else if (wasInflated == Item::WasValueInflated::Yes) {
+                            // MB-40493: IncludeValue::NoWithUnderlyingDatatype
+                            // may reset the datatype to Snappy and leave an
+                            // inflated Xattr chunk that requires compression.
+                            // We would miss to compress here if we check just
+                            // the datatype.
+                            compressionFailed = !finalItem->compressValue(
+                                    false /*keepIfLarger*/, true /*force*/);
+                        }
+
+                        if (compressionFailed) {
                             log(spdlog::level::level_enum::warn,
                                 "{} Failed to snappy compress an uncompressed "
                                 "value",

@@ -169,6 +169,93 @@ TEST_F(ItemTest, retainInfoUponItemCopy) {
     EXPECT_EQ(item1, item2) << "Item values not retained on copy";
 }
 
+/**
+ * The test verifies that the 'keepIfLarger' flags behaves as expected when we
+ * compress an item.
+ */
+TEST_F(ItemTest, KeepIfLarger) {
+    // A size-1 input gives a size-3 compressed output, check that we discard
+    // the result of compression
+    item = makeCompressibleItem(Vbid(0),
+                                makeStoredDocKey("key"),
+                                "b" /*body*/,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                false /*compressed*/,
+                                false /*xattr*/);
+    auto originalSize = item->getNBytes();
+    ASSERT_GT(originalSize, 0);
+    EXPECT_TRUE(item->compressValue(false /*keepIfLarger*/, false /*force*/));
+    // Don't force new compressed value if that's larger than the original one
+    EXPECT_EQ(1, item->getNBytes());
+
+    // Repeat, now we want to keep the result even if larger
+    EXPECT_TRUE(item->compressValue(true /*keepIfLarger*/, false /*force*/));
+    EXPECT_EQ(3, item->getNBytes());
+}
+
+/**
+ * Verifies the behaviour of the 'force' compression flag.
+ * Note: The purpose of this test is to verify that we do force compression when
+ *  the flag is set and that we don't even try to compress when the flag is not
+ *  set. Given that Item::compressValue() returns 'true' in both cases, I set
+ *  'keepIfLarger=true' and I use the final size of the item to determine if we
+ *  have force compression or not. For being valid, the test requires an input
+ *  payload that gives a larger output when compressed. In this test I'm using
+ *  a 1-byte input (3-byte when compressed).
+ */
+TEST_F(ItemTest, ForceCompression) {
+    //  Note: We need to provide an already compressed item in input to verify
+    //   the 'force' flag, compression will be skipped/enforced based on the
+    //   item datatype otherwise.
+
+    // 1) Skip compression
+    item = makeCompressibleItem(Vbid(0),
+                                makeStoredDocKey("key"),
+                                "" /*body*/,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                true /*compressed*/,
+                                false /*xattr*/);
+    // Note: 0-byte outputs 1-byte when compressed
+    ASSERT_EQ(1, item->getNBytes());
+    EXPECT_TRUE(item->compressValue(true /*keepIfLarger*/, false /*force*/));
+    // Don't force compression, same size.
+    EXPECT_EQ(1, item->getNBytes());
+
+    // 2) Force compression. Item's value was untouched, use the same as input.
+    EXPECT_TRUE(item->compressValue(true /*keepIfLarger*/, true /*force*/));
+    EXPECT_EQ(3, item->getNBytes());
+}
+
+/**
+ * Note: This test verifies the behaviour of Item::compressValue() in the case
+ * where compression is forced on a value that is already compressed.
+ * That is not supposed to happen in production, the test just shows that the
+ * call is safe and just a NOP.
+ */
+TEST_F(ItemTest, ForceCompressForAlreadyCompressedValue) {
+    const std::string uncompressedValue = "body000000000000000000000000000000";
+    item = makeCompressibleItem(Vbid(0),
+                                makeStoredDocKey("key"),
+                                uncompressedValue,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                true /*compressed*/,
+                                false /*xattr*/);
+    ASSERT_TRUE(mcbp::datatype::is_snappy(item->getDataType()));
+
+    EXPECT_TRUE(item->compressValue(false /*keepIfLarger*/, true /*force*/));
+
+    const auto firstCompressionSize = item->getNBytes();
+    EXPECT_GT(firstCompressionSize, 0);
+    EXPECT_LT(firstCompressionSize, uncompressedValue.size());
+    EXPECT_TRUE(mcbp::datatype::is_snappy(item->getDataType()));
+
+    // Verify that compressing twice is just a NOP
+    EXPECT_TRUE(item->compressValue(false /*keepIfLarger*/, true /*force*/));
+    EXPECT_GT(item->getNBytes(), 0);
+    EXPECT_EQ(firstCompressionSize, item->getNBytes());
+    EXPECT_TRUE(mcbp::datatype::is_snappy(item->getDataType()));
+}
+
 TEST_F(ItemPruneTest, testPruneNothing) {
     item->removeBodyAndOrXattrs(IncludeValue::Yes,
                                 IncludeXattrs::Yes,

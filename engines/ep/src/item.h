@@ -154,11 +154,19 @@ public:
         return ret;
     }
 
-    /* Snappy compress value and update datatype
-     * @param force force compression regardless if it makes
-     *              the value larger than the original
+    /**
+     * Snappy compress value and update datatype.
+     *
+     * @param keepIfLarger Whether we want to keep the result of compression
+     *  even in the case where it makes the value larger than the original
+     * @param force Compress the value regardless of whether the datatype states
+     *  already Snappy.
+     *  Note that 'force' and 'keepIfLarger' are orthogonal. 'force' only
+     *  contributes to determining whether compression will be attempted ot not.
+     *  If 'force=true' and compression is success, then 'keepIfLarger' will
+     *  apply as per its description.
      */
-    bool compressValue(bool force = false);
+    bool compressValue(bool keepIfLarger = false, bool force = false);
 
     /**
      * Snappy uncompress value and update datatype.
