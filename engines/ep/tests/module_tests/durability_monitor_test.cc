@@ -23,6 +23,7 @@
 #include "test_helpers.h"
 #include "vbucket_queue_item_ctx.h"
 #include "vbucket_utils.h"
+#include <test_manifest.h>
 
 #include "durability/active_durability_monitor.h"
 
@@ -3757,6 +3758,40 @@ TEST_P(NoTopologyActiveDurabilityMonitorTest, SeqnoAckReceivedBeforeTopology) {
 
     // expect that the ack was performed now the topology is set
     EXPECT_EQ(1, adm.getNodeAckSeqno(replica1));
+}
+
+TEST_P(ActiveDurabilityMonitorTest, MB_41235_commit) {
+    PassiveDurabilityMonitor pdm(*engine->getVBucket(vbid));
+    CollectionsManifest cm{CollectionEntry::meat};
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->set_collection_manifest(cookie, std::string{cm}));
+
+    queued_item item1{new Item(makeStoredDocKey("key1", CollectionID(8)),
+                               0 /*flags*/,
+                               0 /*exp*/,
+                               "value",
+                               5 /*valueSize*/,
+                               PROTOCOL_BINARY_RAW_BYTES,
+                               0 /*cas*/,
+                               1)};
+    using namespace cb::durability;
+    item1->setPendingSyncWrite(Requirements{Level::Majority, Timeout{10}});
+
+    pdm.addSyncWrite(item1, {});
+
+    cm.remove(CollectionEntry::meat);
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->set_collection_manifest(cookie, std::string{cm}));
+
+    EPStats ep{};
+    ActiveDurabilityMonitor adm(ep, std::move(pdm));
+    vb->setState(vbucket_state_active);
+    ASSERT_EQ(vbucket_state_active, vb->getState());
+    adm.setReplicationTopology(nlohmann::json::array({{"active", "replica1"}}));
+    ASSERT_EQ(ENGINE_SUCCESS, adm.seqnoAckReceived("replica1", 1));
+
+    adm.checkForCommit();
+    EXPECT_NO_THROW(adm.processCompletedSyncWriteQueue());
 }
 
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,

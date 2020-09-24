@@ -27,10 +27,8 @@
 #include "vbucket.h"
 #include "vbucket_state.h"
 
-#include <boost/algorithm/string/join.hpp>
 #include <folly/concurrency/UnboundedQueue.h>
 
-#include <gsl.h>
 #include <memcached/dockey.h>
 #include <utilities/logtags.h>
 
@@ -822,9 +820,11 @@ void ActiveDurabilityMonitor::commit(const ActiveSyncWrite& sw) {
     auto cHandle = vb.lockCollections(key);
 
     if (!cHandle.valid()) {
-        // collection no longer exists, cannot commit
-        vb.notifyClientOfSyncWriteComplete(sw.getCookie(),
-                                           ENGINE_SYNC_WRITE_AMBIGUOUS);
+        if (sw.getCookie() != nullptr) {
+            // collection no longer exists, cannot commit
+            vb.notifyClientOfSyncWriteComplete(sw.getCookie(),
+                                               ENGINE_SYNC_WRITE_AMBIGUOUS);
+        }
         return;
     }
 
