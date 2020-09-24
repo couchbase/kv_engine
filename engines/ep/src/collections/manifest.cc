@@ -496,7 +496,7 @@ bool Scope::operator==(const Scope& other) const {
     bool equal = name == other.name &&
                  collections.size() == other.collections.size();
     if (equal) {
-        for (const auto c : collections) {
+        for (const auto& c : collections) {
             equal &= std::find(other.collections.begin(),
                                other.collections.end(),
                                c) != other.collections.end();

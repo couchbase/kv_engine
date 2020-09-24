@@ -1308,7 +1308,7 @@ private:
 
     bool is_connection_suspended(const void* cookie) {
         std::lock_guard<std::mutex> guard(suspended_map_mutex);
-        for (const auto c : suspended_map) {
+        for (const auto& c : suspended_map) {
             if (c.second == cookie) {
                 LOG_DEBUG(
                         "Connection {} with id {} should be suspended for "

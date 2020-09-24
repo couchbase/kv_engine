@@ -223,7 +223,7 @@ bool Filter::addScope(const nlohmann::json& object,
     }
 
     scopeID = sid;
-    for (const auto cid : collectionVector.value()) {
+    for (CollectionID cid : collectionVector.value()) {
         insertCollection(cid, sid);
     }
     return true;

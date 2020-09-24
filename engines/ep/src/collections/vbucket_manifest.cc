@@ -59,7 +59,7 @@ std::optional<CollectionID> Manifest::applyDeletions(
         rv = changes.back();
         changes.pop_back();
     }
-    for (const auto id : changes) {
+    for (CollectionID id : changes) {
         dropCollection(
                 wHandle, vb, manifestUid, id, OptionalSeqno{/*no-seqno*/});
     }
@@ -98,7 +98,7 @@ std::optional<ScopeID> Manifest::applyScopeDrops(
         rv = changes.back();
         changes.pop_back();
     }
-    for (const auto id : changes) {
+    for (ScopeID id : changes) {
         dropScope(wHandle, vb, manifestUid, id, OptionalSeqno{/*no-seqno*/});
     }
 
@@ -468,10 +468,10 @@ Manifest::ManifestChanges Manifest::processManifest(
         }
     }
 
-    for (const auto scope : scopes) {
+    for (ScopeID sid : scopes) {
         // Remove the scopes that don't exist in the new manifest
-        if (manifest.findScope(scope) == manifest.endScopes()) {
-            rv.scopesToRemove.push_back(scope);
+        if (manifest.findScope(sid) == manifest.endScopes()) {
+            rv.scopesToRemove.push_back(sid);
         }
     }
 
@@ -928,8 +928,8 @@ bool Manifest::operator==(const Manifest& rhs) const {
         return false;
     }
     // Check all scopes can be found
-    for (const auto s : scopes) {
-        if (std::find(rhs.scopes.begin(), rhs.scopes.end(), s) ==
+    for (ScopeID sid : scopes) {
+        if (std::find(rhs.scopes.begin(), rhs.scopes.end(), sid) ==
             rhs.scopes.end()) {
             return false;
         }
