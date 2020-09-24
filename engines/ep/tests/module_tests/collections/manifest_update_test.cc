@@ -111,7 +111,7 @@ TEST_P(CollectionsManifestUpdatePersistent, update_fail_persist) {
               cb::engine_errc(mockCookie->status));
 }
 
-TEST_P(CollectionsManifestUpdatePersistent, update_corrupt_and_continue) {
+TEST_P(CollectionsManifestUpdatePersistent, update_fail_warmup) {
     CollectionsManifest cm, cm1;
     cm.add(CollectionEntry::Entry{"fruit", 22});
     setCollections(cookie, std::string{cm});
@@ -129,17 +129,16 @@ TEST_P(CollectionsManifestUpdatePersistent, update_corrupt_and_continue) {
     writer.close();
     EXPECT_TRUE(writer.good());
 
-    resetEngineAndWarmup();
+    try {
+        resetEngineAndWarmup();
+        FAIL() << "Expected an exception from running warmup";
+    } catch (const std::exception& e) {
+        // CheckedExecutor throws because warm-up stops short
+        EXPECT_STREQ("CheckedExecutor failed fetchNextTask", e.what());
+    }
+    EXPECT_FALSE(store->getWarmup()->isComplete());
 
-    EXPECT_TRUE(store->getWarmup()->isComplete());
-
-    // We are allowed to diverge without any force, KV has no idea.
-    // KV will not be able to tell that collection 22 is not fruit, any fruit
-    // in the simian collection will remain there.
-    cm1.add(CollectionEntry::Entry{"simians", 22});
-    setCollections(cookie, std::string{cm1});
-    EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().exists(22));
-    EXPECT_EQ(1, store->getVBucket(vbid)->lockCollections().getManifestUid());
+    // Warmup failed so we would not be able to diverge
 }
 
 INSTANTIATE_TEST_SUITE_P(CollectionsEphemeralOrPersistent,

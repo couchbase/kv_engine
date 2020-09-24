@@ -176,8 +176,11 @@ public:
 
     /**
      * Called from bucket warmup - see if we have a manifest to resume from
+     *
+     * @return false if the manifest was found but cannot be loaded (e.g.
+     * corruption or system error)
      */
-    void warmupLoadManifest(const std::string& dbpath);
+    bool warmupLoadManifest(const std::string& dbpath);
 
     /**
      * Perform actions for a completed warmup - currently check if any

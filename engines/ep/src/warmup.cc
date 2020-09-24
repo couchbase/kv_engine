@@ -990,8 +990,12 @@ void Warmup::initialize()
         cleanShutdown = false;
     }
 
-    store.getCollectionsManager().warmupLoadManifest(
-            store.getEPEngine().getConfiguration().getDbname());
+    if (!store.getCollectionsManager().warmupLoadManifest(
+                store.getEPEngine().getConfiguration().getDbname())) {
+        EP_LOG_CRITICAL(
+                "Warmup::initialize aborting as manifest cannot be loaded");
+        return;
+    }
 
     populateShardVbStates();
     transition(WarmupState::State::CreateVBuckets);
