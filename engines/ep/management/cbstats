@@ -371,7 +371,10 @@ def size_label(s):
     sizes=['B ', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB']
     e = math.floor(math.log(abs(s), 1024))
     suffix = sizes[int(e)]
-    return "%4d%s" % (s/(1024 ** math.floor(e)), suffix)
+    div = 1
+    if e > 0 :
+        div = (e*1024)
+    return "%.2f%s" % (s/div, suffix)
 
 def ratio_label(s):
     """A label for a ratio (1.2x, 8.8x) which is encoded from the server as
