@@ -14,4 +14,4 @@ target_include_directories(statistics
         PUBLIC ${PROMETHEUS_INCLUDE_DIR}
         PRIVATE ${Memcached_BINARY_DIR}/engines/ep/src)
 
-target_link_libraries(statistics hdr_histogram_static ${PROMETHEUS_LIBRARIES})
+target_link_libraries(statistics mcd_util ${PROMETHEUS_LIBRARIES})
