@@ -48,7 +48,7 @@ std::ostream& operator<<(std::ostream& os, const ScanContext& scanContext) {
     os << "ScanContext: startSeqno:" << scanContext.startSeqno
        << ", endSeqno:" << scanContext.endSeqno;
     os << " dropped:[";
-    for (const auto cid : scanContext.dropped) {
+    for (CollectionID cid : scanContext.dropped) {
         os << cid.to_string() << ", ";
     }
     os << "]";

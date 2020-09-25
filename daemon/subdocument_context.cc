@@ -422,13 +422,14 @@ std::string_view SubdocCmdContext::get_xtoc_vattr() {
                                    mcbp::datatype::is_snappy(in_datatype));
 
         nlohmann::json arr;
-        for (const auto& kvPair : xattr_blob) {
-            bool isSystemXattr = cb::xattr::is_system_xattr(kvPair.first);
+        for (const auto [key, value] : xattr_blob) {
+            (void)value;
+            bool isSystemXattr = cb::xattr::is_system_xattr(key);
 
             if (xtocSemantics == XtocSemantics::All ||
                 (isSystemXattr && (xtocSemantics == XtocSemantics::System)) ||
                 (!isSystemXattr && (xtocSemantics == XtocSemantics::User))) {
-                arr.push_back(kvPair.first);
+                arr.push_back(key);
             }
         }
 
