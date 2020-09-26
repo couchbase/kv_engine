@@ -202,12 +202,16 @@ nlohmann::json Connection::toJSON() const {
     switch (state) {
     case State::running:
         ret["state"] = "running";
+        break;
     case State::closing:
         ret["state"] = "closing";
+        break;
     case State::pending_close:
         ret["state"] = "pending close";
+        break;
     case State::immediate_close:
         ret["state"] = "immediate close";
+        break;
     }
 
     ret["ssl"] = ssl;
