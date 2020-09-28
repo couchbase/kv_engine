@@ -53,6 +53,9 @@ protected:
             cb::io::rmrf(mcd_env->getDbPath());
         } catch (...) { /* nothing exists */
         }
+
+        mcd_env->getTestBucket().setBucketCreateMode(
+                TestBucketImpl::BucketCreateMode::Clean);
         ShutdownTest::SetUp();
     }
 
@@ -60,6 +63,8 @@ protected:
         if (skipTest) {
             return;
         }
+        mcd_env->getTestBucket().setBucketCreateMode(
+                TestBucketImpl::BucketCreateMode::Clean);
         ShutdownTest::TearDown();
     }
 
@@ -119,6 +124,8 @@ TEST_P(PersistToTest, PersistedAfterShutdown) {
     // Shutdown of memcached.
     shutdownMemcached(GetParam());
 
+    mcd_env->getTestBucket().setBucketCreateMode(
+            TestBucketImpl::BucketCreateMode::AllowRecreate);
     // Restart memcached, and attempt to read the item we persisted.
     ShutdownTest::SetUp();
 
@@ -210,6 +217,9 @@ TEST_P(PersistToTest, ConsistentStateAfterShutdown) {
 
     // Perform a shutdown of memcached.
     shutdownMemcached(GetParam());
+
+    mcd_env->getTestBucket().setBucketCreateMode(
+            TestBucketImpl::BucketCreateMode::AllowRecreate);
 
     // Restart memcached.
     ShutdownTest::SetUp();

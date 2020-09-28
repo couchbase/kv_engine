@@ -191,9 +191,21 @@ public:
         }
     }
 
+    void setBucketCreateMode(BucketCreateMode mode) override {
+        bucketCreateMode = mode;
+    }
+
+    BucketCreateMode bucketCreateMode = BucketCreateMode::Clean;
+
     void setUpBucket(const std::string& name,
                      const std::string& config,
                      MemcachedConnection& conn) override {
+        const auto dbdir = cb::io::sanitizePath(dbPath + "/" + name);
+        if (cb::io::isDirectory(dbdir) &&
+            bucketCreateMode == BucketCreateMode::Clean) {
+            cb::io::rmrf(dbdir);
+        }
+
         std::string settings = "dbname=" + dbPath + "/" + name;
         // Increase bucket quota from 100MB to 200MB as there are some
         // testapp tests requiring more than the default.

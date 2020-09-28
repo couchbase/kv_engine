@@ -36,6 +36,10 @@ public:
                              const std::string& config,
                              MemcachedConnection& conn) = 0;
 
+    enum class BucketCreateMode { Clean, AllowRecreate };
+    virtual void setBucketCreateMode(BucketCreateMode) {
+    }
+
     virtual ~TestBucketImpl() = default;
 
     virtual std::string getName() const = 0;
