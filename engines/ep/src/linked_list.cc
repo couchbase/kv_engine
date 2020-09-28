@@ -281,6 +281,9 @@ size_t BasicLinkedList::purgeTombstones(
         }
 
         if (shouldPause()) {
+            std::lock_guard<std::mutex> writeGuard(getListWriteLock());
+            // BasicLinkedList::updateListElem reads this value under the
+            // write lock
             pausedPurgePoint = it;
             break;
         }
