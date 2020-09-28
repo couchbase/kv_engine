@@ -51,7 +51,7 @@ public:
 
     /// return if the named handler exists for the vbid in the vbToConns
     /// structure
-    bool doesConnHandlerExist(Vbid vbid, const std::string& name);
+    bool doesVbConnExist(Vbid vbid, const std::string& name);
 
 protected:
     /**

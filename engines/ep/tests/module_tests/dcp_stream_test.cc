@@ -2450,12 +2450,12 @@ TEST_P(SingleThreadedPassiveStreamTest,
     auto& connMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
     std::string streamName = "test_consumer";
     // consumer and stream created in SetUp
-    ASSERT_TRUE(connMap.doesConnHandlerExist(vbid, streamName));
+    ASSERT_TRUE(connMap.doesVbConnExist(vbid, streamName));
 
     // close stream
     EXPECT_EQ(ENGINE_SUCCESS, consumer->closeStream(0, vbid));
 
-    EXPECT_TRUE(connMap.doesConnHandlerExist(vbid, streamName));
+    EXPECT_TRUE(connMap.doesVbConnExist(vbid, streamName));
 
     // add new stream
     uint32_t opaque = 999;
@@ -2465,7 +2465,7 @@ TEST_P(SingleThreadedPassiveStreamTest,
             (consumer->getVbucketStream(vbid)).get());
 
     ASSERT_TRUE(stream);
-    EXPECT_TRUE(connMap.doesConnHandlerExist(vbid, streamName));
+    EXPECT_TRUE(connMap.doesVbConnExist(vbid, streamName));
 
     // end the second stream
     EXPECT_EQ(ENGINE_SUCCESS,
@@ -2474,7 +2474,7 @@ TEST_P(SingleThreadedPassiveStreamTest,
                                   cb::mcbp::DcpStreamEndStatus::Ok));
 
     // expect the consumer is no longer in vbconns
-    EXPECT_FALSE(connMap.doesConnHandlerExist(vbid, streamName));
+    EXPECT_FALSE(connMap.doesVbConnExist(vbid, streamName));
 
     // re-add stream for teardown to close
     ASSERT_EQ(ENGINE_SUCCESS,

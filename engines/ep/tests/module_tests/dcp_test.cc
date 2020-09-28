@@ -1222,7 +1222,7 @@ TEST_P(ConnectionTest, test_producer_stream_end_on_client_close_stream) {
     auto& mockConnMap =
             static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
     mockConnMap.addConn(cookie, producer);
-    EXPECT_TRUE(mockConnMap.doesConnHandlerExist(vbid, "test_producer"));
+    EXPECT_TRUE(mockConnMap.doesVbConnExist(vbid, "test_producer"));
 
     /* Close stream */
     EXPECT_EQ(ENGINE_SUCCESS, producer->closeStream(0, vbid));
@@ -1244,10 +1244,10 @@ TEST_P(ConnectionTest, test_producer_stream_end_on_client_close_stream) {
     // MB-27769: Prior to the fix, this would fail here because we would skip
     // adding the connhandler into the connmap vbConns vector, causing the
     // stream to never get notified.
-    EXPECT_TRUE(mockConnMap.doesConnHandlerExist(vbid, "test_producer"));
+    EXPECT_TRUE(mockConnMap.doesVbConnExist(vbid, "test_producer"));
 
     mockConnMap.disconnect(cookie);
-    EXPECT_FALSE(mockConnMap.doesConnHandlerExist(vbid, "test_producer"));
+    EXPECT_FALSE(mockConnMap.doesVbConnExist(vbid, "test_producer"));
     mockConnMap.manageConnections();
 }
 
@@ -2134,19 +2134,16 @@ TEST_F(DcpConnMapTest, StaleConnMapReferences) {
                             {});
 
     // The ConnMap will add the "ep_dcpq" name prefix to our name
-    ASSERT_TRUE(
-            mockConnMap.doesConnHandlerExist(Vbid(0), "eq_dcpq:test_producer"));
+    ASSERT_TRUE(mockConnMap.doesVbConnExist(Vbid(0), "eq_dcpq:test_producer"));
 
     // Close it, the connection should still exist in the vbToConns map
     producer->closeStream(0, Vbid(0));
-    ASSERT_TRUE(
-            mockConnMap.doesConnHandlerExist(Vbid(0), "eq_dcpq:test_producer"));
+    ASSERT_TRUE(mockConnMap.doesVbConnExist(Vbid(0), "eq_dcpq:test_producer"));
 
     // Remove the connection, we should clean up the references in the
     // vbToConns map now
     connMap.disconnect(cookie);
-    EXPECT_FALSE(
-            mockConnMap.doesConnHandlerExist(Vbid(0), "eq_dcpq:test_producer"));
+    EXPECT_FALSE(mockConnMap.doesVbConnExist(Vbid(0), "eq_dcpq:test_producer"));
 
     destroy_mock_cookie(cookie);
 }
@@ -2261,25 +2258,25 @@ TEST_F(DcpConnMapTest, TestCorrectConnHandlerRemoved) {
 
     DcpConsumer* consumerA =
             connMap.newConsumer(cookieA, "test_consumerA", "test_consumerA");
-    EXPECT_FALSE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:test_consumerA"));
+    EXPECT_FALSE(connMap.doesVbConnExist(vbid, "eq_dcpq:test_consumerA"));
     consumerA->addStream(0xdead, vbid, 0);
-    EXPECT_TRUE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:test_consumerA"));
+    EXPECT_TRUE(connMap.doesVbConnExist(vbid, "eq_dcpq:test_consumerA"));
     // destroys the first consumer, leaving a weakptr in the vbConn map
     EXPECT_TRUE(connMap.removeConn(cookieA));
 
     // Create a new consumer, with a stream for the same VB
     DcpConsumer* consumerB =
             connMap.newConsumer(cookieB, "test_consumerB", "test_consumerB");
-    EXPECT_FALSE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:test_consumerB"));
+    EXPECT_FALSE(connMap.doesVbConnExist(vbid, "eq_dcpq:test_consumerB"));
     consumerB->addStream(0xbeef, vbid, 0);
-    EXPECT_TRUE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:test_consumerB"));
+    EXPECT_TRUE(connMap.doesVbConnExist(vbid, "eq_dcpq:test_consumerB"));
 
     // Here the ConnHandler added to connMap.vbConns in addStream should be
     // removed
     connMap.disconnect(cookieB);
 
     // Consumer B should not be in the vbConns any more
-    EXPECT_FALSE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:test_consumerB"));
+    EXPECT_FALSE(connMap.doesVbConnExist(vbid, "eq_dcpq:test_consumerB"));
 
     /* Cleanup the deadConnections */
     connMap.manageConnections();
@@ -2322,7 +2319,7 @@ TEST_F(DcpConnMapTest, TestCorrectRemovedOnStreamEnd) {
                                       fakeDcpAddFailoverLog,
                                       {}));
 
-    EXPECT_TRUE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:producerA"));
+    EXPECT_TRUE(connMap.doesVbConnExist(vbid, "eq_dcpq:producerA"));
 
     // Close the stream. This will not remove the ConnHandler from
     // ConnMap.vbConns because we are waiting to send streamEnd.
@@ -2336,17 +2333,17 @@ TEST_F(DcpConnMapTest, TestCorrectRemovedOnStreamEnd) {
                       vbid, vbucket_state_replica, {}, TransferVB::Yes));
 
     // confirm the ConnHandler was removed
-    EXPECT_FALSE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:producerA"));
+    EXPECT_FALSE(connMap.doesVbConnExist(vbid, "eq_dcpq:producerA"));
 
     // Create a consumer (we are now a replica)
     DcpConsumer* consumer = connMap.newConsumer(
             consumerCookie, "test_consumerA", "test_consumerA");
 
-    EXPECT_FALSE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:test_consumerA"));
+    EXPECT_FALSE(connMap.doesVbConnExist(vbid, "eq_dcpq:test_consumerA"));
 
     // add a stream for the same VB as before
     ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(0xbeef, vbid, 0));
-    EXPECT_TRUE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:test_consumerA"));
+    EXPECT_TRUE(connMap.doesVbConnExist(vbid, "eq_dcpq:test_consumerA"));
 
     // End the stream. This should remove the Consumer ConnHandler from vbConns
     auto streamOpaque =
@@ -2357,8 +2354,8 @@ TEST_F(DcpConnMapTest, TestCorrectRemovedOnStreamEnd) {
                       *streamOpaque, vbid, cb::mcbp::DcpStreamEndStatus::Ok));
 
     // expect neither ConnHandler remains in vbConns
-    EXPECT_FALSE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:producerA"));
-    EXPECT_FALSE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:test_consumerA"));
+    EXPECT_FALSE(connMap.doesVbConnExist(vbid, "eq_dcpq:producerA"));
+    EXPECT_FALSE(connMap.doesVbConnExist(vbid, "eq_dcpq:test_consumerA"));
 
     /* Cleanup the deadConnections */
     connMap.manageConnections();
@@ -2402,7 +2399,7 @@ TEST_F(DcpConnMapTest, AvoidDoubleLockToVBStateAtSetVBucketState) {
                                       fakeDcpAddFailoverLog,
                                       {} /*collection_filter*/));
 
-    EXPECT_TRUE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:producer"));
+    EXPECT_TRUE(connMap.doesVbConnExist(vbid, "eq_dcpq:producer"));
 
     engine->getKVBucket()->setVBucketState(
             vbid,
@@ -2451,7 +2448,7 @@ TEST_F(DcpConnMapTest,
                                       fakeDcpAddFailoverLog,
                                       {} /*collection_filter*/));
 
-    EXPECT_TRUE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:producer"));
+    EXPECT_TRUE(connMap.doesVbConnExist(vbid, "eq_dcpq:producer"));
 
     std::thread t1 = std::thread([this]() -> void {
         engine->getKVBucket()->setVBucketState(
@@ -2467,7 +2464,7 @@ TEST_F(DcpConnMapTest,
     t1.join();
 
     // Check that streams have been shutdown at disconnect
-    EXPECT_FALSE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:producer"));
+    EXPECT_FALSE(connMap.doesVbConnExist(vbid, "eq_dcpq:producer"));
 
     // Cleanup
     connMap.manageConnections();
@@ -2606,7 +2603,7 @@ void DcpConnMapTest::testLockInversionInSetVBucketStateAndNewProducer(
         SCOPED_TRACE("");
         streamRequest(*producer);
     }
-    EXPECT_TRUE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:" + connName));
+    EXPECT_TRUE(connMap.doesVbConnExist(vbid, "eq_dcpq:" + connName));
 
     std::thread t1 = std::thread([this]() -> void {
         engine->getKVBucket()->setVBucketState(
@@ -2626,7 +2623,7 @@ void DcpConnMapTest::testLockInversionInSetVBucketStateAndNewProducer(
         EXPECT_FALSE(connMap.newProducer(cookie, newConnName, flags));
         // Note: Connection flagged as disconnected but not yet removed
         // from conn-map. See comments in ConnMap::newProducer.
-        EXPECT_TRUE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:" + connName));
+        EXPECT_TRUE(connMap.doesVbConnExist(vbid, "eq_dcpq:" + connName));
         break;
     }
     case ConnExistsBy ::Name: {
@@ -2638,7 +2635,7 @@ void DcpConnMapTest::testLockInversionInSetVBucketStateAndNewProducer(
             SCOPED_TRACE("");
             streamRequest(*producer);
         }
-        EXPECT_TRUE(connMap.doesConnHandlerExist(vbid, "eq_dcpq:" + connName));
+        EXPECT_TRUE(connMap.doesVbConnExist(vbid, "eq_dcpq:" + connName));
         break;
     }
     }
