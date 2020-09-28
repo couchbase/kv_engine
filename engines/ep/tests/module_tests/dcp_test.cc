@@ -1893,12 +1893,8 @@ TEST_P(ConnectionTest, test_not_using_backfill_queue) {
     ASSERT_EQ(ENGINE_SUCCESS, set_vb_state(vbid, vbucket_state_replica));
 
     const void* cookie = create_mock_cookie(engine);
-    /*
-     * Create a Mock Dcp consumer. Since child class subobj of MockDcpConsumer
-     *  obj are accounted for by SingleThreadedRCPtr, use the same here
-     */
-    auto consumer =
-            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
+    auto& connMap = engine->getDcpConnMap();
+    auto* consumer = connMap.newConsumer(cookie, "test_consumer");
 
     // Add passive stream
     ASSERT_EQ(ENGINE_SUCCESS,
@@ -1989,7 +1985,11 @@ TEST_P(ConnectionTest, test_not_using_backfill_queue) {
 
     // Close stream
     ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(/*opaque*/ 0, vbid));
-    destroy_mock_cookie(cookie);
+
+    connMap.disconnect(cookie);
+    EXPECT_FALSE(connMap.isDeadConnectionsEmpty());
+    connMap.manageConnections();
+    EXPECT_TRUE(connMap.isDeadConnectionsEmpty());
 }
 
 /*
