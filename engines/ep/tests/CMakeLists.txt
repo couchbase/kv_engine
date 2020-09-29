@@ -54,6 +54,7 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
         module_tests/defragmenter_test.cc
         module_tests/dcp_durability_stream_test.cc
         module_tests/dcp_reflection_test.cc
+        module_tests/dcp_single_threaded_test.cc
         module_tests/dcp_stream_test.cc
         module_tests/dcp_stream_sync_repl_test.cc
         module_tests/dcp_test.cc
