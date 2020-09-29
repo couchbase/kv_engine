@@ -23,7 +23,15 @@
 
 #include <programs/engine_testapp/mock_cookie.h>
 
-class STDcpTest : public STParameterizedBucketTest {};
+class STDcpTest : public STParameterizedBucketTest {
+protected:
+    /**
+     * @param producerState Are we simulating a negotiation against a Producer
+     *  that enables IncludeDeletedUserXattrs?
+     */
+    void testProducerNegotiatesIncludeDeletedUserXattrs(
+            IncludeDeletedUserXattrs producerState);
+};
 
 /*
  * The following tests that when the disk_backfill_queue configuration is
@@ -196,6 +204,47 @@ TEST_P(STDcpTest, SnapshotsAndNoData) {
     EXPECT_FALSE(connMap.isDeadConnectionsEmpty());
     connMap.manageConnections();
     EXPECT_TRUE(connMap.isDeadConnectionsEmpty());
+}
+
+void STDcpTest::testProducerNegotiatesIncludeDeletedUserXattrs(
+        IncludeDeletedUserXattrs producerState) {
+    const void* cookie = create_mock_cookie();
+
+    uint32_t dcpOpenFlags;
+    ENGINE_ERROR_CODE expectedControlResp;
+    switch (producerState) {
+    case IncludeDeletedUserXattrs::Yes: {
+        dcpOpenFlags =
+                cb::mcbp::request::DcpOpenPayload::IncludeDeletedUserXattrs;
+        expectedControlResp = ENGINE_SUCCESS;
+        break;
+    }
+    case IncludeDeletedUserXattrs::No: {
+        dcpOpenFlags = 0;
+        expectedControlResp = ENGINE_EINVAL;
+        break;
+    }
+    }
+
+    const auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", dcpOpenFlags);
+    EXPECT_EQ(producerState, producer->public_getIncludeDeletedUserXattrs());
+    EXPECT_EQ(expectedControlResp,
+              producer->control(0, "include_deleted_user_xattrs", "true"));
+
+    destroy_mock_cookie(cookie);
+}
+
+TEST_P(STDcpTest,
+       ProducerNegotiatesIncludeDeletedUserXattrs_DisabledAtProducer) {
+    testProducerNegotiatesIncludeDeletedUserXattrs(
+            IncludeDeletedUserXattrs::No);
+}
+
+TEST_P(STDcpTest,
+       ProducerNegotiatesIncludeDeletedUserXattrs_EnabledAtProducer) {
+    testProducerNegotiatesIncludeDeletedUserXattrs(
+            IncludeDeletedUserXattrs::Yes);
 }
 
 INSTANTIATE_TEST_SUITE_P(PersistentAndEphemeral,
