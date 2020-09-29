@@ -177,5 +177,5 @@ TEST_P(RemoveTest, MB_22553_DeleteDocWithXAttr_keep_deleted) {
  * when the memcached bucket isn't using the keep deleted flag
  */
 TEST_P(RemoveTest, MB_22553_DeleteDocWithXAttr) {
-    verify_MB_22553("");
+    verify_MB_22553("keep_deleted=false");
 }

@@ -21,8 +21,35 @@
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/openssl_utils.h>
+#include <utilities/string_utilities.h>
 #include <fstream>
 #include <memory>
+
+std::string TestBucketImpl::mergeConfigString(const std::string& next) {
+    if (next.empty()) {
+        return extraConfig;
+    }
+
+    if (extraConfig.empty()) {
+        return next;
+    }
+
+    std::string settings = next;
+    auto tokens = split_string(extraConfig, ";");
+    auto key = settings;
+    auto idx = key.find("=");
+    if (idx != std::string::npos) {
+        key.resize(idx);
+    }
+    for (auto& entry : tokens) {
+        if (split_string(entry, "=")[0] != key) {
+            settings += ";";
+            settings += entry;
+        }
+    }
+
+    return settings;
+}
 
 void TestBucketImpl::createEwbBucket(const std::string& name,
                                      const std::string& plugin,
@@ -100,14 +127,8 @@ public:
     void setUpBucket(const std::string& name,
                      const std::string& config,
                      MemcachedConnection& conn) override {
-        std::string settings = config;
-        if (!extraConfig.empty()) {
-            if (!settings.empty()) {
-                settings += ';';
-            }
-            settings += extraConfig;
-        }
-        createEwbBucket(name, "default_engine.so", settings, conn);
+        createEwbBucket(
+                name, "default_engine.so", mergeConfigString(config), conn);
     }
 
     std::string getName() const override {
@@ -218,10 +239,8 @@ public:
         if (!config.empty()) {
             settings += ";" + config;
         }
-        if (!extraConfig.empty()) {
-            settings += ";" + extraConfig;
-        }
-        createEwbBucket(name, "ep.so", settings, conn);
+
+        createEwbBucket(name, "ep.so", mergeConfigString(settings), conn);
 
         BinprotGenericCommand cmd;
         cmd.setOp(cb::mcbp::ClientOpcode::SelectBucket);

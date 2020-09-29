@@ -92,6 +92,8 @@ protected:
                                 const std::string& config,
                                 MemcachedConnection& conn);
 
+    std::string mergeConfigString(const std::string& next);
+
     std::string extraConfig;
 };
 
