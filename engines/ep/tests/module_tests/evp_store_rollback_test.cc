@@ -858,6 +858,44 @@ TEST_P(RollbackTest, RollbackUnpersistedItemsFromCheckpointsOfDifferentType) {
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 }
 
+TEST_P(RollbackTest, RollbackBeforeFirstFailoverTableEntry) {
+    auto maxFailoverEntries =
+            engine->getConfiguration().getMaxFailoverEntries();
+
+    // Stay as active until the rollback as it's easier to store things.
+    for (size_t i = 0; i < maxFailoverEntries + 1; i++) {
+        store_item(vbid,
+                   makeStoredDocKey("key_" + std::to_string(i)),
+                   "not rolled back");
+    }
+
+    flushVBucketToDiskIfPersistent(vbid, maxFailoverEntries + 1);
+    auto htState = getHtState();
+    auto vb = store->getVBucket(vbid);
+    auto rollbackSeqno = vb->getHighSeqno();
+
+    for (size_t i = 0; i < maxFailoverEntries; i++) {
+        store_item(vbid,
+                   makeStoredDocKey("rollback_" + std::to_string(i)),
+                   "rolled back");
+        vb->failovers->createEntry(vb->getHighSeqno());
+    }
+
+    EXPECT_EQ(maxFailoverEntries, vb->failovers->getNumEntries());
+
+    // Flip to replica and rollback
+    store->setVBucketState(vbid, vbucket_state_replica);
+    EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
+    EXPECT_EQ(rollbackSeqno, vb->getHighSeqno());
+
+    EXPECT_EQ(htState.dump(0), getHtState().dump(0));
+
+    EXPECT_EQ(1, vb->failovers->getNumEntries());
+    auto entry = vb->failovers->getLatestEntry();
+    EXPECT_EQ(rollbackSeqno, entry.by_seqno);
+    EXPECT_NE(0, entry.vb_uuid);
+}
+
 class RollbackDcpTest : public RollbackTest {
 public:
     // Mock implementation of dcp_message_producers which ... TODO

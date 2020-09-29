@@ -198,6 +198,8 @@ class FailoverTable {
      */
     void sanitizeFailoverTable(int64_t highSeqno);
 
+    int64_t generateUuid();
+
     mutable std::mutex lock;
     table_t table;
     size_t max_entries;
