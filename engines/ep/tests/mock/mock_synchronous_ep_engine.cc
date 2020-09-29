@@ -33,9 +33,6 @@
 SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
                                          std::string extra_config)
     : EventuallyPersistentEngine(get_mock_server_api, client) {
-    // Tests may need to create multiple failover table entries, so allow that
-    maxFailoverEntries = 5;
-
     // Default to a reduced number of vBuckets & shards to speed up test
     // setup / teardown (fewer VBucket & other related objects).
     // Tests which require additional vbuckets can specify that in
@@ -76,6 +73,9 @@ SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
         dcpFlowControlManager_ =
                 std::make_unique<DcpFlowControlManagerAggressive>(*this);
     }
+
+    // Tests may need to create multiple failover table entries, so allow that
+    maxFailoverEntries = configuration.getMaxFailoverEntries();
 
     enableTraffic(true);
 
