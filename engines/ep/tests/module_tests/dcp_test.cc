@@ -1881,66 +1881,6 @@ TEST_P(ConnectionTest, AckCorrectPassiveStream) {
     destroy_mock_cookie(cookie2);
 }
 
-/*
- * The following test has been adapted following the removal of vbucket DCP
- * backfill queue. It now demonstrates some of the 'new' behaviour of
- * DCP snapshot markers  on a replica checkpoint.
- * When snapshots arrive and no items exist, no new CP is created, only the
- * existing snapshot is updated
- */
-TEST_P(ConnectionTest, SnapshotsAndNoData) {
-    // Make vbucket replica so can add passive stream
-    ASSERT_EQ(ENGINE_SUCCESS, set_vb_state(vbid, vbucket_state_replica));
-
-    const void* cookie = create_mock_cookie(engine);
-    /*
-     * Create a Mock Dcp consumer. Since child class subobj of MockDcpConsumer
-     *  obj are accounted for by SingleThreadedRCPtr, use the same here
-     */
-    auto consumer =
-            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
-
-    // Add passive stream
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(/*opaque*/0, vbid,
-                                                  /*flags*/0));
-    // Get the checkpointManager
-    auto& manager =
-            *(engine->getKVBucket()->getVBucket(vbid)->checkpointManager);
-
-    // Because the vbucket was previously active it will have an
-    // openCheckpointId of 2
-    EXPECT_EQ(2, manager.getOpenCheckpointId());
-
-    // Send a snapshotMarker to move the vbucket into a backfilling state
-    consumer->snapshotMarker(/*opaque*/ 1,
-                             Vbid(0),
-                             /*start_seqno*/ 0,
-                             /*end_seqno*/ 0,
-                             /*flags set to MARKER_FLAG_DISK*/ 0x2,
-                             /*HCS*/ 0,
-                             /*maxVisibleSeqno*/ {});
-
-    EXPECT_EQ(2, manager.getOpenCheckpointId());
-
-    consumer->snapshotMarker(/*opaque*/ 1,
-                             Vbid(0),
-                             /*start_seqno*/ 1,
-                             /*end_seqno*/ 2,
-                             /*flags*/ 0,
-                             /*HCS*/ {},
-                             /*maxVisibleSeqno*/ {});
-
-    EXPECT_EQ(2, manager.getOpenCheckpointId());
-    // Still cp:2 but the snap-end changes
-    auto snapInfo = manager.getSnapshotInfo();
-    EXPECT_EQ(0, snapInfo.range.getStart()); // no data so start is still 0
-    EXPECT_EQ(2, snapInfo.range.getEnd());
-
-    // Close stream
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(/*opaque*/0, vbid));
-    destroy_mock_cookie(cookie);
-}
-
 class DcpConnMapTest : public ::testing::Test {
 protected:
     void SetUp() override {

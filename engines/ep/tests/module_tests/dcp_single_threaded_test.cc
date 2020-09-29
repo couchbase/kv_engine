@@ -138,6 +138,66 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
     EXPECT_TRUE(connMap.isDeadConnectionsEmpty());
 }
 
+/*
+ * The following test has been adapted following the removal of vbucket DCP
+ * backfill queue. It now demonstrates some of the 'new' behaviour of
+ * DCP snapshot markers  on a replica checkpoint.
+ * When snapshots arrive and no items exist, no new CP is created, only the
+ * existing snapshot is updated
+ */
+TEST_P(STDcpTest, SnapshotsAndNoData) {
+    // Make vbucket replica so can add passive stream
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    const void* cookie = create_mock_cookie(engine.get());
+    auto& connMap = engine->getDcpConnMap();
+    auto* consumer = connMap.newConsumer(cookie, "test_consumer");
+
+    // Add passive stream
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer->addStream(0 /*opaque*/, vbid, 0 /*flags*/));
+
+    // Get the checkpointManager
+    auto& manager =
+            *(engine->getKVBucket()->getVBucket(vbid)->checkpointManager);
+
+    EXPECT_EQ(0, manager.getOpenCheckpointId());
+
+    // Send a snapshotMarker to move the vbucket into a backfilling state
+    consumer->snapshotMarker(1 /*opaque*/,
+                             vbid,
+                             0 /*start_seqno*/,
+                             0 /*end_seqno*/,
+                             MARKER_FLAG_DISK,
+                             0 /*HCS*/,
+                             {} /*maxVisibleSeqno*/);
+
+    // Even without a checkpoint flag the first disk checkpoint will bump the ID
+    EXPECT_EQ(1, manager.getOpenCheckpointId());
+
+    consumer->snapshotMarker(1 /*opaque*/,
+                             vbid,
+                             1 /*start_seqno*/,
+                             2 /*end_seqno*/,
+                             0 /*flags*/,
+                             {} /*HCS*/,
+                             {} /*maxVisibleSeqno*/);
+
+    EXPECT_EQ(1, manager.getOpenCheckpointId());
+    // Still cp:2 but the snap-end changes
+    auto snapInfo = manager.getSnapshotInfo();
+    EXPECT_EQ(0, snapInfo.range.getStart()); // no data so start is still 0
+    EXPECT_EQ(2, snapInfo.range.getEnd());
+
+    // Close stream
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(/*opaque*/ 0, vbid));
+
+    connMap.disconnect(cookie);
+    EXPECT_FALSE(connMap.isDeadConnectionsEmpty());
+    connMap.manageConnections();
+    EXPECT_TRUE(connMap.isDeadConnectionsEmpty());
+}
+
 INSTANTIATE_TEST_SUITE_P(PersistentAndEphemeral,
                          STDcpTest,
                          STParameterizedBucketTest::allConfigValues());
