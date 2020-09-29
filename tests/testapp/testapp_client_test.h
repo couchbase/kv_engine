@@ -58,9 +58,11 @@ protected:
 
     MemcachedConnection& getConnection() override;
 
-    BinprotSubdocResponse getXattr(const std::string& path,
+    BinprotSubdocResponse getXattr(MemcachedConnection& conn,
+                                   const std::string& path,
                                    bool deleted = false);
-    void createXattr(const std::string& path,
+    void createXattr(MemcachedConnection& conn,
+                     const std::string& path,
                      const std::string& value,
                      bool macro = false);
 
@@ -113,6 +115,7 @@ protected:
      * @param compressValue Should the value be compress before being sent?
      */
     void setBodyAndXattr(
+            MemcachedConnection& connection,
             const std::string& startValue,
             std::initializer_list<std::pair<std::string, std::string>>
                     xattrList,
@@ -126,6 +129,7 @@ protected:
      * @param xattrList list of XATTR key / value pairs to store.
      */
     void setBodyAndXattr(
+            MemcachedConnection& connection,
             const std::string& value,
             std::initializer_list<std::pair<std::string, std::string>>
                     xattrList);
@@ -134,6 +138,7 @@ protected:
 
     /// Perform the specified subdoc command; returning the response.
     BinprotSubdocResponse subdoc(
+            MemcachedConnection& conn,
             cb::mcbp::ClientOpcode opcode,
             const std::string& key,
             const std::string& path,
@@ -145,9 +150,10 @@ protected:
     /// Perform the specified subdoc multi-mutation command; returning the
     /// response.
     BinprotSubdocResponse subdocMultiMutation(
-            BinprotSubdocMultiMutationCommand cmd);
+            MemcachedConnection& conn, BinprotSubdocMultiMutationCommand cmd);
 
-    cb::mcbp::Status xattr_upsert(const std::string& path,
+    cb::mcbp::Status xattr_upsert(MemcachedConnection& conn,
+                                  const std::string& path,
                                   const std::string& value);
 
 protected:

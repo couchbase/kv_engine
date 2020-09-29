@@ -51,7 +51,8 @@ void GetSetTest::doTestAppend(bool compressedSource, bool compressedData) {
 
     // Store an initial source value; along with an XATTR to check it's
     // preserved correctly.
-    setBodyAndXattr(std::string(1024, 'a'),
+    setBodyAndXattr(conn,
+                    std::string(1024, 'a'),
                     {{"xattr", "\"X-value\""}},
                     compressedSource);
 
@@ -78,7 +79,7 @@ void GetSetTest::doTestAppend(bool compressedSource, bool compressedData) {
     std::string expected(1024, 'a');
     expected.append(1024, 'b');
     EXPECT_EQ(expected, stored.value);
-    EXPECT_EQ("\"X-value\"", getXattr("xattr").getValue());
+    EXPECT_EQ("\"X-value\"", getXattr(conn, "xattr").getValue());
 }
 
 void GetSetTest::doTestGetMetaValidJSON(bool compressedSource) {
@@ -91,16 +92,15 @@ void GetSetTest::doTestGetMetaValidJSON(bool compressedSource) {
         document.compress();
         expectedDatatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
     }
-    getConnection().mutate(document, Vbid(0), MutationType::Add);
-    auto meta = getConnection().getMeta(
-            document.info.id, Vbid(0), GetMetaVersion::V2);
+    auto& conn = getConnection();
+    conn.mutate(document, Vbid(0), MutationType::Add);
+    auto meta = conn.getMeta(document.info.id, Vbid(0), GetMetaVersion::V2);
     EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
     EXPECT_EQ(0, meta.second.deleted);
     EXPECT_EQ(expectedDatatype, meta.second.datatype);
     EXPECT_EQ(0, meta.second.expiry);
 
-    meta = getConnection().getMeta(
-            document.info.id, Vbid(0), GetMetaVersion::V1);
+    meta = conn.getMeta(document.info.id, Vbid(0), GetMetaVersion::V1);
     EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
     EXPECT_EQ(0, meta.second.deleted);
     EXPECT_NE(expectedDatatype, meta.second.datatype);
@@ -112,7 +112,8 @@ void GetSetTest::doTestPrepend(bool compressedSource, bool compressedData) {
 
     // Store an initial source value; along with an XATTR to check it's
     // preserved correctly.
-    setBodyAndXattr(std::string(1024, 'a'),
+    setBodyAndXattr(conn,
+                    std::string(1024, 'a'),
                     {{"xattr", "\"X-value\""}},
                     compressedSource);
 
@@ -138,7 +139,7 @@ void GetSetTest::doTestPrepend(bool compressedSource, bool compressedData) {
     std::string expected(1024, 'b');
     expected.append(1024, 'a');
     EXPECT_EQ(expected, stored.value);
-    EXPECT_EQ("\"X-value\"", getXattr("xattr").getValue());
+    EXPECT_EQ("\"X-value\"", getXattr(conn, "xattr").getValue());
 }
 
 void GetSetTest::doTestServerDetectsJSON(bool compressedSource) {
@@ -233,8 +234,7 @@ void GetSetTest::doTestServerRejectsLargeSizeWithXattr(bool compressedSource) {
     auto& conn = getConnection();
 
     // Add a document with size 1KB of user data and with 1 user xattr
-    setBodyAndXattr(std::string(1024, 'a'),
-                    {{"xattr", "\"X-value\""}});
+    setBodyAndXattr(conn, std::string(1024, 'a'), {{"xattr", "\"X-value\""}});
 
     // Now add a value of size that is 10 bytes less than the maximum
     // permitted value. This would ideally succeed if there was no
@@ -264,8 +264,7 @@ void GetSetTest::doTestServerRejectsLargeSizeWithXattr(bool compressedSource) {
     std::string sysXattr = "_sync";
     std::string xattrVal = "{\"eg\":";
     xattrVal.append("\"X-value\"}");
-    setBodyAndXattr(std::string(1024, 'a'),
-                    {{sysXattr, xattrVal}});
+    setBodyAndXattr(conn, std::string(1024, 'a'), {{sysXattr, xattrVal}});
 
     userdata.assign(GetTestBucket().getMaximumDocSize() - 250, 'a');
     // Now add a document with value size that is 250 bytes less than the
@@ -292,8 +291,7 @@ void GetSetTest::doTestServerRejectsLargeSizeWithXattr(bool compressedSource) {
     xattrVal.append(std::string("\"}"));
     EXPECT_EQ(1024 * 1024, 4 + 6 + xattrVal.size() + sysXattr.size());
 
-    setBodyAndXattr(userdata,
-                    {{sysXattr, xattrVal}});
+    setBodyAndXattr(conn, userdata, {{sysXattr, xattrVal}});
 
     // Default bucket supports xattr, but the max document size is 1MB so we
     // can't store additional data in those buckets if the system xattr
@@ -303,12 +301,13 @@ void GetSetTest::doTestServerRejectsLargeSizeWithXattr(bool compressedSource) {
         // maximum allowed size. This should be allowed as the system
         // xattrs has its own storage limit
         userdata.assign(GetTestBucket().getMaximumDocSize(), 'a');
-        setBodyAndXattr(userdata, {{sysXattr, xattrVal}});
+        setBodyAndXattr(conn, userdata, {{sysXattr, xattrVal}});
 
         // But it should fail if we try to use a user xattr
         e2bigCount = getResponseCount(cb::mcbp::Status::E2big);
         try {
-            setBodyAndXattr(userdata,
+            setBodyAndXattr(conn,
+                            userdata,
                             {{sysXattr, xattrVal}, {"foo", R"({"a":"b"})"}});
             FAIL() << "It should not be possible to add a document whose size "
                       "is greater than the max item size";
@@ -711,26 +710,26 @@ TEST_P(GetSetTest, TestAppendWithXattr) {
     document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value = "a";
     int sucCount = getResponseCount(cb::mcbp::Status::Success);
-    getConnection().mutate(document, Vbid(0), MutationType::Add);
-    createXattr("meta.cas", "\"${Mutation.CAS}\"", true);
-    const auto mutation_cas = getXattr("meta.cas");
+    auto& conn = getConnection();
+    conn.mutate(document, Vbid(0), MutationType::Add);
+    createXattr(conn, "meta.cas", "\"${Mutation.CAS}\"", true);
+    const auto mutation_cas = getXattr(conn, "meta.cas");
     EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas.getValue());
 
     document.value = "b";
-    getConnection().mutate(document, Vbid(0), MutationType::Append);
+    conn.mutate(document, Vbid(0), MutationType::Append);
 
     // The xattr should have been preserved, and the macro should not
     // be expanded more than once..
-    EXPECT_EQ(mutation_cas, getXattr("meta.cas"));
+    EXPECT_EQ(mutation_cas, getXattr(conn, "meta.cas"));
 
-    const auto stored = getConnection().get(name, Vbid(0));
+    const auto stored = conn.get(name, Vbid(0));
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat.
-    // * We expect 7 * helloResps because of
-    //   a) 3x getConnection() above
-    //   b) 3x getConnection() in the 1xcreateXattr and 2xgetXattr
-    //   c) 1x for getResponseCount below
+    // * We expect 2 * helloResps because of
+    //   a) 1 getConnection() above
+    //   b) 1x for getResponseCount below
     // * We expect testSuccessCount successes for each command we ran
     // * Plus 1 more success to account for the stat call in the first
     //   getResponseCount
@@ -739,7 +738,7 @@ TEST_P(GetSetTest, TestAppendWithXattr) {
         // We had 3x xattr operations fail (1x createXattr 2x getXattr)
         testSuccessCount = 3;
     }
-    EXPECT_EQ(sucCount + (helloResps() * 7) + testSuccessCount + 1,
+    EXPECT_EQ(sucCount + (helloResps() * 2) + testSuccessCount + 1,
               getResponseCount(cb::mcbp::Status::Success));
 
     // And the rest of the doc should look the same
@@ -829,26 +828,27 @@ TEST_P(GetSetTest, TestPrependWithXattr) {
 
     int sucCount = getResponseCount(cb::mcbp::Status::Success);
 
-    getConnection().mutate(document, Vbid(0), MutationType::Add);
-    createXattr("meta.cas", "\"${Mutation.CAS}\"", true);
-    const auto mutation_cas = getXattr("meta.cas");
+    auto& conn = getConnection();
+
+    conn.mutate(document, Vbid(0), MutationType::Add);
+    createXattr(conn, "meta.cas", "\"${Mutation.CAS}\"", true);
+    const auto mutation_cas = getXattr(conn, "meta.cas");
     EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas.getValue());
 
     document.value = "b";
-    getConnection().mutate(document, Vbid(0), MutationType::Prepend);
+    conn.mutate(document, Vbid(0), MutationType::Prepend);
 
     // The xattr should have been preserved, and the macro should not
     // be expanded more than once..
-    EXPECT_EQ(mutation_cas, getXattr("meta.cas"));
+    EXPECT_EQ(mutation_cas, getXattr(conn, "meta.cas"));
 
-    const auto stored = getConnection().get(name, Vbid(0));
+    const auto stored = conn.get(name, Vbid(0));
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat.
-    // * We expect 7 * helloResps because of
-    //   a) 3x getConnection() above
-    //   b) 3x getConnection() in the 1xcreateXattr and 2xgetXattr
-    //   c) 1x for getResponseCount below
+    // * We expect 2 * helloResps because of
+    //   a) 1 getConnection() above
+    //   b) 1 getResponseCount in getResponseCount()
     // * We expect testSuccessCount successes for each command we ran
     // * Plus 1 more success to account for the stat call in the first
     //   getResponseCount
@@ -857,7 +857,7 @@ TEST_P(GetSetTest, TestPrependWithXattr) {
         // We had xattr operations fail (1x createXattr 2x getXattr)
         testSuccessCount = 3;
     }
-    EXPECT_EQ(sucCount + (helloResps() * 7) + testSuccessCount + 1,
+    EXPECT_EQ(sucCount + (helloResps() * 2) + testSuccessCount + 1,
               getResponseCount(cb::mcbp::Status::Success));
 
     // And the rest of the doc should look the same
@@ -944,7 +944,7 @@ TEST_P(GetSetTest, TestCorrectWithXattrs) {
     }
     MemcachedConnection& conn = getConnection();
     // Create a compressed document with a body and xattr
-    setBodyAndXattr("{\"TestField\":56788}", {{"_sync", "4543"}});
+    setBodyAndXattr(conn, "{\"TestField\":56788}", {{"_sync", "4543"}});
     ASSERT_TRUE(mcbp::datatype::is_snappy(
             protocol_binary_datatype_t(document.info.datatype)));
     const auto stored = conn.get(name, Vbid(0));
@@ -1093,9 +1093,9 @@ TEST_P(GetSetTest, TestGetMetaInvalidJSON) {
         document.compress();
         expectedDatatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
     }
-    getConnection().mutate(document, Vbid(0), MutationType::Add);
-    auto meta = getConnection().getMeta(
-            document.info.id, Vbid(0), GetMetaVersion::V2);
+    auto& conn = getConnection();
+    conn.mutate(document, Vbid(0), MutationType::Add);
+    auto meta = conn.getMeta(document.info.id, Vbid(0), GetMetaVersion::V2);
     EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
     EXPECT_EQ(0, meta.second.deleted);
     EXPECT_EQ(expectedDatatype, meta.second.datatype);
@@ -1122,9 +1122,9 @@ TEST_P(GetSetTest, TestGetMetaExpiry) {
     uint32_t seconds = 60;
     document.info.expiration = seconds;
     time_t now = time(nullptr);
-    getConnection().mutate(document, Vbid(0), MutationType::Add);
-    auto meta = getConnection().getMeta(
-            document.info.id, Vbid(0), GetMetaVersion::V1);
+    auto& conn = getConnection();
+    conn.mutate(document, Vbid(0), MutationType::Add);
+    auto meta = conn.getMeta(document.info.id, Vbid(0), GetMetaVersion::V1);
     EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
     uint32_t expected = gsl::narrow<uint32_t>(now) + seconds - 2;
     EXPECT_GE(meta.second.expiry, expected);
@@ -1132,9 +1132,8 @@ TEST_P(GetSetTest, TestGetMetaExpiry) {
 
     // Case `expiry` > `num_seconds_in_a_month`
     document.info.expiration = gsl::narrow<uint32_t>(now) + 60;
-    getConnection().mutate(document, Vbid(0), MutationType::Replace);
-    meta = getConnection().getMeta(
-            document.info.id, Vbid(0), GetMetaVersion::V1);
+    conn.mutate(document, Vbid(0), MutationType::Replace);
+    meta = conn.getMeta(document.info.id, Vbid(0), GetMetaVersion::V1);
     EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
     EXPECT_EQ(meta.second.expiry, document.info.expiration);
 }
@@ -1190,9 +1189,9 @@ TEST_P(GetSetTest, ServerRejectsLargeSizeWithXattrCompressed) {
 // the bucket, this limits the expect statements we can use
 void GetSetTest::doTestGetRandomKey(bool collections) {
     TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::GetRandomKey);
-    storeAndPersistItem(Vbid(0), "doTestGetRandomKey");
-
     MemcachedConnection& conn = getConnection();
+    storeAndPersistItem(conn, Vbid(0), "doTestGetRandomKey");
+
     if (collections) {
         conn.setFeatures({cb::mcbp::Feature::Collections,
                           cb::mcbp::Feature::SNAPPY,

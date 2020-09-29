@@ -152,12 +152,17 @@ protected:
      * Run observe until the given uuid/seqno is persisted.
      * Note: checks for observe support and fails if the bucket is not capable.
      */
-    void waitForAtLeastSeqno(Vbid vbid, uint64_t uuid, uint64_t seqno);
+    void waitForAtLeastSeqno(MemcachedConnection& conn,
+                             Vbid vbid,
+                             uint64_t uuid,
+                             uint64_t seqno);
 
     /**
      *  Store the key and run waitForAtLeastSeqno, returns when persisted
      */
-    Document storeAndPersistItem(Vbid vbid, std::string key);
+    Document storeAndPersistItem(MemcachedConnection& conn,
+                                 Vbid vbid,
+                                 std::string key);
 
     /// Generate a new configuration
     static nlohmann::json generate_config();
@@ -251,32 +256,29 @@ protected:
     /**
      * Create an extended attribute
      *
+     * @param connection the connection to the server to use
      * @param path the full path to the attribute (including the key)
      * @param value The value to store
      * @param macro is this a macro for expansion or not
      * @param expectedStatus optional status if success is not expected
      */
-    void createXattr(const std::string& path,
-                     const std::string& value,
-                     bool macro = false);
-
-    void runCreateXattr(const std::string& path,
-                        const std::string& value,
+    void runCreateXattr(MemcachedConnection& connection,
+                        std::string path,
+                        std::string value,
                         bool macro,
                         cb::mcbp::Status expectedStatus);
 
     /**
      * Get an extended attribute
      *
+     * @param connection the connection to the server to use
      * @param path the full path to the attribute to fetch
      * @param deleted allow get from deleted documents
      * @param expectedStatus optional status if success is not expected
      * @return the value stored for the key (it is expected to be there!)
      */
-    BinprotSubdocResponse getXattr(const std::string& path,
-                                   bool deleted = false);
-
-    BinprotSubdocResponse runGetXattr(const std::string& path,
+    BinprotSubdocResponse runGetXattr(MemcachedConnection& connection,
+                                      std::string path,
                                       bool deleted,
                                       cb::mcbp::Status expectedStatus);
 

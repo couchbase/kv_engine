@@ -32,10 +32,12 @@ protected:
     }
 
     BinprotSubdocResponse subdoc_get(
+            MemcachedConnection& conn,
             const std::string& path,
             protocol_binary_subdoc_flag flag = SUBDOC_FLAG_NONE,
             mcbp::subdoc::doc_flag docFlag = mcbp::subdoc::doc_flag::None) {
-        return subdoc(cb::mcbp::ClientOpcode::SubdocGet,
+        return subdoc(conn,
+                      cb::mcbp::ClientOpcode::SubdocGet,
                       name,
                       path,
                       {},
@@ -44,15 +46,17 @@ protected:
     }
 
     BinprotSubdocMultiLookupResponse subdoc_multi_lookup(
+            MemcachedConnection& conn,
             std::vector<BinprotSubdocMultiLookupCommand::LookupSpecifier> specs,
             mcbp::subdoc::doc_flag docFlags = mcbp::subdoc::doc_flag::None);
 
     BinprotSubdocMultiMutationResponse subdoc_multi_mutation(
+            MemcachedConnection& conn,
             std::vector<BinprotSubdocMultiMutationCommand::MutationSpecifier>
                     specs,
             mcbp::subdoc::doc_flag docFlags = mcbp::subdoc::doc_flag::None);
 
-    GetMetaResponse get_meta();
+    GetMetaResponse get_meta(MemcachedConnection& conn);
 
     bool supportSyncRepl() const {
         return mcd_env->getTestBucket().supportsSyncWrites();
@@ -105,138 +109,157 @@ protected:
 
 protected:
     void doArrayInsertTest(const std::string& path) {
-        auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+        auto& conn = getConnection();
+        auto resp = subdoc(conn,
+                           cb::mcbp::ClientOpcode::SubdocArrayPushLast,
                            name,
                            path,
                            "\"Smith\"",
                            SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
         EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayInsert,
+        resp = subdoc(conn,
+                      cb::mcbp::ClientOpcode::SubdocArrayInsert,
                       name,
                       path + "[0]",
                       "\"Bart\"",
                       SUBDOC_FLAG_XATTR_PATH);
         EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayInsert,
+        resp = subdoc(conn,
+                      cb::mcbp::ClientOpcode::SubdocArrayInsert,
                       name,
                       path + "[1]",
                       "\"Jones\"",
                       SUBDOC_FLAG_XATTR_PATH);
         EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
+        resp = subdoc_get(conn, path, SUBDOC_FLAG_XATTR_PATH);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Bart\",\"Jones\",\"Smith\"]", resp.getValue());
     }
 
     void doArrayPushLastTest(const std::string& path) {
-        auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+        auto& conn = getConnection();
+        auto resp = subdoc(conn,
+                           cb::mcbp::ClientOpcode::SubdocArrayPushLast,
                            name,
                            path,
                            "\"Smith\"",
                            SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
+        resp = subdoc_get(conn, path, SUBDOC_FLAG_XATTR_PATH);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Smith\"]", resp.getValue());
 
         // Add a second one so we know it was added last ;-)
-        resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+        resp = subdoc(conn,
+                      cb::mcbp::ClientOpcode::SubdocArrayPushLast,
                       name,
                       path,
                       "\"Jones\"",
                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
+        resp = subdoc_get(conn, path, SUBDOC_FLAG_XATTR_PATH);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Smith\",\"Jones\"]", resp.getValue());
     }
 
     void doArrayPushFirstTest(const std::string& path) {
-        auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
+        auto& conn = getConnection();
+
+        auto resp = subdoc(conn,
+                           cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
                            name,
                            path,
                            "\"Smith\"",
                            SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
+        resp = subdoc_get(conn, path, SUBDOC_FLAG_XATTR_PATH);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Smith\"]", resp.getValue());
 
         // Add a second one so we know it was added first ;-)
-        resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
+        resp = subdoc(conn,
+                      cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
                       name,
                       path,
                       "\"Jones\"",
                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
+        resp = subdoc_get(conn, path, SUBDOC_FLAG_XATTR_PATH);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Jones\",\"Smith\"]", resp.getValue());
     }
 
     void doAddUniqueTest(const std::string& path) {
-        auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
+        auto& conn = getConnection();
+
+        auto resp = subdoc(conn,
+                           cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
                            name,
                            path,
                            "\"Smith\"",
                            SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
+        resp = subdoc_get(conn, path, SUBDOC_FLAG_XATTR_PATH);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Smith\"]", resp.getValue());
 
-        resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
+        resp = subdoc(conn,
+                      cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
                       name,
                       path,
                       "\"Jones\"",
                       SUBDOC_FLAG_XATTR_PATH);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
+        resp = subdoc_get(conn, path, SUBDOC_FLAG_XATTR_PATH);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Smith\",\"Jones\"]", resp.getValue());
 
-        resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
+        resp = subdoc(conn,
+                      cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
                       name,
                       path,
                       "\"Jones\"",
                       SUBDOC_FLAG_XATTR_PATH);
         ASSERT_EQ(cb::mcbp::Status::SubdocPathEexists, resp.getStatus());
 
-        resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
+        resp = subdoc_get(conn, path, SUBDOC_FLAG_XATTR_PATH);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Smith\",\"Jones\"]", resp.getValue());
 
     }
 
     void doCounterTest(const std::string& path) {
-        auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocCounter,
+        auto& conn = getConnection();
+        auto resp = subdoc(conn,
+                           cb::mcbp::ClientOpcode::SubdocCounter,
                            name,
                            path,
                            "1",
                            SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
+        resp = subdoc_get(conn, path, SUBDOC_FLAG_XATTR_PATH);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("1", resp.getValue());
 
-        resp = subdoc(cb::mcbp::ClientOpcode::SubdocCounter,
+        resp = subdoc(conn,
+                      cb::mcbp::ClientOpcode::SubdocCounter,
                       name,
                       path,
                       "1",
                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
+        resp = subdoc_get(conn, path, SUBDOC_FLAG_XATTR_PATH);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("2", resp.getValue());
 
@@ -245,9 +268,10 @@ protected:
     // Test replacing a compressed/uncompressed value (based on test
     // variant) with an compressed/uncompressed value (based on input
     // paramter). XATTRs should be correctly merged.
-    void doReplaceWithXattrTest(bool compress) {
+    void doReplaceWithXattrTest(MemcachedConnection& connection,
+                                bool compress) {
         // Set initial body+XATTR, compressed depending on test variant.
-        setBodyAndXattr(value, {{sysXattr, xattrVal}});
+        setBodyAndXattr(connection, value, {{sysXattr, xattrVal}});
 
         // Replace body with new body.
         const std::string replacedValue = "\"JSON string\"";
@@ -257,11 +281,12 @@ protected:
         if (compress) {
             document.compress();
         }
-        getConnection().mutate(document, Vbid(0), MutationType::Replace);
+        auto& conn = getConnection();
+        conn.mutate(document, Vbid(0), MutationType::Replace);
 
         // Validate contents.
-        EXPECT_EQ(xattrVal, getXattr(sysXattr).getDataString());
-        auto response = getConnection().get(name, Vbid(0));
+        EXPECT_EQ(xattrVal, getXattr(conn, sysXattr).getDataString());
+        auto response = conn.get(name, Vbid(0));
         EXPECT_EQ(replacedValue, response.value);
         // Combined result will not be compressed; so just check for
         // JSON / not JSON.
@@ -276,11 +301,11 @@ protected:
      * @return Returns the response from the multi-mutation
      */
     BinprotSubdocMultiMutationResponse testBodyAndXattrCmd(
+            MemcachedConnection& conn,
             BinprotSubdocMultiMutationCommand& cmd,
             protocol_binary_datatype_t expectedDatatype =
                     PROTOCOL_BINARY_DATATYPE_JSON |
                     PROTOCOL_BINARY_DATATYPE_XATTR) {
-        auto& conn = getConnection();
         conn.sendCommand(cmd);
 
         BinprotSubdocMultiMutationResponse multiResp;
@@ -288,24 +313,24 @@ protected:
         EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
 
         // Check the body was set correctly
-        auto doc = getConnection().get(name, Vbid(0));
+        auto doc = conn.get(name, Vbid(0));
         EXPECT_EQ(value, doc.value);
 
         // Check the xattr was set correctly
-        auto resp = subdoc_get(sysXattr, SUBDOC_FLAG_XATTR_PATH);
+        auto resp = subdoc_get(conn, sysXattr, SUBDOC_FLAG_XATTR_PATH);
         EXPECT_EQ(xattrVal, resp.getValue());
 
         // Check the datatype.
-        auto meta = get_meta();
+        auto meta = get_meta(conn);
         EXPECT_EQ(expectedDatatype, meta.datatype);
 
         return multiResp;
     }
 
-    void verify_xtoc_user_system_xattr() {
+    void verify_xtoc_user_system_xattr(MemcachedConnection& connection) {
         // Test to check that we can get both an xattr and the main body in
         // subdoc multi-lookup
-        setBodyAndXattr(value, {{sysXattr, xattrVal}});
+        setBodyAndXattr(connection, value, {{sysXattr, xattrVal}});
 
         // Sanity checks and setup done lets try the multi-lookup
 
@@ -314,20 +339,19 @@ protected:
         cmd.addGet("$XTOC", SUBDOC_FLAG_XATTR_PATH);
         cmd.addLookup("", cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE);
 
-        auto& conn = getConnection();
-        conn.sendCommand(cmd);
+        connection.sendCommand(cmd);
 
         BinprotSubdocMultiLookupResponse multiResp;
-        conn.recvResponse(multiResp);
+        connection.recvResponse(multiResp);
         EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
         EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
         EXPECT_EQ(R"(["_sync"])", multiResp.getResults()[0].value);
         EXPECT_EQ(value, multiResp.getResults()[1].value);
 
-        xattr_upsert("userXattr", R"(["Test"])");
-        conn.sendCommand(cmd);
+        xattr_upsert(connection, "userXattr", R"(["Test"])");
+        connection.sendCommand(cmd);
         multiResp.clear();
-        conn.recvResponse(multiResp);
+        connection.recvResponse(multiResp);
         EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
         EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
         EXPECT_EQ(R"(["_sync","userXattr"])", multiResp.getResults()[0].value);

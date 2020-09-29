@@ -70,11 +70,11 @@ protected:
 
     // Helper functions for tests /////////////////////////////////////////////
     Document storeAndPersistItem(std::string key) {
-        return TestappTest::storeAndPersistItem(vbid, key);
+        return TestappTest::storeAndPersistItem(getConnection(), vbid, key);
     }
 
     void waitForAtLeastSeqno(uint64_t uuid, uint64_t seqno) {
-        TestappTest::waitForAtLeastSeqno(vbid, uuid, seqno);
+        TestappTest::waitForAtLeastSeqno(getConnection(), vbid, uuid, seqno);
     }
 
     void shutdownMemcached(ShutdownMode mode) {

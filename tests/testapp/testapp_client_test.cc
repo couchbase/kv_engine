@@ -34,6 +34,7 @@ MemcachedConnection& TestappClientTest::getConnection() {
 }
 
 void TestappXattrClientTest::setBodyAndXattr(
+        MemcachedConnection& connection,
         const std::string& startValue,
         std::initializer_list<std::pair<std::string, std::string>> xattrList,
         bool compressValue) {
@@ -67,12 +68,12 @@ void TestappXattrClientTest::setBodyAndXattr(
                     cb::mcbp::Datatype(int(document.info.datatype) |
                                        int(cb::mcbp::Datatype::JSON));
         }
-        getConnection().mutateWithMeta(document,
-                                       Vbid(0),
-                                       mcbp::cas::Wildcard,
-                                       /*seqno*/ 1,
-                                       FORCE_WITH_META_OP | REGENERATE_CAS |
-                                               SKIP_CONFLICT_RESOLUTION_FLAG);
+        connection.mutateWithMeta(document,
+                                  Vbid(0),
+                                  mcbp::cas::Wildcard,
+                                  /*seqno*/ 1,
+                                  FORCE_WITH_META_OP | REGENERATE_CAS |
+                                          SKIP_CONFLICT_RESOLUTION_FLAG);
     } else {
         // No SetWithMeta support, must construct the
         // document+XATTR with primitives (and cannot compress
@@ -80,23 +81,26 @@ void TestappXattrClientTest::setBodyAndXattr(
         document.info.cas = mcbp::cas::Wildcard;
         document.info.datatype = cb::mcbp::Datatype::Raw;
         document.value = startValue;
-        getConnection().mutate(document, Vbid(0), MutationType::Set);
-        auto doc = getConnection().get(name, Vbid(0));
+        connection.mutate(document, Vbid(0), MutationType::Set);
+        auto doc = connection.get(name, Vbid(0));
 
         EXPECT_EQ(doc.value, document.value);
 
         // Now add the XATTRs
         for (auto& kv : xattrList) {
-            xattr_upsert(kv.first, kv.second);
+            xattr_upsert(connection, kv.first, kv.second);
         }
     }
 }
 
 void TestappXattrClientTest::setBodyAndXattr(
+        MemcachedConnection& connection,
         const std::string& value,
         std::initializer_list<std::pair<std::string, std::string>> xattrList) {
-    setBodyAndXattr(
-            value, xattrList, hasSnappySupport() == ClientSnappySupport::Yes);
+    setBodyAndXattr(connection,
+                    value,
+                    xattrList,
+                    hasSnappySupport() == ClientSnappySupport::Yes);
 }
 
 void TestappXattrClientTest::setClusterSessionToken(uint64_t nval) {
@@ -113,6 +117,7 @@ void TestappXattrClientTest::setClusterSessionToken(uint64_t nval) {
 }
 
 BinprotSubdocResponse TestappXattrClientTest::subdoc(
+        MemcachedConnection& conn,
         cb::mcbp::ClientOpcode opcode,
         const std::string& key,
         const std::string& path,
@@ -120,8 +125,6 @@ BinprotSubdocResponse TestappXattrClientTest::subdoc(
         protocol_binary_subdoc_flag flag,
         mcbp::subdoc::doc_flag docFlag,
         const std::optional<cb::durability::Requirements>& durReqs) {
-    auto& conn = getConnection();
-
     BinprotSubdocCommand cmd;
     cmd.setOp(opcode);
     cmd.setKey(key);
@@ -144,8 +147,7 @@ BinprotSubdocResponse TestappXattrClientTest::subdoc(
 }
 
 BinprotSubdocResponse TestappXattrClientTest::subdocMultiMutation(
-        BinprotSubdocMultiMutationCommand cmd) {
-    auto& conn = getConnection();
+        MemcachedConnection& conn, BinprotSubdocMultiMutationCommand cmd) {
     conn.sendCommand(cmd);
     BinprotSubdocResponse resp;
     conn.recvResponse(resp);
@@ -153,8 +155,11 @@ BinprotSubdocResponse TestappXattrClientTest::subdocMultiMutation(
 }
 
 cb::mcbp::Status TestappXattrClientTest::xattr_upsert(
-        const std::string& path, const std::string& value) {
-    auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+        MemcachedConnection& conn,
+        const std::string& path,
+        const std::string& value) {
+    auto resp = subdoc(conn,
+                       cb::mcbp::ClientOpcode::SubdocDictUpsert,
                        name,
                        path,
                        value,
@@ -204,10 +209,11 @@ MemcachedConnection& TestappXattrClientTest::getConnection() {
     throw std::logic_error("Unknown transport");
 }
 
-void TestappXattrClientTest::createXattr(const std::string& path,
+void TestappXattrClientTest::createXattr(MemcachedConnection& conn,
+                                         const std::string& path,
                                          const std::string& value,
                                          bool macro) {
-    runCreateXattr(path, value, macro, xattrOperationStatus);
+    runCreateXattr(conn, path, value, macro, xattrOperationStatus);
 }
 
 ClientJSONSupport TestappXattrClientTest::hasJSONSupport() const {
@@ -272,9 +278,9 @@ cb::mcbp::Datatype TestappXattrClientTest::expectedRawSnappyDatatype() const {
     return ::testing::AssertionSuccess();
 }
 
-BinprotSubdocResponse TestappXattrClientTest::getXattr(const std::string& path,
-                                                       bool deleted) {
-    return runGetXattr(path, deleted, xattrOperationStatus);
+BinprotSubdocResponse TestappXattrClientTest::getXattr(
+        MemcachedConnection& conn, const std::string& path, bool deleted) {
+    return runGetXattr(conn, path, deleted, xattrOperationStatus);
 }
 
 std::ostream& operator<<(std::ostream& os, const XattrSupport& xattrSupport) {

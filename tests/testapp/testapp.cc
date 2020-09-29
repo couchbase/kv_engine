@@ -296,7 +296,8 @@ void TestappTest::setMinCompressionRatio(float min_compression_ratio) {
             std::to_string(min_compression_ratio));
 }
 
-void TestappTest::waitForAtLeastSeqno(Vbid vbid,
+void TestappTest::waitForAtLeastSeqno(MemcachedConnection& conn,
+                                      Vbid vbid,
                                       uint64_t uuid,
                                       uint64_t seqno) {
     ASSERT_TRUE(mcd_env->getTestBucket().supportsPersistence())
@@ -304,7 +305,6 @@ void TestappTest::waitForAtLeastSeqno(Vbid vbid,
 
     // Poll for that sequence number to be persisted.
     ObserveInfo observe;
-    MemcachedConnection& conn = getConnection();
     do {
         observe = conn.observeSeqno(vbid, uuid);
         EXPECT_EQ(0, observe.formatType);
@@ -321,9 +321,14 @@ void TestappTest::waitForAtLeastSeqno(Vbid vbid,
     } while (true);
 }
 
-Document TestappTest::storeAndPersistItem(Vbid vbid, std::string key) {
-    MemcachedConnection& conn = getConnection();
-    conn.setMutationSeqnoSupport(true);
+Document TestappTest::storeAndPersistItem(MemcachedConnection& conn,
+                                          Vbid vbid,
+                                          std::string key) {
+    if (!conn.hasFeature(cb::mcbp::Feature::MUTATION_SEQNO)) {
+        throw std::runtime_error(
+                "TestappTest::storeAndPersistItem: connection must have "
+                "Mutation Seqno enabled");
+    }
     Document doc;
     doc.info.id = key;
     doc.value = "persist me";
@@ -332,7 +337,7 @@ Document TestappTest::storeAndPersistItem(Vbid vbid, std::string key) {
     EXPECT_NE(0, mutation.vbucketuuid);
     doc.info.cas = mutation.cas;
 
-    waitForAtLeastSeqno(vbid, mutation.vbucketuuid, mutation.seqno);
+    waitForAtLeastSeqno(conn, vbid, mutation.vbucketuuid, mutation.seqno);
 
     return doc;
 }
@@ -1226,17 +1231,16 @@ void TestappTest::reconfigure() {
     ASSERT_TRUE(response.isSuccess()) << response.getDataString();
 }
 
-void TestappTest::runCreateXattr(const std::string& path,
-                                 const std::string& value,
+void TestappTest::runCreateXattr(MemcachedConnection& connection,
+                                 std::string path,
+                                 std::string value,
                                  bool macro,
                                  cb::mcbp::Status expectedStatus) {
-    auto& connection = getConnection();
-
     BinprotSubdocCommand cmd;
     cmd.setOp(cb::mcbp::ClientOpcode::SubdocDictAdd);
     cmd.setKey(name);
-    cmd.setPath(path);
-    cmd.setValue(value);
+    cmd.setPath(std::move(path));
+    cmd.setValue(std::move(value));
     if (macro) {
         cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS |
                          SUBDOC_FLAG_MKDIR_P);
@@ -1251,22 +1255,15 @@ void TestappTest::runCreateXattr(const std::string& path,
     EXPECT_EQ(expectedStatus, resp.getStatus());
 }
 
-void TestappTest::createXattr(const std::string& path,
-                              const std::string& value,
-                              bool macro) {
-    runCreateXattr(path, value, macro, cb::mcbp::Status::Success);
-}
-
 BinprotSubdocResponse TestappTest::runGetXattr(
-        const std::string& path,
+        MemcachedConnection& connection,
+        std::string path,
         bool deleted,
         cb::mcbp::Status expectedStatus) {
-    auto& connection = getConnection();
-
     BinprotSubdocCommand cmd;
     cmd.setOp(cb::mcbp::ClientOpcode::SubdocGet);
     cmd.setKey(name);
-    cmd.setPath(path);
+    cmd.setPath(std::move(path));
     if (deleted) {
         cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
         cmd.addDocFlags(mcbp::subdoc::doc_flag::AccessDeleted);
@@ -1286,11 +1283,6 @@ BinprotSubdocResponse TestappTest::runGetXattr(
         throw ConnectionError("runGetXattr() failed: ", resp);
     }
     return resp;
-}
-
-BinprotSubdocResponse TestappTest::getXattr(const std::string& path,
-                                            bool deleted) {
-    return runGetXattr(path, deleted, cb::mcbp::Status::Success);
 }
 
 int TestappTest::getResponseCount(cb::mcbp::Status statusCode) {

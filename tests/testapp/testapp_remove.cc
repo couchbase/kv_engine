@@ -47,7 +47,9 @@ void RemoveTest::verify_MB_22553(const std::string& config) {
     mcd_env->getTestBucket().setUpBucket(bucketName, config, conn);
 
     // Create a document with an XATTR.
-    setBodyAndXattr("foobar", {{"_rbac", R"({"attribute": "read-only"})"}});
+    conn = getConnection();
+    setBodyAndXattr(
+            conn, "foobar", {{"_rbac", R"({"attribute": "read-only"})"}});
 
     // Delete the document
     conn.remove(name, Vbid(0));
@@ -62,7 +64,8 @@ void RemoveTest::verify_MB_22553(const std::string& config) {
     }
 
     // It should not be accessible over subdoc.
-    auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocGet, name, "verbosity");
+    auto resp =
+            subdoc(conn, cb::mcbp::ClientOpcode::SubdocGet, name, "verbosity");
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, resp.getStatus())
             << "MB-22553: doc with xattr is still accessible";
 }
@@ -137,21 +140,23 @@ TEST_P(RemoveTest, RemoveWithCas) {
  * document, and that the user attributes will be nuked off
  */
 TEST_P(RemoveTest, RemoveWithXattr) {
-    setBodyAndXattr(document.value,
-                    {{"meta",
-                      R"({"content-type": "application/json; charset=utf-8"})"},
-                     {"_rbac", R"({"attribute": "read-only"})"}});
-    getConnection().remove(name, Vbid(0), 0);
+    auto& conn = getConnection();
+    setBodyAndXattr(
+            conn,
+            document.value,
+            {{"meta", R"({"content-type": "application/json; charset=utf-8"})"},
+             {"_rbac", R"({"attribute": "read-only"})"}});
+    conn.remove(name, Vbid(0), 0);
 
     // The system xattr should have been preserved
-    const auto status = getXattr("_rbac.attribute", true);
+    const auto status = getXattr(conn, "_rbac.attribute", true);
     if (status.getStatus() == cb::mcbp::Status::Success) {
         EXPECT_EQ("\"read-only\"", status.getValue());
     }
 
     // The user xattr should not be there
     try {
-        if (getXattr("meta.content_type", true).getStatus() !=
+        if (getXattr(conn, "meta.content_type", true).getStatus() !=
             xattrOperationStatus) {
             FAIL() << "The user xattr should be gone!";
         }
