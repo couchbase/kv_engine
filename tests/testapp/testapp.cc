@@ -193,26 +193,6 @@ void TestappTest::setClientCertData(MemcachedConnection& connection) {
                              std::string("/tests/cert/client.key"));
 }
 
-std::string get_sasl_mechs() {
-    using namespace cb::mcbp;
-    Request request = {};
-    request.setMagic(Magic::ClientRequest);
-    request.setOpcode(ClientOpcode::SaslListMechs);
-    request.setOpaque(0xdeadbeef);
-
-    safe_send(request.getFrame());
-
-    std::vector<uint8_t> blob;
-    safe_recv_packet(blob);
-    auto& response = *reinterpret_cast<Response*>(blob.data());
-    mcbp_validate_response_header(response,
-                                  cb::mcbp::ClientOpcode::SaslListMechs,
-                                  cb::mcbp::Status::Success);
-
-    auto val = response.getValue();
-    return std::string{reinterpret_cast<const char*>(val.data()), val.size()};
-}
-
 bool TestappTest::isJSON(std::string_view value) {
     JSON_checker::Validator validator;
     return validator.validate(value);
