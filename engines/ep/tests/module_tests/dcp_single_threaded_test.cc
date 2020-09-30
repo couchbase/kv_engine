@@ -19,8 +19,10 @@
 #include "../mock/mock_dcp_conn_map.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
+#include "../mock/mock_stream.h"
 #include "checkpoint_manager.h"
 #include "dcp/consumer.h"
+#include "dcp/response.h"
 #include "dcp_utils.h"
 #include "evp_store_single_threaded_test.h"
 #include "kv_bucket.h"
@@ -212,6 +214,74 @@ TEST_P(STDcpTest, SnapshotsAndNoData) {
     ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(/*opaque*/ 0, vbid));
 
     connMap.disconnect(cookie);
+    EXPECT_FALSE(connMap.isDeadConnectionsEmpty());
+    connMap.manageConnections();
+    EXPECT_TRUE(connMap.isDeadConnectionsEmpty());
+}
+
+TEST_P(STDcpTest, AckCorrectPassiveStream) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    const void* cookie1 = create_mock_cookie(engine.get());
+    Vbid vbid = Vbid(0);
+
+    auto& connMap = engine->getDcpConnMap();
+    auto& mockConnMap = static_cast<MockDcpConnMap&>(connMap);
+
+    // Create our first consumer and enable SyncReplication so that we can ack
+    auto consumer1 =
+            std::make_shared<MockDcpConsumer>(*engine, cookie1, "consumer1");
+    mockConnMap.addConn(cookie1, consumer1);
+    consumer1->enableSyncReplication();
+
+    // Add our stream and accept to mimic real scenario and ensure it is alive
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer1->addStream(0 /*opaque*/, vbid, 0 /*flags*/));
+    MockPassiveStream* stream1 = static_cast<MockPassiveStream*>(
+            (consumer1->getVbucketStream(vbid)).get());
+    stream1->acceptStream(cb::mcbp::Status::Success, 0 /*opaque*/);
+    ASSERT_TRUE(stream1->isActive());
+
+    ASSERT_EQ(2, stream1->public_readyQ().size());
+    auto resp = stream1->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::StreamReq, resp->getEvent());
+    resp = stream1->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::AddStream, resp->getEvent());
+    EXPECT_EQ(0, stream1->public_readyQ().size());
+
+    // Now close the stream to transition to dead
+    consumer1->closeStream(0 /*opaque*/, vbid);
+    ASSERT_FALSE(stream1->isActive());
+
+    // Add a new consumer and new PassiveStream
+    const void* cookie2 = create_mock_cookie(engine.get());
+    auto consumer2 =
+            std::make_shared<MockDcpConsumer>(*engine, cookie2, "consumer2");
+    mockConnMap.addConn(cookie2, consumer2);
+    consumer2->enableSyncReplication();
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer2->addStream(1 /*opaque*/, vbid, 0 /*flags*/));
+    MockPassiveStream* stream2 = static_cast<MockPassiveStream*>(
+            (consumer2->getVbucketStream(vbid)).get());
+    stream2->acceptStream(cb::mcbp::Status::Success, 1 /*opaque*/);
+    ASSERT_TRUE(stream2->isActive());
+
+    EXPECT_EQ(2, stream2->public_readyQ().size());
+    resp = stream2->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::StreamReq, resp->getEvent());
+    resp = stream2->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::AddStream, resp->getEvent());
+    EXPECT_EQ(0, stream2->public_readyQ().size());
+
+    // When we ack we should hit the active stream (stream2)
+    engine->getDcpConnMap().seqnoAckVBPassiveStream(vbid, 1);
+    EXPECT_EQ(0, stream1->public_readyQ().size());
+    EXPECT_EQ(1, stream2->public_readyQ().size());
+
+    ASSERT_EQ(ENGINE_SUCCESS, consumer2->closeStream(1 /*opaque*/, vbid));
+
+    connMap.disconnect(cookie1);
+    connMap.disconnect(cookie2);
     EXPECT_FALSE(connMap.isDeadConnectionsEmpty());
     connMap.manageConnections();
     EXPECT_TRUE(connMap.isDeadConnectionsEmpty());
