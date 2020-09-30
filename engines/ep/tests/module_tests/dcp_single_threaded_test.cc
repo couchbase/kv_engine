@@ -31,6 +31,47 @@
 
 class STDcpTest : public STParameterizedBucketTest {
 protected:
+    struct StreamRequestResult {
+        ENGINE_ERROR_CODE status;
+        uint64_t rollbackSeqno;
+    };
+
+    // callbackCount needs to be static as its used inside of the static
+    // function fakeDcpAddFailoverLog.
+    // static int callbackCount;
+
+    /*
+     * Fake callback emulating dcp_add_failover_log
+     */
+    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(
+            vbucket_failover_t* entry,
+            size_t nentries,
+            gsl::not_null<const void*> cookie) {
+        // callbackCount++;
+        return ENGINE_SUCCESS;
+    }
+
+    StreamRequestResult doStreamRequest(DcpProducer& producer,
+                                        uint64_t startSeqno = 0,
+                                        uint64_t endSeqno = ~0,
+                                        uint64_t snapStart = 0,
+                                        uint64_t snapEnd = ~0,
+                                        uint64_t vbUUID = 0) {
+        StreamRequestResult result;
+        result.status = producer.streamRequest(/*flags*/ 0,
+                                               /*opaque*/ 0,
+                                               vbid,
+                                               startSeqno,
+                                               endSeqno,
+                                               vbUUID,
+                                               snapStart,
+                                               snapEnd,
+                                               &result.rollbackSeqno,
+                                               fakeDcpAddFailoverLog,
+                                               {});
+        return result;
+    }
+
     /**
      * @param producerState Are we simulating a negotiation against a Producer
      *  that enables IncludeDeletedUserXattrs?
@@ -563,6 +604,63 @@ TEST_P(STDcpTest,
        resulting in the test failure (a hang). Hence commenting out the test.
        Can be run locally as and when needed. */
     processConsumerMutationsNearThreshold(false);
+}
+
+/* Checks that the DCP producer does an async stream close when the DCP client
+   expects "DCP_STREAM_END" msg. */
+TEST_P(STDcpTest, test_producer_stream_end_on_client_close_stream) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    const void* cookie = create_mock_cookie(engine.get());
+    auto& mockConnMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+
+    /* Create a new Dcp producer */
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      "test_producer",
+                                                      /*flags*/ 0);
+    mockConnMap.addConn(cookie, producer);
+    EXPECT_TRUE(mockConnMap.doesConnHandlerExist("test_producer"));
+
+    /* Send a control message to the producer indicating that the DCP client
+       expects a "DCP_STREAM_END" upon stream close */
+    const std::string sendStreamEndOnClientStreamCloseCtrlMsg(
+            "send_stream_end_on_client_close_stream");
+    const std::string sendStreamEndOnClientStreamCloseCtrlValue("true");
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->control(0,
+                                sendStreamEndOnClientStreamCloseCtrlMsg,
+                                sendStreamEndOnClientStreamCloseCtrlValue));
+
+    /* Open stream */
+    EXPECT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+    EXPECT_TRUE(mockConnMap.doesVbConnExist(vbid, "test_producer"));
+
+    /* Close stream */
+    EXPECT_EQ(ENGINE_SUCCESS, producer->closeStream(0, vbid));
+
+    /* Expect a stream end message */
+    MockDcpMessageProducers producers(engine.get());
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Closed, producers.last_end_status);
+
+    /* Re-open stream for the same vbucket on the conn */
+    EXPECT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+
+    /* Check that the new stream is opened properly */
+    auto stream = producer->findStream(vbid);
+    auto* as = static_cast<ActiveStream*>(stream.get());
+    EXPECT_TRUE(as->isInMemory());
+
+    // MB-27769: Prior to the fix, this would fail here because we would skip
+    // adding the connhandler into the connmap vbConns vector, causing the
+    // stream to never get notified.
+    EXPECT_TRUE(mockConnMap.doesVbConnExist(vbid, "test_producer"));
+
+    mockConnMap.disconnect(cookie);
+    EXPECT_FALSE(mockConnMap.doesVbConnExist(vbid, "test_producer"));
+    mockConnMap.manageConnections();
 }
 
 INSTANTIATE_TEST_SUITE_P(PersistentAndEphemeral,

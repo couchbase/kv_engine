@@ -43,3 +43,9 @@ bool MockDcpConnMap::removeConn(const void* cookie) {
 bool MockDcpConnMap::doesVbConnExist(Vbid vbid, const std::string& name) {
     return connStore->doesVbConnExist(vbid, name);
 }
+
+bool MockDcpConnMap::doesConnHandlerExist(const std::string& name) {
+    return connStore->getCookieToConnectionMapHandle()
+            ->findConnHandlerByName(name)
+            .get();
+}

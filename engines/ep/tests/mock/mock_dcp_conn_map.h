@@ -53,6 +53,8 @@ public:
     /// structure
     bool doesVbConnExist(Vbid vbid, const std::string& name);
 
+    bool doesConnHandlerExist(const std::string& name);
+
 protected:
     /**
      * @param engine The engine
