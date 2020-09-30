@@ -663,6 +663,39 @@ TEST_P(STDcpTest, test_producer_stream_end_on_client_close_stream) {
     mockConnMap.manageConnections();
 }
 
+/* Checks that the DCP producer does a synchronous stream close when the DCP
+   client does not expect "DCP_STREAM_END" msg. */
+TEST_P(STDcpTest, test_producer_no_stream_end_on_client_close_stream) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto& connMap = engine->getDcpConnMap();
+    const void* cookie = create_mock_cookie(engine.get());
+
+    /* Create a new Dcp producer */
+    DcpProducer* producer = connMap.newProducer(cookie,
+                                                "test_producer",
+                                                /*flags*/ 0);
+
+    /* Open stream */
+    EXPECT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+
+    /* Close stream */
+    EXPECT_EQ(ENGINE_SUCCESS, producer->closeStream(0, vbid));
+
+    /* Don't expect a stream end message (or any other message as the stream is
+       closed) */
+    MockDcpMessageProducers producers(engine.get());
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
+
+    /* Check that the stream is not found in the producer's stream map */
+    EXPECT_TRUE(producer->findStreams(vbid)->wlock().empty());
+
+    /* Disconnect the producer connection */
+    connMap.disconnect(cookie);
+    /* Cleanup the deadConnections */
+    connMap.manageConnections();
+}
+
 INSTANTIATE_TEST_SUITE_P(PersistentAndEphemeral,
                          STDcpTest,
                          STParameterizedBucketTest::allConfigValues());

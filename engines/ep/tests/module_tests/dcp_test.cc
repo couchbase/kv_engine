@@ -1162,37 +1162,7 @@ TEST_P(ConnectionTest, test_mb17042_duplicate_cookie_producer_connections) {
 }
 
 
-/* Checks that the DCP producer does a synchronous stream close when the DCP
-   client does not expect "DCP_STREAM_END" msg. */
-TEST_P(ConnectionTest, test_producer_no_stream_end_on_client_close_stream) {
-    MockDcpConnMap connMap(*engine);
-    connMap.initialize();
-    const void* cookie = create_mock_cookie(engine);
 
-    /* Create a new Dcp producer */
-    DcpProducer* producer = connMap.newProducer(cookie,
-                                                "test_producer",
-                                                /*flags*/ 0);
-
-    /* Open stream */
-    EXPECT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
-
-    /* Close stream */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->closeStream(0, vbid));
-
-    /* Don't expect a stream end message (or any other message as the stream is
-       closed) */
-    MockDcpMessageProducers producers(handle);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
-
-    /* Check that the stream is not found in the producer's stream map */
-    EXPECT_TRUE(producer->findStreams(vbid)->wlock().empty());
-
-    /* Disconnect the producer connection */
-    connMap.disconnect(cookie);
-    /* Cleanup the deadConnections */
-    connMap.manageConnections();
-}
 
 TEST_P(ConnectionTest, test_producer_unknown_ctrl_msg) {
     const void* cookie = create_mock_cookie(engine);
