@@ -478,10 +478,7 @@ Collections::Manager::doAllCollectionsStats(
     // do stats for every collection
     for (const auto& entry : *current) {
         // Access check for SimpleStats. Use testPrivilege as it won't log
-        if (bucket.getEPEngine().testPrivilege(collector.getCookie(),
-                                               cb::rbac::Privilege::SimpleStats,
-                                               entry.second.sid,
-                                               entry.first) !=
+        if (collector.testPrivilegeForStat(entry.second.sid, entry.first) !=
             cb::engine_errc::success) {
             continue; // skip this collection
         }
@@ -540,11 +537,8 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doOneCollectionStats(
     }
 
     // Access check for SimpleStats
-    res.result = bucket.getEPEngine().checkPrivilege(
-            collector.getCookie(),
-            cb::rbac::Privilege::SimpleStats,
-            res.getScopeId(),
-            res.getCollectionId());
+    res.result = collector.testPrivilegeForStat(res.getScopeId(),
+                                                res.getCollectionId());
     if (res.result != cb::engine_errc::success) {
         return res;
     }
@@ -648,10 +642,7 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doAllScopesStats(
     for (auto itr = current->beginScopes(); itr != current->endScopes();
          ++itr) {
         // Access check for SimpleStats. Use testPrivilege as it won't log
-        if (bucket.getEPEngine().testPrivilege(collector.getCookie(),
-                                               cb::rbac::Privilege::SimpleStats,
-                                               itr->first,
-                                               {}) !=
+        if (collector.testPrivilegeForStat(itr->first, {}) !=
             cb::engine_errc::success) {
             continue; // skip this scope
         }
@@ -694,11 +685,7 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doOneScopeStats(
     }
 
     // Access check for SimpleStats
-    res.result = bucket.getEPEngine().checkPrivilege(
-            collector.getCookie(),
-            cb::rbac::Privilege::SimpleStats,
-            res.getScopeId(),
-            {});
+    res.result = collector.testPrivilegeForStat(res.getScopeId(), {});
     if (res.result != cb::engine_errc::success) {
         return res;
     }

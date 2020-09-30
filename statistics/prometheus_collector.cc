@@ -17,6 +17,8 @@
 
 #include <statistics/prometheus_collector.h>
 
+#include <memcached/dockey.h>
+#include <memcached/engine_error.h>
 #include <utilities/hdrhistogram.h>
 
 #include <cmath>
@@ -91,10 +93,12 @@ void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
                     prometheus::MetricType::Untyped);
 }
 
-const void* PrometheusStatCollector::getCookie() const {
-    throw std::logic_error(
-            "PrometheusStatCollector: trying to get cookie from a "
-            "non-CBStatCollector");
+cb::engine_errc PrometheusStatCollector::testPrivilegeForStat(
+        std::optional<ScopeID> sid, std::optional<CollectionID> cid) const {
+    // Prometheus MetricServer requires the authed user to have the Stats
+    // privilege, so a PrometheusStatCollector will only be created for
+    // users with access to _all_ stats
+    return cb::engine_errc::success;
 }
 
 void PrometheusStatCollector::addClientMetric(

@@ -216,7 +216,7 @@ static ENGINE_ERROR_CODE stat_sched_executor(const std::string& arg,
 static ENGINE_ERROR_CODE stat_audit_executor(const std::string& arg,
                                              Cookie& cookie) {
     if (arg.empty()) {
-        CBStatCollector collector(appendStatsFn, &cookie);
+        CBStatCollector collector(appendStatsFn, &cookie, get_server_api());
         stats_audit(collector);
         return ENGINE_SUCCESS;
     } else {
@@ -251,7 +251,7 @@ static ENGINE_ERROR_CODE stat_bucket_details_executor(const std::string& arg,
 static ENGINE_ERROR_CODE stat_aggregate_executor(const std::string& arg,
                                                  Cookie& cookie) {
     if (arg.empty()) {
-        CBStatCollector collector(appendStatsFn, &cookie);
+        CBStatCollector collector(appendStatsFn, &cookie, get_server_api());
         return server_stats(collector, cookie.getConnection().getBucket());
     } else {
         return ENGINE_EINVAL;
@@ -460,7 +460,7 @@ static ENGINE_ERROR_CODE stat_all_stats(const std::string& arg,
         return ret;
     }
 
-    CBStatCollector collector(appendStatsFn, &cookie);
+    CBStatCollector collector(appendStatsFn, &cookie, get_server_api());
     return server_stats(collector, cookie.getConnection().getBucket());
 }
 

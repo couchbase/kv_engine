@@ -427,11 +427,8 @@ void Manifest::addCollectionStats(KVBucket& bucket,
                 auto collectionC = scopeC.forCollection(entry.cid);
                 // The inclusion of each collection requires an appropriate
                 // privilege
-                if (bucket.getEPEngine().testPrivilege(
-                            collectionC.getCookie(),
-                            cb::rbac::Privilege::SimpleStats,
-                            scope.first,
-                            entry.cid) != cb::engine_errc::success) {
+                if (collectionC.testPrivilegeForStat(scope.first, entry.cid) !=
+                    cb::engine_errc::success) {
                     continue; // skip this collection
                 }
 
@@ -468,11 +465,8 @@ void Manifest::addScopeStats(KVBucket& bucket,
             auto scopeC = collector.forScope(entry.first);
             // The inclusion of each scope requires an appropriate
             // privilege
-            if (bucket.getEPEngine().testPrivilege(
-                        scopeC.getCookie(),
-                        cb::rbac::Privilege::SimpleStats,
-                        entry.first,
-                        {}) != cb::engine_errc::success) {
+            if (scopeC.testPrivilegeForStat(entry.first, {}) !=
+                cb::engine_errc::success) {
                 continue; // skip this scope
             }
             const auto name = entry.second.name;

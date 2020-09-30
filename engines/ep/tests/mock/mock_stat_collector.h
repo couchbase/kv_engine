@@ -17,6 +17,8 @@
 
 #pragma once
 
+#include <memcached/dockey.h>
+#include <memcached/engine_error.h>
 #include <statistics/collector.h>
 
 #include <gmock/gmock.h>
@@ -66,5 +68,9 @@ public:
                 (const, override));
 
     MOCK_METHOD(bool, includeAggregateMetrics, (), (const, override));
-    MOCK_METHOD(const void*, getCookie, (), (const, override));
+
+    MOCK_METHOD(cb::engine_errc,
+                testPrivilegeForStat,
+                (std::optional<ScopeID> sid, std::optional<CollectionID> cid),
+                (const, override));
 };

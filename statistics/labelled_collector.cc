@@ -85,8 +85,9 @@ void LabelledStatCollector::addStat(const cb::stats::StatDef& k,
     forwardToParent(k, v, labels);
 }
 
-const void* LabelledStatCollector::getCookie() const {
-    return parent.getCookie();
+cb::engine_errc LabelledStatCollector::testPrivilegeForStat(
+        std::optional<ScopeID> sid, std::optional<CollectionID> cid) const {
+    return parent.testPrivilegeForStat(std::move(sid), std::move(cid));
 }
 
 BucketStatCollector::BucketStatCollector(const StatCollector& parent,

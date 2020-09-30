@@ -17,6 +17,11 @@
 
 #include <statistics/cbstat_collector.h>
 
+#include <logger/logger.h>
+#include <memcached/engine.h>
+#include <memcached/engine_error.h>
+#include <memcached/rbac/privileges.h>
+#include <memcached/server_cookie_iface.h>
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/fmt/ostr.h>
 #include <utilities/hdrhistogram.h>
@@ -108,6 +113,35 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
         }
         addStat(k, histData, labels);
     }
+}
+
+cb::engine_errc CBStatCollector::testPrivilegeForStat(
+        std::optional<ScopeID> sid, std::optional<CollectionID> cid) const {
+    Expects(serverApi != nullptr);
+    try {
+        switch (serverApi->cookie
+                        ->test_privilege(cookie,
+                                         cb::rbac::Privilege::SimpleStats,
+                                         sid,
+                                         cid)
+                        .getStatus()) {
+        case cb::rbac::PrivilegeAccess::Status::Ok:
+            return cb::engine_errc::success;
+        case cb::rbac::PrivilegeAccess::Status::Fail:
+            return cb::engine_errc::no_access;
+        case cb::rbac::PrivilegeAccess::Status::FailNoPrivileges:
+            return cid ? cb::engine_errc::unknown_collection
+                       : cb::engine_errc::unknown_scope;
+        }
+    } catch (const std::exception& e) {
+        LOG_ERROR(
+                "CBStatCollector::testPrivilegeForStat: received exception"
+                "while checking privilege for sid:{}: cid:{} {}",
+                sid ? sid->to_string() : "no-scope",
+                cid ? cid->to_string() : "no-collection",
+                e.what());
+    }
+    return cb::engine_errc::failed;
 }
 
 /**

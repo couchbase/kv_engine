@@ -81,7 +81,10 @@ public:
     void addStat(const cb::stats::StatDef& k,
                  const HdrHistogram& hist,
                  const Labels& labels) const override;
-    const void* getCookie() const override;
+
+    cb::engine_errc testPrivilegeForStat(
+            std::optional<ScopeID> sid,
+            std::optional<CollectionID> cid) const override;
 
     /**
      * Create a new LabelledStatCollector with all the labels of the current

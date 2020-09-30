@@ -81,7 +81,9 @@ public:
         return false;
     }
 
-    const void* getCookie() const override;
+    cb::engine_errc testPrivilegeForStat(
+            std::optional<ScopeID> sid,
+            std::optional<CollectionID> cid) const override;
 
 protected:
     void addClientMetric(const cb::stats::StatDef& key,

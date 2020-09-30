@@ -25,6 +25,7 @@
 #include <string>
 #include <string_view>
 
+struct ServerApi;
 /**
  * StatCollector implementation for exposing stats via CMD_STAT.
  *
@@ -39,8 +40,12 @@ public:
      * @param addStatFn callback called for each stat
      * @param cookie passed to addStatFn for each call
      */
-    CBStatCollector(AddStatFn addStatFn, const void* cookie)
-        : addStatFn(std::move(addStatFn)), cookie(cookie) {
+    CBStatCollector(AddStatFn addStatFn,
+                    const void* cookie,
+                    ServerApi* serverApi)
+        : addStatFn(std::move(addStatFn)),
+          cookie(cookie),
+          serverApi(serverApi) {
     }
 
     // Allow usage of the "helper" methods defined in the base type.
@@ -69,9 +74,17 @@ public:
                  const HdrHistogram& hist,
                  const Labels& labels) const override;
 
-    const void* getCookie() const override {
-        return cookie;
-    };
+    cb::engine_errc testPrivilegeForStat(
+            std::optional<ScopeID> sid,
+            std::optional<CollectionID> cid) const override;
+
+    /**
+     * Get the wrapped cookie and addStatFn. Useful while code is
+     * being transitioned to the StatCollector interface.
+     */
+    std::pair<const void*, const AddStatFn&> getCookieAndAddFn() const {
+        return {cookie, addStatFn};
+    }
 
     /**
      * Turn off formatting of stat keys for this collector.
@@ -127,6 +140,8 @@ private:
 
     const AddStatFn addStatFn;
     const void* cookie;
+
+    ServerApi* serverApi;
 };
 
 // Convenience method which maintain the existing add_casted_stat interface
@@ -136,7 +151,9 @@ void add_casted_stat(std::string_view k,
                      T&& v,
                      const AddStatFn& add_stat,
                      const void* cookie) {
-    CBStatCollector collector(add_stat, cookie);
+    // the collector is used _immediately_ for addStat and then destroyed,
+    // so testPrivilegeForStat is never called, so the server api can be null
+    CBStatCollector collector(add_stat, cookie, nullptr);
     collector.disableStatKeyFormatting();
     collector.addStat(k, std::forward<T>(v));
 }

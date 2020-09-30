@@ -4295,7 +4295,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCollectionStats(
         const void* cookie,
         const AddStatFn& add_stat,
         const std::string& statKey) {
-    CBStatCollector collector(add_stat, cookie);
+    CBStatCollector collector(add_stat, cookie, getServerApi());
     auto bucketCollector = collector.forBucket(getName());
     auto res = Collections::Manager::doCollectionStats(
             *kvBucket, bucketCollector, statKey);
@@ -4311,7 +4311,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doScopeStats(
         const void* cookie,
         const AddStatFn& add_stat,
         const std::string& statKey) {
-    CBStatCollector collector(add_stat, cookie);
+    CBStatCollector collector(add_stat, cookie, getServerApi());
     auto bucketCollector = collector.forBucket(getName());
     auto res = Collections::Manager::doScopeStats(
             *kvBucket, bucketCollector, statKey);
@@ -4494,7 +4494,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDiskinfoStats(
         const void* cookie, const AddStatFn& add_stat, std::string_view key) {
     const std::string statKey(key.data(), key.size());
     if (key.size() == 8) {
-        CBStatCollector collector{add_stat, cookie};
+        CBStatCollector collector{add_stat, cookie, getServerApi()};
         auto bucketC = collector.forBucket(getName());
         return kvBucket->getFileStats(bucketC);
     }
@@ -4573,7 +4573,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
     // while others have not. Depending on the key, this collector _may_
     // not be used, but creating it here reduces duplication (and it's not
     // expensive to create)
-    CBStatCollector collector{add_stat, cookie};
+    CBStatCollector collector{add_stat, cookie, getServerApi()};
     auto bucketCollector = collector.forBucket(getName());
 
     if (key.empty()) {
