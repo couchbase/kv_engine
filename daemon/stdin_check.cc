@@ -92,7 +92,7 @@ static void check_stdin_thread(void* arg) {
         if (strcmp(command, "die!\n") == 0) {
             fprintf(stderr, "'die!' on stdin.  Exiting super-quickly\n");
             fflush(stderr);
-            _exit(0);
+            std::_Exit(0);
         } else if (strcmp(command, "shutdown\n") == 0) {
             if (call_exit_handler) {
                 fprintf(stderr, "EOL on stdin.  Initiating shutdown\n");

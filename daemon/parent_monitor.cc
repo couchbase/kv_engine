@@ -65,7 +65,7 @@ ParentMonitor::ParentMonitor(int parent_id) : parent_pid(parent_id) {
                 std::cerr << "Parent process " << parent_pid << " died. Exiting"
                           << std::endl;
                 std::cerr.flush();
-                _exit(EXIT_FAILURE);
+                std::_Exit(EXIT_FAILURE);
             }
         }
     }};
