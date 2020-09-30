@@ -39,13 +39,13 @@
 #include "kvstore.h"
 #include "kvstore_config.h"
 #include "persistence_callback.h"
-#include "statistics/collector.h"
 #include "vbucket.h"
 #include "vbucket_state.h"
 
 #include <platform/dirutils.h>
-#include <sys/types.h>
+#include <statistics/cbstat_collector.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 
 ScanContext::ScanContext(
         Vbid vbid,

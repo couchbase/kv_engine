@@ -29,6 +29,9 @@
 
 #include <memcached/config_parser.h>
 #include <memcached/server_core_iface.h>
+#include <statistics/cbstat_collector.h>
+
+#include <sstream>
 
 // Used to get a name from a type to use in logging
 template <typename T>

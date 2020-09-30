@@ -22,13 +22,13 @@
 #include "bucket_logger.h"
 #include "item.h"
 #include "rollback_result.h"
-#include "statistics/collector.h"
 #include "stored-value.h"
 #include "vbucket.h"
 #include "vbucket_state.h"
 
 #include <boost/range/adaptor/reversed.hpp>
 #include <gsl/gsl-lite.hpp>
+#include <statistics/cbstat_collector.h>
 #include <utilities/logtags.h>
 #include <unordered_map>
 

@@ -1,5 +1,6 @@
 add_library(statistics STATIC
         collector.cc
+        cbstat_collector.cc
         definitions.cc
         labelled_collector.cc
         prometheus.cc

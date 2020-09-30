@@ -16,11 +16,11 @@
  */
 #include "dcp/stream.h"
 #include "dcp/response.h"
-#include "statistics/collector.h"
 
 #include <platform/checked_snprintf.h>
 
 #include <engines/ep/src/bucket_logger.h>
+#include <statistics/cbstat_collector.h>
 #include <memory>
 #include <utility>
 

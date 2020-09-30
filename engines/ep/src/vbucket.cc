@@ -37,7 +37,6 @@
 #include "kvstore.h"
 #include "pre_link_document_context.h"
 #include "rollback_result.h"
-#include "statistics/collector.h"
 #include "stored_value_factories.h"
 #include "vb_filter.h"
 #include "vbucket_queue_item_ctx.h"
@@ -49,6 +48,7 @@
 #include <memcached/server_document_iface.h>
 #include <platform/compress.h>
 #include <platform/optional.h>
+#include <statistics/cbstat_collector.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 

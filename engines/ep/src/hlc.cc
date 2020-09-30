@@ -17,9 +17,8 @@
 
 #include "hlc.h"
 
-#include "statistics/collector.h"
-
 #include <platform/platform_time.h>
+#include <statistics/cbstat_collector.h>
 
 #include <cinttypes>
 

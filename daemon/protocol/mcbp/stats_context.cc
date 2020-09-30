@@ -38,6 +38,7 @@
 #include <phosphor/trace_log.h>
 #include <platform/cb_arena_malloc.h>
 #include <platform/checked_snprintf.h>
+#include <statistics/cbstat_collector.h>
 #include <statistics/collector.h>
 #include <statistics/definitions.h>
 #include <utilities/engine_errc_2_mcbp.h>

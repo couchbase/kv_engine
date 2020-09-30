@@ -29,6 +29,7 @@
 #include <memcached/server_document_iface.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
+#include <statistics/cbstat_collector.h>
 #include <statistics/collector.h>
 #include <statistics/labelled_collector.h>
 #include <utilities/logtags.h>

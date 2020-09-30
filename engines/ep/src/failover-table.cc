@@ -16,11 +16,11 @@
  */
 #include <nlohmann/json.hpp>
 #include <platform/checked_snprintf.h>
+#include <statistics/cbstat_collector.h>
 
 #include "atomic.h"
 #include "bucket_logger.h"
 #include "failover-table.h"
-#include "statistics/collector.h"
 
 FailoverTable::FailoverTable(size_t capacity)
     : max_entries(capacity), erroneousEntriesErased(0) {

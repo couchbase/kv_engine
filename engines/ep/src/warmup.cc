@@ -33,7 +33,6 @@
 #include "item.h"
 #include "kvstore.h"
 #include "mutation_log.h"
-#include "statistics/collector.h"
 #include "vb_visitors.h"
 #include "vbucket_bgfetch_item.h"
 #include "vbucket_state.h"
@@ -41,6 +40,7 @@
 #include <phosphor/phosphor.h>
 #include <platform/dirutils.h>
 #include <platform/timeutils.h>
+#include <statistics/cbstat_collector.h>
 #include <utilities/logtags.h>
 
 #include <array>

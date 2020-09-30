@@ -21,7 +21,6 @@
 #include "durability_monitor_impl.h"
 #include "item.h"
 #include "passive_durability_monitor.h"
-#include "statistics/collector.h"
 #include "stats.h"
 #include "trace_helpers.h"
 #include "vbucket.h"
@@ -30,6 +29,7 @@
 #include <folly/concurrency/UnboundedQueue.h>
 
 #include <memcached/dockey.h>
+#include <statistics/cbstat_collector.h>
 #include <utilities/logtags.h>
 
 constexpr std::chrono::milliseconds

@@ -72,6 +72,7 @@
 #include <platform/platform_time.h>
 #include <platform/scope_timer.h>
 #include <platform/string_hex.h>
+#include <statistics/cbstat_collector.h>
 #include <statistics/collector.h>
 #include <statistics/labelled_collector.h>
 #include <statistics/prometheus.h>

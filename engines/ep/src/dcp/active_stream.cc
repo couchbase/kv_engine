@@ -23,10 +23,10 @@
 #include "dcp/response.h"
 #include "ep_time.h"
 #include "kv_bucket.h"
-#include "statistics/collector.h"
 
 #include <memcached/protocol_binary.h>
 #include <platform/optional.h>
+#include <statistics/cbstat_collector.h>
 
 ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                            std::shared_ptr<DcpProducer> p,

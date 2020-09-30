@@ -18,7 +18,8 @@
 #include "vb_ready_queue.h"
 
 #include "locks.h"
-#include "statistics/collector.h"
+
+#include <statistics/cbstat_collector.h>
 
 bool VBReadyQueue::exists(Vbid vbucket) {
     LockHolder lh(lock);

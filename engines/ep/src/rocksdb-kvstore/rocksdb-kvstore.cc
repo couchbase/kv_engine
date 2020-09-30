@@ -22,17 +22,17 @@
 #include "ep_time.h"
 #include "item.h"
 #include "kvstore_priv.h"
-#include "statistics/collector.h"
 #include "vb_commit.h"
 #include "vbucket.h"
 #include "vbucket_state.h"
 
+#include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/cbassert.h>
 #include <platform/sysinfo.h>
 #include <rocksdb/convenience.h>
 #include <rocksdb/filter_policy.h>
-#include <nlohmann/json.hpp>
+#include <statistics/cbstat_collector.h>
 
 #include <stdio.h>
 #include <string.h>

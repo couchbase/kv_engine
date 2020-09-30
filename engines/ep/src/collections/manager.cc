@@ -23,12 +23,12 @@
 #include "collections/vbucket_manifest_handles.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
-#include "statistics/collector.h"
 #include "string_utils.h"
 #include "vb_visitors.h"
 
 #include <nlohmann/json.hpp>
 #include <spdlog/fmt/ostr.h>
+#include <statistics/cbstat_collector.h>
 #include <optional>
 #include <utility>
 

@@ -23,11 +23,11 @@
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/response.h"
 #include "ep_engine.h"
-#include "statistics/collector.h"
 
 #include <json_utilities.h>
 #include <nlohmann/json.hpp>
 #include <platform/checked_snprintf.h>
+#include <statistics/cbstat_collector.h>
 #include <memory>
 
 namespace Collections::VB {

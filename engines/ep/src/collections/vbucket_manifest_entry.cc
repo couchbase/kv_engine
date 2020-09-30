@@ -17,9 +17,11 @@
 
 #include "collections/vbucket_manifest_entry.h"
 #include "bucket_logger.h"
-#include "statistics/collector.h"
 
 #include <platform/checked_snprintf.h>
+#include <statistics/cbstat_collector.h>
+
+#include <sstream>
 
 Collections::VB::ManifestEntry::ManifestEntry(
         const Collections::VB::ManifestEntry& other) {

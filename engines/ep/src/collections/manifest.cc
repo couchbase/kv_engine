@@ -22,7 +22,6 @@
 #include "collections/manifest_generated.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
-#include "statistics/collector.h"
 #include "utility.h"
 
 #include <json_utilities.h>
@@ -30,6 +29,7 @@
 #include <memcached/engine_error.h>
 #include <nlohmann/json.hpp>
 #include <platform/checked_snprintf.h>
+#include <statistics/cbstat_collector.h>
 #include <gsl/gsl>
 
 #include <cctype>

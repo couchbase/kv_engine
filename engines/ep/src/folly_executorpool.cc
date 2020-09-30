@@ -27,6 +27,7 @@
 #include <folly/executors/thread_factory/PriorityThreadFactory.h>
 #include <nlohmann/json.hpp>
 #include <platform/string_hex.h>
+#include <statistics/cbstat_collector.h>
 #include <statistics/collector.h>
 
 using namespace std::string_literals;

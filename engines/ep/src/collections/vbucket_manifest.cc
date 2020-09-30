@@ -25,9 +25,10 @@
 #include "collections/manifest.h"
 #include "ep_time.h"
 #include "item.h"
-#include "statistics/collector.h"
 #include "systemevent.h"
 #include "vbucket.h"
+
+#include <statistics/cbstat_collector.h>
 
 #include <memory>
 

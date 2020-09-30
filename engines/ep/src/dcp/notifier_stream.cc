@@ -22,7 +22,6 @@
 #include "dcp/response.h"
 #include "ep_engine.h"
 #include "locks.h"
-#include "statistics/collector.h"
 #include "vbucket.h"
 
 const std::string notifierStreamLoggingPrefix =

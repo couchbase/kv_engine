@@ -27,8 +27,6 @@
 #include "evp_store_single_threaded_test.h"
 #include "item.h"
 #include "kv_bucket.h"
-#include "statistics/collector.h"
-#include "statistics/labelled_collector.h"
 #include "tasks.h"
 #include "test_helpers.h"
 #include "tests/mock/mock_stat_collector.h"
@@ -41,6 +39,8 @@
 #include <memcached/server_cookie_iface.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
+#include <statistics/cbstat_collector.h>
+#include <statistics/labelled_collector.h>
 #include <statistics/units.h>
 
 #include <functional>

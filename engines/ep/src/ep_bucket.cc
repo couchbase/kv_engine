@@ -41,6 +41,7 @@
 #include "warmup.h"
 
 #include <platform/timeutils.h>
+#include <statistics/cbstat_collector.h>
 #include <statistics/collector.h>
 #include <statistics/labelled_collector.h>
 #include <utilities/hdrhistogram.h>

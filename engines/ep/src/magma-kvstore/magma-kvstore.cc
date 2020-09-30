@@ -23,13 +23,13 @@
 #include "magma-kvstore_iorequest.h"
 #include "magma-kvstore_metadata.h"
 #include "objectregistry.h"
-#include "statistics/collector.h"
 #include "vb_commit.h"
 #include "vbucket.h"
 #include "vbucket_state.h"
 
 #include <mcbp/protocol/request.h>
 #include <nlohmann/json.hpp>
+#include <statistics/cbstat_collector.h>
 #include <utilities/logtags.h>
 
 #include <string.h>

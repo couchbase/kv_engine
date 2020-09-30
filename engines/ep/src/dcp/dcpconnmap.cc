@@ -24,12 +24,11 @@
 #include "dcp/consumer.h"
 #include "dcp/producer.h"
 #include "ep_engine.h"
-#include "statistics/collector.h"
 #include <daemon/tracing.h>
 #include <memcached/server_cookie_iface.h>
 #include <memcached/vbucket.h>
 #include <phosphor/phosphor.h>
-
+#include <statistics/cbstat_collector.h>
 
 const uint32_t DcpConnMap::dbFileMem = 10 * 1024;
 const uint16_t DcpConnMap::numBackfillsThreshold = 4096;

@@ -17,8 +17,8 @@
 #pragma once
 
 #include "connhandler.h"
-#include "statistics/collector.h"
 
+#include <statistics/cbstat_collector.h>
 #include <sstream>
 
 /*

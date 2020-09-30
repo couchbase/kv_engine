@@ -20,13 +20,13 @@
 #include "cb3_executorthread.h"
 #include "ep_engine.h"
 #include "ep_time.h"
-#include "statistics/collector.h"
 #include "taskqueue.h"
 
 #include <nlohmann/json.hpp>
 #include <platform/checked_snprintf.h>
 #include <platform/string_hex.h>
 #include <platform/sysinfo.h>
+#include <statistics/cbstat_collector.h>
 #include <algorithm>
 #include <chrono>
 #include <sstream>

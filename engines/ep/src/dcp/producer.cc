@@ -37,10 +37,10 @@
 #include "item_eviction.h"
 #include "kv_bucket.h"
 #include "snappy-c.h"
-#include "statistics/collector.h"
 
 #include <memcached/server_cookie_iface.h>
 #include <nlohmann/json.hpp>
+#include <statistics/cbstat_collector.h>
 
 const std::chrono::seconds DcpProducer::defaultDcpNoopTxInterval(20);
 
