@@ -15,9 +15,13 @@
  *   limitations under the License.
  */
 
+#include "../mock/mock_dcp.h"
+#include "../mock/mock_dcp_conn_map.h"
+#include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
 #include "checkpoint_manager.h"
 #include "dcp/consumer.h"
+#include "dcp_utils.h"
 #include "evp_store_single_threaded_test.h"
 #include "kv_bucket.h"
 
@@ -30,6 +34,13 @@ protected:
      *  that enables IncludeDeletedUserXattrs?
      */
     void testProducerNegotiatesIncludeDeletedUserXattrs(
+            IncludeDeletedUserXattrs producerState);
+
+    /**
+     * @param producerState Are we simulating a negotiation against a Producer
+     *  that enables IncludeDeletedUserXattrs?
+     */
+    void testConsumerNegotiatesIncludeDeletedUserXattrs(
             IncludeDeletedUserXattrs producerState);
 };
 
@@ -244,6 +255,90 @@ TEST_P(STDcpTest,
 TEST_P(STDcpTest,
        ProducerNegotiatesIncludeDeletedUserXattrs_EnabledAtProducer) {
     testProducerNegotiatesIncludeDeletedUserXattrs(
+            IncludeDeletedUserXattrs::Yes);
+}
+
+void STDcpTest::testConsumerNegotiatesIncludeDeletedUserXattrs(
+        IncludeDeletedUserXattrs producerState) {
+    MockDcpConnMap connMap(*engine);
+    connMap.initialize();
+    const void* cookie = create_mock_cookie();
+
+    // Create a new Consumer, flag that we want it to support DeleteXattr
+    auto& consumer = dynamic_cast<MockDcpConsumer&>(
+            *connMap.newConsumer(cookie, "conn_name", "the_consumer_name"));
+
+    using State = DcpConsumer::BlockingDcpControlNegotiation::State;
+    auto syncReplNeg = consumer.public_getSyncReplNegotiation();
+    ASSERT_EQ(State::PendingRequest, syncReplNeg.state);
+
+    // Consumer::step performs multiple negotiation steps. Some of them are
+    // "blocking" steps. So, move the Consumer to the point where all the
+    // negotiation steps (but IncludeDeletedUserXattrs) have been completed and
+    // verifying that the negotiation of DeletedUserXattrs flows as exptected.
+    consumer.setPendingAddStream(false);
+    MockDcpMessageProducers producers(engine.get());
+    ENGINE_ERROR_CODE result;
+    // Step and unblock (ie, simulate Producer response) up to completing the
+    // SyncRepl negotiation, which is the last blocking step before the
+    // DeletedUserXattrs negotiation
+    do {
+        result = consumer.step(&producers);
+        handleProducerResponseIfStepBlocked(consumer, producers);
+        syncReplNeg = consumer.public_getSyncReplNegotiation();
+    } while (syncReplNeg.state != State::Completed);
+    EXPECT_EQ(ENGINE_SUCCESS, result);
+
+    // Skip over "send consumer name"
+    EXPECT_EQ(ENGINE_SUCCESS, consumer.step(&producers));
+    ASSERT_FALSE(consumer.public_getPendingSendConsumerName());
+
+    // Check pre-negotiation state
+    auto xattrNeg = consumer.public_getDeletedUserXattrsNegotiation();
+    ASSERT_EQ(State::PendingRequest, xattrNeg.state);
+    ASSERT_EQ(0, xattrNeg.opaque);
+
+    // Start negotiation - consumer sends DcpControl
+    EXPECT_EQ(ENGINE_SUCCESS, consumer.step(&producers));
+    xattrNeg = consumer.public_getDeletedUserXattrsNegotiation();
+    EXPECT_EQ(State::PendingResponse, xattrNeg.state);
+    EXPECT_EQ("include_deleted_user_xattrs", producers.last_key);
+    EXPECT_EQ("true", producers.last_value);
+    EXPECT_GT(xattrNeg.opaque, 0);
+    EXPECT_EQ(xattrNeg.opaque, producers.last_opaque);
+
+    // Verify blocked - Consumer cannot proceed until negotiation completes
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, consumer.step(&producers));
+    xattrNeg = consumer.public_getDeletedUserXattrsNegotiation();
+    EXPECT_EQ(State::PendingResponse, xattrNeg.state);
+
+    // Simulate Producer response
+    cb::mcbp::Status respStatus =
+            (producerState == IncludeDeletedUserXattrs::Yes
+                     ? cb::mcbp::Status::Success
+                     : cb::mcbp::Status::UnknownCommand);
+    protocol_binary_response_header resp{};
+    resp.response.setMagic(cb::mcbp::Magic::ClientResponse);
+    resp.response.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
+    resp.response.setStatus(respStatus);
+    resp.response.setOpaque(xattrNeg.opaque);
+    consumer.handleResponse(&resp);
+
+    // Verify final consumer state
+    xattrNeg = consumer.public_getDeletedUserXattrsNegotiation();
+    EXPECT_EQ(State::Completed, xattrNeg.state);
+    EXPECT_EQ(producerState, consumer.public_getIncludeDeletedUserXattrs());
+
+    destroy_mock_cookie(cookie);
+}
+
+TEST_P(STDcpTest, ConsumerNegotiatesDeletedUserXattrs_DisabledAtProducer) {
+    testConsumerNegotiatesIncludeDeletedUserXattrs(
+            IncludeDeletedUserXattrs::No);
+}
+
+TEST_P(STDcpTest, ConsumerNegotiatesDeletedUserXattrs_EnabledAtProducer) {
+    testConsumerNegotiatesIncludeDeletedUserXattrs(
             IncludeDeletedUserXattrs::Yes);
 }
 
