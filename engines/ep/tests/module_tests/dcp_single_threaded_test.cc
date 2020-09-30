@@ -94,6 +94,15 @@ protected:
      *                        threshold or just below it
      */
     void processConsumerMutationsNearThreshold(bool beyondThreshold);
+
+    /**
+     * Creates a consumer conn and sends items on the conn with memory usage
+     * near to replication threshold
+     *
+     * @param beyondThreshold indicates if the memory usage should above the
+     *                        threshold or just below it
+     */
+    void sendConsumerMutationsNearThreshold(bool beyondThreshold);
 };
 
 /*
@@ -694,6 +703,148 @@ TEST_P(STDcpTest, test_producer_no_stream_end_on_client_close_stream) {
     connMap.disconnect(cookie);
     /* Cleanup the deadConnections */
     connMap.manageConnections();
+}
+
+void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    const void* cookie = create_mock_cookie(engine.get());
+    const uint32_t opaque = 1;
+    const uint64_t snapStart = 1;
+    const uint64_t snapEnd = std::numeric_limits<uint64_t>::max();
+    uint64_t bySeqno = snapStart;
+
+    /* Set up a consumer connection */
+    auto& connMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
+    connMap.addConn(cookie, consumer);
+
+    /* Passive stream */
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer->addStream(/*opaque*/ 0,
+                                  vbid,
+                                  /*flags*/ 0));
+    MockPassiveStream* stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    ASSERT_TRUE(stream->isActive());
+
+    /* Send a snapshotMarker before sending items for replication */
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       snapStart,
+                                       snapEnd,
+                                       /* in-memory snapshot */ 0x1,
+                                       {} /*HCS*/,
+                                       {} /*maxVisibleSeq*/));
+
+    /* Send an item for replication */
+    const DocKey docKey{nullptr, 0, DocKeyEncodesCollectionId::No};
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->mutation(opaque,
+                                 docKey,
+                                 {}, // value
+                                 0, // priv bytes
+                                 PROTOCOL_BINARY_RAW_BYTES,
+                                 0, // cas
+                                 vbid,
+                                 0, // flags
+                                 bySeqno,
+                                 0, // rev seqno
+                                 0, // exptime
+                                 0, // locktime
+                                 {}, // meta
+                                 0)); // nru
+
+    /* Set 'mem_used' beyond the 'replication threshold' */
+    EPStats& stats = engine->getEpStats();
+    if (beyondThreshold) {
+        engine->setMaxDataSize(stats.getPreciseTotalMemoryUsed());
+    } else {
+        /* Set 'mem_used' just 1 byte less than the 'replication threshold'.
+           That is we are below 'replication threshold', but not enough space
+           for  the new item */
+        engine->setMaxDataSize(stats.getPreciseTotalMemoryUsed() + 1);
+        /* Simpler to set the replication threshold to 1 and test, rather than
+           testing with maxData = (memUsed / replicationThrottleThreshold);
+           that is, we are avoiding a division */
+        engine->getConfiguration().setReplicationThrottleThreshold(100);
+    }
+
+    if ((engine->getConfiguration().getBucketType() == "ephemeral") &&
+        (engine->getConfiguration().getEphemeralFullPolicy()) ==
+                "fail_new_data") {
+        /* Expect disconnect signal in Ephemeral with "fail_new_data" policy */
+        while (true) {
+            /* Keep sending items till the memory usage goes above the
+               threshold and the connection is disconnected */
+            if (ENGINE_DISCONNECT ==
+                consumer->mutation(opaque,
+                                   docKey,
+                                   {}, // value
+                                   0, // priv bytes
+                                   PROTOCOL_BINARY_RAW_BYTES,
+                                   0, // cas
+                                   vbid,
+                                   0, // flags
+                                   ++bySeqno,
+                                   0, // rev seqno
+                                   0, // exptime
+                                   0, // locktime
+                                   {}, // meta
+                                   0)) {
+                break;
+            }
+        }
+    } else {
+        /* In 'couchbase' buckets we buffer the replica items and indirectly
+           throttle replication by not sending flow control acks to the
+           producer. Hence we do not drop the connection here */
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  consumer->mutation(opaque,
+                                     docKey,
+                                     {}, // value
+                                     0, // priv bytes
+                                     PROTOCOL_BINARY_RAW_BYTES,
+                                     0, // cas
+                                     vbid,
+                                     0, // flags
+                                     bySeqno + 1,
+                                     0, // rev seqno
+                                     0, // exptime
+                                     0, // locktime
+                                     {}, // meta
+                                     0)); // nru
+    }
+
+    /* Close stream before deleting the connection */
+    EXPECT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
+
+    connMap.disconnect(cookie);
+    EXPECT_FALSE(connMap.isDeadConnectionsEmpty());
+    connMap.manageConnections();
+    EXPECT_TRUE(connMap.isDeadConnectionsEmpty());
+}
+
+/* Here we test how the DCP consumer handles the scenario where the memory
+   usage is beyond the replication throttle threshold.
+   In case of Ephemeral buckets with 'fail_new_data' policy it is expected to
+   indicate close of the consumer conn and in other cases it is expected to
+   just defer processing. */
+TEST_P(STDcpTest, ReplicateAfterThrottleThreshold) {
+    sendConsumerMutationsNearThreshold(true);
+}
+
+/* Here we test how the DCP consumer handles the scenario where the memory
+   usage is just below the replication throttle threshold, but will go over the
+   threshold when it adds the new mutation from the processor buffer to the
+   hashtable.
+   In case of Ephemeral buckets with 'fail_new_data' policy it is expected to
+   indicate close of the consumer conn and in other cases it is expected to
+   just defer processing. */
+TEST_P(STDcpTest, ReplicateJustBeforeThrottleThreshold) {
+    sendConsumerMutationsNearThreshold(false);
 }
 
 INSTANTIATE_TEST_SUITE_P(PersistentAndEphemeral,
