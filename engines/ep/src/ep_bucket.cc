@@ -990,6 +990,7 @@ ENGINE_ERROR_CODE EPBucket::scheduleCompaction(const CompactionConfig& c,
     ExTask task = std::make_shared<CompactTask>(
             *this, c, vb->getPurgeSeqno(), cookie);
     compactionTasks.emplace_back(std::make_pair(c.vbid, task));
+    bool snoozed = false;
     if (compactionTasks.size() > 1) {
         if ((stats.diskQueueSize > compactionWriteQueueCap &&
              compactionTasks.size() > (vbMap.getNumShards() / 2)) ||
@@ -998,19 +999,22 @@ ENGINE_ERROR_CODE EPBucket::scheduleCompaction(const CompactionConfig& c,
             // We will wake it up when one of the existing compaction tasks is
             // done.
             task->snooze(60);
+            snoozed = true;
         }
     }
 
     ExecutorPool::get()->schedule(task);
 
-    EP_LOG_DEBUG(
-            "Scheduled compaction task {} on {},"
-            "purge_before_ts = {}, purge_before_seq = {}, dropdeletes = {}",
-            uint64_t(task->getId()),
+    EP_LOG_INFO(
+            "Compaction of {}, task:{}, purge_before_ts:{}, "
+            "purge_before_seq:{}, "
+            "drop_deletes:{}, snoozed:{}, scheduled (awaiting completion).",
             c.vbid,
+            uint64_t(task->getId()),
             c.purge_before_ts,
             c.purge_before_seq,
-            c.drop_deletes);
+            c.drop_deletes,
+            snoozed);
 
     return ENGINE_EWOULDBLOCK;
 }
