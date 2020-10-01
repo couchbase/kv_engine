@@ -301,6 +301,9 @@ enum class ClientOpcode : uint8_t {
     /* Subdoc additions for Spock: */
     SubdocGetCount = 0xd2,
 
+    // Subdoc additions for Cheshire-Cat
+    SubdocReplaceBodyWithXattr = 0xd3,
+
     /* Scrub the data */
     Scrub = 0xf0,
     /* Refresh the ISASL data */

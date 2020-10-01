@@ -44,6 +44,7 @@ struct MemoryBackedBuffer {
     void reset(std::string&& next) {
         backing.swap(next);
         view = {backing.data(), backing.size()};
+        modified = true;
     }
 
     void swap(MemoryBackedBuffer& next) {
@@ -53,8 +54,14 @@ struct MemoryBackedBuffer {
 
     std::string_view view;
 
+    /// Check if the buffer was modified since it was created
+    bool isModified() const {
+        return modified;
+    }
+
 protected:
     std::string backing;
+    bool modified = false;
 };
 
 enum class MutationSemantics : uint8_t { Add, Replace, Set };

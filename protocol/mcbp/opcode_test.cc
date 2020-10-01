@@ -180,6 +180,8 @@ const std::map<cb::mcbp::ClientOpcode, std::string> client_blueprint = {
          {ClientOpcode::SubdocMultiLookup, "SUBDOC_MULTI_LOOKUP"},
          {ClientOpcode::SubdocMultiMutation, "SUBDOC_MULTI_MUTATION"},
          {ClientOpcode::SubdocGetCount, "SUBDOC_GET_COUNT"},
+         {ClientOpcode::SubdocReplaceBodyWithXattr,
+          "SUBDOC_REPLACE_BODY_WITH_XATTR"},
          {ClientOpcode::Scrub, "SCRUB"},
          {ClientOpcode::IsaslRefresh, "ISASL_REFRESH"},
          {ClientOpcode::SslCertsRefresh, "SSL_CERTS_REFRESH"},
@@ -291,7 +293,8 @@ TEST(ClientOpcode, is_durability_supported) {
                      ClientOpcode::SubdocArrayInsert,
                      ClientOpcode::SubdocArrayAddUnique,
                      ClientOpcode::SubdocCounter,
-                     ClientOpcode::SubdocMultiMutation}},
+                     ClientOpcode::SubdocMultiMutation,
+                     ClientOpcode::SubdocReplaceBodyWithXattr}},
                    "durability");
 }
 
@@ -371,7 +374,8 @@ TEST(ClientOpcode, is_collection_command) {
                      ClientOpcode::SubdocCounter,
                      ClientOpcode::SubdocMultiLookup,
                      ClientOpcode::SubdocMultiMutation,
-                     ClientOpcode::SubdocGetCount}},
+                     ClientOpcode::SubdocGetCount,
+                     ClientOpcode::SubdocReplaceBodyWithXattr}},
                    "collection");
 }
 
@@ -400,7 +404,8 @@ TEST(ClientOpcode, is_preserve_ttl_supported) {
                      ClientOpcode::SubdocArrayInsert,
                      ClientOpcode::SubdocArrayAddUnique,
                      ClientOpcode::SubdocCounter,
-                     ClientOpcode::SubdocMultiMutation}},
+                     ClientOpcode::SubdocMultiMutation,
+                     ClientOpcode::SubdocReplaceBodyWithXattr}},
                    "preserve");
 }
 

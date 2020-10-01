@@ -36,5 +36,6 @@ void subdoc_array_insert_executor(Cookie& cookie);
 void subdoc_array_add_unique_executor(Cookie& cookie);
 void subdoc_counter_executor(Cookie& cookie);
 void subdoc_get_count_executor(Cookie& cookie);
+void subdoc_replace_body_with_xattr_executor(Cookie& cookie);
 void subdoc_multi_lookup_executor(Cookie& cookie);
 void subdoc_multi_mutation_executor(Cookie& cookie);

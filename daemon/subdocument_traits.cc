@@ -39,49 +39,38 @@ SubdocCmdTraits get_subdoc_cmd_traits(cb::mcbp::ClientOpcode cmd) {
     switch (cmd) {
     case cb::mcbp::ClientOpcode::Get:
         return get_traits<cb::mcbp::ClientOpcode::Get>();
-
     case cb::mcbp::ClientOpcode::Set:
         return get_traits<cb::mcbp::ClientOpcode::Set>();
-
     case cb::mcbp::ClientOpcode::Delete:
         return get_traits<cb::mcbp::ClientOpcode::Delete>();
-
     case cb::mcbp::ClientOpcode::SubdocGet:
         return get_traits<cb::mcbp::ClientOpcode::SubdocGet>();
-
     case cb::mcbp::ClientOpcode::SubdocExists:
         return get_traits<cb::mcbp::ClientOpcode::SubdocExists>();
-
     case cb::mcbp::ClientOpcode::SubdocDictAdd:
         return get_traits<cb::mcbp::ClientOpcode::SubdocDictAdd>();
-
     case cb::mcbp::ClientOpcode::SubdocDictUpsert:
         return get_traits<cb::mcbp::ClientOpcode::SubdocDictUpsert>();
-
     case cb::mcbp::ClientOpcode::SubdocDelete:
         return get_traits<cb::mcbp::ClientOpcode::SubdocDelete>();
-
     case cb::mcbp::ClientOpcode::SubdocReplace:
         return get_traits<cb::mcbp::ClientOpcode::SubdocReplace>();
-
     case cb::mcbp::ClientOpcode::SubdocArrayPushLast:
         return get_traits<cb::mcbp::ClientOpcode::SubdocArrayPushLast>();
-
     case cb::mcbp::ClientOpcode::SubdocArrayPushFirst:
         return get_traits<cb::mcbp::ClientOpcode::SubdocArrayPushFirst>();
-
     case cb::mcbp::ClientOpcode::SubdocArrayInsert:
         return get_traits<cb::mcbp::ClientOpcode::SubdocArrayInsert>();
-
     case cb::mcbp::ClientOpcode::SubdocArrayAddUnique:
         return get_traits<cb::mcbp::ClientOpcode::SubdocArrayAddUnique>();
-
     case cb::mcbp::ClientOpcode::SubdocCounter:
         return get_traits<cb::mcbp::ClientOpcode::SubdocCounter>();
-
     case cb::mcbp::ClientOpcode::SubdocGetCount:
         return get_traits<cb::mcbp::ClientOpcode::SubdocGetCount>();
+    case cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr:
+        return get_traits<cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr>();
 
+        // The following ops does not support SubDoc
     default:
         return {CommandScope::SubJSON,
                 Subdoc::Command::INVALID,

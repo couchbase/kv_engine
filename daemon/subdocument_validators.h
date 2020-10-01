@@ -74,3 +74,4 @@ cb::mcbp::Status subdoc_counter_validator(Cookie& cookie);
 cb::mcbp::Status subdoc_get_count_validator(Cookie& cookie);
 cb::mcbp::Status subdoc_multi_lookup_validator(Cookie& cookie);
 cb::mcbp::Status subdoc_multi_mutation_validator(Cookie& cookie);
+cb::mcbp::Status subdoc_replace_body_with_xattr_validator(Cookie& cookie);

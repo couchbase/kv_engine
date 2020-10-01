@@ -818,6 +818,8 @@ void initialize_mbcp_lookup_map() {
                   subdoc_multi_mutation_executor);
     setup_handler(cb::mcbp::ClientOpcode::SubdocGetCount,
                   subdoc_get_count_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
+                  subdoc_replace_body_with_xattr_executor);
 
     setup_handler(cb::mcbp::ClientOpcode::AdjustTimeofday,
                   adjust_timeofday_executor);

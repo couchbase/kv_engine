@@ -2323,6 +2323,8 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::SubdocMultiMutation,
           subdoc_multi_mutation_validator);
     setup(cb::mcbp::ClientOpcode::SubdocGetCount, subdoc_get_count_validator);
+    setup(cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
+          subdoc_replace_body_with_xattr_validator);
 
     setup(cb::mcbp::ClientOpcode::Setq, set_replace_validator);
     setup(cb::mcbp::ClientOpcode::Set, set_replace_validator);

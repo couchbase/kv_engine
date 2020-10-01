@@ -893,6 +893,7 @@ TEST_P(SubdocMultiMutationTest, InvalidLocationOpcodes) {
         case cb::mcbp::ClientOpcode::SubdocArrayInsert:
         case cb::mcbp::ClientOpcode::SubdocArrayAddUnique:
         case cb::mcbp::ClientOpcode::SubdocCounter:
+        case cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr:
             continue;
         default:
             break;

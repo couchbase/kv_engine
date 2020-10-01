@@ -227,6 +227,7 @@ bool Request::isQuiet() const {
         case ClientOpcode::SubdocMultiLookup:
         case ClientOpcode::SubdocMultiMutation:
         case ClientOpcode::SubdocGetCount:
+        case ClientOpcode::SubdocReplaceBodyWithXattr:
         case ClientOpcode::Scrub:
         case ClientOpcode::IsaslRefresh:
         case ClientOpcode::SslCertsRefresh:

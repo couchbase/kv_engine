@@ -314,6 +314,9 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(cb::mcbp::ClientOpcode::SubdocMultiMutation,
           require<Privilege::Upsert>);
 
+    setup(cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
+          require<Privilege::Upsert>);
+
     /* Scrub the data */
     setup(cb::mcbp::ClientOpcode::Scrub, require<Privilege::NodeManagement>);
     /* Refresh the ISASL data */

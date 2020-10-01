@@ -35,7 +35,16 @@ enum class SubdocPath : uint8_t {
  * (subjson) or on the whole document (wholedoc). In the wholedoc case, the
  * path can thought of as being the empty string.
  */
-enum class CommandScope : uint8_t { SubJSON, WholeDoc };
+enum class CommandScope : uint8_t {
+    /// Using SubJSON to update the document
+    SubJSON,
+    /// Operate on the whole document (the path can though of as being empty
+    /// string)
+    WholeDoc,
+    /// Some commands (currently only copy) allows for modifications on both
+    /// XATTRS and the document body
+    AttributesAndBody
+};
 
 /**
  * What kind of response does a command return?
@@ -343,6 +352,22 @@ inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocGetCount>() {
             /*allow_empty_path*/ true,
             ResponseValue::JSON,
             /*is_mutator*/ false,
+            SubdocPath::SINGLE};
+}
+
+template <>
+inline SubdocCmdTraits
+get_traits<cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr>() {
+    return {CommandScope::AttributesAndBody,
+            Subdoc::Command::GET,
+            cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
+            SUBDOC_FLAG_XATTR_PATH,
+            SUBDOC_FLAG_XATTR_PATH,
+            mcbp::subdoc::doc_flag::None,
+            false,
+            false,
+            ResponseValue::None,
+            true,
             SubdocPath::SINGLE};
 }
 

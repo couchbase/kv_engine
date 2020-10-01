@@ -556,6 +556,7 @@ information about a given command.
 | 0xd0 | Subdoc multi lookup |
 | 0xd1 | Subdoc multi mutation |
 | 0xd2 | Subdoc get count |
+| 0xd3 | Subdoc replace body with xattr (see https://docs.google.com/document/d/1vaQJxIA5nhWJqji7X2R1xQDZadb5PabfKAid1kVe65o ) |
 | 0xf0 | Scrub |
 | 0xf1 | Isasl refresh |
 | 0xf2 | Ssl certs refresh |

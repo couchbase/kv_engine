@@ -2314,3 +2314,91 @@ TEST_P(XattrTest, MB40980_InputMacroExpansion) {
     EXPECT_EQ(cb::from_hex(original["CAS"]), cb::from_hex(tnx["CAS"]));
     EXPECT_EQ(original, tnx["doc"]);
 }
+
+/// Verify that we can replace the content of the body with a value in an
+/// xattr
+TEST_P(XattrTest, ReplaceBodyWithXattr) {
+    auto& conn = getConnection();
+    {
+        BinprotSubdocMultiMutationCommand cmd;
+        cmd.setKey(name);
+        cmd.addMutation(
+                cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
+                "tnx.op.staged",
+                R"({"couchbase": {"version": "cheshire-cat", "next_version": "unknown"}})");
+        cmd.addMutation(
+                cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                SUBDOC_FLAG_NONE,
+                "couchbase",
+                R"({"version": "mad-hatter", "next_version": "cheshire-cat"})");
+        conn.sendCommand(cmd);
+
+        BinprotSubdocMultiMutationResponse multiResp;
+        conn.recvResponse(multiResp);
+        ASSERT_EQ(cb::mcbp::Status::Success, multiResp.getStatus())
+                << "Failed to update the document to expand the Input macros";
+    }
+
+    // Verify that the body is as expected:
+    {
+        auto resp = subdoc_multi_lookup(conn,
+                                        {
+                                                {ClientOpcode::SubdocGet,
+                                                 SUBDOC_FLAG_NONE,
+                                                 "couchbase.version"},
+                                        });
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+        auto& results = resp.getResults();
+        ASSERT_EQ(cb::mcbp::Status::Success, results[0].status);
+        ASSERT_EQ(R"("mad-hatter")", results[0].value);
+    }
+
+    // Replace the body with the staged value and remove that
+    {
+        BinprotSubdocMultiMutationCommand cmd;
+        cmd.setKey(name);
+        cmd.addMutation(cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
+                        SUBDOC_FLAG_XATTR_PATH,
+                        "tnx.op.staged",
+                        {});
+        cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDelete,
+                        SUBDOC_FLAG_XATTR_PATH,
+                        "tnx.op.staged",
+                        {});
+        conn.sendCommand(cmd);
+
+        BinprotSubdocMultiMutationResponse multiResp;
+        conn.recvResponse(multiResp);
+        ASSERT_EQ(cb::mcbp::Status::Success, multiResp.getStatus())
+                << multiResp.getDataString();
+    }
+
+    // Verify that things looks like we expect them to
+    {
+        auto resp = subdoc_multi_lookup(
+                conn,
+                {{ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "tnx.op"},
+                 {ClientOpcode::SubdocGet,
+                  SUBDOC_FLAG_NONE,
+                  "couchbase.version"}});
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+        auto& results = resp.getResults();
+        ASSERT_EQ(cb::mcbp::Status::Success, results[0].status);
+        ASSERT_EQ("{}", results[0].value);
+        ASSERT_EQ(cb::mcbp::Status::Success, results[1].status);
+        ASSERT_EQ(R"("cheshire-cat")", results[1].value);
+    }
+}
+
+TEST_P(XattrTest, ReplaceBodyWithXattr_WithoutXattrFlag) {
+    auto rsp = getConnection().execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
+            name,
+            "tnx.op.staged",
+            {},
+            SUBDOC_FLAG_NONE,
+            mcbp::subdoc::doc_flag::None,
+            0});
+    ASSERT_EQ(cb::mcbp::Status::Einval, rsp.getStatus());
+}

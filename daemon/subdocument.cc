@@ -729,30 +729,72 @@ static cb::mcbp::Status subdoc_operate_wholedoc(
     }
 }
 
+static cb::mcbp::Status subdoc_operate_attributes_and_body(
+        SubdocCmdContext& context,
+        SubdocCmdContext::OperationSpec& spec,
+        MemoryBackedBuffer* xattr,
+        MemoryBackedBuffer& body) {
+    if (spec.traits.mcbpCommand !=
+        cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr) {
+        return cb::mcbp::Status::NotSupported;
+    }
+
+    if (xattr == nullptr) {
+        throw std::invalid_argument(
+                "subdoc_operate_attributes_and_body: can't be called with "
+                "xattr being nullptr");
+    }
+
+    // Currently we only support SubdocReplaceBodyWithXattr through this
+    // API, and we can implement that by using a SUBDOC-GET to get the location
+    // of the data; and then reset the body with the content of the operation.
+    auto st = subdoc_operate_one_path(context, spec, xattr->view);
+    if (st == cb::mcbp::Status::Success) {
+        body.reset(spec.result.matchloc().to_string());
+        spec.result.clear();
+    }
+    return st;
+}
+
 /**
  * Run through all of the subdoc operations for the current phase on
- * a single 'document' (either the user document, or a XATTR).
+ * the documents content (either the xattr section or the document body,
+ * depending on the execution phase)
  *
  * @param context The context object for this operation
- * @param doc the document to operate on
+ * @param xattr the documents attribute section (MUST be set in the xattr
+ *              phase, and should be set to nullptr in the body phase)
+ * @param body the documents body section
  * @param doc_datatype The datatype of the document. Updated if a
  *                     wholedoc op changes the datatype.
- * @param temp_buffer where to store the data for our temporary buffer
- *                    allocations if we need to change the doc.
  * @param modified set to true upon return if any modifications happened
  *                 to the input document.
  * @return true if we should continue processing this request,
- *         false if we've sent the error packet and should temrinate
+ *         false if we've sent the error packet and should terminate
  *               execution for this request
  *
  * @throws std::bad_alloc if allocation fails
  */
 static bool operate_single_doc(SubdocCmdContext& context,
-                               MemoryBackedBuffer& doc,
+                               MemoryBackedBuffer* xattr,
+                               MemoryBackedBuffer& body,
                                protocol_binary_datatype_t& doc_datatype,
                                bool& modified) {
     modified = false;
     auto& operations = context.getOperations();
+
+    if (context.getCurrentPhase() == SubdocCmdContext::Phase::XATTR) {
+        Expects(xattr);
+    } else {
+        // The xattr is only provided in the xattr phase as supplying them
+        // would require us to rebuild a JSON document for the key (and there
+        // is no operations in the BODY phase which require the header)
+        Expects(!xattr);
+    }
+
+    auto& current = context.getCurrentPhase() == SubdocCmdContext::Phase::XATTR
+                            ? *xattr
+                            : body;
 
     // 2. Perform each of the operations on document.
     for (auto& op : operations) {
@@ -760,7 +802,7 @@ static bool operate_single_doc(SubdocCmdContext& context,
         case CommandScope::SubJSON:
             if (mcbp::datatype::is_json(doc_datatype)) {
                 // Got JSON, perform the operation.
-                op.status = subdoc_operate_one_path(context, op, doc.view);
+                op.status = subdoc_operate_one_path(context, op, current.view);
             } else {
                 // No good; need to have JSON.
                 op.status = cb::mcbp::Status::SubdocDocNotJson;
@@ -768,51 +810,59 @@ static bool operate_single_doc(SubdocCmdContext& context,
             break;
 
         case CommandScope::WholeDoc:
-            op.status = subdoc_operate_wholedoc(context, op, doc.view);
+            op.status = subdoc_operate_wholedoc(context, op, current.view);
+            break;
+
+        case CommandScope::AttributesAndBody:
+            op.status = subdoc_operate_attributes_and_body(
+                    context, op, xattr, body);
+            break;
         }
 
         if (op.status == cb::mcbp::Status::Success) {
             if (context.traits.is_mutator) {
                 modified = true;
 
-                // Determine how much space we now need.
-                size_t new_doc_len = 0;
-                for (auto& loc : op.result.newdoc()) {
-                    new_doc_len += loc.length;
-                }
+                if (op.traits.scope != CommandScope::AttributesAndBody) {
+                    // Determine how much space we now need.
+                    size_t new_doc_len = 0;
+                    for (auto& loc : op.result.newdoc()) {
+                        new_doc_len += loc.length;
+                    }
 
-                std::string next;
-                next.reserve(new_doc_len);
-                // TODO-PERF: We need to create a contiguous input
-                // region for the next subjson call, from the set of
-                // iovecs in the result. We can't simply write into
-                // the dynamic_buffer, as that may be the underlying
-                // storage for iovecs from the result. Ideally we'd
-                // either permit subjson to take an iovec as input, or
-                // permit subjson to take all the multipaths at once.
-                // For now we make a contiguous region in a temporary
-                // char[], and point in_doc at that.
-                for (auto& loc : op.result.newdoc()) {
-                    next.insert(next.end(), loc.at, loc.at + loc.length);
-                }
+                    std::string next;
+                    next.reserve(new_doc_len);
+                    // TODO-PERF: We need to create a contiguous input
+                    // region for the next subjson call, from the set of
+                    // iovecs in the result. We can't simply write into
+                    // the dynamic_buffer, as that may be the underlying
+                    // storage for iovecs from the result. Ideally we'd
+                    // either permit subjson to take an iovec as input, or
+                    // permit subjson to take all the multipaths at once.
+                    // For now we make a contiguous region in a temporary
+                    // char[], and point in_doc at that.
+                    for (auto& loc : op.result.newdoc()) {
+                        next.insert(next.end(), loc.at, loc.at + loc.length);
+                    }
 
-                // Copying complete - safe to delete the old temp_doc
-                // (even if it was the source of some of the newdoc
-                // iovecs).
-                doc.reset(std::move(next));
+                    // Copying complete - safe to delete the old temp_doc
+                    // (even if it was the source of some of the newdoc
+                    // iovecs).
+                    current.reset(std::move(next));
 
-                if (op.traits.scope == CommandScope::WholeDoc) {
-                    // the entire document has been replaced as part of a
-                    // wholedoc op update the datatype to match
-                    JSON_checker::Validator validator;
-                    bool isValidJson = validator.validate(doc.view);
+                    if (op.traits.scope == CommandScope::WholeDoc) {
+                        // the entire document has been replaced as part of a
+                        // wholedoc op update the datatype to match
+                        JSON_checker::Validator validator;
+                        bool isValidJson = validator.validate(current.view);
 
-                    // don't alter context.in_datatype directly here in case we
-                    // are in xattrs phase
-                    if (isValidJson) {
-                        doc_datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
-                    } else {
-                        doc_datatype &= ~PROTOCOL_BINARY_DATATYPE_JSON;
+                        // don't alter context.in_datatype directly here in case
+                        // we are in xattrs phase
+                        if (isValidJson) {
+                            doc_datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
+                        } else {
+                            doc_datatype &= ~PROTOCOL_BINARY_DATATYPE_JSON;
+                        }
                     }
                 }
             } else { // lookup
@@ -1064,17 +1114,19 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
         value_buf = { context.xattr_buffer.get(), total};
     }
 
-    MemoryBackedBuffer document{{value_buf.data(), value_buf.size()}};
+    MemoryBackedBuffer body{{context.in_doc.view.data() + bodyoffset,
+                             context.in_doc.view.size() - bodyoffset}};
+    MemoryBackedBuffer xattr{{value_buf.data(), value_buf.size()}};
 
-    for (const auto& m : {cb::xattr::macros::CAS,
-                          cb::xattr::macros::SEQNO,
-                          cb::xattr::macros::VALUE_CRC32C}) {
-        context.generate_macro_padding(document.view, m);
+    for (const auto m : {cb::xattr::macros::CAS,
+                         cb::xattr::macros::SEQNO,
+                         cb::xattr::macros::VALUE_CRC32C}) {
+        context.generate_macro_padding(xattr.view, m);
     }
 
     bool modified;
     auto datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-    if (!operate_single_doc(context, document, datatype, modified)) {
+    if (!operate_single_doc(context, &xattr, body, datatype, modified)) {
         // Something failed..
         return false;
     }
@@ -1098,17 +1150,32 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
     // document.. create a copy we can use for replace.
     cb::xattr::Blob copy(xattr_blob);
 
-    if (document.view.size() > key.size()) {
-        const char* start = strchr(document.view.data(), ':') + 1;
-        const char* end = document.view.data() + document.view.size() - 1;
+    if (xattr.view.size() > key.size()) {
+        const char* start = strchr(xattr.view.data(), ':') + 1;
+        const char* end = xattr.view.data() + xattr.view.size() - 1;
 
         copy.set(key, {start, size_t(end - start)});
     } else {
         copy.remove(key);
     }
     const auto new_xattr = copy.finalize();
-    replace_xattrs(new_xattr, context, bodyoffset, bodysize);
 
+    if (body.isModified()) {
+        auto total = new_xattr.size() + body.view.size();
+        std::string next;
+        next.reserve(total);
+        next.insert(next.end(), new_xattr.begin(), new_xattr.end());
+        next.insert(next.end(), body.view.begin(), body.view.end());
+        context.in_doc.reset(std::move(next));
+        if (new_xattr.empty()) {
+            context.in_datatype &= ~PROTOCOL_BINARY_DATATYPE_XATTR;
+            context.no_sys_xattrs = true;
+        } else {
+            context.in_datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
+        }
+    } else {
+        replace_xattrs(new_xattr, context, bodyoffset, bodysize);
+    }
     return true;
 }
 
@@ -1126,17 +1193,18 @@ static bool do_body_phase(SubdocCmdContext& context) {
     }
 
     size_t xattrsize = 0;
-    MemoryBackedBuffer document{context.in_doc};
+    MemoryBackedBuffer body{context.in_doc};
 
     if (mcbp::datatype::is_xattr(context.in_datatype)) {
         // We shouldn't have any documents like that!
-        xattrsize = cb::xattr::get_body_offset(document.view);
-        document.view.remove_prefix(xattrsize);
+        xattrsize = cb::xattr::get_body_offset(body.view);
+        body.view.remove_prefix(xattrsize);
     }
 
     bool modified;
 
-    if (!operate_single_doc(context, document, context.in_datatype, modified)) {
+    if (!operate_single_doc(
+                context, nullptr, body, context.in_datatype, modified)) {
         return false;
     }
 
@@ -1149,18 +1217,18 @@ static bool do_body_phase(SubdocCmdContext& context) {
     // reallocate and move things around but just reuse the temporary
     // buffer we've already created.
     if (xattrsize == 0) {
-        context.in_doc.swap(document);
+        context.in_doc.swap(body);
         return true;
     }
 
-    // Time to rebuild the full document.
-    auto total = xattrsize + document.view.size();
+    // Just stitch our new modified value behind the existing xattrs
+    auto total = xattrsize + body.view.size();
     std::string next;
     next.reserve(total);
     next.insert(next.end(),
                 context.in_doc.view.data(),
                 context.in_doc.view.data() + xattrsize);
-    next.insert(next.end(), document.view.begin(), document.view.end());
+    next.insert(next.end(), body.view.begin(), body.view.end());
     context.in_doc.reset(std::move(next));
 
     return true;
@@ -1742,6 +1810,12 @@ void subdoc_counter_executor(Cookie& cookie) {
 void subdoc_get_count_executor(Cookie& cookie) {
     subdoc_executor(cookie,
                     get_traits<cb::mcbp::ClientOpcode::SubdocGetCount>());
+}
+
+void subdoc_replace_body_with_xattr_executor(Cookie& cookie) {
+    subdoc_executor(
+            cookie,
+            get_traits<cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr>());
 }
 
 void subdoc_multi_lookup_executor(Cookie& cookie) {

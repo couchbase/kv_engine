@@ -333,6 +333,12 @@ cb::mcbp::Status subdoc_get_count_validator(Cookie& cookie) {
             cookie, get_traits<cb::mcbp::ClientOpcode::SubdocGetCount>());
 }
 
+cb::mcbp::Status subdoc_replace_body_with_xattr_validator(Cookie& cookie) {
+    return subdoc_validator(
+            cookie,
+            get_traits<cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr>());
+}
+
 /**
  * Validate the multipath spec. This may be a multi mutation or lookup
  *
