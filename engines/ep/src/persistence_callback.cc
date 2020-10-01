@@ -21,6 +21,7 @@
 #include "item.h"
 #include "stats.h"
 #include "vbucket.h"
+#include <utilities/logtags.h>
 
 PersistenceCallback::PersistenceCallback() {
 }
@@ -45,7 +46,22 @@ void PersistenceCallback::operator()(TransactionContext& txCtx,
             auto res = vbucket.ht.findItem(*queuedItem);
             auto* v = res.storedValue;
             if (v && (v->getBySeqno() == queuedItem->getBySeqno())) {
-                Expects(v->isDirty());
+                if (!v->isDirty()) {
+                    // MB-41658: Found item _should_ always be dirty, but
+                    // crash/warmup tests intermittently fail this check. Dump
+                    // additional details to assist in diagnosing issue if it
+                    // reoccurs.
+                    std::stringstream itemSS;
+                    itemSS << *queuedItem;
+                    std::stringstream svSS;
+                    svSS << *v;
+                    throw std::logic_error(fmt::format(
+                            "PersistenceCallback::operator() - Expected "
+                            "resident item matching queuedItem to be dirty!\n"
+                            "\tqueuedItem:{}\n\tv:{}",
+                            cb::UserData{itemSS.str()},
+                            cb::UserData{svSS.str()}));
+                }
                 v->markClean();
             }
         }
