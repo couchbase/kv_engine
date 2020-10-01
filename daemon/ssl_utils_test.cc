@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2016 Couchbase, Inc.
+ *     Copyright 2020 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -14,16 +14,19 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "daemon/ssl_utils.h"
+#include "ssl_utils.h"
 #include <folly/portability/GTest.h>
 #include <openssl/ssl.h>
 
+static const long DefaultMask =
+        SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_RENEGOTIATION;
+
 TEST(ssl_decode_protocol, EmptyString) {
-    EXPECT_EQ(SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3, decode_ssl_protocol(""));
+    EXPECT_EQ(DefaultMask, decode_ssl_protocol(""));
 }
 
 TEST(ssl_decode_protocol, TLSv1) {
-    const auto TLSv1_mask = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
+    const auto TLSv1_mask = DefaultMask;
     for (const auto& val :
          std::vector<std::string>{{"TLSv1", "tlsv1", "tLsV1"}}) {
         EXPECT_EQ(TLSv1_mask, decode_ssl_protocol(val))
@@ -32,7 +35,7 @@ TEST(ssl_decode_protocol, TLSv1) {
 }
 
 TEST(ssl_decode_protocol, TLSv1_1) {
-    const auto TLSv1_mask = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1;
+    const auto TLSv1_mask = DefaultMask | SSL_OP_NO_TLSv1;
     for (const auto& val : std::vector<std::string>{{"TLSv1.1",
                                                      "TLSv1_1",
                                                      "tlsv1.1",
@@ -45,8 +48,7 @@ TEST(ssl_decode_protocol, TLSv1_1) {
 }
 
 TEST(ssl_decode_protocol, TLSv1_2) {
-    const auto TLSv2_mask = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 |
-                            SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1;
+    const auto TLSv2_mask = DefaultMask | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1;
     for (const auto& val : std::vector<std::string>{{"TLSv1.2",
                                                      "TLSv1_2",
                                                      "tlsv1.2",
@@ -59,8 +61,7 @@ TEST(ssl_decode_protocol, TLSv1_2) {
 }
 
 TEST(ssl_decode_protocol, TLSv1_3) {
-    const auto TLSv3_mask = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 |
-                            SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1 |
+    const auto TLSv3_mask = DefaultMask | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1 |
                             SSL_OP_NO_TLSv1_2;
     for (const auto& val : std::vector<std::string>{{"TLSv1.3",
                                                      "TLSv1_3",

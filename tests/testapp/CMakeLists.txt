@@ -59,7 +59,6 @@ set(memcached_testapp_SOURCES
     testapp_remove.cc
     testapp_sasl.cc
     testapp_shutdown.cc
-    testapp_ssl_utils.cc
     testapp_stats.cc
     testapp_subdoc.cc
     testapp_subdoc_common.cc

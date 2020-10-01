@@ -267,7 +267,8 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    doc_pre_expiry_test.cc
                    function_chain_test.cc
                    mc_time_test.cc
-                   settings_test.cc)
+                   settings_test.cc
+                   ssl_utils_test.cc)
     add_sanitizers(memcached_unit_tests)
     target_link_libraries(memcached_unit_tests
                           memcached_daemon

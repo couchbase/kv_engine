@@ -26,8 +26,9 @@
 #include <stdexcept>
 
 long decode_ssl_protocol(const std::string& protocol) {
-    /* MB-12359 - Disable SSLv2 & SSLv3 due to POODLE */
-    long disallow = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
+    // MB-12359 - Disable SSLv2 & SSLv3 due to POODLE
+    // MB-41757 - Disable renegotiation
+    long disallow = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_RENEGOTIATION;
 
     std::string minimum(protocol);
     std::transform(minimum.begin(), minimum.end(), minimum.begin(), tolower);
