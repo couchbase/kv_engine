@@ -38,8 +38,10 @@ namespace Collections {
 static const size_t MaxScopeOrCollectionNameSize = 251;
 
 struct CollectionEntry {
-    CollectionID id;
+    CollectionID cid;
+    std::string name;
     cb::ExpiryLimit maxTtl;
+    ScopeID sid;
     bool operator==(const CollectionEntry& other) const;
     bool operator!=(const CollectionEntry& other) const {
         return !(*this == other);
@@ -64,7 +66,11 @@ struct Scope {
  */
 class Manifest {
 public:
-    Manifest() = default;
+    /**
+     * Constructs an epoch manifest
+     * Default scope, default collection and uid of 0
+     */
+    Manifest();
 
     /*
      * Create a manifest from json.
@@ -83,16 +89,9 @@ public:
     // This manifest object stores UID to Scope mappings
     using scopeContainer = std::unordered_map<ScopeID, Scope>;
 
-    // This manifest object stores CID mapped to SID and collection name
-    struct Collection {
-        ScopeID sid;
-        std::string name;
-        bool operator==(const Collection& other) const;
-        bool operator!=(const Collection& other) const {
-            return !(*this == other);
-        }
-    };
-    using collectionContainer = std::unordered_map<CollectionID, Collection>;
+    // And a map from cid to the CollectionEntry
+    using collectionContainer =
+            std::unordered_map<CollectionID, CollectionEntry&>;
 
     collectionContainer::const_iterator begin() const {
         return collections.begin();
@@ -110,13 +109,13 @@ public:
         return scopes.end();
     }
 
-    size_t size() const {
+    size_t getCollectionCount() const {
         return collections.size();
     }
 
     /**
-     * Is the Manifest 'successor' a valid succesor of this Manifest?
-     * If the succesor is not a forced update, it must be 'sane' progression
+     * Is the Manifest 'successor' a valid successor of this Manifest?
+     * If the successor is not a forced update, it must be 'sane' progression
      * of the Manifest, for example the manifest uid must be incrementing and
      * immutable properties of scopes/collections must remain that way
      */
@@ -165,9 +164,10 @@ public:
             const std::string& collectionName,
             std::string_view scopeName = DefaultScopeIdentifier) const {
         for (auto& scope : scopes) {
+            // Look for the correct scope
             if (scope.second.name == scopeName) {
                 for (auto& scopeCollection : scope.second.collections) {
-                    auto collection = collections.find(scopeCollection.id);
+                    auto collection = collections.find(scopeCollection.cid);
 
                     if (collection != collections.end() &&
                         collection->second.name == collectionName) {
@@ -289,6 +289,12 @@ private:
     void enableDefaultCollection(CollectionID identifier);
 
     /**
+     * Construction helper - builds the collection map and will detect duplicate
+     * cid
+     */
+    void buildCollectionIdToEntryMap();
+
+    /**
      * Check if the std::string represents a legal collection name.
      * Current validation is to ensure we block creation of _ prefixed
      * collections and only accept $default for $ prefixed names.
@@ -305,11 +311,18 @@ private:
     friend std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
 
     bool defaultCollectionExists{true};
-    scopeContainer scopes = {
-            {ScopeID::Default,
-             {DefaultScopeName, {{CollectionID::Default, cb::NoExpiryLimit}}}}};
-    collectionContainer collections = {
-            {CollectionID::Default, {ScopeID::Default, DefaultCollectionName}}};
+
+    /**
+     * scopes stores all of the known scopes and the 'epoch' Manifest i.e.
+     * default initialisation stores just the default scope.
+     */
+    scopeContainer scopes = {{ScopeID::Default,
+                              {DefaultScopeName,
+                               {{CollectionID::Default,
+                                 DefaultCollectionName,
+                                 cb::NoExpiryLimit,
+                                 ScopeID::Default}}}}};
+    collectionContainer collections;
     ManifestUid uid{0};
     bool force{false};
 };

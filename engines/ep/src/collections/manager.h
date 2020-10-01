@@ -56,7 +56,7 @@ public:
      */
     void addStatsForCollection(const Scope& scope,
                                CollectionID cid,
-                               const Manifest::Collection& collection,
+                               const CollectionEntry& collection,
                                const AddStatFn& add_stat,
                                const void* cookie);
 

@@ -324,7 +324,7 @@ bool Collections::Manager::warmupLoadManifest(const std::string& dbpath) {
                 "Collections::Manager::warmupLoadManifest: starting at "
                 "uid:{:#x}",
                 rv.value().getUid());
-        *currentManifest.wlock() = rv.value();
+        *currentManifest.wlock() = std::move(rv.value());
         return true;
     }
     // else tryAndLoad detected (and logged) some kind of corruption issue.
@@ -751,7 +751,7 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doOneScopeStats(
     cachedStats.addStatsForScope(res.getScopeId(), scope, add_stat, cookie);
     // add stats for each collection in the scope
     for (const auto& entry : scope.collections) {
-        auto itr = current->findCollection(entry.id);
+        auto itr = current->findCollection(entry.cid);
         Expects(itr != current->end());
         const auto& [cid, collection] = *itr;
         cachedStats.addStatsForCollection(
@@ -791,7 +791,7 @@ Collections::CachedStats::CachedStats(
 void Collections::CachedStats::addStatsForCollection(
         const Scope& scope,
         CollectionID cid,
-        const Manifest::Collection& collection,
+        const CollectionEntry& collection,
         const AddStatFn& add_stat,
         const void* cookie) {
     auto scopeID = collection.sid;
@@ -810,23 +810,15 @@ void Collections::CachedStats::addStatsForCollection(
     buf.resize(0);
     format_to(buf, "{}:{}:scope_name", scopeID.to_string(), cid.to_string());
     add_stat({buf.data(), buf.size()}, scope.name, cookie);
-    // ttl (requires a search in the Scope vector)
-    for (const auto& collection : scope.collections) {
-        if (collection.id == cid) {
-            if (collection.maxTtl) {
-                buf.resize(0);
-                format_to(buf,
-                          "{}:{}:maxTTL",
-                          scopeID.to_string(),
-                          cid.to_string());
-                fmt::memory_buffer value;
-                format_to(value, "{}", collection.maxTtl.value().count());
-                add_stat({buf.data(), buf.size()},
-                         {value.data(), value.size()},
-                         cookie);
-            }
-            break;
-        }
+
+    // add ttl if valid
+    if (collection.maxTtl.has_value()) {
+        buf.resize(0);
+        format_to(buf, "{}:{}:maxTTL", scopeID.to_string(), cid.to_string());
+        fmt::memory_buffer value;
+        format_to(value, "{}", collection.maxTtl.value().count());
+        add_stat(
+                {buf.data(), buf.size()}, {value.data(), value.size()}, cookie);
     }
 }
 
@@ -839,7 +831,7 @@ void Collections::CachedStats::addStatsForScope(ScopeID sid,
 
     // get the CollectionIDs - extract the keys from the map
     for (const auto& entry : scope.collections) {
-        collections.push_back(entry.id);
+        collections.push_back(entry.cid);
     }
     addAggregatedCollectionStats(
             collections, /* prefix */ sid.to_string(), add_stat, cookie);

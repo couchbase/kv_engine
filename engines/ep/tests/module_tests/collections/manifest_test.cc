@@ -30,12 +30,13 @@
 TEST(ManifestTest, defaultState) {
     Collections::Manifest m;
     EXPECT_TRUE(m.doesDefaultCollectionExist());
-    EXPECT_EQ(1, m.size());
+    EXPECT_EQ(1, m.getCollectionCount());
     EXPECT_EQ(0, m.getUid());
     auto collection = m.findCollection(CollectionID::Default);
     EXPECT_NE(collection, m.end());
     EXPECT_EQ(ScopeID(ScopeID::Default), collection->second.sid);
     EXPECT_EQ("_default", collection->second.name);
+    EXPECT_FALSE(collection->second.maxTtl.has_value());
 
     collection = m.findCollection("_default", "_default");
     EXPECT_NE(collection, m.end());
@@ -46,7 +47,7 @@ TEST(ManifestTest, defaultState) {
     EXPECT_NE(scope, m.endScopes());
     EXPECT_EQ("_default", scope->second.name);
     EXPECT_EQ(1, scope->second.collections.size());
-    EXPECT_EQ(CollectionID::Default, scope->second.collections[0].id);
+    EXPECT_EQ(CollectionID::Default, scope->second.collections[0].cid);
 
     auto oScope = m.getScopeID("_default._default");
     EXPECT_EQ(ScopeID(ScopeID::Default), oScope.value_or(~0));

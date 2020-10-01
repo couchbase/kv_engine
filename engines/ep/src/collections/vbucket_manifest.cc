@@ -494,13 +494,11 @@ Manifest::ManifestChanges Manifest::processManifest(
         }
 
         for (const auto& m : scopeItr->second.collections) {
-            auto mapItr = map.find(m.id);
+            auto mapItr = map.find(m.cid);
 
             if (mapItr == map.end()) {
                 rv.collectionsToAdd.push_back(
-                        {std::make_pair(scopeItr->first, m.id),
-                         manifest.findCollection(m.id)->second.name,
-                         m.maxTtl});
+                        {std::make_pair(m.sid, m.cid), m.name, m.maxTtl});
             }
         }
     }

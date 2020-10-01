@@ -78,6 +78,10 @@ static void throwIfWrongType(const std::string& errorKey,
                              const nlohmann::json& object,
                              nlohmann::json::value_t expectedType);
 
+Manifest::Manifest() {
+    buildCollectionIdToEntryMap();
+}
+
 Manifest::Manifest(std::string_view json)
     : defaultCollectionExists(false), scopes(), collections(), uid(0) {
     auto throwInvalid = [](const std::string& detail) {
@@ -119,23 +123,23 @@ Manifest::Manifest(std::string_view json)
         }
 
         // Construction of ScopeID checks for invalid values
-        ScopeID uidValue = makeScopeID(uid.get<std::string>());
+        ScopeID sidValue = makeScopeID(uid.get<std::string>());
 
         // 1) Default scope has an expected name.
         // 2) Scope identifiers must be unique.
         // 3) Scope names must be unique.
-        if (uidValue.isDefaultScope() && nameValue != DefaultScopeIdentifier) {
+        if (sidValue.isDefaultScope() && nameValue != DefaultScopeIdentifier) {
             throwInvalid("default scope with wrong name:" + nameValue);
-        } else if (this->scopes.count(uidValue) > 0) {
+        } else if (this->scopes.count(sidValue) > 0) {
             // Scope uids must be unique
-            throwInvalid("duplicate scope uid:" + uidValue.to_string() +
+            throwInvalid("duplicate scope uid:" + sidValue.to_string() +
                          ", name:" + nameValue);
         }
 
         // iterate scopes and compare names, fail for a match.
         for (const auto& itr : this->scopes) {
             if (itr.second.name == nameValue) {
-                throwInvalid("duplicate scope name:" + uidValue.to_string() +
+                throwInvalid("duplicate scope name:" + sidValue.to_string() +
                              ", name:" + nameValue);
             }
         }
@@ -161,7 +165,7 @@ Manifest::Manifest(std::string_view json)
                 throwInvalid("collection name:" + cnameValue + " is not valid");
             }
 
-            CollectionID cuidValue = makeCollectionID(cuid.get<std::string>());
+            CollectionID cidValue = makeCollectionID(cuid.get<std::string>());
 
             // 1) The default collection must be within the default scope and
             // have the expected name.
@@ -170,33 +174,27 @@ Manifest::Manifest(std::string_view json)
             // Manifest.
             // 3) Collection identifiers must be unique.
             // 4) Collection names must be unique within the scope.
-            if (cuidValue.isDefaultCollection()) {
+            if (cidValue.isDefaultCollection()) {
                 if (cnameValue != DefaultCollectionIdentifier) {
                     throwInvalid(
                             "the default collection name is unexpected name:" +
                             cnameValue);
-                } else if (!uidValue.isDefaultScope()) {
+                } else if (!sidValue.isDefaultScope()) {
                     throwInvalid(
                             "the default collection is not in the default "
                             "scope");
                 }
-            } else if (invalidCollectionID(cuidValue)) {
-                throwInvalid("collection uid: " + cuidValue.to_string() +
+            } else if (invalidCollectionID(cidValue)) {
+                throwInvalid("collection uid: " + cidValue.to_string() +
                              " is not valid.");
-            } else if (this->collections.count(cuidValue) > 0) {
-                throwInvalid("duplicate collection uid:" +
-                             cuidValue.to_string() + ", name: " + cnameValue);
             }
 
             // Collection names must be unique within the scope
-            for (const auto& itr : scopeCollections) {
-                auto existingCollection = this->collections.find(itr.id);
-                if (existingCollection != this->collections.end()) {
-                    if (existingCollection->second.name == cnameValue) {
-                        throwInvalid("duplicate collection name:" +
-                                     cuidValue.to_string() +
-                                     ", name: " + cnameValue);
-                    }
+            for (const auto& collection : scopeCollections) {
+                if (collection.name == cnameValue) {
+                    throwInvalid("duplicate collection name:" +
+                                 cidValue.to_string() +
+                                 ", name: " + cnameValue);
                 }
             }
 
@@ -210,15 +208,17 @@ Manifest::Manifest(std::string_view json)
                 maxTtl = std::chrono::seconds(value);
             }
 
-            enableDefaultCollection(cuidValue);
-            this->collections.emplace(std::make_pair(
-                    cuidValue, Collection{uidValue, cnameValue}));
-            scopeCollections.push_back({cuidValue, maxTtl});
+            enableDefaultCollection(cidValue);
+            scopeCollections.push_back(
+                    CollectionEntry{cidValue, cnameValue, maxTtl, sidValue});
         }
 
-        this->scopes.emplace(uidValue,
+        this->scopes.emplace(sidValue,
                              Scope{nameValue, std::move(scopeCollections)});
     }
+
+    // Now build the collection id to collection-entry map
+    buildCollectionIdToEntryMap();
 
     // Final checks...
     // uid of 0 -> this must be the 'epoch' state
@@ -229,6 +229,23 @@ Manifest::Manifest(std::string_view json)
         throwInvalid("no scopes were defined in the manifest");
     } else if (findScope(ScopeID::Default) == this->scopes.end()) {
         throwInvalid("the default scope was not defined");
+    }
+}
+
+void Manifest::buildCollectionIdToEntryMap() {
+    for (auto& scope : this->scopes) {
+        for (auto& collection : scope.second.collections) {
+            auto [itr, emplaced] =
+                    collections.try_emplace(collection.cid, collection);
+            if (!emplaced) {
+                // Only 1 of each ID is allowed!
+                throw std::invalid_argument(
+                        "Manifest::buildCollectionIdToEntryMap: duplicate "
+                        "collection uid:" +
+                        collection.cid.to_string() + ", name1:" +
+                        itr->second.name + ", name2:" + collection.name);
+            }
+        }
     }
 }
 
@@ -295,10 +312,10 @@ nlohmann::json Manifest::toJson(
         bool visible = isVisible(s.first, {});
         for (const auto& c : s.second.collections) {
             // Include if the collection is visible
-            if (isVisible(s.first, c.id)) {
+            if (isVisible(s.first, c.cid)) {
                 nlohmann::json collection;
-                collection["name"] = collections.at(c.id).name;
-                collection["uid"] = fmt::format("{0:x}", uint32_t{c.id});
+                collection["name"] = c.name;
+                collection["uid"] = fmt::format("{0:x}", uint32_t{c.cid});
                 if (c.maxTtl) {
                     collection["maxTTL"] = c.maxTtl.value().count();
                 }
@@ -325,11 +342,10 @@ flatbuffers::DetachedBuffer Manifest::toFlatbuffer() const {
         for (const auto& c : scope.second.collections) {
             auto newEntry = Collections::Persist::CreateCollection(
                     builder,
-                    uint32_t(c.id),
+                    uint32_t(c.cid),
                     c.maxTtl.has_value(),
                     c.maxTtl.value_or(std::chrono::seconds(0)).count(),
-                    builder.CreateString(collections.at(c.id).name.data(),
-                                         collections.at(c.id).name.size()));
+                    builder.CreateString(c.name));
             fbCollections.push_back(newEntry);
         }
         auto collectionVector = builder.CreateVector(fbCollections);
@@ -337,8 +353,7 @@ flatbuffers::DetachedBuffer Manifest::toFlatbuffer() const {
         auto newEntry = Collections::Persist::CreateScope(
                 builder,
                 uint32_t(scope.first),
-                builder.CreateString(scope.second.name.data(),
-                                     scope.second.name.size()),
+                builder.CreateString(scope.second.name),
                 collectionVector);
         fbScopes.push_back(newEntry);
     }
@@ -352,7 +367,7 @@ flatbuffers::DetachedBuffer Manifest::toFlatbuffer() const {
 
 // sibling of toFlatbuffer, construct a Manifest from a flatbuffer format
 Manifest::Manifest(std::string_view flatbufferData, Manifest::FlatBuffers tag)
-    : defaultCollectionExists(false), scopes(), collections(), uid(0) {
+    : defaultCollectionExists(false), scopes(), uid(0) {
     flatbuffers::Verifier v(
             reinterpret_cast<const uint8_t*>(flatbufferData.data()),
             flatbufferData.size());
@@ -382,17 +397,19 @@ Manifest::Manifest(std::string_view flatbufferData, Manifest::FlatBuffers tag)
             if (collection->ttlValid()) {
                 maxTtl = std::chrono::seconds(collection->maxTtl());
             }
-            this->collections.emplace(std::make_pair(
-                    cid,
-                    Collection{scope->scopeId(), collection->name()->str()}));
+
             enableDefaultCollection(cid);
-            scopeCollections.push_back({cid, maxTtl});
+            scopeCollections.push_back(CollectionEntry{
+                    cid, collection->name()->str(), maxTtl, scope->scopeId()});
         }
 
         this->scopes.emplace(
                 scope->scopeId(),
                 Scope{scope->name()->str(), std::move(scopeCollections)});
     }
+
+    // Now build the collection id to collection-entry map
+    buildCollectionIdToEntryMap();
 }
 
 void Manifest::addCollectionStats(KVBucket& bucket,
@@ -418,15 +435,14 @@ void Manifest::addCollectionStats(KVBucket& bucket,
                             cookie,
                             cb::rbac::Privilege::SimpleStats,
                             scope.first,
-                            entry.id) != cb::engine_errc::success) {
+                            entry.cid) != cb::engine_errc::success) {
                     continue; // skip this collection
                 }
-                const auto& name = collections.at(entry.id).name;
-                const auto cid = entry.id.to_string();
+                const auto cid = entry.cid.to_string();
 
                 fmt::memory_buffer key;
                 format_to(key, "{}:{}:name", scope.first.to_string(), cid);
-                addStat({key.data(), key.size()}, name);
+                addStat({key.data(), key.size()}, entry.name);
 
                 if (entry.maxTtl) {
                     key.resize(0);
@@ -484,12 +500,13 @@ void Manifest::addScopeStats(KVBucket& bucket,
                                            cookie);
             // add each collection name and id
             for (const auto& colEntry : entry.second.collections) {
-                auto colName = findCollection(colEntry.id)->second.name;
-
                 buf.resize(0);
-                fmt::format_to(buf, "{}:{}:name", sid, colEntry.id.to_string());
-                add_casted_stat(
-                        {buf.data(), buf.size()}, colName, add_stat, cookie);
+                fmt::format_to(
+                        buf, "{}:{}:name", sid, colEntry.cid.to_string());
+                add_casted_stat({buf.data(), buf.size()},
+                                colEntry.name,
+                                add_stat,
+                                cookie);
             }
         }
     } catch (const std::exception& e) {
@@ -525,11 +542,8 @@ std::optional<CollectionID> Manifest::getCollectionID(
                 scope.to_string());
     }
     for (const auto& c : scopeItr->second.collections) {
-        auto cItr = collections.find(c.id);
-        if (cItr != collections.end()) {
-            if (cItr->second.name == collection) {
-                return c.id;
-            }
+        if (c.name == collection) {
+            return c.cid;
         }
     }
 
@@ -561,15 +575,7 @@ std::optional<ScopeID> Manifest::getScopeID(std::string_view path) const {
 }
 
 std::optional<ScopeID> Manifest::getScopeID(const DocKey& key) const {
-    if (key.isInDefaultCollection() && defaultCollectionExists) {
-        return ScopeID{ScopeID::Default};
-    } else {
-        auto itr = collections.find(key.getCollectionID());
-        if (itr != collections.end()) {
-            return itr->second.sid;
-        }
-    }
-    return {};
+    return getScopeID(key.getCollectionID());
 }
 
 std::optional<ScopeID> Manifest::getScopeID(CollectionID cid) const {
@@ -589,7 +595,8 @@ void Manifest::dump() const {
 }
 
 bool CollectionEntry::operator==(const CollectionEntry& other) const {
-    return id == other.id && maxTtl == other.maxTtl;
+    return cid == other.cid && name == other.name && sid == other.sid &&
+           maxTtl == other.maxTtl;
 }
 
 bool Scope::operator==(const Scope& other) const {
@@ -608,14 +615,12 @@ bool Scope::operator==(const Scope& other) const {
     return equal;
 }
 
-bool Manifest::Collection::operator==(const Manifest::Collection& other) const {
-    return sid == other.sid && name == other.name;
-}
 
 bool Manifest::operator==(const Manifest& other) const {
     bool equal = defaultCollectionExists == other.defaultCollectionExists;
     equal &= uid == other.uid;
-    equal &= scopes == other.scopes && collections == other.collections;
+    equal &= scopes == other.scopes &&
+             collections.size() == other.collections.size();
     return equal;
 }
 
@@ -647,17 +652,36 @@ cb::engine_error Manifest::isSuccessor(const Manifest& successor) const {
         for (const auto& [cid, collection] : collections) {
             auto itr = successor.findCollection(cid);
             if (itr != successor.end()) {
-                // Name and scope-id must be equal
+                // CollectionEntry must be equal (no maxTTL changes either)
                 if (collection != itr->second) {
                     return cb::engine_error(
                             cb::engine_errc::cannot_apply_collections_manifest,
                             "invalid collection change detected "
                             "cid:" + cid.to_string() +
-                                    ", name:" + collection.name +
-                                    ", sid:" + collection.sid.to_string() +
+                                    ", name:" + collection.name + ", sid:" +
+                                    collection.sid.to_string() + ", maxTTL:" +
+                                    (collection.maxTtl.has_value() ? "yes"
+                                                                   : "no") +
+                                    ":" +
+                                    std::to_string(
+                                            collection.maxTtl
+                                                    .value_or(
+                                                            std::chrono::
+                                                                    seconds{0})
+                                                    .count()) +
                                     ", new-name:" + itr->second.name +
                                     ", new-sid: " +
-                                    itr->second.sid.to_string());
+                                    itr->second.sid.to_string() +
+                                    ", new-maxTTL:" +
+                                    (itr->second.maxTtl.has_value() ? "yes"
+                                                                    : "no") +
+                                    ":" +
+                                    std::to_string(
+                                            itr->second.maxTtl
+                                                    .value_or(
+                                                            std::chrono::
+                                                                    seconds{0})
+                                                    .count()));
                 }
             } // else this cid has been removed and that's fine
         }
@@ -680,6 +704,7 @@ cb::engine_error Manifest::isSuccessor(const Manifest& successor) const {
 bool Manifest::isEpoch() const {
     // uid of 0, 1 scope and 1 collection
     if (uid == 0 && scopes.size() == 1 && collections.size() == 1) {
+        // The default scope and the default collection
         const auto scope = findScope(ScopeID::Default);
         return defaultCollectionExists && scope != scopes.end() &&
                scope->second.name == DefaultScopeIdentifier;
@@ -696,10 +721,23 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
         os << "scope:{" << std::hex << entry.first << ", " << entry.second.name
            << ", collections:[";
         for (const auto& collection : entry.second.collections) {
-            os << "{" << std::hex << collection.id << ", sid:" << std::hex
-               << manifest.collections.at(collection.id).sid << ", "
-               << manifest.collections.at(collection.id).name << "}";
+            os << "{cid:" << collection.cid.to_string() << ", sid:" << std::hex
+               << collection.sid << ", " << collection.name
+               << ", ttl:" << (collection.maxTtl.has_value() ? "yes" : "no")
+               << ":"
+               << collection.maxTtl.value_or(std::chrono::seconds(0)).count()
+               << "}";
         }
+        os << "]\n";
+    }
+
+    for (const auto& [key, collection] : manifest.collections) {
+        os << "{cid key:" << key.to_string()
+           << ", value:" << collection.cid.to_string() << ", sid:" << std::hex
+           << collection.sid << ", " << collection.name
+           << ", ttl:" << (collection.maxTtl.has_value() ? "yes" : "no") << ":"
+           << collection.maxTtl.value_or(std::chrono::seconds(0)).count()
+           << "}";
         os << "]\n";
     }
     return os;
