@@ -195,6 +195,12 @@ static cb::mcbp::Status subdoc_validator(Cookie& cookie,
         return cb::mcbp::Status::Einval;
     }
 
+    // Check all mandatory flags are specified
+    if ((subdoc_flags & traits.mandatory_flags) != traits.mandatory_flags) {
+        cookie.setErrorContext("Request missing mandatory flags");
+        return cb::mcbp::Status::Einval;
+    }
+
     const auto doc_flags = parser.getDocFlag();
     if ((doc_flags & ~traits.valid_doc_flags) != mcbp::subdoc::doc_flag::None) {
         cookie.setErrorContext("Request document flags invalid");
@@ -400,6 +406,12 @@ static cb::mcbp::Status is_valid_multipath_spec(
     // Check only valid flags are specified.
     if ((flags & ~op_traits.valid_flags) != 0) {
         cookie.setErrorContext("Request flags invalid");
+        return cb::mcbp::Status::Einval;
+    }
+
+    // Check all mandatory flags are specified
+    if ((flags & op_traits.mandatory_flags) != op_traits.mandatory_flags) {
+        cookie.setErrorContext("Request missing mandatory flags");
         return cb::mcbp::Status::Einval;
     }
 
