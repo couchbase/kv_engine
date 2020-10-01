@@ -75,4 +75,11 @@ public:
             std::function<void()> hook);
 
     void removeMakeCompactionContextCallback();
+
+    void completeBGFetchMulti(
+            Vbid vbId,
+            std::vector<bgfetched_item_t>& fetchedItems,
+            std::chrono::steady_clock::time_point start) override;
+
+    std::function<void(Vbid)> completeBGFetchMultiHook;
 };

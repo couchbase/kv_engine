@@ -76,6 +76,15 @@ void VBReadyQueue::clear() {
     queuedValues.clear();
 }
 
+std::queue<Vbid> VBReadyQueue::swap() {
+    LockHolder lh(lock);
+    std::queue<Vbid> result;
+    readyQueue.swap(result);
+    queuedValues.clear();
+
+    return result;
+}
+
 void VBReadyQueue::addStats(const std::string& prefix,
                             const AddStatFn& add_stat,
                             const void* c) const {

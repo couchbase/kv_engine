@@ -5330,6 +5330,54 @@ TEST_P(STParamPersistentBucketTest,
     testAbortDoesNotIncrementOpsDelete(false /*flusherDedup*/);
 }
 
+TEST_P(STParamPersistentBucketTest, BgFetcherMaintainsVbOrdering) {
+    store->setVBucketState(vbid, vbucket_state_active);
+    flushVBucketToDiskIfPersistent(vbid, 0);
+
+    auto secondVbid = Vbid(engine->getConfiguration().getMaxNumShards());
+    store->setVBucketState(secondVbid, vbucket_state_active);
+    flushVBucketToDiskIfPersistent(secondVbid, 0);
+
+    // Kill the bloom filter
+    resetEngineAndWarmup();
+
+    auto key = makeStoredDocKey("key");
+
+    auto secondVb = store->getVBucket(secondVbid);
+    ASSERT_TRUE(secondVb);
+    auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+    auto gv = store->get(key, secondVbid, cookie, options);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+    EXPECT_TRUE(secondVb->hasPendingBGFetchItems());
+
+    auto newCookie = create_mock_cookie();
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    gv = store->get(key, vbid, newCookie, options);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+    EXPECT_TRUE(vb->hasPendingBGFetchItems());
+
+    dynamic_cast<MockEPBucket*>(store)->completeBGFetchMultiHook =
+            [this, vb, secondVb](Vbid itrVb) {
+                if (itrVb == vbid) {
+                    EXPECT_FALSE(secondVb->hasPendingBGFetchItems());
+                }
+                if (itrVb == secondVb->getId()) {
+                    EXPECT_TRUE(vb->hasPendingBGFetchItems());
+                }
+            };
+
+    // Add two vBuckets to the queue, the one that would typically be sorted
+    // last, first.
+
+    // Test that the insertion ordering is maintained
+    runBGFetcherTask();
+
+    destroy_mock_cookie(newCookie);
+}
+
 /**
  * Check that when persisting a delete and the flush fails:
  *  - flush-stats are not updated

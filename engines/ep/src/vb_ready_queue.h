@@ -70,6 +70,11 @@ public:
      */
     void clear();
 
+    /**
+     * Pop the contents of the queue into another and return that
+     */
+    std::queue<Vbid> swap();
+
     void addStats(const std::string& prefix,
                   const AddStatFn& add_stat,
                   const void* c) const;

@@ -20,6 +20,7 @@
 #include <set>
 #include <string>
 
+#include "vb_ready_queue.h"
 #include "vbucket.h"
 
 // Forward declarations.
@@ -75,9 +76,9 @@ private:
 
     KVBucket& store;
     size_t taskId;
-    std::mutex queueMutex;
     EPStats &stats;
 
     std::atomic<bool> pendingFetch;
-    std::set<Vbid> pendingVbs;
+
+    VBReadyQueue queue;
 };

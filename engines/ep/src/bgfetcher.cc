@@ -32,13 +32,12 @@ BgFetcher::BgFetcher(KVBucket& s) : BgFetcher(s, s.getEPEngine().getEpStats()) {
 }
 
 BgFetcher::~BgFetcher() {
-    LockHolder lh(queueMutex);
-    if (!pendingVbs.empty()) {
+    if (!queue.empty()) {
         EP_LOG_DEBUG(
                 "Terminating database reader without completing "
                 "background fetches for {} vbuckets.",
-                pendingVbs.size());
-        pendingVbs.clear();
+                queue.size());
+        queue.clear();
     }
 }
 
@@ -57,10 +56,7 @@ void BgFetcher::stop() {
 }
 
 void BgFetcher::addPendingVB(Vbid vbid) {
-    { // Scope for queueMutex
-        LockHolder lh(queueMutex);
-        pendingVbs.insert(vbid);
-    }
+    queue.pushUnique(vbid);
     ++stats.numRemainingBgItems;
     wakeUpTaskIfSnoozed();
 }
@@ -135,31 +131,28 @@ bool BgFetcher::run(GlobalTask *task) {
     task->snooze(INT_MAX);
     pendingFetch.store(false);
 
-    std::vector<Vbid> bg_vbs(pendingVbs.size());
-    {
-        LockHolder lh(queueMutex);
-        bg_vbs.assign(pendingVbs.begin(), pendingVbs.end());
-        pendingVbs.clear();
-    }
+    auto vbs = queue.swap();
 
     size_t num_fetched_items = 0;
 
-    for (const auto vbId : bg_vbs) {
-        VBucketPtr vb = store.getVBucket(vbId);
+    // Iterate as many items as we had in the queue originally (to avoid
+    // starving anything else on this thread pool)
+    while (!vbs.empty()) {
+        auto vbid = vbs.front();
+        vbs.pop();
+
+        auto vb = store.getVBucket(vbid);
         if (vb) {
             // Requeue the bg fetch task if vbucket DB file is not created yet.
             if (vb->isBucketCreation()) {
-                {
-                    LockHolder lh(queueMutex);
-                    pendingVbs.insert(vbId);
-                }
+                queue.pushUnique(vbid);
                 wakeUpTaskIfSnoozed();
                 continue;
             }
 
             auto items = vb->getBGFetchItems();
             if (!items.empty()) {
-                num_fetched_items += doFetch(vbId, items);
+                num_fetched_items += doFetch(vbid, items);
             }
         }
     }

@@ -128,3 +128,13 @@ void MockEPBucket::setCollectionsManagerPreSetStateAtWarmupHook(
     Expects(collectionsManager.get());
     collectionsManager->preSetStateAtWarmupHook = hook;
 }
+
+void MockEPBucket::completeBGFetchMulti(
+        Vbid vbId,
+        std::vector<bgfetched_item_t>& fetchedItems,
+        std::chrono::steady_clock::time_point start) {
+    if (completeBGFetchMultiHook) {
+        completeBGFetchMultiHook(vbId);
+    }
+    EPBucket::completeBGFetchMulti(vbId, fetchedItems, start);
+}
