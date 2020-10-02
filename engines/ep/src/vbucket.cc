@@ -3071,7 +3071,7 @@ void VBucket::collectionsRolledBack(KVStore& kvstore) {
         auto stats =
                 kvstore.getCollectionStats(*kvstoreContext, collection.first);
         if (stats) {
-            collection.second.setDiskCount(stats->itemCount);
+            collection.second.setItemCount(stats->itemCount);
             collection.second.setDiskSize(stats->diskSize);
             collection.second.resetPersistedHighSeqno(stats->highSeqno);
             collection.second.resetHighSeqno(
@@ -3763,9 +3763,9 @@ void VBucket::doCollectionsStats(
     cHandle.setHighSeqno(notifyCtx.bySeqno);
 
     if (notifyCtx.itemCountDifference == 1) {
-        cHandle.incrementDiskCount();
+        cHandle.incrementItemCount();
     } else if (notifyCtx.itemCountDifference == -1) {
-        cHandle.decrementDiskCount();
+        cHandle.decrementItemCount();
     }
 }
 
@@ -3775,9 +3775,9 @@ void VBucket::doCollectionsStats(const Collections::VB::ReadHandle& readHandle,
     readHandle.setHighSeqno(collection, notifyCtx.bySeqno);
 
     if (notifyCtx.itemCountDifference == 1) {
-        readHandle.incrementDiskCount(collection);
+        readHandle.incrementItemCount(collection);
     } else if (notifyCtx.itemCountDifference == -1) {
-        readHandle.decrementDiskCount(collection);
+        readHandle.decrementItemCount(collection);
     }
 }
 

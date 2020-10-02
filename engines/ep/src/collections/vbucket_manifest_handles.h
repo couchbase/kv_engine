@@ -153,12 +153,12 @@ public:
         manifest->setHighSeqno(collection, value);
     }
 
-    void incrementDiskCount(CollectionID collection) const {
-        manifest->incrementDiskCount(collection);
+    void incrementItemCount(CollectionID collection) const {
+        manifest->incrementItemCount(collection);
     }
 
-    void decrementDiskCount(CollectionID collection) const {
-        manifest->decrementDiskCount(collection);
+    void decrementItemCount(CollectionID collection) const {
+        manifest->decrementItemCount(collection);
     }
 
     bool addCollectionStats(Vbid vbid,
@@ -295,13 +295,13 @@ public:
      *
      * increment the key's collection item count by 1
      */
-    void incrementDiskCount() const {
+    void incrementItemCount() const {
         // We may be flushing keys written to a dropped collection so can
         // have an invalid iterator or the id is not mapped (system)
         if (!valid()) {
             return;
         }
-        return manifest->incrementDiskCount(itr);
+        return manifest->incrementItemCount(itr);
     }
 
     /**
@@ -313,13 +313,13 @@ public:
      *
      * decrement the key's collection item count by 1
      */
-    void decrementDiskCount() const {
+    void decrementItemCount() const {
         // We may be flushing keys written to a dropped collection so can
         // have an invalid iterator or the id is not mapped (system)
         if (!valid()) {
             return;
         }
-        return manifest->decrementDiskCount(itr);
+        return manifest->decrementItemCount(itr);
     }
 
     /**

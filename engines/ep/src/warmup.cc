@@ -1167,7 +1167,7 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
             auto stats = kvstore->getCollectionStats(*kvstoreContext,
                                                      collection.first);
             if (stats) {
-                collection.second.setDiskCount(stats->itemCount);
+                collection.second.setItemCount(stats->itemCount);
                 collection.second.setPersistedHighSeqno(stats->highSeqno);
                 collection.second.setDiskSize(stats->diskSize);
                 // Set the in memory high seqno - might be 0 in the case of the

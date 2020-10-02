@@ -62,14 +62,14 @@ public:
     bool isLogicallyDeleted(uint64_t seqno) const;
 
     /**
-     * Increment the 'disk' count for the collection associated with the key
+     * Increment the item count for the collection associated with the key
      */
-    void incrementDiskCount();
+    void incrementItemCount();
 
     /**
-     * Decrement the 'disk' count for the collection associated with the key
+     * Decrement the item count for the collection associated with the key
      */
-    void decrementDiskCount();
+    void decrementItemCount();
 
     /**
      * Update the on disk size (bytes) for the collection associated with
@@ -86,15 +86,15 @@ bool StatsUpdate::isLogicallyDeleted(uint64_t seqno) const {
     return handle.isLogicallyDeleted(seqno);
 }
 
-void StatsUpdate::incrementDiskCount() {
+void StatsUpdate::incrementItemCount() {
     if (!handle.getKey().isInSystemCollection()) {
-        handle.incrementDiskCount();
+        handle.incrementItemCount();
     }
 }
 
-void StatsUpdate::decrementDiskCount() {
+void StatsUpdate::decrementItemCount() {
     if (!handle.getKey().isInSystemCollection()) {
-        handle.decrementDiskCount();
+        handle.decrementItemCount();
     }
 }
 
@@ -146,7 +146,7 @@ void StatsUpdate::insert(bool isCommitted,
                          bool isDelete,
                          ssize_t diskSizeDelta) {
     if (!isDelete && isCommitted) {
-        incrementDiskCount();
+        incrementItemCount();
     } // else inserting a tombstone or it's a prepare
 
     if (isCommitted) {
@@ -162,7 +162,7 @@ void StatsUpdate::update(bool isCommitted, ssize_t diskSizeDelta) {
 
 void StatsUpdate::remove(bool isCommitted, ssize_t diskSizeDelta) {
     if (isCommitted) {
-        decrementDiskCount();
+        decrementItemCount();
     } // else inserting a tombstone or it's a prepare
 
     if (isCommitted) {

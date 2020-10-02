@@ -23,7 +23,7 @@
 namespace Collections::VB {
 
 PersistedStats StatsReadHandle::getPersistedStats() const {
-    return {itr->second.getDiskCount(),
+    return {itr->second.getItemCount(),
             itr->second.getPersistedHighSeqno(),
             itr->second.getDiskSize()};
 }

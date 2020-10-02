@@ -42,7 +42,7 @@ public:
         : startSeqno(startSeqno),
           scopeID(scopeID),
           maxTtl(std::move(maxTtl)),
-          diskCount(0),
+          itemCount(0),
           highSeqno(startSeqno),
           persistedHighSeqno(startSeqno) {
     }
@@ -81,24 +81,24 @@ public:
         return maxTtl;
     }
 
-    /// increment how many items are stored on disk for this collection
-    void incrementDiskCount() const {
-        diskCount++;
+    /// increment how many items are stored for this collection
+    void incrementItemCount() const {
+        itemCount++;
     }
 
-    /// decrement how many items are stored on disk for this collection
-    void decrementDiskCount() const {
-        diskCount--;
+    /// decrement how many items are stored for this collection
+    void decrementItemCount() const {
+        itemCount--;
     }
 
     /// set how many items this collection has stored
-    void setDiskCount(uint64_t value) {
-        diskCount = value;
+    void setItemCount(uint64_t value) {
+        itemCount = value;
     }
 
-    /// @return how many items are stored on disk for this collection
-    uint64_t getDiskCount() const {
-        return diskCount;
+    /// @return how many items are stored for this collection
+    uint64_t getItemCount() const {
+        return itemCount;
     }
 
     /// decrement the tracked total size (bytes) on disk for this collection
@@ -180,7 +180,7 @@ public:
         return numOpsGet.load();
     }
     AccumulatedStats getStatsForSummary() const {
-        return {getDiskCount(),
+        return {getItemCount(),
                 getDiskSize(),
                 getOpsStore(),
                 getOpsDelete(),
@@ -231,7 +231,7 @@ private:
      *           we can do stats updates as long as the read lock is held.
      *           The write lock is really for the Manifest map being changed.
      */
-    mutable cb::NonNegativeCounter<uint64_t> diskCount;
+    mutable cb::NonNegativeCounter<uint64_t> itemCount;
 
     /**
      * The total size (bytes) of items in this collection on disk

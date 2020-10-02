@@ -31,7 +31,7 @@ Collections::VB::ManifestEntry& Collections::VB::ManifestEntry::operator=(
     startSeqno = other.startSeqno;
     scopeID = other.scopeID;
     maxTtl = other.maxTtl;
-    diskCount = other.diskCount;
+    itemCount = other.itemCount;
     diskSize = other.diskSize;
     highSeqno.reset(other.highSeqno);
     persistedHighSeqno.store(other.persistedHighSeqno,
@@ -46,7 +46,7 @@ bool Collections::VB::ManifestEntry::operator==(
         const ManifestEntry& other) const {
     return scopeID == other.scopeID && startSeqno == other.startSeqno &&
            maxTtl == other.maxTtl && highSeqno == other.highSeqno &&
-           diskCount == other.diskCount && diskSize == other.diskSize &&
+           itemCount == other.itemCount && diskSize == other.diskSize &&
            persistedHighSeqno == other.persistedHighSeqno &&
            numOpsGet == other.numOpsGet && numOpsDelete == other.numOpsDelete &&
            numOpsStore == other.numOpsStore;
@@ -84,7 +84,7 @@ bool Collections::VB::ManifestEntry::addStats(const std::string& cid,
         add_casted_stat(buffer, getPersistedHighSeqno(), add_stat, cookie);
         checked_snprintf(
                 buffer, bsize, "vb_%d:%s:items", vbid.get(), cid.c_str());
-        add_casted_stat(buffer, getDiskCount(), add_stat, cookie);
+        add_casted_stat(buffer, getItemCount(), add_stat, cookie);
 
         if (getMaxTtl()) {
             checked_snprintf(
@@ -109,7 +109,7 @@ std::ostream& Collections::VB::operator<<(
        << ", startSeqno:" << manifestEntry.getStartSeqno()
        << ", highSeqno:" << manifestEntry.getHighSeqno()
        << ", persistedHighSeqno:" << manifestEntry.getPersistedHighSeqno()
-       << ", diskCount:" << manifestEntry.getDiskCount();
+       << ", itemCount:" << manifestEntry.getItemCount();
 
     if (manifestEntry.getMaxTtl()) {
         os << ", maxTtl:" << manifestEntry.getMaxTtl().value().count();

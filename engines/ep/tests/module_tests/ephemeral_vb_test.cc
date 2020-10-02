@@ -99,7 +99,7 @@ TEST_F(EphemeralVBucketTest, DoublePageOut) {
     // EphemeralVB::pageOut will delete the item so to prevent a stat counting
     // underflow we should increment it.
     ASSERT_EQ(0, readHandle.getItemCount(key.getCollectionID()));
-    readHandle.incrementDiskCount(key.getCollectionID());
+    readHandle.incrementItemCount(key.getCollectionID());
     ASSERT_EQ(1, readHandle.getItemCount(key.getCollectionID()));
 
     // Page out the item (once).
@@ -170,7 +170,7 @@ TEST_F(EphemeralVBucketTest, CreatePageoutCreate) {
         // EphemeralVB::pageOut will delete the item so to prevent a stat
         // counting underflow we should increment it.
         ASSERT_EQ(0, readHandle.getItemCount(key.getCollectionID()));
-        readHandle.incrementDiskCount(key.getCollectionID());
+        readHandle.incrementItemCount(key.getCollectionID());
         ASSERT_EQ(1, readHandle.getItemCount(key.getCollectionID()));
 
         auto lock_sv = lockAndFind(key);
@@ -203,7 +203,7 @@ TEST_F(EphemeralVBucketTest, CreatePageoutCreate) {
         // EphemeralVB::pageOut will delete the item so to prevent a stat
         // counting underflow we should increment it.
         ASSERT_EQ(0, readHandle.getItemCount(key.getCollectionID()));
-        readHandle.incrementDiskCount(key.getCollectionID());
+        readHandle.incrementItemCount(key.getCollectionID());
         ASSERT_EQ(1, readHandle.getItemCount(key.getCollectionID()));
 
         auto lock_sv = lockAndFind(key);

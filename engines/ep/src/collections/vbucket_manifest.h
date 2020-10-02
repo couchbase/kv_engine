@@ -436,22 +436,22 @@ protected:
     bool isLogicallyDeleted(const container::const_iterator entry,
                             int64_t seqno) const;
 
-    void incrementDiskCount(const container::const_iterator entry) const {
+    void incrementItemCount(const container::const_iterator entry) const {
         if (entry == map.end()) {
             throwException<std::invalid_argument>(__FUNCTION__,
                                                   "iterator is invalid");
         }
 
-        entry->second.incrementDiskCount();
+        entry->second.incrementItemCount();
     }
 
-    void decrementDiskCount(const container::const_iterator entry) const {
+    void decrementItemCount(const container::const_iterator entry) const {
         if (entry == map.end()) {
             throwException<std::invalid_argument>(__FUNCTION__,
                                                   "iterator is invalid");
         }
 
-        entry->second.decrementDiskCount();
+        entry->second.decrementItemCount();
     }
 
     void updateDiskSize(const container::const_iterator entry,
@@ -570,14 +570,14 @@ protected:
      * called via a ReadHandle because the read lock only ensures the map
      * does not change.
      */
-    void incrementDiskCount(CollectionID collection) const;
+    void incrementItemCount(CollectionID collection) const;
 
     /**
      * Decrement the item count for the given collection. Const and can be
      * called via a ReadHandle because the read lock only ensures the map
      * does not change.
      */
-    void decrementDiskCount(CollectionID collection) const;
+    void decrementItemCount(CollectionID collection) const;
 
     container::const_iterator end() const {
         return map.end();

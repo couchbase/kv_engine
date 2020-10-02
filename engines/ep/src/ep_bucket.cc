@@ -1526,7 +1526,7 @@ public:
                     vb->incrNumTotalItems();
                     vb->getManifest()
                             .lock(preRbSeqnoItem->getKey())
-                            .incrementDiskCount();
+                            .incrementItemCount();
                 }
             }
         } else if (preRbSeqnoGetValue.getStatus() == ENGINE_KEY_ENOENT) {
@@ -1557,7 +1557,7 @@ public:
             // Irrespective of if the in-memory delete succeeded; the document
             // doesn't exist on disk; so decrement the item count.
             vb.decrNumTotalItems();
-            vb.getManifest().lock(item.getKey()).decrementDiskCount();
+            vb.getManifest().lock(item.getKey()).decrementItemCount();
         }
     }
 

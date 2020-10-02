@@ -739,9 +739,7 @@ uint64_t Manifest::getItemCount(CollectionID collection) const {
                 __FUNCTION__,
                 "failed find of collection:" + collection.to_string());
     }
-    // For now link through to disk count
-    // @todo: ephemeral support
-    return itr->second.getDiskCount();
+    return itr->second.getItemCount();
 }
 
 uint64_t Manifest::getHighSeqno(CollectionID collection) const {
@@ -789,24 +787,24 @@ void Manifest::setPersistedHighSeqno(CollectionID collection,
     itr->second.setPersistedHighSeqno(value);
 }
 
-void Manifest::incrementDiskCount(CollectionID collection) const {
+void Manifest::incrementItemCount(CollectionID collection) const {
     auto itr = map.find(collection);
     if (itr == map.end()) {
         throwException<std::invalid_argument>(
                 __FUNCTION__,
                 "failed find of collection:" + collection.to_string());
     }
-    return itr->second.incrementDiskCount();
+    return itr->second.incrementItemCount();
 }
 
-void Manifest::decrementDiskCount(CollectionID collection) const {
+void Manifest::decrementItemCount(CollectionID collection) const {
     auto itr = map.find(collection);
     if (itr == map.end()) {
         throwException<std::invalid_argument>(
                 __FUNCTION__,
                 "failed find of collection:" + collection.to_string());
     }
-    return itr->second.decrementDiskCount();
+    return itr->second.decrementItemCount();
 }
 
 bool Manifest::addCollectionStats(Vbid vbid,
@@ -874,7 +872,7 @@ bool Manifest::addScopeStats(Vbid vbid,
                          vbid.get(),
                          entry.getScopeID().to_string().c_str(),
                          cid.to_string().c_str());
-        add_casted_stat(buffer, entry.getDiskCount(), add_stat, cookie);
+        add_casted_stat(buffer, entry.getItemCount(), add_stat, cookie);
     }
 
     return true;
