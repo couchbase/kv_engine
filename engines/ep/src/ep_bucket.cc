@@ -252,7 +252,12 @@ EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
     replicationThrottle = std::make_unique<ReplicationThrottleEP>(
             engine.getConfiguration(), stats);
 
-    for (size_t i = 0; i < vbMap.getNumShards(); i++) {
+    // Pre 7.0.0 Flushers were a part of KVShard so keep the same default
+    // scaling.
+    auto configFlusherLimit = config.getMaxNumFlushers();
+    auto flusherLimit =
+            configFlusherLimit == 0 ? vbMap.getNumShards() : configFlusherLimit;
+    for (size_t i = 0; i < flusherLimit; i++) {
         flushers.emplace_back(std::make_unique<Flusher>(this, i));
     }
 
