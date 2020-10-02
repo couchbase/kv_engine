@@ -150,7 +150,7 @@ void Flush::notifyManifestOfAnyDroppedCollections() {
 }
 
 void Flush::checkAndTriggerPurge(Vbid vbid, KVBucket& bucket) const {
-    if (needsPurge) {
+    if (!droppedCollections.empty()) {
         triggerPurge(vbid, bucket);
     }
 }

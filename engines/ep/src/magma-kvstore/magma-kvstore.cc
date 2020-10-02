@@ -2158,18 +2158,12 @@ void MagmaKVStore::updateCollectionsMeta(
         Collections::VB::Flush& collectionsFlush) {
     updateManifestUid(localDbReqs, collectionsFlush);
 
-    // If the updateOpenCollections reads the dropped collections, it can pass
-    // them via this optional to updateDroppedCollections, thus we only read
-    // the dropped list once per update.
-    std::optional<std::vector<Collections::KVStore::DroppedCollection>> dropped;
-
     if (collectionsFlush.isOpenCollectionsChanged()) {
         updateOpenCollections(vbid, localDbReqs, collectionsFlush);
     }
 
     if (collectionsFlush.isDroppedCollectionsChanged()) {
         updateDroppedCollections(vbid, localDbReqs, collectionsFlush);
-        collectionsFlush.setNeedsPurge();
     }
 
     if (collectionsFlush.isScopesChanged()) {

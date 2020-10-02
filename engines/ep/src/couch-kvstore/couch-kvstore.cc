@@ -3623,7 +3623,6 @@ void CouchKVStore::updateCollectionsMeta(
 
     if (collectionsFlush.isDroppedCollectionsChanged()) {
         updateDroppedCollections(db, collectionsFlush);
-        collectionsFlush.setNeedsPurge();
     }
 
     if (collectionsFlush.isScopesChanged()) {

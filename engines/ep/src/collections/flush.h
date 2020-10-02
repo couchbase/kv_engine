@@ -121,10 +121,6 @@ public:
      */
     static void triggerPurge(Vbid vbid, KVBucket& bucket);
 
-    void setNeedsPurge() {
-        needsPurge = true;
-    }
-
     /**
      * Set that the KVStore needs to commit the data held in this object.
      */
@@ -401,12 +397,6 @@ private:
      * count updates
      */
     Manifest& manifest;
-
-    /**
-     * Set to true when any collection was dropped by the flusher and purging is
-     * required to remove all items of the dropped collection(s)
-     */
-    bool needsPurge = false;
 
     /**
      * Set to true when any of the fields in this structure have data which
