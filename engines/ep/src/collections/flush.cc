@@ -475,6 +475,14 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
 
 flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
         std::vector<Collections::KVStore::DroppedCollection>& existingDropped) {
+    flatbuffers::FlatBufferBuilder builder;
+    std::vector<flatbuffers::Offset<Collections::KVStore::Dropped>> output;
+
+    // Add Collection's to this set only if they are in both old and new
+    // sets of dropped collections - this ensures we generate it once into
+    // the new output.
+    std::unordered_set<CollectionID> skip;
+
     // Iterate through the existing dropped collections and look each up in the
     // commit metadata. If the collection is in both lists, we will just update
     // the existing data (adjusting the endSeqno) and then erase the collection
@@ -482,37 +490,34 @@ flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
     for (auto& collection : existingDropped) {
         if (auto itr = droppedCollections.find(collection.collectionId);
             itr != droppedCollections.end()) {
+            // Collection is in both old and new 'sets' of dropped collections
+            // we only want it in the output once - update the end-seqno here
+            // and add to skip set
             collection.endSeqno = itr->second.endSeqno;
-
-            // Now kick the collection out of collectionsMeta, its contribution
-            // to the final output is complete
-            droppedCollections.erase(itr);
+            skip.emplace(collection.collectionId);
         }
+        auto newEntry = Collections::KVStore::CreateDropped(
+                builder,
+                collection.startSeqno,
+                collection.endSeqno,
+                uint32_t(collection.collectionId));
+        output.push_back(newEntry);
     }
 
-    flatbuffers::FlatBufferBuilder builder;
-    std::vector<flatbuffers::Offset<Collections::KVStore::Dropped>> output;
-
-    // Now merge, first the newly dropped collections
-    // Iterate  through the list collections dropped in the commit batch and
+    // Now add the newly dropped collections
+    // Iterate through the set of collections dropped in the commit batch and
     // and create flatbuffer versions of each one
     for (const auto& [cid, dropped] : droppedCollections) {
         (void)cid;
+        if (skip.count(cid) > 0) {
+            // This collection is already in output
+            continue;
+        }
         auto newEntry = Collections::KVStore::CreateDropped(
                 builder,
                 dropped.startSeqno,
                 dropped.endSeqno,
                 uint32_t(dropped.collectionId));
-        output.push_back(newEntry);
-    }
-
-    // and now copy across the existing dropped collections
-    for (const auto& entry : existingDropped) {
-        auto newEntry = Collections::KVStore::CreateDropped(
-                builder,
-                entry.startSeqno,
-                entry.endSeqno,
-                uint32_t(entry.collectionId));
         output.push_back(newEntry);
     }
 
