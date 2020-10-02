@@ -22,6 +22,7 @@
 #include "checkpoint.h"
 #include "checkpoint_config.h"
 #include "checkpoint_manager.h"
+#include "collections/vbucket_manifest_entry.h"
 #include "common.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "dcp/response.h"
@@ -129,6 +130,8 @@ int main(int, char **) {
     display("DcpResponse", sizeof(DcpResponse));
     display("MutationResponse", sizeof(MutationResponse));
     display("queued_item", sizeof(queued_item));
+    display("Collections::VB::ManifestEntry",
+            sizeof(Collections::VB::ManifestEntry));
 
     std::cout << std::endl << "Histogram Ranges" << std::endl << std::endl;
 
