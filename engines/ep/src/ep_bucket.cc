@@ -1564,9 +1564,6 @@ public:
             // Irrespective of if the in-memory delete succeeded; the document
             // doesn't exist on disk; so decrement the item count.
             vb.decrNumTotalItems();
-            // @todo: investigate if this is needed. Once rollback is done we
-            // reset all collections stats from the rollback point
-            vb.getManifest().lock(item.getKey()).decrementItemCount();
         }
     }
 
