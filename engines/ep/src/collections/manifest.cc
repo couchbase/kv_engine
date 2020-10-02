@@ -244,7 +244,8 @@ void Manifest::enableDefaultCollection(CollectionID identifier) {
 bool Manifest::validName(std::string_view name) {
     // $ prefix is currently reserved for future use
     // Name cannot be empty
-    if (name.empty() || name.size() > MaxCollectionNameSize || name[0] == '$') {
+    if (name.empty() || name.size() > MaxScopeOrCollectionNameSize ||
+        name[0] == '$') {
         return false;
     }
     // Check rest of the characters for validity

@@ -31,7 +31,7 @@ class KVBucket;
 
 namespace Collections {
 
-static const size_t MaxCollectionNameSize = 30;
+static const size_t MaxScopeOrCollectionNameSize = 251;
 
 struct CollectionEntry {
     CollectionID id;

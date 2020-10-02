@@ -239,7 +239,7 @@ TEST(ManifestTest, validation) {
                 "collections":[{"name":"", "uid":"8"}]}]})",
             R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
-                "collections":[{"name":"name_is_far_too_long_for_collections",
+                "collections":[{"name":"name_is_far_too_long_for_collections________________________________________________________________________________________________________________________________________________________________________________________________________________________",
                 "uid":"8"}]}]})",
             R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
@@ -258,7 +258,8 @@ TEST(ManifestTest, validation) {
             R"({"uid" : "1",
                 "scopes":[
                     {"name":"_default", "uid":"0", "collections":[]},
-                    {"name":"name_is_far_too_long_for_collections", "uid":"8",
+                    {"name":"name_is_far_too_long_for_collections________________________________________________________________________________________________________________________________________________________________________________________________________________________",
+                        "uid":"8",
                         "collections":[]}]})",
             R"({"uid" : "1",
                 "scopes":[
