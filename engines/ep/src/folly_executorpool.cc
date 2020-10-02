@@ -468,6 +468,24 @@ struct FollyExecutorPool::State {
         return taskOwners;
     }
 
+    /**
+     * @returns counts of how many tasks are waiting to run
+     * (isScheduled() == true) for each task group.
+     */
+    std::array<int, NUM_TASK_GROUPS> getWaitingTasksPerGroup() {
+        std::array<int, NUM_TASK_GROUPS> waitingTasksPerGroup;
+        for (const auto& owner : taskOwners) {
+            for (const auto& task : owner.second) {
+                if (task.second->isScheduled()) {
+                    const auto type = GlobalTask::getTaskType(
+                            task.second->task->getTaskId());
+                    waitingTasksPerGroup[type]++;
+                }
+            }
+        }
+        return waitingTasksPerGroup;
+    }
+
 private:
     /// Map of registered task owners (Taskables) to the Tasks they own.
     TaskOwnerMap taskOwners;
@@ -819,30 +837,19 @@ void FollyExecutorPool::doTaskQStat(Taskable& taskable,
                                     const AddStatFn& add_stat) {
     NonBucketAllocationGuard guard;
 
-    // Take a copy of the taskOwners map (so we don't have to acquire any
-    // locks etc to calculate stats).
-    auto* eventBase = futurePool->getEventBase();
-    TaskOwnerMap taskOwnersCopy;
-    eventBase->runInEventBaseThreadAndWait(
-            [state = this->state.get(), &taskOwnersCopy] {
-                taskOwnersCopy = state->copyTaskOwners();
-            });
-
     // Count how many tasks of each type are waiting to run - defined by
     // having an outstanding timeout.
     // Note: This mimics the behaviour of CB3ExecutorPool, which counts _all_
     // tasks across all taskables. This may or may not be the correct
     // behaviour...
+    // The counting is done on the eventbase thread given it would be
+    // racy to directly access the taskOwners from this thread.
+    auto* eventBase = futurePool->getEventBase();
     std::array<int, NUM_TASK_GROUPS> waitingTasksPerGroup;
-    for (const auto& owner : taskOwnersCopy) {
-        for (const auto& task : owner.second) {
-            if (task.second->isScheduled()) {
-                const auto type =
-                        GlobalTask::getTaskType(task.second->task->getTaskId());
-                waitingTasksPerGroup[type]++;
-            }
-        }
-    }
+    eventBase->runInEventBaseThreadAndWait(
+            [state = this->state.get(), &waitingTasksPerGroup] {
+                waitingTasksPerGroup = state->getWaitingTasksPerGroup();
+            });
 
     // Currently FollyExecutorPool implements a single task queue (per task
     // type) - report that as low priority.
