@@ -19,6 +19,7 @@
 
 #include "kv_bucket.h"
 
+class BgFetcher;
 namespace Collections::VB {
 class Flush;
 }
@@ -236,6 +237,8 @@ public:
             const void* cookie,
             std::unique_ptr<Collections::Manifest>& newManifest) override;
 
+    BgFetcher& getBgFetcher(Vbid vbid);
+
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be
@@ -333,6 +336,8 @@ protected:
     cb::RelaxedAtomic<bool> retainErroneousTombstones;
 
     std::unique_ptr<Warmup> warmupTask;
+
+    std::vector<std::unique_ptr<BgFetcher>> bgFetchers;
 };
 
 std::ostream& operator<<(std::ostream& os, const EPBucket::FlushResult& res);

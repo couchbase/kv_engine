@@ -37,7 +37,7 @@ void EPVBucketTest::TearDown() {
 size_t EPVBucketTest::public_queueBGFetchItem(
         const DocKey& key,
         std::unique_ptr<BGFetchItem> fetchItem,
-        BgFetcher* bgFetcher) {
+        BgFetcher& bgFetcher) {
     return dynamic_cast<EPVBucket&>(*vbucket).queueBGFetchItem(
             key, std::move(fetchItem), bgFetcher);
 }
@@ -63,7 +63,7 @@ TEST_P(EPVBucketTest, GetBGFetchItemsPerformance) {
                                                       /*isMeta*/ false);
         this->public_queueBGFetchItem(makeStoredDocKey(std::to_string(ii)),
                                       std::move(fetchItem),
-                                      &bgFetcher);
+                                      bgFetcher);
     }
     auto items = this->vbucket->getBGFetchItems();
 }

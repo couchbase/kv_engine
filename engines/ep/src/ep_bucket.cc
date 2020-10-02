@@ -266,6 +266,9 @@ EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
             engine.getConfiguration(), stats);
 
     vbMap.enablePersistence(*this);
+    for (size_t i = 0; i < vbMap.getNumShards(); i++) {
+        bgFetchers.emplace_back(std::make_unique<BgFetcher>(*this));
+    }
 
     setFlusherBatchSplitTrigger(config.getFlusherTotalBatchLimit());
     config.addValueChangedListener(
@@ -948,21 +951,16 @@ void EPBucket::wakeUpFlusher() {
 }
 
 bool EPBucket::startBgFetcher() {
-    for (const auto& shard : vbMap.shards) {
-        BgFetcher* bgfetcher = shard->getBgFetcher();
-        if (bgfetcher == NULL) {
-            EP_LOG_WARN("Failed to start bg fetcher for shard {}",
-                        shard->getId());
-            return false;
-        }
-        bgfetcher->start();
+    for (const auto& bgFetcher : bgFetchers) {
+        bgFetcher->start();
     }
     return true;
 }
 
 void EPBucket::stopBgFetcher() {
+    EP_LOG_INFO("Stopping bg fetchers");
+
     for (const auto& shard : vbMap.shards) {
-        BgFetcher* bgfetcher = shard->getBgFetcher();
         for (const auto vbid : shard->getVBuckets()) {
             VBucketPtr vb = shard->getBucket(vbid);
             if (vb && vb->hasPendingBGFetchItems()) {
@@ -974,9 +972,10 @@ void EPBucket::stopBgFetcher() {
                 break;
             }
         }
+    }
 
-        EP_LOG_INFO("Stopping bg fetcher for shard:{}", shard->getId());
-        bgfetcher->stop();
+    for (const auto& bgFetcher : bgFetchers) {
+        bgFetcher->stop();
     }
 }
 
@@ -1353,6 +1352,7 @@ VBucketPtr EPBucket::makeVBucket(
                                     engine.getConfiguration(),
                                     eviction_policy,
                                     std::move(manifest),
+                                    this,
                                     initState,
                                     purgeSeqno,
                                     maxCas,
@@ -2040,4 +2040,11 @@ std::ostream& operator<<(std::ostream& os, const EPBucket::FlushResult& res) {
        << "wakeupCkptRemover:{"
        << (res.wakeupCkptRemover == EPBucket::WakeCkptRemover::Yes) << "}";
     return os;
+}
+
+BgFetcher& EPBucket::getBgFetcher(Vbid vbid) {
+    // For now we just use modulo, same as we do/would for shards to pick out
+    // the associated BgFetcher
+    auto id = vbid.get() % bgFetchers.size();
+    return *bgFetchers.at(id);
 }

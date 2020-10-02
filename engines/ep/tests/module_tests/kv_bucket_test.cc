@@ -34,6 +34,7 @@
 #include "ep_bucket.h"
 #include "ep_engine.h"
 #include "ep_time.h"
+#include "ep_vb.h"
 #include "evp_store_single_threaded_test.h"
 #include "failover-table.h"
 #include "fakes/fake_executorpool.h"
@@ -302,7 +303,10 @@ bool KVBucketTest::isItemFreqDecayerTaskSnoozed() const {
 void KVBucketTest::runBGFetcherTask() {
     MockGlobalTask mockTask(engine->getTaskable(),
                             TaskId::MultiBGFetcherTask);
-    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    auto* epVb = dynamic_cast<EPVBucket*>(vb.get());
+    epVb->getBgFetcher().run(&mockTask);
 }
 
 /**

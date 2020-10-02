@@ -18,7 +18,6 @@
 #include <functional>
 #include <memory>
 
-#include "bgfetcher.h"
 #include "couch-kvstore/couch-kvstore-config.h"
 #include "ep_bucket.h"
 #include "ep_engine.h"
@@ -84,7 +83,6 @@ KVShard::KVShard(EventuallyPersistentEngine& engine, id_type id)
 
 void KVShard::enablePersistence(EPBucket& ep) {
     flusher = std::make_unique<Flusher>(&ep, this);
-    bgFetcher = std::make_unique<BgFetcher>(ep);
 }
 
 // Non-inline destructor so we can destruct
@@ -93,10 +91,6 @@ KVShard::~KVShard() = default;
 
 Flusher *KVShard::getFlusher() {
     return flusher.get();
-}
-
-BgFetcher *KVShard::getBgFetcher() {
-    return bgFetcher.get();
 }
 
 VBucketPtr KVShard::getBucket(Vbid id) const {

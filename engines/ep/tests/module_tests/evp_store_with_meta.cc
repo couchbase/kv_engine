@@ -1387,8 +1387,7 @@ TEST_P(DelWithMetaTest, setting_zero_deleteTime) {
                                  metadata,
                                  deleted,
                                  datatype));
-    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
-    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    runBGFetcherTask();
     EXPECT_EQ(ENGINE_SUCCESS,
               store->getMetaData({"mykey", DocKeyEncodesCollectionId::No},
                                  vbid,

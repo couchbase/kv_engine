@@ -38,5 +38,5 @@ public:
     void TearDown() override;
     size_t public_queueBGFetchItem(const DocKey& key,
                                    std::unique_ptr<BGFetchItem> fetchItem,
-                                   BgFetcher* bgFetcher);
+                                   BgFetcher& bgFetcher);
 };

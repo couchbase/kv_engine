@@ -20,8 +20,9 @@
 #include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
 
-struct vbucket_state;
 class BgFetcher;
+class EPBucket;
+struct vbucket_state;
 
 /**
  * Eventually Peristent VBucket (EPVBucket) is a child class of VBucket.
@@ -46,6 +47,7 @@ public:
               Configuration& config,
               EvictionPolicy evictionPolicy,
               std::unique_ptr<Collections::VB::Manifest> manifest,
+              EPBucket* bucket = nullptr,
               vbucket_state_t initState = vbucket_state_dead,
               uint64_t purgeSeqno = 0,
               uint64_t maxCas = 0,
@@ -127,6 +129,8 @@ public:
     KVShard* getShard() override {
         return shard;
     }
+
+    BgFetcher& getBgFetcher();
 
     UniqueDCPBackfillPtr createDCPBackfill(EventuallyPersistentEngine& e,
                                            std::shared_ptr<ActiveStream> stream,
@@ -243,7 +247,7 @@ protected:
      */
     size_t queueBGFetchItem(const DocKey& key,
                             std::unique_ptr<BGFetchItem> fetch,
-                            BgFetcher* bgFetcher);
+                            BgFetcher& bgFetcher);
 
 private:
     std::tuple<StoredValue*, MutationStatus, VBNotifyCtx> updateStoredValue(
@@ -342,6 +346,11 @@ private:
      * file revision we will unlink from disk.
      */
     std::atomic<uint64_t> deferredDeletionFileRevision;
+
+    /**
+     * Should replace KVShard
+     */
+    EPBucket* epBucket;
 
     friend class EPVBucketTest;
 };

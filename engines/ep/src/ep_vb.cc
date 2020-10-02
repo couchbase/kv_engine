@@ -25,6 +25,7 @@
 #include "dcp/backfill_by_seqno_disk.h"
 #include "durability/active_durability_monitor.h"
 #include "durability/passive_durability_monitor.h"
+#include "ep_bucket.h"
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "executorpool.h"
@@ -56,6 +57,7 @@ EPVBucket::EPVBucket(Vbid i,
                      Configuration& config,
                      EvictionPolicy evictionPolicy,
                      std::unique_ptr<Collections::VB::Manifest> manifest,
+                     EPBucket* bucket,
                      vbucket_state_t initState,
                      uint64_t purgeSeqno,
                      uint64_t maxCas,
@@ -87,7 +89,8 @@ EPVBucket::EPVBucket(Vbid i,
               mightContainXattrs,
               replicationTopology,
               maxVisibleSeqno),
-      shard(kvshard) {
+      shard(kvshard),
+      epBucket(bucket) {
 }
 
 EPVBucket::~EPVBucket() {
@@ -596,7 +599,7 @@ size_t EPVBucket::getPageableMemUsage() {
 
 size_t EPVBucket::queueBGFetchItem(const DocKey& key,
                                    std::unique_ptr<BGFetchItem> fetch,
-                                   BgFetcher* bgFetcher) {
+                                   BgFetcher& bgFetcher) {
     // While a DiskDocKey supports both the committed and prepared namespaces,
     // ep-engine doesn't support evicting prepared SyncWrites and as such
     // we don't allow bgfetching from Prepared namespace - so just construct
@@ -616,7 +619,7 @@ size_t EPVBucket::queueBGFetchItem(const DocKey& key,
     fetch->value = &bgfetch_itm_ctx.value;
     bgfetch_itm_ctx.bgfetched_list.push_back(std::move(fetch));
 
-    bgFetcher->addPendingVB(getId());
+    bgFetcher.addPendingVB(getId());
     return pendingBGFetches.size();
 }
 
@@ -747,12 +750,14 @@ void EPVBucket::bgFetch(const DocKey& key,
                         const void* cookie,
                         EventuallyPersistentEngine& engine,
                         const bool isMeta) {
+    // @TODO could the BgFetcher ever not be there? It should probably be a
+    // reference if that's the case
     // schedule to the current batch of background fetch of the given
     // vbucket
     size_t bgfetch_size = queueBGFetchItem(
             key,
             std::make_unique<FrontEndBGFetchItem>(cookie, isMeta),
-            getShard()->getBgFetcher());
+            getBgFetcher());
     EP_LOG_DEBUG("Queued a background fetch, now at {}",
                  uint64_t(bgfetch_size));
 }
@@ -780,12 +785,9 @@ void EPVBucket::bgFetchForCompactionExpiry(const DocKey& key,
                                            const Item& item) {
     // schedule to the current batch of background fetch of the given
     // vbucket
-    auto shard = getShard();
-    Expects(shard);
-    auto bgFetchSize =
-            queueBGFetchItem(key,
-                             std::make_unique<CompactionBGFetchItem>(item),
-                             shard->getBgFetcher());
+    auto& bgFetcher = getBgFetcher();
+    auto bgFetchSize = queueBGFetchItem(
+            key, std::make_unique<CompactionBGFetchItem>(item), bgFetcher);
     EP_LOG_DEBUG("Queue a background fetch for compaction expiry, now at {}",
                  bgFetchSize);
 }
@@ -1018,4 +1020,8 @@ void EPVBucket::processImplicitlyCompletedPrepare(
     // the StoredValue* and invalidates the StoredValueProxy so it should not be
     // used after.
     ht.unlocked_del(v.getHBL(), v.release());
+}
+
+BgFetcher& EPVBucket::getBgFetcher() {
+    return epBucket->getBgFetcher(getId());
 }

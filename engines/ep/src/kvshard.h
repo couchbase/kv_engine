@@ -45,7 +45,6 @@
  *   | vbuckets: VBucket[] (partitions)|----> [(VBucket),(VBucket)..]
  *   |                                 |
  *   | flusher: Flusher                |
- *   | BGFetcher: bgFetcher            |
  *   |                                 |
  *   | rwUnderlying: KVStore (write)   |----> (CouchKVStore)
  *   | roUnderlying: KVStore (read)    |----> (CouchKVStore)
@@ -67,7 +66,6 @@
  *     1022            2
  *     1023               3
  */
-class BgFetcher;
 class Configuration;
 class EPBucket;
 class EventuallyPersistentEngine;
@@ -82,7 +80,7 @@ public:
     KVShard(EventuallyPersistentEngine& engine, KVShard::id_type id);
     ~KVShard();
 
-    /// Enable persistence for this KVShard; setting up flusher and BGFetcher.
+    /// Enable persistence for this KVShard; setting up the flusher.
     void enablePersistence(EPBucket& epBucket);
 
     KVStore* getRWUnderlying() {
@@ -115,7 +113,6 @@ public:
     }
 
     Flusher *getFlusher();
-    BgFetcher *getBgFetcher();
 
     VBucketPtr getBucket(Vbid id) const;
     void setBucket(VBucketPtr vb);
@@ -251,7 +248,6 @@ private:
     std::unique_ptr<KVStore> roStore;
 
     std::unique_ptr<Flusher> flusher;
-    std::unique_ptr<BgFetcher> bgFetcher;
 
 public:
     std::atomic<size_t> highPriorityCount;
