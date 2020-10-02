@@ -54,8 +54,6 @@ public:
      */
     cb::engine_errc addBucket(VBucketPtr vb);
 
-    void enablePersistence(EPBucket& ep);
-
     /**
      * Drop the vbucket from the map and setup deferred deletion of the VBucket.
      * Once the VBucketPtr has no more references the vbucket is deleted, but

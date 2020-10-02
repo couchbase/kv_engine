@@ -65,17 +65,9 @@ KVShard::KVShard(EventuallyPersistentEngine& engine, id_type id)
     }
 }
 
-void KVShard::enablePersistence(EPBucket& ep) {
-    flusher = std::make_unique<Flusher>(&ep, getId());
-}
-
 // Non-inline destructor so we can destruct
 // unique_ptrs of forward-declared items
 KVShard::~KVShard() = default;
-
-Flusher *KVShard::getFlusher() {
-    return flusher.get();
-}
 
 VBucketPtr KVShard::getBucket(Vbid id) const {
     if (id.get() < kvConfig->getMaxVBuckets()) {

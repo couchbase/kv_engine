@@ -2471,7 +2471,8 @@ TEST_F(WarmupTest, DontStartFlushersUntilPopulateVBucketMap) {
     store->initialize();
 
     // Flusher will be in initializing and we won't have scheduled a task
-    auto* flusher = store->getVBuckets().getShardByVbId(vbid)->getFlusher();
+    auto bucket = static_cast<EPBucket*>(store);
+    auto* flusher = bucket->getFlusher(vbid);
     EXPECT_EQ("initializing", std::string(flusher->stateName()));
 
     auto& writerQueue = *task_executor->getLpTaskQ()[WRITER_TASK_IDX];

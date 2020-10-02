@@ -44,6 +44,7 @@ class DiskDocKey;
 class DurabilityMonitor;
 class EPStats;
 class EventuallyPersistentEngine;
+class Flusher;
 class GetValue;
 class ItemMetaData;
 class KVBucket;
@@ -714,6 +715,11 @@ public:
 
     virtual KVShard* getShard() = 0;
 
+    /**
+     * @return the Flusher object that is responsible for this vBucket. nullptr
+     *         if one does not exist (ephemeral)
+     */
+    virtual Flusher* getFlusher() = 0;
     /**
      * Returns the number of alive (non-deleted) Items the VBucket.
      *

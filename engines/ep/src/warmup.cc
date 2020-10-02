@@ -1345,11 +1345,12 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
         }
     }
 
-    // We're done trying to flush for this shard now, it's safe for the flusher
-    // to start running
-    store.vbMap.getShard(shardId)->getFlusher()->start();
-
     if (++threadtask_count == store.vbMap.getNumShards()) {
+        // All threads have finished populating the vBucket map (and potentially
+        // flushing a new vBucket state), it's now safe for us to start the
+        // flushers.
+        store.startFlusher();
+
         warmedUpVbuckets.clear();
         // Once we have populated the VBMap we can allow setVB state changes
         processCreateVBucketsComplete();

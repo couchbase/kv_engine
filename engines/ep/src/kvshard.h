@@ -38,8 +38,6 @@
  *   |                                 |
  *   | vbuckets: VBucket[] (partitions)|----> [(VBucket),(VBucket)..]
  *   |                                 |
- *   | flusher: Flusher                |
- *   |                                 |
  *   | rwUnderlying: KVStore (write)   |
  *   -----------------------------------
  *
@@ -63,7 +61,6 @@ class Configuration;
 class CookieIface;
 class EPBucket;
 class EventuallyPersistentEngine;
-class Flusher;
 class KVStore;
 
 class KVShard {
@@ -72,9 +69,6 @@ public:
     using id_type = uint16_t;
     KVShard(EventuallyPersistentEngine& engine, KVShard::id_type id);
     ~KVShard();
-
-    /// Enable persistence for this KVShard; setting up the flusher.
-    void enablePersistence(EPBucket& epBucket);
 
     KVStore* getRWUnderlying() {
         return rwStore.get();
@@ -96,8 +90,6 @@ public:
     void forEachKVStore(UnaryFunction f) {
         f(rwStore.get());
     }
-
-    Flusher *getFlusher();
 
     VBucketPtr getBucket(Vbid id) const;
     void setBucket(VBucketPtr vb);
@@ -231,8 +223,6 @@ private:
     std::vector<VBMapElement> vbuckets;
 
     std::unique_ptr<KVStore> rwStore;
-
-    std::unique_ptr<Flusher> flusher;
 
 public:
     std::atomic<size_t> highPriorityCount;

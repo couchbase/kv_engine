@@ -2546,15 +2546,16 @@ std::ostream& operator<<(std::ostream& os, const KVBucket::Position& pos) {
 }
 
 void KVBucket::notifyFlusher(const Vbid vbid) {
-    KVShard* shard = vbMap.getShardByVbId(vbid);
-    auto vb = shard->getBucket(vbid);
-    if (shard) {
-        if (vb) {
-            shard->getFlusher()->notifyFlushEvent(vb);
+    auto vb = getVBucket(vbid);
+    // Can't assert vb here as this may be called from Warmup before we add the
+    // VBucket to the VBucketMap
+    if (vb) {
+        auto* flusher = vb->getFlusher();
+        // Can't assert flusher here as this may be called for ephemeral
+        // VBuckets which do not have a flusher
+        if (flusher) {
+            flusher->notifyFlushEvent(vb);
         }
-    } else {
-        throw std::logic_error("KVBucket::notifyFlusher() : shard null for " +
-                               vbid.to_string());
     }
 }
 

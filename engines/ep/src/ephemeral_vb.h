@@ -116,6 +116,10 @@ public:
         return nullptr;
     }
 
+    Flusher* getFlusher() override {
+        return nullptr;
+    }
+
     std::unique_ptr<DCPBackfillIface> createDCPBackfill(
             EventuallyPersistentEngine& e,
             std::shared_ptr<ActiveStream> stream,

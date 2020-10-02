@@ -54,12 +54,6 @@ cb::engine_errc VBucketMap::addBucket(VBucketPtr vb) {
     return cb::engine_errc::out_of_range;
 }
 
-void VBucketMap::enablePersistence(EPBucket& ep) {
-    for (auto& shard : shards) {
-        shard->enablePersistence(ep);
-    }
-}
-
 void VBucketMap::dropVBucketAndSetupDeferredDeletion(
         Vbid id, const CookieIface* cookie) {
     if (id.get() < size) {

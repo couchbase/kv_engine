@@ -51,6 +51,10 @@ public:
 
     size_t getLPQueueSize() const;
 
+    size_t getId() const {
+        return flusherId;
+    }
+
 private:
     enum class State {
         Initializing,

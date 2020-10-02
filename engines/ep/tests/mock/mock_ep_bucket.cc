@@ -114,7 +114,7 @@ void MockEPBucket::setDurabilityCompletionTask(
 }
 
 Flusher* MockEPBucket::getFlusherNonConst(Vbid vbid) {
-    return vbMap.getShardByVbId(vbid)->getFlusher();
+    return getFlusher(vbid);
 }
 
 void MockEPBucket::completeBGFetchMulti(

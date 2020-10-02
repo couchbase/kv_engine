@@ -125,6 +125,7 @@ public:
     }
 
     BgFetcher& getBgFetcher();
+    Flusher* getFlusher() override;
 
     UniqueDCPBackfillPtr createDCPBackfill(EventuallyPersistentEngine& e,
                                            std::shared_ptr<ActiveStream> stream,

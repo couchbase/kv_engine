@@ -1114,6 +1114,10 @@ void EPVBucket::notifyFlusher() {
     auto shard = getShard();
     if (shard) {
         auto ptr = shard->getBucket(getId());
-        shard->getFlusher()->notifyFlushEvent(ptr);
+        getFlusher()->notifyFlushEvent(ptr);
     }
+}
+
+Flusher* EPVBucket::getFlusher() {
+    return dynamic_cast<EPBucket&>(*bucket).getFlusher(getId());
 }

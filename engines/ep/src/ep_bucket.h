@@ -276,6 +276,7 @@ public:
             std::unique_ptr<Collections::Manifest>& newManifest) override;
 
     BgFetcher& getBgFetcher(Vbid vbid);
+    Flusher* getFlusher(Vbid vbid);
 
     Flusher* getOneFlusher() override;
 
@@ -381,6 +382,15 @@ protected:
     std::unique_ptr<Warmup> warmupTask;
 
     std::vector<std::unique_ptr<BgFetcher>> bgFetchers;
+
+    /**
+     * The Flusher objects belonging to this bucket. Each Flusher is responsible
+     * for a subset of the vBuckets. Currently indexed by shard but in a future
+     * patch will be indexed by a new configuration variable.
+     *
+     * @TODO MB-39745: Update above comment.
+     */
+    std::vector<std::unique_ptr<Flusher>> flushers;
 
     folly::Synchronized<std::unordered_map<Vbid, std::shared_ptr<CompactTask>>>
             compactionTasks;

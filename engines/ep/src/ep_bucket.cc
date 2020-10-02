@@ -199,7 +199,7 @@ private:
 void NotifyFlusherCB::callback(Vbid& vbid) {
     auto vb = shard->getBucket(vbid);
     if (vb) {
-        shard->getFlusher()->notifyFlushEvent(vb);
+        vb->getFlusher()->notifyFlushEvent(vb);
     }
 }
 
@@ -250,7 +250,9 @@ EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
     replicationThrottle = std::make_unique<ReplicationThrottleEP>(
             engine.getConfiguration(), stats);
 
-    vbMap.enablePersistence(*this);
+    for (size_t i = 0; i < vbMap.getNumShards(); i++) {
+        flushers.emplace_back(std::make_unique<Flusher>(this, i));
+    }
 
     // Pre-7.0.0 BgFetchers were a part of KVShard so keep the same default
     // scaling.
@@ -927,18 +929,14 @@ bool EPBucket::commit(Vbid vbid, KVStore& kvstore, VB::Commit& commitData) {
 }
 
 void EPBucket::startFlusher() {
-    for (const auto& shard : vbMap.shards) {
-        shard->getFlusher()->start();
+    for (const auto& flusher : flushers) {
+        flusher->start();
     }
 }
 
 void EPBucket::stopFlusher() {
-    for (const auto& shard : vbMap.shards) {
-        auto* flusher = shard->getFlusher();
-        EP_LOG_INFO(
-                "Attempting to stop the flusher for "
-                "shard:{}",
-                shard->getId());
+    for (const auto& flusher : flushers) {
+        EP_LOG_INFO("Attempting to stop flusher:{}", flusher->getId());
         bool rv = flusher->stop(stats.forceShutdown);
         if (rv && !stats.forceShutdown) {
             flusher->wait();
@@ -948,30 +946,29 @@ void EPBucket::stopFlusher() {
 
 bool EPBucket::pauseFlusher() {
     bool rv = true;
-    for (const auto& shard : vbMap.shards) {
-        auto* flusher = shard->getFlusher();
+    for (const auto& flusher : flushers) {
         if (!flusher->pause()) {
             EP_LOG_WARN(
                     "Attempted to pause flusher in state "
-                    "[{}], shard = {}",
+                    "[{}], flusher = {}",
                     flusher->stateName(),
-                    shard->getId());
+                    flusher->getId());
             rv = false;
         }
     }
+
     return rv;
 }
 
 bool EPBucket::resumeFlusher() {
     bool rv = true;
-    for (const auto& shard : vbMap.shards) {
-        auto* flusher = shard->getFlusher();
+    for (const auto& flusher : flushers) {
         if (!flusher->resume()) {
             EP_LOG_WARN(
                     "Attempted to resume flusher in state [{}], "
-                    "shard = {}",
+                    "flusher = {}",
                     flusher->stateName(),
-                    shard->getId());
+                    flusher->getId());
             rv = false;
         }
     }
@@ -980,8 +977,8 @@ bool EPBucket::resumeFlusher() {
 
 void EPBucket::wakeUpFlusher() {
     if (stats.diskQueueSize.load() == 0) {
-        for (const auto& shard : vbMap.shards) {
-            shard->getFlusher()->wake();
+        for (const auto& flusher : flushers) {
+            flusher->wake();
         }
     }
 }
@@ -2193,6 +2190,14 @@ BgFetcher& EPBucket::getBgFetcher(Vbid vbid) {
     return *bgFetchers.at(id);
 }
 
+Flusher* EPBucket::getFlusher(Vbid vbid) {
+    // For now we just use modulo, same as we do/would for shards to pick out
+    // the associated BgFetcher
+    auto id = vbid.get() % flushers.size();
+    return flushers.at(id).get();
+}
+
 Flusher* EPBucket::getOneFlusher() {
-    return vbMap.getShard(EP_PRIMARY_SHARD)->getFlusher();
+    Expects(flushers.size() > 0);
+    return flushers.front().get();
 }
