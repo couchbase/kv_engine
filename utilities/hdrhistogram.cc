@@ -56,31 +56,43 @@ HdrHistogram::HdrHistogram(uint64_t lowestTrackableValue,
 }
 
 HdrHistogram& HdrHistogram::operator+=(const HdrHistogram& other) {
-    if (other.histogram.rlock()->get() != nullptr &&
-        other.getValueCount() > 0) {
+    /*
+     * Note: folly::acquireLockedPair() takes an exclusive lock on
+     * this->histogram as we pass it a non-const ref. Where as it takes a shared
+     * lock on other.histogram as we pass it a const ref. We can do this as we
+     * only need to write to the ptr of this->histogram. (see
+     * folly::acquireLocked() source code comments for more information regard
+     * how it takes locks)
+     */
+    auto lockPair = folly::acquireLockedPair(this->histogram, other.histogram);
+    // Don't use structured binding as this messes up clang-analyzer, analyzing
+    // the destruction of folly's locks.
+    WHistoLockedPtr& thisLock = lockPair.first;
+    ConstRHistoLockedPtr& otherLock = lockPair.second;
+    if (otherLock->get()->total_count > 0) {
         // work out if we need to resize the receiving histogram
-        uint64_t newMin = this->getMinTrackableValue();
-        uint64_t newMax = this->getMaxTrackableValue();
-        int32_t newSigfig = this->getSigFigAccuracy();
+        auto newMin = getMinTrackableValue(thisLock);
+        auto newMax = getMaxTrackableValue(thisLock);
+        auto newSigfig = getSigFigAccuracy(thisLock);
         bool resize = false;
 
-        if (other.getMinTrackableValue() < this->getMinTrackableValue()) {
-            newMin = other.getMinTrackableValue();
+        if (getMinTrackableValue(otherLock) < newMin) {
+            newMin = getMinTrackableValue(otherLock);
             resize = true;
         }
-        if (other.getMaxTrackableValue() > this->getMaxTrackableValue()) {
-            newMax = other.getMaxTrackableValue();
+        if (getMaxTrackableValue(otherLock) > newMax) {
+            newMax = getMaxTrackableValue(otherLock);
             resize = true;
         }
 
-        if (other.getSigFigAccuracy() > this->getSigFigAccuracy()) {
-            newSigfig = other.getSigFigAccuracy();
+        if (getSigFigAccuracy(otherLock) > newSigfig) {
+            newSigfig = getSigFigAccuracy(otherLock);
             resize = true;
         }
         if (resize) {
-            this->resize(newMin, newMax, newSigfig);
+            this->resize(thisLock, newMin, newMax, newSigfig);
         }
-        hdr_add(this->histogram.rlock()->get(), other.histogram.rlock()->get());
+        hdr_add(thisLock->get(), otherLock->get());
     }
     return *this;
 }
@@ -323,7 +335,8 @@ double HdrHistogram::getMean() const {
     return hdr_mean(histogram.rlock()->get()) - 1;
 }
 
-void HdrHistogram::resize(uint64_t lowestTrackableValue,
+void HdrHistogram::resize(WHistoLockedPtr& histoLockPtr,
+                          uint64_t lowestTrackableValue,
                           uint64_t highestTrackableValue,
                           int significantFigures) {
     if (lowestTrackableValue >= highestTrackableValue ||
@@ -345,6 +358,6 @@ void HdrHistogram::resize(uint64_t lowestTrackableValue,
                 &hist, // Pointer to initialise
                 cb_calloc);
 
-    hdr_add(hist, histogram.rlock()->get());
-    histogram.wlock()->reset(hist);
+    hdr_add(hist, histoLockPtr->get());
+    histoLockPtr->reset(hist);
 }
