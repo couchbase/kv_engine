@@ -5259,13 +5259,13 @@ bool EventuallyPersistentEngine::decodeWithMetaOptions(
     bool check1 = generateCas == GenerateCas::Yes &&
                   checkConflicts == CheckConflicts::Yes;
 
-    // 2) If bucket is LWW and forceFlag is not set and GenerateCas::No
-    bool check2 = configuration.getConflictResolutionType() == "lww" &&
+    // 2) If bucket is LWW/Custom and forceFlag is not set and GenerateCas::No
+    bool check2 = configuration.getConflictResolutionType() != "seqno" &&
                   !forceFlag && generateCas == GenerateCas::No;
 
-    // 3) If bucket is not LWW then forceFlag must be false.
+    // 3) If bucket is seqno then forceFlag must be false.
     bool check3 =
-            configuration.getConflictResolutionType() != "lww" && forceFlag;
+            configuration.getConflictResolutionType() == "seqno" && forceFlag;
 
     // So if either check1/2/3 is true, return false
     return !(check1 || check2 || check3);

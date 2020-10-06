@@ -240,10 +240,12 @@ VBucket::VBucket(Vbid i,
       seqnoAckCb(std::move(seqnoAckCb)),
       manifest(std::move(manifest)),
       mayContainXattrs(mightContainXattrs) {
-    if (config.getConflictResolutionType().compare("lww") == 0) {
-        conflictResolver.reset(new LastWriteWinsResolution());
+    if (config.getConflictResolutionType() == "seqno") {
+        conflictResolver = std::make_unique<RevisionSeqnoResolution>();
     } else {
-        conflictResolver.reset(new RevisionSeqnoResolution());
+        // Both last-write-wins and custom conflict resolution are treated
+        // as LWW from KV-Engine's pov.
+        conflictResolver = std::make_unique<LastWriteWinsResolution>();
     }
 
     pendingOpsStart = std::chrono::steady_clock::time_point();

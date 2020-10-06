@@ -229,12 +229,14 @@
         },
         "conflict_resolution_type": {
             "default": "seqno",
+            "desr": "Conflict resolution mode to use for this Bucket",
             "dynamic": false,
             "type": "std::string",
             "validator": {
                 "enum": [
                     "seqno",
-                    "lww"
+                    "lww",
+                    "custom"
                 ]
             }
         },
