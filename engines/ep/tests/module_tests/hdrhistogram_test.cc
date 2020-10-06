@@ -501,6 +501,7 @@ TEST(HdrHistogramTest, ResetItoratorInfLoop) {
     }
 
     std::thread thread;
+    ThreadGate tg(2);
     { // Scope that holds read lock for iterator
         auto iter2 = histogram.getHistogramsIterator();
         /**
@@ -511,7 +512,6 @@ TEST(HdrHistogramTest, ResetItoratorInfLoop) {
          * and is about to try and get an exclusive lock before reading values
          * from the histogram.
          */
-        ThreadGate tg(2);
         thread = std::thread(resetThread, std::ref(histogram), std::ref(tg));
         tg.threadUp();
         auto values = getAllValues(histogram, iter2);
