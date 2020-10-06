@@ -1309,8 +1309,12 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                        false, // copy with lock
                        hook_ctx->stats.preparesPurged,
                        vbid);
-    // Close the source Database File once compaction is done
-    openResult.fileHandle->getDbHolder().close();
+
+    auto oldRev = openResult.fileHandle->getDbHolder().getFileRev();
+
+    // Close the source database file
+    openResult.fileHandle.reset();
+
     // Close the destination file so we may rename it
     targetDb.close();
 
@@ -1376,7 +1380,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
     updateDbFileMap(vbid, new_rev);
 
     // Removing the stale couch file
-    unlinkCouchFile(vbid, openResult.fileHandle->getDbHolder().getFileRev());
+    unlinkCouchFile(vbid, oldRev);
 
     st.compactHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - start));
