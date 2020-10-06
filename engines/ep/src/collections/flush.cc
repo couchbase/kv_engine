@@ -101,9 +101,8 @@ void Flush::saveCollectionStats(
     // of stats)
     for (const auto& [cid, flushStats] : stats) {
         // Get the current stats of the collection (for the seqno)
-        auto lock = manifest.lock();
-        auto stats =
-                lock.getStatsForFlush(cid, flushStats.getPersistedHighSeqno());
+        auto stats = manifest.lock().getStatsForFlush(
+                cid, flushStats.getPersistedHighSeqno());
 
         // Generate new stats, add the deltas from this flush batch for count
         // and size and set the high-seqno
