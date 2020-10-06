@@ -257,8 +257,6 @@ private:
         /**
          * Process an insert into the collection
          * @param isSystem true if a system event is inserted
-         * @param isCommitted true if a committed item is inserted, false for
-         **       prepare/abort
          * @param isDelete true if a deleted item is inserted (tombstone
          *        creation)
          * @param diskSize size in bytes 'inserted' into disk. Should be
@@ -266,31 +264,25 @@ private:
          *        not need to be exact.
          */
         void insert(bool isSystem,
-                    bool isCommitted,
                     bool isDelete,
                     ssize_t diskSize);
 
         /**
          * Process an update into the collection
-         * @param isSystem true if a system event is updated
-         * @param isCommitted true if a committed item is updated, false for
-         **       prepare/abort
          * @param diskSizeDelta size in bytes difference. Should be
          *        representative of the difference between existing and new
          *        documents, but does not need to be exact.
          */
-        void update(bool isSystem, bool isCommitted, ssize_t diskSizeDelta);
+        void update(ssize_t diskSizeDelta);
 
         /**
          * Process a remove from the collection (store of a delete)
          * @param isSystem true if a system event is removed
-         * @param isCommitted true if a committed item is removed, false for
-         **       prepare/abort
          * @param diskSizeDelta size in bytes difference. Should be
          *        representative of the difference between existing and new
          *        documents, but does not need to be exact.
          */
-        void remove(bool isSystem, bool isCommitted, ssize_t diskSizeDelta);
+        void remove(bool isSystem, ssize_t diskSizeDelta);
 
         /// @returns the highest persisted seqno recorded by the Flush object
         uint64_t getPersistedHighSeqno() const {

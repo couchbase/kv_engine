@@ -58,36 +58,25 @@ void Flush::StatisticsUpdate::updateDiskSize(ssize_t delta) {
 }
 
 void Flush::StatisticsUpdate::insert(bool isSystem,
-                                     bool isCommitted,
                                      bool isDelete,
                                      ssize_t diskSizeDelta) {
-    if (!isSystem && !isDelete && isCommitted) {
+    if (!isSystem && !isDelete) {
         incrementItemCount();
-    } // else inserting a tombstone or it's a prepare
+    } // else inserting a tombstone - no item increment
 
-    if (isSystem || isCommitted) {
-        updateDiskSize(diskSizeDelta);
-    }
+    updateDiskSize(diskSizeDelta);
 }
 
-void Flush::StatisticsUpdate::update(bool isSystem,
-                                     bool isCommitted,
-                                     ssize_t diskSizeDelta) {
-    if (isSystem || isCommitted) {
-        updateDiskSize(diskSizeDelta);
-    }
+void Flush::StatisticsUpdate::update(ssize_t diskSizeDelta) {
+    updateDiskSize(diskSizeDelta);
 }
 
 void Flush::StatisticsUpdate::remove(bool isSystem,
-                                     bool isCommitted,
                                      ssize_t diskSizeDelta) {
-    if (isCommitted) {
+    if (!isSystem) {
         decrementItemCount();
-    } // else inserting a tombstone or it's a prepare
-
-    if (isSystem || isCommitted) {
-        updateDiskSize(diskSizeDelta);
     }
+    updateDiskSize(diskSizeDelta);
 }
 
 // Called from KVStore during the flush process and before we consider the
@@ -195,6 +184,10 @@ void Flush::updateStats(const DocKey& key,
                         bool isCommitted,
                         bool isDelete,
                         size_t size) {
+    // Prepares don't change the stats
+    if (!isCommitted) {
+        return;
+    }
     auto [isSystemEvent, cid] = getCollectionID(key);
 
     if (!cid || isLogicallyDeleted(cid.value(), seqno)) {
@@ -209,7 +202,7 @@ void Flush::updateStats(const DocKey& key,
     }
 
     getStatsAndMaybeSetPersistedHighSeqno(cid.value(), seqno)
-            .insert(isSystemEvent, isCommitted, isDelete, size);
+            .insert(isSystemEvent, isDelete, size);
 }
 
 void Flush::updateStats(const DocKey& key,
@@ -220,6 +213,10 @@ void Flush::updateStats(const DocKey& key,
                         uint64_t oldSeqno,
                         bool oldIsDelete,
                         size_t oldSize) {
+    // Prepares don't change the stats
+    if (!isCommitted) {
+        return;
+    }
     // Same logic and comment as updateStats above.
     auto [isSystemEvent, cid] = getCollectionID(key);
     if (!cid || isLogicallyDeleted(cid.value(), seqno)) {
@@ -239,11 +236,11 @@ void Flush::updateStats(const DocKey& key,
     auto& stats = getStatsAndMaybeSetPersistedHighSeqno(cid.value(), seqno);
 
     if (oldIsDelete) {
-        stats.insert(isSystemEvent, isCommitted, isDelete, size);
+        stats.insert(isSystemEvent, isDelete, size);
     } else if (!oldIsDelete && isDelete) {
-        stats.remove(isSystemEvent, isCommitted, size - oldSize);
+        stats.remove(isSystemEvent, size - oldSize);
     } else {
-        stats.update(isSystemEvent, isCommitted, size - oldSize);
+        stats.update(size - oldSize);
     }
 }
 
