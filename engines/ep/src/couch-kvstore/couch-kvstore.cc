@@ -2028,7 +2028,8 @@ CouchKVStore::OpenForReadResult CouchKVStore::openDbForRead(
     auto result = openSpecificDB(vbucketId,
                                  fileRev,
                                  handle->getDbHolder(),
-                                 COUCHSTORE_OPEN_FLAG_RDONLY);
+                                 COUCHSTORE_OPEN_FLAG_RDONLY,
+                                 ops);
     if (result != COUCHSTORE_SUCCESS) {
         return {result, std::move(handle)};
     }

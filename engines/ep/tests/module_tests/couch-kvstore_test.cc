@@ -2117,3 +2117,18 @@ TEST_F(CouchstoreTest, CacheLimitBumpedOnOldDbCloseDuringCompaction) {
     EXPECT_TRUE(kvstore->compactDB(lock, ctx));
     EXPECT_EQ(5, CouchKVStoreFileCache::get().getHandle()->capacity());
 }
+
+TEST_F(CouchstoreTest, CompactionUsesCorrectFileOps) {
+    CouchKVStoreFileCache::get().getHandle()->resize(5);
+    CompactionConfig config;
+    auto ctx = std::make_shared<CompactionContext>(config, 0);
+
+    std::mutex mutex;
+    std::unique_lock<std::mutex> lock(mutex);
+    EXPECT_EQ(5, CouchKVStoreFileCache::get().getHandle()->capacity());
+
+    EXPECT_TRUE(kvstore->compactDB(lock, ctx));
+    EXPECT_EQ(5, CouchKVStoreFileCache::get().getHandle()->capacity());
+    auto compactStats = kvstore->getKVStoreStat().fsStatsCompaction;
+    EXPECT_NE(0, compactStats.readCountHisto.getValueCount());
+}
