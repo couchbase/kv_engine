@@ -15,9 +15,10 @@
  *   limitations under the License.
  */
 
-#include "ep_time.h"
 #include "item.h"
+#include "ep_time.h"
 #include "item_eviction.h"
+#include "logtags.h"
 #include "objectregistry.h"
 
 #include <folly/lang/Assume.h>
@@ -488,7 +489,14 @@ Item::WasValueInflated Item::removeUserXattrs() {
     const auto valNBytes = value->valueSize();
     cb::char_buffer valBuf{const_cast<char*>(value->getData()), valNBytes};
     const auto bodySize = valNBytes - cb::xattr::get_body_offset(valBuf);
-    Expects(bodySize == 0);
+    if (bodySize > 0) {
+        std::stringstream ss;
+        ss << *this;
+        throw std::logic_error(
+                "Item::removeUserXattrs: Unexpected body (size " +
+                std::to_string(bodySize) + ") in deletion: " +
+                cb::UserDataView(ss.str()).getSanitizedValue());
+    }
 
     // Operate on a copy
     const cb::xattr::Blob originalBlob(valBuf, false /*compressed*/);
