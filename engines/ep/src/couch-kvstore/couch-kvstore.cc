@@ -1950,7 +1950,7 @@ cb::couchstore::Header CouchKVStore::getDbInfo(Vbid vbid) {
         // open failed - map couchstore error code to exception.
         std::errc ec;
         switch (openResult.status) {
-        case COUCHSTORE_ERROR_OPEN_FILE:
+        case COUCHSTORE_ERROR_NO_SUCH_FILE:
             ec = std::errc::no_such_file_or_directory;
             break;
         default:
