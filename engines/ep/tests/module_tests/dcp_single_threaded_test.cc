@@ -705,6 +705,52 @@ TEST_P(STDcpTest, test_producer_no_stream_end_on_client_close_stream) {
     connMap.manageConnections();
 }
 
+TEST_P(STDcpTest, test_consumer_add_stream) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    auto& connMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+
+    const void* cookie = create_mock_cookie(engine.get());
+    Vbid vbid = Vbid(0);
+
+    /* Create a Mock Dcp consumer */
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
+    connMap.addConn(cookie, consumer);
+
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer->addStream(/*opaque*/ 0,
+                                  vbid,
+                                  /*flags*/ 0));
+
+    /* Set the passive to dead state. Note that we want to set the stream to
+       dead state but not erase it from the streams map in the consumer
+       connection*/
+    MockPassiveStream* stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+
+    stream->transitionStateToDead();
+
+    /* Add a passive stream on the same vb */
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer->addStream(/*opaque*/ 0,
+                                  vbid,
+                                  /*flags*/ 0));
+
+    /* Expected the newly added stream to be in active state */
+    stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    ASSERT_TRUE(stream->isActive());
+
+    /* Close stream before deleting the connection */
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(/*opaque*/ 0, vbid));
+
+    connMap.disconnect(cookie);
+    EXPECT_FALSE(connMap.isDeadConnectionsEmpty());
+    connMap.manageConnections();
+    EXPECT_TRUE(connMap.isDeadConnectionsEmpty());
+}
+
 void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 

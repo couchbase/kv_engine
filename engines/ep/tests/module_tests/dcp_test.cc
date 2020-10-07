@@ -1278,40 +1278,7 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
     destroy_mock_cookie(cookie);
 }
 
-TEST_P(ConnectionTest, test_consumer_add_stream) {
-    const void* cookie = create_mock_cookie(engine);
-    Vbid vbid = Vbid(0);
 
-    /* Create a Mock Dcp consumer */
-    auto consumer =
-            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
-
-    ASSERT_EQ(ENGINE_SUCCESS, set_vb_state(vbid, vbucket_state_replica));
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(/*opaque*/0, vbid,
-                                                  /*flags*/0));
-
-    /* Set the passive to dead state. Note that we want to set the stream to
-       dead state but not erase it from the streams map in the consumer
-       connection*/
-    MockPassiveStream *stream = static_cast<MockPassiveStream*>
-                                    ((consumer->getVbucketStream(vbid)).get());
-
-    stream->transitionStateToDead();
-
-    /* Add a passive stream on the same vb */
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(/*opaque*/0, vbid,
-                                                  /*flags*/0));
-
-    /* Expected the newly added stream to be in active state */
-    stream = static_cast<MockPassiveStream*>
-                                    ((consumer->getVbucketStream(vbid)).get());
-    ASSERT_TRUE(stream->isActive());
-
-    /* Close stream before deleting the connection */
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(/*opaque*/0, vbid));
-
-    destroy_mock_cookie(cookie);
-}
 
 TEST_P(ConnectionTest, consumer_waits_for_add_stream) {
     const void* cookie = create_mock_cookie(engine);
