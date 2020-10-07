@@ -113,11 +113,6 @@ enum class Status : uint16_t {
     UnknownCollection = 0x88,
 
     /**
-     * Operation attempted and requires that the collections manifest is set.
-     */
-    NoCollectionsManifest = 0x89,
-
-    /**
      * Bucket Manifest update could not be applied to vbucket(s)
      */
     CannotApplyCollectionsManifest = 0x8a,

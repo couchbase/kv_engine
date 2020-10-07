@@ -60,8 +60,6 @@ cb::mcbp::Status cb::mcbp::to_status(cb::engine_errc code) {
         return Status::Locked;
     case engine_errc::unknown_collection:
         return Status::UnknownCollection;
-    case engine_errc::no_collections_manifest:
-        return Status::NoCollectionsManifest;
     case engine_errc::cannot_apply_collections_manifest:
         return Status::CannotApplyCollectionsManifest;
     case engine_errc::collections_manifest_is_ahead:

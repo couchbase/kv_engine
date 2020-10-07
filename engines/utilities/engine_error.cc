@@ -94,8 +94,6 @@ std::string cb::to_string(cb::engine_errc code) {
         return "unknown collection";
     case cb::engine_errc::predicate_failed:
         return "predicate_failed";
-    case cb::engine_errc::no_collections_manifest:
-        return "no_collections_manifest";
     case cb::engine_errc::cannot_apply_collections_manifest:
         return "cannot_apply_collections_manifest";
     case cb::engine_errc::collections_manifest_is_ahead:

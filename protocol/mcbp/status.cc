@@ -53,7 +53,6 @@ bool isStatusSuccess(Status status) {
     case Status::Etmpfail:
     case Status::XattrEinval:
     case Status::UnknownCollection:
-    case Status::NoCollectionsManifest:
     case Status::CannotApplyCollectionsManifest:
     case Status::CollectionsManifestIsAhead:
     case Status::UnknownScope:
@@ -172,8 +171,6 @@ std::string to_string(cb::mcbp::Status status) {
         return "Invalid XATTR section";
     case Status::UnknownCollection:
         return "Unknown Collection";
-    case Status::NoCollectionsManifest:
-        return "No Collections Manifest";
     case Status::CannotApplyCollectionsManifest:
         return "Cannot apply collections manifest";
     case Status::CollectionsManifestIsAhead:

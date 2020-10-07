@@ -100,11 +100,6 @@ enum class engine_errc {
     predicate_failed = 0x17,
 
     /**
-     * The request cannot complete until a collections manifest has been set
-     */
-    no_collections_manifest = 0x18,
-
-    /**
      * The collections manifest passed validation but could not be applied
      */
     cannot_apply_collections_manifest = 0x19,

@@ -57,7 +57,6 @@ void handle_executor_status(Cookie& cookie, cb::engine_errc status) {
     case engine_errc::locked_tmpfail:
     case engine_errc::unknown_collection:
     case engine_errc::predicate_failed:
-    case engine_errc::no_collections_manifest:
     case engine_errc::cannot_apply_collections_manifest:
     case engine_errc::collections_manifest_is_ahead:
     case engine_errc::unknown_scope:
