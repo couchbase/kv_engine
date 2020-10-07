@@ -751,6 +751,121 @@ TEST_P(STDcpTest, test_consumer_add_stream) {
     EXPECT_TRUE(connMap.isDeadConnectionsEmpty());
 }
 
+// Tests that the MutationResponse created for the deletion response is of the
+// correct size.
+TEST_P(STDcpTest, test_mb24424_deleteResponse) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+    const void* cookie = create_mock_cookie(engine.get());
+    Vbid vbid = Vbid(0);
+
+    auto& connMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
+    connMap.addConn(cookie, consumer);
+
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer->addStream(/*opaque*/ 0,
+                                  vbid,
+                                  /*flags*/ 0));
+
+    MockPassiveStream* stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    ASSERT_TRUE(stream->isActive());
+
+    std::string key = "key";
+    const DocKey docKey{reinterpret_cast<const uint8_t*>(key.data()),
+                        key.size(),
+                        DocKeyEncodesCollectionId::No};
+    std::array<uint8_t, 1> extMeta;
+    extMeta[0] = uint8_t(PROTOCOL_BINARY_DATATYPE_JSON);
+    cb::const_byte_buffer meta{extMeta.data(), extMeta.size()};
+
+    consumer->deletion(/*opaque*/ 1,
+                       /*key*/ docKey,
+                       /*value*/ {},
+                       /*priv_bytes*/ 0,
+                       /*datatype*/ PROTOCOL_BINARY_RAW_BYTES,
+                       /*cas*/ 0,
+                       /*vbucket*/ vbid,
+                       /*bySeqno*/ 1,
+                       /*revSeqno*/ 0,
+                       /*meta*/ meta);
+
+    auto messageSize = MutationResponse::deletionBaseMsgBytes + key.size() +
+                       sizeof(extMeta);
+
+    EXPECT_EQ(messageSize, stream->responseMessageSize);
+
+    /* Close stream before deleting the connection */
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(/*opaque*/ 0, vbid));
+
+    connMap.disconnect(cookie);
+    EXPECT_FALSE(connMap.isDeadConnectionsEmpty());
+    connMap.manageConnections();
+    EXPECT_TRUE(connMap.isDeadConnectionsEmpty());
+}
+
+// Tests that the MutationResponse created for the mutation response is of the
+// correct size.
+TEST_P(STDcpTest, test_mb24424_mutationResponse) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+    const void* cookie = create_mock_cookie(engine.get());
+    Vbid vbid = Vbid(0);
+
+    auto& connMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
+    connMap.addConn(cookie, consumer);
+
+    ASSERT_EQ(ENGINE_SUCCESS,
+              consumer->addStream(/*opaque*/ 0,
+                                  vbid,
+                                  /*flags*/ 0));
+
+    MockPassiveStream* stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    ASSERT_TRUE(stream->isActive());
+
+    std::string key = "key";
+    std::string data = R"({"json":"yes"})";
+    const DocKey docKey{reinterpret_cast<const uint8_t*>(key.data()),
+                        key.size(),
+                        DocKeyEncodesCollectionId::No};
+    cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(data.data()),
+                                data.size()};
+    std::array<uint8_t, 1> extMeta;
+    extMeta[0] = uint8_t(PROTOCOL_BINARY_DATATYPE_JSON);
+    cb::const_byte_buffer meta{extMeta.data(), extMeta.size()};
+
+    consumer->mutation(/*opaque*/ 1,
+                       /*key*/ docKey,
+                       /*values*/ value,
+                       /*priv_bytes*/ 0,
+                       /*datatype*/ PROTOCOL_BINARY_DATATYPE_JSON,
+                       /*cas*/ 0,
+                       /*vbucket*/ vbid,
+                       /*flags*/ 0,
+                       /*bySeqno*/ 1,
+                       /*revSeqno*/ 0,
+                       /*exptime*/ 0,
+                       /*lock_time*/ 0,
+                       /*meta*/ meta,
+                       /*nru*/ 0);
+
+    auto messageSize = MutationResponse::mutationBaseMsgBytes + key.size() +
+                       data.size() + sizeof(extMeta);
+
+    EXPECT_EQ(messageSize, stream->responseMessageSize);
+
+    /* Close stream before deleting the connection */
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(/*opaque*/ 0, vbid));
+
+    connMap.disconnect(cookie);
+    EXPECT_FALSE(connMap.isDeadConnectionsEmpty());
+    connMap.manageConnections();
+    EXPECT_TRUE(connMap.isDeadConnectionsEmpty());
+}
+
 void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
