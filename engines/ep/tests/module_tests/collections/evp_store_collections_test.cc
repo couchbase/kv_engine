@@ -2858,31 +2858,6 @@ TEST_P(CollectionsParameterizedTest, OneScopeStatsByIdParsing) {
     EXPECT_EQ(cm.getUid(), result.getManifestId());
 }
 
-// Test a specific issue spotted, in the case when a collection exists
-// as dropped in storage and is newly dropped - we clean-up
-TEST_P(CollectionsPersistentParameterizedTest, FlushDropCreateDropCleansUp) {
-    CollectionsManifest cm;
-    cm.add(CollectionEntry::fruit); // seq:1
-    setCollections(cookie, std::string{cm});
-    flushVBucketToDiskIfPersistent(vbid, 1);
-    cm.remove(CollectionEntry::fruit); // seq:2
-    setCollections(cookie, std::string{cm});
-    flushVBucketToDiskIfPersistent(vbid, 1);
-    cm.add(CollectionEntry::fruit); // seq:3
-    setCollections(cookie, std::string{cm});
-    flushVBucketToDiskIfPersistent(vbid, 1);
-    cm.remove(CollectionEntry::fruit); // seq:4
-    setCollections(cookie, std::string{cm});
-    flushVBucketToDiskIfPersistent(vbid, 1);
-
-    VBucketPtr vb = store->getVBucket(vbid);
-
-    // Final flush should of removed making this invalid and we get an exception
-    EXPECT_THROW(vb->getManifest().lock().getStatsForFlush(
-                         CollectionEntry::fruit, 4),
-                 std::logic_error);
-}
-
 INSTANTIATE_TEST_SUITE_P(CollectionsExpiryLimitTests,
                          CollectionsExpiryLimitTest,
                          ::testing::Bool(),
