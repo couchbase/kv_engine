@@ -56,7 +56,22 @@ public:
         CacheMap::const_iterator end() const;
         CacheMap::iterator find(const std::string& key);
 
+        /**
+         * Resize the cache to the given value (takes into consideration the
+         * maximum file descriptors available so a lower limit may be set)
+         */
         void resize(size_t value);
+
+        /**
+         * Decrement the cache size by 1
+         */
+        void decrementCacheSize();
+
+        /**
+         * Incremenet cache size by 1
+         */
+        void incrementCacheSize();
+
         void clear();
 
         CacheMap::mapped_type::LockedPtr get(const std::string& key);
@@ -69,6 +84,8 @@ public:
         size_t capacity() const;
 
     protected:
+        size_t resizeInternal(size_t value);
+
         CacheMap cache;
     };
 

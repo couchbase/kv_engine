@@ -2028,7 +2028,7 @@ CouchKVStore::OpenForReadResult CouchKVStore::openDbForRead(
         return {COUCHSTORE_ERROR_OPEN_FILE, std::move(handle)};
     }
 
-    fc->resize(fc->capacity() - 1);
+    fc->decrementCacheSize();
 
     auto result = openSpecificDB(vbucketId,
                                  fileRev,

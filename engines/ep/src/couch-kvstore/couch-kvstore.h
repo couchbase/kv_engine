@@ -129,7 +129,7 @@ public:
     ~CouchKVFileHandle() override {
         if (getDb()) {
             auto fc = CouchKVStoreFileCache::get().getHandle();
-            fc->resize(fc->capacity() + 1);
+            fc->incrementCacheSize();
         }
     };
 
