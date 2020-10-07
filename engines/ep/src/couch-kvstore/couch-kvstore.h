@@ -567,7 +567,7 @@ protected:
      * is a locked instance of the DbHolder (for exclusive use by the caller).
      * If the open failed then status contains the reason, and `db` is empty.
      */
-    struct OpenResult {
+    struct OpenForWriteResult {
         couchstore_error_t status;
         CouchKVStoreFileCache::CacheMap::mapped_type::LockedPtr db;
 
@@ -576,23 +576,23 @@ protected:
         // valid
         uint64_t fileRev;
 
-        // Should the Db be closed when OpenResult is destroyed
+        // Should the Db be closed when OpenForWriteResult is destroyed
         // (i.e DbHolder unlocked)?
         // Typically used for testing so every call to openDbForWrite() results
         // in an explicit couchstore_open / close pair.
         bool closeOnUnlock = false;
 
-        ~OpenResult() {
+        ~OpenForWriteResult() {
             if (closeOnUnlock) {
                 db->close();
             }
         }
         // Declaring the dtor disables auto-generation of the various ctors,
         // so need to explicitly re-enable move.
-        OpenResult(OpenResult&&) = default;
+        OpenForWriteResult(OpenForWriteResult&&) = default;
     };
 
-    OpenResult openDbForWrite(Vbid vbucketId);
+    OpenForWriteResult openDbForWrite(Vbid vbucketId);
 
     couchstore_error_t openSpecificDB(Vbid vbucketId,
                                       uint64_t rev,

@@ -2048,7 +2048,7 @@ CouchKVStore::OpenForReadResult CouchKVStore::openDbForRead(
     return {COUCHSTORE_SUCCESS, std::move(handle)};
 }
 
-CouchKVStore::OpenResult CouchKVStore::openDbForWrite(Vbid vbucketId) {
+CouchKVStore::OpenForWriteResult CouchKVStore::openDbForWrite(Vbid vbucketId) {
     // MB-27963: obtain read access whilst we open the file, updateDbFileMap
     // serialises on this mutex so we can be sure the fileRev we read should
     // still be a valid file once we hit sys_open
