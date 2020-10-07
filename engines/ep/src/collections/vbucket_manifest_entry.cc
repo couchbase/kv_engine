@@ -64,54 +64,36 @@ bool Collections::VB::ManifestEntry::addStats(const std::string& cid,
                                               Vbid vbid,
                                               const void* cookie,
                                               const AddStatFn& add_stat) const {
-    try {
-        const int bsize = 512;
-        char buffer[bsize];
-        checked_snprintf(
-                buffer, bsize, "vb_%d:%s:scope", vbid.get(), cid.c_str());
-        add_casted_stat(buffer, getScopeID().to_string(), add_stat, cookie);
-        checked_snprintf(
-                buffer, bsize, "vb_%d:%s:start_seqno", vbid.get(), cid.c_str());
-        add_casted_stat(buffer, getStartSeqno(), add_stat, cookie);
-        checked_snprintf(
-                buffer, bsize, "vb_%d:%s:high_seqno", vbid.get(), cid.c_str());
-        add_casted_stat(buffer, getHighSeqno(), add_stat, cookie);
-        checked_snprintf(buffer,
-                         bsize,
-                         "vb_%d:%s:persisted_high_seqno",
-                         vbid.get(),
-                         cid.c_str());
-        add_casted_stat(buffer, getPersistedHighSeqno(), add_stat, cookie);
-        checked_snprintf(
-                buffer, bsize, "vb_%d:%s:items", vbid.get(), cid.c_str());
-        add_casted_stat(buffer, getItemCount(), add_stat, cookie);
-        checked_snprintf(
-                buffer, bsize, "vb_%d:%s:disk_size", vbid.get(), cid.c_str());
-        add_casted_stat(buffer, getDiskSize(), add_stat, cookie);
-        checked_snprintf(
-                buffer, bsize, "vb_%d:%s:ops_get", vbid.get(), cid.c_str());
-        add_casted_stat(buffer, getOpsGet(), add_stat, cookie);
-        checked_snprintf(
-                buffer, bsize, "vb_%d:%s:ops_store", vbid.get(), cid.c_str());
-        add_casted_stat(buffer, getOpsStore(), add_stat, cookie);
-        checked_snprintf(
-                buffer, bsize, "vb_%d:%s:ops_delete", vbid.get(), cid.c_str());
-        add_casted_stat(buffer, getOpsDelete(), add_stat, cookie);
+    fmt::memory_buffer prefix;
+    format_to(prefix, "vb_{}:{}", vbid.get(), cid);
 
-        if (getMaxTtl()) {
-            checked_snprintf(
-                    buffer, bsize, "vb_%d:%s:maxTTL", vbid.get(), cid.c_str());
-            add_casted_stat(buffer, getMaxTtl().value().count(), add_stat, cookie);
-        }
-        return true;
-    } catch (const std::exception& error) {
-        EP_LOG_WARN(
-                "VB::ManifestEntry::addStats {}, failed to build stats, "
-                "exception:{}",
-                vbid,
-                error.what());
+    const auto addStat = [&prefix, &add_stat, &cookie](const auto& statKey,
+                                                       auto statValue) {
+        fmt::memory_buffer key;
+        fmt::memory_buffer value;
+        format_to(key,
+                  "{}:{}",
+                  std::string_view{prefix.data(), prefix.size()},
+                  statKey);
+        format_to(value, "{}", statValue);
+        add_stat(
+                {key.data(), key.size()}, {value.data(), value.size()}, cookie);
+    };
+
+    addStat("scope", getScopeID().to_string().c_str());
+    addStat("start_seqno", getStartSeqno());
+    addStat("high_seqno", getHighSeqno());
+    addStat("persisted_high_seqno", getPersistedHighSeqno());
+    addStat("items", getItemCount());
+    addStat("disk_size", getDiskSize());
+    addStat("ops_get", getOpsGet());
+    addStat("ops_store", getOpsStore());
+    addStat("ops_delete", getOpsDelete());
+    if (getMaxTtl()) {
+        addStat("maxTTL", getMaxTtl().value().count());
     }
-    return false;
+
+    return true;
 }
 
 std::ostream& Collections::VB::operator<<(

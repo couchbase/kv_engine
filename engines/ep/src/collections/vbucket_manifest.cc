@@ -846,21 +846,20 @@ void Manifest::decrementItemCount(CollectionID collection) const {
 bool Manifest::addCollectionStats(Vbid vbid,
                                   const void* cookie,
                                   const AddStatFn& add_stat) const {
-    try {
-        const int bsize = 512;
-        char buffer[bsize];
-        checked_snprintf(buffer, bsize, "vb_%d:collections", vbid.get());
-        add_casted_stat(buffer, map.size(), add_stat, cookie);
-        checked_snprintf(buffer, bsize, "vb_%d:manifest:uid", vbid.get());
-        add_casted_stat(buffer, manifestUid, add_stat, cookie);
-    } catch (const std::exception& e) {
-        EP_LOG_WARN(
-                "VB::Manifest::addCollectionStats {}, failed to build stats "
-                "exception:{}",
-                vbid,
-                e.what());
-        return false;
-    }
+    fmt::memory_buffer key;
+    fmt::memory_buffer value;
+
+    format_to(key, "vb_{}:collections", vbid.get());
+    format_to(value, "{}", map.size());
+    add_stat({key.data(), key.size()}, {value.data(), value.size()}, cookie);
+
+    key.resize(0);
+    value.resize(0);
+
+    format_to(key, "vb_{}:manifest:uid", vbid.get());
+    format_to(value, "{}", manifestUid);
+    add_stat({key.data(), key.size()}, {value.data(), value.size()}, cookie);
+
     for (const auto& entry : map) {
         if (!entry.second.addStats(
                     entry.first.to_string(), vbid, cookie, add_stat)) {
@@ -874,42 +873,45 @@ bool Manifest::addCollectionStats(Vbid vbid,
 bool Manifest::addScopeStats(Vbid vbid,
                              const void* cookie,
                              const AddStatFn& add_stat) const {
-    const int bsize = 512;
-    char buffer[bsize];
-    try {
-        checked_snprintf(buffer, bsize, "vb_%d:scopes", vbid.get());
-        add_casted_stat(buffer, scopes.size(), add_stat, cookie);
-        checked_snprintf(buffer, bsize, "vb_%d:manifest_uid", vbid.get());
-        add_casted_stat(buffer, manifestUid, add_stat, cookie);
-    } catch (const std::exception& e) {
-        EP_LOG_WARN(
-                "VB::Manifest::addScopeStats {}, failed to build stats "
-                "exception:{}",
-                vbid,
-                e.what());
-        return false;
-    }
+    fmt::memory_buffer key;
+    fmt::memory_buffer value;
+
+    format_to(key, "vb_{}:scopes", vbid.get());
+    format_to(value, "{}", scopes.size());
+    add_stat({key.data(), key.size()}, {value.data(), value.size()}, cookie);
+
+    key.resize(0);
+    value.resize(0);
+
+    format_to(key, "vb_{}:manifest:uid", vbid.get());
+    format_to(value, "{}", manifestUid);
+    add_stat({key.data(), key.size()}, {value.data(), value.size()}, cookie);
 
     // Dump the scopes container, which only stores scope-identifiers, so that
     // we have a key and value we include the iteration index as the value.
     int i = 0;
     for (auto sid : scopes) {
-        checked_snprintf(
-                buffer, bsize, "vb_%d:%s", vbid.get(), sid.to_string().c_str());
-        add_casted_stat(buffer, i++, add_stat, cookie);
+        key.resize(0);
+        value.resize(0);
+
+        format_to(key, "vb_{}:{}", vbid.get(), sid);
+        format_to(value, "{}", i++);
+        add_stat(
+                {key.data(), key.size()}, {value.data(), value.size()}, cookie);
     }
 
     // Dump all collections and how they map to a scope. Stats requires unique
     // keys, so cannot use the cid as the value (as key won't be unique), so
     // return anything from the entry for the value, we choose item count.
     for (const auto& [cid, entry] : map) {
-        checked_snprintf(buffer,
-                         bsize,
-                         "vb_%d:%s:%s:items",
-                         vbid.get(),
-                         entry.getScopeID().to_string().c_str(),
-                         cid.to_string().c_str());
-        add_casted_stat(buffer, entry.getItemCount(), add_stat, cookie);
+        key.resize(0);
+        value.resize(0);
+
+        format_to(
+                key, "vb_{}:{}:{}:items", vbid.get(), entry.getScopeID(), cid);
+        format_to(value, "{}", entry.getItemCount());
+        add_stat(
+                {key.data(), key.size()}, {value.data(), value.size()}, cookie);
     }
 
     return true;
@@ -1097,41 +1099,25 @@ bool Manifest::DroppedCollectionInfo::addStats(
         CollectionID cid,
         const void* cookie,
         const AddStatFn& add_stat) const {
-    try {
-        std::array<char, 512> buffer;
-        checked_snprintf(buffer.data(),
-                         buffer.size(),
-                         "vb_%d_%x:start",
-                         vbid.get(),
-                         uint32_t(cid));
-        add_casted_stat(buffer.data(), start, add_stat, cookie);
-        checked_snprintf(buffer.data(),
-                         buffer.size(),
-                         "vb_%d_%x:end",
-                         vbid.get(),
-                         uint32_t(cid));
-        add_casted_stat(buffer.data(), end, add_stat, cookie);
-        checked_snprintf(buffer.data(),
-                         buffer.size(),
-                         "vb_%d_%x:items",
-                         vbid.get(),
-                         uint32_t(cid));
-        add_casted_stat(buffer.data(), itemCount, add_stat, cookie);
-        checked_snprintf(buffer.data(),
-                         buffer.size(),
-                         "vb_%d_%x:disk",
-                         vbid.get(),
-                         uint32_t(cid));
-        add_casted_stat(buffer.data(), diskSize, add_stat, cookie);
-    } catch (const std::exception& e) {
-        EP_LOG_WARN(
-                "VB::Manifest::DroppedCollectionInfo::addStats {}, failed to "
-                "build stats "
-                "exception:{}",
-                vbid,
-                e.what());
-        return false;
-    }
+    fmt::memory_buffer prefix;
+    format_to(prefix, "vb_{}:{}", vbid.get(), cid);
+    const auto addStat = [&prefix, &add_stat, &cookie](const auto& statKey,
+                                                       auto statValue) {
+        fmt::memory_buffer key;
+        fmt::memory_buffer value;
+        format_to(key,
+                  "{}:{}",
+                  std::string_view{prefix.data(), prefix.size()},
+                  statKey);
+        format_to(value, "{}", statValue);
+        add_stat(
+                {key.data(), key.size()}, {value.data(), value.size()}, cookie);
+    };
+
+    addStat("start", start);
+    addStat("end", end);
+    addStat("items", itemCount);
+    addStat("disk", diskSize);
     return true;
 }
 

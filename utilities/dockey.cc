@@ -21,12 +21,6 @@
 #include <sstream>
 #include <string_view>
 
-std::string CollectionID::to_string() const {
-    std::stringstream sstream;
-    sstream << "0x" << std::hex << value;
-    return sstream.str();
-}
-
 bool CollectionID::isReserved(CollectionIDType value) {
     return value >= System && value <= Reserved7;
 }
@@ -39,9 +33,19 @@ std::ostream& operator<<(std::ostream& os, const CollectionID& cid) {
     return os << "0x" << std::hex << uint32_t(cid);
 }
 
+std::string CollectionID::to_string() const {
+    std::stringstream sstream;
+    sstream << *this;
+    return sstream.str();
+}
+
+std::ostream& operator<<(std::ostream& os, const ScopeID& sid) {
+    return os << "0x" << std::hex << uint32_t(sid);
+}
+
 std::string ScopeID::to_string() const {
     std::stringstream sstream;
-    sstream << "0x" << std::hex << value;
+    sstream << *this;
     return sstream.str();
 }
 

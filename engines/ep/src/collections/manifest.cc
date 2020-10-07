@@ -295,7 +295,7 @@ nlohmann::json Manifest::toJson(
         }
         if (!scope["collections"].empty() || visible) {
             scope["name"] = s.second.name;
-            scope["uid"] = fmt::format("{0:x}", s.first);
+            scope["uid"] = fmt::format("{0:x}", uint32_t(s.first));
             manifest["scopes"].push_back(scope);
         }
     }

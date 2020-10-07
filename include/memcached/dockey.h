@@ -180,6 +180,8 @@ private:
     ScopeIDType value;
 };
 
+std::ostream& operator<<(std::ostream& os, const ScopeID& sid);
+
 using ScopeCollectionPair = std::pair<ScopeID, CollectionID>;
 
 /**
