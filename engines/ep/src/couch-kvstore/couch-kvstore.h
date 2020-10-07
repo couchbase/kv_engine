@@ -547,19 +547,18 @@ protected:
      * reason and fileHandle should have a valid revision value but the
      * underlying Db shouldn't be used.
      */
-    struct OpenForReadResult {
+    struct OpenResult {
         couchstore_error_t status;
         std::unique_ptr<CouchKVFileHandle> fileHandle;
 
-        ~OpenForReadResult() = default;
+        ~OpenResult() = default;
 
         // Declaring the dtor disables auto-generation of the various ctors,
         // so need to explicitly re-enable move.
-        OpenForReadResult(OpenForReadResult&&) = default;
+        OpenResult(OpenResult&&) = default;
     };
 
-    OpenForReadResult openDbForRead(Vbid vbucketId,
-                                    FileOpsInterface* ops = nullptr);
+    OpenResult openDbForRead(Vbid vbucketId, FileOpsInterface* ops = nullptr);
 
     /**
      * The result of calling openDbForWrite.

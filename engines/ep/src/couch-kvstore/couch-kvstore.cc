@@ -2000,8 +2000,8 @@ couchstore_error_t CouchKVStore::openDB(Vbid vbucketId,
     return openSpecificDB(vbucketId, fileRev, db, options, ops);
 }
 
-CouchKVStore::OpenForReadResult CouchKVStore::openDbForRead(
-        Vbid vbucketId, FileOpsInterface* ops) {
+CouchKVStore::OpenResult CouchKVStore::openDbForRead(Vbid vbucketId,
+                                                     FileOpsInterface* ops) {
     // MB-27963: obtain read access whilst we open the file, updateDbFileMap
     // serialises on this mutex so we can be sure the fileRev we read should
     // still be a valid file once we hit sys_open
