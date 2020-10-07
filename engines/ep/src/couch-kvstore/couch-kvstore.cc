@@ -2020,6 +2020,11 @@ CouchKVStore::OpenForReadResult CouchKVStore::openDbForRead(
     // currently in use).
     auto fc = CouchKVStoreFileCache::get().getHandle();
     if (fc->capacity() <= 1) {
+        logger.debug(
+                "CouchKVStore::openDbForRead: {}  rev:{} - cache capacity "
+                "< 1 so not allowing file open",
+                vbucketId,
+                fileRev);
         return {COUCHSTORE_ERROR_OPEN_FILE, std::move(handle)};
     }
 
@@ -2031,6 +2036,12 @@ CouchKVStore::OpenForReadResult CouchKVStore::openDbForRead(
                                  COUCHSTORE_OPEN_FLAG_RDONLY,
                                  ops);
     if (result != COUCHSTORE_SUCCESS) {
+        logger.debug(
+                "CouchKVStore::openDbForRead: {}  rev:{} - openSpecificDb "
+                "returned non-success error code :{}",
+                vbucketId,
+                fileRev,
+                couchstore_strerror(result));
         return {result, std::move(handle)};
     }
 
