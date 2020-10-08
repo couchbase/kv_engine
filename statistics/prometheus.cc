@@ -27,9 +27,14 @@
 
 namespace cb::prometheus {
 
+const std::string MetricServer::lowCardinalityPath = "/_prometheusMetrics";
+const std::string MetricServer::highCardinalityPath = "/_prometheusMetricsHigh";
+const std::string MetricServer::authRealm = "KV Prometheus Exporter";
+
 std::unique_ptr<MetricServer> instance;
 
-void initialize(const std::pair<in_port_t, sa_family_t>& config) {
+void initialize(const std::pair<in_port_t, sa_family_t>& config,
+                AuthCallback authCB) {
     // May be called at init or on config change.
     // If an instance already exists, destroy it before creating
     // a new one. This avoids issues that might arise if setting the same
@@ -40,7 +45,7 @@ void initialize(const std::pair<in_port_t, sa_family_t>& config) {
     in_port_t port;
     sa_family_t family;
     std::tie(port, family) = config;
-    instance = std::make_unique<MetricServer>(port, family);
+    instance = std::make_unique<MetricServer>(port, family, std::move(authCB));
     if (!instance->isAlive()) {
         FATAL_ERROR(EXIT_FAILURE,
                     fmt::format("Failed to start Prometheus exposer on "
@@ -90,7 +95,9 @@ private:
     Cardinality cardinality;
 };
 
-MetricServer::MetricServer(in_port_t port, sa_family_t family)
+MetricServer::MetricServer(in_port_t port,
+                           sa_family_t family,
+                           AuthCallback authCB)
     : stats(std::make_shared<KVCollectable>(Cardinality::Low)),
       statsHC(std::make_shared<KVCollectable>(Cardinality::High)) {
     try {
@@ -103,8 +110,8 @@ MetricServer::MetricServer(in_port_t port, sa_family_t family)
          *  - "[::1]:8080" (ipv6)
          *  - "127.0.0.1:8080,[::1]:8080" (both)
          *
-         * For now, given Prometheus is serving over HTTP and will use
-         * Basic Auth, only ever listen on localhost.
+         * For now, given Prometheus is serving over HTTP and uses
+         * Basic Auth, so only ever listen on localhost.
          */
         auto localhost = (family == AF_INET) ? "127.0.0.1" : "[::1]";
 
@@ -112,9 +119,11 @@ MetricServer::MetricServer(in_port_t port, sa_family_t family)
 
         exposer = std::make_unique<::prometheus::Exposer>(connectionStr);
 
-        // TODO: register on separate endpoints when supported
-        exposer->RegisterCollectable(stats, "/_prometheusMetrics");
-        exposer->RegisterCollectable(statsHC, "/_prometheusMetricsHigh");
+        exposer->RegisterCollectable(stats, lowCardinalityPath);
+        exposer->RegisterCollectable(statsHC, highCardinalityPath);
+
+        exposer->RegisterAuth(authCB, authRealm, lowCardinalityPath);
+        exposer->RegisterAuth(authCB, authRealm, highCardinalityPath);
     } catch (const std::exception& e) {
         LOG_ERROR("Failed start Prometheus Exposer: {}", e.what());
     }

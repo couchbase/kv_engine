@@ -235,15 +235,36 @@ static void stats_init() {
     stats.curr_conns.store(0, std::memory_order_relaxed);
 }
 
+static bool prometheus_auth_callback(const std::string& user,
+                                     const std::string& password) {
+    if (cb::sasl::mechanism::plain::authenticate(user, password) !=
+        cb::sasl::Error::OK) {
+        return false;
+    }
+    try {
+        auto ctx = cb::rbac::createContext({user, cb::rbac::Domain::Local},
+                                           "" /* no bucket */);
+        return ctx
+                .check(cb::rbac::Privilege::Stats,
+                       std::nullopt /* no scope */,
+                       std::nullopt /* no collection */)
+                .success();
+    } catch (const cb::rbac::Exception& e) {
+        return false;
+    }
+}
+
 static void prometheus_changed_listener(const std::string&, Settings& s) {
-    cb::prometheus::initialize(s.getPrometheusConfig());
+    cb::prometheus::initialize(s.getPrometheusConfig(),
+                               prometheus_auth_callback);
 }
 
 static void prometheus_init() {
     auto& settings = Settings::instance();
 
     if (Settings::instance().has.prometheus_config) {
-        cb::prometheus::initialize(settings.getPrometheusConfig());
+        cb::prometheus::initialize(settings.getPrometheusConfig(),
+                                   prometheus_auth_callback);
     } else {
         LOG_WARNING("Prometheus config not specified");
     }

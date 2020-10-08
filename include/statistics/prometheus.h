@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <string>
 
@@ -35,8 +36,10 @@ namespace cb::prometheus {
  *  * high cardinality: per-collection/per-scope stats
  */
 enum class Cardinality { Low, High };
-
-void initialize(const std::pair<in_port_t, sa_family_t>& config);
+using AuthCallback =
+        std::function<bool(const std::string&, const std::string&)>;
+void initialize(const std::pair<in_port_t, sa_family_t>& config,
+                AuthCallback authCB);
 
 /**
  * Global manager for exposing stats for Prometheus.
@@ -53,7 +56,9 @@ public:
      * @param port port to listen on, 0 for random free port
      * @param family AF_INET/AF_INET6
      */
-    explicit MetricServer(in_port_t port, sa_family_t family);
+    explicit MetricServer(in_port_t port,
+                          sa_family_t family,
+                          AuthCallback authCB);
     ~MetricServer();
 
     MetricServer(const MetricServer&) = delete;
@@ -90,5 +95,11 @@ private:
     // May be empty if the exposer could not be initialised
     // e.g., port already in use
     std::unique_ptr<::prometheus::Exposer> exposer;
+
+    static const std::string lowCardinalityPath;
+    static const std::string highCardinalityPath;
+
+    // Realm name sent to unauthed clients in 401 Unauthorized responses.
+    static const std::string authRealm;
 };
 } // namespace cb::prometheus
