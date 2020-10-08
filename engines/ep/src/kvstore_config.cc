@@ -94,7 +94,7 @@ KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,
       backend(std::move(_backend)),
       shardId(_shardId),
       logger(globalBucketLogger.get()) {
-    auto env = Environment::get();
+    auto& env = Environment::get();
     maxFileDescriptors = env.getMaxBackendFileDescriptors();
 }
 

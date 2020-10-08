@@ -34,7 +34,7 @@ public:
      * The maximum number of file descriptors that the engines can
      * (collectively) use
      */
-    size_t engineFileDescriptors = 0;
+    std::atomic<size_t> engineFileDescriptors = 0;
 
     /**
      * We want to reserve /some/ files for each engine for tasks such as
