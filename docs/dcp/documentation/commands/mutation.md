@@ -104,7 +104,7 @@ The datatype field of the `DCP_MUTATION` describes the Value payload of the mess
 and not the datatype of the original document. This is important to consider when a
 producer is opened with any combination of the no value or include xattr flags.
 
-* [Datatype bits ](../../../../BinaryProtocol.md#data-types)
+* [Datatype bits ](../../../BinaryProtocol.md#data-types)
 * DCP without the value or xattr flags - datatype will never contain XATTR, but
   could be a combination of 0, JSON. If the client has enabled compression, the
   SNAPPY datatype bit may also be present.
@@ -116,7 +116,7 @@ producer is opened with any combination of the no value or include xattr flags.
   may also be present.
 
 See
-[Document - Extended Attributes](../../../../Document.md#xattr---extended-attributes)
+[Document - Extended Attributes](../../../Document.md#xattr---extended-attributes)
 for details of the encoding scheme.
 
 ### Extended Meta Data Section
