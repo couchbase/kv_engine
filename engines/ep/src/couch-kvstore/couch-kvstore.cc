@@ -2017,10 +2017,9 @@ CouchKVStore::OpenResult CouchKVStore::openDb(Vbid vbucketId,
         return {COUCHSTORE_ERROR_OPEN_FILE, std::move(handle)};
     }
 
-    fc->decrementCacheSize();
-
     auto result = openSpecificDB(
             vbucketId, fileRev, handle->getDbHolder(), options, ops);
+
     if (result != COUCHSTORE_SUCCESS) {
         logger.debug(
                 "CouchKVStore::openDbForRead: {}  rev:{} - openSpecificDb "
@@ -2030,6 +2029,8 @@ CouchKVStore::OpenResult CouchKVStore::openDb(Vbid vbucketId,
                 couchstore_strerror(result));
         return {result, std::move(handle)};
     }
+
+    fc->decrementCacheSize();
 
     return {COUCHSTORE_SUCCESS, std::move(handle)};
 }

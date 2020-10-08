@@ -622,6 +622,39 @@ TEST_F(CouchKVStoreErrorInjectionTest,
     }
 }
 
+// Test that if we fail to open the db we don't segfault by accessing a bad
+// ptr when we log the fileRev
+TEST_F(CouchKVStoreErrorInjectionTest,
+       FileCacheLimitIncreasedIfOpenForReadFails) {
+    vbid = Vbid(10);
+
+    // Make sure the vBucket does not exist before this test
+    ASSERT_FALSE(kvstore->getVBucketState(vbid));
+    ASSERT_THROW(kvstore->readVBState(vbid), std::logic_error);
+    ASSERT_EQ(0, kvstore->getKVStoreStat().numVbSetFailure);
+
+    auto cap = CouchKVStoreFileCache::get().getHandle()->capacity();
+    {
+        EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
+        EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_OPEN_FILE)))
+                .Times(1)
+                .RetiresOnSaturation();
+
+        /* Establish FileOps expectation */
+        EXPECT_CALL(ops, open(_, _, _, _))
+                .WillOnce(Return(COUCHSTORE_ERROR_OPEN_FILE))
+                .RetiresOnSaturation();
+
+        vbucket_state state;
+        kvstore->get(makeDiskDocKey("key"), vbid);
+    }
+
+    EXPECT_EQ(cap, CouchKVStoreFileCache::get().getHandle()->capacity());
+}
+
 /**
  * Injects error during CouchKVStore::openDB_retry/couchstore_open_db_ex
  */
