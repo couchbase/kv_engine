@@ -594,7 +594,8 @@ TEST_F(CouchKVStoreErrorInjectionTest, initializeWithHeaderButNoVBState) {
 
 // Test that if we fail to open the db we don't segfault by accessing a bad
 // ptr when we log the fileRev
-TEST_F(CouchKVStoreErrorInjectionTest, abc) {
+TEST_F(CouchKVStoreErrorInjectionTest,
+       FileRevAccessibleAfterOpenDbForWriteFailure) {
     vbid = Vbid(10);
 
     // Make sure the vBucket does not exist before this test
