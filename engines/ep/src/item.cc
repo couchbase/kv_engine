@@ -416,42 +416,44 @@ item_info Item::toItemInfo(uint64_t vb_uuid, int64_t hlcEpoch) const {
     return info;
 }
 
-void Item::removeBody() {
+Item::WasValueInflated Item::removeBody() {
     if (!value) {
         // No value, nothing to do
-        return;
+        return WasValueInflated::No;
     }
 
     if (!mcbp::datatype::is_xattr(getDataType())) {
         // We don't want the body and there are no xattrs, just set empty value
         setData(nullptr, 0);
         setDataType(PROTOCOL_BINARY_RAW_BYTES);
-        return;
+        return WasValueInflated::No;
     }
 
     // No-op if already uncompressed
-    decompressValue();
+    const auto wasInflated = decompressValue();
 
     // We want only xattrs.
     // Note: The following is no-op if no Body present.
     std::string_view valBuffer{value->getData(), value->valueSize()};
     setData(valBuffer.data(), cb::xattr::get_body_offset(valBuffer));
     setDataType(PROTOCOL_BINARY_DATATYPE_XATTR);
+
+    return wasInflated ? WasValueInflated::Yes : WasValueInflated::No;
 }
 
-void Item::removeXattrs() {
+Item::WasValueInflated Item::removeXattrs() {
     if (!value) {
         // No value, nothing to do
-        return;
+        return WasValueInflated::No;
     }
 
     if (!mcbp::datatype::is_xattr(getDataType())) {
         // No Xattrs, nothing to do
-        return;
+        return WasValueInflated::No;
     }
 
     // No-op if already uncompressed
-    decompressValue();
+    const auto wasInflated = decompressValue();
 
     // We want only the body
     std::string_view valBuffer{value->getData(), value->valueSize()};
@@ -466,21 +468,23 @@ void Item::removeXattrs() {
         // Subdoc logic for details. Here we have to rectify.
         setDataType(getDataType() & ~PROTOCOL_BINARY_DATATYPE_JSON);
     }
+
+    return wasInflated ? WasValueInflated::Yes : WasValueInflated::No;
 }
 
-void Item::removeUserXattrs() {
+Item::WasValueInflated Item::removeUserXattrs() {
     if (!value) {
         // No value, nothing to do
-        return;
+        return WasValueInflated::No;
     }
 
     if (!mcbp::datatype::is_xattr(getDataType())) {
         // No Xattrs, nothing to do
-        return;
+        return WasValueInflated::No;
     }
 
     // No-op if already uncompressed
-    decompressValue();
+    const auto wasInflated = decompressValue();
 
     // The function currently does not support value with body.
     // That is fine for now as this is introduced for MB-37374, thus is supposed
@@ -507,33 +511,37 @@ void Item::removeUserXattrs() {
     // Note: Doing this unconditionally as we reach this line iff there is no
     // body. We would need to do this conditionally otherwise.
     setDataType(getDataType() & ~PROTOCOL_BINARY_DATATYPE_JSON);
+
+    return wasInflated ? WasValueInflated::Yes : WasValueInflated::No;
 }
 
-void Item::removeBodyAndOrXattrs(
+Item::WasValueInflated Item::removeBodyAndOrXattrs(
         IncludeValue includeVal,
         IncludeXattrs includeXattrs,
         IncludeDeletedUserXattrs includeDeletedUserXattrs) {
     if (!value) {
         // If no value (ie, no body and/or xattrs) then nothing to do
-        return;
+        return WasValueInflated::No;
     }
 
     // Take a copy of the original datatype before proceeding, any modification
     // to the value may change the datatype.
     const auto originalDatatype = getDataType();
 
+    auto wasInflated = WasValueInflated::No;
+
     // Note: IncludeValue acts like "include body"
     if (includeVal != IncludeValue::Yes) {
-        removeBody();
+        wasInflated = removeBody();
     }
 
     if (includeXattrs == IncludeXattrs::No) {
-        removeXattrs();
+        wasInflated = removeXattrs();
     }
 
     if (isDeleted() &&
         includeDeletedUserXattrs == IncludeDeletedUserXattrs::No) {
-        removeUserXattrs();
+        wasInflated = removeUserXattrs();
     }
 
     // Datatype for no-value must be RAW
@@ -545,6 +553,8 @@ void Item::removeBodyAndOrXattrs(
     if (includeVal == IncludeValue::NoWithUnderlyingDatatype) {
         setDataType(originalDatatype);
     }
+
+    return wasInflated;
 }
 
 item_info to_item_info(const ItemMetaData& itemMeta,

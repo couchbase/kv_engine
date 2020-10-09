@@ -20,12 +20,11 @@
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/msg_producers_border_guard.h"
 #include "dcp/response.h"
+#include "mock_bucket_logger.h"
 #include "mock_dcp.h"
 #include "mock_dcp_backfill_mgr.h"
 #include "mock_stream.h"
 #include "vbucket.h"
-
-#include <folly/portability/GTest.h>
 
 extern cb::mcbp::ClientOpcode last_op;
 
@@ -154,4 +153,13 @@ bool MockDcpProducer::getBackfillBufferFullStatus() {
 BackfillScanBuffer& MockDcpProducer::public_getBackfillScanBuffer() {
     return std::dynamic_pointer_cast<MockDcpBackfillManager>(backfillMgr.load())
             ->public_getBackfillScanBuffer();
+}
+
+void MockDcpProducer::setupMockLogger() {
+    logger = std::make_shared<::testing::NiceMock<MockBucketLogger>>("prod");
+}
+
+MockBucketLogger& MockDcpProducer::public_getLogger() const {
+    EXPECT_TRUE(logger);
+    return dynamic_cast<MockBucketLogger&>(*logger);
 }

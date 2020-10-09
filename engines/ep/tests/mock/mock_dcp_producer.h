@@ -24,6 +24,7 @@
 class ActiveStreamCheckpointProcessorTask;
 struct BackfillScanBuffer;
 class MockActiveStream;
+class MockBucketLogger;
 class MockDcpMessageProducers;
 
 /*
@@ -245,4 +246,8 @@ public:
     void setTotalBtyesSent(size_t v) {
         totalBytesSent = v;
     }
+
+    void setupMockLogger();
+
+    MockBucketLogger& public_getLogger() const;
 };

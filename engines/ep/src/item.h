@@ -508,26 +508,34 @@ public:
      */
     item_info toItemInfo(uint64_t vb_uuid, int64_t hlcEpoch) const;
 
+    enum class WasValueInflated : uint8_t { No, Yes };
+
     /**
      * Remove the Body of this item's value.
      * No-op if no Value or no Body present.
      * Keeps the Xattrs chunk intact, if any.
+     *
+     * @return whether the value has been decompressed for processing
      */
-    void removeBody();
+    WasValueInflated removeBody();
 
     /**
      * Remove the Xattrs chunk of this item's value.
      * No-op if no Value or no Xattr present.
      * Keeps the Body intact, if any.
+     *
+     * @return whether the value has been decompressed for processing
      */
-    void removeXattrs();
+    WasValueInflated removeXattrs();
 
     /**
      * Remove user-xattrs from the Xattrs chunk of this item's value.
      * No-op if no Value or no user-xattr present.
      * Keeps the Body and the sys-xattrs intact, if any.
+     *
+     * @return whether the value has been decompressed for processing
      */
-    void removeUserXattrs();
+    WasValueInflated removeUserXattrs();
 
     /**
      * Removes Body and/or Xattrs from the item depending on the given params
@@ -536,8 +544,10 @@ public:
      * @param includeXattrs states whether the item should include xattrs
      * @param includeDeletedUserXattrs states whether a delete item should
      *  include user-xattrs
+     *
+     * @return whether the value has been decompressed for processing
      */
-    void removeBodyAndOrXattrs(
+    WasValueInflated removeBodyAndOrXattrs(
             IncludeValue includeVal,
             IncludeXattrs includeXattrs,
             IncludeDeletedUserXattrs includeDeletedUserXattrs);
