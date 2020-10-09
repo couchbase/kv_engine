@@ -136,9 +136,14 @@ public:
     }
 
     /**
-     * Get the size of the system xattr's located in the blob
+     * Get the size of the system xattrs located in the blob
      */
     size_t get_system_size() const;
+
+    /**
+     * Get the size of the user xattrs located in the blob
+     */
+    size_t get_user_size() const;
 
     /**
      * Get pointer to the xattr data (raw data, including the len word)
@@ -273,6 +278,13 @@ protected:
     void remove_segment(const size_t offset, const size_t size);
 
 private:
+    enum class Type : uint8_t { System, User };
+
+    /**
+     * Get the size of the specific category of Xattrs located in the blob
+     */
+    size_t get_xattrs_size(Type type) const;
+
     cb::char_buffer blob;
 
     /// When the incoming data is compressed will auto-decompress into this

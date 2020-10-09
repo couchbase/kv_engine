@@ -490,12 +490,15 @@ Item::WasValueInflated Item::removeUserXattrs() {
     const auto bodySize = valNBytes - cb::xattr::get_body_offset(valBuf);
     Expects(bodySize == 0);
 
-    cb::xattr::Blob xattrBlob(valBuf, false);
-    xattrBlob.prune_user_keys();
-    setData(xattrBlob.data(), xattrBlob.size());
+    // Operate on a copy
+    const cb::xattr::Blob originalBlob(valBuf, false /*compressed*/);
+    auto copy = cb::xattr::Blob(originalBlob);
+    copy.prune_user_keys();
+    const auto final = copy.finalize();
+    setData(final.data(), final.size());
 
     // We have removed all user-xattrs, clear the xattr dt if no xattr left
-    if (xattrBlob.get_system_size() == 0) {
+    if (copy.get_system_size() == 0) {
         setDataType(getDataType() & ~PROTOCOL_BINARY_DATATYPE_XATTR);
     }
 

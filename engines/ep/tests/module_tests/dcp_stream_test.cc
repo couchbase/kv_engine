@@ -3015,8 +3015,8 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
     // only configurations that trigger user-xattr pruning in deletes.
     ASSERT_TRUE((flags & DcpOpenFlag::IncludeDeletedUserXattrs) == 0);
 
-    auto vb = engine->getVBucket(vbid);
-    recreateProducerAndStream(*vb, flags);
+    auto& vb = *engine->getVBucket(vbid);
+    recreateProducerAndStream(vb, flags);
 
     const auto currIncDelUserXattr =
             (flags & DcpOpenFlag::IncludeDeletedUserXattrs) != 0
@@ -3045,9 +3045,34 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
 
     auto* cookie = create_mock_cookie();
 
-    // Store a Deleted doc
+    struct Sizes {
+        Sizes(const Item& item) {
+            value = item.getNBytes();
+
+            cb::char_buffer valBuf{const_cast<char*>(item.getData()),
+                                   item.getNBytes()};
+            cb::xattr::Blob xattrBlob(valBuf, false);
+            xattrs = xattrBlob.size();
+            userXattrs = xattrBlob.get_user_size();
+            sysXattrs = xattrBlob.get_system_size();
+            body = item.getNBytes() - cb::xattr::get_body_offset(valBuf);
+        }
+
+        size_t value;
+        size_t xattrs;
+        size_t userXattrs;
+        size_t sysXattrs;
+        size_t body;
+    };
+
+    // Make an item..
     auto item = makeCommittedItem(makeStoredDocKey("keyD"), value);
     item->setDataType(bodyType | PROTOCOL_BINARY_DATATYPE_XATTR);
+    // .. and save the payload sizes for later checks.
+    const auto originalValue = value;
+    const auto originalSizes = Sizes(*item);
+
+    // Store the item as deleted
     uint64_t cas = 0;
     const auto expectedStoreRes = durReqs ? ENGINE_EWOULDBLOCK : ENGINE_SUCCESS;
     ASSERT_EQ(expectedStoreRes,
@@ -3058,6 +3083,75 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
                             durReqs,
                             DocumentState::Deleted));
 
+    auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(0, readyQ.size());
+
+    // Verfies that the payload pointed by the item in CM is the same as the
+    // original one
+    const auto checkPayloadInCM =
+            [&vb, &originalValue, &originalSizes, &durReqs]() -> void {
+        const auto& manager = *vb.checkpointManager;
+        const auto& ckptList =
+                CheckpointManagerTestIntrospector::public_getCheckpointList(
+                        manager);
+        // 1 checkpoint
+        ASSERT_EQ(1, ckptList.size());
+        const auto* ckpt = ckptList.front().get();
+        ASSERT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
+        // empty-item
+        auto it = ckpt->begin();
+        ASSERT_EQ(queue_op::empty, (*it)->getOperation());
+        // 1 metaitem (checkpoint-start)
+        it++;
+        ASSERT_EQ(3, ckpt->getNumMetaItems());
+        EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
+        it++;
+        EXPECT_EQ(queue_op::set_vbucket_state, (*it)->getOperation());
+        it++;
+        EXPECT_EQ(queue_op::set_vbucket_state, (*it)->getOperation());
+        // 1 non-metaitem is our deletion
+        it++;
+        ASSERT_EQ(1, ckpt->getNumItems());
+        ASSERT_TRUE((*it)->isDeleted());
+        const auto expectedOp =
+                durReqs ? queue_op::pending_sync_write : queue_op::mutation;
+        EXPECT_EQ(expectedOp, (*it)->getOperation());
+
+        // Byte-by-byte comparison
+        EXPECT_EQ(originalValue, (*it)->getValue()->to_s());
+
+        // The latest check should already fail if even a single byte in the
+        // payload has changed, but check also the sizes of the specific value
+        // chunks.
+        const auto cmSizes = Sizes(**it);
+        EXPECT_EQ(originalSizes.value, cmSizes.value);
+        EXPECT_EQ(originalSizes.xattrs, cmSizes.xattrs);
+        EXPECT_EQ(originalSizes.userXattrs, cmSizes.userXattrs);
+        EXPECT_EQ(originalSizes.sysXattrs, cmSizes.sysXattrs);
+        ASSERT_EQ(originalSizes.body, cmSizes.body);
+    };
+
+    // Verify that the value of the item in CM has not changed
+    {
+        SCOPED_TRACE("");
+        checkPayloadInCM();
+    }
+
+    // Push items to the readyQ and check what we get
+    stream->nextCheckpointItemTask();
+    ASSERT_EQ(2, readyQ.size());
+
+    // MB-41944: The call to Stream::nextCheckpointItemTask() has removed
+    // UserXattrs from the payload. Before the fix we modified the item's value
+    // (which is a reference-counted object in memory) rather that a copy of it.
+    // So here we check that the item's value in CM is still untouched.
+    {
+        SCOPED_TRACE("");
+        checkPayloadInCM();
+    }
+
+    // Note: Doing this check after Stream::nextCheckpointItemTask() is another
+    //  coverage for MB-41944, so I move it here.
     if (persistent()) {
         // Flush and ensure docs on disk
         flush_vbucket_to_disk(vbid, 1 /*expectedNumFlushed*/);
@@ -3073,13 +3167,6 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
                   cb::const_char_buffer(doc.item->getData(),
                                         doc.item->getNBytes()));
     }
-
-    auto& readyQ = stream->public_readyQ();
-    ASSERT_EQ(0, readyQ.size());
-
-    // Push items to the readyQ and check what we get
-    stream->nextCheckpointItemTask();
-    ASSERT_EQ(2, readyQ.size());
 
     auto resp = stream->public_nextQueuedItem();
     ASSERT_TRUE(resp);
