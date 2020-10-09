@@ -404,7 +404,7 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                 currentCollections, "encodeOpenCollections()");
         auto open = flatbuffers::GetRoot<Collections::KVStore::OpenCollections>(
                 currentCollections.data());
-        for (const auto& entry : *open->entries()) {
+        for (const auto* entry : *open->entries()) {
             // For each currently open collection, is it in the dropped map?
             auto result = droppedCollections.find(entry->collectionId());
 
@@ -529,7 +529,7 @@ flatbuffers::DetachedBuffer Flush::encodeOpenScopes(
         auto fbData = flatbuffers::GetRoot<Collections::KVStore::Scopes>(
                 existingScopes.data());
 
-        for (const auto& entry : *fbData->entries()) {
+        for (const auto* entry : *fbData->entries()) {
             auto result = droppedScopes.find(entry->scopeId());
 
             // If not found in dropped scopes add to output
