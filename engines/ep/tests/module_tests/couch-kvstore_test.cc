@@ -27,6 +27,7 @@
 #include "rollback_result.h"
 #include "src/internal.h"
 #include "test_helpers.h"
+#include "tests/mock/mock_bucket_logger.h"
 #include "tests/mock/mock_couch_kvstore.h"
 #include "tests/test_fileops.h"
 #include "tools/couchfile_upgrade/input_couchfile.h"
@@ -465,43 +466,6 @@ TEST_F(CouchKVStoreTest, OpenHistoricalSnapshot) {
  */
 
 using namespace testing;
-
-/**
- * The MockBucket Logger is used to verify that the logger is called with
- * certain parameters / messages.
- *
- * The MockBucketLogger calls the log method as normal, and intercepts the
- * _sink_it call by overriding it to determine the correctness of the logging
- */
-class MockBucketLogger : public BucketLogger {
-public:
-    explicit MockBucketLogger(std::string name) : BucketLogger(name) {
-        // Set the log level of the BucketLogger to trace to ensure messages
-        // make it through to the sink it method. Does not alter the logging
-        // level of the underlying spdlogger so we will not see console
-        // output during the test.
-        set_level(spdlog::level::level_enum::trace);
-        ON_CALL(*this, mlog(_, _))
-                .WillByDefault(Invoke([](spdlog::level::level_enum sev,
-                                         const std::string& msg) {}));
-    }
-
-    // Mock a method taking a logging level and formatted message to test log
-    // outputs.
-    MOCK_CONST_METHOD2(mlog,
-                       void(spdlog::level::level_enum severity,
-                            const std::string& message));
-
-protected:
-    // Override the sink_it_ method to redirect to the mocked method
-    // Must call the mlog method to check the message details as they are
-    // bundled in the log_msg object. Beware, msg.raw is not null terminated.
-    // In these test cases however we just search for a substring within the log
-    // message so this is okay.
-    void sink_it_(spdlog::details::log_msg& msg) override {
-        mlog(msg.level, msg.raw.data());
-    }
-};
 
 /**
  * VCE: Verify Couchstore Error
