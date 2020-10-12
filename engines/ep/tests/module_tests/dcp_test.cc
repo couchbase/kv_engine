@@ -23,6 +23,7 @@
  */
 
 #include "dcp_test.h"
+#include "../mock/mock_bucket_logger.h"
 #include "../mock/mock_checkpoint_manager.h"
 #include "../mock/mock_dcp.h"
 #include "../mock/mock_dcp_conn_map.h"
@@ -47,6 +48,7 @@
 #include "test_helpers.h"
 #include "warmup.h"
 
+#include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
 #include <memcached/server_cookie_iface.h>
 #include <platform/cbassert.h>
@@ -796,6 +798,61 @@ TEST_P(CompressionStreamTest, force_value_compression_enabled) {
               producers.last_datatype);
 
     destroy_dcp_stream();
+}
+
+TEST_P(CompressionStreamTest,
+       NoWithUnderlyingDatatype_CompressionDisabled_ItemCompressed) {
+    setup_dcp_stream(
+            0, IncludeValue::NoWithUnderlyingDatatype, IncludeXattrs::Yes);
+    ASSERT_FALSE(producer->isCompressionEnabled());
+    ASSERT_EQ(IncludeValue::NoWithUnderlyingDatatype,
+              stream->public_getIncludeValue());
+    ASSERT_EQ(IncludeXattrs::Yes, stream->public_getIncludeXattrs());
+
+    // Create a compressed item
+    auto item = makeCompressibleItem(vbid,
+                                     makeStoredDocKey("key"),
+                                     "body000000000000000000000000000000000000",
+                                     isXattr() ? PROTOCOL_BINARY_DATATYPE_JSON
+                                               : PROTOCOL_BINARY_RAW_BYTES,
+                                     true, // compressed
+                                     isXattr());
+
+    // ActiveStream::makeResponseFromItem is where we modify the item value (if
+    // necessary) before pushing items into the Stream::readyQ. Here we just
+    // pass the item in input to the function and check that we get the expected
+    // DcpResponse.
+
+    // Core expectation of this test: we don't try to inflate an uncompressed or
+    // empty value, which leads to logging a warning. Before the fix, this
+    // expectation fails as GMock intercept 1 call to mlog.
+    producer->setupMockLogger();
+    using namespace testing;
+    EXPECT_CALL(producer->public_getLogger(), mlog(_, _)).Times(0);
+
+    queued_item originalItem(std::move(item));
+    const auto resp = stream->public_makeResponseFromItem(
+            originalItem, SendCommitSyncWriteAs::Commit);
+
+    const auto* mut = dynamic_cast<MutationResponse*>(resp.get());
+    ASSERT_TRUE(mut);
+
+    // Expecting a modified item, new allocation occurred.
+    ASSERT_NE(originalItem.get(), mut->getItem().get());
+
+    const auto originalValueSize = originalItem->getNBytes();
+    ASSERT_GT(originalValueSize, 0);
+    const auto onTheWireValueSize = mut->getItem()->getNBytes();
+
+    if (isXattr()) {
+        // Stream::makeResponseFromItem will have inflated the value for
+        // removing Xattrs, and then not re-compressed as passive compression
+        // is disabled.
+        EXPECT_GT(onTheWireValueSize, originalValueSize);
+    } else {
+        // Body only, which must have been removed.
+        EXPECT_EQ(0, onTheWireValueSize);
+    }
 }
 
 class ConnectionTest : public DCPTest,
