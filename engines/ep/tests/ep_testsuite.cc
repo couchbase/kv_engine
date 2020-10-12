@@ -6875,6 +6875,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "vb_0:ops_reject",
               "vb_0:ops_update",
               "vb_0:pending_writes",
+              "vb_0:persistence_seqno",
               "vb_0:purge_seqno",
               "vb_0:queue_age",
               "vb_0:queue_drain",

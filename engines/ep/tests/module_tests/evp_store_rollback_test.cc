@@ -540,6 +540,8 @@ protected:
                       store->getVBucket(vbid)->getHighSeqno());
         }
         EXPECT_EQ(0, store->getVBucket(vbid)->ht.getNumSystemItems());
+        EXPECT_EQ(store->getVBucket(vbid)->getHighSeqno(),
+                  store->getVBucket(vbid)->getPersistenceSeqno());
     }
 
     void rollback_to_zero(int64_t rollbackSeqno) {
@@ -577,6 +579,7 @@ protected:
                           .lock()
                           .getPersistedHighSeqno(CollectionID::Default));
         EXPECT_EQ(0, store->getVBucket(vbid)->getNumItems());
+        EXPECT_EQ(0, store->getVBucket(vbid)->getPersistenceSeqno());
     }
 
 protected:

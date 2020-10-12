@@ -2489,12 +2489,10 @@ TaskStatus KVBucket::rollback(Vbid vbid, uint64_t rollbackSeqno) {
                                         */) {
                 rollbackUnpersistedItems(*vb, result.highSeqno);
                 loadPreparedSyncWrites(wlh, *vb);
-                vb->postProcessRollback(result, prevHighSeqno);
-
-                // And update collections post rollback
-                vb->collectionsRolledBack(
-                        *vbMap.getShardByVbId(vbid)->getROUnderlying());
-
+                vb->postProcessRollback(
+                        result,
+                        prevHighSeqno,
+                        *vbMap.getShardByVbId(vbid)->getRWUnderlying());
                 engine.getDcpConnMap().closeStreamsDueToRollback(vbid);
                 return TaskStatus::Complete;
             }

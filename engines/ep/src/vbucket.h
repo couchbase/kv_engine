@@ -1488,16 +1488,11 @@ public:
      *                       snapshot end seqno of the last snapshot in the
      *                       vBucket after the rollback
      * @param prevHighSeqno high seqno before the rollback
-     */
-    void postProcessRollback(const RollbackResult& rollbackResult,
-                             uint64_t prevHighSeqno);
-
-    /**
-     * Update collections following a rollback
-     *
      * @param kvstore A KVStore that is used for retrieving stored metadata
      */
-    void collectionsRolledBack(KVStore& kvstore);
+    void postProcessRollback(const RollbackResult& rollbackResult,
+                             uint64_t prevHighSeqno,
+                             KVStore& kvstore);
 
     /**
      * Debug - print a textual description of the VBucket to stderr.
@@ -2049,6 +2044,13 @@ protected:
             const Item& item,
             UseActiveVBMemThreshold useActiveVBMemThrehsold =
                     UseActiveVBMemThreshold::No);
+
+    /**
+     * Update collections following a rollback
+     *
+     * @param kvstore A KVStore that is used for retrieving stored metadata
+     */
+    void collectionsRolledBack(KVStore& kvstore);
 
     void _addStats(VBucketStatsDetailLevel detail,
                    const AddStatFn& add_stat,

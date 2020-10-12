@@ -3052,7 +3052,8 @@ bool VBucket::removeItemFromMemory(const Item& item) {
 }
 
 void VBucket::postProcessRollback(const RollbackResult& rollbackResult,
-                                  uint64_t prevHighSeqno) {
+                                  uint64_t prevHighSeqno,
+                                  KVStore& kvstore) {
     failovers->pruneEntries(rollbackResult.highSeqno);
     checkpointManager->clear(*this, rollbackResult.highSeqno);
     setPersistedSnapshot(
@@ -3060,6 +3061,10 @@ void VBucket::postProcessRollback(const RollbackResult& rollbackResult,
     incrRollbackItemCount(prevHighSeqno - rollbackResult.highSeqno);
     checkpointManager->setOpenCheckpointId(1);
     setReceivingInitialDiskSnapshot(false);
+    setPersistenceSeqno(kvstore.getLastPersistedSeqno(getId()));
+
+    // And update collections post rollback
+    collectionsRolledBack(kvstore);
 }
 
 void VBucket::collectionsRolledBack(KVStore& kvstore) {
@@ -3174,7 +3179,7 @@ void VBucket::_addStats(VBucketStatsDetailLevel detail,
                 checkpointManager->getMaxVisibleSeqno(),
                 add_stat,
                 c);
-
+        addStat("persistence_seqno", getPersistenceSeqno(), add_stat, c);
         hlc.addStats(statPrefix, add_stat, c);
     }
         // fallthrough
