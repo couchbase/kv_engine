@@ -2628,6 +2628,16 @@ void KVBucket::initializeExpiryPager(Configuration& config) {
 
 cb::engine_error KVBucket::setCollections(std::string_view manifest,
                                           const void* cookie) {
+    // Only allow a new manifest once warmup has progressed past vbucket warmup
+    // 1) This means any prior manifest has been loaded
+    // 2) All vbuckets can have the new manifest applied
+    if (cookie && maybeWaitForVBucketWarmup(cookie)) {
+        EP_LOG_INFO("KVBucket::setCollections blocking for warmup cookie:{}",
+                    cookie);
+        return cb::engine_error(cb::engine_errc::would_block,
+                                "KVBucket::setCollections waiting for warmup");
+    }
+
     // Inhibit VB state changes whilst updating the vbuckets
     LockHolder lh(vbsetMutex);
 

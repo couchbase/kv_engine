@@ -1254,10 +1254,18 @@ TEST_F(CollectionsWarmupTest, MB_38125) {
     resetEngineAndEnableWarmup();
 
     CollectionsManifest cm(CollectionEntry::fruit);
-    setCollections(cookie, std::string{cm});
+
+    // Cannot set the manifest yet - command follows ewouldblock pattern
+    auto status = engine->set_collection_manifest(cookie, std::string{cm});
+    EXPECT_EQ(cb::engine_errc::would_block, status);
+    cookie_to_mock_cookie(cookie)->status = ENGINE_FAILED;
 
     // Now get the engine warmed up
     runReadersUntilWarmedUp();
+
+    // cookie now notified and setCollections can go ahead
+    EXPECT_EQ(ENGINE_SUCCESS, cookie_to_mock_cookie(cookie)->status);
+    setCollections(cookie, std::string{cm});
 
     auto vb = store->getVBucket(vbid);
 
@@ -1275,7 +1283,11 @@ TEST_F(CollectionsWarmupTest, LockedVBStateDuringManifestUpdate) {
     // complete warmup
     CollectionsManifest cm;
     cm.remove(CollectionEntry::defaultC);
-    setCollections(cookie, std::string{cm});
+
+    // Cannot set the manifest yet - command follows ewouldblock pattern
+    auto status = engine->set_collection_manifest(cookie, std::string{cm});
+    EXPECT_EQ(cb::engine_errc::would_block, status);
+    cookie_to_mock_cookie(cookie)->status = ENGINE_FAILED;
 
     auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
     mockEPBucket->setCollectionsManagerPreSetStateAtWarmupHook([this]() {
@@ -1288,6 +1300,10 @@ TEST_F(CollectionsWarmupTest, LockedVBStateDuringManifestUpdate) {
     });
 
     runReadersUntilWarmedUp();
+
+    // cookie now notified and setCollections can go ahead
+    EXPECT_EQ(ENGINE_SUCCESS, cookie_to_mock_cookie(cookie)->status);
+    setCollections(cookie, std::string{cm});
 }
 
 /**
