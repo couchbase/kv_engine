@@ -30,17 +30,20 @@ std::string document_pre_expiry(const item_info& itm_info) {
         return {};
     }
 
+    // Operate on a copy
     cb::char_buffer payload{static_cast<char*>(itm_info.value[0].iov_base),
                             itm_info.value[0].iov_len};
+    cb::xattr::Blob originalBlob(payload,
+                                 mcbp::datatype::is_snappy(itm_info.datatype));
+    auto copy = cb::xattr::Blob(originalBlob);
+    copy.prune_user_keys();
+    const auto final = copy.finalize();
 
-    cb::xattr::Blob blob(payload, mcbp::datatype::is_snappy(itm_info.datatype));
-    blob.prune_user_keys();
-    auto pruned = blob.finalize();
-    if (pruned.size() == 0) {
+    if (final.size() == 0) {
         // The old payload only contained user xattrs and
         // we removed everything
         return {};
     }
 
-    return {pruned.data(), pruned.size()};
+    return {final.data(), final.size()};
 }
