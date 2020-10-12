@@ -535,11 +535,6 @@ protected:
     /// @return the current file revision for the vbucket
     uint64_t getDbRevision(Vbid vbucketId) const;
 
-    couchstore_error_t openDB(Vbid vbucketId,
-                              DbHolder& db,
-                              couchstore_open_flags options,
-                              FileOpsInterface* ops = nullptr);
-
     /**
      * The result of calling openDbForRead.
      * If the open was successful then status is COUCHSTORE_SUCCSS and the
@@ -557,6 +552,10 @@ protected:
         // so need to explicitly re-enable move.
         OpenResult(OpenResult&&) = default;
     };
+
+    OpenResult openDb(Vbid vbucketId,
+                      couchstore_open_flags options,
+                      FileOpsInterface* ops = nullptr);
 
     OpenResult openDbForRead(Vbid vbucketId, FileOpsInterface* ops = nullptr);
 

@@ -1988,20 +1988,9 @@ uint64_t CouchKVStore::getDbRevision(Vbid vbucketId) const {
     return (*dbFileRevMap->rlock())[vbucketId.get()];
 }
 
-couchstore_error_t CouchKVStore::openDB(Vbid vbucketId,
-                                        DbHolder& db,
-                                        couchstore_open_flags options,
-                                        FileOpsInterface* ops) {
-    // MB-27963: obtain read access whilst we open the file, updateDbFileMap
-    // serialises on this mutex so we can be sure the fileRev we read should
-    // still be a valid file once we hit sys_open
-    auto lockedRevMap = dbFileRevMap->rlock();
-    uint64_t fileRev = (*lockedRevMap)[vbucketId.get()];
-    return openSpecificDB(vbucketId, fileRev, db, options, ops);
-}
-
-CouchKVStore::OpenResult CouchKVStore::openDbForRead(Vbid vbucketId,
-                                                     FileOpsInterface* ops) {
+CouchKVStore::OpenResult CouchKVStore::openDb(Vbid vbucketId,
+                                              couchstore_open_flags options,
+                                              FileOpsInterface* ops) {
     // MB-27963: obtain read access whilst we open the file, updateDbFileMap
     // serialises on this mutex so we can be sure the fileRev we read should
     // still be a valid file once we hit sys_open
@@ -2030,11 +2019,8 @@ CouchKVStore::OpenResult CouchKVStore::openDbForRead(Vbid vbucketId,
 
     fc->decrementCacheSize();
 
-    auto result = openSpecificDB(vbucketId,
-                                 fileRev,
-                                 handle->getDbHolder(),
-                                 COUCHSTORE_OPEN_FLAG_RDONLY,
-                                 ops);
+    auto result = openSpecificDB(
+            vbucketId, fileRev, handle->getDbHolder(), options, ops);
     if (result != COUCHSTORE_SUCCESS) {
         logger.debug(
                 "CouchKVStore::openDbForRead: {}  rev:{} - openSpecificDb "
@@ -2046,6 +2032,11 @@ CouchKVStore::OpenResult CouchKVStore::openDbForRead(Vbid vbucketId,
     }
 
     return {COUCHSTORE_SUCCESS, std::move(handle)};
+}
+
+CouchKVStore::OpenResult CouchKVStore::openDbForRead(Vbid vbucketId,
+                                                     FileOpsInterface* ops) {
+    return openDb(vbucketId, COUCHSTORE_OPEN_FLAG_RDONLY, ops);
 }
 
 CouchKVStore::OpenForWriteResult CouchKVStore::openDbForWrite(Vbid vbucketId) {
@@ -3271,9 +3262,8 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
 
     // Open the vBucket file again; and search for a header which is
     // before the requested rollback point - the Rollback Header.
-    auto newdb = std::make_unique<CouchKVFileHandle>(*this);
-    errCode = openDB(vbid, newdb->getDbHolder(), 0);
-    if (errCode != COUCHSTORE_SUCCESS) {
+    auto result = openDb(vbid, 0);
+    if (result.status != COUCHSTORE_SUCCESS) {
         logger.warn("CouchKVStore::rollback: openDB#2 error:{}, name:{}",
                     couchstore_strerror(errCode),
                     dbFileName);
@@ -3281,11 +3271,11 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
     }
 
     while (info.updateSeqNum > rollbackSeqno) {
-        errCode = couchstore_rewind_db_header(newdb->getDbHolder());
+        errCode = couchstore_rewind_db_header(result.fileHandle->getDbHolder());
         if (errCode != COUCHSTORE_SUCCESS) {
             // rewind_db_header cleans up (frees DB) on error; so
             // release db in DbHolder to prevent a double-free.
-            newdb->getDbHolder().releaseDb();
+            result.fileHandle->getDbHolder().releaseDb();
             logger.warn(
                     "CouchKVStore::rollback: couchstore_rewind_db_header "
                     "error:{} [{}], {}, latestSeqno:{}, rollbackSeqno:{}",
@@ -3298,7 +3288,7 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
             //as a previous header wasn't found.
             return RollbackResult(false);
         }
-        info = cb::couchstore::getHeader(*newdb->getDbHolder().getDb());
+        info = cb::couchstore::getHeader(*result.fileHandle->getDb());
     }
 
     // Count how many updates we need to discard to rollback to the Rollback
@@ -3343,7 +3333,7 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
     //   deleted in the Rollback header).
     // * If the key is present in the Rollback header then replace the in-memory
     // value with the value from the Rollback header.
-    cb->setKVFileHandle(std::move(newdb));
+    cb->setKVFileHandle(std::move(result.fileHandle));
     auto cl = std::make_unique<NoLookupCallback>();
 
     auto ctx = initBySeqnoScanContext(std::move(cb),
