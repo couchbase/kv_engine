@@ -18,16 +18,13 @@
 #include "flusher.h"
 
 #include "bucket_logger.h"
-#include "common.h"
 #include "ep_bucket.h"
 #include "executorpool.h"
 #include "tasks.h"
 
 #include <platform/timeutils.h>
 
-#include <stdlib.h>
 #include <chrono>
-#include <sstream>
 #include <thread>
 
 Flusher::Flusher(EPBucket* st, KVShard* k)
