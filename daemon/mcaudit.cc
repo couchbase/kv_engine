@@ -36,7 +36,11 @@
 
 #include <sstream>
 
-static folly::Synchronized<cb::audit::UniqueAuditPtr> auditHandle;
+/// @returns the singleton audit handle.
+folly::Synchronized<cb::audit::UniqueAuditPtr>& getAuditHandle() {
+    static folly::Synchronized<cb::audit::UniqueAuditPtr> handle;
+    return handle;
+}
 
 static std::atomic_bool audit_enabled{false};
 
@@ -117,7 +121,7 @@ static void do_audit(uint32_t id,
                      const nlohmann::json& event,
                      const char* warn) {
     auto text = event.dump();
-    auditHandle.withRLock([id, warn, &text](auto& handle) {
+    getAuditHandle().withRLock([id, warn, &text](auto& handle) {
         if (handle) {
             if (!handle->put_event(id, text)) {
                 LOG_WARNING("{}: {}", warn, text);
@@ -272,7 +276,7 @@ bool mc_audit_event(uint32_t audit_eventid, cb::const_byte_buffer payload) {
 
     std::string_view buffer{reinterpret_cast<const char*>(payload.data()),
                             payload.size()};
-    return auditHandle.withRLock([audit_eventid, buffer](auto& handle) {
+    return getAuditHandle().withRLock([audit_eventid, buffer](auto& handle) {
         if (!handle) {
             return false;
         }
@@ -372,15 +376,15 @@ void initialize_audit() {
     }
     audit->add_event_state_listener(event_state_listener);
     audit->notify_all_event_states();
-    *auditHandle.wlock() = std::move(audit);
+    *getAuditHandle().wlock() = std::move(audit);
 }
 
 void shutdown_audit() {
-    auditHandle.wlock()->reset();
+    getAuditHandle().wlock()->reset();
 }
 
 ENGINE_ERROR_CODE reconfigure_audit(Cookie& cookie) {
-    return auditHandle.withRLock([&cookie](auto& handle) {
+    return getAuditHandle().withRLock([&cookie](auto& handle) {
         if (!handle) {
             return ENGINE_FAILED;
         }
@@ -393,7 +397,7 @@ ENGINE_ERROR_CODE reconfigure_audit(Cookie& cookie) {
 }
 
 void stats_audit(StatCollector& collector) {
-    auditHandle.withRLock([&collector](auto& handle) {
+    getAuditHandle().withRLock([&collector](auto& handle) {
         if (handle) {
             handle->stats(collector);
         }

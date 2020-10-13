@@ -29,7 +29,10 @@
 
 /// List of all of the connections created in the system (so that we can
 /// iterate over them)
-folly::Synchronized<std::deque<Connection*>> connections;
+folly::Synchronized<std::deque<Connection*>>& getConnections() {
+    static folly::Synchronized<std::deque<Connection*>> connections;
+    return connections;
+}
 
 int signal_idle_clients(FrontEndThread& me, bool dumpConnection) {
     int connected = 0;
@@ -50,7 +53,7 @@ void iterate_thread_connections(FrontEndThread* thread,
                                 std::function<void(Connection&)> callback) {
     // Deny modifications to the connection map while we're iterating
     // over it
-    auto locked = connections.rlock();
+    auto locked = getConnections().rlock();
     for (auto* c : *locked) {
         if (&c->getThread() == thread) {
             callback(*c);
@@ -67,7 +70,7 @@ Connection* conn_new(SOCKET sfd,
 
     try {
         ret = std::make_unique<Connection>(sfd, base, interface, thread);
-        connections.wlock()->push_back(ret.get());
+        getConnections().wlock()->push_back(ret.get());
         c = ret.release();
         stats.total_conns++;
     } catch (const std::bad_alloc&) {
@@ -100,7 +103,7 @@ Connection* conn_new(SOCKET sfd,
  * and freeing the Connection object.
  */
 void conn_destroy(Connection* c) {
-    connections.withWLock([c](auto& conns) {
+    getConnections().withWLock([c](auto& conns) {
         auto iter = std::find(conns.begin(), conns.end(), c);
         // The connection should be one I know about
         cb_assert(iter != conns.end());
