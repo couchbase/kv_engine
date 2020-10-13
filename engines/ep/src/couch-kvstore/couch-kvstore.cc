@@ -1449,14 +1449,8 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
 
     auto start = cb::couchstore::getHeader(source);
 
-    couchstore_error_t err;
-    while ((err = cb::couchstore::seek(source,
-                                       cb::couchstore::Direction::Forward)) ==
-           COUCHSTORE_SUCCESS) {
-        // nothing (I should probably add one seek END and SEEK_START)
-    }
-
-    if (err != COUCHSTORE_ERROR_NO_HEADER) {
+    auto err = cb::couchstore::seek(source, cb::couchstore::Direction::End);
+    if (err != COUCHSTORE_SUCCESS) {
         // seek failed - deal with it
         throw std::runtime_error("Failed to seek in the database file: " +
                                  couchkvstore_strerrno(&source, err));
@@ -1464,7 +1458,7 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
 
     auto end = cb::couchstore::getHeader(source);
     if (end.headerPosition == start.headerPosition) {
-        // at the end!
+        // Catchup complete
         return true;
     }
 
@@ -1484,10 +1478,11 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
                         .count();
     }
 
-    EP_LOG_INFO("Try to catch up {}: from {} to {}",
+    EP_LOG_INFO("Try to catch up {}: from {} to {} {} stopping flusher",
                 vbid,
                 start.updateSeqNum,
-                end.updateSeqNum);
+                end.updateSeqNum,
+                copyWithoutLock ? "without" : "while");
     err = cb::couchstore::replay(
             source,
             destination,
@@ -1506,14 +1501,19 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
         throw std::runtime_error("Failed to replay data!");
     }
 
+    bool ret = true;
     if (copyWithoutLock) {
         lock.lock();
         // the database may have changed.. just return false and let the
         // caller call us again to check..
-        return false;
+        ret = false;
     }
 
-    return true;
+    logger.info("Catch up of {} to {} complete{}",
+                vbid,
+                end.updateSeqNum,
+                copyWithoutLock ? ", stopping flusher" : "");
+    return ret;
 }
 
 vbucket_state* CouchKVStore::getVBucketState(Vbid vbucketId) {
