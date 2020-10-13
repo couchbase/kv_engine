@@ -371,6 +371,7 @@ public:
 
     bool isOutOfOrderSnapshotsEnabled() const;
 
+protected:
     /**
      * For filtered DCP, method returns the maximum of all the high-seqnos of
      * the collections in the filter. std::nullopt is returned for and
@@ -380,9 +381,8 @@ public:
      * @return high seqno of all the collection in the filter.
      */
     std::optional<uint64_t> getHighSeqnoOfCollections(
-            const Collections::VB::Filter& filter, Vbid vbucket) const;
+            const Collections::VB::Filter& filter, VBucket& vbucket) const;
 
-protected:
     /** We may disconnect if noop messages are enabled and the last time we
      *  received any message (including a noop) exceeds the dcpTimeout.
      *  Returns ENGINE_DISCONNECT if noop messages are enabled and the timeout

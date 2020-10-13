@@ -408,16 +408,16 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
         start_seqno = static_cast<uint64_t>(vb->getHighSeqno());
     }
 
-    std::pair<bool, std::string> need_rollback = vb->failovers->needsRollback(
-            start_seqno,
-            vb->getHighSeqno(),
-            vbucket_uuid,
-            snap_start_seqno,
-            snap_end_seqno,
-            vb->getPurgeSeqno(),
-            flags & DCP_ADD_STREAM_STRICT_VBUUID,
-            getHighSeqnoOfCollections(filter, vbucket),
-            rollback_seqno);
+    std::pair<bool, std::string> need_rollback =
+            vb->failovers->needsRollback(start_seqno,
+                                         vb->getHighSeqno(),
+                                         vbucket_uuid,
+                                         snap_start_seqno,
+                                         snap_end_seqno,
+                                         vb->getPurgeSeqno(),
+                                         flags & DCP_ADD_STREAM_STRICT_VBUUID,
+                                         getHighSeqnoOfCollections(filter, *vb),
+                                         rollback_seqno);
 
     if (need_rollback.first) {
         logger->warn(
@@ -2065,20 +2065,19 @@ bool DcpProducer::isOutOfOrderSnapshotsEnabled() const {
 }
 
 std::optional<uint64_t> DcpProducer::getHighSeqnoOfCollections(
-        const Collections::VB::Filter& filter, Vbid vbucket) const {
+        const Collections::VB::Filter& filter, VBucket& vbucket) const {
     if (filter.isPassThroughFilter()) {
         return std::nullopt;
     }
 
     uint64_t maxHighSeqno = 0;
-    auto vb = engine_.getVBucket(vbucket);
     for (auto& coll : filter) {
-        auto handle = vb->getManifest().lock(coll.first);
+        auto handle = vbucket.getManifest().lock(coll.first);
         if (!handle.valid()) {
             logger->warn(
                     "({}) DcpProducer::getHighSeqnoOfCollections(): failed "
                     "to find collectionID:{}, scopeID:{}, in the manifest",
-                    vbucket,
+                    vbucket.getId(),
                     coll.first,
                     coll.second);
             // return std::nullopt as we don't want our caller to use rollback
