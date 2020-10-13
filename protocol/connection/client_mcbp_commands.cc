@@ -1893,3 +1893,13 @@ void BinprotEWBCommand::encode(std::vector<uint8_t>& buf) const {
     buf.insert(buf.end(), extraBuf.begin(), extraBuf.end());
     buf.insert(buf.end(), key.begin(), key.end());
 }
+
+BinprotCompactDbCommand::BinprotCompactDbCommand()
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::CompactDb) {
+}
+
+void BinprotCompactDbCommand::encode(std::vector<uint8_t>& buf) const {
+    writeHeader(buf, 0, sizeof(extras));
+    auto extraBuf = extras.getBuffer();
+    buf.insert(buf.end(), extraBuf.begin(), extraBuf.end());
+}

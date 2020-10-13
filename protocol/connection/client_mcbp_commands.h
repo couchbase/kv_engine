@@ -1116,3 +1116,38 @@ protected:
     ENGINE_ERROR_CODE err_code;
     uint32_t value;
 };
+
+class BinprotCompactDbCommand : public BinprotGenericCommand {
+public:
+    BinprotCompactDbCommand();
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+    uint64_t getPurgeBeforeTs() const {
+        return extras.getPurgeBeforeTs();
+    }
+    void setPurgeBeforeTs(uint64_t purge_before_ts) {
+        extras.setPurgeBeforeTs(purge_before_ts);
+    }
+    uint64_t getPurgeBeforeSeq() const {
+        return extras.getPurgeBeforeSeq();
+    }
+    void setPurgeBeforeSeq(uint64_t purge_before_seq) {
+        extras.setPurgeBeforeSeq(purge_before_seq);
+    }
+    uint8_t getDropDeletes() const {
+        return extras.getDropDeletes();
+    }
+    void setDropDeletes(uint8_t drop_deletes) {
+        extras.setDropDeletes(drop_deletes);
+    }
+    const Vbid getDbFileId() const {
+        return extras.getDbFileId();
+    }
+    void setDbFileId(Vbid db_file_id) {
+        extras.setDbFileId(db_file_id);
+    }
+
+protected:
+    cb::mcbp::request::CompactDbPayload extras;
+};
