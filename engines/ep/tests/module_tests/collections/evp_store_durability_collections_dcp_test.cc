@@ -204,13 +204,11 @@ failover_entry_t CollectionsSyncWriteParamTest::
     flushVBucketToDiskIfPersistent(replicaVB, 3);
 
     setCollections(cookie, std::string{cm.remove(CollectionEntry::dairy)});
+
+    // Get DCP ready, but don't step the drop event yet
     notifyAndStepToCheckpoint();
-    EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
-                                      cb::mcbp::ClientOpcode::DcpSystemEvent));
 
     flushVBucketToDiskIfPersistent(vbid, 1);
-    flushVBucketToDiskIfPersistent(replicaVB, 1);
 
     auto replica = store->getVBucket(replicaVB);
     auto& adm = VBucketTestIntrospector::public_getActiveDM(*vb);
@@ -219,9 +217,10 @@ failover_entry_t CollectionsSyncWriteParamTest::
     EXPECT_EQ(2, pdm.getNumTracked());
     EXPECT_EQ(3, pdm.getHighPreparedSeqno());
     EXPECT_EQ(0, pdm.getHighCompletedSeqno());
-    EXPECT_EQ(1, pdm.getNumDroppedCollections());
 
-    // Now process the drop but only on the active
+    // Now process the drop but only on the active (note replica hasn't yet
+    // received the drop, this is mainly because the ephemeral purger will
+    // process all vbuckets and cause failure if our pdm EXPECTS)
     runEraser(vbid);
 
     EXPECT_EQ(1, adm.getNumTracked());
@@ -231,7 +230,6 @@ failover_entry_t CollectionsSyncWriteParamTest::
     EXPECT_EQ(2, pdm.getNumTracked());
     EXPECT_EQ(3, pdm.getHighPreparedSeqno());
     EXPECT_EQ(0, pdm.getHighCompletedSeqno());
-    EXPECT_EQ(1, pdm.getNumDroppedCollections());
 
     // Commit on the active and add an extra prepare
     EXPECT_EQ(ENGINE_SUCCESS,
@@ -250,6 +248,16 @@ failover_entry_t CollectionsSyncWriteParamTest::
     EXPECT_EQ(1, adm.getNumTracked());
     EXPECT_EQ(6, adm.getHighPreparedSeqno());
     EXPECT_EQ(3, adm.getHighCompletedSeqno());
+
+    EXPECT_EQ(2, pdm.getNumTracked());
+    EXPECT_EQ(3, pdm.getHighPreparedSeqno());
+    EXPECT_EQ(0, pdm.getHighCompletedSeqno());
+
+    // Now transfer the drop event to the replica
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->stepAndExpect(producers.get(),
+                                      cb::mcbp::ClientOpcode::DcpSystemEvent));
+    flushVBucketToDiskIfPersistent(replicaVB, 1);
 
     EXPECT_EQ(2, pdm.getNumTracked());
     EXPECT_EQ(3, pdm.getHighPreparedSeqno());

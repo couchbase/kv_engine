@@ -958,7 +958,15 @@ uint64_t EPVBucket::addSystemEventItem(
 
     // Set the system events delete time if needed for tombstoning
     if (qi->isDeleted() && qi->getDeleteTime() == 0) {
-        qi->setExpTime(ep_real_time());
+        // We can never purge the drop of the default collection because it has
+        // an
+        // implied creation event. If we did allow the default collection
+        // tombstone to be purged a client would wrongly assume it exists.
+        if (cid && cid.value().isDefaultCollection()) {
+            qi->setExpTime(~0);
+        } else {
+            qi->setExpTime(ep_real_time());
+        }
     }
 
     checkpointManager->queueDirty(

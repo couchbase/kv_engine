@@ -19,7 +19,9 @@
 #include "checkpoint_manager.h"
 #include "dcp/response.h"
 #include "ep_bucket.h"
+#include "ephemeral_bucket.h"
 #include "ephemeral_vb.h"
+
 #include "kv_bucket.h"
 #include "kvstore.h"
 #include "programs/engine_testapp/mock_cookie.h"
@@ -299,7 +301,10 @@ void CollectionsDcpTest::runEraser() {
         runEraser(vbid);
     }
 
-    {
+    // Only run on the replica for persistent buckets as the ephemeral task
+    // will iterate over the vbuckets, so has already hit vbid and replicaVB
+    // in the first runEraser above
+    if (isPersistent()) {
         SCOPED_TRACE("CollectionsDcpTest::runEraser - replica");
         runEraser(replicaVB);
     }
@@ -315,9 +320,16 @@ void CollectionsDcpTest::runEraser(Vbid id) {
                             ->getDroppedCollections(id)
                             .empty());
     } else {
-        auto vb = store->getVBucket(id);
-        auto* evb = dynamic_cast<EphemeralVBucket*>(vb.get());
-        evb->purgeStaleItems();
+        auto* bucket = dynamic_cast<EphemeralBucket*>(store);
+        bucket->scheduleTombstonePurgerTask();
+        bucket->attemptToFreeMemory(); // this wakes up the HTCleaner task
+
+        auto& lpAuxioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+        // 2 tasks to run to complete a purge
+        // EphTombstoneHTCleaner
+        // EphTombstoneStaleItemDeleter
+        runNextTask(lpAuxioQ);
+        runNextTask(lpAuxioQ);
     }
 }
 

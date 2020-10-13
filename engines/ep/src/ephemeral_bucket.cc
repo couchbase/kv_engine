@@ -243,6 +243,10 @@ RollbackResult EphemeralBucket::doRollback(Vbid vbid, uint64_t rollbackSeqno) {
 
 void EphemeralBucket::enableTombstonePurgerTask() {
     ExecutorPool::get()->cancel(tombstonePurgerTask->getId());
+    scheduleTombstonePurgerTask();
+}
+
+void EphemeralBucket::scheduleTombstonePurgerTask() {
     ExecutorPool::get()->schedule(tombstonePurgerTask);
 }
 

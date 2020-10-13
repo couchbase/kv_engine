@@ -988,7 +988,21 @@ uint64_t EphemeralVBucket::addSystemEventItem(
                 hbl, *item, queueItmCtx, GenerateRevSeqno::Yes);
     }
 
+    // Set the system events delete time if needed for tombstoning
+    if (v->isDeleted()) {
+        // We can never purge the drop of the default collection because it has
+        // an implied creation event. If we did allow the default collection
+        // tombstone to be purged a client would wrongly assume it exists.
+        // Set the delete time so that purging never occurs
+        if (cid && cid.value().isDefaultCollection()) {
+            v->setCompletedOrDeletedTime(-1);
+        } else {
+            v->setCompletedOrDeletedTime(ep_real_time());
+        }
+    }
+
     VBNotifyCtx notifyCtx;
+
     // If the seqno is initialized, skip replication notification
     notifyCtx.notifyReplication = !seqno.has_value();
     notifyCtx.bySeqno = v->getBySeqno();
