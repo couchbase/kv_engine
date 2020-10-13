@@ -2697,132 +2697,125 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
                 vbid,
                 uint64_t(docs.size()));
         return errCode;
-    } else {
-        auto& db = *openResult.db;
-        uint64_t maxDBSeqno = 0;
+    }
 
-        // Count of logical bytes written (key + ep-engine meta + value),
-        // used to calculated Write Amplification.
-        size_t docsLogicalBytes = 0;
+    auto& db = *openResult.db;
+    uint64_t maxDBSeqno = 0;
 
-        // Only do a couchstore_save_documents if there are docs
-        if (!docs.empty()) {
-            for (size_t idx = 0; idx < docs.size(); idx++) {
-                maxDBSeqno = std::max(maxDBSeqno, docinfos[idx]->db_seq);
+    // Count of logical bytes written (key + ep-engine meta + value),
+    // used to calculated Write Amplification.
+    size_t docsLogicalBytes = 0;
 
-                // Accumulate the size of the useful data in this docinfo.
-                docsLogicalBytes +=
-                        calcLogicalDataSize(docs[idx], *docinfos[idx]);
-            }
+    // Only do a couchstore_save_documents if there are docs
+    if (!docs.empty()) {
+        for (size_t idx = 0; idx < docs.size(); idx++) {
+            maxDBSeqno = std::max(maxDBSeqno, docinfos[idx]->db_seq);
 
-            kvctx.commitData.collections.setDroppedCollectionsForStore(
-                    getDroppedCollections(*db));
-
-            auto cs_begin = std::chrono::steady_clock::now();
-
-            uint64_t flags = COMPRESS_DOC_BODIES | COUCHSTORE_SEQUENCE_AS_IS;
-            errCode = couchstore_save_documents_and_callback(
-                    db,
-                    docs.data(),
-                    docinfos.data(),
-                    (unsigned)docs.size(),
-                    flags,
-                    &saveDocsCallback,
-                    &kvctx);
-
-            st.saveDocsHisto.add(
-                    std::chrono::duration_cast<std::chrono::microseconds>(
-                            std::chrono::steady_clock::now() - cs_begin));
-            if (errCode != COUCHSTORE_SUCCESS) {
-                logger.warn(
-                        "CouchKVStore::saveDocs: couchstore_save_documents "
-                        "error:{} [{}], {}, numdocs:{}",
-                        couchstore_strerror(errCode),
-                        couchkvstore_strerrno(db, errCode),
-                        vbid,
-                        uint64_t(docs.size()));
-                return errCode;
-            }
+            // Accumulate the size of the useful data in this docinfo.
+            docsLogicalBytes += calcLogicalDataSize(docs[idx], *docinfos[idx]);
         }
 
-        kvctx.commitData.collections.saveCollectionStats(
-                std::bind(&CouchKVStore::saveCollectionStats,
-                          this,
-                          std::ref(*db),
-                          std::placeholders::_1,
-                          std::placeholders::_2));
-
-        vbucket_state& state = kvctx.commitData.proposedVBState;
-        state.onDiskPrepares += kvctx.onDiskPrepareDelta;
-        pendingLocalReqsQ.emplace_back("_local/vbstate",
-                                       makeJsonVBState(state));
-
-        if (kvctx.commitData.collections.isReadyForCommit()) {
-            updateCollectionsMeta(*db, kvctx.commitData.collections);
-        }
-
-        /// Update the local documents before we commit
-        errCode = updateLocalDocuments(*db, pendingLocalReqsQ);
-        if (errCode) {
-            logger.warn(
-                    "CouchKVStore::saveDocs: updateLocalDocuments size:{} "
-                    "error:{} [{}]",
-                    pendingLocalReqsQ.size(),
-                    couchstore_strerror(errCode),
-                    couchkvstore_strerrno(db, errCode));
-        }
-        pendingLocalReqsQ.clear();
+        kvctx.commitData.collections.setDroppedCollectionsForStore(
+                getDroppedCollections(*db));
 
         auto cs_begin = std::chrono::steady_clock::now();
 
-        errCode = couchstore_commit(db);
-        st.commitHisto.add(
+        uint64_t flags = COMPRESS_DOC_BODIES | COUCHSTORE_SEQUENCE_AS_IS;
+        errCode = couchstore_save_documents_and_callback(db,
+                                                         docs.data(),
+                                                         docinfos.data(),
+                                                         (unsigned)docs.size(),
+                                                         flags,
+                                                         &saveDocsCallback,
+                                                         &kvctx);
+
+        st.saveDocsHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(
                         std::chrono::steady_clock::now() - cs_begin));
-        if (errCode) {
+        if (errCode != COUCHSTORE_SUCCESS) {
             logger.warn(
-                    "CouchKVStore::saveDocs: couchstore_commit error:{} [{}]",
+                    "CouchKVStore::saveDocs: couchstore_save_documents "
+                    "error:{} [{}], {}, numdocs:{}",
                     couchstore_strerror(errCode),
-                    couchkvstore_strerrno(db, errCode));
+                    couchkvstore_strerrno(db, errCode),
+                    vbid,
+                    uint64_t(docs.size()));
             return errCode;
         }
-
-        st.batchSize.add(docs.size());
-
-        // If available, record the write amplification we did for this commit -
-        // i.e. for each byte of user data (key+value+meta) how many overhead
-        // bytes were written.
-        auto* stats = couchstore_get_db_filestats(db);
-        if (stats != nullptr && docsLogicalBytes) {
-            const auto writeBytes = stats->getWriteBytes();
-            uint64_t writeAmp = (writeBytes * 10) / docsLogicalBytes;
-            st.flusherWriteAmplificationHisto.addValue(writeAmp);
-        }
-
-        // retrieve storage system stats for file fragmentation computation
-        const auto info = cb::couchstore::getHeader(*db.getDb());
-        cachedSpaceUsed[vbid.get()] = info.spaceUsed;
-        cachedFileSize[vbid.get()] = info.fileSize;
-        cachedDeleteCount[vbid.get()] = info.deletedCount;
-        cachedDocCount[vbid.get()] = info.docCount;
-
-        // Check seqno if we wrote documents
-        if (!docs.empty() && maxDBSeqno != info.updateSeqNum) {
-            logger.warn(
-                    "CouchKVStore::saveDocs: Seqno in db header ({})"
-                    " is not matched with what was persisted ({})"
-                    " for {}",
-                    info.updateSeqNum,
-                    maxDBSeqno,
-                    vbid);
-        }
-        state.highSeqno = info.updateSeqNum;
     }
 
-    /* update stat */
-    if(errCode == COUCHSTORE_SUCCESS) {
-        st.docsCommitted = docs.size();
+    kvctx.commitData.collections.saveCollectionStats(
+            std::bind(&CouchKVStore::saveCollectionStats,
+                      this,
+                      std::ref(*db),
+                      std::placeholders::_1,
+                      std::placeholders::_2));
+
+    vbucket_state& state = kvctx.commitData.proposedVBState;
+    state.onDiskPrepares += kvctx.onDiskPrepareDelta;
+    pendingLocalReqsQ.emplace_back("_local/vbstate", makeJsonVBState(state));
+
+    if (kvctx.commitData.collections.isReadyForCommit()) {
+        updateCollectionsMeta(*db, kvctx.commitData.collections);
     }
+
+    /// Update the local documents before we commit
+    errCode = updateLocalDocuments(*db, pendingLocalReqsQ);
+    if (errCode) {
+        logger.warn(
+                "CouchKVStore::saveDocs: updateLocalDocuments size:{} "
+                "error:{} [{}]",
+                pendingLocalReqsQ.size(),
+                couchstore_strerror(errCode),
+                couchkvstore_strerrno(db, errCode));
+    }
+    pendingLocalReqsQ.clear();
+
+    auto cs_begin = std::chrono::steady_clock::now();
+
+    errCode = couchstore_commit(db);
+    st.commitHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - cs_begin));
+    if (errCode) {
+        logger.warn("CouchKVStore::saveDocs: couchstore_commit error:{} [{}]",
+                    couchstore_strerror(errCode),
+                    couchkvstore_strerrno(db, errCode));
+        return errCode;
+    }
+
+    st.batchSize.add(docs.size());
+
+    // If available, record the write amplification we did for this commit -
+    // i.e. for each byte of user data (key+value+meta) how many overhead
+    // bytes were written.
+    auto* stats = couchstore_get_db_filestats(db);
+    if (stats != nullptr && docsLogicalBytes) {
+        const auto writeBytes = stats->getWriteBytes();
+        uint64_t writeAmp = (writeBytes * 10) / docsLogicalBytes;
+        st.flusherWriteAmplificationHisto.addValue(writeAmp);
+    }
+
+    // retrieve storage system stats for file fragmentation computation
+    const auto info = cb::couchstore::getHeader(*db.getDb());
+    cachedSpaceUsed[vbid.get()] = info.spaceUsed;
+    cachedFileSize[vbid.get()] = info.fileSize;
+    cachedDeleteCount[vbid.get()] = info.deletedCount;
+    cachedDocCount[vbid.get()] = info.docCount;
+
+    // Check seqno if we wrote documents
+    if (!docs.empty() && maxDBSeqno != info.updateSeqNum) {
+        logger.warn(
+                "CouchKVStore::saveDocs: Seqno in db header ({})"
+                " is not matched with what was persisted ({})"
+                " for {}",
+                info.updateSeqNum,
+                maxDBSeqno,
+                vbid);
+    }
+    state.highSeqno = info.updateSeqNum;
+
+    // update stat
+    st.docsCommitted = docs.size();
 
     return errCode;
 }
