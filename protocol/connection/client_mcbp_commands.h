@@ -1111,10 +1111,27 @@ public:
 
     void encode(std::vector<uint8_t>& buf) const override;
 
+    uint32_t getMode() const {
+        return extras.getMode();
+    }
+    void setMode(uint32_t m) {
+        extras.setMode(m);
+    }
+    uint32_t getValue() const {
+        return extras.getValue();
+    }
+    void setValue(uint32_t v) {
+        extras.setValue(v);
+    }
+    uint32_t getInjectError() const {
+        return extras.getInjectError();
+    }
+    void setInjectError(uint32_t ie) {
+        extras.setInjectError(ie);
+    }
+
 protected:
-    EWBEngineMode mode;
-    ENGINE_ERROR_CODE err_code;
-    uint32_t value;
+    cb::mcbp::request::EWB_Payload extras;
 };
 
 class BinprotCompactDbCommand : public BinprotGenericCommand {

@@ -1877,17 +1877,13 @@ BinprotEWBCommand::BinprotEWBCommand(EWBEngineMode mode,
                                      ENGINE_ERROR_CODE err_code,
                                      uint32_t value,
                                      const std::string& key)
-    : BinprotGenericCommand(cb::mcbp::ClientOpcode::EwouldblockCtl, key),
-      mode(mode),
-      err_code(err_code),
-      value(value) {
-}
-
-void BinprotEWBCommand::encode(std::vector<uint8_t>& buf) const {
-    cb::mcbp::request::EWB_Payload extras;
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::EwouldblockCtl, key) {
     extras.setMode(uint32_t(mode));
     extras.setValue(uint32_t(value));
     extras.setInjectError(uint32_t(err_code));
+}
+
+void BinprotEWBCommand::encode(std::vector<uint8_t>& buf) const {
     writeHeader(buf, 0, sizeof(extras));
     auto extraBuf = extras.getBuffer();
     buf.insert(buf.end(), extraBuf.begin(), extraBuf.end());
