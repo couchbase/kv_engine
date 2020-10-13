@@ -26,7 +26,9 @@ void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
     prometheus::ClientMetric metric;
 
     metric.histogram.sample_count = hist.sampleCount;
-    metric.histogram.sample_sum = hist.sampleSum;
+    // sample sum should be converted to the same unit as the
+    // bucket values.
+    metric.histogram.sample_sum = spec.unit.toBaseUnit(hist.sampleSum);
 
     uint64_t cumulativeCount = 0;
 
