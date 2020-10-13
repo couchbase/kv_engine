@@ -199,6 +199,14 @@ public:
                          const Labels& labels) const = 0;
 
     /**
+     * Add a HdrHistogram stat to the collector.
+     *
+     */
+    virtual void addStat(const cb::stats::StatDef& k,
+                         const HdrHistogram& v,
+                         const Labels& labels) const = 0;
+
+    /**
      * Add a textual stat. This overload is present to avoid conversion
      * to bool; overload resolution selects the bool overload rather than the
      * string_view overload.
@@ -239,17 +247,6 @@ public:
             addStat(k, int64_t(v), labels);
         }
     }
-
-    /**
-     * Converts a HdrHistogram instance to HistogramData,
-     * and adds the result to the collector.
-     *
-     * Used to adapt histogram types to a single common type
-     * for backends to support.
-     */
-    void addStat(const cb::stats::StatDef& k,
-                 const HdrHistogram& v,
-                 const Labels& labels) const;
 
     /**
      * Converts a Histogram<T, Limits> instance to HistogramData,

@@ -33,27 +33,3 @@ const cb::stats::StatDef& StatCollector::lookup(cb::stats::Key key) {
     Expects(size_t(key) < size_t(cb::stats::Key::enum_max));
     return cb::stats::statDefinitions[size_t(key)];
 }
-
-void StatCollector::addStat(const cb::stats::StatDef& k,
-                            const HdrHistogram& v,
-                            const Labels& labels) const {
-    if (v.getValueCount() > 0) {
-        HistogramData histData;
-        histData.mean = std::round(v.getMean());
-        histData.sampleCount = v.getValueCount();
-
-        HdrHistogram::Iterator iter{v.getHistogramsIterator()};
-        while (auto result = iter.getNextBucketLowHighAndCount()) {
-            auto [lower, upper, count] = *result;
-
-            histData.buckets.push_back({lower, upper, count});
-
-            // TODO: HdrHistogram doesn't track the sum of all added values but
-            //  prometheus requires that value. For now just approximate it
-            //  from bucket counts.
-            auto avgBucketValue = (lower + upper) / 2;
-            histData.sampleSum += avgBucketValue * count;
-        }
-        addStat(k, histData, labels);
-    }
-}

@@ -65,6 +65,9 @@ public:
     void addStat(const cb::stats::StatDef& k,
                  const HistogramData& hist,
                  const Labels& labels) const override;
+    void addStat(const cb::stats::StatDef& k,
+                 const HdrHistogram& hist,
+                 const Labels& labels) const override;
 
     /**
      * Get the wrapped cookie and addStatFn. Useful while code is

@@ -78,6 +78,9 @@ public:
                  const HistogramData& hist,
                  const Labels& labels) const override;
 
+    void addStat(const cb::stats::StatDef& k,
+                 const HdrHistogram& hist,
+                 const Labels& labels) const override;
     /**
      * Create a new LabelledStatCollector with all the labels of the current
      * instance, plus the _additional_ labels provided as arguments.

@@ -19,6 +19,7 @@
 
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/fmt/ostr.h>
+#include <utilities/hdrhistogram.h>
 
 #include <string_view>
 
@@ -77,6 +78,31 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
         addStat(cb::stats::StatDef({buf.data(), buf.size()}),
                 bucket.count,
                 labels);
+    }
+}
+
+void CBStatCollector::addStat(const cb::stats::StatDef& k,
+                              const HdrHistogram& v,
+                              const Labels& labels) const {
+    // cbstats handles HdrHistograms in the same manner as Histogram,
+    // so convert to the common HistogramData type and call addStat again.
+    if (v.getValueCount() > 0) {
+        HistogramData histData;
+        histData.mean = std::round(v.getMean());
+        histData.sampleCount = v.getValueCount();
+
+        HdrHistogram::Iterator iter{v.getHistogramsIterator()};
+        while (auto result = iter.getNextBucketLowHighAndCount()) {
+            auto [lower, upper, count] = *result;
+
+            histData.buckets.push_back({lower, upper, count});
+
+            // TODO: HdrHistogram doesn't track the sum of all added values. but
+            //  For now just approximate it from bucket counts.
+            auto avgBucketValue = (lower + upper) / 2;
+            histData.sampleSum += avgBucketValue * count;
+        }
+        addStat(k, histData, labels);
     }
 }
 

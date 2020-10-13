@@ -73,6 +73,10 @@ public:
                  const HistogramData& hist,
                  const Labels& labels) const override;
 
+    void addStat(const cb::stats::StatDef& k,
+                 const HdrHistogram& hist,
+                 const Labels& labels) const override;
+
 protected:
     void addClientMetric(const cb::stats::StatDef& key,
                          const Labels& additionalLabels,

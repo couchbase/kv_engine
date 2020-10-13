@@ -58,4 +58,10 @@ public:
                  const HistogramData& hist,
                  const Labels& labels),
                 (const, override));
+    MOCK_METHOD(void,
+                addStat,
+                (const cb::stats::StatDef& k,
+                 const HdrHistogram& hist,
+                 const Labels& labels),
+                (const, override));
 };

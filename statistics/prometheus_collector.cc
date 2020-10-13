@@ -17,6 +17,10 @@
 
 #include <statistics/prometheus_collector.h>
 
+#include <utilities/hdrhistogram.h>
+
+#include <cmath>
+
 void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
                                       const HistogramData& hist,
                                       const Labels& additionalLabels) const {
@@ -43,6 +47,34 @@ void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
                     additionalLabels,
                     std::move(metric),
                     prometheus::MetricType::Histogram);
+}
+
+void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
+                                      const HdrHistogram& v,
+                                      const Labels& labels) const {
+    HistogramData histData;
+
+    if (v.getValueCount() > 0) {
+        histData.mean = std::round(v.getMean());
+        histData.sampleCount = v.getValueCount();
+    }
+
+    auto iter = v.makeLogIterator(1 /*firstBucketWidth*/, 2 /* logBase */);
+    while (auto result = iter.getNextBucketLowHighAndCount()) {
+        auto [lower, upper, count] = *result;
+
+        histData.buckets.push_back({lower, upper, count});
+
+        // TODO: HdrHistogram doesn't track the sum of all added values but
+        //  prometheus requires that value. For now just approximate it
+        //  from bucket counts.
+        auto avgBucketValue = (lower + upper) / 2;
+        histData.sampleSum += avgBucketValue * count;
+    }
+
+    // ns_server may rely on some stats being present in prometheus,
+    // even if they are empty.
+    addStat(spec, histData, labels);
 }
 
 void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,

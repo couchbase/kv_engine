@@ -71,6 +71,12 @@ void LabelledStatCollector::addStat(const cb::stats::StatDef& k,
     forwardToParent(k, v, labels);
 }
 
+void LabelledStatCollector::addStat(const cb::stats::StatDef& k,
+                                    const HdrHistogram& v,
+                                    const Labels& labels) const {
+    forwardToParent(k, v, labels);
+}
+
 BucketStatCollector::BucketStatCollector(const StatCollector& parent,
                                          std::string_view bucket)
     : LabelledStatCollector(parent, {{"bucket", bucket}}) {
