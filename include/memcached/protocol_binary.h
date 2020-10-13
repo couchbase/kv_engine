@@ -612,6 +612,10 @@ public:
      */
     static const uint32_t IncludeDeletedUserXattrs = 256;
 
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
 protected:
     uint32_t seqno = 0;
     uint32_t flags = 0;
@@ -728,6 +732,10 @@ public:
         DcpStreamReqPayload::snap_end_seqno = htonll(snap_end_seqno);
     }
 
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
 protected:
     uint32_t flags = 0;
     uint32_t reserved = 0;
@@ -746,6 +754,10 @@ public:
     }
     void setStatus(DcpStreamEndStatus status) {
         DcpStreamEndPayload::status = htonl(uint32_t(status));
+    }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
     }
 
 protected:
@@ -1671,6 +1683,10 @@ struct GetMetaResponse {
           seqno(seqno),
           datatype(datatype) {
     }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
 };
 
 #pragma pack()
@@ -1714,6 +1730,10 @@ public:
     }
     void setExpiration(uint32_t expiration) {
         ReturnMetaPayload::expiration = htonl(expiration);
+    }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
     }
 
 protected:
@@ -1781,6 +1801,10 @@ public:
     // to generate a warning about unused member (because we
     bool validate() const {
         return align_pad1 == 0 && align_pad3 == 0;
+    }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
     }
 
 protected:
