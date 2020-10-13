@@ -998,10 +998,13 @@ void Manifest::DroppedCollections::remove(CollectionID cid, uint64_t seqno) {
         // had items we created for a collection which is open or was open.
         // to not find the collection at all means we have flushed an item
         // to a collection that never existed.
-        throw std::logic_error(std::string(__PRETTY_FUNCTION__) +
+        std::stringstream ss;
+        ss << *this;
+        throw std::logic_error(std::string(__PRETTY_FUNCTION__) + ":" +
+                               std::to_string(__LINE__) +
                                " The collection cannot be found collection:" +
-                               cid.to_string() +
-                               " seqno:" + std::to_string(seqno));
+                               cid.to_string() + " seqno:" +
+                               std::to_string(seqno) + " " + ss.str());
     }
 
     auto& [key, vector] = *dropItr;
@@ -1023,9 +1026,14 @@ void Manifest::DroppedCollections::remove(CollectionID cid, uint64_t seqno) {
         return;
     }
 
-    throw std::logic_error(std::string(__PRETTY_FUNCTION__) +
-                           " The collection seqno cannot be found collection:" +
-                           cid.to_string() + " seqno:" + std::to_string(seqno));
+    std::stringstream ss;
+    ss << *this;
+
+    throw std::logic_error(std::string(__PRETTY_FUNCTION__) + ":" +
+                           std::to_string(__LINE__) +
+                           " The collection@seqno cannot be found collection:" +
+                           cid.to_string() + " seqno:" + std::to_string(seqno) +
+                           " " + ss.str());
 }
 
 StatsForFlush Manifest::DroppedCollections::get(CollectionID cid,

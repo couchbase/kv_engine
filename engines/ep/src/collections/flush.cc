@@ -17,6 +17,7 @@
 
 #include "collections/flush.h"
 #include "../kvstore.h"
+#include "bucket_logger.h"
 #include "collections/collection_persisted_stats.h"
 #include "collections/kvstore_generated.h"
 #include "collections/vbucket_manifest.h"
@@ -139,7 +140,16 @@ void Flush::postCommitMakeStatsVisible() {
 }
 
 void Flush::flushSuccess(Vbid vbid, KVBucket& bucket) {
-    notifyManifestOfAnyDroppedCollections();
+    try {
+        notifyManifestOfAnyDroppedCollections();
+    } catch (const std::exception& e) {
+        EP_LOG_CRITICAL(
+                "Flush notifyManifestOfAnyDroppedCollections caught exception "
+                "for {}",
+                vbid);
+        EP_LOG_CRITICAL("{}", e.what());
+        throw;
+    }
     checkAndTriggerPurge(vbid, bucket);
 }
 
