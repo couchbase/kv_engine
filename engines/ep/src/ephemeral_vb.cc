@@ -960,12 +960,10 @@ void EphemeralVBucket::dropKey(int64_t bySeqno,
 }
 
 uint64_t EphemeralVBucket::addSystemEventItem(
-        Item* i,
+        std::unique_ptr<Item> item,
         OptionalSeqno seqno,
         std::optional<CollectionID> cid,
         const Collections::VB::WriteHandle& wHandle) {
-    // Must be freed once passed through addNew/update StoredValue
-    std::unique_ptr<Item> item(i);
     item->setVBucketId(getId());
     auto htRes = ht.findForWrite(item->getKey());
     auto* v = htRes.storedValue;
@@ -990,7 +988,7 @@ uint64_t EphemeralVBucket::addSystemEventItem(
     // We don't record anything interesting for scopes
     if (cid) {
         doCollectionsStats(wHandle, *cid, notifyCtx);
-        if (i->isDeleted()) {
+        if (item->isDeleted()) {
             stats.dropCollectionStats(*cid);
 
             // Inform the PDM about the dropped collection so that it knows

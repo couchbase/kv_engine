@@ -948,12 +948,12 @@ void EPVBucket::dropKey(int64_t bySeqno,
  * allocated.
  */
 uint64_t EPVBucket::addSystemEventItem(
-        Item* item,
+        std::unique_ptr<Item> item,
         OptionalSeqno seqno,
         std::optional<CollectionID> cid,
         const Collections::VB::WriteHandle& wHandle) {
     item->setVBucketId(getId());
-    queued_item qi(item);
+    queued_item qi(item.release());
 
     // Set the system events delete time if needed for tombstoning
     if (qi->isDeleted() && qi->getDeleteTime() == 0) {

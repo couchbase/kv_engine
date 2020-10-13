@@ -397,7 +397,7 @@ void Manifest::addScope(const WriteHandle& wHandle,
             optionalSeqno);
 
     auto seqno =
-            vb.addSystemEventItem(item.release(), optionalSeqno, {}, wHandle);
+            vb.addSystemEventItem(std::move(item), optionalSeqno, {}, wHandle);
 
     EP_LOG_INFO(
             "collections: {} added scope:name:{},id:{:#x} "
@@ -445,7 +445,7 @@ void Manifest::dropScope(const WriteHandle& wHandle,
     item->setDeleted();
 
     auto seqno =
-            vb.addSystemEventItem(item.release(), optionalSeqno, {}, wHandle);
+            vb.addSystemEventItem(std::move(item), optionalSeqno, {}, wHandle);
 
     // If seq is not set, then this is an active vbucket queueing the event.
     // Collection events will end the CP so they don't de-dup.
@@ -640,7 +640,7 @@ uint64_t Manifest::queueCollectionSystemEvent(const WriteHandle& wHandle,
     }
 
     // Create and transfer Item ownership to the VBucket
-    auto rv = vb.addSystemEventItem(item.release(), seq, cid, wHandle);
+    auto rv = vb.addSystemEventItem(std::move(item), seq, cid, wHandle);
 
     return rv;
 }

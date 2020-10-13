@@ -234,7 +234,7 @@ public:
      *        locked.
      */
     uint64_t addSystemEventItem(
-            Item* item,
+            std::unique_ptr<Item> item,
             OptionalSeqno seqno,
             std::optional<CollectionID> cid,
             const Collections::VB::WriteHandle& wHandle) override;
