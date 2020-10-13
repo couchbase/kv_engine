@@ -160,6 +160,7 @@ ENGINE_ERROR_CODE server_prometheus_stats(
     try {
         // do global stats
         server_global_stats(collector);
+        stats_audit(collector);
         bucketsForEach(
                 [&collector, cardinality](Bucket& bucket, void*) {
                     if (std::string_view(bucket.name).empty()) {
@@ -175,7 +176,6 @@ ENGINE_ERROR_CODE server_prometheus_stats(
                     if (cardinality == cb::prometheus::Cardinality::Low) {
                         // do memcached per-bucket stats
                         server_bucket_stats(bucketC, bucket);
-                        stats_audit(bucketC);
                     }
 
                     // continue checking buckets
