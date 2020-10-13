@@ -32,6 +32,7 @@
 
 class Item;
 class VBucket;
+class StatCollector;
 
 namespace flatbuffers {
 class FlatBufferBuilder;
@@ -645,17 +646,13 @@ protected:
      * Detailed stats for this VB::Manifest
      * @return true if addCollectionStats was successful, false if failed.
      */
-    bool addCollectionStats(Vbid vbid,
-                            const void* cookie,
-                            const AddStatFn& add_stat) const;
+    bool addCollectionStats(Vbid vbid, const StatCollector& collector) const;
 
     /**
      * Detailed stats for the scopes in this VB::Manifest
      * @return true if addScopeStats was successful, false if failed.
      */
-    bool addScopeStats(Vbid vbid,
-                       const void* cookie,
-                       const AddStatFn& add_stat) const;
+    bool addScopeStats(Vbid vbid, const StatCollector& collector) const;
 
     void updateSummary(Summary& summary) const;
 
@@ -808,8 +805,7 @@ protected:
         }
         bool addStats(Vbid vbid,
                       CollectionID cid,
-                      const void* cookie,
-                      const AddStatFn& add_stat) const;
+                      const StatCollector& collector) const;
 
         uint64_t start{0};
         uint64_t end{0};
@@ -826,9 +822,7 @@ protected:
         void insert(CollectionID cid, const DroppedCollectionInfo& info);
         void remove(CollectionID cid, uint64_t seqno);
         StatsForFlush get(CollectionID cid, uint64_t seqno) const;
-        bool addStats(Vbid vbid,
-                      const void* cookie,
-                      const AddStatFn& add_stat) const;
+        bool addStats(Vbid vbid, const StatCollector& collector) const;
 
         /// @return size of the map
         size_t size() const;

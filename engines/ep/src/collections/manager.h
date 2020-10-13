@@ -26,6 +26,8 @@
 #include <mutex>
 
 class EPBucket;
+class StatCollector;
+class BucketStatCollector;
 class KVBucket;
 class VBucket;
 
@@ -52,33 +54,36 @@ public:
      * @param scope
      * @param cid
      * @param collection
-     * @param add_stat memcached callback which will be called with each stat
+     * @param collector stat collector to which stats will be added
      * @param cookie
      */
     void addStatsForCollection(const Scope& scope,
                                CollectionID cid,
                                const CollectionEntry& collection,
-                               const AddStatFn& add_stat,
-                               const void* cookie);
+                               const BucketStatCollector& collector);
 
     /**
      * Add stats for a single scope, by aggregating over all collections in the
      * scope.
      * @param cid
      * @param collection
-     * @param add_stat memcached callback which will be called with each stat
+     * @param collector stat collector to which stats will be added
      * @param cookie
      */
     void addStatsForScope(ScopeID sid,
                           const Scope& scope,
-                          const AddStatFn& add_stat,
-                          const void* cookie);
+                          const BucketStatCollector& collector);
 
 private:
+    /**
+     * Add stats aggregated over a number of collections.
+     *
+     * @param cids collections to aggregate over
+     * @param collector collector to add stats to. Should be a scope or
+     * collection collector.
+     */
     void addAggregatedCollectionStats(const std::vector<CollectionID>& cids,
-                                      std::string_view prefix,
-                                      const AddStatFn& add_stat,
-                                      const void* cookie);
+                                      const StatCollector& collector);
     std::unordered_map<CollectionID, size_t> colMemUsed;
     std::unordered_map<CollectionID, AccumulatedStats> accumulatedStats;
 };
@@ -165,15 +170,13 @@ public:
      * Do 'add_stat' calls for the bucket to retrieve summary collection stats
      */
     void addCollectionStats(KVBucket& bucket,
-                            const void* cookie,
-                            const AddStatFn& add_stat) const;
+                            const BucketStatCollector& collector) const;
 
     /**
      * Do 'add_stat' calls for the bucket to retrieve summary scope stats
      */
     void addScopeStats(KVBucket& bucket,
-                       const void* cookie,
-                       const AddStatFn& add_stat) const;
+                       const BucketStatCollector& collector) const;
 
     /**
      * Called from bucket warmup - see if we have a manifest to resume from
@@ -211,8 +214,7 @@ public:
      */
     static cb::EngineErrorGetCollectionIDResult doCollectionStats(
             KVBucket& bucket,
-            const void* cookie,
-            const AddStatFn& add_stat,
+            const BucketStatCollector& collector,
             const std::string& statKey);
 
     /**
@@ -220,8 +222,7 @@ public:
      */
     static cb::EngineErrorGetScopeIDResult doScopeStats(
             KVBucket& bucket,
-            const void* cookie,
-            const AddStatFn& add_stat,
+            const BucketStatCollector& collector,
             const std::string& statKey);
 
     /**
@@ -298,38 +299,34 @@ private:
     // handler for "collection-details"
     static cb::EngineErrorGetCollectionIDResult doCollectionDetailStats(
             KVBucket& bucket,
-            const void* cookie,
-            const AddStatFn& add_stat,
+            const BucketStatCollector& collector,
             std::optional<std::string> arg);
 
     // handler for "collections"
     static cb::EngineErrorGetCollectionIDResult doAllCollectionsStats(
-            KVBucket& bucket, const void* cookie, const AddStatFn& add_stat);
+            KVBucket& bucket, const BucketStatCollector& collector);
 
     // handler for "collections name" or "collections byid id"
     static cb::EngineErrorGetCollectionIDResult doOneCollectionStats(
             KVBucket& bucket,
-            const void* cookie,
-            const AddStatFn& add_stat,
+            const BucketStatCollector& collector,
             const std::string& arg,
             const std::string& statKey);
 
     // handler for "scope-details"
     static cb::EngineErrorGetScopeIDResult doScopeDetailStats(
             KVBucket& bucket,
-            const void* cookie,
-            const AddStatFn& add_stat,
+            const BucketStatCollector& collector,
             std::optional<std::string> arg);
 
     // handler for "scopes"
     static cb::EngineErrorGetScopeIDResult doAllScopesStats(
-            KVBucket& bucket, const void* cookie, const AddStatFn& add_stat);
+            KVBucket& bucket, const BucketStatCollector& collector);
 
     // handler for "scopes name" or "scopes byid id"
     static cb::EngineErrorGetScopeIDResult doOneScopeStats(
             KVBucket& bucket,
-            const void* cookie,
-            const AddStatFn& add_stat,
+            const BucketStatCollector& collector,
             const std::string& arg,
             const std::string& statKey);
 

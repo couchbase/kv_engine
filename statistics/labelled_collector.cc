@@ -85,6 +85,10 @@ void LabelledStatCollector::addStat(const cb::stats::StatDef& k,
     forwardToParent(k, v, labels);
 }
 
+const void* LabelledStatCollector::getCookie() const {
+    return parent.getCookie();
+}
+
 BucketStatCollector::BucketStatCollector(const StatCollector& parent,
                                          std::string_view bucket)
     : LabelledStatCollector(parent, {{"bucket", bucket}}) {

@@ -4255,8 +4255,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCollectionStats(
         const void* cookie,
         const AddStatFn& add_stat,
         const std::string& statKey) {
+    CBStatCollector collector(add_stat, cookie);
+    auto bucketCollector = collector.forBucket(getName());
     auto res = Collections::Manager::doCollectionStats(
-            *kvBucket, cookie, add_stat, statKey);
+            *kvBucket, bucketCollector, statKey);
     if (res.result == cb::engine_errc::unknown_collection ||
         res.result == cb::engine_errc::unknown_scope) {
         setUnknownCollectionErrorContext(cookie,
@@ -4269,8 +4271,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doScopeStats(
         const void* cookie,
         const AddStatFn& add_stat,
         const std::string& statKey) {
+    CBStatCollector collector(add_stat, cookie);
+    auto bucketCollector = collector.forBucket(getName());
     auto res = Collections::Manager::doScopeStats(
-            *kvBucket, cookie, add_stat, statKey);
+            *kvBucket, bucketCollector, statKey);
     if (res.result == cb::engine_errc::unknown_scope) {
         setUnknownCollectionErrorContext(cookie,
                                          res.getManifestId());

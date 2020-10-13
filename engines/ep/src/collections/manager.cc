@@ -30,6 +30,7 @@
 #include <nlohmann/json.hpp>
 #include <spdlog/fmt/ostr.h>
 #include <statistics/cbstat_collector.h>
+#include <statistics/labelled_collector.h>
 #include <optional>
 #include <utility>
 
@@ -283,16 +284,14 @@ void Collections::Manager::logAll(KVBucket& bucket) const {
     }
 }
 
-void Collections::Manager::addCollectionStats(KVBucket& bucket,
-                                              const void* cookie,
-                                              const AddStatFn& add_stat) const {
-    currentManifest.rlock()->addCollectionStats(bucket, cookie, add_stat);
+void Collections::Manager::addCollectionStats(
+        KVBucket& bucket, const BucketStatCollector& collector) const {
+    currentManifest.rlock()->addCollectionStats(bucket, collector);
 }
 
-void Collections::Manager::addScopeStats(KVBucket& bucket,
-                                         const void* cookie,
-                                         const AddStatFn& add_stat) const {
-    currentManifest.rlock()->addScopeStats(bucket, cookie, add_stat);
+void Collections::Manager::addScopeStats(
+        KVBucket& bucket, const BucketStatCollector& collector) const {
+    currentManifest.rlock()->addScopeStats(bucket, collector);
 }
 
 bool Collections::Manager::warmupLoadManifest(const std::string& dbpath) {
@@ -359,13 +358,13 @@ public:
 
 class CollectionDetailedVBucketVisitor : public VBucketVisitor {
 public:
-    CollectionDetailedVBucketVisitor(const void* c, AddStatFn a)
-        : cookie(c), add_stat(std::move(a)) {
+    CollectionDetailedVBucketVisitor(const BucketStatCollector& collector)
+        : collector(collector) {
     }
 
     void visitBucket(const VBucketPtr& vb) override {
-        success = vb->lockCollections().addCollectionStats(
-                          vb->getId(), cookie, add_stat) ||
+        success = vb->lockCollections().addCollectionStats(vb->getId(),
+                                                           collector) ||
                   success;
     }
 
@@ -374,20 +373,18 @@ public:
     }
 
 private:
-    const void* cookie;
-    AddStatFn add_stat;
+    const BucketStatCollector& collector;
     bool success = true;
 };
 
 class ScopeDetailedVBucketVisitor : public VBucketVisitor {
 public:
-    ScopeDetailedVBucketVisitor(const void* c, AddStatFn a)
-        : cookie(c), add_stat(std::move(a)) {
+    ScopeDetailedVBucketVisitor(const BucketStatCollector& collector)
+        : collector(collector) {
     }
 
     void visitBucket(const VBucketPtr& vb) override {
-        success = vb->lockCollections().addScopeStats(
-                          vb->getId(), cookie, add_stat) ||
+        success = vb->lockCollections().addScopeStats(vb->getId(), collector) ||
                   success;
     }
 
@@ -396,8 +393,7 @@ public:
     }
 
 private:
-    const void* cookie;
-    AddStatFn add_stat;
+    const BucketStatCollector& collector;
     bool success = true;
 };
 
@@ -411,8 +407,7 @@ private:
 //   - return per collection item counts from all active VBs
 cb::EngineErrorGetCollectionIDResult Collections::Manager::doCollectionStats(
         KVBucket& bucket,
-        const void* cookie,
-        const AddStatFn& add_stat,
+        const BucketStatCollector& collector,
         const std::string& statKey) {
     std::optional<std::string> arg;
     if (auto pos = statKey.find_first_of(' '); pos != std::string::npos) {
@@ -420,21 +415,21 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doCollectionStats(
     }
 
     if (cb_isPrefix(statKey, "collections-details")) {
-        return doCollectionDetailStats(bucket, cookie, add_stat, arg);
+        return doCollectionDetailStats(bucket, collector, arg);
     }
 
     if (!arg) {
-        return doAllCollectionsStats(bucket, cookie, add_stat);
+        return doAllCollectionsStats(bucket, collector);
     }
-    return doOneCollectionStats(bucket, cookie, add_stat, arg.value(), statKey);
+    return doOneCollectionStats(bucket, collector, arg.value(), statKey);
 }
 
 // handle key "collections-details"
 cb::EngineErrorGetCollectionIDResult
-Collections::Manager::doCollectionDetailStats(KVBucket& bucket,
-                                              const void* cookie,
-                                              const AddStatFn& add_stat,
-                                              std::optional<std::string> arg) {
+Collections::Manager::doCollectionDetailStats(
+        KVBucket& bucket,
+        const BucketStatCollector& collector,
+        std::optional<std::string> arg) {
     bool success = false;
     if (arg) {
         // VB may be encoded in statKey
@@ -458,13 +453,11 @@ Collections::Manager::doCollectionDetailStats(KVBucket& bucket,
                     cb::engine_errc::not_my_vbucket};
         }
 
-        success = vb->lockCollections().addCollectionStats(
-                vbid, cookie, add_stat);
+        success = vb->lockCollections().addCollectionStats(vbid, collector);
 
     } else {
-        bucket.getCollectionsManager().addCollectionStats(
-                bucket, cookie, add_stat);
-        CollectionDetailedVBucketVisitor visitor(cookie, add_stat);
+        bucket.getCollectionsManager().addCollectionStats(bucket, collector);
+        CollectionDetailedVBucketVisitor visitor(collector);
         bucket.visit(visitor);
         success = visitor.getSuccess();
     }
@@ -474,19 +467,18 @@ Collections::Manager::doCollectionDetailStats(KVBucket& bucket,
 
 // handle key "collections"
 cb::EngineErrorGetCollectionIDResult
-Collections::Manager::doAllCollectionsStats(KVBucket& bucket,
-                                            const void* cookie,
-                                            const AddStatFn& add_stat) {
+Collections::Manager::doAllCollectionsStats(
+        KVBucket& bucket, const BucketStatCollector& collector) {
     // no collection ID was provided
 
     // Do the high level stats (includes global count)
-    bucket.getCollectionsManager().addCollectionStats(bucket, cookie, add_stat);
+    bucket.getCollectionsManager().addCollectionStats(bucket, collector);
     auto cachedStats = getPerCollectionStats(bucket);
     auto current = bucket.getCollectionsManager().currentManifest.rlock();
     // do stats for every collection
     for (const auto& entry : *current) {
         // Access check for SimpleStats. Use testPrivilege as it won't log
-        if (bucket.getEPEngine().testPrivilege(cookie,
+        if (bucket.getEPEngine().testPrivilege(collector.getCookie(),
                                                cb::rbac::Privilege::SimpleStats,
                                                entry.second.sid,
                                                entry.first) !=
@@ -497,7 +489,7 @@ Collections::Manager::doAllCollectionsStats(KVBucket& bucket,
         const auto scopeItr = current->findScope(entry.second.sid);
         Expects(scopeItr != current->endScopes());
         cachedStats.addStatsForCollection(
-                scopeItr->second, entry.first, entry.second, add_stat, cookie);
+                scopeItr->second, entry.first, entry.second, collector);
     }
     return {cb::engine_errc::success,
             cb::EngineErrorGetCollectionIDResult::allowSuccess{}};
@@ -506,8 +498,7 @@ Collections::Manager::doAllCollectionsStats(KVBucket& bucket,
 // handle key "collections <path>" or "collections-byid"
 cb::EngineErrorGetCollectionIDResult Collections::Manager::doOneCollectionStats(
         KVBucket& bucket,
-        const void* cookie,
-        const AddStatFn& add_stat,
+        const BucketStatCollector& collector,
         const std::string& arg,
         const std::string& statKey) {
     auto cachedStats = getPerCollectionStats(bucket);
@@ -550,7 +541,7 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doOneCollectionStats(
 
     // Access check for SimpleStats
     res.result = bucket.getEPEngine().checkPrivilege(
-            cookie,
+            collector.getCookie(),
             cb::rbac::Privilege::SimpleStats,
             res.getScopeId(),
             res.getCollectionId());
@@ -575,11 +566,8 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doOneCollectionStats(
     const auto scopeItr = current->findScope(collection.sid);
     Expects(scopeItr != current->endScopes());
 
-    cachedStats.addStatsForCollection(scopeItr->second,
-                                      res.getCollectionId(),
-                                      collection,
-                                      add_stat,
-                                      cookie);
+    cachedStats.addStatsForCollection(
+            scopeItr->second, res.getCollectionId(), collection, collector);
 
     return res;
 }
@@ -594,29 +582,27 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doOneCollectionStats(
 //   - return number of collections from all active VBs
 cb::EngineErrorGetScopeIDResult Collections::Manager::doScopeStats(
         KVBucket& bucket,
-        const void* cookie,
-        const AddStatFn& add_stat,
+        const BucketStatCollector& collector,
         const std::string& statKey) {
     std::optional<std::string> arg;
     if (auto pos = statKey.find_first_of(' '); pos != std::string_view::npos) {
         arg = statKey.substr(pos + 1);
     }
     if (cb_isPrefix(statKey, "scopes-details")) {
-        return doScopeDetailStats(bucket, cookie, add_stat, arg);
+        return doScopeDetailStats(bucket, collector, arg);
     }
 
     if (!arg) {
-        return doAllScopesStats(bucket, cookie, add_stat);
+        return doAllScopesStats(bucket, collector);
     }
 
-    return doOneScopeStats(bucket, cookie, add_stat, arg.value(), statKey);
+    return doOneScopeStats(bucket, collector, arg.value(), statKey);
 }
 
 // handler for "scope-details"
 cb::EngineErrorGetScopeIDResult Collections::Manager::doScopeDetailStats(
         KVBucket& bucket,
-        const void* cookie,
-        const AddStatFn& add_stat,
+        const BucketStatCollector& collector,
         std::optional<std::string> arg) {
     bool success = true;
     if (arg) {
@@ -640,10 +626,10 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doScopeDetailStats(
             return cb::EngineErrorGetScopeIDResult{
                     cb::engine_errc::not_my_vbucket};
         }
-        success = vb->lockCollections().addScopeStats(vbid, cookie, add_stat);
+        success = vb->lockCollections().addScopeStats(vbid, collector);
     } else {
-        bucket.getCollectionsManager().addScopeStats(bucket, cookie, add_stat);
-        ScopeDetailedVBucketVisitor visitor(cookie, add_stat);
+        bucket.getCollectionsManager().addScopeStats(bucket, collector);
+        ScopeDetailedVBucketVisitor visitor(collector);
         bucket.visit(visitor);
         success = visitor.getSuccess();
     }
@@ -653,21 +639,23 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doScopeDetailStats(
 
 // handler for "scopes"
 cb::EngineErrorGetScopeIDResult Collections::Manager::doAllScopesStats(
-        KVBucket& bucket, const void* cookie, const AddStatFn& add_stat) {
+        KVBucket& bucket, const BucketStatCollector& collector) {
     auto cachedStats = getPerCollectionStats(bucket);
 
     // Do the high level stats (includes number of collections)
-    bucket.getCollectionsManager().addScopeStats(bucket, cookie, add_stat);
+    bucket.getCollectionsManager().addScopeStats(bucket, collector);
     auto current = bucket.getCollectionsManager().currentManifest.rlock();
     for (auto itr = current->beginScopes(); itr != current->endScopes();
          ++itr) {
         // Access check for SimpleStats. Use testPrivilege as it won't log
-        if (bucket.getEPEngine().testPrivilege(
-                    cookie, cb::rbac::Privilege::SimpleStats, itr->first, {}) !=
+        if (bucket.getEPEngine().testPrivilege(collector.getCookie(),
+                                               cb::rbac::Privilege::SimpleStats,
+                                               itr->first,
+                                               {}) !=
             cb::engine_errc::success) {
-            continue; // skip this collection
+            continue; // skip this scope
         }
-        cachedStats.addStatsForScope(itr->first, itr->second, add_stat, cookie);
+        cachedStats.addStatsForScope(itr->first, itr->second, collector);
     }
     return {cb::engine_errc::success,
             cb::EngineErrorGetScopeIDResult::allowSuccess{}};
@@ -676,8 +664,7 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doAllScopesStats(
 // handler for "scopes name" or "scopes byid id"
 cb::EngineErrorGetScopeIDResult Collections::Manager::doOneScopeStats(
         KVBucket& bucket,
-        const void* cookie,
-        const AddStatFn& add_stat,
+        const BucketStatCollector& collector,
         const std::string& arg,
         const std::string& statKey) {
     auto cachedStats = getPerCollectionStats(bucket);
@@ -708,7 +695,10 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doOneScopeStats(
 
     // Access check for SimpleStats
     res.result = bucket.getEPEngine().checkPrivilege(
-            cookie, cb::rbac::Privilege::SimpleStats, res.getScopeId(), {});
+            collector.getCookie(),
+            cb::rbac::Privilege::SimpleStats,
+            res.getScopeId(),
+            {});
     if (res.result != cb::engine_errc::success) {
         return res;
     }
@@ -726,14 +716,13 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doOneScopeStats(
     }
 
     const auto& scope = scopeItr->second;
-    cachedStats.addStatsForScope(res.getScopeId(), scope, add_stat, cookie);
+    cachedStats.addStatsForScope(res.getScopeId(), scope, collector);
     // add stats for each collection in the scope
     for (const auto& entry : scope.collections) {
         auto itr = current->findCollection(entry.cid);
         Expects(itr != current->end());
         const auto& [cid, collection] = *itr;
-        cachedStats.addStatsForCollection(
-                scope, cid, collection, add_stat, cookie);
+        cachedStats.addStatsForCollection(scope, cid, collection, collector);
     }
     return res;
 }
@@ -770,40 +759,25 @@ void Collections::CachedStats::addStatsForCollection(
         const Scope& scope,
         CollectionID cid,
         const CollectionEntry& collection,
-        const AddStatFn& add_stat,
-        const void* cookie) {
-    auto scopeID = collection.sid;
-    fmt::memory_buffer buf;
-    // format prefix
-    format_to(buf, "{}:{}", scopeID.to_string(), cid.to_string());
-    addAggregatedCollectionStats(
-            {cid}, {buf.data(), buf.size()}, add_stat, cookie);
+        const BucketStatCollector& collector) {
+    auto collectionC = collector.forScope(collection.sid).forCollection(cid);
 
-    // add collection name stat
-    buf.resize(0);
-    format_to(buf, "{}:{}:name", scopeID.to_string(), cid.to_string());
-    add_stat({buf.data(), buf.size()}, collection.name, cookie);
+    addAggregatedCollectionStats({cid}, collectionC);
 
-    // add scope name stat
-    buf.resize(0);
-    format_to(buf, "{}:{}:scope_name", scopeID.to_string(), cid.to_string());
-    add_stat({buf.data(), buf.size()}, scope.name, cookie);
+    using namespace cb::stats;
+    collectionC.addStat(Key::collection_name, collection.name);
+    collectionC.addStat(Key::collection_scope_name, scope.name);
 
     // add ttl if valid
     if (collection.maxTtl.has_value()) {
-        buf.resize(0);
-        format_to(buf, "{}:{}:maxTTL", scopeID.to_string(), cid.to_string());
-        fmt::memory_buffer value;
-        format_to(value, "{}", collection.maxTtl.value().count());
-        add_stat(
-                {buf.data(), buf.size()}, {value.data(), value.size()}, cookie);
+        collectionC.addStat(Key::collection_maxTTL,
+                            collection.maxTtl.value().count());
     }
 }
 
-void Collections::CachedStats::addStatsForScope(ScopeID sid,
-                                                const Scope& scope,
-                                                const AddStatFn& add_stat,
-                                                const void* cookie) {
+void Collections::CachedStats::addStatsForScope(
+        ScopeID sid, const Scope& scope, const BucketStatCollector& collector) {
+    auto scopeC = collector.forScope(sid);
     std::vector<CollectionID> collections;
     collections.reserve(scope.collections.size());
 
@@ -811,26 +785,17 @@ void Collections::CachedStats::addStatsForScope(ScopeID sid,
     for (const auto& entry : scope.collections) {
         collections.push_back(entry.cid);
     }
-    addAggregatedCollectionStats(
-            collections, /* prefix */ sid.to_string(), add_stat, cookie);
+    addAggregatedCollectionStats(collections, scopeC);
 
+    using namespace cb::stats;
     // add scope name
-    fmt::memory_buffer buf;
-    format_to(buf, "{}:name", sid.to_string());
-    add_stat({buf.data(), buf.size()}, scope.name, cookie);
+    scopeC.addStat(Key::scope_name, scope.name);
     // add scope collection count
-    buf.resize(0);
-    format_to(buf, "{}:collections", sid.to_string());
-    fmt::memory_buffer value;
-    format_to(value, "{}", scope.collections.size());
-    add_stat({buf.data(), buf.size()}, {value.data(), value.size()}, cookie);
+    scopeC.addStat(Key::scope_collection_count, scope.collections.size());
 }
 
 void Collections::CachedStats::addAggregatedCollectionStats(
-        const std::vector<CollectionID>& cids,
-        std::string_view prefix,
-        const AddStatFn& add_stat,
-        const void* cookie) {
+        const std::vector<CollectionID>& cids, const StatCollector& collector) {
     size_t memUsed = 0;
     AccumulatedStats stats;
 
@@ -839,21 +804,13 @@ void Collections::CachedStats::addAggregatedCollectionStats(
         stats += accumulatedStats[cid];
     }
 
-    const auto addStat = [prefix, &add_stat, &cookie](const auto& statKey,
-                                                      const auto& statValue) {
-        fmt::memory_buffer key;
-        fmt::memory_buffer value;
-        format_to(key, "{}:{}", prefix, statKey);
-        format_to(value, "{}", statValue);
-        add_stat(
-                {key.data(), key.size()}, {value.data(), value.size()}, cookie);
-    };
+    using namespace cb::stats;
 
-    addStat("mem_used", memUsed);
-    addStat("items", stats.itemCount);
-    addStat("disk_size", stats.diskSize);
+    collector.addStat(Key::collection_mem_used, memUsed);
+    collector.addStat(Key::collection_item_count, stats.itemCount);
+    collector.addStat(Key::collection_disk_size, stats.diskSize);
 
-    addStat("ops_store", stats.opsStore);
-    addStat("ops_delete", stats.opsDelete);
-    addStat("ops_get", stats.opsGet);
+    collector.addStat(Key::collection_ops_store, stats.opsStore);
+    collector.addStat(Key::collection_ops_delete, stats.opsDelete);
+    collector.addStat(Key::collection_ops_get, stats.opsGet);
 }

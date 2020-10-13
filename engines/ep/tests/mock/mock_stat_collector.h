@@ -66,4 +66,5 @@ public:
                 (const, override));
 
     MOCK_METHOD(bool, includeAggregateMetrics, (), (const, override));
+    MOCK_METHOD(const void*, getCookie, (), (const, override));
 };

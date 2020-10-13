@@ -81,6 +81,8 @@ public:
         return false;
     }
 
+    const void* getCookie() const override;
+
 protected:
     void addClientMetric(const cb::stats::StatDef& key,
                          const Labels& additionalLabels,

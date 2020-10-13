@@ -91,6 +91,12 @@ void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
                     prometheus::MetricType::Untyped);
 }
 
+const void* PrometheusStatCollector::getCookie() const {
+    throw std::logic_error(
+            "PrometheusStatCollector: trying to get cookie from a "
+            "non-CBStatCollector");
+}
+
 void PrometheusStatCollector::addClientMetric(
         const cb::stats::StatDef& key,
         const Labels& additionalLabels,

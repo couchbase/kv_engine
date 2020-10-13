@@ -69,13 +69,9 @@ public:
                  const HdrHistogram& hist,
                  const Labels& labels) const override;
 
-    /**
-     * Get the wrapped cookie and addStatFn. Useful while code is
-     * being transitioned to the StatCollector interface.
-     */
-    std::pair<const void*, const AddStatFn&> getCookieAndAddFn() const {
-        return {cookie, addStatFn};
-    }
+    const void* getCookie() const override {
+        return cookie;
+    };
 
     /**
      * Turn off formatting of stat keys for this collector.

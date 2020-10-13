@@ -332,5 +332,14 @@ public:
 
     virtual bool includeAggregateMetrics() const = 0;
 
+    /**
+     * Get the cookie from the underlying collector. If the collector is not
+     * (a wrapper of) CBStatCollector, this will throw.
+     *
+     * MB-39505: This is a temporary workaround while migrating code
+     * requiring privilege checks, and will be removed.
+     */
+    virtual const void* getCookie() const = 0;
+
     virtual ~StatCollector() = default;
 };

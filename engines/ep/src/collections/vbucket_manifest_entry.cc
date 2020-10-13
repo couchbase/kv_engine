@@ -62,24 +62,21 @@ std::string Collections::VB::ManifestEntry::getExceptionString(
     return ss.str();
 }
 
-bool Collections::VB::ManifestEntry::addStats(const std::string& cid,
-                                              Vbid vbid,
-                                              const void* cookie,
-                                              const AddStatFn& add_stat) const {
+bool Collections::VB::ManifestEntry::addStats(
+        const std::string& cid,
+        Vbid vbid,
+        const StatCollector& collector) const {
     fmt::memory_buffer prefix;
     format_to(prefix, "vb_{}:{}", vbid.get(), cid);
 
-    const auto addStat = [&prefix, &add_stat, &cookie](const auto& statKey,
-                                                       auto statValue) {
+    const auto addStat = [&prefix, &collector](const auto& statKey,
+                                               auto statValue) {
         fmt::memory_buffer key;
-        fmt::memory_buffer value;
         format_to(key,
                   "{}:{}",
                   std::string_view{prefix.data(), prefix.size()},
                   statKey);
-        format_to(value, "{}", statValue);
-        add_stat(
-                {key.data(), key.size()}, {value.data(), value.size()}, cookie);
+        collector.addStat(std::string_view(key.data(), key.size()), statValue);
     };
 
     addStat("scope", getScopeID().to_string().c_str());

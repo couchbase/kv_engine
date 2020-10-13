@@ -30,6 +30,7 @@
 #include <nlohmann/json.hpp>
 #include <platform/checked_snprintf.h>
 #include <statistics/cbstat_collector.h>
+#include <statistics/labelled_collector.h>
 #include <gsl/gsl>
 
 #include <cctype>
@@ -413,42 +414,31 @@ Manifest::Manifest(std::string_view flatbufferData, Manifest::FlatBuffers tag)
 }
 
 void Manifest::addCollectionStats(KVBucket& bucket,
-                                  const void* cookie,
-                                  const AddStatFn& add_stat) const {
-    const auto addStat = [&cookie, &add_stat](std::string_view key,
-                                              const auto& value) {
-        fmt::memory_buffer valueBuf;
-        format_to(valueBuf, "{}", value);
-        add_stat({key.data(), key.size()}, {valueBuf.data(), valueBuf.size()}, cookie);
-    };
-
+                                  const BucketStatCollector& collector) const {
     try {
+        using namespace cb::stats;
         // manifest_uid is always permitted (e.g. get_collections_manifest
         // exposes this too). It reveals nothing about scopes or collections but
         // is useful for assisting in access failures
-        addStat("manifest_uid", uid);
+        collector.addStat(Key::manifest_uid, uid);
         for (const auto& scope : scopes) {
+            auto scopeC = collector.forScope(scope.first);
             for (const auto& entry : scope.second.collections) {
+                auto collectionC = scopeC.forCollection(entry.cid);
                 // The inclusion of each collection requires an appropriate
                 // privilege
                 if (bucket.getEPEngine().testPrivilege(
-                            cookie,
+                            collectionC.getCookie(),
                             cb::rbac::Privilege::SimpleStats,
                             scope.first,
                             entry.cid) != cb::engine_errc::success) {
                     continue; // skip this collection
                 }
-                const auto cid = entry.cid.to_string();
 
-                fmt::memory_buffer key;
-                format_to(key, "{}:{}:name", scope.first.to_string(), cid);
-                addStat({key.data(), key.size()}, entry.name);
+                collectionC.addStat(Key::collection_name, entry.name);
 
                 if (entry.maxTtl) {
-                    key.resize(0);
-                    format_to(
-                            key, "{}:{}:maxTTL", scope.first.to_string(), cid);
-                    addStat({key.data(), key.size()}, entry.maxTtl->count());
+                    collectionC.addStat(Key::collection_maxTTL, entry.maxTtl->count());
                 }
             }
         }
@@ -461,52 +451,38 @@ void Manifest::addCollectionStats(KVBucket& bucket,
 }
 
 void Manifest::addScopeStats(KVBucket& bucket,
-                             const void* cookie,
-                             const AddStatFn& add_stat) const {
+                             const BucketStatCollector& collector) const {
     try {
-        fmt::memory_buffer buf;
+        using namespace cb::stats;
         // manifest_uid is always permitted (e.g. get_collections_manifest
         // exposes this too). It reveals nothing about scopes or collections but
         // is useful for assisting in access failures
-        add_casted_stat("manifest_uid", uid, add_stat, cookie);
+        collector.addStat(Key::manifest_uid, uid);
 
         // Add force only when set (should be rare)
         if (force) {
-            add_casted_stat("force", "true", add_stat, cookie);
+            collector.addStat(Key::manifest_force, true);
         }
 
         for (const auto& entry : scopes) {
+            auto scopeC = collector.forScope(entry.first);
             // The inclusion of each scope requires an appropriate
             // privilege
             if (bucket.getEPEngine().testPrivilege(
-                        cookie,
+                        scopeC.getCookie(),
                         cb::rbac::Privilege::SimpleStats,
                         entry.first,
                         {}) != cb::engine_errc::success) {
                 continue; // skip this scope
             }
-            const auto sid = entry.first.to_string();
             const auto name = entry.second.name;
 
-            buf.resize(0);
-            fmt::format_to(buf, "{}:name", sid);
-            add_casted_stat({buf.data(), buf.size()}, name, add_stat, cookie);
-
-            buf.resize(0);
-            fmt::format_to(buf, "{}:collections", sid);
-            add_casted_stat<unsigned long>({buf.data(), buf.size()},
-                                           entry.second.collections.size(),
-                                           add_stat,
-                                           cookie);
+            scopeC.addStat(Key::scope_name, name);
+            scopeC.addStat(Key::scope_collection_count, entry.second.collections.size());
             // add each collection name and id
             for (const auto& colEntry : entry.second.collections) {
-                buf.resize(0);
-                fmt::format_to(
-                        buf, "{}:{}:name", sid, colEntry.cid.to_string());
-                add_casted_stat({buf.data(), buf.size()},
-                                colEntry.name,
-                                add_stat,
-                                cookie);
+                auto collectionC = scopeC.forCollection(colEntry.cid);
+                collectionC.addStat(Key::collection_name, colEntry.name);
             }
         }
     } catch (const std::exception& e) {

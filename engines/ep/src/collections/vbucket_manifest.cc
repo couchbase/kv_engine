@@ -859,60 +859,45 @@ void Manifest::decrementItemCount(CollectionID collection) const {
 }
 
 bool Manifest::addCollectionStats(Vbid vbid,
-                                  const void* cookie,
-                                  const AddStatFn& add_stat) const {
+                                  const StatCollector& collector) const {
     fmt::memory_buffer key;
-    fmt::memory_buffer value;
 
     format_to(key, "vb_{}:collections", vbid.get());
-    format_to(value, "{}", map.size());
-    add_stat({key.data(), key.size()}, {value.data(), value.size()}, cookie);
+    collector.addStat(std::string_view(key.data(), key.size()), map.size());
 
     key.resize(0);
-    value.resize(0);
 
     format_to(key, "vb_{}:manifest:uid", vbid.get());
-    format_to(value, "{}", manifestUid);
-    add_stat({key.data(), key.size()}, {value.data(), value.size()}, cookie);
+    collector.addStat(std::string_view(key.data(), key.size()), manifestUid);
 
     for (const auto& entry : map) {
-        if (!entry.second.addStats(
-                    entry.first.to_string(), vbid, cookie, add_stat)) {
+        if (!entry.second.addStats(entry.first.to_string(), vbid, collector)) {
             return false;
         }
     }
 
-    return droppedCollections.rlock()->addStats(vbid, cookie, add_stat);
+    return droppedCollections.rlock()->addStats(vbid, collector);
 }
 
-bool Manifest::addScopeStats(Vbid vbid,
-                             const void* cookie,
-                             const AddStatFn& add_stat) const {
+bool Manifest::addScopeStats(Vbid vbid, const StatCollector& collector) const {
     fmt::memory_buffer key;
-    fmt::memory_buffer value;
 
     format_to(key, "vb_{}:scopes", vbid.get());
-    format_to(value, "{}", scopes.size());
-    add_stat({key.data(), key.size()}, {value.data(), value.size()}, cookie);
+    collector.addStat(std::string_view(key.data(), key.size()), scopes.size());
 
     key.resize(0);
-    value.resize(0);
 
     format_to(key, "vb_{}:manifest:uid", vbid.get());
-    format_to(value, "{}", manifestUid);
-    add_stat({key.data(), key.size()}, {value.data(), value.size()}, cookie);
+    collector.addStat(std::string_view(key.data(), key.size()), manifestUid);
 
     // Dump the scopes container, which only stores scope-identifiers, so that
     // we have a key and value we include the iteration index as the value.
     int i = 0;
     for (auto sid : scopes) {
         key.resize(0);
-        value.resize(0);
 
         format_to(key, "vb_{}:{}", vbid.get(), sid);
-        format_to(value, "{}", i++);
-        add_stat(
-                {key.data(), key.size()}, {value.data(), value.size()}, cookie);
+        collector.addStat(std::string_view(key.data(), key.size()), i++);
     }
 
     // Dump all collections and how they map to a scope. Stats requires unique
@@ -920,13 +905,11 @@ bool Manifest::addScopeStats(Vbid vbid,
     // return anything from the entry for the value, we choose item count.
     for (const auto& [cid, entry] : map) {
         key.resize(0);
-        value.resize(0);
 
         format_to(
                 key, "vb_{}:{}:{}:items", vbid.get(), entry.getScopeID(), cid);
-        format_to(value, "{}", entry.getItemCount());
-        add_stat(
-                {key.data(), key.size()}, {value.data(), value.size()}, cookie);
+        collector.addStat(std::string_view(key.data(), key.size()),
+                          entry.getItemCount());
     }
 
     return true;
@@ -1102,12 +1085,11 @@ std::optional<size_t> Manifest::DroppedCollections::size(
     return {};
 }
 
-bool Manifest::DroppedCollections::addStats(Vbid vbid,
-                                            const void* cookie,
-                                            const AddStatFn& add_stat) const {
+bool Manifest::DroppedCollections::addStats(
+        Vbid vbid, const StatCollector& collector) const {
     for (const auto& [cid, list] : droppedCollections) {
         for (const auto& entry : list) {
-            if (!entry.addStats(vbid, cid, cookie, add_stat)) {
+            if (!entry.addStats(vbid, cid, collector)) {
                 return false;
             }
         }
@@ -1116,23 +1098,17 @@ bool Manifest::DroppedCollections::addStats(Vbid vbid,
 }
 
 bool Manifest::DroppedCollectionInfo::addStats(
-        Vbid vbid,
-        CollectionID cid,
-        const void* cookie,
-        const AddStatFn& add_stat) const {
+        Vbid vbid, CollectionID cid, const StatCollector& collector) const {
     fmt::memory_buffer prefix;
     format_to(prefix, "vb_{}:{}", vbid.get(), cid);
-    const auto addStat = [&prefix, &add_stat, &cookie](const auto& statKey,
-                                                       auto statValue) {
+    const auto addStat = [&prefix, &collector](const auto& statKey,
+                                               auto statValue) {
         fmt::memory_buffer key;
-        fmt::memory_buffer value;
         format_to(key,
                   "{}:{}",
                   std::string_view{prefix.data(), prefix.size()},
                   statKey);
-        format_to(value, "{}", statValue);
-        add_stat(
-                {key.data(), key.size()}, {value.data(), value.size()}, cookie);
+        collector.addStat(std::string_view(key.data(), key.size()), statValue);
     };
 
     addStat("start", start);

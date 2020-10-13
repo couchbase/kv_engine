@@ -26,6 +26,8 @@
 #include <memory>
 #include <utility>
 
+class StatCollector;
+
 namespace Collections {
 namespace VB {
 
@@ -163,8 +165,7 @@ public:
     /// @return true if successfully added stats, false otherwise
     bool addStats(const std::string& cid,
                   Vbid vbid,
-                  const void* cookie,
-                  const AddStatFn& add_stat) const;
+                  const StatCollector& collector) const;
 
     void incrementOpsStore() const {
         numOpsStore++;

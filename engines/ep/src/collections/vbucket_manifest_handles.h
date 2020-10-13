@@ -19,6 +19,8 @@
 
 #include "collections/vbucket_manifest.h"
 
+class StatCollector;
+
 namespace Collections::VB {
 
 struct PersistedStats;
@@ -161,16 +163,12 @@ public:
         manifest->decrementItemCount(collection);
     }
 
-    bool addCollectionStats(Vbid vbid,
-                            const void* cookie,
-                            const AddStatFn& add_stat) const {
-        return manifest->addCollectionStats(vbid, cookie, add_stat);
+    bool addCollectionStats(Vbid vbid, const StatCollector& collector) const {
+        return manifest->addCollectionStats(vbid, collector);
     }
 
-    bool addScopeStats(Vbid vbid,
-                       const void* cookie,
-                       const AddStatFn& add_stat) const {
-        return manifest->addScopeStats(vbid, cookie, add_stat);
+    bool addScopeStats(Vbid vbid, const StatCollector& collector) const {
+        return manifest->addScopeStats(vbid, collector);
     }
 
     void updateSummary(Summary& summary) const {

@@ -28,6 +28,8 @@
 #include "memcached/engine_error.h"
 
 class KVBucket;
+class BucketStatCollector;
+class StatCollector;
 
 namespace flatbuffers {
 class DetachedBuffer;
@@ -257,8 +259,7 @@ public:
      * @param function to call to add stats
      */
     void addCollectionStats(KVBucket& bucket,
-                            const void* cookie,
-                            const AddStatFn& add_stat) const;
+                            const BucketStatCollector& collector) const;
     /**
      * Add stats for scopes. Each scope is tested for
      * Privilege::SimpleStats and 'added' if the user has the privilege.
@@ -267,8 +268,7 @@ public:
      * @param function to call to add stats
      */
     void addScopeStats(KVBucket& bucket,
-                       const void* cookie,
-                       const AddStatFn& add_stat) const;
+                       const BucketStatCollector& collector) const;
 
     /**
      * Write to std::cerr this

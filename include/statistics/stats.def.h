@@ -517,3 +517,25 @@ STAT(connagg_total_uncompressed_data_size,
      "{connection_type}:total_uncompressed_data_size",
      bytes,
      dcp_total_uncompressed_data_size, )
+
+STAT(manifest_uid, , none, , )
+STAT(manifest_force, "force", none, , )
+
+STAT(collection_name, "name", none, , )
+STAT(collection_scope_name, "scope_name", none, , )
+STAT(collection_maxTTL, "maxTTL", seconds, , )
+
+STAT(scope_name, "name", none, , )
+STAT(scope_collection_count, "collections", count, , )
+
+STAT(collection_mem_used, "mem_used", bytes, , )
+STAT(collection_item_count, "items", count, , )
+STAT(collection_disk_size, "disk_size", bytes, , )
+
+STAT(collection_ops_store, "ops_store", count, collection_ops, LABEL(op, store))
+STAT(collection_ops_delete,
+     "ops_delete",
+     count,
+     collection_ops,
+     LABEL(op, delete))
+STAT(collection_ops_get, "ops_get", count, collection_ops, LABEL(op, get))
