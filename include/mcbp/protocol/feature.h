@@ -19,8 +19,8 @@
 #include <cstdint>
 #include <string>
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
+
 /**
  * Definition of hello's features.
  * Note regarding JSON:0x1. Previously this was named DATATYPE and
@@ -88,9 +88,12 @@ enum class Feature : uint16_t {
     /// Does the server support using the virtual $document attributes in macro
     /// expansion ( "${document.CAS}" etc)
     SubdocDocumentMacroSupport = 0x18,
+
+    /// Does the server support SubdocReplaceBodyWithXattr introduced in
+    /// Cheshire-Cat
+    SubdocReplaceBodyWithXattr = 0x19,
 };
 
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp
 
 std::string to_string(cb::mcbp::Feature feature);

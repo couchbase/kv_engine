@@ -1825,6 +1825,7 @@ The following features is defined:
 | 0x0016 | PiTR |
 | 0x0017 | SubdocCreateAsDeleted support |
 | 0x0018 | SubdocDocumentMacroSupport |
+| 0x0019 | SubdocReplaceBodyWithXattr |
 
 * `Datatype` - The client understands the 'non-null' values in the
   [datatype field](#data-types). The server expects the client to fill
@@ -1908,6 +1909,9 @@ The following features is defined:
           disable anything on the server). It may be used from the client to
           determine if the server supports using the virtual attribute $document
           in macros. Requires XATTR
+* `SubdocReplaceBodyWithXattr` This is purely information (it does not enable /
+  disable anything on the server). It may be used from the client to
+  determine if the server supports the command SubdocReplaceBodyWithXattr.
 
 Response:
 

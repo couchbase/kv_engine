@@ -44,7 +44,9 @@ const std::map<cb::mcbp::Feature, std::string> blueprint = {
          {cb::mcbp::Feature::PiTR, "PiTR"},
          {cb::mcbp::Feature::SubdocCreateAsDeleted, "SubdocCreateAsDeleted"},
          {cb::mcbp::Feature::SubdocDocumentMacroSupport,
-          "SubdocDocumentMacroSupport"}}};
+          "SubdocDocumentMacroSupport"},
+         {cb::mcbp::Feature::SubdocReplaceBodyWithXattr,
+          "SubdocReplaceBodyWithXattr"}}};
 
 TEST(to_string, LegalValues) {
     for (const auto& entry : blueprint) {
