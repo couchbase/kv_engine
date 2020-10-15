@@ -260,6 +260,12 @@ enum class Status : uint16_t {
     /// The server don't know this virtual macro
     SubdocXattrUnknownVattrMacro = 0xd5,
 
+    /// The document isn't dead (and we wanted to revive the document)
+    SubdocCanOnlyReviveDeletedDocuments = 0xd6,
+
+    /// A deleted document can't have a user value
+    SubdocDeletedDocumentCantHaveValue = 0xd7,
+
     /*************************************************************************/
 
     /**

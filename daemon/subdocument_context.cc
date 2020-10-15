@@ -302,7 +302,8 @@ SubdocCmdContext::SubdocCmdContext(Cookie& cookie_,
                                 ? MutationSemantics::Add
                                 : mcbp::subdoc::hasMkdoc(doc_flags)
                                           ? MutationSemantics::Set
-                                          : MutationSemantics::Replace) {
+                                          : MutationSemantics::Replace),
+      reviveDocument(mcbp::subdoc::hasReviveDocument(doc_flags)) {
     switch (traits.path) {
     case SubdocPath::SINGLE:
         create_single_path_context(doc_flags);

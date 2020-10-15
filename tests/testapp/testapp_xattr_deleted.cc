@@ -447,3 +447,97 @@ TEST_P(XattrNoDocTest, MultipathAccessDeletedCreateAsDeleted) {
 TEST_P(XattrNoDocDurabilityTest, MultipathAccessDeletedCreateAsDeleted) {
     testMultipathAccessDeletedCreateAsDeleted();
 }
+
+TEST_P(XattrNoDocTest, ReplaceBodyWithXattr_DeletedDocument) {
+    auto& conn = getConnection();
+    uint64_t cas;
+    {
+        BinprotSubdocMultiMutationCommand cmd;
+        cmd.setKey(name);
+        cmd.addDocFlag(doc_flag::Add);
+        cmd.addDocFlag(doc_flag::AccessDeleted);
+        cmd.addDocFlag(doc_flag::CreateAsDeleted);
+        cmd.addMutation(
+                cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
+                "tnx.op.staged",
+                R"({"couchbase": {"version": "cheshire-cat", "next_version": "unknown"}})");
+        conn.sendCommand(cmd);
+
+        BinprotSubdocMultiMutationResponse multiResp;
+        conn.recvResponse(multiResp);
+        ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, multiResp.getStatus())
+                << "Failed to update the document to expand the Input macros";
+        cas = multiResp.getCas();
+    }
+
+    // Replace the body with the staged value and remove that
+    {
+        BinprotSubdocMultiMutationCommand cmd;
+        cmd.setCas(cas);
+        cmd.setKey(name);
+        cmd.addDocFlag(doc_flag::AccessDeleted);
+        cmd.addDocFlag(doc_flag::ReviveDocument);
+        cmd.addMutation(cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
+                        SUBDOC_FLAG_XATTR_PATH,
+                        "tnx.op.staged",
+                        {});
+        cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDelete,
+                        SUBDOC_FLAG_XATTR_PATH,
+                        "tnx",
+                        {});
+        conn.sendCommand(cmd);
+
+        BinprotSubdocMultiMutationResponse multiResp;
+        conn.recvResponse(multiResp);
+        ASSERT_EQ(cb::mcbp::Status::Success, multiResp.getStatus())
+                << multiResp.getDataString();
+    }
+
+    // Verify that things looks like we expect them to
+    {
+        auto resp = subdoc_multi_lookup(
+                conn,
+                {{ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "tnx.op"},
+                 {ClientOpcode::SubdocGet,
+                  SUBDOC_FLAG_NONE,
+                  "couchbase.version"}});
+        ASSERT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, resp.getStatus());
+        auto& results = resp.getResults();
+        ASSERT_EQ(cb::mcbp::Status::SubdocPathEnoent, results[0].status);
+        ASSERT_EQ(cb::mcbp::Status::Success, results[1].status);
+        ASSERT_EQ(R"("cheshire-cat")", results[1].value);
+    }
+}
+
+/// Verify that Revive on a document which _isn't_ deleted fails
+TEST_P(XattrNoDocTest, ReviveRequireDeletedDocument) {
+    auto& conn = getConnection();
+    BinprotSubdocMultiMutationCommand cmd;
+    cmd.setKey(name);
+    cmd.addDocFlag(doc_flag::Add);
+    cmd.addMutation(
+            cb::mcbp::ClientOpcode::SubdocDictUpsert,
+            SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
+            "tnx.op.staged",
+            R"({"couchbase": {"version": "cheshire-cat", "next_version": "unknown"}})");
+    conn.sendCommand(cmd);
+
+    BinprotSubdocMultiMutationResponse resp;
+    conn.recvResponse(resp);
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+
+    cmd = {};
+    cmd.setKey(name);
+    cmd.addDocFlag(doc_flag::AccessDeleted);
+    cmd.addDocFlag(doc_flag::ReviveDocument);
+    cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                    SUBDOC_FLAG_XATTR_PATH,
+                    "tnx.bubba",
+                    R"("This should fail")");
+    conn.sendCommand(cmd);
+
+    conn.recvResponse(resp);
+    ASSERT_EQ(cb::mcbp::Status::SubdocCanOnlyReviveDeletedDocuments,
+              resp.getStatus());
+}

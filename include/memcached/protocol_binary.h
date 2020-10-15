@@ -330,7 +330,9 @@ enum class doc_flag : uint8_t {
 
     /**
      * Allow access to XATTRs for deleted documents (instead of
-     * returning KEY_ENOENT).
+     * returning KEY_ENOENT). The result of mutations on a deleted
+     * document is still a deleted document unless ReviveDocument is
+     * being used.
      */
     AccessDeleted = 0x04,
 
@@ -340,6 +342,14 @@ enum class doc_flag : uint8_t {
      * Not valid unless Mkdoc or Add specified.
      */
     CreateAsDeleted = 0x08,
+
+    /**
+     * (Mutation) If the document exists and isn't deleted the operation
+     * will fail with SubdocCanOnlyReviveDeletedDocuments. If the input
+     * document _is_ deleted the result of the operation will store the
+     * document as a "live" document instead of a deleted document.
+     */
+    ReviveDocument = 0x10,
 };
 
 /**
@@ -347,7 +357,7 @@ enum class doc_flag : uint8_t {
  * The value depends on how many bits the doc_flag enum is actually using and
  * must change accordingly.
  */
-static constexpr uint8_t extrasDocFlagMask = 0xf0;
+static constexpr uint8_t extrasDocFlagMask = 0xe0;
 
 } // namespace mcbp::subdoc
 
@@ -2095,17 +2105,20 @@ inline constexpr mcbp::subdoc::doc_flag operator~(mcbp::subdoc::doc_flag a) {
 }
 
 inline std::string to_string(mcbp::subdoc::doc_flag a) {
+    using mcbp::subdoc::doc_flag;
     switch (a) {
-    case mcbp::subdoc::doc_flag::None:
+    case doc_flag::None:
         return "None";
-    case mcbp::subdoc::doc_flag::Mkdoc:
+    case doc_flag::Mkdoc:
         return "Mkdoc";
-    case mcbp::subdoc::doc_flag::AccessDeleted:
+    case doc_flag::AccessDeleted:
         return "AccessDeleted";
-    case mcbp::subdoc::doc_flag::Add:
+    case doc_flag::Add:
         return "Add";
-    case mcbp::subdoc::doc_flag::CreateAsDeleted:
+    case doc_flag::CreateAsDeleted:
         return "CreateAsDeleted";
+    case doc_flag::ReviveDocument:
+        return "ReviveDocument";
     }
     return std::to_string(static_cast<uint8_t>(a));
 }
@@ -2121,6 +2134,11 @@ inline bool hasMkdoc(mcbp::subdoc::doc_flag a) {
 
 inline bool hasAdd(mcbp::subdoc::doc_flag a) {
     return (a & mcbp::subdoc::doc_flag::Add) != mcbp::subdoc::doc_flag::None;
+}
+
+inline bool hasReviveDocument(mcbp::subdoc::doc_flag a) {
+    return (a & mcbp::subdoc::doc_flag::ReviveDocument) ==
+           mcbp::subdoc::doc_flag::ReviveDocument;
 }
 
 inline bool hasCreateAsDeleted(mcbp::subdoc::doc_flag a) {

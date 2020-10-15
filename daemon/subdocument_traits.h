@@ -115,7 +115,8 @@ inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::Get>() {
             cb::mcbp::ClientOpcode::Get,
             SUBDOC_FLAG_NONE,
             SUBDOC_FLAG_NONE,
-            mcbp::subdoc::doc_flag::AccessDeleted,
+            mcbp::subdoc::doc_flag::AccessDeleted |
+                    mcbp::subdoc::doc_flag::ReviveDocument,
             /*request_has_value*/ false,
             /*allow_empty_path*/ true,
             ResponseValue::FromDocument,
@@ -145,7 +146,8 @@ inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::Delete>() {
             cb::mcbp::ClientOpcode::Delete,
             SUBDOC_FLAG_NONE,
             SUBDOC_FLAG_NONE,
-            mcbp::subdoc::doc_flag::AccessDeleted,
+            mcbp::subdoc::doc_flag::AccessDeleted |
+                    mcbp::subdoc::doc_flag::ReviveDocument,
             /*request_has_value*/ false,
             /*allow_empty_path*/ true,
             ResponseValue::None,
@@ -160,7 +162,8 @@ inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocGet>() {
             cb::mcbp::ClientOpcode::Invalid,
             SUBDOC_FLAG_NONE | SUBDOC_FLAG_XATTR_PATH,
             SUBDOC_FLAG_NONE,
-            mcbp::subdoc::doc_flag::AccessDeleted,
+            mcbp::subdoc::doc_flag::AccessDeleted |
+                    mcbp::subdoc::doc_flag::ReviveDocument,
             /*request_has_value*/ false,
             /*allow_empty_path*/ false,
             ResponseValue::JSON,
@@ -175,7 +178,8 @@ inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocExists>() {
             cb::mcbp::ClientOpcode::Invalid,
             SUBDOC_FLAG_NONE | SUBDOC_FLAG_XATTR_PATH,
             SUBDOC_FLAG_NONE,
-            mcbp::subdoc::doc_flag::AccessDeleted,
+            mcbp::subdoc::doc_flag::AccessDeleted |
+                    mcbp::subdoc::doc_flag::ReviveDocument,
             /*request_has_value*/ false,
             /*allow_empty_path*/ false,
             ResponseValue::None,
@@ -192,7 +196,8 @@ inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocDictAdd>() {
             SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_XATTR_PATH |
                     SUBDOC_FLAG_EXPAND_MACROS,
             SUBDOC_FLAG_NONE,
-            doc_flag::Mkdoc | doc_flag::AccessDeleted | doc_flag::Add |
+            doc_flag::Mkdoc | doc_flag::AccessDeleted |
+                    doc_flag::ReviveDocument | doc_flag::Add |
                     doc_flag::CreateAsDeleted,
             /*request_has_value*/ true,
             /*allow_empty_path*/ false,
@@ -210,7 +215,8 @@ inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocDictUpsert>() {
             SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_XATTR_PATH |
                     SUBDOC_FLAG_EXPAND_MACROS,
             SUBDOC_FLAG_NONE,
-            doc_flag::Mkdoc | doc_flag::AccessDeleted | doc_flag::Add |
+            doc_flag::Mkdoc | doc_flag::AccessDeleted |
+                    doc_flag::ReviveDocument | doc_flag::Add |
                     doc_flag::CreateAsDeleted,
             /*request_has_value*/ true,
             /*allow_empty_path*/ false,
@@ -226,7 +232,8 @@ inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocDelete>() {
             cb::mcbp::ClientOpcode::Invalid,
             SUBDOC_FLAG_NONE | SUBDOC_FLAG_XATTR_PATH,
             SUBDOC_FLAG_NONE,
-            mcbp::subdoc::doc_flag::AccessDeleted,
+            mcbp::subdoc::doc_flag::AccessDeleted |
+                    mcbp::subdoc::doc_flag::ReviveDocument,
             /*request_has_value*/ false,
             /*allow_empty_path*/ false,
             ResponseValue::None,
@@ -242,7 +249,9 @@ inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocReplace>() {
             SUBDOC_FLAG_NONE | SUBDOC_FLAG_XATTR_PATH |
                     SUBDOC_FLAG_EXPAND_MACROS,
             SUBDOC_FLAG_NONE,
-            mcbp::subdoc::doc_flag::AccessDeleted | mcbp::subdoc::doc_flag::Add,
+            mcbp::subdoc::doc_flag::AccessDeleted |
+                    mcbp::subdoc::doc_flag::ReviveDocument |
+                    mcbp::subdoc::doc_flag::Add,
             /*request_has_value*/ true,
             /*allow_empty_path*/ false,
             ResponseValue::None,
@@ -261,7 +270,8 @@ get_traits<cb::mcbp::ClientOpcode::SubdocArrayPushLast>() {
                                    SUBDOC_FLAG_EXPAND_MACROS,
                            SUBDOC_FLAG_NONE,
                            doc_flag::Mkdoc | doc_flag::AccessDeleted |
-                                   doc_flag::Add | doc_flag::CreateAsDeleted,
+                                   doc_flag::ReviveDocument | doc_flag::Add |
+                                   doc_flag::CreateAsDeleted,
                            /*request_has_value*/ true,
                            /*allow_empty_path*/ true,
                            ResponseValue::None,
@@ -280,7 +290,8 @@ get_traits<cb::mcbp::ClientOpcode::SubdocArrayPushFirst>() {
                                    SUBDOC_FLAG_EXPAND_MACROS,
                            SUBDOC_FLAG_NONE,
                            doc_flag::Mkdoc | doc_flag::AccessDeleted |
-                                   doc_flag::Add | doc_flag::CreateAsDeleted,
+                                   doc_flag::ReviveDocument | doc_flag::Add |
+                                   doc_flag::CreateAsDeleted,
                            /*request_has_value*/ true,
                            /*allow_empty_path*/ true,
                            ResponseValue::None,
@@ -297,7 +308,8 @@ inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocArrayInsert>() {
             SUBDOC_FLAG_NONE | SUBDOC_FLAG_XATTR_PATH |
                     SUBDOC_FLAG_EXPAND_MACROS,
             SUBDOC_FLAG_NONE,
-            doc_flag::AccessDeleted | doc_flag::Add | doc_flag::CreateAsDeleted,
+            doc_flag::AccessDeleted | doc_flag::ReviveDocument | doc_flag::Add |
+                    doc_flag::CreateAsDeleted,
             /*request_has_value*/ true,
             /*allow_empty_path*/ false,
             ResponseValue::None,
@@ -314,7 +326,8 @@ get_traits<cb::mcbp::ClientOpcode::SubdocArrayAddUnique>() {
             cb::mcbp::ClientOpcode::Invalid,
             SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_XATTR_PATH,
             SUBDOC_FLAG_NONE,
-            doc_flag::Mkdoc | doc_flag::AccessDeleted | doc_flag::Add |
+            doc_flag::Mkdoc | doc_flag::AccessDeleted |
+                    doc_flag::ReviveDocument | doc_flag::Add |
                     doc_flag::CreateAsDeleted,
             /*request_has_value*/ true,
             /*allow_empty_path*/ true,
@@ -331,7 +344,8 @@ inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocCounter>() {
             cb::mcbp::ClientOpcode::Invalid,
             SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_XATTR_PATH,
             SUBDOC_FLAG_NONE,
-            doc_flag::Mkdoc | doc_flag::AccessDeleted | doc_flag::Add |
+            doc_flag::Mkdoc | doc_flag::AccessDeleted |
+                    doc_flag::ReviveDocument | doc_flag::Add |
                     doc_flag::CreateAsDeleted,
             /*request_has_value*/ true,
             /*allow_empty_path*/ false,
@@ -347,7 +361,8 @@ inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocGetCount>() {
             cb::mcbp::ClientOpcode::Invalid,
             SUBDOC_FLAG_NONE | SUBDOC_FLAG_XATTR_PATH,
             SUBDOC_FLAG_NONE,
-            mcbp::subdoc::doc_flag::AccessDeleted,
+            mcbp::subdoc::doc_flag::AccessDeleted |
+                    mcbp::subdoc::doc_flag::ReviveDocument,
             /*request_has_value*/ false,
             /*allow_empty_path*/ true,
             ResponseValue::JSON,
@@ -358,12 +373,13 @@ inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocGetCount>() {
 template <>
 inline SubdocCmdTraits
 get_traits<cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr>() {
+    using mcbp::subdoc::doc_flag;
     return {CommandScope::AttributesAndBody,
             Subdoc::Command::GET,
             cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
             SUBDOC_FLAG_XATTR_PATH,
             SUBDOC_FLAG_XATTR_PATH,
-            mcbp::subdoc::doc_flag::None,
+            doc_flag::AccessDeleted | doc_flag::ReviveDocument,
             false,
             false,
             ResponseValue::None,
@@ -378,7 +394,8 @@ inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocMultiLookup>() {
             cb::mcbp::ClientOpcode::Invalid,
             SUBDOC_FLAG_NONE | SUBDOC_FLAG_XATTR_PATH,
             SUBDOC_FLAG_NONE,
-            mcbp::subdoc::doc_flag::AccessDeleted,
+            mcbp::subdoc::doc_flag::AccessDeleted |
+                    mcbp::subdoc::doc_flag::ReviveDocument,
             /*request_has_value*/ true,
             /*allow_empty_path*/ true,
             ResponseValue::Binary,

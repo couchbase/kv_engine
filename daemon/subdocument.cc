@@ -166,6 +166,13 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
             return;
         }
 
+        if (context->reviveDocument &&
+            context->in_document_state == DocumentState::Alive) {
+            cookie.sendResponse(
+                    cb::mcbp::Status::SubdocCanOnlyReviveDeletedDocuments);
+            return;
+        }
+
         // 2. Perform the operation specified by CMD. Again, return if it fails.
         if (!subdoc_operate(*context)) {
             return;
@@ -505,6 +512,12 @@ static cb::mcbp::Status subdoc_operate_attributes_and_body(
     if (st == cb::mcbp::Status::Success) {
         body.reset(spec.result.matchloc().to_string());
         spec.result.clear();
+        if (body.view.empty()) {
+            // document body is now empty; clear the json bit
+            context.in_datatype &= ~PROTOCOL_BINARY_DATATYPE_JSON;
+        } else {
+            context.in_datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
+        }
     }
     return st;
 }
@@ -1136,6 +1149,32 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                                 cookie.getRequest().getDurabilityRequirements(),
                                 mdt);
         } else {
+            if (context.reviveDocument) {
+                context.in_document_state = DocumentState::Alive;
+                // Unfortunately we can't do CAS replace when transitioning
+                // from a deleted document to a live document
+                // As a workaround for now just clear the cas field and
+                // do add (which will fail if someone created a new _LIVE_
+                // document since we read the document).
+                bucket_item_set_cas(connection, context.out_doc.get(), 0);
+                new_op = OPERATION_ADD;
+            }
+
+            if (context.in_document_state == DocumentState::Deleted) {
+                auto bodysize = context.in_doc.view.size();
+                if (mcbp::datatype::is_xattr(context.in_datatype)) {
+                    bodysize -= cb::xattr::get_body_offset(context.in_doc.view);
+                }
+                if (bodysize > 0) {
+                    cookie.setErrorContext(
+                            "A deleted document can't have a value");
+                    cookie.sendResponse(
+                            cb::mcbp::Status::
+                                    SubdocDeletedDocumentCantHaveValue);
+                    return ENGINE_FAILED;
+                }
+            }
+
             ret = bucket_store(cookie,
                                context.out_doc.get(),
                                new_cas,

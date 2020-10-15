@@ -1,6 +1,6 @@
 {
     "version": 1,
-    "revision": 2,
+    "revision": 3,
     "errors": {
         "0": {
             "name": "SUCCESS",
@@ -448,6 +448,22 @@
             "attrs": [
                 "subdoc",
                 "invalid-input"
+            ]
+        },
+        "d6": {
+            "name": "SUBDOC_CAN_ONLY_REVIVE_DELETED_DOCUMENTS",
+            "desc": "Subdoc: Only deleted documents can be revived",
+            "attrs": [
+                "subdoc",
+                "item-only"
+            ]
+        },
+        "d7": {
+            "name": "SUBDOC_DELETED_DOCUMENT_CANT_HAVE_VALUE",
+            "desc": "Subdoc: A deleted document can't have a value",
+            "attrs": [
+                "subdoc",
+                "item-only"
             ]
         }
     }

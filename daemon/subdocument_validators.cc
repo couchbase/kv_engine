@@ -525,6 +525,19 @@ static cb::mcbp::Status subdoc_multi_validator(
         return cb::mcbp::Status::Einval;
     }
 
+    if (mcbp::subdoc::hasReviveDocument(doc_flags)) {
+        if (!mcbp::subdoc::hasAccessDeleted(doc_flags)) {
+            cookie.setErrorContext(
+                    "ReviveDocument can't be used without AccessDeleted");
+            return cb::mcbp::Status::Einval;
+        }
+        if (mcbp::subdoc::hasCreateAsDeleted(doc_flags)) {
+            cookie.setErrorContext(
+                    "ReviveDocument can't be used with CreateAsDeleted");
+            return cb::mcbp::Status::Einval;
+        }
+    }
+
     // 2. Check that the lookup operation specs are valid.
     //    As an "optimization" you can't mix and match the xattr and the
     //    normal paths given that they operate on different segments of

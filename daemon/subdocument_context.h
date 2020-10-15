@@ -262,6 +262,19 @@ public:
     // reality this means we do a bucket_remove rather than a bucket_update
     bool no_sys_xattrs = false;
 
+    XtocSemantics xtocSemantics = XtocSemantics::None;
+
+    // If we need to create a new document (Add / Set), what state should
+    // that document be created in?
+    const DocumentState createState;
+
+    // The semantics to use when mutating the document in the Bucket.
+    const MutationSemantics mutationSemantics;
+
+    // Should we try to revive the document as part of operating on
+    // a deleted document
+    const bool reviveDocument;
+
     /* Specification of a single path operation. Encapsulates both the request
      * parameters, and (later) the result of the operation.
      */
@@ -365,15 +378,6 @@ public:
      * The result of subdoc_fetch.
      */
     cb::unique_item_ptr fetchedItem;
-
-    XtocSemantics xtocSemantics = XtocSemantics::None;
-
-    // If we need to create a new document (Add / Set), what state should
-    // that document be created in?
-    const DocumentState createState;
-
-    // The semantics to use when mutaing the document in the Bucket.
-    const MutationSemantics mutationSemantics;
 
 private:
     // Temporary buffer to hold the inflated content in case of the

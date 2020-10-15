@@ -980,7 +980,8 @@ BinprotSubdocMultiMutationCommand&
 BinprotSubdocMultiMutationCommand::addDocFlag(mcbp::subdoc::doc_flag docFlag) {
     using namespace mcbp::subdoc;
     constexpr doc_flag validFlags = doc_flag::Mkdoc | doc_flag::AccessDeleted |
-                                    doc_flag::Add | doc_flag::CreateAsDeleted;
+                                    doc_flag::Add | doc_flag::CreateAsDeleted |
+                                    doc_flag::ReviveDocument;
     if ((docFlag & ~validFlags) == doc_flag::None) {
         docFlags = docFlags | docFlag;
     } else {
