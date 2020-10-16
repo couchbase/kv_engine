@@ -397,7 +397,7 @@ void AuditImpl::notify_io_complete(gsl::not_null<const void*> cookie,
     cookie_api->notify_io_complete(cookie, status);
 }
 
-void AuditImpl::stats(StatCollector& collector) {
+void AuditImpl::stats(const StatCollector& collector) {
     bool enabled = config.is_auditd_enabled();
     using namespace cb::stats;
     collector.addStat(Key::enabled, enabled);

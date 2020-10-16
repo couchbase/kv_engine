@@ -372,7 +372,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get_stats(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::get_prometheus_stats(
-        BucketStatCollector& collector,
+        const BucketStatCollector& collector,
         cb::prometheus::Cardinality cardinality) {
     try {
         if (cardinality == cb::prometheus::Cardinality::High) {
@@ -2712,7 +2712,7 @@ bool EventuallyPersistentEngine::enableTraffic(bool enable) {
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
-        BucketStatCollector& collector) {
+        const BucketStatCollector& collector) {
     configuration.addStats(collector);
 
     EPStats &epstats = getEpStats();
@@ -3943,7 +3943,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doAllFailoverLogStats(
     return rv;
 }
 
-void EventuallyPersistentEngine::doTimingStats(BucketStatCollector& collector) {
+void EventuallyPersistentEngine::doTimingStats(
+        const BucketStatCollector& collector) {
     using namespace cb::stats;
     collector.addStat(Key::bg_wait, stats.bgWaitHisto);
     collector.addStat(Key::bg_load, stats.bgLoadHisto);
@@ -4473,7 +4474,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDiskinfoStats(
 }
 
 void EventuallyPersistentEngine::doDiskFailureStats(
-        BucketStatCollector& collector) {
+        const BucketStatCollector& collector) {
     using namespace cb::stats;
     size_t value = 0;
     if (kvBucket->getKVStoreStat(

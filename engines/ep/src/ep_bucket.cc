@@ -1277,7 +1277,7 @@ std::pair<uint64_t, bool> EPBucket::getLastPersistedCheckpointId(Vbid vb) {
     }
 }
 
-ENGINE_ERROR_CODE EPBucket::getFileStats(BucketStatCollector& collector) {
+ENGINE_ERROR_CODE EPBucket::getFileStats(const BucketStatCollector& collector) {
     const auto numShards = vbMap.getNumShards();
     DBFileInfo totalInfo;
 

@@ -31,7 +31,7 @@
 #include <string_view>
 
 // add global stats
-static void server_global_stats(StatCollector& collector) {
+static void server_global_stats(const StatCollector& collector) {
     rel_time_t now = mc_time_get_current_time();
 
     using namespace cb::stats;
@@ -51,7 +51,7 @@ static void server_global_stats(StatCollector& collector) {
 }
 
 /// add stats aggregated over all buckets
-static void server_agg_stats(StatCollector& collector) {
+static void server_agg_stats(const StatCollector& collector) {
     using namespace cb::stats;
     // index 0 contains the aggregated timings for all buckets
     auto& timings = all_buckets[0].timings;
@@ -77,7 +77,7 @@ static void server_agg_stats(StatCollector& collector) {
 }
 
 /// add stats related to a single bucket
-static void server_bucket_stats(BucketStatCollector& collector,
+static void server_bucket_stats(const BucketStatCollector& collector,
                                 const Bucket& bucket) {
     struct thread_stats thread_stats;
     thread_stats.aggregate(bucket.stats);
@@ -139,7 +139,8 @@ static void server_bucket_stats(BucketStatCollector& collector,
 }
 
 /// add global, aggregated and bucket specific stats
-ENGINE_ERROR_CODE server_stats(StatCollector& collector, const Bucket& bucket) {
+ENGINE_ERROR_CODE server_stats(const StatCollector& collector,
+                               const Bucket& bucket) {
     std::lock_guard<std::mutex> guard(stats_mutex);
     try {
         server_global_stats(collector);
@@ -153,7 +154,8 @@ ENGINE_ERROR_CODE server_stats(StatCollector& collector, const Bucket& bucket) {
 }
 
 ENGINE_ERROR_CODE server_prometheus_stats(
-        StatCollector& collector, cb::prometheus::Cardinality cardinality) {
+        const StatCollector& collector,
+        cb::prometheus::Cardinality cardinality) {
     std::lock_guard<std::mutex> guard(stats_mutex);
     try {
         // do global stats

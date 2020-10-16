@@ -306,7 +306,7 @@ void Configuration::requirementsMetOrThrow(const std::string& key) const {
     }
 }
 
-void Configuration::addStats(BucketStatCollector& collector) const {
+void Configuration::addStats(const BucketStatCollector& collector) const {
     LockHolder lh(mutex);
 
     const auto lookupAttr = [this](const std::string& keyStr) {

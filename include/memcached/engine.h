@@ -508,7 +508,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @return ENGINE_SUCCESS if all goes well
      */
     virtual ENGINE_ERROR_CODE get_prometheus_stats(
-            BucketStatCollector& collector,
+            const BucketStatCollector& collector,
             cb::prometheus::Cardinality cardinality) {
         return ENGINE_ENOTSUP;
     }

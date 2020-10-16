@@ -67,7 +67,7 @@ public:
      * @param add_stats a callback function to add information to the response
      * @param cookie the cookie representing the command
      */
-    virtual void stats(StatCollector& collector) = 0;
+    virtual void stats(const StatCollector& collector) = 0;
 
     /**
      * Put an audit event into the audit trail

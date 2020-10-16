@@ -373,7 +373,8 @@ public:
      * Get summarized vBucket stats for this bucket - total for all
      * active,replica buckets.
      */
-    virtual void getAggregatedVBucketStats(BucketStatCollector& collector) = 0;
+    virtual void getAggregatedVBucketStats(
+            const BucketStatCollector& collector) = 0;
 
     /**
      * Get file statistics
@@ -384,7 +385,8 @@ public:
      *         ENGINE_KEY_ENOENT if file stats are not available
      *         from the store.
      */
-    virtual ENGINE_ERROR_CODE getFileStats(BucketStatCollector& collector) = 0;
+    virtual ENGINE_ERROR_CODE getFileStats(
+            const BucketStatCollector& collector) = 0;
 
     /**
      * Get detailed (per-vbucket) disk stats.

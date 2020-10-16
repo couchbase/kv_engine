@@ -50,7 +50,8 @@ public:
     }
 
     /// File stats not supported for Ephemeral buckets.
-    ENGINE_ERROR_CODE getFileStats(BucketStatCollector& collector) override {
+    ENGINE_ERROR_CODE getFileStats(
+            const BucketStatCollector& collector) override {
         return ENGINE_KEY_ENOENT;
     }
 
@@ -155,11 +156,12 @@ protected:
     std::unique_ptr<VBucketCountVisitor> makeVBCountVisitor(
             vbucket_state_t state) override;
 
-    void appendAggregatedVBucketStats(VBucketCountVisitor& active,
-                                      VBucketCountVisitor& replica,
-                                      VBucketCountVisitor& pending,
-                                      VBucketCountVisitor& dead,
-                                      BucketStatCollector& collector) override;
+    void appendAggregatedVBucketStats(
+            VBucketCountVisitor& active,
+            VBucketCountVisitor& replica,
+            VBucketCountVisitor& pending,
+            VBucketCountVisitor& dead,
+            const BucketStatCollector& collector) override;
 
     bool isValidBucketDurabilityLevel(
             cb::durability::Level level) const override;

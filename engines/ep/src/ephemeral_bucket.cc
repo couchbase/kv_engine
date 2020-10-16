@@ -297,7 +297,7 @@ void EphemeralBucket::appendAggregatedVBucketStats(
         VBucketCountVisitor& replica,
         VBucketCountVisitor& pending,
         VBucketCountVisitor& dead,
-        BucketStatCollector& collector) {
+        const BucketStatCollector& collector) {
     // The CountVisitors passed in are expected to all be Ephemeral subclasses.
     auto& ephActive = dynamic_cast<EphemeralVBucket::CountVisitor&>(active);
     auto& ephReplica = dynamic_cast<EphemeralVBucket::CountVisitor&>(replica);

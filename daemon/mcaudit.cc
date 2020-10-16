@@ -396,7 +396,7 @@ ENGINE_ERROR_CODE reconfigure_audit(Cookie& cookie) {
     });
 }
 
-void stats_audit(StatCollector& collector) {
+void stats_audit(const StatCollector& collector) {
     getAuditHandle().withRLock([&collector](auto& handle) {
         if (handle) {
             handle->stats(collector);

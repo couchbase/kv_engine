@@ -1174,7 +1174,7 @@ void KVBucket::snapshotStats() {
     getOneRWUnderlying()->snapshotStats(snap.smap);
 }
 
-void KVBucket::getAggregatedVBucketStats(BucketStatCollector& collector) {
+void KVBucket::getAggregatedVBucketStats(const BucketStatCollector& collector) {
     // Create visitors for each of the four vBucket states, and collect
     // stats for each.
     auto active = makeVBCountVisitor(vbucket_state_active);
@@ -1204,11 +1204,12 @@ std::unique_ptr<VBucketCountVisitor> KVBucket::makeVBCountVisitor(
     return std::make_unique<VBucketCountVisitor>(state);
 }
 
-void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
-                                            VBucketCountVisitor& replica,
-                                            VBucketCountVisitor& pending,
-                                            VBucketCountVisitor& dead,
-                                            BucketStatCollector& collector) {
+void KVBucket::appendAggregatedVBucketStats(
+        VBucketCountVisitor& active,
+        VBucketCountVisitor& replica,
+        VBucketCountVisitor& pending,
+        VBucketCountVisitor& dead,
+        const BucketStatCollector& collector) {
     using namespace cb::stats;
     // Top-level stats:
     collector.addStat(Key::curr_items, active.getNumItems());

@@ -205,7 +205,8 @@ struct thread_stats* get_thread_stats(Connection* c);
 class BucketStatCollector;
 class StatCollector;
 class Bucket;
-ENGINE_ERROR_CODE server_stats(StatCollector& collector, const Bucket& bucket);
+ENGINE_ERROR_CODE server_stats(const StatCollector& collector,
+                               const Bucket& bucket);
 
 /**
  * Add stats needed for Prometheus to the given collector.
@@ -215,7 +216,8 @@ ENGINE_ERROR_CODE server_stats(StatCollector& collector, const Bucket& bucket);
  * or low cardinality endpoint.
  */
 ENGINE_ERROR_CODE server_prometheus_stats(
-        StatCollector& collector, cb::prometheus::Cardinality cardinality);
+        const StatCollector& collector,
+        cb::prometheus::Cardinality cardinality);
 
 /*
  *  Macros for managing statistics inside memcached

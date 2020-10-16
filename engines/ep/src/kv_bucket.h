@@ -201,7 +201,8 @@ public:
 
     void snapshotStats() override;
 
-    void getAggregatedVBucketStats(BucketStatCollector& collector) override;
+    void getAggregatedVBucketStats(
+            const BucketStatCollector& collector) override;
 
     void completeBGFetchMulti(Vbid vbId,
                               std::vector<bgfetched_item_t>& fetchedItems,
@@ -750,11 +751,12 @@ protected:
      * Helper method used by getAggregatedVBucketStats to output aggregated
      * bucket stats.
      */
-    virtual void appendAggregatedVBucketStats(VBucketCountVisitor& active,
-                                              VBucketCountVisitor& replica,
-                                              VBucketCountVisitor& pending,
-                                              VBucketCountVisitor& dead,
-                                              BucketStatCollector& collector);
+    virtual void appendAggregatedVBucketStats(
+            VBucketCountVisitor& active,
+            VBucketCountVisitor& replica,
+            VBucketCountVisitor& pending,
+            VBucketCountVisitor& dead,
+            const BucketStatCollector& collector);
 
     /**
      * Returns the callback function to be invoked when SyncWrite(s) have been

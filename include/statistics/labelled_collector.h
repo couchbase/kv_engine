@@ -132,7 +132,7 @@ class ColStatCollector;
  * Methods expecting to add stats for a specific bucket should take this
  * as a parameter, e.g.,
  *
- * addBucketStats(BucketStatCollector& collector);
+ * addBucketStats(const BucketStatCollector& collector);
  *
  * This guarantees the collector has all required information (i.e., a bucket
  * label) to add stats for a single bucket, regardless of stat backend
