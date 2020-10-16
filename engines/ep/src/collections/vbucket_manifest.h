@@ -712,16 +712,20 @@ protected:
      * @param deleted If the Item created should be marked as deleted.
      * @param seqno An optional seqno which if set will be assigned to the
      *        system event.
+     * @param assignedSeqnoCallback a function that queueDirty will call with
+     *        the seqno of the system event.
      *
      * @returns The sequence number of the queued Item.
      */
-    uint64_t queueCollectionSystemEvent(const WriteHandle& wHandle,
-                                        ::VBucket& vb,
-                                        CollectionID cid,
-                                        std::string_view collectionName,
-                                        const ManifestEntry& entry,
-                                        bool deleted,
-                                        OptionalSeqno seq) const;
+    uint64_t queueCollectionSystemEvent(
+            const WriteHandle& wHandle,
+            ::VBucket& vb,
+            CollectionID cid,
+            std::string_view collectionName,
+            const ManifestEntry& entry,
+            bool deleted,
+            OptionalSeqno seq,
+            std::function<void(int64_t)> assignedSeqnoCallback) const;
 
     /**
      * @return true if a collection drop is in-progress, at least 1 collection

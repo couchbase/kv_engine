@@ -1247,12 +1247,17 @@ public:
      *        Optional as this may be a scope system event.
      * @param wHandle Collections write handle under which this operation is
      *        locked.
+     * @param assignedSeqnoCallback a function that is called when the seqno
+     *        is assigned - note only implemented by persistent buckets. See
+     *        MB-40216 for reason to add this.
+     * @return seqno assigned to the Item
      */
     virtual uint64_t addSystemEventItem(
             std::unique_ptr<Item> item,
             OptionalSeqno seqno,
             std::optional<CollectionID> cid,
-            const Collections::VB::WriteHandle& wHandle) = 0;
+            const Collections::VB::WriteHandle& wHandle,
+            std::function<void(uint64_t)> assignedSeqnoCallback) = 0;
 
     /**
      * Get metadata and value for a given key
@@ -1672,11 +1677,18 @@ public:
      */
     uint64_t getMaxVisibleSeqno() const;
 
-    virtual void saveDroppedCollection(
+    /**
+     * Get a callback function to later give to CheckpointManager::queueDirty.
+     * The callback is dependent on the bucket type.
+     *
+     * @oaram cid collection being dropped
+     * @param writeHandle handle to the manifest dropping the collection
+     * @param droppedEntry the full entry for the dropped collection
+     */
+    virtual std::function<void(int64_t)> getSaveDroppedCollectionCallback(
             CollectionID cid,
             Collections::VB::WriteHandle& writeHandle,
-            const Collections::VB::ManifestEntry& droppedEntry,
-            uint64_t droppedSeqno) = 0;
+            const Collections::VB::ManifestEntry& droppedEntry) const = 0;
 
     std::unique_ptr<FailoverTable> failovers;
 

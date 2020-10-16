@@ -824,7 +824,8 @@ bool CheckpointManager::queueDirty(
         queued_item& qi,
         const GenerateBySeqno generateBySeqno,
         const GenerateCas generateCas,
-        PreLinkDocumentContext* preLinkDocumentContext) {
+        PreLinkDocumentContext* preLinkDocumentContext,
+        std::function<void(int64_t)> assignedSeqnoCallback) {
     LockHolder lh(queueLock);
 
     bool canCreateNewCheckpoint = false;
@@ -844,7 +845,12 @@ bool CheckpointManager::queueDirty(
     if (GenerateBySeqno::Yes == generateBySeqno) {
         qi->setBySeqno(lastBySeqno + 1);
     }
+
     const auto newLastBySeqno = qi->getBySeqno();
+
+    if (assignedSeqnoCallback) {
+        assignedSeqnoCallback(newLastBySeqno);
+    }
 
     // MB-20798: Allow the HLC to be created 'atomically' with the seqno as
     // we're holding the ::queueLock.

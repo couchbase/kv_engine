@@ -232,23 +232,22 @@ public:
      *        Optional as this may be a scope system event.
      * @param wHandle Collections write handle under which this operation is
      *        locked.
+     * @param assignedSeqnoCallback passed to CheckpointManager::queueDirty
      */
     uint64_t addSystemEventItem(
             std::unique_ptr<Item> item,
             OptionalSeqno seqno,
             std::optional<CollectionID> cid,
-            const Collections::VB::WriteHandle& wHandle) override;
+            const Collections::VB::WriteHandle& wHandle,
+            std::function<void(uint64_t)> assignedSeqnoCallback) override;
 
     /**
-     * Persistent vbuckets need to save dropped collections so that statistic
-     * updates can be made to disk whilst the drop event is still only in
-     * memory
+     * @return std::function that will invoke WriteHandle::saveDroppedCollection
      */
-    void saveDroppedCollection(
+    std::function<void(int64_t)> getSaveDroppedCollectionCallback(
             CollectionID cid,
             Collections::VB::WriteHandle& writeHandle,
-            const Collections::VB::ManifestEntry& droppedEntry,
-            uint64_t droppedSeqno) override;
+            const Collections::VB::ManifestEntry& droppedEntry) const override;
 
 protected:
     /**

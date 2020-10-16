@@ -246,12 +246,14 @@ public:
      *        Optional as this may be a scope system event.
      * @param wHandle Collections write handle under which this operation is
      *        locked.
+     * @param assignedSeqnoCallback not used by ephemeral vbucket
      */
     uint64_t addSystemEventItem(
             std::unique_ptr<Item> item,
             OptionalSeqno seqno,
             std::optional<CollectionID> cid,
-            const Collections::VB::WriteHandle& wHandle) override;
+            const Collections::VB::WriteHandle& wHandle,
+            std::function<void(uint64_t)> assignedSeqnoCallback) override;
 
     /**
      * Check with the collections manifest if this key belongs to a dropped
@@ -267,12 +269,15 @@ public:
 
     uint64_t getMaxVisibleSeqno() const;
 
-    /// Ephemeral doesn't need to save dropped collections, just do nothing.
-    void saveDroppedCollection(
+    /**
+     * @return a std::function with no target - ephemeral buckets don't need
+     * this functionality
+     */
+    std::function<void(int64_t)> getSaveDroppedCollectionCallback(
             CollectionID cid,
             Collections::VB::WriteHandle& writeHandle,
-            const Collections::VB::ManifestEntry& droppedEntry,
-            uint64_t droppedSeqno) override {
+            const Collections::VB::ManifestEntry& droppedEntry) const override {
+        return {};
     }
 
 protected:

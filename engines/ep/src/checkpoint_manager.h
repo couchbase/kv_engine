@@ -227,13 +227,17 @@ public:
      *        with the generated CAS before the object is made available
      *        for other threads. May be nullptr if the document originates
      *        from a context where the document shouldn't be updated.
-     * @return true if an item queued increases the size of persistence queue by 1.
+     * @param assignedSeqnoCallback a function that is called with the seqno
+     *        of the item. This is called with the queueLock held.
+     * @return true if an item queued increases the size of persistence queue
+     *        by 1.
      */
     bool queueDirty(VBucket& vb,
                     queued_item& qi,
                     const GenerateBySeqno generateBySeqno,
                     const GenerateCas generateCas,
-                    PreLinkDocumentContext* preLinkDocumentContext);
+                    PreLinkDocumentContext* preLinkDocumentContext,
+                    std::function<void(int64_t)> assignedSeqnoCallback = {});
 
     /*
      * Queue writing of the VBucket's state to persistent layer.

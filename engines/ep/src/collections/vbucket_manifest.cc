@@ -252,7 +252,8 @@ void Manifest::addCollection(const WriteHandle& wHandle,
                                             collectionName,
                                             entry,
                                             false,
-                                            optionalSeqno);
+                                            optionalSeqno,
+                                            {/*no callback*/});
 
     EP_LOG_INFO(
             "collections: {} adding collection:[name:{},id:{}] to "
@@ -327,15 +328,15 @@ void Manifest::dropCollection(WriteHandle& wHandle,
     // record the uid of the manifest which removed the collection
     this->manifestUid = manifestUid;
 
-    auto seqno = queueCollectionSystemEvent(wHandle,
-                                            vb,
-                                            cid,
-                                            {/*no name*/},
-                                            itr->second,
-                                            true /*delete*/,
-                                            optionalSeqno);
-
-    vb.saveDroppedCollection(cid, wHandle, itr->second, seqno);
+    auto seqno = queueCollectionSystemEvent(
+            wHandle,
+            vb,
+            cid,
+            {/*no name*/},
+            itr->second,
+            true /*delete*/,
+            optionalSeqno,
+            vb.getSaveDroppedCollectionCallback(cid, wHandle, itr->second));
 
     EP_LOG_INFO(
             "collections: {} drop of collection:{} from scope:{:#x}"
@@ -396,8 +397,8 @@ void Manifest::addScope(const WriteHandle& wHandle,
             {builder.GetBufferPointer(), builder.GetSize()},
             optionalSeqno);
 
-    auto seqno =
-            vb.addSystemEventItem(std::move(item), optionalSeqno, {}, wHandle);
+    auto seqno = vb.addSystemEventItem(
+            std::move(item), optionalSeqno, {}, wHandle, {});
 
     EP_LOG_INFO(
             "collections: {} added scope:name:{},id:{:#x} "
@@ -444,8 +445,8 @@ void Manifest::dropScope(const WriteHandle& wHandle,
 
     item->setDeleted();
 
-    auto seqno =
-            vb.addSystemEventItem(std::move(item), optionalSeqno, {}, wHandle);
+    auto seqno = vb.addSystemEventItem(
+            std::move(item), optionalSeqno, {}, wHandle, {});
 
     // If seq is not set, then this is an active vbucket queueing the event.
     // Collection events will end the CP so they don't de-dup.
@@ -616,13 +617,15 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
     return item;
 }
 
-uint64_t Manifest::queueCollectionSystemEvent(const WriteHandle& wHandle,
-                                              ::VBucket& vb,
-                                              CollectionID cid,
-                                              std::string_view collectionName,
-                                              const ManifestEntry& entry,
-                                              bool deleted,
-                                              OptionalSeqno seq) const {
+uint64_t Manifest::queueCollectionSystemEvent(
+        const WriteHandle& wHandle,
+        ::VBucket& vb,
+        CollectionID cid,
+        std::string_view collectionName,
+        const ManifestEntry& entry,
+        bool deleted,
+        OptionalSeqno seq,
+        std::function<void(int64_t)> assignedSeqnoCallback) const {
     // If seq is not set, then this is an active vbucket queueing the event.
     // Collection events will end the CP so they don't de-dup.
     if (!seq.has_value()) {
@@ -640,7 +643,8 @@ uint64_t Manifest::queueCollectionSystemEvent(const WriteHandle& wHandle,
     }
 
     // Create and transfer Item ownership to the VBucket
-    auto rv = vb.addSystemEventItem(std::move(item), seq, cid, wHandle);
+    auto rv = vb.addSystemEventItem(
+            std::move(item), seq, cid, wHandle, assignedSeqnoCallback);
 
     return rv;
 }

@@ -951,7 +951,8 @@ uint64_t EPVBucket::addSystemEventItem(
         std::unique_ptr<Item> item,
         OptionalSeqno seqno,
         std::optional<CollectionID> cid,
-        const Collections::VB::WriteHandle& wHandle) {
+        const Collections::VB::WriteHandle& wHandle,
+        std::function<void(uint64_t)> assignedSeqnoCallback) {
     item->setVBucketId(getId());
     queued_item qi(item.release());
 
@@ -965,7 +966,9 @@ uint64_t EPVBucket::addSystemEventItem(
             qi,
             getGenerateBySeqno(seqno),
             GenerateCas::Yes,
-            nullptr /* No pre link step as this is for system events */);
+            nullptr /* No pre link step as this is for system events */,
+            assignedSeqnoCallback);
+
     VBNotifyCtx notifyCtx;
     // If the seqno is initialized, skip replication notification
     notifyCtx.notifyReplication = !seqno.has_value();
@@ -1026,10 +1029,15 @@ BgFetcher& EPVBucket::getBgFetcher() {
     return epBucket->getBgFetcher(getId());
 }
 
-void EPVBucket::saveDroppedCollection(
+std::function<void(int64_t)> EPVBucket::getSaveDroppedCollectionCallback(
         CollectionID cid,
         Collections::VB::WriteHandle& writeHandle,
-        const Collections::VB::ManifestEntry& droppedEntry,
-        uint64_t droppedSeqno) {
-    writeHandle.saveDroppedCollection(cid, droppedEntry, droppedSeqno);
+        const Collections::VB::ManifestEntry& droppedEntry) const {
+    // Return a function which will call back into the manifest to save the
+    // collection and the seqno assigned to it
+    return std::bind(&Collections::VB::WriteHandle::saveDroppedCollection,
+                     &writeHandle,
+                     cid,
+                     droppedEntry,
+                     std::placeholders::_1);
 }

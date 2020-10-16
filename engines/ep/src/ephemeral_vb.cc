@@ -963,7 +963,16 @@ uint64_t EphemeralVBucket::addSystemEventItem(
         std::unique_ptr<Item> item,
         OptionalSeqno seqno,
         std::optional<CollectionID> cid,
-        const Collections::VB::WriteHandle& wHandle) {
+        const Collections::VB::WriteHandle& wHandle,
+        std::function<void(uint64_t)> assignedSeqnoCallback) {
+    if (assignedSeqnoCallback) {
+        // MB-40216 assignedSeqnoCallback only needed by persistent buckets so
+        // flag that this has been set but not used.
+        throw std::logic_error(
+                "EphemeralVBucket::addSystemEventItem: assignedSeqnoCallback "
+                "is not valid for this vbucket type");
+    }
+
     item->setVBucketId(getId());
     auto htRes = ht.findForWrite(item->getKey());
     auto* v = htRes.storedValue;
