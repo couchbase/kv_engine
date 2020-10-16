@@ -19,13 +19,18 @@
 #include "debug_helpers.h"
 #include "mc_time.h"
 #include "protocol/mcbp/engine_wrapper.h"
+#include "settings.h"
+#include "subdocument_parser.h"
+#include "subdocument_validators.h"
 
 #include <logger/logger.h>
 #include <platform/crc32c.h>
 #include <platform/string_hex.h>
+#include <subdoc/util.h>
 #include <utilities/logtags.h>
 #include <utilities/string_utilities.h>
 #include <xattr/blob.h>
+#include <xattr/key_validator.h>
 #include <gsl/gsl>
 #include <iomanip>
 #include <random>
@@ -67,6 +72,220 @@ uint64_t SubdocCmdContext::getOperationValueBytesTotal() const {
     return result;
 }
 
+// Debug - print details of the specified subdocument command.
+static void subdoc_print_command(Connection& c,
+                                 cb::mcbp::ClientOpcode cmd,
+                                 const char* key,
+                                 const uint16_t keylen,
+                                 const char* path,
+                                 const size_t pathlen,
+                                 const char* value,
+                                 const size_t vallen) {
+    char clean_key[KEY_MAX_LENGTH + 32];
+    char clean_path[SUBDOC_PATH_MAX_LENGTH];
+    char clean_value[80]; // only print the first few characters of the value.
+    if ((key_to_printable_buffer(clean_key,
+                                 sizeof(clean_key),
+                                 c.getId(),
+                                 true,
+                                 to_string(cb::mcbp::ClientOpcode(cmd)).c_str(),
+                                 key,
+                                 keylen)) &&
+        (buf_to_printable_buffer(
+                clean_path, sizeof(clean_path), path, pathlen))) {
+        // print key, path & value if there is a value.
+        if ((vallen > 0) &&
+            (buf_to_printable_buffer(
+                    clean_value, sizeof(clean_value), value, vallen))) {
+            LOG_DEBUG("{} path:'{}' value:'{}'",
+                      cb::UserDataView(clean_key),
+                      cb::UserDataView(clean_path),
+                      cb::UserDataView(clean_value));
+
+        } else {
+            // key & path only
+            LOG_DEBUG("{} path:'{}'",
+                      cb::UserDataView(clean_key),
+                      cb::UserDataView(clean_path));
+        }
+    }
+}
+
+/*
+ * Definitions
+ */
+void SubdocCmdContext::create_single_path_context(
+        mcbp::subdoc::doc_flag doc_flags) {
+    const auto& request = cookie.getRequest();
+    const auto extras = request.getExtdata();
+    cb::mcbp::request::SubdocPayloadParser parser(extras);
+    const auto pathlen = parser.getPathlen();
+    auto flags = parser.getSubdocFlags();
+    const auto valbuf = request.getValue();
+    std::string_view value{reinterpret_cast<const char*>(valbuf.data()),
+                           valbuf.size()};
+    // Path is the first thing in the value; remainder is the operation
+    // value.
+    auto path = value.substr(0, pathlen);
+
+    const bool xattr = (flags & SUBDOC_FLAG_XATTR_PATH);
+    const SubdocCmdContext::Phase phase = xattr ? SubdocCmdContext::Phase::XATTR
+                                                : SubdocCmdContext::Phase::Body;
+    auto& ops = getOperations(phase);
+
+    if (xattr) {
+        size_t xattr_keylen;
+        is_valid_xattr_key({path.data(), path.size()}, xattr_keylen);
+        set_xattr_key({path.data(), xattr_keylen});
+    }
+
+    if (flags & SUBDOC_FLAG_EXPAND_MACROS) {
+        do_macro_expansion = true;
+    }
+
+    // If Mkdoc or Add is specified, this implies MKDIR_P, ensure that it's set
+    // here
+    if (impliesMkdir_p(doc_flags)) {
+        flags = flags | SUBDOC_FLAG_MKDIR_P;
+    }
+
+    // Decode as single path; add a single operation to the context.
+    if (traits.request_has_value) {
+        // Adjust value to move past the path.
+        value.remove_prefix(pathlen);
+
+        ops.emplace_back(
+                SubdocCmdContext::OperationSpec{traits,
+                                                flags,
+                                                {path.data(), path.size()},
+                                                {value.data(), value.size()}});
+    } else {
+        ops.emplace_back(SubdocCmdContext::OperationSpec{
+                traits, flags, {path.data(), path.size()}});
+    }
+
+    if (impliesMkdir_p(doc_flags) && createState == DocumentState::Alive) {
+        // For requests to create the key in the Alive state, set the JSON
+        // of the to-be-created document root.
+        jroot_type = Subdoc::Util::get_root_type(
+                traits.subdocCommand, path.data(), path.size());
+    }
+
+    if (Settings::instance().getVerbose() > 1) {
+        const auto keybuf = request.getKey();
+        const char* key = reinterpret_cast<const char*>(keybuf.data());
+        const auto keylen = gsl::narrow<uint16_t>(keybuf.size());
+
+        subdoc_print_command(cookie.getConnection(),
+                             request.getClientOpcode(),
+                             key,
+                             keylen,
+                             path.data(),
+                             path.size(),
+                             value.data(),
+                             value.size());
+    }
+}
+
+void SubdocCmdContext::create_multi_path_context(
+        mcbp::subdoc::doc_flag doc_flags) {
+    // Decode each of lookup specs from the value into our command context.
+    const auto& request = cookie.getRequest();
+    const auto valbuf = request.getValue();
+    std::string_view value{reinterpret_cast<const char*>(valbuf.data()),
+                           valbuf.size()};
+
+    size_t offset = 0;
+    while (offset < value.size()) {
+        cb::mcbp::ClientOpcode binprot_cmd = cb::mcbp::ClientOpcode::Invalid;
+        protocol_binary_subdoc_flag flags;
+        size_t headerlen;
+        std::string_view path;
+        std::string_view spec_value;
+        if (traits.is_mutator) {
+            auto* spec = reinterpret_cast<
+                    const protocol_binary_subdoc_multi_mutation_spec*>(
+                    value.data() + offset);
+            headerlen = sizeof(*spec);
+            binprot_cmd = cb::mcbp::ClientOpcode(spec->opcode);
+            flags = protocol_binary_subdoc_flag(spec->flags);
+            path = {value.data() + offset + headerlen, htons(spec->pathlen)};
+            spec_value = {value.data() + offset + headerlen + path.size(),
+                          htonl(spec->valuelen)};
+
+        } else {
+            auto* spec = reinterpret_cast<
+                    const protocol_binary_subdoc_multi_lookup_spec*>(
+                    value.data() + offset);
+            headerlen = sizeof(*spec);
+            binprot_cmd = cb::mcbp::ClientOpcode(spec->opcode);
+            flags = protocol_binary_subdoc_flag(spec->flags);
+            path = {value.data() + offset + headerlen, htons(spec->pathlen)};
+            spec_value = {nullptr, 0};
+        }
+
+        auto cmdTraits = get_subdoc_cmd_traits(binprot_cmd);
+        if (cmdTraits.scope == CommandScope::SubJSON &&
+            impliesMkdir_p(doc_flags) && createState == DocumentState::Alive &&
+            jroot_type == JSONSL_T_ROOT) {
+            // For requests to create the key in the Alive state, set the JSON
+            // of the to-be-created document root.
+            jroot_type = Subdoc::Util::get_root_type(
+                    cmdTraits.subdocCommand, path.data(), path.size());
+        }
+
+        if (flags & SUBDOC_FLAG_EXPAND_MACROS) {
+            do_macro_expansion = true;
+        }
+
+        const bool xattr = (flags & SUBDOC_FLAG_XATTR_PATH);
+        if (xattr) {
+            size_t xattr_keylen;
+            is_valid_xattr_key({path.data(), path.size()}, xattr_keylen);
+            std::string_view key{path.data(), xattr_keylen};
+            if (!cb::xattr::is_vattr(key)) {
+                set_xattr_key(key);
+            }
+        }
+
+        const SubdocCmdContext::Phase phase =
+                xattr ? SubdocCmdContext::Phase::XATTR
+                      : SubdocCmdContext::Phase::Body;
+
+        auto& ops = getOperations(phase);
+
+        // Mkdoc and Add imply MKDIR_P, ensure that MKDIR_P is set
+        if (impliesMkdir_p(doc_flags)) {
+            flags = flags | SUBDOC_FLAG_MKDIR_P;
+        }
+        if (cmdTraits.mcbpCommand == cb::mcbp::ClientOpcode::Delete) {
+            do_delete_doc = true;
+        }
+        ops.emplace_back(SubdocCmdContext::OperationSpec{
+                cmdTraits,
+                flags,
+                {path.data(), path.size()},
+                {spec_value.data(), spec_value.size()}});
+        offset += headerlen + path.size() + spec_value.size();
+    }
+
+    if (Settings::instance().getVerbose() > 1) {
+        const auto keybuf = request.getKey();
+        const char* key = reinterpret_cast<const char*>(keybuf.data());
+        const auto keylen = gsl::narrow<uint16_t>(keybuf.size());
+
+        const char path[] = "<multipath>";
+        subdoc_print_command(cookie.getConnection(),
+                             request.getClientOpcode(),
+                             key,
+                             keylen,
+                             path,
+                             strlen(path),
+                             value.data(),
+                             value.size());
+    }
+}
+
 SubdocCmdContext::SubdocCmdContext(Cookie& cookie_,
                                    const SubdocCmdTraits traits_,
                                    Vbid vbucket_,
@@ -84,6 +303,15 @@ SubdocCmdContext::SubdocCmdContext(Cookie& cookie_,
                                 : mcbp::subdoc::hasMkdoc(doc_flags)
                                           ? MutationSemantics::Set
                                           : MutationSemantics::Replace) {
+    switch (traits.path) {
+    case SubdocPath::SINGLE:
+        create_single_path_context(doc_flags);
+        break;
+
+    case SubdocPath::MULTI:
+        create_multi_path_context(doc_flags);
+        break;
+    }
 }
 
 template <typename T>
