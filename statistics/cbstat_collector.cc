@@ -26,7 +26,7 @@ using namespace std::string_view_literals;
 
 void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               std::string_view v,
-                              const Labels& labels) {
+                              const Labels& labels) const {
     // CBStats has no concept of labels, but needs to distinguish scope and
     // collection stats through a prefix.
     addStatFn(addCollectionsPrefix(k.uniqueKey, labels), v, cookie);
@@ -34,13 +34,13 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
 
 void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               bool v,
-                              const Labels& labels) {
+                              const Labels& labels) const {
     addStat(k, v ? "true"sv : "false"sv, labels);
 }
 
 void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               int64_t v,
-                              const Labels& labels) {
+                              const Labels& labels) const {
     fmt::memory_buffer buf;
     format_to(buf, "{}", v);
     addStat(k, {buf.data(), buf.size()}, labels);
@@ -48,7 +48,7 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
 
 void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               uint64_t v,
-                              const Labels& labels) {
+                              const Labels& labels) const {
     fmt::memory_buffer buf;
     format_to(buf, "{}", v);
     addStat(k, {buf.data(), buf.size()}, labels);
@@ -56,7 +56,7 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
 
 void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               double v,
-                              const Labels& labels) {
+                              const Labels& labels) const {
     fmt::memory_buffer buf;
     format_to(buf, "{}", v);
     addStat(k, {buf.data(), buf.size()}, labels);
@@ -64,7 +64,7 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
 
 void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               const HistogramData& hist,
-                              const Labels& labels) {
+                              const Labels& labels) const {
     fmt::memory_buffer buf;
     format_to(buf, "{}_mean", k.uniqueKey);
     addStat(cb::stats::StatDef({buf.data(), buf.size()}), hist.mean, labels);

@@ -35,27 +35,27 @@ public:
                 (const cb::stats::StatDef& k,
                  std::string_view v,
                  const Labels& labels),
-                (override));
+                (const, override));
     MOCK_METHOD(void,
                 addStat,
                 (const cb::stats::StatDef& k, bool v, const Labels& labels),
-                (override));
+                (const, override));
     MOCK_METHOD(void,
                 addStat,
                 (const cb::stats::StatDef& k, int64_t v, const Labels& labels),
-                (override));
+                (const, override));
     MOCK_METHOD(void,
                 addStat,
                 (const cb::stats::StatDef& k, uint64_t v, const Labels& labels),
-                (override));
+                (const, override));
     MOCK_METHOD(void,
                 addStat,
                 (const cb::stats::StatDef& k, double v, const Labels& labels),
-                (override));
+                (const, override));
     MOCK_METHOD(void,
                 addStat,
                 (const cb::stats::StatDef& k,
                  const HistogramData& hist,
                  const Labels& labels),
-                (override));
+                (const, override));
 };

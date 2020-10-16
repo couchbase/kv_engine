@@ -76,10 +76,14 @@ public:
      */
     [[nodiscard]] std::vector<::prometheus::MetricFamily> Collect()
             const override {
-        PrometheusStatCollector collector;
+        std::unordered_map<std::string, ::prometheus::MetricFamily> statsMap;
+        PrometheusStatCollector collector(statsMap);
         server_prometheus_stats(collector, cardinality);
-        const auto& statsMap = collector.getCollectedStats();
 
+        // KVCollectable interface requires a vector of metric families,
+        // but during collection it is necessary to frequently look up
+        // families by name, so they are stored in a map.
+        // Unpack them into a vector.
         std::vector<::prometheus::MetricFamily> result;
 
         result.reserve(statsMap.size());

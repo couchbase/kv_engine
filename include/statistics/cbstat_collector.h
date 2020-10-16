@@ -49,28 +49,28 @@ public:
 
     void addStat(const cb::stats::StatDef& k,
                  std::string_view v,
-                 const Labels& labels) override;
+                 const Labels& labels) const override;
     void addStat(const cb::stats::StatDef& k,
                  bool v,
-                 const Labels& labels) override;
+                 const Labels& labels) const override;
     void addStat(const cb::stats::StatDef& k,
                  int64_t v,
-                 const Labels& labels) override;
+                 const Labels& labels) const override;
     void addStat(const cb::stats::StatDef& k,
                  uint64_t v,
-                 const Labels& labels) override;
+                 const Labels& labels) const override;
     void addStat(const cb::stats::StatDef& k,
                  double v,
-                 const Labels& labels) override;
+                 const Labels& labels) const override;
     void addStat(const cb::stats::StatDef& k,
                  const HistogramData& hist,
-                 const Labels& labels) override;
+                 const Labels& labels) const override;
 
     /**
      * Get the wrapped cookie and addStatFn. Useful while code is
      * being transitioned to the StatCollector interface.
      */
-    std::pair<const void*, const AddStatFn&> getCookieAndAddFn() {
+    std::pair<const void*, const AddStatFn&> getCookieAndAddFn() const {
         return {cookie, addStatFn};
     }
 

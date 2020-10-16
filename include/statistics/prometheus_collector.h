@@ -24,8 +24,17 @@
 
 class PrometheusStatCollector : public StatCollector {
 public:
-    PrometheusStatCollector(std::string prefix = "kv_")
-        : prefix(std::move(prefix)) {
+    /**
+     * Construct a collector for Prometheus stats.
+     * @param metricFamilies[in,out] map of family name to MetricFamily struct
+     *        in which to store all collected stats
+     * @param prefix string to prepend to all collected stat names
+     */
+    PrometheusStatCollector(
+            std::unordered_map<std::string, prometheus::MetricFamily>&
+                    metricFamilies,
+            std::string prefix = "kv_")
+        : metricFamilies(metricFamilies), prefix(std::move(prefix)) {
     }
 
     // Allow usage of the "helper" methods defined in the base type.
@@ -34,48 +43,43 @@ public:
 
     void addStat(const cb::stats::StatDef& k,
                  std::string_view v,
-                 const Labels& labels) override {
+                 const Labels& labels) const override {
         // silently discard text stats (for now). Prometheus can't expose them
     }
 
     void addStat(const cb::stats::StatDef& k,
                  bool v,
-                 const Labels& labels) override {
+                 const Labels& labels) const override {
         addStat(k, double(v), labels);
     }
 
     void addStat(const cb::stats::StatDef& k,
                  int64_t v,
-                 const Labels& labels) override {
+                 const Labels& labels) const override {
         addStat(k, double(v), labels);
     }
 
     void addStat(const cb::stats::StatDef& k,
                  uint64_t v,
-                 const Labels& labels) override {
+                 const Labels& labels) const override {
         addStat(k, double(v), labels);
     }
 
     void addStat(const cb::stats::StatDef& k,
                  double v,
-                 const Labels& labels) override;
+                 const Labels& labels) const override;
 
     void addStat(const cb::stats::StatDef& k,
                  const HistogramData& hist,
-                 const Labels& labels) override;
-
-    auto& getCollectedStats() {
-        return metricFamilies;
-    }
+                 const Labels& labels) const override;
 
 protected:
     void addClientMetric(const cb::stats::StatDef& key,
                          const Labels& additionalLabels,
                          prometheus::ClientMetric metric,
                          prometheus::MetricType metricType =
-                                 prometheus::MetricType::Untyped);
+                                 prometheus::MetricType::Untyped) const;
 
+    std::unordered_map<std::string, prometheus::MetricFamily>& metricFamilies;
     const std::string prefix;
-
-    std::unordered_map<std::string, prometheus::MetricFamily> metricFamilies{};
 };

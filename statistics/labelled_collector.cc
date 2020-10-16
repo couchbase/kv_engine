@@ -19,12 +19,12 @@
 
 #include <memcached/dockey.h>
 
-LabelledStatCollector::LabelledStatCollector(StatCollector& parent,
+LabelledStatCollector::LabelledStatCollector(const StatCollector& parent,
                                              const Labels& labels)
     : parent(parent), defaultLabels(labels.begin(), labels.end()) {
 }
 
-LabelledStatCollector LabelledStatCollector::withLabels(Labels&& labels) {
+LabelledStatCollector LabelledStatCollector::withLabels(Labels&& labels) const {
     // take the specific labels passed as parameters
     Labels mergedLabels{labels.begin(), labels.end()};
     // add in the labels stored in this collector
@@ -39,55 +39,56 @@ LabelledStatCollector LabelledStatCollector::withLabels(Labels&& labels) {
 
 void LabelledStatCollector::addStat(const cb::stats::StatDef& k,
                                     std::string_view v,
-                                    const Labels& labels) {
+                                    const Labels& labels) const {
     forwardToParent(k, v, labels);
 }
 
 void LabelledStatCollector::addStat(const cb::stats::StatDef& k,
                                     bool v,
-                                    const Labels& labels) {
+                                    const Labels& labels) const {
     forwardToParent(k, v, labels);
 }
 
 void LabelledStatCollector::addStat(const cb::stats::StatDef& k,
                                     int64_t v,
-                                    const Labels& labels) {
+                                    const Labels& labels) const {
     forwardToParent(k, v, labels);
 }
 void LabelledStatCollector::addStat(const cb::stats::StatDef& k,
                                     uint64_t v,
-                                    const Labels& labels) {
+                                    const Labels& labels) const {
     forwardToParent(k, v, labels);
 }
 void LabelledStatCollector::addStat(const cb::stats::StatDef& k,
                                     double v,
-                                    const Labels& labels) {
+                                    const Labels& labels) const {
     forwardToParent(k, v, labels);
 }
 
 void LabelledStatCollector::addStat(const cb::stats::StatDef& k,
                                     const HistogramData& v,
-                                    const Labels& labels) {
+                                    const Labels& labels) const {
     forwardToParent(k, v, labels);
 }
 
-BucketStatCollector::BucketStatCollector(StatCollector& parent,
+BucketStatCollector::BucketStatCollector(const StatCollector& parent,
                                          std::string_view bucket)
     : LabelledStatCollector(parent, {{"bucket", bucket}}) {
 }
-ScopeStatCollector BucketStatCollector::forScope(ScopeID scope) {
+ScopeStatCollector BucketStatCollector::forScope(ScopeID scope) const {
     return {*this, scope};
 }
 
-ScopeStatCollector::ScopeStatCollector(BucketStatCollector& parent,
+ScopeStatCollector::ScopeStatCollector(const BucketStatCollector& parent,
                                        ScopeID scope)
     : LabelledStatCollector(parent.withLabels({{"scope", scope.to_string()}})) {
 }
-ColStatCollector ScopeStatCollector::forCollection(CollectionID collection) {
+ColStatCollector ScopeStatCollector::forCollection(
+        CollectionID collection) const {
     return {*this, collection};
 }
 
-ColStatCollector::ColStatCollector(ScopeStatCollector& parent,
+ColStatCollector::ColStatCollector(const ScopeStatCollector& parent,
                                    CollectionID collection)
     : LabelledStatCollector(
               parent.withLabels({{"collection", collection.to_string()}})) {

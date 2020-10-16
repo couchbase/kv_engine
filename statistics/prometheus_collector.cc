@@ -19,7 +19,7 @@
 
 void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
                                       const HistogramData& hist,
-                                      const Labels& additionalLabels) {
+                                      const Labels& additionalLabels) const {
     if (!spec.isPrometheusStat()) {
         return;
     }
@@ -47,7 +47,7 @@ void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
 
 void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
                                       double v,
-                                      const Labels& additionalLabels) {
+                                      const Labels& additionalLabels) const {
     if (!spec.isPrometheusStat()) {
         return;
     }
@@ -63,7 +63,7 @@ void PrometheusStatCollector::addClientMetric(
         const cb::stats::StatDef& key,
         const Labels& additionalLabels,
         prometheus::ClientMetric metric,
-        prometheus::MetricType metricType) {
+        prometheus::MetricType metricType) const {
     auto name = key.metricFamily;
 
     auto [itr, inserted] = metricFamilies.try_emplace(

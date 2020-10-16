@@ -149,11 +149,11 @@ public:
     using Labels = std::unordered_map<std::string_view, std::string_view>;
 
     /*
-     * Create a collector tracking stats for a specific bucket.
-     *
-     * This instance is unchanged.
+     * Create a collector tracking stats for a specific bucket. The new
+     * collector wraps this instance, and labels all added stats with the
+     * bucket name.
      */
-    [[nodiscard]] BucketStatCollector forBucket(std::string_view bucket);
+    [[nodiscard]] BucketStatCollector forBucket(std::string_view bucket) const;
 
     /**
      * Add a textual stat to the collector.
@@ -162,13 +162,13 @@ public:
      */
     virtual void addStat(const cb::stats::StatDef& k,
                          std::string_view v,
-                         const Labels& labels) = 0;
+                         const Labels& labels) const = 0;
     /**
      * Add a boolean stat to the collector.
      */
     virtual void addStat(const cb::stats::StatDef& k,
                          bool v,
-                         const Labels& labels) = 0;
+                         const Labels& labels) const = 0;
 
     /**
      * Add a numeric stat to the collector.
@@ -180,13 +180,13 @@ public:
      */
     virtual void addStat(const cb::stats::StatDef& k,
                          int64_t v,
-                         const Labels& labels) = 0;
+                         const Labels& labels) const = 0;
     virtual void addStat(const cb::stats::StatDef& k,
                          uint64_t v,
-                         const Labels& labels) = 0;
+                         const Labels& labels) const = 0;
     virtual void addStat(const cb::stats::StatDef& k,
                          double v,
-                         const Labels& labels) = 0;
+                         const Labels& labels) const = 0;
 
     /**
      * Add a histogram stat to the collector.
@@ -196,7 +196,7 @@ public:
      */
     virtual void addStat(const cb::stats::StatDef& k,
                          const HistogramData& hist,
-                         const Labels& labels) = 0;
+                         const Labels& labels) const = 0;
 
     /**
      * Add a textual stat. This overload is present to avoid conversion
@@ -207,7 +207,7 @@ public:
      */
     void addStat(const cb::stats::StatDef& k,
                  const char* v,
-                 const Labels& labels) {
+                 const Labels& labels) const {
         addStat(k, std::string_view(v), labels);
     };
 
@@ -219,7 +219,7 @@ public:
      * uint64_t,and double.
      */
     template <class T, class = std::enable_if_t<std::is_arithmetic_v<T>>>
-    void addStat(const cb::stats::StatDef& k, T v, const Labels& labels) {
+    void addStat(const cb::stats::StatDef& k, T v, const Labels& labels) const {
         /* Converts the value to uint64_t/int64_t/double
          * based on if it is a signed/unsigned type.
          */
@@ -249,7 +249,7 @@ public:
      */
     void addStat(const cb::stats::StatDef& k,
                  const HdrHistogram& v,
-                 const Labels& labels);
+                 const Labels& labels) const;
 
     /**
      * Converts a Histogram<T, Limits> instance to HistogramData,
@@ -261,7 +261,7 @@ public:
     template <typename T, template <class> class Limits>
     void addStat(const cb::stats::StatDef& k,
                  const Histogram<T, Limits>& hist,
-                 const Labels& labels) {
+                 const Labels& labels) const {
         HistogramData histData{};
         histData.sampleCount = hist.total();
         histData.buckets.reserve(hist.size());
@@ -297,7 +297,9 @@ public:
      *
      */
     template <typename T>
-    auto addStat(const cb::stats::StatDef& k, const T& v, const Labels& labels)
+    auto addStat(const cb::stats::StatDef& k,
+                 const T& v,
+                 const Labels& labels) const
             -> std::enable_if_t<std::is_arithmetic_v<decltype(v.load())>,
                                 void> {
         addStat(k, v.load(), labels);
@@ -315,7 +317,7 @@ public:
      * Used to lookup the unit and labels associated with the stat.
      */
     template <typename T>
-    void addStat(cb::stats::Key k, T&& v, const Labels& labels) {
+    void addStat(cb::stats::Key k, T&& v, const Labels& labels) const {
         addStat(lookup(k), std::forward<T>(v), labels);
     }
 
@@ -325,7 +327,7 @@ public:
      * recommended for virtual methods.
      */
     template <typename Key, typename Value>
-    void addStat(Key&& k, Value&& v) {
+    void addStat(Key&& k, Value&& v) const {
         addStat(std::forward<Key>(k),
                 std::forward<Value>(v),
                 {/* no labels */});

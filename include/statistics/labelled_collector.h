@@ -58,31 +58,31 @@ public:
     using StatCollector::addStat;
     void addStat(const cb::stats::StatDef& k,
                  std::string_view v,
-                 const Labels& labels) override;
+                 const Labels& labels) const override;
 
     void addStat(const cb::stats::StatDef& k,
                  bool v,
-                 const Labels& labels) override;
+                 const Labels& labels) const override;
 
     void addStat(const cb::stats::StatDef& k,
                  int64_t v,
-                 const Labels& labels) override;
+                 const Labels& labels) const override;
     void addStat(const cb::stats::StatDef& k,
                  uint64_t v,
-                 const Labels& labels) override;
+                 const Labels& labels) const override;
     void addStat(const cb::stats::StatDef& k,
                  double v,
-                 const Labels& labels) override;
+                 const Labels& labels) const override;
 
     void addStat(const cb::stats::StatDef& k,
                  const HistogramData& hist,
-                 const Labels& labels) override;
+                 const Labels& labels) const override;
 
     /**
      * Create a new LabelledStatCollector with all the labels of the current
      * instance, plus the _additional_ labels provided as arguments.
      */
-    [[nodiscard]] LabelledStatCollector withLabels(Labels&& labels);
+    [[nodiscard]] LabelledStatCollector withLabels(Labels&& labels) const;
 
 protected:
     /**
@@ -96,7 +96,7 @@ protected:
      * @param parent collector to pass stats to
      * @param labels labels to add to each stat forwarded to parent
      */
-    LabelledStatCollector(StatCollector& parent, const Labels& labels);
+    LabelledStatCollector(const StatCollector& parent, const Labels& labels);
 
     LabelledStatCollector(LabelledStatCollector&& other) = default;
 
@@ -109,7 +109,7 @@ protected:
     template <class T>
     void forwardToParent(const cb::stats::StatDef& k,
                          T&& v,
-                         const Labels& labels) {
+                         const Labels& labels) const {
         // take the specific labels passed as parameters
         Labels allLabels{labels.begin(), labels.end()};
         // add in the "default" labels stored in this collector
@@ -119,8 +119,8 @@ protected:
         parent.addStat(k, v, allLabels);
     }
 
-    StatCollector& parent;
-    std::unordered_map<std::string, std::string> defaultLabels;
+    const StatCollector& parent;
+    const std::unordered_map<std::string, std::string> defaultLabels;
 };
 
 class ScopeStatCollector;
@@ -140,8 +140,8 @@ class ColStatCollector;
  */
 class BucketStatCollector : public LabelledStatCollector {
 public:
-    BucketStatCollector(StatCollector& parent, std::string_view bucket);
-    [[nodiscard]] ScopeStatCollector forScope(ScopeID scope);
+    BucketStatCollector(const StatCollector& parent, std::string_view bucket);
+    [[nodiscard]] ScopeStatCollector forScope(ScopeID scope) const;
 };
 
 /**
@@ -151,8 +151,8 @@ public:
  */
 class ScopeStatCollector : public LabelledStatCollector {
 public:
-    ScopeStatCollector(BucketStatCollector& parent, ScopeID scope);
-    [[nodiscard]] ColStatCollector forCollection(CollectionID collection);
+    ScopeStatCollector(const BucketStatCollector& parent, ScopeID scope);
+    [[nodiscard]] ColStatCollector forCollection(CollectionID collection) const;
 };
 
 /**
@@ -162,5 +162,5 @@ public:
  */
 class ColStatCollector : public LabelledStatCollector {
 public:
-    ColStatCollector(ScopeStatCollector& parent, CollectionID collection);
+    ColStatCollector(const ScopeStatCollector& parent, CollectionID collection);
 };

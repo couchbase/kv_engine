@@ -25,7 +25,7 @@
 #include <string_view>
 
 using namespace std::string_view_literals;
-BucketStatCollector StatCollector::forBucket(std::string_view bucket) {
+BucketStatCollector StatCollector::forBucket(std::string_view bucket) const {
     return {*this, bucket};
 }
 
@@ -36,7 +36,7 @@ const cb::stats::StatDef& StatCollector::lookup(cb::stats::Key key) {
 
 void StatCollector::addStat(const cb::stats::StatDef& k,
                             const HdrHistogram& v,
-                            const Labels& labels) {
+                            const Labels& labels) const {
     if (v.getValueCount() > 0) {
         HistogramData histData;
         histData.mean = std::round(v.getMean());
