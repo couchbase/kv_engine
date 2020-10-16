@@ -143,17 +143,11 @@ static void create_single_path_context(SubdocCmdContext& context,
         context.do_macro_expansion = true;
     }
 
-    if (hasAccessDeleted(doc_flags)) {
-        context.do_allow_deleted_docs = true;
-    }
-
     // If Mkdoc or Add is specified, this implies MKDIR_P, ensure that it's set
     // here
     if (impliesMkdir_p(doc_flags)) {
         flags = flags | SUBDOC_FLAG_MKDIR_P;
     }
-
-    context.decodeDocFlags(doc_flags);
 
     // Decode as single path; add a single operation to the context.
     if (traits.request_has_value) {
@@ -204,8 +198,6 @@ static void create_multi_path_context(SubdocCmdContext& context,
     std::string_view value{reinterpret_cast<const char*>(valbuf.data()),
                            valbuf.size()};
 
-    context.decodeDocFlags(doc_flags);
-
     size_t offset = 0;
     while (offset < value.size()) {
         cb::mcbp::ClientOpcode binprot_cmd = cb::mcbp::ClientOpcode::Invalid;
@@ -248,10 +240,6 @@ static void create_multi_path_context(SubdocCmdContext& context,
 
         if (flags & SUBDOC_FLAG_EXPAND_MACROS) {
             context.do_macro_expansion = true;
-        }
-
-        if (hasAccessDeleted(doc_flags)) {
-            context.do_allow_deleted_docs = true;
         }
 
         const bool xattr = (flags & SUBDOC_FLAG_XATTR_PATH);
@@ -308,7 +296,8 @@ static SubdocCmdContext* subdoc_create_context(Cookie& cookie,
                                                Vbid vbucket) {
     try {
         std::unique_ptr<SubdocCmdContext> context;
-        context = std::make_unique<SubdocCmdContext>(cookie, traits, vbucket);
+        context = std::make_unique<SubdocCmdContext>(
+                cookie, traits, vbucket, doc_flags);
         switch (traits.path) {
         case SubdocPath::SINGLE:
             create_single_path_context(

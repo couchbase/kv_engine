@@ -92,12 +92,8 @@ public:
 
     SubdocCmdContext(Cookie& cookie_,
                      const SubdocCmdTraits traits_,
-                     Vbid vbucket_)
-        : cookie(cookie_),
-          connection(cookie_.getConnection()),
-          traits(traits_),
-          vbucket(vbucket_) {
-    }
+                     Vbid vbucket_,
+                     mcbp::subdoc::doc_flag doc_flags);
 
     ENGINE_ERROR_CODE pre_link_document(item_info& info) override;
 
@@ -257,7 +253,7 @@ public:
     bool do_macro_expansion = false;
 
     // Set to true if we want to operate on deleted documents
-    bool do_allow_deleted_docs = false;
+    const bool do_allow_deleted_docs;
 
     // Set to true if we want to delete the document after modifying it
     bool do_delete_doc = false;
@@ -322,11 +318,6 @@ public:
         xattr_key = {key.data(), key.size()};
     }
 
-    // The semantics to use when mutaing the document in the Bucket.
-    MutationSemantics mutationSemantics = MutationSemantics::Replace;
-
-    void decodeDocFlags(mcbp::subdoc::doc_flag docFlags);
-
     /**
      * Get the document containing all of the virtual attributes for
      * the document. The storage is created the first time the method is called,
@@ -379,7 +370,10 @@ public:
 
     // If we need to create a new document (Add / Set), what state should
     // that document be created in?
-    DocumentState createState = DocumentState::Alive;
+    const DocumentState createState;
+
+    // The semantics to use when mutaing the document in the Bucket.
+    const MutationSemantics mutationSemantics;
 
 private:
     // Temporary buffer to hold the inflated content in case of the

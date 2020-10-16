@@ -67,6 +67,25 @@ uint64_t SubdocCmdContext::getOperationValueBytesTotal() const {
     return result;
 }
 
+SubdocCmdContext::SubdocCmdContext(Cookie& cookie_,
+                                   const SubdocCmdTraits traits_,
+                                   Vbid vbucket_,
+                                   mcbp::subdoc::doc_flag doc_flags)
+    : cookie(cookie_),
+      connection(cookie_.getConnection()),
+      traits(traits_),
+      vbucket(vbucket_),
+      do_allow_deleted_docs(mcbp::subdoc::hasAccessDeleted(doc_flags)),
+      createState(mcbp::subdoc::hasCreateAsDeleted(doc_flags)
+                          ? DocumentState::Deleted
+                          : DocumentState::Alive),
+      mutationSemantics(mcbp::subdoc::hasAdd(doc_flags)
+                                ? MutationSemantics::Add
+                                : mcbp::subdoc::hasMkdoc(doc_flags)
+                                          ? MutationSemantics::Set
+                                          : MutationSemantics::Replace) {
+}
+
 template <typename T>
 std::string SubdocCmdContext::macroToString(cb::xattr::macros::macro macro,
                                             T macroValue) {
@@ -309,20 +328,6 @@ void SubdocCmdContext::generate_macro_padding(std::string_view payload,
                 paddedMacros.emplace_back(macro.name, candidate);
             }
         }
-    }
-}
-
-void SubdocCmdContext::decodeDocFlags(mcbp::subdoc::doc_flag docFlags) {
-    if (mcbp::subdoc::hasAdd(docFlags)) {
-        mutationSemantics = MutationSemantics::Add;
-    } else if (mcbp::subdoc::hasMkdoc(docFlags)) {
-        mutationSemantics = MutationSemantics::Set;
-    } else {
-        mutationSemantics = MutationSemantics::Replace;
-    }
-
-    if (mcbp::subdoc::hasCreateAsDeleted(docFlags)) {
-        createState = DocumentState::Deleted;
     }
 }
 
