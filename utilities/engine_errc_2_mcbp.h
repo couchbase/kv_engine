@@ -19,8 +19,6 @@
 #include <mcbp/protocol/status.h>
 #include <memcached/engine_error.h>
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 Status to_status(cb::engine_errc code);
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp

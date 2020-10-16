@@ -18,8 +18,7 @@
 
 #include <string>
 
-namespace cb {
-namespace sasl {
+namespace cb::sasl {
 // Forward decl
 class Context;
 namespace logging {
@@ -82,5 +81,4 @@ void log(Level level, const std::string& message);
 void log(Context* server, Level level, const std::string& message);
 
 } // namespace logging
-} // namespace sasl
-} // namespace cb
+} // namespace cb::sasl

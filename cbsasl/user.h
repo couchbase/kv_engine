@@ -26,9 +26,7 @@
 #include <string>
 #include <vector>
 
-namespace cb {
-namespace sasl {
-namespace pwdb {
+namespace cb::sasl::pwdb {
 
 class UserFactory;
 
@@ -233,6 +231,4 @@ public:
 
     static void setScramshaFallbackSalt(const std::string& salt);
 };
-} // namespace pwdb
-} // namespace sasl
-} // namespace cb
+} // namespace cb::sasl::pwdb

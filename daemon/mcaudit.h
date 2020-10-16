@@ -101,8 +101,7 @@ void audit_privilege_debug(const Connection& c,
                            const std::string& privilege,
                            const std::string& context);
 
-namespace cb {
-namespace audit {
+namespace cb::audit {
 
 /**
  *  Add an audit event that the connection is terminated
@@ -116,8 +115,7 @@ enum class Operation;
 
 void add(const Cookie& c, Operation operation);
 } // namespace document
-} // namespace audit
-} // namespace cb
+} // namespace cb::audit
 
 /**
  * Initialize the audit subsystem

@@ -971,8 +971,7 @@ protected:
     Featureset effective_features;
 };
 
-namespace cb {
-namespace net {
+namespace cb::net {
 /**
  * Create a new socket and connect it to the given host
  *
@@ -1015,5 +1014,4 @@ std::tuple<SOCKET, SSL_CTX*, BIO*> new_ssl_socket(
         sa_family_t family,
         std::function<void(SSL_CTX*)> setup_ssl_ctx);
 
-} // namespace net
-} // namespace cb
+} // namespace cb::net

@@ -33,10 +33,7 @@
 #include <vector>
 #include "cbsasl/user.h"
 
-namespace cb {
-namespace sasl {
-namespace mechanism {
-namespace scram {
+namespace cb::sasl::mechanism::scram {
 
 class ScramShaBackend {
 protected:
@@ -244,7 +241,4 @@ public:
     }
 };
 
-} // namespace scram
-} // namespace mechanism
-} // namespace sasl
-} // namespace cb
+} // namespace cb::sasl::mechanism::scram

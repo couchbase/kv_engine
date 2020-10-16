@@ -23,12 +23,10 @@
 #include <nlohmann/json_fwd.hpp>
 #include <utility>
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 class Request;
 enum class Status : uint16_t;
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp
 
 class AuthProvider {
 public:

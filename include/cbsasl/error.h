@@ -19,8 +19,7 @@
 
 #include <string>
 
-namespace cb {
-namespace sasl {
+namespace cb::sasl {
 
 /**
  * The error values used in CBSASL
@@ -37,7 +36,6 @@ enum class Error {
     NO_RBAC_PROFILE,
     AUTH_PROVIDER_DIED
 };
-} // namespace sasl
-} // namespace cb
+} // namespace cb::sasl
 
 std::string to_string(cb::sasl::Error error);

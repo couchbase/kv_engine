@@ -36,8 +36,7 @@
 #include <utility>
 #include <vector>
 
-namespace cb {
-namespace rbac {
+namespace cb::rbac {
 
 using Domain = cb::sasl::Domain;
 
@@ -552,5 +551,4 @@ std::optional<std::chrono::steady_clock::time_point> getExternalUserTimestamp(
  * database while generating the dump.
  */
 nlohmann::json to_json(Domain domain);
-}
-}
+} // namespace cb::rbac

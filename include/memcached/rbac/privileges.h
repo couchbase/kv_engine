@@ -18,8 +18,7 @@
 
 #include <string>
 
-namespace cb {
-namespace rbac {
+namespace cb::rbac {
 
 /**
  * The Privilege enum contains all of the Privileges available im memcached.
@@ -263,5 +262,4 @@ Privilege to_privilege(const std::string& str);
  * Get the textual representation of a privilege
  */
 std::string to_string(Privilege privilege);
-}
-}
+} // namespace cb::rbac

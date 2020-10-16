@@ -27,11 +27,9 @@
 #include <gsl/gsl>
 #include <string>
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 class Request;
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp
 
 /**
  * Commands to operate on a specific cookie.

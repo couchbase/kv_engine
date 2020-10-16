@@ -18,8 +18,7 @@
 
 #include "breakpad_settings.h"
 
-namespace cb {
-namespace breakpad {
+namespace cb::breakpad {
 /**
  * Initialize breakpad based on the specified settings struct.
  *
@@ -42,5 +41,4 @@ void initialize(const std::string& dumpdir);
  */
 void destroy();
 
-} // namespace breakpad
-} // namespace cb
+} // namespace cb::breakpad

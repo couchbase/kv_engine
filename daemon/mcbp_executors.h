@@ -19,12 +19,10 @@
 // forward decl
 class Connection;
 class Cookie;
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 class Request;
 class Response;
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp
 
 void initialize_mbcp_lookup_map();
 

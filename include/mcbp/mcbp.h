@@ -36,8 +36,7 @@
 #include <iosfwd>
 #include <vector>
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 /**
  * Dump a raw packet to the named stream (the packet is expected to contain
  * a valid packet)
@@ -159,5 +158,4 @@ nlohmann::json to_json();
 std::chrono::nanoseconds getSlowOpThreshold(const nlohmann::json& doc);
 
 } // namespace sla
-}
-}
+} // namespace cb::mcbp

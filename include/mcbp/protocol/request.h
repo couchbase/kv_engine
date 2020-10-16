@@ -31,14 +31,11 @@
 #include <cstdint>
 #include <functional>
 
-namespace cb {
-namespace durability {
+namespace cb::durability {
 class Requirements;
-}
-} // namespace cb
+} // namespace cb::durability
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 
 namespace request {
 enum class FrameInfoId {
@@ -266,7 +263,6 @@ protected:
 
 static_assert(sizeof(Request) == 24, "Incorrect compiler padding");
 
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp
 
 std::string to_string(cb::mcbp::request::FrameInfoId id);

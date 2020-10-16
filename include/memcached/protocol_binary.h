@@ -47,11 +47,9 @@
 #include <stdexcept>
 #include <string>
 
-namespace cb {
-namespace durability {
+namespace cb::durability {
 enum class Level : uint8_t;
-}
-} // namespace cb
+} // namespace cb::durability
 
 /**
  * \addtogroup Protocol
@@ -118,9 +116,7 @@ typedef union {
  * Definition of the packet used by set, add and replace
  * See section 4
  */
-namespace cb {
-namespace mcbp {
-namespace request {
+namespace cb::mcbp::request {
 #pragma pack(1)
 class MutationPayload {
 public:
@@ -263,9 +259,7 @@ protected:
 static_assert(sizeof(SetCtrlTokenPayload) == 8, "Unexpected size");
 
 #pragma pack()
-} // namespace request
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp::request
 
 /**
  * Definitions for extended (flexible) metadata
@@ -313,8 +307,7 @@ typedef enum : uint8_t {
 
 } protocol_binary_subdoc_flag;
 
-namespace mcbp {
-namespace subdoc {
+namespace mcbp::subdoc {
 
 /**
  * Definitions of sub-document doc flags (this is a bitmap).
@@ -356,11 +349,7 @@ enum class doc_flag : uint8_t {
  */
 static constexpr uint8_t extrasDocFlagMask = 0xf0;
 
-} // namespace subdoc
-} // namespace mcbp
-
-
-
+} // namespace mcbp::subdoc
 
 /**
  * Definition of the packet used by SUBDOCUMENT single-path commands.
@@ -550,8 +539,7 @@ typedef union {
 
 /* DCP related stuff */
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 namespace request {
 #pragma pack(1)
 class DcpOpenPayload {
@@ -1204,14 +1192,12 @@ static_assert(sizeof(DcpSeqnoAdvancedPayload) == 8, "Unexpected struct size");
 
 #pragma pack()
 } // namespace request
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp
 
 /**
  * Events that the system may send
  */
-namespace mcbp {
-namespace systemevent {
+namespace mcbp::systemevent {
 
 enum class id : uint32_t {
     CreateCollection = 0,
@@ -1222,12 +1208,9 @@ enum class id : uint32_t {
 };
 
 enum class version : uint8_t { version0 = 0, version1 = 1 };
-} // namespace systemevent
-} // namespace mcbp
+} // namespace mcbp::systemevent
 
-namespace cb {
-namespace mcbp {
-namespace request {
+namespace cb::mcbp::request {
 #pragma pack(1)
 
 class DcpSystemEventPayload {
@@ -1503,9 +1486,7 @@ protected:
 };
 static_assert(sizeof(SetParamPayload) == 4, "Unexpected size");
 #pragma pack()
-} // namespace request
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp::request
 
 /**
  * This flag is used by the setWithMeta/addWithMeta/deleteWithMeta packets
@@ -1548,9 +1529,7 @@ static_assert(sizeof(SetParamPayload) == 4, "Unexpected size");
  */
 #define GET_META_ITEM_DELETED_FLAG 0x01
 
-namespace cb {
-namespace mcbp {
-namespace request {
+namespace cb::mcbp::request {
 #pragma pack(1)
 class SetWithMetaPayload {
 public:
@@ -1647,9 +1626,7 @@ protected:
 };
 static_assert(sizeof(DelWithMetaPayload) == 24, "Unexpected struct size");
 #pragma pack()
-} // namespace request
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp::request
 
 /**
  * The physical layout for a CMD_GET_META command returns the meta-data
@@ -1702,9 +1679,7 @@ enum class GetMetaVersion : uint8_t {
 /**
  * The physical layout for the CMD_RETURN_META
  */
-namespace cb {
-namespace mcbp {
-namespace request {
+namespace cb::mcbp::request {
 
 #pragma pack(1)
 
@@ -1817,9 +1792,7 @@ protected:
 };
 #pragma pack()
 static_assert(sizeof(CompactDbPayload) == 24, "Unexpected struct size");
-} // namespace request
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp::request
 
 #define OBS_STATE_NOT_PERSISTED 0x00
 #define OBS_STATE_PERSISTED 0x01
@@ -1972,9 +1945,7 @@ typedef protocol_binary_response_no_extras
  */
 typedef protocol_binary_request_no_extras protocol_binary_request_get_keys;
 
-namespace cb {
-namespace mcbp {
-namespace request {
+namespace cb::mcbp::request {
 #pragma pack(1)
 
 class AdjustTimePayload {
@@ -2079,9 +2050,7 @@ protected:
 };
 static_assert(sizeof(GetErrmapPayload) == 2, "Unexpected struct size");
 #pragma pack()
-} // namespace request
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp::request
 
 /**
  * Message format for PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST
@@ -2108,8 +2077,7 @@ inline protocol_binary_subdoc_flag operator|(protocol_binary_subdoc_flag a,
                                        static_cast<uint8_t>(b));
 }
 
-namespace mcbp {
-namespace subdoc {
+namespace mcbp::subdoc {
 inline constexpr mcbp::subdoc::doc_flag operator|(mcbp::subdoc::doc_flag a,
                                                   mcbp::subdoc::doc_flag b) {
     return mcbp::subdoc::doc_flag(static_cast<uint8_t>(a) |
@@ -2166,19 +2134,14 @@ inline bool isNone(mcbp::subdoc::doc_flag a) {
 inline bool impliesMkdir_p(mcbp::subdoc::doc_flag a) {
     return hasAdd(a) || hasMkdoc(a);
 }
-} // namespace subdoc
-} // namespace mcbp
+} // namespace mcbp::subdoc
 
-
-namespace mcbp {
-
-namespace cas {
+namespace mcbp::cas {
 /**
  * The special value used as a wildcard and match all CAS values
  */
 const uint64_t Wildcard = 0x0;
-} // namespace cas
-} // namespace mcbp
+} // namespace mcbp::cas
 
 namespace cb::mcbp::request {
 #pragma pack(1)

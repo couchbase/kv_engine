@@ -24,11 +24,9 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 enum class Status : uint16_t;
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp
 class Cookie;
 
 /* Maximum sub-document path length */

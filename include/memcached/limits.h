@@ -20,8 +20,7 @@
 
 #include <cstddef>
 
-namespace cb {
-namespace limits {
+namespace cb::limits {
 
 /// The total number of buckets which may be created on the server, limited by
 /// how many concurrent arenas are available
@@ -34,5 +33,4 @@ constexpr std::size_t PrivilegedBytes = 1024 * 1024;
 /// The maximum length of a DCP connection
 constexpr std::size_t MaxDcpName = 200;
 
-} // namespace limits
-} // namespace cb
+} // namespace cb::limits

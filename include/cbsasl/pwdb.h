@@ -20,9 +20,7 @@
 #include <iostream>
 #include <string>
 
-namespace cb {
-namespace sasl {
-namespace pwdb {
+namespace cb::sasl::pwdb {
 
 /**
  * Convert an isasl.pw style password file to the json-style
@@ -72,6 +70,4 @@ std::string read_password_file(const std::string& filename);
 void write_password_file(const std::string& filename,
                          const std::string& content);
 
-} // namespace pwdb
-} // namespace sasl
-} // namespace cb
+} // namespace cb::sasl::pwdb

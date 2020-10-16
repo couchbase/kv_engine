@@ -28,8 +28,7 @@
 #endif
 #include <cstdint>
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 
 /**
  * Definition of the header structure for a response packet.
@@ -201,5 +200,4 @@ static_assert(sizeof(Response) == 24, "Incorrect compiler padding");
 
 using DropPrivilegeResponse = Response;
 
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp

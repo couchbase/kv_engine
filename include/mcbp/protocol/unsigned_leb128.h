@@ -22,8 +22,7 @@
 #include <optional>
 #include <type_traits>
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 
 /**
  * Helper code for encode and decode of LEB128 values.
@@ -353,5 +352,4 @@ static inline std::optional<size_t> unsigned_leb128_get_stop_byte_index(
     return {};
 }
 
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp

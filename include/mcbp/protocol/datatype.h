@@ -20,8 +20,7 @@
 #include <cstdint>
 #include <iosfwd>
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 
 /**
  * Definition of the data types in the packet
@@ -29,8 +28,7 @@ namespace mcbp {
  */
 
 enum class Datatype : uint8_t { Raw = 0, JSON = 1, Snappy = 2, Xattr = 4 };
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp
 
 /**
  * Legacy 'datatype' type - not strongly typed like cb::mcbp::Datatype.

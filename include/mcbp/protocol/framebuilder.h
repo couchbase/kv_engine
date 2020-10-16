@@ -23,8 +23,7 @@
 
 #include <gsl/gsl>
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 
 /**
  * FrameBuilder allows you to build up a request / response frame in
@@ -263,5 +262,4 @@ public:
     }
 };
 
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp

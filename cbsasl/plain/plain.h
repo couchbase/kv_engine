@@ -20,10 +20,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace cb {
-namespace sasl {
-namespace mechanism {
-namespace plain {
+namespace cb::sasl::mechanism::plain {
 
 class ServerBackend : public server::MechanismBackend {
 public:
@@ -72,7 +69,4 @@ private:
     std::vector<char> buffer;
 };
 
-} // namespace plain
-} // namespace mechanism
-} // namespace sasl
-} // namespace cb
+} // namespace cb::sasl::mechanism::plain

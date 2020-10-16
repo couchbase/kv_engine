@@ -47,11 +47,9 @@ struct EngineIface;
 struct FrontEndThread;
 class SendBuffer;
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 class Header;
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp
 
 /**
  * The maximum number of character the core preserves for the

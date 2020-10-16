@@ -24,9 +24,7 @@
 #include <memory>
 #include <utility>
 
-namespace cb {
-namespace sasl {
-namespace client {
+namespace cb::sasl::client {
 
 class ClientContext;
 
@@ -158,6 +156,4 @@ protected:
     std::unique_ptr<MechanismBackend> backend;
 };
 
-} // namespace client
-} // namespace sasl
-} // namespace cb
+} // namespace cb::sasl::client

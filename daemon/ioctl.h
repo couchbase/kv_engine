@@ -21,11 +21,9 @@
 
 // forward decl
 class Cookie;
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 enum class Datatype : uint8_t;
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp
 
 /**
  * Attempts to read the given property.

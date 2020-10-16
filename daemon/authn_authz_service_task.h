@@ -18,11 +18,9 @@
 #include "task.h"
 #include <string>
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 enum class Status : uint16_t;
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp
 
 /**
  * The AuthnAuthzServiceTask is an abstract class for all of the tasks

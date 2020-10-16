@@ -23,8 +23,7 @@
 
 #include <string>
 
-namespace cb {
-namespace logger {
+namespace cb::logger {
 
 struct LOGGER_PUBLIC_API Config {
     Config() = default;
@@ -48,5 +47,4 @@ struct LOGGER_PUBLIC_API Config {
     spdlog::level::level_enum log_level = spdlog::level::level_enum::info;
 };
 
-} // namespace logger
-} // namespace cb
+} // namespace cb::logger

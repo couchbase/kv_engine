@@ -24,11 +24,9 @@
 
 class Cookie;
 struct DumpContext;
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 enum class Datatype : uint8_t;
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp
 /**
  * When measuring mutex wait / lock durations, what is considered a default
  * "slow" wait/lock time and trace events should be logged?

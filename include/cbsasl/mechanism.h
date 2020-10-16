@@ -22,8 +22,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace cb {
-namespace sasl {
+namespace cb::sasl {
 
 enum class Mechanism { SCRAM_SHA512, SCRAM_SHA256, SCRAM_SHA1, PLAIN };
 
@@ -69,7 +68,6 @@ Error authenticate(const std::string& username, const std::string& passwd);
 } // namespace plain
 } // namespace mechanism
 
-} // namespace sasl
-} // namespace cb
+} // namespace cb::sasl
 
 std::string to_string(cb::sasl::Mechanism mechanism);

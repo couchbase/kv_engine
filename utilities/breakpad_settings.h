@@ -22,8 +22,7 @@
 
 #include <string>
 
-namespace cb {
-namespace breakpad {
+namespace cb::breakpad {
 /**
  * What information should breakpad minidumps contain?
  */
@@ -63,7 +62,6 @@ struct Settings {
     Content content{Content::Default};
 };
 
-} // namespace breakpad
-} // namespace cb
+} // namespace cb::breakpad
 
 std::string to_string(cb::breakpad::Content content);

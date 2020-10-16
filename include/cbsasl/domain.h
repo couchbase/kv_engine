@@ -19,8 +19,7 @@
 #include <cstdint>
 #include <string>
 
-namespace cb {
-namespace sasl {
+namespace cb::sasl {
 
 /**
  * The Domain enum defines all of the legal states where the users may
@@ -41,7 +40,6 @@ enum class Domain : uint8_t {
 
 Domain to_domain(const std::string& domain);
 
-} // namespace sasl
-} // namespace cb
+} // namespace cb::sasl
 
 std::string to_string(cb::sasl::Domain domain);

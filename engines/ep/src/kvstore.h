@@ -45,21 +45,17 @@ class PersistenceCallback;
 class RollbackCB;
 class RollbackResult;
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 class Request;
-}
-} // namespace cb
+} // namespace cb::mcbp
 
 namespace VB {
 class Commit;
 } // namespace VB
 
-namespace Collections {
-namespace VB {
+namespace Collections::VB {
 struct PersistedStats;
-} // namespace VB
-} // namespace Collections
+} // namespace Collections::VB
 
 struct vb_bgfetch_item_ctx_t;
 struct TransactionContext;

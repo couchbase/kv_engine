@@ -21,8 +21,7 @@
 #include <cstdint>
 #include <string>
 
-namespace cb {
-namespace crypto {
+namespace cb::crypto {
 enum class Algorithm { MD5, SHA1, SHA256, SHA512 };
 
 bool isSupported(Algorithm algorithm);
@@ -124,5 +123,4 @@ std::string decrypt(Cipher cipher,
  */
 std::string decrypt(const nlohmann::json& json, std::string_view data);
 
-} // namespace crypto
-} // namespace cb
+} // namespace cb::crypto

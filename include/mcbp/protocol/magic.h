@@ -19,8 +19,7 @@
 #include <cstdint>
 #include <string>
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 /**
  * Definition of the legal "magic" values used in a packet.
  * See section 3.1 Magic byte
@@ -87,7 +86,6 @@ inline bool is_server_magic(Magic magic) {
  */
 bool is_alternative_encoding(Magic magic);
 
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp
 
 std::string to_string(cb::mcbp::Magic magic);

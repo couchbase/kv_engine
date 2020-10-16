@@ -22,13 +22,9 @@
 
 #include <gsl/gsl>
 
-namespace cb {
-namespace audit {
-namespace document {
+namespace cb::audit::document {
 enum class Operation;
-}
-} // namespace audit
-} // namespace cb
+} // namespace cb::audit::document
 
 struct ServerDocumentIface {
     virtual ~ServerDocumentIface() = default;

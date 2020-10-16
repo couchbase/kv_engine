@@ -19,8 +19,7 @@
 
 #include <string>
 
-namespace cb {
-namespace sasl {
+namespace cb::sasl {
 
 /**
  * An abstract context class to allow a common base class for the
@@ -47,5 +46,4 @@ protected:
     std::string uuid;
 };
 
-} // namespace sasl
-} // namespace cb
+} // namespace cb::sasl

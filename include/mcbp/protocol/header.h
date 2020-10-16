@@ -27,8 +27,7 @@
 #endif
 #include <stdexcept>
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 
 #define MCBP_TRACING_RESPONSE_SIZE 0x03
 
@@ -254,5 +253,4 @@ static_assert(sizeof(Header) == 24, "Incorrect compiler padding");
 
 std::ostream& operator<<(std::ostream& os, const Header& header);
 
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp

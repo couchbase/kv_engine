@@ -19,10 +19,8 @@
 #include <memcached/engine.h>
 #include <memory>
 
-namespace cb {
-namespace audit {
+namespace cb::audit {
 namespace document {
-
 enum class Operation { Read, Lock, Modify, Delete };
 } // namespace document
 
@@ -113,5 +111,4 @@ using UniqueAuditPtr = std::unique_ptr<Audit>;
 UniqueAuditPtr create_audit_daemon(const std::string& config_file,
                                    ServerCookieIface* server_cookie_api);
 
-} // namespace audit
-} // namespace cb
+} // namespace cb::audit

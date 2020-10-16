@@ -28,8 +28,7 @@
 #include <openssl/bio.h>
 #include <openssl/err.h>
 
-namespace cb {
-namespace openssl {
+namespace cb::openssl {
 struct X509deletor {
     void operator()(X509* cert) {
         X509_free(cert);
@@ -45,5 +44,4 @@ struct SSL_CTX_Deletor {
 };
 
 using unique_ssl_ctx_ptr = std::unique_ptr<SSL_CTX, SSL_CTX_Deletor>;
-}
-}
+} // namespace cb::openssl

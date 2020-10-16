@@ -20,9 +20,7 @@
 #include <cbsasl/error.h>
 #include <cbsasl/user.h>
 
-namespace cb {
-namespace sasl {
-namespace plain {
+namespace cb::sasl::plain {
 
 /**
  * Check if the supplied password match what's stored in the
@@ -36,6 +34,4 @@ namespace plain {
 Error check_password(Context* context,
                      const cb::sasl::pwdb::User& user,
                      const std::string& password);
-}
-}
-}
+} // namespace cb::sasl::plain

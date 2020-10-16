@@ -23,8 +23,7 @@
 #include <string>
 #include <vector>
 
-namespace cb {
-namespace x509 {
+namespace cb::x509 {
 
 enum class Mode {
     /**
@@ -181,5 +180,4 @@ protected:
     std::unique_ptr<ClientCertConfig> config;
 };
 
-} // namespace x509
-} // namespace cb
+} // namespace cb::x509

@@ -22,8 +22,7 @@
 
 #include "relaxed_atomic.h"
 
-namespace cb {
-namespace sampling {
+namespace cb::sampling {
 
 static const size_t INTERVAL_SERIES_SIZE = 10;
 
@@ -64,6 +63,4 @@ private:
     cb::RingBuffer<Interval, INTERVAL_SERIES_SIZE> intervals;
 };
 
-
-}
-}
+} // namespace cb::sampling

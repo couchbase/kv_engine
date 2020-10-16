@@ -33,12 +33,10 @@
 #include <string>
 #include <unordered_map>
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 class Request;
 enum class ClientOpcode : uint8_t;
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp
 
 class CheckpointConfig;
 struct CompactionConfig;

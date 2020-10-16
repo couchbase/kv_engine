@@ -21,8 +21,7 @@
 #include <string>
 #include <tuple>
 
-namespace cb {
-namespace inet {
+namespace cb::inet {
 
 using HostSpec = std::tuple<std::string, in_port_t, sa_family_t>;
 
@@ -40,5 +39,4 @@ using HostSpec = std::tuple<std::string, in_port_t, sa_family_t>;
  */
 HostSpec parse_hostname(const std::string& hostname,
                         const std::string& port);
-}
-}
+} // namespace cb::inet

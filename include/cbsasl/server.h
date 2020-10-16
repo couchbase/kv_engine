@@ -25,9 +25,7 @@
 #include <memory>
 #include <utility>
 
-namespace cb {
-namespace sasl {
-namespace server {
+namespace cb::sasl::server {
 
 /**
  * Initializes the sasl server
@@ -143,6 +141,4 @@ protected:
     std::string uuid;
 };
 
-} // namespace server
-} // namespace sasl
-} // namespace cb
+} // namespace cb::sasl::server

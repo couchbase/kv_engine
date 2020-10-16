@@ -22,9 +22,7 @@
 #include <unordered_map>
 #include "user.h"
 
-namespace cb {
-namespace sasl {
-namespace pwdb {
+namespace cb::sasl::pwdb {
 
 class PasswordDatabase {
 public:
@@ -79,6 +77,4 @@ private:
      */
     std::unordered_map<std::string, User> db;
 };
-} // namespace pwdb
-} // namespace sasl
-} // namespace cb
+} // namespace cb::sasl::pwdb

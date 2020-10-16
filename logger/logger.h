@@ -39,8 +39,7 @@
 
 #include <string>
 
-namespace cb {
-namespace logger {
+namespace cb::logger {
 
 struct Config;
 
@@ -160,8 +159,7 @@ void shutdown();
  */
 LOGGER_PUBLIC_API bool isInitialized();
 
-} // namespace logger
-} // namespace cb
+} // namespace cb::logger
 
 #define CB_LOG_ENTRY(severity, ...)                       \
     do {                                                  \

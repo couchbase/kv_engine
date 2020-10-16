@@ -19,8 +19,7 @@
 #include <iosfwd>
 #include <string>
 
-namespace cb {
-namespace mcbp {
+namespace cb::mcbp {
 
 /**
  * Defintion of the different command opcodes.
@@ -439,8 +438,7 @@ bool is_collection_command(ClientOpcode opcode);
 /// Does the provided opcode support preserving TTL
 bool is_preserve_ttl_supported(ClientOpcode opcode);
 
-} // namespace mcbp
-} // namespace cb
+} // namespace cb::mcbp
 
 /**
  * Get a textual representation of the given opcode

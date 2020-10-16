@@ -22,8 +22,7 @@
 #include <cstddef>
 #include <memory>
 
-namespace cb {
-namespace xattr {
+namespace cb::xattr {
 
 /**
  * The cb::xattr::Blob is a class that provides easy access to the
@@ -286,5 +285,4 @@ inline bool operator!=(const Blob::iterator& lhs, const Blob::iterator& rhs) {
     return !(lhs == rhs);
 }
 
-}
-}
+} // namespace cb::xattr

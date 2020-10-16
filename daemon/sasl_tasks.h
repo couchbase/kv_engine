@@ -23,13 +23,9 @@
 class Connection;
 class Cookie;
 
-namespace cb {
-namespace sasl {
-namespace server {
+namespace cb::sasl::server {
 class ServerContext;
-} // namespace server
-} // namespace sasl
-} // namespace cb
+} // namespace cb::sasl::server
 
 /**
  * The SaslAuthTask is the abstract base class used during SASL

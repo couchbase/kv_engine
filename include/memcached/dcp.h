@@ -29,20 +29,15 @@ struct DocKey;
 union protocol_binary_request_header;
 union protocol_binary_response_header;
 
-namespace cb {
-namespace durability {
+namespace cb::durability {
 class Requirements;
 enum class Level : uint8_t;
-}
-} // namespace cb
+} // namespace cb::durability
 
-namespace mcbp {
-namespace systemevent {
+namespace mcbp::systemevent {
 enum class id : uint32_t;
 enum class version : uint8_t;
-}
-
-} // namespace mcbp
+} // namespace mcbp::systemevent
 
 /**
  * The message producers are used by the engine's DCP producer
