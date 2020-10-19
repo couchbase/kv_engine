@@ -42,13 +42,13 @@
 class HLC {
 public:
     struct DriftStats {
-        uint64_t total;
-        uint64_t updates;
+        uint64_t total{0};
+        uint64_t updates{0};
     };
 
     struct DriftExceptions {
-        uint32_t ahead;
-        uint32_t behind;
+        uint32_t ahead{0};
+        uint32_t behind{0};
     };
 
     /*

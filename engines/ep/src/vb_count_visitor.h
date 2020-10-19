@@ -31,43 +31,7 @@ class VBucket;
  */
 class VBucketCountVisitor : public VBucketVisitor {
 public:
-    explicit VBucketCountVisitor(vbucket_state_t state)
-        : desired_state(state),
-          numItems(0),
-          numTempItems(0),
-          nonResident(0),
-          numVbucket(0),
-          htMemory(0),
-          htItemMemory(0),
-          htUncompressedItemMemory(0),
-          htCacheSize(0),
-          numEjects(0),
-          numExpiredItems(0),
-          metaDataMemory(0),
-          metaDataDisk(0),
-          checkpointMemory(0),
-          checkpointMemoryUnreferenced(0),
-          checkpointMemoryOverhead(0),
-          opsCreate(0),
-          opsDelete(0),
-          opsGet(0),
-          opsReject(0),
-          opsUpdate(0),
-          queueSize(0),
-          queueMemory(0),
-          queueFill(0),
-          queueDrain(0),
-          pendingWrites(0),
-          chkPersistRemaining(0),
-          datatypeCounts{{0}},
-          queueAge(0),
-          rollbackItemCount(0),
-          numHpVBReqs(0),
-          totalAbsHLCDrift(),
-          totalHLCDriftExceptionCounters(),
-          syncWriteAcceptedCount(0),
-          syncWriteCommittedCount(0),
-          syncWriteAbortedCount(0) {
+    explicit VBucketCountVisitor(vbucket_state_t state) : desired_state(state) {
     }
 
     void visitBucket(const VBucketPtr& vb) override;
@@ -93,9 +57,12 @@ public:
     }
 
     size_t getMemResidentPer() {
-        size_t numResident = numItems - nonResident;
-        return (numItems != 0) ? (size_t)(numResident * 100.0) / (numItems)
-                               : 100;
+        if (numItems && numItems >= nonResident) {
+            size_t numResident = numItems - nonResident;
+            return size_t(numResident * 100.0) / (numItems);
+        }
+        // Note: access-scanner depends on 100% being returned for this case
+        return 100;
     }
 
     size_t getEjects() {
@@ -213,46 +180,46 @@ public:
     }
 
 protected:
-    vbucket_state_t desired_state;
+    vbucket_state_t desired_state{vbucket_state_dead};
 
 private:
-    size_t numItems;
-    size_t numTempItems;
-    size_t nonResident;
-    size_t numVbucket;
-    size_t htMemory;
-    size_t htItemMemory;
-    size_t htUncompressedItemMemory;
-    size_t htCacheSize;
-    size_t numEjects;
-    size_t numExpiredItems;
-    size_t metaDataMemory;
-    size_t metaDataDisk;
-    size_t checkpointMemory;
-    size_t checkpointMemoryUnreferenced;
-    size_t checkpointMemoryOverhead;
+    size_t numItems{0};
+    size_t numTempItems{0};
+    size_t nonResident{0};
+    size_t numVbucket{0};
+    size_t htMemory{0};
+    size_t htItemMemory{0};
+    size_t htUncompressedItemMemory{0};
+    size_t htCacheSize{0};
+    size_t numEjects{0};
+    size_t numExpiredItems{0};
+    size_t metaDataMemory{0};
+    size_t metaDataDisk{0};
+    size_t checkpointMemory{0};
+    size_t checkpointMemoryUnreferenced{0};
+    size_t checkpointMemoryOverhead{0};
 
-    size_t opsCreate;
-    size_t opsDelete;
-    size_t opsGet;
-    size_t opsReject;
-    size_t opsUpdate;
+    size_t opsCreate{0};
+    size_t opsDelete{0};
+    size_t opsGet{0};
+    size_t opsReject{0};
+    size_t opsUpdate{0};
 
-    size_t queueSize;
-    size_t queueMemory;
-    size_t queueFill;
-    size_t queueDrain;
-    size_t pendingWrites;
-    size_t chkPersistRemaining;
-    HashTable::DatatypeCombo datatypeCounts;
-    uint64_t queueAge;
-    uint64_t rollbackItemCount;
-    size_t numHpVBReqs;
+    size_t queueSize{0};
+    size_t queueMemory{0};
+    size_t queueFill{0};
+    size_t queueDrain{0};
+    size_t pendingWrites{0};
+    size_t chkPersistRemaining{0};
+    HashTable::DatatypeCombo datatypeCounts{};
+    uint64_t queueAge{0};
+    uint64_t rollbackItemCount{0};
+    size_t numHpVBReqs{0};
     HLC::DriftStats totalAbsHLCDrift;
     HLC::DriftExceptions totalHLCDriftExceptionCounters;
-    size_t syncWriteAcceptedCount;
-    size_t syncWriteCommittedCount;
-    size_t syncWriteAbortedCount;
+    size_t syncWriteAcceptedCount{0};
+    size_t syncWriteCommittedCount{0};
+    size_t syncWriteAbortedCount{0};
 };
 
 /**
