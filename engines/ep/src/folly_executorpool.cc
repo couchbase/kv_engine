@@ -460,7 +460,7 @@ struct FollyExecutorPool::State {
                 continue;
             }
             EP_LOG_DEBUG(
-                    "FollyExecutorPool::unregisterTaskable(): Stopping "
+                    "FollyExecutorPool::cancelTasksOwnedBy(): Stopping "
                     "Task id:{} taskable:{} description:'{}'",
                     tProxy->task->getId(),
                     tProxy->task->getTaskable().getName(),
@@ -500,7 +500,7 @@ struct FollyExecutorPool::State {
             it = tasks.find(taskId);
             if (it != tasks.end()) {
                 EP_LOG_TRACE(
-                        "FollyExecutorPool::cancel() id:{} found for "
+                        "FollyExecutorPool::cancelTask() id:{} found for "
                         "owner:'{}'",
                         taskId,
                         owner->getName());
@@ -1043,7 +1043,7 @@ void FollyExecutorPool::rescheduleTaskAfterRun(TaskProxy& proxy) {
             proxy.task->getId(),
             GlobalTask::getTaskName(proxy.task->getTaskId()),
             proxy.task->getDescription(),
-            proxy.task->getState());
+            to_string(proxy.task->getState()));
 
     // We have just finished running the task on the CPU thread pool, therefore
     // it should _not_ be scheduled to run again yet (given that's what we are
