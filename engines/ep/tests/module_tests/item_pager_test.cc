@@ -1069,7 +1069,7 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
                 size_t pageableMem =
                         store->getVBucket(replicaVB)->getPageableMemUsage();
 
-                return pageableMem > watermarkDiff * 0.8;
+                return pageableMem > watermarkDiff * 0.7;
             });
     flushAndRemoveCheckpoints(replicaVB);
 
