@@ -1050,7 +1050,7 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
     setVBucketStateAndRunPersistTask(replicaVB, vbucket_state_active);
 
     // bump the quota up. We need total evictable data to comfortably exceed
-    // the gap between  high and low watermarks. With the default
+    // the gap between high and low watermarks. With the default
     // quota, there's not enough "headroom" left after base memory usage to
     // populate vbs as desired.
     increaseQuota(20000000);
@@ -1075,7 +1075,7 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
                 size_t pageableMem =
                         store->getVBucket(replicaVB)->getPageableMemUsage();
 
-                return pageableMem > watermarkDiff * 0.7;
+                return pageableMem > watermarkDiff * 0.9;
             });
     flushAndRemoveCheckpoints(replicaVB);
 
@@ -1096,22 +1096,9 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
 
     // Flushing and removing checkpoints frees some memory, "top up" the
     // active vbuckets back to the high watermark.
-    activeItemCount += populateVbsUntil(
-            {activeVB},
-            [this, &stats, &activeVB] {
-                flushAndRemoveCheckpoints(activeVB);
-                bool readyToEvict = stats.getPreciseTotalMemoryUsed() >
-                                    stats.mem_high_wat.load();
-                if (readyToEvict) {
-                    // This would be normally triggered by the _next_ item
-                    // stored. Done within this predicate, before any
-                    // deallocations take the memory usage below the watermark
-                    // again
-                    store->attemptToFreeMemory();
-                }
-                return readyToEvict;
-            },
-            "topup_keys");
+    // Note, populateUntilTmpFail flushes each time an item is stored,
+    // using this without the above pre-population would be quite slow in CV
+    activeItemCount += populateUntilTmpFail(activeVB);
 
     EXPECT_GT(activeItemCount, 100);
 
@@ -1134,7 +1121,7 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
     replicaRR = getRRPercent(*store->getVBucket(replicaVB));
 
     EXPECT_LT(activeRR, 100);
-    EXPECT_GT(activeRR, 70);
+    EXPECT_GT(activeRR, 60);
 
     EXPECT_LT(replicaRR, 5);
 }
