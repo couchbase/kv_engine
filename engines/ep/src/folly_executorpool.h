@@ -184,7 +184,7 @@ private:
 
     /// Reschedule the given task based on it's current sleepTime and if
     /// the task is dead (or should run again).
-    void rescheduleTaskAfterRun(std::shared_ptr<TaskProxy> proxy);
+    void rescheduleTaskAfterRun(TaskProxy& proxy);
 
     /// Remove the given taskProxy from the tracked tasks.
     /// Should only be called at the end of scheduleViaCPUPool.

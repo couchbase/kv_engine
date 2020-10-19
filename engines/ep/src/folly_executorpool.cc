@@ -59,9 +59,7 @@ public:
  * Task to run again if true is returned.
  *
  */
-struct FollyExecutorPool::TaskProxy
-    : public folly::HHWheelTimer::Callback,
-      public std::enable_shared_from_this<TaskProxy> {
+struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
     TaskProxy(FollyExecutorPool& executor,
               folly::CPUThreadPoolExecutor& pool,
               ExTask task_)
@@ -103,8 +101,6 @@ struct FollyExecutorPool::TaskProxy
     /**
      * Schedules this task to run as soon as possible on its associated CPU
      * pool.
-     * Retains a shared_ptr to this object, passed to the CPU pool. This
-     * is released when the Task completes executing.
      */
     void scheduleViaCPUPool() {
         using namespace std::chrono;
@@ -134,17 +130,15 @@ struct FollyExecutorPool::TaskProxy
         scheduledOnCpuPool = true;
 
         // Perform work on the appropriate CPU pool.
-        // Note this retains a reference to itself (TaskProxy).
-        cpuPool.add([proxy = shared_from_this()] {
-            Expects(proxy->task.get());
+        cpuPool.add([& proxy = *this] {
+            Expects(proxy.task.get());
 
+            EP_LOG_TRACE("FollyExecutorPool: Run task \"{}\" id {}",
+                         proxy.task->getDescription(),
+                         proxy.task->getId());
             bool runAgain = false;
             // Check if Task is still alive. If not don't run.
-            if (!proxy->task->isdead()) {
-                EP_LOG_TRACE("FollyExecutorPool: Run task \"{}\" id {}",
-                             proxy->task->getDescription(),
-                             proxy->task->getId());
-
+            if (!proxy.task->isdead()) {
                 // Call GlobalTask::run(), noting the result.
                 // If true: Read GlobalTask::wakeTime. If "now", then re-queue
                 // directly on the CPUThreadPool. If some time in the future,
@@ -152,10 +146,10 @@ struct FollyExecutorPool::TaskProxy
                 // If false: Cancel task, will not run again.
 
                 const auto start = steady_clock::now();
-                proxy->task->updateLastStartTime(start);
+                proxy.task->updateLastStartTime(start);
 
                 // Calculate and record scheduler overhead.
-                auto scheduleOverhead = start - proxy->task->getWaketime();
+                auto scheduleOverhead = start - proxy.task->getWaketime();
                 // scheduleOverhead can be a negative number if the task has
                 // been woken up before we expected it too be. In this case this
                 // means that we have no schedule overhead and thus need to set
@@ -163,17 +157,17 @@ struct FollyExecutorPool::TaskProxy
                 if (scheduleOverhead < steady_clock::duration::zero()) {
                     scheduleOverhead = steady_clock::duration::zero();
                 }
-                proxy->task->getTaskable().logQTime(proxy->task->getTaskId(),
-                                                    scheduleOverhead);
+                proxy.task->getTaskable().logQTime(proxy.task->getTaskId(),
+                                                   scheduleOverhead);
 
-                proxy->task->setState(TASK_RUNNING, TASK_SNOOZED);
-                runAgain = proxy->task->execute();
+                proxy.task->setState(TASK_RUNNING, TASK_SNOOZED);
+                runAgain = proxy.task->execute();
 
                 const auto end = steady_clock::now();
                 auto runtime = end - start;
-                proxy->task->getTaskable().logRunTime(proxy->task->getTaskId(),
-                                                      runtime);
-                proxy->task->updateRuntime(runtime);
+                proxy.task->getTaskable().logRunTime(proxy.task->getTaskId(),
+                                                     runtime);
+                proxy.task->updateRuntime(runtime);
             }
 
             // If runAgain is false, then task should be cancelled. This is
@@ -182,15 +176,17 @@ struct FollyExecutorPool::TaskProxy
             // task is flagged as dead before any other task (which could check
             // it's status) runs.
             if (!runAgain) {
-                proxy->task->cancel();
+                proxy.task->cancel();
             }
 
-            // Note: All logic needs to be performed in EventBase so scheduling
-            // checks are serialised, to avoid lost wakeup / double-running etc.
-            proxy->executor.futurePool->getEventBase()->runInEventBaseThread(
-                    [proxy = std::move(proxy)] {
-                        auto& executor = proxy->executor;
-                        executor.rescheduleTaskAfterRun(std::move(proxy));
+            // Re-schedule this task. All logic needs to be
+            // performed in EventBase so scheduling
+            // checks are serialised, to avoid lost wakeup /
+            // double-running etc.
+            proxy.executor.futurePool->getEventBase()->runInEventBaseThread(
+                    [&proxy] {
+                        auto& executor = proxy.executor;
+                        executor.rescheduleTaskAfterRun(proxy);
                     });
         });
     }
@@ -206,7 +202,7 @@ struct FollyExecutorPool::TaskProxy
                 task->getDescription());
 
         // Move `task` from this object (leaving it as null)
-        cpuPool.add([ptrToReset = std::move(task), proxy = this]() mutable {
+        cpuPool.add([ptrToReset = std::move(task), &proxy = *this]() mutable {
             EP_LOG_TRACE(
                     "FollyExecutorPool::resetTaskPtrViaCpuPool lambda() id:{} "
                     "name:{}",
@@ -222,10 +218,10 @@ struct FollyExecutorPool::TaskProxy
                 ptrToReset.reset();
             }
             // Finally, remove the taskProxy from taskOwners.
-            proxy->executor.futurePool->getEventBase()->runInEventBaseThread(
-                    [proxy] {
-                        auto& executor = proxy->executor;
-                        executor.removeTaskAfterRun(*proxy);
+            proxy.executor.futurePool->getEventBase()->runInEventBaseThread(
+                    [&proxy]() mutable {
+                        auto& executor = proxy.executor;
+                        executor.removeTaskAfterRun(proxy);
                     });
         });
     }
@@ -318,14 +314,16 @@ private:
 };
 
 /*
- * Map of task uniqueIDs to their TaskProxy object, owned via shared_ptr.
- * The shared_ptr is necessary to avoid segfaults if a Task is deleted (e.g.
- * during unregisterTaskable) while it is running on a CPU pool - the CPU pool
- * exection retains a refcount to the TaskProxy.
+ * Map of task uniqueIDs to their TaskProxy object, owned via
+ * unique_ptr.
+
+ * The IO thead (via FollyExecutorPool::State::taskOwners) owns all
+ * TaskProxy objects, but gives (non-owning) pointers to CPU thread
+ * pool when a task is scheduled to execute (see scheduleViaCPUPool).
  */
 using TaskLocator =
         std::unordered_map<size_t,
-                           std::shared_ptr<FollyExecutorPool::TaskProxy>>;
+                           std::unique_ptr<FollyExecutorPool::TaskProxy>>;
 
 /// Map of task owners (buckets) to the tasks they own.
 using TaskOwnerMap = std::unordered_map<const Taskable*, TaskLocator>;
@@ -365,7 +363,7 @@ struct FollyExecutorPool::State {
                       ExTask task) {
         auto& tasksForOwner = taskOwners.at(&task->getTaskable());
         auto [it, inserted] = tasksForOwner.try_emplace(
-                task->getId(), std::shared_ptr<TaskProxy>{});
+                task->getId(), std::unique_ptr<TaskProxy>{});
         if (!inserted) {
             // taskId already present - i.e. this taskId has already been
             // scheduled.
@@ -380,7 +378,7 @@ struct FollyExecutorPool::State {
             it->second->proxyReused = true;
         } else {
             // Inserted a new entry into map - create a TaskProxy object for it.
-            it->second = std::make_shared<TaskProxy>(executor, pool, task);
+            it->second = std::make_unique<TaskProxy>(executor, pool, task);
         }
 
         // If we are rescheduling a previously cancelled task, we should
@@ -589,8 +587,17 @@ struct FollyExecutorPool::State {
         return taskOwners.at(&taskable).size();
     };
 
-    TaskOwnerMap copyTaskOwners() const {
-        return taskOwners;
+    /**
+     * Returns a vector of all tasks owned by the given Taskable
+     */
+    std::vector<ExTask> copyTasksForOwner(Taskable& taskable) const {
+        std::vector<ExTask> tasks;
+        for (auto& it : taskOwners.at(&taskable)) {
+            if (it.second->task) {
+                tasks.push_back(it.second->task);
+            }
+        }
+        return tasks;
     }
 
     /**
@@ -910,28 +917,19 @@ void FollyExecutorPool::doTasksStat(Taskable& taskable,
 
     // Take a copy of the taskOwners map.
     auto* eventBase = futurePool->getEventBase();
-    TaskOwnerMap taskOwnersCopy;
+    std::vector<ExTask> tasks;
     eventBase->runInEventBaseThreadAndWait(
-            [state = this->state.get(), &taskOwnersCopy] {
-                taskOwnersCopy = state->copyTaskOwners();
+            [state = this->state.get(), &taskable, &tasks] {
+                tasks = state->copyTasksForOwner(taskable);
             });
-
-    auto it = taskOwnersCopy.find(&taskable);
-    if (it == taskOwnersCopy.end()) {
-        return;
-    }
 
     // Convert to JSON for output.
     nlohmann::json list = nlohmann::json::array();
 
-    auto& tasks = it->second;
-    for (const auto& pair : tasks) {
-        size_t tid = pair.first;
-        ExTask& task = pair.second->task;
-
+    for (const auto& task : tasks) {
         nlohmann::json obj;
 
-        obj["tid"] = tid;
+        obj["tid"] = task->getId();
         obj["state"] = to_string(task->getState());
         obj["name"] = GlobalTask::getTaskName(task->getTaskId());
         obj["this"] = cb::to_hex(reinterpret_cast<uint64_t>(task.get()));
@@ -1033,8 +1031,7 @@ folly::CPUThreadPoolExecutor* FollyExecutorPool::getPoolForTaskType(
     folly::assume_unreachable();
 }
 
-void FollyExecutorPool::rescheduleTaskAfterRun(
-        std::shared_ptr<TaskProxy> proxy) {
+void FollyExecutorPool::rescheduleTaskAfterRun(TaskProxy& proxy) {
     // Should only be called from within EventBase thread.
     auto* eventBase = futurePool->getEventBase();
     Expects(eventBase->inRunningEventBaseThread());
@@ -1043,46 +1040,46 @@ void FollyExecutorPool::rescheduleTaskAfterRun(
             "FollyExecutorPool::rescheduleTaskAfterRun() id:{} name:{} "
             "descr:'{}' "
             "state:{}",
-            proxy->task->getId(),
-            GlobalTask::getTaskName(proxy->task->getTaskId()),
-            proxy->task->getDescription(),
-            proxy->task->getState());
+            proxy.task->getId(),
+            GlobalTask::getTaskName(proxy.task->getTaskId()),
+            proxy.task->getDescription(),
+            proxy.task->getState());
 
     // We have just finished running the task on the CPU thread pool, therefore
     // it should _not_ be scheduled to run again yet (given that's what we are
     // about to calculate in a moment). This is important as if we were already
     // scheduled, it's possible the task could be run again _before_ we've
     // logically completed the current instance of it.
-    Expects(!proxy->isScheduled());
+    Expects(!proxy.isScheduled());
 
     // Scheduling should have been inhibited when the Task was first enqueued
     // on CPU pool.
-    Expects(proxy->scheduledOnCpuPool);
+    Expects(proxy.scheduledOnCpuPool);
     // ... but now we are done with the CPU pool - clear flag so it can be
     // re-scheduled if necessary.
-    proxy->scheduledOnCpuPool = false;
+    proxy.scheduledOnCpuPool = false;
 
-    if (proxy->task->isdead()) {
+    if (proxy.task->isdead()) {
         // Deschedule the task, in case it was already scheduled
-        proxy->cancelTimeout();
+        proxy.cancelTimeout();
 
         // Begin process of cancelling the task - mark as cancelled in
         // taskOwners and schedule another CPU thread pool function to decrement
         // the refcount and potentially delete the GlobalTask.
-        state->cancelTask(proxy->task->getId());
+        state->cancelTask(proxy.task->getId());
 
         return;
     }
 
     // Task still alive, so should be run again. In the future or immediately?
     using namespace std::chrono;
-    const auto timeout = duration_cast<milliseconds>(
-            proxy->task->getWaketime() - steady_clock::now());
+    const auto timeout = duration_cast<milliseconds>(proxy.task->getWaketime() -
+                                                     steady_clock::now());
     if (timeout > milliseconds::zero()) {
-        eventBase->timer().scheduleTimeout(proxy.get(), timeout);
+        eventBase->timer().scheduleTimeout(&proxy, timeout);
     } else {
         // Due now - schedule directly on CPU pool.
-        proxy->scheduleViaCPUPool();
+        proxy.scheduleViaCPUPool();
     }
 }
 
