@@ -534,10 +534,10 @@ TEST_P(McdTestappTest, MB_10114) {
     // Disable ewouldblock_engine - not wanted / needed for this MB regression test.
     ewouldblock_engine_disable();
 
-    char value[100000] = {0};
+    std::vector<char> value(1000000);
     const char* key = "mb-10114";
     auto command = mcbp_storage_command(
-            ClientOpcode::Append, key, {value, sizeof(value)}, 0, 0);
+            ClientOpcode::Append, key, {value.data(), value.size()}, 0, 0);
 
     store_document(key, "world");
     std::vector<uint8_t> blob;
