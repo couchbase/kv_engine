@@ -69,9 +69,6 @@ bool CompactTask::run() {
 bool StatSnap::run() {
     TRACE_EVENT0("ep-engine/task", "StatSnap");
     engine->getKVBucket()->snapshotStats();
-    if (runOnce) {
-        return false;
-    }
     ExecutorPool::get()->snooze(uid, 60);
     return true;
 }

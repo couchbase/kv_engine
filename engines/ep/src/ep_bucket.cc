@@ -1983,11 +1983,8 @@ void EPBucket::warmupCompleted() {
                 std::make_unique<ValueChangedListener>(*this));
     }
 
-    // "0" sleep_time means that the first snapshot task will be executed
-    // right after warmup. Subsequent snapshot tasks will be scheduled every
-    // 60 sec by default.
     ExecutorPool* iom = ExecutorPool::get();
-    ExTask task = std::make_shared<StatSnap>(&engine, 0, false);
+    ExTask task = std::make_shared<StatSnap>(&engine);
     statsSnapshotTaskId = iom->schedule(task);
 
     // Whilst we do schedule a compaction here and it can run before we call

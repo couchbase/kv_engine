@@ -102,12 +102,11 @@ private:
  */
 class StatSnap : public GlobalTask {
 public:
-    explicit StatSnap(EventuallyPersistentEngine* e,
-                      bool runOneTimeOnly = false,
-                      bool sleeptime = false,
-                      bool completeBeforeShutdown = false)
-        : GlobalTask(e, TaskId::StatSnap, sleeptime, completeBeforeShutdown),
-          runOnce(runOneTimeOnly) {
+    explicit StatSnap(EventuallyPersistentEngine* e)
+        : GlobalTask(e,
+                     TaskId::StatSnap,
+                     /*sleeptime*/ 0,
+                     /*completeBeforeShutdown*/ false) {
     }
 
     bool run() override;
@@ -124,9 +123,6 @@ public:
         // TODO: Consider moving this to AuxIO?
         return std::chrono::milliseconds(250);
     }
-
-private:
-    bool runOnce;
 };
 
 /**
