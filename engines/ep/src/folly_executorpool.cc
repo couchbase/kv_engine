@@ -325,8 +325,22 @@ using TaskLocator =
         std::unordered_map<size_t,
                            std::unique_ptr<FollyExecutorPool::TaskProxy>>;
 
+struct TaskOwner {
+    /**
+     * True if this task owner is currently registered and can have new
+     * tasks scheduled against it.
+     * Set to false during unregisterTaskable, to prevent new tasks
+     * being added once unregister has begun (which is a multi-stage
+     * process).
+     */
+    bool registered{true};
+
+    /// Map of taskID to TaskProxy.
+    TaskLocator locator;
+};
+
 /// Map of task owners (buckets) to the tasks they own.
-using TaskOwnerMap = std::unordered_map<const Taskable*, TaskLocator>;
+using TaskOwnerMap = std::unordered_map<const Taskable*, TaskOwner>;
 
 /**
  * Internal state of the FollyExecutorPool.
@@ -361,8 +375,19 @@ struct FollyExecutorPool::State {
     bool scheduleTask(FollyExecutorPool& executor,
                       folly::CPUThreadPoolExecutor& pool,
                       ExTask task) {
-        auto& tasksForOwner = taskOwners.at(&task->getTaskable());
-        auto [it, inserted] = tasksForOwner.try_emplace(
+        auto& owner = taskOwners.at(&task->getTaskable());
+        if (!owner.registered) {
+            EP_LOG_WARN(
+                    "FollyExecutorPool::scheduleTask(): Attempting to schedule "
+                    "task id:{} name:'{}' when Taskable '{}' is not "
+                    "registered.",
+                    task->getId(),
+                    GlobalTask::getTaskName(task->getTaskId()),
+                    task->getTaskable().getName());
+            return false;
+        }
+
+        auto [it, inserted] = owner.locator.try_emplace(
                 task->getId(), std::unique_ptr<TaskProxy>{});
         if (!inserted) {
             // taskId already present - i.e. this taskId has already been
@@ -410,8 +435,8 @@ struct FollyExecutorPool::State {
         TaskLocator::iterator it;
         for (auto& owner : taskOwners) {
             auto& tasks = owner.second;
-            it = tasks.find(taskId);
-            if (it != tasks.end()) {
+            it = tasks.locator.find(taskId);
+            if (it != tasks.locator.end()) {
                 it->second->wake();
                 return true;
                 break;
@@ -432,8 +457,8 @@ struct FollyExecutorPool::State {
         TaskLocator::iterator it;
         for (auto& owner : taskOwners) {
             auto& tasks = owner.second;
-            it = tasks.find(taskId);
-            if (it != tasks.end()) {
+            it = tasks.locator.find(taskId);
+            if (it != tasks.locator.end()) {
                 it->second->task->snooze(toSleep);
                 it->second->updateTimeoutFromWakeTime();
                 return true;
@@ -452,7 +477,10 @@ struct FollyExecutorPool::State {
     std::vector<ExTask> cancelTasksOwnedBy(const Taskable& taskable,
                                            bool force) {
         std::vector<ExTask> removedTasks;
-        for (auto& it : taskOwners.at(&taskable)) {
+        auto& taskOwner = taskOwners.at(&taskable);
+        taskOwner.registered = false;
+
+        for (auto& it : taskOwner.locator) {
             auto& tProxy = it.second;
             if (!tProxy->task) {
                 // Task already cancelled (shared pointer reset to null) by
@@ -497,8 +525,8 @@ struct FollyExecutorPool::State {
         // consider adding a similar structure to FollyExecutorPool.
         TaskLocator::iterator it;
         for (auto& [owner, tasks] : taskOwners) {
-            it = tasks.find(taskId);
-            if (it != tasks.end()) {
+            it = tasks.locator.find(taskId);
+            if (it != tasks.locator.end()) {
                 EP_LOG_TRACE(
                         "FollyExecutorPool::cancelTask() id:{} found for "
                         "owner:'{}'",
@@ -557,8 +585,8 @@ struct FollyExecutorPool::State {
      */
     bool removeTask(size_t taskId) {
         for (auto& [owner, tasks] : taskOwners) {
-            auto it = tasks.find(taskId);
-            if (it != tasks.end()) {
+            auto it = tasks.locator.find(taskId);
+            if (it != tasks.locator.end()) {
                 EP_LOG_TRACE(
                         "FollyExecutorPool::State::removeTask() erasing task "
                         "id:{} for "
@@ -568,7 +596,7 @@ struct FollyExecutorPool::State {
                 Expects(!it->second->task &&
                         "removeTask: 'proxy->task' should be null before "
                         "removing element from taskOwners");
-                tasks.erase(it);
+                tasks.locator.erase(it);
                 return true;
             }
         }
@@ -584,7 +612,7 @@ struct FollyExecutorPool::State {
      * Returns the number of tasks owned by the specified taskable.
      */
     int numTasksForOwner(Taskable& taskable) {
-        return taskOwners.at(&taskable).size();
+        return taskOwners.at(&taskable).locator.size();
     };
 
     /**
@@ -592,7 +620,7 @@ struct FollyExecutorPool::State {
      */
     std::vector<ExTask> copyTasksForOwner(Taskable& taskable) const {
         std::vector<ExTask> tasks;
-        for (auto& it : taskOwners.at(&taskable)) {
+        for (auto& it : taskOwners.at(&taskable).locator) {
             if (it.second->task) {
                 tasks.push_back(it.second->task);
             }
@@ -607,7 +635,7 @@ struct FollyExecutorPool::State {
     std::array<int, NUM_TASK_GROUPS> getWaitingTasksPerGroup() {
         std::array<int, NUM_TASK_GROUPS> waitingTasksPerGroup;
         for (const auto& owner : taskOwners) {
-            for (const auto& task : owner.second) {
+            for (const auto& task : owner.second.locator) {
                 if (task.second->isScheduled()) {
                     const auto type = GlobalTask::getTaskType(
                             task.second->task->getTaskId());

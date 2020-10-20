@@ -216,6 +216,47 @@ TYPED_TEST(ExecutorPoolTest, UnregisterTaskablesDeletesTask) {
             << "Task should be deleted when unregisterTaskable returns";
 }
 
+/**
+ * Test that attempting to schedule a new task during unregisterTaskable
+ * doesn't result in unregisterTaskable hanging.
+ * For FollyExecutorPool, unregisterTaskable is a multi-stage process. If
+ * a new Task is schedule in the middle of it, unregisterTaskable can hang
+ * forever, as the newly-scheduled task missed being cancelled.
+ *
+ * Regression test for MB-42204
+ */
+TYPED_TEST(ExecutorPoolTest, UnregisterTaskableConcurrentSchedule) {
+    this->makePool(1);
+
+    // Setup Taskable. Not interested in any calls to logQTime when task runs
+    // - just ignore them using NiceMock.
+    NiceMock<MockTaskable> taskable;
+    this->pool->registerTaskable(taskable);
+
+    // Setup a test task which initially sleeps, with
+    // completeBeforeShutdown=true so will be woken during unregisterTaskable,
+    // at which point it attempts to schedule a second Task.
+    this->pool->schedule(ExTask(
+            new LambdaTask(taskable,
+                           TaskId::ItemPager,
+                           INT_MAX,
+                           /*completeBeforeShutdown*/ true,
+                           [this, &taskable](LambdaTask&) {
+                               // Schedule a second task which just sits around
+                               // forever.
+                               this->pool->schedule(ExTask(new LambdaTask(
+                                       taskable,
+                                       TaskId::ItemPager,
+                                       INT_MAX,
+                                       /*completeBeforeShutdown*/ false,
+                                       [](LambdaTask&) { return false; })));
+                               return false;
+                           })));
+
+    // Test: Call unregisterTaskable. This should return and not hang.
+    this->pool->unregisterTaskable(taskable, false);
+}
+
 /// Test that tasks are run immediately when they are woken.
 TYPED_TEST(ExecutorPoolTest, Wake) {
     this->makePool(1);
