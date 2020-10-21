@@ -2965,20 +2965,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(
     collector.addStat(Key::ep_cursors_dropped, epstats.cursorsDropped);
     collector.addStat(Key::ep_cursor_memory_freed, epstats.cursorMemoryFreed);
 
+    doDiskFailureStats(collector);
+
     // Note: These are also reported per-shard in 'kvstore' stats, however
     // we want to be able to graph these over time, and hence need to expose
     // to ns_sever at the top-level.
     size_t value = 0;
-    if (kvBucket->getKVStoreStat("failure_compaction", value,
-                                 KVBucketIface::KVSOption::BOTH)) {
-        // Total data write failures is compaction failures plus commit failures
-        auto writeFailure = value + epstats.commitFailed;
-        collector.addStat(Key::ep_data_write_failed, writeFailure);
-    }
-    if (kvBucket->getKVStoreStat("failure_get", value,
-                                 KVBucketIface::KVSOption::BOTH)) {
-        collector.addStat(Key::ep_data_read_failed, value);
-    }
     if (kvBucket->getKVStoreStat("io_document_write_bytes",
                                  value,
                                  KVBucketIface::KVSOption::RW)) {
@@ -4513,6 +4505,22 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDiskinfoStats(
     return ENGINE_EINVAL;
 }
 
+void EventuallyPersistentEngine::doDiskFailureStats(
+        BucketStatCollector& collector) {
+    using namespace cb::stats;
+    size_t value = 0;
+    if (kvBucket->getKVStoreStat(
+                "failure_compaction", value, KVBucketIface::KVSOption::BOTH)) {
+        // Total data write failures is compaction failures plus commit failures
+        auto writeFailure = value + stats.commitFailed;
+        collector.addStat(Key::ep_data_write_failed, writeFailure);
+    }
+    if (kvBucket->getKVStoreStat(
+                "failure_get", value, KVBucketIface::KVSOption::BOTH)) {
+        collector.addStat(Key::ep_data_read_failed, value);
+    }
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doPrivilegedStats(
         const void* cookie, const AddStatFn& add_stat, std::string_view key) {
     // Privileged stats - need Stats priv (and not just SimpleStats).
@@ -4691,6 +4699,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
     if (cb_isPrefix(key, "scopes")) {
         return doScopeStats(
                 cookie, add_stat, std::string(key.data(), key.size()));
+    }
+    if (cb_isPrefix(key, "disk-failures")) {
+        doDiskFailureStats(bucketCollector);
+        return ENGINE_SUCCESS;
     }
     if (key[0] == '_') {
         return doPrivilegedStats(cookie, add_stat, key);

@@ -1010,6 +1010,8 @@ protected:
                                       const AddStatFn& add_stat,
                                       std::string_view statKey);
 
+    void doDiskFailureStats(BucketStatCollector& collector);
+
     ENGINE_ERROR_CODE doPrivilegedStats(const void* cookie,
                                         const AddStatFn& add_stat,
                                         std::string_view statKey);

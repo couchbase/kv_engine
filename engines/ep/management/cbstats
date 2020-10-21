@@ -795,6 +795,10 @@ def stats_diskinfo(mc, with_detail=None):
     stats_formatter(stats_perform(mc, cmd_str))
 
 @cmd
+def stats_diskfailures(mc):
+    stats_formatter(stats_perform(mc, "disk-failures"))
+
+@cmd
 def stats_eviction(mc):
     if output_json:
         print('Json output not supported for eviction stats')
@@ -949,6 +953,7 @@ def main():
     c.addCommand('checkpoint', stats_checkpoint, 'checkpoint [vbid]')
     c.addCommand('config', stats_config, 'config')
     c.addCommand('diskinfo', stats_diskinfo, 'diskinfo [detail]')
+    c.addCommand('disk-failures', stats_diskfailures, 'disk-failures')
     c.addCommand('durability-monitor', stats_durability_monitor, 'durability-monitor [vbid]')
     c.addCommand('eviction', stats_eviction, 'eviction')
     c.addCommand('scheduler', stats_scheduler, 'scheduler')
