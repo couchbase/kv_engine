@@ -2125,6 +2125,16 @@ CouchKVStore::OpenForWriteResult CouchKVStore::openDbForWrite(Vbid vbucketId) {
                 closeOnUnlock};
     }
 
+    // MB-41747: couchstore_commit (and maybe other commands) may have returned
+    // an error and we don't really know the internal state. (in the case
+    // of a failing couchstore_commit the documents has been written to the
+    // database file and is linked from the internal data structures in the
+    // database handle and will be present in the _NEXT_ call to
+    // couchstore_commit. On the other hand our "flusher" tries to "roll back"
+    // these changes. This used to work before we added the cache, as each
+    // call would open the database file again. Until we've identified all
+    // cases lets reset the handle before returning the instance.
+    cb::couchstore::seek(*dbHolder->getDb(), cb::couchstore::Direction::End);
     return {COUCHSTORE_SUCCESS, std::move(dbHolder), closeOnUnlock};
 }
 

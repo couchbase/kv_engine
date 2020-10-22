@@ -3838,6 +3838,19 @@ TEST_P(STPassiveStreamCouchstoreTest, VBStateNotLostAfterFlushFailure) {
     // engine
     replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig),
                         *couchstore_get_default_file_ops());
+
+    // MB-41747: Make sure that we don't have a an on-disk-prepare as
+    // part of the internal database handle used by the underlying storage
+    // which will be written to disk (and purged as part of commit)
+    auto res = store->getLockedVBucket(vbid);
+    ASSERT_TRUE(res.owns_lock());
+    auto& underlying = *store->getRWUnderlying(vbid);
+
+    CompactionConfig cc;
+    cc.vbid = vbid;
+    auto context = std::make_shared<CompactionContext>(cc, 1);
+    underlying.compactDB(res.getLock(), context);
+    EXPECT_EQ(0, underlying.getVBucketState(vbid)->onDiskPrepares);
 }
 
 /**
