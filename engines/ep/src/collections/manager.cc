@@ -714,6 +714,11 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doOneScopeStats(
     return res;
 }
 
+cb::engine_errc Collections::Manager::doPrometheusCollectionStats(
+        KVBucket& bucket, const BucketStatCollector& collector) {
+    return doAllCollectionsStats(bucket, collector).result;
+}
+
 void Collections::Manager::dump() const {
     std::cerr << *this;
 }

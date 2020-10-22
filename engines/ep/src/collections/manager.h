@@ -225,6 +225,9 @@ public:
             const BucketStatCollector& collector,
             const std::string& statKey);
 
+    static cb::engine_errc doPrometheusCollectionStats(
+            KVBucket& bucket, const BucketStatCollector& collector);
+
     /**
      * Test only hook
      */

@@ -377,8 +377,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get_prometheus_stats(
     try {
         if (cardinality == cb::prometheus::Cardinality::High) {
             doTimingStats(collector);
-            // TODO: collection stats
-            // TODO: scope stats
+            if (cb::engine_errc status =
+                        Collections::Manager::doPrometheusCollectionStats(
+                                *getKVBucket(), collector);
+                status != cb::engine_errc::success) {
+                return ENGINE_ERROR_CODE(status);
+            }
+
         } else {
             ENGINE_ERROR_CODE status;
             if (status = doEngineStats(collector); status != ENGINE_SUCCESS) {
