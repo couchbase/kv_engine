@@ -118,28 +118,3 @@ TEST_F(FileCacheTest, shrink) {
     auto itr2 = CouchKVStoreFileCache::get().getHandle()->find("k2");
     EXPECT_NE(itr2, CouchKVStoreFileCache::get().getHandle()->end());
 }
-
-// Test that when we destroy a KVStore we close the files that "belong" to it
-// and that the files "belonging" to other KVStores remain in the cache
-TEST_F(FileCacheTest, KVStoreDestruction) {
-    CouchKVStoreFileCache::get().getHandle()->resize(2);
-
-    auto file1 = DbHolder(*store);
-    CouchKVStoreFileCache::get().getHandle()->set("k1", std::move(file1));
-    EXPECT_NO_THROW(CouchKVStoreFileCache::get().getHandle()->get("k1"));
-
-    CouchKVStoreConfig config{
-            4 /*vBuckets*/, 4 /*shards*/, "name", "couchstore", 0};
-    auto newStore = CouchKVStore(config);
-
-    auto file2 = DbHolder(newStore);
-    CouchKVStoreFileCache::get().getHandle()->set("k2", std::move(file2));
-    EXPECT_NO_THROW(CouchKVStoreFileCache::get().getHandle()->get("k2"));
-
-    store.reset(nullptr);
-
-    EXPECT_EQ(1, CouchKVStoreFileCache::get().getHandle()->numFiles());
-    EXPECT_THROW(CouchKVStoreFileCache::get().getHandle()->get("k1"),
-                 std::logic_error);
-    EXPECT_NO_THROW(CouchKVStoreFileCache::get().getHandle()->get("k2"));
-}

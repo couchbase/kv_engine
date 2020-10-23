@@ -66,13 +66,6 @@ CouchKVStoreFileCache::CacheMap::iterator CouchKVStoreFileCache::Handle::find(
 }
 
 void CouchKVStoreFileCache::Handle::resize(size_t value) {
-    auto newLimit = resizeInternal(value);
-    EP_LOG_INFO("CouchKVStoreFileCache::resize: oldSize:{}, newSize:{}",
-                cache.getMaxSize(),
-                newLimit);
-}
-
-size_t CouchKVStoreFileCache::Handle::resizeInternal(size_t value) {
     // Size should be at least 0 as this is a special case in folly that removes
     // the size limit and stops the cache from evicting things
     Expects(value > 0);
@@ -80,28 +73,11 @@ size_t CouchKVStoreFileCache::Handle::resizeInternal(size_t value) {
     auto envLimit = Environment::get().getMaxBackendFileDescriptors();
     auto newLimit = std::min(value, envLimit);
     if (newLimit != cache.getMaxSize()) {
+        EP_LOG_INFO("CouchKVStoreFileCache::resize: oldSize:{}, newSize:{}",
+                    cache.getMaxSize(),
+                    newLimit);
         cache.setMaxSize(newLimit);
     }
-
-    return newLimit;
-}
-
-void CouchKVStoreFileCache::Handle::decrementCacheSize() {
-    auto currentLimit = cache.getMaxSize();
-
-    // Don't allow us to set the cache size to 0 as that's a special case for
-    // an unlimited size
-    Expects(currentLimit > 1);
-
-    auto newLimit = currentLimit - 1;
-    cache.setMaxSize(newLimit);
-}
-
-void CouchKVStoreFileCache::Handle::incrementCacheSize() {
-    auto currentLimit = cache.getMaxSize();
-    auto newLimit = currentLimit + 1;
-
-    resizeInternal(newLimit);
 }
 
 void CouchKVStoreFileCache::Handle::clear() {
@@ -144,8 +120,4 @@ void CouchKVStoreFileCache::Handle::erase(const std::string& key) {
 
 size_t CouchKVStoreFileCache::Handle::numFiles() const {
     return cache.size();
-}
-
-size_t CouchKVStoreFileCache::Handle::capacity() const {
-    return cache.getMaxSize();
 }

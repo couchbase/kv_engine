@@ -193,6 +193,25 @@ struct AllKeysCtx {
     uint32_t count;
 };
 
+class CouchKVFileHandle : public ::KVFileHandle {
+public:
+    explicit CouchKVFileHandle(CouchKVStore& kvstore) : db(kvstore) {
+    }
+
+    ~CouchKVFileHandle() override = default;
+
+    DbHolder& getDbHolder() {
+        return db;
+    }
+
+    Db* getDb() const {
+        return db.getDb();
+    }
+
+private:
+    DbHolder db;
+};
+
 couchstore_content_meta_flags CouchRequest::getContentMeta(const Item& it) {
     couchstore_content_meta_flags rval;
 
@@ -370,32 +389,28 @@ std::unique_ptr<CouchKVStore> CouchKVStore::makeReadOnlyStore() const {
 
 void CouchKVStore::initialize(
         const std::unordered_map<Vbid, std::unordered_set<uint64_t>>& map) {
+    couchstore_error_t errorCode;
+
     for (const auto& [vbid, revisions] : map) {
         (void)revisions;
-        auto openResult = openDbForRead(vbid);
+        DbHolder db(*this);
+        errorCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
         bool abort = false;
-        if (openResult.status == COUCHSTORE_SUCCESS) {
-            auto readStatus = readVBStateAndUpdateCache(
-                                      openResult.fileHandle->getDb(), vbid)
-                                      .status;
+        if (errorCode == COUCHSTORE_SUCCESS) {
+            auto readStatus = readVBStateAndUpdateCache(db, vbid).status;
             if (readStatus == ReadVBStateStatus::Success) {
                 /* update stat */
                 ++st.numLoadedVb;
 
                 // Populate cache delete count
                 cachedDeleteCount[vbid.get()] =
-                        cb::couchstore::getHeader(
-                                *openResult.fileHandle->getDb())
-                                .deletedCount;
+                        cb::couchstore::getHeader(*db.getDb()).deletedCount;
             } else if (readStatus != ReadVBStateStatus::CorruptSnapshot) {
                 logger.warn(
                         "CouchKVStore::initialize: readVBState"
                         " readVBState:{}, name:{}",
                         int(readStatus),
-                        getDBFileName(dbname,
-                                      vbid,
-                                      openResult.fileHandle->getDbHolder()
-                                              .getFileRev()));
+                        getDBFileName(dbname, vbid, db.getFileRev()));
 
                 abort = true;
             }
@@ -403,11 +418,8 @@ void CouchKVStore::initialize(
             logger.warn(
                     "CouchKVStore::initialize: openDB"
                     " error:{}, name:{}",
-                    couchstore_strerror(openResult.status),
-                    getDBFileName(
-                            dbname,
-                            vbid,
-                            openResult.fileHandle->getDbHolder().getFileRev()));
+                    couchstore_strerror(errorCode),
+                    getDBFileName(dbname, vbid, db.getFileRev()));
             abort = true;
         }
 
@@ -420,44 +432,17 @@ void CouchKVStore::initialize(
         if (abort) {
             throw std::runtime_error(
                     "CouchKVStore::initialize: no vbstate for " +
-                    getDBFileName(
-                            dbname,
-                            vbid,
-                            openResult.fileHandle->getDbHolder().getFileRev()));
+                    getDBFileName(dbname, vbid, db.getFileRev()));
         }
 
         // Setup cachedDocCount
         cachedDocCount[vbid.get()] =
-                cb::couchstore::getHeader(*openResult.fileHandle->getDb())
-                        .docCount;
+                cb::couchstore::getHeader(*db.getDb()).docCount;
     }
 }
 
 CouchKVStore::~CouchKVStore() {
     close();
-
-    // ReadOnly KVStore won't cache files so don't bother iterating the file
-    // cache to erase them
-    if (isReadOnly()) {
-        return;
-    }
-
-    // Iterate the CouchKVStoreFileCache and pull out a list of files that
-    // "belong" to this KVStore as we need to close them all now to reclaim our
-    // memory and file descriptors.
-    auto& fc = CouchKVStoreFileCache::get();
-    const auto& fcHandle = fc.getHandle();
-    std::list<std::string> filesToClose;
-    for (const auto& itr : *fcHandle) {
-        auto lh = itr.second.lock();
-        if (&lh->getKVStore() == this) {
-            filesToClose.push_back(itr.first);
-        }
-    }
-
-    for (const auto& file : filesToClose) {
-        fcHandle->erase(file);
-    }
 }
 
 void CouchKVStore::reset(Vbid vbucketId) {
@@ -507,17 +492,17 @@ void CouchKVStore::set(queued_item item) {
 }
 
 GetValue CouchKVStore::get(const DiskDocKey& key, Vbid vb) {
-    auto openResult = openDbForRead(vb);
-    if (openResult.status != COUCHSTORE_SUCCESS) {
+    DbHolder db(*this);
+    couchstore_error_t errCode = openDB(vb, db, COUCHSTORE_OPEN_FLAG_RDONLY);
+    if (errCode != COUCHSTORE_SUCCESS) {
         ++st.numGetFailure;
         logger.warn("CouchKVStore::get: openDB error:{}, {}",
-                    couchstore_strerror(openResult.status),
+                    couchstore_strerror(errCode),
                     vb);
-        return GetValue(nullptr, couchErr2EngineErr(openResult.status));
+        return GetValue(nullptr, couchErr2EngineErr(errCode));
     }
 
-    GetValue gv = getWithHeader(
-            openResult.fileHandle->getDbHolder(), key, vb, GetMetaOnly::No);
+    GetValue gv = getWithHeader(db, key, vb, GetMetaOnly::No);
     return gv;
 }
 
@@ -594,12 +579,13 @@ void CouchKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) {
     }
     int numItems = itms.size();
 
-    auto openResult = openDbForRead(vb);
-    if (openResult.status != COUCHSTORE_SUCCESS) {
+    DbHolder db(*this);
+    couchstore_error_t errCode = openDB(vb, db, COUCHSTORE_OPEN_FLAG_RDONLY);
+    if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn(
                 "CouchKVStore::getMulti: openDB error:{}, "
                 "{}, numDocs:{}",
-                couchstore_strerror(openResult.status),
+                couchstore_strerror(errCode),
                 vb,
                 numItems);
         st.numGetFailure += numItems;
@@ -618,21 +604,15 @@ void CouchKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) {
 
     GetMultiCbCtx ctx(*this, vb, itms);
 
-    couchstore_error_t errCode =
-            couchstore_docinfos_by_id(openResult.fileHandle->getDbHolder(),
-                                      ids.data(),
-                                      itms.size(),
-                                      0,
-                                      getMultiCallback,
-                                      &ctx);
+    errCode = couchstore_docinfos_by_id(
+            db, ids.data(), itms.size(), 0, getMultiCallback, &ctx);
     if (errCode != COUCHSTORE_SUCCESS) {
         st.numGetFailure += numItems;
         logger.warn(
                 "CouchKVStore::getMulti: "
                 "couchstore_docinfos_by_id error {} [{}], {}",
                 couchstore_strerror(errCode),
-                couchkvstore_strerrno(openResult.fileHandle->getDbHolder(),
-                                      errCode),
+                couchkvstore_strerrno(db, errCode),
                 vb);
         for (auto& item : itms) {
             item.second.value.setStatus(couchErr2EngineErr(errCode));
@@ -641,8 +621,7 @@ void CouchKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) {
 
     // If available, record how many reads() we did for this getMulti;
     // and the average reads per document.
-    auto* stats =
-            couchstore_get_db_filestats(openResult.fileHandle->getDbHolder());
+    auto* stats = couchstore_get_db_filestats(db);
     if (stats != nullptr) {
         const auto readCount = stats->getReadCount();
         st.getMultiFsReadCount += readCount;
@@ -655,12 +634,13 @@ void CouchKVStore::getRange(Vbid vb,
                             const DiskDocKey& startKey,
                             const DiskDocKey& endKey,
                             const KVStore::GetRangeCb& cb) {
-    auto openResult = openDbForRead(vb);
-    if (openResult.status != COUCHSTORE_SUCCESS) {
+    DbHolder db(*this);
+    auto errCode = openDB(vb, db, COUCHSTORE_OPEN_FLAG_RDONLY);
+    if (errCode != COUCHSTORE_SUCCESS) {
         throw std::runtime_error("CouchKVStore::getRange: openDB error for " +
                                  vb.to_string() +
                                  " - couchstore returned error: " +
-                                 couchstore_strerror(openResult.status));
+                                 couchstore_strerror(errCode));
     }
 
     // Trampoine's state. Cannot use lambda capture as couchstore expects a
@@ -718,13 +698,12 @@ void CouchKVStore::getRange(Vbid vb,
 
     const std::array<sized_buf, 2> range = {
             {to_sized_buf(startKey), to_sized_buf(endKey)}};
-    couchstore_error_t errCode = couchstore_docinfos_by_id(
-            openResult.fileHandle->getDbHolder().getDb(),
-            range.data(),
-            range.size(),
-            RANGES,
-            callback_trampoline,
-            &trampoline_state);
+    errCode = couchstore_docinfos_by_id(db.getDb(),
+                                        range.data(),
+                                        range.size(),
+                                        RANGES,
+                                        callback_trampoline,
+                                        &trampoline_state);
     if (errCode != COUCHSTORE_SUCCESS) {
         throw std::runtime_error(
                 "CouchKVStore::getRange: docinfos_by_id failed for " +
@@ -754,11 +733,6 @@ void CouchKVStore::delVBucket(Vbid vbucket, uint64_t fileRev) {
     }
 
     unlinkCouchFile(vbucket, fileRev);
-
-    auto& fc = CouchKVStoreFileCache::get();
-    const auto& fcHandle = fc.getHandle();
-    auto name = dbname + std::to_string(vbucket.get());
-    fcHandle->erase(name);
 }
 
 std::vector<vbucket_state *> CouchKVStore::listPersistedVbuckets() {
@@ -1070,26 +1044,27 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
     TRACE_EVENT1("CouchKVStore", "compactDB", "vbid", vbid.get());
 
     // Open the source VBucket database file ...
-    auto openResult = openDbForRead(vbid, def_iops);
-    if (openResult.status != COUCHSTORE_SUCCESS) {
+    DbHolder compactdb(*this);
+    auto errCode = openDB(
+            vbid, compactdb, (uint64_t)COUCHSTORE_OPEN_FLAG_RDONLY, def_iops);
+    if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn("CouchKVStore::compactDB openDB error:{}, {}, fileRev:{}",
-                    couchstore_strerror(openResult.status),
+                    couchstore_strerror(errCode),
                     vbid,
-                    openResult.fileHandle->getDbHolder().getFileRev());
+                    compactdb.getFileRev());
         return false;
     }
 
-    uint64_t new_rev = openResult.fileHandle->getDbHolder().getFileRev() + 1;
+    uint64_t new_rev = compactdb.getFileRev() + 1;
 
     // Build the temporary vbucket.compact file name
-    const auto dbfile = getDBFileName(
-            dbname, vbid, openResult.fileHandle->getDbHolder().getFileRev());
+    const auto dbfile = getDBFileName(dbname, vbid, compactdb.getFileRev());
     const auto compact_file = dbfile + ".compact";
 
     couchstore_open_flags flags(COUCHSTORE_COMPACT_FLAG_UPGRADE_DB);
 
-    hook_ctx->stats.pre = toFileInfo(cb::couchstore::getHeader(
-            *openResult.fileHandle->getDbHolder().getDb()));
+    hook_ctx->stats.pre =
+            toFileInfo(cb::couchstore::getHeader(*compactdb.getDb()));
 
     /**
      * This flag disables IO buffering in couchstore which means
@@ -1117,7 +1092,6 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
 
     // Perform COMPACTION of vbucket.couch.rev into
     // vbucket.couch.rev.compact
-    couchstore_error_t errCode;
     if (configuration.isPitrEnabled()) {
         std::chrono::nanoseconds timestamp =
                 std::chrono::system_clock::now().time_since_epoch() -
@@ -1142,7 +1116,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
         hook_ctx->bloomFilterCallback = {};
 
         errCode = cb::couchstore::compact(
-                *openResult.fileHandle->getDbHolder(),
+                *compactdb,
                 compact_file.c_str(),
                 flags,
                 [hook_ctx](Db& db, DocInfo* docInfo, sized_buf value) -> int {
@@ -1178,8 +1152,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                     return COUCHSTORE_SUCCESS;
                 });
     } else {
-        auto [status, state] =
-                readVBState(openResult.fileHandle->getDb(), vbid);
+        auto [status, state] = readVBState(compactdb.getDb(), vbid);
         if (status == ReadVBStateStatus::Success) {
             hook_ctx->highCompletedSeqno = state.persistedCompletedSeqno;
         } else {
@@ -1191,10 +1164,9 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
         }
         hook_ctx->eraserContext =
                 std::make_unique<Collections::VB::EraserContext>(
-                        getDroppedCollections(
-                                *openResult.fileHandle->getDbHolder()));
+                        getDroppedCollections(*compactdb));
         errCode = cb::couchstore::compact(
-                *openResult.fileHandle->getDbHolder(),
+                *compactdb,
                 compact_file.c_str(),
                 flags,
                 [hook_ctx](Db& db, DocInfo* docInfo, sized_buf value) -> int {
@@ -1239,8 +1211,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                 "CouchKVStore::compactDB: cb::couchstore::compact() "
                 "error:{} [{}], name:{}",
                 couchstore_strerror(errCode),
-                couchkvstore_strerrno(openResult.fileHandle->getDbHolder(),
-                                      errCode),
+                couchkvstore_strerrno(compactdb, errCode),
                 dbfile);
         // Remove the compacted file (in the case it was created and
         // partly written)
@@ -1283,7 +1254,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
     vbLock.lock();
     for (int ii = 0; ii < 10; ++ii) {
         concurrentCompactionUnitTestHook();
-        if (tryToCatchUpDbFile(*openResult.fileHandle->getDb(),
+        if (tryToCatchUpDbFile(*compactdb,
                                *targetDb,
                                vbLock,
                                true, // copy without lock
@@ -1297,18 +1268,14 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
     concurrentCompactionUnitTestHook();
 
     // Block any writers, do the final catch up and swap the file
-    tryToCatchUpDbFile(*openResult.fileHandle->getDb(),
+    tryToCatchUpDbFile(*compactdb,
                        *targetDb,
                        vbLock,
                        false, // copy with lock
                        hook_ctx->stats.preparesPurged,
                        vbid);
-
-    auto oldRev = openResult.fileHandle->getDbHolder().getFileRev();
-
-    // Close the source database file
-    openResult.fileHandle.reset();
-
+    // Close the source Database File once compaction is done
+    compactdb.close();
     // Close the destination file so we may rename it
     targetDb.close();
 
@@ -1374,7 +1341,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
     updateDbFileMap(vbid, new_rev);
 
     // Removing the stale couch file
-    unlinkCouchFile(vbid, oldRev);
+    unlinkCouchFile(vbid, compactdb.getFileRev());
 
     st.compactHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - start));
@@ -1516,9 +1483,11 @@ vbucket_state* CouchKVStore::getVBucketState(Vbid vbucketId) {
 
 bool CouchKVStore::writeVBucketState(Vbid vbucketId,
                                      const vbucket_state& vbstate) {
-    auto openResult = openDbForWrite(vbucketId);
-    auto errorCode = openResult.status;
+    std::map<Vbid, uint64_t>::iterator mapItr;
+    couchstore_error_t errorCode;
 
+    DbHolder db(*this);
+    errorCode = openDB(vbucketId, db, (uint64_t)COUCHSTORE_OPEN_FLAG_CREATE);
     if (errorCode != COUCHSTORE_SUCCESS) {
         ++st.numVbSetFailure;
         logger.warn(
@@ -1526,11 +1495,10 @@ bool CouchKVStore::writeVBucketState(Vbid vbucketId,
                 "{}, fileRev:{}",
                 couchstore_strerror(errorCode),
                 vbucketId,
-                openResult.fileRev);
+                db.getFileRev());
         return false;
     }
 
-    auto& db = *openResult.db;
     errorCode = updateLocalDocument(
             *db, "_local/vbstate", makeJsonVBState(vbstate));
     if (errorCode != COUCHSTORE_SUCCESS) {
@@ -1932,29 +1900,25 @@ scan_error_t CouchKVStore::scan(ByIdScanContext& ctx) {
 }
 
 cb::couchstore::Header CouchKVStore::getDbInfo(Vbid vbid) {
-    auto openResult = openDbForRead(vbid);
-    if (openResult.status == COUCHSTORE_SUCCESS) {
-        return cb::couchstore::getHeader(
-                *openResult.fileHandle->getDbHolder().getDb());
+    DbHolder db(*this);
+    couchstore_error_t errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
+    if (errCode == COUCHSTORE_SUCCESS) {
+        return cb::couchstore::getHeader(*db.getDb());
     } else {
         // open failed - map couchstore error code to exception.
         std::errc ec;
-        switch (openResult.status) {
-        case COUCHSTORE_ERROR_NO_SUCH_FILE:
-            ec = std::errc::no_such_file_or_directory;
-            break;
-        default:
-            ec = std::errc::io_error;
-            break;
+        switch (errCode) {
+            case COUCHSTORE_ERROR_OPEN_FILE:
+                ec = std::errc::no_such_file_or_directory; break;
+            default:
+                ec = std::errc::io_error; break;
         }
         throw std::system_error(
                 std::make_error_code(ec),
                 "CouchKVStore::getDbInfo: failed to open database file for " +
-                        vbid.to_string() + " rev = " +
-                        std::to_string(openResult.fileHandle->getDbHolder()
-                                               .getFileRev()) +
-                        " with error:" +
-                        couchstore_strerror(openResult.status));
+                        vbid.to_string() +
+                        " rev = " + std::to_string(db.getFileRev()) +
+                        " with error:" + couchstore_strerror(errCode));
     }
 }
 
@@ -1978,154 +1942,16 @@ uint64_t CouchKVStore::getDbRevision(Vbid vbucketId) const {
     return (*dbFileRevMap->rlock())[vbucketId.get()];
 }
 
-CouchKVStore::OpenResult CouchKVStore::openDb(Vbid vbucketId,
-                                              couchstore_open_flags options,
-                                              FileOpsInterface* ops) {
+couchstore_error_t CouchKVStore::openDB(Vbid vbucketId,
+                                        DbHolder& db,
+                                        couchstore_open_flags options,
+                                        FileOpsInterface* ops) {
     // MB-27963: obtain read access whilst we open the file, updateDbFileMap
     // serialises on this mutex so we can be sure the fileRev we read should
     // still be a valid file once we hit sys_open
     auto lockedRevMap = dbFileRevMap->rlock();
     uint64_t fileRev = (*lockedRevMap)[vbucketId.get()];
-
-    auto handle = std::make_unique<CouchKVFileHandle>(*this);
-    handle->getDbHolder().setFileRev(fileRev);
-
-    // Most read usages of the db don't care about storing the file handle for
-    // use later so there's not much point caching them and it's more work to do
-    // so as we'd need a unique name. Instead, just resize the cache. This
-    // effectively counts the file (whilst open) towards the file descriptor
-    // limits by reducing the limit for writes. Resize will free a cached file
-    // for a write (provided it can acquire the lock - i.e. the file is not
-    // currently in use).
-    auto fc = CouchKVStoreFileCache::get().getHandle();
-    if (fc->capacity() <= 1) {
-        logger.debug(
-                "CouchKVStore::openDbForRead: {}  rev:{} - cache capacity "
-                "< 1 so not allowing file open",
-                vbucketId,
-                fileRev);
-        return {COUCHSTORE_ERROR_OPEN_FILE, std::move(handle)};
-    }
-
-    auto result = openSpecificDB(
-            vbucketId, fileRev, handle->getDbHolder(), options, ops);
-
-    if (result != COUCHSTORE_SUCCESS) {
-        logger.debug(
-                "CouchKVStore::openDbForRead: {}  rev:{} - openSpecificDb "
-                "returned non-success error code :{}",
-                vbucketId,
-                fileRev,
-                couchstore_strerror(result));
-        return {result, std::move(handle)};
-    }
-
-    fc->decrementCacheSize();
-
-    return {COUCHSTORE_SUCCESS, std::move(handle)};
-}
-
-CouchKVStore::OpenResult CouchKVStore::openDbForRead(Vbid vbucketId,
-                                                     FileOpsInterface* ops) {
-    return openDb(vbucketId, COUCHSTORE_OPEN_FLAG_RDONLY, ops);
-}
-
-CouchKVStore::OpenForWriteResult CouchKVStore::openDbForWrite(Vbid vbucketId) {
-    // MB-27963: obtain read access whilst we open the file, updateDbFileMap
-    // serialises on this mutex so we can be sure the fileRev we read should
-    // still be a valid file once we hit sys_open
-    std::shared_lock<folly::SharedMutex> lg(openDbMutex);
-    uint64_t fileRev = (*(*dbFileRevMap).rlock())[vbucketId.get()];
-
-    // Check our file cache first for a DB
-    auto fc = CouchKVStoreFileCache::get().getHandle();
-
-    auto name = dbname + std::to_string(vbucketId.get());
-    const auto& itr = fc->find(name);
-
-    // If buffering is disabled also disable keeping Db open across calls.
-    const bool closeOnUnlock = !configuration.getBuffered();
-
-    if (itr == fc->end()) {
-        // No Db in the cache, need to open a new one and add it
-        logger.debug(
-                "CouchKVStore::openDbForWrite: {} rev:{} - cache miss, not in "
-                "cache, opening",
-                vbucketId,
-                fileRev);
-
-        // Put the DbHolder in the cache
-        DbHolder holder(*this);
-        auto res = fc->insert(name, std::move(holder));
-        Expects(res.second);
-        auto locked = res.first->second.lock();
-
-        // Then open the Db
-        auto result = openSpecificDB(
-                vbucketId, fileRev, *locked, COUCHSTORE_OPEN_FLAG_CREATE);
-        if (result != COUCHSTORE_SUCCESS) {
-            return {result, {}, fileRev, false};
-        }
-
-        return {COUCHSTORE_SUCCESS, std::move(locked), fileRev, closeOnUnlock};
-    }
-
-    auto dbHolder = itr->second.lock();
-
-    if (dbHolder->getFileRev() != fileRev) {
-        // Mismatch in revision - close and re-open, adding to cache
-        logger.debug(
-                "CouchKVStore::openDbForWrite: {} rev given:{} rev found:{} - "
-                "cache miss, different revision, opening",
-                vbucketId,
-                fileRev,
-                dbHolder->getFileRev());
-
-        dbHolder->close();
-        auto result = openSpecificDB(
-                vbucketId, fileRev, *dbHolder, COUCHSTORE_OPEN_FLAG_CREATE);
-        if (result != COUCHSTORE_SUCCESS) {
-            return {result, {}, fileRev, false};
-        }
-
-        return {COUCHSTORE_SUCCESS,
-                std::move(dbHolder),
-                fileRev,
-                closeOnUnlock};
-    }
-
-    if (!dbHolder->getDb()) {
-        // DbHolder is in the cache but db is closed
-        // (configuration.buffered == false) so just re-open
-        logger.debug(
-                "CouchKVStore::openDbForWrite: {} rev:{} - cache hit but db is "
-                "closed, opening",
-                vbucketId,
-                fileRev);
-
-        auto result = openSpecificDB(
-                vbucketId, fileRev, *dbHolder, COUCHSTORE_OPEN_FLAG_CREATE);
-        if (result != COUCHSTORE_SUCCESS) {
-            return {result, {}, fileRev, false};
-        }
-
-        return {COUCHSTORE_SUCCESS,
-                std::move(dbHolder),
-                fileRev,
-                closeOnUnlock};
-    }
-
-    // MB-41747: couchstore_commit (and maybe other commands) may have returned
-    // an error and we don't really know the internal state. (in the case
-    // of a failing couchstore_commit the documents has been written to the
-    // database file and is linked from the internal data structures in the
-    // database handle and will be present in the _NEXT_ call to
-    // couchstore_commit. On the other hand our "flusher" tries to "roll back"
-    // these changes. This used to work before we added the cache, as each
-    // call would open the database file again. Until we've identified all
-    // cases lets reset the handle before returning the instance.
-    cb::couchstore::seek(*dbHolder->getDb(), cb::couchstore::Direction::End);
-    return {COUCHSTORE_SUCCESS, std::move(dbHolder), closeOnUnlock};
+    return openSpecificDB(vbucketId, fileRev, db, options, ops);
 }
 
 couchstore_error_t CouchKVStore::openSpecificDB(Vbid vbucketId,
@@ -2195,7 +2021,7 @@ couchstore_error_t CouchKVStore::openSpecificDBFile(
     if (errorCode) {
         st.numOpenFailure++;
         logger.warn(
-                "CouchKVStore::openSpecificDB: error:{} [{}],"
+                "CouchKVStore::openDB: error:{} [{}],"
                 " name:{}, option:{}, fileRev:{}",
                 couchstore_strerror(errorCode),
                 cb_strerror(),
@@ -2211,8 +2037,7 @@ couchstore_error_t CouchKVStore::openSpecificDBFile(
             }
             auto files = cb::io::findFilesWithPrefix(filename);
             logger.warn(
-                    "CouchKVStore::openSpecificDB: No such file, found:{} "
-                    "alternative "
+                    "CouchKVStore::openDB: No such file, found:{} alternative "
                     "files for {}",
                     files.size(),
                     dbFileName);
@@ -2679,19 +2504,20 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
                                           const std::vector<Doc*>& docs,
                                           std::vector<DocInfo*>& docinfos,
                                           kvstats_ctx& kvctx) {
-    auto openResult = openDbForWrite(vbid);
-    auto errCode = openResult.status;
+    couchstore_error_t errCode;
+    DbHolder db(*this);
+    errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_CREATE);
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn(
-                "CouchKVStore::saveDocs: openDB error:{}, {}, "
+                "CouchKVStore::saveDocs: openDB error:{}, {}, rev:{}, "
                 "numdocs:{}",
                 couchstore_strerror(errCode),
                 vbid,
+                db.getFileRev(),
                 uint64_t(docs.size()));
         return errCode;
     }
 
-    auto& db = *openResult.db;
     uint64_t maxDBSeqno = 0;
 
     // Count of logical bytes written (key + ep-engine meta + value),
@@ -3227,27 +3053,27 @@ size_t CouchKVStore::getItemCount(Vbid vbid) {
 RollbackResult CouchKVStore::rollback(Vbid vbid,
                                       uint64_t rollbackSeqno,
                                       std::unique_ptr<RollbackCB> cb) {
-    // Open the vbucket's file and determine the latestSeqno persisted.
-    auto openResult = openDbForRead(vbid);
-    const auto dbFileName = getDBFileName(
-            dbname, vbid, openResult.fileHandle->getDbHolder().getFileRev());
+    DbHolder db(*this);
 
-    if (openResult.status != COUCHSTORE_SUCCESS) {
+    // Open the vbucket's file and determine the latestSeqno persisted.
+    auto errCode = openDB(vbid, db, (uint64_t)COUCHSTORE_OPEN_FLAG_RDONLY);
+    const auto dbFileName = getDBFileName(dbname, vbid, db.getFileRev());
+
+    if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn("CouchKVStore::rollback: openDB error:{}, name:{}",
-                    couchstore_strerror(openResult.status),
+                    couchstore_strerror(errCode),
                     dbFileName);
         return RollbackResult(false);
     }
 
-    auto info = cb::couchstore::getHeader(*openResult.fileHandle->getDb());
+    auto info = cb::couchstore::getHeader(*db.getDb());
     uint64_t latestSeqno = info.updateSeqNum;
 
     // Count how many updates are in the vbucket's file. We'll later compare
     // this with how many items must be discarded and hence decide if it is
     // better to discard everything and start from an empty vBucket.
     uint64_t totSeqCount = 0;
-    couchstore_error_t errCode = couchstore_changes_count(
-            openResult.fileHandle->getDb(), 0, latestSeqno, &totSeqCount);
+    errCode = couchstore_changes_count(db, 0, latestSeqno, &totSeqCount);
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn(
                 "CouchKVStore::rollback: "
@@ -3257,14 +3083,15 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
                 couchstore_strerror(errCode),
                 cb_strerror(),
                 vbid,
-                openResult.fileHandle->getDbHolder().getFileRev());
+                db.getFileRev());
         return RollbackResult(false);
     }
 
     // Open the vBucket file again; and search for a header which is
     // before the requested rollback point - the Rollback Header.
-    auto result = openDb(vbid, 0);
-    if (result.status != COUCHSTORE_SUCCESS) {
+    auto newdb = std::make_unique<CouchKVFileHandle>(*this);
+    errCode = openDB(vbid, newdb->getDbHolder(), 0);
+    if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn("CouchKVStore::rollback: openDB#2 error:{}, name:{}",
                     couchstore_strerror(errCode),
                     dbFileName);
@@ -3272,11 +3099,11 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
     }
 
     while (info.updateSeqNum > rollbackSeqno) {
-        errCode = couchstore_rewind_db_header(result.fileHandle->getDbHolder());
+        errCode = couchstore_rewind_db_header(newdb->getDbHolder());
         if (errCode != COUCHSTORE_SUCCESS) {
             // rewind_db_header cleans up (frees DB) on error; so
             // release db in DbHolder to prevent a double-free.
-            result.fileHandle->getDbHolder().releaseDb();
+            newdb->getDbHolder().releaseDb();
             logger.warn(
                     "CouchKVStore::rollback: couchstore_rewind_db_header "
                     "error:{} [{}], {}, latestSeqno:{}, rollbackSeqno:{}",
@@ -3289,17 +3116,15 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
             //as a previous header wasn't found.
             return RollbackResult(false);
         }
-        info = cb::couchstore::getHeader(*result.fileHandle->getDb());
+        info = cb::couchstore::getHeader(*newdb->getDbHolder().getDb());
     }
 
     // Count how many updates we need to discard to rollback to the Rollback
     // Header. If this is too many; then prefer to discard everything (than
     // have to patch up a large amount of in-memory data).
     uint64_t rollbackSeqCount = 0;
-    errCode = couchstore_changes_count(openResult.fileHandle->getDb(),
-                                       info.updateSeqNum,
-                                       latestSeqno,
-                                       &rollbackSeqCount);
+    errCode = couchstore_changes_count(
+            db, info.updateSeqNum, latestSeqno, &rollbackSeqCount);
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn(
                 "CouchKVStore::rollback: "
@@ -3310,7 +3135,7 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
                 couchstore_strerror(errCode),
                 cb_strerror(),
                 vbid,
-                openResult.fileHandle->getDbHolder().getFileRev());
+                db.getFileRev());
         return RollbackResult(false);
     }
 
@@ -3334,7 +3159,7 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
     //   deleted in the Rollback header).
     // * If the key is present in the Rollback header then replace the in-memory
     // value with the value from the Rollback header.
-    cb->setKVFileHandle(std::move(result.fileHandle));
+    cb->setKVFileHandle(std::move(newdb));
     auto cl = std::make_unique<NoLookupCallback>();
 
     auto ctx = initBySeqnoScanContext(std::move(cb),
@@ -3395,17 +3220,17 @@ CouchKVStore::getAllKeys(
         const DiskDocKey& start_key,
         uint32_t count,
         std::shared_ptr<StatusCallback<const DiskDocKey&>> cb) {
-    auto openResult = openDbForRead(vbid);
-    if (openResult.status == COUCHSTORE_SUCCESS) {
+    DbHolder db(*this);
+    couchstore_error_t errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
+    if(errCode == COUCHSTORE_SUCCESS) {
         sized_buf ref = to_sized_buf(start_key);
 
         AllKeysCtx ctx(cb, count);
-        couchstore_error_t errCode =
-                couchstore_all_docs(openResult.fileHandle->getDbHolder(),
-                                    &ref,
-                                    COUCHSTORE_NO_DELETES,
-                                    populateAllKeys,
-                                    static_cast<void*>(&ctx));
+        errCode = couchstore_all_docs(db,
+                                      &ref,
+                                      COUCHSTORE_NO_DELETES,
+                                      populateAllKeys,
+                                      static_cast<void*>(&ctx));
         if (errCode == COUCHSTORE_SUCCESS ||
             errCode == COUCHSTORE_ERROR_CANCEL) {
             return ENGINE_SUCCESS;
@@ -3416,13 +3241,13 @@ CouchKVStore::getAllKeys(
                     couchstore_strerror(errCode),
                     cb_strerror(),
                     vbid,
-                    openResult.fileHandle->getDbHolder().getFileRev());
+                    db.getFileRev());
         }
     } else {
         logger.warn("CouchKVStore::getAllKeys: openDB error:{}, {}, rev:{}",
-                    couchstore_strerror(openResult.status),
+                    couchstore_strerror(errCode),
                     vbid,
-                    openResult.fileHandle->getDbHolder().getFileRev());
+                    db.getFileRev());
     }
     return ENGINE_FAILED;
 }
@@ -3501,12 +3326,14 @@ void CouchKVStore::removeCompactFile(const std::string &filename) {
 }
 
 std::unique_ptr<KVFileHandle> CouchKVStore::makeFileHandle(Vbid vbid) {
-    auto openResult = openDbForRead(vbid);
-    if (openResult.status != COUCHSTORE_SUCCESS) {
+    auto db = std::make_unique<CouchKVFileHandle>(*this);
+    // openDB logs errors
+    if (openDB(vbid, db->getDbHolder(), COUCHSTORE_OPEN_FLAG_RDONLY) !=
+        COUCHSTORE_SUCCESS) {
         return {};
     }
 
-    return std::move(openResult.fileHandle);
+    return std::move(db);
 }
 
 void CouchKVStore::prepareToCreateImpl(Vbid vbid) {
@@ -3552,21 +3379,21 @@ CouchKVStore::LocalDocHolder CouchKVStore::readLocalDoc(Db& db,
 }
 
 Collections::KVStore::Manifest CouchKVStore::getCollectionsManifest(Vbid vbid) {
-    auto openResult = openDbForRead(vbid);
-    if (openResult.status != COUCHSTORE_SUCCESS) {
+    DbHolder db(*this);
+
+    couchstore_error_t errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
+    if (errCode != COUCHSTORE_SUCCESS) {
         // openDB would of logged any critical error
         return Collections::KVStore::Manifest{
                 Collections::KVStore::Manifest::Default{}};
     }
 
-    auto manifest = readLocalDoc(*openResult.fileHandle->getDb(),
-                                 Collections::manifestName);
-    auto collections = readLocalDoc(*openResult.fileHandle->getDb(),
-                                    Collections::openCollectionsName);
-    auto scopes = readLocalDoc(*openResult.fileHandle->getDb(),
-                               Collections::scopesName);
-    auto dropped = readLocalDoc(*openResult.fileHandle->getDb(),
-                                Collections::droppedCollectionsName);
+    auto manifest = readLocalDoc(*db.getDb(), Collections::manifestName);
+    auto collections =
+            readLocalDoc(*db.getDb(), Collections::openCollectionsName);
+    auto scopes = readLocalDoc(*db.getDb(), Collections::scopesName);
+    auto dropped =
+            readLocalDoc(*db.getDb(), Collections::droppedCollectionsName);
 
     cb::const_byte_buffer empty;
     return Collections::KVStore::decodeManifest(
@@ -3578,12 +3405,14 @@ Collections::KVStore::Manifest CouchKVStore::getCollectionsManifest(Vbid vbid) {
 
 std::vector<Collections::KVStore::DroppedCollection>
 CouchKVStore::getDroppedCollections(Vbid vbid) {
-    auto openResult = openDbForRead(vbid);
-    if (openResult.status != COUCHSTORE_SUCCESS) {
+    DbHolder db(*this);
+
+    couchstore_error_t errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
+    if (errCode != COUCHSTORE_SUCCESS) {
         return {};
     }
 
-    return getDroppedCollections(*openResult.fileHandle->getDb());
+    return getDroppedCollections(*db.getDb());
 }
 
 std::vector<Collections::KVStore::DroppedCollection>
@@ -3661,15 +3490,15 @@ const KVStoreConfig& CouchKVStore::getConfig() const {
 }
 
 vbucket_state CouchKVStore::readVBState(Vbid vbid) {
-    auto openResult = openDbForRead(vbid);
-    if (openResult.status != COUCHSTORE_SUCCESS) {
-        throw std::logic_error(
-                "CouchKVStore::readVBState: openDB for vbid:" +
-                to_string(vbid) + " failed with error " +
-                std::to_string(static_cast<int8_t>(openResult.status)));
+    DbHolder db(*this);
+    const auto errorCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
+    if (errorCode != COUCHSTORE_SUCCESS) {
+        throw std::logic_error("CouchKVStore::readVBState: openDB for vbid:" +
+                               to_string(vbid) + " failed with error " +
+                               std::to_string(static_cast<int8_t>(errorCode)));
     }
 
-    const auto res = readVBState(openResult.fileHandle->getDb(), vbid);
+    const auto res = readVBState(db, vbid);
     if (res.status != ReadVBStateStatus::Success) {
         throw std::logic_error(
                 "CouchKVStore::readVBState: readVBState for vbid:" +

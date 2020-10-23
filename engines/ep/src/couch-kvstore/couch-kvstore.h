@@ -19,7 +19,6 @@
 #include "atomicqueue.h"
 #include "configuration.h"
 #include "couch-kvstore/couch-fs-stats.h"
-#include "couch-kvstore/couch-kvstore-file-cache.h"
 #include "couch-kvstore/couch-kvstore-metadata.h"
 #include "kvstore.h"
 #include "kvstore_priv.h"
@@ -42,8 +41,6 @@
 class CouchKVStoreConfig;
 class DbHolder;
 class EventuallyPersistentEngine;
-
-class CouchKVFileHandle;
 
 /**
  * Class representing a document to be persisted in couchstore.
@@ -120,30 +117,6 @@ protected:
 };
 
 struct kvstats_ctx;
-
-class CouchKVFileHandle : public ::KVFileHandle {
-public:
-    explicit CouchKVFileHandle(CouchKVStore& kvstore) : db(kvstore) {
-    }
-
-    ~CouchKVFileHandle() override {
-        if (getDb()) {
-            auto fc = CouchKVStoreFileCache::get().getHandle();
-            fc->incrementCacheSize();
-        }
-    };
-
-    DbHolder& getDbHolder() {
-        return db;
-    }
-
-    Db* getDb() const {
-        return db.getDb();
-    }
-
-private:
-    DbHolder db;
-};
 
 /**
  * KVStore with couchstore as the underlying storage system
@@ -535,62 +508,10 @@ protected:
     /// @return the current file revision for the vbucket
     uint64_t getDbRevision(Vbid vbucketId) const;
 
-    /**
-     * The result of calling openDbForRead.
-     * If the open was successful then status is COUCHSTORE_SUCCSS and the
-     * fileHandle should be valid. If the open failed then status contains the
-     * reason and fileHandle should have a valid revision value but the
-     * underlying Db shouldn't be used.
-     */
-    struct OpenResult {
-        couchstore_error_t status;
-        std::unique_ptr<CouchKVFileHandle> fileHandle;
-
-        ~OpenResult() = default;
-
-        // Declaring the dtor disables auto-generation of the various ctors,
-        // so need to explicitly re-enable move.
-        OpenResult(OpenResult&&) = default;
-    };
-
-    OpenResult openDb(Vbid vbucketId,
-                      couchstore_open_flags options,
-                      FileOpsInterface* ops = nullptr);
-
-    OpenResult openDbForRead(Vbid vbucketId, FileOpsInterface* ops = nullptr);
-
-    /**
-     * The result of calling openDbForWrite.
-     * If the open was successful then status is COUCHSTORE_SUCCESS, and `db`
-     * is a locked instance of the DbHolder (for exclusive use by the caller).
-     * If the open failed then status contains the reason, and `db` is empty.
-     */
-    struct OpenForWriteResult {
-        couchstore_error_t status;
-        CouchKVStoreFileCache::CacheMap::mapped_type::LockedPtr db;
-
-        // fileRev will be duplicated in db but we may want to print out the
-        // revision that we wanted in error cases for which db will not be
-        // valid
-        uint64_t fileRev;
-
-        // Should the Db be closed when OpenForWriteResult is destroyed
-        // (i.e DbHolder unlocked)?
-        // Typically used for testing so every call to openDbForWrite() results
-        // in an explicit couchstore_open / close pair.
-        bool closeOnUnlock = false;
-
-        ~OpenForWriteResult() {
-            if (closeOnUnlock) {
-                db->close();
-            }
-        }
-        // Declaring the dtor disables auto-generation of the various ctors,
-        // so need to explicitly re-enable move.
-        OpenForWriteResult(OpenForWriteResult&&) = default;
-    };
-
-    OpenForWriteResult openDbForWrite(Vbid vbucketId);
+    couchstore_error_t openDB(Vbid vbucketId,
+                              DbHolder& db,
+                              couchstore_open_flags options,
+                              FileOpsInterface* ops = nullptr);
 
     couchstore_error_t openSpecificDB(Vbid vbucketId,
                                       uint64_t rev,
@@ -872,15 +793,6 @@ protected:
      * RW/RO pair.
      */
     std::shared_ptr<RevisionMap> dbFileRevMap;
-
-    /**
-     * An internal rwlock used to keep openDB and compaction in sync
-     * Primarily that compaction and scans can be ran concurrently, we must
-     * ensure that a scan doesn't read the fileRev then compaction moves the
-     * fileRev (and the real file) before the scan performs an open.
-     * Many opens are allowed in parallel, just compact must block.
-     */
-    folly::SharedMutex openDbMutex;
 
     PendingRequestQueue pendingReqsQ;
 

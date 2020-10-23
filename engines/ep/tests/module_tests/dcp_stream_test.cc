@@ -3834,11 +3834,6 @@ TEST_P(STPassiveStreamCouchstoreTest, VBStateNotLostAfterFlushFailure) {
                      2 /*maxDelRevSeqno*/);
     }
 
-    // Replace the CouchKVStore as we need a valid FileOps to tear down the
-    // engine
-    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig),
-                        *couchstore_get_default_file_ops());
-
     // MB-41747: Make sure that we don't have a an on-disk-prepare as
     // part of the internal database handle used by the underlying storage
     // which will be written to disk (and purged as part of commit)

@@ -68,7 +68,7 @@ protected:
         // magma to flush with every batch. This will release memory
         // being held by streaming sstables (~600KB). Otherwise, we would
         // have to bump up the quota for magma.
-        increaseQuota(800 * 1024);
+        increaseQuota(700 * 1024);
 
         // How many nonIO tasks we expect initially
         // - 0 for persistent.
