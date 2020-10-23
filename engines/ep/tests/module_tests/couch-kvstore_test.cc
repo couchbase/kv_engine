@@ -1542,17 +1542,17 @@ TEST_F(CouchKVStoreMetaData, basic) {
 }
 
 TEST_F(CouchKVStoreMetaData, overlay) {
+    // V0 (16 bytes) is no longer supported.
     std::vector<char> data(16);
     sized_buf meta;
     meta.buf = data.data();
     meta.size = data.size();
-    auto metadata = MetaDataFactory::createMetaData(meta);
-    EXPECT_EQ(MetaData::Version::V0, metadata->getVersionInitialisedFrom());
+    EXPECT_THROW(MetaDataFactory::createMetaData(meta), std::invalid_argument);
 
     data.resize(16 + 2);
     meta.buf = data.data();
     meta.size = data.size();
-    metadata = MetaDataFactory::createMetaData(meta);
+    auto metadata = MetaDataFactory::createMetaData(meta);
     EXPECT_EQ(MetaData::Version::V1, metadata->getVersionInitialisedFrom());
 
     // Even with a 19 byte (v2) meta, the expectation is we become V1
@@ -1579,25 +1579,6 @@ TEST_F(CouchKVStoreMetaData, overlay) {
     meta.buf = data.data();
     meta.size = data.size();
     EXPECT_THROW(MetaDataFactory::createMetaData(meta), std::logic_error);
-}
-
-TEST_F(CouchKVStoreMetaData, overlayExpands1) {
-    std::vector<char> data(16);
-    sized_buf meta;
-    sized_buf out;
-    meta.buf = data.data();
-    meta.size = data.size();
-
-    // V0 in yet V1 "moved out"
-    auto metadata = MetaDataFactory::createMetaData(meta);
-    EXPECT_EQ(MetaData::Version::V0, metadata->getVersionInitialisedFrom());
-    out.size = MetaData::getMetaDataSize(MetaData::Version::V1);
-    out.buf = new char[out.size];
-    metadata->copyToBuf(out);
-    EXPECT_EQ(out.size, MetaData::getMetaDataSize(MetaData::Version::V1));
-
-    // We created a copy of the metadata so we must cleanup
-    delete[] out.buf;
 }
 
 TEST_F(CouchKVStoreMetaData, overlayExpands2) {
@@ -1639,16 +1620,16 @@ TEST_F(CouchKVStoreMetaData, overlayExpands3) {
 }
 
 TEST_F(CouchKVStoreMetaData, writeToOverlay) {
-    std::vector<char> data(16);
+    std::vector<char> data(16 + 2);
     sized_buf meta;
     sized_buf out;
     meta.buf = data.data();
     meta.size = data.size();
 
-    // Test that we can initialise from V0 but still set
+    // Test that we can initialise from V1 but still set
     // all fields of all versions
     auto metadata = MetaDataFactory::createMetaData(meta);
-    EXPECT_EQ(MetaData::Version::V0, metadata->getVersionInitialisedFrom());
+    EXPECT_EQ(MetaData::Version::V1, metadata->getVersionInitialisedFrom());
 
     uint64_t cas = 0xf00f00ull;
     uint32_t exp = 0xcafe1234;
@@ -1714,11 +1695,12 @@ TEST_F(CouchKVStoreMetaData, writeToOverlay) {
 // Test that assignment operates as expected (we use this in edit_docinfo_hook)
 //
 TEST_F(CouchKVStoreMetaData, assignment) {
-    std::vector<char> data(16);
+    std::vector<char> data(16 + 2);
     sized_buf meta;
     meta.buf = data.data();
     meta.size = data.size();
     auto metadata = MetaDataFactory::createMetaData(meta);
+    ASSERT_EQ(MetaData::Version::V1, metadata->getVersionInitialisedFrom());
     uint64_t cas = 0xf00f00ull;
     uint32_t exp = 0xcafe1234;
     uint32_t flags = 0xc0115511;

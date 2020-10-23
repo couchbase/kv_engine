@@ -838,116 +838,112 @@ static int time_purge_hook(Db* d,
         return couchstore_set_purge_seq(d, ctx->max_purged_seq);
     }
 
-    if (info->rev_meta.size >= MetaData::getMetaDataSize(MetaData::Version::V0)) {
-        auto metadata = MetaDataFactory::createMetaData(info->rev_meta);
-        uint32_t exptime = metadata->getExptime();
+    auto metadata = MetaDataFactory::createMetaData(info->rev_meta);
+    uint32_t exptime = metadata->getExptime();
 
-        // We need to check both committed and prepared documents - if the
-        // collection has been logically deleted then we need to discard
-        // both types of keys.
-        // As such use the docKey (i.e. without any DurabilityPrepare
-        // namespace) when checking if logically deleted;
-        auto diskKey = makeDiskDocKey(info->id);
-        const auto& docKey = diskKey.getDocKey();
-        if (ctx->eraserContext->isLogicallyDeleted(docKey,
-                                                   int64_t(info->db_seq))) {
-            // Inform vb that the key@seqno is dropped
-            try {
-                ctx->droppedKeyCb(diskKey,
-                                  int64_t(info->db_seq),
-                                  metadata->isAbort(),
-                                  ctx->highCompletedSeqno);
-            } catch (const std::exception& e) {
-                EP_LOG_WARN("time_purge_hook: droppedKeyCb exception: {}",
-                            e.what());
-                return COUCHSTORE_ERROR_INVALID_ARGUMENTS;
-            }
-            if (metadata->isPrepare()) {
-                ctx->stats.preparesPurged++;
+    // We need to check both committed and prepared documents - if the
+    // collection has been logically deleted then we need to discard
+    // both types of keys.
+    // As such use the docKey (i.e. without any DurabilityPrepare
+    // namespace) when checking if logically deleted;
+    auto diskKey = makeDiskDocKey(info->id);
+    const auto& docKey = diskKey.getDocKey();
+    if (ctx->eraserContext->isLogicallyDeleted(docKey, int64_t(info->db_seq))) {
+        // Inform vb that the key@seqno is dropped
+        try {
+            ctx->droppedKeyCb(diskKey,
+                              int64_t(info->db_seq),
+                              metadata->isAbort(),
+                              ctx->highCompletedSeqno);
+        } catch (const std::exception& e) {
+            EP_LOG_WARN("time_purge_hook: droppedKeyCb exception: {}",
+                        e.what());
+            return COUCHSTORE_ERROR_INVALID_ARGUMENTS;
+        }
+        if (metadata->isPrepare()) {
+            ctx->stats.preparesPurged++;
+        } else {
+            if (!info->deleted) {
+                ctx->stats.collectionsItemsPurged++;
             } else {
-                if (!info->deleted) {
-                    ctx->stats.collectionsItemsPurged++;
-                } else {
-                    ctx->stats.collectionsDeletedItemsPurged++;
-                }
+                ctx->stats.collectionsDeletedItemsPurged++;
             }
-            return COUCHSTORE_COMPACT_DROP_ITEM;
-        } else if (docKey.isInSystemCollection()) {
-            ctx->eraserContext->processSystemEvent(
-                    docKey, SystemEvent(metadata->getFlags()));
+        }
+        return COUCHSTORE_COMPACT_DROP_ITEM;
+    } else if (docKey.isInSystemCollection()) {
+        ctx->eraserContext->processSystemEvent(
+                docKey, SystemEvent(metadata->getFlags()));
+    }
+
+    if (info->deleted) {
+        const auto infoDb = cb::couchstore::getHeader(*d);
+        if (info->db_seq != infoDb.updateSeqNum) {
+            if (ctx->compactConfig.drop_deletes) { // all deleted items must
+                                                   // be dropped ...
+                if (ctx->max_purged_seq < info->db_seq) {
+                    ctx->max_purged_seq = info->db_seq; // track max_purged_seq
+                }
+                ctx->stats.tombstonesPurged++;
+                return COUCHSTORE_COMPACT_DROP_ITEM; // ...unconditionally
+            }
+
+            /**
+             * MB-30015: Found a tombstone whose expiry time is 0. Log this
+             * message because tombstones are expected to have a non-zero
+             * expiry time
+             */
+            if (!exptime) {
+                EP_LOG_WARN(
+                        "time_purge_hook: tombstone found with an"
+                        " expiry time of 0");
+            }
+
+            if (exptime < ctx->compactConfig.purge_before_ts &&
+                (exptime || !ctx->compactConfig.retain_erroneous_tombstones) &&
+                (!ctx->compactConfig.purge_before_seq ||
+                 info->db_seq <= ctx->compactConfig.purge_before_seq)) {
+                if (ctx->max_purged_seq < info->db_seq) {
+                    ctx->max_purged_seq = info->db_seq;
+                }
+                ctx->stats.tombstonesPurged++;
+                return COUCHSTORE_COMPACT_DROP_ITEM;
+            }
+        }
+    } else {
+        // We can remove any prepares that have been completed. This works
+        // because we send Mutations instead of Commits when streaming from
+        // Disk so we do not need to send a Prepare message to keep things
+        // consistent on a replica.
+        if (metadata->isPrepare()) {
+            if (info->db_seq <= ctx->highCompletedSeqno) {
+                ctx->stats.preparesPurged++;
+                return COUCHSTORE_COMPACT_DROP_ITEM;
+            }
+
+            // Just keep the item if not complete. We should not attempt to
+            // expire a prepare and we do not want to update the bloom
+            // filter for a prepare either as that could cause us to run
+            // unnecessary BGFetches.
+            return COUCHSTORE_COMPACT_KEEP_ITEM;
         }
 
-        if (info->deleted) {
-            const auto infoDb = cb::couchstore::getHeader(*d);
-            if (info->db_seq != infoDb.updateSeqNum) {
-                if (ctx->compactConfig.drop_deletes) { // all deleted items must
-                                                       // be dropped ...
-                    if (ctx->max_purged_seq < info->db_seq) {
-                        ctx->max_purged_seq =
-                                info->db_seq; // track max_purged_seq
-                    }
-                    ctx->stats.tombstonesPurged++;
-                    return COUCHSTORE_COMPACT_DROP_ITEM;      // ...unconditionally
-                }
-
-                /**
-                 * MB-30015: Found a tombstone whose expiry time is 0. Log this
-                 * message because tombstones are expected to have a non-zero
-                 * expiry time
-                 */
-                if (!exptime) {
-                    EP_LOG_WARN(
-                            "time_purge_hook: tombstone found with an"
-                            " expiry time of 0");
-                }
-
-                if (exptime < ctx->compactConfig.purge_before_ts &&
-                    (exptime || !ctx->compactConfig.retain_erroneous_tombstones) &&
-                     (!ctx->compactConfig.purge_before_seq ||
-                      info->db_seq <= ctx->compactConfig.purge_before_seq)) {
-                    if (ctx->max_purged_seq < info->db_seq) {
-                        ctx->max_purged_seq = info->db_seq;
-                    }
-                    ctx->stats.tombstonesPurged++;
-                    return COUCHSTORE_COMPACT_DROP_ITEM;
-                }
-            }
-        } else {
-            // We can remove any prepares that have been completed. This works
-            // because we send Mutations instead of Commits when streaming from
-            // Disk so we do not need to send a Prepare message to keep things
-            // consistent on a replica.
-            if (metadata->isPrepare()) {
-                if (info->db_seq <= ctx->highCompletedSeqno) {
-                    ctx->stats.preparesPurged++;
-                    return COUCHSTORE_COMPACT_DROP_ITEM;
-                }
-
-                // Just keep the item if not complete. We should not attempt to
-                // expire a prepare and we do not want to update the bloom
-                // filter for a prepare either as that could cause us to run
-                // unnecessary BGFetches.
-                return COUCHSTORE_COMPACT_KEEP_ITEM;
+        time_t currtime = ep_real_time();
+        if (exptime && exptime < currtime && metadata->isCommit()) {
+            int ret;
+            metadata->setDeleteSource(DeleteSource::TTL);
+            try {
+                ret = notify_expired_item(
+                        *info, *metadata, item, *ctx, currtime);
+            } catch (const std::bad_alloc&) {
+                EP_LOG_WARN("time_purge_hook: memory allocation failed");
+                return COUCHSTORE_ERROR_ALLOC_FAIL;
+            } catch (const std::exception& ex) {
+                EP_LOG_WARN("time_purge_hook: exception: {}", ex.what());
+                return COUCHSTORE_ERROR_INVALID_ARGUMENTS;
             }
 
-            time_t currtime = ep_real_time();
-            if (exptime && exptime < currtime && metadata->isCommit()) {
-                int ret;
-                metadata->setDeleteSource(DeleteSource::TTL);
-                try {
-                    ret = notify_expired_item(*info, *metadata, item,
-                                             *ctx, currtime);
-                } catch (const std::bad_alloc&) {
-                    EP_LOG_WARN("time_purge_hook: memory allocation failed");
-                    return COUCHSTORE_ERROR_ALLOC_FAIL;
-                } catch (const std::exception& ex) {
-                    EP_LOG_WARN("time_purge_hook: exception: {}", ex.what());
-                    return COUCHSTORE_ERROR_INVALID_ARGUMENTS;
-                }
-
-                if (ret != COUCHSTORE_SUCCESS) {
-                    return ret;
-                }
+            if (ret != COUCHSTORE_SUCCESS) {
+                return ret;
             }
         }
     }
@@ -2197,14 +2193,6 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
 
             value = doc->data;
 
-            if (metadata->getVersionInitialisedFrom() == MetaData::Version::V0) {
-                throw std::runtime_error(
-                        "CouchKVStore::fetchDoc: Encountered a document "
-                        "with MetaData::Version::V0 generated by a 2.x version "
-                        "Couchbase. " +
-                        vbId.to_string() +
-                        " seqno:" + std::to_string(docinfo->rev_seq));
-            }
         } else if (errCode == COUCHSTORE_ERROR_DOC_NOT_FOUND && docinfo->deleted) {
             // NOT_FOUND is expected for deleted documents, continue.
         } else {
@@ -2289,12 +2277,10 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
         couchstore_open_options openOptions = 0;
 
         /**
-         * If the stored document has V0 metdata (no datatype)
-         * or no special request is made to retrieve compressed documents
+         * If no special request is made to retrieve compressed documents
          * as is, then DECOMPRESS the document and update datatype
          */
-        if (docinfo->rev_meta.size == metadata->getMetaDataSize(MetaData::Version::V0) ||
-            sctx->valFilter == ValueFilter::VALUES_DECOMPRESSED) {
+        if (sctx->valFilter == ValueFilter::VALUES_DECOMPRESSED) {
             openOptions = DECOMPRESS_DOC_BODIES;
         }
 
@@ -2316,13 +2302,6 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
                     // this is currently _ONLY_ happening via DCP
                      auto datatype = metadata->getDataType();
                      metadata->setDataType(datatype | PROTOCOL_BINARY_DATATYPE_SNAPPY);
-                } else if (metadata->getVersionInitialisedFrom() == MetaData::Version::V0) {
-                    throw std::runtime_error(
-                            "bySeqnoScanCallback: Encountered a "
-                            "document with MetaData::Version::V0 generated by "
-                            "a 2.x version Couchbase. " +
-                            vbucketId.to_string() +
-                            " seqno:" + std::to_string(docinfo->rev_seq));
                 }
             } else {
                 // No data, it cannot have a datatype!
