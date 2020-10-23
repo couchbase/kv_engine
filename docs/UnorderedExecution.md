@@ -66,3 +66,4 @@ the command).
 * Incr / decr (including quiet versions)
 * Delete (including quiet version)
 * Add, Set, Replace, append, prepend (including quiet versions)
+* Subdoc operations

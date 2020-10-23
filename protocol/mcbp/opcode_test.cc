@@ -317,7 +317,22 @@ TEST(ClientOpcode, is_reorder_supported) {
                      ClientOpcode::Set,
                      ClientOpcode::Replace,
                      ClientOpcode::Append,
-                     ClientOpcode::Prepend}},
+                     ClientOpcode::Prepend,
+                     ClientOpcode::SubdocGet,
+                     ClientOpcode::SubdocExists,
+                     ClientOpcode::SubdocDictAdd,
+                     ClientOpcode::SubdocDictUpsert,
+                     ClientOpcode::SubdocDelete,
+                     ClientOpcode::SubdocReplace,
+                     ClientOpcode::SubdocArrayPushLast,
+                     ClientOpcode::SubdocArrayPushFirst,
+                     ClientOpcode::SubdocArrayInsert,
+                     ClientOpcode::SubdocArrayAddUnique,
+                     ClientOpcode::SubdocCounter,
+                     ClientOpcode::SubdocMultiLookup,
+                     ClientOpcode::SubdocMultiMutation,
+                     ClientOpcode::SubdocGetCount,
+                     ClientOpcode::SubdocReplaceBodyWithXattr}},
                    "reorder");
 }
 

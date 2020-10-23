@@ -406,6 +406,21 @@ bool is_reorder_supported(ClientOpcode opcode) {
     case ClientOpcode::GetLocked:
     case ClientOpcode::UnlockKey:
     case ClientOpcode::GetReplica:
+    case ClientOpcode::SubdocGet:
+    case ClientOpcode::SubdocExists:
+    case ClientOpcode::SubdocDictAdd:
+    case ClientOpcode::SubdocDictUpsert:
+    case ClientOpcode::SubdocDelete:
+    case ClientOpcode::SubdocReplace:
+    case ClientOpcode::SubdocArrayPushLast:
+    case ClientOpcode::SubdocArrayPushFirst:
+    case ClientOpcode::SubdocArrayInsert:
+    case ClientOpcode::SubdocArrayAddUnique:
+    case ClientOpcode::SubdocCounter:
+    case ClientOpcode::SubdocMultiLookup:
+    case ClientOpcode::SubdocMultiMutation:
+    case ClientOpcode::SubdocGetCount:
+    case ClientOpcode::SubdocReplaceBodyWithXattr:
         return true;
 
     case ClientOpcode::Getq:
@@ -527,21 +542,6 @@ bool is_reorder_supported(ClientOpcode opcode) {
     case ClientOpcode::CollectionsGetScopeID:
     case ClientOpcode::SetDriftCounterState_Unsupported:
     case ClientOpcode::GetAdjustedTime_Unsupported:
-    case ClientOpcode::SubdocGet:
-    case ClientOpcode::SubdocExists:
-    case ClientOpcode::SubdocDictAdd:
-    case ClientOpcode::SubdocDictUpsert:
-    case ClientOpcode::SubdocDelete:
-    case ClientOpcode::SubdocReplace:
-    case ClientOpcode::SubdocArrayPushLast:
-    case ClientOpcode::SubdocArrayPushFirst:
-    case ClientOpcode::SubdocArrayInsert:
-    case ClientOpcode::SubdocArrayAddUnique:
-    case ClientOpcode::SubdocCounter:
-    case ClientOpcode::SubdocMultiLookup:
-    case ClientOpcode::SubdocMultiMutation:
-    case ClientOpcode::SubdocGetCount:
-    case ClientOpcode::SubdocReplaceBodyWithXattr:
     case ClientOpcode::Scrub:
     case ClientOpcode::IsaslRefresh:
     case ClientOpcode::SslCertsRefresh:
