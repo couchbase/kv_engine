@@ -335,16 +335,17 @@ void SingleThreadedKVBucketTest::createDcpStream(MockDcpProducer& producer,
                                      {}));
 }
 
-void SingleThreadedKVBucketTest::runCompaction(uint64_t purgeBeforeSeq,
+void SingleThreadedKVBucketTest::runCompaction(Vbid id,
+                                               uint64_t purgeBeforeSeq,
                                                bool dropDeletes) {
     CompactionConfig compactConfig;
     compactConfig.purge_before_seq = purgeBeforeSeq;
     compactConfig.drop_deletes = dropDeletes;
-    compactConfig.vbid = vbid;
+    compactConfig.vbid = id;
     store->scheduleCompaction(compactConfig, nullptr);
     // run the compaction task
-    runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX],
-                "Compact DB file 0");
+    std::string taskDescription = "Compact DB file " + std::to_string(id.get());
+    runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX], taskDescription);
 }
 
 void SingleThreadedKVBucketTest::runCollectionsEraser() {
@@ -755,7 +756,7 @@ TEST_P(STParameterizedBucketTest, SlowStreamBackfillPurgeSeqnoCheck) {
     if (persistent()) {
         TimeTraveller jordan(
                 engine->getConfiguration().getPersistentMetadataPurgeAge() + 1);
-        runCompaction(3);
+        runCompaction(vbid, 3);
     } else {
         EphemeralVBucket::HTTombstonePurger purger(0);
         auto vbptr = store->getVBucket(vbid);
@@ -3058,7 +3059,7 @@ TEST_P(XattrSystemUserTest, MB_29040) {
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
               getEPBucket().flushVBucket(vbid));
     TimeTraveller ted(64000);
-    runCompaction();
+    runCompaction(vbid);
     // An expired item should of been pushed to the checkpoint
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::Yes),
               getEPBucket().flushVBucket(vbid));
@@ -3526,7 +3527,7 @@ TEST_P(STParamPersistentBucketTest, MB_29480) {
     // as per earlier comment, only seqno 1 will be purged...
     TimeTraveller blair(
             engine->getConfiguration().getPersistentMetadataPurgeAge() + 1);
-    runCompaction(3);
+    runCompaction(vbid, 3);
 
     // 5) Begin cursor dropping
     mock_stream->handleSlowStream();
@@ -3628,7 +3629,7 @@ TEST_P(STParamPersistentBucketTest, MB_29512) {
     //    the purgeSeqno to seq 4 (the last purged seqno)
     TimeTraveller quinn(
             engine->getConfiguration().getPersistentMetadataPurgeAge() + 1);
-    runCompaction(5);
+    runCompaction(vbid, 5);
 
     EXPECT_EQ(vb->getPurgeSeqno(), 4);
 
@@ -4267,7 +4268,7 @@ TEST_P(STParamPersistentBucketTest, testRetainErroneousTombstones) {
     ASSERT_EQ(0, metadata.exptime);
 
     // Run compaction. Ensure that compaction hasn't purged the tombstone
-    runCompaction(3);
+    runCompaction(vbid, 3);
     EXPECT_EQ(0, vb->getPurgeSeqno());
 
     // Now, make sure erroneous tombstones get purged by the compactor
@@ -4275,7 +4276,7 @@ TEST_P(STParamPersistentBucketTest, testRetainErroneousTombstones) {
     ASSERT_FALSE(epstore.isRetainErroneousTombstones());
 
     // Run compaction and verify that the tombstone is purged
-    runCompaction(3);
+    runCompaction(vbid, 3);
 
     size_t expected;
     if (isMagma()) {
@@ -4342,7 +4343,7 @@ TEST_P(STParamPersistentBucketTest,
     // deleted key1 should be purged
     TimeTraveller jamie(
             engine->getConfiguration().getPersistentMetadataPurgeAge() + 1);
-    runCompaction(3);
+    runCompaction(vbid, 3);
 
     EXPECT_EQ(2, store->getVBucket(vbid)->getPurgeSeqno());
 }
@@ -6035,7 +6036,7 @@ void STParamPersistentBucketTest::testCompactionPersistedDeletes(
 
     EXPECT_EQ(2, vb->getNumPersistedDeletes());
 
-    runCompaction(0, dropDeletes);
+    runCompaction(vbid, 0, dropDeletes);
 }
 
 TEST_P(STParamCouchstoreBucketTest, CompactionUpdatesPersistedDeletes) {

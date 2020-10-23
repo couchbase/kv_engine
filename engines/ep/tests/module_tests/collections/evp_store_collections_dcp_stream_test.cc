@@ -113,7 +113,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackSeqnoAdvanced) {
     store_item(vbid, StoredDocKey{"Beef5", CollectionEntry::meat}, "nice");
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    runCompaction(0, true);
+    runCompaction(vbid, 0, true);
 
     EXPECT_EQ(7, streamSeqno);
     EXPECT_EQ(13, vb->getHighSeqno());
@@ -162,7 +162,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackNoSeqnoAdvanced) {
     delete_item(vbid, StoredDocKey{"orange1", CollectionEntry::fruit});
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    runCompaction(0, true);
+    runCompaction(vbid, 0, true);
 
     auto streamSeqno = vb->getHighSeqno();
     EXPECT_EQ(6, vb->getHighSeqno());
@@ -260,7 +260,7 @@ TEST_F(CollectionsDcpStreamsTest,
                                       {{R"({"collections":["9"]})"}}));
     EXPECT_EQ(0, rollbackSeqno);
 
-    runCompaction(0, true);
+    runCompaction(vbid, 0, true);
 
     EXPECT_EQ(13, vb->getHighSeqno());
 
@@ -303,7 +303,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackMultiCollection) {
             vbid, StoredDocKey{"KeyTwo", CollectionEntry::defaultC}, "value");
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    runCompaction(0, true);
+    runCompaction(vbid, 0, true);
 
     EXPECT_EQ(6, streamSeqno);
     EXPECT_EQ(9, vb->getHighSeqno());
@@ -375,7 +375,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestRollbackMultiCollection) {
     store_item(vbid, StoredDocKey{"Lamb", CollectionEntry::meat}, "value");
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    runCompaction(0, true);
+    runCompaction(vbid, 0, true);
 
     EXPECT_EQ(6, streamSeqno);
     EXPECT_EQ(9, vb->getHighSeqno());

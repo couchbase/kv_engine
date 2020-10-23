@@ -55,7 +55,7 @@ public:
 
     void runEraser() {
         if (persistent()) {
-            runCompaction();
+            runCompaction(vbid);
         } else {
             auto* evb = dynamic_cast<EphemeralVBucket*>(vb.get());
 

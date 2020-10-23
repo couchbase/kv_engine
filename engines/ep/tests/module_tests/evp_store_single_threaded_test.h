@@ -108,11 +108,14 @@ public:
     void createDcpStream(MockDcpProducer& producer, Vbid vbid);
 
     /**
-     * Run the compaction task
+     * Schedule and run the compaction task
+     * @param id vbucket to compact
      * @param purgeBeforeSeq purge tombstones with seqnos less than this
      * @param dropDeletes drop all deletes
      */
-    void runCompaction(uint64_t purgeBeforeSeq = 0, bool dropDeletes = false);
+    void runCompaction(Vbid id,
+                       uint64_t purgeBeforeSeq = 0,
+                       bool dropDeletes = false);
 
     /**
      * Run the task responsible for iterating the documents and erasing them

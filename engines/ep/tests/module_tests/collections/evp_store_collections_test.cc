@@ -849,7 +849,7 @@ Collections::KVStore::Manifest CollectionsFlushTest::dropCollectionAndFlush(
     // cannot write to collection
     storeItems(collection, items, cb::engine_errc::unknown_collection);
     flush_vbucket_to_disk(vbid, 1 + items); // 1x del(create event) + items
-    runCompaction();
+    runCompaction(vbid);
 
     // Default is still ok
     storeItems(CollectionID::Default, items);
@@ -1385,7 +1385,7 @@ TEST_F(CollectionsTest, collections_expiry_after_drop_collection_compaction) {
     TimeTraveller docBrown(2000);
 
     // Now compact to force expiry of our little lamb
-    runCompaction();
+    runCompaction(vbid);
 
     std::vector<queued_item> items;
     vb->checkpointManager->getNextItemsForPersistence(items);

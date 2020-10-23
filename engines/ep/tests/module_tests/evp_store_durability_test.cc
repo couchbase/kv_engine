@@ -3870,7 +3870,7 @@ TEST_P(DurabilityCouchstoreBucketTest,
 
     // Run compaction now, don't expect it to purge anything, just want to
     // process the items and swap the BloomFilters
-    runCompaction();
+    runCompaction(vbid);
 
     // Should not have added the prepare to the filter
     EXPECT_EQ(0, vb->getNumOfKeysInFilter());

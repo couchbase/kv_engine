@@ -994,7 +994,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_erase) {
                             {CollectionEntry::dairy},
                             items);
 
-        runCompaction();
+        runCompaction(vbid);
     }
 
     resetEngineAndWarmup();
@@ -1814,7 +1814,7 @@ TEST_F(CollectionsFilteredDcpTest, collection_tombstone_on_scope_filter) {
     // dairy deletion system event it triggers 'completeDelete', this is what
     // removes the dairy collection from KV meta-data and allowed the new DCP
     // stream to fail to replicate the collection-drop(dairy) event
-    runCompaction();
+    runCompaction(vbid);
 
     vb.reset();
 
@@ -2459,9 +2459,9 @@ TEST_P(CollectionsDcpParameterizedTest,
     // 2 deletes
     flushVBucketToDiskIfPersistent(vbid, 3);
 
-    // Purge toumb stones
+    // Purge tombstones
     if (persistent()) {
-        runCompaction(0, true);
+        runCompaction(vbid, 0, true);
     } else {
         auto* evb = dynamic_cast<EphemeralVBucket*>(vb.get());
         EphemeralVBucket::HTTombstonePurger purger(0);
