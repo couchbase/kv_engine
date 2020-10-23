@@ -2715,6 +2715,11 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd) {
     target.name += "b";
     cm.add(target);
     setCollections(cookie, std::string{cm});
+
+    // Store one key in the last generation of the target collection, this
+    // allows stats to be tested at the end.
+    store_item(vbid, makeStoredDocKey("pear", target), "shaped");
+
     if (dropAtEnd) {
         cm.remove(target);
         setCollections(cookie, std::string{cm});
@@ -2748,13 +2753,17 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd) {
     stepDelete();
     stepCreate();
 
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
+                  cb::engine_errc::success);
+
     if (dropAtEnd) {
         stepDelete();
     }
 
-    // Many events but only 1 is counted as flushed (because of flusher de-dup)
-    flushVBucketToDiskIfPersistent(vbid, 1);
-    flushVBucketToDiskIfPersistent(replicaVB, 1);
+    // Many events were generated but only 1 is counted as flushed (because of
+    // flusher de-dup). The second item flushed is the 'pear' key
+    flushVBucketToDiskIfPersistent(vbid, 1 + 1);
+    flushVBucketToDiskIfPersistent(replicaVB, 1 + 1);
 
     // With or without the de-dup bug, we cannot read the key from the dropped
     // collection because currently in-memory VB::Manifest has the correct
@@ -2792,7 +2801,7 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd) {
                 EXPECT_EQ(target.getId(), entry.metaData.cid);
                 EXPECT_EQ(ScopeID::Default, uint32_t(entry.metaData.sid));
                 EXPECT_EQ(target.name, entry.metaData.name);
-                EXPECT_EQ(vb->getHighSeqno(), entry.startSeqno);
+                EXPECT_EQ(vb->getHighSeqno() - 1, entry.startSeqno);
             }
         }
     };
@@ -2815,7 +2824,7 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd) {
                     EXPECT_EQ(vb->getHighSeqno(), entry.endSeqno);
 
                 } else {
-                    EXPECT_EQ(vb->getHighSeqno() - 1, entry.endSeqno);
+                    EXPECT_EQ(vb->getHighSeqno() - 2, entry.endSeqno);
                 }
             };
 
@@ -2826,14 +2835,32 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd) {
 
     runEraser();
 
-    EXPECT_TRUE(vb->getShard()
-                        ->getRWUnderlying()
-                        ->getDroppedCollections(vbid)
-                        .empty());
-    EXPECT_TRUE(rvb->getShard()
-                        ->getRWUnderlying()
-                        ->getDroppedCollections(replicaVB)
-                        .empty());
+    auto checkKVS = [dropAtEnd, &target](KVStore& kvs, Vbid id) {
+        EXPECT_TRUE(kvs.getDroppedCollections(id).empty());
+        auto fileHandle = kvs.makeFileHandle(id);
+        EXPECT_TRUE(fileHandle);
+
+        if (dropAtEnd) {
+            // Note this API isn't here to handle 'unknown collection' so zero
+            // is the expected value for a dropped/non-existent collection
+            auto stats = kvs.getCollectionStats(*fileHandle, target);
+            EXPECT_EQ(0, stats.itemCount);
+            EXPECT_EQ(0, stats.highSeqno);
+            EXPECT_EQ(0, stats.diskSize);
+        } else {
+            auto stats = kvs.getCollectionStats(*fileHandle, target);
+            EXPECT_EQ(1, stats.itemCount);
+            EXPECT_EQ(7, stats.highSeqno);
+        }
+    };
+
+    auto* activeKVS = vb->getShard()->getRWUnderlying();
+    ASSERT_TRUE(activeKVS);
+    checkKVS(*activeKVS, vbid);
+
+    auto* replicaKVS = rvb->getShard()->getRWUnderlying();
+    ASSERT_TRUE(replicaKVS);
+    checkKVS(*replicaKVS, replicaVB);
 }
 
 TEST_P(CollectionsDcpPersistentOnly, create_drop_create_same_id) {

@@ -1984,8 +1984,11 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<CompactionContext> ctx) {
 
             // Drop the collection stats local doc which we kept around until
             // now to maintain the document count when we erase the collections.
-            deleteCollectionStats(localDbReqs, dc.collectionId);
-
+            // But only after checking the ordering (seqno). Stats are only
+            // removed if there is no recreation of the collection.
+            if (dc.endSeqno > stats.highSeqno) {
+                deleteCollectionStats(localDbReqs, dc.collectionId);
+            }
             ctx->eraserContext->processSystemEvent(key.getDocKey(),
                                                    SystemEvent::Collection);
         }

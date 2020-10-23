@@ -117,6 +117,16 @@ public:
     void flushSuccess(Vbid vbid, KVBucket& bucket);
 
     /**
+     * Call the given callback for each collection that is 100% dropped in this
+     * flush batch. Collections which are dropped and never recreated in the
+     * batch will have the callback invoked, collections dropped and then
+     * created again are not included.
+     *
+     * @param a function to call with the ID of each dropped collection
+     */
+    void forEachDroppedCollection(std::function<void(CollectionID)> cb) const;
+
+    /**
      * Trigger a purge of the given vbucket/bucket
      */
     static void triggerPurge(Vbid vbid, KVBucket& bucket);

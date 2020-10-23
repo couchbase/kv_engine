@@ -89,6 +89,15 @@ void Flush::saveCollectionStats(
     // current stats (using the high-seqno so we find the correct generation
     // of stats)
     for (const auto& [cid, flushStats] : stats) {
+        // Don't generate an update of the statistics for a dropped collection.
+        // 1) it's wasted effort
+        // 2) the kvstore may not be able handle an update of a 'local' doc
+        //    and a delete of the same in one flush (couchstore doesn't)
+        auto itr = droppedCollections.find(cid);
+        if (itr != droppedCollections.end() &&
+            flushStats.getPersistedHighSeqno() < itr->second.endSeqno) {
+            continue;
+        }
         // Get the current stats of the collection (for the seqno)
         auto stats = manifest.lock().getStatsForFlush(
                 cid, flushStats.getPersistedHighSeqno());
@@ -99,6 +108,19 @@ void Flush::saveCollectionStats(
                           flushStats.getPersistedHighSeqno(),
                           stats.diskSize + flushStats.getDiskSize());
         cb(cid, ps);
+    }
+}
+
+void Flush::forEachDroppedCollection(
+        std::function<void(CollectionID)> cb) const {
+    // To invoke the callback only for dropped collections iterate the dropped
+    // map and then check in the 'stats' map (and if found do an ordering check)
+    for (const auto& [cid, dropped] : droppedCollections) {
+        auto itr = stats.find(cid);
+        if (itr == stats.end() ||
+            dropped.endSeqno > itr->second.getPersistedHighSeqno()) {
+            cb(cid);
+        }
     }
 }
 

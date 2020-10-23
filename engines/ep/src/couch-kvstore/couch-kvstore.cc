@@ -3635,11 +3635,9 @@ void CouchKVStore::updateOpenCollections(
 
 void CouchKVStore::updateDroppedCollections(
         Db& db, Collections::VB::Flush& collectionsFlush) {
-    for (const auto& [cid, event] : collectionsFlush.getDroppedCollections()) {
-        (void)event;
-        // Delete the 'stats' document for the collection
-        deleteCollectionStats(cid);
-    }
+    // Delete the stats doc for dropped collections
+    collectionsFlush.forEachDroppedCollection(
+            [this](CollectionID id) { this->deleteCollectionStats(id); });
 
     auto dropped = getDroppedCollections(db);
     pendingLocalReqsQ.emplace_back(
