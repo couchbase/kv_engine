@@ -809,7 +809,7 @@ static int notify_expired_item(DocInfo& info,
 
             if (!inflate(Algorithm::Snappy, {item.buf, item.size}, inflated)) {
                 EP_LOG_WARN(
-                        "time_purge_hook: failed to inflate document with "
+                        "notify_expired_item: failed to inflate document with "
                         "seqno {} revno: {}",
                         info.db_seq,
                         info.rev_seq);
