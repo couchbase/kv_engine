@@ -1906,9 +1906,7 @@ TEST_F(CouchstoreTest, CouchKVStore_construct_and_cleanup) {
     }
 }
 
-// Disabled while we've disabled the functionality in couch-kvstore
-// due to MB-41747
-TEST_F(CouchstoreTest, DISABLED_ConcurrentCompactionAndFlushing) {
+TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushing) {
     int64_t seqno = 1;
     for (int ii = 0; ii < 5; ++ii) {
         StoredDocKey key = makeStoredDocKey("key-" + std::to_string(ii));

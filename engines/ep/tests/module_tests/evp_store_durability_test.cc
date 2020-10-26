@@ -2798,6 +2798,8 @@ TEST_P(DurabilityCouchstoreBucketTest, MB_36739) {
             .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
 
     setVBucketToActiveWithValidTopology();
+    dynamic_cast<CouchKVStore*>(store->getRWUnderlying(vbid))
+            ->setValidateOnDiskPreparesBehavior(false);
     vbucket_state vbs = *store->getRWUnderlying(vbid)->getVBucketState(vbid);
     using namespace cb::durability;
 
