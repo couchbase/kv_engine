@@ -1044,29 +1044,29 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
     TRACE_EVENT1("CouchKVStore", "compactDBInternal", "vbid", vbid.get());
 
     // Open the source VBucket database file ...
-    DbHolder compactdb(*this);
+    DbHolder sourceDb(*this);
     auto errCode = openDB(
-            vbid, compactdb, (uint64_t)COUCHSTORE_OPEN_FLAG_RDONLY, def_iops);
+            vbid, sourceDb, (uint64_t)COUCHSTORE_OPEN_FLAG_RDONLY, def_iops);
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn(
                 "CouchKVStore::compactDBInternal openDB error:{}, {}, "
                 "fileRev:{}",
                 couchstore_strerror(errCode),
                 vbid,
-                compactdb.getFileRev());
+                sourceDb.getFileRev());
         return false;
     }
 
-    uint64_t new_rev = compactdb.getFileRev() + 1;
+    uint64_t new_rev = sourceDb.getFileRev() + 1;
 
     // Build the temporary vbucket.compact file name
-    const auto dbfile = getDBFileName(dbname, vbid, compactdb.getFileRev());
+    const auto dbfile = getDBFileName(dbname, vbid, sourceDb.getFileRev());
     const auto compact_file = dbfile + ".compact";
 
     couchstore_open_flags flags(COUCHSTORE_COMPACT_FLAG_UPGRADE_DB);
 
     hook_ctx->stats.pre =
-            toFileInfo(cb::couchstore::getHeader(*compactdb.getDb()));
+            toFileInfo(cb::couchstore::getHeader(*sourceDb.getDb()));
 
     /**
      * This flag disables IO buffering in couchstore which means
@@ -1118,7 +1118,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
         hook_ctx->bloomFilterCallback = {};
 
         errCode = cb::couchstore::compact(
-                *compactdb,
+                *sourceDb,
                 compact_file.c_str(),
                 flags,
                 [hook_ctx](Db& db, DocInfo* docInfo, sized_buf value) -> int {
@@ -1155,7 +1155,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                     return COUCHSTORE_SUCCESS;
                 });
     } else {
-        auto [status, state] = readVBState(compactdb.getDb(), vbid);
+        auto [status, state] = readVBState(sourceDb.getDb(), vbid);
         if (status == ReadVBStateStatus::Success) {
             hook_ctx->highCompletedSeqno = state.persistedCompletedSeqno;
         } else {
@@ -1167,9 +1167,9 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
         }
         hook_ctx->eraserContext =
                 std::make_unique<Collections::VB::EraserContext>(
-                        getDroppedCollections(*compactdb));
+                        getDroppedCollections(*sourceDb));
         errCode = cb::couchstore::compact(
-                *compactdb,
+                *sourceDb,
                 compact_file.c_str(),
                 flags,
                 [hook_ctx](Db& db, DocInfo* docInfo, sized_buf value) -> int {
@@ -1215,7 +1215,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                 "CouchKVStore::compactDBInternal: cb::couchstore::compact() "
                 "error:{} [{}], name:{}",
                 couchstore_strerror(errCode),
-                couchkvstore_strerrno(compactdb, errCode),
+                couchkvstore_strerrno(sourceDb, errCode),
                 dbfile);
         // Remove the compacted file (in the case it was created and
         // partly written)
@@ -1260,7 +1260,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
     vbLock.lock();
     for (int ii = 0; ii < 10; ++ii) {
         concurrentCompactionUnitTestHook();
-        if (tryToCatchUpDbFile(*compactdb,
+        if (tryToCatchUpDbFile(*sourceDb,
                                *targetDb,
                                vbLock,
                                true, // copy without lock
@@ -1275,14 +1275,14 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
 #endif
 
     // Block any writers, do the final catch up and swap the file
-    tryToCatchUpDbFile(*compactdb,
+    tryToCatchUpDbFile(*sourceDb,
                        *targetDb,
                        vbLock,
                        false, // copy with lock
                        hook_ctx->stats.preparesPurged,
                        vbid);
     // Close the source Database File once compaction is done
-    compactdb.close();
+    sourceDb.close();
     // Close the destination file so we may rename it
     targetDb.close();
 
@@ -1364,7 +1364,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
     updateDbFileMap(vbid, new_rev);
 
     // Removing the stale couch file
-    unlinkCouchFile(vbid, compactdb.getFileRev());
+    unlinkCouchFile(vbid, sourceDb.getFileRev());
 
     st.compactHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - start));
