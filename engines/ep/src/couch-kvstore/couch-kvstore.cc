@@ -46,6 +46,8 @@
 #include <shared_mutex>
 #include <utility>
 
+#undef ENABLE_CONCURRENT_COMPACTION_AND_FLUSHER
+
 static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx);
 static int byIdScanCallback(Db* db, DocInfo* docinfo, void* ctx);
 
@@ -1029,8 +1031,10 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                 "CouchKVStore::compactDB: droppedKeyCb must be set ");
     }
 
+#ifdef ENABLE_CONCURRENT_COMPACTION_AND_FLUSHER
     // we may run the first part of the compaction without exclusive access
     vbLock.unlock();
+#endif
 
     auto* def_iops = statCollectingFileOpsCompaction.get();
     std::chrono::steady_clock::time_point start =
@@ -1247,6 +1251,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
     // but to avoid doing that "forever" we'll give up after 10 times
     // and then hold the lock (and block the flusher) to make sure we catch
     // up.
+#ifdef ENABLE_CONCURRENT_COMPACTION_AND_FLUSHER
     vbLock.lock();
     for (int ii = 0; ii < 10; ++ii) {
         concurrentCompactionUnitTestHook();
@@ -1262,6 +1267,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
     }
 
     concurrentCompactionUnitTestHook();
+#endif
 
     // Block any writers, do the final catch up and swap the file
     tryToCatchUpDbFile(*compactdb,
@@ -1567,7 +1573,11 @@ StorageProperties CouchKVStore::getStorageProperties() {
                          StorageProperties::EfficientVBDeletion::Yes,
                          StorageProperties::PersistedDeletion::Yes,
                          StorageProperties::EfficientGet::Yes,
+#ifdef ENABLE_CONCURRENT_COMPACTION_AND_FLUSHER
                          StorageProperties::ConcurrentWriteCompact::Yes,
+#else
+                         StorageProperties::ConcurrentWriteCompact::No,
+#endif
                          StorageProperties::ByIdScan::Yes);
     return rv;
 }
