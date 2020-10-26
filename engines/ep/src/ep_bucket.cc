@@ -328,7 +328,16 @@ std::vector<ExTask> EPBucket::deinitialize() {
     stopFlusher();
     stopBgFetcher();
     stopWarmup();
-    return KVBucket::deinitialize();
+
+    auto ret = KVBucket::deinitialize();
+
+    // Now that we've stopped all of our tasks, stop any tasks the storage
+    // layer may have created.
+    vbMap.forEachShard([](KVShard& shard) {
+        shard.getRWUnderlying()->deinitialize();
+    });
+
+    return ret;
 }
 
 /**

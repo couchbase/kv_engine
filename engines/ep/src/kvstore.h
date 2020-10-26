@@ -563,6 +563,13 @@ public:
     virtual ~KVStore();
 
     /**
+     * Called when the engine is going away so we can shutdown any backend tasks
+     * the underlying store create to prevent them from racing with destruction.
+     */
+    virtual void deinitialize() {
+    }
+
+    /**
      * Allow the kvstore to add extra statistics information
      * back to the client
      * @param prefix prefix to use for the stats

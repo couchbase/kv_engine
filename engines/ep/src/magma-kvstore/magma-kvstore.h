@@ -219,6 +219,8 @@ public:
 
     ~MagmaKVStore() override;
 
+    void deinitialize() override;
+
     void operator=(MagmaKVStore& from) = delete;
 
     /**

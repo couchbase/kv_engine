@@ -532,10 +532,17 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
 }
 
 MagmaKVStore::~MagmaKVStore() {
+}
+
+void MagmaKVStore::deinitialize() {
+    logger->debug("MagmaKVStore deinitialize");
+
     if (!inTransaction) {
         magma->Sync(true);
     }
-    logger->debug("MagmaKVStore Destructor");
+    // Flusher should have already been stopped so it should be safe to destroy
+    // the magma instance now
+    magma.reset();
 }
 
 std::string MagmaKVStore::getVBDBSubdir(Vbid vbid) {
