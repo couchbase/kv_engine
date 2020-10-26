@@ -159,8 +159,10 @@ ENGINE_ERROR_CODE server_prometheus_stats(
     std::lock_guard<std::mutex> guard(stats_mutex);
     try {
         // do global stats
-        server_global_stats(collector);
-        stats_audit(collector);
+        if (cardinality == cb::prometheus::Cardinality::Low) {
+            server_global_stats(collector);
+            stats_audit(collector);
+        }
         bucketsForEach(
                 [&collector, cardinality](Bucket& bucket, void*) {
                     if (std::string_view(bucket.name).empty()) {

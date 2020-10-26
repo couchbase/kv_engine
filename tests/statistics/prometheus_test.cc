@@ -47,8 +47,8 @@ TEST_F(PrometheusStatTest, auditStatsNotPerBucket) {
     using namespace ::testing;
 
     for (const auto& metricName : {"audit_dropped_events", "audit_enabled"}) {
-        // TODO: MB-42263 should confirm audit stats not in high cardinality
-        // endpoint when this is true.
+        // confirm audit stats are not in cardinality endpoint
+        EXPECT_EQ(0, metrics.high.count(metricName));
 
         // confirm audit stats _are_ in low cardinality endpoint
         EXPECT_EQ(1, metrics.low.count(metricName));
