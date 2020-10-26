@@ -705,7 +705,8 @@ protected:
     couchstore_error_t maybePatchOnDiskPrepares(
             Db& db,
             uint64_t preparesPurged,
-            PendingLocalDocRequestQueue& localDocQueue);
+            PendingLocalDocRequestQueue& localDocQueue,
+            Vbid vbid);
 
     void setMb40415RegressionHook(bool value) {
         mb40415_regression_hook = value;

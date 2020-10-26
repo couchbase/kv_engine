@@ -1022,13 +1022,13 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                                      CompactionContext* hook_ctx) {
     if (isReadOnly()) {
         throw std::logic_error(
-                "CouchKVStore::compactDB: Cannot perform "
+                "CouchKVStore::compactDBInternal: Cannot perform "
                 "on a read-only instance.");
     }
 
     if (!hook_ctx->droppedKeyCb) {
         throw std::runtime_error(
-                "CouchKVStore::compactDB: droppedKeyCb must be set ");
+                "CouchKVStore::compactDBInternal: droppedKeyCb must be set ");
     }
 
 #ifdef ENABLE_CONCURRENT_COMPACTION_AND_FLUSHER
@@ -1041,17 +1041,19 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
             std::chrono::steady_clock::now();
     Vbid vbid = hook_ctx->compactConfig.vbid;
 
-    TRACE_EVENT1("CouchKVStore", "compactDB", "vbid", vbid.get());
+    TRACE_EVENT1("CouchKVStore", "compactDBInternal", "vbid", vbid.get());
 
     // Open the source VBucket database file ...
     DbHolder compactdb(*this);
     auto errCode = openDB(
             vbid, compactdb, (uint64_t)COUCHSTORE_OPEN_FLAG_RDONLY, def_iops);
     if (errCode != COUCHSTORE_SUCCESS) {
-        logger.warn("CouchKVStore::compactDB openDB error:{}, {}, fileRev:{}",
-                    couchstore_strerror(errCode),
-                    vbid,
-                    compactdb.getFileRev());
+        logger.warn(
+                "CouchKVStore::compactDBInternal openDB error:{}, {}, "
+                "fileRev:{}",
+                couchstore_strerror(errCode),
+                vbid,
+                compactdb.getFileRev());
         return false;
     }
 
@@ -1124,14 +1126,15 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                 },
                 {},
                 def_iops,
-                [hook_ctx, this](Db& compacted) {
+                [vbid, hook_ctx, this](Db& compacted) {
                     // we don't try to delete the dropped collection document
                     // as it'll come back in the next database header anyway
                     PendingLocalDocRequestQueue localDocQueue;
                     auto ret = maybePatchOnDiskPrepares(
                             compacted,
                             hook_ctx->stats.preparesPurged,
-                            localDocQueue);
+                            localDocQueue,
+                            vbid);
                     if (ret == COUCHSTORE_SUCCESS) {
                         updateLocalDocuments(compacted, localDocQueue);
                     }
@@ -1174,7 +1177,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                 },
                 {},
                 def_iops,
-                [hook_ctx, this](Db& compacted) {
+                [vbid, hook_ctx, this](Db& compacted) {
                     if (mb40415_regression_hook) {
                         return COUCHSTORE_ERROR_CANCEL;
                     }
@@ -1184,9 +1187,9 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                                 ->needToUpdateCollectionsMetadata()) {
                         if (!hook_ctx->eraserContext->empty()) {
                             std::stringstream ss;
-                            ss << "CouchKVStore::compactDB finalising dropped "
-                                  "collections, "
-                               << "container should be empty"
+                            ss << "CouchKVStore::compactDBInternal finalising "
+                                  "dropped collections, container should be "
+                                  "empty"
                                << *hook_ctx->eraserContext << std::endl;
                             throw std::logic_error(ss.str());
                         }
@@ -1198,7 +1201,8 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                     auto ret = maybePatchOnDiskPrepares(
                             compacted,
                             hook_ctx->stats.preparesPurged,
-                            localDocQueue);
+                            localDocQueue,
+                            vbid);
                     if (ret == COUCHSTORE_SUCCESS) {
                         updateLocalDocuments(compacted, localDocQueue);
                     }
@@ -1208,7 +1212,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
     }
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn(
-                "CouchKVStore::compactDB: cb::couchstore::compact() "
+                "CouchKVStore::compactDBInternal: cb::couchstore::compact() "
                 "error:{} [{}], name:{}",
                 couchstore_strerror(errCode),
                 couchkvstore_strerrno(compactdb, errCode),
@@ -1233,15 +1237,16 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
     errCode = openSpecificDBFile(vbid, new_rev, targetDb, 0, compact_file);
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn(
-                "CouchKVStore::compactDB: openDB#2 error:{}, file:{}, "
+                "CouchKVStore::compactDBInternal: openDB#2 error:{}, file:{}, "
                 "fileRev:{}",
                 couchstore_strerror(errCode),
                 compact_file,
                 targetDb.getFileRev());
         if (remove(compact_file.c_str()) != 0) {
-            logger.warn("CouchKVStore::compactDB: remove error:{}, path:{}",
-                        cb_strerror(),
-                        compact_file);
+            logger.warn(
+                    "CouchKVStore::compactDBInternal: remove error:{}, path:{}",
+                    cb_strerror(),
+                    compact_file);
         }
         return false;
     }
@@ -1284,10 +1289,12 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
     // Rename the .compact file to one with the next revision number
     const auto new_file = getDBFileName(dbname, vbid, new_rev);
     if (rename(compact_file.c_str(), new_file.c_str()) != 0) {
-        logger.warn("CouchKVStore::compactDB: rename error:{}, old:{}, new:{}",
-                    cb_strerror(),
-                    compact_file,
-                    new_file);
+        logger.warn(
+                "CouchKVStore::compactDBInternal: rename error:{}, old:{}, "
+                "new:{}",
+                cb_strerror(),
+                compact_file,
+                new_file);
 
         removeCompactFile(compact_file);
         return false;
@@ -1298,15 +1305,16 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
             vbid, new_rev, targetDb, COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn(
-                "CouchKVStore::compactDB: openDB#2 error:{}, file:{}, "
+                "CouchKVStore::compactDBInternal: openDB#2 error:{}, file:{}, "
                 "fileRev:{}",
                 couchstore_strerror(errCode),
                 new_file,
                 targetDb.getFileRev());
         if (remove(new_file.c_str()) != 0) {
-            logger.warn("CouchKVStore::compactDB: remove error:{}, path:{}",
-                        cb_strerror(),
-                        new_file);
+            logger.warn(
+                    "CouchKVStore::compactDBInternal: remove error:{}, path:{}",
+                    cb_strerror(),
+                    new_file);
         }
         return false;
     }
@@ -1324,6 +1332,19 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
         state->purgeSeqno = info.purgeSeqNum;
         cachedDeleteCount[vbid.get()] = info.deletedCount;
         cachedDocCount[vbid.get()] = info.docCount;
+
+        if (hook_ctx->stats.preparesPurged > state->onDiskPrepares) {
+            const std::string msg =
+                    "CouchKVStore::compactDBInternal(): According "
+                    "to _local/vbstate for " +
+                    vbid.to_string() + " there should be " +
+                    std::to_string(state->onDiskPrepares) +
+                    " prepares, but we just purged " +
+                    std::to_string(hook_ctx->stats.preparesPurged);
+            logger.critical("{}", msg);
+            throw std::runtime_error(msg);
+        }
+
         state->onDiskPrepares -= hook_ctx->stats.preparesPurged;
     }
 
@@ -1354,7 +1375,8 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
 couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
         Db& db,
         uint64_t preparesPurged,
-        PendingLocalDocRequestQueue& localDocQueue) {
+        PendingLocalDocRequestQueue& localDocQueue,
+        Vbid vbid) {
     // Must sync the modified state back
     // we need to update the _local/vbstate to update the number of
     // on_disk_prepared to match whatever we purged
@@ -1365,7 +1387,7 @@ couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
                 &db, (void*)id.buf, id.size, &ldoc);
         if (err != COUCHSTORE_SUCCESS) {
             logger.warn(
-                    "CouchKVStore::compactPrecommitCallback: Failed to "
+                    "CouchKVStore::maybePatchOnDiskPrepares: Failed to "
                     "load _local/vbstate: {}",
                     couchstore_strerror(err));
             return err;
@@ -1378,7 +1400,7 @@ couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
         } catch (const nlohmann::json::exception& e) {
             couchstore_free_local_document(ldoc);
             logger.warn(
-                    "CouchKVStore::compactPrecommitCallback: Failed to "
+                    "CouchKVStore::maybePatchOnDiskPrepares: Failed to "
                     "parse the vbstat json: {}",
                     std::string{ldoc->json.buf, ldoc->json.size});
             return COUCHSTORE_ERROR_CANCEL;
@@ -1388,9 +1410,24 @@ couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
         auto iter = json.find("on_disk_prepares");
         // only update if it's there..
         if (iter != json.end()) {
-            auto onDiskPrepares =
-                    std::stoull(iter->get<std::string>()) - preparesPurged;
-            json["on_disk_prepares"] = std::to_string(onDiskPrepares);
+            const auto onDiskPrepares = std::stoull(iter->get<std::string>());
+            if (preparesPurged > onDiskPrepares) {
+                // Log the message before throwing the exception just in
+                // case someone catch the exception but don't log it...
+                const std::string msg =
+                        "CouchKVStore::maybePatchOnDiskPrepares(): According "
+                        "to _local/vbstate for " +
+                        vbid.to_string() + " there should be " +
+                        std::to_string(onDiskPrepares) +
+                        " prepares, but we just purged " +
+                        std::to_string(preparesPurged);
+                logger.critical("{}", msg);
+                logger.flush();
+                throw std::runtime_error(msg);
+            }
+
+            json["on_disk_prepares"] =
+                    std::to_string(onDiskPrepares - preparesPurged);
             const auto doc = json.dump();
             localDocQueue.emplace_back("_local/vbstate", json.dump());
         }
@@ -1451,10 +1488,10 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
             destination,
             delta,
             end.headerPosition,
-            [&preparesPurged, this](Db& compacted) {
+            [vbid, &preparesPurged, this](Db& compacted) {
                 PendingLocalDocRequestQueue localDocQueue;
                 auto ret = maybePatchOnDiskPrepares(
-                        compacted, preparesPurged, localDocQueue);
+                        compacted, preparesPurged, localDocQueue, vbid);
                 if (ret == COUCHSTORE_SUCCESS) {
                     updateLocalDocuments(compacted, localDocQueue);
                 }
