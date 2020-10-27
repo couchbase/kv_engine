@@ -907,7 +907,7 @@ static enum test_result test_add(EngineIface* h) {
 }
 
 static enum test_result test_add_add_with_cas(EngineIface* h) {
-    item *i = nullptr;
+    ItemIface* i = nullptr;
     checkeq(ENGINE_SUCCESS,
             store(h, nullptr, OPERATION_ADD, "key", "somevalue", &i),
             "Failed set.");
@@ -1178,7 +1178,7 @@ static enum test_result test_gat_locked(EngineIface* h) {
 }
 
 static enum test_result test_touch_locked(EngineIface* h) {
-    item *itm = nullptr;
+    ItemIface* itm = nullptr;
     checkeq(ENGINE_SUCCESS,
             store(h, nullptr, OPERATION_SET, "key", "value", &itm),
             "Failed to set key");
@@ -1409,7 +1409,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
             curr_revseqno + 1,
             "rev seqno should have incremented");
 
-    item *i = nullptr;
+    ItemIface* i = nullptr;
     checkeq(ENGINE_SUCCESS,
             store(h, nullptr, OPERATION_SET, "key2", "somevalue", &i),
             "Failed set");
@@ -1546,7 +1546,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
 }
 
 static enum test_result test_delete(EngineIface* h) {
-    item *i = nullptr;
+    ItemIface* i = nullptr;
     // First try to delete something we know to not be there.
     checkeq(ENGINE_KEY_ENOENT,
             del(h, "key", 0, Vbid(0)),
@@ -1605,7 +1605,7 @@ static enum test_result test_set_delete(EngineIface* h) {
 }
 
 static enum test_result test_set_delete_invalid_cas(EngineIface* h) {
-    item *i = nullptr;
+    ItemIface* i = nullptr;
     checkeq(ENGINE_SUCCESS,
             store(h, nullptr, OPERATION_SET, "key", "somevalue", &i),
             "Failed set.");

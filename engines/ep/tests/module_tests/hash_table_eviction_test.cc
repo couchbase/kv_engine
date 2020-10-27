@@ -240,7 +240,7 @@ protected:
                 auto options = static_cast<get_options_t>(
                         QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE |
                         DELETE_TEMP | HIDE_LOCKED_CAS | TRACK_STATISTICS);
-                item* itm = nullptr;
+                ItemIface* itm = nullptr;
                 engine->get(cookie, &itm, key, vbucket, options);
                 delete reinterpret_cast<Item*>(itm);
                 ObjectRegistry::onSwitchThread(epe);

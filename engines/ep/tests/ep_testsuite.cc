@@ -3195,7 +3195,7 @@ static enum test_result test_datatype(EngineIface* h) {
     const void* cookie = testHarness->create_cookie(h);
     testHarness->set_datatype_support(cookie, true);
 
-    item *itm = nullptr;
+    ItemIface* itm = nullptr;
     const std::string key(R"({"foo":"bar"})");
     const auto datatype = PROTOCOL_BINARY_DATATYPE_JSON;
     uint64_t cas = 0;
@@ -3892,7 +3892,7 @@ static enum test_result test_all_keys_api(EngineIface* h) {
     }
     std::vector<std::string>::iterator it;
     for (it = keys.begin(); it != keys.end(); ++it) {
-        item *itm;
+        ItemIface* itm;
         checkeq(ENGINE_SUCCESS,
                 store(h,
                       nullptr,
@@ -4215,7 +4215,7 @@ static enum test_result test_duplicate_items_disk(EngineIface* h) {
           "Failed to set vbucket state.");
 
     for (it = keys.begin(); it != keys.end(); ++it) {
-        item *i;
+        ItemIface* i;
         checkeq(ENGINE_SUCCESS,
                 store(h,
                       nullptr,
@@ -4475,7 +4475,7 @@ static enum test_result test_kill9_bucket(EngineIface* h) {
         keys.push_back(key);
     }
     for (it = keys.begin(); it != keys.end(); ++it) {
-        item *i;
+        ItemIface* i;
         checkeq(ENGINE_SUCCESS,
                 store(h,
                       nullptr,
@@ -4585,7 +4585,7 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h) {
     int num_items = 10;
     for (int j = 0; j < num_items; ++j) {
         // Set an item
-        item *it = nullptr;
+        ItemIface* it = nullptr;
         uint64_t cas1;
         std::string value('x', 100);
         checkeq(ENGINE_SUCCESS,
@@ -4631,7 +4631,7 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h) {
     num_items = 20;
     for (int j = 10; j < num_items; ++j) {
         // Set an item
-        item *it = nullptr;
+        ItemIface* it = nullptr;
         uint64_t cas1;
         std::string value('x', 100);
         checkeq(ENGINE_SUCCESS,
@@ -4693,7 +4693,7 @@ static enum test_result test_observe_seqno_failover(EngineIface* h) {
     int num_items = 10;
     for (int j = 0; j < num_items; ++j) {
         // Set an item
-        item *it = nullptr;
+        ItemIface* it = nullptr;
         uint64_t cas1;
         std::string value('x', 100);
         checkeq(ENGINE_SUCCESS,
@@ -4773,7 +4773,7 @@ static enum test_result test_observe_single_key(EngineIface* h) {
 
     // Set an item
     std::string value('x', 100);
-    item *it = nullptr;
+    ItemIface* it = nullptr;
     uint64_t cas1;
     checkeq(ENGINE_SUCCESS,
             storeCasOut(h,
@@ -4892,7 +4892,7 @@ static enum test_result test_observe_multi_key(EngineIface* h) {
           "Failed to set vbucket state.");
 
     // Set some keys to observe
-    item *it = nullptr;
+    ItemIface* it = nullptr;
     uint64_t cas1, cas2, cas3;
     std::string value('x', 100);
     checkeq(ENGINE_SUCCESS,
@@ -5002,7 +5002,7 @@ static enum test_result test_multiple_observes(EngineIface* h) {
     uint64_t cas;
 
     // Set some keys
-    item *it = nullptr;
+    ItemIface* it = nullptr;
     uint64_t cas1, cas2;
     std::string value('x', 100);
     checkeq(ENGINE_SUCCESS,
@@ -5084,7 +5084,7 @@ static enum test_result test_observe_with_not_found(EngineIface* h) {
           "Failed to set vbucket state.");
 
     // Set some keys
-    item *it = nullptr;
+    ItemIface* it = nullptr;
     uint64_t cas1, cas3;
     std::string value('x', 100);
     checkeq(ENGINE_SUCCESS,
@@ -5883,7 +5883,7 @@ static enum test_result test_delWithMeta_with_item_eviction(EngineIface* h) {
 }
 
 static enum test_result test_del_with_item_eviction(EngineIface* h) {
-    item *i = nullptr;
+    ItemIface* i = nullptr;
     checkeq(ENGINE_SUCCESS,
             store(h, nullptr, OPERATION_SET, "key", "somevalue", &i),
             "Failed set.");
@@ -5917,7 +5917,7 @@ static enum test_result test_observe_with_item_eviction(EngineIface* h) {
           "Failed to set vbucket state.");
 
     // Set some keys to observe
-    item *it = nullptr;
+    ItemIface* it = nullptr;
     uint64_t cas1, cas2, cas3;
 
     std::string value('x', 100);

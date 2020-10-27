@@ -125,7 +125,7 @@ public:
             const std::optional<cb::durability::Requirements>& durability,
             mutation_descr_t& mut_info) override;
 
-    void release(gsl::not_null<item*> itm) override;
+    void release(gsl::not_null<ItemIface*> itm) override;
 
     cb::EngineErrorItemPair get(gsl::not_null<const void*> cookie,
                                 const DocKey& key,
@@ -161,7 +161,7 @@ public:
 
     ENGINE_ERROR_CODE store(
             gsl::not_null<const void*> cookie,
-            gsl::not_null<item*> item,
+            gsl::not_null<ItemIface*> item,
             uint64_t& cas,
             ENGINE_STORE_OPERATION operation,
             const std::optional<cb::durability::Requirements>& durability,
@@ -169,7 +169,7 @@ public:
             bool preserveTtl) override;
     cb::EngineErrorCasPair store_if(
             gsl::not_null<const void*> cookie,
-            gsl::not_null<item*> item,
+            gsl::not_null<ItemIface*> item,
             uint64_t cas,
             ENGINE_STORE_OPERATION operation,
             const cb::StoreIfPredicate& predicate,
@@ -196,12 +196,13 @@ public:
                                       const cb::mcbp::Request& request,
                                       const AddResponseFn& response) override;
 
-    void item_set_cas(gsl::not_null<item*> item, uint64_t cas) override;
+    void item_set_cas(gsl::not_null<ItemIface*> item,
+                      uint64_t cas) override;
 
-    void item_set_datatype(gsl::not_null<item*> item,
+    void item_set_datatype(gsl::not_null<ItemIface*> item,
                            protocol_binary_datatype_t datatype) override;
 
-    bool get_item_info(gsl::not_null<const item*> item,
+    bool get_item_info(gsl::not_null<const ItemIface*> item,
                        gsl::not_null<item_info*> item_info) override;
 
     cb::engine_errc set_collection_manifest(gsl::not_null<const void*> cookie,
@@ -432,10 +433,10 @@ public:
             std::optional<cb::durability::Requirements> durability,
             mutation_descr_t& mut_info);
 
-    void itemRelease(item* itm);
+    void itemRelease(ItemIface* itm);
 
     ENGINE_ERROR_CODE get(const void* cookie,
-                          item** itm,
+                          ItemIface** itm,
                           const DocKey& key,
                           Vbid vbucket,
                           get_options_t options);
@@ -467,7 +468,7 @@ public:
                                              uint32_t expiry_time);
 
     ENGINE_ERROR_CODE getLockedInner(const void* cookie,
-                                     item** itm,
+                                     ItemIface** itm,
                                      const DocKey& key,
                                      Vbid vbucket,
                                      uint32_t lock_timeout);
@@ -804,7 +805,7 @@ public:
 
     void destroyInner(bool force);
 
-    ENGINE_ERROR_CODE itemAllocate(item** itm,
+    ENGINE_ERROR_CODE itemAllocate(ItemIface** itm,
                                    const DocKey& key,
                                    const size_t nbytes,
                                    const size_t priv_nbytes,

@@ -245,7 +245,7 @@ ENGINE_ERROR_CODE MockEngine::remove(
     return call_engine_and_handle_EWOULDBLOCK(construct, engine_fn);
 }
 
-void MockEngine::release(gsl::not_null<item*> item) {
+void MockEngine::release(gsl::not_null<ItemIface*> item) {
     the_engine->release(item);
 }
 
@@ -351,7 +351,7 @@ ENGINE_ERROR_CODE MockEngine::get_stats(gsl::not_null<const void*> cookie,
 
 ENGINE_ERROR_CODE MockEngine::store(
         gsl::not_null<const void*> cookie,
-        gsl::not_null<item*> item,
+        gsl::not_null<ItemIface*> item,
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation,
         const std::optional<cb::durability::Requirements>& durability,
@@ -374,7 +374,7 @@ ENGINE_ERROR_CODE MockEngine::store(
 
 cb::EngineErrorCasPair MockEngine::store_if(
         gsl::not_null<const void*> cookie,
-        gsl::not_null<item*> item,
+        gsl::not_null<ItemIface*> item,
         uint64_t cas,
         ENGINE_STORE_OPERATION operation,
         const cb::StoreIfPredicate& predicate,
@@ -422,16 +422,17 @@ ENGINE_ERROR_CODE MockEngine::unknown_command(const void* cookie,
     return ret;
 }
 
-void MockEngine::item_set_cas(gsl::not_null<item*> item, uint64_t val) {
+void MockEngine::item_set_cas(gsl::not_null<ItemIface*> item,
+                              uint64_t val) {
     the_engine->item_set_cas(item, val);
 }
 
-void MockEngine::item_set_datatype(gsl::not_null<item*> item,
+void MockEngine::item_set_datatype(gsl::not_null<ItemIface*> item,
                                    protocol_binary_datatype_t datatype) {
     the_engine->item_set_datatype(item, datatype);
 }
 
-bool MockEngine::get_item_info(gsl::not_null<const item*> item,
+bool MockEngine::get_item_info(gsl::not_null<const ItemIface*> item,
                                gsl::not_null<item_info*> item_info) {
     return the_engine->get_item_info(item, item_info);
 }

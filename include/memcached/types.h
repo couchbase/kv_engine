@@ -38,14 +38,14 @@ enum CONN_PRIORITY { CONN_PRIORITY_HIGH, CONN_PRIORITY_MED, CONN_PRIORITY_LOW };
 /**
  * Data common to any item stored in memcached.
  */
-typedef void item;
+using ItemIface = void;
 
 /**
  * A unique_ptr to use with items returned from the engine interface.
  */
 namespace cb {
 class ItemDeleter;
-using unique_item_ptr = std::unique_ptr<item, ItemDeleter>;
+using unique_item_ptr = std::unique_ptr<ItemIface, ItemDeleter>;
 } // namespace cb
 
 /**

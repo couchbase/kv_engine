@@ -643,7 +643,7 @@ TEST_P(STItemPagerTest, test_memory_limit) {
 
     if (std::get<1>(GetParam()) != "fail_new_data") {
         // Enough should of been freed so itemAllocate can succeed
-        item* itm = nullptr;
+        ItemIface* itm = nullptr;
         EXPECT_EQ(ENGINE_SUCCESS,
                   engine->itemAllocate(&itm,
                                        {"key2", DocKeyEncodesCollectionId::No},

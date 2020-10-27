@@ -75,7 +75,7 @@ public:
         return ENGINE_NO_BUCKET;
     }
 
-    void release(gsl::not_null<item*>) override {
+    void release(gsl::not_null<ItemIface*>) override {
         throw std::logic_error(
                 "NoBucket::item_release: no items should have"
                 " been allocated from this engine");
@@ -126,7 +126,7 @@ public:
     }
 
     ENGINE_ERROR_CODE store(gsl::not_null<const void*>,
-                            gsl::not_null<item*>,
+                            gsl::not_null<ItemIface*>,
                             uint64_t&,
                             ENGINE_STORE_OPERATION,
                             const std::optional<cb::durability::Requirements>&,
@@ -137,7 +137,7 @@ public:
 
     cb::EngineErrorCasPair store_if(
             gsl::not_null<const void*>,
-            gsl::not_null<item*>,
+            gsl::not_null<ItemIface*>,
             uint64_t,
             ENGINE_STORE_OPERATION,
             const cb::StoreIfPredicate&,
@@ -167,20 +167,20 @@ public:
         return ENGINE_NO_BUCKET;
     }
 
-    void item_set_cas(gsl::not_null<item*>, uint64_t) override {
+    void item_set_cas(gsl::not_null<ItemIface*>, uint64_t) override {
         throw std::logic_error(
                 "NoBucket::item_set_cas: no items should have"
                 " been allocated from this engine");
     }
 
-    void item_set_datatype(gsl::not_null<item*>,
+    void item_set_datatype(gsl::not_null<ItemIface*>,
                            protocol_binary_datatype_t) override {
         throw std::logic_error(
                 "NoBucket::item_set_datatype: no items should have"
                 " been allocated from this engine");
     }
 
-    bool get_item_info(gsl::not_null<const item*>,
+    bool get_item_info(gsl::not_null<const ItemIface*>,
                        gsl::not_null<item_info*>) override {
         throw std::logic_error(
                 "NoBucket::get_item_info: no items should have"

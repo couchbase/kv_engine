@@ -1106,7 +1106,7 @@ ENGINE_ERROR_CODE store(
         ENGINE_STORE_OPERATION op,
         const char* key,
         const char* value,
-        item** outitem,
+        ItemIface** outitem,
         uint64_t casIn,
         Vbid vb,
         uint32_t exp,
@@ -1138,7 +1138,7 @@ ENGINE_ERROR_CODE storeCasOut(EngineIface* h,
                               const std::string& key,
                               const std::string& value,
                               protocol_binary_datatype_t datatype,
-                              item*& out_item,
+                              ItemIface*& out_item,
                               uint64_t& out_cas,
                               DocumentState docState) {
     bool create_cookie = false;

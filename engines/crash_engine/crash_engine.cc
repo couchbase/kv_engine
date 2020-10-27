@@ -59,7 +59,7 @@ public:
             const std::optional<cb::durability::Requirements>& durability,
             mutation_descr_t& mut_info) override;
 
-    void release(gsl::not_null<item*> item) override;
+    void release(gsl::not_null<ItemIface*> item) override;
 
     cb::EngineErrorItemPair get(gsl::not_null<const void*> cookie,
                                 const DocKey& key,
@@ -95,7 +95,7 @@ public:
 
     ENGINE_ERROR_CODE store(
             gsl::not_null<const void*> cookie,
-            gsl::not_null<item*> item,
+            gsl::not_null<ItemIface*> item,
             uint64_t& cas,
             ENGINE_STORE_OPERATION operation,
             const std::optional<cb::durability::Requirements>& durability,
@@ -109,12 +109,13 @@ public:
 
     void reset_stats(gsl::not_null<const void*> cookie) override;
 
-    void item_set_cas(gsl::not_null<item*> item, uint64_t cas) override;
+    void item_set_cas(gsl::not_null<ItemIface*> item,
+                      uint64_t cas) override;
 
-    void item_set_datatype(gsl::not_null<item*> item,
+    void item_set_datatype(gsl::not_null<ItemIface*> item,
                            protocol_binary_datatype_t datatype) override;
 
-    bool get_item_info(gsl::not_null<const item*> item,
+    bool get_item_info(gsl::not_null<const ItemIface*> item,
                        gsl::not_null<item_info*> item_info) override;
 
     cb::engine::FeatureSet getFeatures() override;
@@ -214,7 +215,7 @@ ENGINE_ERROR_CODE CrashEngine::remove(
     return ENGINE_FAILED;
 }
 
-void CrashEngine::release(gsl::not_null<item*> item) {
+void CrashEngine::release(gsl::not_null<ItemIface*> item) {
 }
 
 cb::EngineErrorItemPair CrashEngine::get(gsl::not_null<const void*> cookie,
@@ -270,7 +271,7 @@ ENGINE_ERROR_CODE CrashEngine::get_stats(gsl::not_null<const void*>,
 
 ENGINE_ERROR_CODE CrashEngine::store(
         gsl::not_null<const void*> cookie,
-        gsl::not_null<item*> item,
+        gsl::not_null<ItemIface*> item,
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation,
         const std::optional<cb::durability::Requirements>& durability,
@@ -282,14 +283,15 @@ ENGINE_ERROR_CODE CrashEngine::store(
 void CrashEngine::reset_stats(gsl::not_null<const void*> cookie) {
 }
 
-void CrashEngine::item_set_cas(gsl::not_null<item*> item, uint64_t val) {
+void CrashEngine::item_set_cas(gsl::not_null<ItemIface*> item,
+                               uint64_t val) {
 }
 
-void CrashEngine::item_set_datatype(gsl::not_null<item*> item,
+void CrashEngine::item_set_datatype(gsl::not_null<ItemIface*> item,
                                     protocol_binary_datatype_t val) {
 }
 
-bool CrashEngine::get_item_info(gsl::not_null<const item*> item,
+bool CrashEngine::get_item_info(gsl::not_null<const ItemIface*> item,
                                 gsl::not_null<item_info*> item_info) {
     return false;
 }

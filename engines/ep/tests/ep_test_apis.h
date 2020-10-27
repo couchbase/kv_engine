@@ -265,7 +265,7 @@ ENGINE_ERROR_CODE store(
         ENGINE_STORE_OPERATION op,
         const char* key,
         const char* value,
-        item** outitem = nullptr,
+        ItemIface** outitem = nullptr,
         uint64_t casIn = 0,
         Vbid vb = Vbid(0),
         uint32_t exp = 3600,
@@ -298,7 +298,7 @@ ENGINE_ERROR_CODE storeCasOut(EngineIface* h,
                               const std::string& key,
                               const std::string& value,
                               protocol_binary_datatype_t datatype,
-                              item*& out_item,
+                              ItemIface*& out_item,
                               uint64_t& out_cas,
                               DocumentState docState = DocumentState::Alive);
 

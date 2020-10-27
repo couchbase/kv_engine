@@ -224,7 +224,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::allocate(
         return cb::makeEngineErrorItemPair(cb::engine_errc::invalid_arguments);
     }
 
-    item* itm = nullptr;
+    ItemIface* itm = nullptr;
     auto ret = acquireEngine(this)->itemAllocate(&itm,
                                                  key,
                                                  nbytes,
@@ -245,7 +245,7 @@ EventuallyPersistentEngine::allocate_ex(gsl::not_null<const void*> cookie,
                                         rel_time_t exptime,
                                         uint8_t datatype,
                                         Vbid vbucket) {
-    item* it = nullptr;
+    ItemIface* it = nullptr;
     auto err = acquireEngine(this)->itemAllocate(
             &it, key, nbytes, priv_nbytes, flags, exptime, datatype, vbucket);
 
@@ -289,7 +289,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::remove(
             cookie, key, cas, vbucket, durReqs, mut_info);
 }
 
-void EventuallyPersistentEngine::release(gsl::not_null<item*> itm) {
+void EventuallyPersistentEngine::release(gsl::not_null<ItemIface*> itm) {
     acquireEngine(this)->itemRelease(itm);
 }
 
@@ -322,7 +322,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get(
         break;
     }
 
-    item* itm = nullptr;
+    ItemIface* itm = nullptr;
     ENGINE_ERROR_CODE ret =
             acquireEngine(this)->get(cookie, &itm, key, vbucket, options);
     return cb::makeEngineErrorItemPair(cb::engine_errc(ret), itm, this);
@@ -354,7 +354,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_locked(
         const DocKey& key,
         Vbid vbucket,
         uint32_t lock_timeout) {
-    item* itm = nullptr;
+    ItemIface* itm = nullptr;
     auto ret = acquireEngine(this)->getLockedInner(
             cookie, &itm, key, vbucket, lock_timeout);
     return cb::makeEngineErrorItemPair(cb::engine_errc(ret), itm, this);
@@ -427,7 +427,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get_prometheus_stats(
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::store(
         gsl::not_null<const void*> cookie,
-        gsl::not_null<item*> itm,
+        gsl::not_null<ItemIface*> itm,
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation,
         const std::optional<cb::durability::Requirements>& durability,
@@ -449,7 +449,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(
 
 cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
         gsl::not_null<const void*> cookie,
-        gsl::not_null<item*> itm,
+        gsl::not_null<ItemIface*> itm,
         uint64_t cas,
         ENGINE_STORE_OPERATION operation,
         const cb::StoreIfPredicate& predicate,
@@ -1340,13 +1340,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::unknown_command(
     return ret;
 }
 
-void EventuallyPersistentEngine::item_set_cas(gsl::not_null<item*> itm,
+void EventuallyPersistentEngine::item_set_cas(gsl::not_null<ItemIface*> itm,
                                               uint64_t cas) {
     static_cast<Item*>(itm.get())->setCas(cas);
 }
 
 void EventuallyPersistentEngine::item_set_datatype(
-        gsl::not_null<item*> itm, protocol_binary_datatype_t datatype) {
+        gsl::not_null<ItemIface*> itm,
+        protocol_binary_datatype_t datatype) {
     static_cast<Item*>(itm.get())->setDataType(datatype);
 }
 
@@ -1831,7 +1832,8 @@ void destroy_ep_engine() {
 }
 
 bool EventuallyPersistentEngine::get_item_info(
-        gsl::not_null<const item*> itm, gsl::not_null<item_info*> itm_info) {
+        gsl::not_null<const ItemIface*> itm,
+        gsl::not_null<item_info*> itm_info) {
     const Item* it = reinterpret_cast<const Item*>(itm.get());
     *itm_info = acquireEngine(this)->getItemInfo(*it);
     return true;
@@ -2309,7 +2311,7 @@ void EventuallyPersistentEngine::destroyInner(bool force) {
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::itemAllocate(
-        item** itm,
+        ItemIface** itm,
         const DocKey& key,
         const size_t nbytes,
         const size_t priv_nbytes,
@@ -2409,12 +2411,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::itemDelete(
     return ret;
 }
 
-void EventuallyPersistentEngine::itemRelease(item* itm) {
+void EventuallyPersistentEngine::itemRelease(ItemIface* itm) {
     delete reinterpret_cast<Item*>(itm);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::get(const void* cookie,
-                                                  item** itm,
+                                                  ItemIface** itm,
                                                   const DocKey& key,
                                                   Vbid vbucket,
                                                   get_options_t options) {
@@ -2554,7 +2556,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getLockedInner(
         const void* cookie,
-        item** itm,
+        ItemIface** itm,
         const DocKey& key,
         Vbid vbucket,
         uint32_t lock_timeout) {

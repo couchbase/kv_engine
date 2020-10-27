@@ -52,7 +52,7 @@ struct MockEngine : public EngineIface, public DcpIface {
             const std::optional<cb::durability::Requirements>& durability,
             mutation_descr_t& mut_info) override;
 
-    void release(gsl::not_null<item*> item) override;
+    void release(gsl::not_null<ItemIface*> item) override;
 
     cb::EngineErrorItemPair get(gsl::not_null<const void*> cookie,
                                 const DocKey& key,
@@ -88,7 +88,7 @@ struct MockEngine : public EngineIface, public DcpIface {
 
     ENGINE_ERROR_CODE store(
             gsl::not_null<const void*> cookie,
-            gsl::not_null<item*> item,
+            gsl::not_null<ItemIface*> item,
             uint64_t& cas,
             ENGINE_STORE_OPERATION operation,
             const std::optional<cb::durability::Requirements>& durability,
@@ -97,7 +97,7 @@ struct MockEngine : public EngineIface, public DcpIface {
 
     cb::EngineErrorCasPair store_if(
             gsl::not_null<const void*> cookie,
-            gsl::not_null<item*> item,
+            gsl::not_null<ItemIface*> item,
             uint64_t cas,
             ENGINE_STORE_OPERATION operation,
             const cb::StoreIfPredicate& predicate,
@@ -118,12 +118,12 @@ struct MockEngine : public EngineIface, public DcpIface {
                                       const cb::mcbp::Request& request,
                                       const AddResponseFn& response) override;
 
-    void item_set_cas(gsl::not_null<item*> item, uint64_t val) override;
+    void item_set_cas(gsl::not_null<ItemIface*> item, uint64_t val) override;
 
-    void item_set_datatype(gsl::not_null<item*> item,
+    void item_set_datatype(gsl::not_null<ItemIface*> item,
                            protocol_binary_datatype_t datatype) override;
 
-    bool get_item_info(gsl::not_null<const item*> item,
+    bool get_item_info(gsl::not_null<const ItemIface*> item,
                        gsl::not_null<item_info*> item_info) override;
 
     cb::engine_errc set_collection_manifest(gsl::not_null<const void*> cookie,

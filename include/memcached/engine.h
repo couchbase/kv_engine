@@ -311,7 +311,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      *
      * @param item the item to be released
      */
-    virtual void release(gsl::not_null<item*> item) = 0;
+    virtual void release(gsl::not_null<ItemIface*> item) = 0;
 
     /**
      * Retrieve an item.
@@ -438,7 +438,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      */
     virtual ENGINE_ERROR_CODE store(
             gsl::not_null<const void*> cookie,
-            gsl::not_null<item*> item,
+            gsl::not_null<ItemIface*> item,
             uint64_t& cas,
             ENGINE_STORE_OPERATION operation,
             const std::optional<cb::durability::Requirements>& durability,
@@ -480,7 +480,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      */
     virtual cb::EngineErrorCasPair store_if(
             gsl::not_null<const void*> cookie,
-            gsl::not_null<item*> item,
+            gsl::not_null<ItemIface*> item,
             uint64_t cas,
             ENGINE_STORE_OPERATION operation,
             const cb::StoreIfPredicate& predicate,
@@ -560,12 +560,13 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
     /**
      * Set the CAS id on an item.
      */
-    virtual void item_set_cas(gsl::not_null<item*> item, uint64_t cas) = 0;
+    virtual void item_set_cas(gsl::not_null<ItemIface*> item,
+                              uint64_t cas) = 0;
 
     /**
      * Set the data type on an item.
      */
-    virtual void item_set_datatype(gsl::not_null<item*> item,
+    virtual void item_set_datatype(gsl::not_null<ItemIface*> item,
                                    protocol_binary_datatype_t datatype) = 0;
 
     /**
@@ -579,7 +580,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @param item_info
      * @return true if successful
      */
-    virtual bool get_item_info(gsl::not_null<const item*> item,
+    virtual bool get_item_info(gsl::not_null<const ItemIface*> item,
                                gsl::not_null<item_info*> item_info) = 0;
 
     /**
@@ -689,7 +690,7 @@ public:
      */
     ItemDeleter(const ItemDeleter& other) = default;
 
-    void operator()(item* item) {
+    void operator()(ItemIface* item) {
         if (handle) {
             handle->release(item);
         } else {
@@ -707,7 +708,7 @@ inline EngineErrorItemPair makeEngineErrorItemPair(cb::engine_errc err) {
 }
 
 inline EngineErrorItemPair makeEngineErrorItemPair(cb::engine_errc err,
-                                                   item* it,
+                                                   ItemIface* it,
                                                    EngineIface* handle) {
     return {err, unique_item_ptr{it, ItemDeleter{handle}}};
 }

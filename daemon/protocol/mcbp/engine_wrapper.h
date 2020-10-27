@@ -38,16 +38,18 @@
 ENGINE_ERROR_CODE bucket_unknown_command(Cookie& cookie,
                                          const AddResponseFn& response);
 
-void bucket_item_set_cas(Connection& c, gsl::not_null<item*> it, uint64_t cas);
+void bucket_item_set_cas(Connection& c,
+                         gsl::not_null<ItemIface*> it,
+                         uint64_t cas);
 
 void bucket_item_set_datatype(Connection& c,
-                              gsl::not_null<item*> it,
+                              gsl::not_null<ItemIface*> it,
                               protocol_binary_datatype_t datatype);
 
 void bucket_reset_stats(Cookie& cookie);
 
 bool bucket_get_item_info(Connection& c,
-                          gsl::not_null<const item*> item_,
+                          gsl::not_null<const ItemIface*> item_,
                           gsl::not_null<item_info*> item_info_);
 
 cb::EngineErrorMetadataPair bucket_get_meta(Cookie& cookie,
@@ -56,7 +58,7 @@ cb::EngineErrorMetadataPair bucket_get_meta(Cookie& cookie,
 
 ENGINE_ERROR_CODE bucket_store(
         Cookie& cookie,
-        gsl::not_null<item*> item_,
+        gsl::not_null<ItemIface*> item_,
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation,
         std::optional<cb::durability::Requirements> durability,
@@ -65,7 +67,7 @@ ENGINE_ERROR_CODE bucket_store(
 
 cb::EngineErrorCasPair bucket_store_if(
         Cookie& cookie,
-        gsl::not_null<item*> item_,
+        gsl::not_null<ItemIface*> item_,
         uint64_t cas,
         ENGINE_STORE_OPERATION operation,
         cb::StoreIfPredicate predicate,

@@ -65,7 +65,7 @@ static std::vector<char> createXattrValue(const std::string& body) {
 
 static enum test_result test_get_meta(EngineIface* h) {
     char const *key = "test_get_meta";
-    item *i = nullptr;
+    ItemIface* i = nullptr;
     checkeq(ENGINE_SUCCESS,
             store(h, nullptr, OPERATION_SET, key, "somevalue", &i),
             "Failed set.");
@@ -91,7 +91,7 @@ static enum test_result test_get_meta(EngineIface* h) {
 
 static enum test_result test_get_meta_with_extras(EngineIface* h) {
     const char *key1 = "test_getm_one";
-    item *i = nullptr;
+    ItemIface* i = nullptr;
     checkeq(ENGINE_SUCCESS,
             store(h, nullptr, OPERATION_SET, key1, "somevalue", &i),
             "Failed set.");
@@ -133,7 +133,7 @@ static enum test_result test_get_meta_with_extras(EngineIface* h) {
 
 static enum test_result test_get_meta_deleted(EngineIface* h) {
     char const *key = "k1";
-    item *i = nullptr;
+    ItemIface* i = nullptr;
 
     checkeq(ENGINE_SUCCESS,
             store(h, nullptr, OPERATION_SET, key, "somevalue"),
@@ -2219,7 +2219,7 @@ static enum test_result test_del_meta_conflict_resolution(EngineIface* h) {
 }
 
 static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h) {
-    item *i = nullptr;
+    ItemIface* i = nullptr;
     item_info info;
 
     checkeq(ENGINE_SUCCESS,
@@ -2304,7 +2304,7 @@ static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h) {
 
 static enum test_result test_getMeta_with_item_eviction(EngineIface* h) {
     char const *key = "test_get_meta";
-    item *i = nullptr;
+    ItemIface* i = nullptr;
     checkeq(ENGINE_SUCCESS,
             store(h, nullptr, OPERATION_SET, key, "somevalue", &i),
             "Failed set.");

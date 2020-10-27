@@ -116,7 +116,7 @@ static struct default_engine* get_handle(EngineIface* handle) {
     return (struct default_engine*)handle;
 }
 
-static hash_item* get_real_item(item* item) {
+static hash_item* get_real_item(ItemIface* item) {
     return (hash_item*)item;
 }
 
@@ -322,7 +322,7 @@ ENGINE_ERROR_CODE default_engine::remove(
     return ret;
 }
 
-void default_engine::release(gsl::not_null<item*> item) {
+void default_engine::release(gsl::not_null<ItemIface*> item) {
     item_release(this, get_real_item(item));
 }
 
@@ -342,7 +342,7 @@ cb::EngineErrorItemPair default_engine::get(
         return cb::makeEngineErrorItemPair(cb::engine_errc::unknown_collection);
     }
 
-    item* it = item_get(this, cookie, key, documentStateFilter);
+    auto* it = item_get(this, cookie, key, documentStateFilter);
     if (it != nullptr) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::success, it, this);
     } else {
@@ -408,7 +408,7 @@ cb::EngineErrorItemPair default_engine::get_and_touch(
             this, cookie, &it, key, server.core->realtime(expiry_time));
 
     return cb::makeEngineErrorItemPair(
-            cb::engine_errc(ret), reinterpret_cast<item*>(it), this);
+            cb::engine_errc(ret), reinterpret_cast<ItemIface*>(it), this);
 }
 
 cb::EngineErrorItemPair default_engine::get_locked(
@@ -536,7 +536,7 @@ ENGINE_ERROR_CODE default_engine::get_stats(gsl::not_null<const void*> cookie,
 
 ENGINE_ERROR_CODE default_engine::store(
         gsl::not_null<const void*> cookie,
-        gsl::not_null<item*> item,
+        gsl::not_null<ItemIface*> item,
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation,
         const std::optional<cb::durability::Requirements>& durability,
@@ -558,7 +558,7 @@ ENGINE_ERROR_CODE default_engine::store(
 
 cb::EngineErrorCasPair default_engine::store_if(
         gsl::not_null<const void*> cookie,
-        gsl::not_null<item*> item,
+        gsl::not_null<ItemIface*> item,
         uint64_t cas,
         ENGINE_STORE_OPERATION operation,
         const cb::StoreIfPredicate& predicate,
@@ -868,12 +868,13 @@ ENGINE_ERROR_CODE default_engine::unknown_command(
     }
 }
 
-void default_engine::item_set_cas(gsl::not_null<item*> item, uint64_t val) {
+void default_engine::item_set_cas(gsl::not_null<ItemIface*> item,
+                                  uint64_t val) {
     hash_item* it = get_real_item(item);
     it->cas = val;
 }
 
-void default_engine::item_set_datatype(gsl::not_null<item*> item,
+void default_engine::item_set_datatype(gsl::not_null<ItemIface*> item,
                                        protocol_binary_datatype_t val) {
     auto* it = reinterpret_cast<hash_item*>(item.get());
     it->datatype = val;
@@ -891,7 +892,7 @@ char* item_get_data(const hash_item* item)
     return ((char*)key->header.full_key) + hash_key_get_key_len(key);
 }
 
-bool default_engine::get_item_info(gsl::not_null<const item*> item,
+bool default_engine::get_item_info(gsl::not_null<const ItemIface*> item,
                                    gsl::not_null<item_info*> item_info) {
     auto* it = reinterpret_cast<const hash_item*>(item.get());
     const hash_key* key = item_get_key(it);
