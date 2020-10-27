@@ -10,8 +10,8 @@
 #ifdef WIN32
 // Need DWORD and ssize_t (used to be defined in platform/platform.h
 #include <folly/portability/Windows.h>
-typedef SSIZE_T ssize_t;
-typedef unsigned int useconds_t;
+using ssize_t = SSIZE_T;
+using useconds_t = unsigned int;
 #else
 #include <sys/uio.h>
 #endif
@@ -21,23 +21,19 @@ typedef unsigned int useconds_t;
 /**
  * Time relative to server start. Smaller than time_t on 64-bit systems.
  */
-typedef uint32_t rel_time_t;
+using rel_time_t = uint32_t;
 
 /**
  * Engine storage operations.
  */
-typedef enum {
+enum ENGINE_STORE_OPERATION {
     OPERATION_ADD = 1, /**< Store with add semantics */
     OPERATION_SET = 2, /**< Store with set semantics */
     OPERATION_REPLACE = 3, /**< Store with replace semantics */
     OPERATION_CAS = 6 /**< Store with set semantics. */
-} ENGINE_STORE_OPERATION;
+};
 
-typedef enum {
-    CONN_PRIORITY_HIGH,
-    CONN_PRIORITY_MED,
-    CONN_PRIORITY_LOW
-} CONN_PRIORITY;
+enum CONN_PRIORITY { CONN_PRIORITY_HIGH, CONN_PRIORITY_MED, CONN_PRIORITY_LOW };
 
 /**
  * Data common to any item stored in memcached.
@@ -131,13 +127,13 @@ struct item_info {
 };
 
 /* Information to uniquely identify (and order) a mutation. */
-typedef struct {
+struct mutation_descr_t {
     uint64_t vbucket_uuid; /** vBucket UUID for this mutation. */
     uint64_t seqno; /** sequence number of the mutation. */
-} mutation_descr_t;
+};
 
 /* Value used to distinguish one bucket from another */
-typedef uint32_t bucket_id_t;
+using bucket_id_t = uint32_t;
 
 namespace cb {
 struct vbucket_info {
