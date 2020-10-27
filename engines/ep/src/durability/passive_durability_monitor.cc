@@ -28,7 +28,7 @@
 #include "vbucket_state.h"
 
 #include <boost/range/adaptor/reversed.hpp>
-#include <gsl.h>
+#include <gsl/gsl-lite.hpp>
 #include <utilities/logtags.h>
 #include <unordered_map>
 

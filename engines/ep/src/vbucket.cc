@@ -52,7 +52,7 @@
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
-#include <gsl.h>
+#include <gsl/gsl-lite.hpp>
 #include <logtags.h>
 #include <functional>
 #include <list>

@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 
-#include <gsl.h>
+#include <gsl/gsl-lite.hpp>
 #include <platform/checked_snprintf.h>
 #include <string>
 #include <utility>

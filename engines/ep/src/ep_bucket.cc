@@ -46,7 +46,7 @@
 #include <utilities/hdrhistogram.h>
 #include <utilities/logtags.h>
 
-#include <gsl.h>
+#include <gsl/gsl-lite.hpp>
 
 #include <utility>
 

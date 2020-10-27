@@ -17,7 +17,7 @@
 
 #include "environment.h"
 
-#include <gsl.h>
+#include <gsl/gsl-lite.hpp>
 #include <cstdint>
 
 Environment& Environment::get() {

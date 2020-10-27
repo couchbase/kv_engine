@@ -3,7 +3,7 @@
 #include "memcached/types.h"
 #include "slabs.h"
 
-#include <gsl/gsl-lite.h>
+#include <gsl/gsl-lite.hpp>
 #include <atomic>
 #include <cstddef>
 #include <cstring>

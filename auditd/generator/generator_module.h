@@ -16,7 +16,7 @@
  */
 #pragma once
 
-#include <gsl.h>
+#include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <vector>

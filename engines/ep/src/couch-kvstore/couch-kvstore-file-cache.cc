@@ -20,7 +20,7 @@
 #include "bucket_logger.h"
 #include "environment.h"
 
-#include <gsl/gsl-lite.h>
+#include <gsl/gsl-lite.hpp>
 
 // Destruction of the mapped type (eviction from the cache) requires that we
 // close the opened file. If we don't take the lock when destructing the

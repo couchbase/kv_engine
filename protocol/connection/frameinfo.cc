@@ -16,7 +16,7 @@
 
 #include "frameinfo.h"
 
-#include <gsl.h>
+#include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/request.h>
 
 FrameInfo::~FrameInfo() = default;

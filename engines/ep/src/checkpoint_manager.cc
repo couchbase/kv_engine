@@ -30,7 +30,7 @@
 
 #include <utility>
 
-#include <gsl.h>
+#include <gsl/gsl-lite.hpp>
 #include <platform/optional.h>
 
 constexpr const char* CheckpointManager::pCursorName;

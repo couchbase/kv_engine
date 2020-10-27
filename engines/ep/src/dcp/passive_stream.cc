@@ -28,7 +28,7 @@
 #include "replicationthrottle.h"
 #include "statistics/collector.h"
 
-#include <gsl.h>
+#include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
 
 #include <memory>
