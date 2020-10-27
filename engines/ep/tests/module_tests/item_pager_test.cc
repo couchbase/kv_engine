@@ -624,15 +624,18 @@ TEST_P(STItemPagerTest, test_memory_limit) {
                       msg));
 
     // The next tests use itemAllocate (as per a real SET)
-    EXPECT_EQ(ENGINE_TMPFAIL,
-              engine->itemAllocate(nullptr,
-                                   {"key2", DocKeyEncodesCollectionId::No},
-                                   value.size(),
-                                   0,
-                                   0,
-                                   0,
-                                   0,
-                                   vbid));
+    {
+        auto [status, item] =
+                engine->itemAllocate({"key2", DocKeyEncodesCollectionId::No},
+                                     value.size(),
+                                     0,
+                                     0,
+                                     0,
+                                     0,
+                                     vbid);
+        EXPECT_EQ(cb::engine_errc::temporary_failure, status);
+        EXPECT_FALSE(item);
+    }
 
     // item_pager should be notified and ready to run
     runHighMemoryPager();
@@ -643,17 +646,16 @@ TEST_P(STItemPagerTest, test_memory_limit) {
 
     if (std::get<1>(GetParam()) != "fail_new_data") {
         // Enough should of been freed so itemAllocate can succeed
-        ItemIface* itm = nullptr;
-        EXPECT_EQ(ENGINE_SUCCESS,
-                  engine->itemAllocate(&itm,
-                                       {"key2", DocKeyEncodesCollectionId::No},
-                                       value.size(),
-                                       0,
-                                       0,
-                                       0,
-                                       0,
-                                       vbid));
-        engine->itemRelease(itm);
+        auto [status, item] =
+                engine->itemAllocate({"key2", DocKeyEncodesCollectionId::No},
+                                     value.size(),
+                                     0,
+                                     0,
+                                     0,
+                                     0,
+                                     vbid);
+        EXPECT_EQ(cb::engine_errc::success, status);
+        EXPECT_TRUE(item);
     }
 }
 

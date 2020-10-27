@@ -240,9 +240,12 @@ protected:
                 auto options = static_cast<get_options_t>(
                         QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE |
                         DELETE_TEMP | HIDE_LOCKED_CAS | TRACK_STATISTICS);
-                ItemIface* itm = nullptr;
-                engine->get(cookie, &itm, key, vbucket, options);
-                delete reinterpret_cast<Item*>(itm);
+                {
+                    auto [status, item] =
+                            engine->getInner(cookie, key, vbucket, options);
+                    EXPECT_EQ(cb::engine_errc::success, status);
+                    EXPECT_TRUE(item);
+                }
                 ObjectRegistry::onSwitchThread(epe);
 
                 frequencies[kk]--;

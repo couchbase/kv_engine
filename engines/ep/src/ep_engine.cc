@@ -224,16 +224,13 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::allocate(
         return cb::makeEngineErrorItemPair(cb::engine_errc::invalid_arguments);
     }
 
-    ItemIface* itm = nullptr;
-    auto ret = acquireEngine(this)->itemAllocate(&itm,
-                                                 key,
-                                                 nbytes,
-                                                 0, // No privileged bytes
-                                                 flags,
-                                                 exptime,
-                                                 datatype,
-                                                 vbucket);
-    return cb::makeEngineErrorItemPair(cb::engine_errc(ret), itm, this);
+    return acquireEngine(this)->itemAllocate(key,
+                                             nbytes,
+                                             0, // No privileged bytes
+                                             flags,
+                                             exptime,
+                                             datatype,
+                                             vbucket);
 }
 
 std::pair<cb::unique_item_ptr, item_info>
@@ -245,23 +242,21 @@ EventuallyPersistentEngine::allocate_ex(gsl::not_null<const void*> cookie,
                                         rel_time_t exptime,
                                         uint8_t datatype,
                                         Vbid vbucket) {
-    ItemIface* it = nullptr;
-    auto err = acquireEngine(this)->itemAllocate(
-            &it, key, nbytes, priv_nbytes, flags, exptime, datatype, vbucket);
+    auto [status, item] = acquireEngine(this)->itemAllocate(
+            key, nbytes, priv_nbytes, flags, exptime, datatype, vbucket);
 
-    if (err != ENGINE_SUCCESS) {
-        throw cb::engine_error(cb::engine_errc(err),
+    if (status != cb::engine_errc::success) {
+        throw cb::engine_error(status,
                                "EvpItemAllocateEx: failed to allocate memory");
     }
 
     item_info info;
-    if (!get_item_info(it, &info)) {
-        release(it);
+    if (!get_item_info(item.get(), &info)) {
         throw cb::engine_error(cb::engine_errc::failed,
                                "EvpItemAllocateEx: EvpGetItemInfo failed");
     }
 
-    return std::make_pair(cb::unique_item_ptr{it, cb::ItemDeleter{this}}, info);
+    return std::make_pair(std::move(item), info);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::remove(
@@ -321,11 +316,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get(
         options = static_cast<get_options_t>(options | GET_DELETED_VALUE);
         break;
     }
-
-    ItemIface* itm = nullptr;
-    ENGINE_ERROR_CODE ret =
-            acquireEngine(this)->get(cookie, &itm, key, vbucket, options);
-    return cb::makeEngineErrorItemPair(cb::engine_errc(ret), itm, this);
+    return acquireEngine(this)->getInner(cookie, key, vbucket, options);
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(
@@ -354,10 +345,8 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_locked(
         const DocKey& key,
         Vbid vbucket,
         uint32_t lock_timeout) {
-    ItemIface* itm = nullptr;
-    auto ret = acquireEngine(this)->getLockedInner(
-            cookie, &itm, key, vbucket, lock_timeout);
-    return cb::makeEngineErrorItemPair(cb::engine_errc(ret), itm, this);
+    return acquireEngine(this)->getLockedInner(
+            cookie, key, vbucket, lock_timeout);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::unlock(
@@ -2310,8 +2299,7 @@ void EventuallyPersistentEngine::destroyInner(bool force) {
     }
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::itemAllocate(
-        ItemIface** itm,
+cb::EngineErrorItemPair EventuallyPersistentEngine::itemAllocate(
         const DocKey& key,
         const size_t nbytes,
         const size_t priv_nbytes,
@@ -2319,35 +2307,33 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::itemAllocate(
         rel_time_t exptime,
         uint8_t datatype,
         Vbid vbucket) {
-    if (priv_nbytes > maxItemPrivilegedBytes) {
-        return ENGINE_E2BIG;
-    }
-
-    if ((nbytes - priv_nbytes) > maxItemSize) {
-        return ENGINE_E2BIG;
+    if ((priv_nbytes > maxItemPrivilegedBytes) ||
+        ((nbytes - priv_nbytes) > maxItemSize)) {
+        return cb::makeEngineErrorItemPair(cb::engine_errc::too_big);
     }
 
     if (!hasMemoryForItemAllocation(sizeof(Item) + sizeof(Blob) + key.size() +
                                     nbytes)) {
-        return memoryCondition();
+        return cb::makeEngineErrorItemPair(cb::engine_errc(memoryCondition()));
     }
 
     time_t expiretime = (exptime == 0) ? 0 : ep_abs_time(ep_reltime(exptime));
 
-    *itm = new Item(key,
-                    flags,
-                    expiretime,
-                    nullptr,
-                    nbytes,
-                    datatype,
-                    0 /*cas*/,
-                    -1 /*seq*/,
-                    vbucket);
-    if (*itm == nullptr) {
-        return memoryCondition();
-    } else {
+    try {
+        auto* item = new Item(key,
+                              flags,
+                              expiretime,
+                              nullptr,
+                              nbytes,
+                              datatype,
+                              0 /*cas*/,
+                              -1 /*seq*/,
+                              vbucket);
         stats.itemAllocSizeHisto.addValue(nbytes);
-        return ENGINE_SUCCESS;
+        return cb::makeEngineErrorItemPair(
+                cb::engine_errc::success, item, this);
+    } catch (const std::bad_alloc&) {
+        return cb::makeEngineErrorItemPair(cb::engine_errc(memoryCondition()));
     }
 }
 
@@ -2415,11 +2401,11 @@ void EventuallyPersistentEngine::itemRelease(ItemIface* itm) {
     delete reinterpret_cast<Item*>(itm);
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::get(const void* cookie,
-                                                  ItemIface** itm,
-                                                  const DocKey& key,
-                                                  Vbid vbucket,
-                                                  get_options_t options) {
+cb::EngineErrorItemPair EventuallyPersistentEngine::getInner(
+        const void* cookie,
+        const DocKey& key,
+        Vbid vbucket,
+        get_options_t options) {
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
             HdrMicroSecStopwatch(stats.getCmdHisto),
             TracerStopwatch(cookie, cb::tracing::Code::Get));
@@ -2428,17 +2414,19 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get(const void* cookie,
     ENGINE_ERROR_CODE ret = gv.getStatus();
 
     if (ret == ENGINE_SUCCESS) {
-        *itm = gv.item.release();
+        return cb::makeEngineErrorItemPair(
+                cb::engine_errc::success, gv.item.release(), this);
         if (options & TRACK_STATISTICS) {
             ++stats.numOpsGet;
         }
     } else if (ret == ENGINE_KEY_ENOENT || ret == ENGINE_NOT_MY_VBUCKET) {
         if (isDegradedMode()) {
-            return ENGINE_TMPFAIL;
+            return cb::makeEngineErrorItemPair(
+                    cb::engine_errc::temporary_failure);
         }
     }
 
-    return ret;
+    return cb::makeEngineErrorItemPair(cb::engine_errc(ret));
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::getAndTouchInner(
@@ -2554,9 +2542,8 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
     throw std::logic_error("EventuallyPersistentEngine::get_if: loop terminated");
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::getLockedInner(
+cb::EngineErrorItemPair EventuallyPersistentEngine::getLockedInner(
         const void* cookie,
-        ItemIface** itm,
         const DocKey& key,
         Vbid vbucket,
         uint32_t lock_timeout) {
@@ -2579,10 +2566,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getLockedInner(
 
     if (result.getStatus() == ENGINE_SUCCESS) {
         ++stats.numOpsGet;
-        *itm = result.item.release();
+        return cb::makeEngineErrorItemPair(
+                cb::engine_errc::success, result.item.release(), this);
     }
 
-    return result.getStatus();
+    return cb::makeEngineErrorItemPair(cb::engine_errc(result.getStatus()));
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::unlockInner(const void* cookie,

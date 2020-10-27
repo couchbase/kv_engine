@@ -435,11 +435,10 @@ public:
 
     void itemRelease(ItemIface* itm);
 
-    ENGINE_ERROR_CODE get(const void* cookie,
-                          ItemIface** itm,
-                          const DocKey& key,
-                          Vbid vbucket,
-                          get_options_t options);
+    cb::EngineErrorItemPair getInner(const void* cookie,
+                                     const DocKey& key,
+                                     Vbid vbucket,
+                                     get_options_t options);
 
     /**
      * Fetch an item only if the specified filter predicate returns true.
@@ -467,11 +466,10 @@ public:
                                              Vbid vbucket,
                                              uint32_t expiry_time);
 
-    ENGINE_ERROR_CODE getLockedInner(const void* cookie,
-                                     ItemIface** itm,
-                                     const DocKey& key,
-                                     Vbid vbucket,
-                                     uint32_t lock_timeout);
+    cb::EngineErrorItemPair getLockedInner(const void* cookie,
+                                           const DocKey& key,
+                                           Vbid vbucket,
+                                           uint32_t lock_timeout);
 
     ENGINE_ERROR_CODE unlockInner(const void* cookie,
                                   const DocKey& key,
@@ -805,14 +803,13 @@ public:
 
     void destroyInner(bool force);
 
-    ENGINE_ERROR_CODE itemAllocate(ItemIface** itm,
-                                   const DocKey& key,
-                                   const size_t nbytes,
-                                   const size_t priv_nbytes,
-                                   const int flags,
-                                   rel_time_t exptime,
-                                   uint8_t datatype,
-                                   Vbid vbucket);
+    cb::EngineErrorItemPair itemAllocate(const DocKey& key,
+                                         const size_t nbytes,
+                                         const size_t priv_nbytes,
+                                         const int flags,
+                                         rel_time_t exptime,
+                                         uint8_t datatype,
+                                         Vbid vbucket);
 
     cb::engine::FeatureSet getFeatures() override;
 
