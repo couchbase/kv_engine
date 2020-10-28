@@ -208,7 +208,6 @@ void event_callback(bufferevent* bev, short event, void*) {
     if (((event & BEV_EVENT_EOF) == BEV_EVENT_EOF) ||
         ((event & BEV_EVENT_ERROR) == BEV_EVENT_ERROR)) {
         std::cerr << "Other side closed connection: " << event << std::endl;
-        bufferevent_free(bev);
     }
 }
 
