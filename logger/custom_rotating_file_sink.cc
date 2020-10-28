@@ -46,7 +46,7 @@ static unsigned long find_first_logfile_id(const std::string& basename) {
             try {
                 unsigned long value = std::stoul(file.substr(index + 1));
                 if (value > id) {
-                    id = value + 1;
+                    id = value;
                 }
             } catch (...) {
                 // Ignore
@@ -65,11 +65,10 @@ custom_rotating_file_sink<Mutex>::custom_rotating_file_sink(
     : _base_filename(base_filename),
       _max_size(max_size),
       _current_size(0),
-      _file_helper(std::make_unique<spdlog::details::file_helper>()),
       _next_file_id(find_first_logfile_id(base_filename)) {
     formatter = std::make_unique<spdlog::pattern_formatter>(
             log_pattern, spdlog::pattern_time_type::local);
-    _file_helper->open(calc_filename());
+    _file_helper = openFile();
     _current_size = _file_helper->size(); // expensive. called only once
     addHook(openingLogfile);
 }
@@ -81,14 +80,17 @@ template <class Mutex>
 void custom_rotating_file_sink<Mutex>::sink_it_(
         const spdlog::details::log_msg& msg) {
     _current_size += msg.raw.size();
+    fmt::memory_buffer formatted;
+    formatter->format(msg, formatted);
+    _file_helper->write(formatted);
+
+    // Is it time to wrap to the next file?
     if (_current_size > _max_size) {
-        std::unique_ptr<spdlog::details::file_helper> next =
-                std::make_unique<spdlog::details::file_helper>();
         try {
-            next->open(calc_filename(), true);
+            auto next = openFile();
             addHook(closingLogfile);
             std::swap(_file_helper, next);
-            _current_size = msg.raw.size();
+            _current_size = _file_helper->size();
             addHook(openingLogfile);
         } catch (...) {
             // Keep on logging to the this file, but try swap at the next
@@ -97,10 +99,6 @@ void custom_rotating_file_sink<Mutex>::sink_it_(
             _next_file_id--;
         }
     }
-    fmt::memory_buffer formatted;
-    formatter->format(msg, formatted);
-
-    _file_helper->write(formatted);
 }
 
 template <class Mutex>
@@ -131,26 +129,15 @@ void custom_rotating_file_sink<Mutex>::addHook(const std::string& hook) {
     _file_helper->write(formatted);
 }
 
-/**
- * Create a new filename. If this breaks when updating spdlog then compare
- * functionality to the calc_filename() method in the spdlog rotating_file_sink
- * @tparam Mutex
- * @return An spdlog filename
- */
 template <class Mutex>
-spdlog::filename_t custom_rotating_file_sink<Mutex>::calc_filename() {
-    char fname[1024];
-    unsigned long try_id = _next_file_id;
+std::unique_ptr<spdlog::details::file_helper>
+custom_rotating_file_sink<Mutex>::openFile() {
+    std::unique_ptr<spdlog::details::file_helper> ret =
+            std::make_unique<spdlog::details::file_helper>();
     do {
-        sprintf(fname, "%s.%06lu.txt", _base_filename.c_str(), try_id++);
-    } while (cb::io::isFile(fname));
-
-    _next_file_id = try_id;
-#if defined(_WIN32) && defined(SPDLOG_WCHAR_FILENAMES)
-    return fmt::to_wstring(fname);
-#else
-    return fmt::to_string(fname);
-#endif
+        ret->open(fmt::format("{}.{:06}.txt", _base_filename, _next_file_id++));
+    } while (ret->size() > _max_size);
+    return ret;
 }
 
 template <class Mutex>
