@@ -2278,6 +2278,10 @@ TEST_P(XattrTest, MB40980_InputMacroExpansion) {
                         "\"${$document.exptime}\"");
         cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
                         SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS,
+                        "tnx.revid",
+                        "\"${$document.revid}\"");
+        cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS,
                         "tnx.doc",
                         "\"${$document}\"");
         conn.sendCommand(cmd);
@@ -2308,10 +2312,16 @@ TEST_P(XattrTest, MB40980_InputMacroExpansion) {
         tnx = nlohmann::json::parse(results[1].value);
     }
 
+    EXPECT_TRUE(tnx["CAS"].is_string());
+    EXPECT_TRUE(tnx["exptime"].is_number());
+    EXPECT_TRUE(tnx["revid"].is_string());
+
     EXPECT_NE(cb::from_hex(original["CAS"]), cb::from_hex(modified["CAS"]));
     EXPECT_EQ(original["exptime"].get<uint64_t>(),
               tnx["exptime"].get<uint64_t>());
     EXPECT_EQ(cb::from_hex(original["CAS"]), cb::from_hex(tnx["CAS"]));
+    EXPECT_EQ(original["revid"], tnx["revid"]);
+
     EXPECT_EQ(original, tnx["doc"]);
 }
 

@@ -438,7 +438,7 @@ std::string_view SubdocCmdContext::expand_virtual_document_macro(
     }
     if (macro == R"(.revid}")") {
         expandedVirtualMacrosBackingStore.emplace_back(
-                std::to_string(input_item_info.revid));
+            "\"" + std::to_string(input_item_info.revid) + "\"");
         return expandedVirtualMacrosBackingStore.back();
     }
     if (macro == R"(.exptime}")") {
