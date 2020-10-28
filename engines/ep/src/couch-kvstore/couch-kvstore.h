@@ -80,6 +80,14 @@ public:
         return &dbDocInfo;
     }
 
+    void setUpdate() {
+        update = true;
+    }
+
+    bool isUpdate() const {
+        return update;
+    }
+
 protected:
     static couchstore_content_meta_flags getContentMeta(const Item& it);
 
@@ -88,6 +96,10 @@ protected:
     MetaData meta;
     Doc dbDoc;
     DocInfo dbDocInfo;
+
+    // This flag is at save-doc-callback if the write if for an existing key.
+    // Then used in the commit-callback for updating stats.
+    bool update{false};
 };
 
 /**
@@ -537,13 +549,16 @@ protected:
      * @param docs vector of Doc* to be written (can be empty)
      * @param docsinfo vector of DocInfo* to be written (non const due to
      *        couchstore API). Entry n corresponds to entry n of docs.
+     * @param kvReqs Vector of pointers to KV requests being passed to the
+     *        storage. Same order as docs and docsinfo.
      * @param kvctx a stats context object to update
      *
      * @returns COUCHSTORE_SUCCESS or a failure code (failure paths log)
      */
     couchstore_error_t saveDocs(Vbid vbid,
                                 const std::vector<Doc*>& docs,
-                                std::vector<DocInfo*>& docinfos,
+                                const std::vector<DocInfo*>& docinfos,
+                                const std::vector<void*>& kvReqs,
                                 kvstats_ctx& kvctx);
 
     void commitCallback(PendingRequestQueue& committedReqs,

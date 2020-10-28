@@ -2542,16 +2542,19 @@ bool CouchKVStore::commit2couchstore(VB::Commit& commitData) {
 
     std::vector<Doc*> docs(pendingCommitCnt);
     std::vector<DocInfo*> docinfos(pendingCommitCnt);
+    std::vector<void*> kvReqs(pendingCommitCnt);
 
     for (size_t i = 0; i < pendingCommitCnt; ++i) {
         auto& req = pendingReqsQ[i];
         docs[i] = req.getDbDoc();
         docinfos[i] = req.getDbDocInfo();
+        kvReqs[i] = &req;
     }
 
     kvstats_ctx kvctx(commitData);
     // flush all
-    couchstore_error_t errCode = saveDocs(vbucket2flush, docs, docinfos, kvctx);
+    couchstore_error_t errCode =
+            saveDocs(vbucket2flush, docs, docinfos, kvReqs, kvctx);
 
     if (errCode) {
         success = false;
@@ -2599,10 +2602,9 @@ static void saveDocsCallback(const DocInfo* oldInfo,
                                                   oldInfo->deleted,
                                                   oldInfo->physical_size);
 
-        // Update keyWasOnDisk for overall (not per-collection) stats
-        // Replacing a document
         if (!oldInfo->deleted) {
-            cbCtx->keyWasOnDisk.insert(newKey);
+            // Doc already existed alive on disk, this is an update
+            static_cast<CouchRequest*>(kvReq)->setUpdate();
         }
     } else {
         cbCtx->commitData.collections.updateStats(newKey.getDocKey(),
@@ -2621,8 +2623,6 @@ static void saveDocsCallback(const DocInfo* oldInfo,
                 // New is deleted, so decrement count
                 onDiskMutationType = DocMutationType::Delete;
             }
-            // Update keyWasOnDisk for overall (not per-collection) stats
-            cbCtx->keyWasOnDisk.insert(newKey);
         } else if (!newInfo->deleted) {
             // Adding an item
             onDiskMutationType = DocMutationType::Insert;
@@ -2661,7 +2661,8 @@ static size_t calcLogicalDataSize(const Doc* doc, const DocInfo& info) {
 
 couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
                                           const std::vector<Doc*>& docs,
-                                          std::vector<DocInfo*>& docinfos,
+                                          const std::vector<DocInfo*>& docinfos,
+                                          const std::vector<void*>& kvReqs,
                                           kvstats_ctx& kvctx) {
     couchstore_error_t errCode;
     DbHolder db(*this);
@@ -2701,7 +2702,7 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
         errCode = couchstore_save_documents_and_callback(db,
                                                          docs.data(),
                                                          docinfos.data(),
-                                                         nullptr,
+                                                         kvReqs.data(),
                                                          (unsigned)docs.size(),
                                                          flags,
                                                          &saveDocsCallback,
@@ -2808,11 +2809,10 @@ void CouchKVStore::commitCallback(PendingRequestQueue& committedReqs,
         ++st.io_num_write;
         st.io_document_write_bytes += docLogicalSize;
 
-        const auto& key = committed.getKey();
         if (committed.isDelete()) {
             FlushStateDeletion state;
             if (flushSuccess) {
-                if (kvctx.keyWasOnDisk.find(key) != kvctx.keyWasOnDisk.end()) {
+                if (committed.isUpdate()) {
                     // Deletion is for an existing item on disk
                     state = FlushStateDeletion::Delete;
                 } else {
@@ -2829,7 +2829,7 @@ void CouchKVStore::commitCallback(PendingRequestQueue& committedReqs,
         } else {
             FlushStateMutation state;
             if (flushSuccess) {
-                if (kvctx.keyWasOnDisk.find(key) != kvctx.keyWasOnDisk.end()) {
+                if (committed.isUpdate()) {
                     // Mutation is for an existing item on disk
                     state = FlushStateMutation::Update;
                 } else {
