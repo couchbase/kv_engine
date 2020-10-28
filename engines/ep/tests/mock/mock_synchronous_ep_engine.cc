@@ -21,6 +21,7 @@
 #include "checkpoint_remover.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/flow-control-manager.h"
+#include "environment.h"
 #include "item.h"
 #include "mock_dcp_conn_map.h"
 #include "mock_ep_bucket.h"
@@ -29,6 +30,8 @@
 #include <platform/cbassert.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <string>
+
+#include <memcached/server_core_iface.h>
 
 SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
                                          std::string extra_config)
@@ -54,6 +57,9 @@ SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
     }
 
     name = "SynchronousEPEngine:" + configuration.getCouchBucket();
+
+    auto& env = Environment::get();
+    env.engineFileDescriptors = serverApi->core->getMaxEngineFileDescriptors();
 
     // workload is needed by EPStore's constructor (to construct the
     // VBucketMap).
