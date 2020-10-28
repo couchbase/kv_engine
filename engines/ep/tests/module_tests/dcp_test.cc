@@ -2988,6 +2988,22 @@ TEST_P(ConnectionTest, ReplicateJustBeforeThrottleThreshold) {
     sendConsumerMutationsNearThreshold(false);
 }
 
+TEST_P(ConnectionTest, ConsumerHandlesSeqnoAckResponse) {
+    const void* cookie = create_mock_cookie();
+
+    /* Set up a consumer connection */
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
+
+    protocol_binary_response_header resp{};
+    resp.response.setMagic(cb::mcbp::Magic::AltClientResponse);
+    resp.response.setOpcode(cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged);
+    resp.response.setStatus(cb::mcbp::Status::NotMyVbucket);
+    EXPECT_TRUE(consumer->handleResponse(&resp));
+
+    destroy_mock_cookie(cookie);
+}
+
 void ConnectionTest::processConsumerMutationsNearThreshold(
         bool beyondThreshold) {
     const void* cookie = create_mock_cookie();

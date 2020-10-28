@@ -1035,6 +1035,12 @@ bool DcpConsumer::handleResponse(const protocol_binary_response_header* resp) {
         producerIsVersion5orHigher = status != cb::mcbp::Status::UnknownCommand;
         getErrorMapState = GetErrorMapState::Skip;
         return true;
+    } else if (opcode == cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged) {
+        // Seqno ack might respond in a non-success case if the vBucket has gone
+        // away on the producer. We don't really care if this happens, the
+        // stream has probably already gone away, but we don't want to take down
+        // the connection (return false) as it might cause a rebalance to fail.
+        return true;
     }
 
     logger->warn("Trying to handle an unknown response {}, disconnecting",
