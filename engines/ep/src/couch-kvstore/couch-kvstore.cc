@@ -2448,7 +2448,8 @@ bool CouchKVStore::commit2couchstore(VB::Commit& commitData) {
 // type statistics and collection stats (item counts, disk changes and seqno)
 static void saveDocsCallback(const DocInfo* oldInfo,
                              const DocInfo* newInfo,
-                             void* context) {
+                             void* context,
+                             void* kvReq) {
     auto* cbCtx = static_cast<kvstats_ctx*>(context);
 
     if (!newInfo) {
@@ -2568,6 +2569,7 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
         errCode = couchstore_save_documents_and_callback(db,
                                                          docs.data(),
                                                          docinfos.data(),
+                                                         nullptr,
                                                          (unsigned)docs.size(),
                                                          flags,
                                                          &saveDocsCallback,
