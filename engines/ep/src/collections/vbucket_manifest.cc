@@ -257,7 +257,7 @@ void Manifest::addCollection(const WriteHandle& wHandle,
 
     EP_LOG_INFO(
             "collections: {} adding collection:[name:{},id:{}] to "
-            "scope:{:#x}, "
+            "scope:{}, "
             "maxTTL:{} {}, "
             "replica:{}, seqno:{}, manifest:{:#x}",
             vb.getId(),
@@ -339,7 +339,7 @@ void Manifest::dropCollection(WriteHandle& wHandle,
             vb.getSaveDroppedCollectionCallback(cid, wHandle, itr->second));
 
     EP_LOG_INFO(
-            "collections: {} drop of collection:{} from scope:{:#x}"
+            "collections: {} drop of collection:{} from scope:{}"
             ", replica:{}, seqno:{}, manifest:{:#x} tombstone:{}",
             vb.getId(),
             cid,
@@ -401,7 +401,7 @@ void Manifest::addScope(const WriteHandle& wHandle,
             std::move(item), optionalSeqno, {}, wHandle, {});
 
     EP_LOG_INFO(
-            "collections: {} added scope:name:{},id:{:#x} "
+            "collections: {} added scope:name:{},id:{} "
             "replica:{}, seqno:{}, manifest:{:#x}",
             vb.getId(),
             scopeName,
@@ -455,7 +455,7 @@ void Manifest::dropScope(const WriteHandle& wHandle,
     }
 
     EP_LOG_INFO(
-            "collections: {} dropped scope:id:{:#x} "
+            "collections: {} dropped scope:id:{} "
             "replica:{}, seqno:{}, manifest:{:#x}",
             vb.getId(),
             sid,
