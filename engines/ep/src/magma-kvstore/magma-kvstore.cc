@@ -1303,7 +1303,20 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
     auto handle = makeFileHandle(vbid);
 
     std::unique_ptr<Magma::Snapshot> snapshot;
-    auto status = magma->GetSnapshot(vbid.get(), snapshot);
+
+    // Flush writecache for creating an on-disk snapshot
+    auto status = magma->SyncKVStore(vbid.get());
+    if (!status.IsOK()) {
+        logger->warn(
+                "MagmaKVStore::initBySeqnoScanContext {} Failed to sync "
+                "kvstore with status {}",
+                vbid,
+                status.String());
+        return nullptr;
+    }
+
+    status = magma->GetDiskSnapshot(vbid.get(), snapshot);
+
     if (!status.IsOK()) {
         logger->warn(
                 "MagmaKVStore::initBySeqnoScanContext {} Failed to get magma snapshot "
