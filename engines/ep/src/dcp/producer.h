@@ -463,14 +463,12 @@ protected:
      * vbucket.
      *
      * @param vbid
-     * @param sid The stream id
      * @param status The stream end status
      * @param vbstateLock (optional) Exclusive lock to vbstate
      * @return true if the operation succeeds, false otherwise
      */
     bool setStreamDeadStatus(
             Vbid vbid,
-            cb::mcbp::DcpStreamId sid,
             cb::mcbp::DcpStreamEndStatus status,
             folly::SharedMutex::WriteHolder* vbstateLock = nullptr);
 

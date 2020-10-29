@@ -1596,7 +1596,6 @@ void DcpProducer::closeStreamDueToVbStateChange(
         vbucket_state_t state,
         folly::SharedMutex::WriteHolder* vbstateLock) {
     if (setStreamDeadStatus(vbucket,
-                            {},
                             cb::mcbp::DcpStreamEndStatus::StateChanged,
                             vbstateLock)) {
         logger->debug("({}) State changed to {}, closing active stream!",
@@ -1606,8 +1605,7 @@ void DcpProducer::closeStreamDueToVbStateChange(
 }
 
 void DcpProducer::closeStreamDueToRollback(Vbid vbucket) {
-    if (setStreamDeadStatus(
-                vbucket, {}, cb::mcbp::DcpStreamEndStatus::Rollback)) {
+    if (setStreamDeadStatus(vbucket, cb::mcbp::DcpStreamEndStatus::Rollback)) {
         logger->debug(
                 "({}) Rollback occurred,"
                 "closing stream (downstream must rollback too)",
@@ -1634,32 +1632,30 @@ bool DcpProducer::handleSlowStream(Vbid vbid, const CheckpointCursor* cursor) {
 
 bool DcpProducer::setStreamDeadStatus(
         Vbid vbid,
-        cb::mcbp::DcpStreamId sid,
         cb::mcbp::DcpStreamEndStatus status,
         folly::SharedMutex::WriteHolder* vbstateLock) {
     auto rv = streams.find(vbid.get());
     if (rv != streams.end()) {
-        std::shared_ptr<Stream> streamPtr;
+        std::vector<std::shared_ptr<Stream>> streamPtrs;
         // MB-35073: holding StreamContainer rlock while calling setDead
         // has been seen to cause lock inversion elsewhere.
-        // Collect sharedptr then setDead once lock is released (itr out of
+        // Collect sharedptrs then setDead once lock is released (itr out of
         // scope).
         for (auto itr = rv->second->rlock(); !itr.end(); itr.next()) {
-            if (itr.get()->compareStreamId(sid)) {
-                streamPtr = itr.get();
-                break;
-            }
+            streamPtrs.push_back(itr.get());
         }
 
         // MB-36637: At KVBucket::setVBucketState we acquire an exclusive lock
         // to vbstate and pass it down here. If that is the case, then we have
         // to avoid the call to ActiveStream::setDead(status) as it may deadlock
         // by acquiring the same lock again.
-        auto* activeStream = dynamic_cast<ActiveStream*>(streamPtr.get());
-        if (activeStream && vbstateLock) {
-            activeStream->setDead(status, *vbstateLock);
-        } else if (streamPtr) {
-            streamPtr->setDead(status);
+        for (const auto& streamPtr : streamPtrs) {
+            auto* activeStream = dynamic_cast<ActiveStream*>(streamPtr.get());
+            if (activeStream && vbstateLock) {
+                activeStream->setDead(status, *vbstateLock);
+            } else if (streamPtr) {
+                streamPtr->setDead(status);
+            }
         }
 
         return true;

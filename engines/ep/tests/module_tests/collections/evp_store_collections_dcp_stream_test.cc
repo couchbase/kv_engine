@@ -489,6 +489,25 @@ TEST_F(CollectionsDcpStreamsTest, close_stream_validation2) {
               producer->closeStream(0, vbid, cb::mcbp::DcpStreamId(99)));
 }
 
+TEST_F(CollectionsDcpStreamsTest, end_stream_for_state_change) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest(makeManifest(cm));
+    producer->enableMultipleStreamRequests();
+    createDcpStream({{R"({"collections":["9"], "sid":42})"}}, vbid);
+    createDcpStream({{R"({"collections":["0"], "sid":1984})"}}, vbid);
+
+    store->setVBucketState(vbid, vbucket_state_replica);
+    producer->closeStreamDueToVbStateChange(
+            vbid, vbucket_state_replica, nullptr);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    EXPECT_EQ(cb::mcbp::DcpStreamId(1984), producers->last_stream_id);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    EXPECT_EQ(cb::mcbp::DcpStreamId(42), producers->last_stream_id);
+}
+
 // Core test method for close with a stream ID.
 // Allows a number of cases to be covered where we have many streams mapped to
 // the vbid and stream_end message enabled/disabled.
