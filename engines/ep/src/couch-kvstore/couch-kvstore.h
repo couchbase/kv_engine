@@ -828,6 +828,9 @@ protected:
     std::vector<cb::RelaxedAtomic<size_t>> cachedDeleteCount;
     std::vector<cb::RelaxedAtomic<uint64_t>> cachedFileSize;
     std::vector<cb::RelaxedAtomic<uint64_t>> cachedSpaceUsed;
+    /// Size of on-disk prepares, indexed by vBucket RelaxedAtomic to allow
+    /// stats access without lock.
+    std::vector<cb::RelaxedAtomic<size_t>> cachedOnDiskPrepareSize;
 
     /* pending file deletions */
     folly::Synchronized<std::queue<std::string>> pendingFileDeletions;

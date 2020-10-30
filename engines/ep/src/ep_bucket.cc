@@ -1219,10 +1219,16 @@ ENGINE_ERROR_CODE EPBucket::getFileStats(const void* cookie,
                 getRWUnderlyingByShard(shardId)->getAggrDbFileInfo();
         totalInfo.spaceUsed += dbInfo.spaceUsed;
         totalInfo.fileSize += dbInfo.fileSize;
+        totalInfo.prepareBytes += dbInfo.prepareBytes;
     }
 
-    add_casted_stat("ep_db_data_size", totalInfo.spaceUsed, add_stat, cookie);
+    add_casted_stat("ep_db_data_size",
+                    totalInfo.getEstimatedLiveData(),
+                    add_stat,
+                    cookie);
     add_casted_stat("ep_db_file_size", totalInfo.fileSize, add_stat, cookie);
+    add_casted_stat(
+            "ep_db_prepare_size", totalInfo.prepareBytes, add_stat, cookie);
 
     return ENGINE_SUCCESS;
 }
@@ -1244,10 +1250,14 @@ ENGINE_ERROR_CODE EPBucket::getPerVBucketDiskStats(const void* cookie,
 
                 checked_snprintf(
                         buf, sizeof(buf), "vb_%d:data_size", vbid.get());
-                add_casted_stat(buf, dbInfo.spaceUsed, add_stat, cookie);
+                add_casted_stat(
+                        buf, dbInfo.getEstimatedLiveData(), add_stat, cookie);
                 checked_snprintf(
                         buf, sizeof(buf), "vb_%d:file_size", vbid.get());
                 add_casted_stat(buf, dbInfo.fileSize, add_stat, cookie);
+                checked_snprintf(
+                        buf, sizeof(buf), "vb_%d:prepare_size", vbid.get());
+                add_casted_stat(buf, dbInfo.prepareBytes, add_stat, cookie);
             } catch (std::exception& error) {
                 EP_LOG_WARN(
                         "DiskStatVisitor::visitBucket: Failed to build stat: "

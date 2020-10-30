@@ -7512,9 +7512,11 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
         // Using explicit initializer lists due to http://stackoverflow
         // .com/questions/36557969/invalid-iterator-range-while-inserting
         // -initializer-list-to-an-stdvector
-        eng_stats.insert(eng_stats.end(),
-                         std::initializer_list<std::string>{"ep_db_data_size",
-                                                            "ep_db_file_size"});
+        eng_stats.insert(
+                eng_stats.end(),
+                std::initializer_list<std::string>{"ep_db_data_size",
+                                                   "ep_db_file_size",
+                                                   "ep_db_prepare_size"});
         eng_stats.insert(eng_stats.end(),
                          std::initializer_list<std::string>{"ep_flusher_state",
                                                             "ep_flusher_todo"});
@@ -7544,8 +7546,10 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
         eng_stats.insert(eng_stats.end(), persistentConfig);
 
         // 'diskinfo and 'diskinfo detail' keys should be present now.
-        statsKeys["diskinfo"] = {"ep_db_data_size", "ep_db_file_size"};
-        statsKeys["diskinfo detail"] = {"vb_0:data_size", "vb_0:file_size"};
+        statsKeys["diskinfo"] = {
+                "ep_db_data_size", "ep_db_file_size", "ep_db_prepare_size"};
+        statsKeys["diskinfo detail"] = {
+                "vb_0:data_size", "vb_0:file_size", "vb_0:prepare_size"};
 
         // Add stats which are only available for persistent buckets:
         static const char* persistence_stats[] = {
@@ -7562,6 +7566,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
         auto& vb_details = statsKeys.at("vbucket-details 0");
         vb_details.push_back("vb_0:db_data_size");
         vb_details.push_back("vb_0:db_file_size");
+        vb_details.push_back("vb_0:db_prepare_size");
 
         // Config variables only valid for persistent
         auto& config_stats = statsKeys.at("config");

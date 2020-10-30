@@ -145,14 +145,43 @@ public:
 };
 
 struct DBFileInfo {
-    DBFileInfo() :
-        fileSize(0), spaceUsed(0) { }
+    /// Total size of the file (what 'stat()' would return). Includes both
+    /// current data (spaceUsed) plus any previous data which is no longer
+    /// referenced in current file header.
+    uint64_t fileSize = 0;
 
-    DBFileInfo(uint64_t fileSize_, uint64_t spaceUsed_)
-        : fileSize(fileSize_), spaceUsed(spaceUsed_) {}
+    /// Total size of "current" data in the file - sum of all
+    /// keys+metdata+values (included deleted docs) plus overheads to manage it
+    /// (indexes such as B-Trees, headers etc).
+    uint64_t spaceUsed = 0;
 
-    uint64_t fileSize;
-    uint64_t spaceUsed;
+    /// Total size of all SyncWrite prepares, both completed and pending.
+    /// This can be used to adjust spaceUsed to give an estimate of how much
+    /// data in the file is actually needed - completed prepares are no
+    /// longer needed and can be purged during compaction - as such they can
+    /// be considered part of the "Fragmented" count.
+    uint64_t prepareBytes = 0;
+
+    /**
+     * @returns An estimate of the number of bytes which are "live" data and
+     * hence are not subject to being discarded during compactionn. This
+     * is calculated as the size of the current data (spaceUsed), minus an
+     * estimate of the size of completed prepares (which will be purged on
+     * compaction).
+     * Note: All prepared SyncWrites (completed and in-progress) are used as
+     *       an estimate for completed sync writes, given (a) it's difficult
+     *       to track exactly how any prepares have been completed and (b)
+     *       in general we expect the overwhelming majority of on-disk prepares
+     *       to be completed.
+     */
+    uint64_t getEstimatedLiveData() const {
+        if (spaceUsed > prepareBytes) {
+            // Sanity check - if totalOnDiskPrepareSize is somehow larger than
+            // spaceUsed then skip the adjustment.
+            return spaceUsed - prepareBytes;
+        }
+        return spaceUsed;
+    }
 };
 
 enum scan_error_t {
