@@ -886,7 +886,8 @@ size_t EPBucket::getFlusherBatchSplitTrigger() {
 }
 
 bool EPBucket::commit(Vbid vbid, KVStore& kvstore, VB::Commit& commitData) {
-    BlockTimer timer(&stats.diskCommitHisto, "disk_commit", stats.timingLog);
+    HdrMicroSecBlockTimer timer(
+            &stats.diskCommitHisto, "disk_commit", stats.timingLog);
     auto commit_start = std::chrono::steady_clock::now();
 
     const auto res = kvstore.commit(commitData);
@@ -1074,7 +1075,7 @@ void EPBucket::flushOneDelOrSet(const queued_item& qi, VBucketPtr& vb) {
     if (!deleted) {
         // TODO: Need to separate disk_insert from disk_update because
         // bySeqno doesn't give us that information.
-        BlockTimer timer(
+        HdrMicroSecBlockTimer timer(
                 bySeqno == -1 ? &stats.diskInsertHisto : &stats.diskUpdateHisto,
                 bySeqno == -1 ? "disk_insert" : "disk_update",
                 stats.timingLog);

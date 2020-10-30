@@ -559,10 +559,10 @@ public:
     //
 
     //! Histogram of insert disk writes
-    MicrosecondHistogram diskInsertHisto;
+    Hdr1sfMicroSecHistogram diskInsertHisto;
 
     //! Histogram of update disk writes
-    MicrosecondHistogram diskUpdateHisto;
+    Hdr1sfMicroSecHistogram diskUpdateHisto;
 
     //! Histogram of delete disk writes
     Hdr1sfMicroSecHistogram diskDelHisto;
@@ -571,7 +571,7 @@ public:
     Hdr1sfMicroSecHistogram diskVBDelHisto;
 
     //! Histogram of disk commits
-    MicrosecondHistogram diskCommitHisto;
+    Hdr1sfMicroSecHistogram diskCommitHisto;
 
     //! Historgram of batch reads
     Hdr1sfMicroSecHistogram getMultiHisto;
