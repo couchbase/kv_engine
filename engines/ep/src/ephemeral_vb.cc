@@ -108,20 +108,24 @@ bool EphemeralVBucket::pageOut(const Collections::VB::ReadHandle& readHandle,
     if (!eligibleToPageOut(lh, *v)) {
         return false;
     }
+    auto cid = v->getKey().getCollectionID();
     VBQueueItemCtx queueCtx;
     v->setRevSeqno(v->getRevSeqno() + 1);
-    StoredValue* newSv;
     DeletionStatus status;
     VBNotifyCtx notifyCtx;
-    std::tie(newSv, status, notifyCtx) = softDeleteStoredValue(
+    // After soft delete it is no longer safe to manipulate v the original
+    // StoredValue v.
+    // If v was made stale (because a range lock covers it) it may be
+    // deleted at any time. Only the new SV ptr which has been returned should
+    // be handled now.
+    std::tie(v, status, notifyCtx) = softDeleteStoredValue(
             lh, *v, /*onlyMarkDeleted*/ false, queueCtx, 0);
 
     switch (status) {
     case DeletionStatus::Success:
-        ht.updateMaxDeletedRevSeqno(newSv->getRevSeqno());
+        ht.updateMaxDeletedRevSeqno(v->getRevSeqno());
         notifyNewSeqno(notifyCtx);
-        doCollectionsStats(readHandle, v->getKey().getCollectionID(),
-                notifyCtx);
+        doCollectionsStats(readHandle, cid, notifyCtx);
         autoDeleteCount++;
         return true;
 
