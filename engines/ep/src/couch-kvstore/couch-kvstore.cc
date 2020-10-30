@@ -311,6 +311,12 @@ struct kvstats_ctx {
      * the persisted VB state before commit
      */
     size_t onDiskPrepareDelta = 0;
+
+    /**
+     * Delta of onDiskPrepareBytes that we should add to the value tracked in
+     * the persisted VB state before commit.
+     */
+    ssize_t onDiskPrepareBytesDelta = 0;
 };
 
 CouchKVStore::CouchKVStore(KVStoreConfig& config)
@@ -948,6 +954,7 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
                 }
                 if (metadata->isPrepare()) {
                     ctx->stats.preparesPurged++;
+                    ctx->stats.prepareBytesPurged += info->size;
                 }
                 return COUCHSTORE_COMPACT_DROP_ITEM;
             } else if (info->deleted) {
@@ -998,6 +1005,7 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
             if (metadata->isPrepare()) {
                 if (info->db_seq <= ctx->highCompletedSeqno) {
                     ctx->stats.preparesPurged++;
+                    ctx->stats.prepareBytesPurged += info->size;
                     return COUCHSTORE_COMPACT_DROP_ITEM;
                 }
 
@@ -1232,6 +1240,8 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
         cachedDeleteCount[vbid.get()] = info.deleted_count;
         cachedDocCount[vbid.get()] = info.doc_count;
         state->onDiskPrepares -= hook_ctx->stats.preparesPurged;
+        state->updateOnDiskPrepareBytes(
+                -int64_t(hook_ctx->stats.prepareBytesPurged));
     }
 
     logger.debug("INFO: created new couch db file, name:{} rev:{}",
@@ -1269,7 +1279,8 @@ couchstore_error_t CouchKVStore::compactPrecommitCallback(Db& db,
 
     // we need to update the _local/vbstate to update the number of
     // on_disk_prepared to match whatever we purged
-    if (ctx.stats.preparesPurged != 0) {
+    if ((ctx.stats.preparesPurged != 0) ||
+        (ctx.stats.prepareBytesPurged != 0)) {
         LocalDoc* ldoc = nullptr;
         sized_buf id{(char*)"_local/vbstate", sizeof("_local/vbstate") - 1};
         auto err = couchstore_open_local_document(
@@ -1296,12 +1307,27 @@ couchstore_error_t CouchKVStore::compactPrecommitCallback(Db& db,
         }
         couchstore_free_local_document(ldoc);
 
-        auto iter = json.find("on_disk_prepares");
-        // only update if it's there..
-        if (iter != json.end()) {
-            auto onDiskPrepares = std::stoull(iter->get<std::string>()) -
+        bool updateVbState = false;
+
+        auto prepares = json.find("on_disk_prepares");
+        if (prepares != json.end()) {
+            auto onDiskPrepares = std::stoull(prepares->get<std::string>()) -
                                   ctx.stats.preparesPurged;
-            json["on_disk_prepares"] = std::to_string(onDiskPrepares);
+            *prepares = std::to_string(onDiskPrepares);
+            updateVbState = true;
+        }
+
+        auto prepareBytes = json.find("on_disk_prepare_bytes");
+        if (prepareBytes != json.end()) {
+            auto onDiskPrepareBytes =
+                    std::stoull(prepareBytes->get<std::string>()) -
+                    ctx.stats.prepareBytesPurged;
+            *prepareBytes = std::to_string(onDiskPrepareBytes);
+            updateVbState = true;
+        }
+
+        // only update if at least one of the prepare stats is already there
+        if (updateVbState) {
             const auto doc = json.dump();
             LocalDoc newDoc{};
             newDoc.id = id;
@@ -2230,6 +2256,12 @@ static void saveDocsCallback(const DocInfo* oldInfo,
                 std::to_string(itemCountDelta));
     }
 
+    if (newKey.isPrepared()) {
+        const ssize_t newSize = newInfo->size;
+        const ssize_t oldSize = oldInfo ? oldInfo->size : 0;
+        cbCtx->onDiskPrepareBytesDelta += (newSize - oldSize);
+    }
+
     // Do not need to update high seqno if we are calling this for a prepare and
     // it will error if we do so return early.
     if (!newKey.isCommitted()) {
@@ -2326,6 +2358,7 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
                           std::placeholders::_2));
 
         state->onDiskPrepares += kvctx.onDiskPrepareDelta;
+        state->updateOnDiskPrepareBytes(kvctx.onDiskPrepareBytesDelta);
         errCode = saveVBState(db, *state);
         if (errCode != COUCHSTORE_SUCCESS) {
             logger.warn("CouchKVStore::saveDocs: saveVBState error:{} [{}]",

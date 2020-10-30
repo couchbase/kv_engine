@@ -1435,6 +1435,7 @@ int MagmaKVStore::saveDocs(Collections::VB::Flush& collectionsFlush,
         if (vbstate) {
             vbstate->highSeqno = lastSeqno;
             vbstate->onDiskPrepares += kvctx.onDiskPrepareDelta;
+            vbstate->onDiskPrepareBytes += kvctx.onDiskPrepareBytesDelta;
 
             auto magmaInfo = cachedMagmaInfo[vbid.get()].get();
             magmaInfo->docCount += ninserts - ndeletes;
@@ -2162,6 +2163,8 @@ bool MagmaKVStore::compactDB(compaction_ctx* ctx) {
     {
         std::lock_guard<std::shared_timed_mutex> lock(kvHandle->vbstateMutex);
         cachedVBStates[vbid.get()]->onDiskPrepares -= ctx->stats.preparesPurged;
+        cachedVBStates[vbid.get()]->onDiskPrepareBytes -=
+                ctx->stats.prepareBytesPurged;
         cachedVBStates[vbid.get()]->purgeSeqno = ctx->max_purged_seq;
         cachedMagmaInfo[vbid.get()]->docCount -=
                 ctx->stats.collectionsItemsPurged + ctx->stats.preparesPurged;

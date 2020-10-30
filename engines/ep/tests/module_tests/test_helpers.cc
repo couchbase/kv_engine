@@ -179,6 +179,33 @@ void rewriteCouchstoreVBState(Vbid vbucket,
                               const std::string& dbDir,
                               int revision,
                               bool namespacesSupported) {
+    auto modifyFn = [namespacesSupported](nlohmann::json& vbstateJson) {
+        vbstateJson.clear();
+        vbstateJson["state"] = "active";
+        vbstateJson["checkpoint_id"] = "1";
+        vbstateJson["max_deleted_seqno"] = "0";
+        vbstateJson["snap_start"] = "0";
+        vbstateJson["snap_end"] = "0";
+        vbstateJson["max_cas"] = "12345";
+
+        // hlc_epoch added in v5.0.0, but the value could be
+        // HlcCasSeqnoUninitialised if the couchstore file was previously
+        // upgraded from an older version.
+        vbstateJson["hlc_epoch"] = std::to_string(HlcCasSeqnoUninitialised);
+        vbstateJson["might_contain_xattrs"] = false;
+
+        if (namespacesSupported) {
+            vbstateJson["namespaces_supported"] = true;
+        }
+    };
+    modifyCouchstoreVBState(vbucket, dbDir, revision, modifyFn);
+}
+
+void modifyCouchstoreVBState(
+        Vbid vbucket,
+        const std::string& dbDir,
+        int revision,
+        std::function<void(nlohmann::json& vbState)> modifyFn) {
     std::string filename = dbDir + "/" + std::to_string(vbucket.get()) +
                            ".couch." + std::to_string(revision);
     Db* handle;
@@ -187,34 +214,27 @@ void rewriteCouchstoreVBState(Vbid vbucket,
 
     ASSERT_EQ(COUCHSTORE_SUCCESS, err) << "Failed to open new database";
 
-    nlohmann::json vbstateJson;
-    vbstateJson["state"] = "active";
-    vbstateJson["checkpoint_id"] = "1";
-    vbstateJson["max_deleted_seqno"] = "0";
-    vbstateJson["snap_start"] = "0";
-    vbstateJson["snap_end"] = "0";
-    vbstateJson["max_cas"] = "12345";
+    std::string key{"_local/vbstate"};
+    LocalDoc* doc = nullptr;
+    err = couchstore_open_local_document(handle, key.data(), key.size(), &doc);
+    ASSERT_EQ(COUCHSTORE_SUCCESS, err) << "Failed to open '" << key << "'";
 
-    // hlc_epoch added in v5.0.0, but the value could be
-    // HlcCasSeqnoUninitialised if the couchstore file was previously upgraded
-    // from an older version.
-    vbstateJson["hlc_epoch"] = std::to_string(HlcCasSeqnoUninitialised);
-    vbstateJson["might_contain_xattrs"] = false;
+    auto json =
+            nlohmann::json::parse(std::string{doc->json.buf, doc->json.size});
+    couchstore_free_local_document(doc);
 
-    if (namespacesSupported) {
-        vbstateJson["namespaces_supported"] = true;
-    }
+    modifyFn(json);
 
-    auto str = vbstateJson.dump();
+    auto str = json.dump();
 
-    LocalDoc vbstate;
-    vbstate.id.buf = (char*)"_local/vbstate";
-    vbstate.id.size = sizeof("_local/vbstate") - 1;
-    vbstate.json.buf = const_cast<char*>(str.data());
-    vbstate.json.size = str.size();
-    vbstate.deleted = 0;
+    LocalDoc newDoc;
+    newDoc.id.buf = &key[0];
+    newDoc.id.size = key.size();
+    newDoc.json.buf = &str[0];
+    newDoc.json.size = str.size();
+    newDoc.deleted = 0;
 
-    err = couchstore_save_local_document(handle, &vbstate);
+    err = couchstore_save_local_document(handle, &newDoc);
     ASSERT_EQ(COUCHSTORE_SUCCESS, err) << "Failed to write local document";
     couchstore_commit(handle);
     couchstore_close_file(handle);

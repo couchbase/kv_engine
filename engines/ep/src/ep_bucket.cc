@@ -1111,7 +1111,7 @@ void EPBucket::compactInternal(const CompactionConfig& config,
 
     EP_LOG_INFO(
             "Compaction of {} done ({}). "
-            "purged tombstones:{}, prepares:{}, "
+            "purged tombstones:{}, prepares:{}, prepareBytes:{} "
             "collection_items_erased:alive:{},deleted:{}, "
             "size/items/tombstones/purge_seqno pre{{{}, {}, {}, {}}}, "
             "post{{{}, {}, {}, {}}}",
@@ -1119,6 +1119,7 @@ void EPBucket::compactInternal(const CompactionConfig& config,
             result ? "ok" : "failed",
             ctx.stats.tombstonesPurged,
             ctx.stats.preparesPurged,
+            ctx.stats.prepareBytesPurged,
             ctx.stats.collectionsItemsPurged,
             ctx.stats.collectionsDeletedItemsPurged,
             ctx.stats.pre.size,

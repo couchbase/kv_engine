@@ -191,7 +191,51 @@ protected:
 /**
  * Test fixtures for persistent bucket tests that only run under couchstore
  */
-class DurabilityCouchstoreBucketTest : public DurabilityEPBucketTest {};
+class DurabilityCouchstoreBucketTest : public DurabilityEPBucketTest {
+protected:
+    // Helper function for tests which require an on-disk completed prepare,
+    // but without on_disk_prepare_bytes in vbstate (pre 6.6.1).
+    void setupSyncWritePrepareWithoutOnDiskPrepareBytes(std::string keyName,
+                                                        std::string value) {
+        setVBucketToActiveWithValidTopology();
+        using namespace cb::durability;
+
+        auto key = makeStoredDocKey(keyName);
+        auto req = Requirements(Level::Majority, Timeout(1000));
+        auto pending = makePendingItem(key, value, req);
+        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
+
+        auto vb = store->getVBucket(vbid);
+        vb->commit(key,
+                   1 /*prepareSeqno*/,
+                   {} /*commitSeqno*/,
+                   vb->lockCollections(key));
+
+        flushVBucketToDiskIfPersistent(vbid, 2);
+
+        // Check prepare state is as expected.
+        auto* kvstore = store->getOneRWUnderlying();
+        auto* vbstate = kvstore->getVBucketState(vbid);
+        ASSERT_EQ(1, vbstate->onDiskPrepares);
+        ASSERT_GT(vbstate->getOnDiskPrepareBytes(), 0);
+
+        modifyCouchstoreVBState(
+                vbid, test_dbname, 1, [](nlohmann::json& vbState) {
+                    vbState.erase("on_disk_prepare_bytes");
+                });
+
+        // Restart and warmup to pickup the modified vbstate.
+        vb.reset();
+        resetEngineAndWarmup();
+        kvstore = store->getOneRWUnderlying();
+
+        // on-disk prepare count should still be one, but bytes should have
+        // been reset to default of zero.
+        vbstate = kvstore->getVBucketState(vbid);
+        ASSERT_EQ(1, vbstate->onDiskPrepares);
+        ASSERT_EQ(0, vbstate->getOnDiskPrepareBytes());
+    }
+};
 
 /**
  * Test fixture for Durability-related tests applicable to ephemeral and
@@ -2532,6 +2576,12 @@ TEST_P(DurabilityCouchstoreBucketTest, RemoveCommittedPreparesAtCompaction) {
     setVBucketToActiveWithValidTopology();
     using namespace cb::durability;
 
+    // Sanity check preconditions.
+    auto* kvstore = store->getOneRWUnderlying();
+    const auto* vbstate = kvstore->getVBucketState(vbid);
+    ASSERT_EQ(0, vbstate->onDiskPrepares);
+    ASSERT_EQ(0, vbstate->getOnDiskPrepareBytes());
+
     auto key = makeStoredDocKey("key");
     auto req = Requirements(Level::Majority, Timeout(1000));
     auto pending = makePendingItem(key, "value", req);
@@ -2549,13 +2599,15 @@ TEST_P(DurabilityCouchstoreBucketTest, RemoveCommittedPreparesAtCompaction) {
     compaction_ctx cctx(config, 0);
     cctx.expiryCallback = std::make_shared<FailOnExpiryCallback>();
 
-    auto* kvstore = store->getOneRWUnderlying();
-
     // Sanity - prepare exists before compaction
     DiskDocKey prefixedKey(key, true /*prepare*/);
     auto gv = kvstore->get(prefixedKey, Vbid(0));
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
-    EXPECT_EQ(1, kvstore->getVBucketState(vbid)->onDiskPrepares);
+    vbstate = kvstore->getVBucketState(vbid);
+    EXPECT_EQ(1, vbstate->onDiskPrepares);
+    // Hard to predict the size of the prepare on-disk, given it will
+    // be compressed by couchstore. For simplicity just check it's non-zero.
+    EXPECT_GT(vbstate->getOnDiskPrepareBytes(), 0);
     EXPECT_EQ(2, kvstore->getItemCount(vbid));
 
     EXPECT_TRUE(kvstore->compactDB(&cctx));
@@ -2570,19 +2622,29 @@ TEST_P(DurabilityCouchstoreBucketTest, RemoveCommittedPreparesAtCompaction) {
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
 
     // Check onDiskPrepares is updated correctly after compaction.
-    EXPECT_EQ(0, kvstore->getVBucketState(vbid)->onDiskPrepares);
+    vbstate = kvstore->getVBucketState(vbid);
+    EXPECT_EQ(0, vbstate->onDiskPrepares);
+    EXPECT_EQ(0, vbstate->getOnDiskPrepareBytes());
     EXPECT_EQ(1, kvstore->getItemCount(vbid));
 
     vb.reset();
     resetEngineAndWarmup();
     kvstore = store->getOneRWUnderlying();
+    vbstate = kvstore->getVBucketState(vbid);
     EXPECT_EQ(1, kvstore->getItemCount(vbid));
-    EXPECT_EQ(0, kvstore->getVBucketState(vbid)->onDiskPrepares);
+    EXPECT_EQ(0, vbstate->onDiskPrepares);
+    EXPECT_EQ(0, vbstate->getOnDiskPrepareBytes());
 }
 
 TEST_P(DurabilityCouchstoreBucketTest, RemoveAbortedPreparesAtCompaction) {
     setVBucketToActiveWithValidTopology();
     using namespace cb::durability;
+
+    // Sanity check preconditions.
+    auto* kvstore = store->getOneRWUnderlying();
+    const auto* vbstate = kvstore->getVBucketState(vbid);
+    ASSERT_EQ(0, vbstate->onDiskPrepares);
+    ASSERT_EQ(0, vbstate->getOnDiskPrepareBytes());
 
     auto key = makeStoredDocKey("key");
     auto req = Requirements(Level::Majority, Timeout(1000));
@@ -2606,9 +2668,13 @@ TEST_P(DurabilityCouchstoreBucketTest, RemoveAbortedPreparesAtCompaction) {
     // Flush Abort and dummy
     flushVBucketToDiskIfPersistent(vbid, 2);
 
-    auto* kvstore = store->getOneRWUnderlying();
     EXPECT_EQ(1, kvstore->getItemCount(vbid));
-    EXPECT_EQ(0, kvstore->getVBucketState(vbid)->onDiskPrepares);
+    vbstate = kvstore->getVBucketState(vbid);
+    EXPECT_EQ(0, vbstate->onDiskPrepares);
+    EXPECT_EQ(0, vbstate->getOnDiskPrepareBytes())
+            << "Aborted prepares shouldn't be included in onDiskPrepareBytes "
+               "(they are conceptually tombstones and cannot be purged until "
+               "metadata purge interval passed.";
 
     CompactionConfig config;
     compaction_ctx cctx(config, 0);
@@ -2629,13 +2695,76 @@ TEST_P(DurabilityCouchstoreBucketTest, RemoveAbortedPreparesAtCompaction) {
     gv = kvstore->get(prefixedKey, Vbid(0));
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
     EXPECT_EQ(1, kvstore->getItemCount(vbid));
-    EXPECT_EQ(0, kvstore->getVBucketState(vbid)->onDiskPrepares);
+    EXPECT_EQ(0, vbstate->onDiskPrepares);
+    EXPECT_EQ(0, vbstate->getOnDiskPrepareBytes());
 
     vb.reset();
     resetEngineAndWarmup();
     kvstore = store->getOneRWUnderlying();
+    vbstate = kvstore->getVBucketState(vbid);
     EXPECT_EQ(1, kvstore->getItemCount(vbid));
-    EXPECT_EQ(0, kvstore->getVBucketState(vbid)->onDiskPrepares);
+    EXPECT_EQ(0, vbstate->onDiskPrepares);
+    EXPECT_EQ(0, vbstate->getOnDiskPrepareBytes());
+}
+
+// Upgrade test for MB-42306 - check the behaviour when compaction purges
+// Prepares from Couchstore files with vbucket_state prior to v4 (missing
+// "on_disk_prepare_bytes" field).
+// 1. Prepare and commit a SyncWrite to disk.
+// 2. Modify the on-disk vbState to remove "on_disk_prepare_bytes" field to
+//    simulate a pre 6.6.1 release.
+// 3. Restart and Warmup.
+// 4. Run compaction. The completed prepare should be purged.
+// 5. Check that vbstate.onDiskPrepareBytes is set and is non-negative.
+TEST_P(DurabilityCouchstoreBucketTest,
+       RemoveCommittedPreparesAtCompactionUpgrade) {
+    setupSyncWritePrepareWithoutOnDiskPrepareBytes("key", "value");
+
+    // Trigger compaction
+    CompactionConfig config;
+    compaction_ctx cctx(config, 0);
+    cctx.expiryCallback = std::make_shared<FailOnExpiryCallback>();
+
+    auto* kvstore = store->getOneRWUnderlying();
+    EXPECT_TRUE(kvstore->compactDB(&cctx));
+
+    // Check onDiskPrepares is updated correctly after compaction.
+    auto* vbstate = kvstore->getVBucketState(vbid);
+    EXPECT_EQ(0, vbstate->onDiskPrepares);
+    EXPECT_EQ(0, vbstate->getOnDiskPrepareBytes());
+    EXPECT_EQ(1, kvstore->getItemCount(vbid));
+}
+
+// Upgrade test for MB-42306 - check the behaviour when a (completed) prepare
+// is replaced with a new, smaller prepare and the initial prepare is from
+// a Couchstore files with vbucket_state prior to v4 (missing
+// "on_disk_prepare_bytes" field).
+// 1. Prepare and commit a SyncWrite to disk.
+// 2. Modify the on-disk vbState to remove "on_disk_prepare_bytes" field to
+//    simulate a pre 6.6.1 release.
+// 3. Restart and Warmup.
+// 4. Prepare a second SyncWrite to the same key, with a smaller value.
+// 5. Check that vbstate.onDiskPrepareBytes is set and is non-negative.
+TEST_P(DurabilityCouchstoreBucketTest, OnDiskPrepareSizeUpgrade) {
+    std::string key("key");
+    // Need a value bigger than the one written in post-6.6.1 mode. Also need
+    // to "defeat" Snappy compression.
+    std::string largeValue("abcdefghijklmnopqrstuvwxyz0123456789");
+    setupSyncWritePrepareWithoutOnDiskPrepareBytes(key, largeValue);
+
+    // Perform a second SyncWrite with a smaller value.
+    using namespace cb::durability;
+    auto req = Requirements(Level::Majority, Timeout(1000));
+    std::string smallValue("abc");
+    auto pending = makePendingItem(makeStoredDocKey(key), smallValue, req);
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Check onDiskPrepares is updated correctly after flush.
+    auto* kvstore = store->getOneRWUnderlying();
+    auto* vbstate = kvstore->getVBucketState(vbid);
+    EXPECT_EQ(1, vbstate->onDiskPrepares);
+    EXPECT_EQ(0, vbstate->getOnDiskPrepareBytes());
 }
 
 TEST_P(DurabilityCouchstoreBucketTest, MB_36739) {

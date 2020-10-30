@@ -131,3 +131,21 @@ void rewriteCouchstoreVBState(Vbid vbucket,
                               const std::string& dbDir,
                               int revision,
                               bool namespacesSupported = true);
+
+/**
+ * Modify the vbstate of the vbucket/revision
+ * i.e. the file @ dbDir/<vbid>.couch.<revision>
+ * @param vBucket Vbucket ID
+ * @param dbDir Directory the couchstore file resides
+ * @param revision of the file to modify
+ * @param modifyFn Callback which is invoked on the current vbState JSON value.
+ *        The updated JSON object is written back to disk.
+ *
+ * This method allows the '_local/vbstate' on-disk document to be arbitrarily
+ * modified, for example for upgrade or error-injection tests.
+ */
+void modifyCouchstoreVBState(
+        Vbid vbucket,
+        const std::string& dbDir,
+        int revision,
+        std::function<void(nlohmann::json& vbState)> modifyFn);
