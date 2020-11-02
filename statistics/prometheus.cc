@@ -60,6 +60,10 @@ void initialize(const std::pair<in_port_t, sa_family_t>& config,
              listeningPort);
 }
 
+void shutdown() {
+    instance.wlockPointer()->reset();
+}
+
 std::pair<in_port_t, sa_family_t> getRunningConfig() {
     auto handle = instance.rlock();
     if (!handle || !handle->isAlive()) {

@@ -41,6 +41,8 @@ using AuthCallback =
 void initialize(const std::pair<in_port_t, sa_family_t>& config,
                 AuthCallback authCB);
 
+void shutdown();
+
 std::pair<in_port_t, sa_family_t> getRunningConfig();
 
 /**
