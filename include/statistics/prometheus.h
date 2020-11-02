@@ -28,6 +28,7 @@ class Exposer;
 } // namespace prometheus
 
 namespace cb::prometheus {
+class MetricServer;
 
 /**
  * Indicates which group of stats should be collected for a given
@@ -38,8 +39,8 @@ namespace cb::prometheus {
 enum class Cardinality { Low, High };
 using AuthCallback =
         std::function<bool(const std::string&, const std::string&)>;
-void initialize(const std::pair<in_port_t, sa_family_t>& config,
-                AuthCallback authCB);
+std::unique_ptr<MetricServer> create(
+        const std::pair<in_port_t, sa_family_t>& config, AuthCallback authCB);
 
 /**
  * Global manager for exposing stats for Prometheus.

@@ -254,23 +254,16 @@ static bool prometheus_auth_callback(const std::string& user,
     }
 }
 
-static void prometheus_changed_listener(const std::string&, Settings& s) {
-    cb::prometheus::initialize(s.getPrometheusConfig(),
-                               prometheus_auth_callback);
-}
-
-static void prometheus_init() {
+static std::unique_ptr<cb::prometheus::MetricServer> prometheus_init() {
     auto& settings = Settings::instance();
 
     if (Settings::instance().has.prometheus_config) {
-        cb::prometheus::initialize(settings.getPrometheusConfig(),
-                                   prometheus_auth_callback);
-    } else {
-        LOG_WARNING("Prometheus config not specified");
+        return cb::prometheus::create(settings.getPrometheusConfig(),
+                                      prometheus_auth_callback);
     }
 
-    Settings::instance().addChangeListener("prometheus_config",
-                                           prometheus_changed_listener);
+    LOG_WARNING("Prometheus config not specified");
+    return {};
 }
 
 struct thread_stats* get_thread_stats(Connection* c) {
@@ -1467,7 +1460,14 @@ int memcached_main(int argc, char** argv) {
     /* initialize other stuff */
     stats_init();
 
-    prometheus_init();
+    auto prometheusExporter = prometheus_init();
+    Settings::instance().addChangeListener(
+            "prometheus_config",
+            [&prometheusExporter](const std::string&, Settings& s) {
+                prometheusExporter.reset();
+                prometheusExporter = cb::prometheus::create(
+                        s.getPrometheusConfig(), prometheus_auth_callback);
+            });
 
 #ifndef WIN32
     /*
@@ -1523,6 +1523,9 @@ int memcached_main(int argc, char** argv) {
         LOG_INFO("Shutting down parent monitor");
         parent_monitor.reset();
     }
+
+    LOG_INFO("Shutting down Prometheus exporter");
+    prometheusExporter.reset();
 
     LOG_INFO("Shutting down audit daemon");
     shutdown_audit();

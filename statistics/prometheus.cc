@@ -31,21 +31,14 @@ const std::string MetricServer::lowCardinalityPath = "/_prometheusMetrics";
 const std::string MetricServer::highCardinalityPath = "/_prometheusMetricsHigh";
 const std::string MetricServer::authRealm = "KV Prometheus Exporter";
 
-std::unique_ptr<MetricServer> instance;
-
-void initialize(const std::pair<in_port_t, sa_family_t>& config,
-                AuthCallback authCB) {
-    // May be called at init or on config change.
-    // If an instance already exists, destroy it before creating
-    // a new one. This avoids issues that might arise if setting the same
-    // port and family in the new config (port would be in use)
-    instance.reset();
-
+std::unique_ptr<MetricServer> create(
+        const std::pair<in_port_t, sa_family_t>& config, AuthCallback authCB) {
     // Structured binding not used due to MSVC bug incorrectly making port const
     in_port_t port;
     sa_family_t family;
     std::tie(port, family) = config;
-    instance = std::make_unique<MetricServer>(port, family, std::move(authCB));
+    auto instance =
+            std::make_unique<MetricServer>(port, family, std::move(authCB));
     if (!instance->isAlive()) {
         FATAL_ERROR(EXIT_FAILURE,
                     fmt::format("Failed to start Prometheus exposer on "
@@ -64,6 +57,7 @@ void initialize(const std::pair<in_port_t, sa_family_t>& config,
     LOG_INFO("Prometheus Exporter started, listening on family:{} port:{}",
              (family == AF_INET) ? "inet" : "inet6",
              port);
+    return instance;
 }
 
 class MetricServer::KVCollectable : public ::prometheus::Collectable {
