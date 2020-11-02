@@ -34,6 +34,9 @@
 // via DCE.
 char* p;
 
+/// Path to plugin to be loaded via dlopen.
+const char* pluginPath = nullptr;
+
 class MemoryTrackerTest : public ::testing::Test {
 public:
     // callback function for when memory is allocated.
@@ -131,8 +134,7 @@ void MemoryTrackerTest::AccountingTestThread(void* arg) {
     // Test memory allocations performed from another shared library loaded
     // at runtime.
     char* errmsg = nullptr;
-    cb_dlhandle_t plugin = cb_dlopen("memcached_memory_tracking_plugin",
-                                     &errmsg);
+    cb_dlhandle_t plugin = cb_dlopen(pluginPath, &errmsg);
     EXPECT_NE(plugin, nullptr);
 
     // dlopen()ing a plugin can allocate memory. Reset alloc_size.
@@ -218,6 +220,13 @@ TEST_F(MemoryTrackerTest, mallocUsableSize) {
 
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
+
+    if (argc != 2) {
+        std::cerr << "Usage: <memory_tracking_test> "
+                     "<path_to_memory_tracking_plugin>\n";
+        return 1;
+    }
+    pluginPath = argv[1];
 
     AllocHooks::initialize();
 
