@@ -635,7 +635,7 @@ std::string make_time_string(std::chrono::system_clock::time_point time_point) {
 
 static enum test_result test_expiry_pager_settings(EngineIface* h) {
     cb_assert(!get_bool_stat(h, "ep_exp_pager_enabled"));
-    checkeq(3600,
+    checkeq(600,
             get_int_stat(h, "ep_exp_pager_stime"),
             "Expiry pager sleep time not expected");
     set_param(h,
