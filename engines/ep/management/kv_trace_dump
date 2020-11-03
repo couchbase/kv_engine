@@ -35,7 +35,7 @@ parser.add_argument('--mcctl', help='Path to mcctl binary')
 parser.add_argument('-H', '--hostname', required=True,
                     help='host:port to connect to (e.g. localhost:11210)')
 parser.add_argument('-u', '--username', required=True, help='Username')
-parser.add_argument('-P', '--password', required=True, help='Password')
+parser.add_argument('-P', '--password', required=False, help='Password')
 parser.add_argument('-n', '--norestart', dest='restart', action='store_false',
                     help="Don't restart tracing after dumping the trace file")
 parser.add_argument('outfile', type=argparse.FileType('w'))
@@ -61,8 +61,10 @@ if not os.path.isfile(mcctl_bin):
 
 mcctl_args = [mcctl_bin,
               '-h', args.hostname,
-              '-u', args.username,
-              '-P', args.password]
+              '-u', args.username]
+
+if args.password:
+    mcctl_args.extend(['-P', args.password])
 
 subprocess.check_call(mcctl_args + ['set', 'trace.stop'])
 uuid = check_output(mcctl_args + ['get', 'trace.dump.begin'])
