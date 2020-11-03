@@ -211,6 +211,17 @@ TEST_P(WithMetaTest, MB36321_DeleteWithMetaRefuseUserXattrs) {
         return;
     }
 
+    {
+        auto& conn = getAdminConnection();
+        conn.selectBucket(bucketName);
+        const auto setParam = BinprotSetParamCommand(
+                cb::mcbp::request::SetParamPayload::Type::Flush,
+                "allow_del_with_meta_prune_user_data",
+                "false");
+        const auto resp = BinprotMutationResponse(conn.execute(setParam));
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    }
+
     cb::xattr::Blob blob;
     blob.set("user", R"({"band":"Steel Panther"})");
     auto xattrValue = blob.finalize();
