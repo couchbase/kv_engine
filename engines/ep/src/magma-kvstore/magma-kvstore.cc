@@ -1153,14 +1153,6 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
                 }
             }
         }
-
-        if (req->oldItemExists()) {
-            if (!req->oldItemIsDelete()) {
-                // If we are replacing the item...
-                kvctx.keyWasOnDisk.insert(diskDocKey);
-            }
-        }
-
     };
 
     // LocalDbReqs and MagmaDbStats are used to store the memory for the localDb

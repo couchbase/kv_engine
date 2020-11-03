@@ -140,9 +140,7 @@ using MakeCompactionContextCallback =
 struct kvstats_ctx {
     explicit kvstats_ctx(VB::Commit& commitData) : commitData(commitData) {
     }
-    // @TODO consider folly::F14Set for reduced memory when set is large
-    /// If key exists in set, they key exists in the VB datafile
-    std::unordered_set<DiskDocKey> keyWasOnDisk;
+
     /// flusher data for managing manifest changes, item counts, vbstate
     VB::Commit& commitData;
 
