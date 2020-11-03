@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <platform/non_negative_counter.h>
 #include <string>
 
 namespace Collections::VB {
@@ -60,8 +61,8 @@ struct PersistedStats {
      */
     std::string getLebEncodedStatsMadHatter() const;
 
-    uint64_t itemCount;
-    uint64_t highSeqno;
-    uint64_t diskSize;
+    cb::NonNegativeCounter<uint64_t> itemCount;
+    cb::NonNegativeCounter<uint64_t> highSeqno;
+    cb::NonNegativeCounter<uint64_t> diskSize;
 };
 } // namespace Collections::VB

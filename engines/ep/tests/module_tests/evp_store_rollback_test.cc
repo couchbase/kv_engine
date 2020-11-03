@@ -1051,10 +1051,10 @@ public:
     }
 
     /**
-     * Writes 1 (the minimum for all tests that currently call this function)
-     * items on which we will rollback. We need 1 item to set up our stream.
+     * Writes items (default of 1). At least 1 item needed to set up stream
+     * and for rollback to occur.
      */
-    void writeBaseItems();
+    void writeBaseItems(int items = 1);
 
     /**
      * Receive and flush a DCP prepare
@@ -1093,6 +1093,13 @@ public:
      * @param flush whether to flush the abort to disk
      */
     void doAbort(StoredDocKey key, bool flush = true);
+
+    /**
+     * Consume a delete
+     * @param key Key to delete
+     * @param flush run the flusher (or not)
+     */
+    void doDelete(StoredDocKey key, bool flush = true);
 
     /**
      * Receive and flush a DCP prepare followed by a DCP abort
@@ -1265,8 +1272,7 @@ TEST_P(RollbackDcpTest, test_rollback_nonzero) {
                                                  << rollbackPoint;
 }
 
-void RollbackDcpTest::writeBaseItems() {
-    const int items = 1;
+void RollbackDcpTest::writeBaseItems(int items) {
     const int flushes = 1;
     createItems(items, flushes);
 
@@ -1400,6 +1406,42 @@ void RollbackDcpTest::doAbort(StoredDocKey key, bool flush) {
     ASSERT_EQ(prepareSeqno, passiveDm.getHighCompletedSeqno());
 }
 
+void RollbackDcpTest::doDelete(StoredDocKey key, bool flush) {
+    auto stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+
+    auto delSeqno = vb->getHighSeqno() + 1;
+    SnapshotMarker marker(
+            0 /*opaque*/,
+            vbid,
+            delSeqno /*snapStart*/,
+            delSeqno /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            {} /*HCS*/,
+            {} /*maxVisibleSeqno*/,
+            {}, // timestamp
+            {} /*streamID*/);
+    stream->processMarker(&marker);
+    ItemMetaData meta;
+    uint64_t cas = 0;
+    meta.cas = 99;
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb->deleteWithMeta(cas,
+                                 nullptr,
+                                 cookie,
+                                 store->getEPEngine(),
+                                 CheckConflicts::No,
+                                 meta,
+                                 GenerateBySeqno::No,
+                                 GenerateCas::No,
+                                 delSeqno,
+                                 vb->lockCollections(key),
+                                 DeleteSource::Explicit));
+
+    if (flush) {
+        flush_vbucket_to_disk(vbid, 1);
+    }
+}
 void RollbackDcpTest::doPrepareAndAbort(StoredDocKey key,
                                         std::string value,
                                         bool syncDelete,
@@ -1970,6 +2012,39 @@ TEST_P(RollbackDcpTest, RollbackCommitOnTopOfAbortedSyncDelete) {
 
 TEST_P(RollbackDcpTest, RollbackSyncDeleteCommitOnTopOfAbortedSyncDelete) {
     rollbackCommitOnTopOfAbortedSyncWrite(true, true);
+}
+
+// Related to MB-42093 check the collection item counts are correct following
+// a rollback
+TEST_P(RollbackDcpTest, RollbackCollectionCounts) {
+    writeBaseItems(2);
+    // rollback the deletes and replay them
+    auto rollbackSeqno = vb->getHighSeqno();
+    auto key1 = makeStoredDocKey("anykey_0_0");
+    auto key2 = makeStoredDocKey("anykey_0_1");
+
+    auto vb = store->getVBucket(vbid);
+
+    auto check = [&vb](int expected) {
+        auto handle = vb->lockCollections();
+        EXPECT_EQ(expected, handle.getItemCount(CollectionID::Default));
+    };
+
+    check(2);
+    doDelete(key1);
+    check(1);
+    doDelete(key2);
+    check(0);
+
+    store->setVBucketState(vbid, vbStateAtRollback);
+    EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
+    EXPECT_EQ(rollbackSeqno, vb->getHighSeqno());
+
+    check(2);
+    doDelete(key1);
+    check(1);
+    doDelete(key2);
+    check(0);
 }
 
 /**
