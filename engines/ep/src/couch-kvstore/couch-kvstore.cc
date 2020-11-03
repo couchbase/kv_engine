@@ -1050,78 +1050,6 @@ static FileInfo toFileInfo(const cb::couchstore::Header& info) {
             info.docCount, info.deletedCount, info.fileSize, info.purgeSeqNum};
 }
 
-static int count_prepares_callback(Db* db, DocInfo* docinfo, void* ctx) {
-    const auto diskKey = makeDiskDocKey(docinfo->id);
-    if (!docinfo->deleted && diskKey.isPrepared()) {
-        // we need to decode the metadata as we shouldn't count the aborted
-        auto metadata = MetaDataFactory::createMetaData(docinfo->rev_meta);
-        Expects(metadata->isPrepare());
-        if (!metadata->isAbort()) {
-            auto* num_prepares = static_cast<uint64_t*>(ctx);
-            (*num_prepares)++;
-        }
-    }
-    return COUCHSTORE_SUCCESS;
-}
-
-void CouchKVStore::validate_on_disk_prepares(Db& db,
-                                             Vbid vbid,
-                                             const char* context) {
-    if (!do_validate_on_disk_prepares) {
-        return;
-    }
-
-    auto [status, json] = getLocalVbState(db);
-    if (status != COUCHSTORE_SUCCESS) {
-        const auto msg =
-                fmt::format("{}: {} Failed to open _local/vbstate in {}: {}",
-                            context,
-                            vbid,
-                            cb::couchstore::getHeader(db).to_json().dump(),
-                            couchstore_strerror(status));
-        logger.critical("{}", msg);
-        logger.flush();
-        // Make sure the log message hits the file...
-        std::this_thread::sleep_for(std::chrono::seconds{1});
-        throw std::runtime_error(msg);
-    }
-
-    const auto expected =
-            std::stoull(json["on_disk_prepares"].get<std::string>());
-
-    uint64_t num_preps = 0;
-    auto ret = couchstore_changes_since(
-            &db, 1, 0, count_prepares_callback, &num_preps);
-    if (ret != COUCHSTORE_SUCCESS) {
-        const auto msg =
-                fmt::format("{}: {} couchstore_changes_since failed in {}: {}",
-                            context,
-                            vbid,
-                            cb::couchstore::getHeader(db).to_json().dump(),
-                            couchstore_strerror(ret));
-        logger.critical("{}", msg);
-        logger.flush();
-        // Make sure the log message hits the file...
-        std::this_thread::sleep_for(std::chrono::seconds{1});
-        throw std::runtime_error(msg);
-    }
-
-    if (num_preps != expected) {
-        const auto msg = fmt::format(
-                "{}: {}: Expected {} but found {} on_disk_prepares in {}",
-                context,
-                vbid,
-                expected,
-                num_preps,
-                cb::couchstore::getHeader(db).to_json().dump());
-        logger.critical("{}", msg);
-        logger.flush();
-        // Make sure the log message hits the file...
-        std::this_thread::sleep_for(std::chrono::seconds{1});
-        throw std::runtime_error(msg);
-    }
-}
-
 /**
  * Replay needs to update on_disk_prepares in the _local/vbstate document
  * as we might have changed the number of prepares on disk. In addition
@@ -1357,10 +1285,6 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
         auto [status, state] = readVBState(sourceDb.getDb(), vbid);
         if (status == ReadVBStateStatus::Success) {
             hook_ctx->highCompletedSeqno = state.persistedCompletedSeqno;
-            validate_on_disk_prepares(
-                    *sourceDb,
-                    vbid,
-                    "CouchKVStore::compactDBInternal - pre compaction");
         } else {
             EP_LOG_WARN(
                     "CouchKVStore::compactDBInternal ({}) Failed to obtain "
@@ -1453,10 +1377,6 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
         }
         return false;
     }
-    validate_on_disk_prepares(
-            *targetDb,
-            vbid,
-            "CouchKVStore::compactDBInternal - post compaction");
 
     uint64_t on_disk_prepares;
     {
@@ -1695,9 +1615,6 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
                         .count();
     }
 
-    validate_on_disk_prepares(
-            source, vbid, "CouchKVStore::tryToCatchUpDbFile - pre replay");
-
     EP_LOG_INFO("Try to catch up {}: from {} to {} {} stopping flusher",
                 vbid,
                 start.updateSeqNum,
@@ -1719,10 +1636,6 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
     if (err != COUCHSTORE_SUCCESS) {
         throw std::runtime_error("Failed to replay data!");
     }
-
-    validate_on_disk_prepares(destination,
-                              vbid,
-                              "CouchKVStore::tryToCatchUpDbFile - post replay");
 
     bool ret = true;
     if (copyWithoutLock) {
@@ -2837,8 +2750,6 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
     pendingLocalReqsQ.clear();
 
     auto cs_begin = std::chrono::steady_clock::now();
-
-    validate_on_disk_prepares(*db, vbid, "CouchKVStore::saveDocs");
 
     errCode = couchstore_commit(db);
     st.commitHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(

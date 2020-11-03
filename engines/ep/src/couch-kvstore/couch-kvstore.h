@@ -394,10 +394,6 @@ public:
      */
     void closeDatabaseHandle(Db* db);
 
-    void setValidateOnDiskPreparesBehavior(bool enabled) {
-        do_validate_on_disk_prepares = enabled;
-    }
-
 protected:
     /**
      * RAII holder for a couchstore LocalDoc object
@@ -928,23 +924,4 @@ protected:
     /// The hook gets called after the initial compaction runs, and then
     /// after each step in the catch-up-phase
     std::function<void()> concurrentCompactionUnitTestHook = []() {};
-
-    /// count all of the "prepares" stored in the database and verify that
-    /// the number match what's stored in _local/vbstate
-    ///
-    /// @param db the database instance to check
-    /// @param context Context which will be included in the log message
-    ///                if inconsistency is detected
-    void validate_on_disk_prepares(Db& db, Vbid vbid, const char* context);
-
-    /// Set to true if we want to validate on_disk_prepares. This is to
-    /// be deleted once we've found all trouble with concurrent compaction
-    /// and flusher. When set to true it scans the entire database and counts
-    /// the number of perpares stored on disk and checks if it is the same
-    /// as stored in _local/vbstate
-#if CB_DEVELOPMENT_ASSERTS
-    std::atomic_bool do_validate_on_disk_prepares{true};
-#else
-    std::atomic_bool do_validate_on_disk_prepares{false};
-#endif
 };
