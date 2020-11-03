@@ -68,6 +68,8 @@ void handle_executor_status(Cookie& cookie, cb::engine_errc status) {
     case engine_errc::sync_write_re_commit_in_progress:
     case engine_errc::sync_write_pending:
     case engine_errc::failed:
+    case engine_errc::stream_not_found:
+    case engine_errc::opaque_no_match:
         cookie.sendResponse(mapped);
         break;
     }

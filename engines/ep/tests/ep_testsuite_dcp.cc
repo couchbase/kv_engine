@@ -3698,6 +3698,7 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
     dcpStepAndExpectControlMsg("consumer_name"s);
     dcpStepAndExpectControlMsg("include_deleted_user_xattrs"s);
     simulateProdRespToDcpControlBlockingNegotiation(h, cookie, producers);
+    dcpStepAndExpectControlMsg("v7_dcp_status_codes"s);
 
     dcp_step(h, cookie, producers);
     uint32_t stream_opaque = producers.last_opaque;
@@ -4242,7 +4243,7 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h) {
     // Consumer processes 5th mutation
     const std::string key("key" + std::to_string(i));
     const DocKey docKey(key, DocKeyEncodesCollectionId::No);
-    checkeq(ENGINE_KEY_ENOENT,
+    checkeq(ENGINE_STREAM_NOT_FOUND,
             dcp->mutation(cookie,
                           stream_opaque,
                           docKey,
@@ -5280,7 +5281,7 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
 
     // Ensure that we don't accept invalid opaque values
     const DocKey docKey{key, DocKeyEncodesCollectionId::No};
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(ENGINE_OPAQUE_NO_MATCH,
             dcp->mutation(cookie,
                           opaque + 1,
                           docKey,
@@ -5413,7 +5414,7 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h) {
     const std::string key{"key"};
     const DocKey docKey{key, DocKeyEncodesCollectionId::No};
     // verify that we don't accept invalid opaque id's
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(ENGINE_OPAQUE_NO_MATCH,
             dcp->deletion(cookie,
                           opaque + 1,
                           docKey,
@@ -5508,7 +5509,7 @@ static enum test_result test_dcp_consumer_expire(EngineIface* h) {
     const std::string key{"key"};
     const DocKey docKey{key, DocKeyEncodesCollectionId::No};
     // verify that we don't accept invalid opaque id's
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(ENGINE_OPAQUE_NO_MATCH,
             dcp->expiration(cookie,
                             opaque + 1,
                             docKey,

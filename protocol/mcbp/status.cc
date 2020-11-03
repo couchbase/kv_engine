@@ -39,6 +39,8 @@ bool isStatusSuccess(Status status) {
     case Status::NotMyVbucket:
     case Status::NoBucket:
     case Status::Locked:
+    case Status::DcpStreamNotFound:
+    case Status::OpaqueNoMatch:
     case Status::AuthStale:
     case Status::AuthError:
     case Status::Erange:
@@ -141,6 +143,10 @@ std::string to_string(cb::mcbp::Status status) {
         return "Not connected to a bucket";
     case Status::Locked:
         return "Resource locked";
+    case Status::DcpStreamNotFound:
+        return "No DCP Stream for this request";
+    case Status::OpaqueNoMatch:
+        return "Opaque does not match";
     case Status::AuthStale:
         return "Authentication stale. Please reauthenticate";
     case Status::AuthError:

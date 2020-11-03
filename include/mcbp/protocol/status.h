@@ -54,6 +54,10 @@ enum class Status : uint16_t {
     NoBucket = 0x08,
     /** The requested resource is locked */
     Locked = 0x09,
+    /** Stream not found for DCP message */
+    DcpStreamNotFound = 0x0A,
+    /** The message's opaque does not match  of the stream */
+    OpaqueNoMatch = 0x0B,
     /** The authentication context is stale. You should reauthenticate*/
     AuthStale = 0x1f,
     /** Authentication failure (invalid user/password combination,

@@ -1103,6 +1103,13 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
                 return ENGINE_EINVAL;
             }
         }
+    } else if (key == "v7_dcp_status_codes") {
+        if (valueStr == "true") {
+            enabledV7DcpStatus = true;
+            return ENGINE_SUCCESS;
+        } else {
+            return ENGINE_EINVAL;
+        }
     }
 
     logger->warn("Invalid ctrl parameter '{}' for {}", valueStr, keyStr);
@@ -1197,7 +1204,18 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
     };
 
     const auto errorMessageHandler = [&]() -> bool {
-        // For DcpPrepare, DcpCommit and DcpAbort we may see KeyEnoent or
+        // Use find_if2 which will return the matching
+        // shared_ptr<Stream>
+        auto stream = find_if2(streamFindFn);
+        std::string streamInfo("null");
+        if (stream) {
+            streamInfo = fmt::format(fmt("stream name:{}, {}, state:{}"),
+                                     stream->getName(),
+                                     stream->getVBucket(),
+                                     stream->getStateName());
+        }
+
+        // For DcpCommit and DcpAbort we may see KeyEnoent or
         // Einval for the following reasons.
         // KeyEnoent:
         // In this case we receive a KeyEnoent, we need to disconnect as we
@@ -1208,36 +1226,24 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
         // have sent an invalid. Mutation or packet to the consumer e.g. we
         // sent an abort to the consumer in a non disk snapshot without it
         // having seen a prepare.
-        if (responseStatus == cb::mcbp::Status::NotMyVbucket ||
-            responseStatus == cb::mcbp::Status::KeyEexists ||
-            (responseStatus == cb::mcbp::Status::KeyEnoent &&
-             opcode != cb::mcbp::ClientOpcode::DcpPrepare &&
-             opcode != cb::mcbp::ClientOpcode::DcpAbort &&
-             opcode != cb::mcbp::ClientOpcode::DcpCommit)) {
-            // Use find_if2 which will return the matching shared_ptr<Stream>
-            auto stream = find_if2(streamFindFn);
-            std::string streamInfo("null");
-            if (stream) {
-                streamInfo = fmt::format(fmt("stream name:{}, {}, state:{}"),
-                                         stream->getName(),
-                                         stream->getVBucket(),
-                                         stream->getStateName());
-            }
-            std::string mcbpStatusName;
-            if (responseStatus == cb::mcbp::Status::NotMyVbucket) {
-                mcbpStatusName = "NotMyVbucket";
-            } else if (responseStatus == cb::mcbp::Status::KeyEnoent) {
-                mcbpStatusName = "KeyEnoent";
-            } else if (responseStatus == cb::mcbp::Status::KeyEexists) {
-                mcbpStatusName = "KeyEexists";
-            }
+        bool allowPreV7StatusCodes =
+                !enabledV7DcpStatus &&
+                (responseStatus == cb::mcbp::Status::KeyEexists ||
+                 (responseStatus == cb::mcbp::Status::KeyEnoent &&
+                  opcode != cb::mcbp::ClientOpcode::DcpAbort &&
+                  opcode != cb::mcbp::ClientOpcode::DcpCommit));
+
+        if (allowPreV7StatusCodes ||
+            responseStatus == cb::mcbp::Status::NotMyVbucket ||
+            responseStatus == cb::mcbp::Status::DcpStreamNotFound ||
+            responseStatus == cb::mcbp::Status::OpaqueNoMatch) {
             logger->info(
                     "DcpProducer::handleResponse received "
                     "unexpected "
                     "response:{}, Will not disconnect as {} will "
                     "affect "
                     "only one stream:{}",
-                    mcbpStatusName,
+                    to_string(responseStatus),
                     resp->response.toJSON(true).dump(),
                     streamInfo);
             return true;
@@ -1245,8 +1251,9 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
         logger->error(
                 "DcpProducer::handleResponse disconnecting, received "
                 "unexpected "
-                "response:{}",
-                resp->response.toJSON(true).dump());
+                "response:{} for stream:{}",
+                resp->response.toJSON(true).dump(),
+                streamInfo);
         return false;
     };
 

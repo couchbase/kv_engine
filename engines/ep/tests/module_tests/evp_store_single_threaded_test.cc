@@ -4356,6 +4356,8 @@ TEST_F(SingleThreadedEPBucketTest,
     // stream .
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
     auto consumer = std::make_shared<MockDcpConsumer>(*engine, cookie, "conn");
+    consumer->enableV7DcpStatus();
+
     int opaque = 1;
     ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque, vbid, /*flags*/ 0));
     ASSERT_EQ(ENGINE_SUCCESS,
@@ -4458,7 +4460,7 @@ TEST_F(SingleThreadedEPBucketTest,
 
     // Test (phase 2): Have the producer send all the above stream-level
     // messages to the consumer. Should all be rejected this time.
-    testAllStreamLevelMessages(ENGINE_KEY_ENOENT);
+    testAllStreamLevelMessages(ENGINE_STREAM_NOT_FOUND);
 }
 
 // MB-34951: Check that a consumer correctly handles (and ignores) a StreamEnd

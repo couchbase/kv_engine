@@ -380,6 +380,12 @@ protected:
     IncludeDeletedUserXattrs includeDeletedUserXattrs{
             IncludeDeletedUserXattrs::No};
 
+    /**
+     * Flag used to state if we've received a control message with
+     * "v7_dcp_status_codes" = "true".
+     */
+    bool enabledV7DcpStatus = false;
+
 private:
 
      //! The name for this connection

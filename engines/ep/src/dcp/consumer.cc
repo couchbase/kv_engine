@@ -364,7 +364,7 @@ ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque,
                 "({}) Cannot close stream because no "
                 "stream exists for this vbucket",
                 vbucket);
-        return ENGINE_KEY_ENOENT;
+        return getNoStreamFoundErrorCode();
     }
 
     uint32_t bytesCleared =
@@ -399,7 +399,7 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque,
                 "vBucket",
                 vbucket,
                 opaque);
-        return ENGINE_KEY_ENOENT;
+        return getNoStreamFoundErrorCode();
     }
 
     if (stream->getOpaque() != opaque) {
@@ -578,14 +578,11 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
 
     auto stream = findStream(vbucket);
     if (!stream) {
-        // No stream for this vBucket / opaque - return ENOENT to indicate this.
-        return ENGINE_KEY_ENOENT;
+        return getNoStreamFoundErrorCode();
     }
 
     if (stream->getOpaque() != opaque) {
-        // No such stream with the given opaque - return KEY_EEXISTS to indicate
-        // that a stream exists but not for this opaque (similar to InvalidCas).
-        return ENGINE_KEY_EEXISTS;
+        return getOpaqueMissMatchErrorCode();
     }
 
     queued_item item(Item::makeDeletedItem(deletionCause,
@@ -880,6 +877,10 @@ ENGINE_ERROR_CODE DcpConsumer::step(
     }
 
     if ((ret = handleDeletedUserXattrs(producers)) != ENGINE_FAILED) {
+        return ret;
+    }
+
+    if ((ret = enableV7DcpStatus(producers)) != ENGINE_FAILED) {
         return ret;
     }
 
@@ -1611,6 +1612,20 @@ ENGINE_ERROR_CODE DcpConsumer::enableSynchronousReplication(
     return ENGINE_FAILED;
 }
 
+ENGINE_ERROR_CODE DcpConsumer::enableV7DcpStatus(
+        dcp_message_producers* producers) {
+    if (pendingV7DcpStatusEnabled) {
+        pendingV7DcpStatusEnabled = false;
+        uint32_t opaque = ++opaqueCounter;
+        auto ret = producers->control(opaque, "v7_dcp_status_codes", "true");
+        if (ret == ENGINE_SUCCESS) {
+            isV7DcpStatusEnabled = true;
+            return ret;
+        }
+    }
+    return ENGINE_FAILED;
+}
+
 ENGINE_ERROR_CODE DcpConsumer::handleDeletedUserXattrs(
         DcpMessageProducersIface* producers) {
     switch (deletedUserXattrsNegotiation.state) {
@@ -1787,12 +1802,9 @@ ENGINE_ERROR_CODE DcpConsumer::lookupStreamAndDispatchMessage(
 
     auto stream = findStream(vbucket);
     if (!stream) {
-        // No such stream with the given vbucket
-        return ENGINE_KEY_ENOENT;
+        return getNoStreamFoundErrorCode();
     } else if (stream->getOpaque() != opaque) {
-        // No such stream with the given opaque - return KEY_EEXISTS to indicate
-        // that a stream exists but not for this opaque (similar to InvalidCas).
-        return ENGINE_KEY_EEXISTS;
+        return getOpaqueMissMatchErrorCode();
     }
 
     // Pass the message to the associated stream.
@@ -1873,4 +1885,16 @@ std::shared_ptr<PassiveStream> DcpConsumer::removeStream(Vbid vbid) {
     auto eraseResult = streams.erase(vbid).first;
     engine_.getDcpConnMap().removeVBConnByVBId(getCookie(), vbid);
     return eraseResult;
+}
+ENGINE_ERROR_CODE DcpConsumer::getNoStreamFoundErrorCode() const {
+    // No stream for this vBucket / opaque - return ENOENT to indicate this.
+    // Or use V7 dcp code ENGINE_STREAM_NOT_FOUND if enabled
+    return isV7DcpStatusEnabled ? ENGINE_STREAM_NOT_FOUND : ENGINE_KEY_ENOENT;
+}
+
+ENGINE_ERROR_CODE DcpConsumer::getOpaqueMissMatchErrorCode() const {
+    // No such stream with the given opaque - return KEY_EEXISTS to indicate
+    // that a stream exists but not for this opaque (similar to InvalidCas).
+    // Or use V7 dcp code ENGINE_OPAQUE_NO_MATCH if enabled
+    return isV7DcpStatusEnabled ? ENGINE_OPAQUE_NO_MATCH : ENGINE_KEY_EEXISTS;
 }

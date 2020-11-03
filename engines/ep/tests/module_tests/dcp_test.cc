@@ -2620,6 +2620,8 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponse) {
     for (auto status : {cb::mcbp::Status::NotMyVbucket,
                         cb::mcbp::Status::KeyEexists,
                         cb::mcbp::Status::KeyEnoent,
+                        cb::mcbp::Status::DcpStreamNotFound,
+                        cb::mcbp::Status::OpaqueNoMatch,
                         cb::mcbp::Status::Success}) {
         message.response.setStatus(status);
         for (auto op : {cb::mcbp::ClientOpcode::DcpOpen,
@@ -2633,20 +2635,23 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponse) {
                         cb::mcbp::ClientOpcode::DcpBufferAcknowledgement,
                         cb::mcbp::ClientOpcode::DcpControl,
                         cb::mcbp::ClientOpcode::DcpSystemEvent,
-                        cb::mcbp::ClientOpcode::GetErrorMap}) {
+                        cb::mcbp::ClientOpcode::GetErrorMap,
+                        cb::mcbp::ClientOpcode::DcpPrepare}) {
             message.response.setOpcode(op);
             EXPECT_TRUE(producer->handleResponse(&message));
         }
     }
     // We should disconnect when we see cb::mcbp::Status::KeyEnoent for
     // a durability DCP op
-    for (auto op : {cb::mcbp::ClientOpcode::DcpPrepare,
-                    cb::mcbp::ClientOpcode::DcpCommit,
+    for (auto op : {cb::mcbp::ClientOpcode::DcpCommit,
                     cb::mcbp::ClientOpcode::DcpAbort}) {
         message.response.setOpcode(op);
 
-        for (auto status :
-             {cb::mcbp::Status::NotMyVbucket, cb::mcbp::Status::Success}) {
+        for (auto status : {cb::mcbp::Status::KeyEexists,
+                            cb::mcbp::Status::NotMyVbucket,
+                            cb::mcbp::Status::DcpStreamNotFound,
+                            cb::mcbp::Status::OpaqueNoMatch,
+                            cb::mcbp::Status::Success}) {
             message.response.setStatus(status);
 
             EXPECT_TRUE(producer->handleResponse(&message));
@@ -2696,8 +2701,7 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseDisconnect) {
         }
     }
     message.response.setStatus(cb::mcbp::Status::KeyEnoent);
-    for (auto op : {cb::mcbp::ClientOpcode::DcpPrepare,
-                    cb::mcbp::ClientOpcode::DcpCommit,
+    for (auto op : {cb::mcbp::ClientOpcode::DcpCommit,
                     cb::mcbp::ClientOpcode::DcpAbort}) {
         message.response.setOpcode(op);
         EXPECT_FALSE(producer->handleResponse(&message));
@@ -2715,6 +2719,8 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseStreamEnd) {
     message.response.setOpcode(cb::mcbp::ClientOpcode::DcpStreamEnd);
     for (auto errorCode : {cb::mcbp::Status::KeyEnoent,
                            cb::mcbp::Status::KeyEexists,
+                           cb::mcbp::Status::DcpStreamNotFound,
+                           cb::mcbp::Status::OpaqueNoMatch,
                            cb::mcbp::Status::NotMyVbucket,
                            cb::mcbp::Status::Success}) {
         message.response.setStatus(errorCode);
@@ -2768,7 +2774,9 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseNoop) {
 
     for (auto errorCode : {cb::mcbp::Status::NotMyVbucket,
                            cb::mcbp::Status::KeyEexists,
-                           cb::mcbp::Status::KeyEnoent}) {
+                           cb::mcbp::Status::KeyEnoent,
+                           cb::mcbp::Status::DcpStreamNotFound,
+                           cb::mcbp::Status::OpaqueNoMatch}) {
         message.response.setStatus(errorCode);
         // Test DcpNoop when the opaque is the default opaque value
         message.response.setOpaque(10000000);

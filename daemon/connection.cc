@@ -321,6 +321,8 @@ ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) {
         return ENGINE_TMPFAIL;
     case ENGINE_SYNC_WRITE_AMBIGUOUS:
     case ENGINE_DCP_STREAMID_INVALID:
+    case ENGINE_STREAM_NOT_FOUND:
+    case ENGINE_OPAQUE_NO_MATCH:
         break;
     }
 

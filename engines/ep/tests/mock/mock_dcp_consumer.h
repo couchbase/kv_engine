@@ -132,6 +132,13 @@ public:
     }
 
     /**
+     * Enable the use of V7 status codes for DCP
+     */
+    void enableV7DcpStatus() {
+        isV7DcpStatusEnabled = true;
+    }
+
+    /**
      *
      * Map from the opaque used to create a stream to the internal opaque
      * as is used by streamEnd

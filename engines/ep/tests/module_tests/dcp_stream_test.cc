@@ -4070,6 +4070,41 @@ TEST_P(StreamTest, sync_writes_denied) {
     destroy_dcp_stream();
 }
 
+/**
+ * Test to ensure that V7 dcp status codes are returned when they have
+ * been enabled.
+ */
+TEST_P(STPassiveStreamPersistentTest, enusre_extended_dcp_status_work) {
+    uint32_t opaque = 0;
+    const std::string keyStr("key");
+    DocKey key(keyStr, DocKeyEncodesCollectionId::No);
+
+    // check error code when stream isn't present for vbucket 99
+    EXPECT_EQ(
+            ENGINE_KEY_ENOENT,
+            consumer->mutation(
+                    opaque, key, {}, 0, 0, 0, Vbid(99), 0, 1, 0, 0, 0, {}, 0));
+    // check error code when using a non matching opaque
+    opaque = 99999;
+    EXPECT_EQ(ENGINE_KEY_EEXISTS,
+              consumer->mutation(
+                      opaque, key, {}, 0, 0, 0, vbid, 0, 1, 0, 0, 0, {}, 0));
+
+    // enable V7 dcp status codes
+    consumer->enableV7DcpStatus();
+    // check error code when stream isn't present for vbucket 99
+    opaque = 0;
+    EXPECT_EQ(
+            ENGINE_STREAM_NOT_FOUND,
+            consumer->mutation(
+                    opaque, key, {}, 0, 0, 0, Vbid(99), 0, 1, 0, 0, 0, {}, 0));
+    // check error code when using a non matching opaque
+    opaque = 99999;
+    EXPECT_EQ(ENGINE_OPAQUE_NO_MATCH,
+              consumer->mutation(
+                      opaque, key, {}, 0, 0, 0, vbid, 0, 1, 0, 0, 0, {}, 0));
+}
+
 INSTANTIATE_TEST_SUITE_P(Persistent,
                          STPassiveStreamPersistentTest,
                          STParameterizedBucketTest::persistentConfigValues(),

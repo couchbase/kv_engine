@@ -43,7 +43,7 @@ class StreamEndResponse;
  */
 class DcpConsumer : public ConnHandler,
                     public std::enable_shared_from_this<DcpConsumer> {
-    typedef std::map<uint32_t, std::pair<uint32_t, Vbid>> opaque_map;
+    using opaque_map = std::map<uint32_t, std::pair<uint32_t, Vbid>>;
 
 public:
     /**
@@ -393,6 +393,8 @@ protected:
     ENGINE_ERROR_CODE enableSynchronousReplication(
             DcpMessageProducersIface* producers);
 
+    ENGINE_ERROR_CODE enableV7DcpStatus(dcp_message_producers* producers);
+
     /**
      * Handles the negotiation of IncludeDeletedUserXattrs.
      *
@@ -548,6 +550,19 @@ protected:
             uint32_t opaque,
             std::unique_ptr<DcpResponse> msg);
 
+    /**
+     * Helper function to return the STREAM_NOT_FOUND if v7 status codes are
+     * enabled, otherwise ENGINE_KEY_ENOENT
+     */
+    ENGINE_ERROR_CODE getNoStreamFoundErrorCode() const;
+
+    /**
+     * Helper function to return the ENGINE_OPAQUE_NO_MATCH if v7 status codes
+     * are enabled, otherwise ENGINE_KEY_EEXISTS
+     * @return
+     */
+    ENGINE_ERROR_CODE getOpaqueMissMatchErrorCode() const;
+
     /* Reference to the ep engine; need to create the 'Processor' task */
     EventuallyPersistentEngine& engine;
     uint64_t opaqueCounter;
@@ -561,8 +576,8 @@ protected:
     std::list<Vbid> ready;
 
     // Map of vbid -> passive stream. Map itself is atomic (thread-safe).
-    typedef AtomicUnorderedMap<Vbid, std::shared_ptr<PassiveStream>>
-            PassiveStreamMap;
+    using PassiveStreamMap =
+            AtomicUnorderedMap<Vbid, std::shared_ptr<PassiveStream>>;
     PassiveStreamMap streams;
 
     /*
@@ -586,6 +601,11 @@ protected:
     bool pendingSendStreamEndOnClientStreamClose;
     bool pendingSupportHifiMFU;
     bool pendingEnableExpiryOpcode;
+    bool pendingV7DcpStatusEnabled = true;
+
+    // Flag to state that the DCP consumer has negotiate the with the producer
+    // that V7 DCP status codes can be used.
+    bool isV7DcpStatusEnabled = false;
 
     // Maintains the state of the Sync Replication negotiation
     BlockingDcpControlNegotiation syncReplNegotiation;

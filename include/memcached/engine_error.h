@@ -139,6 +139,12 @@ enum class engine_errc {
     /// internally by ep-engine
     sync_write_pending = 0x22,
 
+    /** Stream not found for DCP message */
+    stream_not_found = 0x23,
+
+    /** Opaque in message did not match stream's */
+    opaque_no_match = 0x24,
+
     /** Generic failue. */
     failed = 0xff
 };
@@ -178,7 +184,7 @@ std::ostream& operator<<(std::ostream& os, cb::engine_errc ec);
 
 // For backwards compatibility with the old memcached source code we need
 // to keep the old constants around
-typedef enum {
+enum ENGINE_ERROR_CODE {
     ENGINE_SUCCESS = int(cb::engine_errc::success),
     ENGINE_KEY_ENOENT = int(cb::engine_errc::no_such_key),
     ENGINE_KEY_EEXISTS = int(cb::engine_errc::key_already_exists),
@@ -215,8 +221,10 @@ typedef enum {
     ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS =
             int(cb::engine_errc::sync_write_re_commit_in_progress),
     ENGINE_DCP_STREAMID_INVALID = int(cb::engine_errc::dcp_streamid_invalid),
-    ENGINE_SYNC_WRITE_PENDING = int(cb::engine_errc::sync_write_pending)
-} ENGINE_ERROR_CODE;
+    ENGINE_SYNC_WRITE_PENDING = int(cb::engine_errc::sync_write_pending),
+    ENGINE_STREAM_NOT_FOUND = int(cb::engine_errc::stream_not_found),
+    ENGINE_OPAQUE_NO_MATCH = int(cb::engine_errc::opaque_no_match)
+};
 
 namespace std {
 

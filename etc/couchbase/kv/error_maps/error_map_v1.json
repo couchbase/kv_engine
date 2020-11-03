@@ -79,6 +79,20 @@
                 "retry-now"
             ]
         },
+        "a": {
+            "name": "STREAM_NOT_FOUND",
+            "desc": "Stream not found",
+            "attrs": [
+                "conn-state-invalidated"
+            ]
+        },
+        "b": {
+            "name": "OPAQUE_NO_MATCH",
+            "desc": "Opaque does not match",
+            "attrs": [
+                "conn-state-invalidated"
+            ]
+        },
         "1f": {
             "name": "AUTH_STALE",
             "desc": "Reauthentication required",

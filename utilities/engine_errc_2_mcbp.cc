@@ -80,6 +80,10 @@ cb::mcbp::Status cb::mcbp::to_status(cb::engine_errc code) {
         return Status::DcpStreamIdInvalid;
     case engine_errc::sync_write_re_commit_in_progress:
         return Status::SyncWriteReCommitInProgress;
+    case engine_errc::stream_not_found:
+        return Status::DcpStreamNotFound;
+    case engine_errc::opaque_no_match:
+        return Status::OpaqueNoMatch;
     case engine_errc::would_block:
     case engine_errc::disconnect:
     case engine_errc::predicate_failed:

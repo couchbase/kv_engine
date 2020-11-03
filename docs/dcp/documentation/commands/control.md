@@ -44,6 +44,10 @@ Possible values are:
   * `sequential` - vBuckets should be backfilled sequentially - _all_ data from
   the first vBucket should be read from disk before advancing to the next vBucket.
 
+* `v7_dcp_status_codes` = `true` - Tells the DCP producer that it may
+receive status codes `Status::DcpStreamNotFound = 0x0A` and
+`Status::OpaqueNoMatch = 0x0B`, introduced as of Couchbase 7.0.0.
+
 The following example shows the breakdown of the message:
 
       Byte/     0       |       1       |       2       |       3       |
