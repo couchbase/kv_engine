@@ -1061,10 +1061,14 @@ StatsForFlush Manifest::DroppedCollections::get(CollectionID cid,
         }
     }
 
+    std::stringstream ss;
+    ss << *this;
+
     // Similar to above, we should find something
-    throw std::logic_error(std::string(__PRETTY_FUNCTION__) +
-                           " The collection seqno cannot be found cid:" +
-                           cid.to_string() + " seqno:" + std::to_string(seqno));
+    throw std::logic_error(
+            std::string(__PRETTY_FUNCTION__) +
+            " The collection seqno cannot be found cid:" + cid.to_string() +
+            " seqno:" + std::to_string(seqno) + " " + ss.str());
 }
 
 size_t Manifest::DroppedCollections::size() const {
