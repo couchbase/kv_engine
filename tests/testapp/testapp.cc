@@ -372,6 +372,7 @@ nlohmann::json TestappTest::generate_config() {
               {"default", {{"slow", 500}}}}},
             {"logger", {{"unit_test", true}}},
             {"portnumber_file", portnumber_file},
+            {"prometheus", {{"port", 0}, {"family", "inet"}}},
     };
 
     if (!embedded_memcached_server) {
