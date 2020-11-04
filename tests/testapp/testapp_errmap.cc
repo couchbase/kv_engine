@@ -40,7 +40,7 @@ bool ErrmapTest::validateJson(const nlohmann::json& json, size_t reqversion) {
 
     auto rev = json.find("revision");
     EXPECT_NE(json.end(), rev);
-    EXPECT_EQ(3, rev->get<int>());
+    EXPECT_EQ(4, rev->get<int>());
 
     return !::testing::Test::HasFailure();
 }

@@ -1,6 +1,6 @@
 {
     "version": 1,
-    "revision": 3,
+    "revision": 4,
     "errors": {
         "0": {
             "name": "SUCCESS",
@@ -245,7 +245,7 @@
             "desc": "Durability requirements are impossible to achieve",
             "attrs": [
                 "item-only",
-                "retry-later"
+                "invalid-input"
             ]
         },
         "a2": {
