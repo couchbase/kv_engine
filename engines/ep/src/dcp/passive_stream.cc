@@ -698,11 +698,12 @@ ENGINE_ERROR_CODE PassiveStream::processMessage(
         if (ret != ENGINE_ENOMEM) {
             log(spdlog::level::level_enum::warn,
                 "{} Got error '{}' while trying to process "
-                "{} with seqno:{}",
+                "{} with seqno:{} cid:{}",
                 vb_,
                 cb::to_string(cb::to_engine_errc(ret)),
                 taskToString[messageType],
-                message->getItem()->getBySeqno());
+                message->getItem()->getBySeqno(),
+                message->getItem()->getKey().getCollectionID());
         }
     } else {
         handleSnapshotEnd(vb, *message->getBySeqno());
