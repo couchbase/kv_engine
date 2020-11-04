@@ -577,9 +577,15 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
     }
 
     auto stream = findStream(vbucket);
-    if (!stream || (stream->getOpaque() != opaque)) {
+    if (!stream) {
         // No stream for this vBucket / opaque - return ENOENT to indicate this.
         return ENGINE_KEY_ENOENT;
+    }
+
+    if (stream->getOpaque() != opaque) {
+        // No such stream with the given opaque - return KEY_EEXISTS to indicate
+        // that a stream exists but not for this opaque (similar to InvalidCas).
+        return ENGINE_KEY_EEXISTS;
     }
 
     queued_item item(Item::makeDeletedItem(deletionCause,

@@ -5409,7 +5409,7 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h) {
     const std::string key{"key"};
     const DocKey docKey{key, DocKeyEncodesCollectionId::No};
     // verify that we don't accept invalid opaque id's
-    checkeq(ENGINE_KEY_ENOENT,
+    checkeq(ENGINE_KEY_EEXISTS,
             dcp->deletion(cookie,
                           opaque + 1,
                           docKey,
@@ -5504,7 +5504,7 @@ static enum test_result test_dcp_consumer_expire(EngineIface* h) {
     const std::string key{"key"};
     const DocKey docKey{key, DocKeyEncodesCollectionId::No};
     // verify that we don't accept invalid opaque id's
-    checkeq(ENGINE_KEY_ENOENT,
+    checkeq(ENGINE_KEY_EEXISTS,
             dcp->expiration(cookie,
                             opaque + 1,
                             docKey,
