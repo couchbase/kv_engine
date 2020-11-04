@@ -84,7 +84,7 @@ void Flush::StatisticsUpdate::remove(bool isSystem,
 // statistics gathered by the Flush and uses the std::function callback to
 // have the KVStore implementation write them to storage, e.g. a local document.
 void Flush::saveCollectionStats(
-        std::function<void(CollectionID, const PersistedStats&)> cb) const {
+        std::function<void(CollectionID, const PersistedStats&)> cb) {
     // For each collection modified in the flush run ask the VBM for the
     // current stats (using the high-seqno so we find the correct generation
     // of stats)
@@ -109,6 +109,47 @@ void Flush::saveCollectionStats(
                           stats.diskSize + flushStats.getDiskSize());
         cb(cid, ps);
     }
+}
+
+uint32_t Flush::countNonEmptyDroppedCollections() const {
+    uint32_t nonEmpty = 0;
+    // For a flush batch that was dropping collections detect and count
+    // non-empty collections so we can schedule a purge only if needed (avoids
+    // a compaction if the collection is empty)
+    for (const auto& [cid, dropped] : droppedCollections) {
+        // An empty collection never had items committed to it. From the meta
+        // data we have regarding the collection this is evident by having the
+        // start-seqno equal to the collection's high-seqno. However for the
+        // flusher one corner case exists and that is when the collection was
+        // created and dropped in the same flush-batch, then the high-seqno is
+        // 0.
+        //
+        // In the flusher we count how many dropped collections had items and
+        // will need a purge.
+        //
+        // Two checks are in-place:
+        // 1) If the 'stats' map doesn't store the dropped 'cid', then this
+        // flush batch had no items for the collection, we must inspect the
+        // manifest "StatsForFlush" object which stores the state of the dropped
+        // collection. From there inspect the high-seqno and start-seqno.
+        //
+        // 2) If the 'stats' map does store the dropped 'cid', then an item was
+        // committed in this flush, the collection is not empty.
+        auto sItr = stats.find(cid);
+
+        if (sItr == stats.end()) {
+            const auto highSeqno =
+                    manifest.lock()
+                            .getStatsForFlush(cid, dropped.endSeqno)
+                            .highSeqno;
+            if (highSeqno != 0 && highSeqno != dropped.startSeqno) {
+                nonEmpty++; // 1)
+            }
+        } else {
+            nonEmpty++; // 2)
+        }
+    }
+    return nonEmpty;
 }
 
 void Flush::forEachDroppedCollection(
@@ -170,7 +211,7 @@ void Flush::notifyManifestOfAnyDroppedCollections() {
 }
 
 void Flush::checkAndTriggerPurge(Vbid vbid, KVBucket& bucket) const {
-    if (!droppedCollections.empty()) {
+    if (nonEmptyDroppedCollections != 0) {
         triggerPurge(vbid, bucket);
     }
 }
@@ -212,19 +253,32 @@ void Flush::updateStats(const DocKey& key,
     }
     auto [isSystemEvent, cid] = getCollectionID(key);
 
-    if (!cid || isLogicallyDeleted(cid.value(), seqno)) {
-        // 1) The key is not for a collection (could be a scope event) or
-        // 2) The key belongs to a collection now dropped, the drop is in this
-        //    flush batch.
-        // The flusher still persists documents that are in this state but we
-        // do not gather statistics about them - this is because the current
-        // statistics will be wiped out by the flush (side effect of the drop
-        // going through the KVStore).
+    if (!cid) {
+        // The key is not for a collection (e.g. a scope event).
         return;
     }
 
-    getStatsAndMaybeSetPersistedHighSeqno(cid.value(), seqno)
-            .insert(isSystemEvent, isDelete, size);
+    // Skip tracking the 'stats' of the delete collection event, if we did the
+    // empty collection detection will fail because the high-seqno of the
+    // collection will change to be equal to the drop-event's seqno. Empty
+    // collection detection relies on start-seqno == high-seqno.
+    if (isDelete && isSystemEvent) {
+        // Delete collection event - no tracking
+        return;
+    }
+
+    // Track high-seqno for the item
+    auto& stats = getStatsAndMaybeSetPersistedHighSeqno(cid.value(), seqno);
+
+    // but don't track any changes if the item is logically deleted. Why?
+    // A flush batch could of recreated the collection, the stats tracking code
+    // only has stats stored for the most recent collection, we cannot then
+    // call insert for a dropped collection otherwise the stats will be
+    // incorrect. Note this relates to an issue for MB-42272, magma assumes the
+    // stats item count will include *everything*, but isn't.
+    if (!isLogicallyDeleted(cid.value(), seqno)) {
+        stats.insert(isSystemEvent, isDelete, size);
+    }
 }
 
 void Flush::updateStats(const DocKey& key,
@@ -241,7 +295,12 @@ void Flush::updateStats(const DocKey& key,
     }
     // Same logic and comment as updateStats above.
     auto [isSystemEvent, cid] = getCollectionID(key);
-    if (!cid || isLogicallyDeleted(cid.value(), seqno)) {
+
+    if (!cid) {
+        return;
+    }
+
+    if (isDelete && isSystemEvent) {
         return;
     }
 
@@ -256,13 +315,15 @@ void Flush::updateStats(const DocKey& key,
                             isLogicallyDeletedInStore(cid.value(), oldSeqno));
 
     auto& stats = getStatsAndMaybeSetPersistedHighSeqno(cid.value(), seqno);
-
-    if (oldIsDelete) {
-        stats.insert(isSystemEvent, isDelete, size);
-    } else if (!oldIsDelete && isDelete) {
-        stats.remove(isSystemEvent, size - oldSize);
-    } else {
-        stats.update(size - oldSize);
+    // As above, logically deleted items don't update item-count/disk-size
+    if (!isLogicallyDeleted(cid.value(), seqno)) {
+        if (oldIsDelete) {
+            stats.insert(isSystemEvent, isDelete, size);
+        } else if (!oldIsDelete && isDelete) {
+            stats.remove(isSystemEvent, size - oldSize);
+        } else {
+            stats.update(size - oldSize);
+        }
     }
 }
 
@@ -503,6 +564,8 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
 
 flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
         std::vector<Collections::KVStore::DroppedCollection>& existingDropped) {
+    nonEmptyDroppedCollections = countNonEmptyDroppedCollections();
+
     flatbuffers::FlatBufferBuilder builder;
     std::vector<flatbuffers::Offset<Collections::KVStore::Dropped>> output;
 
@@ -513,8 +576,7 @@ flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
 
     // Iterate through the existing dropped collections and look each up in the
     // commit metadata. If the collection is in both lists, we will just update
-    // the existing data (adjusting the endSeqno) and then erase the collection
-    // from the commit meta's dropped collections.
+    // the existing data (adjusting the endSeqno) and then mark as skipped
     for (auto& collection : existingDropped) {
         if (auto itr = droppedCollections.find(collection.collectionId);
             itr != droppedCollections.end()) {

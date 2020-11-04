@@ -667,7 +667,8 @@ void Manifest::saveDroppedCollection(CollectionID cid,
             DroppedCollectionInfo{droppedEntry.getStartSeqno(),
                                   droppedSeqno,
                                   droppedEntry.getItemCount(),
-                                  droppedEntry.getDiskSize()});
+                                  droppedEntry.getDiskSize(),
+                                  droppedEntry.getPersistedHighSeqno()});
 }
 
 StatsForFlush Manifest::getStatsForFlush(CollectionID cid,
@@ -678,7 +679,8 @@ StatsForFlush Manifest::getStatsForFlush(CollectionID cid,
         // seqno is equal or greater than the start, then it is a match
         if (seqno >= mapItr->second.getStartSeqno()) {
             return StatsForFlush{mapItr->second.getItemCount(),
-                                 mapItr->second.getDiskSize()};
+                                 mapItr->second.getDiskSize(),
+                                 mapItr->second.getPersistedHighSeqno()};
         }
     }
 
@@ -1056,7 +1058,9 @@ StatsForFlush Manifest::DroppedCollections::get(CollectionID cid,
         // If the seqno is of the range of this dropped generation, this is
         // a match.
         if (seqno >= droppedInfo.start && seqno <= droppedInfo.end) {
-            return StatsForFlush{droppedInfo.itemCount, droppedInfo.diskSize};
+            return StatsForFlush{droppedInfo.itemCount,
+                                 droppedInfo.diskSize,
+                                 droppedInfo.highSeqno};
         }
     }
 
@@ -1121,13 +1125,15 @@ bool Manifest::DroppedCollectionInfo::addStats(
     addStat("end", end);
     addStat("items", itemCount);
     addStat("disk", diskSize);
+    addStat("high_seqno", highSeqno);
     return true;
 }
 
 std::ostream& operator<<(std::ostream& os,
                          const Manifest::DroppedCollectionInfo& info) {
     os << "DroppedCollectionInfo s:" << info.start << ", e:" << info.end
-       << ", items:" << info.itemCount << " disk:" << info.diskSize;
+       << ", items:" << info.itemCount << ", disk:" << info.diskSize
+       << ", highSeq:" << info.highSeqno;
     return os;
 }
 

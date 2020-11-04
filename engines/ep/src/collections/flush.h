@@ -53,7 +53,7 @@ public:
      * @param a function to callback
      */
     void saveCollectionStats(
-            std::function<void(CollectionID, const PersistedStats&)> cb) const;
+            std::function<void(CollectionID, const PersistedStats&)> cb);
 
     /**
      * KVStore implementations must call this function once they have
@@ -250,6 +250,18 @@ private:
      */
     bool isLogicallyDeletedInStore(CollectionID cid, uint64_t seqno) const;
 
+    /**
+     * After all flushed items and system events have been processed this
+     * function counts how many non-empty collections were dropped.
+     *
+     * non-empty is defined as a collection with 1 or more *committed* items.
+     * Detection of non-empty requires comparing the start-seqno with the
+     * collection's high-seqno.
+     *
+     * @return the number of non-empty collections that were dropped.
+     */
+    uint32_t countNonEmptyDroppedCollections() const;
+
     // Helper class for doing collection stat updates
     class StatisticsUpdate {
     public:
@@ -399,6 +411,12 @@ private:
      * count updates
      */
     Manifest& manifest;
+
+    /**
+     * Flushing counts how many non-empty collections were committed and uses
+     * this for triggering (or not) a purge.
+     */
+    uint32_t nonEmptyDroppedCollections{0};
 
     /**
      * Set to true when any of the fields in this structure have data which

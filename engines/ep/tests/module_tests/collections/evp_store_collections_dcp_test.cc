@@ -2121,12 +2121,16 @@ TEST_P(CollectionsDcpParameterizedTest, legacy_stream_closes) {
 TEST_P(CollectionsDcpParameterizedTest, DefaultCollectionDropped) {
     VBucketPtr vb = store->getVBucket(vbid);
 
+    // Add 1 item so default is not empty, so purge runs and we can check the
+    // tombstone remains
+    store_item(vbid, StoredDocKey{"key", CollectionEntry::defaultC}, "value");
+
     // 1) Drop the default collection
     // 2) Add a new collection so that the drop event is not the high-seq
     CollectionsManifest cm;
     setCollections(cookie, std::string{cm.remove(CollectionEntry::defaultC)});
     setCollections(cookie, std::string{cm.add(CollectionEntry::meat)});
-    flushVBucketToDiskIfPersistent(vbid, 2);
+    flushVBucketToDiskIfPersistent(vbid, 3);
 
     TimeTraveller bill(
             engine->getConfiguration().getPersistentMetadataPurgeAge() + 1);
@@ -2154,9 +2158,9 @@ TEST_P(CollectionsDcpParameterizedTest, DefaultCollectionDropped) {
 
     TimeTraveller ted(
             engine->getConfiguration().getPersistentMetadataPurgeAge() + 1);
-    // Now purge on the replica and validate that the default drop marker is not
-    // purged.
-    runEraser(replicaVB);
+
+    // No items are transferred - the default collection is empty and no purge
+    // is triggered.
 
     // Clear everything from CP manager so DCP backfills
     store->getVBucket(replicaVB)->checkpointManager->clear(
@@ -2822,7 +2826,6 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd) {
                 EXPECT_EQ(1, entry.startSeqno);
                 if (dropAtEnd) {
                     EXPECT_EQ(vb->getHighSeqno(), entry.endSeqno);
-
                 } else {
                     EXPECT_EQ(vb->getHighSeqno() - 2, entry.endSeqno);
                 }
@@ -2861,6 +2864,13 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd) {
     auto* replicaKVS = rvb->getShard()->getRWUnderlying();
     ASSERT_TRUE(replicaKVS);
     checkKVS(*replicaKVS, replicaVB);
+
+    // MB-42272: skip check for magma
+    if (dropAtEnd && !(isFullEviction() && isMagma())) {
+        EXPECT_EQ(0, vb->getNumItems());
+    } else {
+        EXPECT_EQ(1, vb->getNumItems());
+    }
 }
 
 TEST_P(CollectionsDcpPersistentOnly, create_drop_create_same_id) {

@@ -359,6 +359,7 @@ std::string to_string(ManifestUpdateStatus);
 struct StatsForFlush {
     uint64_t itemCount;
     size_t diskSize;
+    uint64_t highSeqno;
 };
 
 } // namespace VB

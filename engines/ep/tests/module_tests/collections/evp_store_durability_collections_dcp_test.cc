@@ -163,8 +163,15 @@ TEST_P(CollectionsSyncWriteParamTest, drop_collection_with_pending_write) {
     EXPECT_EQ(4, pdm.getHighPreparedSeqno());
     EXPECT_EQ(0, pdm.getHighCompletedSeqno());
 
-    // Now process the drop
-    runEraser();
+    // Now process the drop on all vbuckets
+    if (isPersistent()) {
+        runCompaction(vbid);
+        runCompaction(replicaVB);
+    } else {
+        // Only need to run on vbid for ephemeral because the task will visit
+        // both active/replica
+        runEraser(vbid);
+    }
 
     EXPECT_EQ(1, adm.getNumTracked());
     EXPECT_EQ(4, adm.getHighPreparedSeqno());
@@ -221,7 +228,11 @@ failover_entry_t CollectionsSyncWriteParamTest::
     // Now process the drop but only on the active (note replica hasn't yet
     // received the drop, this is mainly because the ephemeral purger will
     // process all vbuckets and cause failure if our pdm EXPECTS)
-    runEraser(vbid);
+    if (isPersistent()) {
+        runCompaction(vbid);
+    } else {
+        runEraser(vbid);
+    }
 
     EXPECT_EQ(1, adm.getNumTracked());
     EXPECT_EQ(3, adm.getHighPreparedSeqno());
@@ -298,8 +309,13 @@ TEST_P(CollectionsSyncWriteParamTest,
     EXPECT_EQ(3, pdm.getHighCompletedSeqno());
     EXPECT_EQ(0, pdm.getNumDroppedCollections());
 
-    // Finally run the eraser which should drop the collection
-    runEraser(replicaVB);
+    // Finally run the compaction/tombstone purge which drops the collection
+    // keys
+    if (isPersistent()) {
+        runCompaction(replicaVB);
+    } else {
+        runEraser(replicaVB);
+    }
 
     EXPECT_EQ(1, pdm.getNumTracked());
     EXPECT_EQ(6, pdm.getHighPreparedSeqno());

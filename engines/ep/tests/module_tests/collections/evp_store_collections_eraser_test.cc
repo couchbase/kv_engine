@@ -102,11 +102,8 @@ TEST_P(CollectionsEraserTest, basic) {
     flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
 
     // add some items
-    store_item(
-            vbid, StoredDocKey{"dairy:milk", CollectionEntry::dairy}, "nice");
-    store_item(vbid,
-               StoredDocKey{"dairy:butter", CollectionEntry::dairy},
-               "lovely");
+    store_item(vbid, StoredDocKey{"milk", CollectionEntry::dairy}, "nice");
+    store_item(vbid, StoredDocKey{"butter", CollectionEntry::dairy}, "lovely");
 
     // Additional checks relating to stat fixes for MB-41321. Prior to flushing,
     // the getStatsForFlush function shall find the collection, it is has no
@@ -139,8 +136,12 @@ TEST_P(CollectionsEraserTest, basic) {
 
     // Evict one of the keys, we should still erase it
     if (persistent()) {
-        evict_key(vbid, StoredDocKey{"dairy:butter", CollectionEntry::dairy});
+        evict_key(vbid, StoredDocKey{"butter", CollectionEntry::dairy});
     }
+
+    // Also store an item into the same batch as the drop
+    store_item(vbid, StoredDocKey{"cheese", CollectionEntry::dairy}, "blue");
+
     // delete the collection
     vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
 
@@ -158,20 +159,23 @@ TEST_P(CollectionsEraserTest, basic) {
         EXPECT_EQ(diskSize, stats.diskSize);
     }
 
-    flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
+    flush_vbucket_to_disk(vbid, 2 /* 1 x system, 1 x item */);
 
     // Now the drop is persisted the stats have gone
-
     EXPECT_THROW(
             vb->lockCollections().getStatsForFlush(CollectionEntry::dairy, 1),
             std::logic_error);
 
-    // Deleted
+    // Collection is deleted
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
 
+    // And compaction was triggered (throws if not)
     runCollectionsEraser();
 
-    EXPECT_EQ(0, vb->getNumItems());
+    // MB-42272: Full-eviction magma has an issue to address
+    if (!(isFullEviction() && isMagma())) {
+        EXPECT_EQ(0, vb->getNumItems());
+    }
 
     // @todo MB-26334: persistent buckets don't track the system event counts
     if (!persistent()) {
@@ -901,7 +905,12 @@ public:
         dropCollection();
         EXPECT_EQ(1, adm.getNumTracked());
 
-        CollectionsEraserTest::runCollectionsEraser();
+        if (isPersistent()) {
+            runCompaction(vbid);
+        } else {
+            runCollectionsEraser();
+        }
+
         EXPECT_EQ(0, adm.getNumTracked());
         EXPECT_EQ(expectedHPS, adm.getHighPreparedSeqno());
         EXPECT_EQ(expectedHCS, adm.getHighCompletedSeqno());
@@ -1092,7 +1101,11 @@ TEST_P(CollectionsEraserSyncWriteTest, DropAfterAbort) {
     // If we tried to then we'd segfault
     VBucketTestIntrospector::destroyDM(*vb.get());
 
-    runCollectionsEraser();
+    if (isPersistent()) {
+        // Nothing has been committed to the collection, the drop won't trigger
+        // a forced purge
+        EXPECT_THROW(runCollectionsEraser(), std::logic_error);
+    }
 }
 
 TEST_P(CollectionsEraserSyncWriteTest, CommitAfterDropBeforeErase) {
@@ -1119,6 +1132,147 @@ TEST_P(CollectionsEraserSyncWriteTest, CommitAfterDropBeforeErase) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 }
 
+class CollectionsEraserPersistentOnly : public CollectionsEraserTest {
+public:
+    void testEmptyCollections(bool flushInTheMiddle);
+    void testEmptyCollectionsWithPending(bool flushInTheMiddle);
+};
+
+// Test that empty collections don't lead to a compaction trigger even with
+// a prepare. Prepares are cleaned up separately
+void CollectionsEraserPersistentOnly::testEmptyCollectionsWithPending(
+        bool flushInTheMiddle) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    // Create two collections
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+
+    // The flusher will see the drop as a separate event or in the same batch
+    // as the create
+    if (flushInTheMiddle) {
+        flush_vbucket_to_disk(vbid, 2 /* 2 x system */);
+        auto handle = vb->lockCollections();
+        EXPECT_EQ(1, handle.getHighSeqno(CollectionEntry::dairy));
+        EXPECT_EQ(1, handle.getPersistedHighSeqno(CollectionEntry::dairy));
+        EXPECT_EQ(2, handle.getHighSeqno(CollectionEntry::fruit));
+        EXPECT_EQ(2, handle.getPersistedHighSeqno(CollectionEntry::fruit));
+    }
+
+    auto item = makePendingItem(StoredDocKey{"orange", CollectionEntry::fruit},
+                                "v");
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+    item = makePendingItem(StoredDocKey{"cheese", CollectionEntry::dairy},
+                           "vv");
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+
+    // Delete the collections
+    vb->updateFromManifest(makeManifest(
+            cm.remove(CollectionEntry::dairy).remove(CollectionEntry::fruit)));
+
+    flush_vbucket_to_disk(vbid, 2 /* 2 x system */ + 2 /* prepares */);
+
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
+
+    // Expect that the eraser task is not scheduled (which throws)
+    EXPECT_THROW(runCollectionsEraser(), std::logic_error);
+
+    EXPECT_EQ(0, vb->getNumItems());
+
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
+}
+
+TEST_P(CollectionsEraserPersistentOnly, logically_empty_with_flush) {
+    testEmptyCollectionsWithPending(true);
+}
+TEST_P(CollectionsEraserPersistentOnly, logically_empty_no_flush) {
+    testEmptyCollectionsWithPending(false);
+}
+
+// Test that empty collections don't lead to a compaction trigger
+void CollectionsEraserPersistentOnly::testEmptyCollections(
+        bool flushInTheMiddle) {
+    // Create two collections
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    auto& kvs = *vb->getShard()->getRWUnderlying();
+
+    // The flusher will see the drop as a separate event or in the same batch
+    // as the create
+    if (flushInTheMiddle) {
+        flush_vbucket_to_disk(vbid, 2 /* 2 x system */);
+        auto handle = vb->lockCollections();
+        EXPECT_EQ(1, handle.getHighSeqno(CollectionEntry::dairy));
+        EXPECT_EQ(1, handle.getPersistedHighSeqno(CollectionEntry::dairy));
+        EXPECT_EQ(2, handle.getHighSeqno(CollectionEntry::fruit));
+        EXPECT_EQ(2, handle.getPersistedHighSeqno(CollectionEntry::fruit));
+
+        auto fileHandle = kvs.makeFileHandle(vbid);
+        ASSERT_TRUE(fileHandle);
+        auto stats =
+                kvs.getCollectionStats(*fileHandle, CollectionEntry::dairy);
+        EXPECT_EQ(0, stats.itemCount);
+        EXPECT_EQ(vb->getHighSeqno() - 1, stats.highSeqno);
+        EXPECT_NE(0, stats.diskSize);
+        stats = kvs.getCollectionStats(*fileHandle, CollectionEntry::fruit);
+        EXPECT_EQ(0, stats.itemCount);
+        EXPECT_EQ(vb->getHighSeqno(), stats.highSeqno);
+        EXPECT_NE(0, stats.diskSize);
+    } else {
+        auto handle = vb->lockCollections();
+        EXPECT_EQ(vb->getHighSeqno() - 1,
+                  handle.getHighSeqno(CollectionEntry::dairy));
+        EXPECT_EQ(0, handle.getPersistedHighSeqno(CollectionEntry::dairy));
+        EXPECT_EQ(vb->getHighSeqno(),
+                  handle.getHighSeqno(CollectionEntry::fruit));
+        EXPECT_EQ(0, handle.getPersistedHighSeqno(CollectionEntry::fruit));
+    }
+
+    EXPECT_EQ(0, vb->getNumItems());
+
+    // Drop the collections
+    vb->updateFromManifest(makeManifest(
+            cm.remove(CollectionEntry::dairy).remove(CollectionEntry::fruit)));
+
+    flush_vbucket_to_disk(vbid, 2 /* 2 x system */);
+
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
+
+    // Expect that the eraser task is not scheduled (which throws)
+    EXPECT_THROW(runCollectionsEraser(), std::logic_error);
+
+    EXPECT_EQ(0, vb->getNumItems());
+
+    if (!isMagma()) {
+        // magma keeps the disk stats until next compaction completes
+        auto fileHandle = kvs.makeFileHandle(vbid);
+        ASSERT_TRUE(fileHandle);
+        auto stats =
+                kvs.getCollectionStats(*fileHandle, CollectionEntry::fruit);
+        EXPECT_EQ(0, stats.itemCount);
+        EXPECT_EQ(0, stats.highSeqno);
+        EXPECT_EQ(0, stats.diskSize);
+        stats = kvs.getCollectionStats(*fileHandle, CollectionEntry::dairy);
+        EXPECT_EQ(0, stats.itemCount);
+        EXPECT_EQ(0, stats.highSeqno);
+        EXPECT_EQ(0, stats.diskSize);
+    }
+}
+
+TEST_P(CollectionsEraserPersistentOnly, empty_collections_with_flush) {
+    testEmptyCollections(true);
+}
+
+TEST_P(CollectionsEraserPersistentOnly, empty_collections_no_flush) {
+    testEmptyCollections(false);
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsEraserTests,
                          CollectionsEraserTest,
@@ -1128,4 +1282,9 @@ INSTANTIATE_TEST_SUITE_P(CollectionsEraserTests,
 INSTANTIATE_TEST_SUITE_P(CollectionsEraserSyncWriteTests,
                          CollectionsEraserSyncWriteTest,
                          STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(CollectionsEraserPersistentOnly,
+                         CollectionsEraserPersistentOnly,
+                         STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
