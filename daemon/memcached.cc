@@ -257,6 +257,9 @@ static bool prometheus_auth_callback(const std::string& user,
 static void prometheus_changed_listener(const std::string&, Settings& s) {
     cb::prometheus::initialize(s.getPrometheusConfig(),
                                prometheus_auth_callback);
+    if (networkInterfaceManager) {
+        networkInterfaceManager->signal();
+    }
 }
 
 static void prometheus_init() {

@@ -41,6 +41,8 @@ using AuthCallback =
 void initialize(const std::pair<in_port_t, sa_family_t>& config,
                 AuthCallback authCB);
 
+std::pair<in_port_t, sa_family_t> getRunningConfig();
+
 /**
  * Global manager for exposing stats for Prometheus.
  *
@@ -85,6 +87,8 @@ public:
      */
     [[nodiscard]] in_port_t getListeningPort() const;
 
+    [[nodiscard]] std::pair<in_port_t, sa_family_t> getRunningConfig() const;
+
 private:
     class KVCollectable;
 
@@ -101,5 +105,7 @@ private:
 
     // Realm name sent to unauthed clients in 401 Unauthorized responses.
     static const std::string authRealm;
+
+    const sa_family_t family;
 };
 } // namespace cb::prometheus

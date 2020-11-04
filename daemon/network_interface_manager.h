@@ -88,6 +88,7 @@ protected:
     cb::libevent::unique_event_ptr event;
     std::atomic_bool check_listen_conn{};
     std::vector<std::unique_ptr<ServerSocket>> listen_conn;
+    std::pair<in_port_t, sa_family_t> prometheus_conn;
 };
 
 /// The one and only instance of the network interface manager.

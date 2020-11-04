@@ -21,6 +21,7 @@
 #include <daemon/log_macros.h>
 #include <daemon/settings.h>
 #include <daemon/stats.h>
+#include <folly/SynchronizedPtr.h>
 #include <logger/logger.h>
 #include <prometheus/exposer.h>
 #include <gsl/gsl>
@@ -31,22 +32,19 @@ const std::string MetricServer::lowCardinalityPath = "/_prometheusMetrics";
 const std::string MetricServer::highCardinalityPath = "/_prometheusMetricsHigh";
 const std::string MetricServer::authRealm = "KV Prometheus Exporter";
 
-std::unique_ptr<MetricServer> instance;
+folly::SynchronizedPtr<std::unique_ptr<MetricServer>> instance;
 
 void initialize(const std::pair<in_port_t, sa_family_t>& config,
                 AuthCallback authCB) {
+    auto handle = instance.wlockPointer();
     // May be called at init or on config change.
     // If an instance already exists, destroy it before creating
-    // a new one. This avoids issues that might arise if setting the same
-    // port and family in the new config (port would be in use)
-    instance.reset();
+    // a new one.
+    handle->reset();
 
-    // Structured binding not used due to MSVC bug incorrectly making port const
-    in_port_t port;
-    sa_family_t family;
-    std::tie(port, family) = config;
-    instance = std::make_unique<MetricServer>(port, family, std::move(authCB));
-    if (!instance->isAlive()) {
+    auto [port, family] = config;
+    *handle = std::make_unique<MetricServer>(port, family, std::move(authCB));
+    if (!(*handle)->isAlive()) {
         FATAL_ERROR(EXIT_FAILURE,
                     fmt::format("Failed to start Prometheus exposer on "
                                 "family:{} port:{}",
@@ -54,16 +52,21 @@ void initialize(const std::pair<in_port_t, sa_family_t>& config,
                                 port));
     }
 
-    if (port == 0) {
-        port = instance->getListeningPort();
-        // a random free port should have been assigned
-        Expects(port != 0);
-        Settings::instance().setPrometheusConfig({port, family});
-    }
-
+    // if the configured port is set to 0, an available port number will have
+    // been selected, log that instead of 0.
+    auto listeningPort = (*handle)->getListeningPort();
     LOG_INFO("Prometheus Exporter started, listening on family:{} port:{}",
              (family == AF_INET) ? "inet" : "inet6",
-             port);
+             listeningPort);
+}
+
+std::pair<in_port_t, sa_family_t> getRunningConfig() {
+    auto handle = instance.rlock();
+    if (!handle || !handle->isAlive()) {
+        // no MetricServer, or it is not listening
+        return {};
+    }
+    return handle->getRunningConfig();
 }
 
 class MetricServer::KVCollectable : public ::prometheus::Collectable {
@@ -103,7 +106,8 @@ MetricServer::MetricServer(in_port_t port,
                            sa_family_t family,
                            AuthCallback authCB)
     : stats(std::make_shared<KVCollectable>(Cardinality::Low)),
-      statsHC(std::make_shared<KVCollectable>(Cardinality::High)) {
+      statsHC(std::make_shared<KVCollectable>(Cardinality::High)),
+      family(family) {
     try {
         /*
          * The connectionStr should meet the spec for civetweb's
@@ -152,6 +156,10 @@ in_port_t MetricServer::getListeningPort() const {
     Expects(listeningPorts.size() == 1);
 
     return in_port_t(listeningPorts[0]);
+}
+
+std::pair<in_port_t, sa_family_t> MetricServer::getRunningConfig() const {
+    return {getListeningPort(), family};
 }
 
 } // namespace cb::prometheus

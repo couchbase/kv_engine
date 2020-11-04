@@ -28,6 +28,11 @@
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
 
+namespace cb::prometheus {
+// forward declaration
+std::pair<in_port_t, sa_family_t> getRunningConfig();
+} // namespace cb::prometheus
+
 std::unique_ptr<NetworkInterfaceManager> networkInterfaceManager;
 
 NetworkInterfaceManager::NetworkInterfaceManager(event_base* base) {
@@ -196,6 +201,14 @@ void NetworkInterfaceManager::event_handler() {
             }
         }
 
+        auto prometheus_config = cb::prometheus::getRunningConfig();
+        if (prometheus_conn != prometheus_config) {
+            // current prometheus MetricServer config does not match
+            // what was last written to disk.
+            prometheus_conn = prometheus_config;
+            changes = true;
+        }
+
         if (changes) {
             // Try to write all of the changes, ignore errors
             writeInterfaceFile(false);
@@ -216,8 +229,7 @@ void NetworkInterfaceManager::writeInterfaceFile(bool terminate) {
         }
 
         {
-            auto [port, family] = settings.getPrometheusConfig();
-            json["prometheus"]["port"] = port;
+            auto [port, family] = cb::prometheus::getRunningConfig();
             if (family == AF_INET || family == AF_INET6) {
                 json["prometheus"]["port"] = port;
                 json["prometheus"]["family"] =
