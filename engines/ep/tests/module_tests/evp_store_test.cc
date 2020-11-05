@@ -1143,7 +1143,7 @@ TEST_P(EPBucketTest, memOverheadMemoryCondition) {
                               value);
         uint64_t cas;
         result = engine->storeInner(
-                dummyCookie.get(), item, cas, OPERATION_SET, false);
+                dummyCookie.get(), item, cas, StoreSemantics::Set, false);
     }
 
     ASSERT_EQ(ENGINE_ENOMEM, result);
@@ -1196,16 +1196,23 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if_throws) {
     evict_key(vbid, key);
 
     if (fullEviction()) {
-        EXPECT_NO_THROW(engine->storeIfInner(
-                cookie, item, 0 /*cas*/, OPERATION_SET, predicate, false));
+        EXPECT_NO_THROW(engine->storeIfInner(cookie,
+                                             item,
+                                             0 /*cas*/,
+                                             StoreSemantics::Set,
+                                             predicate,
+                                             false));
         runBGFetcherTask();
     }
 
     // If the itemInfo exists, you can't ask for it again - so expect throw
-    EXPECT_THROW(
-            engine->storeIfInner(
-                    cookie, item, 0 /*cas*/, OPERATION_SET, predicate, false),
-            std::logic_error);
+    EXPECT_THROW(engine->storeIfInner(cookie,
+                                      item,
+                                      0 /*cas*/,
+                                      StoreSemantics::Set,
+                                      predicate,
+                                      false),
+                 std::logic_error);
 }
 
 TEST_P(EPBucketBloomFilterParameterizedTest, store_if) {
@@ -1280,7 +1287,7 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if) {
         test.actualStatus = engine->storeIfInner(cookie,
                                                  item,
                                                  0 /*cas*/,
-                                                 OPERATION_SET,
+                                                 StoreSemantics::Set,
                                                  test.predicate,
                                                  false)
                                     .status;
@@ -1307,7 +1314,7 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if) {
                 auto status = engine->storeIfInner(cookie,
                                                    item,
                                                    0 /*cas*/,
-                                                   OPERATION_SET,
+                                                   StoreSemantics::Set,
                                                    i.predicate,
                                                    false);
                 // The second run should result the same as VE
@@ -1342,7 +1349,7 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if_fe_interleave) {
               engine->storeIfInner(cookie,
                                    item,
                                    0 /*cas*/,
-                                   OPERATION_SET,
+                                   StoreSemantics::Set,
                                    predicate,
                                    false)
                       .status);
@@ -1353,7 +1360,7 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if_fe_interleave) {
               engine->storeIfInner(cookie,
                                    item,
                                    0 /*cas*/,
-                                   OPERATION_SET,
+                                   StoreSemantics::Set,
                                    predicate,
                                    false)
                       .status);
@@ -1363,7 +1370,7 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if_fe_interleave) {
               engine->storeIfInner(cookie,
                                    item,
                                    0 /*cas*/,
-                                   OPERATION_SET,
+                                   StoreSemantics::Set,
                                    predicate,
                                    false)
                       .status);

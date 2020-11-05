@@ -190,7 +190,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
     auto ret = bucket_store(cookie,
                             newitem.get(),
                             ncas,
-                            OPERATION_CAS,
+                            StoreSemantics::CAS,
                             cookie.getRequest().getDurabilityRequirements(),
                             DocumentState::Alive,
                             false);

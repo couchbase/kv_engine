@@ -427,7 +427,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @param cookie The cookie provided by the frontend
      * @param item the item to store
      * @param cas the CAS value for conditional sets
-     * @param operation the type of store operation to perform.
+     * @param semantics the semantics of the store operation
      * @param durability An optional durability requirement
      * @param document_state The state the document should have after
      *                       the update
@@ -440,7 +440,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
             gsl::not_null<const void*> cookie,
             gsl::not_null<ItemIface*> item,
             uint64_t& cas,
-            ENGINE_STORE_OPERATION operation,
+            StoreSemantics semantics,
             const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,
             bool preserveTtl) = 0;
@@ -455,7 +455,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @param cookie The cookie provided by the frontend
      * @param item the item to store
      * @param cas the CAS value for conditional sets
-     * @param operation the type of store operation to perform.
+     * @param semantics the semantics of the store operation
      * @param predicate a function that will be called from the engine the
      *                  result of which determines how the store behaves.
      *                  The function is given any existing item's item_info (as
@@ -482,7 +482,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
             gsl::not_null<const void*> cookie,
             gsl::not_null<ItemIface*> item,
             uint64_t cas,
-            ENGINE_STORE_OPERATION operation,
+            StoreSemantics semantics,
             const cb::StoreIfPredicate& predicate,
             const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,

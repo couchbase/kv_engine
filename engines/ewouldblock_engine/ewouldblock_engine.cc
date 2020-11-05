@@ -421,12 +421,12 @@ public:
             gsl::not_null<const void*> cookie,
             gsl::not_null<ItemIface*> item,
             uint64_t& cas,
-            ENGINE_STORE_OPERATION operation,
+            StoreSemantics operation,
             const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,
             bool preserveTtl) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
-        Cmd opcode = (operation == OPERATION_CAS) ? Cmd::CAS : Cmd::STORE;
+        Cmd opcode = (operation == StoreSemantics::CAS) ? Cmd::CAS : Cmd::STORE;
         if (should_inject_error(opcode, cookie, err)) {
             return err;
         } else {
@@ -444,13 +444,13 @@ public:
             gsl::not_null<const void*> cookie,
             gsl::not_null<ItemIface*> item,
             uint64_t cas,
-            ENGINE_STORE_OPERATION operation,
+            StoreSemantics operation,
             const cb::StoreIfPredicate& predicate,
             const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,
             bool preserveTtl) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
-        Cmd opcode = (operation == OPERATION_CAS) ? Cmd::CAS : Cmd::STORE;
+        Cmd opcode = (operation == StoreSemantics::CAS) ? Cmd::CAS : Cmd::STORE;
         if (should_inject_error(opcode, cookie, err)) {
             return {cb::engine_errc(err), 0};
         } else {

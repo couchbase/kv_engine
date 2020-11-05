@@ -504,7 +504,7 @@ void TestDcpConsumer::run(bool openConn) {
                         checkeq(ENGINE_SUCCESS,
                                 store(h,
                                       nullptr,
-                                      OPERATION_SET,
+                                      StoreSemantics::Set,
                                       key.c_str(),
                                       "data",
                                       nullptr,
@@ -1275,7 +1275,7 @@ extern "C" {
             checkeq(ENGINE_SUCCESS,
                     store(wtc->h,
                           nullptr,
-                          OPERATION_SET,
+                          StoreSemantics::Set,
                           key.c_str(),
                           "somevalue",
                           nullptr,
@@ -1498,7 +1498,7 @@ static enum test_result test_dcp_notifier(EngineIface* h) {
         checkeq(ENGINE_SUCCESS,
                 store(h,
                       nullptr,
-                      OPERATION_SET,
+                      StoreSemantics::Set,
                       key.c_str(),
                       "data",
                       nullptr),
@@ -1514,7 +1514,7 @@ static enum test_result test_dcp_notifier(EngineIface* h) {
         checkeq(ENGINE_SUCCESS,
                 store(h,
                       nullptr,
-                      OPERATION_SET,
+                      StoreSemantics::Set,
                       key.c_str(),
                       "data",
                       nullptr),
@@ -1547,7 +1547,12 @@ static enum test_result test_dcp_notifier_equal_to_number_of_items(
         EngineIface* h) {
     const std::string key("key0");
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, key.c_str(), "data", nullptr),
+            store(h,
+                  nullptr,
+                  StoreSemantics::Set,
+                  key.c_str(),
+                  "data",
+                  nullptr),
             "Failed to store a value");
 
     const auto* cookie = testHarness->create_cookie(h);
@@ -1574,7 +1579,7 @@ static enum test_result test_dcp_notifier_equal_to_number_of_items(
             producers.last_op,
             "Wasn't expecting a stream end");
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "key0", "data"),
+            store(h, nullptr, StoreSemantics::Set, "key0", "data"),
             "Failed to store a value");
     dcp_step(h, cookie, producers);
     checkeq(cb::mcbp::ClientOpcode::DcpStreamEnd,
@@ -2710,8 +2715,8 @@ static enum test_result test_dcp_producer_stream_req_dgm(EngineIface* h) {
 
         std::stringstream ss;
         ss << "key" << i;
-        ENGINE_ERROR_CODE ret =
-                store(h, cookie, OPERATION_SET, ss.str().c_str(), "somevalue");
+        ENGINE_ERROR_CODE ret = store(
+                h, cookie, StoreSemantics::Set, ss.str().c_str(), "somevalue");
         if (ret == ENGINE_SUCCESS) {
             i++;
         }
@@ -2764,7 +2769,7 @@ static enum test_result test_dcp_producer_stream_req_coldness(EngineIface* h) {
     for (int ii = 0; ii < 10; ii++) {
         std::stringstream ss;
         ss << "key" << ii;
-        store(h, cookie, OPERATION_SET, ss.str().c_str(), "somevalue");
+        store(h, cookie, StoreSemantics::Set, ss.str().c_str(), "somevalue");
     }
 
     wait_for_flusher_to_settle(h);
@@ -3146,7 +3151,7 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
         }
         std::string key("key" + std::to_string(j));
         checkeq(ENGINE_SUCCESS,
-                store(h, nullptr, OPERATION_SET, key.c_str(), "data"),
+                store(h, nullptr, StoreSemantics::Set, key.c_str(), "data"),
                 "Failed to store a value");
     }
 
@@ -4142,7 +4147,7 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h) {
           "Failed to set vbucket state.");
 
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "key", "somevalue"),
+            store(h, nullptr, StoreSemantics::Set, "key", "somevalue"),
             "Error in SET operation.");
 
     wait_for_flusher_to_settle(h);
@@ -4463,7 +4468,11 @@ static enum test_result test_chk_manager_rollback(EngineIface* h) {
         std::stringstream ss;
         ss << "key" << (j + num_items);
         checkeq(ENGINE_SUCCESS,
-                store(h, nullptr, OPERATION_SET, ss.str().c_str(), "data"),
+                store(h,
+                      nullptr,
+                      StoreSemantics::Set,
+                      ss.str().c_str(),
+                      "data"),
                 "Failed to store a value");
     }
 
@@ -5349,7 +5358,7 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
 static enum test_result test_dcp_consumer_delete(EngineIface* h) {
     // Store an item
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_ADD, "key", "value"),
+            store(h, nullptr, StoreSemantics::Add, "key", "value"),
             "Failed to fail to store an item.");
     wait_for_flusher_to_settle(h);
     verify_curr_items(h, 1, "one item stored");
@@ -6339,7 +6348,7 @@ static test_result test_stream_deleteWithMeta_expiration(
     checkeq(ENGINE_SUCCESS,
             store(h,
                   nullptr,
-                  OPERATION_SET,
+                  StoreSemantics::Set,
                   key,
                   "somevalue",
                   nullptr,
@@ -6568,7 +6577,7 @@ static enum test_result test_dcp_last_items_purged(EngineIface* h) {
     /* Set 3 items */
     for (const auto& k : key) {
         checkeq(ENGINE_SUCCESS,
-                store(h, nullptr, OPERATION_SET, k, "somevalue"),
+                store(h, nullptr, StoreSemantics::Set, k, "somevalue"),
                 "Error setting.");
     }
 
@@ -6632,7 +6641,7 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h) {
     /* Set 3 items */
     for (const auto& k : key) {
         checkeq(ENGINE_SUCCESS,
-                store(h, nullptr, OPERATION_SET, k, "somevalue"),
+                store(h, nullptr, StoreSemantics::Set, k, "somevalue"),
                 "Error setting.");
     }
     high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
@@ -7518,7 +7527,7 @@ static enum test_result test_dcp_multiple_streams(EngineIface* h) {
         checkeq(ENGINE_SUCCESS,
                 store(h,
                       nullptr,
-                      OPERATION_SET,
+                      StoreSemantics::Set,
                       key.c_str(),
                       "data",
                       nullptr,
@@ -7530,7 +7539,7 @@ static enum test_result test_dcp_multiple_streams(EngineIface* h) {
         checkeq(ENGINE_SUCCESS,
                 store(h,
                       nullptr,
-                      OPERATION_SET,
+                      StoreSemantics::Set,
                       key.c_str(),
                       "data",
                       nullptr,
@@ -7597,7 +7606,7 @@ static enum test_result test_dcp_on_vbucket_state_change(EngineIface* h) {
 
     // Write a mutation
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "key", "value"),
+            store(h, nullptr, StoreSemantics::Set, "key", "value"),
             "Failed to store a value");
 
     // Wait for producer to stream that item
@@ -7823,7 +7832,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
             checkeq(ENGINE_SUCCESS,
                     store(h,
                           cookie,
-                          OPERATION_SET,
+                          StoreSemantics::Set,
                           key.c_str(),
                           "value",
                           nullptr,
@@ -7839,7 +7848,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
             checkeq(ENGINE_SUCCESS,
                     store(h,
                           cookie,
-                          OPERATION_SET,
+                          StoreSemantics::Set,
                           key.c_str(),
                           "value",
                           nullptr,
@@ -8010,7 +8019,11 @@ static enum test_result test_mb19153(EngineIface* h) {
         std::stringstream ss;
         ss << "key-" << j;
         checkeq(ENGINE_SUCCESS,
-                store(h, NULL, OPERATION_SET, ss.str().c_str(), "data"),
+                store(h,
+                      nullptr,
+                      StoreSemantics::Set,
+                      ss.str().c_str(),
+                      "data"),
                 "Failed to store a value");
     }
 

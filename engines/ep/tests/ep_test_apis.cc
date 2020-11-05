@@ -404,7 +404,7 @@ ENGINE_ERROR_CODE delete_with_value(EngineIface* h,
                                     cb::mcbp::Datatype datatype) {
     auto ret = storeCasVb11(h,
                             cookie,
-                            OPERATION_SET,
+                            StoreSemantics::Set,
                             key,
                             value.data(),
                             value.size(),
@@ -689,7 +689,7 @@ unique_request_ptr prepare_get_replica(EngineIface* h,
         checkeq(ENGINE_SUCCESS,
                 store(h,
                       nullptr,
-                      OPERATION_SET,
+                      StoreSemantics::Set,
                       key,
                       "replicadata",
                       nullptr,
@@ -1103,7 +1103,7 @@ void stop_persistence(EngineIface* h) {
 ENGINE_ERROR_CODE store(
         EngineIface* h,
         const void* cookie,
-        ENGINE_STORE_OPERATION op,
+        StoreSemantics op,
         const char* key,
         const char* value,
         ItemIface** outitem,
@@ -1155,7 +1155,7 @@ ENGINE_ERROR_CODE storeCasOut(EngineIface* h,
     ENGINE_ERROR_CODE res = h->store(cookie,
                                      ret.second.get(),
                                      out_cas,
-                                     OPERATION_SET,
+                                     StoreSemantics::Set,
                                      {},
                                      docState,
                                      false);
@@ -1170,7 +1170,7 @@ ENGINE_ERROR_CODE storeCasOut(EngineIface* h,
 cb::EngineErrorItemPair storeCasVb11(
         EngineIface* h,
         const void* cookie,
-        ENGINE_STORE_OPERATION op,
+        StoreSemantics op,
         const char* key,
         const char* value,
         size_t vlen,
@@ -1252,7 +1252,7 @@ ENGINE_ERROR_CODE replace(EngineIface* h,
     auto res = h->store_if(cookie,
                            item.get(),
                            0 /*cas*/,
-                           ENGINE_STORE_OPERATION::OPERATION_REPLACE,
+                           StoreSemantics::Replace,
                            predicate,
                            {} /*durReqs*/,
                            DocumentState::Alive,
@@ -1768,7 +1768,14 @@ void wait_for_persisted_value(EngineIface* h,
         commitNum = get_int_stat(h, "ep_commit_num");
     }
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, key, val, nullptr, 0, vbucketId),
+            store(h,
+                  nullptr,
+                  StoreSemantics::Set,
+                  key,
+                  val,
+                  nullptr,
+                  0,
+                  vbucketId),
             "Failed to store an item.");
 
     if (isPersistentBucket(h)) {
@@ -1818,7 +1825,7 @@ void write_items(EngineIface* h,
         std::string key(key_prefix + std::to_string(j + start_seqno));
         ENGINE_ERROR_CODE ret = store(h,
                                       nullptr,
-                                      OPERATION_SET,
+                                      StoreSemantics::Set,
                                       key.c_str(),
                                       value,
                                       nullptr,
@@ -1854,8 +1861,8 @@ int write_items_upto_mem_perc(EngineIface* h,
             }
         }
         std::string key("key" + std::to_string(num_items + start_seqno));
-        ENGINE_ERROR_CODE ret =
-                store(h, nullptr, OPERATION_SET, key.c_str(), "somevalue");
+        ENGINE_ERROR_CODE ret = store(
+                h, nullptr, StoreSemantics::Set, key.c_str(), "somevalue");
         validate_store_resp(ret, num_items);
     }
     return num_items;

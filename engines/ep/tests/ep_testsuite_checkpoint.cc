@@ -107,7 +107,7 @@ static enum test_result test_checkpoint_create(EngineIface* h) {
         char key[8];
         sprintf(key, "key%d", i);
         checkeq(ENGINE_SUCCESS,
-                store(h, nullptr, OPERATION_SET, key, "value"),
+                store(h, nullptr, StoreSemantics::Set, key, "value"),
                 "Failed to store an item.");
     }
     checkeq(3,
@@ -121,7 +121,7 @@ static enum test_result test_checkpoint_create(EngineIface* h) {
 
 static enum test_result test_checkpoint_timeout(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "key", "value"),
+            store(h, nullptr, StoreSemantics::Set, "key", "value"),
             "Failed to store an item.");
     testHarness->time_travel(600);
     wait_for_stat_to_be(h, "vb_0:open_checkpoint_id", 2, "checkpoint");
@@ -134,7 +134,7 @@ static enum test_result test_checkpoint_deduplication(EngineIface* h) {
             char key[8];
             sprintf(key, "key%d", j);
             checkeq(ENGINE_SUCCESS,
-                    store(h, nullptr, OPERATION_SET, key, "value"),
+                    store(h, nullptr, StoreSemantics::Set, key, "value"),
                     "Failed to store an item.");
         }
     }
@@ -163,7 +163,7 @@ extern "C" {
             checkeq(ENGINE_SUCCESS,
                     store(h,
                           nullptr,
-                          OPERATION_SET,
+                          StoreSemantics::Set,
                           ss.str().c_str(),
                           ss.str().c_str()),
                     "Failed to store a value");

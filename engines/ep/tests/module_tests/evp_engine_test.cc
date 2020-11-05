@@ -100,8 +100,9 @@ queued_item EventuallyPersistentEngineTest::store_item(
         Vbid vbid, const std::string& key, const std::string& value) {
     auto item = makeCommittedItem(makeStoredDocKey(key), value);
     uint64_t cas;
-    EXPECT_EQ(ENGINE_SUCCESS,
-              engine->storeInner(cookie, *item, cas, OPERATION_SET, false));
+    EXPECT_EQ(
+            ENGINE_SUCCESS,
+            engine->storeInner(cookie, *item, cas, StoreSemantics::Set, false));
     return item;
 }
 
@@ -112,8 +113,9 @@ queued_item EventuallyPersistentEngineTest::store_pending_item(
         cb::durability::Requirements reqs) {
     auto item = makePendingItem(makeStoredDocKey(key), value, reqs);
     uint64_t cas;
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
-              engine->storeInner(cookie, *item, cas, OPERATION_SET, false))
+    EXPECT_EQ(
+            ENGINE_EWOULDBLOCK,
+            engine->storeInner(cookie, *item, cas, StoreSemantics::Set, false))
             << "pending SyncWrite should initially block (until durability "
                "met).";
     return item;
@@ -124,8 +126,9 @@ queued_item EventuallyPersistentEngineTest::store_pending_delete(
     auto item = makePendingItem(makeStoredDocKey(key), {}, reqs);
     item->setDeleted(DeleteSource::Explicit);
     uint64_t cas;
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
-              engine->storeInner(cookie, *item, cas, OPERATION_SET, false))
+    EXPECT_EQ(
+            ENGINE_EWOULDBLOCK,
+            engine->storeInner(cookie, *item, cas, StoreSemantics::Set, false))
             << "pending SyncDelete should initially block (until durability "
                "met).";
     return item;
@@ -135,8 +138,9 @@ void EventuallyPersistentEngineTest::store_committed_item(
         Vbid vbid, const std::string& key, const std::string& value) {
     auto item = makeCommittedviaPrepareItem(makeStoredDocKey(key), value);
     uint64_t cas;
-    EXPECT_EQ(ENGINE_SUCCESS,
-              engine->storeInner(cookie, *item, cas, OPERATION_SET, false));
+    EXPECT_EQ(
+            ENGINE_SUCCESS,
+            engine->storeInner(cookie, *item, cas, StoreSemantics::Set, false));
 }
 
 TEST_P(SetParamTest, requirements_bucket_type) {

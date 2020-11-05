@@ -313,7 +313,11 @@ static enum test_result test_set(EngineIface* h) {
 
             std::string err_str_store("Error setting " + k);
             checkeq(ENGINE_SUCCESS,
-                    store(h, nullptr, OPERATION_SET, k.c_str(), "somevalue"),
+                    store(h,
+                          nullptr,
+                          StoreSemantics::Set,
+                          k.c_str(),
+                          "somevalue"),
                     err_str_store.c_str());
 
             std::string err_str_get_item_info("Error getting " + k);
@@ -354,9 +358,9 @@ extern "C" {
         auto* h = static_cast<EngineIface*>(arg);
 
         for (int i = 0; i < 5000; ++i) {
-            store(h, nullptr, OPERATION_ADD, "key", "somevalue");
+            store(h, nullptr, StoreSemantics::Add, "key", "somevalue");
             checkeq(ENGINE_SUCCESS,
-                    store(h, nullptr, OPERATION_SET, "key", "somevalue"),
+                    store(h, nullptr, StoreSemantics::Set, "key", "somevalue"),
                     "Error setting.");
             // Ignoring the result here -- we're racing.
             del(h, "key", 0, Vbid(0));
@@ -413,7 +417,7 @@ extern "C" {
             checkeq(ENGINE_SUCCESS,
                     store(msa->h,
                           nullptr,
-                          OPERATION_SET,
+                          StoreSemantics::Set,
                           key.c_str(),
                           "somevalue"),
                     "Set failure!");
@@ -451,7 +455,7 @@ static enum test_result test_multi_set(EngineIface* h) {
 
 static enum test_result test_set_get_hit(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "key", "somevalue"),
+            store(h, nullptr, StoreSemantics::Set, "key", "somevalue"),
             "store failure");
     check_key_value(h, "key", "somevalue", 9);
     return SUCCESS;
@@ -459,7 +463,7 @@ static enum test_result test_set_get_hit(EngineIface* h) {
 
 static enum test_result test_getl_delete_with_cas(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "key", "value"),
+            store(h, nullptr, StoreSemantics::Set, "key", "value"),
             "Failed to set key");
 
     auto ret = getl(h, nullptr, "key", Vbid(0), 15);
@@ -478,7 +482,7 @@ static enum test_result test_getl_delete_with_cas(EngineIface* h) {
 
 static enum test_result test_getl_delete_with_bad_cas(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "key", "value"),
+            store(h, nullptr, StoreSemantics::Set, "key", "value"),
             "Failed to set key");
 
     uint64_t cas = last_cas;
@@ -498,7 +502,7 @@ static enum test_result test_getl_set_del_with_meta(EngineIface* h) {
     const char *val = "value";
     const char *newval = "newvalue";
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, key, val),
+            store(h, nullptr, StoreSemantics::Set, key, val),
             "Failed to set key");
 
     checkeq(cb::engine_errc::success,
@@ -544,7 +548,7 @@ static enum test_result test_getl(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             store(h,
                   cookie,
-                  OPERATION_SET,
+                  StoreSemantics::Set,
                   key,
                   "{\"lock\":\"data\"}",
                   nullptr,
@@ -582,7 +586,7 @@ static enum test_result test_getl(EngineIface* h) {
     checkne(ENGINE_SUCCESS,
             store(h,
                   cookie,
-                  OPERATION_SET,
+                  StoreSemantics::Set,
                   key,
                   "lockdata2",
                   nullptr,
@@ -597,7 +601,7 @@ static enum test_result test_getl(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             store(h,
                   cookie,
-                  OPERATION_SET,
+                  StoreSemantics::Set,
                   key,
                   "lockdata",
                   nullptr,
@@ -633,7 +637,7 @@ static enum test_result test_getl(EngineIface* h) {
     checkeq(cb::engine_errc::success,
             storeCasVb11(h,
                          cookie,
-                         OPERATION_SET,
+                         StoreSemantics::Set,
                          key,
                          binaryData1,
                          sizeof(binaryData1) - 1,
@@ -676,7 +680,7 @@ static enum test_result test_getl(EngineIface* h) {
             h->store(cookie,
                      ret.second.get(),
                      cas,
-                     OPERATION_SET,
+                     StoreSemantics::Set,
                      {},
                      DocumentState::Alive,
                      false),
@@ -689,7 +693,7 @@ static enum test_result test_getl(EngineIface* h) {
     /* cas should fail */
     ret = storeCasVb11(h,
                        cookie,
-                       OPERATION_CAS,
+                       StoreSemantics::CAS,
                        ekey,
                        binaryData1,
                        sizeof(binaryData1) - 1,
@@ -702,7 +706,7 @@ static enum test_result test_getl(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             store(h,
                   cookie,
-                  OPERATION_SET,
+                  StoreSemantics::Set,
                   ekey,
                   edata,
                   nullptr,
@@ -743,7 +747,7 @@ static enum test_result test_unl(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             store(h,
                   nullptr,
-                  OPERATION_SET,
+                  StoreSemantics::Set,
                   key,
                   "lockdata",
                   nullptr,
@@ -806,7 +810,7 @@ static enum test_result test_set_get_hit_bin(EngineIface* h) {
     checkeq(cb::engine_errc::success,
             storeCasVb11(h,
                          nullptr,
-                         OPERATION_SET,
+                         StoreSemantics::Set,
                          "key",
                          binaryData,
                          sizeof(binaryData),
@@ -834,7 +838,7 @@ static enum test_result test_set_with_cas_non_existent(EngineIface* h) {
             h->store(cookie,
                      ret.second.get(),
                      cas,
-                     OPERATION_SET,
+                     StoreSemantics::Set,
                      {},
                      DocumentState::Alive,
                      false),
@@ -846,7 +850,7 @@ static enum test_result test_set_with_cas_non_existent(EngineIface* h) {
 
 static enum test_result test_set_change_flags(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "key", "somevalue"),
+            store(h, nullptr, StoreSemantics::Set, "key", "somevalue"),
             "Failed to set.");
 
     item_info info;
@@ -857,7 +861,7 @@ static enum test_result test_set_change_flags(EngineIface* h) {
     checkeq(cb::engine_errc::success,
             storeCasVb11(h,
                          nullptr,
-                         OPERATION_SET,
+                         StoreSemantics::Set,
                          "key",
                          "newvalue",
                          strlen("newvalue"),
@@ -881,7 +885,7 @@ static enum test_result test_add(EngineIface* h) {
     high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
 
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_ADD, "key", "somevalue"),
+            store(h, nullptr, StoreSemantics::Add, "key", "somevalue"),
             "Failed to add value.");
 
     check(get_item_info(h, &info, "key"), "Error getting item info");
@@ -889,7 +893,7 @@ static enum test_result test_add(EngineIface* h) {
     checkeq(high_seqno + 1, info.seqno, "Expected valid sequence number");
 
     checkeq(ENGINE_NOT_STORED,
-            store(h, nullptr, OPERATION_ADD, "key", "somevalue"),
+            store(h, nullptr, StoreSemantics::Add, "key", "somevalue"),
             "Failed to fail to re-add value.");
 
     // This aborts on failure.
@@ -899,7 +903,7 @@ static enum test_result test_add(EngineIface* h) {
     testHarness->time_travel(3800);
 
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_ADD, "key", "newvalue"),
+            store(h, nullptr, StoreSemantics::Add, "key", "newvalue"),
             "Failed to add value again.");
 
     check_key_value(h, "key", "newvalue", 8);
@@ -909,7 +913,7 @@ static enum test_result test_add(EngineIface* h) {
 static enum test_result test_add_add_with_cas(EngineIface* h) {
     ItemIface* i = nullptr;
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_ADD, "key", "somevalue", &i),
+            store(h, nullptr, StoreSemantics::Add, "key", "somevalue", &i),
             "Failed set.");
     check_key_value(h, "key", "somevalue", 9);
     item_info info;
@@ -918,7 +922,7 @@ static enum test_result test_add_add_with_cas(EngineIface* h) {
     checkeq(ENGINE_KEY_EEXISTS,
             store(h,
                   nullptr,
-                  OPERATION_ADD,
+                  StoreSemantics::Add,
                   "key",
                   "somevalue",
                   nullptr,
@@ -931,9 +935,10 @@ static enum test_result test_add_add_with_cas(EngineIface* h) {
 
 static enum test_result test_cas(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "key", "somevalue"),
+            store(h, nullptr, StoreSemantics::Set, "key", "somevalue"),
             "Failed to do initial set.");
-    checkne(ENGINE_SUCCESS, store(h, nullptr, OPERATION_CAS, "key", "failcas"),
+    checkne(ENGINE_SUCCESS,
+            store(h, nullptr, StoreSemantics::CAS, "key", "failcas"),
             "Failed to fail initial CAS.");
     check_key_value(h, "key", "somevalue", 9);
 
@@ -947,7 +952,7 @@ static enum test_result test_cas(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             store(h,
                   nullptr,
-                  OPERATION_CAS,
+                  StoreSemantics::CAS,
                   "key",
                   "winCas",
                   nullptr,
@@ -959,7 +964,7 @@ static enum test_result test_cas(EngineIface* h) {
     checkeq(ENGINE_KEY_ENOENT,
             store(h,
                   nullptr,
-                  OPERATION_CAS,
+                  StoreSemantics::CAS,
                   "non-existing",
                   "winCas",
                   nullptr,
@@ -974,18 +979,18 @@ static enum test_result test_replace(EngineIface* h) {
     uint64_t high_seqno = 0;
 
     checkne(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_REPLACE, "key", "somevalue"),
+            store(h, nullptr, StoreSemantics::Replace, "key", "somevalue"),
             "Failed to fail to replace non-existing value.");
 
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "key", "somevalue"),
+            store(h, nullptr, StoreSemantics::Set, "key", "somevalue"),
             "Failed to set value.");
 
     vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
 
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_REPLACE, "key", "somevalue"),
+            store(h, nullptr, StoreSemantics::Replace, "key", "somevalue"),
             "Failed to replace existing value.");
 
     check(get_item_info(h, &info, "key"), "Error getting item info");
@@ -1010,7 +1015,7 @@ static enum test_result test_touch(EngineIface* h) {
 
     // Store the item!
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "mykey", "somevalue"),
+            store(h, nullptr, StoreSemantics::Set, "mykey", "somevalue"),
             "Failed set.");
 
     check_key_value(h, "mykey", "somevalue", strlen("somevalue"));
@@ -1057,7 +1062,7 @@ static enum test_result test_touch_mb7342(EngineIface* h) {
     const char *key = "MB-7342";
     // Store the item!
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, key, "v"),
+            store(h, nullptr, StoreSemantics::Set, key, "v"),
             "Failed set.");
 
     checkeq(ENGINE_SUCCESS, touch(h, key, Vbid(0), 0), "touch key");
@@ -1077,7 +1082,7 @@ static enum test_result test_touch_mb10277(EngineIface* h) {
     const char *key = "MB-10277";
     // Store the item!
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, key, "v"),
+            store(h, nullptr, StoreSemantics::Set, key, "v"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
     evict_key(h, key, Vbid(0), "Ejected.");
@@ -1107,7 +1112,7 @@ static enum test_result test_gat(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             store(h,
                   nullptr,
-                  OPERATION_SET,
+                  StoreSemantics::Set,
                   "mykey",
                   "{\"some\":\"value\"}",
                   nullptr,
@@ -1156,7 +1161,7 @@ static enum test_result test_gat(EngineIface* h) {
 
 static enum test_result test_gat_locked(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "key", "value"),
+            store(h, nullptr, StoreSemantics::Set, "key", "value"),
             "Failed to set key");
 
     checkeq(cb::engine_errc::success,
@@ -1180,7 +1185,7 @@ static enum test_result test_gat_locked(EngineIface* h) {
 static enum test_result test_touch_locked(EngineIface* h) {
     ItemIface* itm = nullptr;
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "key", "value", &itm),
+            store(h, nullptr, StoreSemantics::Set, "key", "value", &itm),
             "Failed to set key");
     h->release(itm);
 
@@ -1207,7 +1212,7 @@ static enum test_result test_mb5215(EngineIface* h) {
     }
 
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "coolkey", "cooler"),
+            store(h, nullptr, StoreSemantics::Set, "coolkey", "cooler"),
             "Failed set.");
 
     check_key_value(h, "coolkey", "cooler", strlen("cooler"));
@@ -1275,7 +1280,7 @@ static enum test_result test_delete_with_value(EngineIface* h) {
 
     // Store an initial (not-deleted) value.
     checkeq(ENGINE_SUCCESS,
-            store(h, cookie, OPERATION_SET, "key", "somevalue"),
+            store(h, cookie, StoreSemantics::Set, "key", "somevalue"),
             "Failed set");
     wait_for_flusher_to_settle(h);
 
@@ -1321,7 +1326,7 @@ static enum test_result test_delete_with_value(EngineIface* h) {
 
     /* Delete-with-value -> Alive */
     checkeq(ENGINE_SUCCESS,
-            store(h, cookie, OPERATION_SET, "key", "alive 2", nullptr),
+            store(h, cookie, StoreSemantics::Set, "key", "alive 2", nullptr),
             "Failed Delete-with-value -> Alive");
     wait_for_flusher_to_settle(h);
 
@@ -1379,7 +1384,7 @@ static enum test_result test_delete_with_value(EngineIface* h) {
  */
 static enum test_result test_delete_with_value_cas(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "key1", "somevalue"),
+            store(h, nullptr, StoreSemantics::Set, "key1", "somevalue"),
             "Failed set");
 
     cb::EngineErrorMetadataPair errorMetaPair;
@@ -1392,7 +1397,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             store(h,
                   nullptr,
-                  OPERATION_SET,
+                  StoreSemantics::Set,
                   "key1",
                   "deletevalue",
                   nullptr,
@@ -1411,7 +1416,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
 
     ItemIface* i = nullptr;
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "key2", "somevalue", &i),
+            store(h, nullptr, StoreSemantics::Set, "key2", "somevalue", &i),
             "Failed set");
 
     item_info info;
@@ -1427,7 +1432,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             store(h,
                   nullptr,
-                  OPERATION_SET,
+                  StoreSemantics::Set,
                   "key2",
                   "deletevaluewithcas",
                   nullptr,
@@ -1451,7 +1456,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             store(h,
                   nullptr,
-                  OPERATION_SET,
+                  StoreSemantics::Set,
                   "key2",
                   "newdeletevalue",
                   &i,
@@ -1485,7 +1490,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
     checkeq(ENGINE_KEY_EEXISTS,
             store(h,
                   nullptr,
-                  OPERATION_SET,
+                  StoreSemantics::Set,
                   "key2",
                   "newdeletevaluewithcas",
                   nullptr,
@@ -1500,7 +1505,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             store(h,
                   nullptr,
-                  OPERATION_SET,
+                  StoreSemantics::Set,
                   "key2",
                   "newdeletevaluewithcas",
                   nullptr,
@@ -1552,7 +1557,7 @@ static enum test_result test_delete(EngineIface* h) {
             del(h, "key", 0, Vbid(0)),
             "Failed to fail initial delete.");
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "key", "somevalue", &i),
+            store(h, nullptr, StoreSemantics::Set, "key", "somevalue", &i),
             "Failed set.");
     Item *it = reinterpret_cast<Item*>(i);
     uint64_t orig_cas = it->getCas();
@@ -1578,7 +1583,7 @@ static enum test_result test_delete(EngineIface* h) {
 
     // Can I time travel to an expired object and delete it?
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "key", "somevalue", &i),
+            store(h, nullptr, StoreSemantics::Set, "key", "somevalue", &i),
             "Failed set.");
     h->release(i);
     testHarness->time_travel(3617);
@@ -1592,7 +1597,7 @@ static enum test_result test_delete(EngineIface* h) {
 
 static enum test_result test_set_delete(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "key", "somevalue"),
+            store(h, nullptr, StoreSemantics::Set, "key", "somevalue"),
             "Failed set.");
     check_key_value(h, "key", "somevalue", 9);
     checkeq(ENGINE_SUCCESS,
@@ -1607,7 +1612,7 @@ static enum test_result test_set_delete(EngineIface* h) {
 static enum test_result test_set_delete_invalid_cas(EngineIface* h) {
     ItemIface* i = nullptr;
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "key", "somevalue", &i),
+            store(h, nullptr, StoreSemantics::Set, "key", "somevalue", &i),
             "Failed set.");
     check_key_value(h, "key", "somevalue", 9);
     item_info info;
@@ -1717,7 +1722,11 @@ static enum test_result test_bug7023(EngineIface* h) {
               "Failed set set vbucket 0 active.");
         for (it = keys.begin(); it != keys.end(); ++it) {
             checkeq(ENGINE_SUCCESS,
-                    store(h, nullptr, OPERATION_SET, it->c_str(), it->c_str()),
+                    store(h,
+                          nullptr,
+                          StoreSemantics::Set,
+                          it->c_str(),
+                          it->c_str()),
                     "Failed to store a value");
         }
     }
@@ -1741,13 +1750,13 @@ static enum test_result test_bug7023(EngineIface* h) {
 
 static enum test_result test_mb3169(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "set", "value"),
+            store(h, nullptr, StoreSemantics::Set, "set", "value"),
             "Failed to store a value");
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "delete", "0"),
+            store(h, nullptr, StoreSemantics::Set, "delete", "0"),
             "Failed to store a value");
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "get", "getvalue"),
+            store(h, nullptr, StoreSemantics::Set, "get", "getvalue"),
             "Failed to store a value");
 
     wait_for_stat_to_be(h, "ep_total_persisted", 3);
@@ -1762,7 +1771,7 @@ static enum test_result test_mb3169(EngineIface* h) {
             "Expected all items to be resident");
 
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "set", "value2"),
+            store(h, nullptr, StoreSemantics::Set, "set", "value2"),
             "Failed to store a value");
     wait_for_flusher_to_settle(h);
 
@@ -1795,11 +1804,11 @@ static enum test_result test_mb5172(EngineIface* h) {
     }
 
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "key-1", "value-1"),
+            store(h, nullptr, StoreSemantics::Set, "key-1", "value-1"),
             "Failed to store a value");
 
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "key-2", "value-2"),
+            store(h, nullptr, StoreSemantics::Set, "key-2", "value-2"),
             "Failed to store a value");
 
     wait_for_flusher_to_settle(h);
@@ -1971,7 +1980,7 @@ static test_result pre_link_document(EngineIface* h) {
     PreLinkFunction function = pre_link_doc_callback;
     testHarness->set_pre_link_function(function);
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "key", "somevalue"),
+            store(h, nullptr, StoreSemantics::Set, "key", "somevalue"),
             "Failed set.");
     testHarness->set_pre_link_function({});
 
@@ -1994,7 +2003,7 @@ static test_result get_if(EngineIface* h) {
     const std::string key("get_if");
 
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, key.c_str(), "somevalue"),
+            store(h, nullptr, StoreSemantics::Set, key.c_str(), "somevalue"),
             "Failed set.");
 
     if (isPersistentBucket(h)) {
@@ -2077,7 +2086,7 @@ static test_result max_ttl(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             store(h,
                   nullptr,
-                  OPERATION_SET,
+                  StoreSemantics::Set,
                   "key-abs",
                   "somevalue",
                   nullptr,
@@ -2113,7 +2122,7 @@ static test_result max_ttl(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             store(h,
                   nullptr,
-                  OPERATION_SET,
+                  StoreSemantics::Set,
                   "key-rel",
                   "somevalue",
                   nullptr,

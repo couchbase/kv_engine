@@ -109,7 +109,8 @@ protected:
 
     ENGINE_ERROR_CODE storeItem(Item& item) {
         uint64_t cas = 0;
-        return engine->storeInner(cookie, item, cas, OPERATION_SET, false);
+        return engine->storeInner(
+                cookie, item, cas, StoreSemantics::Set, false);
     }
 
     /**
@@ -1684,8 +1685,9 @@ TEST_P(MB_36087, DelWithMeta_EvictedKey) {
             0,
             PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR);
     uint64_t cas = 0;
-    ASSERT_EQ(ENGINE_SUCCESS,
-              engine->storeInner(cookie, item, cas, OPERATION_SET, false));
+    ASSERT_EQ(
+            ENGINE_SUCCESS,
+            engine->storeInner(cookie, item, cas, StoreSemantics::Set, false));
 
     auto& bucket = dynamic_cast<EPBucket&>(*store);
     EXPECT_EQ(1, bucket.flushVBucket(vbid).numFlushed);

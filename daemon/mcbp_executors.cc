@@ -156,23 +156,22 @@ static void process_bin_noop_response(Cookie& cookie) {
     // do nothing
 }
 
-static void add_set_replace_executor(Cookie& cookie,
-                                     ENGINE_STORE_OPERATION store_op) {
+static void add_set_replace_executor(Cookie& cookie, StoreSemantics store_op) {
     cookie.obtainContext<MutationCommandContext>(
                   cookie, cookie.getRequest(), store_op)
             .drive();
 }
 
 static void add_executor(Cookie& cookie) {
-    add_set_replace_executor(cookie, OPERATION_ADD);
+    add_set_replace_executor(cookie, StoreSemantics::Add);
 }
 
 static void set_executor(Cookie& cookie) {
-    add_set_replace_executor(cookie, OPERATION_SET);
+    add_set_replace_executor(cookie, StoreSemantics::Set);
 }
 
 static void replace_executor(Cookie& cookie) {
-    add_set_replace_executor(cookie, OPERATION_REPLACE);
+    add_set_replace_executor(cookie, StoreSemantics::Replace);
 }
 
 static void append_prepend_executor(Cookie& cookie) {

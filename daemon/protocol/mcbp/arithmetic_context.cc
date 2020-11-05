@@ -111,7 +111,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::storeNewItem() {
     auto ret = bucket_store(cookie,
                             newitem.get(),
                             ncas,
-                            OPERATION_ADD,
+                            StoreSemantics::Add,
                             cookie.getRequest().getDurabilityRequirements(),
                             DocumentState::Alive,
                             false);
@@ -217,7 +217,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::storeItem() {
     auto ret = bucket_store(cookie,
                             newitem.get(),
                             ncas,
-                            OPERATION_CAS,
+                            StoreSemantics::CAS,
                             cookie.getRequest().getDurabilityRequirements(),
                             DocumentState::Alive,
                             false);

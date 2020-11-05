@@ -419,7 +419,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(
         gsl::not_null<const void*> cookie,
         gsl::not_null<ItemIface*> itm,
         uint64_t& cas,
-        ENGINE_STORE_OPERATION operation,
+        StoreSemantics operation,
         const std::optional<cb::durability::Requirements>& durability,
         DocumentState document_state,
         bool preserveTtl) {
@@ -441,7 +441,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
         gsl::not_null<const void*> cookie,
         gsl::not_null<ItemIface*> itm,
         uint64_t cas,
-        ENGINE_STORE_OPERATION operation,
+        StoreSemantics operation,
         const cb::StoreIfPredicate& predicate,
         const std::optional<cb::durability::Requirements>& durability,
         DocumentState document_state,
@@ -2585,7 +2585,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
         const void* cookie,
         Item& item,
         uint64_t cas,
-        ENGINE_STORE_OPERATION operation,
+        StoreSemantics operation,
         const cb::StoreIfPredicate& predicate,
         bool preserveTtl) {
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
@@ -2623,14 +2623,14 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
 
     ENGINE_ERROR_CODE status;
     switch (operation) {
-    case OPERATION_CAS:
+    case StoreSemantics::CAS:
         if (item.getCas() == 0) {
             // Using a cas command with a cas wildcard doesn't make sense
             status = ENGINE_NOT_STORED;
             break;
         }
     // FALLTHROUGH
-    case OPERATION_SET:
+    case StoreSemantics::Set:
         if (isDegradedMode()) {
             return {cb::engine_errc::temporary_failure, cas};
         }
@@ -2638,7 +2638,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
         status = kvBucket->set(item, cookie, predicate);
         break;
 
-    case OPERATION_ADD:
+    case StoreSemantics::Add:
         if (isDegradedMode()) {
             return {cb::engine_errc::temporary_failure, cas};
         }
@@ -2651,7 +2651,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
         status = kvBucket->add(item, cookie);
         break;
 
-    case OPERATION_REPLACE:
+    case StoreSemantics::Replace:
         item.setPreserveTtl(preserveTtl);
         status = kvBucket->replace(item, cookie, predicate);
         break;
@@ -2696,7 +2696,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::storeInner(
         const void* cookie,
         Item& itm,
         uint64_t& cas,
-        ENGINE_STORE_OPERATION operation,
+        StoreSemantics operation,
         bool preserveTtl) {
     auto rv = storeIfInner(cookie, itm, cas, operation, {}, preserveTtl);
     cas = rv.cas;

@@ -555,7 +555,7 @@ hash_item* do_item_get(struct default_engine* engine,
  */
 static ENGINE_ERROR_CODE do_store_item(struct default_engine* engine,
                                        hash_item* it,
-                                       ENGINE_STORE_OPERATION operation,
+                                       StoreSemantics operation,
                                        const void* cookie,
                                        hash_item** stored_item,
                                        bool preserveTtl) {
@@ -569,13 +569,14 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine* engine,
         locked = old_it->locktime > engine->server.core->get_current_time();
     }
 
-    if (old_it != nullptr && operation == OPERATION_ADD &&
+    if (old_it != nullptr && operation == StoreSemantics::Add &&
         (old_it->iflag & ITEM_ZOMBIE) == 0) {
         /* add only adds a nonexistent item, but promote to head of LRU */
         do_item_update(engine, old_it);
-    } else if ((!old_it || (old_it->iflag & ITEM_ZOMBIE)) && operation == OPERATION_REPLACE) {
+    } else if ((!old_it || (old_it->iflag & ITEM_ZOMBIE)) &&
+               operation == StoreSemantics::Replace) {
         /* replace only replaces an existing value; don't store */
-    } else if (operation == OPERATION_CAS) {
+    } else if (operation == StoreSemantics::CAS) {
         /* validate cas operation */
         if (old_it == nullptr) {
             /* LRU expired */
@@ -714,7 +715,7 @@ ENGINE_ERROR_CODE safe_item_unlink(struct default_engine *engine,
 ENGINE_ERROR_CODE store_item(struct default_engine* engine,
                              hash_item* item,
                              uint64_t* cas,
-                             ENGINE_STORE_OPERATION operation,
+                             StoreSemantics operation,
                              const void* cookie,
                              const DocumentState document_state,
                              bool preserveTtl) {

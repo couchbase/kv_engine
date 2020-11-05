@@ -73,3 +73,24 @@ std::string to_string(ConnectionPriority cp) {
 std::ostream& operator<<(std::ostream& os, const ConnectionPriority& cp) {
     return os << to_string(cp);
 }
+
+std::string to_string(StoreSemantics ss) {
+    switch (ss) {
+    case StoreSemantics::Add:
+        return "Add";
+    case StoreSemantics::Set:
+        return "Set";
+    case StoreSemantics::Replace:
+        return "Replace";
+    case StoreSemantics::CAS:
+        return "CAS";
+    }
+
+    return "to_string(StoreSemantics semantics): Invalid semantics: " +
+           std::to_string(int(ss));
+}
+
+std::ostream& operator<<(std::ostream& os, const StoreSemantics& ss) {
+    os << to_string(ss);
+    return os;
+}

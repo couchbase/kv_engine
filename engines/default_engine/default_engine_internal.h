@@ -153,7 +153,7 @@ struct default_engine : public EngineIface {
             gsl::not_null<const void*> cookie,
             gsl::not_null<ItemIface*> item,
             uint64_t& cas,
-            ENGINE_STORE_OPERATION operation,
+            StoreSemantics operation,
             const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,
             bool preserveTtl) override;
@@ -162,7 +162,7 @@ struct default_engine : public EngineIface {
             gsl::not_null<const void*> cookie,
             gsl::not_null<ItemIface*> item,
             uint64_t cas,
-            ENGINE_STORE_OPERATION operation,
+            StoreSemantics operation,
             const cb::StoreIfPredicate& predicate,
             const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,

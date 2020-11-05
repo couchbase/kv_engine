@@ -29,9 +29,9 @@
 
 MutationCommandContext::MutationCommandContext(Cookie& cookie,
                                                const cb::mcbp::Request& req,
-                                               const ENGINE_STORE_OPERATION op_)
+                                               const StoreSemantics op_)
     : SteppableCommandContext(cookie),
-      operation(req.getCas() == 0 ? op_ : OPERATION_CAS),
+      operation(req.getCas() == 0 ? op_ : StoreSemantics::CAS),
       vbucket(req.getVBucket()),
       input_cas(req.getCas()),
       extras(*reinterpret_cast<const cb::mcbp::request::MutationPayload*>(
@@ -66,7 +66,7 @@ ENGINE_ERROR_CODE MutationCommandContext::step() {
             ret = reset();
             break;
         case State::Done:
-            if (operation == OPERATION_CAS) {
+            if (operation == StoreSemantics::CAS) {
                 SLAB_INCR(&connection, cas_hits);
             } else {
                 SLAB_INCR(&connection, cmd_set);
@@ -76,7 +76,7 @@ ENGINE_ERROR_CODE MutationCommandContext::step() {
     } while (ret == ENGINE_SUCCESS);
 
     if (ret != ENGINE_EWOULDBLOCK) {
-        if (operation == OPERATION_CAS) {
+        if (operation == StoreSemantics::CAS) {
             switch (ret) {
             case ENGINE_KEY_EEXISTS:
                 SLAB_INCR(&connection, cas_badval);
@@ -256,7 +256,7 @@ ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
         return ENGINE_ERROR_CODE(e.code().value());
     }
 
-    if (operation == OPERATION_ADD || input_cas != 0) {
+    if (operation == StoreSemantics::Add || input_cas != 0) {
         bucket_item_set_cas(connection, newitem.get(), input_cas);
     } else {
         if (existing) {
@@ -306,9 +306,9 @@ ENGINE_ERROR_CODE MutationCommandContext::storeItem() {
         store_if_predicate = nullptr;
     } else if (ret.status == cb::engine_errc::not_stored) {
         // Need to remap error for add and replace
-        if (operation == OPERATION_ADD) {
+        if (operation == StoreSemantics::Add) {
             ret.status = cb::engine_errc::key_already_exists;
-        } else if (operation == OPERATION_REPLACE) {
+        } else if (operation == StoreSemantics::Replace) {
             ret.status = cb::engine_errc::no_such_key;
         }
     } else if (ret.status == cb::engine_errc::key_already_exists &&

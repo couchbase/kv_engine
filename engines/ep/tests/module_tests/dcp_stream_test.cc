@@ -3138,7 +3138,7 @@ void SingleThreadedActiveStreamTest::testProducerIncludesUserXattrsInDelete(
               engine->store(cookie,
                             item.get(),
                             cas,
-                            OPERATION_SET,
+                            StoreSemantics::Set,
                             durReqs,
                             DocumentState::Deleted,
                             false));
@@ -3276,7 +3276,7 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
               engine->store(cookie,
                             item.get(),
                             cas,
-                            OPERATION_SET,
+                            StoreSemantics::Set,
                             durReqs,
                             DocumentState::Deleted,
                             false));

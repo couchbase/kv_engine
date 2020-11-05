@@ -52,7 +52,7 @@ public:
 
     MutationCommandContext(Cookie& cookie,
                            const cb::mcbp::Request& request,
-                           ENGINE_STORE_OPERATION op_);
+                           StoreSemantics op_);
 
     /// this function is the predicate to pass to store_if
     static cb::StoreIfStatus storeIfPredicate(
@@ -109,7 +109,7 @@ protected:
 
 
 private:
-    const ENGINE_STORE_OPERATION operation;
+    const StoreSemantics operation;
 
     const Vbid vbucket;
     const uint64_t input_cas;

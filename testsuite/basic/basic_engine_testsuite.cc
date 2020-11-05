@@ -59,7 +59,7 @@ protected:
                   engine->store(cookie.get(),
                                 ret.second.get(),
                                 cas,
-                                OPERATION_SET,
+                                StoreSemantics::Set,
                                 {},
                                 DocumentState::Alive,
                                 false));
@@ -71,7 +71,7 @@ protected:
                   engine->store(cookie.get(),
                                 ret.second.get(),
                                 cas,
-                                OPERATION_SET,
+                                StoreSemantics::Set,
                                 {},
                                 DocumentState::Alive,
                                 false));
@@ -115,7 +115,7 @@ TEST_F(BasicEngineTestsuite, Add) {
         auto rv = engine->store(cookie.get(),
                                 ret.second.get(),
                                 cas,
-                                OPERATION_ADD,
+                                StoreSemantics::Add,
                                 {},
                                 DocumentState::Alive,
                                 false);
@@ -156,7 +156,7 @@ TEST_F(BasicEngineTestsuite, Replace) {
                   engine->store(cookie.get(),
                                 ret.second.get(),
                                 cas,
-                                OPERATION_REPLACE,
+                                StoreSemantics::Replace,
                                 {},
                                 DocumentState::Alive,
                                 false));
@@ -184,7 +184,7 @@ TEST_F(BasicEngineTestsuite, Store) {
               engine->store(cookie.get(),
                             ret.second.get(),
                             cas,
-                            OPERATION_SET,
+                            StoreSemantics::Set,
                             {},
                             DocumentState::Alive,
                             false));
@@ -205,7 +205,7 @@ TEST_F(BasicEngineTestsuite, Get) {
               engine->store(cookie.get(),
                             ret.second.get(),
                             cas,
-                            OPERATION_SET,
+                            StoreSemantics::Set,
                             {},
                             DocumentState::Alive,
                             false));
@@ -227,7 +227,7 @@ TEST_F(BasicEngineTestsuite, GetDeleted) {
               engine->store(cookie.get(),
                             ret.second.get(),
                             cas,
-                            OPERATION_SET,
+                            StoreSemantics::Set,
                             {},
                             DocumentState::Alive,
                             false));
@@ -263,7 +263,7 @@ TEST_F(BasicEngineTestsuite, Expiry) {
               engine->store(cookie.get(),
                             ret.second.get(),
                             cas,
-                            OPERATION_SET,
+                            StoreSemantics::Set,
                             {},
                             DocumentState::Alive,
                             false));
@@ -287,7 +287,7 @@ TEST_F(BasicEngineTestsuite, Release) {
               engine->store(cookie.get(),
                             ret.second.get(),
                             cas,
-                            OPERATION_SET,
+                            StoreSemantics::Set,
                             {},
                             DocumentState::Alive,
                             false));
@@ -309,7 +309,7 @@ TEST_F(BasicEngineTestsuite, Remove) {
               engine->store(cookie.get(),
                             ret.second.get(),
                             cas,
-                            OPERATION_SET,
+                            StoreSemantics::Set,
                             {},
                             DocumentState::Alive,
                             false));
@@ -337,7 +337,7 @@ TEST_F(BasicEngineTestsuite, Flush) {
               engine->store(cookie.get(),
                             ret.second.get(),
                             cas,
-                            OPERATION_SET,
+                            StoreSemantics::Set,
                             {},
                             DocumentState::Alive,
                             false));
@@ -364,7 +364,7 @@ TEST_F(BasicEngineTestsuite, GetItemInfo) {
               engine->store(cookie.get(),
                             ret.second.get(),
                             cas,
-                            OPERATION_SET,
+                            StoreSemantics::Set,
                             {},
                             DocumentState::Alive,
                             false));
@@ -396,7 +396,7 @@ TEST_F(BasicEngineTestsuite, ItemSetCas) {
               engine->store(cookie.get(),
                             ret.second.get(),
                             cas,
-                            OPERATION_SET,
+                            StoreSemantics::Set,
                             {},
                             DocumentState::Alive,
                             false));
@@ -435,7 +435,7 @@ TEST_F(BasicEngineTestsuite, LRU) {
               engine->store(cookie.get(),
                             ret.second.get(),
                             cas,
-                            OPERATION_SET,
+                            StoreSemantics::Set,
                             {},
                             DocumentState::Alive,
                             false));
@@ -464,7 +464,7 @@ TEST_F(BasicEngineTestsuite, LRU) {
                   engine->store(cookie.get(),
                                 ret.second.get(),
                                 cas,
-                                OPERATION_SET,
+                                StoreSemantics::Set,
                                 {},
                                 DocumentState::Alive,
                                 false));
@@ -510,7 +510,7 @@ TEST_F(BasicEngineTestsuite, Datatype) {
               engine->store(cookie.get(),
                             ret.second.get(),
                             cas,
-                            OPERATION_SET,
+                            StoreSemantics::Set,
                             {},
                             DocumentState::Alive,
                             false));
@@ -552,7 +552,7 @@ TEST_F(BasicEngineTestsuite, test_n_bucket_destroy) {
                       bucket->store(cookie.get(),
                                     ret.second.get(),
                                     cas,
-                                    OPERATION_SET,
+                                    StoreSemantics::Set,
                                     {},
                                     DocumentState::Alive,
                                     false));
@@ -590,7 +590,7 @@ TEST_F(BasicEngineTestsuite, test_bucket_destroy_interleaved) {
                       bucket->store(cookie.get(),
                                     ret.second.get(),
                                     cas,
-                                    OPERATION_SET,
+                                    StoreSemantics::Set,
                                     {},
                                     DocumentState::Alive,
                                     false));
@@ -660,7 +660,7 @@ void CollectionsTest::storeTest(const DocKey& keyA, const DocKey& keyB) {
               engine->store(cookie.get(),
                             ret.second.get(),
                             cas,
-                            OPERATION_SET,
+                            StoreSemantics::Set,
                             {},
                             DocumentState::Alive,
                             false));
@@ -711,7 +711,7 @@ void CollectionsTest::removeTest(const DocKey& keyA, const DocKey& keyB) {
               engine->store(cookie.get(),
                             allocRes.second.get(),
                             cas,
-                            OPERATION_SET,
+                            StoreSemantics::Set,
                             {},
                             DocumentState::Alive,
                             false));

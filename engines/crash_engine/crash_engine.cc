@@ -97,7 +97,7 @@ public:
             gsl::not_null<const void*> cookie,
             gsl::not_null<ItemIface*> item,
             uint64_t& cas,
-            ENGINE_STORE_OPERATION operation,
+            StoreSemantics operation,
             const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,
             bool preserveTtl) override;
@@ -273,7 +273,7 @@ ENGINE_ERROR_CODE CrashEngine::store(
         gsl::not_null<const void*> cookie,
         gsl::not_null<ItemIface*> item,
         uint64_t& cas,
-        ENGINE_STORE_OPERATION operation,
+        StoreSemantics operation,
         const std::optional<cb::durability::Requirements>& durability,
         DocumentState,
         bool) {

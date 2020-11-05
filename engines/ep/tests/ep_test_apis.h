@@ -262,7 +262,7 @@ void stop_persistence(EngineIface* h);
 ENGINE_ERROR_CODE store(
         EngineIface* h,
         const void* cookie,
-        ENGINE_STORE_OPERATION op,
+        StoreSemantics op,
         const char* key,
         const char* value,
         ItemIface** outitem = nullptr,
@@ -305,7 +305,7 @@ ENGINE_ERROR_CODE storeCasOut(EngineIface* h,
 cb::EngineErrorItemPair storeCasVb11(
         EngineIface* h,
         const void* cookie,
-        ENGINE_STORE_OPERATION op,
+        StoreSemantics op,
         const char* key,
         const char* value,
         size_t vlen,

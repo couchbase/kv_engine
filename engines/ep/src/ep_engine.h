@@ -163,7 +163,7 @@ public:
             gsl::not_null<const void*> cookie,
             gsl::not_null<ItemIface*> item,
             uint64_t& cas,
-            ENGINE_STORE_OPERATION operation,
+            StoreSemantics operation,
             const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,
             bool preserveTtl) override;
@@ -171,7 +171,7 @@ public:
             gsl::not_null<const void*> cookie,
             gsl::not_null<ItemIface*> item,
             uint64_t cas,
-            ENGINE_STORE_OPERATION operation,
+            StoreSemantics operation,
             const cb::StoreIfPredicate& predicate,
             const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,
@@ -490,13 +490,13 @@ public:
     ENGINE_ERROR_CODE storeInner(const void* cookie,
                                  Item& itm,
                                  uint64_t& cas,
-                                 ENGINE_STORE_OPERATION operation,
+                                 StoreSemantics operation,
                                  bool preserveTtl);
 
     cb::EngineErrorCasPair storeIfInner(const void* cookie,
                                         Item& itm,
                                         uint64_t cas,
-                                        ENGINE_STORE_OPERATION operation,
+                                        StoreSemantics operation,
                                         const cb::StoreIfPredicate& predicate,
                                         bool preserveTtl);
 

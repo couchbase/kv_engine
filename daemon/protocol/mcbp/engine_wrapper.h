@@ -60,7 +60,7 @@ ENGINE_ERROR_CODE bucket_store(
         Cookie& cookie,
         gsl::not_null<ItemIface*> item_,
         uint64_t& cas,
-        ENGINE_STORE_OPERATION operation,
+        StoreSemantics operation,
         std::optional<cb::durability::Requirements> durability,
         DocumentState document_state,
         bool preserveTtl);
@@ -69,7 +69,7 @@ cb::EngineErrorCasPair bucket_store_if(
         Cookie& cookie,
         gsl::not_null<ItemIface*> item_,
         uint64_t cas,
-        ENGINE_STORE_OPERATION operation,
+        StoreSemantics operation,
         cb::StoreIfPredicate predicate,
         std::optional<cb::durability::Requirements> durability,
         DocumentState document_state,

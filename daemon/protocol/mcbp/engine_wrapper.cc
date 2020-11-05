@@ -20,7 +20,6 @@
 #include <daemon/cookie.h>
 #include <daemon/mcaudit.h>
 #include <logger/logger.h>
-#include <mcbp/protocol/header.h>
 #include <mcbp/protocol/request.h>
 #include <memcached/durability_spec.h>
 #include <memcached/limits.h>
@@ -96,7 +95,7 @@ ENGINE_ERROR_CODE bucket_store(
         Cookie& cookie,
         gsl::not_null<ItemIface*> item_,
         uint64_t& cas,
-        ENGINE_STORE_OPERATION operation,
+        StoreSemantics operation,
         std::optional<cb::durability::Requirements> durability,
         DocumentState document_state,
         bool preserveTtl) {
@@ -138,7 +137,7 @@ cb::EngineErrorCasPair bucket_store_if(
         Cookie& cookie,
         gsl::not_null<ItemIface*> item_,
         uint64_t cas,
-        ENGINE_STORE_OPERATION operation,
+        StoreSemantics operation,
         cb::StoreIfPredicate predicate,
         std::optional<cb::durability::Requirements> durability,
         DocumentState document_state,

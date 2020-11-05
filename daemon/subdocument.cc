@@ -1137,7 +1137,8 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
     // And finally, store the new document.
     uint64_t new_cas;
     mutation_descr_t mdt;
-    auto new_op = context.needs_new_doc ? OPERATION_ADD : OPERATION_CAS;
+    auto new_op =
+            context.needs_new_doc ? StoreSemantics::Add : StoreSemantics::CAS;
     if (ret == ENGINE_SUCCESS) {
         if (context.do_delete_doc && context.no_sys_xattrs) {
             new_cas = context.in_cas;
@@ -1157,7 +1158,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                 // do add (which will fail if someone created a new _LIVE_
                 // document since we read the document).
                 bucket_item_set_cas(connection, context.out_doc.get(), 0);
-                new_op = OPERATION_ADD;
+                new_op = StoreSemantics::Add;
             }
 
             if (context.in_document_state == DocumentState::Deleted) {
@@ -1224,7 +1225,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
         // exist in the database. In the context of a Set operation we map
         // the return code to EEXISTS which may cause the operation to be
         // retried.
-        if (new_op == OPERATION_ADD &&
+        if (new_op == StoreSemantics::Add &&
             context.mutationSemantics == MutationSemantics::Set) {
             ret = ENGINE_KEY_EEXISTS;
         } else {

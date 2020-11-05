@@ -327,7 +327,7 @@ ENGINE_ERROR_CODE safe_item_unlink(struct default_engine *engine,
 ENGINE_ERROR_CODE store_item(struct default_engine* engine,
                              hash_item* item,
                              uint64_t* cas,
-                             ENGINE_STORE_OPERATION operation,
+                             StoreSemantics operation,
                              const void* cookie,
                              const DocumentState document_state,
                              bool preserveTtl);

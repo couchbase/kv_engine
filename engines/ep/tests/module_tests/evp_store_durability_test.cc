@@ -2376,7 +2376,7 @@ TEST_P(DurabilityBucketTest, MutationAfterTimeoutCorrect) {
               engine->store(cookie,
                             pending.get(),
                             cas,
-                            OPERATION_SET,
+                            StoreSemantics::Set,
                             pending->getDurabilityReqs(),
                             DocumentState::Alive,
                             false));
@@ -2397,7 +2397,7 @@ TEST_P(DurabilityBucketTest, MutationAfterTimeoutCorrect) {
     auto rc = engine->store(cookie,
                             pending.get(),
                             cas,
-                            OPERATION_REPLACE,
+                            StoreSemantics::Replace,
                             pending->getDurabilityReqs(),
                             DocumentState::Alive,
                             false);
@@ -2407,7 +2407,7 @@ TEST_P(DurabilityBucketTest, MutationAfterTimeoutCorrect) {
         rc = engine->store(cookie,
                            pending.get(),
                            cas,
-                           OPERATION_REPLACE,
+                           StoreSemantics::Replace,
                            pending->getDurabilityReqs(),
                            DocumentState::Alive,
                            false);
@@ -2435,7 +2435,7 @@ TEST_P(DurabilityBucketTest, DurableEvictedSetWithCas) {
               engine->store(cookie,
                             committed.get(),
                             cas,
-                            OPERATION_SET,
+                            StoreSemantics::Set,
                             {},
                             DocumentState::Alive,
                             false));
@@ -2453,7 +2453,7 @@ TEST_P(DurabilityBucketTest, DurableEvictedSetWithCas) {
               engine->store(cookie,
                             pending.get(),
                             cas,
-                            OPERATION_SET,
+                            StoreSemantics::Set,
                             pending->getDurabilityReqs(),
                             DocumentState::Alive,
                             false));
@@ -2467,7 +2467,7 @@ TEST_P(DurabilityBucketTest, DurableEvictedSetWithCas) {
               engine->store(cookie,
                             pending.get(),
                             cas,
-                            OPERATION_SET,
+                            StoreSemantics::Set,
                             pending->getDurabilityReqs(),
                             DocumentState::Alive,
                             false));
@@ -4171,7 +4171,7 @@ void DurabilityBucketTest::testUpgradeToMinDurabilityLevel(
                   engine->store(cookie,
                                 item.get(),
                                 cas,
-                                OPERATION_SET,
+                                StoreSemantics::Set,
                                 {} /*durReqs*/,
                                 DocumentState::Alive,
                                 false /*preserveTtl*/));
@@ -4205,7 +4205,7 @@ void DurabilityBucketTest::testUpgradeToMinDurabilityLevel(
                   engine->store(cookie,
                                 item.get(),
                                 cas,
-                                OPERATION_SET,
+                                StoreSemantics::Set,
                                 reqs,
                                 DocumentState::Alive,
                                 false));
@@ -4219,7 +4219,7 @@ void DurabilityBucketTest::testUpgradeToMinDurabilityLevel(
         const auto res = engine->store_if(cookie,
                                           item.get(),
                                           0 /*cas*/,
-                                          OPERATION_SET,
+                                          StoreSemantics::Set,
                                           predicate,
                                           reqs,
                                           DocumentState::Alive,
@@ -4381,7 +4381,7 @@ TEST_P(DurabilityBucketTest, PrepareDoesNotExpire) {
               engine->store(cookie,
                             item.get(),
                             cas,
-                            OPERATION_SET,
+                            StoreSemantics::Set,
                             item->getDurabilityReqs(),
                             DocumentState::Alive,
                             false /*preserveTTL*/));

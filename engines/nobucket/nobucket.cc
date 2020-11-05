@@ -128,7 +128,7 @@ public:
     ENGINE_ERROR_CODE store(gsl::not_null<const void*>,
                             gsl::not_null<ItemIface*>,
                             uint64_t&,
-                            ENGINE_STORE_OPERATION,
+                            StoreSemantics,
                             const std::optional<cb::durability::Requirements>&,
                             DocumentState,
                             bool) override {
@@ -139,7 +139,7 @@ public:
             gsl::not_null<const void*>,
             gsl::not_null<ItemIface*>,
             uint64_t,
-            ENGINE_STORE_OPERATION,
+            StoreSemantics,
             const cb::StoreIfPredicate&,
             const std::optional<cb::durability::Requirements>&,
             DocumentState,

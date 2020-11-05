@@ -23,15 +23,10 @@ using useconds_t = unsigned int;
  */
 using rel_time_t = uint32_t;
 
-/**
- * Engine storage operations.
- */
-enum ENGINE_STORE_OPERATION {
-    OPERATION_ADD = 1, /**< Store with add semantics */
-    OPERATION_SET = 2, /**< Store with set semantics */
-    OPERATION_REPLACE = 3, /**< Store with replace semantics */
-    OPERATION_CAS = 6 /**< Store with set semantics. */
-};
+/// The various semantics to use for a store operation
+enum class StoreSemantics { Add, Set, Replace, CAS };
+std::string to_string(const StoreSemantics ss);
+std::ostream& operator<<(std::ostream& os, const StoreSemantics& ss);
 
 enum class ConnectionPriority : uint8_t { High, Medium, Low };
 std::string to_string(const ConnectionPriority cp);
