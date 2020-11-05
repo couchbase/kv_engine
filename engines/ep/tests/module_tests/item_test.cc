@@ -173,6 +173,62 @@ TEST_F(ItemTest, compressNullValue) {
     EXPECT_EQ(*item1, *item2);
 }
 
+/**
+ * Verifies the behaviour of the 'force' compression flag.
+ */
+TEST_F(ItemTest, ForceCompression) {
+    // Simulating a real scenario here. IncludeValue::NoWithUnderlyingDatatype
+    // has produced an uncompressed item with the Snappy flag set.
+    auto item = makeCompressibleItem(Vbid(0),
+                                     makeStoredDocKey("key"),
+                                     "" /*body*/,
+                                     PROTOCOL_BINARY_RAW_BYTES,
+                                     false /*compressed*/,
+                                     true /*xattr*/);
+    item->setDataType(item->getDataType() | PROTOCOL_BINARY_DATATYPE_SNAPPY);
+
+    auto originalSize = item->getNBytes();
+    ASSERT_GT(originalSize, 1);
+
+    // 1) Datatype snappy and don't force compression -> skip compression
+    EXPECT_TRUE(item->compressValue(false /*force*/));
+    EXPECT_EQ(originalSize, item->getNBytes());
+
+    // 2) Datatype snappy and force compression -> compress
+    EXPECT_TRUE(item->compressValue(true /*force*/));
+    EXPECT_LT(item->getNBytes(), originalSize);
+}
+
+/**
+ * Note: This test verifies the behaviour of Item::compressValue() in the case
+ * where compression is forced on a value that is already compressed.
+ * That is not supposed to happen in production, the test just shows that the
+ * call is safe and just a NOP.
+ */
+TEST_F(ItemTest, ForceCompressForAlreadyCompressedValue) {
+    const std::string uncompressedValue = "body000000000000000000000000000000";
+    auto item = makeCompressibleItem(Vbid(0),
+                                     makeStoredDocKey("key"),
+                                     uncompressedValue,
+                                     PROTOCOL_BINARY_RAW_BYTES,
+                                     true /*compressed*/,
+                                     false /*xattr*/);
+    ASSERT_TRUE(mcbp::datatype::is_snappy(item->getDataType()));
+
+    EXPECT_TRUE(item->compressValue(true /*force*/));
+
+    const auto firstCompressionSize = item->getNBytes();
+    EXPECT_GT(firstCompressionSize, 0);
+    EXPECT_LT(firstCompressionSize, uncompressedValue.size());
+    EXPECT_TRUE(mcbp::datatype::is_snappy(item->getDataType()));
+
+    // Verify that compressing twice is just a NOP
+    EXPECT_TRUE(item->compressValue(true /*force*/));
+    EXPECT_GT(item->getNBytes(), 0);
+    EXPECT_EQ(firstCompressionSize, item->getNBytes());
+    EXPECT_TRUE(mcbp::datatype::is_snappy(item->getDataType()));
+}
+
 TEST_F(ItemPruneTest, testPruneNothing) {
     item->removeBodyAndOrXattrs(IncludeValue::Yes,
                                 IncludeXattrs::Yes,
