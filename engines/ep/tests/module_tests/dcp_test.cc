@@ -855,6 +855,152 @@ TEST_P(CompressionStreamTest,
     }
 }
 
+TEST_P(CompressionStreamTest,
+       NoWithUnderlyingDatatype_CompressionEnabled_ItemCompressed) {
+    // Enable the snappy and passive compression on the connection.
+    mock_set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY);
+    setup_dcp_stream(0,
+                     IncludeValue::NoWithUnderlyingDatatype,
+                     IncludeXattrs::Yes,
+                     {{"force_value_compression", "true"}});
+
+    ASSERT_TRUE(producer->isSnappyEnabled());
+    ASSERT_TRUE(producer->isCompressionEnabled());
+    ASSERT_TRUE(producer->isForceValueCompressionEnabled());
+    ASSERT_TRUE(stream->isSnappyEnabled());
+    ASSERT_TRUE(stream->isCompressionEnabled());
+    ASSERT_TRUE(stream->isForceValueCompressionEnabled());
+
+    ASSERT_EQ(IncludeValue::NoWithUnderlyingDatatype,
+              stream->public_getIncludeValue());
+    ASSERT_EQ(IncludeXattrs::Yes, stream->public_getIncludeXattrs());
+
+    const auto body = "body000000000000000000000000000000000000";
+    const auto key = makeStoredDocKey("key");
+
+    // Create a compressed item
+    auto item = makeCompressibleItem(vbid,
+                                     key,
+                                     body,
+                                     isXattr() ? PROTOCOL_BINARY_DATATYPE_JSON
+                                               : PROTOCOL_BINARY_RAW_BYTES,
+                                     true, // compressed
+                                     isXattr());
+
+    // ActiveStream::makeResponseFromItem is where we modify the item value (if
+    // necessary) before pushing items into the Stream::readyQ. Here we just
+    // pass the item in input to the function and check that we get the expected
+    // DcpResponse.
+
+    queued_item originalItem(std::move(item));
+    const auto resp = stream->public_makeResponseFromItem(
+            originalItem, SendCommitSyncWriteAs::Commit);
+
+    const auto* mut = dynamic_cast<MutationResponse*>(resp.get());
+    ASSERT_TRUE(mut);
+
+    // Expecting a modified item, new allocation occurred.
+    ASSERT_NE(originalItem.get(), mut->getItem().get());
+
+    const auto originalValueSize = originalItem->getNBytes();
+    ASSERT_GT(originalValueSize, 0);
+    const auto onTheWireValueSize = mut->getItem()->getNBytes();
+
+    if (isXattr()) {
+        // Some extra validation for the Xattr case, for ensuring that the test
+        // is valid.
+        // During the test, the value of the compressed item is uncompressed /
+        // modified / re-compressed, and we make assumptions on sizes for
+        // understanding if the final value is compressed. Note that we cannot
+        // use the datatype for that, as here we are dealing with
+        // IncludeValue::NoWithUnderlyingDatatype, so by definition the datatype
+        // is inconsistent with the underlying value.
+        // It's very easy to invalidate this test by using a wrong payload. Eg,
+        // is the final value-size smaller than the original value-size because
+        // we have successfully re-compressed the final value (which is what we
+        // want) or because the final value is wrongly uncompressed but still
+        // smaller than the original (compressed) payload?
+        // The latter may happen if you have Body+Xattr and you remove the Body,
+        // which is exactly what we do on IncludeValue::NoWithUnderlyingDatatype
+
+        // Ensure that the uncompressed Xattr block is bigger than the original
+        // compressed payload.
+        const auto uncompressedXattrSize =
+                makeCompressibleItem(vbid,
+                                     key,
+                                     "" /*body*/,
+                                     PROTOCOL_BINARY_DATATYPE_JSON,
+                                     false, // compressed
+                                     true /*xattrs*/)
+                        ->getNBytes();
+        ASSERT_GT(uncompressedXattrSize, originalValueSize);
+
+        // Stream::makeResponseFromItem will have inflated the value for
+        // removing the Body, and then re-compressed as passive compression is
+        // enabled. Before the fix this fails because we miss to re-compress the
+        // final value.
+        // Note: This is where the test may be invalid if using a wrong payload.
+        EXPECT_LT(onTheWireValueSize, originalValueSize);
+    } else {
+        // Body only, which must have been removed.
+        EXPECT_EQ(0, onTheWireValueSize);
+    }
+}
+
+/**
+ * The test verifies that we don't even attempt compression if an item has no
+ * value. We would produce and stream a size-1 Snappy value otherwise.
+ */
+TEST_P(CompressionStreamTest, CompressionEnabled_NoValue) {
+    // Enable the snappy and passive compression on the connection.
+    mock_set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY);
+
+    // Note: Whatever input, we want to stream a size-0 value
+    setup_dcp_stream(0,
+                     IncludeValue::No,
+                     IncludeXattrs::No,
+                     {{"force_value_compression", "true"}});
+
+    ASSERT_TRUE(producer->isSnappyEnabled());
+    ASSERT_TRUE(producer->isCompressionEnabled());
+    ASSERT_TRUE(producer->isForceValueCompressionEnabled());
+    ASSERT_TRUE(stream->isSnappyEnabled());
+    ASSERT_TRUE(stream->isCompressionEnabled());
+    ASSERT_TRUE(stream->isForceValueCompressionEnabled());
+
+    ASSERT_EQ(IncludeValue::No, stream->public_getIncludeValue());
+    ASSERT_EQ(IncludeXattrs::No, stream->public_getIncludeXattrs());
+
+    // Create a compressed item
+    auto item = makeCompressibleItem(vbid,
+                                     makeStoredDocKey("key"),
+                                     "body000000000000000000000000000000000000",
+                                     isXattr() ? PROTOCOL_BINARY_DATATYPE_JSON
+                                               : PROTOCOL_BINARY_RAW_BYTES,
+                                     false, // compressed
+                                     isXattr());
+    ASSERT_GT(item->getNBytes(), 0);
+
+    // ActiveStream::makeResponseFromItem is where we modify the item value (if
+    // necessary) before pushing items into the Stream::readyQ. Here we just
+    // pass the item in input to the function and check that we get the expected
+    // DcpResponse.
+
+    queued_item originalItem(std::move(item));
+    const auto resp = stream->public_makeResponseFromItem(
+            originalItem, SendCommitSyncWriteAs::Commit);
+
+    const auto* mut = dynamic_cast<MutationResponse*>(resp.get());
+    ASSERT_TRUE(mut);
+
+    // Expecting a modified item, new allocation occurred.
+    ASSERT_NE(originalItem.get(), mut->getItem().get());
+
+    // We did compress but discarded the final value as it is larger than the
+    // input, we stream no value as expected.
+    EXPECT_EQ(0, mut->getItem()->getNBytes());
+}
+
 class ConnectionTest : public DCPTest,
                        public ::testing::WithParamInterface<
                                std::tuple<std::string, std::string>> {

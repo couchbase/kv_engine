@@ -257,11 +257,18 @@ std::ostream& operator<<(std::ostream& os, const Blob& b) {
     return os;
 }
 
-bool Item::compressValue() {
-    // Attempt compression only if datatype indicates
-    // that the value is not compressed already.
+bool Item::compressValue(bool force) {
     auto datatype = getDataType();
-    if (mcbp::datatype::is_snappy(datatype)) {
+
+    // Just do compression if the caller requires so, or decide based on the
+    // datatype.
+    //
+    // MB-40493: Currently force==true is expected only for handling the case
+    // where the value has (1) no Body, (2) an uncompressed Xattr chunk and (2)
+    // datatype is still Snappy. That may happen in ActiveStream when the
+    // connection is set to IncludeValue::NoWithUnderlyingDatatype.
+
+    if (mcbp::datatype::is_snappy(datatype) && !force) {
         return true;
     }
 
