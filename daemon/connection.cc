@@ -702,6 +702,12 @@ bool Connection::executeCommandsCallback() {
     scheduler_info[getThread().index].add(duration_cast<microseconds>(ns));
     addCpuTime(ns);
 
+    if (state == State::running) {
+        // We might have added data to the send queue; make sure that
+        // we update the counters
+        shutdownIfSendQueueStuck(start);
+    }
+
     if (state != State::running) {
         if (state == State::closing) {
             externalAuthManager->remove(*this);
