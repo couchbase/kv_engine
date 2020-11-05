@@ -118,10 +118,11 @@ public:
         return wrapped->release(cookie);
     }
     void set_priority(gsl::not_null<const void*> cookie,
-                      CONN_PRIORITY priority) override {
+                      ConnectionPriority priority) override {
         return wrapped->set_priority(cookie, priority);
     }
-    CONN_PRIORITY get_priority(gsl::not_null<const void*> cookie) override {
+    ConnectionPriority get_priority(
+            gsl::not_null<const void*> cookie) override {
         return wrapped->get_priority(cookie);
     }
     bucket_id_t get_bucket_id(gsl::not_null<const void*> cookie) override {

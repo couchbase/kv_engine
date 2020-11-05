@@ -68,12 +68,6 @@ const size_t MaxSavedConnectionId = 34;
  */
 class Connection : public dcp_message_producers {
 public:
-    enum class Priority : uint8_t {
-        High,
-        Medium,
-        Low
-    };
-
     Connection(const Connection&) = delete;
 
     Connection(SOCKET sfd,
@@ -147,11 +141,11 @@ public:
 
     void setAuthenticated(bool authenticated);
 
-    Priority getPriority() const {
+    ConnectionPriority getPriority() const {
         return priority.load();
     }
 
-    void setPriority(Priority priority);
+    void setPriority(ConnectionPriority priority);
 
     /**
      * Create a JSON representation of the members of the connection
@@ -879,7 +873,7 @@ protected:
      * atomic to allow read (from DCP stats) without acquiring any
      * additional locks (priority should rarely change).
      */
-    std::atomic<Priority> priority{Priority::Medium};
+    std::atomic<ConnectionPriority> priority{ConnectionPriority::Medium};
 
     /** The cluster map revision used by this client */
     int clustermap_revno{-2};
@@ -1120,8 +1114,3 @@ protected:
      */
     static void ssl_read_callback(bufferevent*, void* ctx);
 };
-
-/**
- * Convert a priority to a textual representation
- */
-std::string to_string(Connection::Priority priority);

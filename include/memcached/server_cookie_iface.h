@@ -151,12 +151,13 @@ struct ServerCookieIface {
      * Set the priority for this connection
      */
     virtual void set_priority(gsl::not_null<const void*> cookie,
-                              CONN_PRIORITY priority) = 0;
+                              ConnectionPriority priority) = 0;
 
     /**
      * Get the priority for this connection
      */
-    virtual CONN_PRIORITY get_priority(gsl::not_null<const void*> cookie) = 0;
+    virtual ConnectionPriority get_priority(
+            gsl::not_null<const void*> cookie) = 0;
 
     /**
      * Get the bucket the connection is bound to

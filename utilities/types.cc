@@ -56,3 +56,20 @@ std::string to_string(DeleteSource deleteSource) {
     }
     return "Invalid DeleteSource";
 }
+
+std::string to_string(ConnectionPriority cp) {
+    switch (cp) {
+    case ConnectionPriority::High:
+        return "High";
+    case ConnectionPriority::Medium:
+        return "Medium";
+    case ConnectionPriority::Low:
+        return "Low";
+    }
+    throw std::invalid_argument("Invalid ConnectionPriority: " +
+                                std::to_string(int(cp)));
+}
+
+std::ostream& operator<<(std::ostream& os, const ConnectionPriority& cp) {
+    return os << to_string(cp);
+}

@@ -88,10 +88,11 @@ public:
         throw std::runtime_error("Not implemented");
     }
     void set_priority(gsl::not_null<const void*> cookie,
-                      CONN_PRIORITY priority) override {
+                      ConnectionPriority priority) override {
         throw std::runtime_error("Not implemented");
     }
-    CONN_PRIORITY get_priority(gsl::not_null<const void*> cookie) override {
+    ConnectionPriority get_priority(
+            gsl::not_null<const void*> cookie) override {
         throw std::runtime_error("Not implemented");
     }
     bucket_id_t get_bucket_id(gsl::not_null<const void*> cookie) override {

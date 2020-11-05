@@ -532,9 +532,9 @@ public:
                                  const cb::mcbp::Request& request,
                                  const AddResponseFn& response);
 
-    CONN_PRIORITY getDCPPriority(const void* cookie);
+    ConnectionPriority getDCPPriority(const void* cookie);
 
-    void setDCPPriority(const void* cookie, CONN_PRIORITY priority);
+    void setDCPPriority(const void* cookie, ConnectionPriority priority);
 
     void notifyIOComplete(const void* cookie, ENGINE_ERROR_CODE status);
 

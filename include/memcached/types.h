@@ -33,7 +33,9 @@ enum ENGINE_STORE_OPERATION {
     OPERATION_CAS = 6 /**< Store with set semantics. */
 };
 
-enum CONN_PRIORITY { CONN_PRIORITY_HIGH, CONN_PRIORITY_MED, CONN_PRIORITY_LOW };
+enum class ConnectionPriority : uint8_t { High, Medium, Low };
+std::string to_string(const ConnectionPriority cp);
+std::ostream& operator<<(std::ostream& os, const ConnectionPriority& cp);
 
 /**
  * Data common to any item stored in memcached.

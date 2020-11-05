@@ -6046,14 +6046,15 @@ EventuallyPersistentEngine::getAllKeys(const void* cookie,
     return ENGINE_EWOULDBLOCK;
 }
 
-CONN_PRIORITY EventuallyPersistentEngine::getDCPPriority(const void* cookie) {
+ConnectionPriority EventuallyPersistentEngine::getDCPPriority(
+        const void* cookie) {
     NonBucketAllocationGuard guard;
     auto priority = serverApi->cookie->get_priority(cookie);
     return priority;
 }
 
 void EventuallyPersistentEngine::setDCPPriority(const void* cookie,
-                                                CONN_PRIORITY priority) {
+                                                ConnectionPriority priority) {
     NonBucketAllocationGuard guard;
     serverApi->cookie->set_priority(cookie, priority);
 }

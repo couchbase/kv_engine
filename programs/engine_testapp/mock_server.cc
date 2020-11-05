@@ -301,13 +301,14 @@ struct MockServerCookieApi : public ServerCookieIface {
         return ENGINE_SUCCESS;
     }
     void set_priority(gsl::not_null<const void*> cookie,
-                      CONN_PRIORITY) override {
+                      ConnectionPriority) override {
         (void)cookie_to_mock_cookie(cookie.get()); // validate cookie
     }
 
-    CONN_PRIORITY get_priority(gsl::not_null<const void*> cookie) override {
+    ConnectionPriority get_priority(
+            gsl::not_null<const void*> cookie) override {
         (void)cookie_to_mock_cookie(cookie.get()); // validate cookie
-        return CONN_PRIORITY_MED;
+        return ConnectionPriority::Medium;
     }
 
     bucket_id_t get_bucket_id(gsl::not_null<const void*> cookie) override {

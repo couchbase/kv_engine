@@ -213,7 +213,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
         logger->unregister();
     }
 
-    engine_.setDCPPriority(getCookie(), CONN_PRIORITY_MED);
+    engine_.setDCPPriority(getCookie(), ConnectionPriority::Medium);
 
     // The consumer assigns opaques starting at 0 so lets have the producer
     //start using opaques at 10M to prevent any opaque conflicts.
@@ -1033,13 +1033,13 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
         }
     } else if (strncmp(param, "set_priority", key.size()) == 0) {
         if (valueStr == "high") {
-            engine_.setDCPPriority(getCookie(), CONN_PRIORITY_HIGH);
+            engine_.setDCPPriority(getCookie(), ConnectionPriority::High);
             return ENGINE_SUCCESS;
         } else if (valueStr == "medium") {
-            engine_.setDCPPriority(getCookie(), CONN_PRIORITY_MED);
+            engine_.setDCPPriority(getCookie(), ConnectionPriority::Medium);
             return ENGINE_SUCCESS;
         } else if (valueStr == "low") {
-            engine_.setDCPPriority(getCookie(), CONN_PRIORITY_LOW);
+            engine_.setDCPPriority(getCookie(), ConnectionPriority::Low);
             return ENGINE_SUCCESS;
         }
     } else if (keyStr == "send_stream_end_on_client_close_stream") {

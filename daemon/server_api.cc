@@ -210,19 +210,15 @@ struct ServerCookieApi : public ServerCookieIface {
     }
 
     void set_priority(gsl::not_null<const void*> void_cookie,
-                      CONN_PRIORITY priority) override {
+                      ConnectionPriority priority) override {
         auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
 
         auto* c = &cookie->getConnection();
         switch (priority) {
-        case CONN_PRIORITY_HIGH:
-            c->setPriority(Connection::Priority::High);
-            return;
-        case CONN_PRIORITY_MED:
-            c->setPriority(Connection::Priority::Medium);
-            return;
-        case CONN_PRIORITY_LOW:
-            c->setPriority(Connection::Priority::Low);
+        case ConnectionPriority::High:
+        case ConnectionPriority::Medium:
+        case ConnectionPriority::Low:
+            c->setPriority(priority);
             return;
         }
 
@@ -231,34 +227,15 @@ struct ServerCookieApi : public ServerCookieIface {
                 "not a "
                 "valid CONN_PRIORITY - closing connection {}",
                 c->getId(),
-                priority,
+                int(priority),
                 c->getDescription());
         c->shutdown();
     }
 
-    CONN_PRIORITY get_priority(
+    ConnectionPriority get_priority(
             gsl::not_null<const void*> void_cookie) override {
         auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-
-        auto& conn = cookie->getConnection();
-        const auto priority = conn.getPriority();
-        switch (priority) {
-        case Connection::Priority::High:
-            return CONN_PRIORITY_HIGH;
-        case Connection::Priority::Medium:
-            return CONN_PRIORITY_MED;
-        case Connection::Priority::Low:
-            return CONN_PRIORITY_LOW;
-        }
-
-        LOG_WARNING(
-                "{}: ServerCookieApi::get_priority: priority (which is {}) is "
-                "not a "
-                "valid CONN_PRIORITY. {}",
-                conn.getId(),
-                int(priority),
-                conn.getDescription());
-        return CONN_PRIORITY_MED;
+        return cookie->getConnection().getPriority();
     }
 
     bucket_id_t get_bucket_id(gsl::not_null<const void*> cookie) override {

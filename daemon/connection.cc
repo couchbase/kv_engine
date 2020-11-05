@@ -56,19 +56,6 @@
 #include <netinet/tcp.h> // For TCP_NODELAY etc
 #endif
 
-std::string to_string(Connection::Priority priority) {
-    switch (priority) {
-    case Connection::Priority::High:
-        return "High";
-    case Connection::Priority::Medium:
-        return "Medium";
-    case Connection::Priority::Low:
-        return "Low";
-    }
-    throw std::invalid_argument("No such priority: " +
-                                std::to_string(int(priority)));
-}
-
 void Connection::shutdown() {
     state = State::closing;
 }
@@ -1241,20 +1228,20 @@ bool Connection::signalIfIdle() {
     return false;
 }
 
-void Connection::setPriority(Connection::Priority priority_) {
+void Connection::setPriority(ConnectionPriority priority_) {
     priority.store(priority_);
     switch (priority_) {
-    case Priority::High:
+    case ConnectionPriority::High:
         max_reqs_per_event =
                 Settings::instance().getRequestsPerEventNotification(
                         EventPriority::High);
         return;
-    case Priority::Medium:
+    case ConnectionPriority::Medium:
         max_reqs_per_event =
                 Settings::instance().getRequestsPerEventNotification(
                         EventPriority::Medium);
         return;
-    case Priority::Low:
+    case ConnectionPriority::Low:
         max_reqs_per_event =
                 Settings::instance().getRequestsPerEventNotification(
                         EventPriority::Low);

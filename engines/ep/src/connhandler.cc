@@ -329,13 +329,13 @@ void ConnHandler::addStats(const AddStatFn& add_stat, const void* c) {
     const auto priority = engine_.getDCPPriority(cookie);
     const char* priString = "<INVALID>";
     switch (priority) {
-    case CONN_PRIORITY_HIGH:
+    case ConnectionPriority::High:
         priString = "high";
         break;
-    case CONN_PRIORITY_MED:
+    case ConnectionPriority::Medium:
         priString = "medium";
         break;
-    case CONN_PRIORITY_LOW:
+    case ConnectionPriority::Low:
         priString = "low";
         break;
     }
