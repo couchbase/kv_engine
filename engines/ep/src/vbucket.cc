@@ -3672,6 +3672,12 @@ VBucket::processExpiredItem(const HashTable::HashBucketLock& hbl,
                 getId().to_string());
     }
 
+    if (!cHandle.valid()) {
+        throw std::invalid_argument(
+                "VBucket::processExpiredItem: cHandle not valid for cid:" +
+                cHandle.getKey().getCollectionID().to_string());
+    }
+
     if (v.isTempInitialItem() && eviction == EvictionPolicy::Full) {
         return std::make_tuple(MutationStatus::NeedBgFetch,
                                &v,

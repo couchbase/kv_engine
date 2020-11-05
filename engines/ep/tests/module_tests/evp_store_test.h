@@ -37,7 +37,10 @@ protected:
 };
 
 // Full eviction only tests
-class EPBucketFullEvictionTest : public EPBucketTest {};
+class EPBucketFullEvictionTest : public EPBucketTest {
+public:
+    void compactionFindsNonResidentItem(bool dropCollection);
+};
 
 // Full eviction only tests that run with bloom filters off
 class EPBucketFullEvictionNoBloomFilterTest : public EPBucketFullEvictionTest {

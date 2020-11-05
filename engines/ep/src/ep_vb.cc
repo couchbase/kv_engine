@@ -241,13 +241,16 @@ void EPVBucket::completeCompactionExpiryBgFetch(
         auto docKey = key.getDocKey();
         folly::SharedMutex::ReadHolder rlh(getStateLock());
         auto cHandle = lockCollections(docKey);
-        auto res = fetchValidValue(
-                WantsDeleted::Yes,
-                TrackReference::Yes,
-                cHandle.valid() ? QueueExpired::Yes : QueueExpired::No,
-                cHandle,
-                getState() == vbucket_state_replica ? ForGetReplicaOp::Yes
-                                                    : ForGetReplicaOp::No);
+        if (!cHandle.valid()) {
+            return;
+        }
+        auto res = fetchValidValue(WantsDeleted::Yes,
+                                   TrackReference::Yes,
+                                   QueueExpired::Yes,
+                                   cHandle,
+                                   getState() == vbucket_state_replica
+                                           ? ForGetReplicaOp::Yes
+                                           : ForGetReplicaOp::No);
 
         // If we find a StoredValue then the item that we are trying to expire
         // has been superseded by a new one (as we wouldn't have tried to

@@ -34,6 +34,7 @@
 #include "flusher.h"
 #include "item_eviction.h"
 #include "kvstore.h"
+#include "test_manifest.h"
 #include "tests/mock/mock_global_task.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/test_helpers.h"
@@ -653,7 +654,8 @@ TEST_P(EPBucketFullEvictionTest, xattrExpiryOnFullyEvictedItem) {
             << "The foo attribute should be gone";
 }
 
-TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentItem) {
+void EPBucketFullEvictionTest::compactionFindsNonResidentItem(
+        bool dropCollection) {
     EXPECT_EQ(ENGINE_SUCCESS,
               store->setVBucketState(vbid, vbucket_state_active, {}));
 
@@ -689,10 +691,20 @@ TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentItem) {
         return;
     }
 
-    EXPECT_EQ(0, vb->numExpiredItems);
+    int expectedExpiredItems = 1;
+    if (dropCollection) {
+        CollectionsManifest cm;
+        cm.remove(CollectionEntry::defaultC);
+        EXPECT_EQ(setCollections(cookie, std::string{cm}),
+                  cb::engine_errc::success);
+        expectedExpiredItems = 0;
+        flushVBucketToDiskIfPersistent(vbid, 1);
+    } else {
+        // We should not have deleted the item and should not flush anything
+        flushVBucketToDiskIfPersistent(vbid, 0);
+    }
 
-    // We should not have deleted the item and should not flush anything
-    flushVBucketToDiskIfPersistent(vbid, 0);
+    EXPECT_EQ(0, vb->numExpiredItems);
 
     // We should have queued a BGFetch for the item
     EXPECT_EQ(1, vb->getNumItems());
@@ -701,19 +713,30 @@ TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentItem) {
     EXPECT_FALSE(vb->hasPendingBGFetchItems());
 
     // We should have expired the item
-    EXPECT_EQ(1, vb->numExpiredItems);
+    EXPECT_EQ(expectedExpiredItems, vb->numExpiredItems);
 
     // But it still exists on disk until we flush
     EXPECT_EQ(1, vb->getNumItems());
-    flushVBucketToDiskIfPersistent(vbid, 1);
 
     auto expectedItems = 0;
-    if (isRocksDB()) {
+    if (isRocksDB() || dropCollection) {
         // RocksDB doesn't know if we insert or update so item counts are not
-        // correct
+        // correct.
+        // Or if we drop the collection, no expiry. Item count won't be updated
+        // until collections are purged, so 1 is correct.
         expectedItems = 1;
+    } else {
+        flushVBucketToDiskIfPersistent(vbid, 1);
     }
     EXPECT_EQ(expectedItems, vb->getNumItems());
+}
+
+TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentItem) {
+    compactionFindsNonResidentItem(false);
+}
+
+TEST_P(EPBucketFullEvictionTest, MB_42295_dropCollectionBeforeExpiry) {
+    compactionFindsNonResidentItem(true);
 }
 
 /**
