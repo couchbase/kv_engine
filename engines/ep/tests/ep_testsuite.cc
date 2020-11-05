@@ -1118,7 +1118,8 @@ static enum test_result test_expiration_on_warmup(EngineIface* h) {
           "Expiry pager should be enabled on warmup");
 
     // Wait for the expiry pager to run and expire our item.
-    wait_for_stat_to_be_gte(h, "ep_expired_pager", 1, nullptr, /*secs*/ 10);
+    wait_for_stat_to_be_gte(
+            h, "ep_expired_pager", 1, nullptr, std::chrono::seconds{10});
 
     // Note: previously we checked that curr_items was zero here (immediately
     // after waiting for ep_expired_pager == 1), however we cannot assume that
@@ -2989,7 +2990,7 @@ static enum test_result test_bloomfilters(EngineIface* h) {
             "Failed to get stats.");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
 
-    useconds_t sleepTime = 128;
+    std::chrono::microseconds sleepTime{128};
 
     if (eviction_policy == "value_only") {  // VALUE-ONLY EVICTION MODE
 
@@ -6099,7 +6100,7 @@ static enum test_result test_expired_item_with_item_eviction(EngineIface* h) {
     // Compaction on VBucket 0
     compact_db(h, Vbid(0), Vbid(0), 10, 10, 0);
 
-    useconds_t sleepTime = 128;
+    std::chrono::microseconds sleepTime{128};
     while (get_int_stat(h, "ep_pending_compactions") != 0) {
         decayingSleep(&sleepTime);
     }

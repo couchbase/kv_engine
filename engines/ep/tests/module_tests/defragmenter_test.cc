@@ -42,12 +42,12 @@ static size_t get_mapped_bytes(const cb::ArenaMallocClient& client) {
  */
 static bool wait_for_mapped_below(const cb::ArenaMallocClient& client,
                                   size_t mapped_threshold,
-                                  useconds_t max_sleep_time) {
-    useconds_t sleepTime = 128;
-    useconds_t totalSleepTime = 0;
+                                  std::chrono::microseconds max_sleep_time) {
+    std::chrono::microseconds sleepTime{128};
+    std::chrono::microseconds totalSleepTime;
 
     while (get_mapped_bytes(client) > mapped_threshold) {
-        std::this_thread::sleep_for(std::chrono::microseconds(sleepTime));
+        std::this_thread::sleep_for(sleepTime);
         totalSleepTime += sleepTime;
         if (totalSleepTime > max_sleep_time) {
             return false;
@@ -275,7 +275,7 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
 
     auto& visitor = dynamic_cast<DefragmentVisitor&>(prAdapter.getHTVisitor());
     EXPECT_TRUE(wait_for_mapped_below(
-            global_stats.arena, expected_mapped, 1 * 1000 * 1000))
+            global_stats.arena, expected_mapped, std::chrono::seconds(1)))
             << "Mapped memory (" << get_mapped_bytes(global_stats.arena)
             << ") didn't fall below "
             << "estimate (" << expected_mapped << ") after the defragmentater "

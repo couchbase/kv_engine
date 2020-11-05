@@ -186,10 +186,10 @@ static void get_histo_stat(EngineIface* h,
 void encodeExt(char* buffer, uint32_t val, size_t offset = 0);
 void encodeWithMetaExt(char *buffer, ItemMetaData *meta);
 
-void decayingSleep(useconds_t *sleepTime) {
-    static const useconds_t maxSleepTime = 500000;
+void decayingSleep(std::chrono::microseconds* sleepTime) {
+    static const std::chrono::microseconds maxSleepTime{500000};
     std::this_thread::sleep_for(std::chrono::microseconds(*sleepTime));
-    *sleepTime = std::min(*sleepTime << 1, maxSleepTime);
+    *sleepTime = std::min((*sleepTime) * 2, maxSleepTime);
 }
 
 bool add_response(std::string_view key,
@@ -1083,7 +1083,7 @@ void stop_persistence(EngineIface* h) {
         return;
     }
 
-    useconds_t sleepTime = 128;
+    std::chrono::microseconds sleepTime{128};
     while (true) {
         if (get_str_stat(h, "ep_flusher_state", nullptr) == "running") {
             break;
@@ -1658,8 +1658,8 @@ void wait_for_stat_to_be_gte(EngineIface* h,
                              const char* stat,
                              int final,
                              const char* stat_key,
-                             const time_t max_wait_time_in_secs) {
-    useconds_t sleepTime = 128;
+                             const std::chrono::seconds max_wait_time_in_secs) {
+    std::chrono::microseconds sleepTime{128};
     WaitTimeAccumulator<int> accumulator("to be greater or equal than", stat,
                                          stat_key, final,
                                          max_wait_time_in_secs);
@@ -1673,10 +1673,11 @@ void wait_for_stat_to_be_gte(EngineIface* h,
     }
 }
 
-void wait_for_expired_items_to_be(EngineIface* h,
-                                  int final,
-                                  const time_t max_wait_time_in_secs) {
-    useconds_t sleepTime = 128;
+void wait_for_expired_items_to_be(
+        EngineIface* h,
+        int final,
+        const std::chrono::seconds max_wait_time_in_secs) {
+    std::chrono::microseconds sleepTime{128};
     WaitTimeAccumulator<int> accumulator("to be", "expired items",
                                          nullptr, final,
                                          max_wait_time_in_secs);
@@ -1692,10 +1693,11 @@ void wait_for_expired_items_to_be(EngineIface* h,
     }
 }
 
-void wait_for_memory_usage_below(EngineIface* h,
-                                 int mem_threshold,
-                                 const time_t max_wait_time_in_secs) {
-    useconds_t sleepTime = 128;
+void wait_for_memory_usage_below(
+        EngineIface* h,
+        int mem_threshold,
+        const std::chrono::seconds max_wait_time_in_secs) {
+    std::chrono::microseconds sleepTime{128};
     WaitTimeAccumulator<int> accumulator("to be below", "mem_used", nullptr,
                                          mem_threshold,
                                          max_wait_time_in_secs);
@@ -1714,7 +1716,7 @@ bool wait_for_warmup_complete(EngineIface* h) {
         return true;
     }
 
-    useconds_t sleepTime = 128;
+    std::chrono::microseconds sleepTime{128};
     do {
         try {
             if (get_str_stat(h, "ep_warmup_thread", "warmup") == "complete") {
@@ -1753,7 +1755,7 @@ void wait_for_item_compressor_to_settle(EngineIface* h) {
 }
 
 void wait_for_rollback_to_finish(EngineIface* h) {
-    useconds_t sleepTime = 128;
+    std::chrono::microseconds sleepTime{128};
     while (get_int_stat(h, "ep_rollback_count") == 0) {
         decayingSleep(&sleepTime);
     }

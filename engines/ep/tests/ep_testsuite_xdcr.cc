@@ -464,7 +464,7 @@ static enum test_result test_get_meta_mb23905(EngineIface* h) {
                 "delete_with_value() failed");
 
         // Run compaction to start using the bloomfilter
-        useconds_t sleepTime = 128;
+        std::chrono::microseconds sleepTime{128};
         compact_db(h, Vbid(0), Vbid(0), 1, 1, 0);
         while (get_int_stat(h, "ep_pending_compactions") != 0) {
             decayingSleep(&sleepTime);
@@ -761,7 +761,7 @@ static enum test_result test_delete_with_meta_nonexistent_no_temp(
     ItemMetaData itm_meta1;
 
     // Run compaction to start using the bloomfilter
-    useconds_t sleepTime = 128;
+    std::chrono::microseconds sleepTime{128};
     compact_db(h, Vbid(0), Vbid(0), 1, 1, 0);
     while (get_int_stat(h, "ep_pending_compactions") != 0) {
         decayingSleep(&sleepTime);

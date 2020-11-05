@@ -93,22 +93,24 @@ class WaitTimeAccumulator
 {
 public:
     WaitTimeAccumulator(const char* compare_name,
-                        const char* stat_, const char* stat_key,
-                        const T final_, const time_t wait_time_in_secs)
+                        const char* stat_,
+                        const char* stat_key,
+                        const T final_,
+                        const std::chrono::seconds wait_time_in_secs)
         : compareName(compare_name),
           stat(stat_),
           statKey(stat_key),
           final(final_),
-          maxWaitTime(wait_time_in_secs * 1000 * 1000),
-          totalSleepTime(0) {}
+          maxWaitTime(wait_time_in_secs),
+          totalSleepTime(0) {
+    }
 
-    void incrementAndAbortIfLimitReached(T last_value,
-                                         const useconds_t sleep_time)
-    {
+    void incrementAndAbortIfLimitReached(
+            T last_value, const std::chrono::microseconds sleep_time) {
         totalSleepTime += sleep_time;
         if (totalSleepTime >= maxWaitTime) {
-            std::cerr << "Exceeded maximum wait time of " << maxWaitTime
-                    << "us waiting for stat '" << stat;
+            std::cerr << "Exceeded maximum wait time of " << maxWaitTime.count()
+                      << "us waiting for stat '" << stat;
             if (statKey != nullptr) {
                 std::cerr << "(" << statKey << ")";
             }
@@ -123,8 +125,8 @@ private:
     const char* stat;
     const char* statKey;
     const T final;
-    const useconds_t maxWaitTime;
-    useconds_t totalSleepTime;
+    const std::chrono::microseconds maxWaitTime;
+    std::chrono::microseconds totalSleepTime;
 };
 
 /**
@@ -171,7 +173,7 @@ private:
     struct stat originalStat;
 };
 
-void decayingSleep(useconds_t *sleepTime);
+void decayingSleep(std::chrono::microseconds* sleepTime);
 
 // Basic Operations
 ENGINE_ERROR_CODE del(EngineIface* h,
@@ -446,31 +448,37 @@ void wait_for_stat_change(EngineIface* h,
                           const char* stat,
                           T initial,
                           const char* stat_key = nullptr,
-                          const time_t max_wait_time_in_secs = 60);
+                          const std::chrono::seconds max_wait_time_in_secs =
+                                  std::chrono::seconds{60});
 
 template <typename T>
 void wait_for_stat_to_be(EngineIface* h,
                          const char* stat,
                          T final,
                          const char* stat_key = nullptr,
-                         const time_t max_wait_time_in_secs = 60);
+                         const std::chrono::seconds max_wait_time_in_secs =
+                                 std::chrono::seconds{60});
 
 void wait_for_stat_to_be_gte(EngineIface* h,
                              const char* stat,
                              int final,
                              const char* stat_key = nullptr,
-                             const time_t max_wait_time_in_secs = 60);
+                             const std::chrono::seconds max_wait_time_in_secs =
+                                     std::chrono::seconds{60});
 
 template <typename T>
 void wait_for_stat_to_be_lte(EngineIface* h,
                              const char* stat,
                              T final,
                              const char* stat_key = nullptr,
-                             const time_t max_wait_time_in_secs = 60);
+                             const std::chrono::seconds max_wait_time_in_secs =
+                                     std::chrono::seconds{60});
 
-void wait_for_expired_items_to_be(EngineIface* h,
-                                  int final,
-                                  const time_t max_wait_time_in_secs = 60);
+void wait_for_expired_items_to_be(
+        EngineIface* h,
+        int final,
+        const std::chrono::seconds max_wait_time_in_secs = std::chrono::seconds{
+                60});
 bool wait_for_warmup_complete(EngineIface* h);
 void wait_for_flusher_to_settle(EngineIface* h);
 void wait_for_item_compressor_to_settle(EngineIface* h);
@@ -480,9 +488,11 @@ void wait_for_persisted_value(EngineIface* h,
                               const char* val,
                               Vbid vbucketId = Vbid(0));
 
-void wait_for_memory_usage_below(EngineIface* h,
-                                 int mem_threshold,
-                                 const time_t max_wait_time_in_secs = 60);
+void wait_for_memory_usage_below(
+        EngineIface* h,
+        int mem_threshold,
+        const std::chrono::seconds max_wait_time_in_secs = std::chrono::seconds{
+                60});
 
 /**
  * Repeat a functor returning bool upto max repeat times, sleeping
@@ -631,12 +641,13 @@ int write_items_upto_mem_perc(EngineIface* h,
                               const char* value = "data");
 
 template <typename T>
-inline void wait_for_stat_change(EngineIface* h,
-                                 const char* stat,
-                                 T initial,
-                                 const char* stat_key,
-                                 const time_t max_wait_time_in_secs) {
-    useconds_t sleepTime = 128;
+inline void wait_for_stat_change(
+        EngineIface* h,
+        const char* stat,
+        T initial,
+        const char* stat_key,
+        const std::chrono::seconds max_wait_time_in_secs) {
+    std::chrono::microseconds sleepTime{128};
     WaitTimeAccumulator<T> accumulator("to change from", stat, stat_key,
                                          initial, max_wait_time_in_secs);
     for (;;) {
@@ -654,8 +665,8 @@ void wait_for_stat_to_be(EngineIface* h,
                          const char* stat,
                          T final,
                          const char* stat_key,
-                         const time_t max_wait_time_in_secs) {
-    useconds_t sleepTime = 128;
+                         const std::chrono::seconds max_wait_time_in_secs) {
+    std::chrono::microseconds sleepTime{128};
     WaitTimeAccumulator<T> accumulator("to be", stat, stat_key, final,
                                        max_wait_time_in_secs);
     for (;;) {
@@ -673,8 +684,8 @@ void wait_for_stat_to_be_lte(EngineIface* h,
                              const char* stat,
                              T final,
                              const char* stat_key,
-                             const time_t max_wait_time_in_secs) {
-    useconds_t sleepTime = 128;
+                             const std::chrono::seconds max_wait_time_in_secs) {
+    std::chrono::microseconds sleepTime{128};
     WaitTimeAccumulator<T> accumulator("to be less than or equal to",
                                        stat,
                                        stat_key,
@@ -702,8 +713,9 @@ template <typename T>
 void wait_for_val_to_be(const char* val_description,
                         T& val,
                         const T expected,
-                        const time_t max_wait_time_in_secs = 60) {
-    useconds_t sleepTime = 128;
+                        const std::chrono::seconds max_wait_time_in_secs =
+                                std::chrono::seconds{60}) {
+    std::chrono::microseconds sleepTime{128};
     WaitTimeAccumulator<T> accumulator(
             "to be", val_description, nullptr, expected, max_wait_time_in_secs);
     for (;;) {

@@ -11,7 +11,6 @@
 // Need DWORD and ssize_t (used to be defined in platform/platform.h
 #include <folly/portability/Windows.h>
 using ssize_t = SSIZE_T;
-using useconds_t = unsigned int;
 #else
 #include <sys/uio.h>
 #endif
