@@ -138,3 +138,12 @@ void MockEPBucket::completeBGFetchMulti(
     }
     EPBucket::completeBGFetchMulti(vbId, fetchedItems, start);
 }
+
+std::shared_ptr<CompactTask> MockEPBucket::getCompactionTask(Vbid vbid) const {
+    auto handle = compactionTasks.rlock();
+    auto itr = handle->find(vbid);
+    if (itr == handle->end()) {
+        return {};
+    }
+    return itr->second;
+}

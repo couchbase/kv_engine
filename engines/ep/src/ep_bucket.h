@@ -28,6 +28,7 @@ class Commit;
 }
 enum class ValueFilter;
 class BucketStatCollector;
+class CompactTask;
 struct CompactionContext;
 
 /**
@@ -113,9 +114,24 @@ public:
     /// Stops the background fetcher for each shard.
     void stopBgFetcher();
 
+    /**
+     * Schedule compaction with a config -override of KVBucket method
+     */
+    ENGINE_ERROR_CODE scheduleCompaction(
+            Vbid vbid,
+            const CompactionConfig& c,
+            const void* ck,
+            std::chrono::milliseconds delay) override;
+
+    /**
+     * Schedule compaction with no config. If a CompactTask is already
+     * scheduled then the task will still run, but with whatever config it
+     * already has. If a task is already scheduled, the given delay parameter
+     * takes effect.
+     */
     ENGINE_ERROR_CODE scheduleCompaction(Vbid vbid,
-                                         const CompactionConfig& c,
-                                         const void* ck) override;
+                                         const void* cookie,
+                                         std::chrono::milliseconds delay);
 
     ENGINE_ERROR_CODE cancelCompaction(Vbid vbid) override;
 
@@ -132,6 +148,15 @@ public:
     bool doCompact(Vbid vbid,
                    CompactionConfig& config,
                    const void* cookie);
+
+    /**
+     * After compaction completes the task can be removed if no further
+     * compaction is required. If other compaction tasks exist, one of them
+     * will be 'poked' to run. This method is called from CompactTask
+     *
+     * @param vbid id of vbucket that has completed compaction
+     */
+    bool updateCompactionTasks(Vbid vbid, bool canErase);
 
     std::pair<uint64_t, bool> getLastPersistedCheckpointId(Vbid vb) override;
 
@@ -266,13 +291,6 @@ protected:
      */
     void compactionCompletionCallback(CompactionContext& ctx);
 
-    /**
-     * Remove completed compaction tasks or wake snoozed tasks
-     *
-     * @param db_file_id vbucket id for couchstore
-     */
-    void updateCompactionTasks(Vbid db_file_id);
-
     void stopWarmup();
 
     /// function which is passed down to compactor for dropping keys
@@ -321,6 +339,11 @@ protected:
      */
     void initializeShards();
 
+    ENGINE_ERROR_CODE scheduleCompaction(Vbid vbid,
+                                         std::optional<CompactionConfig> config,
+                                         const void* cookie,
+                                         std::chrono::milliseconds delay);
+
     /**
      * Max number of backill items in a single flusher batch before we split
      * into multiple batches. Actual batch size may be larger as we will not
@@ -340,6 +363,9 @@ protected:
     std::unique_ptr<Warmup> warmupTask;
 
     std::vector<std::unique_ptr<BgFetcher>> bgFetchers;
+
+    folly::Synchronized<std::unordered_map<Vbid, std::shared_ptr<CompactTask>>>
+            compactionTasks;
 };
 
 std::ostream& operator<<(std::ostream& os, const EPBucket::FlushResult& res);

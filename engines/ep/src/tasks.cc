@@ -16,6 +16,7 @@
  */
 #include "tasks.h"
 #include "bgfetcher.h"
+#include "bucket_logger.h"
 #include "ep_bucket.h"
 #include "ep_engine.h"
 #include "executorpool.h"
@@ -35,7 +36,7 @@ bool FlusherTask::run() {
 
 CompactTask::CompactTask(EPBucket& bucket,
                          Vbid vbid,
-                         const CompactionConfig& c,
+                         std::optional<CompactionConfig> config,
                          const void* ck,
                          bool completeBeforeShutdown)
     : GlobalTask(&bucket.getEPEngine(),
@@ -44,12 +45,33 @@ CompactTask::CompactTask(EPBucket& bucket,
                  completeBeforeShutdown),
       bucket(bucket),
       vbid(vbid),
-      compactionConfig(c),
       cookie(ck) {
+    auto lockedState = compaction.wlock();
+
+    if (config) {
+        lockedState->config = config.value();
+    }
+
+    EP_LOG_INFO(
+            "Compaction of {}, task:{}, purge_before_ts:{}, "
+            "purge_before_seq:{}, "
+            "drop_deletes:{}, created (awaiting completion).",
+            vbid,
+            getId(),
+            lockedState->config.purge_before_ts,
+            lockedState->config.purge_before_seq,
+            lockedState->config.drop_deletes);
 }
 
 bool CompactTask::run() {
     TRACE_EVENT1("ep-engine/task", "CompactTask", "file_id", vbid.get());
+
+    // pull out the config we have been requested to run with
+    auto config = preDoCompact();
+
+    if (runningCallback) {
+        runningCallback();
+    }
 
     /**
      * MB-30015: Check to see if tombstones that have invalid
@@ -57,13 +79,45 @@ bool CompactTask::run() {
      * the erroneous tombstones especially in customer environments
      * for further analysis
      */
-    compactionConfig.retain_erroneous_tombstones =
-                             bucket.isRetainErroneousTombstones();
-    return bucket.doCompact(vbid, compactionConfig, cookie);
+    config.retain_erroneous_tombstones = bucket.isRetainErroneousTombstones();
+
+    auto reschedule = bucket.doCompact(vbid, config, cookie);
+    bucket.updateCompactionTasks(vbid, !reschedule /*canErase if !reschedule*/);
+    return reschedule || getRescheduleRequiredAndClear();
 }
 
 std::string CompactTask::getDescription() {
     return "Compact DB file " + std::to_string(vbid.get());
+}
+
+bool CompactTask::isRescheduleRequired() const {
+    return compaction.rlock()->rescheduleRequired;
+}
+
+bool CompactTask::getRescheduleRequiredAndClear() {
+    auto handle = compaction.wlock();
+    bool value = handle->rescheduleRequired;
+    handle->rescheduleRequired = false;
+    return value;
+}
+
+CompactionConfig CompactTask::getCurrentConfig() const {
+    return compaction.rlock()->config;
+}
+
+CompactionConfig CompactTask::preDoCompact() {
+    auto lockedState = compaction.wlock();
+    lockedState->rescheduleRequired = false;
+    return lockedState->config;
+}
+
+void CompactTask::runCompactionWithConfig(
+        std::optional<CompactionConfig> config) {
+    auto lockedState = compaction.wlock();
+    if (config) {
+        lockedState->config = config.value();
+    }
+    lockedState->rescheduleRequired = true;
 }
 
 bool StatSnap::run() {

@@ -168,9 +168,11 @@ void EphemeralBucket::attemptToFreeMemory() {
     }
 }
 
-ENGINE_ERROR_CODE EphemeralBucket::scheduleCompaction(Vbid vbid,
-                                                      const CompactionConfig& c,
-                                                      const void* ck) {
+ENGINE_ERROR_CODE EphemeralBucket::scheduleCompaction(
+        Vbid vbid,
+        const CompactionConfig& c,
+        const void* ck,
+        std::chrono::milliseconds delay) {
     return ENGINE_ENOTSUP;
 }
 

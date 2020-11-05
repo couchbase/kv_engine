@@ -197,6 +197,12 @@
             "dynamic": false,
             "type": "size_t"
         },
+        "collections_drop_compaction_delay" : {
+            "default": "5000",
+            "descr": "How many milliseconds before compaction runs following the drop of a collection",
+            "dynamic": false,
+            "type": "size_t"
+        },
         "collections_enabled" : {
             "default": "true",
             "descr": "Enable the collections functionality, enabling the storage of collection metadata",

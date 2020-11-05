@@ -336,7 +336,8 @@ void SingleThreadedKVBucketTest::runCompaction(Vbid id,
     CompactionConfig compactConfig;
     compactConfig.purge_before_seq = purgeBeforeSeq;
     compactConfig.drop_deletes = dropDeletes;
-    store->scheduleCompaction(id, compactConfig, nullptr);
+    store->scheduleCompaction(
+            id, compactConfig, nullptr, std::chrono::seconds(0));
     // run the compaction task
     std::string taskDescription = "Compact DB file " + std::to_string(id.get());
     runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX], taskDescription);
@@ -344,6 +345,8 @@ void SingleThreadedKVBucketTest::runCompaction(Vbid id,
 
 void SingleThreadedKVBucketTest::runCollectionsEraser(Vbid id) {
     if (isPersistent()) {
+        // Collection's eraser will run after a delay, so poke again to run now
+        store->scheduleCompaction(id, {}, nullptr, std::chrono::seconds(0));
         std::string task = "Compact DB file " + std::to_string(id.get());
         runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX], task);
         EXPECT_TRUE(store->getVBucket(id)
@@ -363,6 +366,14 @@ void SingleThreadedKVBucketTest::runCollectionsEraser(Vbid id) {
         runNextTask(lpAuxioQ);
         runNextTask(lpAuxioQ);
     }
+}
+
+size_t SingleThreadedKVBucketTest::getFutureQueueSize(task_type_t type) const {
+    return (*task_executor->getLpTaskQ()[type]).getFutureQueueSize();
+}
+
+size_t SingleThreadedKVBucketTest::getReadyQueueSize(task_type_t type) const {
+    return (*task_executor->getLpTaskQ()[type]).getReadyQueueSize();
 }
 
 void SingleThreadedKVBucketTest::replaceCouchKVStoreWithMock() {

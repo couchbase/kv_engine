@@ -82,4 +82,6 @@ public:
             std::chrono::steady_clock::time_point start) override;
 
     std::function<void(Vbid)> completeBGFetchMultiHook;
+
+    std::shared_ptr<CompactTask> getCompactionTask(Vbid vbid) const;
 };

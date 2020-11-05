@@ -448,10 +448,13 @@ public:
      * @param vbid The vbucket to compact
      * @param c The context for compaction of a DB file
      * @param ck cookie used to notify connection of operation completion
+     * @param delay millisecond delay for the task to execute, 0 is run 'now'
      */
-    virtual ENGINE_ERROR_CODE scheduleCompaction(Vbid vbid,
-                                                 const CompactionConfig& c,
-                                                 const void* ck) = 0;
+    virtual ENGINE_ERROR_CODE scheduleCompaction(
+            Vbid vbid,
+            const CompactionConfig& c,
+            const void* ck,
+            std::chrono::milliseconds delay) = 0;
 
     /**
      * Cancels compaction of a database file

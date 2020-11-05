@@ -105,8 +105,6 @@ private:
 const uint16_t EP_PRIMARY_SHARD = 0;
 class KVShard;
 
-using CompTaskEntry = std::pair<Vbid, ExTask>;
-
 /**
  * KVBucket is the base class for concrete Key/Value bucket implementations
  * which use the concept of VBuckets to support replication, persistence and
@@ -847,9 +845,6 @@ protected:
     size_t statsSnapshotTaskId;
     std::atomic<size_t> lastTransTimePerItem;
     EvictionPolicy eviction_policy;
-
-    std::mutex compactionLock;
-    std::list<CompTaskEntry> compactionTasks;
 
     std::unique_ptr<Collections::Manager> collectionsManager;
 

@@ -36,7 +36,9 @@
 #include "flusher.h"
 #include "item_eviction.h"
 #include "kvstore.h"
+#include "tasks.h"
 #include "test_manifest.h"
+#include "tests/mock/mock_ep_bucket.h"
 #include "tests/mock/mock_global_task.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/test_helpers.h"
@@ -1478,6 +1480,104 @@ TEST_P(EPBucketFullEvictionNoBloomFilterTest, MB_29816) {
     ASSERT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
 }
 
+class EPBucketTestNoRocksDb : public EPBucketTest {
+public:
+    void SetUp() override {
+        EPBucketTest::SetUp();
+    }
+    void TearDown() override {
+        EPBucketTest::TearDown();
+    }
+};
+
+// Test that scheduling compaction means the current task gets the new config
+TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionWithNewConfig) {
+    auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
+    auto task = mockEPBucket->getCompactionTask(vbid);
+    EXPECT_FALSE(task);
+
+    CompactionConfig c;
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              mockEPBucket->scheduleCompaction(
+                      vbid, c, nullptr, std::chrono::seconds(0)));
+    task = mockEPBucket->getCompactionTask(vbid);
+    ASSERT_TRUE(task);
+    EXPECT_EQ(c, task->getCurrentConfig());
+
+    c.purge_before_ts = 100;
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              mockEPBucket->scheduleCompaction(
+                      vbid, c, nullptr, std::chrono::seconds(0)));
+    EXPECT_EQ(c, task->getCurrentConfig());
+
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              mockEPBucket->scheduleCompaction(
+                      vbid, c, nullptr, std::chrono::seconds(0)));
+
+    // Now schedule via the 'no config' method, the task's config should still
+    // be the last one we set.
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              mockEPBucket->scheduleCompaction(
+                      vbid, nullptr, std::chrono::seconds(0)));
+    EXPECT_EQ(c, task->getCurrentConfig());
+
+    // no reschedule needed
+    EXPECT_FALSE(task->run());
+
+    task = mockEPBucket->getCompactionTask(vbid);
+    EXPECT_FALSE(task);
+}
+
+// Test that scheduling compaction when a task is already running the task
+// will reschedule *and* the reschedule picks up the new config.
+TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
+    auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
+    auto task = mockEPBucket->getCompactionTask(vbid);
+    EXPECT_FALSE(task);
+
+    CompactionConfig config1{100, 1, 1, true};
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              mockEPBucket->scheduleCompaction(
+                      vbid, config1, nullptr, std::chrono::seconds(0)));
+    task = mockEPBucket->getCompactionTask(vbid);
+    ASSERT_TRUE(task);
+    EXPECT_EQ(config1, task->getCurrentConfig());
+    // Now we will manually call run, task has no need to reschedule
+    EXPECT_FALSE(task->run());
+    task = mockEPBucket->getCompactionTask(vbid);
+    EXPECT_FALSE(task); // no task anymore
+
+    // Schedule again
+    CompactionConfig config2{200, 2, 0, true};
+    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+              mockEPBucket->scheduleCompaction(
+                      vbid, config2, nullptr, std::chrono::seconds(0)));
+    task = mockEPBucket->getCompactionTask(vbid);
+    ASSERT_TRUE(task);
+    EXPECT_EQ(config2, task->getCurrentConfig());
+
+    // Set our trigger function - this is invoked in the middle of run after
+    // the task has copied the config and logically compaction is running.
+    CompactionConfig config3{300, 3, 0, false};
+    task->setRunningCallback([this, &config3, mockEPBucket]() {
+        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+                  mockEPBucket->scheduleCompaction(
+                          vbid, config3, nullptr, std::chrono::seconds(0)));
+    });
+
+    // Now we will manually call run, returns true means executor to run again.
+    EXPECT_TRUE(task->run());
+
+    // config3 is now the current config
+    EXPECT_EQ(config3, task->getCurrentConfig());
+
+    task->setRunningCallback({});
+
+    // task is now done
+    EXPECT_FALSE(task->run());
+    EXPECT_FALSE(mockEPBucket->getCompactionTask(vbid));
+}
+
 struct PrintToStringCombinedName {
     std::string
     operator()(const ::testing::TestParamInfo<
@@ -1519,3 +1619,8 @@ INSTANTIATE_TEST_SUITE_P(
         EPBucketBloomFilterParameterizedTest,
         EPBucketBloomFilterParameterizedTest::allConfigValues(),
         PrintToStringCombinedName());
+
+INSTANTIATE_TEST_SUITE_P(EPBucketTestNoRocksDb,
+                         EPBucketTestNoRocksDb,
+                         STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);

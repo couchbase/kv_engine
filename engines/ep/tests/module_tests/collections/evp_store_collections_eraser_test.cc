@@ -650,8 +650,12 @@ TEST_P(CollectionsEraserTest, MB_38313) {
     vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
     flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
+    // A drop sets compaction with a future run time, poke it forwards
+    store->scheduleCompaction(vbid, {}, nullptr, std::chrono::seconds(0));
+
     // Remove vbucket
     store->deleteVBucket(vbid, nullptr);
+
     runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX],
                 "Compact DB file 0"); // would fault (gsl exception)
 }
@@ -884,7 +888,8 @@ TEST_P(CollectionsEraserTest, DropEmptyCollection) {
 
     if (persistent()) {
         // Empty collection will not schedule compaction
-        EXPECT_THROW(runCollectionsEraser(vbid), std::logic_error);
+        EXPECT_EQ(0, getFutureQueueSize(WRITER_TASK_IDX));
+        EXPECT_EQ(0, getReadyQueueSize(WRITER_TASK_IDX));
     } else {
         runCollectionsEraser(vbid);
     }
@@ -1183,7 +1188,8 @@ TEST_P(CollectionsEraserSyncWriteTest, DropAfterAbort) {
     if (isPersistent()) {
         // Nothing has been committed to the collection, the drop won't trigger
         // a forced purge
-        EXPECT_THROW(runCollectionsEraser(vbid), std::logic_error);
+        EXPECT_EQ(0, getFutureQueueSize(WRITER_TASK_IDX));
+        EXPECT_EQ(0, getReadyQueueSize(WRITER_TASK_IDX));
     }
 }
 
@@ -1257,8 +1263,9 @@ void CollectionsEraserPersistentOnly::testEmptyCollectionsWithPending(
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
 
-    // Expect that the eraser task is not scheduled (which throws)
-    EXPECT_THROW(runCollectionsEraser(vbid), std::logic_error);
+    // Expect that the eraser task is not scheduled
+    EXPECT_EQ(0, getFutureQueueSize(WRITER_TASK_IDX));
+    EXPECT_EQ(0, getReadyQueueSize(WRITER_TASK_IDX));
 
     EXPECT_EQ(0, vb->getNumItems());
 
@@ -1323,8 +1330,9 @@ void CollectionsEraserPersistentOnly::testEmptyCollections(
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
 
-    // Expect that the eraser task is not scheduled (which throws)
-    EXPECT_THROW(runCollectionsEraser(vbid), std::logic_error);
+    // Expect that the eraser task is not scheduled
+    EXPECT_EQ(0, getFutureQueueSize(WRITER_TASK_IDX));
+    EXPECT_EQ(0, getReadyQueueSize(WRITER_TASK_IDX));
 
     EXPECT_EQ(0, vb->getNumItems());
 
@@ -1350,6 +1358,28 @@ TEST_P(CollectionsEraserPersistentOnly, empty_collections_with_flush) {
 
 TEST_P(CollectionsEraserPersistentOnly, empty_collections_no_flush) {
     testEmptyCollections(false);
+}
+
+// Create and store into multiple collections, drop all of the collections and
+// validate that only 1 task is ready to run (previously 1 per drop/flush)
+TEST_P(CollectionsEraserPersistentOnly, DropManyCompactOnce) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    cm.add(CollectionEntry::vegetable);
+    vb->updateFromManifest(makeManifest(cm));
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "red");
+    store_item(vbid, StoredDocKey{"sprout", CollectionEntry::vegetable}, "yum");
+    flushVBucketToDiskIfPersistent(vbid, 4);
+
+    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::fruit)));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::vegetable)));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    EXPECT_EQ(1,
+              (*task_executor->getLpTaskQ()[WRITER_TASK_IDX])
+                      .getFutureQueueSize());
 }
 
 // Test cases which run for persistent and ephemeral buckets

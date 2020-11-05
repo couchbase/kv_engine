@@ -170,6 +170,12 @@ public:
             std::string_view json,
             cb::engine_errc status1 = cb::engine_errc::would_block);
 
+    /// @return the size of the future queue for the given task type
+    size_t getFutureQueueSize(task_type_t type) const;
+
+    /// @return the size of the ready queue for the given task type
+    size_t getReadyQueueSize(task_type_t type) const;
+
 protected:
     void SetUp() override;
 

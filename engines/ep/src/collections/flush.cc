@@ -23,6 +23,7 @@
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "ep_bucket.h"
+#include "ep_engine.h"
 #include "item.h"
 
 namespace Collections::VB {
@@ -242,8 +243,16 @@ void Flush::checkAndTriggerPurge(Vbid vbid, EPBucket& bucket) const {
 }
 
 void Flush::triggerPurge(Vbid vbid, EPBucket& bucket) {
-    CompactionConfig config;
-    bucket.scheduleCompaction(vbid, config, nullptr);
+    // There's no requirement for compaction to run 'now', schedule with a delay
+    // which allows for any other drop events in the queue to all end up
+    // 'coalesced' into one run of compaction.
+    bucket.scheduleCompaction(
+            vbid,
+            nullptr,
+            std::chrono::milliseconds(
+                    bucket.getEPEngine()
+                            .getConfiguration()
+                            .getCollectionsDropCompactionDelay()));
 }
 
 static std::pair<bool, std::optional<CollectionID>> getCollectionID(

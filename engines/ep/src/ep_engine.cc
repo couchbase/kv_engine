@@ -6368,7 +6368,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteVBucket(
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::compactDB(
         Vbid vbid, const CompactionConfig& c, const void* cookie) {
-    return kvBucket->scheduleCompaction(vbid, c, cookie);
+    return kvBucket->scheduleCompaction(
+            vbid, c, cookie, std::chrono::seconds(0));
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(

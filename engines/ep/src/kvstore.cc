@@ -601,3 +601,10 @@ IORequest::~IORequest() = default;
 bool IORequest::isDelete() const {
     return item->isDeleted() && !item->isPending();
 }
+
+bool CompactionConfig::operator==(const CompactionConfig& other) const {
+    return purge_before_ts == other.purge_before_ts &&
+           purge_before_seq == other.purge_before_seq &&
+           drop_deletes == other.drop_deletes &&
+           retain_erroneous_tombstones == other.retain_erroneous_tombstones;
+}

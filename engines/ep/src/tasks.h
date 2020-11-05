@@ -72,7 +72,7 @@ class CompactTask : public GlobalTask {
 public:
     CompactTask(EPBucket& bucket,
                 Vbid vbid,
-                const CompactionConfig& c,
+                std::optional<CompactionConfig> config,
                 const void* ck,
                 bool completeBeforeShutdown = false);
 
@@ -86,11 +86,63 @@ public:
         return std::chrono::seconds(25);
     }
 
+    /**
+     * This function should be called only when the task is already scheduled.
+     * The caller does not need to know the state of the task, it could be
+     * A: waiting in the scheduler
+     * B: running (i.e. already executing a compaction)
+     *
+     * The config parameter is optional, if a config is specified then
+     * compaction will run with the given config. If a config is not specified
+     * then compaction will run with the current config.
+     *
+     * If the ordering means that A is true, then when compaction does run the
+     * latest config will be used.
+     * If the ordering means that B is true, then the task will reschedule once
+     * the current compaction is complete, the latest config will be used in the
+     * reschedule run.
+     */
+    void runCompactionWithConfig(std::optional<CompactionConfig> config);
+
+    /**
+     * @return true if a reschedule is required
+     */
+    bool isRescheduleRequired() const;
+
+    /**
+     * @return the CompactionConfig for the task
+     */
+    CompactionConfig getCurrentConfig() const;
+
+    /**
+     * Set a callback that is invoked when the task can be considered to be
+     * compacting, that is after preDoCompact has been called.
+     */
+    void setRunningCallback(std::function<void()> callback) {
+        runningCallback = callback;
+    }
+
 private:
+    /**
+     * @return a copy of the current config and clear rescheduleRequired
+     */
+    CompactionConfig preDoCompact();
+
+    /**
+     * @return the value of rescheduleRequired and then set it to false
+     */
+    bool getRescheduleRequiredAndClear();
+
     EPBucket& bucket;
     Vbid vbid;
-    CompactionConfig compactionConfig;
     const void* cookie;
+
+    struct Compaction {
+        CompactionConfig config{};
+        bool rescheduleRequired{false};
+    };
+    folly::Synchronized<Compaction> compaction;
+    std::function<void()> runningCallback;
 };
 
 /**
