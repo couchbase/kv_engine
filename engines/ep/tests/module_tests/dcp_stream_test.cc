@@ -67,6 +67,8 @@ using WakeCkptRemover = EPBucket::WakeCkptRemover;
 
 using namespace std::string_view_literals;
 
+using ::testing::ElementsAre;
+
 void StreamTest::SetUp() {
     bucketType = GetParam();
     if (bucketType == "persistentMagma") {
@@ -1318,6 +1320,10 @@ TEST_P(StreamTest, ProducerReceivesSeqnoAckForErasedStream) {
                       0 /*opaque*/, vbid, 1 /*prepareSeqno*/));
 }
 
+MATCHER_P(HasOperation, op, "") {
+    return arg.getOperation() == op;
+}
+
 /**
  * Regression test for MB-38356 - if a DCP consumer sends a stream request for
  * a Vbid which it is already streaming, then the second request should fail,
@@ -1339,12 +1345,19 @@ TEST_P(StreamTest, MB38356_DuplicateStreamRequest) {
     EXPECT_TRUE(cursor.lock());
     auto& vb = *engine->getVBucket(vbid);
     auto& cm = *vb.checkpointManager;
-    std::vector<queued_item> items;
+    std::vector<queued_item> qis;
     cm.getItemsForCursor(
-            cursor.lock().get(), items, std::numeric_limits<uint64_t>::max());
-    ASSERT_EQ(2, items.size());
-    EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
-    EXPECT_EQ(queue_op::set_vbucket_state, items.at(1)->getOperation());
+            cursor.lock().get(), qis, std::numeric_limits<uint64_t>::max());
+    // Copy to plain Item vector to aid in checking expected value.
+    std::vector<Item> items;
+    std::transform(qis.begin(),
+                   qis.end(),
+                   std::back_inserter(items),
+                   [](const auto& rcptr) { return *rcptr; });
+
+    EXPECT_THAT(items,
+                ElementsAre(HasOperation(queue_op::checkpoint_start),
+                            HasOperation(queue_op::set_vbucket_state)));
 
     destroy_dcp_stream();
 }
