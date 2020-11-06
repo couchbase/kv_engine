@@ -45,7 +45,9 @@ static std::string magmaConfig =
 static std::string magmaRollbackConfig =
         "magma_max_commit_points=10;"
         "magma_commit_point_interval=0;"
-        "magma_commit_point_every_batch=true";
+        "magma_max_checkpoints=10;"
+        "magma_checkpoint_interval=0;"
+        "magma_checkpoint_every_batch=true";
 
 class VBucket;
 

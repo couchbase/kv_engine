@@ -436,6 +436,14 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     auto commitPointInterval = configuration.getMagmaCommitPointInterval();
     configuration.magmaCfg.CommitPointInterval =
             commitPointInterval * std::chrono::milliseconds{1s};
+    configuration.magmaCfg.MaxCheckpoints =
+            configuration.getMagmaMaxCheckpoints();
+    configuration.magmaCfg.CheckpointCreationInterval =
+            configuration.getMagmaCheckpointInterval();
+    configuration.magmaCfg.CheckpointCreationThreshold =
+            configuration.getMagmaCheckpointThreshold();
+    configuration.magmaCfg.HeartbeatInterval =
+            configuration.getMagmaHeartbeatInterval();
     configuration.magmaCfg.MinValueSize =
             configuration.getMagmaValueSeparationSize();
     configuration.magmaCfg.MaxWriteCacheSize =
@@ -459,6 +467,10 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
             configuration.getMagmaEnableBlockCache();
     configuration.magmaCfg.WriteCacheRatio =
             configuration.getMagmaWriteCacheRatio();
+    configuration.magmaCfg.MaxRecoveryBytes =
+            configuration.getMagmaMaxRecoveryBytes();
+    configuration.magmaCfg.LSMMaxLevel0CompactionTTL =
+            configuration.getMagmaMaxLevel0TTL();
 
     configuration.setStore(this);
 
@@ -475,7 +487,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
         configuration.magmaCfg.EnableUpdateStatusForSet = true;
     }
 
-    doCommitEveryBatch = configuration.getMagmaCommitPointEveryBatch();
+    doCheckpointEveryBatch = configuration.getMagmaCheckpointEveryBatch();
 
     // Set up thread and memory tracking.
     auto currEngine = ObjectRegistry::getCurrentEngine();
@@ -1246,7 +1258,7 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
     }
 
     begin = std::chrono::steady_clock::now();
-    status = magma->Sync(doCommitEveryBatch);
+    status = magma->Sync(doCheckpointEveryBatch);
     if (!status) {
         logger->critical("MagmaKVStore::saveDocs {} Sync failed. Status:{}",
                          vbid,
@@ -2050,7 +2062,7 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<CompactionContext> ctx) {
                     status.String());
             return false;
         }
-        status = magma->Sync(doCommitEveryBatch);
+        status = magma->Sync(doCheckpointEveryBatch);
         if (!status) {
             logger->critical(
                     "MagmaKVStore::compactDBInternal {} Sync failed. Status:{}",
@@ -2438,7 +2450,7 @@ Status MagmaKVStore::writeVBStateToDisk(Vbid vbid,
                 status.String());
         return status;
     }
-    status = magma->Sync(doCommitEveryBatch);
+    status = magma->Sync(doCheckpointEveryBatch);
     if (!status) {
         ++st.numVbSetFailure;
         logger->critical(

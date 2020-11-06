@@ -108,13 +108,13 @@ TEST_F(MagmaKVStoreRollbackTest, Rollback) {
     ASSERT_EQ(size_t(5), kvstore->getItemCount(Vbid(0)));
 }
 
-TEST_F(MagmaKVStoreRollbackTest, RollbackNoValidCommitPoint) {
+TEST_F(MagmaKVStoreRollbackTest, RollbackNoValidCheckpoint) {
     uint64_t seqno = 1;
 
     auto cfg = reinterpret_cast<MagmaKVStoreConfig*>(kvstoreConfig.get());
-    auto maxCommitPoints = cfg->getMagmaMaxCommitPoints();
+    auto maxCheckpoints = cfg->getMagmaMaxCheckpoints();
 
-    for (int i = 0; i < int(maxCommitPoints) + 1; i++) {
+    for (int i = 0; i < int(maxCheckpoints) + 1; i++) {
         kvstore->begin(std::make_unique<TransactionContext>(vbid));
         for (int j = 0; j < 5; j++) {
             auto key = makeStoredDocKey("key" + std::to_string(seqno));

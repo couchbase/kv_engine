@@ -733,7 +733,7 @@ protected:
 
     // For testing, we need to simulate couchstore where every batch
     // is a potential rollback point.
-    bool doCommitEveryBatch{false};
+    bool doCheckpointEveryBatch{false};
 
     // Using upsert for Set means we can't keep accurate document totals.
     // This is used for testing only!

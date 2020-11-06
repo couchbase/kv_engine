@@ -1067,10 +1067,34 @@
             "descr": "Maximum # of commit points retained for rollback.",
             "type": "size_t"
         },
+        "magma_max_checkpoints": {
+            "default": "5",
+            "dynamic": false,
+            "descr": "Maximum # of checkpoints retained for rollback.",
+            "type": "size_t"
+        },
         "magma_commit_point_interval": {
             "default": "60",
             "dynamic": false,
             "descr": "Frequency of commit point interval; in seconds. A commit point interval provides a rollback point to which the data store can rollback to in the event of a failure.",
+            "type": "size_t"
+        },
+        "magma_checkpoint_interval": {
+            "default": "60",
+            "dynamic": false,
+            "descr": "Frequency of checkpoint interval; in seconds. A checkpoint interval provides a rollback point to which the data store can rollback to in the event of a failure.",
+            "type": "size_t"
+        },
+        "magma_checkpoint_threshold": {
+            "default": "0.02",
+            "dynamic": false,
+            "descr": "Threshold of data written before a checkpoint is created; threshold is based on a fraction of the total data size. Checkpoints require data to be retained in order to provide rollback capability. If the amount of data written during a checkpoint interval is large, we need to do more frequent checkpoints to reduce space amplification.",
+            "type": "float"
+        },
+        "magma_heartbeat_interval": {
+            "default": "10",
+            "dynamic": false,
+            "descr": "Frequency of heartbeat interval; in seconds. A heartbeat task is scheduled to provide cleanup and maintenance when magma is idle.",
             "type": "size_t"
         },
         "magma_value_separation_size": {
@@ -1121,10 +1145,10 @@
             "descr": "If the number of storage threads = 0, then we set the number of storage threads based on the number of writer threads up to a maximum of 20 threads and use magma_flusher_thread_percentage to determine the ratio of flusher and compactor threads.",
             "type": "size_t"
         },
-        "magma_commit_point_every_batch": {
+        "magma_checkpoint_every_batch": {
             "default": "false",
             "dynamic": false,
-            "descr": "Couchstore generates a potential commit point at the end of every batch of items. During normal operation, Magma commit points are take at every magma_commit_point_interval. Many of the tests require more frequent commit points so this configuration parameter makes sure every batch generates a commit point. Should be used for testing only!",
+            "descr": "Couchstore generates a potential commit point at the end of every batch of items. During normal operation, Magma checkpoints are take at every magma_checkpoint_interval. Many of the tests require more frequent checkpoints so this configuration parameter makes sure every batch generates a checkpoint. Should be used for testing only!",
             "type": "bool"
         },
         "magma_enable_upsert": {
@@ -1162,6 +1186,18 @@
                     "max": 100
                 }
             }
+        },
+        "magma_max_recovery_bytes": {
+            "default": "67108864",
+            "dynamic": false,
+            "descr": "Maximum amount of data that is replayed from the WAL during magma recovery. When this threshold is reached magma, creates a temporary checkpoint to recover at. This is per kvstore and in bytes.",
+            "type": "size_t"
+        },
+        "magma_max_level_0_ttl": {
+            "default": "600",
+            "dynamic": false,
+            "descr": "Maximum time (in seconds) that data is kept in level 0 before it is merged.",
+            "type": "size_t"
         },
         "retain_erroneous_tombstones": {
             "default": "true",

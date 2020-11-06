@@ -36,7 +36,7 @@ public:
     void SetUp() override {
         // A few of the tests in this test suite (in particular the ones that
         // care about document counting) require
-        // "magma_commit_point_every_batch" to be set to true. In this
+        // "magma_checkpoint_every_batch" to be set to true. In this
         // particular case it ensures that we visit older (stale) values that
         // may still exist during compaction.
 #ifdef EP_USE_MAGMA

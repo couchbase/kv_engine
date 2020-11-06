@@ -19,6 +19,9 @@
 
 #include "kvstore_config.h"
 #include "libmagma/magma.h"
+#include <chrono>
+
+using namespace std::chrono_literals;
 
 class Configuration;
 class MagmaKVStore;
@@ -46,8 +49,20 @@ public:
     size_t getMagmaMaxCommitPoints() const {
         return magmaMaxCommitPoints;
     }
+    size_t getMagmaMaxCheckpoints() const {
+        return magmaMaxCheckpoints;
+    }
     size_t getMagmaCommitPointInterval() const {
         return magmaCommitPointInterval;
+    }
+    std::chrono::milliseconds getMagmaCheckpointInterval() const {
+        return magmaCheckpointInterval;
+    }
+    float getMagmaCheckpointThreshold() const {
+        return magmaCheckpointThreshold;
+    }
+    std::chrono::milliseconds getMagmaHeartbeatInterval() const {
+        return magmaHeartbeatInterval;
     }
     size_t getMagmaValueSeparationSize() const {
         return magmaValueSeparationSize;
@@ -67,8 +82,8 @@ public:
     size_t getMagmaInitialWalBufferSize() const {
         return magmaInitialWalBufferSize;
     }
-    bool getMagmaCommitPointEveryBatch() const {
-        return magmaCommitPointEveryBatch;
+    bool getMagmaCheckpointEveryBatch() const {
+        return magmaCheckpointEveryBatch;
     }
     bool getMagmaEnableUpsert() const {
         return magmaEnableUpsert;
@@ -106,6 +121,9 @@ public:
     size_t getMagmaMaxDefaultStorageThreads() const {
         return magmaMaxDefaultStorageThreads;
     }
+    size_t getMagmaMaxRecoveryBytes() const {
+        return magmaMaxRecoveryBytes;
+    }
 
     void setMetadataPurgeAge(size_t value) {
         metadataPurgeAge.store(value);
@@ -113,6 +131,10 @@ public:
 
     size_t getMetadataPurgeAge() const {
         return metadataPurgeAge.load();
+    }
+
+    std::chrono::seconds getMagmaMaxLevel0TTL() const {
+        return magmaMaxLevel0TTL;
     }
 
     magma::Magma::Config magmaCfg;
@@ -151,8 +173,20 @@ private:
     // Max commit points that can be rolled back to
     int magmaMaxCommitPoints;
 
+    // Max checkpoints that can be rolled back to
+    int magmaMaxCheckpoints;
+
     // Time interval (in minutes) between commit points
     size_t magmaCommitPointInterval;
+
+    // Time interval between checkpoints
+    std::chrono::milliseconds magmaCheckpointInterval;
+
+    // Fraction of total data before checkpoint is created
+    float magmaCheckpointThreshold;
+
+    // Time interval (in milliseconds) between heartbeat tasks
+    std::chrono::milliseconds magmaHeartbeatInterval;
 
     // Magma minimum value for key value separation.
     // Values < magmaValueSeparationSize, value remains in key index.
@@ -175,7 +209,7 @@ private:
 
     // Used in testing to make sure each batch is flushed to disk to simulate
     // how couchstore flushes each batch to disk.
-    bool magmaCommitPointEveryBatch;
+    bool magmaCheckpointEveryBatch;
 
     // When true, the kv_engine will utilize Magma's upsert capabiltiy
     // but accurate document counts for the data store or collections can
@@ -228,4 +262,17 @@ private:
      * tombstones should be purged.
      */
     std::atomic<size_t> metadataPurgeAge;
+
+    /**
+     * Max amount of data that is replayed from the WAL during magma's
+     * recovery. When this threshold is reached, magma creates a temporary
+     * checkpoint to recover at. This is per kvstore and in bytes.
+     */
+    size_t magmaMaxRecoveryBytes{67108864};
+
+    /**
+     * Maximum life time for data in level-0 before it is
+     * merged
+     */
+    std::chrono::seconds magmaMaxLevel0TTL{600};
 };

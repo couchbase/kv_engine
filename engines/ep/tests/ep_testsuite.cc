@@ -7097,7 +7097,9 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_item_freq_decayer_percent",
               "ep_item_num_based_new_chk",
               "ep_keep_closed_chks",
-              "ep_magma_commit_point_every_batch",
+              "ep_magma_checkpoint_every_batch",
+              "ep_magma_checkpoint_interval",
+              "ep_magma_checkpoint_threshold",
               "ep_magma_commit_point_interval",
               "ep_magma_delete_frag_ratio",
               "ep_magma_delete_memtable_writecache",
@@ -7107,8 +7109,12 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_magma_expiry_frag_threshold",
               "ep_magma_fragmentation_percentage",
               "ep_magma_flusher_thread_percentage",
+              "ep_magma_heartbeat_interval",
+              "ep_magma_max_checkpoints",
               "ep_magma_max_commit_points",
               "ep_magma_max_default_storage_threads",
+              "ep_magma_max_level_0_ttl",
+              "ep_magma_max_recovery_bytes",
               "ep_magma_max_write_cache",
               "ep_magma_mem_quota_ratio",
               "ep_magma_value_separation_size",
@@ -7377,7 +7383,9 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_num_value_ejects",
               "ep_num_workers",
               "ep_num_writer_threads",
-              "ep_magma_commit_point_every_batch",
+              "ep_magma_checkpoint_every_batch",
+              "ep_magma_checkpoint_interval",
+              "ep_magma_checkpoint_threshold",
               "ep_magma_commit_point_interval",
               "ep_magma_delete_frag_ratio",
               "ep_magma_delete_memtable_writecache",
@@ -7387,8 +7395,12 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_magma_expiry_frag_threshold",
               "ep_magma_fragmentation_percentage",
               "ep_magma_flusher_thread_percentage",
+              "ep_magma_heartbeat_interval",
+              "ep_magma_max_checkpoints",
               "ep_magma_max_commit_points",
               "ep_magma_max_default_storage_threads",
+              "ep_magma_max_level_0_ttl",
+              "ep_magma_max_recovery_bytes",
               "ep_magma_max_write_cache",
               "ep_magma_mem_quota_ratio",
               "ep_magma_value_separation_size",
@@ -8578,7 +8590,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "magma_commit_point_interval=0;"
-                 "magma_commit_point_every_batch=true",
+                 "magma_checkpoint_interval=0;"
+                 "magma_checkpoint_every_batch=true",
                  /* TODO RDB: Needs stat:ep_db_data_size */
                  prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),
@@ -8587,7 +8600,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "magma_commit_point_interval=0;"
-                 "magma_commit_point_every_batch=true",
+                 "magma_checkpoint_interval=0;"
+                 "magma_checkpoint_every_batch=true",
                  prepare,
                  cleanup),
         TestCase("bg stats",
@@ -8667,7 +8681,9 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "magma_commit_point_interval=0;"
-                 "magma_commit_point_every_batch=true",
+                 "magma_commit_point_interval=0;"
+                 "magma_checkpoint_interval=0;"
+                 "magma_checkpoint_every_batch=true",
                  /* TODO RDB: DB file size is not reported correctly */
                  prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),

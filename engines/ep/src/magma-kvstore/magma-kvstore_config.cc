@@ -53,13 +53,19 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaDeleteFragRatio = config.getMagmaDeleteFragRatio();
     magmaMaxCommitPoints = config.getMagmaMaxCommitPoints();
     magmaCommitPointInterval = config.getMagmaCommitPointInterval();
+    magmaMaxCheckpoints = config.getMagmaMaxCheckpoints();
+    magmaCheckpointInterval =
+            std::chrono::milliseconds(1s * config.getMagmaCheckpointInterval());
+    magmaCheckpointThreshold = config.getMagmaCheckpointThreshold();
+    magmaHeartbeatInterval =
+            std::chrono::milliseconds(1s * config.getMagmaHeartbeatInterval());
     magmaValueSeparationSize = config.getMagmaValueSeparationSize();
     magmaMemQuotaRatio = config.getMagmaMemQuotaRatio();
     magmaWriteCacheRatio = config.getMagmaWriteCacheRatio();
     magmaMaxWriteCache = config.getMagmaMaxWriteCache();
     magmaEnableDirectIo = config.isMagmaEnableDirectIo();
     magmaInitialWalBufferSize = config.getMagmaInitialWalBufferSize();
-    magmaCommitPointEveryBatch = config.isMagmaCommitPointEveryBatch();
+    magmaCheckpointEveryBatch = config.isMagmaCheckpointEveryBatch();
     magmaEnableUpsert = config.isMagmaEnableUpsert();
     magmaExpiryFragThreshold = config.getMagmaExpiryFragThreshold();
     magmaExpiryPurgerInterval =
@@ -67,6 +73,9 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaEnableBlockCache = config.isMagmaEnableBlockCache();
     magmaFragmentationPercentage = config.getMagmaFragmentationPercentage();
     magmaFlusherPercentage = config.getMagmaFlusherThreadPercentage();
+    magmaMaxRecoveryBytes = config.getMagmaMaxRecoveryBytes();
+    magmaMaxLevel0TTL =
+            std::chrono::seconds(1s * config.getMagmaMaxLevel0Ttl());
     magmaMaxDefaultStorageThreads = config.getMagmaMaxDefaultStorageThreads();
     numWriterThreads = config.getNumWriterThreads();
     metadataPurgeAge = config.getPersistentMetadataPurgeAge();

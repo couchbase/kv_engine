@@ -58,7 +58,8 @@ protected:
         config_string +=
                 "ht_size=47;"
                 "magma_commit_point_interval=0;"
-                "magma_commit_point_every_batch=true";
+                "magma_checkpoint_interval=0;"
+                "magma_checkpoint_every_batch=true";
 
         STParameterizedBucketTest::SetUp();
 
