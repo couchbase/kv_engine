@@ -73,7 +73,6 @@ public:
     CompactTask(EPBucket& bucket,
                 Vbid vbid,
                 const CompactionConfig& c,
-                uint64_t purgeSeqno,
                 const void* ck,
                 bool completeBeforeShutdown = false);
 
@@ -91,7 +90,6 @@ private:
     EPBucket& bucket;
     Vbid vbid;
     CompactionConfig compactionConfig;
-    uint64_t purgeSeqno;
     const void* cookie;
 };
 

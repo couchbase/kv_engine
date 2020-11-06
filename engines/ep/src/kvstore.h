@@ -101,7 +101,6 @@ struct CompactionConfig {
     uint64_t purge_before_ts = 0;
     uint64_t purge_before_seq = 0;
     uint8_t drop_deletes = 0;
-    uint64_t purgeSeq = 0;
     bool retain_erroneous_tombstones = false;
 };
 

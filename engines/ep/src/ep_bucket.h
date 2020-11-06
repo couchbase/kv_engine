@@ -124,7 +124,6 @@ public:
      *
      * @param Vbid vbucket to compact
      * @param config Compaction configuration to use
-     * @param purgeSeq the compaction purgeSeq
      * @param cookie used to notify connection of operation completion
      *
      * return true if the compaction needs to be rescheduled and false
@@ -132,7 +131,6 @@ public:
      */
     bool doCompact(Vbid vbid,
                    CompactionConfig& config,
-                   uint64_t purgeSeq,
                    const void* cookie);
 
     std::pair<uint64_t, bool> getLastPersistedCheckpointId(Vbid vb) override;
@@ -260,10 +258,7 @@ protected:
      *
      * @param config the configuration to use for running compaction
      */
-    void compactInternal(Vbid vbid,
-                         std::unique_lock<std::mutex>& vbLock,
-                         CompactionConfig& config,
-                         uint64_t purgeSeqno);
+    void compactInternal(LockedVBucketPtr& vb, CompactionConfig& config);
 
     /**
      * Callback to be called on completion of the compaction (just before the

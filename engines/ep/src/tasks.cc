@@ -36,7 +36,6 @@ bool FlusherTask::run() {
 CompactTask::CompactTask(EPBucket& bucket,
                          Vbid vbid,
                          const CompactionConfig& c,
-                         uint64_t purgeSeqno,
                          const void* ck,
                          bool completeBeforeShutdown)
     : GlobalTask(&bucket.getEPEngine(),
@@ -46,7 +45,6 @@ CompactTask::CompactTask(EPBucket& bucket,
       bucket(bucket),
       vbid(vbid),
       compactionConfig(c),
-      purgeSeqno(purgeSeqno),
       cookie(ck) {
 }
 
@@ -61,7 +59,7 @@ bool CompactTask::run() {
      */
     compactionConfig.retain_erroneous_tombstones =
                              bucket.isRetainErroneousTombstones();
-    return bucket.doCompact(vbid, compactionConfig, purgeSeqno, cookie);
+    return bucket.doCompact(vbid, compactionConfig, cookie);
 }
 
 std::string CompactTask::getDescription() {
