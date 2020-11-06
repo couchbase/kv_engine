@@ -321,7 +321,8 @@ void EPBucket::initializeShards() {
                 std::bind(&EPBucket::makeCompactionContext,
                           this,
                           std::placeholders::_1,
-                          std::placeholders::_2));
+                          std::placeholders::_2,
+                          std::placeholders::_3));
     });
 }
 
@@ -1000,23 +1001,24 @@ void EPBucket::stopBgFetcher() {
     }
 }
 
-ENGINE_ERROR_CODE EPBucket::scheduleCompaction(const CompactionConfig& c,
+ENGINE_ERROR_CODE EPBucket::scheduleCompaction(Vbid vbid,
+                                               const CompactionConfig& c,
                                                const void* cookie) {
-    ENGINE_ERROR_CODE errCode = checkForDBExistence(c.vbid);
+    ENGINE_ERROR_CODE errCode = checkForDBExistence(vbid);
     if (errCode != ENGINE_SUCCESS) {
         return errCode;
     }
 
     /* Obtain the vbucket so we can get the previous purge seqno */
-    VBucketPtr vb = vbMap.getBucket(c.vbid);
+    VBucketPtr vb = vbMap.getBucket(vbid);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
     }
 
     LockHolder lh(compactionLock);
     ExTask task = std::make_shared<CompactTask>(
-            *this, c, vb->getPurgeSeqno(), cookie);
-    compactionTasks.emplace_back(std::make_pair(c.vbid, task));
+            *this, vbid, c, vb->getPurgeSeqno(), cookie);
+    compactionTasks.emplace_back(std::make_pair(vbid, task));
     bool snoozed = false;
     if (compactionTasks.size() > 1) {
         if ((stats.diskQueueSize > compactionWriteQueueCap &&
@@ -1036,7 +1038,7 @@ ENGINE_ERROR_CODE EPBucket::scheduleCompaction(const CompactionConfig& c,
             "Compaction of {}, task:{}, purge_before_ts:{}, "
             "purge_before_seq:{}, "
             "drop_deletes:{}, snoozed:{}, scheduled (awaiting completion).",
-            c.vbid,
+            vbid,
             uint64_t(task->getId()),
             c.purge_before_ts,
             c.purge_before_seq,
@@ -1135,12 +1137,12 @@ void EPBucket::dropKey(Vbid vbid,
 }
 
 std::shared_ptr<CompactionContext> EPBucket::makeCompactionContext(
-        CompactionConfig& config, uint64_t purgeSeqno) {
+        Vbid vbid, CompactionConfig& config, uint64_t purgeSeqno) {
     config.purge_before_ts =
             ep_real_time() -
             getEPEngine().getConfiguration().getPersistentMetadataPurgeAge();
 
-    auto ctx = std::make_shared<CompactionContext>(config, purgeSeqno);
+    auto ctx = std::make_shared<CompactionContext>(vbid, config, purgeSeqno);
 
     BloomFilterCBPtr filter(new BloomFilterCallback(*this));
     ctx->bloomFilterCallback = filter;
@@ -1150,7 +1152,7 @@ std::shared_ptr<CompactionContext> EPBucket::makeCompactionContext(
 
     ctx->droppedKeyCb = std::bind(&EPBucket::dropKey,
                                   this,
-                                  config.vbid,
+                                  vbid,
                                   std::placeholders::_1,
                                   std::placeholders::_2,
                                   std::placeholders::_3,
@@ -1164,7 +1166,7 @@ std::shared_ptr<CompactionContext> EPBucket::makeCompactionContext(
 }
 
 void EPBucket::compactionCompletionCallback(CompactionContext& ctx) {
-    auto vb = getVBucket(ctx.compactConfig.vbid);
+    auto vb = getVBucket(ctx.vbid);
     if (!vb) {
         return;
     }
@@ -1173,15 +1175,16 @@ void EPBucket::compactionCompletionCallback(CompactionContext& ctx) {
     vb->decrNumTotalItems(ctx.stats.collectionsItemsPurged);
 }
 
-void EPBucket::compactInternal(std::unique_lock<std::mutex>& vbLock,
+void EPBucket::compactInternal(Vbid vbid,
+                               std::unique_lock<std::mutex>& vbLock,
                                CompactionConfig& config,
                                uint64_t purgeSeqno) {
-    auto ctx = makeCompactionContext(config, purgeSeqno);
-    auto* shard = vbMap.getShardByVbId(config.vbid);
+    auto ctx = makeCompactionContext(vbid, config, purgeSeqno);
+    auto* shard = vbMap.getShardByVbId(vbid);
     auto* store = shard->getRWUnderlying();
     bool result = store->compactDB(vbLock, ctx);
 
-    VBucketPtr vb = getVBucket(config.vbid);
+    VBucketPtr vb = getVBucket(vbid);
     if (vb) {
         if (getEPEngine().getConfiguration().isBfilterEnabled() && result) {
             vb->swapFilter();
@@ -1196,7 +1199,7 @@ void EPBucket::compactInternal(std::unique_lock<std::mutex>& vbLock,
             "collection_items_erased:alive:{},deleted:{}, "
             "size/items/tombstones/purge_seqno pre{{{}, {}, {}, {}}}, "
             "post{{{}, {}, {}, {}}}",
-            config.vbid,
+            vbid,
             result ? "ok" : "failed",
             ctx->stats.tombstonesPurged,
             ctx->stats.preparesPurged,
@@ -1212,20 +1215,21 @@ void EPBucket::compactInternal(std::unique_lock<std::mutex>& vbLock,
             ctx->stats.post.purgeSeqno);
 }
 
-bool EPBucket::doCompact(CompactionConfig& config,
+// Running on WriterTask - CompactTask
+bool EPBucket::doCompact(Vbid vbid,
+                         CompactionConfig& config,
                          uint64_t purgeSeqno,
                          const void* cookie) {
     ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
-    Vbid vbid = config.vbid;
 
-    auto vb = getLockedVBucket(config.vbid, std::try_to_lock);
+    auto vb = getLockedVBucket(vbid, std::try_to_lock);
     if (!vb.owns_lock()) {
         // VB currently locked; try again later.
         return true;
     }
 
     if (vb) {
-        compactInternal(vb.getLock(), config, purgeSeqno);
+        compactInternal(vbid, vb.getLock(), config, purgeSeqno);
     } else if (cookie) {
         err = ENGINE_NOT_MY_VBUCKET;
         engine.storeEngineSpecific(cookie, nullptr);

@@ -113,7 +113,8 @@ public:
     /// Stops the background fetcher for each shard.
     void stopBgFetcher();
 
-    ENGINE_ERROR_CODE scheduleCompaction(const CompactionConfig& c,
+    ENGINE_ERROR_CODE scheduleCompaction(Vbid vbid,
+                                         const CompactionConfig& c,
                                          const void* ck) override;
 
     ENGINE_ERROR_CODE cancelCompaction(Vbid vbid) override;
@@ -121,13 +122,16 @@ public:
     /**
      * Compaction of a database file
      *
-     * @param ctx Context for compaction hooks
-     * @param ck cookie used to notify connection of operation completion
+     * @param Vbid vbucket to compact
+     * @param config Compaction configuration to use
+     * @param purgeSeq the compaction purgeSeq
+     * @param cookie used to notify connection of operation completion
      *
      * return true if the compaction needs to be rescheduled and false
      *             otherwise
      */
-    bool doCompact(CompactionConfig& config,
+    bool doCompact(Vbid vbid,
+                   CompactionConfig& config,
                    uint64_t purgeSeq,
                    const void* cookie);
 
@@ -226,7 +230,7 @@ public:
     void warmupCompleted();
 
     std::shared_ptr<CompactionContext> makeCompactionContext(
-            CompactionConfig& config, uint64_t purgeSeqno);
+            Vbid vbid, CompactionConfig& config, uint64_t purgeSeqno);
 
     // implemented by querying StorageProperties for the buckets KVStore
     bool isByIdScanSupported() const override;
@@ -256,7 +260,8 @@ protected:
      *
      * @param config the configuration to use for running compaction
      */
-    void compactInternal(std::unique_lock<std::mutex>& vbLock,
+    void compactInternal(Vbid vbid,
+                         std::unique_lock<std::mutex>& vbLock,
                          CompactionConfig& config,
                          uint64_t purgeSeqno);
 

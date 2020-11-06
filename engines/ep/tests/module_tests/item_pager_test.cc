@@ -164,9 +164,8 @@ protected:
             // Force a compaction here to make sure there are no implicit
             // compactions to consume any memory
             CompactionConfig compactionConfig;
-            compactionConfig.vbid = vbid;
-            auto cctx =
-                    std::make_shared<CompactionContext>(compactionConfig, 0);
+            auto cctx = std::make_shared<CompactionContext>(
+                    vbid, compactionConfig, 0);
             auto vb = store->getLockedVBucket(vbid);
             EXPECT_TRUE(kvstore->compactDB(vb.getLock(), cctx));
         }

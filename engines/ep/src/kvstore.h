@@ -101,15 +101,17 @@ struct CompactionConfig {
     uint64_t purge_before_ts = 0;
     uint64_t purge_before_seq = 0;
     uint8_t drop_deletes = 0;
-    Vbid vbid = Vbid(0);
     uint64_t purgeSeq = 0;
     bool retain_erroneous_tombstones = false;
 };
 
 struct CompactionContext {
-    CompactionContext(const CompactionConfig& config, uint64_t purgeSeq)
-        : compactConfig(config), max_purged_seq(purgeSeq) {
+    CompactionContext(Vbid vbid,
+                      const CompactionConfig& config,
+                      uint64_t purgeSeq)
+        : vbid(vbid), compactConfig(config), max_purged_seq(purgeSeq) {
     }
+    Vbid vbid;
 
     /// The configuration for this compaction.
     const CompactionConfig compactConfig;
@@ -134,8 +136,8 @@ struct CompactionContext {
 };
 
 using MakeCompactionContextCallback =
-        std::function<std::shared_ptr<CompactionContext>(CompactionConfig&,
-                                                         uint64_t)>;
+        std::function<std::shared_ptr<CompactionContext>(
+                Vbid, CompactionConfig&, uint64_t)>;
 
 struct kvstats_ctx {
     explicit kvstats_ctx(VB::Commit& commitData) : commitData(commitData) {

@@ -2542,7 +2542,7 @@ TEST_P(DurabilityEPBucketTest, DoNotExpirePendingItem) {
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     CompactionConfig config;
-    auto cctx = std::make_shared<CompactionContext>(config, 0);
+    auto cctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
 
     cctx->expiryCallback = std::make_shared<FailOnExpiryCallback>();
 
@@ -2593,7 +2593,7 @@ TEST_P(DurabilityEPBucketTest,
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     CompactionConfig config;
-    auto cctx = std::make_shared<CompactionContext>(config, 0);
+    auto cctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
     cctx->expiryCallback = std::make_shared<FailOnExpiryCallback>();
 
     auto* kvstore = store->getOneRWUnderlying();
@@ -2670,7 +2670,7 @@ TEST_P(DurabilityEPBucketTest, RemoveCommittedPreparesAtCompaction) {
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     CompactionConfig config;
-    auto cctx = std::make_shared<CompactionContext>(config, 0);
+    auto cctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
     cctx->expiryCallback = std::make_shared<FailOnExpiryCallback>();
 
     auto* kvstore = store->getOneRWUnderlying();
@@ -2748,7 +2748,7 @@ TEST_P(DurabilityEPBucketTest, RemoveAbortedPreparesAtCompaction) {
     EXPECT_EQ(0, kvstore->getVBucketState(vbid)->onDiskPrepares);
 
     CompactionConfig config;
-    auto cctx = std::make_shared<CompactionContext>(config, 0);
+    auto cctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
     cctx->expiryCallback = std::make_shared<FailOnExpiryCallback>();
 
     {
@@ -2764,7 +2764,7 @@ TEST_P(DurabilityEPBucketTest, RemoveAbortedPreparesAtCompaction) {
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
 
     config.purge_before_ts = std::numeric_limits<uint64_t>::max();
-    cctx = std::make_shared<CompactionContext>(config, 0);
+    cctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
     {
         auto vb = store->getLockedVBucket(vbid);
         EXPECT_TRUE(kvstore->compactDB(vb.getLock(), cctx));

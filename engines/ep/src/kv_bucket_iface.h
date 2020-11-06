@@ -448,10 +448,12 @@ public:
     /**
      * Triggers compaction of a database file
      *
+     * @param vbid The vbucket to compact
      * @param c The context for compaction of a DB file
      * @param ck cookie used to notify connection of operation completion
      */
-    virtual ENGINE_ERROR_CODE scheduleCompaction(const CompactionConfig& c,
+    virtual ENGINE_ERROR_CODE scheduleCompaction(Vbid vbid,
+                                                 const CompactionConfig& c,
                                                  const void* ck) = 0;
 
     /**

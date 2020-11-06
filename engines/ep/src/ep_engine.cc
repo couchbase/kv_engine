@@ -1103,13 +1103,13 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
     compactionConfig.purge_before_ts = payload->getPurgeBeforeTs();
     compactionConfig.purge_before_seq = payload->getPurgeBeforeSeq();
     compactionConfig.drop_deletes = payload->getDropDeletes();
-    compactionConfig.vbid = req.getVBucket();
+    Vbid vbid = req.getVBucket();
 
     ENGINE_ERROR_CODE err;
     if (e->getEngineSpecific(cookie) == nullptr) {
         ++stats.pendingCompactions;
         e->storeEngineSpecific(cookie, e);
-        err = e->compactDB(compactionConfig, cookie);
+        err = e->compactDB(vbid, compactionConfig, cookie);
     } else {
         e->storeEngineSpecific(cookie, nullptr);
         err = ENGINE_SUCCESS;
@@ -1122,12 +1122,12 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
         --stats.pendingCompactions;
         EP_LOG_WARN(
                 "Compaction of {} failed because the db file doesn't exist!!!",
-                compactionConfig.vbid);
+                vbid);
         return ENGINE_NOT_MY_VBUCKET;
     case ENGINE_EINVAL:
         --stats.pendingCompactions;
         EP_LOG_WARN("Compaction of {} failed because of an invalid argument",
-                    compactionConfig.vbid);
+                    vbid);
         return ENGINE_EINVAL;
     case ENGINE_EWOULDBLOCK:
         // We don't use the value stored in the engine-specific code, just
@@ -1138,13 +1138,13 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
         EP_LOG_WARN(
                 "Request to compact {} hit a temporary failure and may need to "
                 "be retried",
-                compactionConfig.vbid);
+                vbid);
         e->setErrorContext(cookie, "Temporary failure in compacting db file.");
         return ENGINE_TMPFAIL;
     default:
         --stats.pendingCompactions;
         EP_LOG_WARN("Compaction of {} failed: {}",
-                    compactionConfig.vbid,
+                    vbid,
                     cb::to_string(cb::engine_errc(err)));
         e->setErrorContext(cookie,
                            "Failed to compact db file: " +
@@ -6313,8 +6313,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteVBucket(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::compactDB(
-        const CompactionConfig& c, const void* cookie) {
-    return kvBucket->scheduleCompaction(c, cookie);
+        Vbid vbid, const CompactionConfig& c, const void* cookie) {
+    return kvBucket->scheduleCompaction(vbid, c, cookie);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(

@@ -97,8 +97,8 @@ TEST_F(CouchKVStoreTest, CompactStatsTest) {
     compactionConfig.purge_before_seq = 0;
     compactionConfig.purge_before_ts = 0;
     compactionConfig.drop_deletes = 0;
-    compactionConfig.vbid = Vbid(0);
-    auto cctx = std::make_shared<CompactionContext>(compactionConfig, 0);
+    auto cctx =
+            std::make_shared<CompactionContext>(Vbid(0), compactionConfig, 0);
 
     {
         auto vbLock = getVbLock();
@@ -795,8 +795,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, compactDB_compact_db_ex) {
     config.purge_before_seq = 0;
     config.purge_before_ts = 0;
     config.drop_deletes = 0;
-    config.vbid = Vbid(0);
-    auto cctx = std::make_shared<CompactionContext>(config, 0);
+    auto cctx = std::make_shared<CompactionContext>(vbid, config, 0);
 
     {
         /* Establish Logger expectation */
@@ -1169,7 +1168,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, CompactFailedStatsTest) {
     populate_items(1);
 
     CompactionConfig config;
-    auto cctx = std::make_shared<CompactionContext>(config, 0);
+    auto cctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
 
     {
         /* Establish FileOps expectation */
@@ -1521,7 +1520,7 @@ TEST_F(CouchstoreTest, testV2WriteRead) {
 // we wouldn't potentially get a database header without the _local/document
 TEST_F(CouchstoreTest, MB40415_regression_test) {
     CompactionConfig config;
-    auto ctx = std::make_shared<CompactionContext>(config, 0);
+    auto ctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
 
     // Verify that if we would "fail" the precommit hook for some reason
     // the entire compaction would fail...
@@ -1944,7 +1943,7 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushing) {
     std::mutex mutex;
     std::unique_lock<std::mutex> lock(mutex);
     CompactionConfig config;
-    auto ctx = std::make_shared<CompactionContext>(config, 0);
+    auto ctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
     kvstore->compactDB(lock, ctx);
     ASSERT_GT(ii, 1) << "There should at least be two callbacks";
     ASSERT_LT(ii, 12) << "There should be up to 10 catch up without holding "

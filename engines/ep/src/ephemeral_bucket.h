@@ -36,7 +36,8 @@ public:
 
     bool initialize() override;
 
-    ENGINE_ERROR_CODE scheduleCompaction(const CompactionConfig& c,
+    ENGINE_ERROR_CODE scheduleCompaction(Vbid vbid,
+                                         const CompactionConfig& c,
                                          const void* ck) override;
 
     ENGINE_ERROR_CODE cancelCompaction(Vbid vbid) override;

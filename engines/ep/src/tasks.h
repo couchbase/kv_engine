@@ -71,6 +71,7 @@ private:
 class CompactTask : public GlobalTask {
 public:
     CompactTask(EPBucket& bucket,
+                Vbid vbid,
                 const CompactionConfig& c,
                 uint64_t purgeSeqno,
                 const void* ck,
@@ -78,9 +79,7 @@ public:
 
     bool run() override;
 
-    std::string getDescription() override {
-        return desc;
-    }
+    std::string getDescription() override;
 
     std::chrono::microseconds maxExpectedDuration() override {
         // Empirical evidence suggests this task runs under 25s 99.98% of
@@ -90,10 +89,10 @@ public:
 
 private:
     EPBucket& bucket;
+    Vbid vbid;
     CompactionConfig compactionConfig;
     uint64_t purgeSeqno;
     const void* cookie;
-    std::string desc;
 };
 
 /**

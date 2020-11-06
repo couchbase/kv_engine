@@ -848,7 +848,7 @@ static int notify_expired_item(DocInfo& info,
         }
     }
 
-    auto it = makeItemFromDocInfo(ctx.compactConfig.vbid, info, metadata, data);
+    auto it = makeItemFromDocInfo(ctx.vbid, info, metadata, data);
 
     ctx.expiryCallback->callback(*it, currtime);
 
@@ -979,14 +979,14 @@ static int time_purge_hook(Db* d,
         auto key = makeDiskDocKey(info->id);
 
         try {
-            auto vbid{ctx->compactConfig.vbid};
-            ctx->bloomFilterCallback->callback(vbid, key.getDocKey(), deleted);
+            ctx->bloomFilterCallback->callback(
+                    ctx->vbid, key.getDocKey(), deleted);
         } catch (std::runtime_error& re) {
             EP_LOG_WARN(
                     "time_purge_hook: exception occurred when invoking the "
                     "bloomfilter callback on {}"
                     " - Details: {}",
-                    ctx->compactConfig.vbid,
+                    ctx->vbid,
                     re.what());
         }
     }
@@ -1002,7 +1002,7 @@ bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                 "instance");
     }
 
-    auto vbid = hook_ctx->compactConfig.vbid.get();
+    auto vbid = hook_ctx->vbid.get();
     // Note that this isn't racy as we'll hold the vbucket lock when we're
     // calling the method for doing the check and when we'll set it to
     // true
@@ -1025,7 +1025,7 @@ bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                 "CouchKVStore::compactDB: exception while performing "
                 "compaction for {}"
                 " - Details: {}",
-                hook_ctx->compactConfig.vbid,
+                hook_ctx->vbid,
                 le.what());
         result = false;
     }
@@ -1145,7 +1145,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
     auto* def_iops = statCollectingFileOpsCompaction.get();
     std::chrono::steady_clock::time_point start =
             std::chrono::steady_clock::now();
-    Vbid vbid = hook_ctx->compactConfig.vbid;
+    const Vbid vbid = hook_ctx->vbid;
 
     TRACE_EVENT1("CouchKVStore", "compactDBInternal", "vbid", vbid.get());
 

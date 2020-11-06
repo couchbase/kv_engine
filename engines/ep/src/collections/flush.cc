@@ -243,8 +243,7 @@ void Flush::checkAndTriggerPurge(Vbid vbid, KVBucket& bucket) const {
 
 void Flush::triggerPurge(Vbid vbid, KVBucket& bucket) {
     CompactionConfig config;
-    config.vbid = vbid;
-    bucket.scheduleCompaction(config, nullptr);
+    bucket.scheduleCompaction(vbid, config, nullptr);
 }
 
 static std::pair<bool, std::optional<CollectionID>> getCollectionID(

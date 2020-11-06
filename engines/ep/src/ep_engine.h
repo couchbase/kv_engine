@@ -576,7 +576,9 @@ public:
                                     bool waitForCompletion,
                                     const void* cookie = nullptr);
 
-    ENGINE_ERROR_CODE compactDB(const CompactionConfig& c, const void* cookie);
+    ENGINE_ERROR_CODE compactDB(Vbid vbid,
+                                const CompactionConfig& c,
+                                const void* cookie);
 
     cb::mcbp::Status evictKey(const void* cookie,
                               const cb::mcbp::Request& request,

@@ -34,6 +34,7 @@ bool FlusherTask::run() {
 }
 
 CompactTask::CompactTask(EPBucket& bucket,
+                         Vbid vbid,
                          const CompactionConfig& c,
                          uint64_t purgeSeqno,
                          const void* ck,
@@ -43,17 +44,14 @@ CompactTask::CompactTask(EPBucket& bucket,
                  0,
                  completeBeforeShutdown),
       bucket(bucket),
+      vbid(vbid),
       compactionConfig(c),
       purgeSeqno(purgeSeqno),
       cookie(ck) {
-    desc = "Compact DB file " + std::to_string(compactionConfig.vbid.get());
 }
 
 bool CompactTask::run() {
-    TRACE_EVENT1("ep-engine/task",
-                 "CompactTask",
-                 "file_id",
-                 compactionConfig.vbid.get());
+    TRACE_EVENT1("ep-engine/task", "CompactTask", "file_id", vbid.get());
 
     /**
      * MB-30015: Check to see if tombstones that have invalid
@@ -63,7 +61,11 @@ bool CompactTask::run() {
      */
     compactionConfig.retain_erroneous_tombstones =
                              bucket.isRetainErroneousTombstones();
-    return bucket.doCompact(compactionConfig, purgeSeqno, cookie);
+    return bucket.doCompact(vbid, compactionConfig, purgeSeqno, cookie);
+}
+
+std::string CompactTask::getDescription() {
+    return "Compact DB file " + std::to_string(vbid.get());
 }
 
 bool StatSnap::run() {

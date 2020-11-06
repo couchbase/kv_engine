@@ -341,8 +341,7 @@ void SingleThreadedKVBucketTest::runCompaction(Vbid id,
     CompactionConfig compactConfig;
     compactConfig.purge_before_seq = purgeBeforeSeq;
     compactConfig.drop_deletes = dropDeletes;
-    compactConfig.vbid = id;
-    store->scheduleCompaction(compactConfig, nullptr);
+    store->scheduleCompaction(id, compactConfig, nullptr);
     // run the compaction task
     std::string taskDescription = "Compact DB file " + std::to_string(id.get());
     runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX], taskDescription);
