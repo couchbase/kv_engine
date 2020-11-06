@@ -239,6 +239,12 @@ protected:
         for (int vbid = 0; vbid < numVbs; ++vbid) {
             setVBucketStateAndRunPersistTask(Vbid(vbid), vbucket_state_active);
         }
+
+        // 'vbid' used for some durability related test
+        setVBucketStateAndRunPersistTask(
+                vbid,
+                vbucket_state_active,
+                {{"topology", nlohmann::json::array({{"active", "replica"}})}});
     }
 
     bool checkAllPurged(uint64_t expPurgeUpto) {
@@ -296,4 +302,83 @@ TEST_F(SingleThreadedEphemeralPurgerTest, PurgeAcrossAllVbuckets) {
     }
     EXPECT_GT(numPaused, 2 /* 1 run of 'HTCleaner' and more than 1 run of
                               'EphTombstoneStaleItemDeleter' */);
+}
+
+TEST_F(SingleThreadedEphemeralPurgerTest, HTCleanerSkipsPrepares) {
+    // Test relies on that the HTCleaner does its work when it runs
+    ASSERT_EQ(0, engine->getConfiguration().getEphemeralMetadataPurgeAge());
+
+    // Store a SyncDelete
+    auto key = makeStoredDocKey("key");
+    store_item(vbid,
+               key,
+               "value",
+               0 /*exptime*/,
+               {cb::engine_errc::sync_write_pending},
+               PROTOCOL_BINARY_RAW_BYTES,
+               cb::durability::Requirements(),
+               true /*deleted*/);
+
+    auto& vb = *store->getVBucket(vbid);
+    {
+        auto res = vb.ht.findForUpdate(key);
+        ASSERT_TRUE(res.pending);
+        ASSERT_TRUE(res.pending->isDeleted());
+        ASSERT_EQ(1, res.pending->getBySeqno());
+        ASSERT_FALSE(res.committed);
+    }
+
+    // Run the HTCleaner
+    auto* bucket = dynamic_cast<EphemeralBucket*>(store);
+    bucket->enableTombstonePurgerTask();
+    bucket->attemptToFreeMemory(); // This wakes up the HTCleaner
+    auto& queue = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    const std::string expectedTaskName = "Eph tombstone hashtable cleaner";
+    runNextTask(queue, expectedTaskName);
+
+    // Core of the test: Verify Prepare still in the HT
+    {
+        auto res = vb.ht.findForUpdate(key);
+        ASSERT_TRUE(res.pending);
+        ASSERT_EQ(CommittedState::Pending, res.pending->getCommitted());
+        ASSERT_TRUE(res.pending->isDeleted());
+        ASSERT_EQ(1, res.pending->getBySeqno());
+        ASSERT_FALSE(res.committed);
+    }
+
+    // Proceed with checking that everything behaves as expected at Prepare
+    // completion.
+    ASSERT_EQ(ENGINE_SUCCESS,
+              vb.commit(key, 1 /*prepareSeqno*/, {}, vb.lockCollections(key)));
+
+    // Verify Prepare and Commit in the HT
+    {
+        auto res = vb.ht.findForUpdate(key);
+        ASSERT_TRUE(res.pending);
+        ASSERT_EQ(CommittedState::PrepareCommitted,
+                  res.pending->getCommitted());
+        ASSERT_TRUE(res.pending->isDeleted());
+        ASSERT_EQ(1, res.pending->getBySeqno());
+        ASSERT_TRUE(res.committed);
+        ASSERT_EQ(CommittedState::CommittedViaPrepare,
+                  res.committed->getCommitted());
+        ASSERT_TRUE(res.committed->isDeleted());
+        ASSERT_EQ(2, res.committed->getBySeqno());
+    }
+
+    // Run the StaleItemDeleter (scheduled by the first run of the HTCleaner)
+    runNextTask(queue, "Eph tombstone stale item deleter");
+    // Run the HTCleaner again
+    bucket->scheduleTombstonePurgerTask();
+    bucket->attemptToFreeMemory();
+    runNextTask(queue, expectedTaskName);
+
+    // Verify that the HTCleaner behaves as expected:
+    // - Prepare removed as Committed
+    // - Committed removed as it is a tombstone
+    {
+        auto res = vb.ht.findForUpdate(key);
+        ASSERT_FALSE(res.pending);
+        ASSERT_FALSE(res.committed);
+    }
 }

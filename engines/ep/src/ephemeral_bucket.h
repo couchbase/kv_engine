@@ -120,6 +120,11 @@ public:
     void enableTombstonePurgerTask();
 
     /**
+     * Schedules the Ephemeral Tombstone purger task.
+     */
+    void scheduleTombstonePurgerTask();
+
+    /**
      * Disables the Ephemeral Tombstone purger task (if enabled).
      */
     void disableTombstonePurgerTask();

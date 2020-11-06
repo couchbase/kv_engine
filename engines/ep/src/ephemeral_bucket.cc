@@ -246,6 +246,10 @@ void EphemeralBucket::enableTombstonePurgerTask() {
     ExecutorPool::get()->schedule(tombstonePurgerTask);
 }
 
+void EphemeralBucket::scheduleTombstonePurgerTask() {
+    ExecutorPool::get()->schedule(tombstonePurgerTask);
+}
+
 void EphemeralBucket::disableTombstonePurgerTask() {
     ExecutorPool::get()->cancel(tombstonePurgerTask->getId());
 }

@@ -43,6 +43,12 @@ void EphemeralVBucket::HTTombstonePurger::setCurrentVBucket(VBucket& vb) {
 
 bool EphemeralVBucket::HTTombstonePurger::visit(
         const HashTable::HashBucketLock& hbl, StoredValue& v) {
+    // MB-41089: Never remove Pending Prepares, that would break SyncDelete.
+    if (v.isPending()) {
+        // Skip over and continue visiting
+        return true;
+    }
+
     auto* osv = v.toOrderedStoredValue();
 
     // MB-31175: Item must have been deleted before this task starts to ensure
