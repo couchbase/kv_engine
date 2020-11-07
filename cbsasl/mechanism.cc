@@ -52,18 +52,8 @@ Mechanism selectMechanism(const std::string& mechanisms) {
     throw unknown_mechanism(mechanisms);
 }
 
-Mechanism selectMechanism(const std::string& mech,
-                          const std::string& mechanisms) {
-    std::string avail;
-    std::transform(mechanisms.begin(),
-                   mechanisms.end(),
-                   std::back_inserter(avail),
-                   toupper);
-
-    std::string mechanism;
-    std::transform(
-            mech.begin(), mech.end(), std::back_inserter(mechanism), toupper);
-
+Mechanism selectMechanism(const std::string& mechanism,
+                          const std::string& available) {
     // Search what we've got backends for
     const std::vector<std::pair<std::string, Mechanism>> mechs = {
             {std::string{"SCRAM-SHA512"}, Mechanism::SCRAM_SHA512},
@@ -72,12 +62,12 @@ Mechanism selectMechanism(const std::string& mech,
             {std::string{"PLAIN"}, Mechanism::PLAIN}};
 
     for (auto& m : mechs) {
-        const auto index = avail.find(m.first);
+        const auto index = available.find(m.first);
         if (index != std::string::npos) {
             const auto offset = index + m.first.length();
 
-            if (offset == avail.length() || avail[offset] == ' ' ||
-                avail[offset] == ',') {
+            if (offset == available.length() || available[offset] == ' ' ||
+                available[offset] == ',') {
                 if (m.first == mechanism) {
                     return m.second;
                 }
@@ -85,7 +75,7 @@ Mechanism selectMechanism(const std::string& mech,
         }
     }
 
-    throw unknown_mechanism(mech);
+    throw unknown_mechanism(mechanism);
 }
 
 } // namespace cb::sasl

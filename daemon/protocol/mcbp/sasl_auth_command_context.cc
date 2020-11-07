@@ -32,10 +32,16 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::initial() {
         return ENGINE_ENOTSUP;
     }
 
+    // Uppercase the requested mechanism so that we don't have to remember
+    // to do case insensitive comparisons all over the code
     auto k = request.getKey();
-    auto v = request.getValue();
+    const auto key =
+            std::string_view{reinterpret_cast<const char*>(k.data()), k.size()};
+    std::string mechanism;
+    std::transform(
+            key.begin(), key.end(), std::back_inserter(mechanism), toupper);
 
-    std::string mechanism(reinterpret_cast<const char*>(k.data()), k.size());
+    auto v = request.getValue();
     std::string challenge(reinterpret_cast<const char*>(v.data()), v.size());
 
     LOG_DEBUG("{}: SASL auth with mech: '{}' with {} bytes of data",

@@ -208,7 +208,7 @@ TEST_P(ExternalAuthTest, TestExternalAuthSuccessful) {
 
         BinprotSaslAuthCommand saslAuthCommand;
         saslAuthCommand.setChallenge({"\0osbourne\0password", 18});
-        saslAuthCommand.setMechanism("PLAIN");
+        saslAuthCommand.setMechanism("PlAiN");
         conn.sendCommand(saslAuthCommand);
 
         stepAuthProvider();

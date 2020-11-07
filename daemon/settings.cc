@@ -1407,7 +1407,12 @@ std::string Settings::getSaslMechanisms() const {
 }
 
 void Settings::setSaslMechanisms(const std::string& mechanisms) {
-    sasl_mechanisms.wlock()->assign(mechanisms);
+    std::string mechs;
+    std::transform(mechanisms.begin(),
+                   mechanisms.end(),
+                   std::back_inserter(mechs),
+                   toupper);
+    sasl_mechanisms.wlock()->assign(mechs);
     has.sasl_mechanisms = true;
     notify_changed("sasl_mechanisms");
 }
@@ -1417,7 +1422,12 @@ std::string Settings::getSslSaslMechanisms() const {
 }
 
 void Settings::setSslSaslMechanisms(const std::string& mechanisms) {
-    ssl_sasl_mechanisms.wlock()->assign(mechanisms);
+    std::string mechs;
+    std::transform(mechanisms.begin(),
+                   mechanisms.end(),
+                   std::back_inserter(mechs),
+                   toupper);
+    ssl_sasl_mechanisms.wlock()->assign(mechs);
     has.ssl_sasl_mechanisms = true;
     notify_changed("ssl_sasl_mechanisms");
 }
