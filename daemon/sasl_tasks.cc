@@ -113,24 +113,29 @@ void SaslAuthTask::notifyExecutionComplete() {
             "\" is not supported");
         break;
     case cb::sasl::Error::NO_USER:
-        LOG_WARNING("{}: User [{}] not found. UUID:[{}]",
+        LOG_WARNING("{}: User [{}] not found. Mechanism:[{}], UUID:[{}]",
                     connection.getId(),
                     cb::UserDataView(connection.getUser().name),
+                    mechanism,
                     cookie.getEventId());
         break;
 
     case cb::sasl::Error::PASSWORD_ERROR:
-        LOG_WARNING("{}: Invalid password specified for [{}] UUID:[{}]",
-                    connection.getId(),
-                    cb::UserDataView(connection.getUser().name),
-                    cookie.getEventId());
+        LOG_WARNING(
+                "{}: Invalid password specified for [{}]. Mechanism:[{}], "
+                "UUID:[{}]",
+                connection.getId(),
+                cb::UserDataView(connection.getUser().name),
+                mechanism,
+                cookie.getEventId());
         break;
     case cb::sasl::Error::NO_RBAC_PROFILE:
         LOG_WARNING(
                 "{}: User [{}] is not defined as a user in Couchbase. "
-                "UUID:[{}]",
+                "Mechanism:[{}], UUID:[{}]",
                 connection.getId(),
                 cb::UserDataView(connection.getUser().name),
+                mechanism,
                 cookie.getEventId());
         break;
     case cb::sasl::Error::AUTH_PROVIDER_DIED:
