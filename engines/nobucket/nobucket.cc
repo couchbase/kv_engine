@@ -43,16 +43,6 @@ public:
         delete this;
     }
 
-    cb::EngineErrorItemPair allocate(gsl::not_null<const void*>,
-                                     const DocKey&,
-                                     size_t,
-                                     int,
-                                     rel_time_t,
-                                     uint8_t,
-                                     Vbid) override {
-        return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
-    }
-
     std::pair<cb::unique_item_ptr, item_info> allocate_ex(
             gsl::not_null<const void*> cookie,
             const DocKey& key,

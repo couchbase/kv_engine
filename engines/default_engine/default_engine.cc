@@ -153,30 +153,6 @@ void destroy_engine_instance(struct default_engine* engine) {
     }
 }
 
-cb::EngineErrorItemPair default_engine::allocate(
-        gsl::not_null<const void*> cookie,
-        const DocKey& key,
-        size_t nbytes,
-        int flags,
-        rel_time_t exptime,
-        uint8_t datatype,
-        Vbid vbucket) {
-    try {
-        auto pair = allocate_ex(cookie,
-                                key,
-                                nbytes,
-                                0, // No privileged bytes
-                                flags,
-                                exptime,
-                                datatype,
-                                vbucket);
-        return {cb::engine_errc::success, std::move(pair.first)};
-    } catch (const cb::engine_error& error) {
-        return cb::makeEngineErrorItemPair(
-                cb::engine_errc(error.code().value()));
-    }
-}
-
 std::pair<cb::unique_item_ptr, item_info> default_engine::allocate_ex(
         gsl::not_null<const void*> cookie,
         const DocKey& key,

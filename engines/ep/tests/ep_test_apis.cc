@@ -1894,13 +1894,23 @@ cb::EngineErrorItemPair allocate(EngineIface* h,
         cookie = testHarness->create_cookie(h);
         cookie_created = true;
     }
-    auto ret = h->allocate(cookie,
-                           DocKey(key, DocKeyEncodesCollectionId::No),
-                           nbytes,
-                           flags,
-                           exptime,
-                           datatype,
-                           vb);
+
+    cb::EngineErrorItemPair ret;
+    try {
+        auto pair = h->allocate_ex(cookie,
+                                   DocKey(key, DocKeyEncodesCollectionId::No),
+                                   nbytes,
+                                   0,
+                                   flags,
+                                   exptime,
+                                   datatype,
+                                   vb);
+        ret = {cb::engine_errc::success, std::move(pair.first)};
+    } catch (const cb::engine_error& error) {
+        ret = cb::makeEngineErrorItemPair(
+                cb::engine_errc(error.code().value()));
+    }
+
     if (cookie_created) {
         testHarness->destroy_cookie(cookie);
     }

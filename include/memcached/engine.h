@@ -218,28 +218,6 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      */
 
     /**
-     * Allocate an item.
-     *
-     * @param cookie The cookie provided by the frontend
-     * @param output variable that will receive the item
-     * @param key the item's key
-     * @param nbytes the number of bytes that will make up the
-     *        value of this item.
-     * @param flags the item's flags
-     * @param exptime the maximum lifetime of this item
-     * @param vbucket virtual bucket to request allocation from
-     *
-     * @return {cb::engine_errc::success, unique_item_ptr} if all goes well
-     */
-    virtual cb::EngineErrorItemPair allocate(gsl::not_null<const void*> cookie,
-                                             const DocKey& key,
-                                             size_t nbytes,
-                                             int flags,
-                                             rel_time_t exptime,
-                                             uint8_t datatype,
-                                             Vbid vbucket) = 0;
-
-    /**
      * Allocate an item (extended API)
      *
      * @param cookie The cookie provided by the frontend

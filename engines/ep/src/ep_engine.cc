@@ -210,30 +210,6 @@ void EventuallyPersistentEngine::destroy(const bool force) {
     delete eng.get();
 }
 
-cb::EngineErrorItemPair EventuallyPersistentEngine::allocate(
-        gsl::not_null<const void*> cookie,
-        const DocKey& key,
-        size_t nbytes,
-        int flags,
-        rel_time_t exptime,
-        uint8_t datatype,
-        Vbid vbucket) {
-    if (!mcbp::datatype::is_valid(datatype)) {
-        EP_LOG_WARN(
-                "Invalid value for datatype "
-                " (ItemAllocate)");
-        return cb::makeEngineErrorItemPair(cb::engine_errc::invalid_arguments);
-    }
-
-    return acquireEngine(this)->itemAllocate(key,
-                                             nbytes,
-                                             0, // No privileged bytes
-                                             flags,
-                                             exptime,
-                                             datatype,
-                                             vbucket);
-}
-
 std::pair<cb::unique_item_ptr, item_info>
 EventuallyPersistentEngine::allocate_ex(gsl::not_null<const void*> cookie,
                                         const DocKey& key,

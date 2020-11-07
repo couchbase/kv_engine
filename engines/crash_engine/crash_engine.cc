@@ -34,13 +34,6 @@ public:
     ENGINE_ERROR_CODE initialize(const char* config_str) override;
     void destroy(bool) override;
 
-    cb::EngineErrorItemPair allocate(gsl::not_null<const void*> cookie,
-                                     const DocKey& key,
-                                     size_t nbytes,
-                                     int flags,
-                                     rel_time_t exptime,
-                                     uint8_t datatype,
-                                     Vbid vbucket) override;
     std::pair<cb::unique_item_ptr, item_info> allocate_ex(
             gsl::not_null<const void*> cookie,
             const DocKey& key,
@@ -181,16 +174,6 @@ ENGINE_ERROR_CODE CrashEngine::initialize(const char* config_str) {
 
 void CrashEngine::destroy(const bool force) {
     delete this;
-}
-
-cb::EngineErrorItemPair CrashEngine::allocate(gsl::not_null<const void*> cookie,
-                                              const DocKey& key,
-                                              size_t nbytes,
-                                              int flags,
-                                              rel_time_t exptime,
-                                              uint8_t datatype,
-                                              Vbid vbucket) {
-    return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
 std::pair<cb::unique_item_ptr, item_info> CrashEngine::allocate_ex(

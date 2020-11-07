@@ -168,27 +168,6 @@ void MockEngine::destroy(const bool force) {
     delete this;
 }
 
-cb::EngineErrorItemPair MockEngine::allocate(gsl::not_null<const void*> cookie,
-                                             const DocKey& key,
-                                             const size_t nbytes,
-                                             const int flags,
-                                             const rel_time_t exptime,
-                                             uint8_t datatype,
-                                             Vbid vbucket) {
-    auto engine_fn = std::bind(&EngineIface::allocate,
-                               the_engine.get(),
-                               cookie,
-                               key,
-                               nbytes,
-                               flags,
-                               exptime,
-                               datatype,
-                               vbucket);
-
-    auto* c = cookie_to_mock_cookie(cookie.get());
-    return do_blocking_engine_call<cb::unique_item_ptr>(c, engine_fn);
-}
-
 std::pair<cb::unique_item_ptr, item_info> MockEngine::allocate_ex(
         gsl::not_null<const void*> cookie,
         const DocKey& key,

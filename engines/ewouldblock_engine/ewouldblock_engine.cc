@@ -272,22 +272,6 @@ public:
         delete this;
     }
 
-    cb::EngineErrorItemPair allocate(gsl::not_null<const void*> cookie,
-                                     const DocKey& key,
-                                     size_t nbytes,
-                                     int flags,
-                                     rel_time_t exptime,
-                                     uint8_t datatype,
-                                     Vbid vbucket) override {
-        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
-        if (should_inject_error(Cmd::ALLOCATE, cookie, err)) {
-            return cb::makeEngineErrorItemPair(cb::engine_errc(err));
-        } else {
-            return real_engine->allocate(
-                    cookie, key, nbytes, flags, exptime, datatype, vbucket);
-        }
-    }
-
     std::pair<cb::unique_item_ptr, item_info> allocate_ex(
             gsl::not_null<const void*> cookie,
             const DocKey& key,
