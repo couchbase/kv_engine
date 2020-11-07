@@ -333,14 +333,14 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(
                 datatype,
                 vbucket);
 
-        return c.getBucketEngine().allocate_ex(&cookie,
-                                               key,
-                                               nbytes,
-                                               priv_nbytes,
-                                               flags,
-                                               exptime,
-                                               datatype,
-                                               vbucket);
+        return c.getBucketEngine().allocateItem(&cookie,
+                                                key,
+                                                nbytes,
+                                                priv_nbytes,
+                                                flags,
+                                                exptime,
+                                                datatype,
+                                                vbucket);
     } catch (const cb::engine_error& err) {
         if (err.code() == cb::engine_errc::disconnect) {
             LOG_WARNING("{}: {} bucket_allocate_ex return ENGINE_DISCONNECT",

@@ -43,7 +43,7 @@ public:
         delete this;
     }
 
-    std::pair<cb::unique_item_ptr, item_info> allocate_ex(
+    std::pair<cb::unique_item_ptr, item_info> allocateItem(
             gsl::not_null<const void*> cookie,
             const DocKey& key,
             size_t nbytes,

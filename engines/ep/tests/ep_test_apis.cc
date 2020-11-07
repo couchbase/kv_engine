@@ -1897,14 +1897,14 @@ cb::EngineErrorItemPair allocate(EngineIface* h,
 
     cb::EngineErrorItemPair ret;
     try {
-        auto pair = h->allocate_ex(cookie,
-                                   DocKey(key, DocKeyEncodesCollectionId::No),
-                                   nbytes,
-                                   0,
-                                   flags,
-                                   exptime,
-                                   datatype,
-                                   vb);
+        auto pair = h->allocateItem(cookie,
+                                    DocKey(key, DocKeyEncodesCollectionId::No),
+                                    nbytes,
+                                    0,
+                                    flags,
+                                    exptime,
+                                    datatype,
+                                    vb);
         ret = {cb::engine_errc::success, std::move(pair.first)};
     } catch (const cb::engine_error& error) {
         ret = cb::makeEngineErrorItemPair(

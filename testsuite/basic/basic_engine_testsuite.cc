@@ -52,14 +52,14 @@ protected:
             uint8_t datatype,
             Vbid vbucket) {
         try {
-            auto pair = engine.allocate_ex(cookie,
-                                           key,
-                                           nbytes,
-                                           0, // No privileged bytes
-                                           flags,
-                                           exptime,
-                                           datatype,
-                                           vbucket);
+            auto pair = engine.allocateItem(cookie,
+                                            key,
+                                            nbytes,
+                                            0, // No privileged bytes
+                                            flags,
+                                            exptime,
+                                            datatype,
+                                            vbucket);
             return {cb::engine_errc::success, std::move(pair.first)};
         } catch (const cb::engine_error& error) {
             return cb::makeEngineErrorItemPair(

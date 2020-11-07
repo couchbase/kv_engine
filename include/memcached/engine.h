@@ -252,7 +252,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      *   * `cb::engine_errc::too_busy` Too busy to serve the request,
      *                                 back off and try again.
      */
-    virtual std::pair<cb::unique_item_ptr, item_info> allocate_ex(
+    virtual std::pair<cb::unique_item_ptr, item_info> allocateItem(
             gsl::not_null<const void*> cookie,
             const DocKey& key,
             size_t nbytes,

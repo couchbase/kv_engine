@@ -272,7 +272,7 @@ public:
         delete this;
     }
 
-    std::pair<cb::unique_item_ptr, item_info> allocate_ex(
+    std::pair<cb::unique_item_ptr, item_info> allocateItem(
             gsl::not_null<const void*> cookie,
             const DocKey& key,
             size_t nbytes,
@@ -285,14 +285,14 @@ public:
         if (should_inject_error(Cmd::ALLOCATE, cookie, err)) {
             throw cb::engine_error(cb::engine_errc(err), "ewb: injecting error");
         } else {
-            return real_engine->allocate_ex(cookie,
-                                            key,
-                                            nbytes,
-                                            priv_nbytes,
-                                            flags,
-                                            exptime,
-                                            datatype,
-                                            vbucket);
+            return real_engine->allocateItem(cookie,
+                                             key,
+                                             nbytes,
+                                             priv_nbytes,
+                                             flags,
+                                             exptime,
+                                             datatype,
+                                             vbucket);
         }
     }
 

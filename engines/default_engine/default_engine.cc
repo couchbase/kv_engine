@@ -153,7 +153,7 @@ void destroy_engine_instance(struct default_engine* engine) {
     }
 }
 
-std::pair<cb::unique_item_ptr, item_info> default_engine::allocate_ex(
+std::pair<cb::unique_item_ptr, item_info> default_engine::allocateItem(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
         size_t nbytes,

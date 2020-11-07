@@ -211,14 +211,14 @@ void EventuallyPersistentEngine::destroy(const bool force) {
 }
 
 std::pair<cb::unique_item_ptr, item_info>
-EventuallyPersistentEngine::allocate_ex(gsl::not_null<const void*> cookie,
-                                        const DocKey& key,
-                                        size_t nbytes,
-                                        size_t priv_nbytes,
-                                        int flags,
-                                        rel_time_t exptime,
-                                        uint8_t datatype,
-                                        Vbid vbucket) {
+EventuallyPersistentEngine::allocateItem(gsl::not_null<const void*> cookie,
+                                         const DocKey& key,
+                                         size_t nbytes,
+                                         size_t priv_nbytes,
+                                         int flags,
+                                         rel_time_t exptime,
+                                         uint8_t datatype,
+                                         Vbid vbucket) {
     auto [status, item] = acquireEngine(this)->itemAllocate(
             key, nbytes, priv_nbytes, flags, exptime, datatype, vbucket);
 

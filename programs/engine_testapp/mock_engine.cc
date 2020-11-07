@@ -168,16 +168,16 @@ void MockEngine::destroy(const bool force) {
     delete this;
 }
 
-std::pair<cb::unique_item_ptr, item_info> MockEngine::allocate_ex(
+std::pair<cb::unique_item_ptr, item_info> MockEngine::allocateItem(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
-        const size_t nbytes,
-        const size_t priv_nbytes,
-        const int flags,
-        const rel_time_t exptime,
+        size_t nbytes,
+        size_t priv_nbytes,
+        int flags,
+        rel_time_t exptime,
         uint8_t datatype,
         Vbid vbucket) {
-    auto engine_fn = std::bind(&EngineIface::allocate_ex,
+    auto engine_fn = std::bind(&EngineIface::allocateItem,
                                the_engine.get(),
                                cookie,
                                key,
@@ -198,7 +198,7 @@ std::pair<cb::unique_item_ptr, item_info> MockEngine::allocate_ex(
     } catch (const cb::engine_error& error) {
         if (error.code() == cb::engine_errc::would_block) {
             throw std::logic_error(
-                    "mock_allocate_ex: allocate_ex should not block!");
+                    "mock_allocate_ex: allocateItem should not block!");
         }
         throw error;
     }
