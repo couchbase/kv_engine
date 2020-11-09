@@ -50,11 +50,19 @@ std::string PersistManifestTask::getDescription() {
 static bool renameFile(const std::string& src, const std::string& dst);
 
 bool PersistManifestTask::run() {
-    auto fname = std::string(ManifestFileName);
-    std::string tmpFile = engine->getConfiguration().getDbname() +
-                          cb::io::DirectorySeparator + cb::io::mktemp(fname);
-    std::string finalFile = engine->getConfiguration().getDbname() +
-                            cb::io::DirectorySeparator + fname;
+    std::string finalFile = engine->getConfiguration().getDbname();
+
+    if (!cb::io::isDirectory(finalFile)) {
+        EP_LOG_WARN("PersistManifestTask::run fail isDirectory {}", finalFile);
+        engine->notifyIOComplete(
+                cookie,
+                ENGINE_ERROR_CODE(
+                        cb::engine_errc::cannot_apply_collections_manifest));
+        return false;
+    }
+
+    finalFile += cb::io::DirectorySeparator + std::string(ManifestFileName);
+    auto tmpFile = cb::io::mktemp(finalFile);
 
     auto fbData = manifest->toFlatbuffer();
 
