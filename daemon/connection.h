@@ -1049,6 +1049,13 @@ protected:
      */
     int sslPreConnection();
 
+    /**
+     * Helper method for sslPreConnection, performs SSL accept, retrying
+     * any temporary errors.
+     * @return
+     */
+    int sslAcceptWithRetry();
+
     // Shared DCP_DELETION write function for the v1/v2 commands.
     ENGINE_ERROR_CODE deletionInner(const item_info& info,
                                     cb::const_byte_buffer packet,
