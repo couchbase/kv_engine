@@ -540,6 +540,12 @@ void MagmaKVStore::deinitialize() {
     if (!inTransaction) {
         magma->Sync(true);
     }
+
+    // Close shuts down all of the magma background threads (compaction is the
+    // one that we care about here). The compaction callbacks require the magma
+    // instance to exist so we must do this before we reset it.
+    magma->Close();
+
     // Flusher should have already been stopped so it should be safe to destroy
     // the magma instance now
     magma.reset();
