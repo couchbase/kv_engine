@@ -26,6 +26,10 @@ class TlsTests : public TestappClientTest {
 protected:
     void SetUp() override {
         TestappTest::SetUp();
+        // MB-42607: Reduce BIO buffer size from default 8192 to 64 bytes, to
+        // exercise SSL_ERROR_WANT_READ / SSL_ERROR_WANT_WRITE code paths.
+        memcached_cfg["bio_drain_buffer_sz"] = 64;
+
         memcached_cfg["ssl_cipher_list"]["tls 1.2"] = "HIGH";
         memcached_cfg["ssl_cipher_list"]["tls 1.3"] =
                 "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_"

@@ -789,8 +789,48 @@ void Connection::logSslErrorInfo(const std::string& method, int rval) {
     }
 }
 
+int Connection::sslAcceptWithRetry() {
+    while (true) {
+        int r = ssl.accept();
+        if (r == 1) {
+            // handshake completed.
+            return r;
+        }
+
+        auto sslError = ssl.getError(r);
+        if (sslError == SSL_ERROR_WANT_READ ||
+            sslError == SSL_ERROR_WANT_WRITE) {
+            // Drain send and receive pipes.
+            // Note: This is somewhat of a naive implementation - ideally we
+            // would only drain the specific pipe direction based on the status
+            // code, repeating any drains until there is no more data ready
+            // to transfer. However that requires a more expressive interface on
+            // drainBio{Send,Recv}Pipe. Given SSL_accept() only occurs once
+            // per connect at the start, having a simpler (but technically
+            // sub-optimal) handing of errors here seems reasonable.
+            ssl.drainBioSendPipe(socketDescriptor);
+            if (ssl.hasError()) {
+                cb::net::set_econnreset();
+                return -1;
+            }
+            ssl.drainBioRecvPipe(socketDescriptor);
+            if (ssl.hasError()) {
+                cb::net::set_econnreset();
+                return -1;
+            }
+            // Continue SSL accept handshake.
+            continue;
+        } else {
+            logSslErrorInfo("SSL_accept", r);
+            cb::net::set_econnreset();
+            return -1;
+        }
+    }
+    folly::assume_unreachable();
+}
+
 int Connection::sslPreConnection() {
-    int r = ssl.accept();
+    int r = sslAcceptWithRetry();
     if (r == 1) {
         ssl.drainBioSendPipe(socketDescriptor);
         ssl.setConnected();
@@ -839,22 +879,10 @@ int Connection::sslPreConnection() {
             return -1;
         }
 
-         LOG_INFO("{}: Using SSL cipher:{}",
-                 getId(),
-                 ssl.getCurrentCipherName());
-    } else {
-        if (ssl.getError(r) == SSL_ERROR_WANT_READ) {
-            ssl.drainBioSendPipe(socketDescriptor);
-            cb::net::set_ewouldblock();
-            return -1;
-        } else {
-            logSslErrorInfo("SSL_accept", r);
-            cb::net::set_econnreset();
-            return -1;
-        }
+        LOG_INFO(
+                "{}: Using SSL cipher:{}", getId(), ssl.getCurrentCipherName());
     }
-
-    return 0;
+    return r;
 }
 
 int Connection::recv(char* dest, size_t nbytes) {
