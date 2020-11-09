@@ -1791,8 +1791,14 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
     if (vbState->checkpointType == CheckpointType::Disk &&
         static_cast<uint64_t>(vbState->highSeqno) != vbState->lastSnapEnd) {
         endSeqno = vbState->highSeqno;
-    }
 
+        EP_LOG_INFO(
+                "EPBucket::loadPreparedSyncWrites: current snapshot is "
+                "disk type and incomplete so loading all prepares from: "
+                "{} to {}",
+                startSeqno,
+                endSeqno);
+    }
 
     // Use ALL_ITEMS filter for the scan. NO_DELETES is insufficient
     // because (committed) SyncDeletes manifest as a prepared_sync_write
