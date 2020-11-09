@@ -1353,6 +1353,31 @@ TEST_P(KVBucketParamTest, MB_34346) {
             << "Should still have 0 items after time-travelling/expiry";
 }
 
+TEST_P(KVBucketParamTest, VbucketStateCounts) {
+    // confirm the vbMap correctly changes the number of vbuckets in a given
+    // state when vbuckets change state
+    auto vbA = 0;
+    auto vbB = 1;
+
+    auto expectVbCounts = [this](uint16_t active, uint16_t replica) {
+        auto message = "Expected " + std::to_string(active) + " active and " +
+                       std::to_string(replica) + " replica vbs";
+        EXPECT_EQ(active, store->getNumOfVBucketsInState(vbucket_state_active))
+                << message;
+        EXPECT_EQ(replica,
+                  store->getNumOfVBucketsInState(vbucket_state_replica))
+                << message;
+    };
+    store->setVBucketState(vbA, vbucket_state_active, false);
+    expectVbCounts(1, 0);
+    store->setVBucketState(vbB, vbucket_state_active, false);
+    expectVbCounts(2, 0);
+    store->setVBucketState(vbA, vbucket_state_replica, false);
+    expectVbCounts(1, 1);
+    store->setVBucketState(vbB, vbucket_state_replica, false);
+    expectVbCounts(0, 2);
+}
+
 class StoreIfTest : public KVBucketTest {
 public:
     void SetUp() override {

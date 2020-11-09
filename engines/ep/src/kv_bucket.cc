@@ -802,6 +802,7 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
         } else {
             vb->setState(to);
         }
+        vbMap.incrVBStateCount(to);
 
         if (oldstate != to && notify_dcp) {
             bool closeInboundStreams = false;

@@ -110,6 +110,14 @@ public:
     void setHLCDriftBehindThreshold(std::chrono::microseconds threshold);
 
     /**
+     * Increment the vb count for the given state.
+     * @param state the state for which the vb count is to be incremented.
+     */
+    void incrVBStateCount(vbucket_state_t state) {
+        ++vbStateCount[state];
+    }
+
+    /**
      * Decrement the vb count for the given state.
      * @param state  the state for which the vb count is to be decremented.
      */
