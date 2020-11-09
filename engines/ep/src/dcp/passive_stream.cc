@@ -485,7 +485,7 @@ process_items_error_t PassiveStream::processBufferedMessages(
                     static_cast<SetVBucketState*>(response.get()));
             break;
         case DcpResponse::Event::StreamEnd: {
-            LockHolder lh(streamMutex);
+            LockHolder slh(streamMutex);
             transitionState(StreamState::Dead);
         } break;
         case DcpResponse::Event::SystemEvent: {
@@ -566,8 +566,8 @@ process_items_error_t PassiveStream::processBufferedMessages(
 
 ENGINE_ERROR_CODE PassiveStream::processMessage(
         MutationConsumerMessage* message, MessageType messageType) {
-    const char* taskToString[] = {
-            "mutation", "deletion", "expiration", "prepare"};
+    std::array<std::string, 4> taskToString{
+            {"mutation", "deletion", "expiration", "prepare"}};
     VBucketPtr vb = engine->getVBucket(vb_);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
@@ -632,18 +632,18 @@ ENGINE_ERROR_CODE PassiveStream::processMessage(
     switch (messageType) {
     case MessageType::Mutation:
 
-            ret = engine->getKVBucket()->setWithMeta(*message->getItem(),
-                                                     0,
-                                                     NULL,
-                                                     consumer->getCookie(),
-                                                     {vbucket_state_active,
-                                                      vbucket_state_replica,
-                                                      vbucket_state_pending},
-                                                     CheckConflicts::No,
-                                                     true,
-                                                     GenerateBySeqno::No,
-                                                     GenerateCas::No,
-                                                     message->getExtMetaData());
+        ret = engine->getKVBucket()->setWithMeta(*message->getItem(),
+                                                 0,
+                                                 nullptr,
+                                                 consumer->getCookie(),
+                                                 {vbucket_state_active,
+                                                  vbucket_state_replica,
+                                                  vbucket_state_pending},
+                                                 CheckConflicts::No,
+                                                 true,
+                                                 GenerateBySeqno::No,
+                                                 GenerateCas::No,
+                                                 message->getExtMetaData());
 
         switchComplete = true;
         break;
@@ -736,7 +736,7 @@ ENGINE_ERROR_CODE PassiveStream::processPrepare(
     auto result = processMessage(prepare, MessageType::Prepare);
     if (result == ENGINE_SUCCESS) {
         Expects(prepare->getItem()->getBySeqno() ==
-                engine->getVBucket(vb_)->getHighSeqno());
+                engine->getVBucket(vb_)->getHighSeqno())
     }
     return result;
 }
@@ -1067,8 +1067,7 @@ void PassiveStream::addStats(const AddStatFn& add_stat, const void* c) {
     Stream::addStats(add_stat, c);
 
     try {
-        const int bsize = 1024;
-        char buf[bsize];
+        std::array<char, 1024> buf;
         size_t bufferItems = 0;
         size_t bufferBytes = 0;
         {
@@ -1076,70 +1075,70 @@ void PassiveStream::addStats(const AddStatFn& add_stat, const void* c) {
             bufferItems = buffer.messages.size();
             bufferBytes = buffer.bytes;
         }
-        checked_snprintf(buf,
-                         bsize,
+        checked_snprintf(buf.data(),
+                         buf.size(),
                          "%s:stream_%d_buffer_items",
                          name_.c_str(),
                          vb_.get());
-        add_casted_stat(buf, bufferItems, add_stat, c);
-        checked_snprintf(buf,
-                         bsize,
+        add_casted_stat(buf.data(), bufferItems, add_stat, c);
+        checked_snprintf(buf.data(),
+                         buf.size(),
                          "%s:stream_%d_buffer_bytes",
                          name_.c_str(),
                          vb_.get());
-        add_casted_stat(buf, bufferBytes, add_stat, c);
-        checked_snprintf(buf,
-                         bsize,
+        add_casted_stat(buf.data(), bufferBytes, add_stat, c);
+        checked_snprintf(buf.data(),
+                         buf.size(),
                          "%s:stream_%d_last_received_seqno",
                          name_.c_str(),
                          vb_.get());
-        add_casted_stat(buf, last_seqno.load(), add_stat, c);
-        checked_snprintf(buf,
-                         bsize,
+        add_casted_stat(buf.data(), last_seqno.load(), add_stat, c);
+        checked_snprintf(buf.data(),
+                         buf.size(),
                          "%s:stream_%d_ready_queue_memory",
                          name_.c_str(),
                          vb_.get());
-        add_casted_stat(buf, getReadyQueueMemory(), add_stat, c);
+        add_casted_stat(buf.data(), getReadyQueueMemory(), add_stat, c);
 
-        checked_snprintf(buf,
-                         bsize,
+        checked_snprintf(buf.data(),
+                         buf.size(),
                          "%s:stream_%d_cur_snapshot_type",
                          name_.c_str(),
                          vb_.get());
         add_casted_stat(
-                buf, ::to_string(cur_snapshot_type.load()), add_stat, c);
+                buf.data(), ::to_string(cur_snapshot_type.load()), add_stat, c);
 
         if (cur_snapshot_type.load() != Snapshot::None) {
-            checked_snprintf(buf,
-                             bsize,
+            checked_snprintf(buf.data(),
+                             buf.size(),
                              "%s:stream_%d_cur_snapshot_start",
                              name_.c_str(),
                              vb_.get());
-            add_casted_stat(buf, cur_snapshot_start.load(), add_stat, c);
-            checked_snprintf(buf,
-                             bsize,
+            add_casted_stat(buf.data(), cur_snapshot_start.load(), add_stat, c);
+            checked_snprintf(buf.data(),
+                             buf.size(),
                              "%s:stream_%d_cur_snapshot_end",
                              name_.c_str(),
                              vb_.get());
-            add_casted_stat(buf, cur_snapshot_end.load(), add_stat, c);
+            add_casted_stat(buf.data(), cur_snapshot_end.load(), add_stat, c);
         }
 
-        checked_snprintf(buf,
-                         bsize,
+        checked_snprintf(buf.data(),
+                         buf.size(),
                          "%s:stream_%d_cur_snapshot_prepare",
                          name_.c_str(),
                          vb_.get());
-        add_casted_stat(buf, cur_snapshot_prepare.load(), add_stat, c);
+        add_casted_stat(buf.data(), cur_snapshot_prepare.load(), add_stat, c);
 
         auto stream_req_value = createStreamReqValue();
 
         if (!stream_req_value.empty()) {
-            checked_snprintf(buf,
-                             bsize,
+            checked_snprintf(buf.data(),
+                             buf.size(),
                              "%s:stream_%d_vb_manifest_uid",
                              name_.c_str(),
                              vb_.get());
-            add_casted_stat(buf, stream_req_value.c_str(), add_stat, c);
+            add_casted_stat(buf.data(), stream_req_value.c_str(), add_stat, c);
         }
 
     } catch (std::exception& error) {
@@ -1153,7 +1152,7 @@ std::unique_ptr<DcpResponse> PassiveStream::next() {
 
     if (readyQ.empty()) {
         itemsReady.store(false);
-        return NULL;
+        return nullptr;
     }
 
     return popFromReadyQ();

@@ -113,8 +113,6 @@ public:
 
     static std::string to_string(StreamState st);
 
-    static const size_t batchSize;
-
 protected:
     bool transitionState(StreamState newState);
 
