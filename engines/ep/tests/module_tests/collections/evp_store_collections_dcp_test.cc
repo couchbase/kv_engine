@@ -2134,7 +2134,7 @@ TEST_P(CollectionsDcpParameterizedTest, DefaultCollectionDropped) {
 
     TimeTraveller bill(
             engine->getConfiguration().getPersistentMetadataPurgeAge() + 1);
-    runEraser(vbid);
+    runCollectionsEraser(vbid);
 
     // Clear everything from CP manager so DCP backfills - here we are streaming
     // the active VB which we have just ran tombstone purging on.
@@ -2158,7 +2158,6 @@ TEST_P(CollectionsDcpParameterizedTest, DefaultCollectionDropped) {
 
     TimeTraveller ted(
             engine->getConfiguration().getPersistentMetadataPurgeAge() + 1);
-
     // No items are transferred - the default collection is empty and no purge
     // is triggered.
 

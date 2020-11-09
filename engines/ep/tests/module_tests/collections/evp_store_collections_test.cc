@@ -1144,7 +1144,7 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeleted) {
         EXPECT_EQ(nitems, vb->ht.getNumInMemoryItems());
 
         // Ensure collection purge has executed
-        runCollectionsEraser();
+        runCollectionsEraser(vbid);
 
         EXPECT_EQ(0, vb->ht.getNumInMemoryItems());
     } // VBucketPtr scope ends
@@ -1195,7 +1195,7 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
                 CollectionEntry::defaultC));
 
         // Ensure collection purge has executed
-        runCollectionsEraser();
+        runCollectionsEraser(vbid);
 
         EXPECT_EQ(0, store->getVBucket(vbid)->ht.getNumInMemoryItems());
     } // VBucketPtr scope ends

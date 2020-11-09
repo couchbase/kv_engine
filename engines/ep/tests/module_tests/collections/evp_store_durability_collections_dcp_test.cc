@@ -170,7 +170,7 @@ TEST_P(CollectionsSyncWriteParamTest, drop_collection_with_pending_write) {
     } else {
         // Only need to run on vbid for ephemeral because the task will visit
         // both active/replica
-        runEraser(vbid);
+        runCollectionsEraser(vbid);
     }
 
     EXPECT_EQ(1, adm.getNumTracked());
@@ -231,7 +231,7 @@ failover_entry_t CollectionsSyncWriteParamTest::
     if (isPersistent()) {
         runCompaction(vbid);
     } else {
-        runEraser(vbid);
+        runCollectionsEraser(vbid);
     }
 
     EXPECT_EQ(1, adm.getNumTracked());
@@ -314,7 +314,7 @@ TEST_P(CollectionsSyncWriteParamTest,
     if (isPersistent()) {
         runCompaction(replicaVB);
     } else {
-        runEraser(replicaVB);
+        runCollectionsEraser(replicaVB);
     }
 
     EXPECT_EQ(1, pdm.getNumTracked());
@@ -415,7 +415,7 @@ TEST_P(CollectionsSyncWriteParamTest,
     EXPECT_EQ(0, pdm.getNumDroppedCollections());
 
     // Eraser makes no changes when it drops the collection
-    runEraser(replicaVB);
+    runCollectionsEraser(replicaVB);
 
     EXPECT_EQ(1, pdm.getNumTracked());
     EXPECT_EQ(3, pdm.getHighPreparedSeqno());

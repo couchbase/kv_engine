@@ -121,8 +121,9 @@ public:
      * Run the task responsible for iterating the documents and erasing them
      * For persistent buckets integrated into compaction.
      * For ephemeral buckets integrated into stale item removal task
+     * @param id vbucket to process
      */
-    void runCollectionsEraser();
+    void runCollectionsEraser(Vbid id);
 
     bool isBloomFilterEnabled() const {
         return engine->getConfiguration().isBfilterEnabled();

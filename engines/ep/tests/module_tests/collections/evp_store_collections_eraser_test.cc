@@ -53,16 +53,6 @@ public:
         SingleThreadedKVBucketTest::TearDown();
     }
 
-    void runEraser() {
-        if (persistent()) {
-            runCompaction(vbid);
-        } else {
-            auto* evb = dynamic_cast<EphemeralVBucket*>(vb.get());
-
-            evb->purgeStaleItems();
-        }
-    }
-
     void flush_vbucket_to_disk(Vbid vbid, size_t expected = 1) {
         flushVBucketToDiskIfPersistent(vbid, expected);
     }
@@ -170,7 +160,7 @@ TEST_P(CollectionsEraserTest, basic) {
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
 
     // And compaction was triggered (throws if not)
-    runCollectionsEraser();
+    runCollectionsEraser(vbid);
 
     // MB-42272: Full-eviction magma has an issue to address
     if (!(isFullEviction() && isMagma())) {
@@ -217,7 +207,7 @@ TEST_P(CollectionsEraserTest, basic_2_collections) {
 
     flush_vbucket_to_disk(vbid, 2 /* 2 x system */);
 
-    runCollectionsEraser();
+    runCollectionsEraser(vbid);
 
     EXPECT_EQ(0, vb->getNumItems());
 
@@ -256,7 +246,7 @@ TEST_P(CollectionsEraserTest, basic_3_collections) {
 
     flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
 
-    runCollectionsEraser();
+    runCollectionsEraser(vbid);
 
     EXPECT_EQ(2, vb->getNumItems());
 
@@ -296,7 +286,7 @@ TEST_P(CollectionsEraserTest, basic_4_collections) {
 
     flush_vbucket_to_disk(vbid, 3 /* 3x system (2 deletes, 1 create) */);
 
-    runCollectionsEraser();
+    runCollectionsEraser(vbid);
 
     EXPECT_EQ(0, vb->getNumItems());
 
@@ -329,7 +319,7 @@ TEST_P(CollectionsEraserTest, default_Destroy) {
 
     flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
 
-    runCollectionsEraser();
+    runCollectionsEraser(vbid);
 
     EXPECT_EQ(0, vb->getNumItems());
 
@@ -378,7 +368,7 @@ TEST_P(CollectionsEraserTest, erase_and_reset) {
 
     flush_vbucket_to_disk(vbid, 3 /* 3x system (2 deletes, 1 create) */);
 
-    runCollectionsEraser();
+    runCollectionsEraser(vbid);
 
     EXPECT_EQ(0, vb->getNumItems());
 
@@ -433,7 +423,7 @@ TEST_P(CollectionsEraserTest, basic_deleted_items) {
 
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
 
-    runCollectionsEraser();
+    runCollectionsEraser(vbid);
 
     EXPECT_EQ(0, vb->getNumItems());
 
@@ -478,7 +468,7 @@ TEST_P(CollectionsEraserTest, tombstone_cleaner) {
 
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
 
-    runCollectionsEraser();
+    runCollectionsEraser(vbid);
 
     EXPECT_EQ(0, vb->getNumItems());
 
@@ -552,7 +542,7 @@ TEST_P(CollectionsEraserTest, erase_after_warmup) {
 
     // Now the eraser should ready to run, warmup will have noticed a dropped
     // collection in the manifest and schedule the eraser
-    runCollectionsEraser();
+    runCollectionsEraser(vbid);
     vb = store->getVBucket(vbid);
     EXPECT_EQ(0, vb->getNumItems());
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
@@ -617,14 +607,14 @@ TEST_P(CollectionsEraserTest, MB_39113) {
     EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::fruit));
 
     // Purge deleted items with higher seqnos
-    EXPECT_NO_THROW(runCollectionsEraser());
+    EXPECT_NO_THROW(runCollectionsEraser(vbid););
 
     EXPECT_EQ(0, vb->getNumItems());
 
     vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::fruit)));
 
     // Purge deleted items with lower seqnos
-    EXPECT_NO_THROW(runCollectionsEraser());
+    EXPECT_NO_THROW(runCollectionsEraser(vbid););
 
     EXPECT_EQ(0, vb->getNumItems());
 
@@ -694,7 +684,7 @@ TEST_P(CollectionsEraserTest, EraserFindsPrepares) {
     vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
     flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
-    runEraser();
+    runCollectionsEraser(vbid);
 
     // We expect the prepare to have been visited (and dropped due to
     // completion) during this compaction as the compaction must iterate over
@@ -785,7 +775,7 @@ TEST_P(CollectionsEraserTest, PrepareCountCorrectAfterErase) {
     vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
     flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
-    runEraser();
+    runCollectionsEraser(vbid);
 
     // Check doc and prepare counts
     EXPECT_EQ(0, kvStore->getItemCount(vbid));
@@ -842,7 +832,7 @@ void CollectionsEraserTest::testCollectionPurgedItemsCorrectAfterDrop(
                 .RetiresOnSaturation();
     }
 
-    runEraser();
+    runCollectionsEraser(vbid);
 
     EXPECT_EQ(0, vb->getNumItems());
 
@@ -880,7 +870,12 @@ TEST_P(CollectionsEraserTest, DropEmptyCollection) {
     vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
     flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
-    runEraser();
+    if (persistent()) {
+        // Empty collection will not schedule compaction
+        EXPECT_THROW(runCollectionsEraser(vbid), std::logic_error);
+    } else {
+        runCollectionsEraser(vbid);
+    }
 }
 
 class CollectionsEraserSyncWriteTest : public CollectionsEraserTest {
@@ -908,7 +903,7 @@ public:
         if (isPersistent()) {
             runCompaction(vbid);
         } else {
-            runCollectionsEraser();
+            runCollectionsEraser(vbid);
         }
 
         EXPECT_EQ(0, adm.getNumTracked());
@@ -1087,7 +1082,7 @@ TEST_P(CollectionsEraserSyncWriteTest, DropAfterCommit) {
     // If we tried to then we'd segfault
     VBucketTestIntrospector::destroyDM(*vb.get());
 
-    runCollectionsEraser();
+    runCollectionsEraser(vbid);
 }
 
 TEST_P(CollectionsEraserSyncWriteTest, DropAfterAbort) {
@@ -1104,7 +1099,7 @@ TEST_P(CollectionsEraserSyncWriteTest, DropAfterAbort) {
     if (isPersistent()) {
         // Nothing has been committed to the collection, the drop won't trigger
         // a forced purge
-        EXPECT_THROW(runCollectionsEraser(), std::logic_error);
+        EXPECT_THROW(runCollectionsEraser(vbid), std::logic_error);
     }
 }
 
@@ -1179,7 +1174,7 @@ void CollectionsEraserPersistentOnly::testEmptyCollectionsWithPending(
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
 
     // Expect that the eraser task is not scheduled (which throws)
-    EXPECT_THROW(runCollectionsEraser(), std::logic_error);
+    EXPECT_THROW(runCollectionsEraser(vbid), std::logic_error);
 
     EXPECT_EQ(0, vb->getNumItems());
 
@@ -1245,7 +1240,7 @@ void CollectionsEraserPersistentOnly::testEmptyCollections(
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
 
     // Expect that the eraser task is not scheduled (which throws)
-    EXPECT_THROW(runCollectionsEraser(), std::logic_error);
+    EXPECT_THROW(runCollectionsEraser(vbid), std::logic_error);
 
     EXPECT_EQ(0, vb->getNumItems());
 

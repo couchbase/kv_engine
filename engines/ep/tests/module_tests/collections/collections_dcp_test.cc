@@ -298,7 +298,7 @@ void CollectionsDcpTest::ensureDcpWillBackfill() {
 void CollectionsDcpTest::runEraser() {
     {
         SCOPED_TRACE("CollectionsDcpTest::runEraser - active");
-        runEraser(vbid);
+        runCollectionsEraser(vbid);
     }
 
     // Only run on the replica for persistent buckets as the ephemeral task
@@ -306,30 +306,7 @@ void CollectionsDcpTest::runEraser() {
     // in the first runEraser above
     if (isPersistent()) {
         SCOPED_TRACE("CollectionsDcpTest::runEraser - replica");
-        runEraser(replicaVB);
-    }
-}
-
-void CollectionsDcpTest::runEraser(Vbid id) {
-    if (engine->getConfiguration().getBucketType() == "persistent") {
-        std::string task = "Compact DB file " + std::to_string(id.get());
-        runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX], task);
-        EXPECT_TRUE(store->getVBucket(id)
-                            ->getShard()
-                            ->getRWUnderlying()
-                            ->getDroppedCollections(id)
-                            .empty());
-    } else {
-        auto* bucket = dynamic_cast<EphemeralBucket*>(store);
-        bucket->scheduleTombstonePurgerTask();
-        bucket->attemptToFreeMemory(); // this wakes up the HTCleaner task
-
-        auto& lpAuxioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
-        // 2 tasks to run to complete a purge
-        // EphTombstoneHTCleaner
-        // EphTombstoneStaleItemDeleter
-        runNextTask(lpAuxioQ);
-        runNextTask(lpAuxioQ);
+        runCollectionsEraser(replicaVB);
     }
 }
 

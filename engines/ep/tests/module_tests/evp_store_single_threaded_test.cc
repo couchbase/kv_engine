@@ -42,6 +42,7 @@
 #include "ep_bucket.h"
 #include "ep_time.h"
 #include "ep_vb.h"
+#include "ephemeral_bucket.h"
 #include "ephemeral_tombstone_purger.h"
 #include "ephemeral_vb.h"
 #include "evp_store_test.h"
@@ -348,22 +349,26 @@ void SingleThreadedKVBucketTest::runCompaction(Vbid id,
     runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX], taskDescription);
 }
 
-void SingleThreadedKVBucketTest::runCollectionsEraser() {
+void SingleThreadedKVBucketTest::runCollectionsEraser(Vbid id) {
     if (engine->getConfiguration().getBucketType() == "persistent") {
-        // run the compaction task. assuming it was scheduled by the test, will
-        // fail the runNextTask expect if not scheduled.
-        runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX],
-                    "Compact DB file 0");
-
-        EXPECT_TRUE(store->getVBucket(vbid)
+        std::string task = "Compact DB file " + std::to_string(id.get());
+        runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX], task);
+        EXPECT_TRUE(store->getVBucket(id)
                             ->getShard()
                             ->getRWUnderlying()
-                            ->getDroppedCollections(vbid)
+                            ->getDroppedCollections(id)
                             .empty());
     } else {
-        auto vb = store->getVBuckets().getBucket(vbid);
-        auto* evb = dynamic_cast<EphemeralVBucket*>(vb.get());
-        evb->purgeStaleItems();
+        auto* bucket = dynamic_cast<EphemeralBucket*>(store);
+        bucket->scheduleTombstonePurgerTask();
+        bucket->attemptToFreeMemory(); // this wakes up the HTCleaner task
+
+        auto& lpAuxioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+        // 2 tasks to run to complete a purge
+        // EphTombstoneHTCleaner
+        // EphTombstoneStaleItemDeleter
+        runNextTask(lpAuxioQ);
+        runNextTask(lpAuxioQ);
     }
 }
 
