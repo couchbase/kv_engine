@@ -1358,7 +1358,7 @@ TEST(SettingsUpdateTest, ConnectionIdleTimeIsDynamic) {
               settings.getConnectionIdleTime());
 }
 
-TEST(SettingsUpdateTest, BioDrainBufferSzIsNotDynamic) {
+TEST(SettingsUpdateTest, BioDrainBufferSzIsDynamic) {
     Settings updated;
     Settings settings;
     // setting it to the same value should work
@@ -1366,10 +1366,9 @@ TEST(SettingsUpdateTest, BioDrainBufferSzIsNotDynamic) {
     updated.setBioDrainBufferSize(old);
     EXPECT_NO_THROW(settings.updateSettings(updated, false));
 
-    // changing it should not work
+    // changing it should work
     updated.setBioDrainBufferSize(old + 10);
-    EXPECT_THROW(settings.updateSettings(updated, false),
-                 std::invalid_argument);
+    EXPECT_NO_THROW(settings.updateSettings(updated, false));
 }
 
 TEST(SettingsUpdateTest, DatatypeJsonIsNotDynamic) {

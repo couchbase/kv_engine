@@ -803,12 +803,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             throw std::invalid_argument("audit can't be changed dynamically");
         }
     }
-    if (other.has.bio_drain_buffer_sz) {
-        if (other.bio_drain_buffer_sz != bio_drain_buffer_sz) {
-            throw std::invalid_argument(
-                "bio_drain_buffer_sz can't be changed dynamically");
-        }
-    }
     if (other.has.datatype_json) {
         if (other.datatype_json != datatype_json) {
             throw std::invalid_argument(
@@ -898,6 +892,15 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                      verbose.load(),
                      other.verbose.load());
             setVerbose(other.verbose.load());
+        }
+    }
+
+    if (other.has.bio_drain_buffer_sz) {
+        if (other.bio_drain_buffer_sz != bio_drain_buffer_sz) {
+            LOG_INFO("Change BIO drain buffer size from {} to {}",
+                     bio_drain_buffer_sz,
+                     other.bio_drain_buffer_sz);
+            setBioDrainBufferSize(other.bio_drain_buffer_sz);
         }
     }
 
