@@ -81,6 +81,14 @@ private:
     std::chrono::microseconds maxDuration;
 
     /**
+     * VBuckets the visitor has not yet visited.
+     * Vbs will be sorted according to visitor->getVBucketComparator().
+     * Once visited, vbuckets will be removed, so the visitor can resume after
+     * pausing at the first element.
+     */
+    std::deque<Vbid> vbucketsToVisit;
+
+    /**
      * Current VBucket.
      * This value starts as "None" and is only changed to another value when
      * we attempt to work on a valid vbucket.

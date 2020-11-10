@@ -84,6 +84,9 @@ public:
 
     void complete() override;
 
+    std::function<bool(const Vbid&, const Vbid&)> getVBucketComparator()
+            const override;
+
     /**
      * Override the setUpHashBucketVisit method so that we can acquire a
      * Collections::VB::ReadHandle. Required if we evict any items in
