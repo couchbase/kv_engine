@@ -279,7 +279,7 @@ uint32_t Blob::read_length(size_t offset) const {
     return ntohl(*ptr);
 }
 
-size_t Blob::get_system_size() const {
+size_t Blob::get_xattrs_size(Type type) const {
     // special case.. there are no xattr's
     if (blob.size() == 0) {
         return 0;
@@ -293,15 +293,34 @@ size_t Blob::get_system_size() const {
         while (current < blob.size()) {
             // Get the length of the next kv-pair
             const auto size = read_length(current);
-            if (blob[current + 4] == '_') {
-                ret += size + 4;
+
+            switch (type) {
+            case Type::System:
+                if (blob.buf[current + 4] == '_') {
+                    ret += size + 4;
+                }
+                break;
+            case Type::User:
+                if (blob.buf[current + 4] != '_') {
+                    ret += size + 4;
+                }
+                break;
             }
+
             current += 4 + size;
         }
     } catch (const std::out_of_range&) {
     }
 
     return ret;
+}
+
+size_t Blob::get_system_size() const {
+    return get_xattrs_size(Type::System);
+}
+
+size_t Blob::get_user_size() const {
+    return get_xattrs_size(Type::User);
 }
 
 nlohmann::json Blob::to_json() const {
