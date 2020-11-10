@@ -2795,9 +2795,10 @@ class CollectionsPersistentParameterizedTest
 TEST_P(CollectionsPersistentParameterizedTest, SystemEventsDoNotCount) {
     // Run through some manifest changes and warmup a few times.
     CollectionsManifest cm;
+    cm.add(ScopeEntry::shop1);
     cm.add(CollectionEntry::fruit).add(CollectionEntry::meat);
     setCollections(cookie, std::string{cm});
-    flushVBucketToDiskIfPersistent(vbid, 2);
+    flushVBucketToDiskIfPersistent(vbid, 3);
 
     // Now get the engine warmed up
     resetEngineAndWarmup();

@@ -652,6 +652,13 @@ size_t Manifest::getSystemEventItemCount() const {
     if (rv && map.count(CollectionID::Default)) {
         rv--;
     }
+
+    // Every 'live' scope has 1 'live' item, except for the default scope which
+    // has no event.
+    rv += scopes.size();
+    if (rv && scopes.count(ScopeID::Default)) {
+        rv--;
+    }
     return rv;
 }
 
