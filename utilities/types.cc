@@ -16,6 +16,7 @@
  */
 
 #include <memcached/types.h>
+#include <platform/string_hex.h>
 
 std::string to_string(const DocumentState& ds) {
     switch (ds) {
@@ -93,4 +94,11 @@ std::string to_string(StoreSemantics ss) {
 std::ostream& operator<<(std::ostream& os, const StoreSemantics& ss) {
     os << to_string(ss);
     return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const ItemIface& item) {
+    // @todo for now we'll just print the hex address, but once we have
+    //       all hooked up with virtual classes we can probably extend
+    //       this :D
+    return os << cb::to_hex(uint64_t(&item));
 }

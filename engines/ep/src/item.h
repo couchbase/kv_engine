@@ -73,7 +73,7 @@ item_info to_item_info(const ItemMetaData& itemMeta,
  * core and the backend. Please note that the kvstore don't store these
  * objects, so we do have an extra layer of memory copying :(
  */
-class Item : public RCValue {
+class Item : public ItemIface, public RCValue {
 public:
 
     /* Constructor (existing value_t).
@@ -668,7 +668,7 @@ std::ostream& operator<<(std::ostream& os, const Item& item);
 // Note the assert is written as we see std::string (member of the StoredDocKey)
 // differing. This totals 104 or 112 (string being 24 or 32).
 #ifndef CB_MEMORY_INEFFICIENT_TAGGED_PTR
-static_assert(sizeof(Item) == sizeof(std::string) + 80,
+static_assert(sizeof(Item) == sizeof(std::string) + 88,
               "sizeof Item may have an effect on run-time memory consumption, "
               "please avoid increasing it");
 #endif

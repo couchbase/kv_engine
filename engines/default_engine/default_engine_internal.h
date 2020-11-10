@@ -174,12 +174,17 @@ struct default_engine : public EngineIface {
                                       const cb::mcbp::Request& request,
                                       const AddResponseFn& response) override;
 
+    void item_set_cas(hash_item* item, uint64_t cas);
     void item_set_cas(gsl::not_null<ItemIface*> item,
                       uint64_t cas) override;
 
+    void item_set_datatype(hash_item* item,
+                           protocol_binary_datatype_t datatype);
     void item_set_datatype(gsl::not_null<ItemIface*> item,
                            protocol_binary_datatype_t datatype) override;
 
+    bool get_item_info(const hash_item* item,
+                       gsl::not_null<item_info*> item_info);
     bool get_item_info(gsl::not_null<const ItemIface*> item,
                        gsl::not_null<item_info*> item_info) override;
 

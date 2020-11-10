@@ -34,7 +34,12 @@ std::ostream& operator<<(std::ostream& os, const ConnectionPriority& cp);
 /**
  * Data common to any item stored in memcached.
  */
-using ItemIface = void;
+class ItemIface {
+public:
+    virtual ~ItemIface() = default;
+};
+
+std::ostream& operator<<(std::ostream& os, const ItemIface& item);
 
 /**
  * A unique_ptr to use with items returned from the engine interface.

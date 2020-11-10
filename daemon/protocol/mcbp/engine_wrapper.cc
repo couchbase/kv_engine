@@ -65,7 +65,7 @@ bool bucket_get_item_info(Connection& c,
                           gsl::not_null<item_info*> item_info_) {
     auto ret = c.getBucketEngine().get_item_info(item_, item_info_);
 
-    LOG_TRACE("bucket_get_item_info() item:{} -> {}", item_.get(), ret);
+    LOG_TRACE("bucket_get_item_info() item:{} -> {}", *item_, ret);
 
     if (!ret) {
         LOG_INFO("{}: {} bucket_get_item_info failed",
@@ -111,7 +111,7 @@ ENGINE_ERROR_CODE bucket_store(
     LOG_TRACE(
             "bucket_store() item:{} cas:{} op:{} durability:{} doc_state:{} -> "
             "{}",
-            item_.get(),
+            *item_,
             cas,
             operation,
             (durability ? to_string(*durability) : "--"),

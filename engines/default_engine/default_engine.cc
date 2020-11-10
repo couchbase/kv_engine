@@ -30,6 +30,24 @@
 
 using namespace std::string_view_literals;
 
+/**
+ * A class to hold a hash item (the ones stored in the hash table and
+ * is ref counted to avoid memory copying) and is the "item" that the
+ * core will see.
+ */
+struct ItemHolder : public ItemIface {
+    ItemHolder(default_engine* engine, hash_item* item)
+        : engine(engine), item(item) {
+    }
+    ~ItemHolder() override {
+        if (item != nullptr) {
+            item_release(engine, item);
+        }
+    }
+    default_engine* const engine;
+    hash_item* const item;
+};
+
 static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
                                                  const char *cfg_str);
 union vbucket_info_adapter {
@@ -116,8 +134,13 @@ static struct default_engine* get_handle(EngineIface* handle) {
     return (struct default_engine*)handle;
 }
 
-static hash_item* get_real_item(ItemIface* item) {
-    return (hash_item*)item;
+static ItemHolder* get_real_item(ItemIface* item) {
+    auto* it = dynamic_cast<ItemHolder*>(item);
+    if (it == nullptr) {
+        throw std::runtime_error(
+                "get_real_item: Invalid item sent to default_engine");
+    }
+    return it;
 }
 
 ENGINE_ERROR_CODE default_engine::initialize(const char* config_str) {
@@ -162,9 +185,6 @@ std::pair<cb::unique_item_ptr, item_info> default_engine::allocateItem(
         rel_time_t exptime,
         uint8_t datatype,
         Vbid vbucket) {
-    hash_item *it;
-
-    unsigned int id;
 
     if (!handled_vbucket(this, vbucket)) {
         throw cb::engine_error(cb::engine_errc::not_my_vbucket,
@@ -179,9 +199,7 @@ std::pair<cb::unique_item_ptr, item_info> default_engine::allocateItem(
                                "collection is supported");
     }
 
-    size_t ntotal = sizeof(hash_item) + key.size() + nbytes;
-    id = slabs_clsid(this, ntotal);
-    if (id == 0) {
+    if (slabs_clsid(this, sizeof(hash_item) + key.size() + nbytes) == 0) {
         throw cb::engine_error(cb::engine_errc::too_big,
                                "default_item_allocate_ex: no slab class");
     }
@@ -191,13 +209,13 @@ std::pair<cb::unique_item_ptr, item_info> default_engine::allocateItem(
                                "default_item_allocate_ex");
     }
 
-    it = item_alloc(this,
-                    key,
-                    flags,
-                    server.core->realtime(exptime),
-                    (uint32_t)nbytes,
-                    cookie,
-                    datatype);
+    auto* const it = item_alloc(this,
+                                key,
+                                flags,
+                                server.core->realtime(exptime),
+                                (uint32_t)nbytes,
+                                cookie,
+                                datatype);
 
     if (it != nullptr) {
         item_info info;
@@ -209,7 +227,8 @@ std::pair<cb::unique_item_ptr, item_info> default_engine::allocateItem(
                                    "default_item_allocate_ex");
         }
 
-        return std::make_pair(cb::unique_item_ptr(it, cb::ItemDeleter{this}),
+        return std::make_pair(cb::unique_item_ptr(new ItemHolder(this, it),
+                                                  cb::ItemDeleter{this}),
                               info);
     } else {
         throw cb::engine_error(cb::engine_errc::no_memory,
@@ -232,13 +251,12 @@ ENGINE_ERROR_CODE default_engine::remove(
         return ENGINE_UNKNOWN_COLLECTION;
     }
 
-    hash_item* it;
     uint64_t cas_in = cas;
     VBUCKET_GUARD(this, vbucket);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     do {
-        it = item_get(this, cookie, key, DocStateFilter::Alive);
+        auto* const it = item_get(this, cookie, key, DocStateFilter::Alive);
         if (it == nullptr) {
             return ENGINE_KEY_ENOENT;
         }
@@ -299,7 +317,7 @@ ENGINE_ERROR_CODE default_engine::remove(
 }
 
 void default_engine::release(gsl::not_null<ItemIface*> item) {
-    item_release(this, get_real_item(item));
+    delete get_real_item(item.get());
 }
 
 cb::EngineErrorItemPair default_engine::get(
@@ -318,9 +336,10 @@ cb::EngineErrorItemPair default_engine::get(
         return cb::makeEngineErrorItemPair(cb::engine_errc::unknown_collection);
     }
 
-    auto* it = item_get(this, cookie, key, documentStateFilter);
-    if (it != nullptr) {
-        return cb::makeEngineErrorItemPair(cb::engine_errc::success, it, this);
+    auto* const it = item_get(this, cookie, key, documentStateFilter);
+    if (it) {
+        return cb::makeEngineErrorItemPair(
+                cb::engine_errc::success, new ItemHolder(this, it), this);
     } else {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_such_key);
     }
@@ -340,24 +359,25 @@ cb::EngineErrorItemPair default_engine::get_if(
         return cb::makeEngineErrorItemPair(cb::engine_errc::unknown_collection);
     }
 
-    cb::unique_item_ptr ret(item_get(this, cookie, key, DocStateFilter::Alive),
-                            cb::ItemDeleter{this});
-    if (!ret) {
+    auto* it = item_get(this, cookie, key, DocStateFilter::Alive);
+    if (!it) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_such_key);
     }
 
     item_info info;
-    if (!get_item_info(ret.get(), &info)) {
+    if (!get_item_info(it, &info)) {
+        item_release(this, it);
         throw cb::engine_error(cb::engine_errc::failed,
                                "default_get_if: get_item_info failed");
     }
 
     if (!filter(info)) {
-        ret.reset(nullptr);
+        item_release(this, it);
+        it = nullptr;
     }
 
     return cb::makeEngineErrorItemPair(
-            cb::engine_errc::success, ret.release(), this);
+            cb::engine_errc::success, new ItemHolder(this, it), this);
 }
 
 cb::EngineErrorItemPair default_engine::get_and_touch(
@@ -384,7 +404,7 @@ cb::EngineErrorItemPair default_engine::get_and_touch(
             this, cookie, &it, key, server.core->realtime(expiry_time));
 
     return cb::makeEngineErrorItemPair(
-            cb::engine_errc(ret), reinterpret_cast<ItemIface*>(it), this);
+            cb::engine_errc(ret), new ItemHolder(this, it), this);
 }
 
 cb::EngineErrorItemPair default_engine::get_locked(
@@ -415,7 +435,8 @@ cb::EngineErrorItemPair default_engine::get_locked(
 
     hash_item* it = nullptr;
     auto ret = item_get_locked(this, cookie, &it, key, lock_timeout);
-    return cb::makeEngineErrorItemPair(cb::engine_errc(ret), it, this);
+    return cb::makeEngineErrorItemPair(
+            cb::engine_errc(ret), new ItemHolder(this, it), this);
 }
 
 cb::EngineErrorMetadataPair default_engine::get_meta(
@@ -429,20 +450,21 @@ cb::EngineErrorMetadataPair default_engine::get_meta(
         return std::make_pair(cb::engine_errc::unknown_collection, item_info());
     }
 
-    cb::unique_item_ptr item{
-            item_get(this, cookie, key, DocStateFilter::AliveOrDeleted),
-            cb::ItemDeleter(this)};
+    auto* const item =
+            item_get(this, cookie, key, DocStateFilter::AliveOrDeleted);
 
     if (!item) {
         return std::make_pair(cb::engine_errc::no_such_key, item_info());
     }
 
     item_info info;
-    if (!get_item_info(item.get(), &info)) {
+    if (!get_item_info(item, &info)) {
+        item_release(this, item);
         throw cb::engine_error(cb::engine_errc::failed,
                                "default_get_if: get_item_info failed");
     }
 
+    item_release(this, item);
     return std::make_pair(cb::engine_errc::success, info);
 }
 
@@ -525,11 +547,16 @@ ENGINE_ERROR_CODE default_engine::store(
     auto* it = get_real_item(item);
 
     if (document_state == DocumentState::Deleted && !config.keep_deleted) {
-        return safe_item_unlink(this, it);
+        return safe_item_unlink(this, it->item);
     }
 
-    return store_item(
-            this, it, &cas, operation, cookie, document_state, preserveTtl);
+    return store_item(this,
+                      it->item,
+                      &cas,
+                      operation,
+                      cookie,
+                      document_state,
+                      preserveTtl);
 }
 
 cb::EngineErrorCasPair default_engine::store_if(
@@ -548,19 +575,18 @@ cb::EngineErrorCasPair default_engine::store_if(
     if (predicate) {
         // Check for an existing item and call the item predicate on it.
         auto* it = get_real_item(item);
-        auto* key = item_get_key(it);
+        auto* key = item_get_key(it->item);
         if (!key) {
             throw cb::engine_error(cb::engine_errc::failed,
                                    "default_store_if: item_get_key failed");
         }
-        cb::unique_item_ptr existing(
-                item_get(this, cookie, *key, DocStateFilter::Alive),
-                cb::ItemDeleter{this});
+        ItemHolder existing(
+                this, item_get(this, cookie, *key, DocStateFilter::Alive));
 
         cb::StoreIfStatus status;
-        if (existing.get()) {
+        if (existing.item) {
             item_info info;
-            if (!get_item_info(existing.get(), &info)) {
+            if (!get_item_info(existing.item, &info)) {
                 throw cb::engine_error(
                         cb::engine_errc::failed,
                         "default_store_if: get_item_info failed");
@@ -571,19 +597,23 @@ cb::EngineErrorCasPair default_engine::store_if(
         }
 
         switch (status) {
-        case cb::StoreIfStatus::Fail: {
+        case cb::StoreIfStatus::Fail:
             return {cb::engine_errc::predicate_failed, 0};
-        }
+
         case cb::StoreIfStatus::Continue:
-        case cb::StoreIfStatus::GetItemInfo: {
+        case cb::StoreIfStatus::GetItemInfo:
             break;
-        }
         }
     }
 
     auto* it = get_real_item(item);
-    auto status = store_item(
-            this, it, &cas, operation, cookie, document_state, preserveTtl);
+    auto status = store_item(this,
+                             it->item,
+                             &cas,
+                             operation,
+                             cookie,
+                             document_state,
+                             preserveTtl);
     return {cb::engine_errc(status), cas};
 }
 
@@ -844,16 +874,23 @@ ENGINE_ERROR_CODE default_engine::unknown_command(
     }
 }
 
+void default_engine::item_set_cas(hash_item* item, uint64_t val) {
+    item->cas = val;
+}
+
 void default_engine::item_set_cas(gsl::not_null<ItemIface*> item,
                                   uint64_t val) {
-    hash_item* it = get_real_item(item);
-    it->cas = val;
+    item_set_cas(get_real_item(item)->item, val);
 }
 
 void default_engine::item_set_datatype(gsl::not_null<ItemIface*> item,
                                        protocol_binary_datatype_t val) {
-    auto* it = reinterpret_cast<hash_item*>(item.get());
-    it->datatype = val;
+    item_set_datatype(get_real_item(item)->item, val);
+}
+
+void default_engine::item_set_datatype(hash_item* item,
+                                       protocol_binary_datatype_t val) {
+    item->datatype = val;
 }
 
 hash_key* item_get_key(const hash_item* item)
@@ -870,7 +907,12 @@ char* item_get_data(const hash_item* item)
 
 bool default_engine::get_item_info(gsl::not_null<const ItemIface*> item,
                                    gsl::not_null<item_info*> item_info) {
-    auto* it = reinterpret_cast<const hash_item*>(item.get());
+    return get_item_info(
+            get_real_item(const_cast<ItemIface*>(item.get()))->item, item_info);
+}
+
+bool default_engine::get_item_info(const hash_item* it,
+                                   gsl::not_null<item_info*> item_info) {
     const hash_key* key = item_get_key(it);
 
     // This may potentially open up for a race, but:

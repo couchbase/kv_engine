@@ -111,6 +111,27 @@ protected:
     EWB_Engine& engine;
 };
 
+// Current DCP mutation `item`. We return an instance of this
+// (in the dcp step() function) back to the server, and then in
+// get_item_info we check if the requested item is this one.
+class EwbDcpMutationItem : public ItemIface {
+public:
+    EwbDcpMutationItem() : key("k") {
+        cb::xattr::Blob builder;
+        builder.set("_ewb", "{\"internal\":true}");
+        builder.set("meta", R"({"author":"jack"})");
+        const auto blob = builder.finalize();
+        std::copy(blob.begin(), blob.end(), std::back_inserter(value));
+        // MB24971 - the body is large as it increases the probability of
+        // transit returning TransmitResult::SoftError
+        const std::string body(1000, 'x');
+        std::copy(body.begin(), body.end(), std::back_inserter(value));
+    }
+
+    std::string key;
+    std::vector<uint8_t> value;
+};
+
 /**
  * The BlockMonitorThread represents the thread that is
  * monitoring the "lock" file. Once the file is no longer
@@ -314,10 +335,8 @@ public:
 
     void release(gsl::not_null<ItemIface*> item) override {
         LOG_DEBUG("EWB_Engine: release");
-
-        if (item == &dcp_mutation_item) {
-            // Ignore the DCP mutation, we own it (and don't track
-            // refcounts on it).
+        if (dynamic_cast<EwbDcpMutationItem*>(item.get())) {
+            delete item.get();
         } else {
             return real_engine->release(item);
         }
@@ -647,18 +666,19 @@ public:
 
         // This function cannot return EWOULDBLOCK - just chain to the real
         // engine's function, unless it is a request for our special DCP item.
-        if (item == &dcp_mutation_item) {
+        const auto* ewbitem =
+                dynamic_cast<const EwbDcpMutationItem*>(item.get());
+        if (ewbitem) {
             item_info->cas = 0;
             item_info->vbucket_uuid = 0;
             item_info->seqno = 0;
             item_info->exptime = 0;
-            item_info->nbytes =
-                    gsl::narrow<uint32_t>(dcp_mutation_item.value.size());
+            item_info->nbytes = gsl::narrow<uint32_t>(ewbitem->value.size());
             item_info->flags = 0;
             item_info->datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
-            item_info->key = {dcp_mutation_item.key,
-                              DocKeyEncodesCollectionId::No};
-            item_info->value[0].iov_base = &dcp_mutation_item.value[0];
+            item_info->key = {ewbitem->key, DocKeyEncodesCollectionId::No};
+            item_info->value[0].iov_base = const_cast<void*>(
+                    static_cast<const void*>(ewbitem->value.data()));
             item_info->value[0].iov_len = item_info->nbytes;
             return true;
         } else {
@@ -1225,28 +1245,6 @@ private:
     // Mutex for above map.
     std::mutex cookie_map_mutex;
 
-    // Current DCP mutation `item`. We return an instance of this
-    // (in the dcp step() function) back to the server, and then in
-    // get_item_info we check if the requested item is this one.
-    class EwbDcpKey {
-    public:
-        EwbDcpKey()
-            : key("k") {
-            cb::xattr::Blob builder;
-            builder.set("_ewb", "{\"internal\":true}");
-            builder.set("meta", R"({"author":"jack"})");
-            const auto blob = builder.finalize();
-            std::copy(blob.begin(), blob.end(), std::back_inserter(value));
-            // MB24971 - the body is large as it increases the probability of
-            // transit returning TransmitResult::SoftError
-            const std::string body(1000, 'x');
-            std::copy(body.begin(), body.end(), std::back_inserter(value));
-        }
-
-        std::string key;
-        std::vector<uint8_t> value;
-    } dcp_mutation_item;
-
     /**
      * The dcp_stream map is used to map a cookie to the count of objects
      * it should send on the stream.
@@ -1350,7 +1348,7 @@ ENGINE_ERROR_CODE EWB_Engine::step(gsl::not_null<const void*> cookie,
             // send the same item back
             auto ret = producers.mutation(
                     0xdeadbeef /*opqaue*/,
-                    cb::unique_item_ptr(&dcp_mutation_item,
+                    cb::unique_item_ptr(new EwbDcpMutationItem,
                                         cb::ItemDeleter(this)),
                     Vbid(0),
                     0 /*by_seqno*/,
