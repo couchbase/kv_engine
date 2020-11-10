@@ -3558,6 +3558,16 @@ void SingleThreadedActiveStreamTest::testExpirationRemovesBody(uint32_t flags,
     GetValue gv = store->get(docKey, vbid, nullptr, get_options_t::NONE);
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
 
+    // MB-41989: Expiration removes UserXattrs (if any), but it must do that on
+    // a copy of the payload that is then enqueued in the new expired item. So,
+    // the payload of the original mutation must be untouched here.
+    // Note: 'it' still points to the original mutation in the first checkpoint
+    // in CM.
+    EXPECT_EQ(queue_op::mutation, (*it)->getOperation());
+    EXPECT_FALSE((*it)->isDeleted());
+    EXPECT_EQ(std::string_view(value.c_str(), value.size()),
+              std::string_view((*it)->getData(), (*it)->getNBytes()));
+
     ASSERT_EQ(2, list.size());
     ckpt = list.back().get();
     ASSERT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
