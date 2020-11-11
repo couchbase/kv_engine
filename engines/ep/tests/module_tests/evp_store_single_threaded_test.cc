@@ -3177,7 +3177,7 @@ public:
                                           ~0); // snap_end_seqno
     }
 
-    const void* cookie = nullptr;
+    cb::tracing::Traceable* cookie = nullptr;
     std::shared_ptr<MockDcpProducer> producer;
     std::unique_ptr<MockDcpMessageProducers> producers;
 };
@@ -4666,7 +4666,7 @@ TEST_P(STParameterizedBucketTest, MB_41255_evicted_xattr) {
     // Make vbucket replica so can add passive stream
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
-    const void* cookie = create_mock_cookie();
+    auto* cookie = create_mock_cookie();
     auto consumer =
             std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
 

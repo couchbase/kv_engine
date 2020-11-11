@@ -373,7 +373,7 @@ static void perf_latency_core(EngineIface* h,
                               std::vector<hrtime_t>& get_timings,
                               std::vector<hrtime_t>& replace_timings,
                               std::vector<hrtime_t>& delete_timings) {
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
     const std::string data(100, 'x');
 
     // Build vector of keys
@@ -855,7 +855,7 @@ static void perf_background_sets(EngineIface* h,
                                  ThreadGate& setup_benchmark,
                                  std::atomic<bool>& running_benchmark) {
     std::vector<std::string> keys;
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
 
     for (int ii = 0; ii < count; ++ii) {
         keys.push_back("key" + std::to_string(ii));
@@ -906,7 +906,7 @@ static void perf_dcp_client(EngineIface* h,
                             bool retrieveCompressed,
                             std::vector<hrtime_t>& recv_timings,
                             std::vector<size_t>& bytes_received) {
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
 
     std::string uuid("vb_" + std::to_string(vbid.get()) + ":0:id");
     uint64_t vb_uuid = get_ull_stat(h, uuid.c_str(), "failovers");
@@ -1211,7 +1211,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
     // and released.
 
     // Create a DCP Producer connection and add an active stream on vbid
-    const void* activeCookie = testHarness->create_cookie(h);
+    auto* activeCookie = testHarness->create_cookie(h);
     checkeq(ENGINE_SUCCESS,
             dcp.open(activeCookie,
                      opaque,
@@ -1240,7 +1240,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
     // Now we can proceed with our measurement.
 
     // Create a DCP Consumer connection and add a passive stream on vbid
-    const void* passiveCookie = testHarness->create_cookie(h);
+    auto* passiveCookie = testHarness->create_cookie(h);
     checkeq(ENGINE_SUCCESS,
             dcp.open(passiveCookie,
                      opaque,
@@ -1356,7 +1356,7 @@ static void perf_stat_latency_core(EngineIface* h,
     const int iterations = (statRuntime == StatRuntime::Slow) ?
             iterations_for_slow_stats : iterations_for_fast_stats;
 
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
     // For some of the stats we need to have a document stored
     checkeq(cb::engine_errc::success,
             storeCasVb11(h,

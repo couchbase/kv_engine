@@ -65,7 +65,7 @@ public:
     VBucketPtr vb;
     CollectionsManifest cm;
     Collections::VB::Manifest vbm;
-    const void* cookie = nullptr;
+    cb::tracing::Traceable* cookie = nullptr;
 };
 
 /**

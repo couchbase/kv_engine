@@ -495,7 +495,7 @@ TEST_P(EPBucketTest, MB_21976) {
     c->status = ENGINE_E2BIG;
     unlock_mock_cookie(cookie);
 
-    const void* deleteCookie = create_mock_cookie(engine.get());
+    auto* deleteCookie = create_mock_cookie(engine.get());
 
     // lock the cookie, waitfor will release and enter the internal cond-var
     // lock_mock_cookie(deleteCookie);

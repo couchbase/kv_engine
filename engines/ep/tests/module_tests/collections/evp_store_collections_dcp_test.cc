@@ -1305,7 +1305,7 @@ public:
 
 protected:
     std::shared_ptr<MockDcpProducer> producer;
-    const void* cookieP;
+    cb::tracing::Traceable* cookieP;
 };
 
 class CollectionsFilteredDcpTest : public CollectionsDcpTest {

@@ -21,6 +21,10 @@
 #include <benchmark/benchmark.h>
 #include <memcached/vbucket.h>
 
+namespace cb::tracing {
+class Traceable;
+}
+
 class BenchmarkMemoryTracker;
 class Item;
 class SingleThreadedExecutorPool;
@@ -37,7 +41,7 @@ protected:
     Item make_item(Vbid vbid, const std::string& key, const std::string& value);
 
     SynchronousEPEngineUniquePtr engine;
-    const void* cookie = nullptr;
+    cb::tracing::Traceable* cookie = nullptr;
     const Vbid vbid = Vbid(0);
 
     // Allows subclasses to add stuff to the config

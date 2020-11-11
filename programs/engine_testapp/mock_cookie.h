@@ -77,9 +77,9 @@ protected:
     EngineIface* engine;
 };
 
-const void* create_mock_cookie(EngineIface* engine = nullptr);
+cb::tracing::Traceable* create_mock_cookie(EngineIface* engine = nullptr);
 
-void destroy_mock_cookie(const void* cookie);
+void destroy_mock_cookie(cb::tracing::Traceable* cookie);
 
 void mock_set_ewouldblock_handling(const void* cookie, bool enable);
 

@@ -184,7 +184,7 @@ static enum test_result test_wrong_vb_mutation(EngineIface* h,
 
 static enum test_result test_pending_vb_mutation(EngineIface* h,
                                                  StoreSemantics op) {
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
     testHarness->set_ewouldblock_handling(cookie, false);
     check(set_vbucket_state(h, Vbid(1), vbucket_state_pending),
           "Failed to set vbucket state.");
@@ -578,7 +578,7 @@ static enum test_result test_wrong_vb_get(EngineIface* h) {
 static enum test_result test_vb_get_pending(EngineIface* h) {
     check(set_vbucket_state(h, Vbid(1), vbucket_state_pending),
           "Failed to set vbucket state.");
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
     testHarness->set_ewouldblock_handling(cookie, false);
 
     checkeq(cb::engine_errc::would_block,
@@ -750,7 +750,7 @@ static enum test_result test_expiry_with_xattr(EngineIface* h) {
     std::copy(value_data.c_str(), value_data.c_str() + value_data.length(),
               std::back_inserter(data));
 
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
 
     checkeq(cb::engine_errc::success,
             storeCasVb11(h,
@@ -828,7 +828,7 @@ static enum test_result test_expiry(EngineIface* h) {
     const char *key = "test_expiry";
     const char *data = "some test data here.";
 
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
     auto ret = allocate(h,
                         cookie,
                         key,
@@ -892,7 +892,7 @@ static enum test_result test_expiry_loader(EngineIface* h) {
     const char *key = "test_expiry_loader";
     const char *data = "some test data here.";
 
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
     auto ret = allocate(h,
                         cookie,
                         key,
@@ -1053,7 +1053,7 @@ static enum test_result test_expiration_on_warmup(EngineIface* h) {
         return SKIPPED;
     }
 
-    const auto* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
     set_param(h,
               cb::mcbp::request::SetParamPayload::Type::Flush,
               "exp_pager_enabled",
@@ -1143,7 +1143,7 @@ static enum test_result test_bug3454(EngineIface* h) {
     const char *key = "test_expiry_duplicate_warmup";
     const char *data = "some test data here.";
 
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
     auto ret = allocate(h,
                         cookie,
                         key,
@@ -1233,7 +1233,7 @@ static enum test_result test_bug3522(EngineIface* h) {
     const char *key = "test_expiry_no_items_warmup";
     const char *data = "some test data here.";
 
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
     auto ret = allocate(h,
                         cookie,
                         key,
@@ -1322,7 +1322,7 @@ static enum test_result test_get_replica_active_state(EngineIface* h) {
 }
 
 static enum test_result test_get_replica_pending_state(EngineIface* h) {
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
     testHarness->set_ewouldblock_handling(cookie, false);
     auto pkt = prepare_get_replica(h, vbucket_state_pending);
     checkeq(ENGINE_NOT_MY_VBUCKET,
@@ -1386,7 +1386,7 @@ static enum test_result test_get_replica_invalid_key(EngineIface* h) {
 }
 
 static enum test_result test_vb_del_pending(EngineIface* h) {
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
     testHarness->set_ewouldblock_handling(cookie, false);
     check(set_vbucket_state(h, Vbid(1), vbucket_state_pending),
           "Failed to set vbucket state.");
@@ -1497,7 +1497,7 @@ static enum test_result test_vbucket_compact(EngineIface* h) {
     testHarness->time_travel(exp_time + 1);
 
     // Touch the expiring key to trigger the expiry
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
     checkeq(cb::engine_errc::no_such_key,
             get(h, cookie, exp_key, Vbid(0), DocStateFilter::Alive).first,
             "Expiration trigger via touch failed");
@@ -2469,7 +2469,7 @@ static enum test_result test_key_stats(EngineIface* h) {
                   Vbid(1)),
             "Failed to store an item.");
 
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
 
     // stat for key "k1" and vbucket "0"
     const char *statkey1 = "key k1 0";
@@ -2518,7 +2518,7 @@ static enum test_result test_key_stats_eaccess(EngineIface* h) {
                   Vbid(1)),
             "Failed to store an item.");
 
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
 
     mock_set_check_privilege_function(
             [](gsl::not_null<const void*>,
@@ -2560,7 +2560,7 @@ static enum test_result test_vkey_stats(EngineIface* h) {
     check(set_vbucket_state(h, Vbid(4), vbucket_state_dead),
           "Failed to set VB4 state.");
 
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
 
     // stat for key "k1" and vbucket "0"
     const char *statkey1 = "vkey k1 0";
@@ -3228,7 +3228,7 @@ static enum test_result test_bloomfilter_delete_plus_set_scenario(
 }
 
 static enum test_result test_datatype(EngineIface* h) {
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
     testHarness->set_datatype_support(cookie, true);
 
     ItemIface* itm = nullptr;
@@ -3281,7 +3281,7 @@ static enum test_result test_datatype(EngineIface* h) {
 }
 
 static enum test_result test_datatype_with_unknown_command(EngineIface* h) {
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
     testHarness->set_datatype_support(cookie, true);
     const char* key = "foo";
     const char* val = R"({"foo":"bar"})";
@@ -3813,7 +3813,7 @@ static enum test_result test_cbd_225(EngineIface* h) {
 }
 
 static enum test_result test_workload_stats(EngineIface* h) {
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
     checkeq(ENGINE_SUCCESS,
             h->get_stats(cookie, "workload"sv, {}, add_stats),
             "Falied to get workload stats");
@@ -3837,7 +3837,7 @@ static enum test_result test_workload_stats(EngineIface* h) {
 }
 
 static enum test_result test_max_workload_stats(EngineIface* h) {
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
     checkeq(ENGINE_SUCCESS,
             h->get_stats(cookie, "workload"sv, {}, add_stats),
             "Failed to get workload stats");
@@ -5314,7 +5314,7 @@ static enum test_result test_memory_condition(EngineIface* h) {
 }
 
 static enum test_result test_stats_vkey_valid_field(EngineIface* h) {
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
 
     // Check vkey when a key doesn't exist
     const char* stats_key = "vkey key 0";
@@ -5894,7 +5894,7 @@ static enum test_result test_keyStats_with_item_eviction(EngineIface* h) {
             "Failed to store an item.");
     wait_for_flusher_to_settle(h);
     evict_key(h, "k1", Vbid(0), "Ejected.");
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
 
     // stat for key "k1" and vbucket "0"
     const char *statkey1 = "key k1 0";
@@ -6202,7 +6202,7 @@ static enum test_result test_eviction_with_xattr(EngineIface* h) {
 }
 
 static enum test_result test_get_random_key(EngineIface* h) {
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
 
     // An empty database should return no key
     auto pkt = createPacket(cb::mcbp::ClientOpcode::GetRandomKey);
@@ -7983,7 +7983,7 @@ static enum test_result test_mb20744_check_incr_reject_ops(EngineIface* h) {
 
 static enum test_result test_mb20943_complete_pending_ops_on_vbucket_delete(
         EngineIface* h) {
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
     bool  ready = false;
     std::mutex m;
     std::condition_variable cv;
@@ -8169,9 +8169,9 @@ static enum test_result test_mb23640(EngineIface* h) {
 }
 
 static enum test_result test_replace_at_pending_insert(EngineIface* h) {
-    const auto* cookie1 = testHarness->create_cookie(h);
+    auto* cookie1 = testHarness->create_cookie(h);
     testHarness->set_ewouldblock_handling(cookie1, false);
-    const auto* cookie2 = testHarness->create_cookie(h);
+    auto* cookie2 = testHarness->create_cookie(h);
     testHarness->set_ewouldblock_handling(cookie2, false);
 
     const auto vbid = Vbid(0);

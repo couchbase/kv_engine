@@ -348,7 +348,7 @@ TEST_P(STDcpTest, AckCorrectPassiveStream) {
 
 void STDcpTest::testProducerNegotiatesIncludeDeletedUserXattrs(
         IncludeDeletedUserXattrs producerState) {
-    const void* cookie = create_mock_cookie();
+    auto* cookie = create_mock_cookie();
 
     uint32_t dcpOpenFlags;
     ENGINE_ERROR_CODE expectedControlResp;
@@ -391,7 +391,7 @@ void STDcpTest::testConsumerNegotiatesIncludeDeletedUserXattrs(
         IncludeDeletedUserXattrs producerState) {
     MockDcpConnMap connMap(*engine);
     connMap.initialize();
-    const void* cookie = create_mock_cookie();
+    auto* cookie = create_mock_cookie();
 
     // Create a new Consumer, flag that we want it to support DeleteXattr
     auto& consumer = dynamic_cast<MockDcpConsumer&>(

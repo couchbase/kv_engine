@@ -141,11 +141,11 @@ static int report_test(const char* name,
 
 class MockTestHarness : public test_harness {
 public:
-    const void* create_cookie(EngineIface* engine) override {
+    cb::tracing::Traceable* create_cookie(EngineIface* engine) override {
         return create_mock_cookie(engine);
     }
 
-    void destroy_cookie(const void* cookie) override {
+    void destroy_cookie(cb::tracing::Traceable* cookie) override {
         destroy_mock_cookie(cookie);
     }
 

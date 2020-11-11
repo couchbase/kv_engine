@@ -99,8 +99,8 @@ public:
             size_t nentries,
             gsl::not_null<const void*> cookie);
 
-    const void* cookieC;
-    const void* cookieP;
+    cb::tracing::Traceable* cookieC;
+    cb::tracing::Traceable* cookieP;
     std::unique_ptr<CollectionsDcpTestProducers> producers;
     std::shared_ptr<MockDcpProducer> producer;
     std::shared_ptr<MockDcpConsumer> consumer;

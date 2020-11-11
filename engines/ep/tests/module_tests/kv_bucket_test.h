@@ -45,6 +45,10 @@ namespace Collections {
 class Manager;
 }
 
+namespace cb::tracing {
+class Traceable;
+}
+
 /**
  * Test fixture for KVBucket unit tests.
  *
@@ -275,5 +279,5 @@ public:
     KVBucket* store;
 
     // The (mock) server cookie.
-    const void* cookie = nullptr;
+    cb::tracing::Traceable* cookie = nullptr;
 };

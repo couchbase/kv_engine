@@ -6,6 +6,10 @@
 #include <memcached/engine.h>
 #include <functional>
 
+namespace cb::tracing {
+class Traceable;
+}
+
 enum class OutputFormat {
     Text,
     XML,
@@ -61,12 +65,12 @@ struct test_harness {
     /**
      * Create a new cookie instance
      */
-    virtual const void* create_cookie(EngineIface* engine) = 0;
+    virtual cb::tracing::Traceable* create_cookie(EngineIface* engine) = 0;
 
     /**
      * Destroy a cookie (and invalidate the allocated memory)
      */
-    virtual void destroy_cookie(const void* cookie) = 0;
+    virtual void destroy_cookie(cb::tracing::Traceable* cookie) = 0;
 
     /**
      * Set the ewouldblock mode for the specified cookie

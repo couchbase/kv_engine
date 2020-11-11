@@ -235,14 +235,14 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
     // perform the interlocked operations
     auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
     EXPECT_EQ(nullptr, store->getVBuckets().getBucket(vbid));
-    const void* setVBStateCookie = create_mock_cookie(engine.get());
-    const void* getFailoverCookie = create_mock_cookie(engine.get());
-    const void* statsCookie1 = create_mock_cookie(engine.get());
-    const void* statsCookie2 = create_mock_cookie(engine.get());
-    const void* statsCookie3 = create_mock_cookie(engine.get());
-    const void* delVbCookie = create_mock_cookie(engine.get());
+    auto* setVBStateCookie = create_mock_cookie(engine.get());
+    auto* getFailoverCookie = create_mock_cookie(engine.get());
+    auto* statsCookie1 = create_mock_cookie(engine.get());
+    auto* statsCookie2 = create_mock_cookie(engine.get());
+    auto* statsCookie3 = create_mock_cookie(engine.get());
+    auto* delVbCookie = create_mock_cookie(engine.get());
 
-    std::unordered_map<const void*, int> notifications;
+    std::unordered_map<cb::tracing::Traceable*, int> notifications;
     notifications[setVBStateCookie] =
             get_number_of_mock_cookie_io_notifications(setVBStateCookie);
     notifications[setVBStateCookie] =

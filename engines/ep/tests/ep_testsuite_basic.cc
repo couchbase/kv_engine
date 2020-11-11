@@ -539,7 +539,7 @@ static enum test_result test_getl(EngineIface* h) {
     Vbid vbucketId = Vbid(0);
     uint32_t expiration = 25;
 
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
 
     checkeq(cb::engine_errc::no_such_key,
             getl(h, cookie, key, vbucketId, expiration).first,
@@ -825,7 +825,7 @@ static enum test_result test_set_get_hit_bin(EngineIface* h) {
 
 static enum test_result test_set_with_cas_non_existent(EngineIface* h) {
     const char *key = "test_expiry_flush";
-    const auto* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
     auto ret = allocate(
             h, cookie, key, 10, 0, 0, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
@@ -1276,7 +1276,7 @@ static enum test_result test_mb5215(EngineIface* h) {
 static enum test_result test_delete_with_value(EngineIface* h) {
     const uint64_t cas_0 = 0;
     const Vbid vbid = Vbid(0);
-    const void* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
 
     // Store an initial (not-deleted) value.
     checkeq(ENGINE_SUCCESS,
@@ -2011,7 +2011,7 @@ static test_result get_if(EngineIface* h) {
         evict_key(h, key.c_str(), Vbid(0), "Ejected.");
     }
 
-    const auto* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(h);
     auto doc = h->get_if(cookie,
                          DocKey(key, DocKeyEncodesCollectionId::No),
                          Vbid(0),

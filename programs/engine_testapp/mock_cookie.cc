@@ -36,16 +36,23 @@ void MockCookie::validate() const {
     }
 }
 
-const void* create_mock_cookie(EngineIface* engine) {
+cb::tracing::Traceable* create_mock_cookie(EngineIface* engine) {
     return new MockCookie(engine);
 }
 
-void destroy_mock_cookie(const void* cookie) {
+void destroy_mock_cookie(cb::tracing::Traceable* cookie) {
     if (cookie == nullptr) {
         return;
     }
+
+    auto* c = dynamic_cast<MockCookie*>(cookie);
+    if (c == nullptr) {
+        throw std::runtime_error(
+                "destroy_mock_cookie: Provided cookie is not a MockCookie");
+    }
+
     std::lock_guard<std::mutex> guard(mock_server_cookie_mutex);
-    auto* c = cookie_to_mock_cookie(cookie);
+    c->validate();
     c->disconnect();
     if (c->references == 0) {
         delete c;
