@@ -592,6 +592,13 @@ public:
      */
     void calculateAndSetMagmaThreads();
 
+    /**
+     * Returns the expiry time of alive documents or the time at which
+     * tombstones should be purged. Used by magma to track expiry/purge times
+     * in histograms used to determine when to run compaction.
+     */
+    uint32_t getExpiryOrPurgeTime(const magma::Slice& slice);
+
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.
     std::shared_ptr<BucketLogger> logger;

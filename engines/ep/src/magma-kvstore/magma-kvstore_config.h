@@ -107,6 +107,14 @@ public:
         return magmaMaxDefaultStorageThreads;
     }
 
+    void setMetadataPurgeAge(size_t value) {
+        metadataPurgeAge.store(value);
+    }
+
+    size_t getMetadataPurgeAge() const {
+        return metadataPurgeAge.load();
+    }
+
     magma::Magma::Config magmaCfg;
 
 private:
@@ -213,4 +221,11 @@ private:
      * determine the ratio of flusher and compactor threads.
      */
     size_t magmaMaxDefaultStorageThreads{20};
+
+    /**
+     * Cached copy of the persistent_metadata_purge_age. Used in
+     * MagmaKVStore::getExpiryOrPurgeTime() to calculate the time at which
+     * tombstones should be purged.
+     */
+    std::atomic<size_t> metadataPurgeAge;
 };

@@ -790,7 +790,7 @@
         },
         "persistent_metadata_purge_age": {
             "default": "259200",
-            "descr": "Age in seconds after which tombstones may be purged. Defaults to 3 days. Max of 60 days",
+            "descr": "Age in seconds after which tombstones may be purged. Defaults to 3 days. Max of 60 days. If this is dynamically changed for a magma bucket then magma may not trigger compactions when it should, this can be avoided by running a full manual compaction after changing this parameter.",
             "dynamic": true,
             "type": "size_t",
             "requires": {

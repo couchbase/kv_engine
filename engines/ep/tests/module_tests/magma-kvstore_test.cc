@@ -319,3 +319,23 @@ TEST_F(MagmaKVStoreTest, ScanReadsVBStateFromSnapshot) {
     EXPECT_EQ(0, scanCtx->maxVisibleSeqno);
     EXPECT_EQ(999, kvstore->getVBucketState(vbid)->maxVisibleSeqno);
 }
+
+TEST_F(MagmaKVStoreTest, MagmaGetExpiryTimeAlive) {
+    magmakv::MetaData expiredItem;
+    expiredItem.exptime = 10;
+    magma::Slice expiredItemSlice = {reinterpret_cast<char*>(&expiredItem),
+                                     sizeof(magmakv::MetaData)};
+
+    EXPECT_EQ(10, kvstore->getExpiryOrPurgeTime(expiredItemSlice));
+}
+
+TEST_F(MagmaKVStoreTest, MagmaGetExpiryTimeTombstone) {
+    magmakv::MetaData tombstone;
+    tombstone.exptime = 10;
+    tombstone.deleted = true;
+    magma::Slice tombstoneSlice = {reinterpret_cast<char*>(&tombstone),
+                                   sizeof(magmakv::MetaData)};
+
+    EXPECT_EQ(10 + kvstoreConfig->getMetadataPurgeAge(),
+              kvstore->getExpiryOrPurgeTime(tombstoneSlice));
+}

@@ -446,7 +446,9 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     configuration.magmaCfg.KVStorePurgerInterval =
             configuration.getMagmaExpiryPurgerInterval();
     configuration.magmaCfg.GetSeqNum = magmakv::getSeqNum;
-    configuration.magmaCfg.GetExpiryTime = magmakv::getExpiryTime;
+    configuration.magmaCfg.GetExpiryTime = [this](const magma::Slice& slice) {
+        return getExpiryOrPurgeTime(slice);
+    };
     configuration.magmaCfg.GetValueSize = magmakv::getValueSize;
     configuration.magmaCfg.IsTombstone = magmakv::isDeleted;
     configuration.magmaCfg.EnableDirectIO =
@@ -2519,6 +2521,16 @@ void MagmaKVStore::calculateAndSetMagmaThreads() {
 
     magma->SetNumThreads(Magma::ThreadType::Flusher, flushers);
     magma->SetNumThreads(Magma::ThreadType::Compactor, compactors);
+}
+
+uint32_t MagmaKVStore::getExpiryOrPurgeTime(const magma::Slice& slice) {
+    auto exptime = magmakv::getExpiryTime(slice);
+
+    if (magmakv::isDeleted(slice)) {
+        exptime += configuration.getMetadataPurgeAge();
+    }
+
+    return exptime;
 }
 
 void to_json(nlohmann::json& json, const MagmaDbStats& dbStats) {

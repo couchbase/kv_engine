@@ -35,6 +35,8 @@ public:
             config.setMagmaFlusherThreadPercentage(value);
         } else if (key == "num_writer_threads") {
             config.setNumWriterThreads(value);
+        } else if (key == "persistent_metadata_purge_age") {
+            config.setMetadataPurgeAge(value);
         }
     }
 
@@ -67,6 +69,7 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaFlusherPercentage = config.getMagmaFlusherThreadPercentage();
     magmaMaxDefaultStorageThreads = config.getMagmaMaxDefaultStorageThreads();
     numWriterThreads = config.getNumWriterThreads();
+    metadataPurgeAge = config.getPersistentMetadataPurgeAge();
 
     config.addValueChangedListener(
             "magma_fragmentation_percentage",
@@ -76,6 +79,9 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             std::make_unique<ConfigChangeListener>(*this));
     config.addValueChangedListener(
             "magma_flusher_thread_percentage",
+            std::make_unique<ConfigChangeListener>(*this));
+    config.addValueChangedListener(
+            "persistent_metadata_purge_age",
             std::make_unique<ConfigChangeListener>(*this));
 }
 
