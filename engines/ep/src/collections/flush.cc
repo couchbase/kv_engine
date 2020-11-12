@@ -104,10 +104,24 @@ void Flush::saveCollectionStats(
 
         // Generate new stats, add the deltas from this flush batch for count
         // and size and set the high-seqno
-        PersistedStats ps(stats.itemCount + flushStats.getItemCount(),
-                          flushStats.getPersistedHighSeqno(),
-                          stats.diskSize + flushStats.getDiskSize());
-        cb(cid, ps);
+        try {
+            PersistedStats ps(stats.itemCount + flushStats.getItemCount(),
+                              flushStats.getPersistedHighSeqno(),
+                              stats.diskSize + flushStats.getDiskSize());
+            cb(cid, ps);
+        } catch (const std::exception& e) {
+            EP_LOG_CRITICAL("Flush::saveCollectionStats caught exception {}",
+                            e.what());
+            EP_LOG_CRITICAL(
+                    "Flush::saveCollectionStats items:{} + {}, highSeq:{}, "
+                    "diskSize:{} + {}",
+                    stats.itemCount,
+                    flushStats.getItemCount(),
+                    flushStats.getPersistedHighSeqno(),
+                    stats.diskSize,
+                    flushStats.getDiskSize());
+            throw;
+        }
     }
 }
 
