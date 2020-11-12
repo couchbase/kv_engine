@@ -668,6 +668,8 @@ void initialize_mbcp_lookup_map() {
                            process_bin_dcp_response);
     setup_response_handler(cb::mcbp::ClientOpcode::DcpAbort,
                            process_bin_dcp_response);
+    setup_response_handler(cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged,
+                           process_bin_dcp_response);
     setup_response_handler(cb::mcbp::ClientOpcode::GetErrorMap,
                            process_bin_dcp_response);
 

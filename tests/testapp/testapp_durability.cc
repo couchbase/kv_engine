@@ -168,6 +168,54 @@ TEST_P(DurabilityTest, GetAndTouchNotSupported) {
     executeTouchOrGatCommand(ClientOpcode::Gat);
 }
 
+TEST_P(DurabilityTest, AckResponseHandled) {
+    if (mcd_env->getTestBucket().getName() != "default_engine") {
+        // Will fail in EP engine if the DCP consumer isn't present
+        return;
+    }
+    // Send our response to see if the executor accepts it. If not, it would
+    // disconnect the connection
+    std::vector<uint8_t> rspBuffer(1024);
+    ResponseBuilder rspBuilder({rspBuffer.data(), rspBuffer.size()});
+    rspBuilder.setOpcode(cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged);
+    rspBuilder.setMagic(Magic::AltClientResponse);
+    rspBuilder.setFramingExtras(encode(cb::durability::Requirements()));
+    rspBuilder.setKey(
+            {reinterpret_cast<const uint8_t*>(name.data()), name.size()});
+    rspBuffer.resize(rspBuilder.getFrame()->getFrame().size());
+
+    Frame rspFrame;
+    rspFrame.payload = std::move(rspBuffer);
+
+    auto& conn = getConnection();
+    conn.sendFrame(rspFrame);
+
+    // Send something else, a GAT in this case, to test that the connection is
+    // still up
+    std::vector<uint8_t> reqBuffer(1024);
+    RequestBuilder reqBuilder({reqBuffer.data(), reqBuffer.size()});
+    std::string value = "";
+    reqBuilder.setOpcode(ClientOpcode::Gat);
+    reqBuilder.setMagic(Magic::AltClientRequest);
+    reqBuilder.setFramingExtras(encode(cb::durability::Requirements()));
+    reqBuilder.setExtras(request::GatPayload().getBuffer());
+    reqBuilder.setKey(
+            {reinterpret_cast<const uint8_t*>(name.data()), name.size()});
+    reqBuilder.setValue(
+            {reinterpret_cast<const uint8_t*>(value.data()), value.size()});
+    reqBuffer.resize(reqBuilder.getFrame()->getFrame().size());
+
+    Frame reqFrame;
+    reqFrame.payload = std::move(reqBuffer);
+    conn.sendFrame(reqFrame);
+
+    BinprotResponse resp;
+    conn.recvResponse(resp);
+
+    EXPECT_EQ(Status::NotSupported, resp.getStatus());
+    EXPECT_NE(0xdeadbeef, ntohll(resp.getCas()));
+}
+
 class SubdocDurabilityTest : public DurabilityTest {
 protected:
     void SetUp() override {

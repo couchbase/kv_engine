@@ -2902,6 +2902,14 @@ TEST_P(SingleThreadedPassiveStreamTest,
             true, cb::durability::Requirements(), true);
 }
 
+TEST_P(SingleThreadedPassiveStreamTest, ConsumerHandlesSeqnoAckResponse) {
+    protocol_binary_response_header resp{};
+    resp.response.setMagic(cb::mcbp::Magic::AltClientResponse);
+    resp.response.setOpcode(cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged);
+    resp.response.setStatus(cb::mcbp::Status::NotMyVbucket);
+    EXPECT_TRUE(consumer->handleResponse(&resp));
+}
+
 TEST_P(SingleThreadedActiveStreamTest,
        CursorReregisteredBeforeBackfillAfterCursorDrop) {
     // MB-37150: test that, after cursor dropping, cursors are registered before
