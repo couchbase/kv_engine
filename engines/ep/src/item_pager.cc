@@ -314,28 +314,28 @@ PagingVisitor::PagingVisitor(KVBucket& s,
 
     std::function<bool(const VBucket::id_type&, const VBucket::id_type&)>
     PagingVisitor::getVBucketComparator() const {
-        // Get the pageable mem used of each vb _once_ and cache it.
+        // Get the pageable mem used and state of each vb _once_ and cache it.
         // Fetching these values repeatedly in the comparator could cause issues
         // as the values can change _during_ a given sort call.
 
-        std::map<VBucket::id_type, size_t> pageableMemUsed;
+        std::map<VBucket::id_type, std::pair<bool, size_t>>
+                stateAndPageableMemUsed;
 
         for (const auto& vbid : store.getVBuckets().getBuckets()) {
             auto vb = store.getVBucket(vbid);
-            pageableMemUsed[vbid] = vb ? vb->getPageableMemUsage() : 0;
+            if (vb) {
+                stateAndPageableMemUsed[vbid] = {
+                        vb->getState() == vbucket_state_replica,
+                        vb->getPageableMemUsage()};
+            }
         }
 
         // Capture initializers are C++14
-        return [pageableMemUsed, this](const VBucket::id_type& a,
-                                       const VBucket::id_type& b) mutable {
-            auto vbA = store.getVBucket(a);
-            auto vbB = store.getVBucket(b);
-            bool aReplica = vbA && vbA->getState() == vbucket_state_replica;
-            bool bReplica = vbB && vbB->getState() == vbucket_state_replica;
+        return [stateAndPageableMemUsed](const VBucket::id_type& a,
+                                         const VBucket::id_type& b) mutable {
             // sort replicas before all other vbucket states, then sort by
             // pageableMemUsed
-            return std::make_pair(aReplica, pageableMemUsed[a]) >
-                   std::make_pair(bReplica, pageableMemUsed[b]);
+            return stateAndPageableMemUsed[a] > stateAndPageableMemUsed[b];
         };
     }
 

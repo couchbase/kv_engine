@@ -36,6 +36,8 @@
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
+#include <numeric>
+
 /**
  * Test fixture for bucket quota tests. Sets quota (max_size) to 200KB and
  * enables the MemoryTracker.
@@ -1104,6 +1106,118 @@ TEST_P(STItemPagerTest, ItemPagerEvictionOrder) {
     // visitor is definitely done, rather than paused
     while (task.run())
         ;
+}
+
+TEST_P(STItemPagerTest, ItemPagerEvictionOrderIsSafe) {
+    // MB-42688: Test that the ordering of the paging visitor comparator is
+    // fixed even if the amount of pageable memory or the vbucket state changes.
+    // This is required to meet the strict weak ordering requirement of
+    // std::sort
+
+    using Vbid = VBucket::id_type;
+
+    // 17 is the minimum number of vbs found to demonstrate a segfault
+    // with an unsuitable comparator on linux. This is likely impl dependent.
+    // 18 gives 6 vbs per active/replica/pending
+    std::vector<Vbid> allVBs(18);
+
+    std::iota(allVBs.begin(), allVBs.end(), 0);
+
+    for (int i = 0; i < 6; i++) {
+        setVBucketStateAndRunPersistTask(i, vbucket_state_active);
+        setVBucketStateAndRunPersistTask(i + 6, vbucket_state_pending);
+        setVBucketStateAndRunPersistTask(i + 12, vbucket_state_replica);
+    }
+
+    if (engine->getConfiguration().getBucketType() == "persistent") {
+        // flush all vbs
+        for (const auto& vbid : allVBs) {
+            getEPBucket().flushVBucket(vbid);
+        }
+    }
+
+    auto& stats = engine->getEpStats();
+    auto available = std::make_shared<std::atomic<bool>>();
+    auto& config = engine->getConfiguration();
+
+    std::atomic<item_pager_phase> phase{ACTIVE_AND_PENDING_ONLY};
+    bool isEphemeral = std::get<0>(GetParam()) == "ephemeral";
+
+    auto pv = std::make_unique<MockPagingVisitor>(
+            *store,
+            stats,
+            1.0,
+            available,
+            ITEM_PAGER,
+            false,
+            1.0,
+            VBucketFilter(allVBs),
+            &phase,
+            isEphemeral,
+            config.getItemEvictionAgePercentage(),
+            config.getItemEvictionFreqCounterAgeThreshold(),
+            PagingVisitor::EvictionPolicy::hifi_mfu);
+
+    // now test that even with state changes, the comparator sorts the vbuckets
+    // acceptably
+    auto innerComparator = pv->getVBucketComparator();
+
+    // wrap the comparator to allow insertion of state changes mid-sort
+    auto comparator = [&innerComparator, this](const Vbid& a, const Vbid& b) {
+        // run the actual comparator
+        auto res = innerComparator(a, b);
+        // now, to _intentionally_ try to break the strict weak ordering, change
+        // the state of one of the vbuckets. If the vbucket comparator is
+        // checking the state each time, this can cause a crash in std::sort
+        for (const auto& vbid : {a, b}) {
+            auto state = store->getVBucket(vbid)->getState();
+            EXPECT_EQ(ENGINE_SUCCESS,
+                      store->setVBucketState(vbid,
+                                             state == vbucket_state_replica
+                                                     ? vbucket_state_active
+                                                     : vbucket_state_replica,
+                                             /*transfer*/ false));
+        }
+
+        return res;
+    };
+
+    // if the vbucket comparator is "safe" and checks the state once, this
+    // sort will work as expected - otherwise it _may_ segfault.
+    // Note: this is not a robust test, variations in the impl of sort
+    // may mean this does _not_ crash even with an unacceptable comparator
+    std::sort(allVBs.begin(), allVBs.end(), comparator);
+
+    // as a secondary check, directly test the requirements of a strict
+    // weak ordering on the comparator while actively changing
+    // the state of vbuckets. This will fail if the comparator checks
+    // the bucket state on every call.
+
+    // irreflexivity
+    for (const auto& x : allVBs) {
+        EXPECT_FALSE(comparator(x, x));
+    }
+
+    // asymmetry
+    for (const auto& x : allVBs) {
+        for (const auto& y : allVBs) {
+            EXPECT_FALSE(comparator(x, y) && comparator(y, x));
+        }
+    }
+
+    // transitivity
+    for (const auto& x : allVBs) {
+        for (const auto& y : allVBs) {
+            for (const auto& z : allVBs) {
+                // x < y && y < z => x < z
+                // equivalent to
+                // !(x < y && y < z) || x < z
+                // if x < y and y < z, it must be true that x < z
+                EXPECT_TRUE(!(comparator(x, y) && comparator(y, z)) ||
+                            comparator(x, z));
+            }
+        }
+    }
 }
 
 /// Subclass for expiry tests only applicable to persistent buckets.
