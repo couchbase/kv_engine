@@ -51,6 +51,7 @@
 #include "tests/module_tests/thread_gate.h"
 #include "tests/test_fileops.h"
 #include "vbucket_state.h"
+#include "vbucket_bgfetch_item.h"
 
 #include "../couchstore/src/internal.h"
 
@@ -4909,6 +4910,83 @@ TEST_P(STParamPersistentBucketTest, AbortDoesNotIncrementOpsDelete) {
 TEST_P(STParamPersistentBucketTest,
        AbortDoesNotIncrementOpsDelete_FlusherDedup) {
     testAbortDoesNotIncrementOpsDelete(false /*flusherDedup*/);
+}
+
+// @TODO move to EPBucketFullEvictionTest on merge forward to master
+TEST_P(STParamPersistentBucketTest, ExpiryFindsPrepareWithSameCas) {
+    if (!fullEviction()) {
+        return;
+    }
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    // 1) Store prepare with expiry
+    auto key = makeStoredDocKey("a");
+    using namespace cb::durability;
+    auto pre = makePendingItem(key, "value", Requirements{Level::Majority, {}});
+    pre->setVBucketId(vbid);
+    pre->setExpTime(1);
+
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pre, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto vb = store->getVBucket(vbid);
+
+    // 2) Seqno ack and commit the prepare
+    vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                          "replica",
+                          1 /*prepareSeqno*/);
+    vb->processResolvedSyncWrites();
+
+    // 3) Fudge the current snapshot so that when we warmup we scan the entire
+    //    snapshot for prepares (i.e. incomplete disk snapshot)
+    vb->checkpointManager->updateCurrentSnapshot(3, 3, CheckpointType::Disk);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // 4) Restart and warmup
+    vb.reset();
+    resetEngineAndWarmup();
+    vb = store->getVBucket(vbid);
+
+    {
+        // Verify that the prepare is there and it's "MaybeVisible"
+        auto ret = vb->ht.findForUpdate(key);
+        ASSERT_TRUE(ret.pending);
+        ASSERT_TRUE(ret.pending->isPreparedMaybeVisible());
+
+        // And that the commit is there too
+        ASSERT_TRUE(ret.committed);
+    }
+
+    // 5) Grab the item from disk just like the compactor would
+    vb_bgfetch_queue_t q;
+    vb_bgfetch_item_ctx_t ctx;
+    ctx.isMetaOnly = GetMetaOnly::No;
+    auto diskDocKey = makeDiskDocKey("a");
+    q[diskDocKey] = std::move(ctx);
+    store->getRWUnderlying(vbid)->getMulti(vbid, q);
+    EXPECT_EQ(ENGINE_SUCCESS, q[diskDocKey].value.getStatus());
+
+    // 6) Callback from the "compactor" with the item to try and expire it. We
+    //    could also pretend to be the pager here.
+    ASSERT_EQ(0, vb->numExpiredItems);
+    vb->deleteExpiredItem(*q[diskDocKey].value.item, 2, ExpireBy::Compactor);
+
+    // Item expiry cannot take place if the MaybeVisible prepare exists.
+    EXPECT_EQ(0, vb->numExpiredItems);
+    {
+        // Verify that the prepare is there and it's "MaybeVisible". Before the
+        // fix deleteExpiredItem would select and replace the prepare which is
+        // incorrect and causes us to have two committed items in the HashTable.
+        auto ret = vb->ht.findForUpdate(key);
+        ASSERT_TRUE(ret.pending);
+        ASSERT_TRUE(ret.pending->isPreparedMaybeVisible());
+
+        // And that the commit is there too
+        ASSERT_TRUE(ret.committed);
+    }
 }
 
 INSTANTIATE_TEST_CASE_P(Persistent,

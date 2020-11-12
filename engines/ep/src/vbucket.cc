@@ -2412,6 +2412,16 @@ void VBucket::deleteExpiredItem(const Item& it,
             return;
         }
 
+        if (v->isPending()) {
+            // If cas is the same (above statement) and the HashTable has
+            // returned a prepare then we must have loaded a logically complete
+            // prepare (as we remove them from the HashTable at completion) for
+            // some reason. The prepare should be in a maybe visible state but
+            // it probably isn't a good idea to assert that here. In this case
+            // we must do nothing as we MUST commit any maybe visible prepares.
+            return;
+        }
+
         if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
             bool deleted = deleteStoredValue(hbl, *v);
             if (!deleted) {
