@@ -99,7 +99,8 @@ def calc_bin_stats(stats, arena_ID):
         headers = line.split()[1:]
         line = stats.readline()
         while (line.strip() and
-               not line.startswith('--- End jemalloc statistics ---')):
+               not (line.startswith('--- End jemalloc statistics ---') or
+                    line.startswith('extents:'))):
             if line.startswith('=== Exceeded buffer size - output cropped ==='):
                 output_cropped = True
                 break
