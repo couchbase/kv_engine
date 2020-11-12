@@ -884,9 +884,9 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
                              context.in_doc.view.size() - bodyoffset}};
     MemoryBackedBuffer xattr{{value_buf.data(), value_buf.size()}};
 
-    for (const auto m : {cb::xattr::macros::CAS,
-                         cb::xattr::macros::SEQNO,
-                         cb::xattr::macros::VALUE_CRC32C}) {
+    for (const auto& m : {cb::xattr::macros::CAS,
+                          cb::xattr::macros::SEQNO,
+                          cb::xattr::macros::VALUE_CRC32C}) {
         context.generate_macro_padding(xattr.view, m);
     }
 
