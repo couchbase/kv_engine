@@ -64,10 +64,21 @@ void Flush::StatisticsUpdate::insert(bool isSystem,
         incrementItemCount();
     } // else inserting a tombstone - no item increment
 
-    updateDiskSize(diskSizeDelta);
+    // MB-39946: for now don't record the system event size to catch this bug
+    // against any old collection (i.e any empty collection should now be 0
+    // disk)
+    if (!isSystem) {
+        updateDiskSize(diskSizeDelta);
+    }
 }
 
-void Flush::StatisticsUpdate::update(ssize_t diskSizeDelta) {
+void Flush::StatisticsUpdate::update(bool isSystem, ssize_t diskSizeDelta) {
+    // MB-39946: for now don't record the system event size to catch this bug
+    // against any old collection (i.e any empty collection should now be 0
+    // disk)
+    if (isSystem) {
+        return;
+    }
     updateDiskSize(diskSizeDelta);
 }
 
@@ -336,7 +347,7 @@ void Flush::updateStats(const DocKey& key,
         } else if (!oldIsDelete && isDelete) {
             stats.remove(isSystemEvent, size - oldSize);
         } else {
-            stats.update(size - oldSize);
+            stats.update(isSystemEvent, size - oldSize);
         }
     }
 }
