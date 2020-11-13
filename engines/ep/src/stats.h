@@ -250,6 +250,12 @@ public:
     // counters merge their info, this could be negative
     folly::CachelinePadded<cb::RelaxedAtomic<int64_t>> estimatedTotalMemory;
 
+    // Total memory used by hashtable items for replica vbuckets.
+    cb::RelaxedAtomic<int64_t> replicaHTMemory;
+
+    // Total memory used by checkpoints for replica vbuckets.
+    cb::RelaxedAtomic<int64_t> replicaCheckpointOverhead;
+
     //! Core-local statistics
     CoreStore<folly::CachelinePadded<CoreLocalStats>> coreLocal;
 

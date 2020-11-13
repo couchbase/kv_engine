@@ -250,7 +250,8 @@ void CheckpointManager::addOpenCheckpoint(
                                              visibleSnapEnd,
                                              highCompletedSeqno,
                                              vbucketId,
-                                             checkpointType);
+                                             checkpointType,
+                                             overheadChangedCallback);
     // Add an empty-item into the new checkpoint.
     // We need this because every CheckpointCursor will point to this empty-item
     // at creation. So, the cursor will point at the first actual non-meta item
@@ -1451,12 +1452,12 @@ queued_item CheckpointManager::createCheckpointItem(uint64_t id,
     return qi;
 }
 
-uint64_t CheckpointManager::createNewCheckpoint() {
+uint64_t CheckpointManager::createNewCheckpoint(bool force) {
     LockHolder lh(queueLock);
 
     const auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
 
-    if (openCkpt.getNumItems() == 0) {
+    if (openCkpt.getNumItems() == 0 && !force) {
         return openCkpt.getId();
     }
 
@@ -1629,6 +1630,34 @@ void CheckpointManager::takeAndResetCursors(CheckpointManager& other) {
 
 bool CheckpointManager::isOpenCheckpointDisk() {
     return checkpointList.back()->isDiskCheckpoint();
+}
+
+void CheckpointManager::updateStatsForStateChange(vbucket_state_t from,
+                                                  vbucket_state_t to) {
+    LockHolder lh(queueLock);
+    if (from == vbucket_state_replica && to != vbucket_state_replica) {
+        // vbucket is changing state away from replica, it's memory usage
+        // should no longer be accounted for as a replica.
+        stats.replicaCheckpointOverhead -= getMemoryOverhead_UNLOCKED();
+    } else if (from != vbucket_state_replica && to == vbucket_state_replica) {
+        // vbucket is changing state to _become_ a replica, it's memory usage
+        // _should_ be accounted for as a replica.
+        stats.replicaCheckpointOverhead += getMemoryOverhead_UNLOCKED();
+    }
+}
+
+void CheckpointManager::setOverheadChangedCallback(
+        std::function<void(int64_t delta)> callback) {
+    LockHolder lh(queueLock);
+    overheadChangedCallback = std::move(callback);
+
+    overheadChangedCallback(getMemoryOverhead_UNLOCKED());
+}
+
+std::function<void(int64_t delta)>
+CheckpointManager::getOverheadChangedCallback() const {
+    LockHolder lh(queueLock);
+    return overheadChangedCallback;
 }
 
 std::ostream& operator <<(std::ostream& os, const CheckpointManager& m) {

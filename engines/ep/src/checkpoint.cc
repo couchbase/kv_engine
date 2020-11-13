@@ -181,7 +181,8 @@ Checkpoint::Checkpoint(EPStats& st,
                        uint64_t visibleSnapEnd,
                        boost::optional<uint64_t> highCompletedSeqno,
                        Vbid vbid,
-                       CheckpointType checkpointType)
+                       CheckpointType checkpointType,
+                       const std::function<void(int64_t delta)>& memOverheadChangedCallback)
     : stats(st),
       checkpointId(id),
       snapStartSeqno(snapStart),
@@ -199,8 +200,10 @@ Checkpoint::Checkpoint(EPStats& st,
       keyIndexMemUsage(0),
       queuedItemsMemUsage(0),
       checkpointType(checkpointType),
-      highCompletedSeqno(highCompletedSeqno) {
+      highCompletedSeqno(highCompletedSeqno),
+      memOverheadChangedCallback(memOverheadChangedCallback) {
     stats.coreLocal.get()->memOverhead.fetch_add(sizeof(Checkpoint));
+    memOverheadChangedCallback(sizeof(Checkpoint));
 }
 
 Checkpoint::~Checkpoint() {
@@ -213,8 +216,9 @@ Checkpoint::~Checkpoint() {
      * of queued_items in the checkpoint.
      */
     auto queueMemOverhead = sizeof(queued_item) * toWrite.size();
-    stats.coreLocal.get()->memOverhead.fetch_sub(
-            sizeof(Checkpoint) + keyIndexMemUsage + queueMemOverhead);
+    auto overhead = sizeof(Checkpoint) + keyIndexMemUsage + queueMemOverhead;
+    stats.coreLocal.get()->memOverhead.fetch_sub(overhead);
+    memOverheadChangedCallback(-ssize_t(overhead));
 }
 
 QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
@@ -384,8 +388,9 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
              * item to the queue (toWrite).  This is approximated to the
              * addition to metaKeyIndex / keyIndex plus sizeof(queued_item).
              */
-            stats.coreLocal.get()->memOverhead.fetch_add(indexKeyUsage +
-                                                         sizeof(queued_item));
+            auto overhead = indexKeyUsage + sizeof(queued_item);
+            stats.coreLocal.get()->memOverhead.fetch_add(overhead);
+            memOverheadChangedCallback(overhead);
             /**
              *  Update the total metaKeyIndex / keyIndex memory usage which is
              *  used when the checkpoint is destructed to manually account

@@ -65,6 +65,10 @@ VBucketPtr MockEphemeralBucket::makeVBucket(
                                              replicationTopology,
                                              maxVisibleSeqno);
 
+    // need to preserve the overhead callback after replacing the checkpoint
+    // manager
+    auto overheadChangedCB =
+            vptr->checkpointManager->getOverheadChangedCallback();
     vptr->checkpointManager = std::make_unique<MockCheckpointManager>(
             stats,
             id,
@@ -74,6 +78,9 @@ VBucketPtr MockEphemeralBucket::makeVBucket(
             lastSnapEnd,
             maxVisibleSeqno,
             /*flusher callback*/ nullptr);
+
+    vptr->checkpointManager->setOverheadChangedCallback(overheadChangedCB);
+
     return vptr;
 }
 

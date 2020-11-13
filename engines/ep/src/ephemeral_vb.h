@@ -174,6 +174,9 @@ public:
         return 0;
     }
 
+    void updateStatsForStateChange(vbucket_state_t from,
+                                   vbucket_state_t to) override;
+
     void incrNumTotalItems() override {
         throw std::logic_error(
                 "EphemeralVBucket::incrNumTotalItems not supported");

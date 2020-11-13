@@ -372,9 +372,12 @@ public:
 
     /**
      * Create a new open checkpoint by force.
+     *
+     * @param force create a new checkpoint even if the existing one
+     *        contains no non-meta items
      * @return the new open checkpoint id
      */
-    uint64_t createNewCheckpoint();
+    uint64_t createNewCheckpoint(bool force = false);
 
     /**
      * Get id of the previous checkpoint that is followed by the checkpoint
@@ -484,6 +487,24 @@ public:
     /// @return true if the current open checkpoint is a DiskCheckpoint
     bool isOpenCheckpointDisk();
 
+    void updateStatsForStateChange(vbucket_state_t from, vbucket_state_t to);
+
+    /**
+     * Sets the callback to be invoked whenever memory usage changes due to a
+     * new queued item or checkpoint removal (or checkpoint expelling, in
+     * versions this is implemented in). This allows changes in checkpoint
+     * memory usage to be monitored.
+     */
+    void setOverheadChangedCallback(
+            std::function<void(int64_t delta)> callback);
+
+    /**
+     * Gets the callback to be invoked whenever memory usage changes due to a
+     * new queued item or checkpoint removal (or checkpoint expelling, in
+     * versions this is implemented in).
+     */
+    std::function<void(int64_t delta)> getOverheadChangedCallback() const;
+
     /**
      * Member std::function variable, to allow us to inject code into
      * removeCursor_UNLOCKED() for unit MB36146
@@ -518,6 +539,16 @@ protected:
     void updateStatsForNewQueuedItem_UNLOCKED(const LockHolder& lh,
                                               VBucket& vb,
                                               const queued_item& qi);
+
+    /**
+     * function to invoke whenever memory usage changes due to a new
+     * queued item or checkpoint removal (or checkpoint expelling, in versions
+     * this ins implemented in).
+     * Must be declared before checkpointList to ensure it still exists
+     * when any Checkpoints within the list are destroyed during destruction
+     * of this CheckpointManager.
+     */
+    std::function<void(int64_t delta)> overheadChangedCallback{[](int64_t) {}};
 
     CheckpointList checkpointList;
 

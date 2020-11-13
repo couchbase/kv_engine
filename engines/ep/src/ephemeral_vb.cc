@@ -339,6 +339,20 @@ uint64_t EphemeralVBucket::getMaxVisibleSeqno() const {
     return seqList->getMaxVisibleSeqno();
 }
 
+void EphemeralVBucket::updateStatsForStateChange(vbucket_state_t from,
+                                                 vbucket_state_t to) {
+    checkpointManager->updateStatsForStateChange(from, to);
+    if (from == vbucket_state_replica && to != vbucket_state_replica) {
+        // vbucket is changing state away from replica, it's memory usage
+        // should no longer be accounted for as a replica.
+        stats.replicaHTMemory -= ht.getCacheSize();
+    } else if (from != vbucket_state_replica && to == vbucket_state_replica) {
+        // vbucket is changing state to _become_ a replica, it's memory usage
+        // _should_ be accounted for as a replica.
+        stats.replicaHTMemory += ht.getCacheSize();
+    }
+}
+
 size_t EphemeralVBucket::purgeStaleItems(std::function<bool()> shouldPauseCbk) {
     // Iterate over the sequence list and delete any stale items. But we do
     // not want to delete the last element in the vbucket, hence we pass
