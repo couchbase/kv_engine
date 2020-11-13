@@ -252,6 +252,11 @@ enum test_result prepare_full_eviction(engine_test_t *test);
 enum test_result prepare_full_eviction_skip_under_rocks(engine_test_t *test);
 
 /**
+ * Prepare a test which is only applicable to full eviction mode and not magma
+ */
+enum test_result prepare_full_eviction_skip_under_magma(engine_test_t* test);
+
+/**
  * Prepare a test which is not applicable for full eviction when running rocksdb
  */
 enum test_result prepare_skip_broken_under_rocks_full_eviction(

@@ -8547,7 +8547,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 prepare_full_eviction,
+                 prepare_full_eviction_skip_under_magma,
                  cleanup),
 
         // Stats tests
