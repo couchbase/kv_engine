@@ -241,7 +241,7 @@ TEST_F(EphemeralBucketStatTest, ReplicaMemoryTrackingStateChange) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     EXPECT_EQ(0, stats.replicaHTMemory);
-    EXPECT_LT(stats.replicaCheckpointOverhead, 80);
+    EXPECT_EQ(0, stats.replicaCheckpointOverhead);
 }
 
 TEST_F(EphemeralBucketStatTest, ReplicaCheckpointMemoryTracking) {
