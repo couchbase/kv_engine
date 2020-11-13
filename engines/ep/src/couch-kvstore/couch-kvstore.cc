@@ -2769,38 +2769,12 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
     state.updateOnDiskPrepareBytes(kvctx.onDiskPrepareBytesDelta);
     pendingLocalReqsQ.emplace_back("_local/vbstate", makeJsonVBState(state));
 
-    try {
-        kvctx.commitData.collections.saveCollectionStats(
-                std::bind(&CouchKVStore::saveCollectionStats,
-                          this,
-                          std::ref(*db),
-                          std::placeholders::_1,
-                          std::placeholders::_2));
-
-    } catch (const std::exception& e) {
-        // Dump the flush batch
-        logger.critical(
-                "CouchKVStore::saveDocs {} saveCollectionStats exception {} "
-                "docs:{}",
-                vbid,
-                e.what(),
-                docs.size());
-
-        for (size_t ii = 0; ii < docs.size(); ii++) {
-            auto key = makeDiskDocKey(docinfos[ii]->id);
-            logger.critical(
-                    "CouchKVStore::saveDocs info key:{}, seq:{}, rev:{}, "
-                    "deleted:{}, cm:{}, value_size:{}",
-                    key.to_string(),
-                    docinfos[ii]->db_seq,
-                    docinfos[ii]->rev_seq,
-                    docinfos[ii]->deleted,
-                    int(docinfos[ii]->content_meta),
-                    docs[ii] ? docs[ii]->data.size : 0);
-        }
-
-        throw;
-    }
+    kvctx.commitData.collections.saveCollectionStats(
+            std::bind(&CouchKVStore::saveCollectionStats,
+                      this,
+                      std::ref(*db),
+                      std::placeholders::_1,
+                      std::placeholders::_2));
 
     if (kvctx.commitData.collections.isReadyForCommit()) {
         updateCollectionsMeta(*db, kvctx.commitData.collections);
