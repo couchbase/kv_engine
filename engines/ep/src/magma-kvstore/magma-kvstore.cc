@@ -2108,10 +2108,27 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
             };
 
     auto status = magma->Rollback(vbid.get(), rollbackSeqno, keyCallback);
-    if (!status) {
+    switch (status.ErrorCode()) {
+    case Status::Ok:
+        break;
+    case Status::Internal:
+    case Status::Invalid:
+    case Status::Corruption:
+    case Status::IOError:
+    case Status::Compress:
+    case Status::Exists:
+    case Status::NotExists:
+    case Status::ReadOnly:
+    case Status::TransientIO:
+    case Status::Busy:
         logger->critical("MagmaKVStore::rollback Rollback {} status:{}",
                          vbid,
                          status.String());
+        // Fall through
+    case Status::NotFound:
+        // magma->Rollback returns non-success in the case where we have no
+        // rollback points (and should reset the vBucket to 0). This isn't a
+        // critical error so don't log it
         return RollbackResult(false);
     }
 
