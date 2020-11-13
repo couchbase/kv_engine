@@ -1103,7 +1103,7 @@ void VBucket::addToFilter(const DocKey& key) {
         bFilter->addKey(key);
     }
 
-    // If the temp bloom filter is not found to be NULL,
+    // If the temp bloom filter is not found to be nullptr,
     // it means that compaction is running on the particular
     // vbucket. Therefore add the key to the temp filter as
     // well, as once compaction completes the temp filter
@@ -2697,7 +2697,7 @@ GetValue VBucket::getAndUpdateTtl(
             } else {
                 ENGINE_ERROR_CODE ec = addTempItemAndBGFetch(
                         res.lock, cHandle.getKey(), cookie, engine, false);
-                return GetValue(NULL, ec, -1, true);
+                return GetValue(nullptr, ec, -1, true);
             }
         }
         return gv;
@@ -2812,7 +2812,7 @@ GetValue VBucket::getInternal(const void* cookie,
                                            engine,
                                            metadataOnly);
             }
-            return GetValue(NULL, ec, -1, true);
+            return GetValue(nullptr, ec, -1, true);
         } else {
             // As bloomfilter predicted that item surely doesn't exist
             // on disk, return ENOENT, for getInternal().
@@ -2952,12 +2952,12 @@ GetValue VBucket::getLocked(rel_time_t currentTime,
         auto* v = res.storedValue;
         if (isLogicallyNonExistent(*v, cHandle)) {
             ht.cleanupIfTemporaryItem(res.lock, *v);
-            return GetValue(NULL, ENGINE_KEY_ENOENT);
+            return GetValue(nullptr, ENGINE_KEY_ENOENT);
         }
 
         // if v is locked return error
         if (v->isLocked(currentTime)) {
-            return GetValue(NULL, ENGINE_LOCKED_TMPFAIL);
+            return GetValue(nullptr, ENGINE_LOCKED_TMPFAIL);
         }
 
         // If the value is not resident, wait for it...
@@ -2965,7 +2965,7 @@ GetValue VBucket::getLocked(rel_time_t currentTime,
             if (cookie) {
                 bgFetch(cHandle.getKey(), cookie, engine);
             }
-            return GetValue(NULL, ENGINE_EWOULDBLOCK, -1, true);
+            return GetValue(nullptr, ENGINE_EWOULDBLOCK, -1, true);
         }
 
         // acquire lock and increment cas value
@@ -2981,17 +2981,17 @@ GetValue VBucket::getLocked(rel_time_t currentTime,
         // No value found in the hashtable.
         switch (eviction) {
         case EvictionPolicy::Value:
-            return GetValue(NULL, ENGINE_KEY_ENOENT);
+            return GetValue(nullptr, ENGINE_KEY_ENOENT);
 
         case EvictionPolicy::Full:
             if (maybeKeyExistsInFilter(cHandle.getKey())) {
                 ENGINE_ERROR_CODE ec = addTempItemAndBGFetch(
                         res.lock, cHandle.getKey(), cookie, engine, false);
-                return GetValue(NULL, ec, -1, true);
+                return GetValue(nullptr, ec, -1, true);
             } else {
                 // As bloomfilter predicted that item surely doesn't exist
                 // on disk, return ENOENT for getLocked().
-                return GetValue(NULL, ENGINE_KEY_ENOENT);
+                return GetValue(nullptr, ENGINE_KEY_ENOENT);
             }
         }
         folly::assume_unreachable();
@@ -3200,7 +3200,7 @@ void VBucket::_addStats(VBucketStatsDetailLevel detail,
         // fallthrough
     case VBucketStatsDetailLevel::State:
         // adds the vbucket state stat (unnamed stat)
-        addStat(NULL, toString(state), add_stat, c);
+        addStat(nullptr, toString(state), add_stat, c);
         break;
     case VBucketStatsDetailLevel::PreviousState:
         throw std::invalid_argument(
@@ -3876,7 +3876,7 @@ std::map<const void*, ENGINE_ERROR_CODE> VBucket::getHighPriorityNotifications(
             entry = hpVBReqs.erase(entry);
         } else if (spent > getCheckpointFlushTimeout()) {
             adjustCheckpointFlushTimeout(spent);
-            engine.storeEngineSpecific(entry->cookie, NULL);
+            engine.storeEngineSpecific(entry->cookie, nullptr);
             toNotify[entry->cookie] = ENGINE_TMPFAIL;
             EP_LOG_WARN(
                     "Notified the timeout on {} for {} Check for: {}, "
@@ -3903,7 +3903,7 @@ std::map<const void*, ENGINE_ERROR_CODE> VBucket::tmpFailAndGetAllHpNotifies(
 
     for (auto& entry : hpVBReqs) {
         toNotify[entry.cookie] = ENGINE_TMPFAIL;
-        engine.storeEngineSpecific(entry.cookie, NULL);
+        engine.storeEngineSpecific(entry.cookie, nullptr);
     }
     hpVBReqs.clear();
 
