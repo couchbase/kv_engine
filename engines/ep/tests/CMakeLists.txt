@@ -286,6 +286,14 @@ ENDIF()
 FUNCTION(ADD_TESTSUITE name timeout)
     SET(_cmdline $<TARGET_FILE:${name}> -E ep)
 
+    # Sanitizers slow down test execution, in the region of 2x - 4x
+    # slowdown. Given we don't want to trigger spurious false
+    # positives in those configs, increase the specified timeout by 4x
+    # if sanitizers are in use.
+    IF (CB_SANITIZERS)
+        MATH(EXPR timeout "${timeout}*4")
+    ENDIF()
+
     # MB-34445: To attempt to identify the cause of the intermittent timeouts in
     # the ephemeral testsuites, use the 'timeout' program to signal ep_testsuite
     # with SIGABRT when we timeout; to allow a core dump to be generated of
@@ -350,7 +358,7 @@ ENDFUNCTION()
 # Windows
 # MB-36322: Skipping ep_testsuite under TSan + Magma as
 # intermittently timing out.
-IF(WIN32 OR CB_THREADSANITIZER)
+IF(WIN32)
     # Increased timeout on Windows as suite is slower on CV there (IO subsystem
     # on CV machines slower?)
     ADD_TESTSUITE(ep_testsuite 600 SKIP_MAGMA)
@@ -358,9 +366,9 @@ ELSE()
     ADD_TESTSUITE(ep_testsuite 300)
 ENDIF()
 
-ADD_TESTSUITE(ep_testsuite_basic 600)
+ADD_TESTSUITE(ep_testsuite_basic 240)
 
-ADD_TESTSUITE(ep_testsuite_dcp 1200)
+ADD_TESTSUITE(ep_testsuite_dcp 240)
 
 ADD_TESTSUITE(ep_testsuite_checkpoint 180)
 
