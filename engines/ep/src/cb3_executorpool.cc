@@ -264,7 +264,7 @@ bool CB3ExecutorPool::_wake(size_t taskId) {
     return false;
 }
 
-bool CB3ExecutorPool::wake(size_t taskId) {
+bool CB3ExecutorPool::wakeAndWait(size_t taskId) {
     NonBucketAllocationGuard guard;
     bool rv = _wake(taskId);
     return rv;

@@ -898,10 +898,20 @@ bool FollyExecutorPool::cancel(size_t taskId, bool eraseTask) {
     return found;
 }
 
-bool FollyExecutorPool::wake(size_t taskId) {
+void FollyExecutorPool::wake(size_t taskId) {
     NonBucketAllocationGuard guard;
 
     EP_LOG_TRACE("FollyExecutorPool::wake() id:{}", taskId);
+
+    auto* eventBase = futurePool->getEventBase();
+    eventBase->runInEventBaseThread(
+            [state = state.get(), taskId] { state->wakeTask(taskId); });
+}
+
+bool FollyExecutorPool::wakeAndWait(size_t taskId) {
+    NonBucketAllocationGuard guard;
+
+    EP_LOG_TRACE("FollyExecutorPool::wakeAndWait() id:{}", taskId);
 
     auto* eventBase = futurePool->getEventBase();
     bool found = false;

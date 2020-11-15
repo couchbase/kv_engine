@@ -220,7 +220,7 @@ public:
         // to run.
         auto nextTask = tasks.begin();
         while (state.KeepRunning()) {
-            EXPECT_TRUE(getPool()->wake((*nextTask)->getId()));
+            getPool()->wake((*nextTask)->getId());
             consumerCount++;
             cv.wait();
             EXPECT_EQ(consumerCount, producerCount.load());

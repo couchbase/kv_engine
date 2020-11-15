@@ -132,7 +132,21 @@ public:
      * jump ahead of other tasks as tasks that are ready to run are ordered
      * by their priority.
      */
-    virtual bool wake(size_t taskId) = 0;
+    virtual void wake(size_t taskId) {
+        wakeAndWait(taskId);
+    }
+
+    /**
+     * Same as wake(), except it returns true if the given task was registered
+     * and successfully requested to wake.
+     * This method may be slower than wake() for some ExecutorPool
+     * implementations, if additional work is required to "synchronously" wake
+     * the task.
+     * Note: even if this method returns true, it doesn't guarantee the task
+     * will run - the task could still be cancelled before it has chance to
+     * execute.
+     */
+    virtual bool wakeAndWait(size_t taskId) = 0;
 
     /**
      * The snooze method will locate the task matching taskId and adjust its

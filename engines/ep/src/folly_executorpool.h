@@ -166,7 +166,8 @@ public:
 
     size_t schedule(ExTask task) override;
     bool cancel(size_t taskId, bool eraseTask) override;
-    bool wake(size_t taskId) override;
+    void wake(size_t taskId) override;
+    bool wakeAndWait(size_t taskId) override;
     bool snooze(size_t taskId, double tosleep) override;
     void doWorkerStat(Taskable& taskable,
                       const void* cookie,

@@ -272,7 +272,7 @@ TYPED_TEST(ExecutorPoolTest, Wake) {
 
     // Test: Wake the task, and expect to run "immediately" (give a generous
     // deadline of 10s.
-    EXPECT_TRUE(this->pool->wake(taskId));
+    this->pool->wake(taskId);
     tg.waitFor(std::chrono::seconds(10));
     EXPECT_TRUE(tg.isComplete()) << "Timeout waiting for task to wake";
 
@@ -346,7 +346,7 @@ TYPED_TEST(ExecutorPoolTest, WakeWithoutSchedule) {
                 return false;
             });
 
-    EXPECT_FALSE(this->pool->wake(task->getId()));
+    EXPECT_FALSE(this->pool->wakeAndWait(task->getId()));
 
     this->pool->unregisterTaskable(taskable, false);
 }
@@ -415,7 +415,7 @@ TYPED_TEST(ExecutorPoolTest, SnoozeThenWake) {
 
     // Test: Wake the task, expecting it to run immediately, but not a second
     // time (the previous schedule time should have been superceded).
-    EXPECT_TRUE(this->pool->wake(task->getId()));
+    this->pool->wake(task->getId());
     {
         std::unique_lock<std::mutex> guard(cv);
         cv.wait(guard, [&runCount] { return runCount == 1; });
@@ -1175,7 +1175,7 @@ ScheduleOnDestruct::~ScheduleOnDestruct() {
 
     // MB-40517: This deadlocked
     pool.schedule(task);
-    EXPECT_TRUE(pool.wake(task->getId()));
+    pool.wake(task->getId());
 }
 
 /*

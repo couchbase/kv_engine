@@ -133,7 +133,7 @@ public:
 
     bool cancel(size_t taskId, bool remove = false) override;
 
-    bool wake(size_t taskId) override;
+    bool wakeAndWait(size_t taskId) override;
 
     /**
      * Change how many worker threads there are for a given task type,

@@ -57,7 +57,7 @@ bool Flusher::stop(bool isForceShutdown) {
 void Flusher::wait() {
     auto startt = std::chrono::steady_clock::now();
     while (_state != State::Stopped) {
-        if (!ExecutorPool::get()->wake(taskId)) {
+        if (!ExecutorPool::get()->wakeAndWait(taskId)) {
             EP_LOG_WARN("Flusher::wait: taskId: {} has vanished!", taskId);
             break;
         }

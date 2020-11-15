@@ -2539,7 +2539,7 @@ void KVBucket::runItemFreqDecayerTask() {
 }
 
 bool KVBucket::runAccessScannerTask() {
-    return ExecutorPool::get()->wake(accessScanner.task);
+    return ExecutorPool::get()->wakeAndWait(accessScanner.task);
 }
 
 void KVBucket::runVbStatePersistTask(Vbid vbid) {
