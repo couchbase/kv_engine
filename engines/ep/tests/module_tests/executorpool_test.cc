@@ -411,7 +411,7 @@ TYPED_TEST(ExecutorPoolTest, Snooze) {
     // Test: Wake the task, and expect to run "immediately" (give a generous
     // deadline of 10s.
     // Test: re-snooze the task to run in a fraction of a second.
-    EXPECT_TRUE(this->pool->snooze(taskId, std::numeric_limits<double>::min()));
+    this->pool->snooze(taskId, std::numeric_limits<double>::min());
     tg.waitFor(std::chrono::seconds(10));
     EXPECT_TRUE(tg.isComplete())
             << "Timeout waiting for task to run after snooze";
@@ -494,7 +494,7 @@ TYPED_TEST(ExecutorPoolTest, SnoozeWithoutSchedule) {
                 return false;
             });
 
-    EXPECT_FALSE(this->pool->snooze(task->getId(), 1.0));
+    EXPECT_FALSE(this->pool->snoozeAndWait(task->getId(), 1.0));
 
     this->pool->unregisterTaskable(taskable, false);
 }

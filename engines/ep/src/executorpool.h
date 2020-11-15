@@ -152,7 +152,21 @@ public:
      * The snooze method will locate the task matching taskId and adjust its
      * wakeTime to account for the toSleep value.
      */
-    virtual bool snooze(size_t taskId, double tosleep) = 0;
+    virtual void snooze(size_t taskId, double tosleep) {
+        snoozeAndWait(taskId, tosleep);
+    }
+
+    /**
+     * Same as snooze(), except it returns true if the given task was
+     * registered and successfully requested to snooze.
+     * This method may be slower than snooze() for some ExecutorPool
+     * implementations, if additional work is required to "synchronously"
+     * snooze the task.
+     * Note: even if this method returns true, it doesn't guarantee the task
+     * will sleep for specified time - the task could still be cancelled
+     * (or woken by someone else) before it has chance to sleep that long.
+     */
+    virtual bool snoozeAndWait(size_t taskId, double tosleep) = 0;
 
     /*************** Statistics *********************************************/
 

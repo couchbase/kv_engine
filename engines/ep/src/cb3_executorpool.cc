@@ -280,7 +280,7 @@ bool CB3ExecutorPool::_snooze(size_t taskId, double toSleep) {
     return false;
 }
 
-bool CB3ExecutorPool::snooze(size_t taskId, double toSleep) {
+bool CB3ExecutorPool::snoozeAndWait(size_t taskId, double toSleep) {
     NonBucketAllocationGuard guard;
     bool rv = _snooze(taskId, toSleep);
     return rv;

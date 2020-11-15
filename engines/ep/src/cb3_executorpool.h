@@ -144,7 +144,7 @@ public:
      */
     void adjustWorkers(task_type_t type, size_t newCount);
 
-    bool snooze(size_t taskId, double tosleep) override;
+    bool snoozeAndWait(size_t taskId, double tosleep) override;
 
     void registerTaskable(Taskable& taskable) override;
 

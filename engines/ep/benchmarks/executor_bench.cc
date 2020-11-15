@@ -293,8 +293,8 @@ public:
         auto nextTask = tasks.begin();
         int64_t tasksSnoozed = 0;
         while (state.KeepRunning()) {
-            EXPECT_TRUE(getPool()->snooze((*nextTask)->getId(),
-                                          timeoutDistribution(generator)));
+            getPool()->snooze((*nextTask)->getId(),
+                              timeoutDistribution(generator));
             tasksSnoozed++;
             nextTask++;
             if (nextTask == tasks.end()) {

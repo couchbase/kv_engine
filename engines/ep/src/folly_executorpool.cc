@@ -967,16 +967,29 @@ bool FollyExecutorPool::wakeAndWait(size_t taskId) {
     return found;
 }
 
-bool FollyExecutorPool::snooze(size_t taskId, double toSleep) {
+void FollyExecutorPool::snooze(size_t taskId, double toSleep) {
     NonBucketAllocationGuard guard;
     using namespace std::chrono;
     EP_LOG_TRACE(
             "FollyExecutorPool::snooze() id:{} toSleep:{}", taskId, toSleep);
 
+    futurePool->getEventBase()->runInEventBaseThread(
+            [state = state.get(), taskId, toSleep] {
+                state->snoozeTask(taskId, toSleep);
+            });
+}
+
+bool FollyExecutorPool::snoozeAndWait(size_t taskId, double toSleep) {
+    NonBucketAllocationGuard guard;
+    using namespace std::chrono;
+    EP_LOG_TRACE("FollyExecutorPool::snoozeAndWait() id:{} toSleep:{}",
+                 taskId,
+                 toSleep);
+
     auto* eventBase = futurePool->getEventBase();
     bool found = false;
     eventBase->runInEventBaseThreadAndWait(
-            [&found, eventBase, state = state.get(), taskId, toSleep] {
+            [&found, state = state.get(), taskId, toSleep] {
                 found = state->snoozeTask(taskId, toSleep);
             });
     return found;

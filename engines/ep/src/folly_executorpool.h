@@ -168,7 +168,8 @@ public:
     bool cancel(size_t taskId, bool eraseTask) override;
     void wake(size_t taskId) override;
     bool wakeAndWait(size_t taskId) override;
-    bool snooze(size_t taskId, double tosleep) override;
+    void snooze(size_t taskId, double tosleep) override;
+    bool snoozeAndWait(size_t taskId, double tosleep) override;
     void doWorkerStat(Taskable& taskable,
                       const void* cookie,
                       const AddStatFn& add_stat) override;
