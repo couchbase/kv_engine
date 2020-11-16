@@ -43,8 +43,7 @@ public:
     /// Dummy callback to replace the flusher callback so we can create VBuckets
     class DummyCB : public Callback<Vbid> {
     public:
-        DummyCB() {
-        }
+        DummyCB() = default;
 
         void callback(Vbid& dummy) override {
         }
@@ -407,11 +406,9 @@ public:
         case 0:
             return {};
         case 1:
-            return std::bind(&CollectionRessurectionKVStoreTest::openCollection,
-                             this);
+            return [this] { openCollection(); };
         case 2:
-            return std::bind(&CollectionRessurectionKVStoreTest::dropCollection,
-                             this);
+            return [this] { dropCollection(); };
         }
         EXPECT_FALSE(true) << "No prologue defined for parameter:"
                            << std::get<4>(GetParam());
@@ -424,12 +421,9 @@ public:
         case 0:
             return {};
         case 1:
-            return std::bind(
-                    &CollectionRessurectionKVStoreTest::openScopeOpenCollection,
-                    this);
+            return [this] { openScopeOpenCollection(); };
         case 2:
-            return std::bind(&CollectionRessurectionKVStoreTest::dropScope,
-                             this);
+            return [this] { dropScope(); };
         }
         EXPECT_FALSE(true) << "No prologue defined for parameter:"
                            << std::get<4>(GetParam());
@@ -540,13 +534,13 @@ void CollectionRessurectionKVStoreTest::resurectionTest() {
 
     // Finally validate the seqnos the local data stores (checkCollections
     // only compares name/uid/ttl from cm against md )
-    for (const auto& collection : md.collections) {
-        if (collection.metaData.cid == CollectionID::Default) {
-            EXPECT_EQ(0, collection.startSeqno);
-        } else if (collection.metaData.cid == target.uid) {
+    for (const auto& collectionToCheck : md.collections) {
+        if (collectionToCheck.metaData.cid == CollectionID::Default) {
+            EXPECT_EQ(0, collectionToCheck.startSeqno);
+        } else if (collectionToCheck.metaData.cid == target.uid) {
             EXPECT_EQ(2, md.collections.size());
             EXPECT_FALSE(dropCollectionAtEnd());
-            EXPECT_EQ(seqno, collection.startSeqno);
+            EXPECT_EQ(seqno, collectionToCheck.startSeqno);
         }
     }
 
@@ -637,13 +631,13 @@ void CollectionRessurectionKVStoreTest::resurectionScopesTest() {
     }
 
     // Validate scopes
-    for (const auto& scope : md.scopes) {
-        if (scope.metaData.sid == ScopeID::Default) {
-            EXPECT_EQ(0, scope.startSeqno);
-        } else if (scope.metaData.sid == targetScope.uid) {
+    for (const auto& scopeToCheck : md.scopes) {
+        if (scopeToCheck.metaData.sid == ScopeID::Default) {
+            EXPECT_EQ(0, scopeToCheck.startSeqno);
+        } else if (scopeToCheck.metaData.sid == targetScope.uid) {
             EXPECT_EQ(2, md.scopes.size());
             EXPECT_FALSE(dropCollectionAtEnd());
-            EXPECT_EQ(seqno - 1, scope.startSeqno);
+            EXPECT_EQ(seqno - 1, scopeToCheck.startSeqno);
         }
     }
 
