@@ -20,7 +20,6 @@
 #include "ephemeral_tombstone_purger.h"
 #include "ephemeral_vb.h"
 #include "item.h"
-#include "kv_bucket.h"
 #include "kvstore.h"
 #include "tests/mock/mock_ep_bucket.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
@@ -53,10 +52,6 @@ public:
         SingleThreadedKVBucketTest::TearDown();
     }
 
-    void flush_vbucket_to_disk(Vbid vbid, size_t expected = 1) {
-        flushVBucketToDiskIfPersistent(vbid, expected);
-    }
-
     /// Override so we recreate the vbucket for ephemeral tests
     void resetEngineAndWarmup() {
         SingleThreadedKVBucketTest::resetEngineAndWarmup();
@@ -80,6 +75,18 @@ public:
             CollectionEntry::Entry collection,
             int64_t seqnoOffset = 0);
 
+    /**
+     * Test that we track the scope purged items stat correctly when we
+     * purge a scope
+     * @param cm reference to the CollectionsManifest of the vbucket
+     * @param scope ScopeId to drop
+     * @param seqnoOffset seqno to offset expectations by
+     */
+    void testScopePurgedItemsCorrectAfterDrop(CollectionsManifest& cm,
+                                              ScopeEntry::Entry scope,
+                                              CollectionEntry::Entry collection,
+                                              int64_t seqnoOffset = 0);
+
     VBucketPtr vb;
 };
 
@@ -89,7 +96,7 @@ TEST_P(CollectionsEraserTest, basic) {
     CollectionsManifest cm(CollectionEntry::dairy);
     vb->updateFromManifest(makeManifest(cm));
 
-    flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
+    flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
     // add some items
     store_item(vbid, StoredDocKey{"milk", CollectionEntry::dairy}, "nice");
@@ -111,15 +118,15 @@ TEST_P(CollectionsEraserTest, basic) {
     }
     size_t diskSize = stats.diskSize;
 
-    flush_vbucket_to_disk(vbid, 2 /* 2 x items */);
+    flushVBucketToDiskIfPersistent(vbid, 2 /* 2 x items */);
 
     if (persistent()) {
         // Now the flusher will have calculated the items/diskSize
-        auto stats = vb->lockCollections().getStatsForFlush(
+        auto flushStats = vb->lockCollections().getStatsForFlush(
                 CollectionEntry::dairy, 1);
-        EXPECT_EQ(2, stats.itemCount);
-        EXPECT_GT(stats.diskSize, diskSize);
-        diskSize = stats.diskSize;
+        EXPECT_EQ(2, flushStats.itemCount);
+        EXPECT_GT(flushStats.diskSize, diskSize);
+        diskSize = flushStats.diskSize;
     }
 
     EXPECT_EQ(2, vb->getNumItems());
@@ -143,13 +150,13 @@ TEST_P(CollectionsEraserTest, basic) {
         // Now the collection is dropped, we should still be able to obtain the
         // stats the flusher can continue flushing any items the proceed the
         // drop and still make correct updates
-        auto stats = vb->lockCollections().getStatsForFlush(
+        auto flushStats = vb->lockCollections().getStatsForFlush(
                 CollectionEntry::dairy, 1);
-        EXPECT_EQ(2, stats.itemCount);
-        EXPECT_EQ(diskSize, stats.diskSize);
+        EXPECT_EQ(2, flushStats.itemCount);
+        EXPECT_EQ(diskSize, flushStats.diskSize);
     }
 
-    flush_vbucket_to_disk(vbid, 2 /* 1 x system, 1 x item */);
+    flushVBucketToDiskIfPersistent(vbid, 2 /* 1 x system, 1 x item */);
 
     // Now the drop is persisted the stats have gone
     EXPECT_THROW(
@@ -180,7 +187,7 @@ TEST_P(CollectionsEraserTest, basic_2_collections) {
     CollectionsManifest cm(CollectionEntry::dairy);
     vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
 
-    flush_vbucket_to_disk(vbid, 2 /* 2 x system */);
+    flushVBucketToDiskIfPersistent(vbid, 2 /* 2 x system */);
 
     // add some items
     store_item(
@@ -194,7 +201,7 @@ TEST_P(CollectionsEraserTest, basic_2_collections) {
                StoredDocKey{"fruit:apricot", CollectionEntry::fruit},
                "lovely");
 
-    flush_vbucket_to_disk(vbid, 4);
+    flushVBucketToDiskIfPersistent(vbid, 4);
 
     EXPECT_EQ(4, vb->getNumItems());
 
@@ -205,7 +212,7 @@ TEST_P(CollectionsEraserTest, basic_2_collections) {
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
 
-    flush_vbucket_to_disk(vbid, 2 /* 2 x system */);
+    flushVBucketToDiskIfPersistent(vbid, 2 /* 2 x system */);
 
     runCollectionsEraser(vbid);
 
@@ -220,7 +227,7 @@ TEST_P(CollectionsEraserTest, basic_3_collections) {
     CollectionsManifest cm(CollectionEntry::dairy);
     vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
 
-    flush_vbucket_to_disk(vbid, 2 /* 1x system */);
+    flushVBucketToDiskIfPersistent(vbid, 2 /* 1x system */);
 
     // add some items
     store_item(
@@ -234,7 +241,7 @@ TEST_P(CollectionsEraserTest, basic_3_collections) {
                StoredDocKey{"fruit:apricot", CollectionEntry::fruit},
                "lovely");
 
-    flush_vbucket_to_disk(vbid, 4 /* 2x items */);
+    flushVBucketToDiskIfPersistent(vbid, 4 /* 2x items */);
 
     EXPECT_EQ(4, vb->getNumItems());
 
@@ -244,7 +251,7 @@ TEST_P(CollectionsEraserTest, basic_3_collections) {
     EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy));
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
 
-    flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
+    flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
     runCollectionsEraser(vbid);
 
@@ -259,7 +266,7 @@ TEST_P(CollectionsEraserTest, basic_4_collections) {
     CollectionsManifest cm(CollectionEntry::dairy);
     vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
 
-    flush_vbucket_to_disk(vbid, 2 /* 1x system */);
+    flushVBucketToDiskIfPersistent(vbid, 2 /* 1x system */);
 
     // add some items
     store_item(
@@ -273,7 +280,7 @@ TEST_P(CollectionsEraserTest, basic_4_collections) {
                StoredDocKey{"fruit:apricot", CollectionEntry::fruit},
                "lovely");
 
-    flush_vbucket_to_disk(vbid, 4 /* 2x items */);
+    flushVBucketToDiskIfPersistent(vbid, 4 /* 2x items */);
 
     // delete the collections and re-add a new dairy
     vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::fruit)
@@ -284,7 +291,8 @@ TEST_P(CollectionsEraserTest, basic_4_collections) {
     EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy2));
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
 
-    flush_vbucket_to_disk(vbid, 3 /* 3x system (2 deletes, 1 create) */);
+    flushVBucketToDiskIfPersistent(vbid,
+                                   3 /* 3x system (2 deletes, 1 create) */);
 
     runCollectionsEraser(vbid);
 
@@ -309,7 +317,7 @@ TEST_P(CollectionsEraserTest, default_Destroy) {
                StoredDocKey{"fruit:apricot", CollectionEntry::defaultC},
                "lovely");
 
-    flush_vbucket_to_disk(vbid, 4);
+    flushVBucketToDiskIfPersistent(vbid, 4);
 
     EXPECT_EQ(4, vb->getNumItems());
 
@@ -317,7 +325,7 @@ TEST_P(CollectionsEraserTest, default_Destroy) {
     CollectionsManifest cm;
     vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::defaultC)));
 
-    flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
+    flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
     runCollectionsEraser(vbid);
 
@@ -341,7 +349,7 @@ TEST_P(CollectionsEraserTest, erase_and_reset) {
     CollectionsManifest cm(CollectionEntry::dairy);
     vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
 
-    flush_vbucket_to_disk(vbid, 2 /* 1x system */);
+    flushVBucketToDiskIfPersistent(vbid, 2 /* 1x system */);
 
     // add some items
     store_item(
@@ -355,7 +363,7 @@ TEST_P(CollectionsEraserTest, erase_and_reset) {
                StoredDocKey{"fruit:apricot", CollectionEntry::fruit},
                "lovely");
 
-    flush_vbucket_to_disk(vbid, 4 /* 2x items */);
+    flushVBucketToDiskIfPersistent(vbid, 4 /* 2x items */);
 
     // delete the collections and re-add a new dairy
     vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::fruit)
@@ -366,7 +374,8 @@ TEST_P(CollectionsEraserTest, erase_and_reset) {
     EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy2));
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
 
-    flush_vbucket_to_disk(vbid, 3 /* 3x system (2 deletes, 1 create) */);
+    flushVBucketToDiskIfPersistent(vbid,
+                                   3 /* 3x system (2 deletes, 1 create) */);
 
     runCollectionsEraser(vbid);
 
@@ -397,7 +406,7 @@ TEST_P(CollectionsEraserTest, basic_deleted_items) {
     CollectionsManifest cm(CollectionEntry::dairy);
     vb->updateFromManifest(makeManifest(cm));
 
-    flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
+    flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
     // add some items
     store_item(
@@ -407,7 +416,7 @@ TEST_P(CollectionsEraserTest, basic_deleted_items) {
                "lovely");
     delete_item(vbid, StoredDocKey{"dairy:butter", CollectionEntry::dairy});
 
-    flush_vbucket_to_disk(vbid, 2 /* 2 x items */);
+    flushVBucketToDiskIfPersistent(vbid, 2 /* 2 x items */);
 
     EXPECT_EQ(1, vb->getNumItems());
 
@@ -419,7 +428,7 @@ TEST_P(CollectionsEraserTest, basic_deleted_items) {
         EXPECT_EQ(1, vb->getNumSystemItems());
     }
 
-    flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
+    flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
 
@@ -443,7 +452,7 @@ TEST_P(CollectionsEraserTest, tombstone_cleaner) {
     CollectionsManifest cm(CollectionEntry::dairy);
     vb->updateFromManifest(makeManifest(cm));
 
-    flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
+    flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
     // add some items
     store_item(
@@ -452,7 +461,7 @@ TEST_P(CollectionsEraserTest, tombstone_cleaner) {
                StoredDocKey{"dairy:butter", CollectionEntry::dairy},
                "lovely");
 
-    flush_vbucket_to_disk(vbid, 2 /* 2 x items */);
+    flushVBucketToDiskIfPersistent(vbid, 2 /* 2 x items */);
 
     EXPECT_EQ(2, vb->getNumItems());
 
@@ -464,7 +473,7 @@ TEST_P(CollectionsEraserTest, tombstone_cleaner) {
         EXPECT_EQ(1, vb->getNumSystemItems());
     }
 
-    flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
+    flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
 
@@ -509,7 +518,7 @@ TEST_P(CollectionsEraserTest, erase_after_warmup) {
     CollectionsManifest cm(CollectionEntry::dairy);
     vb->updateFromManifest(makeManifest(cm));
 
-    flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
+    flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
     // add some items
     store_item(
@@ -518,7 +527,7 @@ TEST_P(CollectionsEraserTest, erase_after_warmup) {
                StoredDocKey{"dairy:butter", CollectionEntry::dairy},
                "lovely");
 
-    flush_vbucket_to_disk(vbid, 2 /* 2 x items */);
+    flushVBucketToDiskIfPersistent(vbid, 2 /* 2 x items */);
 
     EXPECT_EQ(2, vb->getNumItems());
 
@@ -528,7 +537,7 @@ TEST_P(CollectionsEraserTest, erase_after_warmup) {
     // delete the collection
     vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
 
-    flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
+    flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
     vb.reset();
 
     store->cancelCompaction(vbid);
@@ -635,11 +644,11 @@ TEST_P(CollectionsEraserTest, MB_38313) {
     // add some items
     store_item(vbid, StoredDocKey{"milk", CollectionEntry::dairy}, "nice");
 
-    flush_vbucket_to_disk(vbid, 2 /* 1x system 2x items */);
+    flushVBucketToDiskIfPersistent(vbid, 2 /* 1x system 2x items */);
 
     // delete the collection
     vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
-    flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
+    flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
     // Remove vbucket
     store->deleteVBucket(vbid, nullptr);
@@ -831,10 +840,13 @@ void CollectionsEraserTest::testCollectionPurgedItemsCorrectAfterDrop(
                             0 /*PCS*/))
                 .RetiresOnSaturation();
     }
+    EXPECT_EQ(1, vb->getNumItems());
+    EXPECT_EQ(0, vb->getPurgeSeqno());
 
     runCollectionsEraser(vbid);
 
     EXPECT_EQ(0, vb->getNumItems());
+    EXPECT_EQ(0, vb->getPurgeSeqno());
 
     // The warmup will definitely fail if this isn't true
     auto kvStore = store->getRWUnderlying(vbid);
@@ -876,6 +888,78 @@ TEST_P(CollectionsEraserTest, DropEmptyCollection) {
     } else {
         runCollectionsEraser(vbid);
     }
+}
+
+void CollectionsEraserTest::testScopePurgedItemsCorrectAfterDrop(
+        CollectionsManifest& cm,
+        ScopeEntry::Entry scope,
+        CollectionEntry::Entry collection,
+        int64_t seqnoOffset) {
+    auto key = StoredDocKey{"milk", collection};
+    store_item(vbid, key, "nice");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_item(vbid, key, "nice2");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Need to update manifest uid so that we don't fail to flush due to going
+    // backwards
+    vb->updateFromManifest(makeManifest(cm.remove(scope)));
+    flushVBucketToDiskIfPersistent(
+            vbid, 2 /* 1 x scope drop and 1 x collection drop */);
+
+    if (isPersistent()) {
+        auto* bucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
+
+        // Magma will make two calls here. One for the first value that
+        // logically does not exist anymore, and one for the updated value.
+        if (isMagma()) {
+            EXPECT_CALL(*bucket,
+                        dropKey(vbid,
+                                DiskDocKey(key),
+                                1 + seqnoOffset,
+                                false /*isAbort*/,
+                                0 /*PCS*/))
+                    .RetiresOnSaturation();
+        }
+
+        EXPECT_CALL(*bucket,
+                    dropKey(vbid,
+                            DiskDocKey(key),
+                            2 + seqnoOffset,
+                            false /*isAbort*/,
+                            0 /*PCS*/))
+                .RetiresOnSaturation();
+    }
+    EXPECT_EQ(1, vb->getNumItems());
+    EXPECT_EQ(0, vb->getPurgeSeqno());
+
+    runCollectionsEraser(vbid);
+
+    EXPECT_EQ(0, vb->getNumItems());
+    EXPECT_EQ(0, vb->getPurgeSeqno());
+
+    // The warmup will definitely fail if this isn't true
+    auto kvStore = store->getRWUnderlying(vbid);
+    ASSERT_EQ(0, kvStore->getItemCount(vbid));
+
+    vb.reset();
+
+    resetEngineAndWarmup();
+
+    // Reset the vBucket as the ptr will now be bad
+    vb = store->getVBucket(vbid);
+}
+
+TEST_P(CollectionsEraserTest, ScopePurgedItemsCorrectAfterDrop) {
+    CollectionsManifest cm;
+    cm.add(ScopeEntry::shop1);
+    cm.add(CollectionEntry::dairy, cb::ExpiryLimit{0}, ScopeEntry::shop1);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    testScopePurgedItemsCorrectAfterDrop(
+            cm, ScopeEntry::shop1, CollectionEntry::dairy, 2 /*seqnoOffset*/);
 }
 
 class CollectionsEraserSyncWriteTest : public CollectionsEraserTest {
@@ -1149,7 +1233,7 @@ void CollectionsEraserPersistentOnly::testEmptyCollectionsWithPending(
     // The flusher will see the drop as a separate event or in the same batch
     // as the create
     if (flushInTheMiddle) {
-        flush_vbucket_to_disk(vbid, 2 /* 2 x system */);
+        flushVBucketToDiskIfPersistent(vbid, 2 /* 2 x system */);
         auto handle = vb->lockCollections();
         EXPECT_EQ(1, handle.getHighSeqno(CollectionEntry::dairy));
         EXPECT_EQ(1, handle.getPersistedHighSeqno(CollectionEntry::dairy));
@@ -1168,7 +1252,7 @@ void CollectionsEraserPersistentOnly::testEmptyCollectionsWithPending(
     vb->updateFromManifest(makeManifest(
             cm.remove(CollectionEntry::dairy).remove(CollectionEntry::fruit)));
 
-    flush_vbucket_to_disk(vbid, 2 /* 2 x system */ + 2 /* prepares */);
+    flushVBucketToDiskIfPersistent(vbid, 2 /* 2 x system */ + 2 /* prepares */);
 
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
@@ -1200,7 +1284,7 @@ void CollectionsEraserPersistentOnly::testEmptyCollections(
     // The flusher will see the drop as a separate event or in the same batch
     // as the create
     if (flushInTheMiddle) {
-        flush_vbucket_to_disk(vbid, 2 /* 2 x system */);
+        flushVBucketToDiskIfPersistent(vbid, 2 /* 2 x system */);
         auto handle = vb->lockCollections();
         EXPECT_EQ(1, handle.getHighSeqno(CollectionEntry::dairy));
         EXPECT_EQ(1, handle.getPersistedHighSeqno(CollectionEntry::dairy));
@@ -1234,7 +1318,7 @@ void CollectionsEraserPersistentOnly::testEmptyCollections(
     vb->updateFromManifest(makeManifest(
             cm.remove(CollectionEntry::dairy).remove(CollectionEntry::fruit)));
 
-    flush_vbucket_to_disk(vbid, 2 /* 2 x system */);
+    flushVBucketToDiskIfPersistent(vbid, 2 /* 2 x system */);
 
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));

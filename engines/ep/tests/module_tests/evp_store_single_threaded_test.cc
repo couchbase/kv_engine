@@ -122,7 +122,7 @@ void SingleThreadedKVBucketTest::setVBucketStateAndRunPersistTask(
     EXPECT_EQ(ENGINE_SUCCESS,
               store->setVBucketState(vbid, newState, metaPtr, transfer));
 
-    if (engine->getConfiguration().getBucketType() == "persistent") {
+    if (isPersistent()) {
         // Trigger the flusher to flush state to disk.
         const auto res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
         EXPECT_EQ(MoreAvailable::No, res.moreAvailable);
@@ -197,7 +197,7 @@ void SingleThreadedKVBucketTest::resetEngineAndEnableWarmup(
     }
 
     reinitialise(config);
-    if (engine->getConfiguration().getBucketType() == "persistent") {
+    if (isPersistent()) {
         static_cast<EPBucket*>(engine->getKVBucket())->initializeWarmupTask();
         static_cast<EPBucket*>(engine->getKVBucket())->startWarmupTask();
     }
@@ -245,7 +245,7 @@ void SingleThreadedKVBucketTest::runBackfill() {
     runNextTask(lpAuxioQ);
 
     // 1 Extra step for persistent backfill
-    if (engine->getConfiguration().getBucketType() != "ephemeral") {
+    if (isPersistent()) {
         // backfill:finished()
         runNextTask(lpAuxioQ);
     }
@@ -343,7 +343,7 @@ void SingleThreadedKVBucketTest::runCompaction(Vbid id,
 }
 
 void SingleThreadedKVBucketTest::runCollectionsEraser(Vbid id) {
-    if (engine->getConfiguration().getBucketType() == "persistent") {
+    if (isPersistent()) {
         std::string task = "Compact DB file " + std::to_string(id.get());
         runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX], task);
         EXPECT_TRUE(store->getVBucket(id)
