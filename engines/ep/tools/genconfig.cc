@@ -455,14 +455,14 @@ static void generate(const nlohmann::json& params, const std::string& key) {
 
     // generate the stat definition for inclusion in stats.def.h
     stat_definitions << "STAT(ep_" << key
-                     << ", "
+                     << ", , "
                      // TODO MB-39505: units should be included for use in
                      // Prometheus for now, use unit "none"
                      << "none, , )" << std::endl;
 
     if (hasAliases(json)) {
         for (std::string alias : getAliases(json)) {
-            stat_definitions << "STAT(ep_" << alias << ", none, , )"
+            stat_definitions << "STAT(ep_" << alias << ", , none, , )"
                              << std::endl;
         }
     }

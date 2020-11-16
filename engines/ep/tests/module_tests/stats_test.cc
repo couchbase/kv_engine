@@ -575,6 +575,39 @@ TEST_F(StatTest, CBStatsScopeCollectionPrefix) {
     destroy_mock_cookie(cookie);
 }
 
+TEST_F(StatTest, CBStatsNameSeparateFromEnum) {
+    // Confirm that CBStatCollector uses the correct component
+    // of the stat definition for
+
+    using namespace std::string_view_literals;
+    using namespace testing;
+
+    auto cookie = create_mock_cookie(engine.get());
+
+    // mock addStatFn
+    NiceMock<MockFunction<void(
+            std::string_view, std::string_view, gsl::not_null<const void*>)>>
+            cb;
+
+    auto cbFunc = cb.AsStdFunction();
+    // create a collector to which stats will be added
+    CBStatCollector collector(cbFunc, cookie);
+
+    auto bucket = collector.forBucket("BucketName");
+    InSequence s;
+
+    // tests that audit_enabled uses the specified cbstat name rather than
+    // "enabled"
+    EXPECT_CALL(cb, Call("enabled"sv, _, _));
+    bucket.addStat(cb::stats::Key::audit_enabled, "value");
+
+    // tests that total_resp_errors falls back on the enum key
+    EXPECT_CALL(cb, Call("total_resp_errors"sv, _, _));
+    bucket.addStat(cb::stats::Key::total_resp_errors, "value");
+
+    destroy_mock_cookie(cookie);
+}
+
 TEST_P(DatatypeStatTest, datatypesInitiallyZero) {
     // Check that the datatype stats initialise to 0
     auto vals = get_stat(nullptr);
