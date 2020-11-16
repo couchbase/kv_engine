@@ -15,15 +15,17 @@
  *   limitations under the License.
  */
 
+// mock_cookie.h must be included before ep_test_apis.h as ep_test_apis.h
+// define a macro named check and some of the folly headers also use the
+// name check
+#include <programs/engine_testapp/mock_cookie.h>
+
 #include "ep_testsuite_common.h"
 #include "ep_test_apis.h"
 
 #include <cstring>
 #include <iostream>
 #include <string>
-#include <sstream>
-
-#include <sys/stat.h>
 
 #include <platform/cb_malloc.h>
 #include <platform/compress.h>
@@ -148,11 +150,13 @@ bool test_setup(EngineIface* h) {
         return false;
     }
 
+    std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     // warmup is complete, notify ep engine that it must now enable
     // data traffic
     auto request = createPacket(cb::mcbp::ClientOpcode::EnableTraffic);
+
     checkeq(ENGINE_SUCCESS,
-            h->unknown_command(nullptr, *request, add_response),
+            h->unknown_command(cookie.get(), *request, add_response),
             "Failed to enable data traffic");
 
     return true;

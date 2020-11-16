@@ -15,6 +15,11 @@
  *   limitations under the License.
  */
 
+// mock_cookie.h must be included before ep_test_apis.h as ep_test_apis.h
+// define a macro named check and some of the folly headers also use the
+// name check
+#include <programs/engine_testapp/mock_cookie.h>
+
 /*
  * Testsuite for 'dcp' functionality in ep-engine.
  */
@@ -8318,8 +8323,9 @@ static enum test_result test_MB_34634(EngineIface* h) {
                                     {/*no key*/},
                                     {topology, strlen(topology)});
 
+        std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
         checkeq(ENGINE_SUCCESS,
-                h->unknown_command(nullptr, *request, add_response),
+                h->unknown_command(cookie.get(), *request, add_response),
                 "Calling set vb state failed");
     }
 
