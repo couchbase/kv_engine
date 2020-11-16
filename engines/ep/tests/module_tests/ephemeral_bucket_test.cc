@@ -110,7 +110,7 @@ TEST_F(EphemeralBucketStatTest, VBSeqlistStats) {
     EXPECT_EQ("5", stats.at("vb_0:seqlist_high_seqno"));
 }
 
-TEST_F(SingleThreadedEphemeralBackfillTest, RangeIteratorVBDeleteRaceTest) {
+TEST_F(SingleThreadedEphemeralTest, RangeIteratorVBDeleteRaceTest) {
     /* The destructor of RangeIterator attempts to release locks in the
      * seqList, which is owned by the Ephemeral VB. If the evb is
      * destructed before the iterator, unexepected behaviour will arise.
@@ -226,6 +226,141 @@ TEST_F(SingleThreadedEphemeralBackfillTest, RangeIteratorVBDeleteRaceTest) {
     // Now the backfill is gone, the evb can be deleted
     EXPECT_TRUE(
             task_executor->isTaskScheduled(NONIO_TASK_IDX, vbDeleteTaskName));
+}
+
+TEST_F(SingleThreadedEphemeralTest, Commit_RangeRead) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    // prepare:1 + commit:2
+    auto key = makeStoredDocKey("key");
+    store_item(vbid,
+               key,
+               "value",
+               0 /*exptime*/,
+               {cb::engine_errc::sync_write_pending},
+               PROTOCOL_BINARY_RAW_BYTES,
+               cb::durability::Requirements(),
+               false /*deleted*/);
+    auto& vb = *store->getVBuckets().getBucket(vbid);
+    auto& ht = vb.ht;
+    {
+        auto res = ht.findForUpdate(key);
+        ASSERT_TRUE(res.pending);
+        ASSERT_EQ(1, res.pending->getBySeqno());
+        ASSERT_FALSE(res.committed);
+    }
+    ASSERT_EQ(ENGINE_SUCCESS, vb.commit(key, 1, {}, vb.lockCollections(key)));
+    {
+        auto res = ht.findForUpdate(key);
+        ASSERT_TRUE(res.pending);
+        ASSERT_EQ(1, res.pending->getBySeqno());
+        ASSERT_EQ(CommittedState::PrepareCommitted,
+                  res.pending->getCommitted());
+        ASSERT_TRUE(res.committed);
+        ASSERT_EQ(2, res.committed->getBySeqno());
+        ASSERT_EQ(CommittedState::CommittedViaPrepare,
+                  res.committed->getCommitted());
+    }
+
+    // Prepare:3
+    store_item(vbid,
+               key,
+               "value",
+               0 /*exptime*/,
+               {cb::engine_errc::sync_write_pending},
+               PROTOCOL_BINARY_RAW_BYTES,
+               cb::durability::Requirements(),
+               false /*deleted*/);
+    {
+        auto res = ht.findForUpdate(key);
+        ASSERT_TRUE(res.pending);
+        ASSERT_EQ(3, res.pending->getBySeqno());
+        ASSERT_TRUE(res.committed);
+        ASSERT_EQ(2, res.committed->getBySeqno());
+    }
+
+    /*
+     * Simulate a stream-req that ends up in a backfill
+     */
+
+    // Remove all checkpoints to cause a backfill
+    auto& ckptMgr =
+            *(static_cast<MockCheckpointManager*>(vb.checkpointManager.get()));
+    ASSERT_EQ(2, ckptMgr.getNumCheckpoints());
+    ckptMgr.createNewCheckpoint();
+    bool newCkptCreated;
+    ckptMgr.removeClosedUnrefCheckpoints(vb, newCkptCreated);
+    ASSERT_EQ(1, ckptMgr.getNumCheckpoints());
+
+    // Create producer and stream, enable SyncRepl
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", 0 /*flags*/);
+    producer->setSyncReplication(SyncReplication::SyncReplication);
+    auto stream = std::make_shared<MockActiveStream>(
+            static_cast<EventuallyPersistentEngine*>(engine.get()),
+            producer,
+            /*flags*/ 0,
+            /*opaque*/ 0,
+            vb,
+            /*st_seqno*/ 0,
+            /*en_seqno*/ ~0,
+            /*vb_uuid*/ 0xabcd,
+            /*snap_start_seqno*/ 0,
+            /*snap_end_seqno*/ ~0,
+            IncludeValue::Yes,
+            IncludeXattrs::Yes);
+    ASSERT_TRUE(stream->public_supportSyncReplication());
+    ASSERT_TRUE(stream->isPending()) << "Stream state should be Pending";
+    stream->transitionStateToBackfilling();
+    ASSERT_TRUE(stream->isBackfilling())
+            << "Stream state should be Backfilling";
+
+    // Manually drive a backfill
+    auto& bfMgr = producer->getBFM();
+    // Create the range iterator
+    ASSERT_EQ(backfill_success, bfMgr.backfill());
+    // SnapMarker in the readyQ
+    auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(1, readyQ.size());
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, readyQ.front()->getEvent());
+
+    // Commit:4
+    ASSERT_EQ(ENGINE_SUCCESS, vb.commit(key, 3, {}, vb.lockCollections(key)));
+    {
+        auto res = ht.findForUpdate(key);
+        ASSERT_TRUE(res.pending);
+        ASSERT_EQ(3, res.pending->getBySeqno());
+        ASSERT_EQ(CommittedState::PrepareCommitted,
+                  res.pending->getCommitted());
+        ASSERT_TRUE(res.committed);
+        ASSERT_EQ(4, res.committed->getBySeqno());
+        ASSERT_EQ(CommittedState::CommittedViaPrepare,
+                  res.committed->getCommitted());
+    }
+
+    // Verify that the RR snapshot contains only commit:2 and prepare:3 (ie, not
+    // prepare:1)
+    // Note: Before http://review.couchbase.org/c/kv_engine/+/109841 we would
+    //  end up sending also prepare:1, which means same key twice in a snapshot.
+    //  Side effect would be (1) breaking deduplication and (2) failing with
+    //  QueueDirtyStatus::FailureDuplicateItem status at replica
+    ASSERT_EQ(backfill_success, bfMgr.backfill());
+    ASSERT_EQ(3, readyQ.size());
+    auto resp = stream->public_nextQueuedItem();
+    ASSERT_TRUE(resp);
+    ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    ASSERT_EQ(2, readyQ.size());
+    resp = stream->public_nextQueuedItem();
+    // Note: commit:2 sent as mutation in a backfill snapshot
+    ASSERT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    ASSERT_EQ(2, resp->getBySeqno());
+    ASSERT_EQ(1, readyQ.size());
+    resp = stream->public_nextQueuedItem();
+    ASSERT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
+    ASSERT_EQ(3, resp->getBySeqno());
 }
 
 class SingleThreadedEphemeralPurgerTest : public SingleThreadedKVBucketTest {

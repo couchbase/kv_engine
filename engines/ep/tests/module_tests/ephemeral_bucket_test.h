@@ -36,12 +36,12 @@ protected:
 };
 
 /**
- * Test fixture for single-threaded Ephemeral backfill tests.
+ * Test fixture for single-threaded Ephemeral tests.
  */
-class SingleThreadedEphemeralBackfillTest : public SingleThreadedKVBucketTest {
+class SingleThreadedEphemeralTest : public SingleThreadedKVBucketTest {
 protected:
     void SetUp() override {
-        config_string += "bucket_type=ephemeral";
+        config_string += "bucket_type=ephemeral;ht_size=1";
         SingleThreadedKVBucketTest::SetUp();
     }
 };
