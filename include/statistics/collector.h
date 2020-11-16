@@ -111,7 +111,7 @@ class BucketStatCollector;
  * Users may call addStat with a key and value to be formatted
  * appropriately by the backend.
  *
- * Implementations which do not support labels should use the uniqueKey.
+ * Implementations which do not support labels should use the cbstatsKey.
  * These keys should be unique per-bucket.
  *
  * Stats are often organised in related blocks, for example all stats for a

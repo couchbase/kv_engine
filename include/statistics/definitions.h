@@ -31,7 +31,7 @@ namespace cb::stats {
  * shared names may use the metricFamilyKey and labels, if present -
  * for example PrometheusStatCollector.
  *
- * Implementations which do not support labels should use the uniqueKey.
+ * Implementations which do not support labels should use the cbstatsKey.
  * These keys should be unique per-bucket.
  *
  * For example, "cmd_get" and "cmd_set". CBStats must report them under
@@ -61,7 +61,7 @@ struct StatDef {
      * Constructs a stat specification including the information needed to
      * expose a stat through either CBStats or Prometheus.
      *
-     * @param uniqueKey name of stat which is unique within a bucket. Used by
+     * @param cbstatsKey name of stat which is unique within a bucket. Used by
      * CBStats.
      * @param unit the quantity this stat represents (bytes, seconds etc.) and
      * the scale prefix (kilo, micro etc.). Used by PrometheusStatCollector to
@@ -71,7 +71,7 @@ struct StatDef {
      * @param labels key/value pairs used by Prometheus to filter/aggregate
      * stats
      */
-    StatDef(std::string_view uniqueKey,
+    StatDef(std::string_view cbstatsKey,
             cb::stats::Unit unit = cb::stats::units::none,
             std::string_view metricFamilyKey = "",
             Labels&& labels = {});
@@ -87,16 +87,16 @@ struct StatDef {
      * expose a stat only through CBStats. The stat will _not_ be exposed over
      * Prometheus.
      *
-     * @param uniqueKey name of stat which is unique within a bucket.
+     * @param cbstatsKey name of stat which is unique within a bucket.
      */
-    StatDef(std::string_view uniqueKey, CBStatsOnlyTag);
+    StatDef(std::string_view cbstatsKey, CBStatsOnlyTag);
 
     bool isPrometheusStat() const {
         return !cbStatsOnly;
     }
 
     // Key which is unique per bucket. Used by CBStats
-    std::string_view uniqueKey;
+    std::string_view cbstatsKey;
     // The unit this stat represents, e.g., microseconds.
     // Used to scale to base units and name the stat correctly for Prometheus,
     cb::stats::Unit unit = cb::stats::units::none;

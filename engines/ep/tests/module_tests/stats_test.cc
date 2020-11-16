@@ -430,7 +430,7 @@ TEST_F(StatTest, CollectorMapsTypesCorrectly) {
 MATCHER_P(StatDefNameMatcher,
           expectedName,
           "Check the unique name of the StatDef matches") {
-    return arg.uniqueKey == expectedName;
+    return arg.cbstatsKey == expectedName;
 }
 
 TEST_F(StatTest, ConfigStatDefinitions) {

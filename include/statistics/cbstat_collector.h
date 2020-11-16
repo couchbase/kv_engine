@@ -76,24 +76,30 @@ public:
 
 private:
     /**
-     * Formats a CBStats-suitable stat key by adding a
+     * Formats a CBStats-suitable stat key. This replaces any named format
+     * specifiers (e.g., {connection_type} ) in the key, and prepends a
+     * scope/collection prefix if necessary -
+     *
      *  scopeID:
      * or
      *  scopeID:collectionID:
      *
-     *  prefix to the unique key. E.g.,
+     * E.g.,
      *
      *  0x0:disk_size
      *  0x0:0x8:disk_size
      *
+     * based on if the stat was added through a scope/collection collector.
+     *
      * The scopeID and collectionID values are looked up from the provided
      * @p labels map, with keys "scope" and "collection" respectively.
-     * @param uniqueKey base key to add prefix to
-     * @param labels labels to
-     * @return
+     * @param key base key to format
+     * @param labels labels to use as named format args (see fmt::arg)
+     * @return formatted key
+     * @throws std::runtime_error if the format fails, possibly due to a
+     *         required named fmt argument not being in @p labels
      */
-    static std::string addCollectionsPrefix(std::string_view uniqueKey,
-                                            const Labels& labels);
+    std::string formatKey(std::string_view key, const Labels& labels) const;
 
     const AddStatFn& addStatFn;
     const void* cookie;

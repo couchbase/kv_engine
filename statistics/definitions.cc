@@ -42,22 +42,22 @@ const std::array<StatDef, size_t(Key::enum_max)> statDefinitions{{
 #undef STAT
 #undef LABEL
 
-StatDef::StatDef(std::string_view uniqueKey,
+StatDef::StatDef(std::string_view cbstatsKey,
                  cb::stats::Unit unit,
                  std::string_view metricFamilyKey,
                  Labels&& labels)
-    : uniqueKey(uniqueKey),
+    : cbstatsKey(cbstatsKey),
       unit(unit),
       metricFamily(metricFamilyKey),
       labels(std::move(labels)) {
     if (metricFamily.empty()) {
-        metricFamily = uniqueKey;
+        metricFamily = cbstatsKey;
     }
     metricFamily += unit.getSuffix();
 }
 
-StatDef::StatDef(std::string_view uniqueKey, CBStatsOnlyTag)
-    : uniqueKey(uniqueKey), cbStatsOnly(true) {
+StatDef::StatDef(std::string_view cbstatsKey, CBStatsOnlyTag)
+    : cbstatsKey(cbstatsKey), cbStatsOnly(true) {
 }
 
 } // end namespace cb::stats
