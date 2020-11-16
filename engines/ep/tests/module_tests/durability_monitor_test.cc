@@ -3685,6 +3685,30 @@ TEST_P(PassiveDurabilityMonitorTest, dropFirstKeyAndCompleteOutOfOrder) {
     ASSERT_EQ(0, pdm.getHighPreparedSeqno());
 }
 
+// This test isn't a valid scenario, we should not try to complete the same
+// prepare twice, but we previously crashed here instead of throwing and tearing
+// down the connection if this happened.
+TEST_P(PassiveDurabilityMonitorTest, ThrowIfEndOnOrderedComplete) {
+    auto& pdm = getPassiveDM();
+
+    using namespace cb::durability;
+    addSyncWrite(1 /*seqno*/,
+                 Requirements{Level::Majority, Timeout::Infinity()});
+    ASSERT_EQ(1, pdm.getNumTracked());
+    ASSERT_EQ(0, pdm.getHighCompletedSeqno());
+    ASSERT_EQ(0, pdm.getHighPreparedSeqno());
+    pdm.completeSyncWrite(makeStoredDocKey("key1"),
+                          PassiveDurabilityMonitor::Resolution::Commit,
+                          1);
+
+    pdm.notifyDroppedCollection(CollectionID(8), 10);
+    EXPECT_THROW(
+            pdm.completeSyncWrite(makeStoredDocKey("invalid"),
+                                  PassiveDurabilityMonitor::Resolution::Commit,
+                                  100),
+            std::logic_error);
+}
+
 class ActiveDurabilityMonitorAbortTest
     : public ActiveDurabilityMonitorPersistentTest {
 public:

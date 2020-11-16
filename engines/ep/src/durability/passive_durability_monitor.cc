@@ -348,8 +348,8 @@ void PassiveDurabilityMonitor::completeSyncWrite(
     // collections that have been dropped already but not yet been fully cleaned
     // up by the collections eraser task (compaction). In this case, we will
     // erase any SyncWrites for dropped collections.
-    if (enforceOrderedCompletion && next->getKey() != key &&
-        !s->droppedCollections.empty()) {
+    if (enforceOrderedCompletion && !s->droppedCollections.empty() &&
+        next != s->trackedWrites.end() && next->getKey() != key) {
         // This should iterate through trackedWrites until the first thing that
         // is not part of a dropped collection
         while (next != s->trackedWrites.end()) {
