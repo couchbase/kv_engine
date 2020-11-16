@@ -3725,37 +3725,22 @@ struct ConnAggStatBuilder {
 
 /// @endcond
 
-static void showConnAggStat(const std::string& prefix,
+static void showConnAggStat(const std::string& connType,
                             const ConnCounter& counter,
-                            const void* cookie,
-                            const AddStatFn& add_stat) {
+                            const BucketStatCollector& collector) {
     try {
-        char statname[80] = {0};
-        const size_t sl(sizeof(statname));
-        checked_snprintf(statname, sl, "%s:count", prefix.c_str());
-        add_casted_stat(statname, counter.totalConns, add_stat, cookie);
+        auto labelled = collector.withLabels({{"connection_type", connType}});
 
-        checked_snprintf(statname, sl, "%s:backoff", prefix.c_str());
-        add_casted_stat(statname, counter.conn_queueBackoff, add_stat, cookie);
-
-        checked_snprintf(statname, sl, "%s:producer_count", prefix.c_str());
-        add_casted_stat(statname, counter.totalProducers, add_stat, cookie);
-
-        checked_snprintf(statname, sl, "%s:items_sent", prefix.c_str());
-        add_casted_stat(statname, counter.conn_queueDrain, add_stat, cookie);
-
-        checked_snprintf(statname, sl, "%s:items_remaining", prefix.c_str());
-        add_casted_stat(
-                statname, counter.conn_queueRemaining, add_stat, cookie);
-
-        checked_snprintf(statname, sl, "%s:total_bytes", prefix.c_str());
-        add_casted_stat(statname, counter.conn_totalBytes, add_stat, cookie);
-
-        checked_snprintf(statname, sl, "%s:total_uncompressed_data_size", prefix.c_str());
-        add_casted_stat(statname,
-                        counter.conn_totalUncompressedDataSize,
-                        add_stat,
-                        cookie);
+        using namespace cb::stats;
+        labelled.addStat(Key::connagg_connection_count, counter.totalConns);
+        labelled.addStat(Key::connagg_backoff, counter.conn_queueBackoff);
+        labelled.addStat(Key::connagg_producer_count, counter.totalProducers);
+        labelled.addStat(Key::connagg_items_sent, counter.conn_queueDrain);
+        labelled.addStat(Key::connagg_items_remaining,
+                          counter.conn_queueRemaining);
+        labelled.addStat(Key::connagg_total_bytes, counter.conn_totalBytes);
+        labelled.addStat(Key::connagg_total_uncompressed_data_size,
+                          counter.conn_totalUncompressedDataSize);
 
     } catch (std::exception& error) {
         EP_LOG_WARN("showConnAggStat: Failed to build stats: {}", error.what());
@@ -3763,7 +3748,7 @@ static void showConnAggStat(const std::string& prefix,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doConnAggStats(
-        const void* cookie, const AddStatFn& add_stat, std::string_view sep) {
+        const BucketStatCollector& collector, std::string_view sep) {
     // The separator is, in all current usage, ":" so the length will
     // normally be 1
     const size_t max_sep_len(8);
@@ -3774,7 +3759,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doConnAggStats(
 
     for (const auto& [connType, counter] : visitor.getCounters()) {
         // connType may be "replication", "views" etc. or ":total"
-        showConnAggStat(connType, counter, cookie, add_stat);
+        showConnAggStat(connType,
+                        counter,
+                        collector);
     }
 
     return ENGINE_SUCCESS;
@@ -4537,7 +4524,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
         return doEngineStats(bucketCollector);
     }
     if (key.size() > 7 && cb_isPrefix(key, "dcpagg ")) {
-        return doConnAggStats(cookie, add_stat, key.substr(7));
+        return doConnAggStats(bucketCollector, key.substr(7));
     }
     if (key == "dcp"sv) {
         return doDcpStats(cookie, add_stat, value);

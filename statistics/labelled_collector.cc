@@ -37,6 +37,10 @@ LabelledStatCollector LabelledStatCollector::withLabels(Labels&& labels) const {
     return {parent, mergedLabels};
 }
 
+bool LabelledStatCollector::hasLabel(std::string_view labelKey) const {
+    return defaultLabels.count(std::string(labelKey)) != 0;
+}
+
 void LabelledStatCollector::addStat(const cb::stats::StatDef& k,
                                     std::string_view v,
                                     const Labels& labels) const {

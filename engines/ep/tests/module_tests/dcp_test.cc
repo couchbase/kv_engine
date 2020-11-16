@@ -55,6 +55,8 @@
 #include <platform/compress.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
+#include <statistics/cbstat_collector.h>
+#include <statistics/labelled_collector.h>
 
 #include <thread>
 #include <unordered_map>
@@ -2207,7 +2209,8 @@ TEST_F(DcpConnMapTest, ConnAggStats) {
     };
 
     // get the conn aggregated stats
-    engine->doConnAggStats(statsCookie, addStat, ":");
+    engine->doConnAggStats(
+            CBStatCollector(addStat, statsCookie).forBucket("default"), ":");
 
     // expect output for each of the connection "types" and
     // a total output.

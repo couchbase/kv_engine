@@ -87,6 +87,11 @@ public:
      */
     [[nodiscard]] LabelledStatCollector withLabels(Labels&& labels) const;
 
+    /**
+     * Test if a label has been set with the provided key.
+     */
+    bool hasLabel(std::string_view labelKey) const;
+
 protected:
     /**
      * Construct a labelled stat collector, which forwards addStat calls

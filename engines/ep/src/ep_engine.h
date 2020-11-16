@@ -937,8 +937,7 @@ protected:
                                  std::string_view value);
     ENGINE_ERROR_CODE doEvictionStats(const void* cookie,
                                       const AddStatFn& add_stat);
-    ENGINE_ERROR_CODE doConnAggStats(const void* cookie,
-                                     const AddStatFn& add_stat,
+    ENGINE_ERROR_CODE doConnAggStats(const BucketStatCollector& collector,
                                      std::string_view sep);
     void doTimingStats(const BucketStatCollector& collector);
     ENGINE_ERROR_CODE doSchedulerStats(const void* cookie,
