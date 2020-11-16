@@ -334,6 +334,7 @@ void add(const Cookie& cookie, Operation operation) {
     auto root = create_memcached_audit_object(connection,
                                               cookie.getEffectiveUser());
     root["bucket"] = connection.getBucket().name;
+    root["collection_id"] = cookie.getPrintableRequestCollectionID();
     root["key"] = cookie.getPrintableRequestKey();
 
     switch (operation) {

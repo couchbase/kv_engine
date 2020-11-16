@@ -331,6 +331,10 @@ std::string Cookie::getPrintableRequestKey() const {
     return cb::tagUserData(buffer);
 }
 
+std::string Cookie::getPrintableRequestCollectionID() const {
+    return getRequestKey().getCollectionID().to_string();
+}
+
 void Cookie::logCommand() const {
     if (Settings::instance().getVerbose() == 0) {
         // Info is not enabled.. we don't want to try to format

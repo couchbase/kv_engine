@@ -260,6 +260,11 @@ public:
     std::string getPrintableRequestKey() const;
 
     /**
+     * Get a printable representation of the key's collection ID
+     */
+    std::string getPrintableRequestCollectionID() const;
+
+    /**
      * Log the start of processing a command received from the client in the
      * generic form which (may change over time, but currently it) looks like:
      *
