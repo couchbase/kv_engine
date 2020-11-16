@@ -349,6 +349,74 @@ TEST_F(CollectionsOSODcpTest, transition_to_memory_MB_38999) {
     EXPECT_EQ(5, producers->last_byseqno);
 }
 
+// OSO + StreamID enabled
+TEST_F(CollectionsOSODcpTest, basic_with_stream_id) {
+    // Write to default collection and deliberately not in lexicographical order
+    store_item(vbid, makeStoredDocKey("b"), "q");
+    store_item(vbid, makeStoredDocKey("d"), "a");
+    store_item(vbid, makeStoredDocKey("a"), "w");
+    store_item(vbid, makeStoredDocKey("c"), "y");
+    flush_vbucket_to_disk(vbid, 4);
+
+    // Reset so we have to stream from backfill
+    resetEngineAndWarmup();
+
+    // Create DCP producer and stream.
+    producer = SingleThreadedKVBucketTest::createDcpProducer(
+            cookieP, IncludeDeleteTime::No);
+
+    producers->consumer = nullptr;
+    producers->replicaVB = replicaVB;
+    producer->enableMultipleStreamRequests();
+    producer->enableOutOfOrderSnapshots();
+
+    createDcpStream({{R"({"sid":88, "collections":["0"]})"}});
+
+    // We have a single filter, expect the backfill to be OSO
+    runBackfill();
+
+    // Manually step the producer and inspect all callbacks
+    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
+    EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::Start),
+              producers->last_oso_snapshot_flags);
+
+    const size_t snapshotSz = sizeof(cb::mcbp::Request) +
+                              sizeof(cb::mcbp::request::DcpOsoSnapshotPayload) +
+                              sizeof(cb::mcbp::DcpStreamIdFrameInfo);
+
+    size_t outstanding = snapshotSz;
+    EXPECT_EQ(outstanding, producer->getBytesOutstanding());
+
+    // We don't expect a collection create, this is the default collection which
+    // clients assume exists unless deleted.
+    std::array<std::string, 4> keys = {{"a", "b", "c", "d"}};
+    for (auto& k : keys) {
+        // Now we get the mutations, they aren't guaranteed to be in seqno
+        // order, but we know that for now they will be in key order.
+        EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
+        EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
+        EXPECT_EQ(k, producers->last_key);
+        const size_t mutationSz =
+                sizeof(cb::mcbp::Request) +
+                sizeof(cb::mcbp::request::DcpMutationPayload) +
+                sizeof(cb::mcbp::DcpStreamIdFrameInfo) + 2 /*key*/ +
+                1 /*value*/;
+        outstanding += mutationSz;
+        EXPECT_EQ(outstanding, producer->getBytesOutstanding());
+    }
+
+    // Now we get the end message
+    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
+    EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::End),
+              producers->last_oso_snapshot_flags);
+
+    outstanding += snapshotSz;
+    EXPECT_EQ(outstanding, producer->getBytesOutstanding());
+}
+
 // OSO doesn't support ephemeral - this one test checks it falls back to normal
 // snapshots
 class CollectionsOSOEphemeralTest : public CollectionsDcpParameterizedTest {
