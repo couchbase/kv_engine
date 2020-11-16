@@ -111,7 +111,7 @@ TEST_P(CollectionsEraserTest, basic) {
             vb->lockCollections().getStatsForFlush(CollectionEntry::dairy, 1);
     if (persistent()) {
         EXPECT_EQ(0, stats.itemCount);
-        EXPECT_EQ(0, stats.diskSize); // MB-39946: 0 size for system event
+        EXPECT_NE(0, stats.diskSize);
     } else {
         EXPECT_EQ(2, stats.itemCount);
         EXPECT_EQ(0, stats.diskSize);
@@ -1304,11 +1304,11 @@ void CollectionsEraserPersistentOnly::testEmptyCollections(
                 kvs.getCollectionStats(*fileHandle, CollectionEntry::dairy);
         EXPECT_EQ(0, stats.itemCount);
         EXPECT_EQ(vb->getHighSeqno() - 1, stats.highSeqno);
-        EXPECT_EQ(0, stats.diskSize); // MB-39946: SystemEvent size not recorded
+        EXPECT_NE(0, stats.diskSize);
         stats = kvs.getCollectionStats(*fileHandle, CollectionEntry::fruit);
         EXPECT_EQ(0, stats.itemCount);
         EXPECT_EQ(vb->getHighSeqno(), stats.highSeqno);
-        EXPECT_EQ(0, stats.diskSize); // MB-39946: SystemEvent size not recorded
+        EXPECT_NE(0, stats.diskSize);
     } else {
         auto handle = vb->lockCollections();
         EXPECT_EQ(vb->getHighSeqno() - 1,

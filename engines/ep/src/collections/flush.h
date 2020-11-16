@@ -291,12 +291,11 @@ private:
 
         /**
          * Process an update into the collection
-         * @param isSystem true if updating a system event
          * @param diskSizeDelta size in bytes difference. Should be
          *        representative of the difference between existing and new
          *        documents, but does not need to be exact.
          */
-        void update(bool isSystem, ssize_t diskSizeDelta);
+        void update(ssize_t diskSizeDelta);
 
         /**
          * Process a remove from the collection (store of a delete)

@@ -2893,14 +2893,13 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
 
     auto stats = vb->getManifest().lock(target.getId()).getPersistedStats();
 
-    // MB-39946: systemeventSize currently set to 0
     // Note 57 manually verified from dbdump and is the system-event usage
     // Note 14 manually verified from dbdump and is the item usage
-    size_t systemeventSize = 0;
+    size_t systemeventSize = 57;
     size_t itemSize = 14;
     if (isMagma()) {
         // magma doesn't account the same bits and bytes
-        systemeventSize = 0;
+        systemeventSize = 56;
         itemSize = 4;
     }
     EXPECT_EQ(1, stats.itemCount);
