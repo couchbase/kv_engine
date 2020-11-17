@@ -180,6 +180,57 @@ TEST_P(KVStoreParamTestSkipRocks, CompressedTest) {
     EXPECT_EQ(scan_success, kvstore->scan(*scanCtx));
 }
 
+MATCHER(IsDatatypeSnappy,
+        negation ? "datatype isn't Snappy" : "datatype is Snappy") {
+    return mcbp::datatype::is_snappy(arg.getDataType());
+}
+
+/// For the item Item object, check that if the value is compressed, it can be
+/// decompressed successfully
+MATCHER(IsValueValid,
+        "has a valid value (if Snappy can be decompressed successfully)") {
+    if (mcbp::datatype::is_snappy(arg.getDataType())) {
+        // Take a copy and attempt to decompress it to check compression.
+        auto itemCopy = arg;
+        return itemCopy.decompressValue();
+    }
+    return true;
+}
+
+// Check that when deleted docs with no value are fetched from disk, they
+// do not have snappy bit set (zero length should not be compressed).
+TEST_P(KVStoreParamTestSkipRocks, ZeroSizeValueNotCompressed) {
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+
+    auto qi = makeDeletedItem(makeStoredDocKey("key"));
+    qi->setBySeqno(1);
+    kvstore->del(qi);
+
+    // Ensure a valid vbstate is committed
+    flush.proposedVBState.lastSnapEnd = 1;
+    kvstore->commit(flush);
+
+    auto mockGetCb = std::make_unique<MockGetValueCallback>();
+    EXPECT_CALL(
+            *mockGetCb,
+            callback(AllOf(
+                    Property(&GetValue::getStatus, ENGINE_SUCCESS),
+                    Field(&GetValue::item, Pointee(Not(IsDatatypeSnappy()))),
+                    Field(&GetValue::item, Pointee(IsValueValid())))));
+
+    auto scanCtx = kvstore->initBySeqnoScanContext(
+            std::move(mockGetCb),
+            std::make_unique<KVStoreTestCacheCallback>(1, 1, Vbid(0)),
+            Vbid(0),
+            1,
+            DocumentFilter::ALL_ITEMS,
+            ValueFilter::VALUES_COMPRESSED,
+            SnapshotSource::Head);
+
+    ASSERT_TRUE(scanCtx);
+    EXPECT_EQ(scan_success, kvstore->scan(*scanCtx));
+}
+
 class PersistenceCallbacks {
 public:
     virtual ~PersistenceCallbacks() {
@@ -1131,3 +1182,6 @@ TEST_F(RocksDBKVStoreTest, StatisticsOptionWrongValueTest) {
     kvstore = setup_kv_store(*kvstoreConfig);
 }
 #endif
+
+MockGetValueCallback::MockGetValueCallback() = default;
+MockGetValueCallback::~MockGetValueCallback() = default;

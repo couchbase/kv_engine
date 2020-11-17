@@ -144,7 +144,15 @@ static couchstore_error_t setLocalVbState(Db& db, const nlohmann::json& json) {
 static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
                                                  const DocInfo& docinfo,
                                                  const MetaData& metadata,
-                                                 sized_buf value) {
+                                                 sized_buf value,
+                                                 bool fetchedCompressed) {
+    auto datatype = metadata.getDataType();
+    // If document was fetched compressed, then set SNAPPY flag for non-zero
+    // length documents.
+    if (fetchedCompressed && (value.size > 0)) {
+        datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
+    }
+
     // Strip off the DurabilityPrepare namespace (if present) from the persisted
     // dockey before we create the in-memory item.
     auto item = std::make_unique<Item>(makeDiskDocKey(docinfo.id).getDocKey(),
@@ -152,7 +160,7 @@ static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
                                        metadata.getExptime(),
                                        value.buf,
                                        value.size,
-                                       metadata.getDataType(),
+                                       datatype,
                                        metadata.getCas(),
                                        docinfo.db_seq,
                                        vbid,
@@ -710,16 +718,18 @@ void CouchKVStore::getRange(Vbid vb,
 
         // Fetch document value.
         Doc* doc = nullptr;
+        const couchstore_open_options openOptions = DECOMPRESS_DOC_BODIES;
         auto errCode = couchstore_open_doc_with_docinfo(
-                db, docinfo, &doc, DECOMPRESS_DOC_BODIES);
+                db, docinfo, &doc, openOptions);
         if (errCode != COUCHSTORE_SUCCESS) {
             // Failed to fetch document - cancel couchstore_docinfos_by_id
             // scan.
             return errCode;
         }
 
-        state.userFunc(GetValue{
-                makeItemFromDocInfo(state.vb, *docinfo, *metadata, doc->data)});
+        const bool fetchCompressed = (openOptions & DECOMPRESS_DOC_BODIES) == 0;
+        state.userFunc(GetValue{makeItemFromDocInfo(
+                state.vb, *docinfo, *metadata, doc->data, fetchCompressed)});
         couchstore_free_document(doc);
         return COUCHSTORE_SUCCESS;
     };
@@ -850,7 +860,7 @@ static int notify_expired_item(DocInfo& info,
         }
     }
 
-    auto it = makeItemFromDocInfo(ctx.vbid, info, metadata, data);
+    auto it = makeItemFromDocInfo(ctx.vbid, info, metadata, data, false);
 
     ctx.expiryCallback->callback(*it, currtime);
 
@@ -2366,6 +2376,8 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
                                           Vbid vbId,
                                           GetMetaOnly metaOnly) {
     couchstore_error_t errCode = COUCHSTORE_SUCCESS;
+    const couchstore_open_options openOptions = DECOMPRESS_DOC_BODIES;
+    const bool fetchCompressed = false;
     std::unique_ptr<MetaData> metadata;
     try {
         metadata = MetaDataFactory::createMetaData(docinfo->rev_meta);
@@ -2374,52 +2386,54 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
     }
 
     if (metaOnly == GetMetaOnly::Yes) {
-        auto it = makeItemFromDocInfo(vbId, *docinfo, *metadata, {nullptr, 0});
+        auto it = makeItemFromDocInfo(
+                vbId, *docinfo, *metadata, {nullptr, 0}, fetchCompressed);
 
         docValue = GetValue(std::move(it));
         // update ep-engine IO stats
         ++st.io_bg_fetch_docs_read;
         st.io_bgfetch_doc_bytes += (docinfo->id.size + docinfo->rev_meta.size);
-    } else {
-        Doc *doc = nullptr;
-        sized_buf value = {nullptr, 0};
-        errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc,
-                                                   DECOMPRESS_DOC_BODIES);
-        if (errCode == COUCHSTORE_SUCCESS) {
-            if (doc == nullptr) {
-                throw std::logic_error("CouchKVStore::fetchDoc: doc is NULL");
-            }
-
-            if (doc->id.size > UINT16_MAX) {
-                throw std::logic_error("CouchKVStore::fetchDoc: "
-                            "doc->id.size (which is" +
-                            std::to_string(doc->id.size) + ") is greater than "
-                            + std::to_string(UINT16_MAX));
-            }
-
-            value = doc->data;
-
-        } else if (errCode == COUCHSTORE_ERROR_DOC_NOT_FOUND && docinfo->deleted) {
-            // NOT_FOUND is expected for deleted documents, continue.
-        } else {
-            return errCode;
-        }
-
-        try {
-            auto it = makeItemFromDocInfo(vbId, *docinfo, *metadata, value);
-            docValue = GetValue(std::move(it));
-        } catch (std::bad_alloc&) {
-            couchstore_free_document(doc);
-            return COUCHSTORE_ERROR_ALLOC_FAIL;
-        }
-
-        // update ep-engine IO stats
-        ++st.io_bg_fetch_docs_read;
-        st.io_bgfetch_doc_bytes +=
-                (docinfo->id.size + docinfo->rev_meta.size + value.size);
-
-        couchstore_free_document(doc);
+        return COUCHSTORE_SUCCESS;
     }
+
+    Doc* doc = nullptr;
+    sized_buf value = {nullptr, 0};
+    errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc, openOptions);
+    if (errCode == COUCHSTORE_SUCCESS) {
+        if (doc == nullptr) {
+            throw std::logic_error("CouchKVStore::fetchDoc: doc is NULL");
+        }
+
+        if (doc->id.size > UINT16_MAX) {
+            throw std::logic_error(
+                    "CouchKVStore::fetchDoc: doc->id.size (which is" +
+                    std::to_string(doc->id.size) + ") is greater than " +
+                    std::to_string(UINT16_MAX));
+        }
+
+        value = doc->data;
+
+    } else if (errCode == COUCHSTORE_ERROR_DOC_NOT_FOUND && docinfo->deleted) {
+        // NOT_FOUND is expected for deleted documents, continue.
+    } else {
+        return errCode;
+    }
+
+    try {
+        auto it = makeItemFromDocInfo(
+                vbId, *docinfo, *metadata, value, fetchCompressed);
+        docValue = GetValue(std::move(it));
+    } catch (std::bad_alloc&) {
+        couchstore_free_document(doc);
+        return COUCHSTORE_ERROR_ALLOC_FAIL;
+    }
+
+    // update ep-engine IO stats
+    ++st.io_bg_fetch_docs_read;
+    st.io_bgfetch_doc_bytes +=
+            (docinfo->id.size + docinfo->rev_meta.size + value.size);
+
+    couchstore_free_document(doc);
     return COUCHSTORE_SUCCESS;
 }
 
@@ -2478,38 +2492,22 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
 
     auto metadata = MetaDataFactory::createMetaData(docinfo->rev_meta);
 
+    /**
+     * If no special request is made to retrieve compressed documents
+     * as is, then DECOMPRESS the document and update datatype
+     */
+    bool fetchCompressed = sctx->valFilter == ValueFilter::VALUES_COMPRESSED;
+
     const bool keysOnly = sctx->valFilter == ValueFilter::KEYS_ONLY;
     if (!keysOnly) {
-        couchstore_open_options openOptions = 0;
-
-        /**
-         * If no special request is made to retrieve compressed documents
-         * as is, then DECOMPRESS the document and update datatype
-         */
-        if (sctx->valFilter == ValueFilter::VALUES_DECOMPRESSED) {
-            openOptions = DECOMPRESS_DOC_BODIES;
-        }
-
+        const couchstore_open_options openOptions =
+                fetchCompressed ? 0 : DECOMPRESS_DOC_BODIES;
         auto errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc,
                                                         openOptions);
 
         if (errCode == COUCHSTORE_SUCCESS) {
             value = doc->data;
-            if (doc->data.size) {
-                if ((openOptions & DECOMPRESS_DOC_BODIES) == 0) {
-                    // We always store the document bodies compressed on disk,
-                    // but now the client _wanted_ to fetch the document
-                    // in a compressed mode.
-                    // We've never stored the "compressed" flag on disk
-                    // (as we don't keep items compressed in memory).
-                    // Update the datatype flag for this item to
-                    // reflect that it is compressed so that the
-                    // receiver of the object may notice (Note:
-                    // this is currently _ONLY_ happening via DCP
-                     auto datatype = metadata->getDataType();
-                     metadata->setDataType(datatype | PROTOCOL_BINARY_DATATYPE_SNAPPY);
-                }
-            } else {
+            if (doc->data.size == 0) {
                 // No data, it cannot have a datatype!
                 metadata->setDataType(PROTOCOL_BINARY_RAW_BYTES);
             }
@@ -2526,7 +2524,8 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
         }
     }
 
-    auto it = makeItemFromDocInfo(vbucketId, *docinfo, *metadata, value);
+    auto it = makeItemFromDocInfo(
+            vbucketId, *docinfo, *metadata, value, fetchCompressed);
     GetValue rv(std::move(it), ENGINE_SUCCESS, -1, keysOnly);
     cb.callback(rv);
 

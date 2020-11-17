@@ -72,6 +72,12 @@ queued_item makeCommittedviaPrepareItem(StoredDocKey key, std::string value) {
     return qi;
 }
 
+queued_item makeDeletedItem(StoredDocKey key) {
+    auto qi = make_STRCPtr<Item>(key, 0, 0, value_t{});
+    qi->setDeleted();
+    return qi;
+}
+
 queued_item makePendingItem(StoredDocKey key,
                             const std::string& value,
                             cb::durability::Requirements reqs) {

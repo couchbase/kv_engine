@@ -220,3 +220,11 @@ private:
     bool expectCompressed;
     ENGINE_ERROR_CODE expectedErrorCode;
 };
+
+class MockGetValueCallback : public StatusCallback<GetValue> {
+public:
+    MockGetValueCallback();
+    ~MockGetValueCallback() override;
+
+    MOCK_METHOD(void, callback, (GetValue&), (override));
+};

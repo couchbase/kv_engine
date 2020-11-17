@@ -70,6 +70,9 @@ queued_item makeCommittedItem(StoredDocKey key, std::string value);
 /// Make a queued_item representing a commited SyncWrite.
 queued_item makeCommittedviaPrepareItem(StoredDocKey key, std::string value);
 
+/// Make a queued_item representing a deletion.
+queued_item makeDeletedItem(StoredDocKey key);
+
 std::unique_ptr<Item> makeCompressibleItem(Vbid vbid,
                                            const DocKey& key,
                                            const std::string& value,
