@@ -64,4 +64,6 @@ public:
                  const HdrHistogram& hist,
                  const Labels& labels),
                 (const, override));
+
+    MOCK_METHOD(bool, includeAggregateMetrics, (), (const, override));
 };

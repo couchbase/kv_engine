@@ -77,6 +77,10 @@ public:
                  const HdrHistogram& hist,
                  const Labels& labels) const override;
 
+    bool includeAggregateMetrics() const override {
+        return false;
+    }
+
 protected:
     void addClientMetric(const cb::stats::StatDef& key,
                          const Labels& additionalLabels,

@@ -93,6 +93,10 @@ public:
         shouldFormatStatKeys = false;
     }
 
+    bool includeAggregateMetrics() const override {
+        return true;
+    }
+
 private:
     /**
      * Formats a CBStats-suitable stat key. This replaces any named format

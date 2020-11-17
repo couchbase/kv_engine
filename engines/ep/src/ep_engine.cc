@@ -380,7 +380,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get_prometheus_stats(
             // TODO: collection stats
             // TODO: scope stats
         } else {
-            if (ENGINE_ERROR_CODE status = doEngineStats(collector);
+            ENGINE_ERROR_CODE status;
+            if (status = doEngineStats(collector); status != ENGINE_SUCCESS) {
+                return status;
+            }
+            // do dcp aggregated stats, using ":" as the separator to split
+            // connection names to find the connection type.
+            if (status = doConnAggStats(collector, ":");
                 status != ENGINE_SUCCESS) {
                 return status;
             }
@@ -3759,6 +3765,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doConnAggStats(
 
     for (const auto& [connType, counter] : visitor.getCounters()) {
         // connType may be "replication", "views" etc. or ":total"
+        if (connType == ":total" && !collector.includeAggregateMetrics()) {
+            // Prometheus should not expose aggregations under the same
+            // metric names, as this makes summing across labels
+            // more difficult
+            continue;
+        }
         showConnAggStat(connType,
                         counter,
                         collector);

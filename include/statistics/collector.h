@@ -330,5 +330,7 @@ public:
                 {/* no labels */});
     }
 
+    virtual bool includeAggregateMetrics() const = 0;
+
     virtual ~StatCollector() = default;
 };

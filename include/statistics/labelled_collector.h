@@ -92,6 +92,8 @@ public:
      */
     bool hasLabel(std::string_view labelKey) const;
 
+    bool includeAggregateMetrics() const override;
+
 protected:
     /**
      * Construct a labelled stat collector, which forwards addStat calls
