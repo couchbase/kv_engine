@@ -24,11 +24,10 @@
 
 #include <relaxed_atomic.h>
 
-extern std::vector<std::pair<uint64_t, uint64_t> > dcp_failover_log;
+extern std::vector<vbucket_failover_t> dcp_failover_log;
 
-ENGINE_ERROR_CODE mock_dcp_add_failover_log(vbucket_failover_t* entry,
-                                            size_t nentries,
-                                            gsl::not_null<const void*> cookie);
+ENGINE_ERROR_CODE mock_dcp_add_failover_log(
+        const std::vector<vbucket_failover_t>& entries);
 
 class MockDcpMessageProducers : public dcp_message_producers {
 public:

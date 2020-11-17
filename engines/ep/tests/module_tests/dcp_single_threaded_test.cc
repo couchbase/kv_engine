@@ -44,9 +44,7 @@ protected:
      * Fake callback emulating dcp_add_failover_log
      */
     static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(
-            vbucket_failover_t* entry,
-            size_t nentries,
-            gsl::not_null<const void*> cookie) {
+            const std::vector<vbucket_failover_t>&) {
         // callbackCount++;
         return ENGINE_SUCCESS;
     }

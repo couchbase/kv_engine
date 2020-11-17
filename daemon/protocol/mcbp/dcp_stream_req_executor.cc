@@ -63,18 +63,22 @@ void dcp_stream_req_executor(Cookie& cookie) {
                     reinterpret_cast<const char*>(value.data()), value.size()};
         }
 
-        ret = dcpStreamReq(cookie,
-                           flags,
-                           request.getOpaque(),
-                           request.getVBucket(),
-                           start_seqno,
-                           end_seqno,
-                           vbucket_uuid,
-                           snap_start_seqno,
-                           snap_end_seqno,
-                           &rollback_seqno,
-                           add_failover_log,
-                           collections);
+        ret = dcpStreamReq(
+                cookie,
+                flags,
+                request.getOpaque(),
+                request.getVBucket(),
+                start_seqno,
+                end_seqno,
+                vbucket_uuid,
+                snap_start_seqno,
+                snap_end_seqno,
+                &rollback_seqno,
+                [c = std::ref(cookie)](
+                        const std::vector<vbucket_failover_t>& vec) {
+                    return add_failover_log(vec, c);
+                },
+                collections);
     }
 
     if (ret == ENGINE_ROLLBACK) {

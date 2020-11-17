@@ -46,10 +46,10 @@ enum class RequestedVBState : int {
      state == vbucket_state_pending || \
      state == vbucket_state_dead)
 
-typedef struct {
+struct vbucket_failover_t {
     uint64_t uuid;
     uint64_t seqno;
-} vbucket_failover_t;
+};
 
 /**
  * Vbid - a custom type class to control the use of vBucket ID's and their

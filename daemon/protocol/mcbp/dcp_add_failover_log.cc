@@ -15,38 +15,24 @@
  *   limitations under the License.
  */
 #include "dcp_add_failover_log.h"
+#include <daemon/cookie.h>
 #include <daemon/mcbp.h>
 #include <mcbp/protocol/datatype.h>
 
 /** Callback from the engine adding the response */
-ENGINE_ERROR_CODE add_failover_log(vbucket_failover_t* entries,
-                                   size_t nentries,
-                                   gsl::not_null<const void*> cookie) {
-    ENGINE_ERROR_CODE ret;
-    size_t ii;
-    for (ii = 0; ii < nentries; ++ii) {
-        entries[ii].uuid = htonll(entries[ii].uuid);
-        entries[ii].seqno = htonll(entries[ii].seqno);
+ENGINE_ERROR_CODE add_failover_log(std::vector<vbucket_failover_t> entries,
+                                   Cookie& cookie) {
+    for (auto& entry : entries) {
+        entry.uuid = htonll(entry.uuid);
+        entry.seqno = htonll(entry.seqno);
     }
-
-    if (mcbpResponseHandlerFn(
-                {},
-                {},
-                {reinterpret_cast<const char*>(entries),
-                 (uint32_t)(nentries * sizeof(vbucket_failover_t))},
-                PROTOCOL_BINARY_RAW_BYTES,
-                cb::mcbp::Status::Success,
-                0,
-                (void*)cookie.get())) {
-        ret = ENGINE_SUCCESS;
-    } else {
-        ret = ENGINE_ENOMEM;
-    }
-
-    for (ii = 0; ii < nentries; ++ii) {
-        entries[ii].uuid = htonll(entries[ii].uuid);
-        entries[ii].seqno = htonll(entries[ii].seqno);
-    }
-
-    return ret;
+    cookie.sendResponse(
+            cb::mcbp::Status::Success,
+            {},
+            {},
+            {reinterpret_cast<const char*>(entries.data()),
+             (uint32_t)(entries.size() * sizeof(vbucket_failover_t))},
+            cb::mcbp::Datatype::Raw,
+            0);
+    return ENGINE_SUCCESS;
 }

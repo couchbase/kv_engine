@@ -223,13 +223,10 @@ public:
         return ENGINE_NO_BUCKET;
     }
 
-    ENGINE_ERROR_CODE get_failover_log(
-            gsl::not_null<const void*>,
-            uint32_t,
-            Vbid,
-            ENGINE_ERROR_CODE (*)(vbucket_failover_t*,
-                                  size_t,
-                                  gsl::not_null<const void*>)) override {
+    ENGINE_ERROR_CODE get_failover_log(gsl::not_null<const void*>,
+                                       uint32_t,
+                                       Vbid,
+                                       dcp_add_failover_log) override {
         return ENGINE_NO_BUCKET;
     }
 

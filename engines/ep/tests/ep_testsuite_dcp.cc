@@ -4958,10 +4958,10 @@ static enum test_result test_dcp_get_failover_log(EngineIface* h) {
         itr = ss.str();
         std::string uuid = "vb_0:" + itr + ":id";
         std::string seqno = "vb_0:" + itr + ":seq";
-        checkeq(static_cast<unsigned long long int>(dcp_failover_log[i].first),
+        checkeq(static_cast<unsigned long long int>(dcp_failover_log[i].uuid),
                 strtoull((vals[uuid]).c_str(), nullptr, 10),
                 "UUID mismatch in failover stats");
-        checkeq(static_cast<unsigned long long int>(dcp_failover_log[i].second),
+        checkeq(static_cast<unsigned long long int>(dcp_failover_log[i].seqno),
                 strtoull((vals[seqno]).c_str(), nullptr, 10),
                 "SEQNO mismatch in failover stats");
     }

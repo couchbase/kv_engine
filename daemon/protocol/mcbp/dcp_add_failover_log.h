@@ -21,7 +21,7 @@
 #include <memcached/vbucket.h>
 #include <gsl/gsl>
 
+class Cookie;
 /** Callback from the engine adding the response */
-ENGINE_ERROR_CODE add_failover_log(vbucket_failover_t* entries,
-                                   size_t nentries,
-                                   gsl::not_null<const void*> cookie);
+ENGINE_ERROR_CODE add_failover_log(std::vector<vbucket_failover_t> entries,
+                                   Cookie& cookie);

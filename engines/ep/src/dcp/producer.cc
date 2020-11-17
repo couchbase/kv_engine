@@ -569,9 +569,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
     // generate two responses for a single streamRequest.
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(nullptr,
                                                                      true);
-    ENGINE_ERROR_CODE rv = callback(failoverEntries.data(),
-                                    failoverEntries.size(),
-                                    getCookie());
+    ENGINE_ERROR_CODE rv = callback(failoverEntries);
     ObjectRegistry::onSwitchThread(epe);
     if (rv != ENGINE_SUCCESS) {
         logger->warn(

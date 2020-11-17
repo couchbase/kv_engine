@@ -364,10 +364,8 @@ struct dcp_message_producers {
                                              cb::mcbp::DcpStreamId sid) = 0;
 };
 
-typedef ENGINE_ERROR_CODE (*dcp_add_failover_log)(
-        vbucket_failover_t*,
-        size_t nentries,
-        gsl::not_null<const void*> cookie);
+using dcp_add_failover_log = std::function<ENGINE_ERROR_CODE(
+        const std::vector<vbucket_failover_t>&)>;
 
 struct MEMCACHED_PUBLIC_CLASS DcpIface {
     /**

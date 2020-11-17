@@ -28,7 +28,13 @@ void dcp_get_failover_log_executor(Cookie& cookie) {
     if (ret == ENGINE_SUCCESS) {
         auto& req = cookie.getRequest();
         ret = dcpGetFailoverLog(
-                cookie, req.getOpaque(), req.getVBucket(), add_failover_log);
+                cookie,
+                req.getOpaque(),
+                req.getVBucket(),
+                [c = std::ref(cookie)](
+                        const std::vector<vbucket_failover_t>& vec) {
+                    return add_failover_log(vec, c);
+                });
     }
 
     if (ret != ENGINE_SUCCESS) {

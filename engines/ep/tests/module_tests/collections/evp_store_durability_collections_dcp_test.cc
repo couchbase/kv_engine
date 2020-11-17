@@ -55,7 +55,9 @@ void CollectionsSyncWriteParamTest::SetUp() {
                                       0, // snap_start_seqno,
                                       0, // snap_end_seqno,
                                       &rollbackSeqno,
-                                      &dcpAddFailoverLog,
+                                      [](const std::vector<vbucket_failover_t>&) {
+                                        return ENGINE_SUCCESS;
+                                      },
                                       std::make_optional(
                                               std::string_view{})
                       /*collections on,
@@ -379,7 +381,10 @@ TEST_P(CollectionsSyncWriteParamTest,
                                       4, // snap_start_seqno,
                                       7, // snap_end_seqno,
                                       &rollbackSeqno,
-                                      &dcpAddFailoverLog,
+                                      [](const std::vector<vbucket_failover_t>&) {
+                                        return ENGINE_SUCCESS;
+                                      },
+
                                       std::make_optional(
                                               std::string_view{})
                       /*collections on,

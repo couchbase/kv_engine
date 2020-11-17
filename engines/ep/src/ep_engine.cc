@@ -1443,8 +1443,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get_failover_log(
     }
     auto failoverEntries = vb->failovers->getFailoverLog();
     NonBucketAllocationGuard guard;
-    auto ret = callback(failoverEntries.data(), failoverEntries.size(), cookie);
-    return ret;
+    return callback(failoverEntries);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::stream_end(

@@ -310,9 +310,8 @@ void SingleThreadedKVBucketTest::runCheckpointProcessor(
     producer.getCheckpointSnapshotTask()->run();
 }
 
-static ENGINE_ERROR_CODE dcpAddFailoverLog(vbucket_failover_t* entry,
-                                           size_t nentries,
-                                           gsl::not_null<const void*> cookie) {
+static ENGINE_ERROR_CODE dcpAddFailoverLog(
+        const std::vector<vbucket_failover_t>&) {
     return ENGINE_SUCCESS;
 }
 void SingleThreadedKVBucketTest::createDcpStream(MockDcpProducer& producer) {
@@ -2087,27 +2086,25 @@ TEST_P(STParamPersistentBucketTest, MB19892_BackfillNotDeleted) {
                               {}));
 
     uint64_t rollbackSeqno;
-    auto dummy_dcp_add_failover_cb = [](vbucket_failover_t* entry,
-                                        size_t nentries,
-                                        gsl::not_null<const void*> cookie) {
-        return ENGINE_SUCCESS;
-    };
 
     // Actual stream request method (EvpDcpStreamReq) is static, so access via
     // the engine_interface.
     EXPECT_EQ(ENGINE_SUCCESS,
-              engine.get()->stream_req(cookie,
-                                       /*flags*/ 0,
-                                       /*opaque*/ 0,
-                                       /*vbucket*/ vbid,
-                                       /*start_seqno*/ 0,
-                                       /*end_seqno*/ -1,
-                                       /*vb_uuid*/ 0,
-                                       /*snap_start*/ 0,
-                                       /*snap_end*/ 0,
-                                       &rollbackSeqno,
-                                       dummy_dcp_add_failover_cb,
-                                       {}));
+              engine.get()->stream_req(
+                      cookie,
+                      /*flags*/ 0,
+                      /*opaque*/ 0,
+                      /*vbucket*/ vbid,
+                      /*start_seqno*/ 0,
+                      /*end_seqno*/ -1,
+                      /*vb_uuid*/ 0,
+                      /*snap_start*/ 0,
+                      /*snap_end*/ 0,
+                      &rollbackSeqno,
+                      [](const std::vector<vbucket_failover_t>&) {
+                          return ENGINE_SUCCESS;
+                      },
+                      {}));
 }
 
 /*
@@ -2460,9 +2457,7 @@ static void MB20054_run_backfill_task(EventuallyPersistentEngine* engine,
 }
 
 static ENGINE_ERROR_CODE dummy_dcp_add_failover_cb(
-        vbucket_failover_t* entry,
-        size_t nentries,
-        gsl::not_null<const void*> cookie) {
+        const std::vector<vbucket_failover_t>&) {
     return ENGINE_SUCCESS;
 }
 

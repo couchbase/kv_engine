@@ -68,17 +68,20 @@ void CollectionsDcpTest::createDcpStream(
         uint32_t flags) {
     uint64_t rollbackSeqno;
     ASSERT_EQ(ENGINE_ERROR_CODE(expectedError),
-              producer->streamRequest(flags,
-                                      1, // opaque
-                                      id,
-                                      0, // start_seqno
-                                      ~0ull, // end_seqno
-                                      0, // vbucket_uuid,
-                                      0, // snap_start_seqno,
-                                      0, // snap_end_seqno,
-                                      &rollbackSeqno,
-                                      &CollectionsDcpTest::dcpAddFailoverLog,
-                                      collections));
+              producer->streamRequest(
+                      flags,
+                      1, // opaque
+                      id,
+                      0, // start_seqno
+                      ~0ull, // end_seqno
+                      0, // vbucket_uuid,
+                      0, // snap_start_seqno,
+                      0, // snap_end_seqno,
+                      &rollbackSeqno,
+                      [](const std::vector<vbucket_failover_t>&) {
+                          return ENGINE_SUCCESS;
+                      },
+                      collections));
 }
 
 void CollectionsDcpTest::createDcpConsumer() {
@@ -311,8 +314,6 @@ void CollectionsDcpTest::runEraser() {
 }
 
 ENGINE_ERROR_CODE CollectionsDcpTest::dcpAddFailoverLog(
-        vbucket_failover_t* entry,
-        size_t nentries,
-        gsl::not_null<const void*> cookie) {
+        const std::vector<vbucket_failover_t>&) {
     return ENGINE_SUCCESS;
 }
