@@ -1562,7 +1562,7 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) {
         ctx.callback->callback(rv);
         auto callbackStatus = ctx.callback->getStatus();
         if (callbackStatus == ENGINE_ENOMEM) {
-            logger->warn(
+            logger->TRACE(
                     "MagmaKVStore::scan callback {} "
                     "key:{} returned ENGINE_ENOMEM",
                     ctx.vbid,
