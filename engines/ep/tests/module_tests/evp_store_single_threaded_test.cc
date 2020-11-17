@@ -1856,6 +1856,9 @@ TEST_P(STParamPersistentBucketTest, test_mb22451) {
     // Required to ensure that the backfillMgr is deleted
     producer->closeAllStreams();
 
+    // MB-41332 notifyBackfillManager is safe to call after closeAllStreams
+    producer->notifyBackfillManager();
+
     // Stop Producer checkpoint processor task
     producer->cancelCheckpointCreatorTask();
 }

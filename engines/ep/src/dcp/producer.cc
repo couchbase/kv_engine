@@ -1397,7 +1397,9 @@ ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque,
 }
 
 void DcpProducer::notifyBackfillManager() {
-    backfillMgr->wakeUpTask();
+    if (backfillMgr) {
+        backfillMgr->wakeUpTask();
+    }
 }
 
 bool DcpProducer::recordBackfillManagerBytesRead(size_t bytes) {
