@@ -25,6 +25,7 @@
 #include <memory>
 #include <mutex>
 
+class EPBucket;
 class KVBucket;
 class VBucket;
 
@@ -186,7 +187,7 @@ public:
      * Perform actions for a completed warmup - currently check if any
      * collections are 'deleting' and require erasing retriggering.
      */
-    void warmupCompleted(KVBucket& bucket) const;
+    void warmupCompleted(EPBucket& bucket) const;
 
     /**
      * For development, log as much collections stuff as we can

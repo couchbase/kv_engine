@@ -24,7 +24,7 @@
 #include <flatbuffers/flatbuffers.h>
 #include <unordered_map>
 
-class KVBucket;
+class EPBucket;
 
 namespace Collections::VB {
 
@@ -114,7 +114,7 @@ public:
      * Called after a flush was successful so that purging can be triggered and
      * statistic changes applied.
      */
-    void flushSuccess(Vbid vbid, KVBucket& bucket);
+    void flushSuccess(Vbid vbid, EPBucket& bucket);
 
     /**
      * Call the given callback for each collection that is 100% dropped in this
@@ -129,7 +129,7 @@ public:
     /**
      * Trigger a purge of the given vbucket/bucket
      */
-    static void triggerPurge(Vbid vbid, KVBucket& bucket);
+    static void triggerPurge(Vbid vbid, EPBucket& bucket);
 
     /**
      * Set that the KVStore needs to commit the data held in this object.
@@ -356,7 +356,7 @@ private:
      * which will iterate the vbucket's documents removing those of any dropped
      * collections. The actual task scheduled is compaction
      */
-    void checkAndTriggerPurge(Vbid vbid, KVBucket& bucket) const;
+    void checkAndTriggerPurge(Vbid vbid, EPBucket& bucket) const;
 
     /**
      * A map of collections that have had items flushed and the statistics

@@ -21,6 +21,7 @@
 #include "collections/manifest.h"
 #include "collections/persist_manifest_task.h"
 #include "collections/vbucket_manifest_handles.h"
+#include "ep_bucket.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
 #include "string_utils.h"
@@ -339,7 +340,7 @@ bool Collections::Manager::warmupLoadManifest(const std::string& dbpath) {
  * Perform actions for a completed warmup - currently check if any
  * collections are 'deleting' and require erasing retriggering.
  */
-void Collections::Manager::warmupCompleted(KVBucket& bucket) const {
+void Collections::Manager::warmupCompleted(EPBucket& bucket) const {
     for (Vbid::id_type i = 0; i < bucket.getVBuckets().getSize(); i++) {
         Vbid vbid = Vbid(i);
         auto vb = bucket.getVBuckets().getBucket(vbid);

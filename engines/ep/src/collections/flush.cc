@@ -215,7 +215,7 @@ void Flush::postCommitMakeStatsVisible() {
     }
 }
 
-void Flush::flushSuccess(Vbid vbid, KVBucket& bucket) {
+void Flush::flushSuccess(Vbid vbid, EPBucket& bucket) {
     try {
         notifyManifestOfAnyDroppedCollections();
     } catch (const std::exception& e) {
@@ -235,13 +235,13 @@ void Flush::notifyManifestOfAnyDroppedCollections() {
     }
 }
 
-void Flush::checkAndTriggerPurge(Vbid vbid, KVBucket& bucket) const {
+void Flush::checkAndTriggerPurge(Vbid vbid, EPBucket& bucket) const {
     if (nonEmptyDroppedCollections != 0) {
         triggerPurge(vbid, bucket);
     }
 }
 
-void Flush::triggerPurge(Vbid vbid, KVBucket& bucket) {
+void Flush::triggerPurge(Vbid vbid, EPBucket& bucket) {
     CompactionConfig config;
     bucket.scheduleCompaction(vbid, config, nullptr);
 }
