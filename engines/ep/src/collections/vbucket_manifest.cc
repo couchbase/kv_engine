@@ -137,6 +137,12 @@ ManifestUpdateStatus Manifest::update(::VBucket& vb,
     mutex_type::UpgradeHolder upgradeLock(rwlock);
     auto status = canUpdate(manifest);
     if (status != ManifestUpdateStatus::Success) {
+        EP_LOG_WARN(
+                "Manifest::update {} error:{} vb-uid:{:#x} manifest-uid:{:#x}",
+                vb.getId(),
+                to_string(status),
+                manifestUid,
+                manifest.getUid());
         return status;
     }
 
@@ -149,8 +155,9 @@ ManifestUpdateStatus Manifest::update(::VBucket& vb,
         } else {
             // Log verbosely for this case
             EP_LOG_WARN(
-                    "Manifest::update with equal uid:{:#x} but differences "
+                    "Manifest::update {} with equal uid:{:#x} but differences "
                     "scopes+:{}, collections+:{}, scopes-:{}, collections-:{}",
+                    vb.getId(),
                     manifestUid,
                     changes.scopesToAdd.size(),
                     changes.collectionsToAdd.size(),

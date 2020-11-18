@@ -262,32 +262,9 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::isScopeIDValid(
 }
 
 void Collections::Manager::update(VBucket& vb) const {
-    // Lock manager updates
-    Collections::VB::ManifestUpdateStatus status;
-    uint64_t uid = 0;
-    currentManifest.withRLock([&vb, &status, &uid](const auto& manifest) {
-        status = vb.updateFromManifest(manifest);
-        uid = manifest.getUid();
-    });
-    switch (status) {
-    case Collections::VB::ManifestUpdateStatus::EqualUidWithDifferences:
-        [[fallthrough]];
-    case Collections::VB::ManifestUpdateStatus::Behind:
-        if (status == Collections::VB::ManifestUpdateStatus::Behind &&
-            uid == 0) {
-            // We don't log for uid of 0, because that happens on all warmups
-            // when the warmup completes before we receive any state from
-            // ns_server. Our in-memory manifest is still the default state and
-            // it lags behind what was loaded from warmup.
-            break;
-        }
-        EP_LOG_WARN("Collections::Manager::update error:{} {}",
-                    to_string(status),
-                    vb.getId());
-
-    case Collections::VB::ManifestUpdateStatus::Success:
-        break;
-    }
+    // Lock manager updates, errors are logged by VB::Manifest
+    currentManifest.withRLock(
+            [&vb](const auto& manifest) { vb.updateFromManifest(manifest); });
 }
 
 // This method is really to aid development and allow the dumping of the VB
