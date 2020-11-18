@@ -306,7 +306,7 @@ void DCPTest::prepareCheckpointItemsForStep(
         VBucket& vb) {
     producer.notifySeqnoAvailable(
             vb.getId(), vb.getHighSeqno(), SyncWriteOperation::Yes);
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, producer.step(&msgProducers));
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, producer.step(msgProducers));
     ASSERT_EQ(1, producer.getCheckpointSnapshotTask()->queueSize());
     producer.getCheckpointSnapshotTask()->run();
 }
@@ -368,7 +368,7 @@ int DCPTest::callbackCount = 0;
 
 void DCPTest::runCheckpointProcessor(DcpMessageProducersIface& producers) {
     // Step which will notify the snapshot task
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
 
     EXPECT_EQ(1, producer->getCheckpointSnapshotTask()->queueSize());
 
@@ -610,14 +610,14 @@ TEST_P(CompressionStreamTest, compression_not_enabled) {
     prepareCheckpointItemsForStep(producers, *producer, *vb);
 
     /* Stream the snapshot marker first */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
     EXPECT_EQ(0, producer->getItemsSent());
 
     /* Stream the first mutation */
     protocol_binary_datatype_t expectedDataType =
             isXattr() ? PROTOCOL_BINARY_DATATYPE_XATTR
                       : PROTOCOL_BINARY_DATATYPE_JSON;
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
     std::string value(qi->getValue()->getData(), qi->getValue()->valueSize());
     EXPECT_STREQ(producers.last_value.c_str(), decompressValue(value).c_str());
 
@@ -648,7 +648,7 @@ TEST_P(CompressionStreamTest, compression_not_enabled) {
     EXPECT_EQ(dcpResponse->getMessageSize(), keyAndValueMessageSize);
 
     /* Stream the second mutation */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
 
     value.assign(qi->getValue()->getData(), qi->getValue()->valueSize());
     EXPECT_STREQ(value.c_str(), producers.last_value.c_str());
@@ -696,10 +696,10 @@ TEST_P(CompressionStreamTest, connection_snappy_enabled) {
     prepareCheckpointItemsForStep(producers, *producer, *vb);
 
     /* Stream the snapshot marker */
-    ASSERT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers));
 
     /* Stream the 3rd mutation */
-    ASSERT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers));
 
     /**
      * Create a DCP response and check that a new item is created and
@@ -782,10 +782,10 @@ TEST_P(CompressionStreamTest, force_value_compression_enabled) {
     prepareCheckpointItemsForStep(producers, *producer, *vb);
 
     /* Stream the snapshot marker */
-    ASSERT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers));
 
     /* Stream the mutation */
-    ASSERT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers));
     std::string value(qi->getValue()->getData(), qi->getValue()->valueSize());
     EXPECT_STREQ(decompressValue(producers.last_value).c_str(), value.c_str());
     EXPECT_LT(producers.last_packet_size, keyAndValueMessageSize);
@@ -1071,7 +1071,7 @@ TEST_P(ConnectionTest, test_maybesendnoop_buffer_full) {
     producer->setNoopEnabled(true);
     const auto send_time = ep_current_time() + 21;
     producer->setNoopSendTime(send_time);
-    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(&producers);
+    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(producers);
     EXPECT_EQ(ENGINE_E2BIG, ret)
     << "maybeSendNoop not returning ENGINE_E2BIG";
     EXPECT_FALSE(producer->getNoopPendingRecv())
@@ -1094,7 +1094,7 @@ TEST_P(ConnectionTest, test_maybesendnoop_send_noop) {
     producer->setNoopEnabled(true);
     const auto send_time = ep_current_time() + 21;
     producer->setNoopSendTime(send_time);
-    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(&producers);
+    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(producers);
     EXPECT_EQ(ENGINE_SUCCESS, ret)
             << "maybeSendNoop not returning ENGINE_SUCCESS";
     EXPECT_TRUE(producer->getNoopPendingRecv())
@@ -1118,7 +1118,7 @@ TEST_P(ConnectionTest, test_maybesendnoop_noop_already_pending) {
     TimeTraveller marty(engine->getConfiguration().getDcpIdleTimeout() + 1);
     producer->setNoopEnabled(true);
     producer->setNoopSendTime(send_time);
-    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(&producers);
+    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(producers);
     // Check to see if a noop was sent i.e. returned ENGINE_SUCCESS
     EXPECT_EQ(ENGINE_SUCCESS, ret)
             << "maybeSendNoop not returning ENGINE_SUCCESS";
@@ -1126,7 +1126,7 @@ TEST_P(ConnectionTest, test_maybesendnoop_noop_already_pending) {
             << "Not awaiting noop acknowledgement";
     EXPECT_NE(send_time, producer->getNoopSendTime())
             << "SendTime has not been updated";
-    ret = producer->maybeSendNoop(&producers);
+    ret = producer->maybeSendNoop(producers);
     // Check to see if a noop was not sent i.e. returned ENGINE_FAILED
     EXPECT_EQ(ENGINE_FAILED, ret)
         << "maybeSendNoop not returning ENGINE_FAILED";
@@ -1159,7 +1159,7 @@ TEST_P(ConnectionTest, test_maybesendnoop_not_enabled) {
     producer->setNoopEnabled(false);
     const auto send_time = ep_current_time() + 21;
     producer->setNoopSendTime(send_time);
-    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(&producers);
+    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(producers);
     EXPECT_EQ(ENGINE_FAILED, ret)
     << "maybeSendNoop not returning ENGINE_FAILED";
     EXPECT_FALSE(producer->getNoopPendingRecv())
@@ -1182,7 +1182,7 @@ TEST_P(ConnectionTest, test_maybesendnoop_not_sufficient_time_passed) {
     producer->setNoopEnabled(true);
     rel_time_t current_time = ep_current_time();
     producer->setNoopSendTime(current_time);
-    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(&producers);
+    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(producers);
     EXPECT_EQ(ENGINE_FAILED, ret)
     << "maybeSendNoop not returning ENGINE_FAILED";
     EXPECT_FALSE(producer->getNoopPendingRecv())
@@ -1486,10 +1486,10 @@ TEST_P(ConnectionTest, consumer_waits_for_add_stream) {
     auto* cookie = create_mock_cookie(engine);
     MockDcpMessageProducers producers;
     MockDcpConsumer consumer(*engine, cookie, "test_consumer");
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, consumer.step(&producers));
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, consumer.step(producers));
     // fake that we received add stream
     consumer.setPendingAddStream(false);
-    ASSERT_EQ(ENGINE_SUCCESS, consumer.step(&producers));
+    ASSERT_EQ(ENGINE_SUCCESS, consumer.step(producers));
 
     destroy_mock_cookie(cookie);
 }
@@ -1517,12 +1517,12 @@ TEST_P(ConnectionTest, consumer_get_error_map) {
         // here, so this is just to let the test to work with all EP
         // configurations.
         if (engine->getConfiguration().getDcpFlowControlPolicy() != "none") {
-            ASSERT_EQ(ENGINE_SUCCESS, consumer.step(&producers));
+            ASSERT_EQ(ENGINE_SUCCESS, consumer.step(producers));
         }
 
         // The next call to step() is expected to start the GetErrorMap
         // negotiation
-        ASSERT_EQ(ENGINE_SUCCESS, consumer.step(&producers));
+        ASSERT_EQ(ENGINE_SUCCESS, consumer.step(producers));
         ASSERT_EQ(2 /*PendingResponse*/,
                   static_cast<uint8_t>(consumer.getGetErrorMapState()));
 
@@ -1639,7 +1639,7 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
     MockDcpMessageProducers producers;
     ENGINE_ERROR_CODE result;
     do {
-        result = consumer.step(&producers);
+        result = consumer.step(producers);
         handleProducerResponseIfStepBlocked(consumer, producers);
     } while (result == ENGINE_SUCCESS);
     EXPECT_EQ(ENGINE_EWOULDBLOCK, result);
@@ -1718,7 +1718,7 @@ TEST_P(ConnectionTest, ConsumerWithConsumerNameEnablesSyncRepl) {
     MockDcpMessageProducers producers;
     ENGINE_ERROR_CODE result;
     do {
-        result = consumer.step(&producers);
+        result = consumer.step(producers);
         handleProducerResponseIfStepBlocked(consumer, producers);
         syncReplNeg = consumer.public_getSyncReplNegotiation();
     } while (syncReplNeg.state != State::Completed);
@@ -1726,7 +1726,7 @@ TEST_P(ConnectionTest, ConsumerWithConsumerNameEnablesSyncRepl) {
 
     // Last step - send the consumer name
     ASSERT_TRUE(consumer.public_getPendingSendConsumerName());
-    EXPECT_EQ(ENGINE_SUCCESS, consumer.step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, consumer.step(producers));
 
     // SyncReplication negotiation is now completed, SyncReplication is enabled
     // on this consumer, and we have sent the consumer name to the producer.
@@ -2008,7 +2008,7 @@ TEST_F(DcpConnMapTest, TestCorrectRemovedOnStreamEnd) {
     // ConnMap.vbConns because we are waiting to send streamEnd.
     ASSERT_EQ(ENGINE_SUCCESS, producer->closeStream(0xdead, vbid));
     // Step to send the streamEnd, and remove the ConnHandler
-    ASSERT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers));
 
     // Move to replica
     ASSERT_EQ(ENGINE_SUCCESS,

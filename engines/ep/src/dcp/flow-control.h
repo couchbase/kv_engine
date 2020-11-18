@@ -38,7 +38,7 @@ public:
 
     ~FlowControl();
 
-    ENGINE_ERROR_CODE handleFlowCtl(DcpMessageProducersIface* producers);
+    ENGINE_ERROR_CODE handleFlowCtl(DcpMessageProducersIface& producers);
 
     void incrFreedBytes(uint32_t bytes);
 

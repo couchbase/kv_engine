@@ -410,14 +410,14 @@ void STDcpTest::testConsumerNegotiatesIncludeDeletedUserXattrs(
     // SyncRepl negotiation, which is the last blocking step before the
     // DeletedUserXattrs negotiation
     do {
-        result = consumer.step(&producers);
+        result = consumer.step(producers);
         handleProducerResponseIfStepBlocked(consumer, producers);
         syncReplNeg = consumer.public_getSyncReplNegotiation();
     } while (syncReplNeg.state != State::Completed);
     EXPECT_EQ(ENGINE_SUCCESS, result);
 
     // Skip over "send consumer name"
-    EXPECT_EQ(ENGINE_SUCCESS, consumer.step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, consumer.step(producers));
     ASSERT_FALSE(consumer.public_getPendingSendConsumerName());
 
     // Check pre-negotiation state
@@ -426,7 +426,7 @@ void STDcpTest::testConsumerNegotiatesIncludeDeletedUserXattrs(
     ASSERT_EQ(0, xattrNeg.opaque);
 
     // Start negotiation - consumer sends DcpControl
-    EXPECT_EQ(ENGINE_SUCCESS, consumer.step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, consumer.step(producers));
     xattrNeg = consumer.public_getDeletedUserXattrsNegotiation();
     EXPECT_EQ(State::PendingResponse, xattrNeg.state);
     EXPECT_EQ("include_deleted_user_xattrs", producers.last_key);
@@ -435,7 +435,7 @@ void STDcpTest::testConsumerNegotiatesIncludeDeletedUserXattrs(
     EXPECT_EQ(xattrNeg.opaque, producers.last_opaque);
 
     // Verify blocked - Consumer cannot proceed until negotiation completes
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, consumer.step(&producers));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, consumer.step(producers));
     xattrNeg = consumer.public_getDeletedUserXattrsNegotiation();
     EXPECT_EQ(State::PendingResponse, xattrNeg.state);
 
@@ -558,7 +558,7 @@ void STDcpTest::processConsumerMutationsNearThreshold(bool beyondThreshold) {
         EXPECT_FALSE(consumer->isPaused());
 
         /* Expect disconnect signal in Ephemeral with "fail_new_data" policy */
-        EXPECT_EQ(ENGINE_DISCONNECT, consumer->step(&producers));
+        EXPECT_EQ(ENGINE_DISCONNECT, consumer->step(producers));
     } else {
         uint32_t backfoffs = consumer->getNumBackoffs();
 
@@ -575,7 +575,7 @@ void STDcpTest::processConsumerMutationsNearThreshold(bool beyondThreshold) {
         /* In 'couchbase' buckets we buffer the replica items and indirectly
            throttle replication by not sending flow control acks to the
            producer. Hence we do not drop the connection here */
-        EXPECT_EQ(ENGINE_SUCCESS, consumer->step(&producers));
+        EXPECT_EQ(ENGINE_SUCCESS, consumer->step(producers));
 
         /* Close stream before deleting the connection */
         EXPECT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
@@ -648,7 +648,7 @@ TEST_P(STDcpTest, test_producer_stream_end_on_client_close_stream) {
 
     /* Expect a stream end message */
     MockDcpMessageProducers producers;
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
     EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Closed, producers.last_end_status);
 
@@ -692,7 +692,7 @@ TEST_P(STDcpTest, test_producer_no_stream_end_on_client_close_stream) {
     /* Don't expect a stream end message (or any other message as the stream is
        closed) */
     MockDcpMessageProducers producers;
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
 
     /* Check that the stream is not found in the producer's stream map */
     EXPECT_TRUE(producer->findStreams(vbid)->wlock().empty());

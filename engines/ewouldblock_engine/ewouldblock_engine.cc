@@ -710,9 +710,8 @@ public:
     // We don't support mocking with the DCP interface yet, so all access to //
     // the DCP interface will be proxied down to the underlying engine.      //
     ///////////////////////////////////////////////////////////////////////////
-    ENGINE_ERROR_CODE step(
-            gsl::not_null<const void*> cookie,
-            gsl::not_null<struct DcpMessageProducersIface*> producers) override;
+    ENGINE_ERROR_CODE step(gsl::not_null<const void*> cookie,
+                           DcpMessageProducersIface& producers) override;
 
     ENGINE_ERROR_CODE open(gsl::not_null<const void*> cookie,
                            uint32_t opaque,
@@ -1340,9 +1339,8 @@ EWB_Engine::~EWB_Engine() {
     notify_io_thread->waitForState(Couchbase::ThreadState::Zombie);
 }
 
-ENGINE_ERROR_CODE EWB_Engine::step(
-        gsl::not_null<const void*> cookie,
-        gsl::not_null<struct DcpMessageProducersIface*> producers) {
+ENGINE_ERROR_CODE EWB_Engine::step(gsl::not_null<const void*> cookie,
+                                   DcpMessageProducersIface& producers) {
     auto stream = dcp_stream.find(cookie);
     if (stream != dcp_stream.end()) {
         auto& count = stream->second.second;
@@ -1350,7 +1348,7 @@ ENGINE_ERROR_CODE EWB_Engine::step(
         if (stream->second.first && count > 0) {
             // This is using the internal dcp implementation which always
             // send the same item back
-            auto ret = producers->mutation(
+            auto ret = producers.mutation(
                     0xdeadbeef /*opqaue*/,
                     cb::unique_item_ptr(&dcp_mutation_item,
                                         cb::ItemDeleter(this)),

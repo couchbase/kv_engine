@@ -971,7 +971,7 @@ static void perf_dcp_client(EngineIface* h,
                     "Failed to acknowledge buffer");
             bytes_read = 0;
         }
-        ENGINE_ERROR_CODE err = dcp.step(cookie, &producers);
+        ENGINE_ERROR_CODE err = dcp.step(cookie, producers);
         switch (err) {
         case ENGINE_EWOULDBLOCK:
             // No data currently available - wait to be notified when

@@ -606,8 +606,7 @@ cb::unique_item_ptr DcpProducer::toUniqueItemPtr(
     return {item.release(), cb::ItemDeleter(&engine_)};
 }
 
-ENGINE_ERROR_CODE DcpProducer::step(
-        struct DcpMessageProducersIface* producers) {
+ENGINE_ERROR_CODE DcpProducer::step(DcpMessageProducersIface& producers) {
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -658,7 +657,7 @@ ENGINE_ERROR_CODE DcpProducer::step(
         case DcpResponse::Event::StreamEnd:
         {
             auto* se = static_cast<StreamEndResponse*>(resp.get());
-            ret = producers->stream_end(
+            ret = producers.stream_end(
                     se->getOpaque(),
                     se->getVbucket(),
                     mapEndStreamStatus(getCookie(), se->getFlags()),
@@ -686,11 +685,11 @@ ENGINE_ERROR_CODE DcpProducer::step(
         }
         case DcpResponse::Event::Commit: {
             auto* csr = static_cast<CommitSyncWrite*>(resp.get());
-            ret = producers->commit(csr->getOpaque(),
-                                    csr->getVbucket(),
-                                    csr->getKey(),
-                                    csr->getPreparedSeqno(),
-                                    csr->getCommitSeqno());
+            ret = producers.commit(csr->getOpaque(),
+                                   csr->getVbucket(),
+                                   csr->getKey(),
+                                   csr->getPreparedSeqno(),
+                                   csr->getCommitSeqno());
             break;
         }
 
@@ -703,14 +702,14 @@ ENGINE_ERROR_CODE DcpProducer::step(
 
             const uint8_t hotness =
                     encodeItemHotness(*mutationResponse->getItem());
-            ret = producers->mutation(mutationResponse->getOpaque(),
-                                      toUniqueItemPtr(std::move(itmCpy)),
-                                      mutationResponse->getVBucket(),
-                                      *mutationResponse->getBySeqno(),
-                                      mutationResponse->getRevSeqno(),
-                                      0 /* lock time */,
-                                      hotness,
-                                      mutationResponse->getStreamId());
+            ret = producers.mutation(mutationResponse->getOpaque(),
+                                     toUniqueItemPtr(std::move(itmCpy)),
+                                     mutationResponse->getVBucket(),
+                                     *mutationResponse->getBySeqno(),
+                                     mutationResponse->getRevSeqno(),
+                                     0 /* lock time */,
+                                     hotness,
+                                     mutationResponse->getStreamId());
             break;
         }
         case DcpResponse::Event::Deletion:
@@ -739,7 +738,7 @@ ENGINE_ERROR_CODE DcpProducer::step(
                             "DcpProducer::step(Expiration): If enabling Expiry "
                             "opcodes, you cannot disable delete_v2");
                 }
-                ret = producers->expiration(
+                ret = producers.expiration(
                         mutationResponse->getOpaque(),
                         toUniqueItemPtr(std::move(itmCpy)),
                         mutationResponse->getVBucket(),
@@ -769,53 +768,53 @@ ENGINE_ERROR_CODE DcpProducer::step(
             const auto docState = mutationResponse->getItem()->isDeleted()
                                           ? DocumentState::Deleted
                                           : DocumentState::Alive;
-            ret = producers->prepare(mutationResponse->getOpaque(),
-                                     toUniqueItemPtr(std::move(itmCpy)),
-                                     mutationResponse->getVBucket(),
-                                     *mutationResponse->getBySeqno(),
-                                     mutationResponse->getRevSeqno(),
-                                     0 /* lock time */,
-                                     hotness,
-                                     docState,
-                                     mutationResponse->getItem()
-                                             ->getDurabilityReqs()
-                                             .getLevel());
+            ret = producers.prepare(mutationResponse->getOpaque(),
+                                    toUniqueItemPtr(std::move(itmCpy)),
+                                    mutationResponse->getVBucket(),
+                                    *mutationResponse->getBySeqno(),
+                                    mutationResponse->getRevSeqno(),
+                                    0 /* lock time */,
+                                    hotness,
+                                    docState,
+                                    mutationResponse->getItem()
+                                            ->getDurabilityReqs()
+                                            .getLevel());
             break;
         }
         case DcpResponse::Event::Abort: {
             auto& abort = dynamic_cast<AbortSyncWrite&>(*resp);
-            ret = producers->abort(abort.getOpaque(),
-                                   abort.getVbucket(),
-                                   abort.getKey(),
-                                   abort.getPreparedSeqno(),
-                                   abort.getAbortSeqno());
+            ret = producers.abort(abort.getOpaque(),
+                                  abort.getVbucket(),
+                                  abort.getKey(),
+                                  abort.getPreparedSeqno(),
+                                  abort.getAbortSeqno());
             break;
         }
         case DcpResponse::Event::SnapshotMarker:
         {
             auto* s = static_cast<SnapshotMarker*>(resp.get());
-            ret = producers->marker(s->getOpaque(),
-                                    s->getVBucket(),
-                                    s->getStartSeqno(),
-                                    s->getEndSeqno(),
-                                    s->getFlags(),
-                                    s->getHighCompletedSeqno(),
-                                    s->getMaxVisibleSeqno(),
-                                    s->getTimestamp(),
-                                    resp->getStreamId());
+            ret = producers.marker(s->getOpaque(),
+                                   s->getVBucket(),
+                                   s->getStartSeqno(),
+                                   s->getEndSeqno(),
+                                   s->getFlags(),
+                                   s->getHighCompletedSeqno(),
+                                   s->getMaxVisibleSeqno(),
+                                   s->getTimestamp(),
+                                   resp->getStreamId());
             break;
         }
         case DcpResponse::Event::SetVbucket:
         {
             auto* s = static_cast<SetVBucketState*>(resp.get());
-            ret = producers->set_vbucket_state(
+            ret = producers.set_vbucket_state(
                     s->getOpaque(), s->getVBucket(), s->getState());
             break;
         }
         case DcpResponse::Event::SystemEvent: {
             auto* s =
                     static_cast<SystemEventProducerMessage*>(resp.get());
-            ret = producers->system_event(
+            ret = producers.system_event(
                     s->getOpaque(),
                     s->getVBucket(),
                     s->getSystemEvent(),
@@ -829,7 +828,7 @@ ENGINE_ERROR_CODE DcpProducer::step(
         }
         case DcpResponse::Event::OSOSnapshot: {
             auto& s = static_cast<OSOSnapshot&>(*resp);
-            ret = producers->oso_snapshot(
+            ret = producers.oso_snapshot(
                     s.getOpaque(),
                     s.getVBucket(),
                     s.isStart() ? uint32_t(cb::mcbp::request::
@@ -841,10 +840,10 @@ ENGINE_ERROR_CODE DcpProducer::step(
         }
         case DcpResponse::Event::SeqnoAdvanced: {
             const auto& s = static_cast<SeqnoAdvanced&>(*resp);
-            ret = producers->seqno_advanced(s.getOpaque(),
-                                            s.getVBucket(),
-                                            *s.getBySeqno(),
-                                            resp->getStreamId());
+            ret = producers.seqno_advanced(s.getOpaque(),
+                                           s.getVBucket(),
+                                           *s.getBySeqno(),
+                                           resp->getStreamId());
             break;
         }
         default:
@@ -903,26 +902,25 @@ ENGINE_ERROR_CODE DcpProducer::bufferAcknowledgement(uint32_t opaque,
 ENGINE_ERROR_CODE DcpProducer::deletionV1OrV2(
         IncludeDeleteTime includeDeleteTime,
         MutationResponse& mutationResponse,
-        DcpMessageProducersIface* producers,
+        DcpMessageProducersIface& producers,
         std::unique_ptr<Item> itmCpy,
         ENGINE_ERROR_CODE ret,
         cb::mcbp::DcpStreamId sid) {
     if (includeDeleteTime == IncludeDeleteTime::Yes) {
-        ret = producers->deletion_v2(
-                mutationResponse.getOpaque(),
-                toUniqueItemPtr(std::move(itmCpy)),
-                mutationResponse.getVBucket(),
-                *mutationResponse.getBySeqno(),
-                mutationResponse.getRevSeqno(),
-                mutationResponse.getItem()->getDeleteTime(),
-                sid);
+        ret = producers.deletion_v2(mutationResponse.getOpaque(),
+                                    toUniqueItemPtr(std::move(itmCpy)),
+                                    mutationResponse.getVBucket(),
+                                    *mutationResponse.getBySeqno(),
+                                    mutationResponse.getRevSeqno(),
+                                    mutationResponse.getItem()->getDeleteTime(),
+                                    sid);
     } else {
-        ret = producers->deletion(mutationResponse.getOpaque(),
-                                  toUniqueItemPtr(std::move(itmCpy)),
-                                  mutationResponse.getVBucket(),
-                                  *mutationResponse.getBySeqno(),
-                                  mutationResponse.getRevSeqno(),
-                                  sid);
+        ret = producers.deletion(mutationResponse.getOpaque(),
+                                 toUniqueItemPtr(std::move(itmCpy)),
+                                 mutationResponse.getVBucket(),
+                                 *mutationResponse.getBySeqno(),
+                                 mutationResponse.getRevSeqno(),
+                                 sid);
     }
     return ret;
 }
@@ -1872,7 +1870,7 @@ ENGINE_ERROR_CODE DcpProducer::maybeDisconnect() {
 }
 
 ENGINE_ERROR_CODE DcpProducer::maybeSendNoop(
-        struct DcpMessageProducersIface* producers) {
+        DcpMessageProducersIface& producers) {
     if (!noopCtx.enabled) {
         // Returning ENGINE_FAILED means ignore and continue
         // without sending a noop
@@ -1883,7 +1881,7 @@ ENGINE_ERROR_CODE DcpProducer::maybeSendNoop(
     // Check to see if waiting for a noop reply.
     // If not try to send a noop to the consumer if the interval has passed
     if (!noopCtx.pendingRecv && elapsedTime >= noopCtx.dcpNoopTxInterval) {
-        const auto ret = producers->noop(++noopCtx.opaque);
+        const auto ret = producers.noop(++noopCtx.opaque);
 
         if (ret == ENGINE_SUCCESS) {
             noopCtx.pendingRecv = true;

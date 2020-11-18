@@ -382,9 +382,8 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      *         ENGINE_SUCCESS if the engine don't have more messages
      *                        to send at this moment
      */
-    virtual ENGINE_ERROR_CODE step(
-            gsl::not_null<const void*> cookie,
-            gsl::not_null<DcpMessageProducersIface*> producers) = 0;
+    virtual ENGINE_ERROR_CODE step(gsl::not_null<const void*> cookie,
+                                   DcpMessageProducersIface& producers) = 0;
 
     /**
      * Called from the memcached core to open a new DCP connection.

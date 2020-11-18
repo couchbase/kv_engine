@@ -45,8 +45,7 @@ public:
         return DcpProducer::maybeDisconnect();
     }
 
-    ENGINE_ERROR_CODE maybeSendNoop(
-            struct DcpMessageProducersIface* producers) {
+    ENGINE_ERROR_CODE maybeSendNoop(DcpMessageProducersIface& producers) {
         return DcpProducer::maybeSendNoop(producers);
     }
 
@@ -176,7 +175,7 @@ public:
     /**
      * Step the producer and expect the opcode to be returned
      */
-    ENGINE_ERROR_CODE stepAndExpect(MockDcpMessageProducers* producers,
+    ENGINE_ERROR_CODE stepAndExpect(MockDcpMessageProducers& producers,
                                     cb::mcbp::ClientOpcode expectedOpcode);
 
     /**

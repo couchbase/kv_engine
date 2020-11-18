@@ -142,7 +142,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackSeqnoAdvanced) {
     EXPECT_EQ(vb->getHighSeqno(), producers->last_byseqno);
     // should be no more ops
     EXPECT_EQ(ENGINE_ERROR_CODE(cb::engine_errc::would_block),
-              producer->step(producers.get()));
+              producer->step(*producers));
 }
 
 TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackNoSeqnoAdvanced) {
@@ -214,7 +214,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackNoSeqnoAdvanced) {
 
     // should be no more ops
     EXPECT_EQ(ENGINE_ERROR_CODE(cb::engine_errc::would_block),
-              producer->step(producers.get()));
+              producer->step(*producers));
 }
 
 TEST_F(CollectionsDcpStreamsTest,
@@ -274,7 +274,7 @@ TEST_F(CollectionsDcpStreamsTest,
 
     // should be no more ops
     EXPECT_EQ(ENGINE_ERROR_CODE(cb::engine_errc::would_block),
-              producer->step(producers.get()));
+              producer->step(*producers));
 }
 
 TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackMultiCollection) {
@@ -347,7 +347,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackMultiCollection) {
 
     // should be no more ops
     EXPECT_EQ(ENGINE_ERROR_CODE(cb::engine_errc::would_block),
-              producer->step(producers.get()));
+              producer->step(*producers));
 }
 
 TEST_F(CollectionsDcpStreamsTest, streamRequestRollbackMultiCollection) {
@@ -463,7 +463,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestRollbackMultiCollection) {
 
     // should be no more ops
     EXPECT_EQ(ENGINE_ERROR_CODE(cb::engine_errc::would_block),
-              producer->step(producers.get()));
+              producer->step(*producers));
 }
 
 TEST_F(CollectionsDcpStreamsTest, close_stream_validation1) {
@@ -540,10 +540,9 @@ void CollectionsDcpStreamsTest::close_stream_by_id_test(bool enableStreamEnd,
     }
 
     if (enableStreamEnd) {
-        EXPECT_EQ(
-                ENGINE_SUCCESS,
-                producer->stepAndExpect(producers.get(),
-                                        cb::mcbp::ClientOpcode::DcpStreamEnd));
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  producer->stepAndExpect(
+                          *producers, cb::mcbp::ClientOpcode::DcpStreamEnd));
         EXPECT_EQ(cb::mcbp::DcpStreamId(99), producers->last_stream_id);
     }
 
@@ -625,10 +624,9 @@ TEST_F(CollectionsDcpStreamsTest, two_streams) {
     EXPECT_EQ(outstanding, producer->getBytesOutstanding());
 
     // Step and get the second snapshot marker (for second stream)
-    EXPECT_EQ(
-            ENGINE_SUCCESS,
-            producer->stepAndExpect(producers.get(),
-                                    cb::mcbp::ClientOpcode::DcpSnapshotMarker));
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->stepAndExpect(
+                      *producers, cb::mcbp::ClientOpcode::DcpSnapshotMarker));
     EXPECT_EQ(cb::mcbp::DcpStreamId(88), producers->last_stream_id);
 
     outstanding += snapshotSz;
@@ -637,7 +635,7 @@ TEST_F(CollectionsDcpStreamsTest, two_streams) {
     // The producer will send the create fruit event twice, once per stream!
     // SystemEvent createCollection
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
     EXPECT_EQ("fruit", producers->last_key);
@@ -655,7 +653,7 @@ TEST_F(CollectionsDcpStreamsTest, two_streams) {
 
     producers->clear_dcp_data();
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
     EXPECT_EQ("fruit", producers->last_key);
@@ -672,14 +670,14 @@ TEST_F(CollectionsDcpStreamsTest, two_streams) {
                      (sizeof("orange") - 1) + (sizeof("nice") - 1) +
                      1 /*collection-id*/;
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpMutation));
     EXPECT_EQ(cb::mcbp::DcpStreamId(32), producers->last_stream_id);
     outstanding += mutSize;
     EXPECT_EQ(outstanding, producer->getBytesOutstanding());
 
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpMutation));
     EXPECT_EQ(cb::mcbp::DcpStreamId(88), producers->last_stream_id);
     outstanding += mutSize;
@@ -702,16 +700,15 @@ TEST_F(CollectionsDcpStreamsTest, two_streams_different) {
     notifyAndStepToCheckpoint();
 
     // Step and get the second snapshot marker (for second stream)
-    EXPECT_EQ(
-            ENGINE_SUCCESS,
-            producer->stepAndExpect(producers.get(),
-                                    cb::mcbp::ClientOpcode::DcpSnapshotMarker));
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->stepAndExpect(
+                      *producers, cb::mcbp::ClientOpcode::DcpSnapshotMarker));
     EXPECT_EQ(cb::mcbp::DcpStreamId(101), producers->last_stream_id);
 
     // The producer will send the create fruit event twice, once per stream!
     // SystemEvent createCollection
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(CollectionEntry::dairy.getId(), producers->last_collection_id);
     EXPECT_EQ("dairy", producers->last_key);
@@ -721,7 +718,7 @@ TEST_F(CollectionsDcpStreamsTest, two_streams_different) {
 
     producers->clear_dcp_data();
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
     EXPECT_EQ("fruit", producers->last_key);

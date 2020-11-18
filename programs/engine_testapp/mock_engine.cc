@@ -457,9 +457,8 @@ cb::EngineErrorGetScopeIDResult MockEngine::get_scope_id(
     return the_engine->get_scope_id(cookie, key, vbid);
 }
 
-ENGINE_ERROR_CODE MockEngine::step(
-        gsl::not_null<const void*> cookie,
-        gsl::not_null<DcpMessageProducersIface*> producers) {
+ENGINE_ERROR_CODE MockEngine::step(gsl::not_null<const void*> cookie,
+                                   DcpMessageProducersIface& producers) {
     return the_engine_dcp->step(cookie, producers);
 }
 

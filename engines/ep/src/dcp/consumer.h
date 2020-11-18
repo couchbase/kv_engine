@@ -189,7 +189,7 @@ public:
                                       Vbid vbucket,
                                       vbucket_state_t state) override;
 
-    ENGINE_ERROR_CODE step(struct DcpMessageProducersIface* producers) override;
+    ENGINE_ERROR_CODE step(DcpMessageProducersIface& producers) override;
 
     /**
      * Sub-classes must implement a method that processes a response
@@ -367,31 +367,26 @@ protected:
      *
      * @return ENGINE_FAILED if the step has completed, ENGINE_SUCCESS otherwise
      */
-    ENGINE_ERROR_CODE handleGetErrorMap(
-            struct DcpMessageProducersIface* producers);
+    ENGINE_ERROR_CODE handleGetErrorMap(DcpMessageProducersIface& producers);
 
-    ENGINE_ERROR_CODE handleNoop(struct DcpMessageProducersIface* producers);
+    ENGINE_ERROR_CODE handleNoop(DcpMessageProducersIface& producers);
 
-    ENGINE_ERROR_CODE handlePriority(
-            struct DcpMessageProducersIface* producers);
+    ENGINE_ERROR_CODE handlePriority(DcpMessageProducersIface& producers);
 
-    ENGINE_ERROR_CODE handleExtMetaData(
-            struct DcpMessageProducersIface* producers);
+    ENGINE_ERROR_CODE handleExtMetaData(DcpMessageProducersIface& producers);
 
     ENGINE_ERROR_CODE supportCursorDropping(
-            struct DcpMessageProducersIface* producers);
+            DcpMessageProducersIface& producers);
 
-    ENGINE_ERROR_CODE supportHifiMFU(
-            struct DcpMessageProducersIface* producers);
+    ENGINE_ERROR_CODE supportHifiMFU(DcpMessageProducersIface& producers);
 
     ENGINE_ERROR_CODE sendStreamEndOnClientStreamClose(
-            struct DcpMessageProducersIface* producers);
+            DcpMessageProducersIface& producers);
 
-    ENGINE_ERROR_CODE enableExpiryOpcode(
-            struct DcpMessageProducersIface* producers);
+    ENGINE_ERROR_CODE enableExpiryOpcode(DcpMessageProducersIface& producers);
 
     ENGINE_ERROR_CODE enableSynchronousReplication(
-            DcpMessageProducersIface* producers);
+            DcpMessageProducersIface& producers);
 
     ENGINE_ERROR_CODE enableV7DcpStatus(dcp_message_producers* producers);
 
@@ -401,7 +396,7 @@ protected:
      * @param producers Pointers to message producers
      */
     ENGINE_ERROR_CODE handleDeletedUserXattrs(
-            DcpMessageProducersIface* producers);
+            DcpMessageProducersIface& producers);
 
     void notifyVbucketReady(Vbid vbucket);
 

@@ -155,7 +155,7 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
     prepareCheckpointItemsForStep(producers, *producer, *vb);
 
     /* Stream the snapshot marker first */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
     EXPECT_EQ(0, producer->getItemsSent());
 
     uint64_t totalBytesSent = producer->getTotalBytesSent();
@@ -170,7 +170,7 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
      * sent should be incremented by a lesser value than the
      * total data size.
      */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
     EXPECT_EQ(1, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytesSent);
     EXPECT_GT(producer->getTotalUncompressedDataSize(),
@@ -188,7 +188,7 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
      * the total data size should be incremented by exactly the
      * same amount as the total bytes sent
      */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
     EXPECT_EQ(2, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytesSent);
     EXPECT_GT(producer->getTotalUncompressedDataSize(),
@@ -213,7 +213,7 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
     mock_set_datatype_support(producer->getCookie(), PROTOCOL_BINARY_RAW_BYTES);
 
     ASSERT_FALSE(producer->isCompressionEnabled());
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
     EXPECT_EQ(3, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytesSent);
     EXPECT_GT(producer->getTotalUncompressedDataSize(),
@@ -271,7 +271,7 @@ TEST_P(StreamTest, test_verifyProducerStats) {
     prepareCheckpointItemsForStep(producers, *producer, *vb);
 
     /* Stream the snapshot marker first */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
     EXPECT_EQ(0, producer->getItemsSent());
 
     uint64_t totalBytes = producer->getTotalBytesSent();
@@ -280,7 +280,7 @@ TEST_P(StreamTest, test_verifyProducerStats) {
     /* Stream the first mutation. This should increment the
      * number of items and the total bytes sent.
      */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
     EXPECT_EQ(1, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
     totalBytes = producer->getTotalBytesSent();
@@ -290,7 +290,7 @@ TEST_P(StreamTest, test_verifyProducerStats) {
      */
     producers.setMutationStatus(ENGINE_E2BIG);
 
-    EXPECT_EQ(ENGINE_E2BIG, producer->step(&producers));
+    EXPECT_EQ(ENGINE_E2BIG, producer->step(producers));
 
     /* The number of items total bytes sent should remain the same */
     EXPECT_EQ(1, producer->getItemsSent());
@@ -300,37 +300,37 @@ TEST_P(StreamTest, test_verifyProducerStats) {
     /* Now stream the mutation again and the stats should have incremented */
     producers.setMutationStatus(ENGINE_SUCCESS);
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
     EXPECT_EQ(2, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
     totalBytes = producer->getTotalBytesSent();
 
     // Prepare
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
     EXPECT_EQ(3, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
     totalBytes = producer->getTotalBytesSent();
 
     // Commit
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
     EXPECT_EQ(4, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
     totalBytes = producer->getTotalBytesSent();
 
     // Prepare
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
     EXPECT_EQ(5, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
     totalBytes = producer->getTotalBytesSent();
 
     // SnapshotMarker - doesn't bump items sent
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
     EXPECT_EQ(5, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
     totalBytes = producer->getTotalBytesSent();
 
     // Abort
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
     EXPECT_EQ(6, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
 
@@ -1309,7 +1309,7 @@ TEST_P(StreamTest, ProducerReceivesSeqnoAckForErasedStream) {
     // Step the stream on, this should remove the stream from the producer's
     // StreamsMap
     MockDcpMessageProducers producers;
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
 
     // Stream should no longer exist in the map
@@ -3046,7 +3046,7 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
     MockDcpMessageProducers producers;
 
     // Step to schedule our backfill
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
     EXPECT_EQ(0, stream->public_readyQ().size());
 
     auto& bfm = producer->getBFM();
@@ -3069,11 +3069,11 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
         EXPECT_EQ(2, stream->public_readyQ().size());
 
         // Step snapshot marker
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
 
         // Step mutation
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
 
         stream->setNextHook([&tg1, &tg2]() {
@@ -3090,7 +3090,7 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
         // Run the step in a different thread
         t1 = std::thread{[this, &producers]() {
             // This step should produce the stream end
-            EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+            EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
             EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
         }};
 
@@ -3113,7 +3113,7 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
     EXPECT_FALSE(producer->getReadyQueue().empty());
 
     // Step to remove stream from queue
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
     EXPECT_FALSE(producer->findStream(vbid)->isActive());
     EXPECT_TRUE(producer->getReadyQueue().empty());
 }
@@ -3737,9 +3737,9 @@ protected:
 
         // Step the snapshot marker and first mutation
         MockDcpMessageProducers producers;
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
 
         // Second item
@@ -3747,7 +3747,7 @@ protected:
         EXPECT_EQ(2, stream->getNumBackfillItems());
 
         // Step the second mutation
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
 
         // Third item
@@ -3755,7 +3755,7 @@ protected:
         EXPECT_EQ(3, stream->getNumBackfillItems());
 
         // Step the third mutation
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
 
         // Ephemeral backfill scan goes straight to complete but persistent
@@ -3768,7 +3768,7 @@ protected:
         EXPECT_EQ(backfill_status_t::backfill_finished, bfm.backfill());
 
         // Nothing more to step in the producer
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
     }
 };
 

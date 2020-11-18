@@ -44,7 +44,7 @@ FlowControl::~FlowControl()
 }
 
 ENGINE_ERROR_CODE FlowControl::handleFlowCtl(
-        DcpMessageProducersIface* producers) {
+        DcpMessageProducersIface& producers) {
     if (enabled) {
         ENGINE_ERROR_CODE ret;
         uint32_t ackable_bytes = freedBytes.load();
@@ -56,13 +56,13 @@ ENGINE_ERROR_CODE FlowControl::handleFlowCtl(
             uint64_t opaque = consumerConn->incrOpaqueCounter();
             const std::string &controlMsgKey = consumerConn->getControlMsgKey();
             NonBucketAllocationGuard guard;
-            ret = producers->control(opaque, controlMsgKey, buf_size);
+            ret = producers.control(opaque, controlMsgKey, buf_size);
             return ret;
         } else if (isBufferSufficientlyDrained_UNLOCKED(ackable_bytes)) {
             lh.unlock();
             /* Send a buffer ack when at least 20% of the buffer is drained */
             uint64_t opaque = consumerConn->incrOpaqueCounter();
-            ret = producers->buffer_acknowledgement(
+            ret = producers.buffer_acknowledgement(
                     opaque, Vbid(0), ackable_bytes);
             lastBufferAck = ep_current_time();
             ackedBytes.fetch_add(ackable_bytes);
@@ -73,7 +73,7 @@ ENGINE_ERROR_CODE FlowControl::handleFlowCtl(
             lh.unlock();
             /* Ack at least every 5 seconds */
             uint64_t opaque = consumerConn->incrOpaqueCounter();
-            ret = producers->buffer_acknowledgement(
+            ret = producers.buffer_acknowledgement(
                     opaque, Vbid(0), ackable_bytes);
             lastBufferAck = ep_current_time();
             ackedBytes.fetch_add(ackable_bytes);

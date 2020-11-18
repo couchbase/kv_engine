@@ -54,7 +54,7 @@ static void dcp_step(EngineIface* h,
                      const void* cookie,
                      MockDcpMessageProducers& producers) {
     auto dcp = requireDcpIface(h);
-    ENGINE_ERROR_CODE err = dcp->step(cookie, &producers);
+    ENGINE_ERROR_CODE err = dcp->step(cookie, producers);
     check(err == ENGINE_SUCCESS || err == ENGINE_EWOULDBLOCK,
           "Expected success or engine_ewouldblock");
     if (err == ENGINE_EWOULDBLOCK) {
@@ -424,7 +424,7 @@ void TestDcpConsumer::run(bool openConn) {
             total_acked_bytes += bytes_read;
             bytes_read = 0;
         }
-        ENGINE_ERROR_CODE err = dcp->step(cookie, &producers);
+        ENGINE_ERROR_CODE err = dcp->step(cookie, producers);
         if (err == ENGINE_DISCONNECT) {
             done = true;
         } else {
@@ -1036,7 +1036,7 @@ static void dcp_stream_from_producer_conn(EngineIface* h,
                     "Failed to get dcp buffer ack");
             bytes_read = 0;
         }
-        ENGINE_ERROR_CODE err = dcp->step(cookie, &producers);
+        ENGINE_ERROR_CODE err = dcp->step(cookie, producers);
         if (err == ENGINE_DISCONNECT) {
             done = true;
         } else {
@@ -1330,7 +1330,7 @@ static void dcp_waiting_step(EngineIface* h,
                     "Failed to get dcp buffer ack");
             bytes_read = 0;
         }
-        ENGINE_ERROR_CODE err = dcp->step(cookie, &producers);
+        ENGINE_ERROR_CODE err = dcp->step(cookie, producers);
         if (err == ENGINE_DISCONNECT) {
             done = true;
         } else {
@@ -1927,7 +1927,7 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
                 get_int_stat(h, stat_name3.c_str(), "dcp"),
                 "Flow Control Buffer Size not correct");
         checkeq(ENGINE_SUCCESS,
-                dcp->step(cookie[i], &producers),
+                dcp->step(cookie[i], producers),
                 "Pending flow control buffer change not processed");
         checkeq(cb::mcbp::ClientOpcode::DcpControl,
                 producers.last_op,
@@ -2075,7 +2075,7 @@ static enum test_result test_dcp_noop(EngineIface* h) {
 
     auto done = false;
     while (!done) {
-        if (dcp->step(cookie, &producers) == ENGINE_DISCONNECT) {
+        if (dcp->step(cookie, producers) == ENGINE_DISCONNECT) {
             done = true;
         } else if (producers.last_op == cb::mcbp::ClientOpcode::DcpNoop) {
             done = true;
@@ -2134,7 +2134,7 @@ static enum test_result test_dcp_noop_fail(EngineIface* h) {
     testHarness->time_travel(201);
 
     MockDcpMessageProducers producers;
-    while (dcp->step(cookie, &producers) != ENGINE_DISCONNECT) {
+    while (dcp->step(cookie, producers) != ENGINE_DISCONNECT) {
         if (producers.last_op == cb::mcbp::ClientOpcode::DcpNoop) {
             // Producer opaques are hard coded to start from 10M
             checkeq(10000001,
@@ -2180,14 +2180,14 @@ static enum test_result test_dcp_consumer_noop(EngineIface* h) {
     // No-op not recieved for 201 seconds. Should be ok.
     MockDcpMessageProducers producers;
     checkeq(ENGINE_EWOULDBLOCK,
-            dcp->step(cookie, &producers),
+            dcp->step(cookie, producers),
             "Expected engine would block");
 
     testHarness->time_travel(200);
 
     // Message not recieved for over 400 seconds. Should disconnect.
     checkeq(ENGINE_DISCONNECT,
-            dcp->step(cookie, &producers),
+            dcp->step(cookie, producers),
             "Expected engine disconnect");
     testHarness->destroy_cookie(cookie);
 
@@ -3559,7 +3559,7 @@ static test_result test_dcp_takeover_no_items(EngineIface* h) {
     int num_set_vbucket_active = 0;
 
     do {
-        ENGINE_ERROR_CODE err = dcp->step(cookie, &producers);
+        ENGINE_ERROR_CODE err = dcp->step(cookie, producers);
         if (err == ENGINE_DISCONNECT) {
             done = true;
         } else {
@@ -7228,7 +7228,7 @@ static enum test_result test_dcp_early_termination(EngineIface* h) {
                                mock_dcp_add_failover_log,
                                {}),
               "Failed to initiate stream request");
-        dcp->step(cookie, &producers);
+        dcp->step(cookie, producers);
     }
 
     // Destroy the connection

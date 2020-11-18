@@ -172,7 +172,7 @@ void CollectionsDcpTest::notifyAndStepToCheckpoint(
 void CollectionsDcpTest::stepAndExpect(cb::mcbp::ClientOpcode opcode,
                                        cb::engine_errc err) {
     EXPECT_EQ(ENGINE_ERROR_CODE(err),
-              producer->stepAndExpect(producers.get(), opcode));
+              producer->stepAndExpect(*producers, opcode));
 }
 
 void CollectionsDcpTest::testDcpCreateDelete(
@@ -196,7 +196,7 @@ void CollectionsDcpTest::testDcpCreateDelete(
     auto scopeDropItr = expectedScopeDrops.begin();
 
     // step until done
-    while (producer->step(producers.get()) == ENGINE_SUCCESS) {
+    while (producer->step(*producers) == ENGINE_SUCCESS) {
         if (producers->last_op == cb::mcbp::ClientOpcode::DcpSystemEvent) {
             switch (producers->last_system_event) {
             case mcbp::systemevent::id::CreateCollection:

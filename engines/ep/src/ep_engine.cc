@@ -1319,12 +1319,12 @@ void EventuallyPersistentEngine::item_set_datatype(
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::step(
         gsl::not_null<const void*> cookie,
-        gsl::not_null<DcpMessageProducersIface*> producers) {
+        DcpMessageProducersIface& producers) {
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        DcpMsgProducersBorderGuard guardedProducers(*producers);
-        return conn->step(&guardedProducers);
+        DcpMsgProducersBorderGuard guardedProducers(producers);
+        return conn->step(guardedProducers);
     }
     return ENGINE_DISCONNECT;
 }

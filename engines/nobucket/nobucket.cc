@@ -179,9 +179,8 @@ public:
 
     // DcpIface implementation ////////////////////////////////////////////////
 
-    ENGINE_ERROR_CODE step(
-            gsl::not_null<const void*>,
-            gsl::not_null<struct DcpMessageProducersIface*>) override {
+    ENGINE_ERROR_CODE step(gsl::not_null<const void*>,
+                           DcpMessageProducersIface&) override {
         return ENGINE_NO_BUCKET;
     }
 

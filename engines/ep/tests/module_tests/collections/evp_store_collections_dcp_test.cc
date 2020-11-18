@@ -204,8 +204,8 @@ TEST_F(CollectionsDcpTest, stream_request_uid) {
     // When we add a stream back we should send the latest manifest uid
     EXPECT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque, replicaVB, 0));
 
-    while (consumer->step(producers.get()) == ENGINE_SUCCESS) {
-        handleProducerResponseIfStepBlocked(*consumer, *producers.get());
+    while (consumer->step(*producers) == ENGINE_SUCCESS) {
+        handleProducerResponseIfStepBlocked(*consumer, *producers);
     }
 
     // And we've passed the correct filter on to the producer
@@ -228,7 +228,7 @@ TEST_F(CollectionsDcpTest, failover_partial_drop) {
 
     VBucketPtr replica = store->getVBucket(replicaVB);
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
 
     ASSERT_TRUE(active->lockCollections().doesKeyContainValidCollection(
@@ -239,7 +239,7 @@ TEST_F(CollectionsDcpTest, failover_partial_drop) {
             StoredDocKey{"meat:bacon", CollectionEntry::meat}));
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ("fruit", producers->last_key);
 
@@ -384,7 +384,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp) {
             StoredDocKey{"meat:bacon", CollectionEntry::meat}));
 
     // Now step the producer to transfer the collection creation
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ(CollectionName::meat, producers->last_key);
     EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
@@ -406,38 +406,37 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp) {
     notifyAndStepToCheckpoint();
 
     // Now step the producer to transfer the collection deletion
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
 
     // 3. Replica now blocking access to meat
     EXPECT_FALSE(replica->lockCollections().doesKeyContainValidCollection(
             StoredDocKey{"meat:bacon", CollectionEntry::meat}));
 
     // Now step the producer, no more collection events
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(*producers));
 }
 
 // Test that DCP works when a TTL is enabled on a collection
 TEST_P(CollectionsDcpParameterizedTest, test_dcp_with_ttl) {
     auto checkDcp = [](MockDcpProducer* p,
-                       CollectionsDcpTestProducers* dcpCallBacks) {
+                       CollectionsDcpTestProducers& dcpCallBacks) {
         // Now step the producer to transfer the collection creation and
         // validate
         // the data we would transfer to the consumer
         EXPECT_EQ(ENGINE_SUCCESS, p->step(dcpCallBacks));
-        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent,
-                  dcpCallBacks->last_op);
-        EXPECT_EQ(CollectionName::meat, dcpCallBacks->last_key);
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, dcpCallBacks.last_op);
+        EXPECT_EQ(CollectionName::meat, dcpCallBacks.last_key);
         EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
-                  dcpCallBacks->last_system_event);
-        EXPECT_EQ(CollectionUid::meat, dcpCallBacks->last_collection_id);
+                  dcpCallBacks.last_system_event);
+        EXPECT_EQ(CollectionUid::meat, dcpCallBacks.last_collection_id);
 
         // Assert version1, i.e. a TTL is encoded
         ASSERT_EQ(mcbp::systemevent::version::version1,
-                  dcpCallBacks->last_system_event_version);
+                  dcpCallBacks.last_system_event_version);
 
         auto eventData = reinterpret_cast<
                 const Collections::CreateWithMaxTtlEventDcpData*>(
-                dcpCallBacks->last_system_event_data.data());
+                dcpCallBacks.last_system_event_data.data());
         EXPECT_EQ(100, ntohl(eventData->maxTtl));
     };
     {
@@ -457,7 +456,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_with_ttl) {
         EXPECT_FALSE(replica->lockCollections().doesKeyContainValidCollection(
                 StoredDocKey{"meat:bacon", CollectionEntry::meat}));
 
-        checkDcp(producer.get(), producers.get());
+        checkDcp(producer.get(), *producers);
 
         // Finally validate the TTL comes back after a restart
         flushVBucketToDiskIfPersistent(Vbid(0), 1);
@@ -470,7 +469,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_with_ttl) {
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
                               false /*in-memory = false*/);
 
-    checkDcp(producer.get(), producers.get());
+    checkDcp(producer.get(), *producers);
 }
 
 /*
@@ -491,7 +490,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_non_default_scope) {
     vb->updateFromManifest(makeManifest(cm));
     notifyAndStepToCheckpoint();
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(producers->last_system_event, mcbp::systemevent::id::CreateScope);
     EXPECT_EQ(producers->last_scope_id, ScopeEntry::shop1.uid);
@@ -511,9 +510,8 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_non_default_scope) {
     EXPECT_FALSE(replica->lockCollections().doesKeyContainValidCollection(
             StoredDocKey{"meat:bacon", CollectionEntry::meat}));
 
-
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(producers->last_system_event,
               mcbp::systemevent::id::CreateCollection);
@@ -532,7 +530,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_non_default_scope) {
     notifyAndStepToCheckpoint();
 
     // Now step the producer to transfer the collection deletion
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
 
     // 3. Check that the scopeID was replicated properly
     EXPECT_TRUE(replica->lockCollections().isScopeValid(ScopeEntry::shop1));
@@ -542,7 +540,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_non_default_scope) {
             StoredDocKey{"meat:bacon", CollectionEntry::meat}));
 
     // Now step the producer, no more collection events
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(*producers));
 }
 
 TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
@@ -572,7 +570,7 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
 
     // Now step the producer to transfer the collection creation(s)
     // each collection-creation, closed the checkpoint (hence the extra steps)
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ(0, replica->lockCollections().getManifestUid());
     EXPECT_EQ("fruit", producers->last_key);
@@ -580,7 +578,7 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
               producers->last_system_event);
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ(0, replica->lockCollections().getManifestUid());
     EXPECT_EQ("dairy", producers->last_key);
@@ -588,7 +586,7 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
               producers->last_system_event);
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ("meat", producers->last_key);
     EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
@@ -604,13 +602,13 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
 
     notifyAndStepToCheckpoint();
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ(3, replica->lockCollections().getManifestUid());
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers->last_op);
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ(5, replica->lockCollections().getManifestUid());
 
@@ -620,12 +618,12 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
 
     notifyAndStepToCheckpoint();
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ(5, replica->lockCollections().getManifestUid());
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ(7, replica->lockCollections().getManifestUid());
 }
@@ -946,19 +944,19 @@ TEST_P(CollectionsDcpParameterizedTest, collections_manifest_is_ahead) {
     createDcpStream({{R"({"uid":"1"})"}});
     notifyAndStepToCheckpoint();
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(producers->last_collection_id, CollectionEntry::fruit.getId());
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
     EXPECT_EQ(producers->last_system_event,
               mcbp::systemevent::id::CreateCollection);
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpMutation));
     EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
 }
@@ -1206,7 +1204,7 @@ void CollectionsDcpTest::tombstone_snapshots_test(bool forceWarmup) {
                   CollectionEntry::fruit.getId());
         EXPECT_EQ(producers->last_system_event,
                   mcbp::systemevent::id::DeleteCollection);
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(*producers));
     } else {
         // We expect to see everything upto the drop of fruit
         stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
@@ -1235,7 +1233,7 @@ void CollectionsDcpTest::tombstone_snapshots_test(bool forceWarmup) {
                   CollectionEntry::fruit.getId());
         EXPECT_EQ(producers->last_system_event,
                   mcbp::systemevent::id::DeleteCollection);
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(*producers));
     }
 }
 
@@ -1338,7 +1336,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     notifyAndStepToCheckpoint();
 
     // SystemEvent createCollection
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ(CollectionEntry::dairy.getId(), producers->last_collection_id);
     EXPECT_EQ("dairy", producers->last_key);
@@ -1364,14 +1362,14 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     // Now step DCP to transfer keys, only two keys are expected as all "meat"
     // keys are filtered
     for (auto& key : expectedKeys) {
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
         EXPECT_EQ(CollectionEntry::dairy.getId(),
                   producers->last_collection_id);
         EXPECT_EQ(key, producers->last_key);
     }
     // And no more
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(*producers));
 
     flush_vbucket_to_disk(vbid, 8);
 
@@ -1412,7 +1410,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_scope) {
     notifyAndStepToCheckpoint();
 
     // SystemEvent createScope
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     EXPECT_EQ(mcbp::systemevent::id::CreateScope, producers->last_system_event);
     EXPECT_EQ(ScopeEntry::shop1.getId(), producers->last_scope_id);
     EXPECT_EQ(ScopeEntry::shop1.name, producers->last_key);
@@ -1424,7 +1422,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_scope) {
 
     // SystemEvent createCollection dairy in shop1
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
               producers->last_system_event);
     EXPECT_EQ(CollectionEntry::dairy.getId(), producers->last_collection_id);
@@ -1457,14 +1455,14 @@ TEST_F(CollectionsFilteredDcpTest, filtering_scope) {
     // Now step DCP to transfer the dairy mutations, we do not expect meat
     // mutations as it is in the default scope
     for (auto& key : expectedKeys) {
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
         EXPECT_EQ(CollectionEntry::dairy.getId(),
                   producers->last_collection_id);
         EXPECT_EQ(key, producers->last_key);
     }
     // And no more
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(*producers));
 
     flush_vbucket_to_disk(vbid, 8);
 
@@ -1521,19 +1519,19 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope_from_empty) {
     notifyAndStepToCheckpoint();
 
     // SystemEvent createScope
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     EXPECT_EQ(mcbp::systemevent::id::CreateScope, producers->last_system_event);
     EXPECT_EQ(ScopeEntry::shop1.getId(), producers->last_scope_id);
 
     // SystemEvent createCollection
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
               producers->last_system_event);
     EXPECT_EQ(CollectionEntry::dairy.getId(), producers->last_collection_id);
 
     // And no more
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, producer->step(*producers));
 
     // Lets add some stuff to dairy
     std::array<std::string, 2> expectedKeys = {{"dairy:one", "dairy:two"}};
@@ -1548,7 +1546,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope_from_empty) {
 
     // Now step DCP to transfer the dairy mutations
     for (auto& key : expectedKeys) {
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
         EXPECT_EQ(CollectionEntry::dairy.getId(),
                   producers->last_collection_id);
@@ -1588,13 +1586,13 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope) {
     notifyAndStepToCheckpoint();
 
     // SystemEvent createScope
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     EXPECT_EQ(mcbp::systemevent::id::CreateScope, producers->last_system_event);
     EXPECT_EQ(ScopeEntry::shop1.getId(), producers->last_scope_id);
 
     // SystemEvent createCollection
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
               producers->last_system_event);
     EXPECT_EQ(CollectionEntry::dairy.getId(), producers->last_collection_id);
@@ -1609,7 +1607,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope) {
     notifyAndStepToCheckpoint();
 
     // Check we got the system event
-    ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    ASSERT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     ASSERT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     ASSERT_EQ(CollectionEntry::vegetable.getId(),
               producers->last_collection_id);
@@ -1632,14 +1630,14 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope) {
     // Now step DCP to transfer vegetable mutations, we do not expect meat
     // mutations as meat is in the default scope
     for (auto& key : expectedKeys) {
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
         EXPECT_EQ(CollectionEntry::vegetable.getId(),
                   producers->last_collection_id);
         EXPECT_EQ(key, producers->last_key);
     }
     // And no more
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(*producers));
 
     flush_vbucket_to_disk(vbid, 9);
 
@@ -1681,7 +1679,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_shrink_scope) {
     notifyAndStepToCheckpoint();
 
     // SystemEvent createScope
-    ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    ASSERT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     ASSERT_EQ(mcbp::systemevent::id::CreateScope, producers->last_system_event);
     ASSERT_EQ(ScopeEntry::shop1.getId(), producers->last_scope_id);
 
@@ -1721,7 +1719,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_shrink_scope) {
     // Now step DCP to transfer dairy and vegetable mutations, do not expect
     // meat mutations as meat is in the default scope
     for (auto& key : dairyKeys) {
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
         EXPECT_EQ(CollectionEntry::dairy.getId(),
                   producers->last_collection_id);
@@ -1729,7 +1727,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_shrink_scope) {
     }
 
     for (auto& key : vegetableKeys) {
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
         EXPECT_EQ(CollectionEntry::vegetable.getId(),
                   producers->last_collection_id);
@@ -1737,7 +1735,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_shrink_scope) {
     }
 
     // And no more
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(*producers));
 
     // Now delete the dairy collection
     setCollections(
@@ -1746,7 +1744,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_shrink_scope) {
     notifyAndStepToCheckpoint();
 
     // Check we got the system event
-    ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    ASSERT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     ASSERT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     ASSERT_EQ(CollectionEntry::dairy.getId(), producers->last_collection_id);
 
@@ -1756,7 +1754,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_shrink_scope) {
     store_item(vbid, StoredDocKey{"meat:six", CollectionEntry::meat}, "value");
 
     // No new items (dairy is now filtered)
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(*producers));
 
     flush_vbucket_to_disk(vbid, 14);
 
@@ -1862,12 +1860,12 @@ TEST_P(CollectionsDcpParameterizedTest, MB_24572) {
     notifyAndStepToCheckpoint();
 
     // SystemEvent createCollection for dairy is expected
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ(CollectionEntry::dairy.getId(), producers->last_collection_id);
 
     // And no more for this stream - no meat
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(*producers));
 
     // and new mutations?
     store_item(
@@ -1909,12 +1907,12 @@ TEST_P(CollectionsDcpParameterizedTest, default_only) {
     // Now step into the items of which we expect to see only anykey
     notifyAndStepToCheckpoint();
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
     EXPECT_EQ("anykey", producers->last_key);
 
     // And no more
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(*producers));
 }
 
 TEST_P(CollectionsDcpParameterizedTest, stream_closes) {
@@ -1936,7 +1934,7 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes) {
     // close once we transfer DeleteCollection
 
     // Now step the producer to transfer the collection creation
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
 
     // Not dead yet...
     EXPECT_TRUE(vb0Stream->isActive());
@@ -1947,16 +1945,16 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes) {
     notifyAndStepToCheckpoint();
 
     // Now step the producer to transfer the collection deletion
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
 
     // Done... collection deletion of meat has closed the stream
     EXPECT_FALSE(vb0Stream->isActive());
 
     // Now step the producer to transfer the close stream
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
 
     // And no more
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(*producers));
 }
 
 TEST_P(CollectionsDcpParameterizedTest, stream_closes_scope) {
@@ -1981,7 +1979,7 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes_scope) {
 
     // Now step the producer to transfer the scope creation
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(mcbp::systemevent::id::CreateScope, producers->last_system_event);
     EXPECT_EQ(ScopeEntry::shop1.getId(), producers->last_scope_id);
@@ -1992,7 +1990,7 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes_scope) {
     // SystemEvent createCollection
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
               producers->last_system_event);
@@ -2011,7 +2009,7 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes_scope) {
 
     // Now step the producer to transfer the collection deletion
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(mcbp::systemevent::id::DeleteCollection,
               producers->last_system_event);
@@ -2022,7 +2020,7 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes_scope) {
 
     // Now step the producer to transfer the scope deletion
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(mcbp::systemevent::id::DropScope, producers->last_system_event);
     EXPECT_EQ(ScopeEntry::shop1.getId(), producers->last_scope_id);
@@ -2034,13 +2032,13 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes_scope) {
 
     // Now step the producer to transfer the stream end message
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpStreamEnd));
     EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::FilterEmpty,
               producers->last_end_status);
 
     // And no more
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(*producers));
 }
 
 /**
@@ -2113,7 +2111,7 @@ TEST_P(CollectionsDcpParameterizedTest, legacy_stream_closes) {
     EXPECT_FALSE(vb0Stream->isActive());
 
     // And no more
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(*producers));
 }
 
 // Because there is never an explicit create event for the default collection
@@ -2225,7 +2223,7 @@ TEST_P(CollectionsDcpCloseAfterLosingPrivs, collection_stream) {
     notifyAndStepToCheckpoint();
     // SystemEvent createCollection
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
               producers->last_system_event);
@@ -2240,16 +2238,16 @@ TEST_P(CollectionsDcpCloseAfterLosingPrivs, collection_stream) {
     // final items drain out
     notifyAndStepToCheckpoint();
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpMutation));
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpStreamEnd));
     EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::LostPrivileges,
               producers->last_end_status);
 
     // And no more
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(*producers));
     // Done... loss of privs has closed stream
     EXPECT_FALSE(vb0Stream->isActive());
 }
@@ -2276,7 +2274,7 @@ TEST_P(CollectionsDcpCloseAfterLosingPrivs, collection_stream_from_backfill) {
 
     // endStream clears the readyQueue when backfill so we won't see any items
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpStreamEnd));
 
     EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::LostPrivileges,
@@ -2305,10 +2303,10 @@ TEST_P(CollectionsDcpCloseAfterLosingPrivs, legacy_stream_closes) {
     notifyAndStepToCheckpoint();
     // Expect a stream end marker
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpMutation));
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpStreamEnd));
     EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers->last_end_status);
 
@@ -2316,7 +2314,7 @@ TEST_P(CollectionsDcpCloseAfterLosingPrivs, legacy_stream_closes) {
     EXPECT_FALSE(vb0Stream->isActive());
 
     // And no more
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(*producers));
 }
 
 TEST_P(CollectionsDcpParameterizedTest, no_seqno_advanced_from_memory) {
@@ -2343,7 +2341,7 @@ TEST_P(CollectionsDcpParameterizedTest, no_seqno_advanced_from_memory) {
     EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
     // should be no more ops
     EXPECT_EQ(ENGINE_ERROR_CODE(cb::engine_errc::would_block),
-              producer->step(producers.get()));
+              producer->step(*producers));
 }
 
 TEST_P(CollectionsDcpParameterizedTest, no_seqno_advanced_from_memory_replica) {
@@ -2372,7 +2370,7 @@ TEST_P(CollectionsDcpParameterizedTest, no_seqno_advanced_from_memory_replica) {
     EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
     // should be no more ops
     EXPECT_EQ(ENGINE_ERROR_CODE(cb::engine_errc::would_block),
-              producer->step(producers.get()));
+              producer->step(*producers));
 }
 
 TEST_P(CollectionsDcpParameterizedTest,
@@ -2610,7 +2608,7 @@ TEST_P(CollectionsDcpParameterizedTest,
 
     // should be no more ops
     EXPECT_EQ(ENGINE_ERROR_CODE(cb::engine_errc::would_block),
-              producer->step(producers.get()));
+              producer->step(*producers));
 }
 
 TEST_P(CollectionsDcpParameterizedTest, seqno_advanced_from_disk_to_memory) {
@@ -2662,7 +2660,7 @@ TEST_P(CollectionsDcpParameterizedTest, seqno_advanced_from_disk_to_memory) {
 
     // should be no more ops
     EXPECT_EQ(ENGINE_ERROR_CODE(cb::engine_errc::would_block),
-              producer->step(producers.get()));
+              producer->step(*producers));
 }
 
 class CollectionsDcpPersistentOnly : public CollectionsDcpParameterizedTest {

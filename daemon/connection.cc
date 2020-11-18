@@ -667,7 +667,7 @@ bool Connection::executeCommandsCallback() {
             bool more = (getSendQueueSize() < maxSendQueueSize);
             while (more) {
                 const auto ret = getBucket().getDcpIface()->step(
-                        static_cast<const void*>(cookies.front().get()), this);
+                        static_cast<const void*>(cookies.front().get()), *this);
                 switch (remapErrorCode(ret)) {
                 case ENGINE_SUCCESS:
                     more = (getSendQueueSize() < maxSendQueueSize);

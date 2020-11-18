@@ -159,7 +159,7 @@ void DcpStreamSyncReplTest::testNoPendingWithoutSyncReplica(
 
     prepareCheckpointItemsForStep(producers, *producer, *vb0);
 
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
 
     destroy_dcp_stream();
 }
@@ -191,7 +191,7 @@ TEST_P(DcpStreamSyncReplTest, NoPendingNotificationWithoutSyncReplication) {
     ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
 
     // Step to empty the ready queue of the Producer
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
 
     // Verify number of io notification calls for the producer
     connMap.processPendingNotifications();
@@ -230,7 +230,7 @@ TEST_P(DcpStreamSyncReplTest, PendingNotificationWithSyncReplication) {
     ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
 
     // Step to empty the ready queue of the Producer
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
 
     // Verify number of io notification calls for the producer
     connMap.processPendingNotifications();
@@ -281,9 +281,9 @@ void DcpStreamSyncReplTest::testPendingAndMutationWithoutSyncReplica(
 
     prepareCheckpointItemsForStep(producers, *producer, *vb0);
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
 
     destroy_dcp_stream();
 }
@@ -331,9 +331,9 @@ void DcpStreamSyncReplTest::testMutationAndPendingWithoutSyncReplica(
 
     prepareCheckpointItemsForStep(producers, *producer, *vb0);
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
 
     destroy_dcp_stream();
 }
@@ -384,9 +384,9 @@ void DcpStreamSyncReplTest::testPendingItemWithSyncReplica(
 
     // Drive the DcpMessageProducers
     prepareCheckpointItemsForStep(producers, *producer, *vb0);
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
 
     destroy_dcp_stream();
 }
@@ -446,10 +446,10 @@ void DcpStreamSyncReplTest::testPendingAndMutationWithSyncReplica(
 
     prepareCheckpointItemsForStep(producers, *producer, *vb0);
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
 
     destroy_dcp_stream();
 }
@@ -517,11 +517,11 @@ void DcpStreamSyncReplTest::testMutationAndPending2SnapshotsWithSyncReplica(
 
     prepareCheckpointItemsForStep(producers, *producer, *vb0);
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
 
     destroy_dcp_stream();
 }

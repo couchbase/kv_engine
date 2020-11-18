@@ -821,8 +821,7 @@ ENGINE_ERROR_CODE DcpConsumer::setVBucketState(uint32_t opaque,
     return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }
 
-ENGINE_ERROR_CODE DcpConsumer::step(
-        struct DcpMessageProducersIface* producers) {
+ENGINE_ERROR_CODE DcpConsumer::step(DcpMessageProducersIface& producers) {
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -893,43 +892,43 @@ ENGINE_ERROR_CODE DcpConsumer::step(
         case DcpResponse::Event::AddStream:
         {
             auto* as = static_cast<AddStreamResponse*>(resp.get());
-            ret = producers->add_stream_rsp(
+            ret = producers.add_stream_rsp(
                     as->getOpaque(), as->getStreamOpaque(), as->getStatus());
             break;
         }
         case DcpResponse::Event::StreamReq:
         {
             auto* sr = static_cast<StreamRequest*>(resp.get());
-            ret = producers->stream_req(sr->getOpaque(),
-                                        sr->getVBucket(),
-                                        sr->getFlags(),
-                                        sr->getStartSeqno(),
-                                        sr->getEndSeqno(),
-                                        sr->getVBucketUUID(),
-                                        sr->getSnapStartSeqno(),
-                                        sr->getSnapEndSeqno(),
-                                        sr->getRequestValue());
+            ret = producers.stream_req(sr->getOpaque(),
+                                       sr->getVBucket(),
+                                       sr->getFlags(),
+                                       sr->getStartSeqno(),
+                                       sr->getEndSeqno(),
+                                       sr->getVBucketUUID(),
+                                       sr->getSnapStartSeqno(),
+                                       sr->getSnapEndSeqno(),
+                                       sr->getRequestValue());
             break;
         }
         case DcpResponse::Event::SetVbucket:
         {
             auto* vs =
                     static_cast<SetVBucketStateResponse*>(resp.get());
-            ret = producers->set_vbucket_state_rsp(vs->getOpaque(),
-                                                   vs->getStatus());
+            ret = producers.set_vbucket_state_rsp(vs->getOpaque(),
+                                                  vs->getStatus());
             break;
         }
         case DcpResponse::Event::SnapshotMarker: {
             auto* mr =
                     static_cast<SnapshotMarkerResponse*>(resp.get());
-            ret = producers->marker_rsp(mr->getOpaque(), mr->getStatus());
+            ret = producers.marker_rsp(mr->getOpaque(), mr->getStatus());
             break;
         }
         case DcpResponse::Event::SeqnoAcknowledgement: {
             auto* ack = static_cast<SeqnoAcknowledgement*>(resp.get());
-            ret = producers->seqno_acknowledged(ack->getOpaque(),
-                                                ack->getVbucket(),
-                                                ack->getPreparedSeqno());
+            ret = producers.seqno_acknowledged(ack->getOpaque(),
+                                               ack->getVbucket(),
+                                               ack->getPreparedSeqno());
             break;
         }
         default:
@@ -1429,13 +1428,12 @@ void DcpConsumer::closeStreamDueToVbStateChange(Vbid vbucket,
     }
 }
 
-ENGINE_ERROR_CODE DcpConsumer::handleNoop(
-        struct DcpMessageProducersIface* producers) {
+ENGINE_ERROR_CODE DcpConsumer::handleNoop(DcpMessageProducersIface& producers) {
     if (pendingEnableNoop) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
-        ret = producers->control(opaque, noopCtrlMsg, val);
+        ret = producers.control(opaque, noopCtrlMsg, val);
         pendingEnableNoop = false;
         return ret;
     }
@@ -1451,7 +1449,7 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
         std::string interval = std::to_string(intervalCount);
-        ret = producers->control(opaque, noopIntervalCtrlMsg, interval);
+        ret = producers.control(opaque, noopIntervalCtrlMsg, interval);
         pendingSendNoopInterval = false;
         return ret;
     }
@@ -1474,14 +1472,14 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(
 }
 
 ENGINE_ERROR_CODE DcpConsumer::handleGetErrorMap(
-        struct DcpMessageProducersIface* producers) {
+        DcpMessageProducersIface& producers) {
     if (getErrorMapState == GetErrorMapState::PendingRequest) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
         // Note: just send 0 as version to get the default error map loaded
         //     from file at startup. The error map returned is not used, we
         //     just want to issue a valid request.
-        ret = producers->get_error_map(opaque, 0 /*version*/);
+        ret = producers.get_error_map(opaque, 0 /*version*/);
         getErrorMapState = GetErrorMapState::PendingResponse;
         return ret;
     }
@@ -1495,12 +1493,12 @@ ENGINE_ERROR_CODE DcpConsumer::handleGetErrorMap(
 }
 
 ENGINE_ERROR_CODE DcpConsumer::handlePriority(
-        struct DcpMessageProducersIface* producers) {
+        DcpMessageProducersIface& producers) {
     if (pendingSetPriority) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
         std::string val("high");
-        ret = producers->control(opaque, priorityCtrlMsg, val);
+        ret = producers.control(opaque, priorityCtrlMsg, val);
         pendingSetPriority = false;
         return ret;
     }
@@ -1509,12 +1507,12 @@ ENGINE_ERROR_CODE DcpConsumer::handlePriority(
 }
 
 ENGINE_ERROR_CODE DcpConsumer::handleExtMetaData(
-        struct DcpMessageProducersIface* producers) {
+        DcpMessageProducersIface& producers) {
     if (pendingEnableExtMetaData) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
-        ret = producers->control(opaque, extMetadataCtrlMsg, val);
+        ret = producers.control(opaque, extMetadataCtrlMsg, val);
         pendingEnableExtMetaData = false;
         return ret;
     }
@@ -1523,12 +1521,12 @@ ENGINE_ERROR_CODE DcpConsumer::handleExtMetaData(
 }
 
 ENGINE_ERROR_CODE DcpConsumer::supportCursorDropping(
-        struct DcpMessageProducersIface* producers) {
+        DcpMessageProducersIface& producers) {
     if (pendingSupportCursorDropping) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
-        ret = producers->control(opaque, cursorDroppingCtrlMsg, val);
+        ret = producers.control(opaque, cursorDroppingCtrlMsg, val);
         pendingSupportCursorDropping = false;
         return ret;
     }
@@ -1537,12 +1535,12 @@ ENGINE_ERROR_CODE DcpConsumer::supportCursorDropping(
 }
 
 ENGINE_ERROR_CODE DcpConsumer::supportHifiMFU(
-        struct DcpMessageProducersIface* producers) {
+        DcpMessageProducersIface& producers) {
     if (pendingSupportHifiMFU) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
-        ret = producers->control(opaque, hifiMFUCtrlMsg, val);
+        ret = producers.control(opaque, hifiMFUCtrlMsg, val);
         pendingSupportHifiMFU = false;
         return ret;
     }
@@ -1551,13 +1549,13 @@ ENGINE_ERROR_CODE DcpConsumer::supportHifiMFU(
 }
 
 ENGINE_ERROR_CODE DcpConsumer::sendStreamEndOnClientStreamClose(
-        struct DcpMessageProducersIface* producers) {
+        DcpMessageProducersIface& producers) {
     /* Sending this ctrl message tells the DCP producer that the consumer is
        expecting a "STREAM_END" message when it initiates a stream close */
     if (pendingSendStreamEndOnClientStreamClose) {
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
-        ENGINE_ERROR_CODE ret = producers->control(
+        ENGINE_ERROR_CODE ret = producers.control(
                 opaque, sendStreamEndOnClientStreamCloseCtrlMsg, val);
         pendingSendStreamEndOnClientStreamClose = false;
         return ret;
@@ -1566,12 +1564,12 @@ ENGINE_ERROR_CODE DcpConsumer::sendStreamEndOnClientStreamClose(
 }
 
 ENGINE_ERROR_CODE DcpConsumer::enableExpiryOpcode(
-        struct DcpMessageProducersIface* producers) {
+        DcpMessageProducersIface& producers) {
     if (pendingEnableExpiryOpcode) {
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
         ENGINE_ERROR_CODE ret =
-                producers->control(opaque, enableOpcodeExpiryCtrlMsg, val);
+                producers.control(opaque, enableOpcodeExpiryCtrlMsg, val);
         pendingEnableExpiryOpcode = false;
         return ret;
     }
@@ -1579,7 +1577,7 @@ ENGINE_ERROR_CODE DcpConsumer::enableExpiryOpcode(
 }
 
 ENGINE_ERROR_CODE DcpConsumer::enableSynchronousReplication(
-        DcpMessageProducersIface* producers) {
+        DcpMessageProducersIface& producers) {
     // enable_sync_writes and consumer_name are separated into two
     // different variables as in the future non-replication consumers may wish
     // to stream prepares and commits.
@@ -1587,7 +1585,7 @@ ENGINE_ERROR_CODE DcpConsumer::enableSynchronousReplication(
     case BlockingDcpControlNegotiation::State::PendingRequest: {
         uint32_t opaque = ++opaqueCounter;
         ENGINE_ERROR_CODE ret =
-                producers->control(opaque, "enable_sync_writes", "true");
+                producers.control(opaque, "enable_sync_writes", "true");
         syncReplNegotiation.state =
                 BlockingDcpControlNegotiation::State::PendingResponse;
         syncReplNegotiation.opaque = opaque;
@@ -1603,7 +1601,7 @@ ENGINE_ERROR_CODE DcpConsumer::enableSynchronousReplication(
     if (pendingSendConsumerName && isSyncReplicationEnabled()) {
         uint32_t opaque = ++opaqueCounter;
         NonBucketAllocationGuard guard;
-        ENGINE_ERROR_CODE ret = producers->control(
+        ENGINE_ERROR_CODE ret = producers.control(
                 opaque, "consumer_name", consumerName.c_str());
         pendingSendConsumerName = false;
         return ret;
@@ -1627,13 +1625,13 @@ ENGINE_ERROR_CODE DcpConsumer::enableV7DcpStatus(
 }
 
 ENGINE_ERROR_CODE DcpConsumer::handleDeletedUserXattrs(
-        DcpMessageProducersIface* producers) {
+        DcpMessageProducersIface& producers) {
     switch (deletedUserXattrsNegotiation.state) {
     case BlockingDcpControlNegotiation::State::PendingRequest: {
         uint32_t opaque = ++opaqueCounter;
         NonBucketAllocationGuard guard;
         // Note: the protocol requires a value in the payload, make it happy
-        ENGINE_ERROR_CODE ret = producers->control(
+        ENGINE_ERROR_CODE ret = producers.control(
                 opaque, "include_deleted_user_xattrs", "true");
         deletedUserXattrsNegotiation.state =
                 BlockingDcpControlNegotiation::State::PendingResponse;

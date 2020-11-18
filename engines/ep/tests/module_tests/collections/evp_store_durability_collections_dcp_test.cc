@@ -133,16 +133,16 @@ TEST_P(CollectionsSyncWriteParamTest, drop_collection_with_pending_write) {
 
     notifyAndStepToCheckpoint();
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpMutation));
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpPrepare));
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpPrepare));
     if (persistent()) {
         flush_vbucket_to_disk(replicaVB, 4);
@@ -151,7 +151,7 @@ TEST_P(CollectionsSyncWriteParamTest, drop_collection_with_pending_write) {
     setCollections(cookie, std::string{cm.remove(CollectionEntry::dairy)});
     notifyAndStepToCheckpoint();
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
 
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -202,13 +202,13 @@ failover_entry_t CollectionsSyncWriteParamTest::
 
     notifyAndStepToCheckpoint();
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpPrepare));
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpPrepare));
     flushVBucketToDiskIfPersistent(replicaVB, 3);
 
@@ -268,7 +268,7 @@ failover_entry_t CollectionsSyncWriteParamTest::
 
     // Now transfer the drop event to the replica
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     flushVBucketToDiskIfPersistent(replicaVB, 1);
 
@@ -292,7 +292,7 @@ TEST_P(CollectionsSyncWriteParamTest,
     // commit).
     notifyAndStepToCheckpoint();
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpCommit));
 
     // This commit drops the droppedCollection as the seqno is higher than the
@@ -303,7 +303,7 @@ TEST_P(CollectionsSyncWriteParamTest,
     EXPECT_EQ(0, pdm.getNumDroppedCollections());
 
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpPrepare));
 
     EXPECT_EQ(1, pdm.getNumTracked());
@@ -400,7 +400,7 @@ TEST_P(CollectionsSyncWriteParamTest,
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
                               false /*disk*/);
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpMutation));
 
     // This logical commit removes the prepare
@@ -411,7 +411,7 @@ TEST_P(CollectionsSyncWriteParamTest,
 
     // Next prepare streams normally
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
+              producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpPrepare));
 
     EXPECT_EQ(1, pdm.getNumTracked());
