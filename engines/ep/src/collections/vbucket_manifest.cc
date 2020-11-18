@@ -264,13 +264,13 @@ void Manifest::addCollection(const WriteHandle& wHandle,
                                             {/*no callback*/});
 
     EP_LOG_INFO(
-            "collections: {} adding collection:[name:{},id:{}] to "
+            "collections: {} adding collection:id:{}, name:{} to "
             "scope:{}, "
             "maxTTL:{} {}, "
             "replica:{}, seqno:{}, manifest:{:#x}",
             vb.getId(),
-            collectionName,
             identifiers.second,
+            collectionName,
             identifiers.first,
             maxTtl.has_value(),
             maxTtl.value_or(std::chrono::seconds::zero()).count(),
@@ -409,11 +409,11 @@ void Manifest::addScope(const WriteHandle& wHandle,
             std::move(item), optionalSeqno, {}, wHandle, {});
 
     EP_LOG_INFO(
-            "collections: {} added scope:name:{},id:{} "
+            "collections: {} added scope:id:{} name:{},"
             "replica:{}, seqno:{}, manifest:{:#x}",
             vb.getId(),
-            scopeName,
             sid,
+            scopeName,
             optionalSeqno.has_value(),
             seqno,
             manifestUid);
