@@ -124,4 +124,9 @@ protected:
      * Test what happens to the manifest when we promote a vBucket
      */
     void testVBPromotionUpdateManifest();
+
+    /**
+     * Test forced updates with replication
+     */
+    void replicateForcedUpdate(uint64_t newUid, bool warmup);
 };

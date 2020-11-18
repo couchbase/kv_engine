@@ -564,7 +564,8 @@ public:
                                identifiers,
                                collectionName,
                                maxTtl,
-                               OptionalSeqno{startSeqno});
+                               OptionalSeqno{startSeqno},
+                               false);
     }
 
     /**
@@ -582,7 +583,7 @@ public:
                      CollectionID cid,
                      int64_t endSeqno) {
         manifest.dropCollection(
-                *this, vb, manifestUid, cid, OptionalSeqno{endSeqno});
+                *this, vb, manifestUid, cid, OptionalSeqno{endSeqno}, false);
     }
 
     /**
@@ -604,7 +605,8 @@ public:
                           manifestUid,
                           sid,
                           scopeName,
-                          OptionalSeqno{startSeqno});
+                          OptionalSeqno{startSeqno},
+                          false);
     }
 
     /**
@@ -620,7 +622,7 @@ public:
                           ScopeID sid,
                           int64_t endSeqno) {
         manifest.dropScope(
-                *this, vb, manifestUid, sid, OptionalSeqno{endSeqno});
+                *this, vb, manifestUid, sid, OptionalSeqno{endSeqno}, false);
     }
 
     /**

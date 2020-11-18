@@ -51,80 +51,93 @@ Manifest::Manifest(const KVStore::Manifest& data)
     }
 }
 
-std::optional<CollectionID> Manifest::applyDeletions(
-        WriteHandle& wHandle,
-        ::VBucket& vb,
-        std::vector<CollectionID>& changes) {
+std::optional<CollectionID> Manifest::applyDeletions(WriteHandle& wHandle,
+                                                     ::VBucket& vb,
+                                                     ManifestChanges& changes) {
     std::optional<CollectionID> rv;
-    if (!changes.empty()) {
-        rv = changes.back();
-        changes.pop_back();
+    if (!changes.collectionsToRemove.empty()) {
+        rv = changes.collectionsToRemove.back();
+        changes.collectionsToRemove.pop_back();
     }
-    for (CollectionID id : changes) {
-        dropCollection(
-                wHandle, vb, manifestUid, id, OptionalSeqno{/*no-seqno*/});
+    for (CollectionID id : changes.collectionsToRemove) {
+        dropCollection(wHandle,
+                       vb,
+                       manifestUid,
+                       id,
+                       OptionalSeqno{/*no-seqno*/},
+                       changes.forced);
     }
 
     return rv;
 }
 
 std::optional<Manifest::CollectionAddition> Manifest::applyCreates(
-        const WriteHandle& wHandle,
-        ::VBucket& vb,
-        std::vector<CollectionAddition>& changes) {
+        const WriteHandle& wHandle, ::VBucket& vb, ManifestChanges& changes) {
     std::optional<CollectionAddition> rv;
-    if (!changes.empty()) {
-        rv = changes.back();
-        changes.pop_back();
+    if (!changes.collectionsToAdd.empty()) {
+        rv = changes.collectionsToAdd.back();
+        changes.collectionsToAdd.pop_back();
     }
-    for (const auto& addition : changes) {
+    for (const auto& addition : changes.collectionsToAdd) {
         addCollection(wHandle,
                       vb,
                       manifestUid,
                       addition.identifiers,
                       addition.name,
                       addition.maxTtl,
-                      OptionalSeqno{/*no-seqno*/});
+                      OptionalSeqno{/*no-seqno*/},
+                      changes.forced);
     }
 
     return rv;
 }
 
-std::optional<ScopeID> Manifest::applyScopeDrops(
-        const WriteHandle& wHandle,
-        ::VBucket& vb,
-        std::vector<ScopeID>& changes) {
+std::optional<ScopeID> Manifest::applyScopeDrops(const WriteHandle& wHandle,
+                                                 ::VBucket& vb,
+                                                 ManifestChanges& changes) {
     std::optional<ScopeID> rv;
-    if (!changes.empty()) {
-        rv = changes.back();
-        changes.pop_back();
+    if (!changes.scopesToRemove.empty()) {
+        rv = changes.scopesToRemove.back();
+        changes.scopesToRemove.pop_back();
     }
-    for (ScopeID id : changes) {
-        dropScope(wHandle, vb, manifestUid, id, OptionalSeqno{/*no-seqno*/});
+    for (ScopeID id : changes.scopesToRemove) {
+        dropScope(wHandle,
+                  vb,
+                  manifestUid,
+                  id,
+                  OptionalSeqno{/*no-seqno*/},
+                  changes.forced);
     }
 
     return rv;
 }
 
 std::optional<Manifest::ScopeAddition> Manifest::applyScopeCreates(
-        const WriteHandle& wHandle,
-        ::VBucket& vb,
-        std::vector<ScopeAddition>& changes) {
+        const WriteHandle& wHandle, ::VBucket& vb, ManifestChanges& changes) {
     std::optional<ScopeAddition> rv;
-    if (!changes.empty()) {
-        rv = changes.back();
-        changes.pop_back();
+    if (!changes.scopesToAdd.empty()) {
+        rv = changes.scopesToAdd.back();
+        changes.scopesToAdd.pop_back();
     }
-    for (const auto& addition : changes) {
+    for (const auto& addition : changes.scopesToAdd) {
         addScope(wHandle,
                  vb,
                  manifestUid,
                  addition.sid,
                  addition.name,
-                 OptionalSeqno{/*no-seqno*/});
+                 OptionalSeqno{/*no-seqno*/},
+                 changes.forced);
     }
 
     return rv;
+}
+
+void Manifest::updateUid(ManifestUid uid, bool reset) {
+    if (reset) {
+        manifestUid.reset(uid);
+    } else {
+        manifestUid = uid;
+    }
 }
 
 // The update is split into two parts
@@ -148,8 +161,8 @@ ManifestUpdateStatus Manifest::update(::VBucket& vb,
 
     auto changes = processManifest(manifest);
 
-    // If manifest was equal. expect no changes
-    if (manifest.getUid() == manifestUid) {
+    // If manifest was equal. expect no changes (unless forced)
+    if (manifest.getUid() == manifestUid && !manifest.isForcedUpdate()) {
         if (changes.empty()) {
             return ManifestUpdateStatus::Success;
         } else {
@@ -177,7 +190,13 @@ void Manifest::completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
     // Write Handle now needed
     WriteHandle wHandle(*this, std::move(upgradeLock));
 
-    auto finalScopeCreate = applyScopeCreates(wHandle, vb, changes.scopesToAdd);
+    // Capture the UID
+    if (changes.empty()) {
+        updateUid(changes.uid, changes.forced);
+        return;
+    }
+
+    auto finalScopeCreate = applyScopeCreates(wHandle, vb, changes);
     if (finalScopeCreate) {
         auto uid = changes.collectionsToAdd.empty() &&
                                    changes.collectionsToRemove.empty() &&
@@ -189,21 +208,25 @@ void Manifest::completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
                  uid,
                  finalScopeCreate.value().sid,
                  finalScopeCreate.value().name,
-                 OptionalSeqno{/*no-seqno*/});
+                 OptionalSeqno{/*no-seqno*/},
+                 changes.forced);
     }
 
-    auto finalDeletion =
-            applyDeletions(wHandle, vb, changes.collectionsToRemove);
+    auto finalDeletion = applyDeletions(wHandle, vb, changes);
     if (finalDeletion) {
         auto uid = changes.collectionsToAdd.empty() &&
                                    changes.scopesToRemove.empty()
                            ? changes.uid
                            : manifestUid;
-        dropCollection(
-                wHandle, vb, uid, *finalDeletion, OptionalSeqno{/*no-seqno*/});
+        dropCollection(wHandle,
+                       vb,
+                       uid,
+                       *finalDeletion,
+                       OptionalSeqno{/*no-seqno*/},
+                       changes.forced);
     }
 
-    auto finalAddition = applyCreates(wHandle, vb, changes.collectionsToAdd);
+    auto finalAddition = applyCreates(wHandle, vb, changes);
 
     if (finalAddition) {
         auto uid = changes.scopesToRemove.empty() ? changes.uid : manifestUid;
@@ -213,26 +236,28 @@ void Manifest::completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
                       finalAddition.value().identifiers,
                       finalAddition.value().name,
                       finalAddition.value().maxTtl,
-                      OptionalSeqno{/*no-seqno*/});
+                      OptionalSeqno{/*no-seqno*/},
+                      changes.forced);
     }
 
     // This is done last so the scope deletion follows any collection
     // deletions
-    auto finalScopeDrop = applyScopeDrops(wHandle, vb, changes.scopesToRemove);
+    auto finalScopeDrop = applyScopeDrops(wHandle, vb, changes);
 
     if (finalScopeDrop) {
         dropScope(wHandle,
                   vb,
                   changes.uid,
                   *finalScopeDrop,
-                  OptionalSeqno{/*no-seqno*/});
+                  OptionalSeqno{/*no-seqno*/},
+                  changes.forced);
     }
 }
 
 ManifestUpdateStatus Manifest::canUpdate(
         const Collections::Manifest& manifest) const {
-    // Cannot go backwards
-    if (manifest.getUid() < manifestUid) {
+    // Cannot go backwards (unless forced)
+    if (manifest.getUid() < manifestUid && !manifest.isForcedUpdate()) {
         return ManifestUpdateStatus::Behind;
     }
     return ManifestUpdateStatus::Success;
@@ -244,13 +269,14 @@ void Manifest::addCollection(const WriteHandle& wHandle,
                              ScopeCollectionPair identifiers,
                              std::string_view collectionName,
                              cb::ExpiryLimit maxTtl,
-                             OptionalSeqno optionalSeqno) {
+                             OptionalSeqno optionalSeqno,
+                             bool isForcedAdd) {
     // 1. Update the manifest, adding or updating an entry in the collections
     // map. Specify a non-zero start and 0 for the TTL
     auto& entry = addNewCollectionEntry(identifiers, maxTtl);
 
     // 1.1 record the uid of the manifest which is adding the collection
-    this->manifestUid = manifestUid;
+    updateUid(manifestUid, optionalSeqno.has_value() || isForcedAdd);
 
     // 2. Queue a system event, this will take a copy of the manifest ready
     //    for persistence into the vb state file.
@@ -267,7 +293,7 @@ void Manifest::addCollection(const WriteHandle& wHandle,
             "collections: {} adding collection:id:{}, name:{} to "
             "scope:{}, "
             "maxTTL:{} {}, "
-            "replica:{}, seqno:{}, manifest:{:#x}",
+            "replica:{}, seqno:{}, manifest:{:#x}, force:{}",
             vb.getId(),
             identifiers.second,
             collectionName,
@@ -276,7 +302,8 @@ void Manifest::addCollection(const WriteHandle& wHandle,
             maxTtl.value_or(std::chrono::seconds::zero()).count(),
             optionalSeqno.has_value(),
             seqno,
-            manifestUid);
+            manifestUid,
+            isForcedAdd);
 
     // 3. Now patch the entry with the seqno of the system event, note the copy
     //    of the manifest taken at step 1 gets the correct seqno when the system
@@ -309,7 +336,8 @@ void Manifest::dropCollection(WriteHandle& wHandle,
                               ::VBucket& vb,
                               ManifestUid manifestUid,
                               CollectionID cid,
-                              OptionalSeqno optionalSeqno) {
+                              OptionalSeqno optionalSeqno,
+                              bool isForcedDrop) {
     bool processingTombstone = false;
     // A replica that receives a collection tombstone is required to persist
     // that tombstone, so the replica can switch to active consistently
@@ -334,7 +362,7 @@ void Manifest::dropCollection(WriteHandle& wHandle,
     }
 
     // record the uid of the manifest which removed the collection
-    this->manifestUid = manifestUid;
+    updateUid(manifestUid, optionalSeqno.has_value() || isForcedDrop);
 
     auto seqno = queueCollectionSystemEvent(
             wHandle,
@@ -348,14 +376,15 @@ void Manifest::dropCollection(WriteHandle& wHandle,
 
     EP_LOG_INFO(
             "collections: {} drop of collection:{} from scope:{}"
-            ", replica:{}, seqno:{}, manifest:{:#x} tombstone:{}",
+            ", replica:{}, seqno:{}, manifest:{:#x} tombstone:{}, force:{}",
             vb.getId(),
             cid,
             itr->second.getScopeID(),
             optionalSeqno.has_value(),
             seqno,
             manifestUid,
-            processingTombstone);
+            processingTombstone,
+            isForcedDrop);
 
     map.erase(itr);
 }
@@ -381,7 +410,8 @@ void Manifest::addScope(const WriteHandle& wHandle,
                         ManifestUid manifestUid,
                         ScopeID sid,
                         std::string_view scopeName,
-                        OptionalSeqno optionalSeqno) {
+                        OptionalSeqno optionalSeqno,
+                        bool isForcedAdd) {
     if (isScopeValid(sid)) {
         throwException<std::logic_error>(
                 __FUNCTION__, "scope already exists, scope:" + sid.to_string());
@@ -390,7 +420,7 @@ void Manifest::addScope(const WriteHandle& wHandle,
     scopes.insert(sid);
 
     // record the uid of the manifest which added the scope
-    this->manifestUid = manifestUid;
+    updateUid(manifestUid, optionalSeqno.has_value() || isForcedAdd);
 
     flatbuffers::FlatBufferBuilder builder;
     auto scope = CreateScope(
@@ -410,20 +440,22 @@ void Manifest::addScope(const WriteHandle& wHandle,
 
     EP_LOG_INFO(
             "collections: {} added scope:id:{} name:{},"
-            "replica:{}, seqno:{}, manifest:{:#x}",
+            "replica:{}, seqno:{}, manifest:{:#x}, force:{}",
             vb.getId(),
             sid,
             scopeName,
             optionalSeqno.has_value(),
             seqno,
-            manifestUid);
+            manifestUid,
+            isForcedAdd);
 }
 
 void Manifest::dropScope(const WriteHandle& wHandle,
                          ::VBucket& vb,
                          ManifestUid manifestUid,
                          ScopeID sid,
-                         OptionalSeqno optionalSeqno) {
+                         OptionalSeqno optionalSeqno,
+                         bool isForcedDrop) {
     // An active manifest must store the scope in-order to drop it, the optional
     // seqno being uninitialised is how we know we're active. A replica though
     // can accept scope drop events against scopes it doesn't store, i.e. a
@@ -440,7 +472,7 @@ void Manifest::dropScope(const WriteHandle& wHandle,
     scopes.erase(sid);
 
     // record the uid of the manifest which removed the scope
-    this->manifestUid = manifestUid;
+    updateUid(manifestUid, optionalSeqno.has_value() || isForcedDrop);
 
     flatbuffers::FlatBufferBuilder builder;
     auto scope = CreateDroppedScope(builder, getManifestUid(), uint32_t(sid));
@@ -464,17 +496,18 @@ void Manifest::dropScope(const WriteHandle& wHandle,
 
     EP_LOG_INFO(
             "collections: {} dropped scope:id:{} "
-            "replica:{}, seqno:{}, manifest:{:#x}",
+            "replica:{}, seqno:{}, manifest:{:#x} force:{}",
             vb.getId(),
             sid,
             optionalSeqno.has_value(),
             seqno,
-            manifestUid);
+            manifestUid,
+            isForcedDrop);
 }
 
 Manifest::ManifestChanges Manifest::processManifest(
         const Collections::Manifest& manifest) const {
-    ManifestChanges rv{manifest.getUid()};
+    ManifestChanges rv{manifest.getUid(), manifest.isForcedUpdate()};
 
     for (const auto& entry : map) {
         // If the entry is not found in the new manifest it must be

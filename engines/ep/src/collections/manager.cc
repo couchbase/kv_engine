@@ -299,8 +299,9 @@ bool Collections::Manager::warmupLoadManifest(const std::string& dbpath) {
     if (rv.has_value()) {
         EP_LOG_INFO(
                 "Collections::Manager::warmupLoadManifest: starting at "
-                "uid:{:#x}",
-                rv.value().getUid());
+                "uid:{:#x} force:{}",
+                rv.value().getUid(),
+                rv.value().isForcedUpdate());
         *currentManifest.wlock() = std::move(rv.value());
         return true;
     }

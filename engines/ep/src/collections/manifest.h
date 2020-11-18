@@ -84,6 +84,12 @@ public:
     struct FlatBuffers {};
     explicit Manifest(std::string_view flatbufferData, FlatBuffers tag);
 
+    Manifest(Manifest&&);
+    /**
+     * Assignment operator that is aware of a forced assign (so uid can go back)
+     */
+    Manifest& operator=(Manifest&& other);
+
     bool doesDefaultCollectionExist() const {
         return defaultCollectionExists;
     }

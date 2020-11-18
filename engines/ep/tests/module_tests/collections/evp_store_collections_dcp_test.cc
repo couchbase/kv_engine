@@ -2972,6 +2972,119 @@ TEST_P(CollectionsDcpPersistentOnly,
     resurrectionStatsTest(true);
 }
 
+/*
+ * Do a forced Manifest update and replicate
+ */
+void CollectionsDcpParameterizedTest::replicateForcedUpdate(uint64_t newUid,
+                                                            bool warmup) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    cm.updateUid(4);
+    setCollections(cookie, std::string{cm});
+
+    notifyAndStepToCheckpoint();
+
+    VBucketPtr replica = store->getVBucket(replicaVB);
+
+    // Now step the producer to transfer the collection creation
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(CollectionName::fruit, producers->last_key);
+    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+              producers->last_system_event);
+    EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
+    EXPECT_EQ(cm.getUid(), producers->last_collection_manifest_uid);
+
+    EXPECT_TRUE(replica->lockCollections().doesKeyContainValidCollection(
+            StoredDocKey{"apple", CollectionEntry::fruit}));
+
+    // Add a new collection and wind the uid back
+    cm.add(CollectionEntry::vegetable);
+    cm.updateUid(newUid);
+    cm.setForce(true);
+    setCollections(cookie, std::string{cm});
+
+    notifyAndStepToCheckpoint();
+    // Now step the producer to transfer the next collection creation
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(CollectionName::vegetable, producers->last_key);
+    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+              producers->last_system_event);
+    EXPECT_EQ(CollectionEntry::vegetable.getId(),
+              producers->last_collection_id);
+    EXPECT_EQ(cm.getUid(), producers->last_collection_manifest_uid);
+
+    EXPECT_TRUE(replica->lockCollections().doesKeyContainValidCollection(
+            StoredDocKey{"potato", CollectionEntry::vegetable}));
+
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    flushVBucketToDiskIfPersistent(replicaVB, 2);
+
+    // Final part of this test is to force push a new manifest (new uid) that
+    // does nothing will this ever happen? If forced it will not fail
+    cm.updateUid(cm.getUid() + 1);
+    cm.setForce(false);
+    setCollections(cookie,
+                   std::string{cm},
+                   cb::engine_errc::cannot_apply_collections_manifest);
+    cm.setForce(true);
+    setCollections(cookie, std::string{cm});
+
+    replica.reset();
+
+    // We should now be able to continue on from here with non-forced updates
+    // with or without a warmup
+    if (isPersistent() && warmup) {
+        resetEngineAndWarmup();
+        createDcpObjects(std::make_optional(std::string_view{}));
+        // Check all comes back as expected from the backfill, with consumer
+        // disabled as this would violate the consumers monotonic seqno
+        auto c = producers->consumer;
+        producers->consumer = nullptr;
+        notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                                  false);
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+        EXPECT_EQ(CollectionName::fruit, producers->last_key);
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+        EXPECT_EQ(CollectionName::vegetable, producers->last_key);
+        producers->consumer = c;
+    }
+
+    // Now continue with non-forced updates, they should be fine with or without
+    // a warmup.
+    cm.setForce(false);
+    cm.add(ScopeEntry::shop1);
+    cm.add(CollectionEntry::dairy, ScopeEntry::shop1);
+    setCollections(cookie, std::string{cm});
+
+    notifyAndStepToCheckpoint();
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(ScopeName::shop1, producers->last_key);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(CollectionName::dairy, producers->last_key);
+}
+
+TEST_P(CollectionsDcpParameterizedTest,
+       replicate_forced_update_with_lower_uid) {
+    replicateForcedUpdate(2, false);
+}
+
+TEST_P(CollectionsDcpParameterizedTest,
+       replicate_forced_update_with_equal_uid) {
+    replicateForcedUpdate(4, false);
+}
+
+TEST_P(CollectionsDcpPersistentOnly,
+       replicate_forced_update_with_lower_uid_then_warmup) {
+    replicateForcedUpdate(2, true);
+}
+
+TEST_P(CollectionsDcpPersistentOnly,
+       replicate_forced_update_with_equal_uid_then_warmup) {
+    replicateForcedUpdate(4, true);
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsDcpParameterizedTest,

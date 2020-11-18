@@ -114,7 +114,7 @@ public:
 
     // Wire through to private method
     std::optional<Manifest::CollectionAddition> public_applyCreates(
-            ::VBucket& vb, std::vector<CollectionAddition>& changes) {
+            ::VBucket& vb, Manifest::ManifestChanges& changes) {
         auto wHandle = wlock();
         return applyCreates(wHandle, vb, changes);
     }
@@ -931,22 +931,25 @@ TEST_F(VBucketManifestTest, replica_add_remove) {
 }
 
 TEST_F(VBucketManifestTest, check_applyChanges) {
-    std::vector<Collections::VB::Manifest::CollectionAddition>
-            changes; // start out empty
+    Collections::VB::Manifest::ManifestChanges changes{
+            Collections::ManifestUid(0), false};
     auto value = manifest.getActiveManifest().public_applyCreates(
             manifest.getActiveVB(), changes);
     EXPECT_FALSE(value.has_value());
-    changes.push_back({std::make_pair(0, 8), "name1", cb::NoExpiryLimit});
+    changes.collectionsToAdd.push_back(
+            {std::make_pair(0, 8), "name1", cb::NoExpiryLimit});
     value = manifest.getActiveManifest().public_applyCreates(
             manifest.getActiveVB(), changes);
     ASSERT_TRUE(value.has_value());
     EXPECT_EQ(ScopeID(0), value.value().identifiers.first);
     EXPECT_EQ(8, value.value().identifiers.second);
     EXPECT_EQ("name1", value.value().name);
-    EXPECT_TRUE(changes.empty());
+    EXPECT_TRUE(changes.collectionsToAdd.empty());
 
-    changes.push_back({std::make_pair(0, 8), "name2", cb::NoExpiryLimit});
-    changes.push_back({std::make_pair(0, 9), "name3", cb::NoExpiryLimit});
+    changes.collectionsToAdd.push_back(
+            {std::make_pair(0, 8), "name2", cb::NoExpiryLimit});
+    changes.collectionsToAdd.push_back(
+            {std::make_pair(0, 9), "name3", cb::NoExpiryLimit});
     EXPECT_EQ(1, manifest.getActiveManifest().size());
     value = manifest.getActiveManifest().public_applyCreates(
             manifest.getActiveVB(), changes);

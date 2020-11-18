@@ -259,30 +259,32 @@ public:
         std::string name;
     };
 
-protected:
     /**
-     * @return an update status by testing if this can be updated to manifest
-     */
-    ManifestUpdateStatus canUpdate(const Collections::Manifest& manifest) const;
-
-    /**
-     * The changes that we need to make to the vBucket manifest derived from
-     * the bucket manifest.
+     * The changes that we need to make to the VB:Manifest manifest derived from
+     * the bucket Collections::Manifest.
      */
     struct ManifestChanges {
-        explicit ManifestChanges(ManifestUid uid) : uid(uid) {
+        explicit ManifestChanges(ManifestUid uid, bool forced)
+            : uid(uid), forced(forced) {
         }
-        ManifestUid uid{0};
         std::vector<ScopeAddition> scopesToAdd;
         std::vector<ScopeID> scopesToRemove;
         std::vector<CollectionAddition> collectionsToAdd;
         std::vector<CollectionID> collectionsToRemove;
+        const ManifestUid uid{0};
+        const bool forced{false};
 
         bool empty() const {
             return scopesToAdd.empty() && scopesToRemove.empty() &&
                    collectionsToAdd.empty() && collectionsToRemove.empty();
         }
     };
+
+protected:
+    /**
+     * @return an update status by testing if this can be updated to manifest
+     */
+    ManifestUpdateStatus canUpdate(const Collections::Manifest& manifest) const;
 
     /**
      * Complete the update of this from a manifest - will take the upgradeLock
@@ -311,24 +313,21 @@ protected:
      * @param changes a vector of CollectionIDs to add/delete (based on update)
      * @return the last element of the changes vector
      */
-    std::optional<CollectionAddition> applyCreates(
-            const WriteHandle& wHandle,
-            ::VBucket& vb,
-            std::vector<CollectionAddition>& changes);
+    std::optional<CollectionAddition> applyCreates(const WriteHandle& wHandle,
+                                                   ::VBucket& vb,
+                                                   ManifestChanges& changes);
 
-    std::optional<CollectionID> applyDeletions(
-            WriteHandle& wHandle,
-            ::VBucket& vb,
-            std::vector<CollectionID>& changes);
+    std::optional<CollectionID> applyDeletions(WriteHandle& wHandle,
+                                               ::VBucket& vb,
+                                               ManifestChanges& changes);
 
-    std::optional<ScopeAddition> applyScopeCreates(
-            const WriteHandle& wHandle,
-            ::VBucket& vb,
-            std::vector<ScopeAddition>& changes);
+    std::optional<ScopeAddition> applyScopeCreates(const WriteHandle& wHandle,
+                                                   ::VBucket& vb,
+                                                   ManifestChanges& changes);
 
     std::optional<ScopeID> applyScopeDrops(const WriteHandle& wHandle,
                                            ::VBucket& vb,
-                                           std::vector<ScopeID>& changes);
+                                           ManifestChanges& changes);
 
     /**
      * Add a collection to the manifest.
@@ -343,6 +342,7 @@ protected:
      * @param maxTtl An optional maxTTL for the collection
      * @param optionalSeqno Either a seqno to assign to the new collection or
      *        none (none means the checkpoint will assign a seqno).
+     * @param isForcedAdd is the addCollection the result of a forced update
      */
     void addCollection(const WriteHandle& wHandle,
                        ::VBucket& vb,
@@ -350,7 +350,8 @@ protected:
                        ScopeCollectionPair identifiers,
                        std::string_view collectionName,
                        cb::ExpiryLimit maxTtl,
-                       OptionalSeqno optionalSeqno);
+                       OptionalSeqno optionalSeqno,
+                       bool isForcedAdd);
 
     /**
      * Drop the collection from the manifest
@@ -363,12 +364,14 @@ protected:
      * @param cid CollectionID to drop
      * @param optionalSeqno Either a seqno to assign to the delete of the
      *        collection or none (none means the checkpoint assigns the seqno).
+     * @param isForcedDrop is the dropCollection the result of a forced update
      */
     void dropCollection(WriteHandle& wHandle,
                         ::VBucket& vb,
                         ManifestUid manifestUid,
                         CollectionID cid,
-                        OptionalSeqno optionalSeqno);
+                        OptionalSeqno optionalSeqno,
+                        bool isForcedDrop);
 
     /**
      * Add a scope to the manifest.
@@ -382,13 +385,15 @@ protected:
      * @param scopeName Name of the added scope
      * @param optionalSeqno Either a seqno to assign to the new collection or
      *        none (none means the checkpoint will assign a seqno).
+     * @param isForcedAdd is the addScope the result of a forced update
      */
     void addScope(const WriteHandle& wHandle,
                   ::VBucket& vb,
                   ManifestUid manifestUid,
                   ScopeID sid,
                   std::string_view scopeName,
-                  OptionalSeqno optionalSeqno);
+                  OptionalSeqno optionalSeqno,
+                  bool isForcedAdd);
 
     /**
      * Drop a scope
@@ -401,12 +406,21 @@ protected:
      * @param sid ScopeID to drop
      * @param optionalSeqno Either a seqno to assign to the drop of the
      *        scope or none (none means the checkpoint will assign the seqno)
+     * @param isForcedDrop is the dropScope the result of a forced update
      */
     void dropScope(const WriteHandle& wHandle,
                    ::VBucket& vb,
                    ManifestUid manifestUid,
                    ScopeID sid,
-                   OptionalSeqno optionalSeqno);
+                   OptionalSeqno optionalSeqno,
+                   bool isForcedDrop);
+
+    /**
+     * Update the manifestUid
+     * @param uid new value
+     * @param reset Use reset so uid can go backwards
+     */
+    void updateUid(ManifestUid uid, bool reset);
 
     /**
      * Does the key contain a valid collection?
