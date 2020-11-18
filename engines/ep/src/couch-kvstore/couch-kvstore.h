@@ -200,29 +200,14 @@ public:
 
     void set(queued_item item) override;
 
-    /**
-     * Retrieve the document with a given key from the underlying storage
-     * system.
-     *
-     * @param key the key of a document to be retrieved
-     * @param vb vbucket id of a document
-     * @return the result of the get
-     */
-    GetValue get(const DiskDocKey& key, Vbid vb) override;
+    GetValue get(const DiskDocKey& key, Vbid vb, ValueFilter filter) override;
 
-    /**
-     * Retrieve the document with a given key from the underlying storage.
-     * @param kvFileHandle the open file to get from
-     * @param key the key of a document to be retrieved
-     * @param vb vbucket id of a document
-     * @param getMetaOnly Yes if we only want to retrieve the meta data for a
-     * document
-     * @return the result of the get
-     */
+    using KVStore::get;
+
     GetValue getWithHeader(const KVFileHandle& kvFileHandle,
                            const DiskDocKey& key,
                            Vbid vb,
-                           GetMetaOnly getMetaOnly) override;
+                           ValueFilter filter) override;
 
     void getMulti(Vbid vb, vb_bgfetch_queue_t& itms) override;
 
@@ -323,7 +308,7 @@ public:
                                 DocInfo* docinfo,
                                 GetValue& docValue,
                                 Vbid vbId,
-                                GetMetaOnly metaOnly);
+                                ValueFilter filter);
     ENGINE_ERROR_CODE couchErr2EngineErr(couchstore_error_t errCode);
 
     ENGINE_ERROR_CODE getAllKeys(
@@ -778,7 +763,7 @@ protected:
     GetValue getWithHeader(DbHolder& db,
                            const DiskDocKey& key,
                            Vbid vb,
-                           GetMetaOnly getMetaOnly);
+                           ValueFilter filter);
 
     /**
      * Process the given queue of local index updates (pendingLocalReqsQ) and

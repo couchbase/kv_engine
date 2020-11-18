@@ -527,7 +527,7 @@ void CouchKVStore::set(queued_item item) {
     pendingReqsQ.emplace_back(std::move(item));
 }
 
-GetValue CouchKVStore::get(const DiskDocKey& key, Vbid vb) {
+GetValue CouchKVStore::get(const DiskDocKey& key, Vbid vb, ValueFilter filter) {
     DbHolder db(*this);
     couchstore_error_t errCode = openDB(vb, db, COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errCode != COUCHSTORE_SUCCESS) {
@@ -538,24 +538,24 @@ GetValue CouchKVStore::get(const DiskDocKey& key, Vbid vb) {
         return GetValue(nullptr, couchErr2EngineErr(errCode));
     }
 
-    GetValue gv = getWithHeader(db, key, vb, GetMetaOnly::No);
+    GetValue gv = getWithHeader(db, key, vb, filter);
     return gv;
 }
 
 GetValue CouchKVStore::getWithHeader(const KVFileHandle& kvFileHandle,
                                      const DiskDocKey& key,
                                      Vbid vb,
-                                     GetMetaOnly getMetaOnly) {
+                                     ValueFilter filter) {
     // const_cast away here, the lower level couchstore does not use const
     auto& couchKvHandle = static_cast<CouchKVFileHandle&>(
             const_cast<KVFileHandle&>(kvFileHandle));
-    return getWithHeader(couchKvHandle.getDbHolder(), key, vb, getMetaOnly);
+    return getWithHeader(couchKvHandle.getDbHolder(), key, vb, filter);
 }
 
 GetValue CouchKVStore::getWithHeader(DbHolder& db,
                                      const DiskDocKey& key,
                                      Vbid vb,
-                                     GetMetaOnly getMetaOnly) {
+                                     ValueFilter filter) {
     auto start = std::chrono::steady_clock::now();
     DocInfo *docInfo = nullptr;
     GetValue rv;
@@ -565,7 +565,7 @@ GetValue CouchKVStore::getWithHeader(DbHolder& db,
     couchstore_error_t errCode = couchstore_docinfo_by_id(db, (uint8_t *)id.buf,
                                                           id.size, &docInfo);
     if (errCode != COUCHSTORE_SUCCESS) {
-        if (getMetaOnly == GetMetaOnly::No) {
+        if (filter != ValueFilter::KEYS_ONLY) {
             // log error only if this is non-xdcr case
             logger.warn(
                     "CouchKVStore::getWithHeader: couchstore_docinfo_by_id "
@@ -580,7 +580,7 @@ GetValue CouchKVStore::getWithHeader(DbHolder& db,
                     "couchstore_docinfo_by_id returned success but docInfo "
                     "is NULL");
         }
-        errCode = fetchDoc(db, docInfo, rv, vb, getMetaOnly);
+        errCode = fetchDoc(db, docInfo, rv, vb, filter);
         if (errCode != COUCHSTORE_SUCCESS) {
             logger.warn(
                     "CouchKVStore::getWithHeader: fetchDoc error:{} [{}],"
@@ -2374,10 +2374,11 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
                                           DocInfo* docinfo,
                                           GetValue& docValue,
                                           Vbid vbId,
-                                          GetMetaOnly metaOnly) {
+                                          ValueFilter filter) {
     couchstore_error_t errCode = COUCHSTORE_SUCCESS;
-    const couchstore_open_options openOptions = DECOMPRESS_DOC_BODIES;
-    const bool fetchCompressed = false;
+    const bool fetchCompressed = (filter == ValueFilter::VALUES_COMPRESSED);
+    const couchstore_open_options openOptions =
+            fetchCompressed ? 0 : DECOMPRESS_DOC_BODIES;
     std::unique_ptr<MetaData> metadata;
     try {
         metadata = MetaDataFactory::createMetaData(docinfo->rev_meta);
@@ -2385,7 +2386,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
         return COUCHSTORE_ERROR_DB_NO_LONGER_VALID;
     }
 
-    if (metaOnly == GetMetaOnly::Yes) {
+    if (filter == ValueFilter::KEYS_ONLY) {
         auto it = makeItemFromDocInfo(
                 vbId, *docinfo, *metadata, {nullptr, 0}, fetchCompressed);
 
@@ -3137,11 +3138,13 @@ static int getMultiCallback(Db* db, DocInfo* docinfo, void* ctx) {
     }
 
     vb_bgfetch_item_ctx_t& bg_itm_ctx = (*qitr).second;
-    GetMetaOnly meta_only = bg_itm_ctx.isMetaOnly;
+    const auto filter = bg_itm_ctx.isMetaOnly == GetMetaOnly::Yes
+                                ? ValueFilter::KEYS_ONLY
+                                : ValueFilter::VALUES_DECOMPRESSED;
 
     couchstore_error_t errCode = cbCtx->cks.fetchDoc(
-            db, docinfo, bg_itm_ctx.value, cbCtx->vbId, meta_only);
-    if (errCode != COUCHSTORE_SUCCESS && (meta_only == GetMetaOnly::No)) {
+            db, docinfo, bg_itm_ctx.value, cbCtx->vbId, filter);
+    if (errCode != COUCHSTORE_SUCCESS && (filter != ValueFilter::KEYS_ONLY)) {
         st.numGetFailure++;
     }
 

@@ -733,20 +733,20 @@ void MagmaKVStore::set(queued_item item) {
     pendingReqs->emplace_back(std::move(item), logger);
 }
 
-GetValue MagmaKVStore::get(const DiskDocKey& key, Vbid vb) {
-    return getWithHeader(key, vb, GetMetaOnly::No);
+GetValue MagmaKVStore::get(const DiskDocKey& key, Vbid vb, ValueFilter filter) {
+    return getWithHeader(key, vb, filter);
 }
 
 GetValue MagmaKVStore::getWithHeader(const KVFileHandle& kvFileHandle,
                                      const DiskDocKey& key,
                                      Vbid vbid,
-                                     GetMetaOnly getMetaOnly) {
-    return getWithHeader(key, vbid, getMetaOnly);
+                                     ValueFilter filter) {
+    return getWithHeader(key, vbid, filter);
 }
 
 GetValue MagmaKVStore::getWithHeader(const DiskDocKey& key,
                                      Vbid vbid,
-                                     GetMetaOnly getMetaOnly) {
+                                     ValueFilter filter) {
     Slice keySlice = {reinterpret_cast<const char*>(key.data()), key.size()};
     Slice metaSlice;
     Slice valueSlice;
@@ -795,7 +795,7 @@ GetValue MagmaKVStore::getWithHeader(const DiskDocKey& key,
     st.io_bgfetch_doc_bytes +=
             keySlice.Len() + metaSlice.Len() + valueSlice.Len();
 
-    return makeGetValue(vbid, keySlice, metaSlice, valueSlice, getMetaOnly);
+    return makeGetValue(vbid, keySlice, metaSlice, valueSlice, filter);
 }
 
 using GetOperations = magma::OperationsList<Magma::GetOperation>;
@@ -834,11 +834,11 @@ void MagmaKVStore::getMulti(Vbid vbid, vb_bgfetch_queue_t& itms) {
                 reinterpret_cast<vb_bgfetch_item_ctx_t*>(op.UserContext);
         bg_itm_ctx->value.setStatus(errCode);
         if (found) {
-            bg_itm_ctx->value = makeGetValue(vbid,
-                                             op.Key,
-                                             metaSlice,
-                                             valueSlice,
-                                             bg_itm_ctx->isMetaOnly);
+            const auto filter = bg_itm_ctx->isMetaOnly == GetMetaOnly::Yes
+                                        ? ValueFilter::KEYS_ONLY
+                                        : ValueFilter::VALUES_DECOMPRESSED;
+            bg_itm_ctx->value =
+                    makeGetValue(vbid, op.Key, metaSlice, valueSlice, filter);
             GetValue* rv = &bg_itm_ctx->value;
 
             for (auto& fetch : bg_itm_ctx->bgfetched_list) {
@@ -899,7 +899,11 @@ void MagmaKVStore::getRange(Vbid vbid,
         if (magmakv::isDeleted(metaSlice)) {
             return;
         }
-        auto rv = makeGetValue(vbid, keySlice, metaSlice, valueSlice);
+        auto rv = makeGetValue(vbid,
+                               keySlice,
+                               metaSlice,
+                               valueSlice,
+                               ValueFilter::VALUES_DECOMPRESSED);
         cb(std::move(rv));
     };
 
@@ -1042,11 +1046,12 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
                                              const Slice& keySlice,
                                              const Slice& metaSlice,
                                              const Slice& valueSlice,
-                                             GetMetaOnly getMetaOnly) {
+                                             ValueFilter filter) {
     auto key = makeDiskDocKey(keySlice);
     auto& meta = *reinterpret_cast<const magmakv::MetaData*>(metaSlice.Data());
 
-    bool includeValue = getMetaOnly == GetMetaOnly::No && meta.valueSize;
+    const bool includeValue =
+            (filter != ValueFilter::KEYS_ONLY) && meta.valueSize;
 
     auto item =
             std::make_unique<Item>(key.getDocKey(),
@@ -1093,8 +1098,8 @@ GetValue MagmaKVStore::makeGetValue(Vbid vb,
                                     const Slice& keySlice,
                                     const Slice& metaSlice,
                                     const Slice& valueSlice,
-                                    GetMetaOnly getMetaOnly) {
-    return GetValue(makeItem(vb, keySlice, metaSlice, valueSlice, getMetaOnly),
+                                    ValueFilter filter) {
+    return GetValue(makeItem(vb, keySlice, metaSlice, valueSlice, filter),
                     ENGINE_SUCCESS,
                     -1,
                     false);
@@ -1492,9 +1497,6 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) {
         startSeqno = ctx.lastReadSeqno + 1;
     }
 
-    GetMetaOnly isMetaOnly = ctx.valFilter == ValueFilter::KEYS_ONLY
-                                     ? GetMetaOnly::Yes
-                                     : GetMetaOnly::No;
     bool onlyKeys = ctx.valFilter == ValueFilter::KEYS_ONLY;
 
     auto& mctx = dynamic_cast<MagmaScanContext&>(ctx);
@@ -1577,8 +1579,8 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) {
                 magmakv::getExpiryTime(metaSlice),
                 magmakv::isCompressed(metaSlice));
 
-        auto itm =
-                makeItem(ctx.vbid, keySlice, metaSlice, valSlice, isMetaOnly);
+        auto itm = makeItem(
+                ctx.vbid, keySlice, metaSlice, valSlice, ctx.valFilter);
 
         // When we are requested to return the values as compressed AND
         // the value isn't compressed, attempt to compress the value.
@@ -2139,8 +2141,11 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
                 logger->TRACE("MagmaKVStore::rollback callback key:{} seqno:{}",
                               cb::UserData{diskKey.to_string()},
                               seqno);
-                auto rv = this->makeGetValue(
-                        vbid, keySlice, metaSlice, Slice(), GetMetaOnly::Yes);
+                auto rv = this->makeGetValue(vbid,
+                                             keySlice,
+                                             metaSlice,
+                                             Slice(),
+                                             ValueFilter::KEYS_ONLY);
                 cb->callback(rv);
             };
 

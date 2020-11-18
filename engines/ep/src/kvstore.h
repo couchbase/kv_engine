@@ -220,6 +220,9 @@ enum class DocumentFilter {
     ALL_ITEMS_AND_DROPPED_COLLECTIONS
 };
 
+/**
+ * When fetching documents from disk, what form should the value be returned?
+ */
 enum class ValueFilter {
     /// Only return the key & metadata (no value).
     KEYS_ONLY,
@@ -690,13 +693,35 @@ public:
 
     /**
      * Get an item from the kv store.
+     * @param key The document key to fetch.
+     * @param vb The vbucket to fetch from.
+     * @param filter In what form should the item be fetched?
+     *        Item::getDatatype() will reflect the format they are returned in.
      */
-    virtual GetValue get(const DiskDocKey& key, Vbid vb) = 0;
+    virtual GetValue get(const DiskDocKey& key,
+                         Vbid vb,
+                         ValueFilter filter) = 0;
 
+    /**
+     * Convenience version of get() which fetches the value uncompressed.
+     */
+    GetValue get(const DiskDocKey& key, Vbid vb) {
+        return get(key, vb, ValueFilter::VALUES_DECOMPRESSED);
+    }
+
+    /**
+     * Retrieve the document with a given key from the underlying storage
+     * @param kvFileHandle the open file to get from
+     * @param key the key of a document to be retrieved
+     * @param vb vbucket id of a document
+     * @param filter In what form should the item be fetched?
+     *        Item::getDatatype() will reflect the format they are returned in.
+     * @return the result of the get
+     */
     virtual GetValue getWithHeader(const KVFileHandle& kvFileHandle,
                                    const DiskDocKey& key,
                                    Vbid vb,
-                                   GetMetaOnly getMetaOnly) = 0;
+                                   ValueFilter filter) = 0;
 
     /**
      * Set the max bucket quota to the given size.
@@ -711,7 +736,7 @@ public:
      * Retrieve multiple documents from the underlying storage system at once.
      *
      * @param vb vbucket id of a document
-     * @param itms list of items whose documents are going to be retrieved
+     * @param itms list of items whose documents are going to be retrieved.
      */
     virtual void getMulti(Vbid vb, vb_bgfetch_queue_t& itms) {
         throw std::runtime_error("Backend does not support getMulti()");

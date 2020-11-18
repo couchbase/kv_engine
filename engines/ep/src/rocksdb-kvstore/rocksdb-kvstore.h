@@ -173,15 +173,12 @@ public:
      */
     void set(queued_item item) override;
 
-    /**
-     * Overrides get().
-     */
-    GetValue get(const DiskDocKey& key, Vbid vb) override;
+    GetValue get(const DiskDocKey& key, Vbid vb, ValueFilter filter) override;
 
     GetValue getWithHeader(const KVFileHandle& kvFileHandle,
                            const DiskDocKey& key,
                            Vbid vb,
-                           GetMetaOnly getMetaOnly) override;
+                           ValueFilter filter) override;
 
     void getMulti(Vbid vb, vb_bgfetch_queue_t& itms) override;
 
@@ -435,12 +432,12 @@ private:
     std::unique_ptr<Item> makeItem(Vbid vb,
                                    const DiskDocKey& key,
                                    const rocksdb::Slice& s,
-                                   GetMetaOnly getMetaOnly);
+                                   bool includeValue);
 
     GetValue makeGetValue(Vbid vb,
                           const DiskDocKey& key,
                           const rocksdb::Slice& value,
-                          GetMetaOnly getMetaOnly = GetMetaOnly::No);
+                          bool includeValue);
 
     /**
      * Read the state of the given vBucket from disk and load into the cache
@@ -505,9 +502,7 @@ private:
     size_t getVBucketsCount(const std::lock_guard<std::mutex>&) const;
 
     /// private getWithHeader shared with public get and getWithHeader
-    GetValue getWithHeader(const DiskDocKey& key,
-                           Vbid vb,
-                           GetMetaOnly getMetaOnly);
+    GetValue getWithHeader(const DiskDocKey& key, Vbid vb, ValueFilter filter);
 
     // Used for queueing mutation requests (in `set` and `del`) and flushing
     // them to disk (in `commit`).

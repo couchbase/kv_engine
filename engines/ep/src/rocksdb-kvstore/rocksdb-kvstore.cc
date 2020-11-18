@@ -671,20 +671,22 @@ void RocksDBKVStore::set(queued_item item) {
     pendingReqs->emplace_back(std::move(item));
 }
 
-GetValue RocksDBKVStore::get(const DiskDocKey& key, Vbid vb) {
-    return getWithHeader(key, vb, GetMetaOnly::No);
+GetValue RocksDBKVStore::get(const DiskDocKey& key,
+                             Vbid vb,
+                             ValueFilter filter) {
+    return getWithHeader(key, vb, filter);
 }
 
 GetValue RocksDBKVStore::getWithHeader(const KVFileHandle& kvFileHandle,
                                        const DiskDocKey& key,
                                        Vbid vb,
-                                       GetMetaOnly getMetaOnly) {
-    return getWithHeader(key, vb, getMetaOnly);
+                                       ValueFilter filter) {
+    return getWithHeader(key, vb, filter);
 }
 
 GetValue RocksDBKVStore::getWithHeader(const DiskDocKey& key,
                                        Vbid vb,
-                                       GetMetaOnly getMetaOnly) {
+                                       ValueFilter filter) {
     const auto vbh = getVBHandle(vb);
     rocksdb::Slice keySlice = getKeySlice(key);
     rocksdb::PinnableSlice value;
@@ -697,7 +699,7 @@ GetValue RocksDBKVStore::getWithHeader(const DiskDocKey& key,
 
     ++st.io_bg_fetch_docs_read;
     st.io_bgfetch_doc_bytes += keySlice.size() + value.size();
-    return makeGetValue(vb, key, value, getMetaOnly);
+    return makeGetValue(vb, key, value, filter != ValueFilter::KEYS_ONLY);
 }
 
 void RocksDBKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) {
@@ -712,8 +714,8 @@ void RocksDBKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) {
                                      keySlice,
                                      &value);
         if (s.ok()) {
-            it.second.value =
-                    makeGetValue(vb, key, value, it.second.isMetaOnly);
+            it.second.value = makeGetValue(
+                    vb, key, value, it.second.isMetaOnly == GetMetaOnly::No);
             GetValue* rv = &it.second.value;
             for (auto& fetch : it.second.bgfetched_list) {
                 fetch->value = rv;
@@ -748,7 +750,7 @@ void RocksDBKVStore::getRange(Vbid vb,
 
     for (it->Seek(startSlice); it->Valid(); it->Next()) {
         auto key = DiskDocKey{it->key().data(), it->key().size()};
-        auto gv = makeGetValue(vb, key, it->value());
+        auto gv = makeGetValue(vb, key, it->value(), true);
         if (gv.item->isDeleted()) {
             // Ignore deleted items.
             continue;
@@ -1020,7 +1022,7 @@ int64_t RocksDBKVStore::getNumericSeqno(const rocksdb::Slice& seqnoSlice) {
 std::unique_ptr<Item> RocksDBKVStore::makeItem(Vbid vb,
                                                const DiskDocKey& key,
                                                const rocksdb::Slice& s,
-                                               GetMetaOnly getMetaOnly) {
+                                               bool includeValue) {
     assert(s.size() >= sizeof(rockskv::MetaData));
 
     const char* data = s.data();
@@ -1029,7 +1031,7 @@ std::unique_ptr<Item> RocksDBKVStore::makeItem(Vbid vb,
     std::memcpy(&meta, data, sizeof(meta));
     data += sizeof(meta);
 
-    bool includeValue = getMetaOnly == GetMetaOnly::No && meta.valueSize;
+    includeValue = includeValue && (meta.valueSize > 0);
 
     auto item = std::make_unique<Item>(key.getDocKey(),
                                        meta.flags,
@@ -1073,9 +1075,9 @@ std::unique_ptr<Item> RocksDBKVStore::makeItem(Vbid vb,
 GetValue RocksDBKVStore::makeGetValue(Vbid vb,
                                       const DiskDocKey& key,
                                       const rocksdb::Slice& value,
-                                      GetMetaOnly getMetaOnly) {
+                                      bool includeValue) {
     return GetValue(
-            makeItem(vb, key, value, getMetaOnly), ENGINE_SUCCESS, -1, false);
+            makeItem(vb, key, value, includeValue), ENGINE_SUCCESS, -1, false);
 }
 
 RocksDBKVStore::DiskState RocksDBKVStore::readVBStateFromDisk(
@@ -1479,10 +1481,6 @@ scan_error_t RocksDBKVStore::scan(BySeqnoScanContext& ctx) {
                  "startSeqno",
                  startSeqno);
 
-    GetMetaOnly isMetaOnly = ctx.valFilter == ValueFilter::KEYS_ONLY
-                                     ? GetMetaOnly::Yes
-                                     : GetMetaOnly::No;
-
     rocksdb::ReadOptions snapshotOpts{rocksdb::ReadOptions()};
 
     auto& handle = static_cast<RocksDBHandle&>(*ctx.handle);
@@ -1533,7 +1531,10 @@ scan_error_t RocksDBKVStore::scan(BySeqnoScanContext& ctx) {
         DiskDocKey key{keySlice.data(), keySlice.size()};
 
         std::unique_ptr<Item> itm =
-                makeItem(ctx.vbid, key, valSlice, isMetaOnly);
+                makeItem(ctx.vbid,
+                         key,
+                         valSlice,
+                         ctx.valFilter != ValueFilter::KEYS_ONLY);
 
         if (itm->getBySeqno() > seqno) {
             // TODO RDB: Old seqnos are never removed from the db!

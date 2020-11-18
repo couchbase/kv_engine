@@ -90,13 +90,10 @@ void checkGetValue(GetValue& result,
         if (expectCompressed) {
             EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_SNAPPY,
                       result.item->getDataType());
-            result.item->decompressValue();
+            EXPECT_TRUE(result.item->decompressValue());
         }
 
-        EXPECT_EQ(0,
-                  strncmp("value",
-                          result.item->getData(),
-                          result.item->getNBytes()));
+        EXPECT_EQ("value", result.item->getValue()->to_s());
     }
 }
 
@@ -341,7 +338,31 @@ TEST_P(KVStoreParamTest, BasicTest) {
     EXPECT_TRUE(kvstore->commit(flush));
 
     GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
-    checkGetValue(gv);
+    checkGetValue(gv, ENGINE_SUCCESS);
+}
+
+// Test different modes of get()
+TEST_P(KVStoreParamTest, GetModes) {
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    StoredDocKey key = makeStoredDocKey("key");
+    auto qi = makeCommittedItem(key, "value");
+    qi->setBySeqno(1);
+    kvstore->set(qi);
+
+    EXPECT_TRUE(kvstore->commit(flush));
+
+    auto gv = kvstore->get(
+            DiskDocKey{key}, Vbid(0), ValueFilter::VALUES_COMPRESSED);
+    // Only couchstore compresses documents individually, hence is the only
+    // kvstore backend which will return compressed when requested.
+    const auto expectCompressed = GetParam() == "couchdb" ? true : false;
+    checkGetValue(gv, ENGINE_SUCCESS, expectCompressed);
+
+    gv = kvstore->get(DiskDocKey{key}, Vbid(0), ValueFilter::KEYS_ONLY);
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ(key.to_string(), gv.item->getKey().to_string());
+    EXPECT_EQ(1, gv.item->getBySeqno());
+    EXPECT_EQ(0, gv.item->getValue()->valueSize());
 }
 
 // A doc not found should equal a get failure for a get call (used for some
@@ -505,6 +526,12 @@ void KVStoreParamTest::testBgFetchDocsReadGetMulti(bool deleted,
 
     for (auto& fetched : q) {
         EXPECT_EQ(ENGINE_SUCCESS, fetched.second.value.getStatus());
+        const auto& fetchedValue = fetched.second.value.item->getValue();
+        if (getMeta == GetMetaOnly::Yes) {
+            EXPECT_EQ(0, fetchedValue->valueSize());
+        } else {
+            EXPECT_EQ(*qi->getValue(), *fetchedValue);
+        }
     }
 
     EXPECT_EQ(1, kvstore->getKVStoreStat().io_bg_fetch_docs_read);

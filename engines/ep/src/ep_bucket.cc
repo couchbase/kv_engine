@@ -1573,7 +1573,7 @@ public:
                         ->getWithHeader(*kvFileHandle,
                                         DiskDocKey{*postRbSeqnoItem},
                                         postRbSeqnoItem->getVBucketId(),
-                                        GetMetaOnly::No);
+                                        ValueFilter::VALUES_DECOMPRESSED);
 
         // This is the item in the state it was before the rollback seqno
         // (i.e. the desired state). null if there was no previous
