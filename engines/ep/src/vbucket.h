@@ -58,7 +58,7 @@ class RollbackResult;
 class FrontEndBGFetchItem;
 struct VBQueueItemCtx;
 struct vbucket_transition_state;
-struct vb_bgfetch_item_ctx_t;
+class vb_bgfetch_item_ctx_t;
 using vb_bgfetch_queue_t =
         std::unordered_map<DiskDocKey, vb_bgfetch_item_ctx_t>;
 

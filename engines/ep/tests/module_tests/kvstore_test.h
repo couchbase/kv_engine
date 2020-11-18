@@ -94,6 +94,12 @@ protected:
     void TearDown() override;
 
     /**
+     * @returns true if the KVStore implementation this test is parameterized
+     * for supports bgfetching items in Snappy compressed format.
+     */
+    bool supportsFetchingAsSnappy() const;
+
+    /**
      * Test that the io_bg_fetch_docs_read stat is tracked correctly for gets
      *
      * @param deleted run the test for a deleted doc?
@@ -105,9 +111,23 @@ protected:
      * getMulti
      *
      * @param deleted run the test for a deleted doc?
-     * @param getMeta run the fetch with the getMeta setting
+     * @param filter run the fetch with the given ValueFilter.
      */
-    void testBgFetchDocsReadGetMulti(bool deleted, GetMetaOnly getMeta);
+    void testBgFetchDocsReadGetMulti(bool deleted, ValueFilter filter);
+
+    // Test different combinations of ValueFilter for bgfetch of the same key.
+    void testBgFetchValueFilter(ValueFilter requestMode1,
+                                ValueFilter requestMode2,
+                                ValueFilter fetchedMode);
+
+    // Helper method to store a test document named "key".
+    queued_item storeDocument(bool deleted = false);
+
+    /// Checks the result of a bgfetch (fetched) matches the original testDoc
+    /// docucment, when the given ValueFilter was used.
+    void checkBGFetchResult(const ValueFilter& filter,
+                            const Item& testDoc,
+                            const vb_bgfetch_item_ctx_t& fetched) const;
 };
 
 /**

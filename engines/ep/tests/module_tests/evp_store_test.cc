@@ -672,7 +672,8 @@ void EPBucketFullEvictionTest::compactionFindsNonResidentItem(
     // 2) Grab Av1 item from disk just like the compactor would
     vb_bgfetch_queue_t q;
     vb_bgfetch_item_ctx_t ctx;
-    ctx.isMetaOnly = GetMetaOnly::No;
+    ctx.addBgFetch(std::make_unique<FrontEndBGFetchItem>(
+            nullptr, ValueFilter::VALUES_DECOMPRESSED));
     auto diskDocKey = makeDiskDocKey("a");
     q[diskDocKey] = std::move(ctx);
     store->getRWUnderlying(vbid)->getMulti(vbid, q);
@@ -774,7 +775,8 @@ TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentSupersededItem) {
     // 3) Grab Av1 item from disk just like the compactor would
     vb_bgfetch_queue_t q;
     vb_bgfetch_item_ctx_t ctx;
-    ctx.isMetaOnly = GetMetaOnly::No;
+    ctx.addBgFetch(std::make_unique<FrontEndBGFetchItem>(
+            nullptr, ValueFilter::VALUES_DECOMPRESSED));
     auto diskDocKey = makeDiskDocKey("a");
     q[diskDocKey] = std::move(ctx);
     store->getRWUnderlying(vbid)->getMulti(vbid, q);
@@ -839,7 +841,8 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryFindsTempItem) {
     // 2) Grab Av1 item from disk just like the compactor would
     vb_bgfetch_queue_t q;
     vb_bgfetch_item_ctx_t ctx;
-    ctx.isMetaOnly = GetMetaOnly::No;
+    ctx.addBgFetch(std::make_unique<FrontEndBGFetchItem>(
+            nullptr, ValueFilter::VALUES_DECOMPRESSED));
     auto diskDocKey = makeDiskDocKey("a");
     q[diskDocKey] = std::move(ctx);
     store->getRWUnderlying(vbid)->getMulti(vbid, q);
@@ -949,7 +952,6 @@ TEST_P(EPBucketFullEvictionTest, ExpiryFindsPrepareWithSameCas) {
     // 5) Grab the item from disk just like the compactor would
     vb_bgfetch_queue_t q;
     vb_bgfetch_item_ctx_t ctx;
-    ctx.isMetaOnly = GetMetaOnly::No;
     auto diskDocKey = makeDiskDocKey("a");
     q[diskDocKey] = std::move(ctx);
     store->getRWUnderlying(vbid)->getMulti(vbid, q);

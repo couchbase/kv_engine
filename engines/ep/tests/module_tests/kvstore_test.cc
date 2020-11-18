@@ -321,6 +321,10 @@ void KVStoreParamTest::TearDown() {
     KVStoreTest::TearDown();
 }
 
+bool KVStoreParamTest::supportsFetchingAsSnappy() const {
+    return GetParam() == "couchdb";
+}
+
 class KVStoreParamTestSkipMagma : public KVStoreParamTest {
 public:
     KVStoreParamTestSkipMagma() : KVStoreParamTest() {
@@ -381,7 +385,6 @@ TEST_P(KVStoreParamTest, GetMissNumGetFailure) {
 TEST_P(KVStoreParamTest, GetMultiMissNumGetFailure) {
     vb_bgfetch_queue_t q;
     vb_bgfetch_item_ctx_t ctx;
-    ctx.isMetaOnly = GetMetaOnly::No;
     auto diskDocKey = makeDiskDocKey("key");
     q[diskDocKey] = std::move(ctx);
     kvstore->getMulti(vbid, q);
@@ -503,10 +506,144 @@ TEST_P(KVStoreParamTest, BgFetchDocsReadGetDeleted) {
 }
 
 void KVStoreParamTest::testBgFetchDocsReadGetMulti(bool deleted,
-                                                   GetMetaOnly getMeta) {
+                                                   ValueFilter filter) {
+    auto testDoc = storeDocument(deleted);
+
+    vb_bgfetch_queue_t q;
+    vb_bgfetch_item_ctx_t ctx;
+    ctx.addBgFetch(std::make_unique<FrontEndBGFetchItem>(nullptr, filter));
+    auto diskDocKey = makeDiskDocKey("key");
+    q[diskDocKey] = std::move(ctx);
+    kvstore->getMulti(vbid, q);
+
+    for (auto& fetched : q) {
+        checkBGFetchResult(filter, *testDoc, fetched.second);
+    }
+
+    EXPECT_EQ(1, kvstore->getKVStoreStat().io_bg_fetch_docs_read);
+    EXPECT_NE(0, kvstore->getKVStoreStat().io_bgfetch_doc_bytes);
+}
+
+void KVStoreParamTest::checkBGFetchResult(
+        const ValueFilter& filter,
+        const Item& testDoc,
+        const vb_bgfetch_item_ctx_t& fetched) const {
+    EXPECT_EQ(ENGINE_SUCCESS, fetched.value.getStatus());
+    const auto& fetchedItem = fetched.value.item;
+    const auto& fetchedBlob = fetchedItem->getValue();
+    switch (filter) {
+    case ValueFilter::KEYS_ONLY:
+        EXPECT_EQ(0, fetchedBlob->valueSize());
+        break;
+    case ValueFilter::VALUES_COMPRESSED:
+        if (supportsFetchingAsSnappy()) {
+            EXPECT_TRUE(mcbp::datatype::is_snappy(fetchedItem->getDataType()));
+            EXPECT_GT(testDoc.getValue()->valueSize(),
+                      fetchedBlob->valueSize());
+            break;
+        }
+        [[fallthrough]];
+    case ValueFilter::VALUES_DECOMPRESSED:
+        EXPECT_FALSE(mcbp::datatype::is_snappy(fetchedItem->getDataType()));
+        EXPECT_EQ(*testDoc.getValue(), *fetchedBlob);
+        break;
+    }
+}
+
+TEST_P(KVStoreParamTest, BgFetchDocsReadGetMulti) {
+    testBgFetchDocsReadGetMulti(false /*deleted*/,
+                                ValueFilter::VALUES_DECOMPRESSED);
+}
+
+TEST_P(KVStoreParamTest, BgFetchDocsReadGetMultiDeleted) {
+    testBgFetchDocsReadGetMulti(true /*deleted*/,
+                                ValueFilter::VALUES_DECOMPRESSED);
+}
+
+TEST_P(KVStoreParamTest, BgFetchDocsReadGetMultiCompressed) {
+    testBgFetchDocsReadGetMulti(false /*deleted*/,
+                                ValueFilter::VALUES_COMPRESSED);
+}
+
+TEST_P(KVStoreParamTest, BgFetchDocsReadGetMultiDeletedCompressed) {
+    testBgFetchDocsReadGetMulti(true /*deleted*/,
+                                ValueFilter::VALUES_COMPRESSED);
+}
+
+TEST_P(KVStoreParamTest, BgFetchDocsReadGetMultiMetaOnly) {
+    testBgFetchDocsReadGetMulti(false /*deleted*/, ValueFilter::KEYS_ONLY);
+}
+
+TEST_P(KVStoreParamTest, BgFetchDocsReadGetMultiDeletedMetaOnly) {
+    testBgFetchDocsReadGetMulti(true /*deleted*/, ValueFilter::KEYS_ONLY);
+}
+
+void KVStoreParamTest::testBgFetchValueFilter(ValueFilter requestMode1,
+                                              ValueFilter requestMode2,
+                                              ValueFilter fetchedMode) {
+    // Setup - store a document.
+    auto testDoc = storeDocument();
+
+    // Setup bgfetch context for the key, based on the two ValueFilters
+    vb_bgfetch_queue_t q;
+    vb_bgfetch_item_ctx_t ctx;
+    ctx.addBgFetch(
+            std::make_unique<FrontEndBGFetchItem>(nullptr, requestMode1));
+    ctx.addBgFetch(
+            std::make_unique<FrontEndBGFetchItem>(nullptr, requestMode2));
+    EXPECT_EQ(fetchedMode, ctx.getValueFilter());
+
+    // Test: Peform bgfetch, check returned value is of correct type.
+    auto diskDocKey = makeDiskDocKey("key");
+    q[diskDocKey] = std::move(ctx);
+    kvstore->getMulti(vbid, q);
+
+    for (auto& fetched : q) {
+        checkBGFetchResult(fetchedMode, *testDoc, fetched.second);
+    }
+}
+
+TEST_P(KVStoreParamTest, BgFetchValueFilterKeyOnlyKeyOnly) {
+    testBgFetchValueFilter(ValueFilter::KEYS_ONLY,
+                           ValueFilter::KEYS_ONLY,
+                           ValueFilter::KEYS_ONLY);
+}
+
+TEST_P(KVStoreParamTest, BgFetchValueFilterKeyOnlyValuesCompressed) {
+    testBgFetchValueFilter(ValueFilter::KEYS_ONLY,
+                           ValueFilter::VALUES_COMPRESSED,
+                           ValueFilter::VALUES_COMPRESSED);
+}
+
+TEST_P(KVStoreParamTest, BgFetchValueFilterKeyOnlyValuesDecompressed) {
+    testBgFetchValueFilter(ValueFilter::KEYS_ONLY,
+                           ValueFilter::VALUES_DECOMPRESSED,
+                           ValueFilter::VALUES_DECOMPRESSED);
+}
+
+TEST_P(KVStoreParamTest, BgFetchValueFilterValuesCompressedValuesCompressed) {
+    testBgFetchValueFilter(ValueFilter::VALUES_COMPRESSED,
+                           ValueFilter::VALUES_COMPRESSED,
+                           ValueFilter::VALUES_COMPRESSED);
+}
+
+TEST_P(KVStoreParamTest, BgFetchValueFilterValuesCompressedValuesDecompressed) {
+    testBgFetchValueFilter(ValueFilter::VALUES_COMPRESSED,
+                           ValueFilter::VALUES_DECOMPRESSED,
+                           ValueFilter::VALUES_DECOMPRESSED);
+}
+
+TEST_P(KVStoreParamTest,
+       BgFetchValueFilterValuesDecompressedValuesDecompressed) {
+    testBgFetchValueFilter(ValueFilter::VALUES_DECOMPRESSED,
+                           ValueFilter::VALUES_DECOMPRESSED,
+                           ValueFilter::VALUES_DECOMPRESSED);
+}
+
+queued_item KVStoreParamTest::storeDocument(bool deleted) {
     kvstore->begin(std::make_unique<TransactionContext>(vbid));
     StoredDocKey key = makeStoredDocKey("key");
-    auto qi = makeCommittedItem(key, "value");
+    auto qi = makeCommittedItem(key, "valuevaluevaluevaluevalue");
     qi->setBySeqno(1);
 
     if (deleted) {
@@ -516,42 +653,7 @@ void KVStoreParamTest::testBgFetchDocsReadGetMulti(bool deleted,
     kvstore->set(qi);
 
     EXPECT_TRUE(kvstore->commit(flush));
-
-    vb_bgfetch_queue_t q;
-    vb_bgfetch_item_ctx_t ctx;
-    ctx.isMetaOnly = getMeta;
-    auto diskDocKey = makeDiskDocKey("key");
-    q[diskDocKey] = std::move(ctx);
-    kvstore->getMulti(vbid, q);
-
-    for (auto& fetched : q) {
-        EXPECT_EQ(ENGINE_SUCCESS, fetched.second.value.getStatus());
-        const auto& fetchedValue = fetched.second.value.item->getValue();
-        if (getMeta == GetMetaOnly::Yes) {
-            EXPECT_EQ(0, fetchedValue->valueSize());
-        } else {
-            EXPECT_EQ(*qi->getValue(), *fetchedValue);
-        }
-    }
-
-    EXPECT_EQ(1, kvstore->getKVStoreStat().io_bg_fetch_docs_read);
-    EXPECT_NE(0, kvstore->getKVStoreStat().io_bgfetch_doc_bytes);
-}
-
-TEST_P(KVStoreParamTest, BgFetchDocsReadGetMulti) {
-    testBgFetchDocsReadGetMulti(false /*deleted*/, GetMetaOnly::No);
-}
-
-TEST_P(KVStoreParamTest, BgFetchDocsReadGetMultiDeleted) {
-    testBgFetchDocsReadGetMulti(true /*deleted*/, GetMetaOnly::No);
-}
-
-TEST_P(KVStoreParamTest, BgFetchDocsReadGetMultiMetaOnly) {
-    testBgFetchDocsReadGetMulti(false /*deleted*/, GetMetaOnly::Yes);
-}
-
-TEST_P(KVStoreParamTest, BgFetchDocsReadGetMultiDeletedMetaOnly) {
-    testBgFetchDocsReadGetMulti(true /*deleted*/, GetMetaOnly::Yes);
+    return qi;
 }
 
 TEST_P(KVStoreParamTest, TestPersistenceCallbacksForSet) {

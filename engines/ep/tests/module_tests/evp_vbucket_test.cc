@@ -21,6 +21,7 @@
 #include "item.h"
 #include "kv_bucket.h"
 #include "kvshard.h"
+#include "kvstore.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/test_helpers.h"
 
@@ -58,9 +59,8 @@ TEST_P(EPVBucketTest, GetBGFetchItemsPerformance) {
     BgFetcher bgFetcher(*mockEPBucket.get());
 
     for (unsigned int ii = 0; ii < 100000; ii++) {
-        auto fetchItem =
-                std::make_unique<FrontEndBGFetchItem>(nullptr,
-                                                      /*isMeta*/ false);
+        auto fetchItem = std::make_unique<FrontEndBGFetchItem>(
+                nullptr, ValueFilter::VALUES_DECOMPRESSED);
         this->public_queueBGFetchItem(makeStoredDocKey(std::to_string(ii)),
                                       std::move(fetchItem),
                                       bgFetcher);

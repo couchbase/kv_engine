@@ -3138,24 +3138,20 @@ static int getMultiCallback(Db* db, DocInfo* docinfo, void* ctx) {
     }
 
     vb_bgfetch_item_ctx_t& bg_itm_ctx = (*qitr).second;
-    const auto filter = bg_itm_ctx.isMetaOnly == GetMetaOnly::Yes
-                                ? ValueFilter::KEYS_ONLY
-                                : ValueFilter::VALUES_DECOMPRESSED;
 
+    const auto valueFilter = bg_itm_ctx.getValueFilter();
     couchstore_error_t errCode = cbCtx->cks.fetchDoc(
-            db, docinfo, bg_itm_ctx.value, cbCtx->vbId, filter);
-    if (errCode != COUCHSTORE_SUCCESS && (filter != ValueFilter::KEYS_ONLY)) {
+            db, docinfo, bg_itm_ctx.value, cbCtx->vbId, valueFilter);
+    if (errCode != COUCHSTORE_SUCCESS &&
+        (valueFilter != ValueFilter::KEYS_ONLY)) {
         st.numGetFailure++;
     }
 
     bg_itm_ctx.value.setStatus(cbCtx->cks.couchErr2EngineErr(errCode));
 
     bool return_val_ownership_transferred = false;
-    for (auto& fetch : bg_itm_ctx.bgfetched_list) {
+    for (auto& fetch : bg_itm_ctx.getRequests()) {
         return_val_ownership_transferred = true;
-        // populate return value for remaining fetch items with the
-        // same seqid
-        fetch->value = &bg_itm_ctx.value;
         st.readTimeHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(
                         std::chrono::steady_clock::now() - fetch->initTime));

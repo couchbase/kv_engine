@@ -20,22 +20,21 @@
 #include "callbacks.h"
 #include "diskdockey.h"
 #include "item.h"
-#include "objectregistry.h"
 #include "trace_helpers.h"
 #include "vbucket_fwd.h"
 
 #include <list>
 #include <unordered_map>
 
-enum class GetMetaOnly;
+enum class ValueFilter;
 
 /**
  * Base BGFetch context class
  */
 class BGFetchItem {
 public:
-    BGFetchItem(GetValue* value, std::chrono::steady_clock::time_point initTime)
-        : value(value), initTime(initTime) {
+    BGFetchItem(std::chrono::steady_clock::time_point initTime)
+        : initTime(initTime) {
     }
 
     virtual ~BGFetchItem() = default;
@@ -65,12 +64,14 @@ public:
             ENGINE_ERROR_CODE status,
             std::map<const void*, ENGINE_ERROR_CODE>& toNotify) const = 0;
 
-    /**
-     * @return Should we BGFetch just the metadata?
-     */
-    virtual bool metaDataOnly() const = 0;
+    /// @returns The ValueFilter for this request.
+    virtual ValueFilter getValueFilter() const = 0;
 
-    GetValue* value;
+    /**
+     * Pointer to the result of the BGFetch. Set by the vb_bgfetch_item_ctx_t
+     * when this BGFetchItem is added to the set of outstanding items.
+     */
+    GetValue* value{nullptr};
     const std::chrono::steady_clock::time_point initTime;
 };
 
@@ -80,14 +81,13 @@ public:
  */
 class FrontEndBGFetchItem : public BGFetchItem {
 public:
-    FrontEndBGFetchItem(const void* cookie, bool metaOnly)
+    FrontEndBGFetchItem(const void* cookie, ValueFilter filter)
         : FrontEndBGFetchItem(
-                  nullptr, std::chrono::steady_clock::now(), metaOnly, cookie) {
+                  std::chrono::steady_clock::now(), filter, cookie) {
     }
 
-    FrontEndBGFetchItem(GetValue* value,
-                        std::chrono::steady_clock::time_point initTime,
-                        bool metaOnly,
+    FrontEndBGFetchItem(std::chrono::steady_clock::time_point initTime,
+                        ValueFilter filter,
                         const void* cookie);
 
     void complete(EventuallyPersistentEngine& engine,
@@ -100,13 +100,13 @@ public:
             ENGINE_ERROR_CODE status,
             std::map<const void*, ENGINE_ERROR_CODE>& toNotify) const override;
 
-    bool metaDataOnly() const override {
-        return metaOnly;
+    ValueFilter getValueFilter() const override {
+        return filter;
     }
 
     const void* cookie;
     cb::tracing::SpanId traceSpanId;
-    bool metaOnly;
+    ValueFilter filter;
 };
 
 /**
@@ -116,8 +116,7 @@ public:
 class CompactionBGFetchItem : public BGFetchItem {
 public:
     explicit CompactionBGFetchItem(const Item& item)
-        : BGFetchItem(nullptr /*GetValue*/, std::chrono::steady_clock::now()),
-          compactionItem(item) {
+        : BGFetchItem(std::chrono::steady_clock::now()), compactionItem(item) {
     }
 
     void complete(EventuallyPersistentEngine& engine,
@@ -130,10 +129,7 @@ public:
             ENGINE_ERROR_CODE status,
             std::map<const void*, ENGINE_ERROR_CODE>& toNotify) const override;
 
-    bool metaDataOnly() const override {
-        // Don't care about values here
-        return true;
-    }
+    ValueFilter getValueFilter() const override;
 
     /**
      * We copy the entire Item here because if we need to expire (delete) the
@@ -142,8 +138,37 @@ public:
     Item compactionItem;
 };
 
-struct vb_bgfetch_item_ctx_t {
-    std::list<std::unique_ptr<BGFetchItem>> bgfetched_list;
-    GetMetaOnly isMetaOnly;
+/**
+ * Tracks all outstanding requests for a single document to be fetched from
+ * disk.
+ * Multiple requests (from different clients) can be enqueued against a single
+ * key; the document will only be fetched from disk once; then the result
+ * will be returned to each client which requested it.
+ */
+class vb_bgfetch_item_ctx_t {
+public:
+    using FetchList = std::list<std::unique_ptr<BGFetchItem>>;
+    /**
+     * Add a request to fetch an item from disk to the set of outstanding
+     * BGfetches.
+     */
+    void addBgFetch(std::unique_ptr<BGFetchItem> itemToFetch);
+
+    /// @returns The list of outstanding fetch requests.
+    const FetchList& getRequests() const {
+        return bgfetched_list;
+    }
+
+    /**
+     * @returns the ValueFilter to be used when fetching the item for the set
+     * of outstanding fetch requests.
+     */
+    ValueFilter getValueFilter() const;
+
+    /// Result the fetch.
     GetValue value;
+
+private:
+    /// List of outstanding requests for a given key.
+    FetchList bgfetched_list;
 };

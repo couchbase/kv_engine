@@ -19,15 +19,15 @@
 
 #include "ep_engine.h"
 #include "ep_vb.h"
+#include "kvstore.h"
 #include "vbucket.h"
 #include "vbucket_fwd.h"
 
 FrontEndBGFetchItem::FrontEndBGFetchItem(
-        GetValue* value,
         std::chrono::steady_clock::time_point initTime,
-        bool metaOnly,
+        ValueFilter filter,
         const void* cookie)
-    : BGFetchItem(value, initTime), cookie(cookie), metaOnly(metaOnly) {
+    : BGFetchItem(initTime), cookie(cookie), filter(filter) {
     auto* traceable = cookie2traceable(cookie);
     if (traceable && traceable->isTracingEnabled()) {
         NonBucketAllocationGuard guard;
@@ -71,4 +71,31 @@ void CompactionBGFetchItem::abort(
     // Do nothing. If we abort a CompactionBGFetch then an item that we may have
     // expire simply won't be expired. The next op/compaction can expire the
     // item if still required.
+}
+
+ValueFilter CompactionBGFetchItem::getValueFilter() const {
+    // Don't care about values here
+    return ValueFilter::KEYS_ONLY;
+}
+
+void vb_bgfetch_item_ctx_t::addBgFetch(
+        std::unique_ptr<BGFetchItem> itemToFetch) {
+    itemToFetch->value = &value;
+    bgfetched_list.push_back(std::move(itemToFetch));
+}
+
+ValueFilter vb_bgfetch_item_ctx_t::getValueFilter() const {
+    // Want to fetch the minimum amount of data:
+    // 1. If all requests against this key are meta only; fetch just metadata
+    // 2. If all requests are for compressed data, fetch compressed.
+    // 3. Otherwise fetch uncompressed value.
+    static_assert(ValueFilter::KEYS_ONLY < ValueFilter::VALUES_COMPRESSED);
+    static_assert(ValueFilter::VALUES_COMPRESSED <
+                  ValueFilter::VALUES_DECOMPRESSED);
+
+    auto overallFilter = ValueFilter::KEYS_ONLY;
+    for (const auto& request : bgfetched_list) {
+        overallFilter = std::max(overallFilter, request->getValueFilter());
+    }
+    return overallFilter;
 }

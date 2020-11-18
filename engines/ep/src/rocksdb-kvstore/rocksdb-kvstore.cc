@@ -715,17 +715,14 @@ void RocksDBKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) {
                                      &value);
         if (s.ok()) {
             it.second.value = makeGetValue(
-                    vb, key, value, it.second.isMetaOnly == GetMetaOnly::No);
-            GetValue* rv = &it.second.value;
-            for (auto& fetch : it.second.bgfetched_list) {
-                fetch->value = rv;
-            }
+                    vb,
+                    key,
+                    value,
+                    it.second.getValueFilter() != ValueFilter::KEYS_ONLY);
             ++st.io_bg_fetch_docs_read;
             st.io_bgfetch_doc_bytes += keySlice.size() + value.size();
         } else {
-            for (auto& fetch : it.second.bgfetched_list) {
-                fetch->value->setStatus(ENGINE_KEY_ENOENT);
-            }
+            it.second.value.setStatus(ENGINE_KEY_ENOENT);
         }
     }
 }

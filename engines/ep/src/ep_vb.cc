@@ -118,7 +118,8 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
                 getState() == vbucket_state_replica ? ForGetReplicaOp::Yes
                                                     : ForGetReplicaOp::No);
         auto* v = res.storedValue;
-        if (fetched_item.metaDataOnly()) {
+        switch (fetched_item.filter) {
+        case ValueFilter::KEYS_ONLY:
             if (status == ENGINE_SUCCESS) {
                 if (v && v->isTempInitialItem()) {
                     ht.unlocked_restoreMeta(
@@ -140,7 +141,10 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
                     status = ENGINE_SUCCESS;
                 }
             }
-        } else {
+            ++stats.bg_meta_fetched;
+            break;
+        case ValueFilter::VALUES_DECOMPRESSED:
+        case ValueFilter::VALUES_COMPRESSED: {
             bool restore = false;
             if (v && v->isResident()) {
                 status = ENGINE_SUCCESS;
@@ -194,14 +198,11 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
                     status = ENGINE_TMPFAIL;
                 }
             }
+            ++stats.bg_fetched;
+            break;
+        }
         }
     } // locked scope ends
-
-    if (fetched_item.metaDataOnly()) {
-        ++stats.bg_meta_fetched;
-    } else {
-        ++stats.bg_fetched;
-    }
 
     const auto fetchEnd = std::chrono::steady_clock::now();
     updateBGStats(fetched_item.initTime, startTime, fetchEnd);
@@ -345,7 +346,7 @@ void EPVBucket::notifyAllPendingConnsFailed(EventuallyPersistentEngine& e) {
         size_t num_of_deleted_pending_fetches = 0;
         for (auto& bgf : pendingBGFetches) {
             vb_bgfetch_item_ctx_t& bg_itm_ctx = bgf.second;
-            for (auto& bgitem : bg_itm_ctx.bgfetched_list) {
+            for (auto& bgitem : bg_itm_ctx.getRequests()) {
                 bgitem->abort(e, ENGINE_NOT_MY_VBUCKET, toNotify);
                 ++num_of_deleted_pending_fetches;
             }
@@ -602,17 +603,7 @@ size_t EPVBucket::queueBGFetchItem(const DocKey& key,
     DiskDocKey diskKey{key, /*pending*/ false};
     LockHolder lh(pendingBGFetchesLock);
     vb_bgfetch_item_ctx_t& bgfetch_itm_ctx = pendingBGFetches[diskKey];
-
-    if (bgfetch_itm_ctx.bgfetched_list.empty()) {
-        bgfetch_itm_ctx.isMetaOnly = GetMetaOnly::Yes;
-    }
-
-    if (!fetch->metaDataOnly()) {
-        bgfetch_itm_ctx.isMetaOnly = GetMetaOnly::No;
-    }
-
-    fetch->value = &bgfetch_itm_ctx.value;
-    bgfetch_itm_ctx.bgfetched_list.push_back(std::move(fetch));
+    bgfetch_itm_ctx.addBgFetch(std::move(fetch));
 
     bgFetcher.addPendingVB(getId());
     return pendingBGFetches.size();
@@ -749,9 +740,11 @@ void EPVBucket::bgFetch(const DocKey& key,
     // reference if that's the case
     // schedule to the current batch of background fetch of the given
     // vbucket
+    const auto filter =
+            isMeta ? ValueFilter::KEYS_ONLY : ValueFilter::VALUES_DECOMPRESSED;
     size_t bgfetch_size = queueBGFetchItem(
             key,
-            std::make_unique<FrontEndBGFetchItem>(cookie, isMeta),
+            std::make_unique<FrontEndBGFetchItem>(cookie, filter),
             getBgFetcher());
     EP_LOG_DEBUG("Queued a background fetch, now at {}",
                  uint64_t(bgfetch_size));

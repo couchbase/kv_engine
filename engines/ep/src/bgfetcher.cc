@@ -93,7 +93,7 @@ size_t BgFetcher::doFetch(Vbid vbId, vb_bgfetch_queue_t& itemsToFetch) {
         auto& key = fetch.first;
         const vb_bgfetch_item_ctx_t& bg_item_ctx = fetch.second;
 
-        for (const auto& itm : bg_item_ctx.bgfetched_list) {
+        for (const auto& itm : bg_item_ctx.getRequests()) {
             // We don't want to transfer ownership of itm here as we clean it
             // up at the end of this method in clearItems()
             fetchedItems.push_back(std::make_pair(key, itm.get()));

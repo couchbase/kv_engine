@@ -491,7 +491,8 @@ protected:
         vb_bgfetch_queue_t itms;
         for (const auto& item : items) {
             vb_bgfetch_item_ctx_t ctx;
-            ctx.isMetaOnly = GetMetaOnly::No;
+            ctx.addBgFetch(std::make_unique<FrontEndBGFetchItem>(
+                    nullptr, ValueFilter::VALUES_DECOMPRESSED));
             itms[DiskDocKey{*item}] = std::move(ctx);
         }
         return itms;

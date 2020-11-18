@@ -834,14 +834,14 @@ void MagmaKVStore::getMulti(Vbid vbid, vb_bgfetch_queue_t& itms) {
                 reinterpret_cast<vb_bgfetch_item_ctx_t*>(op.UserContext);
         bg_itm_ctx->value.setStatus(errCode);
         if (found) {
-            const auto filter = bg_itm_ctx->isMetaOnly == GetMetaOnly::Yes
-                                        ? ValueFilter::KEYS_ONLY
-                                        : ValueFilter::VALUES_DECOMPRESSED;
-            bg_itm_ctx->value =
-                    makeGetValue(vbid, op.Key, metaSlice, valueSlice, filter);
+            bg_itm_ctx->value = makeGetValue(vbid,
+                                             op.Key,
+                                             metaSlice,
+                                             valueSlice,
+                                             bg_itm_ctx->getValueFilter());
             GetValue* rv = &bg_itm_ctx->value;
 
-            for (auto& fetch : bg_itm_ctx->bgfetched_list) {
+            for (auto& fetch : bg_itm_ctx->getRequests()) {
                 fetch->value = rv;
                 st.readTimeHisto.add(
                         std::chrono::duration_cast<std::chrono::microseconds>(
@@ -861,9 +861,6 @@ void MagmaKVStore::getMulti(Vbid vbid, vb_bgfetch_queue_t& itms) {
                         cb::UserData{makeDiskDocKey(op.Key).to_string()},
                         status.String());
                 st.numGetFailure++;
-            }
-            for (auto& fetch : bg_itm_ctx->bgfetched_list) {
-                fetch->value->setStatus(errCode);
             }
         }
     };

@@ -57,7 +57,7 @@ namespace Collections::VB {
 struct PersistedStats;
 } // namespace Collections::VB
 
-struct vb_bgfetch_item_ctx_t;
+class vb_bgfetch_item_ctx_t;
 struct TransactionContext;
 
 using vb_bgfetch_queue_t =

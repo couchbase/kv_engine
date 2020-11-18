@@ -562,10 +562,9 @@ static bool batchWarmupCallback(Vbid vbId,
             DiskDocKey diskKey{key, /*prepared*/ false};
             // Deleted below via a unique_ptr in the next loop
             vb_bgfetch_item_ctx_t& bg_itm_ctx = items2fetch[diskKey];
-            bg_itm_ctx.isMetaOnly = GetMetaOnly::No;
-            bg_itm_ctx.bgfetched_list.emplace_back(
-                    std::make_unique<FrontEndBGFetchItem>(nullptr, false));
-            bg_itm_ctx.bgfetched_list.back()->value = &bg_itm_ctx.value;
+            // TODO: Set based on bucket compression mode.
+            bg_itm_ctx.addBgFetch(std::make_unique<FrontEndBGFetchItem>(
+                    nullptr, ValueFilter::VALUES_DECOMPRESSED));
         }
 
         c->epstore->getROUnderlying(vbId)->getMulti(vbId, items2fetch);
@@ -578,20 +577,17 @@ static bool batchWarmupCallback(Vbid vbId,
         bool applyItem = true;
         for (auto& items : items2fetch) {
             vb_bgfetch_item_ctx_t& bg_itm_ctx = items.second;
-            std::unique_ptr<BGFetchItem> fetchedItem(
-                    std::move(bg_itm_ctx.bgfetched_list.back()));
             if (applyItem) {
-                GetValue& val = *fetchedItem->value;
-                if (val.getStatus() == ENGINE_SUCCESS) {
+                if (bg_itm_ctx.value.getStatus() == ENGINE_SUCCESS) {
                     // NB: callback will delete the GetValue's Item
-                    c->cb.callback(val);
+                    c->cb.callback(bg_itm_ctx.value);
                 } else {
                     EP_LOG_WARN(
                             "Warmup failed to load data for {}"
                             " key{{{}}} error = {}",
                             vbId,
                             cb::UserData{items.first.to_string()},
-                            val.getStatus());
+                            bg_itm_ctx.value.getStatus());
                     c->error++;
                 }
 
