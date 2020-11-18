@@ -238,10 +238,6 @@ struct ServerCookieApi : public ServerCookieIface {
         return cookie->getConnection().getPriority();
     }
 
-    bucket_id_t get_bucket_id(gsl::not_null<const void*> cookie) override {
-        return bucket_id_t(getCookie(cookie).getConnection().getBucketIndex());
-    }
-
     uint64_t get_connection_id(
             gsl::not_null<const void*> void_cookie) override {
         auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());

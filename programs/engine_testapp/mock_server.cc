@@ -311,11 +311,6 @@ struct MockServerCookieApi : public ServerCookieIface {
         return ConnectionPriority::Medium;
     }
 
-    bucket_id_t get_bucket_id(gsl::not_null<const void*> cookie) override {
-        throw std::runtime_error(
-                "MockServerCookieApi::get_bucket_id() not implemented");
-    }
-
     uint64_t get_connection_id(gsl::not_null<const void*> cookie) override {
         auto* c = cookie_to_mock_cookie(cookie.get());
         return c->sfd;

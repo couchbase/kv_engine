@@ -125,9 +125,6 @@ public:
             gsl::not_null<const void*> cookie) override {
         return wrapped->get_priority(cookie);
     }
-    bucket_id_t get_bucket_id(gsl::not_null<const void*> cookie) override {
-        return wrapped->get_bucket_id(cookie);
-    }
     uint64_t get_connection_id(gsl::not_null<const void*> cookie) override {
         return wrapped->get_connection_id(cookie);
     }

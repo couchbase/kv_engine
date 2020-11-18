@@ -95,9 +95,6 @@ public:
             gsl::not_null<const void*> cookie) override {
         throw std::runtime_error("Not implemented");
     }
-    bucket_id_t get_bucket_id(gsl::not_null<const void*> cookie) override {
-        throw std::runtime_error("Not implemented");
-    }
     uint64_t get_connection_id(gsl::not_null<const void*> cookie) override {
         throw std::runtime_error("Not implemented");
     }

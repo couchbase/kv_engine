@@ -160,14 +160,6 @@ struct ServerCookieIface {
             gsl::not_null<const void*> cookie) = 0;
 
     /**
-     * Get the bucket the connection is bound to
-     *
-     * @cookie The connection object
-     * @return the bucket identifier for a cookie
-     */
-    virtual bucket_id_t get_bucket_id(gsl::not_null<const void*> cookie) = 0;
-
-    /**
      * Get connection id
      *
      * @param cookie the cookie sent to the engine for an operation
