@@ -1968,15 +1968,13 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::reserveCookie(const void *cookie)
 {
     NonBucketAllocationGuard guard;
-    ENGINE_ERROR_CODE rv = serverApi->cookie->reserve(cookie);
-    return rv;
+    return serverApi->cookie->reserve(cookie);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::releaseCookie(const void *cookie)
 {
     NonBucketAllocationGuard guard;
-    ENGINE_ERROR_CODE rv = serverApi->cookie->release(cookie);
-    return rv;
+    return serverApi->cookie->release(cookie);
 }
 
 void EventuallyPersistentEngine::storeEngineSpecific(const void* cookie,
@@ -1987,22 +1985,18 @@ void EventuallyPersistentEngine::storeEngineSpecific(const void* cookie,
 
 void* EventuallyPersistentEngine::getEngineSpecific(const void* cookie) {
     NonBucketAllocationGuard guard;
-    void* engine_data = serverApi->cookie->get_engine_specific(cookie);
-    return engine_data;
+    return serverApi->cookie->get_engine_specific(cookie);
 }
 
 bool EventuallyPersistentEngine::isDatatypeSupported(
         const void* cookie, protocol_binary_datatype_t datatype) {
     NonBucketAllocationGuard guard;
-    bool isSupported =
-            serverApi->cookie->is_datatype_supported(cookie, datatype);
-    return isSupported;
+    return serverApi->cookie->is_datatype_supported(cookie, datatype);
 }
 
 bool EventuallyPersistentEngine::isMutationExtrasSupported(const void* cookie) {
     NonBucketAllocationGuard guard;
-    bool isSupported = serverApi->cookie->is_mutation_extras_supported(cookie);
-    return isSupported;
+    return serverApi->cookie->is_mutation_extras_supported(cookie);
 }
 
 bool EventuallyPersistentEngine::isXattrEnabled(const void* cookie) {
@@ -2011,8 +2005,7 @@ bool EventuallyPersistentEngine::isXattrEnabled(const void* cookie) {
 
 bool EventuallyPersistentEngine::isCollectionsSupported(const void* cookie) {
     NonBucketAllocationGuard guard;
-    bool isSupported = serverApi->cookie->is_collections_supported(cookie);
-    return isSupported;
+    return serverApi->cookie->is_collections_supported(cookie);
 }
 
 cb::mcbp::ClientOpcode EventuallyPersistentEngine::getOpcodeIfEwouldblockSet(
@@ -2023,8 +2016,7 @@ cb::mcbp::ClientOpcode EventuallyPersistentEngine::getOpcodeIfEwouldblockSet(
 
 bool EventuallyPersistentEngine::validateSessionCas(const uint64_t cas) {
     NonBucketAllocationGuard guard;
-    bool ret = serverApi->cookie->validate_session_cas(cas);
-    return ret;
+    return serverApi->cookie->validate_session_cas(cas);
 }
 
 void EventuallyPersistentEngine::decrementSessionCtr() {
