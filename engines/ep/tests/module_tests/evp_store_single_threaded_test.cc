@@ -25,11 +25,9 @@
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_ep_bucket.h"
-#include "../mock/mock_global_task.h"
 #include "../mock/mock_item_freq_decayer.h"
 #include "../mock/mock_stream.h"
 #include "bgfetcher.h"
-#include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_utils.h"
 #include "collections/vbucket_manifest_handles.h"
@@ -37,7 +35,6 @@
 #include "couch-kvstore/couch-kvstore.h"
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/backfill-manager.h"
-#include "dcp/dcpconnmap.h"
 #include "dcp/response.h"
 #include "ep_bucket.h"
 #include "ep_time.h"
@@ -45,11 +42,9 @@
 #include "ephemeral_bucket.h"
 #include "ephemeral_tombstone_purger.h"
 #include "ephemeral_vb.h"
-#include "evp_store_test.h"
 #include "failover-table.h"
 #include "fakes/fake_executorpool.h"
 #include "item_freq_decayer_visitor.h"
-#include "kv_bucket.h"
 #ifdef EP_USE_MAGMA
 #include "../mock/mock_magma_kvstore.h"
 #include "magma-kvstore/magma-kvstore_config.h"
@@ -487,7 +482,7 @@ TEST_P(STParameterizedBucketTest, StreamReqAcceptedAfterBucketShutdown) {
 
     // 3) Set our hook to perform a StreamRequest after we remove the streams
     // from the Producer but before we reset the backfillMgr.
-    producer->setCloseAllStreamsHook([this, &producer, &vb]() {
+    producer->setCloseAllStreamsHook([this, &producer]() {
         producer->createCheckpointProcessorTask();
         uint64_t rollbackSeqno;
         EXPECT_EQ(ENGINE_DISCONNECT,
@@ -639,7 +634,7 @@ TEST_P(STParameterizedBucketTest, SeqnoAckAfterBucketShutdown) {
 
     // 3) Set our hook, we just need to simulate bucket shutdown in the hook
     producer->setSeqnoAckHook(
-            [this, &mockConnMap]() { mockConnMap.shutdownAllConnections(); });
+            [&mockConnMap]() { mockConnMap.shutdownAllConnections(); });
 
     // 4) Seqno ack. Previously this would segfault due to the stream being
     // destroyed mid seqno ack.
@@ -1682,9 +1677,9 @@ TEST_P(STParamPersistentBucketTest,
     // "key3" the first of the two items will be de-duplicated away.
     // Do NOT flush to vbucket.
     for (int ii = 0; ii < 2; ii++) {
-        auto item = make_item(vbid, makeStoredDocKey("key3"), "value");
-        item.setCas(1);
-        store->setWithMeta(std::ref(item),
+        auto tmpItem = make_item(vbid, makeStoredDocKey("key3"), "value");
+        tmpItem.setCas(1);
+        store->setWithMeta(std::ref(tmpItem),
                            0,
                            &seqno,
                            cookie,
@@ -3144,8 +3139,9 @@ public:
 
         auto stream = producer->findStream(vbid);
         auto* mockStream = static_cast<MockActiveStream*>(stream.get());
-        mockStream->preGetOutstandingItemsCallback =
-                std::bind(&MB_29287::closeAndRecreateStream, this);
+        mockStream->preGetOutstandingItemsCallback = [this] {
+            closeAndRecreateStream();
+        };
 
         // call next - get success (nothing ready, but task has been scheduled)
         EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
