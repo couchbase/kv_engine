@@ -48,7 +48,7 @@ void CollectionsDcpTest::SetUp() {
 void CollectionsDcpTest::internalSetUp() {
     // Start vbucket as active to allow us to store items directly to it.
     store->setVBucketState(vbid, vbucket_state_active);
-    producers = std::make_unique<CollectionsDcpTestProducers>(engine.get());
+    producers = std::make_unique<CollectionsDcpTestProducers>();
     createDcpObjects(std::make_optional(
             std::string_view{}) /*collections on, but no filter*/);
 }
@@ -282,7 +282,7 @@ void CollectionsDcpTest::testDcpCreateDelete(
 void CollectionsDcpTest::resetEngineAndWarmup(std::string new_config) {
     teardown();
     SingleThreadedKVBucketTest::resetEngineAndWarmup(new_config);
-    producers = std::make_unique<CollectionsDcpTestProducers>(engine.get());
+    producers = std::make_unique<CollectionsDcpTestProducers>();
     cookieC = create_mock_cookie(engine.get());
     cookieP = create_mock_cookie(engine.get());
 }

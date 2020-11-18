@@ -23,8 +23,6 @@
 
 #include <memcached/protocol_binary.h>
 
-static EngineIface* engine_handle = nullptr;
-
 std::vector<vbucket_failover_t> dcp_failover_log;
 
 ENGINE_ERROR_CODE mock_dcp_add_failover_log(
@@ -529,10 +527,6 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::get_error_map(uint32_t opaque,
     clear_dcp_data();
     last_op = cb::mcbp::ClientOpcode::GetErrorMap;
     return ENGINE_SUCCESS;
-}
-
-MockDcpMessageProducers::MockDcpMessageProducers(EngineIface* engine) {
-    engine_handle = engine;
 }
 
 void MockDcpMessageProducers::setMutationStatus(ENGINE_ERROR_CODE code) {

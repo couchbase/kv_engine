@@ -548,7 +548,7 @@ void DcpStreamSyncReplTest::testBackfillPrepare(DocumentState docState,
                      {{"enable_sync_writes", "true"},
                       {"consumer_name", "test_consumer"}});
 
-    MockDcpMessageProducers producers(engine);
+    MockDcpMessageProducers producers;
 
     ExecutorPool::get()->setNumAuxIO(1);
     stream->transitionStateToBackfilling();
@@ -628,7 +628,7 @@ void DcpStreamSyncReplTest::testBackfillPrepareCommit(
                      {{"enable_sync_writes", "true"},
                       {"consumer_name", "test_consumer"}});
 
-    MockDcpMessageProducers producers(engine);
+    MockDcpMessageProducers producers;
 
     ExecutorPool::get()->setNumAuxIO(1);
     stream->transitionStateToBackfilling();
@@ -723,7 +723,7 @@ void DcpStreamSyncReplTest::testBackfillPrepareAbort(
                      {{"enable_sync_writes", "true"},
                       {"consumer_name", "test_consumer"}});
 
-    MockDcpMessageProducers producers(engine);
+    MockDcpMessageProducers producers;
 
     ExecutorPool::get()->setNumAuxIO(1);
     stream->transitionStateToBackfilling();

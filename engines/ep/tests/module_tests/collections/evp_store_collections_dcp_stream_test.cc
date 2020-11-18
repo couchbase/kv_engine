@@ -37,7 +37,7 @@ public:
         SingleThreadedKVBucketTest::SetUp();
         // Start vbucket as active to allow us to store items directly to it.
         store->setVBucketState(vbid, vbucket_state_active);
-        producers = std::make_unique<CollectionsDcpTestProducers>(engine.get());
+        producers = std::make_unique<CollectionsDcpTestProducers>();
         producer = SingleThreadedKVBucketTest::createDcpProducer(
                 cookieP, IncludeDeleteTime::No);
         CollectionsDcpTest::consumer = std::make_shared<MockDcpConsumer>(

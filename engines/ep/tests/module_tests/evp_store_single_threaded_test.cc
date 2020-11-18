@@ -2979,7 +2979,7 @@ TEST_P(STParameterizedBucketTest, enable_expiry_output) {
 
     auto cookie = create_mock_cookie(engine.get());
     auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
-    MockDcpMessageProducers producers(engine.get());
+    MockDcpMessageProducers producers;
 
     createDcpStream(*producer);
 
@@ -3116,7 +3116,7 @@ public:
                 *engine, cookie, "test_producer", 0);
         producer->createCheckpointProcessorTask();
 
-        producers = std::make_unique<MockDcpMessageProducers>(engine.get());
+        producers = std::make_unique<MockDcpMessageProducers>();
         auto vb = store->getVBuckets().getBucket(vbid);
         ASSERT_NE(nullptr, vb.get());
         // 2. Mock active stream
@@ -3481,7 +3481,7 @@ TEST_P(STParamPersistentBucketTest, MB_29480) {
 
     producer->createCheckpointProcessorTask();
 
-    MockDcpMessageProducers producers(engine.get());
+    MockDcpMessageProducers producers;
 
     producer->mockActiveStreamRequest(0, // flags
                                       1, // opaque
@@ -3583,7 +3583,7 @@ TEST_P(STParamPersistentBucketTest, MB_29512) {
 
     producer->createCheckpointProcessorTask();
 
-    MockDcpMessageProducers producers(engine.get());
+    MockDcpMessageProducers producers;
 
     // 1) First store k1/k2 (creating seq 1 and seq 2)
     std::array<std::string, 2> initialKeys = {{"k1", "k2"}};
@@ -3675,7 +3675,7 @@ TEST_P(STParamPersistentBucketTest, MB_29541) {
 
     producer->createCheckpointProcessorTask();
 
-    MockDcpMessageProducers producers(engine.get());
+    MockDcpMessageProducers producers;
 
     uint64_t rollbackSeqno = 0;
     auto vb = store->getVBuckets().getBucket(vbid);
@@ -3761,7 +3761,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_32724) {
 
     p->createCheckpointProcessorTask();
 
-    MockDcpMessageProducers producers(engine.get());
+    MockDcpMessageProducers producers;
 
     protocol_binary_response_header message;
     message.response.setMagic(cb::mcbp::Magic::ClientResponse);
@@ -3798,7 +3798,7 @@ TEST_P(STParamPersistentBucketTest, MB_31481) {
                                                       "mb-31481",
                                                       /*flags*/ 0);
 
-    MockDcpMessageProducers producers(engine.get());
+    MockDcpMessageProducers producers;
 
     ASSERT_TRUE(producer->getReadyQueue().empty());
 
@@ -3919,7 +3919,7 @@ void STParamPersistentBucketTest::backfillExpiryOutput(bool xattr) {
     auto producer = std::make_shared<MockDcpProducer>(
             *engine, cookie, "mb-26907", flags);
 
-    MockDcpMessageProducers producers(engine.get());
+    MockDcpMessageProducers producers;
 
     ASSERT_TRUE(producer->getReadyQueue().empty());
 
@@ -4010,7 +4010,7 @@ TEST_P(STParameterizedBucketTest, slow_stream_backfill_expiry) {
                                                       "mb-26907",
                                                       /*flags*/ 0);
 
-    MockDcpMessageProducers producers(engine.get());
+    MockDcpMessageProducers producers;
 
     ASSERT_TRUE(producer->getReadyQueue().empty());
 
@@ -4531,7 +4531,7 @@ TEST_P(STParameterizedBucketTest, produce_delete_times) {
 
     auto cookie = create_mock_cookie(engine.get());
     auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
-    MockDcpMessageProducers producers(engine.get());
+    MockDcpMessageProducers producers;
 
     createDcpStream(*producer);
 

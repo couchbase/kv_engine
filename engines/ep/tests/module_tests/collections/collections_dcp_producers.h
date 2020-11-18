@@ -23,10 +23,6 @@ class MockDcpConsumer;
 
 class CollectionsDcpTestProducers : public MockDcpMessageProducers {
 public:
-    CollectionsDcpTestProducers(EngineIface* engine = nullptr)
-        : MockDcpMessageProducers(engine) {
-    }
-
     ~CollectionsDcpTestProducers() override = default;
 
     ENGINE_ERROR_CODE system_event(uint32_t opaque,

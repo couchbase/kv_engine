@@ -956,7 +956,7 @@ static void perf_dcp_client(EngineIface* h,
             ENGINE_SUCCESS,
             "Failed to initiate stream request");
 
-    MockDcpMessageProducers producers(h);
+    MockDcpMessageProducers producers;
 
     bool done = false;
     uint32_t bytes_read = 0;

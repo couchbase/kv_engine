@@ -148,7 +148,7 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
     store_item(vbid, "key2", regularValue.c_str());
     store_item(vbid, "key3", compressibleValue.c_str());
 
-    MockDcpMessageProducers producers(engine);
+    MockDcpMessageProducers producers;
 
     ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
 
@@ -264,7 +264,7 @@ TEST_P(StreamTest, test_verifyProducerStats) {
                         {},
                         vb->lockCollections(prepareToAbort->getKey())));
 
-    MockDcpMessageProducers producers(engine);
+    MockDcpMessageProducers producers;
 
     EXPECT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
 
@@ -1308,7 +1308,7 @@ TEST_P(StreamTest, ProducerReceivesSeqnoAckForErasedStream) {
 
     // Step the stream on, this should remove the stream from the producer's
     // StreamsMap
-    MockDcpMessageProducers producers(engine);
+    MockDcpMessageProducers producers;
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
 
@@ -2965,7 +2965,7 @@ TEST_P(SingleThreadedActiveStreamTest,
 
     EXPECT_EQ(0, stream->public_readyQSize());
 
-    MockDcpMessageProducers producers(engine.get());
+    MockDcpMessageProducers producers;
     runCheckpointProcessor(*producer, producers);
 
     EXPECT_EQ(4, stream->public_readyQSize());
@@ -3043,7 +3043,7 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
                                                ~0 /*snap_end_seqno*/);
     ASSERT_TRUE(stream->isBackfilling());
 
-    MockDcpMessageProducers producers(engine.get());
+    MockDcpMessageProducers producers;
 
     // Step to schedule our backfill
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));

@@ -185,8 +185,7 @@ class TestDcpConsumer {
  */
 public:
     TestDcpConsumer(std::string _name, const void* _cookie, EngineIface* h)
-        : producers(h),
-          name(std::move(_name)),
+        : name(std::move(_name)),
           cookie(_cookie),
           opaque(0),
           total_bytes(0),
@@ -1471,7 +1470,7 @@ static enum test_result test_dcp_notifier(EngineIface* h) {
     uint32_t opaque = 0;
     uint64_t start = 0;
     auto dcp = requireDcpIface(h);
-    MockDcpMessageProducers producers(h);
+    MockDcpMessageProducers producers;
 
     checkeq(ENGINE_SUCCESS,
             dcp->open(cookie,
@@ -1567,7 +1566,7 @@ static enum test_result test_dcp_notifier_equal_to_number_of_items(
     const uint64_t start = 1;
     uint32_t opaque = 0;
     auto dcp = requireDcpIface(h);
-    MockDcpMessageProducers producers(h);
+    MockDcpMessageProducers producers;
 
     checkeq(ENGINE_SUCCESS,
             dcp->open(cookie,
@@ -1918,7 +1917,7 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
 
     /* Also check if we get control message indicating the flow control buffer
        size change from the consumer connections */
-    MockDcpMessageProducers producers(h);
+    MockDcpMessageProducers producers;
 
     for (auto i = max_conns / 2; i < max_conns; i++) {
         /* Check if the buffer size of all connections has changed */
@@ -2051,7 +2050,7 @@ static enum test_result test_dcp_noop(EngineIface* h) {
     const uint32_t seqno = 0;
     uint32_t opaque = 0;
     auto dcp = requireDcpIface(h);
-    MockDcpMessageProducers producers(h);
+    MockDcpMessageProducers producers;
 
     checkeq(ENGINE_SUCCESS,
             dcp->open(cookie,
@@ -2134,7 +2133,7 @@ static enum test_result test_dcp_noop_fail(EngineIface* h) {
 
     testHarness->time_travel(201);
 
-    MockDcpMessageProducers producers(h);
+    MockDcpMessageProducers producers;
     while (dcp->step(cookie, &producers) != ENGINE_DISCONNECT) {
         if (producers.last_op == cb::mcbp::ClientOpcode::DcpNoop) {
             // Producer opaques are hard coded to start from 10M
@@ -2179,7 +2178,7 @@ static enum test_result test_dcp_consumer_noop(EngineIface* h) {
             h, cookie, opaque, vbucket, flags, cb::mcbp::Status::Success);
     testHarness->time_travel(201);
     // No-op not recieved for 201 seconds. Should be ok.
-    MockDcpMessageProducers producers(h);
+    MockDcpMessageProducers producers;
     checkeq(ENGINE_EWOULDBLOCK,
             dcp->step(cookie, &producers),
             "Expected engine would block");
@@ -3318,7 +3317,7 @@ static test_result test_dcp_cursor_dropping(EngineIface* h,
 
     /* Set up a dcp producer conn and stream a few items. This will cause the
        stream to transition from pending -> backfill -> in-memory state */
-    MockDcpMessageProducers producers(h);
+    MockDcpMessageProducers producers;
 
     auto* cookie = testHarness->create_cookie(h);
     std::string conn_name = replicationStream ? "replication" : "unittest";
@@ -3552,7 +3551,7 @@ static test_result test_dcp_takeover_no_items(EngineIface* h) {
                             {}),
             "Failed to initiate stream request");
 
-    MockDcpMessageProducers producers(h);
+    MockDcpMessageProducers producers;
 
     bool done = false;
     int num_snapshot_markers = 0;
@@ -3647,7 +3646,7 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
             dcp->add_stream(cookie, opaque, vbucket, flags),
             "Add stream request failed");
 
-    MockDcpMessageProducers producers(h);
+    MockDcpMessageProducers producers;
 
     auto dcpStepAndExpectControlMsg =
             [&h, cookie, opaque, &producers](std::string controlKey) {
@@ -3957,7 +3956,7 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h) {
 
     // Open consumer connection
     auto dcp = requireDcpIface(h);
-    MockDcpMessageProducers producers(h);
+    MockDcpMessageProducers producers;
     checkeq(ENGINE_SUCCESS,
             dcp->open(cookie,
                       opaque,
@@ -4493,7 +4492,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h) {
     const char *name = "unittest";
 
     auto dcp = requireDcpIface(h);
-    MockDcpMessageProducers producers(h);
+    MockDcpMessageProducers producers;
     checkeq(ENGINE_SUCCESS,
             dcp->open(cookie,
                       opaque,
@@ -4594,7 +4593,7 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h) {
 
     // Open consumer connection
     auto dcp = requireDcpIface(h);
-    MockDcpMessageProducers producers(h);
+    MockDcpMessageProducers producers;
     checkeq(ENGINE_SUCCESS,
             dcp->open(cookie,
                       opaque,
@@ -4718,7 +4717,7 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h) {
 
     // Open consumer connection
     auto dcp = requireDcpIface(h);
-    MockDcpMessageProducers producers(h);
+    MockDcpMessageProducers producers;
     checkeq(ENGINE_SUCCESS,
             dcp->open(cookie,
                       opaque,
@@ -7211,7 +7210,7 @@ static enum test_result test_dcp_early_termination(EngineIface* h) {
             dcp->control(cookie, ++opaque, "connection_buffer_size", "1024"),
             "Failed to establish connection buffer");
 
-    MockDcpMessageProducers producers(h);
+    MockDcpMessageProducers producers;
     for (int i = 0; i < streams; i++) {
         uint64_t rollback = 0;
         checkeq(ENGINE_SUCCESS,
@@ -8285,7 +8284,7 @@ static enum test_result test_MB_34634(EngineIface* h) {
 
     wait_for_flusher_to_settle(h);
 
-    MockDcpMessageProducers producers(h);
+    MockDcpMessageProducers producers;
 
     // 4) Close the stream and proceed to takeover, resulting in an active VB
     checkeq(ENGINE_SUCCESS,

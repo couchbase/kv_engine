@@ -31,8 +31,6 @@ ENGINE_ERROR_CODE mock_dcp_add_failover_log(
 
 class MockDcpMessageProducers : public dcp_message_producers {
 public:
-    explicit MockDcpMessageProducers(EngineIface* engine = nullptr);
-
     ENGINE_ERROR_CODE get_failover_log(uint32_t opaque, Vbid vbucket) override;
 
     ENGINE_ERROR_CODE stream_req(uint32_t opaque,

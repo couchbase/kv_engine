@@ -5171,7 +5171,7 @@ void DurabilityActiveStreamTest::
     // mutation to stream from memory
     auto mutation2 = store_item(vbid, key, "value");
 
-    MockDcpMessageProducers producers(engine.get());
+    MockDcpMessageProducers producers;
 
     runCheckpointProcessor(*producer, producers);
 

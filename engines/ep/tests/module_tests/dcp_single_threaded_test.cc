@@ -404,7 +404,7 @@ void STDcpTest::testConsumerNegotiatesIncludeDeletedUserXattrs(
     // negotiation steps (but IncludeDeletedUserXattrs) have been completed and
     // verifying that the negotiation of DeletedUserXattrs flows as exptected.
     consumer.setPendingAddStream(false);
-    MockDcpMessageProducers producers(engine.get());
+    MockDcpMessageProducers producers;
     ENGINE_ERROR_CODE result;
     // Step and unblock (ie, simulate Producer response) up to completing the
     // SyncRepl negotiation, which is the last blocking step before the
@@ -546,7 +546,7 @@ void STDcpTest::processConsumerMutationsNearThreshold(bool beyondThreshold) {
         engine->getConfiguration().setReplicationThrottleThreshold(100);
     }
 
-    MockDcpMessageProducers producers(engine.get());
+    MockDcpMessageProducers producers;
     if ((engine->getConfiguration().getBucketType() == "ephemeral") &&
         (engine->getConfiguration().getEphemeralFullPolicy()) ==
                 "fail_new_data") {
@@ -647,7 +647,7 @@ TEST_P(STDcpTest, test_producer_stream_end_on_client_close_stream) {
     EXPECT_EQ(ENGINE_SUCCESS, producer->closeStream(0, vbid));
 
     /* Expect a stream end message */
-    MockDcpMessageProducers producers(engine.get());
+    MockDcpMessageProducers producers;
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
     EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Closed, producers.last_end_status);
@@ -691,7 +691,7 @@ TEST_P(STDcpTest, test_producer_no_stream_end_on_client_close_stream) {
 
     /* Don't expect a stream end message (or any other message as the stream is
        closed) */
-    MockDcpMessageProducers producers(engine.get());
+    MockDcpMessageProducers producers;
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
 
     /* Check that the stream is not found in the producer's stream map */

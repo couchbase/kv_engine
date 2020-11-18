@@ -580,7 +580,7 @@ TEST_P(CompressionStreamTest, compression_not_enabled) {
      */
     ASSERT_FALSE(producer->isCompressionEnabled());
 
-    MockDcpMessageProducers producers(engine);
+    MockDcpMessageProducers producers;
 
     // Now, add 2 items
     EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item1, cookie));
@@ -689,7 +689,7 @@ TEST_P(CompressionStreamTest, connection_snappy_enabled) {
     setup_dcp_stream(0, includeValue, IncludeXattrs::Yes);
 
     EXPECT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
-    MockDcpMessageProducers producers(engine);
+    MockDcpMessageProducers producers;
     ASSERT_TRUE(producer->isCompressionEnabled());
 
     // Now, add the 3rd item. This item should be compressed
@@ -763,7 +763,7 @@ TEST_P(CompressionStreamTest, force_value_compression_enabled) {
                      {{"force_value_compression", "true"}});
 
     EXPECT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
-    MockDcpMessageProducers producers(engine);
+    MockDcpMessageProducers producers;
 
     ASSERT_TRUE(producer->isForceValueCompressionEnabled());
 
@@ -1092,7 +1092,7 @@ TEST_P(ConnectionTest, test_maybesendnoop_send_noop) {
                                                       "test_producer",
                                                       /*flags*/ 0);
 
-    MockDcpMessageProducers producers(handle);
+    MockDcpMessageProducers producers;
     producer->setNoopEnabled(true);
     const auto send_time = ep_current_time() + 21;
     producer->setNoopSendTime(send_time);
@@ -1115,7 +1115,7 @@ TEST_P(ConnectionTest, test_maybesendnoop_noop_already_pending) {
                                                       "test_producer",
                                                       /*flags*/ 0);
 
-    MockDcpMessageProducers producers(engine);
+    MockDcpMessageProducers producers;
     const auto send_time = ep_current_time();
     TimeTraveller marty(engine->getConfiguration().getDcpIdleTimeout() + 1);
     producer->setNoopEnabled(true);
@@ -1157,7 +1157,7 @@ TEST_P(ConnectionTest, test_maybesendnoop_not_enabled) {
                                                       "test_producer",
                                                       /*flags*/ 0);
 
-    MockDcpMessageProducers producers(handle);
+    MockDcpMessageProducers producers;
     producer->setNoopEnabled(false);
     const auto send_time = ep_current_time() + 21;
     producer->setNoopSendTime(send_time);
@@ -1180,7 +1180,7 @@ TEST_P(ConnectionTest, test_maybesendnoop_not_sufficient_time_passed) {
                                                       "test_producer",
                                                       /*flags*/ 0);
 
-    MockDcpMessageProducers producers(handle);
+    MockDcpMessageProducers producers;
     producer->setNoopEnabled(true);
     rel_time_t current_time = ep_current_time();
     producer->setNoopSendTime(current_time);
@@ -1486,7 +1486,7 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
 
 TEST_P(ConnectionTest, consumer_waits_for_add_stream) {
     auto* cookie = create_mock_cookie(engine);
-    MockDcpMessageProducers producers(engine);
+    MockDcpMessageProducers producers;
     MockDcpConsumer consumer(*engine, cookie, "test_consumer");
     ASSERT_EQ(ENGINE_EWOULDBLOCK, consumer.step(&producers));
     // fake that we received add stream
@@ -1505,7 +1505,7 @@ TEST_P(ConnectionTest, consumer_get_error_map) {
         auto* cookie = create_mock_cookie(engine);
         // GetErrorMap negotiation performed only if NOOP is enabled
         engine->getConfiguration().setDcpEnableNoop(true);
-        MockDcpMessageProducers producers(engine);
+        MockDcpMessageProducers producers;
 
         // Create a mock DcpConsumer
         MockDcpConsumer consumer(*engine, cookie, "test_consumer");
@@ -1638,7 +1638,7 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
     consumer.setPendingAddStream(false);
 
     // Move consumer into paused state (aka EWOULDBLOCK).
-    MockDcpMessageProducers producers(handle);
+    MockDcpMessageProducers producers;
     ENGINE_ERROR_CODE result;
     do {
         result = consumer.step(&producers);
@@ -1717,7 +1717,7 @@ TEST_P(ConnectionTest, ConsumerWithConsumerNameEnablesSyncRepl) {
 
     // Move consumer into paused state (aka EWOULDBLOCK) by stepping through the
     // DCP_CONTROL logic.
-    MockDcpMessageProducers producers(handle);
+    MockDcpMessageProducers producers;
     ENGINE_ERROR_CODE result;
     do {
         result = consumer.step(&producers);
@@ -1980,7 +1980,7 @@ TEST_F(DcpConnMapTest, TestCorrectRemovedOnStreamEnd) {
     auto* producerCookie = create_mock_cookie(engine.get());
     auto* consumerCookie = create_mock_cookie(engine.get());
 
-    MockDcpMessageProducers producers(engine.get());
+    MockDcpMessageProducers producers;
 
     // create a producer (We are currently active)
     auto producer = engine->getDcpConnMap().newProducer(producerCookie,
@@ -2520,7 +2520,7 @@ public:
         store->setVBucketState(vbid, vbucket_state_active);
         addItems(3);
 
-        producers = std::make_unique<MockDcpMessageProducers>(engine.get());
+        producers = std::make_unique<MockDcpMessageProducers>();
         producer = std::make_shared<MockDcpProducer>(
                 *engine,
                 cookie,
@@ -2615,7 +2615,7 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponse) {
                                                       "ProducerHandleResponse",
                                                       /*flags*/ 0);
 
-    MockDcpMessageProducers producers(engine.get());
+    MockDcpMessageProducers producers;
 
     protocol_binary_response_header message{};
     message.response.setMagic(cb::mcbp::Magic::ClientResponse);
@@ -2663,7 +2663,7 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseDisconnect) {
 
     auto producer = std::make_shared<MockDcpProducer>(
             *engine, cookie, "ProducerHandleResponceDiscconnect", 0);
-    MockDcpMessageProducers producers(engine.get());
+    MockDcpMessageProducers producers;
 
     protocol_binary_response_header message{};
     message.response.setMagic(cb::mcbp::Magic::ClientResponse);
@@ -2710,7 +2710,7 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseDisconnect) {
 TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseStreamEnd) {
     auto producer = std::make_shared<MockDcpProducer>(
             *engine, cookie, "ProducerHandleResponceStreamEnd", 0);
-    MockDcpMessageProducers producers(engine.get());
+    MockDcpMessageProducers producers;
 
     protocol_binary_response_header message{};
     message.response.setMagic(cb::mcbp::Magic::ClientResponse);
@@ -2741,7 +2741,7 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseStreamEnd) {
 TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseNoop) {
     auto producer = std::make_shared<MockDcpProducer>(
             *engine, cookie, "ProducerHandleResponceNoop", 0);
-    MockDcpMessageProducers producers(engine.get());
+    MockDcpMessageProducers producers;
 
     protocol_binary_response_header message{};
     message.response.setMagic(cb::mcbp::Magic::ClientResponse);

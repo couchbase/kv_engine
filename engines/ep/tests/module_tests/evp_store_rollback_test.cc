@@ -2260,7 +2260,7 @@ public:
         SingleThreadedEPBucketTest::SetUp();
         store->setVBucketState(vbid, vbucket_state_active);
         vb = store->getVBucket(vbid);
-        producers = std::make_unique<MockDcpMessageProducers>(engine.get());
+        producers = std::make_unique<MockDcpMessageProducers>();
         engine->setDcpConnMap(std::make_unique<MockDcpConnMap>(*engine));
     }
 

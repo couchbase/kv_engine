@@ -36,7 +36,7 @@
 void CollectionsSyncWriteParamTest::SetUp() {
     CollectionsDcpParameterizedTest::SetUp();
 
-    producers = std::make_unique<CollectionsDcpTestProducers>(engine.get());
+    producers = std::make_unique<CollectionsDcpTestProducers>();
     producers->replicaVB = replicaVB;
     producers->consumer = consumer.get();
 
@@ -362,7 +362,7 @@ TEST_P(CollectionsSyncWriteParamTest,
     producer->closeStream(0, vbid);
 
     // Swap to the collection dcp producers which support mutations and prepares
-    producers = std::make_unique<CollectionsDcpTestProducers>(engine.get());
+    producers = std::make_unique<CollectionsDcpTestProducers>();
     producers->replicaVB = replicaVB;
     producers->consumer = consumer.get();
 
