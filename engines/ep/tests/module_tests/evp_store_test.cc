@@ -633,6 +633,62 @@ TEST_P(EPStoreEvictionTest, xattrExpiryOnFullyEvictedItem) {
             << "The foo attribute should be gone";
 }
 
+TEST_P(EPStoreEvictionTest, UnDelWithPrepare) {
+    if (GetParam() == "value_only") {
+        return;
+    }
+
+    store->setVBucketState(vbid, vbucket_state_active, {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    // 1) Store, delete, and persist the item. We need to do this to ensure that
+    //    the bloom filter tells us to go to disk when we try gets if there is
+    //    no delete in the HashTable.
+    auto key = makeStoredDocKey("key");
+    storeAndDeleteItem(vbid, key, "value");
+    auto vb = store->getVBucket(vbid);
+    EXPECT_EQ(0, vb->getNumItems());
+
+    // 1) Store the new item and persist
+    store_item(vbid, key, "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    EXPECT_EQ(1, vb->getNumItems());
+
+    // 2) Store the new item but don't persist it yet. We want to test what
+    //    happens when it's dirty.
+    delete_item(vbid, key);
+
+    // 1 because we haven't persisted the delete yet
+    EXPECT_EQ(1, vb->getNumItems());
+
+    // 3) Get now returns not found
+    auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS);
+    auto gv = getInternal(key, vbid, cookie, ForGetReplicaOp::No, options);
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+    // 4) Add prepare
+    auto prepare = makePendingItem(key, "value");
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->add(*prepare, cookie));
+    //EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, addItem(*prepare, cookie));
+
+    // 1 because we haven't persisted the delete yet
+    EXPECT_EQ(1, vb->getNumItems());
+
+    // 5) Check that the HashTable state is now correct
+    {
+        auto htRes = vb->ht.findForUpdate(key);
+        ASSERT_TRUE(htRes.committed);
+        EXPECT_TRUE(htRes.committed->isDeleted());
+        EXPECT_TRUE(htRes.pending);
+    }
+
+    // @TODO RDB: Rocks item counting is broken and overcounts assuming
+    // everything is a new item
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    EXPECT_EQ(0, vb->getNumItems());
+}
+
 /**
  * Verify that when getIf is used it only fetches the metdata from disk for
  * the filter, and not the complete document.
