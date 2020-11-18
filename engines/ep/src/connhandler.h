@@ -190,7 +190,7 @@ public:
                                       std::string_view key,
                                       std::string_view value);
 
-    virtual ENGINE_ERROR_CODE step(struct dcp_message_producers* producers);
+    virtual ENGINE_ERROR_CODE step(struct DcpMessageProducersIface* producers);
 
     /**
      * Sub-classes must implement a method that processes a response

@@ -29,7 +29,7 @@ extern std::vector<vbucket_failover_t> dcp_failover_log;
 ENGINE_ERROR_CODE mock_dcp_add_failover_log(
         const std::vector<vbucket_failover_t>& entries);
 
-class MockDcpMessageProducers : public dcp_message_producers {
+class MockDcpMessageProducers : public DcpMessageProducersIface {
 public:
     ENGINE_ERROR_CODE get_failover_log(uint32_t opaque, Vbid vbucket) override;
 

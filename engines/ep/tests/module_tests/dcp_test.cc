@@ -300,9 +300,10 @@ DCPTest::StreamRequestResult DCPTest::doStreamRequest(DcpProducer& producer,
     return result;
 }
 
-void DCPTest::prepareCheckpointItemsForStep(dcp_message_producers& msgProducers,
-                                            MockDcpProducer& producer,
-                                            VBucket& vb) {
+void DCPTest::prepareCheckpointItemsForStep(
+        DcpMessageProducersIface& msgProducers,
+        MockDcpProducer& producer,
+        VBucket& vb) {
     producer.notifySeqnoAvailable(
             vb.getId(), vb.getHighSeqno(), SyncWriteOperation::Yes);
     ASSERT_EQ(ENGINE_EWOULDBLOCK, producer.step(&msgProducers));
@@ -365,7 +366,7 @@ void DCPTest::removeCheckpoint(int numItems) {
 }
 int DCPTest::callbackCount = 0;
 
-void DCPTest::runCheckpointProcessor(dcp_message_producers& producers) {
+void DCPTest::runCheckpointProcessor(DcpMessageProducersIface& producers) {
     // Step which will notify the snapshot task
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
 

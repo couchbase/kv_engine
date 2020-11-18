@@ -26,7 +26,7 @@ class Item;
 /**
  * Mock of dcp_messsage_producers, using GoogleMock to mock.
  */
-class GMockDcpMsgProducers : public dcp_message_producers {
+class GMockDcpMsgProducers : public DcpMessageProducersIface {
 public:
     MOCK_METHOD(ENGINE_ERROR_CODE,
                 get_failover_log,

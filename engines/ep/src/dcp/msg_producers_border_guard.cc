@@ -22,7 +22,7 @@
 #include <memcached/engine.h>
 
 DcpMsgProducersBorderGuard::DcpMsgProducersBorderGuard(
-        dcp_message_producers& guarded)
+        DcpMessageProducersIface& guarded)
     : guarded(guarded) {
 }
 

@@ -234,7 +234,7 @@ public:
 
     ENGINE_ERROR_CODE step(
             gsl::not_null<const void*> cookie,
-            gsl::not_null<dcp_message_producers*> producers) override;
+            gsl::not_null<DcpMessageProducersIface*> producers) override;
 
     ENGINE_ERROR_CODE open(gsl::not_null<const void*> cookie,
                            uint32_t opaque,

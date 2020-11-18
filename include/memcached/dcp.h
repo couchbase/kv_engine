@@ -45,8 +45,8 @@ enum class version : uint8_t;
  * DCP documentation to figure out the real meaning for all of the
  * messages.
  */
-struct dcp_message_producers {
-    virtual ~dcp_message_producers() = default;
+struct DcpMessageProducersIface {
+    virtual ~DcpMessageProducersIface() = default;
 
     virtual ENGINE_ERROR_CODE get_failover_log(uint32_t opaque,
                                                Vbid vbucket) = 0;
@@ -384,7 +384,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      */
     virtual ENGINE_ERROR_CODE step(
             gsl::not_null<const void*> cookie,
-            gsl::not_null<dcp_message_producers*> producers) = 0;
+            gsl::not_null<DcpMessageProducersIface*> producers) = 0;
 
     /**
      * Called from the memcached core to open a new DCP connection.

@@ -20,17 +20,17 @@
 #include <memcached/dcp.h>
 
 /**
- * A class which wraps a given instance of dcp_message_producers, and "guards"
- * calls to all methods of that instance by switching away from the
+ * A class which wraps a given instance of DcpMessageProducersIface, and
+ * "guards" calls to all methods of that instance by switching away from the
  * current thread's engine, calling the underlying guarded method, and then
  * switching back.
  *
  * This ensures that any memory allocations performed within any of the
  * interfaces' methods are correctly accounted (to the "Non Bucket").
  */
-class DcpMsgProducersBorderGuard : public dcp_message_producers {
+class DcpMsgProducersBorderGuard : public DcpMessageProducersIface {
 public:
-    explicit DcpMsgProducersBorderGuard(dcp_message_producers& guarded);
+    explicit DcpMsgProducersBorderGuard(DcpMessageProducersIface& guarded);
 
     ENGINE_ERROR_CODE get_failover_log(uint32_t opaque, Vbid vbucket) override;
 
@@ -165,5 +165,5 @@ public:
 
 private:
     /// The DCP message producers we are guarding.
-    dcp_message_producers& guarded;
+    DcpMessageProducersIface& guarded;
 };

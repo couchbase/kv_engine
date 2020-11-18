@@ -1319,7 +1319,7 @@ void EventuallyPersistentEngine::item_set_datatype(
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::step(
         gsl::not_null<const void*> cookie,
-        gsl::not_null<dcp_message_producers*> producers) {
+        gsl::not_null<DcpMessageProducersIface*> producers) {
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {

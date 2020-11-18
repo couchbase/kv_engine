@@ -66,7 +66,7 @@ const size_t MaxSavedConnectionId = 34;
 /**
  * The structure representing a connection in memcached.
  */
-class Connection : public dcp_message_producers {
+class Connection : public DcpMessageProducersIface {
 public:
     Connection(const Connection&) = delete;
 
@@ -626,7 +626,8 @@ public:
     /// should use an IOVector to do so
     bool dcpUseWriteBuffer(size_t total) const;
 
-    // Implementation of dcp_message_producers interface //////////////////////
+    // Implementation of DcpMessageProducersIface interface
+    // //////////////////////
 
     ENGINE_ERROR_CODE get_failover_log(uint32_t opaque, Vbid vbucket) override;
 

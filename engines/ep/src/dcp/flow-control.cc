@@ -44,8 +44,7 @@ FlowControl::~FlowControl()
 }
 
 ENGINE_ERROR_CODE FlowControl::handleFlowCtl(
-                                    struct dcp_message_producers* producers)
-{
+        DcpMessageProducersIface* producers) {
     if (enabled) {
         ENGINE_ERROR_CODE ret;
         uint32_t ackable_bytes = freedBytes.load();

@@ -606,8 +606,8 @@ cb::unique_item_ptr DcpProducer::toUniqueItemPtr(
     return {item.release(), cb::ItemDeleter(&engine_)};
 }
 
-ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
-
+ENGINE_ERROR_CODE DcpProducer::step(
+        struct DcpMessageProducersIface* producers) {
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -903,7 +903,7 @@ ENGINE_ERROR_CODE DcpProducer::bufferAcknowledgement(uint32_t opaque,
 ENGINE_ERROR_CODE DcpProducer::deletionV1OrV2(
         IncludeDeleteTime includeDeleteTime,
         MutationResponse& mutationResponse,
-        dcp_message_producers* producers,
+        DcpMessageProducersIface* producers,
         std::unique_ptr<Item> itmCpy,
         ENGINE_ERROR_CODE ret,
         cb::mcbp::DcpStreamId sid) {
@@ -1865,7 +1865,7 @@ ENGINE_ERROR_CODE DcpProducer::maybeDisconnect() {
 }
 
 ENGINE_ERROR_CODE DcpProducer::maybeSendNoop(
-        struct dcp_message_producers* producers) {
+        struct DcpMessageProducersIface* producers) {
     if (!noopCtx.enabled) {
         // Returning ENGINE_FAILED means ignore and continue
         // without sending a noop

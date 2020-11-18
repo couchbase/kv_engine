@@ -26,7 +26,7 @@
 #include <libcouchstore/couch_db.h>
 #include <nlohmann/json.hpp>
 
-struct dcp_message_producers;
+struct DcpMessageProducersIface;
 class EPBucket;
 class MockActiveStreamWithOverloadedRegisterCursor;
 class MockDcpMessageProducers;
@@ -90,7 +90,7 @@ public:
      * @param producers The dcp callbacks
      */
     void runCheckpointProcessor(MockDcpProducer& producer,
-                                dcp_message_producers& producers);
+                                DcpMessageProducersIface& producers);
 
     /*
      * DCP helper - Run the backfill tasks

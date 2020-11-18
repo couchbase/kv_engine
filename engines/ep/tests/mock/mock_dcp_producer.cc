@@ -87,7 +87,7 @@ ENGINE_ERROR_CODE MockDcpProducer::stepAndExpect(
 }
 
 ENGINE_ERROR_CODE MockDcpProducer::stepWithBorderGuard(
-        dcp_message_producers& producers) {
+        DcpMessageProducersIface& producers) {
     DcpMsgProducersBorderGuard guardedProducers(producers);
     return step(&guardedProducers);
 }

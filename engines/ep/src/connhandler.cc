@@ -225,7 +225,8 @@ ENGINE_ERROR_CODE ConnHandler::control(uint32_t opaque,
     return ENGINE_DISCONNECT;
 }
 
-ENGINE_ERROR_CODE ConnHandler::step(struct dcp_message_producers* producers) {
+ENGINE_ERROR_CODE ConnHandler::step(
+        struct DcpMessageProducersIface* producers) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the dcp step API");

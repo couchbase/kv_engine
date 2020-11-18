@@ -899,7 +899,7 @@ TEST_P(RollbackTest, RollbackBeforeFirstFailoverTableEntry) {
 
 class RollbackDcpTest : public RollbackTest {
 public:
-    // Mock implementation of dcp_message_producers which ... TODO
+    // Mock implementation of DcpMessageProducersIface which ... TODO
     class DcpProducers;
 
     RollbackDcpTest() {

@@ -189,7 +189,7 @@ public:
                                       Vbid vbucket,
                                       vbucket_state_t state) override;
 
-    ENGINE_ERROR_CODE step(struct dcp_message_producers* producers) override;
+    ENGINE_ERROR_CODE step(struct DcpMessageProducersIface* producers) override;
 
     /**
      * Sub-classes must implement a method that processes a response
@@ -368,33 +368,38 @@ protected:
      * @return ENGINE_FAILED if the step has completed, ENGINE_SUCCESS otherwise
      */
     ENGINE_ERROR_CODE handleGetErrorMap(
-            struct dcp_message_producers* producers);
+            struct DcpMessageProducersIface* producers);
 
-    ENGINE_ERROR_CODE handleNoop(struct dcp_message_producers* producers);
+    ENGINE_ERROR_CODE handleNoop(struct DcpMessageProducersIface* producers);
 
-    ENGINE_ERROR_CODE handlePriority(struct dcp_message_producers* producers);
+    ENGINE_ERROR_CODE handlePriority(
+            struct DcpMessageProducersIface* producers);
 
-    ENGINE_ERROR_CODE handleExtMetaData(struct dcp_message_producers* producers);
+    ENGINE_ERROR_CODE handleExtMetaData(
+            struct DcpMessageProducersIface* producers);
 
-    ENGINE_ERROR_CODE supportCursorDropping(struct dcp_message_producers* producers);
+    ENGINE_ERROR_CODE supportCursorDropping(
+            struct DcpMessageProducersIface* producers);
 
-    ENGINE_ERROR_CODE supportHifiMFU(struct dcp_message_producers* producers);
+    ENGINE_ERROR_CODE supportHifiMFU(
+            struct DcpMessageProducersIface* producers);
 
     ENGINE_ERROR_CODE sendStreamEndOnClientStreamClose(
-            struct dcp_message_producers* producers);
+            struct DcpMessageProducersIface* producers);
 
     ENGINE_ERROR_CODE enableExpiryOpcode(
-            struct dcp_message_producers* producers);
+            struct DcpMessageProducersIface* producers);
 
     ENGINE_ERROR_CODE enableSynchronousReplication(
-            dcp_message_producers* producers);
+            DcpMessageProducersIface* producers);
 
     /**
      * Handles the negotiation of IncludeDeletedUserXattrs.
      *
      * @param producers Pointers to message producers
      */
-    ENGINE_ERROR_CODE handleDeletedUserXattrs(dcp_message_producers* producers);
+    ENGINE_ERROR_CODE handleDeletedUserXattrs(
+            DcpMessageProducersIface* producers);
 
     void notifyVbucketReady(Vbid vbucket);
 

@@ -294,7 +294,7 @@ void SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
 }
 
 void SingleThreadedKVBucketTest::runCheckpointProcessor(
-        MockDcpProducer& producer, dcp_message_producers& producers) {
+        MockDcpProducer& producer, DcpMessageProducersIface& producers) {
     // Step which will notify the snapshot task
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer.step(&producers));
 

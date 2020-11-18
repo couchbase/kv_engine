@@ -82,7 +82,7 @@ public:
             dcp_add_failover_log callback,
             std::optional<std::string_view> json) override;
 
-    ENGINE_ERROR_CODE step(struct dcp_message_producers* producers) override;
+    ENGINE_ERROR_CODE step(struct DcpMessageProducersIface* producers) override;
 
     ENGINE_ERROR_CODE bufferAcknowledgement(uint32_t opaque,
                                             Vbid vbucket,
@@ -400,7 +400,7 @@ protected:
      *  sent a noop and we are awaiting a receive, or because the time interval
      *  has not passed.
      */
-    ENGINE_ERROR_CODE maybeSendNoop(struct dcp_message_producers* producers);
+    ENGINE_ERROR_CODE maybeSendNoop(struct DcpMessageProducersIface* producers);
 
     /**
      * Create the ActiveStreamCheckpointProcessorTask and assign to
@@ -453,7 +453,7 @@ protected:
      */
     ENGINE_ERROR_CODE deletionV1OrV2(IncludeDeleteTime includeDeleteTime,
                                      MutationResponse& mutationResponse,
-                                     dcp_message_producers* producers,
+                                     DcpMessageProducersIface* producers,
                                      std::unique_ptr<Item> itmCpy,
                                      ENGINE_ERROR_CODE ret,
                                      cb::mcbp::DcpStreamId sid);

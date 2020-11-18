@@ -181,7 +181,7 @@ public:
 
     ENGINE_ERROR_CODE step(
             gsl::not_null<const void*>,
-            gsl::not_null<struct dcp_message_producers*>) override {
+            gsl::not_null<struct DcpMessageProducersIface*>) override {
         return ENGINE_NO_BUCKET;
     }
 

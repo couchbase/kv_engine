@@ -26,7 +26,7 @@
 class Item;
 class MockDcpProducer;
 class MockActiveStream;
-struct dcp_message_producers;
+struct DcpMessageProducersIface;
 
 /**
  * Test fixture for unit tests related to DCP.
@@ -77,7 +77,7 @@ protected:
      * copy CheckpointManager items to the producers' readyQ.
      */
     static void prepareCheckpointItemsForStep(
-            dcp_message_producers& msgProducers,
+            DcpMessageProducersIface& msgProducers,
             MockDcpProducer& producer,
             VBucket& vb);
 
@@ -98,7 +98,7 @@ protected:
 
     void removeCheckpoint(int numItems);
 
-    void runCheckpointProcessor(dcp_message_producers& producers);
+    void runCheckpointProcessor(DcpMessageProducersIface& producers);
 
     std::shared_ptr<MockDcpProducer> producer;
     std::shared_ptr<MockActiveStream> stream;

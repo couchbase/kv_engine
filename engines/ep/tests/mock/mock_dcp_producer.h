@@ -45,7 +45,8 @@ public:
         return DcpProducer::maybeDisconnect();
     }
 
-    ENGINE_ERROR_CODE maybeSendNoop(struct dcp_message_producers* producers) {
+    ENGINE_ERROR_CODE maybeSendNoop(
+            struct DcpMessageProducersIface* producers) {
         return DcpProducer::maybeSendNoop(producers);
     }
 
@@ -185,7 +186,7 @@ public:
      * Useful when operating directly on a (Mock)DcpProducer object without
      * ep_engine, but need to ensure currentEngine switching is still correct.
      */
-    ENGINE_ERROR_CODE stepWithBorderGuard(dcp_message_producers& producers);
+    ENGINE_ERROR_CODE stepWithBorderGuard(DcpMessageProducersIface& producers);
 
     void enableMultipleStreamRequests() {
         multipleStreamRequests = MultipleStreamRequests::Yes;

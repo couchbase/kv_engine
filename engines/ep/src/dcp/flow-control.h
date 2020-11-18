@@ -23,6 +23,7 @@
 
 class DcpConsumer;
 class EventuallyPersistentEngine;
+struct DcpMessageProducersIface;
 
 /**
  * This class handles the consumer side flow control in a DCP connection.
@@ -37,7 +38,7 @@ public:
 
     ~FlowControl();
 
-    ENGINE_ERROR_CODE handleFlowCtl(struct dcp_message_producers* producers);
+    ENGINE_ERROR_CODE handleFlowCtl(DcpMessageProducersIface* producers);
 
     void incrFreedBytes(uint32_t bytes);
 
