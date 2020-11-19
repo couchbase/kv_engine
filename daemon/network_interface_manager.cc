@@ -241,8 +241,7 @@ void NetworkInterfaceManager::writeInterfaceFile(bool terminate) {
         tempname.assign(filename);
         tempname.append(".lck");
 
-        FILE* file = nullptr;
-        file = fopen(tempname.c_str(), "a");
+        FILE* file = fopen(tempname.c_str(), "a");
         if (file == nullptr) {
             LOG_CRITICAL(R"(Failed to open "{}": {})", tempname, cb_strerror());
             if (terminate) {
@@ -469,7 +468,7 @@ bool NetworkInterfaceManager::createInterface(const std::string& tag,
                     listenport = ntohs(my_sockaddr.in6.sin6_port);
                 }
             } else {
-                const auto error = cb::net::get_socket_error();
+                const auto e = cb::net::get_socket_error();
                 auto name = cb::net::to_string(
                         reinterpret_cast<sockaddr_storage*>(next->ai_addr),
                         static_cast<socklen_t>(next->ai_addrlen));
@@ -477,7 +476,7 @@ bool NetworkInterfaceManager::createInterface(const std::string& tag,
                         "Failed to look up the assigned port for the ephemeral "
                         "port: {} error: {}",
                         name,
-                        cb_strerror(error));
+                        cb_strerror(e));
                 safe_close(sfd);
                 continue;
             }
