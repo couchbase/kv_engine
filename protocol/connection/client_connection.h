@@ -306,6 +306,14 @@ public:
     // channel to memcached. Used for multi-connection testing.
     std::unique_ptr<MemcachedConnection> clone();
 
+    std::string getName() const {
+        return name;
+    }
+
+    void setName(std::string nm) {
+        name = std::move(nm);
+    }
+
     in_port_t getPort() const {
         return port;
     }
@@ -946,6 +954,7 @@ protected:
     SOCKET sock = INVALID_SOCKET;
     std::string tag;
     nlohmann::json agentInfo;
+    std::string name;
     std::optional<std::chrono::microseconds> traceData;
 
     typedef std::unordered_set<uint16_t> Featureset;
