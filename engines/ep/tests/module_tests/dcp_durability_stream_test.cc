@@ -1559,7 +1559,7 @@ void DurabilityPassiveStreamTest::
                           streamStartSeqno /*snapStart*/,
                           streamStartSeqno /*snapEnd*/,
                           dcp_marker_flag_t::MARKER_FLAG_DISK,
-                          {} /*HCS*/,
+                          0 /*HCS*/,
                           {} /*maxVisibleSeqno*/,
                           {} /*streamId*/);
     stream->processMarker(&marker);
@@ -1677,7 +1677,7 @@ TEST_P(DurabilityPassiveStreamTest,
                             1 /*snapStart*/,
                             ~1 /*snapEnd*/,
                             dcp_marker_flag_t::MARKER_FLAG_DISK,
-                            {} /*HCS*/,
+                            0 /*HCS*/,
                             {} /*maxVisibleSeqno*/,
                             {} /*streamId*/);
     stream->processMarker(&marker);

@@ -44,9 +44,9 @@ enum backfill_source_t {
 class Stream {
 public:
     enum class Snapshot {
-           None,
-           Disk,
-           Memory
+        None, // Used only at PassiveStream initialization
+        Disk,
+        Memory
     };
 
     Stream(const std::string& name,

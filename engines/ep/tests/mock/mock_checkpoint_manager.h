@@ -114,4 +114,9 @@ public:
         LockHolder lh(queueLock);
         return getOpenCheckpoint_UNLOCKED(lh).getCheckpointType();
     }
+
+    auto getPersistenceCursorPos() const {
+        LockHolder lh(queueLock);
+        return getPersistenceCursor()->currentPos;
+    }
 };

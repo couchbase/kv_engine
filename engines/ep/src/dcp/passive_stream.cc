@@ -924,6 +924,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
 
     cur_snapshot_start.store(marker->getStartSeqno());
     cur_snapshot_end.store(marker->getEndSeqno());
+    const auto prevSnapType = cur_snapshot_type.load();
     cur_snapshot_type.store((marker->getFlags() & MARKER_FLAG_DISK)
                                     ? Snapshot::Disk
                                     : Snapshot::Memory);
@@ -964,7 +965,13 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
         // not transmitted (optional is false), set visible to snap-end
         auto visibleSeq =
                 marker->getMaxVisibleSeqno().value_or(marker->getEndSeqno());
+
         if (marker->getFlags() & MARKER_FLAG_DISK && vb->getHighSeqno() == 0) {
+            // Case: receiving the first snapshot in a Disk snapshot.
+            // Note that replica may never execute here as the active may switch
+            // directly to in-memory and send the first snapshot in a Memory
+            // snapshot.
+
             vb->setReceivingInitialDiskSnapshot(true);
             ckptMgr.createSnapshot(cur_snapshot_start.load(),
                                    cur_snapshot_end.load(),
@@ -972,6 +979,12 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                                    checkpointType,
                                    visibleSeq);
         } else {
+            // Case: receiving any type of snapshot (Disk/Memory).
+
+            // @todo: The check on CheckpointId=0 is legacy from when that could
+            //   really happen (TAP). Currently CheckpointId is a positive
+            //   monotonic sequence starting from 1, so the check can be
+            //   removed. Deferring to a dedicated change.
             if (marker->getFlags() & MARKER_FLAG_CHK ||
                 vb->checkpointManager->getOpenCheckpointId() == 0) {
                 ckptMgr.createSnapshot(cur_snapshot_start.load(),
@@ -980,11 +993,24 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                                        checkpointType,
                                        visibleSeq);
             } else {
-                // If we are reconnecting then we need to update the snap end
-                // and potentially the checkpoint type as We do not send the
-                // CHK snapshot marker flag for disk snapshots.
-                ckptMgr.updateCurrentSnapshot(
-                        cur_snapshot_end.load(), visibleSeq, checkpointType);
+                // MB-42780: In general we cannot merge multiple snapshots into
+                // the same checkpoint. The only exception is for when replica
+                // receives multiple Memory checkpoints in a row.
+                if (prevSnapType == Snapshot::Memory &&
+                    cur_snapshot_type == Snapshot::Memory) {
+                    // If we are reconnecting then we need to update the snap
+                    // end and potentially the checkpoint type as We do not send
+                    // the CHK snapshot marker flag for disk snapshots.
+                    ckptMgr.updateCurrentSnapshot(cur_snapshot_end.load(),
+                                                  visibleSeq,
+                                                  checkpointType);
+                } else {
+                    ckptMgr.createSnapshot(cur_snapshot_start.load(),
+                                           cur_snapshot_end.load(),
+                                           hcs,
+                                           checkpointType,
+                                           visibleSeq);
+                }
             }
         }
 
@@ -1035,8 +1061,6 @@ void PassiveStream::handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno) {
             vb->notifyPassiveDMOfSnapEndReceived(byseqno);
             cur_snapshot_prepare.store(false);
         }
-
-        cur_snapshot_type.store(Snapshot::None);
     }
 }
 

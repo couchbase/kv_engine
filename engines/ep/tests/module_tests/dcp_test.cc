@@ -2140,10 +2140,12 @@ TEST_P(ConnectionTest, SnapshotsAndNoData) {
                              /*maxVisibleSeqno*/ {});
 
     EXPECT_EQ(2, manager.getOpenCheckpointId());
-    // Still cp:2 but the snap-end changes
+    // Still cp:2 as checkpoint was empty so we have just re-used it.
+    // Snap start/end have been updated to [1, 2], but for an empty checkpoint
+    // we return [0, 0]
     auto snapInfo = manager.getSnapshotInfo();
-    EXPECT_EQ(0, snapInfo.range.getStart()); // no data so start is still 0
-    EXPECT_EQ(2, snapInfo.range.getEnd());
+    EXPECT_EQ(0, snapInfo.range.getStart());
+    EXPECT_EQ(0, snapInfo.range.getEnd());
 
     // Close stream
     ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(/*opaque*/0, vbid));
