@@ -996,11 +996,12 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                 // MB-42780: In general we cannot merge multiple snapshots into
                 // the same checkpoint. The only exception is for when replica
                 // receives multiple Memory checkpoints in a row.
+                // Since 6.5.0 the Active behaves correctly with regard to that
+                // (ie, the Active always sets the MARKER_FLAG_CHK in a snapshot
+                // transition tha involves Disk snapshots), but older Producers
+                // may still miss the MARKER_FLAG_CHK.
                 if (prevSnapType == Snapshot::Memory &&
                     cur_snapshot_type == Snapshot::Memory) {
-                    // If we are reconnecting then we need to update the snap
-                    // end and potentially the checkpoint type as We do not send
-                    // the CHK snapshot marker flag for disk snapshots.
                     ckptMgr.updateCurrentSnapshot(cur_snapshot_end.load(),
                                                   visibleSeq,
                                                   checkpointType);
