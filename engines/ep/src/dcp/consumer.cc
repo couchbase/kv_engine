@@ -1611,11 +1611,11 @@ ENGINE_ERROR_CODE DcpConsumer::enableSynchronousReplication(
 }
 
 ENGINE_ERROR_CODE DcpConsumer::enableV7DcpStatus(
-        dcp_message_producers* producers) {
+        DcpMessageProducersIface& producers) {
     if (pendingV7DcpStatusEnabled) {
         pendingV7DcpStatusEnabled = false;
         uint32_t opaque = ++opaqueCounter;
-        auto ret = producers->control(opaque, "v7_dcp_status_codes", "true");
+        auto ret = producers.control(opaque, "v7_dcp_status_codes", "true");
         if (ret == ENGINE_SUCCESS) {
             isV7DcpStatusEnabled = true;
             return ret;

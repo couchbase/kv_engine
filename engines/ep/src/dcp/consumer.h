@@ -388,7 +388,7 @@ protected:
     ENGINE_ERROR_CODE enableSynchronousReplication(
             DcpMessageProducersIface& producers);
 
-    ENGINE_ERROR_CODE enableV7DcpStatus(dcp_message_producers* producers);
+    ENGINE_ERROR_CODE enableV7DcpStatus(DcpMessageProducersIface& producers);
 
     /**
      * Handles the negotiation of IncludeDeletedUserXattrs.
