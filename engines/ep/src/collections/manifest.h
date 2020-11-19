@@ -295,6 +295,12 @@ private:
     void buildCollectionIdToEntryMap();
 
     /**
+     * Compare this against other and return true if the all but the uid are
+     * equal (the uid is not compared).
+     */
+    bool isEqualContent(const Manifest& other) const;
+
+    /**
      * Check if the std::string represents a legal collection name.
      * Current validation is to ensure we block creation of _ prefixed
      * collections and only accept $default for $ prefixed names.

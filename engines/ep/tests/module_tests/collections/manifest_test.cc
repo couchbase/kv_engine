@@ -903,6 +903,19 @@ TEST(ManifestTest, isNotSuccesor) {
                   current.isSuccessor(incoming2).code());
     }
 
+    {
+        // increase the uid
+        CollectionsManifest cm2 = cm;
+        Collections::Manifest incoming1{std::string{cm2}};
+        // prove that the uid shift results in error
+        EXPECT_EQ(cb::engine_errc::success,
+                  current.isSuccessor(incoming1).code());
+        cm2.updateUid(cm2.getUid() + 1);
+        Collections::Manifest incoming2{std::string{cm2}};
+        EXPECT_NE(cb::engine_errc::success,
+                  current.isSuccessor(incoming2).code());
+    }
+
     // Move a collection to a different scope
     cm.remove(CollectionEntry::meat);
     cm.add(CollectionEntry::meat, ScopeEntry::shop1);

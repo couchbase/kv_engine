@@ -615,10 +615,13 @@ bool Scope::operator==(const Scope& other) const {
     return equal;
 }
 
-
 bool Manifest::operator==(const Manifest& other) const {
+    return (uid == other.uid) && isEqualContent(other);
+}
+
+// tests the equality of contents, i.e. everything but the uid
+bool Manifest::isEqualContent(const Manifest& other) const {
     bool equal = defaultCollectionExists == other.defaultCollectionExists;
-    equal &= uid == other.uid;
     equal &= scopes == other.scopes &&
              collections.size() == other.collections.size();
     return equal;
@@ -632,6 +635,12 @@ cb::engine_error Manifest::isSuccessor(const Manifest& successor) const {
 
     // else must be a > uid with sane changes or equal uid and no changes
     if (successor.getUid() > uid) {
+        if (isEqualContent(successor)) {
+            return cb::engine_error(
+                    cb::engine_errc::cannot_apply_collections_manifest,
+                    "uid changed but no changes");
+        }
+
         // For each scope-id in this is it in successor?
         for (const auto& [sid, scope] : scopes) {
             auto itr = successor.findScope(sid);
