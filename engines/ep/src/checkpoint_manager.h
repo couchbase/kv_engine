@@ -77,12 +77,11 @@ class CheckpointManager {
     friend class CheckpointManagerTestIntrospector;
 
 public:
-    typedef std::shared_ptr<Callback<Vbid>> FlusherCallback;
+    using FlusherCallback = std::shared_ptr<Callback<Vbid>>;
 
     /// Return type of getNextItemsForCursor()
     struct ItemsForCursor {
-        ItemsForCursor() {
-        }
+        ItemsForCursor() = default;
         ItemsForCursor(CheckpointType checkpointType,
                        std::optional<uint64_t> maxDeletedRevSeqno,
                        std::optional<uint64_t> highCompletedSeqno,
