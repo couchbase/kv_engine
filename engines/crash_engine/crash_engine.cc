@@ -15,106 +15,18 @@
  *   limitations under the License.
  */
 
-/* The "crash" bucket is a bucket which simply crashes when it is initialized.
+/**
+ * The "crash" bucket is a bucket which simply crashes when it is initialized.
  * It is intended to be used to test crash catching using Google Breakpad.
  */
 #include "crash_engine_public.h"
 
-#include <stdlib.h>
-#include <gsl/gsl>
+#include <cstdlib>
 #include <stdexcept>
 #include <string>
 
-#include <memcached/engine.h>
-#include <memcached/util.h>
 #include <memcached/config_parser.h>
-
-class CrashEngine : public EngineIface {
-public:
-    ENGINE_ERROR_CODE initialize(const char* config_str) override;
-    void destroy(bool) override;
-
-    std::pair<cb::unique_item_ptr, item_info> allocateItem(
-            gsl::not_null<const void*> cookie,
-            const DocKey& key,
-            size_t nbytes,
-            size_t priv_nbytes,
-            int flags,
-            rel_time_t exptime,
-            uint8_t datatype,
-            Vbid vbucket) override;
-
-    ENGINE_ERROR_CODE remove(
-            gsl::not_null<const void*> cookie,
-            const DocKey& key,
-            uint64_t& cas,
-            Vbid vbucket,
-            const std::optional<cb::durability::Requirements>& durability,
-            mutation_descr_t& mut_info) override;
-
-    void release(gsl::not_null<ItemIface*> item) override;
-
-    cb::EngineErrorItemPair get(gsl::not_null<const void*> cookie,
-                                const DocKey& key,
-                                Vbid vbucket,
-                                DocStateFilter documentStateFilter) override;
-    cb::EngineErrorItemPair get_if(
-            gsl::not_null<const void*> cookie,
-            const DocKey& key,
-            Vbid vbucket,
-            std::function<bool(const item_info&)> filter) override;
-
-    cb::EngineErrorMetadataPair get_meta(gsl::not_null<const void*> cookie,
-                                         const DocKey& key,
-                                         Vbid vbucket) override;
-
-    cb::EngineErrorItemPair get_locked(gsl::not_null<const void*> cookie,
-                                       const DocKey& key,
-                                       Vbid vbucket,
-                                       uint32_t lock_timeout) override;
-
-    ENGINE_ERROR_CODE unlock(gsl::not_null<const void*> cookie,
-                             const DocKey& key,
-                             Vbid vbucket,
-                             uint64_t cas) override;
-
-    cb::EngineErrorItemPair get_and_touch(
-            gsl::not_null<const void*> cookie,
-            const DocKey& key,
-            Vbid vbucket,
-            uint32_t expirytime,
-            const std::optional<cb::durability::Requirements>& durability)
-            override;
-
-    ENGINE_ERROR_CODE store(
-            gsl::not_null<const void*> cookie,
-            gsl::not_null<ItemIface*> item,
-            uint64_t& cas,
-            StoreSemantics operation,
-            const std::optional<cb::durability::Requirements>& durability,
-            DocumentState document_state,
-            bool preserveTtl) override;
-
-    ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
-                                std::string_view key,
-                                std::string_view value,
-                                const AddStatFn& add_stat) override;
-
-    void reset_stats(gsl::not_null<const void*> cookie) override;
-
-    void item_set_cas(gsl::not_null<ItemIface*> item,
-                      uint64_t cas) override;
-
-    void item_set_datatype(gsl::not_null<ItemIface*> item,
-                           protocol_binary_datatype_t datatype) override;
-
-    bool get_item_info(gsl::not_null<const ItemIface*> item,
-                       gsl::not_null<item_info*> item_info) override;
-
-    cb::engine::FeatureSet getFeatures() override;
-
-    cb::HlcTime getVBucketHlcNow(Vbid vbucket) override;
-};
+#include <memcached/engine.h>
 
 // How do I crash thee? Let me count the ways.
 enum class CrashMode {
@@ -125,7 +37,8 @@ enum class CrashMode {
 
 static char dummy;
 
-/* Recursive functions which will crash using the given method after
+/**
+ * Recursive functions which will crash using the given method after
  * 'depth' calls.
  * Note: mutates a dummy global variable to prevent optimization
  * removing the recursion.
@@ -151,141 +64,143 @@ char recursive_crash_function(char depth, CrashMode mode) {
     return dummy++;
 }
 
-/* 'initializes' this engine - given this is the crash_engine that
- * means crashing it.
- */
-ENGINE_ERROR_CODE CrashEngine::initialize(const char* config_str) {
-    std::string mode_string(getenv("MEMCACHED_CRASH_TEST"));
-    CrashMode mode;
-    if (mode_string == "segfault") {
-        mode = CrashMode::SegFault;
-    } else if (mode_string == "std_exception") {
-        mode = CrashMode::UncaughtStdException;
-    } else if (mode_string == "unknown_exception") {
-        mode = CrashMode::UncaughtUnknownException;
-    } else {
-        fprintf(stderr, "crash_engine::initialize: could not find a valid "
-                "CrashMode from MEMCACHED_CRASH_TEST env var ('%s')\n",
-                mode_string.c_str());
-        exit(1);
+class CrashEngine : public EngineIface {
+public:
+    /**
+     * 'initializes' this engine - given this is the crash_engine that
+     * means crashing it.
+     */
+    ENGINE_ERROR_CODE initialize(const char*) override {
+        std::string mode_string(getenv("MEMCACHED_CRASH_TEST"));
+        CrashMode mode;
+        if (mode_string == "segfault") {
+            mode = CrashMode::SegFault;
+        } else if (mode_string == "std_exception") {
+            mode = CrashMode::UncaughtStdException;
+        } else if (mode_string == "unknown_exception") {
+            mode = CrashMode::UncaughtUnknownException;
+        } else {
+            fprintf(stderr,
+                    "crash_engine::initialize: could not find a valid "
+                    "CrashMode from MEMCACHED_CRASH_TEST env var ('%s')\n",
+                    mode_string.c_str());
+            exit(1);
+        }
+        return ENGINE_ERROR_CODE(recursive_crash_function(25, mode));
     }
-    return ENGINE_ERROR_CODE(recursive_crash_function(25, mode));
-}
 
-void CrashEngine::destroy(const bool force) {
-    delete this;
-}
+    void destroy(bool) override {
+        delete this;
+    }
 
-std::pair<cb::unique_item_ptr, item_info> CrashEngine::allocateItem(
-        gsl::not_null<const void*> cookie,
-        const DocKey& key,
-        size_t nbytes,
-        size_t priv_nbytes,
-        int flags,
-        rel_time_t exptime,
-        uint8_t datatype,
-        Vbid vbucket) {
-    throw cb::engine_error{cb::engine_errc::failed, "crash_engine"};
-}
+    std::pair<cb::unique_item_ptr, item_info> allocateItem(
+            gsl::not_null<const void*>,
+            const DocKey&,
+            size_t,
+            size_t,
+            int,
+            rel_time_t,
+            uint8_t,
+            Vbid) override {
+        throw cb::engine_error{cb::engine_errc::failed, "crash_engine"};
+    }
 
-ENGINE_ERROR_CODE CrashEngine::remove(
-        gsl::not_null<const void*> cookie,
-        const DocKey& key,
-        uint64_t& cas,
-        Vbid vbucket,
-        const std::optional<cb::durability::Requirements>& durability,
-        mutation_descr_t& mut_info) {
-    return ENGINE_FAILED;
-}
+    ENGINE_ERROR_CODE remove(gsl::not_null<const void*>,
+                             const DocKey&,
+                             uint64_t&,
+                             Vbid,
+                             const std::optional<cb::durability::Requirements>&,
+                             mutation_descr_t&) override {
+        return ENGINE_FAILED;
+    }
 
-void CrashEngine::release(gsl::not_null<ItemIface*> item) {
-}
+    void release(gsl::not_null<ItemIface*> item) override {
+    }
 
-cb::EngineErrorItemPair CrashEngine::get(gsl::not_null<const void*> cookie,
-                                         const DocKey& key,
-                                         Vbid vbucket,
-                                         DocStateFilter) {
-    return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
-}
+    cb::EngineErrorItemPair get(gsl::not_null<const void*>,
+                                const DocKey&,
+                                Vbid,
+                                DocStateFilter) override {
+        return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
+    }
 
-cb::EngineErrorItemPair CrashEngine::get_if(
-        gsl::not_null<const void*>,
-        const DocKey&,
-        Vbid,
-        std::function<bool(const item_info&)>) {
-    return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
-}
+    cb::EngineErrorItemPair get_if(
+            gsl::not_null<const void*>,
+            const DocKey&,
+            Vbid,
+            std::function<bool(const item_info&)>) override {
+        return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
+    }
 
-cb::EngineErrorMetadataPair CrashEngine::get_meta(
-        gsl::not_null<const void*> cookie, const DocKey& key, Vbid vbucket) {
-    return {cb::engine_errc::failed, {}};
-}
+    cb::EngineErrorMetadataPair get_meta(gsl::not_null<const void*>,
+                                         const DocKey&,
+                                         Vbid) override {
+        return {cb::engine_errc::failed, {}};
+    }
 
-cb::EngineErrorItemPair CrashEngine::get_and_touch(
-        gsl::not_null<const void*> cookie,
-        const DocKey&,
-        Vbid,
-        uint32_t,
-        const std::optional<cb::durability::Requirements>&) {
-    return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
-}
+    cb::EngineErrorItemPair get_locked(gsl::not_null<const void*>,
+                                       const DocKey&,
+                                       Vbid,
+                                       uint32_t) override {
+        return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
+    }
 
-cb::EngineErrorItemPair CrashEngine::get_locked(
-        gsl::not_null<const void*> cookie,
-        const DocKey& key,
-        Vbid vbucket,
-        uint32_t lock_timeout) {
-    return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
-}
+    ENGINE_ERROR_CODE unlock(gsl::not_null<const void*>,
+                             const DocKey&,
+                             Vbid,
+                             uint64_t) override {
+        return ENGINE_FAILED;
+    }
 
-ENGINE_ERROR_CODE CrashEngine::unlock(gsl::not_null<const void*> cookie,
-                                      const DocKey& key,
-                                      Vbid vbucket,
-                                      uint64_t cas) {
-    return ENGINE_FAILED;
-}
+    cb::EngineErrorItemPair get_and_touch(
+            gsl::not_null<const void*>,
+            const DocKey&,
+            Vbid,
+            uint32_t,
+            const std::optional<cb::durability::Requirements>&) override {
+        return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
+    }
 
-ENGINE_ERROR_CODE CrashEngine::get_stats(gsl::not_null<const void*>,
-                                         std::string_view,
-                                         std::string_view,
-                                         const AddStatFn&) {
-    return ENGINE_FAILED;
-}
+    ENGINE_ERROR_CODE store(gsl::not_null<const void*>,
+                            gsl::not_null<ItemIface*>,
+                            uint64_t&,
+                            StoreSemantics,
+                            const std::optional<cb::durability::Requirements>&,
+                            DocumentState,
+                            bool) override {
+        return ENGINE_FAILED;
+    }
 
-ENGINE_ERROR_CODE CrashEngine::store(
-        gsl::not_null<const void*> cookie,
-        gsl::not_null<ItemIface*> item,
-        uint64_t& cas,
-        StoreSemantics operation,
-        const std::optional<cb::durability::Requirements>& durability,
-        DocumentState,
-        bool) {
-    return ENGINE_FAILED;
-}
+    ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*>,
+                                std::string_view,
+                                std::string_view,
+                                const AddStatFn&) override {
+        return ENGINE_FAILED;
+    }
 
-void CrashEngine::reset_stats(gsl::not_null<const void*> cookie) {
-}
+    void reset_stats(gsl::not_null<const void*>) override {
+    }
 
-void CrashEngine::item_set_cas(gsl::not_null<ItemIface*> item,
-                               uint64_t val) {
-}
+    void item_set_cas(gsl::not_null<ItemIface*>, uint64_t) override {
+    }
 
-void CrashEngine::item_set_datatype(gsl::not_null<ItemIface*> item,
-                                    protocol_binary_datatype_t val) {
-}
+    void item_set_datatype(gsl::not_null<ItemIface*>,
+                           protocol_binary_datatype_t) override {
+    }
 
-bool CrashEngine::get_item_info(gsl::not_null<const ItemIface*> item,
-                                gsl::not_null<item_info*> item_info) {
-    return false;
-}
+    bool get_item_info(gsl::not_null<const ItemIface*>,
+                       gsl::not_null<item_info*>) override {
+        return false;
+    }
 
-cb::engine::FeatureSet CrashEngine::getFeatures() {
-    return cb::engine::FeatureSet();
-}
+    cb::engine::FeatureSet getFeatures() override {
+        return {};
+    }
 
-cb::HlcTime CrashEngine::getVBucketHlcNow(Vbid vbucket) {
-    return cb::HlcTime();
-}
+    cb::HlcTime getVBucketHlcNow(Vbid) override {
+        return {};
+    }
+};
 
 unique_engine_ptr create_crash_engine_instance() {
     return unique_engine_ptr{new CrashEngine()};
