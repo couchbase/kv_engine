@@ -330,6 +330,8 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                                      vbid.to_string() + " " + status.String());
         }
 
+        // A bunch of DCP code relies on us keeping the last item (it may be a
+        // tombstone) so we can't purge the item at maxSeqno.
         if (seqno != maxSeqno) {
             bool drop = false;
             if (cbCtx.ctx->compactConfig.drop_deletes) {
