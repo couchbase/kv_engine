@@ -357,7 +357,7 @@ static SOCKET new_server_socket(struct addrinfo* ai) {
                             SO_REUSEPORT,
                             reinterpret_cast<const void*>(&flags),
                             sizeof(flags)) != 0) {
-        LOG_WARNING("setsockopt(SO_REUSEADDR): {}",
+        LOG_WARNING("setsockopt(SO_REUSEPORT): {}",
                     cb_strerror(cb::net::get_socket_error()));
     }
 
