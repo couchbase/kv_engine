@@ -2588,8 +2588,7 @@ static void saveDocsCallback(const DocInfo* oldInfo,
     auto* cbCtx = static_cast<kvstats_ctx*>(context);
 
     if (!newInfo) {
-        // Should this even happen?
-        return;
+        throw std::logic_error("saveDocsCallback: newInfo should not be null");
     }
     auto newKey = makeDiskDocKey(newInfo->id);
     if (oldInfo) {
