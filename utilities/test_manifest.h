@@ -106,11 +106,6 @@ namespace ScopeEntry {
 struct Entry {
     std::string name;
     ScopeID uid;
-    std::vector<CollectionEntry::Entry> collections;
-
-    std::vector<CollectionEntry::Entry> getCollections() const {
-        return collections;
-    }
 
     // Define the ID of a scope to be its ScopeID
     ScopeID getId() const {
@@ -122,10 +117,7 @@ struct Entry {
     }
 };
 
-#define Entry_(name)                      \
-    static Entry name = {ScopeName::name, \
-                         ScopeUid::name,  \
-                         std::vector<CollectionEntry::Entry>{}}
+#define Entry_(name) static Entry name = {ScopeName::name, ScopeUid::name}
 Entry_(defaultS);
 Entry_(shop1);
 Entry_(shop2);

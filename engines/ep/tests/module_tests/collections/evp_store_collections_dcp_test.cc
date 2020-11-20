@@ -3074,6 +3074,163 @@ TEST_P(CollectionsDcpPersistentOnly,
     replicateForcedUpdate(4, true);
 }
 
+TEST_P(CollectionsDcpParameterizedTest, force_update_multiple_changes) {
+    // Create diverged manifests cm and cm1. First update to cm then force
+    // update to cm1. The test is primarily testing that the force update sends
+    // system events in the correct order.
+    CollectionsManifest cm, cm1;
+    cm.add(ScopeEntry::Entry{"scope-foo", 22});
+    cm.add(CollectionEntry::Entry{"collection-foo", 23},
+           ScopeEntry::Entry{"scope-foo", 22});
+
+    cm1.add(ScopeEntry::Entry{"scope-bar", 22});
+    cm1.add(CollectionEntry::Entry{"collection-bar", 23},
+            ScopeEntry::Entry{"scope-bar", 22});
+
+    setCollections(cookie, cm);
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    notifyAndStepToCheckpoint();
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(mcbp::systemevent::id::CreateScope, producers->last_system_event);
+    EXPECT_EQ("scope-foo", producers->last_key);
+    EXPECT_EQ(22, producers->last_scope_id);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+              producers->last_system_event);
+    EXPECT_EQ("collection-foo", producers->last_key);
+    EXPECT_EQ(22, producers->last_scope_id);
+    EXPECT_EQ(23, producers->last_collection_id);
+
+    cm1.setForce(true);
+    setCollections(cookie, cm1);
+    // flusher de-dup means only 2 items are flushed
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // First the collection(s) get dropped
+    notifyAndStepToCheckpoint();
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(mcbp::systemevent::id::DeleteCollection,
+              producers->last_system_event);
+    EXPECT_EQ(23, producers->last_collection_id);
+
+    // Then the scope
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(mcbp::systemevent::id::DropScope, producers->last_system_event);
+    EXPECT_EQ(22, producers->last_scope_id);
+
+    // Now the scope is recreated (new-name)
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(mcbp::systemevent::id::CreateScope, producers->last_system_event);
+    EXPECT_EQ("scope-bar", producers->last_key);
+    EXPECT_EQ(22, producers->last_scope_id);
+
+    // And the collection
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+              producers->last_system_event);
+    EXPECT_EQ("collection-bar", producers->last_key);
+    EXPECT_EQ(22, producers->last_scope_id);
+    EXPECT_EQ(23, producers->last_collection_id);
+
+    flushVBucketToDiskIfPersistent(replicaVB, 2);
+}
+
+// Demonstrate we can detect a 'split' in the collection state (i.e. cluster
+// partition). The test adds 'fruit' to 'shop1' scope in the current manifest
+// yet drives the replicas so that the same collection (id) is in a different
+// scope.
+TEST_P(CollectionsDcpParameterizedTest, replica_active_state_diverge) {
+    // Set the manifest with the shop1 collection
+    CollectionsManifest cm;
+    cm.add(ScopeEntry::shop1);
+    setCollections(cookie, cm);
+
+    // Make the vb replica
+    store->setVBucketState(vbid, vbucket_state_replica);
+
+    // Set the fruit collection into the shop1 scope, this has no affect on the
+    // replica
+    cm.add(CollectionEntry::fruit, ScopeEntry::shop1);
+    setCollections(cookie, cm);
+
+    // Now drive changes as a replica, and place fruit in _default scope
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0));
+
+    std::string collection = "fruit";
+    CollectionID cid = CollectionEntry::fruit.getId();
+    Collections::ManifestUid manifestUid(cm.getUid());
+    Collections::CreateEventData createEventData{
+            manifestUid, {ScopeID::Default, cid, collection, {/*no ttl*/}}};
+    Collections::CreateEventDcpData createEventDcpData{createEventData};
+
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(/*opaque*/ 2,
+                                       vbid,
+                                       /*start_seqno*/ 0,
+                                       /*end_seqno*/ 100,
+                                       /*flags*/ 0,
+                                       /*HCS*/ {},
+                                       /*maxVisibleSeqno*/ {}));
+
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    // Call the consumer function for handling DCP events
+    // create the fruit collection
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->systemEvent(
+                      /*opaque*/ 2,
+                      vbid,
+                      mcbp::systemevent::id::CreateCollection,
+                      /*seqno*/ 2,
+                      mcbp::systemevent::version::version0,
+                      {reinterpret_cast<const uint8_t*>(collection.data()),
+                       collection.size()},
+                      {reinterpret_cast<const uint8_t*>(&createEventDcpData),
+                       Collections::CreateEventDcpData::size}));
+    // Set an item
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->mutation(/*opaque*/ 2,
+                                 StoredDocKey{"apple", CollectionEntry::fruit},
+                                 {},
+                                 0,
+                                 0,
+                                 0,
+                                 vbid,
+                                 0,
+                                 /*seqno*/ 3,
+                                 0,
+                                 0,
+                                 0,
+                                 {},
+                                 0));
+    // At this point
+    cm.setForce(true);
+    setCollections(cookie, cm);
+
+    // Change state and test that the vbucket is forced to equal the current
+    // node
+    EXPECT_EQ(cb::engine_errc::success,
+              store->setVBucketState(vbid, vbucket_state_active));
+
+    // Collections still exists
+    EXPECT_TRUE(vb->lockCollections().doesKeyContainValidCollection(
+            StoredDocKey{"apple", CollectionEntry::fruit}));
+
+    // But the apple@seqno 2 is gone
+    EXPECT_EQ(cb::engine_errc::no_such_key,
+              store->get(StoredDocKey{"apple", CollectionEntry::fruit},
+                         vbid,
+                         nullptr,
+                         {})
+                      .getStatus());
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsDcpParameterizedTest,

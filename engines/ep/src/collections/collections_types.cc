@@ -127,6 +127,8 @@ std::string to_string(ManifestUpdateStatus status) {
         return "Behind";
     case ManifestUpdateStatus::EqualUidWithDifferences:
         return "EqualUidWithDifferences";
+    case ManifestUpdateStatus::ImmutablePropertyModified:
+        return "ImmutablePropertyModified";
     }
     return "Unknown " + std::to_string(int(status));
 }

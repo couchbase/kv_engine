@@ -41,6 +41,10 @@ std::string CollectionID::to_string() const {
     return sstream.str();
 }
 
+bool operator==(ScopeIDType lhs, const ScopeID& rhs) {
+    return lhs == uint32_t(rhs);
+}
+
 std::ostream& operator<<(std::ostream& os, const ScopeID& sid) {
     return os << "0x" << std::hex << uint32_t(sid);
 }

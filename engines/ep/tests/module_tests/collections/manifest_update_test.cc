@@ -24,6 +24,7 @@
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "collections_test.h"
+#include "tests/module_tests/test_helpers.h"
 #include "warmup.h"
 
 #include <platform/dirutils.h>
@@ -46,8 +47,12 @@ TEST_P(CollectionsManifestUpdate, update_add1) {
     setCollections(cookie, cm);
     EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().exists(22));
 
+    // Store an apple in collection 22
+    auto apple = makeStoredDocKey("apple", 22);
+    store_item(vbid, apple, "red");
+
     // Finally, we cannot setCollections to something which is not a
-    // successor (in future this would be allowed but by an explicit force)
+    // successor (and not using force).
     // Here we create a manifest which has an increased uid, but collection 22
     // switched name from fruit to woodwind - very odd and not a successor.
     cm1.add(CollectionEntry::Entry{"woodwind", 22});
@@ -59,12 +64,46 @@ TEST_P(CollectionsManifestUpdate, update_add1) {
     cm1.setForce(true);
     setCollections(cookie, cm1);
 
-    // @todo: MB-39292 The force update has changed fruit to woodwind - but the
-    // vbucket's only know about collection:22 and have done nothing about it -
-    // we now have fruit mixed in with the woodwind.
+    // The apple is gone (dropped when the force update changed 22)
+    EXPECT_EQ(cb::engine_errc::no_such_key,
+              store->get(apple, vbid, nullptr, {}).getStatus());
+
+    // But collection '22' lives on
+    store_item(vbid, makeStoredDocKey("clarinet", 22), "soprano");
 }
 
-TEST_P(CollectionsManifestUpdate, update_add1_warmup) {
+// Force change a scope name
+TEST_P(CollectionsManifestUpdate, update_scope_name_forced) {
+    // Create diverged manifests cm and cm1
+    CollectionsManifest cm, cm1;
+
+    // cm has 1 scope which has 1 collection
+    cm.add(ScopeEntry::Entry{"scope1", 22});
+    cm.add(CollectionEntry::fruit, ScopeEntry::Entry{"scope1", 22});
+
+    // cm1 has the same scope-id as cm, but name is different
+    cm1.add(ScopeEntry::Entry{"scope2", 22});
+
+    // Update to cm, the scope should be valid
+    setCollections(cookie, cm);
+    EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isScopeValid(22));
+    EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().exists(
+            CollectionEntry::fruit));
+
+    // Now we cannot move to cm1, it is rejected
+    setCollections(
+            cookie, cm1, cb::engine_errc::cannot_apply_collections_manifest);
+
+    // But now force it
+    cm1.setForce(true);
+    setCollections(cookie, cm1);
+    // Scope was recreated, new scope doesn't have the fruit collection
+    EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isScopeValid(22));
+    EXPECT_FALSE(store->getVBucket(vbid)->lockCollections().exists(
+            CollectionEntry::fruit));
+}
+
+TEST_P(CollectionsManifestUpdate, update_add1_with_warmup) {
     CollectionsManifest cm, cm1;
     cm.add(CollectionEntry::Entry{"fruit", 22});
     EXPECT_FALSE(store->getVBucket(vbid)->lockCollections().exists(22));
@@ -86,6 +125,12 @@ TEST_P(CollectionsManifestUpdate, update_add1_warmup) {
                              .rlock()
                              ->isForcedUpdate());
     }
+
+    // Store an apple in collection 22
+    auto apple = makeStoredDocKey("apple", 22);
+    store_item(vbid, apple, "red");
+    flushVBucketToDiskIfPersistent(vbid, 2); // 2 includes create collection
+
     // cm1 is default state - uid of 0, cannot go back
     setCollections(
             cookie, cm1, cb::engine_errc::cannot_apply_collections_manifest);
@@ -115,12 +160,21 @@ TEST_P(CollectionsManifestUpdate, update_add1_warmup) {
                         .getCurrentManifest()
                         .rlock()
                         ->isForcedUpdate());
+
+    // The apple is gone (dropped when the force update changed 22)
+    EXPECT_EQ(cb::engine_errc::no_such_key,
+              store->get(apple, vbid, nullptr, {}).getStatus());
+
+    // But collection 22 lives on
+    store_item(vbid, makeStoredDocKey("clarinet", 22), "soprano");
 }
 
 TEST_P(CollectionsManifestUpdate, update_add1_move1_warmup) {
+    // Begin with fruit in default scope and the addition of a second scope
     CollectionsManifest cm;
     cm.add(CollectionEntry::Entry{"fruit", 22});
     cm.add(ScopeEntry::shop1);
+
     EXPECT_FALSE(store->getVBucket(vbid)->lockCollections().exists(22));
     setCollections(cookie, cm);
     // Check the current manifest is not a forced update
@@ -128,6 +182,9 @@ TEST_P(CollectionsManifestUpdate, update_add1_move1_warmup) {
                          .getCurrentManifest()
                          .rlock()
                          ->isForcedUpdate());
+
+    auto scope = store->getVBucket(vbid)->lockCollections().getScopeID(22);
+    EXPECT_EQ(ScopeID{ScopeID::Default}, scope.value());
 
     if (isPersistent()) {
         resetEngineAndWarmup();
@@ -152,7 +209,38 @@ TEST_P(CollectionsManifestUpdate, update_add1_move1_warmup) {
     cm.setForce(true);
     setCollections(cookie, cm);
 
-    // KV doesn't yet respond to this yet
+    // And see that the collection does exist, but in a new scope
+    scope = store->getVBucket(vbid)->lockCollections().getScopeID(22);
+    EXPECT_EQ(ScopeEntry::shop1.uid, scope.value());
+}
+
+TEST_P(CollectionsManifestUpdate, force_update_multiple_changes) {
+    // Create diverged manifests, here both have 1 scope, 1 collection, but
+    // both with different names.
+    CollectionsManifest cm, cm1;
+    cm.add(ScopeEntry::Entry{"fruit-masters", 22});
+    cm.add(CollectionEntry::Entry{"fruit", 22},
+           ScopeEntry::Entry{"fruit-masters", 22});
+    cm1.add(ScopeEntry::Entry{"tooltime", 22});
+    cm1.add(CollectionEntry::Entry{"hardware", 22},
+            ScopeEntry::Entry{"tooltime", 22});
+
+    setCollections(cookie, cm);
+
+    // Store an apple in collection 22
+    auto apple = makeStoredDocKey("apple", 22);
+    store_item(vbid, apple, "red");
+
+    // shop1 is open for business and fully stocked with an apple.
+    cm1.setForce(true);
+    setCollections(cookie, cm1);
+
+    // The apple is gone (dropped when the force update changed 22)
+    EXPECT_EQ(cb::engine_errc::no_such_key,
+              store->get(apple, vbid, nullptr, {}).getStatus());
+
+    // But collection '22' lives on
+    store_item(vbid, makeStoredDocKey("hammer", 22), "lump");
 }
 
 class CollectionsManifestUpdatePersistent

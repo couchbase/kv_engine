@@ -174,6 +174,10 @@ public:
         return value == other.value;
     }
 
+    bool operator!=(const ScopeID& other) const {
+        return value != other.value;
+    }
+
     bool isDefaultScope() const {
         return value == Default;
     }
@@ -187,6 +191,7 @@ private:
     ScopeIDType value;
 };
 
+bool operator==(ScopeIDType lhs, const ScopeID& rhs);
 std::ostream& operator<<(std::ostream& os, const ScopeID& sid);
 
 using ScopeCollectionPair = std::pair<ScopeID, CollectionID>;

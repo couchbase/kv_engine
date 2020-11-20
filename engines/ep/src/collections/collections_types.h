@@ -352,7 +352,17 @@ using IsVisibleFunction =
         std::function<bool(ScopeID, std::optional<CollectionID>)>;
 
 namespace VB {
-enum class ManifestUpdateStatus { Success, Behind, EqualUidWithDifferences };
+enum class ManifestUpdateStatus {
+    Success,
+    // The new Manifest has a 'UID' that is < current.
+    Behind,
+    // The new Manifest has a 'UID' that is == current, but adds/drops
+    // collections/scopes.
+    EqualUidWithDifferences,
+    // The new Manifest changes scopes or collections immutable properties, e.g.
+    // current has {id:8, name:"c1"} and new has {id:8,name:"c2"}.
+    ImmutablePropertyModified
+};
 std::string to_string(ManifestUpdateStatus);
 
 /// values required by the flusher to calculate new collection statistics

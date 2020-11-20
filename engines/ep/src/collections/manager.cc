@@ -164,6 +164,8 @@ std::optional<Vbid> Collections::Manager::updateAllVBuckets(
             using namespace Collections;
             switch (status) {
             case VB::ManifestUpdateStatus::EqualUidWithDifferences:
+            case VB::ManifestUpdateStatus::ImmutablePropertyModified:
+
                 // This error is unexpected and the best action is not to
                 // continue applying it
                 abort = true;
