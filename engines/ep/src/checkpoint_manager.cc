@@ -1369,13 +1369,6 @@ void CheckpointManager::updateCurrentSnapshot(uint64_t snapEnd,
     LockHolder lh(queueLock);
     auto& ckpt = getOpenCheckpoint_UNLOCKED(lh);
     ckpt.setSnapshotEndSeqno(snapEnd, visibleSnapEnd);
-    // MB-41283: Ensure we use keyIndexes from now on as we've extended a memory
-    // checkpoint into a disk checkpoint. Which means we need to maintain the
-    // key indexes to point to the right queued_items.
-    if (checkpointType == CheckpointType::Disk &&
-        ckpt.getCheckpointType() == CheckpointType::Memory) {
-        ckpt.forceUseOfKeyIndex();
-    }
     ckpt.setCheckpointType(checkpointType);
 }
 

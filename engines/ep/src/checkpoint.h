@@ -547,10 +547,6 @@ public:
         checkpointType = type;
     }
 
-    void forceUseOfKeyIndex() {
-        alwaysUseOfKeyIndex = true;
-    }
-
     void setHighCompletedSeqno(std::optional<uint64_t> seqno) {
         highCompletedSeqno = seqno;
     }
@@ -645,11 +641,6 @@ public:
     /// @return true if this is a disk checkpoint (replica streaming from disk)
     bool isDiskCheckpoint() const {
         return checkpointType == CheckpointType::Disk;
-    }
-
-    /// @return true if the keyIndexs should be used for deduplication
-    bool IsKeyIndexEnabled() const {
-        return !isDiskCheckpoint() || alwaysUseOfKeyIndex;
     }
 
     CheckpointType getCheckpointType() const {
@@ -754,10 +745,6 @@ private:
 
     // Is this a checkpoint created by a replica from a received disk snapshot?
     CheckpointType checkpointType;
-
-    // Used to state if we should ensure the use keyIndexes for the rest of the
-    // life time of this checkpoint.
-    bool alwaysUseOfKeyIndex = false;
 
     // The SyncRep HCS for this checkpoint. Used to ensure that we flush a
     // correct HCS at the end of a snapshot to disk. This is optional as it is
