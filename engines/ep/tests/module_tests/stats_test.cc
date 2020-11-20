@@ -608,6 +608,41 @@ TEST_F(StatTest, CBStatsNameSeparateFromEnum) {
     destroy_mock_cookie(cookie);
 }
 
+TEST_F(StatTest, LegacyStatsAreNotFormatted) {
+    // Test that adding stats via add_casted_stat (i.e., like code which has not
+    // been migrated to directly adding stats to a collector) does not attempt
+    // to format the stat key, as it may contain user data with invalid fmt
+    // specifiers. It should also not throw if that is the case.
+
+    using namespace std::string_view_literals;
+    using namespace testing;
+
+    auto cookie = create_mock_cookie(engine.get());
+
+    // mock addStatFn
+    NiceMock<MockFunction<void(
+            std::string_view, std::string_view, gsl::not_null<const void*>)>>
+            cb;
+
+    auto cbFunc = cb.AsStdFunction();
+
+    CBStatCollector collector(cbFunc, cookie);
+
+    auto bucket = collector.forBucket("BucketName");
+    InSequence s;
+
+    // First, confirm directly adding the stat to the collector _does_
+    // format it.
+    EXPECT_CALL(cb, Call("BucketName:some_stat_key"sv, _, _));
+    bucket.addStat("{bucket}:some_stat_key", "value");
+
+    // but add_casted_stat does _not_.
+    EXPECT_CALL(cb, Call("{bucket}:some_stat_key"sv, _, _));
+    add_casted_stat("{bucket}:some_stat_key", "value", cbFunc, cookie);
+
+    destroy_mock_cookie(cookie);
+}
+
 TEST_P(DatatypeStatTest, datatypesInitiallyZero) {
     // Check that the datatype stats initialise to 0
     auto vals = get_stat(nullptr);

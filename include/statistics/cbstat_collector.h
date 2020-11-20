@@ -77,6 +77,22 @@ public:
         return {cookie, addStatFn};
     }
 
+    /**
+     * Turn off formatting of stat keys for this collector.
+     * Used to avoid "legacy" stats added via add_casted_stat being used
+     * as a format string. These keys may include user data (e.g., dcp
+     * connection names) which may contain invalid collection specifiers.
+     *
+     * Once all stats are added to a collector directly, this will no
+     * longer be necessary, as all user data can be incorporated into
+     * the stat key from labels (provided to format as a _value_, rather than
+     * within the format string).
+     *
+     */
+    void disableStatKeyFormatting() {
+        shouldFormatStatKeys = false;
+    }
+
 private:
     /**
      * Formats a CBStats-suitable stat key. This replaces any named format
@@ -104,6 +120,11 @@ private:
      */
     std::string formatKey(std::string_view key, const Labels& labels) const;
 
+    // Whether this stat collector should attempt to replace fmt specifiers
+    // in the provided stat keys. May be disabled for stats with unsanitized
+    // user data in the key.
+    bool shouldFormatStatKeys = true;
+
     const AddStatFn& addStatFn;
     const void* cookie;
 };
@@ -115,7 +136,9 @@ void add_casted_stat(std::string_view k,
                      T&& v,
                      const AddStatFn& add_stat,
                      const void* cookie) {
-    CBStatCollector(add_stat, cookie).addStat(k, std::forward<T>(v));
+    CBStatCollector collector(add_stat, cookie);
+    collector.disableStatKeyFormatting();
+    collector.addStat(k, std::forward<T>(v));
 }
 
 template <typename P, typename T>

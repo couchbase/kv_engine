@@ -31,7 +31,10 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
     // CBStats has no concept of labels, but needs to distinguish some stats
     // through prefixes
 
-    addStatFn(formatKey(k.cbstatsKey, labels), v, cookie);
+    auto key = shouldFormatStatKeys ? formatKey(k.cbstatsKey, labels)
+                                    : std::string(k.cbstatsKey);
+
+    addStatFn(key, v, cookie);
 }
 
 void CBStatCollector::addStat(const cb::stats::StatDef& k,
@@ -67,7 +70,8 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
 void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               const HistogramData& hist,
                               const Labels& labels) const {
-    auto key = formatKey(k.cbstatsKey, labels);
+    auto key = shouldFormatStatKeys ? formatKey(k.cbstatsKey, labels)
+                                    : std::string(k.cbstatsKey);
     fmt::memory_buffer buf;
     format_to(buf, "{}_mean", key);
     addStat(cb::stats::StatDef({buf.data(), buf.size()}), hist.mean, labels);
