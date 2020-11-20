@@ -31,15 +31,19 @@ import re
 print('[')
 first = True
 for line in fileinput.input():
-    m = re.search("Slow operation. (.*)", line)
+    m = re.search("WARNING (\d+): Slow operation. (.*)", line)
     if m:
-        slow_op = json.loads(m.group(1))
+        fd = m.group(1)
+        slow_op = json.loads(m.group(2))
 
         # Set the common fields for all events for this operation
         common = dict()
         common['cat'] = slow_op['command']
         common['ph'] = 'X'
-        common['pid'] = slow_op['cid']
+        # cid = "connectionID/opaque"
+        cid = slow_op['cid']
+        (connection_id, opaque) = slow_op['cid'].rsplit('/', 1)
+        common['pid'] = connection_id
 
         # Build a trace event from each span in the slow op.
         for span in slow_op['trace'].split():
@@ -49,6 +53,9 @@ for line in fileinput.input():
             event['name'] = name
             event['ts'] = int(start_us) / 1000
             event['dur'] = dur
+            event['args'] = {'opaque': opaque,
+                             'fd': fd,
+                             'peer': slow_op['peer']}
             if not first:
                 print(',', end=' ')
             first = False
