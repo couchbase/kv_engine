@@ -296,6 +296,14 @@ ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) {
     case ENGINE_DELTA_BADVAL: // FALLTHROUGH
     case ENGINE_PREDICATE_FAILED:
     case ENGINE_FAILED:
+        /**
+         * For ENGINE_STREAM_NOT_FOUND and ENGINE_OPAQUE_NO_MATCH, fallthrough
+         * as these will only ever be used if the DcpConsumer has successfully
+         * enabled them using the DcpControl msg with key=v7_dcp_status_codes
+         * value=true
+         */
+    case ENGINE_STREAM_NOT_FOUND:
+    case ENGINE_OPAQUE_NO_MATCH:
         return code;
 
     case ENGINE_LOCKED:
@@ -321,8 +329,6 @@ ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) {
         return ENGINE_TMPFAIL;
     case ENGINE_SYNC_WRITE_AMBIGUOUS:
     case ENGINE_DCP_STREAMID_INVALID:
-    case ENGINE_STREAM_NOT_FOUND:
-    case ENGINE_OPAQUE_NO_MATCH:
         break;
     }
 
