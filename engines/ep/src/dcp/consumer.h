@@ -199,7 +199,7 @@ public:
      * @returns true/false which will be converted to SUCCESS/DISCONNECT by the
      *          engine.
      */
-    bool handleResponse(const protocol_binary_response_header* resp) override;
+    bool handleResponse(const cb::mcbp::Response& resp) override;
 
     /**
      * Push a systemEvent onto this DCP consumer for consumption by a VB

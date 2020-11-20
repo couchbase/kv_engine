@@ -835,7 +835,7 @@ public:
 
     ENGINE_ERROR_CODE response_handler(
             gsl::not_null<const void*> cookie,
-            const protocol_binary_response_header* response) override;
+            const cb::mcbp::Response& response) override;
 
     ENGINE_ERROR_CODE system_event(gsl::not_null<const void*> cookie,
                                    uint32_t opaque,
@@ -1677,8 +1677,7 @@ ENGINE_ERROR_CODE EWB_Engine::control(gsl::not_null<const void*> cookie,
 }
 
 ENGINE_ERROR_CODE EWB_Engine::response_handler(
-        gsl::not_null<const void*> cookie,
-        const protocol_binary_response_header* response) {
+        gsl::not_null<const void*> cookie, const cb::mcbp::Response& response) {
     if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {

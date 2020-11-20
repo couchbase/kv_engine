@@ -1643,8 +1643,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::control(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::response_handler(
-        gsl::not_null<const void*> cookie,
-        const protocol_binary_response_header* response) {
+        gsl::not_null<const void*> cookie, const cb::mcbp::Response& response) {
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {

@@ -26,13 +26,15 @@
 #include <gsl/gsl>
 
 struct DocKey;
-union protocol_binary_request_header;
-union protocol_binary_response_header;
 
 namespace cb::durability {
 class Requirements;
 enum class Level : uint8_t;
 } // namespace cb::durability
+
+namespace cb::mcbp {
+class Response;
+}
 
 namespace mcbp::systemevent {
 enum class id : uint32_t;
@@ -665,7 +667,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      */
     virtual ENGINE_ERROR_CODE response_handler(
             gsl::not_null<const void*> cookie,
-            const protocol_binary_response_header* response) = 0;
+            const cb::mcbp::Response& response) = 0;
 
     /**
      * Callback to the engine that a system event message was received.

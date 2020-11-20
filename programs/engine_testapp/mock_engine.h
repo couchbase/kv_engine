@@ -275,7 +275,7 @@ struct MockEngine : public EngineIface, public DcpIface {
 
     ENGINE_ERROR_CODE response_handler(
             gsl::not_null<const void*> cookie,
-            const protocol_binary_response_header* response) override;
+            const cb::mcbp::Response& response) override;
 
     ENGINE_ERROR_CODE system_event(gsl::not_null<const void*> cookie,
                                    uint32_t opaque,

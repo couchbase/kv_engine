@@ -200,7 +200,7 @@ public:
      * @returns true/false which will be converted to SUCCESS/DISCONNECT by the
      *          engine.
      */
-    virtual bool handleResponse(const protocol_binary_response_header* resp);
+    virtual bool handleResponse(const cb::mcbp::Response& resp);
 
     virtual ENGINE_ERROR_CODE systemEvent(uint32_t opaque,
                                           Vbid vbucket,

@@ -595,12 +595,7 @@ static void process_bin_dcp_response(Cookie& cookie) {
         return;
     }
 
-    auto packet = cookie.getPacket();
-    const auto* header =
-            reinterpret_cast<const protocol_binary_response_header*>(
-                    packet.data());
-
-    auto ret = dcp->response_handler(&cookie, header);
+    auto ret = dcp->response_handler(&cookie, cookie.getHeader().getResponse());
     auto remapErr = c.remapErrorCode(ret);
 
     if (remapErr == ENGINE_DISCONNECT) {

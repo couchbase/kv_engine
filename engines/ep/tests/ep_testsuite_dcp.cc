@@ -64,7 +64,7 @@ static void dcp_step(EngineIface* h,
 
 static void dcpHandleResponse(EngineIface* h,
                               const void* cookie,
-                              protocol_binary_response_header* response,
+                              const cb::mcbp::Response& response,
                               MockDcpMessageProducers& producers) {
     auto dcp = requireDcpIface(h);
     auto erroCode = dcp->response_handler(cookie, response);
@@ -3623,12 +3623,12 @@ static void simulateProdRespToDcpControlBlockingNegotiation(
         EngineIface* engine,
         const void* cookie,
         MockDcpMessageProducers& producers) {
-    protocol_binary_response_header resp{};
-    resp.response.setMagic(cb::mcbp::Magic::ClientResponse);
-    resp.response.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
-    resp.response.setStatus(cb::mcbp::Status::Success);
-    resp.response.setOpaque(producers.last_opaque);
-    dcpHandleResponse(engine, cookie, &resp, producers);
+    cb::mcbp::Response resp{};
+    resp.setMagic(cb::mcbp::Magic::ClientResponse);
+    resp.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
+    resp.setStatus(cb::mcbp::Status::Success);
+    resp.setOpaque(producers.last_opaque);
+    dcpHandleResponse(engine, cookie, resp, producers);
 }
 
 static uint32_t add_stream_for_consumer(EngineIface* h,
@@ -3674,11 +3674,11 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
         // This step is necessary, as a pending GetErrorMap response would
         // not let the next dcp_step() to execute the
         // DcpControl/set_noop_interval call.
-        protocol_binary_response_header resp{};
-        resp.response.setMagic(cb::mcbp::Magic::ClientResponse);
-        resp.response.setOpcode(cb::mcbp::ClientOpcode::GetErrorMap);
-        resp.response.setStatus(cb::mcbp::Status::Success);
-        dcpHandleResponse(h, cookie, &resp, producers);
+        cb::mcbp::Response resp{};
+        resp.setMagic(cb::mcbp::Magic::ClientResponse);
+        resp.setOpcode(cb::mcbp::ClientOpcode::GetErrorMap);
+        resp.setStatus(cb::mcbp::Status::Success);
+        dcpHandleResponse(h, cookie, resp, producers);
 
         // Check that the enable noop message is sent
         dcpStepAndExpectControlMsg("enable_noop"s);
@@ -3753,7 +3753,7 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
     }
 
     checkeq(ENGINE_SUCCESS,
-            dcp->response_handler(cookie, pkt),
+            dcp->response_handler(cookie, pkt->response),
             "Expected success");
     dcp_step(h, cookie, producers);
     cb_free(pkt);
@@ -3781,7 +3781,7 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
         memcpy(pkt->bytes + headerlen + 8, &by_seqno, sizeof(uint64_t));
 
         checkeq(ENGINE_SUCCESS,
-                dcp->response_handler(cookie, pkt),
+                dcp->response_handler(cookie, pkt->response),
                 "Expected success");
         dcp_step(h, cookie, producers);
 
@@ -4527,7 +4527,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h) {
     memcpy(pkt->bytes + 24, &rollbackSeqno, sizeof(uint64_t));
 
     checkeq(ENGINE_SUCCESS,
-            dcp->response_handler(cookie, pkt),
+            dcp->response_handler(cookie, pkt->response),
             "Expected success");
 
     do {
@@ -4553,7 +4553,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h) {
     memcpy(pkt->bytes + 22, &by_seqno, sizeof(uint64_t));
 
     checkeq(ENGINE_SUCCESS,
-            dcp->response_handler(cookie, pkt),
+            dcp->response_handler(cookie, pkt->response),
             "Expected success");
     dcp_step(h, cookie, producers);
     cb_free(pkt);
@@ -4629,7 +4629,7 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h) {
     memcpy(pkt1->bytes + headerlen, &rollbackSeqno, bodylen);
 
     checkeq(ENGINE_SUCCESS,
-            dcp->response_handler(cookie, pkt1),
+            dcp->response_handler(cookie, pkt1->response),
             "Expected Success after Rollback");
     wait_for_stat_to_be(h, "ep_rollback_count", 1);
     dcp_step(h, cookie, producers);
@@ -4653,7 +4653,7 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h) {
     memcpy(pkt2->bytes + headerlen + 8, &by_seqno, sizeof(uint64_t));
 
     checkeq(ENGINE_SUCCESS,
-            dcp->response_handler(cookie, pkt2),
+            dcp->response_handler(cookie, pkt2->response),
             "Expected success");
 
     dcp_step(h, cookie, producers);
@@ -4754,7 +4754,7 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h) {
     memcpy(pkt1->bytes + headerlen, &rollbackPt, bodylen);
 
     checkeq(ENGINE_SUCCESS,
-            dcp->response_handler(cookie, pkt1),
+            dcp->response_handler(cookie, pkt1->response),
             "Expected Success after Rollback");
     wait_for_stat_to_be(h, "ep_rollback_count", 1);
     dcp_step(h, cookie, producers);
@@ -4775,7 +4775,7 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h) {
     memcpy(pkt2->bytes + headerlen + 8, &by_seqno, sizeof(uint64_t));
 
     checkeq(ENGINE_SUCCESS,
-            dcp->response_handler(cookie, pkt2),
+            dcp->response_handler(cookie, pkt2->response),
             "Expected success");
     dcp_step(h, cookie, producers);
 

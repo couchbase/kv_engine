@@ -333,9 +333,8 @@ public:
         return ENGINE_NO_BUCKET;
     }
 
-    ENGINE_ERROR_CODE response_handler(
-            gsl::not_null<const void*>,
-            const protocol_binary_response_header*) override {
+    ENGINE_ERROR_CODE response_handler(gsl::not_null<const void*>,
+                                       const cb::mcbp::Response&) override {
         return ENGINE_NO_BUCKET;
     }
 

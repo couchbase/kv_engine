@@ -952,13 +952,13 @@ bool RollbackTask::run() {
     return false;
 }
 
-bool DcpConsumer::handleResponse(const protocol_binary_response_header* resp) {
+bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
     if (doDisconnect()) {
         return false;
     }
 
-    const auto opcode = resp->response.getClientOpcode();
-    const auto opaque = resp->response.getOpaque();
+    const auto opcode = response.getClientOpcode();
+    const auto opaque = response.getOpaque();
 
     if (opcode == cb::mcbp::ClientOpcode::DcpStreamReq) {
         auto oitr = opaqueMap_.find(opaque);
@@ -977,7 +977,6 @@ bool DcpConsumer::handleResponse(const protocol_binary_response_header* resp) {
             return false;
         }
 
-        const auto& response = resp->response;
         Vbid vbid = oitr->second.second;
         const auto status = response.getStatus();
         const auto value = response.getValue();
@@ -1026,24 +1025,24 @@ bool DcpConsumer::handleResponse(const protocol_binary_response_header* resp) {
         // complete the negotiation.
         // Note that a pre-6.5 Producer sends EINVAL as it does not recognize
         // the Sync Replication negotiation-key.
-        if (resp->response.getOpaque() == syncReplNegotiation.opaque) {
+        if (response.getOpaque() == syncReplNegotiation.opaque) {
             syncReplNegotiation.state =
                     BlockingDcpControlNegotiation::State::Completed;
-            if (resp->response.getStatus() == cb::mcbp::Status::Success) {
+            if (response.getStatus() == cb::mcbp::Status::Success) {
                 supportsSyncReplication.store(SyncReplication::SyncReplication);
             }
-        } else if (resp->response.getOpaque() ==
+        } else if (response.getOpaque() ==
                    deletedUserXattrsNegotiation.opaque) {
             deletedUserXattrsNegotiation.state =
                     BlockingDcpControlNegotiation::State::Completed;
             includeDeletedUserXattrs =
-                    (resp->response.getStatus() == cb::mcbp::Status::Success
+                    (response.getStatus() == cb::mcbp::Status::Success
                              ? IncludeDeletedUserXattrs::Yes
                              : IncludeDeletedUserXattrs::No);
         }
         return true;
     } else if (opcode == cb::mcbp::ClientOpcode::GetErrorMap) {
-        auto status = resp->response.getStatus();
+        auto status = response.getStatus();
         // GetErrorMap is supported on versions >= 5.0.0.
         // "Unknown Command" is returned on pre-5.0.0 versions.
         producerIsVersion5orHigher = status != cb::mcbp::Status::UnknownCommand;

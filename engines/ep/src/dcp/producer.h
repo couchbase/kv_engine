@@ -104,7 +104,7 @@ public:
      * @returns true/false which will be converted to SUCCESS/DISCONNECT by the
      *          engine.
      */
-    bool handleResponse(const protocol_binary_response_header* resp) override;
+    bool handleResponse(const cb::mcbp::Response& resp) override;
 
     void addStats(const AddStatFn& add_stat, const void* c) override;
 

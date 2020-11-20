@@ -712,8 +712,7 @@ ENGINE_ERROR_CODE MockEngine::buffer_acknowledgement(
 }
 
 ENGINE_ERROR_CODE MockEngine::response_handler(
-        gsl::not_null<const void*> cookie,
-        const protocol_binary_response_header* response) {
+        gsl::not_null<const void*> cookie, const cb::mcbp::Response& response) {
     return the_engine_dcp->response_handler(cookie, response);
 }
 

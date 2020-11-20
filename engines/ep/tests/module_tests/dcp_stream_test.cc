@@ -2903,11 +2903,11 @@ TEST_P(SingleThreadedPassiveStreamTest,
 }
 
 TEST_P(SingleThreadedPassiveStreamTest, ConsumerHandlesSeqnoAckResponse) {
-    protocol_binary_response_header resp{};
-    resp.response.setMagic(cb::mcbp::Magic::AltClientResponse);
-    resp.response.setOpcode(cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged);
-    resp.response.setStatus(cb::mcbp::Status::NotMyVbucket);
-    EXPECT_TRUE(consumer->handleResponse(&resp));
+    cb::mcbp::Response resp{};
+    resp.setMagic(cb::mcbp::Magic::AltClientResponse);
+    resp.setOpcode(cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged);
+    resp.setStatus(cb::mcbp::Status::NotMyVbucket);
+    EXPECT_TRUE(consumer->handleResponse(resp));
 }
 
 TEST_P(SingleThreadedActiveStreamTest,

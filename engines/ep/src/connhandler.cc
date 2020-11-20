@@ -232,7 +232,7 @@ ENGINE_ERROR_CODE ConnHandler::step(DcpMessageProducersIface&) {
     return ENGINE_DISCONNECT;
 }
 
-bool ConnHandler::handleResponse(const protocol_binary_response_header* resp) {
+bool ConnHandler::handleResponse(const cb::mcbp::Response& resp) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the dcp response handler API");

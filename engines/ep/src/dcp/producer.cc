@@ -1178,15 +1178,15 @@ ENGINE_ERROR_CODE DcpProducer::seqno_acknowledged(uint32_t opaque,
     return stream->seqnoAck(consumerName, prepared_seqno);
 }
 
-bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
+bool DcpProducer::handleResponse(const cb::mcbp::Response& response) {
     lastReceiveTime = ep_current_time();
     if (doDisconnect()) {
         return false;
     }
 
-    const auto opcode = resp->response.getClientOpcode();
-    const auto opaque = resp->response.getOpaque();
-    const auto responseStatus = resp->response.getStatus();
+    const auto opcode = response.getClientOpcode();
+    const auto opaque = response.getOpaque();
+    const auto responseStatus = response.getStatus();
 
     // Search for an active stream with the same opaque as the response.
     auto streamFindFn = [opaque](const StreamsMap::value_type& s) {
@@ -1242,7 +1242,7 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
                     "affect "
                     "only one stream:{}",
                     to_string(responseStatus),
-                    resp->response.toJSON(true).dump(),
+                    response.toJSON(true).dump(),
                     streamInfo);
             return true;
         }
@@ -1250,7 +1250,7 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
                 "DcpProducer::handleResponse disconnecting, received "
                 "unexpected "
                 "response:{} for stream:{}",
-                resp->response.toJSON(true).dump(),
+                response.toJSON(true).dump(),
                 streamInfo);
         return false;
     };
@@ -1280,7 +1280,7 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
         }
         return errorMessageHandler();
     case cb::mcbp::ClientOpcode::DcpNoop:
-        if (noopCtx.opaque == resp->response.getOpaque()) {
+        if (noopCtx.opaque == response.getOpaque()) {
             noopCtx.pendingRecv = false;
             return true;
         }
@@ -1308,7 +1308,7 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
         std::string errorMsg(
                 "DcpProducer::handleResponse received an unknown client "
                 "opcode: ");
-        errorMsg += resp->response.toJSON(true).dump();
+        errorMsg += response.toJSON(true).dump();
         throw std::logic_error(errorMsg);
     }
 }

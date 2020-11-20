@@ -3735,16 +3735,16 @@ TEST_P(STParamPersistentBucketTest, MB_29541) {
 
     // For completeness step to end
     // we must ack the VB state
-    protocol_binary_response_header message;
-    message.response.setMagic(cb::mcbp::Magic::ClientResponse);
-    message.response.setOpcode(cb::mcbp::ClientOpcode::DcpSetVbucketState);
-    message.response.setOpaque(1);
-    EXPECT_TRUE(producer->handleResponse(&message));
+    cb::mcbp::Response message{};
+    message.setMagic(cb::mcbp::Magic::ClientResponse);
+    message.setOpcode(cb::mcbp::ClientOpcode::DcpSetVbucketState);
+    message.setOpaque(1);
+    EXPECT_TRUE(producer->handleResponse(message));
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, producers.last_op);
 
-    EXPECT_TRUE(producer->handleResponse(&message));
+    EXPECT_TRUE(producer->handleResponse(message));
     EXPECT_FALSE(vb0Stream->isActive());
     // Stop Producer checkpoint processor task
     producer->cancelCheckpointCreatorTask();
@@ -3759,10 +3759,10 @@ TEST_F(SingleThreadedEPBucketTest, MB_32724) {
 
     MockDcpMessageProducers producers;
 
-    protocol_binary_response_header message;
-    message.response.setMagic(cb::mcbp::Magic::ClientResponse);
-    message.response.setOpcode(cb::mcbp::ClientOpcode::DcpSetVbucketState);
-    EXPECT_TRUE(p->handleResponse(&message));
+    cb::mcbp::Response message{};
+    message.setMagic(cb::mcbp::Magic::ClientResponse);
+    message.setOpcode(cb::mcbp::ClientOpcode::DcpSetVbucketState);
+    EXPECT_TRUE(p->handleResponse(message));
 }
 
 /* When a backfill is activated along with a slow stream trigger,

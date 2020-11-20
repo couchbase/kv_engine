@@ -444,12 +444,12 @@ void STDcpTest::testConsumerNegotiatesIncludeDeletedUserXattrs(
             (producerState == IncludeDeletedUserXattrs::Yes
                      ? cb::mcbp::Status::Success
                      : cb::mcbp::Status::UnknownCommand);
-    protocol_binary_response_header resp{};
-    resp.response.setMagic(cb::mcbp::Magic::ClientResponse);
-    resp.response.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
-    resp.response.setStatus(respStatus);
-    resp.response.setOpaque(xattrNeg.opaque);
-    consumer.handleResponse(&resp);
+    cb::mcbp::Response response{};
+    response.setMagic(cb::mcbp::Magic::ClientResponse);
+    response.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
+    response.setStatus(respStatus);
+    response.setOpaque(xattrNeg.opaque);
+    consumer.handleResponse(response);
 
     // Verify final consumer state
     xattrNeg = consumer.public_getDeletedUserXattrsNegotiation();

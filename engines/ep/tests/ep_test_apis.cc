@@ -1462,15 +1462,16 @@ void sendDcpAck(EngineIface* h,
                 cb::mcbp::ClientOpcode opcode,
                 cb::mcbp::Status status,
                 uint32_t opaque) {
-    protocol_binary_response_header pkt;
-    pkt.response.setMagic(cb::mcbp::Magic::ClientResponse);
-    pkt.response.setOpcode(opcode);
-    pkt.response.setStatus(status);
-    pkt.response.setOpaque(opaque);
+    cb::mcbp::Response pkt{};
+    pkt.setMagic(cb::mcbp::Magic::ClientResponse);
+    pkt.setOpcode(opcode);
+    pkt.setStatus(status);
+    pkt.setOpaque(opaque);
 
     auto& dcp = dynamic_cast<DcpIface&>(*h);
-    checkeq(ENGINE_SUCCESS, dcp.response_handler(cookie, &pkt),
-          "Expected success");
+    checkeq(ENGINE_SUCCESS,
+            dcp.response_handler(cookie, pkt),
+            "Expected success");
 }
 
 class engine_error : public std::exception {

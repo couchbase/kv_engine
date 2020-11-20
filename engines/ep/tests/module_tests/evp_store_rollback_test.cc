@@ -1026,7 +1026,7 @@ public:
         // with the next failover entry.
         auto msg = getRollbackResponse(1 /*opaque*/, rollbackSeq);
         EXPECT_TRUE(consumer->handleResponse(
-                reinterpret_cast<protocol_binary_response_header*>(msg.get())));
+                *reinterpret_cast<cb::mcbp::Response*>(msg.get())));
 
         // Consumer should of added a StreamRequest with a different vbuuid
         EXPECT_NE(previousUUID, vb->failovers->getLatestEntry().vb_uuid);
@@ -1040,7 +1040,7 @@ public:
         // with the next failover entry.
         auto msg = getRollbackResponse(1 /*opaque*/, rollbackSeq);
         EXPECT_TRUE(consumer->handleResponse(
-                reinterpret_cast<protocol_binary_response_header*>(msg.get())));
+                *reinterpret_cast<cb::mcbp::Response*>(msg.get())));
 
         // consumer must of scheduled a RollbackTask (writer task)
         auto& lpWriteQ = *task_executor->getLpTaskQ()[WRITER_TASK_IDX];

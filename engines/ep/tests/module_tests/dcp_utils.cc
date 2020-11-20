@@ -33,11 +33,11 @@ void handleProducerResponseIfStepBlocked(MockDcpConsumer& consumer,
     // that the GetErrorMap response has been received. The next calls to
     // step() would block forever in DcpConsumer::handleGetErrorMap() otherwise
     if (producers.last_op == cb::mcbp::ClientOpcode::GetErrorMap) {
-        protocol_binary_response_header resp{};
-        resp.response.setMagic(cb::mcbp::Magic::ClientResponse);
-        resp.response.setOpcode(cb::mcbp::ClientOpcode::GetErrorMap);
-        resp.response.setStatus(cb::mcbp::Status::Success);
-        consumer.handleResponse(&resp);
+        cb::mcbp::Response resp{};
+        resp.setMagic(cb::mcbp::Magic::ClientResponse);
+        resp.setOpcode(cb::mcbp::ClientOpcode::GetErrorMap);
+        resp.setStatus(cb::mcbp::Status::Success);
+        consumer.handleResponse(resp);
     }
 
     // Part of the Consumer-Producer negotiation happens over DCP_CONTROL and
@@ -51,12 +51,12 @@ void handleProducerResponseIfStepBlocked(MockDcpConsumer& consumer,
                     consumer.public_getSyncReplNegotiationOpaque() ||
             producers.last_opaque ==
                     consumer.public_getDeletedUserXattrsNegotiation().opaque) {
-            protocol_binary_response_header resp{};
-            resp.response.setMagic(cb::mcbp::Magic::ClientResponse);
-            resp.response.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
-            resp.response.setStatus(cb::mcbp::Status::Success);
-            resp.response.setOpaque(producers.last_opaque);
-            consumer.handleResponse(&resp);
+            cb::mcbp::Response resp{};
+            resp.setMagic(cb::mcbp::Magic::ClientResponse);
+            resp.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
+            resp.setStatus(cb::mcbp::Status::Success);
+            resp.setOpaque(producers.last_opaque);
+            consumer.handleResponse(resp);
         }
     }
 }
