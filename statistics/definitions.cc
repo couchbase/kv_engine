@@ -27,13 +27,17 @@ using namespace std::string_view_literals;
 
 #define LABEL(key, value) \
     { #key, #value }
-#define STAT(statEnum, cbstatsName, unit, prometheusName, ...)   \
-    StatDef(#cbstatsName##sv.empty() ? #statEnum : #cbstatsName, \
-            unit,                                                \
-            #prometheusName,                                     \
+#define STAT(statEnum, cbstatsName, unit, prometheusName, ...) \
+    StatDef(std::string_view(cbstatsName).empty()              \
+                    ? #statEnum                                \
+                    : std::string_view(cbstatsName),           \
+            unit,                                              \
+            #prometheusName,                                   \
             {__VA_ARGS__}),
-#define CBSTAT(statEnum, cbstatsName, ...)                       \
-    StatDef(#cbstatsName##sv.empty() ? #statEnum : #cbstatsName, \
+#define CBSTAT(statEnum, cbstatsName, ...)           \
+    StatDef(std::string_view(cbstatsName).empty()    \
+                    ? #statEnum                      \
+                    : std::string_view(cbstatsName), \
             cb::stats::StatDef::CBStatsOnlyTag{}),
 const std::array<StatDef, size_t(Key::enum_max)> statDefinitions{{
 #include <statistics/stats.def.h>

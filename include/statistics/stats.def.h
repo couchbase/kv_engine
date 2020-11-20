@@ -400,8 +400,8 @@ STAT(cmd_mutation_10s_count, , count, , )
 // us suffix would be confusing in Prometheus as the stat is scaled to seconds
 STAT(cmd_mutation_10s_duration_us, , microseconds, cmd_mutation_10s_duration, )
 STAT(total_resp_errors, , count, , )
-STAT(audit_enabled, enabled, none, audit_enabled, )
-STAT(audit_dropped_events, dropped_events, count, audit_dropped_events, )
+STAT(audit_enabled, "enabled", none, audit_enabled, )
+STAT(audit_dropped_events, "dropped_events", count, audit_dropped_events, )
 
 // Vbucket aggreagated stats
 #define VB_AGG_STAT(enumKey, unit, familyName, ...) \
@@ -490,3 +490,29 @@ STAT(ep_active_behind_exceptions, , count, , )
 STAT(ep_replica_ahead_exceptions, , count, , )
 STAT(ep_replica_behind_exceptions, , count, , )
 STAT(ep_clock_cas_drift_threshold_exceeded, , count, , )
+
+STAT(connagg_connection_count,
+     "{connection_type}:count",
+     count,
+     dcp_connection_count, )
+STAT(connagg_backoff, "{connection_type}:backoff", count, dcp_backoff, )
+STAT(connagg_producer_count,
+     "{connection_type}:producer_count",
+     count,
+     dcp_producer_count, )
+STAT(connagg_items_sent,
+     "{connection_type}:items_sent",
+     count,
+     dcp_items_sent, )
+STAT(connagg_items_remaining,
+     "{connection_type}:items_remaining",
+     count,
+     dcp_items_remaining, )
+STAT(connagg_total_bytes,
+     "{connection_type}:total_bytes",
+     bytes,
+     dcp_total_bytes, )
+STAT(connagg_total_uncompressed_data_size,
+     "{connection_type}:total_uncompressed_data_size",
+     bytes,
+     dcp_total_uncompressed_data_size, )
