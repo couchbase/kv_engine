@@ -29,9 +29,9 @@ logging.basicConfig(level=logging.INFO)
 logging.getLogger('urllib3').setLevel(logging.ERROR)
 
 def is_package_installed(package):
-    if '.el' in package:
-        with open(os.devnull, 'w') as devnull:
-            return subprocess.call(["rpm", "-q", package], stdout=devnull) == 0
+    with open(os.devnull, 'w') as devnull:
+        return subprocess.call(["rpm", "-q", package], stdout=devnull) == 0
+
 
 def download_package(package):
     """Given a package name+version string, attempt to locate the file
@@ -42,15 +42,17 @@ def download_package(package):
     """
     if '.el' in package:
         return download_centos_package(package)
+    if package.startswith('couchbase-server'):
+        return download_couchbase_package(package)
 
 
-def try_download_from_url(host, version, subdir, package):
+def try_download_from_url(base_url, package):
     filename = package + ".rpm"
     if os.path.isfile(filename):
         print(("Skipping download of {} as file already " +
                "exists.").format(filename), file=sys.stderr)
         return filename
-    url = host + "/" + version + "/" + subdir + "/" + filename
+    url = base_url + "/" + filename
     response = requests.get(url, stream=True)
     if response.status_code == 200:
         logging.info("Found at {}".format(url))
@@ -67,8 +69,8 @@ def download_centos_package(package):
     # Current releases are available from mirror, historic from vault,
     # debuginfo from debuginfo.
     if 'debuginfo' in package:
-        return try_download_from_url('http://debuginfo.centos.org', '7',
-                                     'x86_64', package)
+        return try_download_from_url('http://debuginfo.centos.org/7/x86_64',
+                                     package)
 
     repos = {'http://mirror.centos.org/centos': ('7',),
              'http://vault.centos.org':
@@ -79,9 +81,34 @@ def download_centos_package(package):
     for host, versions in repos.iteritems():
         for version in versions:
             for subdir in subdirs:
-                filename = try_download_from_url(host, version, subdir, package)
+                base_url = host + '/' + version + '/' + subdir
+                filename = try_download_from_url(base_url, package)
                 if filename:
                     return filename
+    return None
+
+
+def download_couchbase_package(package):
+    logging.info("Searching for Couchbase package '%s'", package)
+    # GA'd versions available from packages.couchbase.com, pre-release from
+    # latestbuilds (requires VPN).
+    (name, version, build_arch) = package.rsplit('-', 2)
+    (build, arch) = build_arch.split('.')
+    version_to_dir = {'7.0.0': 'http://latestbuilds.service.couchbase.com/builds/latestbuilds/couchbase-server/cheshire-cat'}
+    if version in version_to_dir:
+        base_url = version_to_dir[version] + '/' + build
+        # Map package name to filename - the EE package is named
+        # 'couchbase-server', the CE one 'couchbase-server-community'.
+        pkg_to_file = {'couchbase-server': 'couchbase-server-enterprise',
+                       'couchbase-server-debuginfo': 'couchbase-server-enterprise-debuginfo'}
+        if name in pkg_to_file:
+            name = pkg_to_file[name]
+
+        # Insert the distribution name
+        # TODO: derive this from current system
+        filename = (name + '-' + version + '-' + build + '-centos7.' + arch)
+
+        return try_download_from_url(base_url, filename)
     return None
 
 
