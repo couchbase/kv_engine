@@ -1486,6 +1486,7 @@ TEST_P(DurabilityWarmupTest, testHPSPersistedAndLoadedIntoVBState) {
     auto vbstate = *kvstore->getVBucketState(vbid);
     ASSERT_EQ(0, vbstate.persistedPreparedSeqno);
     ASSERT_EQ(0, vbstate.onDiskPrepares);
+    ASSERT_EQ(0, vbstate.getOnDiskPrepareBytes());
 
     // Check the Prepared
     const int64_t preparedSeqno = 1;
@@ -1507,6 +1508,9 @@ TEST_P(DurabilityWarmupTest, testHPSPersistedAndLoadedIntoVBState) {
     // Magma does not track the prepare count
     if (!isRocksDB() && !isMagma()) {
         EXPECT_EQ(1, vbstate.onDiskPrepares);
+        // Hard to predict the size of the prepare on-disk, given it will
+        // be compressed by couchstore. For simplicity just check it's non-zero.
+        EXPECT_GT(vbstate.getOnDiskPrepareBytes(), 0);
     }
 
     // Warmup
@@ -1521,6 +1525,7 @@ TEST_P(DurabilityWarmupTest, testHPSPersistedAndLoadedIntoVBState) {
     // Magma does not track the prepare count
     if (!isRocksDB() && !isMagma()) {
         EXPECT_EQ(1, vbstate.onDiskPrepares);
+        EXPECT_GT(vbstate.getOnDiskPrepareBytes(), 0);
     }
 }
 

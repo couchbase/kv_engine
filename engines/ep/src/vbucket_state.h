@@ -89,10 +89,25 @@ struct vbucket_state {
      * v3: Mad-Hatter. high_completed_seqno and high_prepared_seqno added along
      *     with counter for number of prepares on disk. Checkpoint-ID no longer
      *     stored (and ignored during upgrade)
+     * v4: 6.6.1, added with MB-32670. Adds onDiskPrepareBytes.
      */
-    static constexpr int CurrentVersion = 3;
+    static constexpr int CurrentVersion = 4;
 
     bool needsToBePersisted(const vbucket_state& vbstate);
+
+    uint64_t getOnDiskPrepareBytes() const {
+        return onDiskPrepareBytes;
+    }
+
+    void setOnDiskPrepareBytes(int64_t value) {
+        onDiskPrepareBytes = value;
+    }
+
+    /**
+     * Apply the given delta to the value of onDiskPrepareBytes. Clamps
+     * onDiskPrepareBytes at zero (avoids underflow).
+     */
+    void updateOnDiskPrepareBytes(int64_t delta);
 
     void reset();
 
@@ -185,6 +200,19 @@ struct vbucket_state {
      */
     uint64_t onDiskPrepares = 0;
 
+private:
+    /**
+     * Size in bytes of on disk prepares (Pending SyncWrites). Required to
+     * estimate the size of completed prepares as part of calculating the
+     * couchstore 'stale' data overhead.
+     * Note this is private as care needs to be taken when modifying it to
+     * ensure it doesn't underflow.
+     *
+     * Added for SyncReplication (MB-42306) in 6.6.1.
+     */
+    uint64_t onDiskPrepareBytes = 0;
+
+public:
     /**
      * The type of the most recently persisted snapshot disk. Required as we
      * cannot rely on the HCS in the middle of a snapshot to optimise warmup and

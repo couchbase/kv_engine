@@ -93,6 +93,7 @@ struct CompactionStats {
     size_t collectionsDeletedItemsPurged = 0;
     uint64_t tombstonesPurged = 0;
     uint64_t preparesPurged = 0;
+    uint64_t prepareBytesPurged = 0;
     FileInfo pre;
     FileInfo post;
 };
@@ -150,6 +151,12 @@ struct kvstats_ctx {
      * the persisted VB state before commit
      */
     size_t onDiskPrepareDelta = 0;
+
+    /**
+     * Delta of onDiskPrepareBytes that we should add to the value tracked in
+     * the persisted VB state before commit.
+     */
+    ssize_t onDiskPrepareBytesDelta = 0;
 };
 
 class NoLookupCallback : public StatusCallback<CacheLookup> {

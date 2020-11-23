@@ -101,6 +101,7 @@ void vbucket_state::reset() {
     highPreparedSeqno = 0;
     maxVisibleSeqno = 0;
     onDiskPrepares = 0;
+    onDiskPrepareBytes = 0;
     transition = vbucket_transition_state{};
 }
 
@@ -122,6 +123,7 @@ bool vbucket_state::operator==(const vbucket_state& other) const {
                 other.highPreparedSeqno);
     rv = rv && (maxVisibleSeqno == other.maxVisibleSeqno);
     rv = rv && (onDiskPrepares == other.onDiskPrepares);
+    rv = rv && (onDiskPrepareBytes == other.onDiskPrepareBytes);
     rv = rv && (checkpointType == other.checkpointType);
     rv = rv && (transition == other.transition);
     return rv;
@@ -129,6 +131,14 @@ bool vbucket_state::operator==(const vbucket_state& other) const {
 
 bool vbucket_state::operator!=(const vbucket_state& other) const {
     return !(*this == other);
+}
+
+void vbucket_state::updateOnDiskPrepareBytes(int64_t delta) {
+    // Note: onDiskPrepareBytes was only added in 6.6.1 (where it is
+    // initialized to zero). As such, if using files created before
+    // then, we need to ensure that onDiskPrepareBytes is capped at zero
+    // and doesn't underflow.
+    onDiskPrepareBytes += std::max(-int64_t(onDiskPrepareBytes), delta);
 }
 
 void to_json(nlohmann::json& json, const vbucket_state& vbs) {
@@ -154,6 +164,8 @@ void to_json(nlohmann::json& json, const vbucket_state& vbs) {
             {"high_prepared_seqno", std::to_string(vbs.highPreparedSeqno)},
             {"max_visible_seqno", std::to_string(vbs.maxVisibleSeqno)},
             {"on_disk_prepares", std::to_string(vbs.onDiskPrepares)},
+            {"on_disk_prepare_bytes",
+             std::to_string(vbs.getOnDiskPrepareBytes())},
             {"checkpoint_type", to_string(vbs.checkpointType)}};
 
     to_json(json, vbs.transition);
@@ -239,6 +251,10 @@ void from_json(const nlohmann::json& j, vbucket_state& vbs) {
 
     // Note: We don't track on disk prepares pre-6.5
     vbs.onDiskPrepares = std::stoll(j.value("on_disk_prepares", "0"));
+
+    // Note: We don't track on disk prepare total size pre-6.6.1.
+    vbs.setOnDiskPrepareBytes(
+            std::stoll(j.value("on_disk_prepare_bytes", "0")));
 
     // Note: We don't track checkpoint type pre-6.5
     auto checkpointType = j.find("checkpoint_type");

@@ -1154,6 +1154,8 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
                 }
             }
         }
+
+        // @todo MB-42900: Add support for onDiskPrepareBytes
     };
 
     // LocalDbReqs and MagmaDbStats are used to store the memory for the localDb
@@ -1180,6 +1182,8 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
 
         auto& vbstate = commitData.proposedVBState;
         vbstate.highSeqno = lastSeqno;
+        // @todo: Magma doesn't track onDiskPrepares
+        // @todo MB-42900: Magma doesn't track onDiskPrepareBytes
 
         // Write out current vbstate to the CommitBatch.
         addVBStateUpdateToLocalDbReqs(
