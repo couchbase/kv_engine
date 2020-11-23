@@ -17,7 +17,7 @@
 #pragma once
 
 #include <memcached/types.h>
-#include <time.h>
+#include <ctime>
 
 struct ServerCoreIface;
 

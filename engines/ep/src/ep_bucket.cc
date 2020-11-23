@@ -294,8 +294,7 @@ EPBucket::EPBucket(EventuallyPersistentEngine& theEngine)
     initializeWarmupTask();
 }
 
-EPBucket::~EPBucket() {
-}
+EPBucket::~EPBucket() = default;
 
 bool EPBucket::initialize() {
     KVBucket::initialize();
@@ -318,11 +317,11 @@ bool EPBucket::initialize() {
 void EPBucket::initializeShards() {
     vbMap.forEachShard([this](KVShard& shard) {
         shard.getRWUnderlying()->setMakeCompactionContextCallback(
-                std::bind(&EPBucket::makeCompactionContext,
-                          this,
-                          std::placeholders::_1,
-                          std::placeholders::_2,
-                          std::placeholders::_3));
+                [this](Vbid vbid,
+                       CompactionConfig& config,
+                       uint64_t purgeSeqno) {
+                    return makeCompactionContext(vbid, config, purgeSeqno);
+                });
     });
 }
 
@@ -1149,17 +1148,16 @@ std::shared_ptr<CompactionContext> EPBucket::makeCompactionContext(
     ExpiredItemsCBPtr expiry(new ExpiredItemsCallback(*this));
     ctx->expiryCallback = expiry;
 
-    ctx->droppedKeyCb = std::bind(&EPBucket::dropKey,
-                                  this,
-                                  vbid,
-                                  std::placeholders::_1,
-                                  std::placeholders::_2,
-                                  std::placeholders::_3,
-                                  std::placeholders::_4);
+    ctx->droppedKeyCb = [this, vbid](const DiskDocKey& diskKey,
+                                     int64_t bySeqno,
+                                     bool isAbort,
+                                     int64_t highCompletedSeqno) {
+        dropKey(vbid, diskKey, bySeqno, isAbort, highCompletedSeqno);
+    };
 
-    ctx->completionCallback = std::bind(&EPBucket::compactionCompletionCallback,
-                                        this,
-                                        std::placeholders::_1);
+    ctx->completionCallback = [this](CompactionContext& ctx) {
+        compactionCompletionCallback(ctx);
+    };
 
     return ctx;
 }
@@ -1303,22 +1301,27 @@ ENGINE_ERROR_CODE EPBucket::getPerVBucketDiskStats(const void* cookie,
         }
 
         void visitBucket(const VBucketPtr& vb) override {
-            char buf[32];
+            std::array<char, 32> buf;
             Vbid vbid = vb->getId();
             try {
                 auto dbInfo =
                         vb->getShard()->getRWUnderlying()->getDbFileInfo(vbid);
 
                 checked_snprintf(
-                        buf, sizeof(buf), "vb_%d:data_size", vbid.get());
+                        buf.data(), buf.size(), "vb_%d:data_size", vbid.get());
+                add_casted_stat(buf.data(),
+                                dbInfo.getEstimatedLiveData(),
+                                add_stat,
+                                cookie);
+                checked_snprintf(
+                        buf.data(), buf.size(), "vb_%d:file_size", vbid.get());
+                add_casted_stat(buf.data(), dbInfo.fileSize, add_stat, cookie);
+                checked_snprintf(buf.data(),
+                                 buf.size(),
+                                 "vb_%d:prepare_size",
+                                 vbid.get());
                 add_casted_stat(
-                        buf, dbInfo.getEstimatedLiveData(), add_stat, cookie);
-                checked_snprintf(
-                        buf, sizeof(buf), "vb_%d:file_size", vbid.get());
-                add_casted_stat(buf, dbInfo.fileSize, add_stat, cookie);
-                checked_snprintf(
-                        buf, sizeof(buf), "vb_%d:prepare_size", vbid.get());
-                add_casted_stat(buf, dbInfo.prepareBytes, add_stat, cookie);
+                        buf.data(), dbInfo.prepareBytes, add_stat, cookie);
             } catch (std::exception& error) {
                 EP_LOG_WARN(
                         "DiskStatVisitor::visitBucket: Failed to build stat: "
@@ -1414,7 +1417,7 @@ void EPBucket::completeStatsVKey(const void* cookie,
     if (gcb.getStatus() == ENGINE_SUCCESS) {
         engine.addLookupResult(cookie, std::move(gcb.item));
     } else {
-        engine.addLookupResult(cookie, NULL);
+        engine.addLookupResult(cookie, nullptr);
     }
 
     --stats.numRemainingBgJobs;
