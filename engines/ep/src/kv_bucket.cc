@@ -15,25 +15,7 @@
  *   limitations under the License.
  */
 
-#include <string.h>
-#include <time.h>
-
-#include <functional>
-#include <map>
-#include <memory>
-#include <sstream>
-#include <string>
-#include <utility>
-#include <vector>
-
-#include <memcached/server_document_iface.h>
-#include <nlohmann/json.hpp>
-#include <phosphor/phosphor.h>
-#include <statistics/cbstat_collector.h>
-#include <statistics/collector.h>
-#include <statistics/labelled_collector.h>
-#include <utilities/logtags.h>
-
+#include "kv_bucket.h"
 #include "access_scanner.h"
 #include "bucket_logger.h"
 #include "checkpoint_manager.h"
@@ -56,11 +38,9 @@
 #include "item.h"
 #include "item_compressor.h"
 #include "item_freq_decayer.h"
-#include "kv_bucket.h"
 #include "kvshard.h"
 #include "kvstore.h"
 #include "locks.h"
-#include "mutation_log.h"
 #include "replicationthrottle.h"
 #include "rollback_result.h"
 #include "tasks.h"
@@ -69,6 +49,20 @@
 #include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
 #include "vbucketdeletiontask.h"
+
+#include <memcached/server_document_iface.h>
+#include <nlohmann/json.hpp>
+#include <phosphor/phosphor.h>
+#include <statistics/collector.h>
+#include <statistics/labelled_collector.h>
+
+#include <cstring>
+#include <ctime>
+#include <map>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 class StatsValueChangeListener : public ValueChangedListener {
 public:
@@ -1580,8 +1574,9 @@ GetValue KVBucket::getRandomKey(CollectionID cid, const void* cookie) {
                     return GetValue(nullptr, ENGINE_UNKNOWN_COLLECTION);
                 }
                 if (cHandle.getItemCount(cid) != 0) {
-                    if (auto itm = vb->ht.getRandomKey(cid, getRandom()); itm) {
-                        return GetValue(std::move(itm), ENGINE_SUCCESS);
+                    if (auto retItm = vb->ht.getRandomKey(cid, getRandom());
+                        retItm) {
+                        return GetValue(std::move(retItm), ENGINE_SUCCESS);
                     }
                 }
             }
@@ -1756,19 +1751,19 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb) {
         ++stats.numNotMyVBuckets;
-        return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
+        return GetValue(nullptr, ENGINE_NOT_MY_VBUCKET);
     }
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
-        return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
+        return GetValue(nullptr, ENGINE_NOT_MY_VBUCKET);
     } else if (vb->getState() == vbucket_state_replica) {
         ++stats.numNotMyVBuckets;
-        return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
+        return GetValue(nullptr, ENGINE_NOT_MY_VBUCKET);
     } else if (vb->getState() == vbucket_state_pending) {
         if (vb->addPendingOp(cookie)) {
-            return GetValue(NULL, ENGINE_EWOULDBLOCK);
+            return GetValue(nullptr, ENGINE_EWOULDBLOCK);
         }
     }
 
@@ -1777,7 +1772,7 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
         if (!cHandle.valid()) {
             engine.setUnknownCollectionErrorContext(cookie,
                                                     cHandle.getManifestUid());
-            return GetValue(NULL, ENGINE_UNKNOWN_COLLECTION);
+            return GetValue(nullptr, ENGINE_UNKNOWN_COLLECTION);
         }
 
         auto result = vb->getAndUpdateTtl(
@@ -1815,7 +1810,7 @@ GetValue KVBucket::getLocked(const DocKey& key,
     if (!cHandle.valid()) {
         engine.setUnknownCollectionErrorContext(cookie,
                                                 cHandle.getManifestUid());
-        return GetValue(NULL, ENGINE_UNKNOWN_COLLECTION);
+        return GetValue(nullptr, ENGINE_UNKNOWN_COLLECTION);
     }
 
     auto result =
@@ -2736,8 +2731,8 @@ SyncWriteResolvedCallback KVBucket::makeSyncWriteResolvedCB() {
 }
 
 SyncWriteCompleteCallback KVBucket::makeSyncWriteCompleteCB() {
-    auto& engine = this->engine;
-    return [&engine](const void* cookie, ENGINE_ERROR_CODE status) {
+    return [&engine = this->engine](const void* cookie,
+                                    ENGINE_ERROR_CODE status) {
         if (status != ENGINE_SUCCESS) {
             // For non-success status codes clear the cookie's engine_specific;
             // as the operation is now complete. This ensures that any
@@ -2750,8 +2745,7 @@ SyncWriteCompleteCallback KVBucket::makeSyncWriteCompleteCB() {
 }
 
 SeqnoAckCallback KVBucket::makeSeqnoAckCB() const {
-    auto& engine = this->engine;
-    return [&engine](Vbid vbid, int64_t seqno) {
+    return [&engine = this->engine](Vbid vbid, int64_t seqno) {
         engine.getDcpConnMap().seqnoAckVBPassiveStream(vbid, seqno);
     };
 }

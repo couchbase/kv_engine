@@ -99,9 +99,6 @@ public:
         friend std::ostream& operator<<(std::ostream& os, const Position& pos);
     };
 
-    KVBucketIface() {}
-    virtual ~KVBucketIface() {}
-
     /**
      * Start necessary tasks.
      * Client calling initialize must also call deinitialize before deleting
@@ -241,7 +238,7 @@ public:
      *
      * @return the result of the store operation
      */
-    ENGINE_ERROR_CODE prepare(Item& item, const void* cookie);
+    virtual ENGINE_ERROR_CODE prepare(Item& item, const void* cookie) = 0;
 
     /**
      * Retrieve a value, but update its TTL first

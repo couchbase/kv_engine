@@ -105,7 +105,7 @@ private:
 const uint16_t EP_PRIMARY_SHARD = 0;
 class KVShard;
 
-typedef std::pair<Vbid, ExTask> CompTaskEntry;
+using CompTaskEntry = std::pair<Vbid, ExTask>;
 
 /**
  * KVBucket is the base class for concrete Key/Value bucket implementations
@@ -116,7 +116,7 @@ typedef std::pair<Vbid, ExTask> CompTaskEntry;
 class KVBucket : public KVBucketIface {
 public:
     explicit KVBucket(EventuallyPersistentEngine& theEngine);
-    ~KVBucket() override;
+    virtual ~KVBucket();
 
     bool initialize() override;
 
@@ -163,7 +163,7 @@ public:
             GenerateCas genCas = GenerateCas::No,
             ExtendedMetaData* emd = nullptr) override;
 
-    ENGINE_ERROR_CODE prepare(Item& item, const void* cookie);
+    ENGINE_ERROR_CODE prepare(Item& item, const void* cookie) override;
 
     GetValue getAndUpdateTtl(const DocKey& key,
                              Vbid vbucket,
