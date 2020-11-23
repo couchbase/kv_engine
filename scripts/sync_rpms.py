@@ -74,8 +74,8 @@ def download_centos_package(package):
 
     repos = {'http://mirror.centos.org/centos': ('7',),
              'http://vault.centos.org':
-                 ('7.0.1406', '7.1.1503', '7.2.1511', '7.3.1611', '7.4.1708',
-                  '7.5.1804', '7.6.1810', '7.7.1908', '7.8.2003')
+                 ('7.8.2003', '7.7.1908', '7.6.1810', '7.5.1804', '7.4.1708',
+                  '7.3.1611', '7.2.1511', '7.1.1503', '7.0.1406')
              }
     subdirs = ('os/x86_64/Packages', 'updates/x86_64/Packages')
     for host, versions in repos.iteritems():
