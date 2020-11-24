@@ -753,9 +753,12 @@ void PassiveDurabilityMonitor::State::checkForAndRemoveDroppedCollections() {
     // iterate trackedWrites here.
     int64_t firstSeqno = trackedWrites.begin()->getBySeqno();
 
-    for (auto& dc : droppedCollections) {
-        if (dc.second < firstSeqno) {
-            droppedCollections.erase(dc.first);
+    auto itr = droppedCollections.begin();
+    while (itr != droppedCollections.end()) {
+        if (itr->second < firstSeqno) {
+            itr = droppedCollections.erase(itr);
+        } else {
+            ++itr;
         }
     }
 }

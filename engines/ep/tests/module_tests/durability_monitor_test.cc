@@ -3685,6 +3685,30 @@ TEST_P(PassiveDurabilityMonitorTest, dropFirstKeyAndCompleteOutOfOrder) {
     ASSERT_EQ(0, pdm.getHighPreparedSeqno());
 }
 
+TEST_P(PassiveDurabilityMonitorTest, DropMultipleCollections) {
+    auto& pdm = getPassiveDM();
+
+    using namespace cb::durability;
+    addSyncWrite(1 /*seqno*/,
+                 Requirements{Level::Majority, Timeout::Infinity()});
+
+    pdm.notifyDroppedCollection(CollectionID(8), 10);
+    pdm.notifyDroppedCollection(CollectionID(9), 11);
+    EXPECT_EQ(2, pdm.getNumDroppedCollections());
+
+    addSyncWrite(12 /*seqno*/,
+                 Requirements{Level::Majority, Timeout::Infinity()});
+    EXPECT_EQ(2, pdm.getNumDroppedCollections());
+
+    pdm.completeSyncWrite(makeStoredDocKey("key1"),
+                          PassiveDurabilityMonitor::Resolution::Commit,
+                          1);
+    EXPECT_EQ(2, pdm.getNumDroppedCollections());
+
+    pdm.notifySnapshotEndReceived(20);
+    EXPECT_EQ(0, pdm.getNumDroppedCollections());
+}
+
 // This test isn't a valid scenario, we should not try to complete the same
 // prepare twice, but we previously crashed here instead of throwing and tearing
 // down the connection if this happened.
