@@ -39,8 +39,8 @@ public:
      * @param addStatFn callback called for each stat
      * @param cookie passed to addStatFn for each call
      */
-    CBStatCollector(const AddStatFn& addStatFn, const void* cookie)
-        : addStatFn(addStatFn), cookie(cookie) {
+    CBStatCollector(AddStatFn addStatFn, const void* cookie)
+        : addStatFn(std::move(addStatFn)), cookie(cookie) {
     }
 
     // Allow usage of the "helper" methods defined in the base type.
@@ -129,7 +129,7 @@ private:
     // user data in the key.
     bool shouldFormatStatKeys = true;
 
-    const AddStatFn& addStatFn;
+    const AddStatFn addStatFn;
     const void* cookie;
 };
 
