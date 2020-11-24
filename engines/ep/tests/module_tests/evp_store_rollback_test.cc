@@ -420,6 +420,7 @@ protected:
         // rollbackCollectionCreate==true and the roll back function will
         // rewind disk to here, with dairy collection unknown
         auto seqno1 = store->getVBucket(vbid)->getHighSeqno();
+        auto itemCount = store->getVBucket(vbid)->getNumItems();
 
         auto vb = store->getVBucket(vbid);
         CollectionsManifest cm;
@@ -429,7 +430,7 @@ protected:
                 cm.add(CollectionEntry::dairy).add(CollectionEntry::meat)));
 
         nlohmann::json htState;
-        if (rollbackCollectionCreate && !flush_before_rollback) {
+        if (rollbackCollectionCreate) {
             // Save the pre-rollback HashTable state for later comparison
             htState = getHtState();
         }
@@ -524,6 +525,7 @@ protected:
             EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, result.getStatus());
             // Rolled back to the previous checkpoint before dairy
             EXPECT_EQ(seqno1, store->getVBucket(vbid)->getHighSeqno());
+            EXPECT_EQ(itemCount, store->getVBucket(vbid)->getNumItems());
         } else {
             // And key7 from dairy collection, can I GET it?
             auto result =
@@ -536,6 +538,7 @@ protected:
             // Rolled back to the previous checkpoint
             EXPECT_EQ(rollback_item.getBySeqno(),
                       store->getVBucket(vbid)->getHighSeqno());
+            EXPECT_EQ(itemCount + 1, store->getVBucket(vbid)->getNumItems());
         }
         EXPECT_EQ(0, store->getVBucket(vbid)->ht.getNumSystemItems());
         EXPECT_EQ(store->getVBucket(vbid)->getHighSeqno(),

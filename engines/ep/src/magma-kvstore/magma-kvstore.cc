@@ -2113,8 +2113,7 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
                     const Slice& metaSlice) {
                 auto diskKey = makeDiskDocKey(keySlice);
                 auto docKey = diskKey.getDocKey();
-                if (!docKey.isInSystemCollection() &&
-                    ec->isLogicallyDeleted(docKey, seqno)) {
+                if (docKey.isInSystemCollection()) {
                     return;
                 }
                 logger->TRACE("MagmaKVStore::rollback callback key:{} seqno:{}",

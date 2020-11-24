@@ -3405,13 +3405,14 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
     cb->setKVFileHandle(std::move(newdb));
     auto cl = std::make_unique<NoLookupCallback>();
 
-    auto ctx = initBySeqnoScanContext(std::move(cb),
-                                      std::move(cl),
-                                      vbid,
-                                      info.updateSeqNum + 1,
-                                      DocumentFilter::ALL_ITEMS,
-                                      ValueFilter::KEYS_ONLY,
-                                      SnapshotSource::Head);
+    auto ctx = initBySeqnoScanContext(
+            std::move(cb),
+            std::move(cl),
+            vbid,
+            info.updateSeqNum + 1,
+            DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS,
+            ValueFilter::KEYS_ONLY,
+            SnapshotSource::Head);
     if (!ctx) {
         return RollbackResult(false);
     }
