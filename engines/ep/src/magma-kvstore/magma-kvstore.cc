@@ -17,7 +17,6 @@
 
 #include "magma-kvstore.h"
 #include "bucket_logger.h"
-#include "ep_engine.h"
 #include "ep_time.h"
 #include "item.h"
 #include "magma-kvstore_config.h"
@@ -480,10 +479,12 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
 
     // Set up thread and memory tracking.
     auto currEngine = ObjectRegistry::getCurrentEngine();
-    if (currEngine) {
-        configuration.magmaCfg.ArenaClient =
-                &currEngine->getArenaMallocClient();
-    }
+    configuration.magmaCfg.SetupThreadContext = [currEngine]() {
+        ObjectRegistry::onSwitchThread(currEngine, false);
+    };
+    configuration.magmaCfg.ResetThreadContext = []() {
+        ObjectRegistry::onSwitchThread(nullptr);
+    };
 
     configuration.magmaCfg.MakeCompactionCallback = [&]() {
         return std::make_unique<MagmaKVStore::MagmaCompactionCB>(*this);
