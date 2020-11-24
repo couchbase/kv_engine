@@ -1608,18 +1608,6 @@ public:
                        << " after setFromInternal for item:" << *preRbSeqnoItem;
                     throw std::logic_error(ss.str());
                 }
-
-                // If we are rolling back a deletion then we should increment
-                // our disk counts. We need to increment the vBucket disk
-                // count here too because we're not going to flush this item
-                // later
-                if (postRbSeqnoItem->isDeleted() &&
-                    postRbSeqnoItem->isCommitted()) {
-                    vb->incrNumTotalItems();
-                    vb->getManifest()
-                            .lock(preRbSeqnoItem->getKey())
-                            .incrementItemCount();
-                }
             }
         } else if (preRbSeqnoGetValue.getStatus() == ENGINE_KEY_ENOENT) {
             EP_LOG_DEBUG(
@@ -1643,12 +1631,6 @@ public:
             // Document didn't exist in memory - may have been deleted in since
             // the checkpoint.
             setStatus(ENGINE_KEY_ENOENT);
-        }
-
-        if (!item.isDeleted() && item.isCommitted()) {
-            // Irrespective of if the in-memory delete succeeded; the document
-            // doesn't exist on disk; so decrement the item count.
-            vb.decrNumTotalItems();
         }
     }
 

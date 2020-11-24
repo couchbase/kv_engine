@@ -144,6 +144,7 @@ public:
         ASSERT_EQ(initial_seqno + 1, item_v1.getBySeqno());
         ASSERT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
                   getEPBucket().flushVBucket(vbid));
+        auto expectedItems = store->getVBucket(vbid)->getNumTotalItems();
         // Save the pre-rollback HashTable state for later comparison
         auto htState = getHtState();
         uint64_t cas = item_v1.getCas();
@@ -204,6 +205,9 @@ public:
             EXPECT_EQ(FlushResult(MoreAvailable::No, 0, WakeCkptRemover::No),
                       getEPBucket().flushVBucket(vbid));
         }
+
+        EXPECT_EQ(expectedItems, store->getVBucket(vbid)->getNumItems());
+        EXPECT_EQ(expectedItems, store->getVBucket(vbid)->getNumTotalItems());
     }
 
     // Test rollback after modifying an item.
@@ -218,6 +222,7 @@ public:
 
         // Save the pre-rollback HashTable state for later comparison
         auto htState = getHtState();
+        auto expectedItems = store->getVBucket(vbid)->getNumTotalItems();
 
         auto item2 = store_item(vbid, a, "new");
         ASSERT_EQ(initial_seqno + 2, item2.getBySeqno());
@@ -264,6 +269,8 @@ public:
             EXPECT_EQ(FlushResult(MoreAvailable::No, 0, WakeCkptRemover::No),
                       getEPBucket().flushVBucket(vbid));
         }
+        EXPECT_EQ(expectedItems, store->getVBucket(vbid)->getNumItems());
+        EXPECT_EQ(expectedItems, store->getVBucket(vbid)->getNumTotalItems());
     }
 
 protected:
@@ -346,6 +353,8 @@ protected:
                                   .getStatus());
             }
         }
+        EXPECT_EQ(1, store->getVBucket(vbid)->getNumItems());
+        EXPECT_EQ(1, store->getVBucket(vbid)->getNumTotalItems());
     }
 
     // Check the stats after rolling back
@@ -367,6 +376,7 @@ protected:
         EXPECT_EQ(startDefaultCollectionCount + expectedDifference,
                   vb->getManifest().lock().getItemCount(CollectionID::Default));
         EXPECT_EQ(startVBCount + expectedDifference, vb->getNumItems());
+        EXPECT_EQ(startVBCount + expectedDifference, vb->getNumTotalItems());
 
         EXPECT_EQ(startHighSeqno + expectedDifference,
                   vb->getManifest().lock().getPersistedHighSeqno(
@@ -397,6 +407,7 @@ protected:
         EXPECT_EQ(startDefaultCollectionCount + expectedDifference,
                   vb->getManifest().lock().getItemCount(CollectionID::Default));
         EXPECT_EQ(startVBCount + expectedDifference, vb->getNumItems());
+        EXPECT_EQ(startVBCount + expectedDifference, vb->getNumTotalItems());
 
         EXPECT_EQ(startPHighSeqno + expectedDifference,
                   vb->getManifest().lock().getPersistedHighSeqno(
@@ -520,6 +531,7 @@ protected:
             // Rolled back to the previous checkpoint before dairy
             EXPECT_EQ(seqno1, store->getVBucket(vbid)->getHighSeqno());
             EXPECT_EQ(itemCount, store->getVBucket(vbid)->getNumItems());
+            EXPECT_EQ(itemCount, store->getVBucket(vbid)->getNumTotalItems());
         } else {
             // And key7 from dairy collection, can I GET it?
             auto result =
@@ -533,6 +545,8 @@ protected:
             EXPECT_EQ(rollback_item.getBySeqno(),
                       store->getVBucket(vbid)->getHighSeqno());
             EXPECT_EQ(itemCount + 1, store->getVBucket(vbid)->getNumItems());
+            EXPECT_EQ(itemCount + 1,
+                      store->getVBucket(vbid)->getNumTotalItems());
         }
         EXPECT_EQ(0, store->getVBucket(vbid)->ht.getNumSystemItems());
         EXPECT_EQ(store->getVBucket(vbid)->getHighSeqno(),
@@ -574,6 +588,7 @@ protected:
                           .lock()
                           .getPersistedHighSeqno(CollectionID::Default));
         EXPECT_EQ(0, store->getVBucket(vbid)->getNumItems());
+        EXPECT_EQ(0, store->getVBucket(vbid)->getNumTotalItems());
         EXPECT_EQ(0, store->getVBucket(vbid)->getPersistenceSeqno());
     }
 
@@ -736,6 +751,9 @@ TEST_P(RollbackTest, RollbackToMiddleOfAnUnPersistedSnapshot) {
         EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus())
                 << "A key set after the rollback point was found";
     }
+    // numItems + dummy + key11
+    EXPECT_EQ(numItems + 2, store->getVBucket(vbid)->getNumItems());
+    EXPECT_EQ(numItems + 2, store->getVBucket(vbid)->getNumTotalItems());
 }
 
 /*
@@ -844,6 +862,8 @@ TEST_P(RollbackTest, RollbackUnpersistedItemsFromCheckpointsOfDifferentType) {
     EXPECT_EQ(rollbackSeqno, vb->getHighSeqno());
 
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
+    EXPECT_EQ(numItems + 1, store->getVBucket(vbid)->getNumItems());
+    EXPECT_EQ(numItems + 1, store->getVBucket(vbid)->getNumTotalItems());
 }
 
 TEST_P(RollbackTest, RollbackBeforeFirstFailoverTableEntry) {
@@ -882,6 +902,9 @@ TEST_P(RollbackTest, RollbackBeforeFirstFailoverTableEntry) {
     auto entry = vb->failovers->getLatestEntry();
     EXPECT_EQ(rollbackSeqno, entry.by_seqno);
     EXPECT_NE(0, entry.vb_uuid);
+    // +2 includes the dummy key stored by SetUp
+    EXPECT_EQ(maxFailoverEntries + 2, vb->getNumItems());
+    EXPECT_EQ(maxFailoverEntries + 2, vb->getNumTotalItems());
 }
 
 class RollbackDcpTest : public RollbackTest {
@@ -1182,6 +1205,10 @@ TEST_P(RollbackDcpTest, test_rollback_zero) {
                          vb->failovers->getLatestEntry().vb_uuid);
     EXPECT_EQ(rollbackPoint, vb->getHighSeqno()) << "VB hasn't rolled back to "
                                                  << rollbackPoint;
+
+    // +2 includes the dummy key stored by SetUp
+    EXPECT_EQ(0, vb->getNumItems());
+    EXPECT_EQ(0, vb->getNumTotalItems());
 }
 
 /**
@@ -1254,6 +1281,9 @@ TEST_P(RollbackDcpTest, test_rollback_nonzero) {
                          vb->failovers->getLatestEntry().vb_uuid);
     EXPECT_EQ(rollbackPoint, vb->getHighSeqno()) << "VB hasn't rolled back to "
                                                  << rollbackPoint;
+
+    EXPECT_EQ(items * 3, vb->getNumItems());
+    EXPECT_EQ(items * 3, vb->getNumTotalItems());
 }
 
 void RollbackDcpTest::writeBaseItems(int items) {
@@ -1464,6 +1494,7 @@ void RollbackDcpTest::rollbackPrepare(bool deleted) {
     EXPECT_EQ(0, passiveDm.getNumTracked());
     EXPECT_EQ(0, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(0, passiveDm.getHighCompletedSeqno());
+    EXPECT_EQ(baseItems, vb->getNumItems());
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 }
@@ -1513,6 +1544,7 @@ void RollbackDcpTest::rollbackPrepareOnTopOfSyncWrite(bool syncDelete,
     EXPECT_EQ(0, passiveDm.getNumTracked());
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
+    EXPECT_EQ(baseItems, vb->getNumItems());
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 }
@@ -1556,6 +1588,7 @@ void RollbackDcpTest::rollbackUnpersistedPrepareOnTopOfSyncWrite(
     EXPECT_EQ(0, passiveDm.getNumTracked());
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
+    EXPECT_EQ(baseItems, vb->getNumItems());
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
     EXPECT_EQ(0, vb->ht.getNumPreparedSyncWrites());
@@ -1607,6 +1640,7 @@ void RollbackDcpTest::rollbackSyncWrite(bool deleted) {
     EXPECT_EQ(0, passiveDm.getNumTracked());
     EXPECT_EQ(0, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(0, passiveDm.getHighCompletedSeqno());
+    EXPECT_EQ(baseItems, vb->getNumItems());
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 }
@@ -1650,6 +1684,7 @@ void RollbackDcpTest::rollbackAbortedSyncWrite(bool deleted) {
     EXPECT_EQ(0, passiveDm.getNumTracked());
     EXPECT_EQ(0, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(0, passiveDm.getHighCompletedSeqno());
+    EXPECT_EQ(baseItems, vb->getNumItems());
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 }
@@ -1700,6 +1735,7 @@ void RollbackDcpTest::rollbackSyncWriteOnTopOfSyncWrite(bool syncDeleteFirst,
     EXPECT_EQ(0, passiveDm.getNumTracked());
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
+    EXPECT_EQ(baseItems, vb->getNumItems());
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 }
@@ -1758,6 +1794,7 @@ void RollbackDcpTest::rollbackSyncWriteOnTopOfAbortedSyncWrite(
     EXPECT_EQ(0, passiveDm.getNumTracked());
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
+    EXPECT_EQ(baseItems, vb->getNumItems());
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 }
@@ -1806,6 +1843,7 @@ void RollbackDcpTest::rollbackToZeroWithSyncWrite(bool deleted) {
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
 
     auto newVb = store->getVBucket(vbid);
+    EXPECT_EQ(0, newVb->getNumItems());
     EXPECT_EQ(0, newVb->getNumTotalItems());
     auto& newPassiveDm = static_cast<const PassiveDurabilityMonitor&>(
             newVb->getDurabilityMonitor());
@@ -1857,6 +1895,7 @@ void RollbackDcpTest::rollbackCommit(bool deleted) {
     EXPECT_EQ(1, passiveDm.getNumTracked());
     EXPECT_EQ(rollbackSeqno, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(0, passiveDm.getHighCompletedSeqno());
+    EXPECT_EQ(baseItems, vb->getNumItems());
     EXPECT_EQ(baseItems, vb->getNumTotalItems());
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 }
@@ -1917,6 +1956,9 @@ void RollbackDcpTest::rollbackCommitOnTopOfSyncWrite(bool syncDeleteFirst,
     EXPECT_EQ(rollbackSeqno, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
+    auto expectedItems = syncDeleteFirst ? 0 : 1;
+    EXPECT_EQ(expectedItems, vb->getNumItems());
+    EXPECT_EQ(expectedItems, vb->getNumTotalItems());
 }
 
 TEST_P(RollbackDcpTest, RollbackCommitOnTopOfSyncWrite) {
@@ -1980,6 +2022,8 @@ void RollbackDcpTest::rollbackCommitOnTopOfAbortedSyncWrite(
     EXPECT_EQ(rollbackSeqno, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
+    EXPECT_EQ(1, vb->getNumItems());
+    EXPECT_EQ(1, vb->getNumTotalItems());
 }
 
 TEST_P(RollbackDcpTest, RollbackCommitOnTopOfAbortedSyncWrite) {
@@ -2012,6 +2056,8 @@ TEST_P(RollbackDcpTest, RollbackCollectionCounts) {
     auto check = [&vb](int expected) {
         auto handle = vb->lockCollections();
         EXPECT_EQ(expected, handle.getItemCount(CollectionID::Default));
+        EXPECT_EQ(expected, vb->getNumItems());
+        EXPECT_EQ(expected, vb->getNumTotalItems());
     };
 
     check(2);
@@ -2064,6 +2110,8 @@ void RollbackDcpTest::rollbackAbort(bool deleted) {
     EXPECT_EQ(rollbackSeqno, passiveDm.getHighPreparedSeqno());
     EXPECT_EQ(0, passiveDm.getHighCompletedSeqno());
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
+    EXPECT_EQ(1, vb->getNumItems());
+    EXPECT_EQ(1, vb->getNumTotalItems());
 }
 
 TEST_P(RollbackDcpTest, RollbackAbort) {
@@ -2118,6 +2166,9 @@ void RollbackDcpTest::rollbackAbortOnTopOfSyncWrite(bool syncDeleteFirst,
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
 
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
+    auto expectedItems = syncDeleteFirst ? 0 : 1;
+    EXPECT_EQ(expectedItems, vb->getNumItems());
+    EXPECT_EQ(expectedItems, vb->getNumTotalItems());
 }
 
 TEST_P(RollbackDcpTest, RollbackAbortOnTopOfSyncWrite) {
@@ -2178,6 +2229,8 @@ void RollbackDcpTest::rollbackAbortOnTopOfAbortedSyncWrite(
     EXPECT_EQ(highCompletedAndPreparedSeqno, passiveDm.getHighCompletedSeqno());
 
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
+    EXPECT_EQ(1, vb->getNumItems());
+    EXPECT_EQ(1, vb->getNumTotalItems());
 }
 
 TEST_P(RollbackDcpTest, RollbackAbortOnTopOfAbortedSyncWrite) {
@@ -2229,6 +2282,7 @@ TEST_P(RollbackDcpTest, RollbackUnpersistedAbortDoesNotLoadOlderPrepare) {
     EXPECT_EQ(1, passiveDm.getHighCompletedSeqno());
     // expect only the one committed item to be left
     EXPECT_EQ(1, vb->getNumTotalItems());
+    EXPECT_EQ(1, vb->getNumItems());
 
     // MB-39333: Rolling back the abort would erroneously reload the first
     // prepare (seqno 2 here) into the ht.

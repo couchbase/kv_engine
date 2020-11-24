@@ -1062,6 +1062,8 @@ void EPVBucket::postProcessRollback(const RollbackResult& rollbackResult,
 
     // And update collections post rollback
     collectionsRolledBack(kvstore);
+
+    setNumTotalItems(kvstore);
 }
 
 void EPVBucket::collectionsRolledBack(KVStore& kvstore) {
@@ -1080,4 +1082,16 @@ void EPVBucket::collectionsRolledBack(KVStore& kvstore) {
         collection.second.resetHighSeqno(
                 collection.second.getPersistedHighSeqno());
     }
+}
+
+void EPVBucket::setNumTotalItems(KVStore& kvstore) {
+    size_t vbItemCount = kvstore.getItemCount(getId());
+    const auto* vbState = kvstore.getVBucketState(getId());
+    Expects(vbState);
+    // We don't want to include the number of prepares on disk in the number
+    // of items in the vBucket/Bucket that is displayed to the user so
+    // subtract the number of prepares from the number of on disk items.
+    vbItemCount -= vbState->onDiskPrepares;
+
+    setNumTotalItems(vbItemCount - lockCollections().getSystemEventItemCount());
 }

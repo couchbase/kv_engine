@@ -265,6 +265,11 @@ public:
                              uint64_t prevHighSeqno,
                              KVStore& kvstore);
 
+    /**
+     * Use the KVStore to calculate and set the 'onDiskItemCount'
+     */
+    void setNumTotalItems(KVStore& kvstore);
+
 protected:
     /**
      * queue a background fetch of the specified item.
