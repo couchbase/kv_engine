@@ -888,6 +888,7 @@ static int time_purge_hook(Db* d,
         }
         if (metadata->isPrepare()) {
             ctx->stats.preparesPurged++;
+            ctx->stats.prepareBytesPurged += info->physical_size;
         } else {
             if (!info->deleted) {
                 ctx->stats.collectionsItemsPurged++;
@@ -943,6 +944,7 @@ static int time_purge_hook(Db* d,
         if (metadata->isPrepare()) {
             if (info->db_seq <= ctx->highCompletedSeqno) {
                 ctx->stats.preparesPurged++;
+                ctx->stats.prepareBytesPurged += info->physical_size;
                 return COUCHSTORE_COMPACT_DROP_ITEM;
             }
 
@@ -1241,6 +1243,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                     auto ret = maybePatchOnDiskPrepares(
                             compacted,
                             hook_ctx->stats.preparesPurged,
+                            hook_ctx->stats.prepareBytesPurged,
                             localDocQueue,
                             vbid);
                     if (ret == COUCHSTORE_SUCCESS) {
@@ -1328,6 +1331,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                     auto ret = maybePatchOnDiskPrepares(
                             compacted,
                             hook_ctx->stats.preparesPurged,
+                            hook_ctx->stats.prepareBytesPurged,
                             localDocQueue,
                             vbid);
                     if (ret == COUCHSTORE_SUCCESS) {
@@ -1482,6 +1486,8 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
         cachedDeleteCount[vbid.get()] = info.deletedCount;
         cachedDocCount[vbid.get()] = info.docCount;
         state->onDiskPrepares = on_disk_prepares;
+        state->updateOnDiskPrepareBytes(
+                -int64_t(hook_ctx->stats.prepareBytesPurged));
     }
 
     logger.debug("INFO: created new couch db file, name:{} rev:{}",
@@ -1511,6 +1517,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
 couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
         Db& db,
         uint64_t preparesPurged,
+        uint64_t prepareBytesPurged,
         PendingLocalDocRequestQueue& localDocQueue,
         Vbid vbid) {
     // Must sync the modified state back
@@ -1543,10 +1550,14 @@ couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
         }
         couchstore_free_local_document(ldoc);
 
-        auto iter = json.find("on_disk_prepares");
+        bool updateVbState = false;
+
+        auto prepares = json.find("on_disk_prepares");
         // only update if it's there..
-        if (iter != json.end()) {
-            const auto onDiskPrepares = std::stoull(iter->get<std::string>());
+        if (prepares != json.end()) {
+            const auto onDiskPrepares =
+                    std::stoull(prepares->get<std::string>());
+
             if (preparesPurged > onDiskPrepares) {
                 // Log the message before throwing the exception just in
                 // case someone catch the exception but don't log it...
@@ -1562,8 +1573,30 @@ couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
                 throw std::runtime_error(msg);
             }
 
-            json["on_disk_prepares"] =
-                    std::to_string(onDiskPrepares - preparesPurged);
+            *prepares = std::to_string(onDiskPrepares - preparesPurged);
+            updateVbState = true;
+        }
+
+        auto prepareBytes = json.find("on_disk_prepare_bytes");
+        // only update if it's there..
+        if (prepareBytes != json.end()) {
+            const uint64_t onDiskPrepareBytes =
+                    std::stoull(prepareBytes->get<std::string>());
+            if (onDiskPrepareBytes > prepareBytesPurged) {
+                *prepareBytes =
+                        std::to_string(onDiskPrepareBytes - prepareBytesPurged);
+            } else {
+                // prepare-bytes has been introduced in 6.6.1. Thus, at
+                // compaction we may end up purging prepares that have been
+                // persisted by a pre-6.6.1 node and that are not accounted in
+                // prepare-bytes. The counter would go negative, just set to 0.
+                *prepareBytes = "0";
+            }
+            updateVbState = true;
+        }
+
+        // only update if at least one of the prepare stats is already there
+        if (updateVbState) {
             const auto doc = json.dump();
             localDocQueue.emplace_back("_local/vbstate", json.dump());
         }
@@ -2645,6 +2678,12 @@ static void saveDocsCallback(const DocInfo* oldInfo,
     case DocMutationType::Update:
         break;
     }
+
+    if (newKey.isPrepared()) {
+        const ssize_t newSize = newInfo->physical_size;
+        const ssize_t oldSize = oldInfo ? oldInfo->physical_size : 0;
+        cbCtx->onDiskPrepareBytesDelta += (newSize - oldSize);
+    }
 }
 
 /**
@@ -2724,6 +2763,7 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
 
     vbucket_state& state = kvctx.commitData.proposedVBState;
     state.onDiskPrepares += kvctx.onDiskPrepareDelta;
+    state.updateOnDiskPrepareBytes(kvctx.onDiskPrepareBytesDelta);
     pendingLocalReqsQ.emplace_back("_local/vbstate", makeJsonVBState(state));
 
     try {

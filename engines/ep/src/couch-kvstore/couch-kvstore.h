@@ -721,6 +721,7 @@ protected:
     couchstore_error_t maybePatchOnDiskPrepares(
             Db& db,
             uint64_t preparesPurged,
+            uint64_t prepareBytesPurged,
             PendingLocalDocRequestQueue& localDocQueue,
             Vbid vbid);
 
