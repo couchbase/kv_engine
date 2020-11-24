@@ -53,6 +53,12 @@ static TaskQueue* getLpAuxQ() {
     return task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
 }
 
+static TaskQueue* getLpNonIoQ() {
+    auto* task_executor =
+            reinterpret_cast<SingleThreadedExecutorPool*>(ExecutorPool::get());
+    return task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+}
+
 /**
  * Test fixture which creates two ep-engine (bucket) instances, using one
  * as a source for DCP replication and the second as the destination.
@@ -385,17 +391,30 @@ std::unique_ptr<DcpResponse>
 DCPLoopbackStreamTest::DcpRoute::getNextProducerMsg(ActiveStream* stream) {
     std::unique_ptr<DcpResponse> producerMsg(stream->next());
     if (!producerMsg) {
-        auto queueSize = getLpAuxQ()->getReadyQueueSize() +
-                         getLpAuxQ()->getFutureQueueSize();
-        EXPECT_GE(queueSize, 1)
-                << "Expected to have at least "
-                   "ActiveStreamCheckpointProcessorTask "
-                   "in ready/future queue after null producerMsg";
+        // Run the next ready task to populate the streams' items. This could
+        // either be a NonIO task (ActiveStreamCheckpointProcessorTask) or
+        // AuxIO task (
 
-        // Run the next waiting task to populate the streams' items.
-        CheckedExecutor executor(ExecutorPool::get(), *getLpAuxQ());
-        executor.runCurrentTask();
-        executor.completeCurrentTask();
+        // Note that the actual count of ready tasks isn't just the reaadyQueue
+        // - tasks in the futureQ whose waketime is less than or equal to now
+        // can also be run.
+        const auto auxIoQueueSize = getLpAuxQ()->getReadyQueueSize() +
+                                    getLpAuxQ()->getFutureQueueSize();
+        const auto nonIoQueueSize = getLpNonIoQ()->getReadyQueueSize() +
+                                    getLpNonIoQ()->getFutureQueueSize();
+        if (auxIoQueueSize > 0) {
+            CheckedExecutor executor(ExecutorPool::get(), *getLpAuxQ());
+            executor.runCurrentTask();
+            executor.completeCurrentTask();
+        } else if (nonIoQueueSize > 0) {
+            CheckedExecutor executor(ExecutorPool::get(), *getLpNonIoQ());
+            executor.runCurrentTask();
+            executor.completeCurrentTask();
+        } else {
+            ADD_FAILURE() << "Expected to have at least one task in AuxIO / "
+                             "NonIO ready/future queues after null "
+                             "producerMsg, but both are zero";
+        }
         if (!stream->getItemsRemaining()) {
             return {};
         }
@@ -559,7 +578,7 @@ DCPLoopbackStreamTest::DcpRoute::doStreamRequest(int flags) {
                   2)
                 << "Should have both persistence and DCP producer cursor on "
                    "producer VB";
-        EXPECT_GE(getLpAuxQ()->getFutureQueueSize(), 1);
+        EXPECT_GE(getLpNonIoQ()->getFutureQueueSize(), 1);
         // Finally the stream-request response sends the failover table back
         // to the consumer... simulate that
         auto failoverLog = producerVb->failovers->getFailoverLog();

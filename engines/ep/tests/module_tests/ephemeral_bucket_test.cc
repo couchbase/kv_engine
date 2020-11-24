@@ -207,12 +207,12 @@ TEST_F(SingleThreadedEphemeralTest, RangeIteratorVBDeleteRaceTest) {
     EXPECT_FALSE(
             task_executor->isTaskScheduled(NONIO_TASK_IDX, vbDeleteTaskName));
 
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
     // Now bin the producer
     producer->cancelCheckpointCreatorTask();
     /* Checkpoint processor task finishes up and releases its producer
        reference */
-    runNextTask(lpAuxioQ, "Process checkpoint(s) for DCP producer " + testName);
+    auto& lpNonIoQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    runNextTask(lpNonIoQ, "Process checkpoint(s) for DCP producer " + testName);
 
     engine->getDcpConnMap().shutdownAllConnections();
     mock_stream.reset();
@@ -221,6 +221,7 @@ TEST_F(SingleThreadedEphemeralTest, RangeIteratorVBDeleteRaceTest) {
     // run the backfill task so the backfill can reach state
     // backfill_finished and be destroyed destroying the range iterator
     // in the process
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
     runNextTask(lpAuxioQ, "Backfilling items for a DCP Connection");
 
     // Now the backfill is gone, the evb can be deleted
@@ -429,13 +430,13 @@ TEST_F(SingleThreadedEphemeralPurgerTest, PurgeAcrossAllVbuckets) {
     bucket->enableTombstonePurgerTask();
     bucket->attemptToFreeMemory(); // this wakes up the HTCleaner task
 
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& lpNonIoQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
     /* Run the HTCleaner and EphTombstoneStaleItemDeleter tasks. We expect
        pause and resume of EphTombstoneStaleItemDeleter atleast once and we run
        until all the deleted items across all the vbuckets are purged */
     int numPaused = 0;
     while (!checkAllPurged(expPurgeUpto)) {
-        runNextTask(lpAuxioQ);
+        runNextTask(lpNonIoQ);
         ++numPaused;
     }
     EXPECT_GT(numPaused, 2 /* 1 run of 'HTCleaner' and more than 1 run of

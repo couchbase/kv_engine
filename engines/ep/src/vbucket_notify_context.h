@@ -44,9 +44,9 @@ struct VBNotifyCtx {
      *
      * 4) When there are no items in an ActiveStream's ready queue the front end
      *    worker stepping will schedule the
-     *    ActiveStreamCheckpointProcessorTask. This will run on an AuxIO thread
+     *    ActiveStreamCheckpointProcessorTask. This will run on an NonIO thread
      *    and enqueue nothing into the ActiveStream's ready queue if the only
-     *    item is a prepare. This will slow down other SyncWrites if AuxIO
+     *    item is a prepare. This will slow down other SyncWrites if NonIO
      *    threads are a bottleneck.
      *
      * 5) The ActiveStreamCheckpointProcessorTask would then notify the front
