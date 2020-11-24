@@ -30,6 +30,7 @@
 #include "durability_timeout_task.h"
 #include "ep_engine.h"
 #include "ep_time.h"
+#include "ep_vb.h"
 #include "executorpool.h"
 #include "ext_meta_parser.h"
 #include "failover-table.h"
@@ -2494,7 +2495,8 @@ TaskStatus KVBucket::rollback(Vbid vbid, uint64_t rollbackSeqno) {
                                         */) {
                 rollbackUnpersistedItems(*vb, result.highSeqno);
                 loadPreparedSyncWrites(wlh, *vb);
-                vb->postProcessRollback(
+                auto& epVb = static_cast<EPVBucket&>(*vb.getVB());
+                epVb.postProcessRollback(
                         result,
                         prevHighSeqno,
                         *vbMap.getShardByVbId(vbid)->getRWUnderlying());

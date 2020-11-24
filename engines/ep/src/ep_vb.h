@@ -249,6 +249,22 @@ public:
             Collections::VB::WriteHandle& writeHandle,
             const Collections::VB::ManifestEntry& droppedEntry) const override;
 
+    /**
+     * Update failovers, checkpoint mgr and other vBucket members after
+     * rollback.
+     *
+     * @param rollbackResult contains high seqno of the vBucket after rollback,
+     *                       snapshot start seqno of the last snapshot in the
+     *                       vBucket after the rollback,
+     *                       snapshot end seqno of the last snapshot in the
+     *                       vBucket after the rollback
+     * @param prevHighSeqno high seqno before the rollback
+     * @param kvstore A KVStore that is used for retrieving stored metadata
+     */
+    void postProcessRollback(const RollbackResult& rollbackResult,
+                             uint64_t prevHighSeqno,
+                             KVStore& kvstore);
+
 protected:
     /**
      * queue a background fetch of the specified item.
@@ -335,6 +351,13 @@ private:
 
     void processImplicitlyCompletedPrepare(
             HashTable::StoredValueProxy& v) override;
+
+    /**
+     * Update collections following a rollback
+     *
+     * @param kvstore A KVStore that is used for retrieving stored metadata
+     */
+    void collectionsRolledBack(KVStore& kvstore);
 
     /**
      * Total number of alive (non-deleted), Committed items on-disk in this

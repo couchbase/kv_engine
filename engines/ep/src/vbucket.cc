@@ -209,6 +209,7 @@ VBucket::VBucket(Vbid i,
       stats(st),
       persistenceSeqno(0),
       numHpVBReqs(0),
+      manifest(std::move(manifest)),
       id(i),
       state(newState),
       initialState(initState),
@@ -238,7 +239,6 @@ VBucket::VBucket(Vbid i,
       syncWriteResolvedCb(std::move(syncWriteResolvedCb)),
       syncWriteCompleteCb(std::move(syncWriteCb)),
       seqnoAckCb(std::move(seqnoAckCb)),
-      manifest(std::move(manifest)),
       mayContainXattrs(mightContainXattrs) {
     if (config.getConflictResolutionType() == "seqno") {
         conflictResolver = std::make_unique<RevisionSeqnoResolution>();
@@ -3048,40 +3048,6 @@ bool VBucket::removeItemFromMemory(const Item& item) {
         return false;
     }
     return deleteStoredValue(htRes.lock, *htRes.storedValue);
-}
-
-void VBucket::postProcessRollback(const RollbackResult& rollbackResult,
-                                  uint64_t prevHighSeqno,
-                                  KVStore& kvstore) {
-    failovers->pruneEntries(rollbackResult.highSeqno);
-    checkpointManager->clear(*this, rollbackResult.highSeqno);
-    setPersistedSnapshot(
-            {rollbackResult.snapStartSeqno, rollbackResult.snapEndSeqno});
-    incrRollbackItemCount(prevHighSeqno - rollbackResult.highSeqno);
-    checkpointManager->setOpenCheckpointId(1);
-    setReceivingInitialDiskSnapshot(false);
-    setPersistenceSeqno(kvstore.getLastPersistedSeqno(getId()));
-
-    // And update collections post rollback
-    collectionsRolledBack(kvstore);
-}
-
-void VBucket::collectionsRolledBack(KVStore& kvstore) {
-    manifest = std::make_unique<Collections::VB::Manifest>(
-            kvstore.getCollectionsManifest(getId()));
-    auto kvstoreContext = kvstore.makeFileHandle(getId());
-    auto wh = manifest->wlock();
-    // For each collection in the VB, reload the stats to the point before
-    // the rollback seqno
-    for (auto& collection : wh) {
-        auto stats =
-                kvstore.getCollectionStats(*kvstoreContext, collection.first);
-        collection.second.setItemCount(stats.itemCount);
-        collection.second.setDiskSize(stats.diskSize);
-        collection.second.resetPersistedHighSeqno(stats.highSeqno);
-        collection.second.resetHighSeqno(
-                collection.second.getPersistedHighSeqno());
-    }
 }
 
 void VBucket::dump() const {
