@@ -508,7 +508,12 @@ protocol_binary_response_status KVBucket::evictKey(const DocKey& key,
                                                    VBucket::id_type vbucket,
                                                    const char** msg) {
     VBucketPtr vb = getVBucket(vbucket);
-    if (!vb || (vb->getState() != vbucket_state_active)) {
+    if (!vb) {
+        return PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+    }
+
+    ReaderLockHolder rlh(vb->getStateLock());
+    if (vb->getState() != vbucket_state_active) {
         return PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
     }
 
@@ -1411,34 +1416,26 @@ GetValue KVBucket::getInternal(const DocKey& key,
 GetValue KVBucket::getRandomKey() {
     VBucketMap::id_type max = vbMap.getSize();
 
-    const long start = getRandom() % max;
+    const long start = labs(getRandom() % max);
     long curr = start;
     std::unique_ptr<Item> itm;
 
-    while (itm == NULL) {
+    while (true) {
         VBucketPtr vb = getVBucket(curr++);
-        while (!vb || vb->getState() != vbucket_state_active) {
-            if (curr == max) {
-                curr = 0;
+        if (vb) {
+            ReaderLockHolder rlh(vb->getStateLock());
+            if (vb->getState() == vbucket_state_active &&
+                (itm = vb->ht.getRandomKey(getRandom()))) {
+                GetValue rv(std::move(itm), ENGINE_SUCCESS);
+                return rv;
             }
-            if (curr == start) {
-                return GetValue(NULL, ENGINE_KEY_ENOENT);
-            }
-
-            vb = getVBucket(curr++);
-        }
-
-        if ((itm = vb->ht.getRandomKey(getRandom()))) {
-            GetValue rv(std::move(itm), ENGINE_SUCCESS);
-            return rv;
         }
 
         if (curr == max) {
             curr = 0;
         }
-
         if (curr == start) {
-            return GetValue(NULL, ENGINE_KEY_ENOENT);
+            break;
         }
         // Search next vbucket
     }
@@ -1585,7 +1582,13 @@ GetValue KVBucket::getLocked(const DocKey& key, uint16_t vbucket,
                              rel_time_t currentTime, uint32_t lockTimeout,
                              const void *cookie) {
     VBucketPtr vb = getVBucket(vbucket);
-    if (!vb || vb->getState() != vbucket_state_active) {
+    if (!vb) {
+        ++stats.numNotMyVBuckets;
+        return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
+    }
+
+    ReaderLockHolder rlh(vb->getStateLock());
+    if (vb->getState() != vbucket_state_active) {
         ++stats.numNotMyVBuckets;
         return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
     }
@@ -1612,7 +1615,13 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
 {
 
     VBucketPtr vb = getVBucket(vbucket);
-    if (!vb || vb->getState() != vbucket_state_active) {
+    if (!vb) {
+        ++stats.numNotMyVBuckets;
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    ReaderLockHolder rlh(vb->getStateLock());
+    if (vb->getState() != vbucket_state_active) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
     }
@@ -1667,6 +1676,7 @@ ENGINE_ERROR_CODE KVBucket::getKeyStats(const DocKey& key,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
+    ReaderLockHolder rlh(vb->getStateLock());
     { // collections read scope
         auto collectionsRHandle = vb->lockCollections(key);
         if (!collectionsRHandle.valid()) {
@@ -1679,7 +1689,7 @@ ENGINE_ERROR_CODE KVBucket::getKeyStats(const DocKey& key,
                                kstats,
                                wantsDeleted,
                                collectionsRHandle);
-}
+    }
 }
 
 std::string KVBucket::validateKey(const DocKey& key, uint16_t vbucket,
@@ -1723,7 +1733,13 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
                                        ItemMetaData* itemMeta,
                                        mutation_descr_t& mutInfo) {
     VBucketPtr vb = getVBucket(vbucket);
-    if (!vb || vb->getState() == vbucket_state_dead) {
+    if (!vb) {
+        ++stats.numNotMyVBuckets;
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    ReaderLockHolder rlh(vb->getStateLock());
+    if (vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
     } else if (vb->getState() == vbucket_state_replica) {
