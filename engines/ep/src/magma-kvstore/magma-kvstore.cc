@@ -1675,10 +1675,9 @@ MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(
     try {
         j = nlohmann::json::parse(val);
     } catch (const nlohmann::json::exception& e) {
-        return {Status("MagmaKVStore::readVBStateFromDisk failed - vbucket( " +
-                       std::to_string(vbid.get()) + ") " +
-                       " Failed to parse the vbstate json doc: " + val +
-                       ". Reason: " + e.what()),
+        return {Status("MagmaKVStore::readVBStateFromDisk failed - " +
+                       vbid.to_string() + " failed to parse the vbstate json " +
+                       "doc: " + val + ". Reason: " + e.what()),
                 {},
                 {}};
     }
@@ -1687,17 +1686,17 @@ MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(
 
     auto userStats = magma->GetKVStoreUserStats(snapshot);
     if (!userStats) {
-        return {Status("MagmaKVStore::readVBStateFromDisk failed - vbucket( " +
-                       std::to_string(vbid.get()) + ") " +
-                       "magma didn't return UserStats"),
+        return {Status("MagmaKVStore::readVBStateFromDisk failed - " +
+                       vbid.to_string() + " magma didn't return UserStats"),
                 {},
                 {}};
     }
 
     auto* magmaUserStats = dynamic_cast<MagmaDbStats*>(userStats.get());
     if (!magmaUserStats) {
-        throw std::runtime_error("MagmaKVStore::readVBStateFromDisk: {} magma "
-                                 "returned invalid type of UserStats");
+        throw std::runtime_error("MagmaKVStore::readVBStateFromDisk error - " +
+                                 vbid.to_string() + " magma returned invalid " +
+                                 "type of UserStats");
     }
     auto lockedStats = magmaUserStats->stats.rlock();
     vbstate.purgeSeqno = lockedStats->purgeSeqno;
