@@ -2434,11 +2434,6 @@ TEST_P(CommandSpecificErrorContextTest, DcpOpen) {
     payload->setFlags(DcpOpenPayload::Unused);
     EXPECT_EQ("Request contains invalid flags",
               validate_error_context(cb::mcbp::ClientOpcode::DcpOpen));
-
-    // DCP_OPEN_NOTIFIER cannot be used in conjunction with other flags
-    payload->setFlags(DcpOpenPayload::Notifier | DcpOpenPayload::Producer);
-    EXPECT_EQ("Request contains invalid flags combination",
-              validate_error_context(cb::mcbp::ClientOpcode::DcpOpen));
 }
 
 TEST_P(CommandSpecificErrorContextTest, DcpAddStream) {

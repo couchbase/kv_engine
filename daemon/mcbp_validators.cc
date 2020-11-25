@@ -466,12 +466,11 @@ static Status dcp_open_validator(Cookie& cookie) {
     }
 
     // Validate the flags.
-    const auto mask = DcpOpenPayload::Producer | DcpOpenPayload::Notifier |
-                      DcpOpenPayload::IncludeXattrs | DcpOpenPayload::NoValue |
-                      DcpOpenPayload::IncludeDeleteTimes |
-                      DcpOpenPayload::NoValueWithUnderlyingDatatype |
-                      DcpOpenPayload::PiTR |
-                      DcpOpenPayload::IncludeDeletedUserXattrs;
+    const auto mask =
+            DcpOpenPayload::Producer | DcpOpenPayload::IncludeXattrs |
+            DcpOpenPayload::NoValue | DcpOpenPayload::IncludeDeleteTimes |
+            DcpOpenPayload::NoValueWithUnderlyingDatatype |
+            DcpOpenPayload::PiTR | DcpOpenPayload::IncludeDeletedUserXattrs;
 
     auto ext = cookie.getHeader().getExtdata();
     const auto* payload = reinterpret_cast<const DcpOpenPayload*>(ext.data());
