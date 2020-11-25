@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 
-#include "systemevent.h"
+#include "systemevent_factory.h"
 
 #include "collections/collections_types.h"
 #include "collections/vbucket_manifest.h"

@@ -17,6 +17,7 @@
 
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <memcached/dockey.h>
+#include <memcached/systemevent.h>
 #include <spdlog/fmt/fmt.h>
 #include <ostream>
 #include <sstream>
@@ -66,17 +67,19 @@ std::string DocKey::to_string() const {
         auto [cidOrSid, keySuffix] =
                 cb::mcbp::unsigned_leb128<uint32_t>::decode(
                         {keyWithoutEvent.data(), keyWithoutEvent.size()});
-        // Get the string view to the remaining string part of the key
-        remainingKey = {reinterpret_cast<const char*>(keySuffix.data()),
-                        keySuffix.size()};
-        return fmt::format(fmt("cid:{:#x}:{:#x}:{:#x}:{}"),
-                           cid,
-                           systemEventID,
-                           cidOrSid,
-                           remainingKey);
-    } else {
-        return fmt::format(fmt("cid:{:#x}:{}"), cid, remainingKey);
+        if (systemEventID == uint32_t(SystemEvent::Collection) ||
+            systemEventID == uint32_t(SystemEvent::Scope)) {
+            // Get the string view to the remaining string part of the key
+            remainingKey = {reinterpret_cast<const char*>(keySuffix.data()),
+                            keySuffix.size()};
+            return fmt::format(fmt("cid:{:#x}:{:#x}:{:#x}:{}"),
+                               cid,
+                               systemEventID,
+                               cidOrSid,
+                               remainingKey);
+        }
     }
+    return fmt::format(fmt("cid:{:#x}:{}"), cid, remainingKey);
 }
 
 CollectionID DocKey::getCollectionID() const {

@@ -25,7 +25,7 @@
 #include "collections/manifest.h"
 #include "ep_time.h"
 #include "item.h"
-#include "systemevent.h"
+#include "systemevent_factory.h"
 #include "vbucket.h"
 
 #include <statistics/cbstat_collector.h>

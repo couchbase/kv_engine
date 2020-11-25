@@ -21,7 +21,7 @@
 #include "item.h"
 #include "objectregistry.h"
 #include "stats.h"
-#include "systemevent.h"
+#include "systemevent_factory.h"
 
 #include <platform/cb_malloc.h>
 #include <platform/compress.h>

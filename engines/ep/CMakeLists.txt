@@ -357,7 +357,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/stored-value.cc
             src/stored_value_factories.cc
             src/stored_value_factories.h
-            src/systemevent.cc
+            src/systemevent_factory.cc
             src/tasks.cc
             src/taskqueue.cc
             src/vb_commit.cc

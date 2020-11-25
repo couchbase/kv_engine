@@ -33,9 +33,7 @@
 #include "../mock/mock_checkpoint_manager.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_stream.h"
-#include "../mock/mock_synchronous_ep_engine.h"
 
-#include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
 #include <valgrind/valgrind.h>
 
@@ -47,7 +45,6 @@
 #define NUM_SET_THREADS_VG 2
 
 #define NUM_ITEMS 500
-#define NUM_ITEMS_VG 10
 
 #define DCP_CURSOR_PREFIX "dcp-client-"
 
@@ -1024,7 +1021,7 @@ TEST_P(CheckpointTest, SeqnoAndHLCOrdering) {
     std::vector<std::vector<std::pair<uint64_t, uint64_t> > > threadData(n_threads);
     for (int ii = 0; ii < n_threads; ii++) {
         auto& threadsData = threadData[ii];
-        threads.push_back(std::thread([this, ii, n_items, &threadsData](){
+        threads.emplace_back([this, ii, n_items, &threadsData]() {
             std::string key = "key" + std::to_string(ii);
             for (int item  = 0; item < n_items; item++) {
                 queued_item qi(
@@ -1041,9 +1038,9 @@ TEST_P(CheckpointTest, SeqnoAndHLCOrdering) {
                                                   /*preLinkDocCtx*/ nullptr));
 
                 // Save seqno/cas
-                threadsData.push_back(std::make_pair(qi->getBySeqno(), qi->getCas()));
+                threadsData.emplace_back(qi->getBySeqno(), qi->getCas());
             }
-        }));
+        });
     }
 
     // Wait for all threads
@@ -2982,6 +2979,36 @@ TEST_P(CheckpointTest, MB_41283_TestNoCrashForDuplicateKeysInDiskCheckpoint) {
     EXPECT_TRUE(this->queueNewItem("k1001"));
     manager->updateCurrentSnapshot(1003, 1003, CheckpointType::Disk);
     EXPECT_FALSE(queueReplicatedItem("k1001", 1002));
+}
+
+TEST_P(CheckpointTest, CheckpointItemToString) {
+    auto item = this->manager->public_createCheckpointItem(
+            0, Vbid(0), queue_op::empty);
+    EXPECT_EQ("cid:0x1:empty", item->getKey().to_string());
+
+    item = this->manager->public_createCheckpointItem(
+            0, Vbid(0), queue_op::checkpoint_start);
+    EXPECT_EQ("cid:0x1:checkpoint_start", item->getKey().to_string());
+
+    item = this->manager->public_createCheckpointItem(
+            0, Vbid(0), queue_op::set_vbucket_state);
+    EXPECT_EQ("cid:0x1:set_vbucket_state", item->getKey().to_string());
+
+    item = this->manager->public_createCheckpointItem(
+            0, Vbid(0), queue_op::checkpoint_end);
+    EXPECT_EQ("cid:0x1:checkpoint_end", item->getKey().to_string());
+
+    auto disk = makeDiskDocKey("test_key");
+    EXPECT_EQ("cid:0x0:test_key", disk.to_string());
+
+    disk = makeDiskDocKey("test_key", true, CollectionID(99));
+    EXPECT_EQ("pre:cid:0x63:test_key", disk.to_string());
+
+    auto event =
+            SystemEventFactory::makeCollectionEvent(CollectionID(99), {}, {});
+    EXPECT_EQ("cid:0x1:0x0:0x63:_collection", event->getKey().to_string());
+    event = SystemEventFactory::makeScopeEvent(ScopeID(99), {}, {});
+    EXPECT_EQ("cid:0x1:0x1:0x63:_scope", event->getKey().to_string());
 }
 
 INSTANTIATE_TEST_SUITE_P(

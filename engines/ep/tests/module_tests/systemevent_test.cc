@@ -16,7 +16,7 @@
  */
 
 #include "item.h"
-#include "systemevent.h"
+#include "systemevent_factory.h"
 
 #include <folly/portability/GTest.h>
 

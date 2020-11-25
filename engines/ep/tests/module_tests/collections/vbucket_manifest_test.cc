@@ -25,7 +25,7 @@
 #include "failover-table.h"
 #include "item.h"
 #include "stats.h"
-#include "systemevent.h"
+#include "systemevent_factory.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/test_helpers.h"
 #include <utilities/test_manifest.h>

@@ -21,7 +21,7 @@
 #include "ep_types.h"
 #include "ext_meta_parser.h"
 #include "item.h"
-#include "systemevent.h"
+#include "systemevent_factory.h"
 
 #include <mcbp/protocol/dcp_stream_end_status.h>
 #include <memcached/dcp_stream_id.h>

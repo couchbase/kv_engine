@@ -16,7 +16,7 @@
  */
 
 #include "collections/collections_types.h"
-#include "systemevent.h"
+#include "systemevent_factory.h"
 
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <nlohmann/json.hpp>
