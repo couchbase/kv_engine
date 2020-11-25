@@ -407,10 +407,6 @@ Status McbpValidator::verify_header(Cookie& cookie,
  * a) The connected engine supports DCP
  * b) The connection cannot be set into the unordered execution mode.
  *
- * In the future it should be extended to verify that the various DCP
- * commands is only sent on a connection which is set up as a DCP
- * connection (except the initial OPEN etc)
- *
  * @param cookie The command cookie
  */
 static Status verify_common_dcp_restrictions(Cookie& cookie) {
