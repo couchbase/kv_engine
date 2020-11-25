@@ -242,6 +242,7 @@ For introductory information on stats within Couchbase, start with the
 |                                       | for this bucket                         |
 | ep_db_data_size                       | Total size of valid data in db files    |
 | ep_db_file_size                       | Total size of the db files              |
+| ep_db_prepare_size                    | Total size of SyncWrite prepares in db files |
 | ep_degraded_mode                      | True if the engine is either warming    |
 |                                       | up or data traffic is disabled          |
 | ep_exp_pager_enabled                  | True if the expiry pager is enabled     |
@@ -566,6 +567,7 @@ The stats below are listed for each vbucket.
 | pending writes                | Total bytes of pending writes              |
 | db_data_size                  | Total size of valid data on disk           |
 | db_file_size                  | Total size of the db file                  |
+| db_prepare_size               | Total size of SyncWrite prepares on disk   |
 | high_seqno                    | The last seqno assigned by this vbucket    |
 | purge_seqno                   | The last seqno purged by the compactor     |
 | bloom_filter                  | Status of the vbucket's bloom filter       |

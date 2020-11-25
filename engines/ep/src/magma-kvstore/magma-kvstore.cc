@@ -2425,7 +2425,9 @@ DBFileInfo MagmaKVStore::getDbFileInfo(Vbid vbid) {
 DBFileInfo MagmaKVStore::getAggrDbFileInfo() {
     Magma::MagmaStats stats;
     magma->GetStats(stats);
-    DBFileInfo vbinfo(stats.ActiveDiskUsage, stats.ActiveDataSize);
+    // @todo MB-42900: Track on-disk-prepare-bytes
+    DBFileInfo vbinfo{
+            stats.ActiveDiskUsage, stats.ActiveDataSize, 0 /*prepareBytes*/};
     return vbinfo;
 }
 
