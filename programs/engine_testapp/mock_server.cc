@@ -227,6 +227,17 @@ uint32_t mock_get_privilege_context_revision() {
 }
 
 struct MockServerCookieApi : public ServerCookieIface {
+    void setDcpConnHandler(gsl::not_null<const void*> cookie,
+                           DcpConnHandlerIface* handler) override {
+        auto* c = cookie_to_mock_cookie(cookie.get());
+        c->connHandlerIface = handler;
+    }
+    DcpConnHandlerIface* getDcpConnHandler(
+            gsl::not_null<const void*> cookie) override {
+        auto* c = cookie_to_mock_cookie(cookie.get());
+        return c->connHandlerIface;
+    }
+
     void store_engine_specific(gsl::not_null<const void*> cookie,
                                void* engine_data) override {
         auto* c = cookie_to_mock_cookie(cookie.get());

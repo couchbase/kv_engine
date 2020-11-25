@@ -80,7 +80,14 @@ public:
     ~WrappedServerCookieIface() override {
         get_mock_server_api()->cookie = wrapped;
     }
-
+    void setDcpConnHandler(gsl::not_null<const void*> cookie,
+                           DcpConnHandlerIface* handler) override {
+        wrapped->setDcpConnHandler(cookie, handler);
+    }
+    DcpConnHandlerIface* getDcpConnHandler(
+            gsl::not_null<const void*> cookie) override {
+        return wrapped->getDcpConnHandler(cookie);
+    }
     void store_engine_specific(gsl::not_null<const void*> cookie,
                                void* engine_data) override {
         wrapped->store_engine_specific(cookie, engine_data);

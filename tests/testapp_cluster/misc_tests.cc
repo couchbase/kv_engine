@@ -155,3 +155,106 @@ TEST_F(BasicClusterTest, UsingExternalAuth) {
 
     cluster->getAuthProviderService().removeUser("extuser");
 }
+
+/// Verify that we don't break a DCP connection if we send a command
+/// which resets the engine specific part of the command
+TEST_F(BasicClusterTest, VerifyDcpSurviesResetOfEngineSpecific) {
+    auto bucket = cluster->getBucket("default");
+    auto conn = bucket->getConnection(Vbid(0));
+    conn->authenticate("@admin", "password", "PLAIN");
+    conn->selectBucket(bucket->getName());
+
+    auto rsp = conn->execute(BinprotDcpOpenCommand{
+            "my-dcp-stream", cb::mcbp::request::DcpOpenPayload::Producer});
+    ASSERT_TRUE(rsp.isSuccess())
+            << "Failed to dcp open: " << rsp.getDataString();
+
+    BinprotDcpStreamRequestCommand streamRequestCommand;
+    streamRequestCommand.setDcpReserved(0);
+    streamRequestCommand.setDcpStartSeqno(0);
+    streamRequestCommand.setDcpEndSeqno(0xffffffff);
+    streamRequestCommand.setDcpVbucketUuid(0);
+    streamRequestCommand.setDcpSnapStartSeqno(0);
+    streamRequestCommand.setDcpSnapEndSeqno(0xfffffff);
+    streamRequestCommand.setVBucket(Vbid(0));
+    rsp = conn->execute(streamRequestCommand);
+
+    ASSERT_TRUE(rsp.isSuccess())
+            << "Stream request failed: " << to_string(rsp.getStatus()) << ". "
+            << rsp.getDataString();
+
+    // as of now we don't really know the message sequence being received
+    // so we need to send packages and read until we see the expected packet
+    // returned.
+
+    // Compact the database
+    BinprotCompactDbCommand compactDbCommand;
+    compactDbCommand.setDbFileId(Vbid(0));
+
+    Frame frame;
+    compactDbCommand.encode(frame.payload);
+    conn->sendFrame(frame);
+    bool found = false;
+    do {
+        frame.reset();
+        conn->recvFrame(frame);
+        const auto* header = frame.getHeader();
+        if (header->isResponse() && header->getResponse().getClientOpcode() ==
+                                            cb::mcbp::ClientOpcode::CompactDb) {
+            found = true;
+        }
+    } while (!found);
+
+    ASSERT_EQ(cb::mcbp::Status::Success, frame.getResponse()->getStatus());
+
+    // Store an item
+
+    BinprotMutationCommand mutationCommand;
+    mutationCommand.setKey("foo");
+    mutationCommand.setMutationType(MutationType::Set);
+    mutationCommand.encode(frame.payload);
+    conn->sendFrame(frame);
+
+    // Wait to see that we receive the item
+    found = false;
+    bool dcp_mutation = false;
+    do {
+        frame.reset();
+        conn->recvFrame(frame);
+        const auto* header = frame.getHeader();
+        if (header->isResponse() && header->getResponse().getClientOpcode() ==
+                                            cb::mcbp::ClientOpcode::Set) {
+            found = true;
+        } else if (header->isRequest() &&
+                   header->getRequest().getClientOpcode() ==
+                           cb::mcbp::ClientOpcode::DcpMutation) {
+            auto k = header->getRequest().getKey();
+            const auto key = std::string_view{
+                    reinterpret_cast<const char*>(k.data()), k.size()};
+            if (key == "foo") {
+                dcp_mutation = true;
+            }
+        }
+    } while (!found);
+    ASSERT_EQ(cb::mcbp::Status::Success, frame.getResponse()->getStatus());
+
+    if (!dcp_mutation) {
+        // Wait for the mutation to arrive
+        found = false;
+        do {
+            frame.reset();
+            conn->recvFrame(frame);
+            const auto* header = frame.getHeader();
+            if (header->isRequest() &&
+                header->getRequest().getClientOpcode() ==
+                        cb::mcbp::ClientOpcode::DcpMutation) {
+                auto k = header->getRequest().getKey();
+                const auto key = std::string_view{
+                        reinterpret_cast<const char*>(k.data()), k.size()};
+                if (key == "foo") {
+                    found = true;
+                }
+            }
+        } while (!found);
+    }
+}

@@ -26,6 +26,8 @@
 #include <mutex>
 #include <string>
 
+class DcpConnHandlerIface;
+
 struct MockCookie : cb::tracing::Traceable {
     /**
      * Create a new cookie which isn't bound to an engine. This cookie won't
@@ -59,6 +61,7 @@ struct MockCookie : cb::tracing::Traceable {
     uint64_t num_processed_notifications{};
     std::string authenticatedUser{"nobody"};
     in_port_t parent_port{666};
+    DcpConnHandlerIface* connHandlerIface = nullptr;
 
     void validate() const;
 

@@ -1986,6 +1986,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::releaseCookie(const void *cookie)
     return serverApi->cookie->release(cookie);
 }
 
+void EventuallyPersistentEngine::setDcpConnHandler(
+        const void* cookie, DcpConnHandlerIface* handler) {
+    NonBucketAllocationGuard guard;
+    serverApi->cookie->setDcpConnHandler(cookie, handler);
+}
+
+DcpConnHandlerIface* EventuallyPersistentEngine::getDcpConnHandler(
+        const void* cookie) {
+    NonBucketAllocationGuard guard;
+    return serverApi->cookie->getDcpConnHandler(cookie);
+}
+
 void EventuallyPersistentEngine::storeEngineSpecific(const void* cookie,
                                                      void* engine_data) {
     NonBucketAllocationGuard guard;
@@ -6139,14 +6151,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
     (void) seqno;
     std::string connName{stream_name};
 
-    if (getEngineSpecific(cookie) != nullptr) {
+    auto* handler = getConnHandler(cookie);
+    if (handler) {
         EP_LOG_WARN(
-                "Cannot open DCP connection as another"
-                " connection exists on the same socket");
+                "Cannot open DCP connection as another connection exists on "
+                "the same socket");
         return ENGINE_DISCONNECT;
     }
 
-    ConnHandler *handler = nullptr;
     if (flags & (cb::mcbp::request::DcpOpenPayload::Producer |
                  cb::mcbp::request::DcpOpenPayload::Notifier)) {
         if (flags & cb::mcbp::request::DcpOpenPayload::PiTR) {
@@ -6202,8 +6214,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
                 "cannot be reserved");
         return ENGINE_DISCONNECT;
     }
-
-    storeEngineSpecific(cookie, handler);
+    setDcpConnHandler(cookie, handler);
 
     return ENGINE_SUCCESS;
 }
@@ -6222,15 +6233,22 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpAddStream(const void* cookie,
 
 ConnHandler* EventuallyPersistentEngine::getConnHandler(const void* cookie,
                                                         bool logNonExistent) {
-    void* specific = getEngineSpecific(cookie);
-    auto* handler = reinterpret_cast<ConnHandler*>(specific);
-    if (!handler && logNonExistent) {
+    auto* iface = getDcpConnHandler(cookie);
+    if (iface) {
+        auto* handler = dynamic_cast<ConnHandler*>(iface);
+        if (handler) {
+            return handler;
+        }
+    }
+
+    if (logNonExistent) {
         auto li = serverApi->cookie->get_log_info(cookie);
         EP_LOG_WARN("{}: Invalid streaming connection: cookie:{}",
                     li.first,
                     cb::to_hex(uint64_t(cookie)));
     }
-    return handler;
+
+    return nullptr;
 }
 
 void EventuallyPersistentEngine::handleDisconnect(const void *cookie) {

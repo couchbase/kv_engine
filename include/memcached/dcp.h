@@ -41,6 +41,11 @@ enum class id : uint32_t;
 enum class version : uint8_t;
 } // namespace mcbp::systemevent
 
+class DcpConnHandlerIface {
+public:
+    virtual ~DcpConnHandlerIface() = default;
+};
+
 /**
  * The message producers are used by the engine's DCP producer
  * to add messages into the DCP stream.  Please look at the full

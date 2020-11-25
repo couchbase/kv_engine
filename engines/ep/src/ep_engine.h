@@ -533,6 +533,9 @@ public:
     ENGINE_ERROR_CODE reserveCookie(const void *cookie);
     ENGINE_ERROR_CODE releaseCookie(const void *cookie);
 
+    void setDcpConnHandler(const void* cookie, DcpConnHandlerIface* handler);
+    DcpConnHandlerIface* getDcpConnHandler(const void* cookie);
+
     void storeEngineSpecific(const void* cookie, void* engine_data);
 
     void* getEngineSpecific(const void* cookie);

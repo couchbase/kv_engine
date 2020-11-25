@@ -553,6 +553,14 @@ public:
      */
     bool processServerEvents();
 
+    DcpConnHandlerIface* getDcpConnHandlerIface() const {
+        return dcpConnHandlerIface.load(std::memory_order_acquire);
+    }
+
+    void setDcpConnHandlerIface(DcpConnHandlerIface* handler) {
+        dcpConnHandlerIface.store(handler, std::memory_order_release);
+    }
+
     /**
      * Set the name of the connected agent
      */
@@ -868,6 +876,9 @@ protected:
 
     /** Name of the local socket if known */
     const std::string sockname;
+
+    /// The stored DCP Connection Interface
+    std::atomic<DcpConnHandlerIface*> dcpConnHandlerIface{nullptr};
 
     /**
      * The connections' priority.

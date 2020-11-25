@@ -47,6 +47,14 @@ static bool ready = false;
 
 class AuditMockServerCookieApi : public ServerCookieIface {
 public:
+    void setDcpConnHandler(gsl::not_null<const void*> cookie,
+                           DcpConnHandlerIface* handler) override {
+        throw std::runtime_error("Not implemented");
+    }
+    DcpConnHandlerIface* getDcpConnHandler(
+            gsl::not_null<const void*> cookie) override {
+        throw std::runtime_error("Not implemented");
+    }
     void store_engine_specific(gsl::not_null<const void*> cookie,
                                void* engine_data) override {
         throw std::runtime_error("Not implemented");

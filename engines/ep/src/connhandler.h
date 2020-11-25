@@ -75,7 +75,7 @@ struct ConnCounter {
     size_t      conn_queueItemOnDisk;
 };
 
-class ConnHandler {
+class ConnHandler : public DcpConnHandlerIface {
 public:
     /// The maximum length of a DCP stat name
     static constexpr size_t MaxDcpStatNameLength = 47;
@@ -92,7 +92,7 @@ public:
                 const void* c,
                 std::string name);
 
-    virtual ~ConnHandler();
+    ~ConnHandler() override;
 
     virtual ENGINE_ERROR_CODE addStream(uint32_t opaque,
                                         Vbid vbucket,

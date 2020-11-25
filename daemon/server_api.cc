@@ -118,6 +118,16 @@ struct ServerDocumentApi : public ServerDocumentIface {
 };
 
 struct ServerCookieApi : public ServerCookieIface {
+    void setDcpConnHandler(gsl::not_null<const void*> cookie,
+                           DcpConnHandlerIface* handler) override {
+        getCookie(cookie).getConnection().setDcpConnHandlerIface(handler);
+    }
+
+    DcpConnHandlerIface* getDcpConnHandler(
+            gsl::not_null<const void*> cookie) override {
+        return getCookie(cookie).getConnection().getDcpConnHandlerIface();
+    }
+
     void store_engine_specific(gsl::not_null<const void*> void_cookie,
                                void* engine_data) override {
         const auto* cc = reinterpret_cast<const Cookie*>(void_cookie.get());

@@ -70,6 +70,10 @@ public:
         return reinterpret_cast<const cb::mcbp::Response*>(payload.data());
     }
 
+    const cb::mcbp::Header* getHeader() const {
+        return reinterpret_cast<const cb::mcbp::Header*>(payload.data());
+    }
+
     std::vector<uint8_t> payload;
     typedef std::vector<uint8_t>::size_type size_type;
 };

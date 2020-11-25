@@ -31,11 +31,34 @@ namespace cb::mcbp {
 class Request;
 } // namespace cb::mcbp
 
+class DcpConnHandlerIface;
+
 /**
  * Commands to operate on a specific cookie.
  */
 struct ServerCookieIface {
     virtual ~ServerCookieIface() = default;
+
+    /**
+     * Set the DCP connection handler to be used for the connection the
+     * provided cookie belongs to.
+     *
+     * @param cookie The cookie provided by the core for the operation
+     * @param handler The new handler (may be nullptr to clear the handler)
+     */
+    virtual void setDcpConnHandler(gsl::not_null<const void*> cookie,
+                                   DcpConnHandlerIface* handler) = 0;
+
+    /**
+     * Get the DCP connection handler for the connection the provided
+     * cookie belongs to
+     *
+     * @param cookie The cookie provided by the core for the operation
+     * @return The handler stored for the connection (may be nullptr if
+     *         none is specified)
+     */
+    virtual DcpConnHandlerIface* getDcpConnHandler(
+            gsl::not_null<const void*> cookie) = 0;
 
     /**
      * Store engine-specific session data on the given cookie.
