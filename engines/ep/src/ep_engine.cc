@@ -6147,17 +6147,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
         uint32_t flags,
         std::string_view stream_name,
         std::string_view value) {
-    (void) opaque;
-    (void) seqno;
     std::string connName{stream_name};
-
-    auto* handler = getConnHandler(cookie);
-    if (handler) {
-        EP_LOG_WARN(
-                "Cannot open DCP connection as another connection exists on "
-                "the same socket");
-        return ENGINE_DISCONNECT;
-    }
+    ConnHandler* handler = nullptr;
 
     if (flags & (cb::mcbp::request::DcpOpenPayload::Producer |
                  cb::mcbp::request::DcpOpenPayload::Notifier)) {

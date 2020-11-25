@@ -162,3 +162,18 @@ TEST_P(DcpTest, MB35928_DcpCantReauthenticate) {
                 << "SASL AUTH should fail";
     }
 }
+
+TEST_P(DcpTest, CantDcpOpenTwice) {
+    auto& conn = getAdminConnection();
+    conn.selectBucket("default");
+    auto rsp = conn.execute(BinprotDcpOpenCommand{
+            "ewb_internal:1", cb::mcbp::request::DcpOpenPayload::Producer});
+    ASSERT_TRUE(rsp.isSuccess());
+
+    rsp = conn.execute(BinprotDcpOpenCommand{
+            "ewb_internal:1", cb::mcbp::request::DcpOpenPayload::Producer});
+    ASSERT_FALSE(rsp.isSuccess());
+    auto json = nlohmann::json::parse(rsp.getDataString());
+    EXPECT_EQ("The connection is already opened as a DCP connection",
+              json["error"]["context"]);
+}
