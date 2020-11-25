@@ -53,10 +53,7 @@ TEST_F(RbacTest, DcpOpenWithoutAccess) {
 
                                   cb::mcbp::request::DcpOpenPayload::Producer});
     ASSERT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
-    rsp = conn->execute(
-            BinprotDcpOpenCommand{"DcpOpenWithoutAccess",
-
-                                  cb::mcbp::request::DcpOpenPayload::Notifier});
+    rsp = conn->execute(BinprotDcpOpenCommand{"DcpOpenWithoutAccess"});
     ASSERT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
 }
 
@@ -78,10 +75,8 @@ TEST_F(RbacTest, DcpOpenWithProducerAccess) {
     auto conn = cluster->getConnection(0);
     conn->authenticate(dcpuser, dcppass);
     conn->selectBucket(bucket);
-    auto rsp = conn->execute(
-            BinprotDcpOpenCommand{"DcpOpenWithProducerAccess",
-
-                                  cb::mcbp::request::DcpOpenPayload::Notifier});
+    auto rsp =
+            conn->execute(BinprotDcpOpenCommand{"DcpOpenWithProducerAccess"});
     ASSERT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
 
     rsp = conn->execute(
@@ -115,9 +110,6 @@ TEST_F(RbacTest, DcpOpenWithConsumerAccess) {
                                   cb::mcbp::request::DcpOpenPayload::Producer});
     ASSERT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
 
-    rsp = conn->execute(
-            BinprotDcpOpenCommand{"DcpOpenWithConsumerAccess",
-
-                                  cb::mcbp::request::DcpOpenPayload::Notifier});
+    rsp = conn->execute(BinprotDcpOpenCommand{"DcpOpenWithConsumerAccess"});
     ASSERT_TRUE(rsp.isSuccess());
 }

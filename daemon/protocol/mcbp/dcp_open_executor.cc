@@ -36,14 +36,12 @@ void dcp_open_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     connection.enableDatatype(cb::mcbp::Feature::JSON);
 
-    const bool dcpNotifier =
-            (flags & DcpOpenPayload::Notifier) == DcpOpenPayload::Notifier;
+    const bool dcpProducer =
+            (flags & DcpOpenPayload::Producer) == DcpOpenPayload::Producer;
 
     if (ret == ENGINE_SUCCESS) {
-        cb::rbac::Privilege privilege = cb::rbac::Privilege::DcpProducer;
-        if (dcpNotifier) {
-            privilege = cb::rbac::Privilege::DcpConsumer;
-        }
+        const auto privilege = dcpProducer ? cb::rbac::Privilege::DcpProducer
+                                           : cb::rbac::Privilege::DcpConsumer;
 
         ret = mcbp::checkPrivilege(cookie, privilege);
 
@@ -82,13 +80,15 @@ void dcp_open_executor(Cookie& cookie) {
         // String buffer with max length = total length of all possible contents
         std::string logBuffer;
 
-        const bool dcpProducer =
-                (flags & DcpOpenPayload::Producer) == DcpOpenPayload::Producer;
+        const bool dcpNotifier =
+                (flags & DcpOpenPayload::Notifier) == DcpOpenPayload::Notifier;
+
         if (dcpProducer) {
             logBuffer.append("PRODUCER, ");
-        }
-        if (dcpNotifier) {
+        } else if (dcpNotifier) {
             logBuffer.append("NOTIFIER, ");
+        } else {
+            logBuffer.append("CONSUMER, ");
         }
         if (dcpXattrAware) {
             logBuffer.append("INCLUDE_XATTRS, ");
