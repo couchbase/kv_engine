@@ -356,6 +356,7 @@ CouchKVStore::CouchKVStore(CouchKVStoreConfig& config,
     cachedDeleteCount.assign(numDbFiles, cb::RelaxedAtomic<size_t>(0));
     cachedFileSize.assign(numDbFiles, cb::RelaxedAtomic<uint64_t>(0));
     cachedSpaceUsed.assign(numDbFiles, cb::RelaxedAtomic<uint64_t>(0));
+    cachedOnDiskPrepareSize.assign(numDbFiles, 0);
     cachedVBStates.resize(numDbFiles);
 }
 
@@ -485,6 +486,7 @@ void CouchKVStore::reset(Vbid vbucketId) {
         cachedDeleteCount[vbucketId.get()] = 0;
         cachedFileSize[vbucketId.get()] = 0;
         cachedSpaceUsed[vbucketId.get()] = 0;
+        cachedOnDiskPrepareSize[vbucketId.get()] = 0;
 
         // Unlink the current revision and then increment it to ensure any
         // pending delete doesn't delete us. Note that the expectation is that
@@ -1488,6 +1490,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
         state->onDiskPrepares = on_disk_prepares;
         state->updateOnDiskPrepareBytes(
                 -int64_t(hook_ctx->stats.prepareBytesPurged));
+        cachedOnDiskPrepareSize[vbid.get()] = state->getOnDiskPrepareBytes();
     }
 
     logger.debug("INFO: created new couch db file, name:{} rev:{}",
@@ -2845,6 +2848,7 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
     cachedFileSize[vbid.get()] = info.fileSize;
     cachedDeleteCount[vbid.get()] = info.deletedCount;
     cachedDocCount[vbid.get()] = info.docCount;
+    cachedOnDiskPrepareSize[vbid.get()] = state.getOnDiskPrepareBytes();
 
     // Check seqno if we wrote documents
     if (!docs.empty() && maxDBSeqno != info.updateSeqNum) {
@@ -3251,7 +3255,8 @@ size_t CouchKVStore::getNumPersistedDeletes(Vbid vbid) {
 
 DBFileInfo CouchKVStore::getDbFileInfo(Vbid vbid) {
     const auto info = getDbInfo(vbid);
-    return DBFileInfo{info.fileSize, info.spaceUsed};
+    return DBFileInfo{
+            info.fileSize, info.spaceUsed, cachedOnDiskPrepareSize[vbid.get()]};
 }
 
 DBFileInfo CouchKVStore::getAggrDbFileInfo() {
@@ -3264,6 +3269,7 @@ DBFileInfo CouchKVStore::getAggrDbFileInfo() {
     for (uint16_t vbid = 0; vbid < cachedFileSize.size(); vbid++) {
         kvsFileInfo.fileSize += cachedFileSize[vbid].load();
         kvsFileInfo.spaceUsed += cachedSpaceUsed[vbid].load();
+        kvsFileInfo.prepareBytes += cachedOnDiskPrepareSize[vbid].load();
     }
     return kvsFileInfo;
 }
@@ -3586,6 +3592,7 @@ uint64_t CouchKVStore::prepareToDeleteImpl(Vbid vbid) {
     cachedDeleteCount[vbid.get()] = 0;
     cachedFileSize[vbid.get()] = 0;
     cachedSpaceUsed[vbid.get()] = 0;
+    cachedOnDiskPrepareSize[vbid.get()] = 0;
     return getDbRevision(vbid);
 }
 

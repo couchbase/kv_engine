@@ -271,6 +271,7 @@ STAT(ep_rocksdb_scan_oldSeqnoHits, , count, , )
 // EPBucket::getFileStats
 STAT(ep_db_data_size, , bytes, , )
 STAT(ep_db_file_size, , bytes, , )
+STAT(ep_db_prepare_size, , bytes, , )
 
 // Timing stats
 STAT(bg_wait, , microseconds, , )
