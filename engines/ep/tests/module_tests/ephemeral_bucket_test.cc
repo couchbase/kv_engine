@@ -505,7 +505,7 @@ TEST_F(SingleThreadedEphemeralPurgerTest, HTCleanerSkipsPrepares) {
     }
 
     // Run the StaleItemDeleter (scheduled by the first run of the HTCleaner)
-    runNextTask(queue);
+    runNextTask(queue, "Eph tombstone stale item deleter");
     // Run the HTCleaner again
     bucket->scheduleTombstonePurgerTask();
     bucket->attemptToFreeMemory();
