@@ -735,7 +735,23 @@ public:
      * @param cookie the cookie to look up
      * @return the pointer to the connection handler if found, nullptr otherwise
      */
-    ConnHandler* getConnHandler(const void* cookie);
+    ConnHandler* tryGetConnHandler(const void* cookie);
+
+    /**
+     * Get the connection handler for the provided cookie. This method differs
+     * from the tryGetConnHandler that it expects the conn handler to exist
+     * and will throw an exception if there isn't.
+     *
+     * In most cases where we want to get the connection handlers we're called
+     * as part of the command handler for DCP, and the core has already
+     * checked that we're called on a DCP connection (and the handler should
+     * be there) and return an error back to the caller if it isn't
+     *
+     * @param cookie the cookie to look up
+     * @return the connection handler
+     * @throws std::logic_error if the cookie don't have a connection handler
+     */
+    ConnHandler& getConnHandler(const void* cookie);
 
     /**
      * Method to add a cookie to allKeysLookups to store the result of the

@@ -420,41 +420,7 @@ TEST_F(WarmupTest, MB_32577) {
     EXPECT_EQ(ENGINE_TMPFAIL,
               engine->open(cookie, 0, 0 /*seqno*/, zeroFlags, "test_consumer"));
 
-    // create a stream to send the delete request so we can send vbucket on the
-    // consumer
-    EXPECT_EQ(ENGINE_DISCONNECT, engine->add_stream(cookie, 0, vbid, 0));
-
-    // create snapshot so we can delete the document
-    EXPECT_EQ(ENGINE_DISCONNECT,
-              engine->snapshot_marker(cookie,
-                                      /*opaque*/ 1,
-                                      vbid,
-                                      /*start_seqno*/ 0,
-                                      /*end_seqno*/ 100,
-                                      zeroFlags,
-                                      /*HCS*/ {},
-                                      /*maxVisibleSeqno*/ {}));
-
-    // create a DocKey object for the delete request
-    const DocKey docKey{reinterpret_cast<const uint8_t*>(keyName.data()),
-                        keyName.size(),
-                        DocKeyEncodesCollectionId::No};
-    // Try and delete the doc
-    EXPECT_EQ(ENGINE_DISCONNECT,
-              engine->deletion(cookie,
-                               /*opaque*/ 1,
-                               /*key*/ docKey,
-                               /*value*/ {},
-                               /*priv_bytes*/ 0,
-                               /*datatype*/ PROTOCOL_BINARY_RAW_BYTES,
-                               /*cas*/ 0,
-                               /*vbucket*/ vbid,
-                               /*bySeqno*/ 2,
-                               /*revSeqno*/ 0,
-                               /*meta*/ {}));
-    // Get the engine to flush the delete to disk, this will cause an
-    // underflow exception if the deletion request was successful
-    EXPECT_NO_THROW(dynamic_cast<EPBucket&>(*store).flushVBucket(vbid));
+    // The core will block all DCP commands for non-DCP connections
 
     // finish warmup so we can check the number of items in the engine
     while (store->isWarmingUp()) {
@@ -485,6 +451,11 @@ TEST_F(WarmupTest, MB_32577) {
                                       zeroFlags,
                                       /*HCS*/ {},
                                       /*maxVisibleSeqno*/ {}));
+
+    // create a DocKey object for the delete request
+    const DocKey docKey{reinterpret_cast<const uint8_t*>(keyName.data()),
+                        keyName.size(),
+                        DocKeyEncodesCollectionId::No};
 
     // Try and delete the doc
     EXPECT_EQ(ENGINE_SUCCESS,

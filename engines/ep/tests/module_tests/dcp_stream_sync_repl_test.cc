@@ -184,8 +184,8 @@ TEST_P(DcpStreamSyncReplTest, NoPendingNotificationWithoutSyncReplication) {
                               "producer",
                               {}));
 
-    auto* producer =
-            dynamic_cast<DcpProducer*>(engine->getConnHandler(producerCookie));
+    auto* producer = dynamic_cast<DcpProducer*>(
+            engine->tryGetConnHandler(producerCookie));
 
     GMockDcpMsgProducers producers; // no expectations set.
     ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
@@ -221,8 +221,8 @@ TEST_P(DcpStreamSyncReplTest, PendingNotificationWithSyncReplication) {
                               "producer",
                               {}));
 
-    auto* producer =
-            dynamic_cast<DcpProducer*>(engine->getConnHandler(producerCookie));
+    auto* producer = dynamic_cast<DcpProducer*>(
+            engine->tryGetConnHandler(producerCookie));
     EXPECT_EQ(ENGINE_SUCCESS,
               producer->control(0, "enable_sync_writes", "true"));
 
