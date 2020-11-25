@@ -1425,7 +1425,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get_failover_log(
         return ENGINE_EWOULDBLOCK;
     }
 
-    ConnHandler* conn = engine->getConnHandler(cookie, false);
+    ConnHandler* conn = engine->getConnHandler(cookie);
     // Note: (conn != nullptr) only if conn is a DCP connection
     if (conn) {
         auto* producer = dynamic_cast<DcpProducer*>(conn);
@@ -6231,21 +6231,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpAddStream(const void* cookie,
     return errCode;
 }
 
-ConnHandler* EventuallyPersistentEngine::getConnHandler(const void* cookie,
-                                                        bool logNonExistent) {
+ConnHandler* EventuallyPersistentEngine::getConnHandler(const void* cookie) {
     auto* iface = getDcpConnHandler(cookie);
     if (iface) {
         auto* handler = dynamic_cast<ConnHandler*>(iface);
         if (handler) {
             return handler;
         }
-    }
-
-    if (logNonExistent) {
-        auto li = serverApi->cookie->get_log_info(cookie);
-        EP_LOG_WARN("{}: Invalid streaming connection: cookie:{}",
-                    li.first,
-                    cb::to_hex(uint64_t(cookie)));
+        throw std::logic_error(
+                "EventuallyPersistentEngine::getConnHandler(): The registered "
+                "connection handler is not a ConnHandler");
     }
 
     return nullptr;
@@ -6444,7 +6439,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
         return ENGINE_ERROR_CODE(accessStatus);
     }
 
-    auto* connhandler = getConnHandler(cookie, false);
+    auto* connhandler = getConnHandler(cookie);
     bool supportsSyncWrites = connhandler && connhandler->isSyncWritesEnabled();
 
     std::vector<char> payload;

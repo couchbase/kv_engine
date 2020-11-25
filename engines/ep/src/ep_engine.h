@@ -733,10 +733,9 @@ public:
      * Get the connection handler for the provided cookie
      *
      * @param cookie the cookie to look up
-     * @param logNonExistent Should we log if we don't find a connection handler
      * @return the pointer to the connection handler if found, nullptr otherwise
      */
-    ConnHandler* getConnHandler(const void* cookie, bool logNonExistent = true);
+    ConnHandler* getConnHandler(const void* cookie);
 
     /**
      * Method to add a cookie to allKeysLookups to store the result of the
