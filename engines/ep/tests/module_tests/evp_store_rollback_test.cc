@@ -19,29 +19,23 @@
  * Tests for Rollback functionality in EPStore.
  */
 
-#include "checkpoint_manager.h"
 #include "checkpoint_utils.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/active_stream_checkpoint_processor_task.h"
-#include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"
 #include "dcp/response.h"
-#include "dcp/stream.h"
 #include "dcp_utils.h"
 #include "durability/passive_durability_monitor.h"
 #include "ep_bucket.h"
 #include "ep_time.h"
 #include "evp_store_single_threaded_test.h"
-#include "evp_store_test.h"
 #include "failover-table.h"
-#include "kv_bucket.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/mock/mock_checkpoint_manager.h"
 #include "tests/mock/mock_dcp.h"
 #include "tests/mock/mock_dcp_consumer.h"
 #include "tests/mock/mock_dcp_producer.h"
 #include "tests/mock/mock_stream.h"
-#include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/test_helpers.h"
 #include <engines/ep/tests/mock/mock_dcp_conn_map.h>
@@ -627,35 +621,25 @@ TEST_P(RollbackTest, RollbackCollectionCreate2) {
 // Test what happens when we rollback the creation and the mutation of
 // different documents that are persisted
 TEST_P(RollbackTest, RollbackMutationDocCounts) {
-    rollback_stat_test(
-            1,
-            std::bind(&RollbackTest::rollback_after_mutation_test, this, true));
+    rollback_stat_test(1, [this] { rollback_after_mutation_test(true); });
 }
 
 // Test what happens when we rollback the creation and the mutation of
 // different documents that are not persisted
 TEST_P(RollbackTest, RollbackMutationDocCountsNoFlush) {
-    rollback_stat_test(
-            1,
-            std::bind(
-                    &RollbackTest::rollback_after_mutation_test, this, false));
+    rollback_stat_test(1, [this] { rollback_after_mutation_test(false); });
 }
 
 // Test what happens when we rollback a deletion of a document that existed
 // before rollback that has been persisted
 TEST_P(RollbackTest, RollbackDeletionDocCounts) {
-    rollback_stat_test(
-            1,
-            std::bind(&RollbackTest::rollback_after_deletion_test, this, true));
+    rollback_stat_test(1, [this] { rollback_after_deletion_test(true); });
 }
 
 // Test what happens when we rollback a deletion of a document that existed
 // before rollback that has not been persisted
 TEST_P(RollbackTest, RollbackDeletionDocCountsNoFlush) {
-    rollback_stat_test(1,
-                       std::bind(&RollbackTest::rollback_after_deletion_test,
-                                 this,
-                                 false));
+    rollback_stat_test(1, [this] { rollback_after_deletion_test(false); });
 }
 
 // Test what happens if we rollback the creation and deletion of a document
@@ -905,8 +889,7 @@ public:
     // Mock implementation of DcpMessageProducersIface which ... TODO
     class DcpProducers;
 
-    RollbackDcpTest() {
-    }
+    RollbackDcpTest() = default;
 
     void SetUp() override {
         config_string += "item_eviction_policy=" + getEvictionMode();
@@ -931,12 +914,12 @@ public:
     }
 
     // build a rollback response command
-    std::unique_ptr<char[]> getRollbackResponse(uint32_t opaque,
-                                                uint64_t rollbackSeq) const {
-        auto msg = std::make_unique<char[]>(
-                sizeof(protocol_binary_response_header) + sizeof(uint64_t));
+    std::vector<char> getRollbackResponse(uint32_t opaque,
+                                          uint64_t rollbackSeq) const {
+        std::vector<char> msg(sizeof(protocol_binary_response_header) +
+                              sizeof(uint64_t));
         cb::mcbp::ResponseBuilder builder(
-                {reinterpret_cast<uint8_t*>(msg.get()),
+                {reinterpret_cast<uint8_t*>(msg.data()),
                  sizeof(protocol_binary_response_header) + sizeof(uint64_t)});
 
         builder.setMagic(cb::mcbp::Magic::ClientResponse);
@@ -1029,7 +1012,7 @@ public:
         // with the next failover entry.
         auto msg = getRollbackResponse(1 /*opaque*/, rollbackSeq);
         EXPECT_TRUE(consumer->handleResponse(
-                *reinterpret_cast<cb::mcbp::Response*>(msg.get())));
+                *reinterpret_cast<cb::mcbp::Response*>(msg.data())));
 
         // Consumer should of added a StreamRequest with a different vbuuid
         EXPECT_NE(previousUUID, vb->failovers->getLatestEntry().vb_uuid);
@@ -1043,7 +1026,7 @@ public:
         // with the next failover entry.
         auto msg = getRollbackResponse(1 /*opaque*/, rollbackSeq);
         EXPECT_TRUE(consumer->handleResponse(
-                *reinterpret_cast<cb::mcbp::Response*>(msg.get())));
+                *reinterpret_cast<cb::mcbp::Response*>(msg.data())));
 
         // consumer must of scheduled a RollbackTask (writer task)
         auto& lpWriteQ = *task_executor->getLpTaskQ()[WRITER_TASK_IDX];
@@ -2256,8 +2239,7 @@ TEST_P(RollbackDcpTest, RollbackUnpersistedAbortDoesNotLoadOlderPrepare) {
 
 class ReplicaRollbackDcpTest : public SingleThreadedEPBucketTest {
 public:
-    ReplicaRollbackDcpTest() {
-    }
+    ReplicaRollbackDcpTest() = default;
 
     void SetUp() override {
         SingleThreadedEPBucketTest::SetUp();
