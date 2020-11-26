@@ -21,9 +21,10 @@
 #include "collections/vbucket_manifest.h"
 #include "dcp/response.h"
 #include "item.h"
-#include "kvstore.h"
 
 #include <mcbp/protocol/unsigned_leb128.h>
+
+#include <memory>
 
 std::unique_ptr<Item> SystemEventFactory::make(const DocKey& key,
                                                SystemEvent se,
@@ -122,44 +123,40 @@ std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
             auto data = Collections::VB::Manifest::getCreateEventData(
                     {item->getData(), item->getNBytes()});
             if (data.metaData.maxTtl) {
-                return std::unique_ptr<
-                        CollectionCreateWithMaxTtlProducerMessage>{
-                        new CollectionCreateWithMaxTtlProducerMessage(
-                                opaque, item, data, sid)};
+                return std::make_unique<
+                        CollectionCreateWithMaxTtlProducerMessage>(
+                        opaque, item, data, sid);
             } else {
-                return std::unique_ptr<CollectionCreateProducerMessage>{
-                        new CollectionCreateProducerMessage(
-                                opaque, item, data, sid)};
+                return std::make_unique<CollectionCreateProducerMessage>(
+
+                        opaque, item, data, sid);
             }
         } else {
             // Note: constructor is private and make_unique is a pain to make
             // friend
-            return std::unique_ptr<CollectionDropProducerMessage>{
-                    new CollectionDropProducerMessage(
-                            opaque,
-                            item,
-                            Collections::VB::Manifest::getDropEventData(
-                                    {item->getData(), item->getNBytes()}),
-                            sid)};
+            return std::make_unique<CollectionDropProducerMessage>(
+                    opaque,
+                    item,
+                    Collections::VB::Manifest::getDropEventData(
+                            {item->getData(), item->getNBytes()}),
+                    sid);
         }
     }
     case SystemEvent::Scope: {
         if (!item->isDeleted()) {
-            return std::unique_ptr<ScopeCreateProducerMessage>{
-                    new ScopeCreateProducerMessage(
-                            opaque,
-                            item,
-                            Collections::VB::Manifest::getCreateScopeEventData(
-                                    {item->getData(), item->getNBytes()}),
-                            sid)};
+            return std::make_unique<ScopeCreateProducerMessage>(
+                    opaque,
+                    item,
+                    Collections::VB::Manifest::getCreateScopeEventData(
+                            {item->getData(), item->getNBytes()}),
+                    sid);
         } else {
-            return std::unique_ptr<ScopeDropProducerMessage>{
-                    new ScopeDropProducerMessage(
-                            opaque,
-                            item,
-                            Collections::VB::Manifest::getDropScopeEventData(
-                                    {item->getData(), item->getNBytes()}),
-                            sid)};
+            return std::make_unique<ScopeDropProducerMessage>(
+                    opaque,
+                    item,
+                    Collections::VB::Manifest::getDropScopeEventData(
+                            {item->getData(), item->getNBytes()}),
+                    sid);
         }
     }
     }

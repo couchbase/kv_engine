@@ -28,11 +28,9 @@ class Item;
 class KVStore;
 class SystemEventMessage;
 
-namespace Collections {
-namespace VB {
+namespace Collections::VB {
 class Manifest;
-} // namespace VB
-} // namespace Collections
+} // namespace Collections::VB
 
 /// underlying size of uint32_t as this is to be stored in the Item flags field.
 enum class SystemEvent : uint32_t {
