@@ -1190,6 +1190,11 @@ protected:
      */
     static void waitForTasks(std::vector<ExTask>& tasks);
 
+    ENGINE_ERROR_CODE processUnknownCommandInner(
+            const void* cookie,
+            const cb::mcbp::Request& request,
+            const AddResponseFn& response);
+
 private:
     cb::EngineErrorGetCollectionIDResult parseKeyStatCollection(
             std::string_view expectedStatPrefix,
