@@ -692,12 +692,28 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
     }
 
     if (hcs) {
-        Expects(hcs > proposedVBState.persistedCompletedSeqno);
+        if (hcs <= proposedVBState.persistedCompletedSeqno) {
+            throw std::logic_error(
+                    "EPBucket::flushVBucket: " + vbid.to_string() +
+                    " Trying to set PCS to " + std::to_string(*hcs) +
+                    " but the current value is " +
+                    std::to_string(proposedVBState.persistedCompletedSeqno) +
+                    " and the PCS must be monotonic. The current checkpoint " +
+                    "type is " + to_string(toFlush.checkpointType));
+        }
         proposedVBState.persistedCompletedSeqno = *hcs;
     }
 
     if (hps) {
-        Expects(hps > proposedVBState.persistedPreparedSeqno);
+        if (hps <= proposedVBState.persistedPreparedSeqno) {
+            throw std::logic_error(
+                    "EPBucket::flushVBucket: " + vbid.to_string() +
+                    " Trying to set PPS to " + std::to_string(*hps) +
+                    " but the current value is " +
+                    std::to_string(proposedVBState.persistedPreparedSeqno) +
+                    " and the PPS must be monotonic. The current checkpoint " +
+                    "type is " + to_string(toFlush.checkpointType));
+        }
         proposedVBState.persistedPreparedSeqno = *hps;
     }
 
