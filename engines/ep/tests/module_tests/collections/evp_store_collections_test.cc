@@ -881,68 +881,71 @@ bool CollectionsFlushTest::cannotWrite(
  */
 void CollectionsFlushTest::collectionsFlusher(int items) {
     struct testFuctions {
-        std::function<Collections::KVStore::Manifest()> function;
+        std::function<Collections::KVStore::Manifest(int)> function;
         std::function<bool(const Collections::VB::Manifest&)> validator;
     };
 
     CollectionsManifest cm(CollectionEntry::meat);
-    using std::placeholders::_1;
     // Setup the test using a vector of functions to run
     std::vector<testFuctions> test{
             // First 2 steps - add,delete for the meat collection
             {// 0
-             std::bind(&CollectionsFlushTest::createCollectionAndFlush,
-                       this,
-                       cm,
-                       CollectionEntry::meat,
-                       items),
-             std::bind(&CollectionsFlushTest::canWrite,
-                       _1,
-                       CollectionEntry::meat)},
-
+             [this, cm](int items) -> Collections::KVStore::Manifest {
+                 return createCollectionAndFlush(
+                         cm, CollectionEntry::meat, items);
+             },
+             [](const Collections::VB::Manifest& manifest) -> bool {
+                 return CollectionsFlushTest::canWrite(manifest,
+                                                       CollectionEntry::meat);
+             }},
             {// 1
-             std::bind(&CollectionsFlushTest::dropCollectionAndFlush,
-                       this,
-                       cm.remove(CollectionEntry::meat),
-                       CollectionEntry::meat,
-                       items),
-             std::bind(&CollectionsFlushTest::cannotWrite,
-                       _1,
-                       CollectionEntry::meat)},
+             [this, manifest = cm.remove(CollectionEntry::meat)](
+                     int items) -> Collections::KVStore::Manifest {
+                 return dropCollectionAndFlush(
+                         manifest, CollectionEntry::meat, items);
+             },
+             [](const Collections::VB::Manifest& manifest) -> bool {
+                 return CollectionsFlushTest::cannotWrite(
+                         manifest, CollectionEntry::meat);
+             }},
 
             // Final 3 steps - add,delete,add for the fruit collection
             {// 2
-             std::bind(&CollectionsFlushTest::createCollectionAndFlush,
-                       this,
-                       cm.add(CollectionEntry::dairy),
-                       CollectionEntry::dairy,
-                       items),
-             std::bind(&CollectionsFlushTest::canWrite,
-                       _1,
-                       CollectionEntry::dairy)},
+             [this, manifest = cm.add(CollectionEntry::dairy)](
+                     int items) -> Collections::KVStore::Manifest {
+                 return createCollectionAndFlush(
+                         manifest, CollectionEntry::dairy, items);
+             },
+             [](const Collections::VB::Manifest& manifest) -> bool {
+                 return CollectionsFlushTest::canWrite(manifest,
+                                                       CollectionEntry::dairy);
+             }},
             {// 3
-             std::bind(&CollectionsFlushTest::dropCollectionAndFlush,
-                       this,
-                       cm.remove(CollectionEntry::dairy),
-                       CollectionEntry::dairy,
-                       items),
-             std::bind(&CollectionsFlushTest::cannotWrite,
-                       _1,
-                       CollectionEntry::dairy)},
+             [this, manifest = cm.remove(CollectionEntry::dairy)](
+                     int items) -> Collections::KVStore::Manifest {
+                 return dropCollectionAndFlush(
+                         manifest, CollectionEntry::dairy, items);
+             },
+             [](const Collections::VB::Manifest& manifest) {
+                 return CollectionsFlushTest::cannotWrite(
+                         manifest, CollectionEntry::dairy);
+             }},
             {// 4
-             std::bind(&CollectionsFlushTest::createCollectionAndFlush,
-                       this,
-                       cm.add(CollectionEntry::dairy2),
-                       CollectionEntry::dairy2,
-                       items),
-             std::bind(&CollectionsFlushTest::canWrite,
-                       _1,
-                       CollectionEntry::dairy2)}};
+             [this, manifest = cm.add(CollectionEntry::dairy2)](
+                     int items) -> Collections::KVStore::Manifest {
+                 return createCollectionAndFlush(
+                         manifest, CollectionEntry::dairy2, items);
+             },
+             [](const Collections::VB::Manifest& manifest) -> bool {
+                 return CollectionsFlushTest::canWrite(manifest,
+                                                       CollectionEntry::dairy2);
+             }}};
 
     auto m1 = std::make_unique<Collections::VB::Manifest>();
     int step = 0;
     for (auto& f : test) {
-        auto m2 = std::make_unique<Collections::VB::Manifest>(f.function());
+        auto m2 =
+                std::make_unique<Collections::VB::Manifest>(f.function(items));
         // The manifest should change for each step
         EXPECT_NE(*m1, *m2) << "Failed step:" + std::to_string(step) << "\n"
                             << *m1 << "\n should not match " << *m2 << "\n";

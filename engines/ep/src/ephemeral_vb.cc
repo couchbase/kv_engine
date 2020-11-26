@@ -368,11 +368,10 @@ size_t EphemeralVBucket::purgeStaleItems(std::function<bool()> shouldPauseCbk) {
         return 0;
     }
 
-    auto droppedCallback = std::bind(&EphemeralVBucket::isKeyLogicallyDeleted,
-                                     this,
-                                     std::placeholders::_1,
-                                     std::placeholders::_2,
-                                     std::placeholders::_3);
+    auto droppedCallback =
+            [this](const DocKey& key, int64_t bySeqno, bool pending) {
+                return isKeyLogicallyDeleted(key, bySeqno, pending);
+            };
 
     auto seqListPurged = seqList->purgeTombstones(
             static_cast<seqno_t>(seqList->getHighSeqno()) - 1,

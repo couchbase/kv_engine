@@ -1431,21 +1431,22 @@ TEST_P(STExpiryPagerTest, MB_25671) {
     metadata.revSeqno = 0xdad;
     metadata.exptime = 0xfeedface;
     PermittedVBStates vbstates(vbucket_state_active);
-    auto deleteWithMeta = std::bind(&KVBucketIface::deleteWithMeta,
-                                    store,
-                                    key_1,
-                                    cas,
-                                    nullptr,
-                                    vbid,
-                                    cookie,
-                                    vbstates,
-                                    CheckConflicts::No,
-                                    metadata,
-                                    GenerateBySeqno::No,
-                                    GenerateCas::No,
-                                    0,
-                                    nullptr,
-                                    DeleteSource::Explicit);
+    auto deleteWithMeta =
+            [this, key_1, &cas, vbstates, metadata]() -> ENGINE_ERROR_CODE {
+        return store->deleteWithMeta(key_1,
+                                     cas,
+                                     nullptr,
+                                     vbid,
+                                     cookie,
+                                     vbstates,
+                                     CheckConflicts::No,
+                                     metadata,
+                                     GenerateBySeqno::No,
+                                     GenerateCas::No,
+                                     0,
+                                     nullptr,
+                                     DeleteSource::Explicit);
+    };
     // Prior to the MB fix - this would crash.
     EXPECT_EQ(err, deleteWithMeta());
 
@@ -1824,21 +1825,22 @@ TEST_P(MB_36087, DelWithMeta_EvictedKey) {
     metadata.exptime = 0xfeedface;
     PermittedVBStates vbstates(vbucket_state_active);
 
-    auto deleteWithMeta = std::bind(&KVBucketIface::deleteWithMeta,
-                                    store,
-                                    key,
-                                    cas,
-                                    nullptr,
-                                    vbid,
-                                    cookie,
-                                    vbstates,
-                                    CheckConflicts::Yes,
-                                    metadata,
-                                    GenerateBySeqno::Yes,
-                                    GenerateCas::No,
-                                    0,
-                                    nullptr,
-                                    DeleteSource::Explicit);
+    auto deleteWithMeta =
+            [this, key, &cas, vbstates, metadata]() -> ENGINE_ERROR_CODE {
+        return store->deleteWithMeta(key,
+                                     cas,
+                                     nullptr,
+                                     vbid,
+                                     cookie,
+                                     vbstates,
+                                     CheckConflicts::Yes,
+                                     metadata,
+                                     GenerateBySeqno::Yes,
+                                     GenerateCas::No,
+                                     0,
+                                     nullptr,
+                                     DeleteSource::Explicit);
+    };
     // A bgfetch is required for full or value eviction because we need the
     // xattr value
     EXPECT_EQ(ENGINE_EWOULDBLOCK, deleteWithMeta());

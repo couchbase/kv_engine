@@ -1205,11 +1205,11 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
                 localDbReqs, vbstate, kvstoreRevList[vbid.get()]);
 
         commitData.collections.saveCollectionStats(
-                std::bind(&MagmaKVStore::saveCollectionStats,
-                          this,
-                          std::ref(localDbReqs),
-                          std::placeholders::_1,
-                          std::placeholders::_2));
+                [this, &localDbReqs](
+                        CollectionID cid,
+                        const Collections::VB::PersistedStats& stats) {
+                    saveCollectionStats(localDbReqs, cid, stats);
+                });
 
         if (commitData.collections.isReadyForCommit()) {
             updateCollectionsMeta(vbid, localDbReqs, commitData.collections);

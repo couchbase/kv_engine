@@ -2770,11 +2770,11 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
     pendingLocalReqsQ.emplace_back("_local/vbstate", makeJsonVBState(state));
 
     kvctx.commitData.collections.saveCollectionStats(
-            std::bind(&CouchKVStore::saveCollectionStats,
-                      this,
-                      std::ref(*db),
-                      std::placeholders::_1,
-                      std::placeholders::_2));
+            [this, &dbRef = *db](
+                    CollectionID cid,
+                    const Collections::VB::PersistedStats& stats) {
+              saveCollectionStats(dbRef, cid, stats);
+            });
 
     if (kvctx.commitData.collections.isReadyForCommit()) {
         updateCollectionsMeta(*db, kvctx.commitData.collections);
