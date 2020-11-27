@@ -157,6 +157,15 @@ struct ServerCookieIface {
                                     ENGINE_ERROR_CODE status) = 0;
 
     /**
+     * Request the core to schedule a new call to dcp_step() as soon as
+     * possible as the underlying engine has data to send.
+     *
+     * @param cookie cookie representing the connection (MUST be a DCP
+     *               connection)
+     */
+    virtual void scheduleDcpStep(gsl::not_null<const void*> cookie) = 0;
+
+    /**
      * Notify the core that we're holding on to this cookie for
      * future use. (The core guarantees it will not invalidate the
      * memory until the cookie is invalidated by calling release())

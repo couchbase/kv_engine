@@ -6059,6 +6059,12 @@ void EventuallyPersistentEngine::notifyIOComplete(const void* cookie,
     }
 }
 
+void EventuallyPersistentEngine::scheduleDcpStep(
+        gsl::not_null<const void*> cookie) {
+    NonBucketAllocationGuard guard;
+    serverApi->cookie->scheduleDcpStep(cookie);
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getRandomKey(
         const void* cookie,
         const cb::mcbp::Request& request,

@@ -423,6 +423,10 @@ struct MockServerCookieApi : public ServerCookieIface {
         c->num_io_notifications++;
         c->cond.notify_all();
     }
+
+    void scheduleDcpStep(gsl::not_null<const void*> cookie) override {
+        notify_io_complete(cookie, ENGINE_SUCCESS);
+    }
 };
 
 ServerApi* get_mock_server_api() {

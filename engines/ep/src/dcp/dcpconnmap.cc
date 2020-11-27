@@ -402,7 +402,7 @@ void DcpConnMap::manageConnections() {
 
     for (auto& it : toNotify) {
         if (it.get() && it->isReserved()) {
-            engine.notifyIOComplete(it->getCookie(), ENGINE_SUCCESS);
+            engine.scheduleDcpStep(it->getCookie());
         }
     }
 

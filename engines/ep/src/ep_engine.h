@@ -529,6 +529,7 @@ public:
     void setDCPPriority(const void* cookie, ConnectionPriority priority);
 
     void notifyIOComplete(const void* cookie, ENGINE_ERROR_CODE status);
+    void scheduleDcpStep(gsl::not_null<const void*> cookie);
 
     ENGINE_ERROR_CODE reserveCookie(const void *cookie);
     ENGINE_ERROR_CODE releaseCookie(const void *cookie);

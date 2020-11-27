@@ -120,6 +120,9 @@ public:
                             ENGINE_ERROR_CODE status) override {
         return wrapped->notify_io_complete(cookie, status);
     }
+    void scheduleDcpStep(gsl::not_null<const void*> cookie) override {
+        wrapped->scheduleDcpStep(cookie);
+    }
     ENGINE_ERROR_CODE reserve(gsl::not_null<const void*> cookie) override {
         return wrapped->reserve(cookie);
     }
@@ -1601,8 +1604,7 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete) {
     size_t notify_count = 0;
     class MockServerCookieApi : public WrappedServerCookieIface {
     public:
-        void notify_io_complete(gsl::not_null<const void*> cookie,
-                                ENGINE_ERROR_CODE status) override {
+        void scheduleDcpStep(gsl::not_null<const void*> cookie) override {
             auto* notify_ptr = reinterpret_cast<size_t*>(
                     wrapped->get_engine_specific(cookie));
             (*notify_ptr)++;
@@ -1661,8 +1663,7 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
 
     class MockServerCookieApi : public WrappedServerCookieIface {
     public:
-        void notify_io_complete(gsl::not_null<const void*> cookie,
-                                ENGINE_ERROR_CODE status) override {
+        void scheduleDcpStep(gsl::not_null<const void*> cookie) override {
             auto* notify_ptr = reinterpret_cast<size_t*>(
                     get_mock_server_api()->cookie->get_engine_specific(cookie));
             (*notify_ptr)++;

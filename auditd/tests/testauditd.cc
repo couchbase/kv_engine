@@ -89,6 +89,10 @@ public:
         ready = true;
         cond.notify_one();
     }
+    void scheduleDcpStep(gsl::not_null<const void*> cookie) override {
+        throw std::runtime_error("Not implemented");
+    }
+
     ENGINE_ERROR_CODE reserve(gsl::not_null<const void*> cookie) override {
         throw std::runtime_error("Not implemented");
     }

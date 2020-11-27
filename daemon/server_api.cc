@@ -187,6 +187,33 @@ struct ServerCookieApi : public ServerCookieIface {
         ::notify_io_complete(cookie, status);
     }
 
+    void scheduleDcpStep(gsl::not_null<const void*> cookie_) override {
+        auto& cookie = getCookie(cookie_);
+        auto& connection = cookie.getConnection();
+        if (!connection.isDCP()) {
+            LOG_WARNING(
+                    "scheduleDcpStep: Must only be called with a DCP "
+                    "connection: {}",
+                    connection.toJSON().dump());
+            throw std::logic_error(
+                    "scheduleDcpStep(): Provided cookie is not bound to a "
+                    "connection set up for DCP");
+        }
+
+        if (cookie.getRefcount() == 0) {
+            LOG_WARNING(
+                    "scheduleDcpStep: DCP connection did not reserve the "
+                    "cookie: {}",
+                    cookie.getConnection().toJSON().dump());
+            throw std::logic_error("scheduleDcpStep: cookie must be reserved!");
+        }
+
+        // @todo refactor so that notify_io_complete can ensure that it is
+        //       only notified in a blocked state (and for this case we
+        //       notify if it isn't already notified)
+        ::notify_io_complete(&cookie, ENGINE_SUCCESS);
+    }
+
     ENGINE_ERROR_CODE reserve(gsl::not_null<const void*> void_cookie) override {
         getCookie(void_cookie).incrementRefcount();
         return ENGINE_SUCCESS;

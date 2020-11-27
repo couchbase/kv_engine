@@ -131,7 +131,7 @@ void ConnMap::notifyPausedConnection(const std::shared_ptr<ConnHandler>& conn) {
     {
         LockHolder rlh(releaseLock);
         if (conn.get() && conn->isPaused() && conn->isReserved()) {
-            engine.notifyIOComplete(conn->getCookie(), ENGINE_SUCCESS);
+            engine.scheduleDcpStep(conn->getCookie());
         }
     }
 }
