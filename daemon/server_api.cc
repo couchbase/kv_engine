@@ -246,27 +246,9 @@ struct ServerCookieApi : public ServerCookieIface {
         return ENGINE_SUCCESS;
     }
 
-    void set_priority(gsl::not_null<const void*> void_cookie,
+    void set_priority(gsl::not_null<const void*> cookie,
                       ConnectionPriority priority) override {
-        auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-
-        auto* c = &cookie->getConnection();
-        switch (priority) {
-        case ConnectionPriority::High:
-        case ConnectionPriority::Medium:
-        case ConnectionPriority::Low:
-            c->setPriority(priority);
-            return;
-        }
-
-        LOG_WARNING(
-                "{}: ServerCookieApi::set_priority: priority (which is {}) is "
-                "not a "
-                "valid CONN_PRIORITY - closing connection {}",
-                c->getId(),
-                int(priority),
-                c->getDescription());
-        c->shutdown();
+        getCookie(cookie).getConnection().setPriority(priority);
     }
 
     ConnectionPriority get_priority(
