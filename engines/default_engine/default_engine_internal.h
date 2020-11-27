@@ -81,6 +81,14 @@ struct vbucket_info {
 
 #define NUM_VBUCKETS 65536
 
+// Forward decls
+namespace cb::prometheus {
+enum class Cardinality;
+} // namespace cb::prometheus
+
+class BucketStatCollector;
+class StatCollector;
+
 /**
  * Definition of the private instance data used by the default engine.
  *
@@ -168,6 +176,10 @@ struct default_engine : public EngineIface {
                                 std::string_view value,
                                 const AddStatFn& add_stat) override;
 
+    ENGINE_ERROR_CODE get_prometheus_stats(
+            const BucketStatCollector& collector,
+            cb::prometheus::Cardinality cardinality) override;
+
     void reset_stats(gsl::not_null<const void*> cookie) override;
 
     ENGINE_ERROR_CODE unknown_command(const void* cookie,
@@ -240,6 +252,9 @@ struct default_engine : public EngineIface {
     /* a unique bucket index, note this is not cluster wide and dies with the
      * process */
     bucket_id_t bucket_id;
+
+private:
+    void do_engine_stats(const StatCollector& collector) const;
 };
 
 char* item_get_data(const hash_item* item);

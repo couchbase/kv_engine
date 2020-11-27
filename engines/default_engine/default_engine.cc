@@ -12,6 +12,9 @@
 #include <memcached/util.h>
 #include <platform/cb_malloc.h>
 #include <platform/cbassert.h>
+#include <statistics/cardinality.h>
+#include <statistics/cbstat_collector.h>
+#include <statistics/labelled_collector.h>
 
 #include <unistd.h>
 #include <cctype>
@@ -487,16 +490,7 @@ ENGINE_ERROR_CODE default_engine::get_stats(gsl::not_null<const void*> cookie,
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     if (key.empty()) {
-        add_stat("evictions"sv, std::to_string(stats.evictions.load()), cookie);
-        add_stat("curr_items"sv,
-                 std::to_string(stats.curr_items.load()),
-                 cookie);
-        add_stat("total_items"sv,
-                 std::to_string(stats.total_items.load()),
-                 cookie);
-        add_stat("bytes"sv, std::to_string(stats.curr_bytes.load()), cookie);
-        add_stat("reclaimed"sv, std::to_string(stats.reclaimed.load()), cookie);
-        add_stat("engine_maxbytes"sv, std::to_string(config.maxbytes), cookie);
+        do_engine_stats(CBStatCollector(add_stat, cookie, &server));
     } else if (key == "slabs"sv) {
         slabs_stats(this, add_stat, cookie);
     } else if (key == "items"sv) {
@@ -530,6 +524,29 @@ ENGINE_ERROR_CODE default_engine::get_stats(gsl::not_null<const void*> cookie,
     }
 
     return ret;
+}
+
+ENGINE_ERROR_CODE default_engine::get_prometheus_stats(
+        const BucketStatCollector& collector,
+        cb::prometheus::Cardinality cardinality) {
+    try {
+        if (cardinality == cb::prometheus::Cardinality::Low) {
+            do_engine_stats(collector);
+        }
+    } catch (const std::bad_alloc&) {
+        return ENGINE_ENOMEM;
+    }
+    return ENGINE_SUCCESS;
+}
+
+void default_engine::do_engine_stats(const StatCollector& collector) const {
+    using namespace cb::stats;
+    collector.addStat(Key::default_evictions, stats.evictions.load());
+    collector.addStat(Key::default_curr_items, stats.curr_items.load());
+    collector.addStat(Key::default_total_items, stats.total_items.load());
+    collector.addStat(Key::default_bytes, stats.curr_bytes.load());
+    collector.addStat(Key::default_reclaimed, stats.reclaimed.load());
+    collector.addStat(Key::default_engine_maxbytes, config.maxbytes);
 }
 
 ENGINE_ERROR_CODE default_engine::store(

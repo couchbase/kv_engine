@@ -95,6 +95,17 @@
 #define LABEL(...)
 #endif
 
+// default_engine stats
+STAT(default_evictions, "evictions", count, memcache_evictions, )
+STAT(default_curr_items, "curr_items", count, memcache_curr_items, )
+STAT(default_total_items, "total_items", count, memcache_total_items, )
+STAT(default_bytes, "bytes", bytes, memcache_mem_size, )
+STAT(default_reclaimed, "reclaimed", count, memcache_reclaimed, )
+STAT(default_engine_maxbytes,
+     "engine_maxbytes",
+     count,
+     memcache_engine_maxbytes, )
+
 // include generated config STAT declarations
 #include "stats_config.def.h" // NOLINT(*)
 

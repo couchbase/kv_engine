@@ -16,6 +16,8 @@
  */
 #pragma once
 
+#include "cardinality.h"
+
 #include <functional>
 #include <memory>
 #include <string>
@@ -32,14 +34,6 @@ class Exposer;
 class StatCollector;
 
 namespace cb::prometheus {
-
-/**
- * Indicates which group of stats should be collected for a given
- * request
- *  * low cardinality: per-bucket or global instance stats
- *  * high cardinality: per-collection/per-scope stats
- */
-enum class Cardinality { Low, High };
 using AuthCallback =
         std::function<bool(const std::string&, const std::string&)>;
 
