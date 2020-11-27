@@ -98,7 +98,7 @@ bool Collections::VB::ManifestEntry::addStats(
 std::ostream& Collections::VB::operator<<(
         std::ostream& os,
         const Collections::VB::ManifestEntry& manifestEntry) {
-    os << "ManifestEntry: scope:" << manifestEntry.getScopeID()
+    os << "ManifestEntry: scope:" << manifestEntry.getScopeID() << std::dec
        << ", startSeqno:" << manifestEntry.getStartSeqno()
        << ", highSeqno:" << manifestEntry.getHighSeqno()
        << ", persistedHighSeqno:" << manifestEntry.getPersistedHighSeqno()

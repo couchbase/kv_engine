@@ -21,6 +21,7 @@
 
 #include "bucket_logger.h"
 #include "collections/collection_persisted_stats.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "couch-kvstore/couch-kvstore-config.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "kvstore_test.h"
@@ -1949,4 +1950,59 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushing) {
     ASSERT_LT(ii, 12) << "There should be up to 10 catch up without holding "
                          "the lock, and one with the lock";
     EXPECT_EQ(5 + ii, kvstore->getItemCount(Vbid{0}));
+}
+
+// This test writes during compaction in a way that means we frequently hit
+// the couchstore 4096 block size. Couchstore issues a 1 byte write in that
+// case to insert a leading byte in the page. If that happens during the
+// compaction 'catch-up' copying, KV-engine doesn't know that the physical_size
+// of a document now differs from what is recorded in the VB::Manifest
+TEST_F(CouchstoreTest, MB_39946_diskSize_could_underflow) {
+    int64_t seqno = 1;
+    const int items = 2;
+    std::string value(2047, 'b');
+    auto doWrite = [&seqno, &value, items, this]() {
+        for (int ii = 0; ii < items; ++ii) {
+            StoredDocKey key = makeStoredDocKey("key-" + std::to_string(ii));
+            kvstore->begin(std::make_unique<TransactionContext>(vbid));
+            queued_item qi;
+            qi = makeCommittedItem(key, value);
+
+            qi->setBySeqno(seqno++);
+            // Lies, lies and damned lies - just don't read it back
+            // doing this means the value above is stored as is - critically
+            // the length stored is what we define.
+            qi->setDataType(PROTOCOL_BINARY_DATATYPE_SNAPPY);
+            kvstore->set(qi);
+            VB::Commit flush(manifest);
+            kvstore->commit(flush);
+        }
+    };
+
+    doWrite();
+    kvstore->setConcurrentCompactionUnitTestHook(doWrite);
+
+    std::mutex mutex;
+    std::unique_lock<std::mutex> lock(mutex);
+    CompactionConfig config;
+    auto ctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
+    kvstore->compactDB(lock, ctx);
+
+    kvstore->setConcurrentCompactionUnitTestHook([]() {});
+
+    // Delete all keys, should result in collection stats being 0
+    for (int ii = 0; ii < items; ++ii) {
+        VB::Commit flush(manifest);
+        StoredDocKey key = makeStoredDocKey("key-" + std::to_string(ii));
+        auto qi = makeCommittedItem(key, {});
+        qi->setBySeqno(seqno++);
+        qi->setDeleted();
+        qi->replaceValue({});
+        kvstore->begin(std::make_unique<TransactionContext>(vbid));
+        kvstore->del(qi);
+        kvstore->commit(flush); // Would throw for underflow
+    }
+    auto stats = manifest.lock().getStatsForFlush(CollectionID::Default, seqno);
+    EXPECT_EQ(0, stats.itemCount);
+    EXPECT_EQ(0, stats.diskSize);
 }
