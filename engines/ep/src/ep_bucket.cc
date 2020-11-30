@@ -1869,10 +1869,6 @@ bool EPBucket::maybeEnableTraffic() {
 }
 
 void EPBucket::warmupCompleted() {
-    // Snapshot VBucket state after warmup to ensure Failover table is
-    // persisted.
-    scheduleVBStatePersist();
-
     if (engine.getConfiguration().getAlogPath().length() > 0) {
         if (engine.getConfiguration().isAccessScannerEnabled()) {
             {

@@ -338,4 +338,6 @@ protected:
 class STParamPersistentBucketTest : public STParameterizedBucketTest {
 protected:
     void testAbortDoesNotIncrementOpsDelete(bool flusherDedup);
+
+    void testFailoverTableEntryPersistedAtWarmup(std::function<void()>);
 };

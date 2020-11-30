@@ -52,6 +52,7 @@
 #include "tests/test_fileops.h"
 #include "vbucket_state.h"
 #include "vbucket_bgfetch_item.h"
+#include "warmup.h"
 
 #include "../couchstore/src/internal.h"
 
@@ -4901,6 +4902,119 @@ void STParamPersistentBucketTest::testAbortDoesNotIncrementOpsDelete(
     EXPECT_EQ(0, manager.getNumItemsForPersistence());
     EXPECT_EQ(0, vb.getNumTotalItems());
     EXPECT_EQ(0, vb.opsDelete);
+}
+
+
+void STParamPersistentBucketTest::testFailoverTableEntryPersistedAtWarmup(std::function<void()> testFunction) {
+    // 1) Store something so we can expire it later
+    engine->getKVBucket()->setVBucketState(vbid, vbucket_state_active);
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+
+    // Grab initialUuid for testing
+    auto initialUuid = vb->failovers->getLatestUUID();
+
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, "value", 1 /*expiryTime*/);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    EXPECT_EQ(1, vb->getHighSeqno());
+
+    // 2) Restart as though we had an unclean shutdown (creating a new failover
+    //    table entry) and run the warmup up to the point of completion.
+    vb.reset();
+    resetEngineAndEnableWarmup();
+
+    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    auto* warmup = engine->getKVBucket()->getWarmup();
+    ASSERT_TRUE(warmup);
+
+    // Warmup - load everything but don't run the complete phase which schedules
+    // persistence of the vBucket state (new failover entry)
+    while (warmup->getWarmupState() != WarmupState::State::Done) {
+        runNextTask(readerQueue);
+    }
+
+    // 3) Test
+    testFunction();
+
+    // New high seqno
+    vb = engine->getKVBucket()->getVBucket(vbid);
+    EXPECT_EQ(2, vb->getHighSeqno());
+
+    // Flush the expiry
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Verify that the item has been expired
+    auto options = static_cast<get_options_t>(
+        QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS);
+    auto gv = store->get(key, vbid, cookie, options);
+
+    if (gv.getStatus() == ENGINE_EWOULDBLOCK) {
+        runBGFetcherTask();
+        gv = store->get(key, vbid, cookie, options);
+    }
+
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+    // Get our new uuid now
+    auto secondUuid = vb->failovers->getLatestUUID();
+    ASSERT_NE(initialUuid, secondUuid);
+
+    // "Complete" the warmup or the test will get stuck shutting down, we won't
+    // actually flush the new vb state though so we're still testing as though
+    // this didn't happen
+    runNextTask(readerQueue);
+
+    // 4) Restart again
+    vb.reset();
+    resetEngineAndWarmup();
+
+    // 5) The test - uuid should have both of the previous entries
+    vb = engine->getKVBucket()->getVBucket(vbid);
+
+    auto failovers = vb->failovers->getFailoverLog();
+    auto itr = std::find_if(failovers.begin(), failovers.end(), [&initialUuid](const auto& failoverEntry) {
+        return failoverEntry.uuid == initialUuid;
+    });
+    EXPECT_NE(itr, failovers.end());
+
+    itr = std::find_if(failovers.begin(), failovers.end(), [&secondUuid](const auto& failoverEntry) {
+        return failoverEntry.uuid == secondUuid;
+    });
+    EXPECT_NE(itr, failovers.end());
+
+    EXPECT_EQ(2, vb->getHighSeqno());
+    gv = store->get(key, vbid, cookie, options);
+
+    if (gv.getStatus() == ENGINE_EWOULDBLOCK) {
+        runBGFetcherTask();
+        gv = store->get(key, vbid, cookie, options);
+    }
+}
+
+TEST_P(STParamPersistentBucketTest, TestExpiryDueToCompactionPersistsFailoverTableEntryDuringWarmup) {
+    testFailoverTableEntryPersistedAtWarmup([this]() {
+        CompactionConfig config;
+        engine->compactDB(vbid, config, cookie);
+        std::string taskDescription =
+            "Compact DB file " + std::to_string(vbid.get());
+        runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX], taskDescription);
+    });
+}
+
+TEST_P(STParamPersistentBucketTest, TestExpiryDueToGetPersistsFailoverTableEntryDuringWarmup) {
+    testFailoverTableEntryPersistedAtWarmup([this]() {
+        auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+                HIDE_LOCKED_CAS | TRACK_STATISTICS);
+        auto key = makeStoredDocKey("key");
+        auto gv = store->get(key, vbid, cookie, options);
+
+        if (gv.getStatus() == ENGINE_EWOULDBLOCK) {
+            runBGFetcherTask();
+            gv = store->get(key, vbid, cookie, options);
+        }
+    });
 }
 
 TEST_P(STParamPersistentBucketTest, AbortDoesNotIncrementOpsDelete) {
