@@ -143,7 +143,7 @@ std::optional<std::string> cb::logger::initialize(
             if (logger_settings.unit_test) {
                 stderrsink->set_level(spdlog::level::trace);
             } else {
-                stderrsink->set_level(spdlog::level::warn);
+                stderrsink->set_level(spdlog::level::err);
             }
             sink->add_sink(stderrsink);
         }
