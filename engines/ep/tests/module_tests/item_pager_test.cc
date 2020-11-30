@@ -1264,7 +1264,7 @@ void STExpiryPagerTest::expiredItemsDeleted() {
 
     wakeUpExpiryPager();
     flushDirectlyIfPersistent(vbid,
-                              {MoreAvailable::No, 1, WakeCkptRemover::Yes});
+                              {MoreAvailable::No, 1, WakeCkptRemover::No});
 
     EXPECT_EQ(2, engine->getVBucket(vbid)->getNumItems())
         << "Should only have 2 items after running expiry pager";
@@ -1300,7 +1300,7 @@ void STExpiryPagerTest::expiredItemsDeleted() {
 
     wakeUpExpiryPager();
     flushDirectlyIfPersistent(vbid,
-                              {MoreAvailable::No, 1, WakeCkptRemover::Yes});
+                              {MoreAvailable::No, 1, WakeCkptRemover::No});
 
     // Should only be 1 item remaining.
     EXPECT_EQ(1, engine->getVBucket(vbid)->getNumItems());
@@ -1633,7 +1633,7 @@ TEST_P(STValueEvictionExpiryPagerTest, MB_25931) {
 
     wakeUpExpiryPager();
     flushDirectlyIfPersistent(vbid,
-                              {MoreAvailable::No, 1, WakeCkptRemover::Yes});
+                              {MoreAvailable::No, 1, WakeCkptRemover::No});
 }
 
 // Test that expiring a non-resident item works (and item counts are correct).
@@ -1670,7 +1670,7 @@ TEST_P(STValueEvictionExpiryPagerTest, MB_25991_ExpiryNonResident) {
 
     wakeUpExpiryPager();
     flushDirectlyIfPersistent(vbid,
-                              {MoreAvailable::No, 1, WakeCkptRemover::Yes});
+                              {MoreAvailable::No, 1, WakeCkptRemover::No});
 
     EXPECT_EQ(0, engine->getVBucket(vbid)->getNumItems())
             << "Should have 0 items after running expiry pager";
@@ -1745,7 +1745,7 @@ TEST_P(MB_32669, expire_a_compressed_and_evicted_xattr_document) {
     wakeUpExpiryPager();
 
     flushDirectlyIfPersistent(vbid,
-                              {MoreAvailable::No, 1, WakeCkptRemover::Yes});
+                              {MoreAvailable::No, 1, WakeCkptRemover::No});
 
     EXPECT_EQ(0, engine->getVBucket(vbid)->getNumItems())
             << "Should have 0 items after running expiry pager";

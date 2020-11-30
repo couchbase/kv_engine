@@ -3556,7 +3556,7 @@ void SingleThreadedActiveStreamTest::testExpirationRemovesBody(uint32_t flags,
                {cb::engine_errc::success} /*expected*/,
                datatype);
 
-    const auto& manager = *vb.checkpointManager;
+    auto& manager = *vb.checkpointManager;
     const auto& list =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     manager);
@@ -3574,6 +3574,8 @@ void SingleThreadedActiveStreamTest::testExpirationRemovesBody(uint32_t flags,
     EXPECT_EQ(value, (*it)->getValue()->to_s());
 
     TimeTraveller tt(5000);
+
+    manager.createNewCheckpoint();
 
     // Just need to access key for expiring
     GetValue gv = store->get(docKey, vbid, nullptr, get_options_t::NONE);

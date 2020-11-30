@@ -100,6 +100,11 @@ void SingleThreadedKVBucketTest::SetUp() {
     }
     config_string += "warmup=false";
 
+    // Set the chk_period to be a large value so that a slow test doesn't create
+    // checkpoints (and may fail if checkpoint state is tested). This parameter
+    // is 'seconds' and 86400 is 1 day.
+    config_string += ";chk_period=86400";
+
     KVBucketTest::SetUp();
 
     task_executor = reinterpret_cast<SingleThreadedExecutorPool*>
@@ -3086,7 +3091,7 @@ TEST_P(XattrSystemUserTest, MB_29040) {
     TimeTraveller ted(64000);
     runCompaction(vbid);
     // An expired item should of been pushed to the checkpoint
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::Yes),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
               getEPBucket().flushVBucket(vbid));
     auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
@@ -4023,10 +4028,8 @@ TEST_P(STParameterizedBucketTest, slow_stream_backfill_expiry) {
 
     auto vb = store->getVBuckets().getBucket(vbid);
 
-    // Remove closed checkpoint so that backfill will take place
-    bool newcp;
-    EXPECT_EQ(1,
-              vb->checkpointManager->removeClosedUnrefCheckpoints(*vb, newcp));
+    // Clear all checkpoints so that backfill will take place
+    vb->checkpointManager->clear(vbucket_state_active);
 
     // Setup DCP
     auto producer = std::make_shared<MockDcpProducer>(*engine,
