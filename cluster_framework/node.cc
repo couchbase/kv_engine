@@ -96,7 +96,8 @@ NodeImpl::NodeImpl(std::string directory, std::string id)
                 {"minidump_dir", minidump_dir},
                 {"content", "default"}}},
               {"portnumber_file", portnumber_file},
-              {"parent_identifier", (int)getpid()}};
+              {"parent_identifier", (int)getpid()},
+              {"prometheus", {{"port", 0}, {"family", "inet"}}}};
     config["interfaces"][0] = {{"tag", "plain"},
                                {"system", true},
                                {"port", 0},
