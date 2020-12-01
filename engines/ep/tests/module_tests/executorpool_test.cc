@@ -462,12 +462,6 @@ TYPED_TEST(ExecutorPoolTest, SnoozeWithoutSchedule) {
  *
  */
 TYPED_TEST(ExecutorPoolTest, increase_workers) {
-    if (folly::kIsSanitizeThread) {
-        // MB-41309: Skip this test as TSan reports a data-race deep inside
-        // folly::SaturatingSemaphore. Expected to be addressed when folly
-        // is upgraded to v2020.06.29.00 or greater.
-        GTEST_SKIP();
-    }
     const size_t numReaders = 1;
     const size_t numWriters = 1;
     const size_t numAuxIO = 1;
