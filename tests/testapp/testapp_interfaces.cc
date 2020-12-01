@@ -120,3 +120,87 @@ TEST_P(InterfacesTest, DisableInAnyInterface) {
     reconfigure();
     parse_portnumber_file();
 }
+
+TEST_P(InterfacesTest, AFamilyChangeInterface) {
+    auto interfaces = memcached_cfg["interfaces"];
+
+    memcached_cfg["interfaces"][2] = {{"tag", "AFamilyChangeInterface"},
+                                      {"port", 0},
+                                      {"ipv4", "required"},
+                                      {"ipv6", "required"},
+                                      {"host", "*"}};
+    reconfigure();
+    parse_portnumber_file();
+    size_t total = 0;
+    bool ipv4 = false;
+    bool ipv6 = false;
+    connectionMap.iterate([&total, &ipv4, &ipv6](const MemcachedConnection& c) {
+        if (c.getTag() == "AFamilyChangeInterface") {
+            sa_family_t afamily = c.getFamily();
+            if (afamily == AF_INET) {
+                ipv4 = true;
+            } else if (afamily == AF_INET6) {
+                ipv6 = true;
+            }
+            total++;
+        }
+    });
+    ASSERT_TRUE(ipv4);
+    ASSERT_TRUE(ipv6);
+
+    // Check that Afamily change from both address family to one address
+    // family results in desired interfaces.
+    memcached_cfg["interfaces"][2] = {{"tag", "AFamilyChangeInterface"},
+                                      {"port", 0},
+                                      {"ipv4", "required"},
+                                      {"ipv6", "off"},
+                                      {"host", "*"}};
+
+    reconfigure();
+    parse_portnumber_file();
+    size_t count = 0;
+    connectionMap.iterate([&count](const MemcachedConnection& c) {
+        if (c.getTag() == "AFamilyChangeInterface") {
+            ASSERT_EQ(c.getFamily(), AF_INET);
+            count++;
+        }
+    });
+    EXPECT_GT(total, count);
+
+    // Check that adding Afamily IPv6 causes desired interfaces.
+    memcached_cfg["interfaces"][2] = {{"tag", "AFamilyChangeInterface"},
+                                      {"port", 0},
+                                      {"ipv4", "off"},
+                                      {"ipv6", "required"},
+                                      {"host", "*"}};
+    memcached_cfg["interfaces"][3] = {{"tag", "AFamilyChangeInterface"},
+                                      {"port", 0},
+                                      {"ipv4", "required"},
+                                      {"ipv6", "off"},
+                                      {"host", "*"}};
+
+    reconfigure();
+    parse_portnumber_file();
+    ipv4 = false;
+    ipv6 = false;
+    count = 0;
+    connectionMap.iterate([&count, &ipv4, &ipv6](const MemcachedConnection& c) {
+        if (c.getTag() == "AFamilyChangeInterface") {
+            sa_family_t afamily = c.getFamily();
+            if (afamily == AF_INET) {
+                ipv4 = true;
+            } else if (afamily == AF_INET6) {
+                ipv6 = true;
+            }
+            count++;
+        }
+    });
+    ASSERT_TRUE(ipv4);
+    ASSERT_TRUE(ipv6);
+    EXPECT_EQ(total, count);
+
+    // restore the original interface array
+    memcached_cfg["interfaces"] = interfaces;
+    reconfigure();
+    parse_portnumber_file();
+}
