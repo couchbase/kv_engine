@@ -1826,8 +1826,8 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
     }
 
     /* Create first connection */
-    const std::string name("unittest_");
-    const auto name1(name + "0");
+    const std::string namePrefix("unittest_");
+    const auto name1(namePrefix + "0");
     const uint32_t opaque = 0;
     const uint32_t seqno = 0;
     const uint32_t flags = 0;
@@ -1856,7 +1856,7 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
     /* Create at least 4 more connections */
     for (auto count = 1; count < max_conns - 1; count++) {
         cookie[count] = testHarness->create_cookie(h);
-        const auto name2(name + std::to_string(count));
+        const auto name2(namePrefix + std::to_string(count));
         checkeq(ENGINE_SUCCESS,
                 dcp->open(cookie[count],
                           opaque,
@@ -1872,8 +1872,8 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
 
         for (auto i = 0; i <= count; i++) {
             /* Check if the buffer size of all connections has changed */
-            const auto stat_name("eq_dcpq:" + name + std::to_string(i) +
-                               ":max_buffer_bytes");
+            const auto stat_name("eq_dcpq:" + namePrefix + std::to_string(i) +
+                                 ":max_buffer_bytes");
             checkeq((int)((ep_max_size * bucketMemQuotaFraction) / (count + 1)),
                     get_int_stat(h, stat_name.c_str(), "dcp"),
                     "Flow Control Buffer Size not correct");
@@ -1882,7 +1882,7 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
 
     /* Opening another connection should set the buffer size to min value */
     cookie[max_conns - 1] = testHarness->create_cookie(h);
-    const auto name3(name + std::to_string(max_conns - 1));
+    const auto name3(namePrefix + std::to_string(max_conns - 1));
     const auto stat_name2("eq_dcpq:" + name3 + ":max_buffer_bytes");
     checkeq(ENGINE_SUCCESS,
             dcp->open(cookie[max_conns - 1],
@@ -1908,24 +1908,20 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
     for (auto count = 0; count < max_conns / 2; count++) {
         testHarness->destroy_cookie(cookie[count]);
     }
-    /* Wait for disconnected connections to be deleted */
-    wait_for_stat_to_be(h, "ep_dcp_dead_conn_count", 0, "dcp");
 
     /* Check if the buffer size of all connections has increased */
     const auto exp_buf_size = (int)((ep_max_size * bucketMemQuotaFraction) /
                               (max_conns - (max_conns / 2)));
+    for (auto i = max_conns / 2; i < max_conns; i++) {
+        const auto connName(namePrefix + std::to_string(i));
+        const auto statName("eq_dcpq:" + connName + ":max_buffer_bytes");
+        wait_for_stat_to_be(h, statName.c_str(), exp_buf_size, "dcp");
+    }
 
     /* Also check if we get control message indicating the flow control buffer
        size change from the consumer connections */
     MockDcpMessageProducers producers;
-
     for (auto i = max_conns / 2; i < max_conns; i++) {
-        /* Check if the buffer size of all connections has changed */
-        const auto name4(name + std::to_string(i));
-        const auto stat_name3("eq_dcpq:" + name4 + ":max_buffer_bytes");
-        checkeq(exp_buf_size,
-                get_int_stat(h, stat_name3.c_str(), "dcp"),
-                "Flow Control Buffer Size not correct");
         checkeq(ENGINE_SUCCESS,
                 dcp->step(cookie[i], producers),
                 "Pending flow control buffer change not processed");
@@ -1939,6 +1935,7 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
                 atoi(producers.last_value.c_str()),
                 "Flow ctl buf size in control message not correct");
     }
+
     /* Disconnect remaining connections */
     for (auto count = max_conns / 2; count < max_conns; count++) {
         testHarness->destroy_cookie(cookie[count]);
