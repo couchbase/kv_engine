@@ -46,8 +46,7 @@ public:
     }
 
     void notifyExecutionComplete() override {
-        notify_io_complete(static_cast<const void*>(&cookie),
-                           thread.getResult());
+        ::notifyIoComplete(cookie, thread.getResult());
     }
 
     CreateBucketThread thread;

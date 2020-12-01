@@ -161,7 +161,7 @@ public:
     }
 
     void notifyExecutionComplete() override {
-        notify_io_complete(&cookie, ENGINE_SUCCESS);
+        notifyIoComplete(cookie, ENGINE_SUCCESS);
     }
 
     std::string& getChunk() {

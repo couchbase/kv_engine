@@ -100,7 +100,7 @@ struct FrontEndThread {
     /// A list of connections to signal if they're idle
     class NotificationList {
     public:
-        void push(Connection* c);
+        bool push(Connection* c);
         void remove(Connection* c);
         void swap(std::vector<Connection*>& other);
 

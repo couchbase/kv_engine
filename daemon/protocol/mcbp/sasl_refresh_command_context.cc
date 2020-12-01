@@ -74,7 +74,7 @@ static void cbsasl_refresh_main(void* void_cookie) {
                     error);
     }
 
-    notify_io_complete(void_cookie, rv);
+    ::notifyIoComplete(cookie, rv);
 }
 
 ENGINE_ERROR_CODE SaslRefreshCommandContext::refresh() {

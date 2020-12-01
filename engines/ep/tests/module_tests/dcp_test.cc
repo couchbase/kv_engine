@@ -2383,6 +2383,10 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify) {
                                 ENGINE_ERROR_CODE status) override {
             ConnMapNotifyTest::dcp_test_notify_io_complete(cookie, status);
         }
+        void scheduleDcpStep(gsl::not_null<const void*> cookie) override {
+            ConnMapNotifyTest::dcp_test_notify_io_complete(cookie,
+                                                           ENGINE_SUCCESS);
+        }
     } scapi;
 
     // Should be 0 when we begin
@@ -2422,6 +2426,10 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify_paused) {
         void notify_io_complete(gsl::not_null<const void*> cookie,
                                 ENGINE_ERROR_CODE status) override {
             ConnMapNotifyTest::dcp_test_notify_io_complete(cookie, status);
+        }
+        void scheduleDcpStep(gsl::not_null<const void*> cookie) override {
+            ConnMapNotifyTest::dcp_test_notify_io_complete(cookie,
+                                                           ENGINE_SUCCESS);
         }
     } scapi;
 

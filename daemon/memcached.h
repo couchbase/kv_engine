@@ -62,11 +62,12 @@ bool create_nonblocking_socketpair(std::array<SOCKET, 2>& sockets);
 
 void threadlocal_stats_reset(std::vector<thread_stats>& thread_stats);
 
-void notify_io_complete(gsl::not_null<const void*> cookie,
-                        ENGINE_ERROR_CODE status);
+void notifyIoComplete(Cookie& cookie, ENGINE_ERROR_CODE status);
+void scheduleDcpStep(Cookie& cookie);
+
 void safe_close(SOCKET sfd);
-int add_conn_to_pending_io_list(Connection* c,
-                                Cookie* cookie,
+int add_conn_to_pending_io_list(Connection& c,
+                                Cookie& cookie,
                                 ENGINE_ERROR_CODE status);
 const char* get_server_version();
 bool is_memcached_shutting_down();

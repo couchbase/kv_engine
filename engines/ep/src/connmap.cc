@@ -166,7 +166,7 @@ void ConnMap::processPendingNotifications() {
     while (!queue.empty()) {
         auto conn = queue.front().lock();
         if (conn && conn->isPaused() && conn->isReserved()) {
-            engine.notifyIOComplete(conn->getCookie(), ENGINE_SUCCESS);
+            engine.scheduleDcpStep(conn->getCookie());
         }
         queue.pop();
     }

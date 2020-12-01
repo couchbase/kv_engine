@@ -748,6 +748,25 @@ void Connection::rw_callback(bufferevent*, void* ctx) {
         if (iter != thread.pending_io.map.end()) {
             for (const auto& pair : iter->second) {
                 if (pair.first) {
+                    if (!pair.first->isEwouldblock()) {
+                        try {
+                            LOG_WARNING(
+                                    "{}: tried to notify cookie {} which isn't "
+                                    "blocked - {}",
+                                    pair.first->getConnection().getId(),
+                                    uint64_t(pair.first),
+                                    pair.first->getHeader()
+                                            .toJSON(true)
+                                            .dump());
+                        } catch (const std::exception& e) {
+                            LOG_WARNING(
+                                    "{}: tried to notify cookie {} which isn't "
+                                    "blocked - {}",
+                                    pair.first->getConnection().getId(),
+                                    uint64_t(pair.first),
+                                    e.what());
+                        }
+                    }
                     pair.first->setAiostat(pair.second);
                     pair.first->setEwouldblock(false);
                 }

@@ -73,5 +73,5 @@ Task::Status GetAuthorizationTask::execute() {
 }
 
 void GetAuthorizationTask::notifyExecutionComplete() {
-    notify_io_complete(static_cast<void*>(&cookie), ENGINE_SUCCESS);
+    ::notifyIoComplete(cookie, ENGINE_SUCCESS);
 }

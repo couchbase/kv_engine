@@ -184,34 +184,11 @@ struct ServerCookieApi : public ServerCookieIface {
 
     void notify_io_complete(gsl::not_null<const void*> cookie,
                             ENGINE_ERROR_CODE status) override {
-        ::notify_io_complete(cookie, status);
+        notifyIoComplete(getCookie(cookie), status);
     }
 
-    void scheduleDcpStep(gsl::not_null<const void*> cookie_) override {
-        auto& cookie = getCookie(cookie_);
-        auto& connection = cookie.getConnection();
-        if (!connection.isDCP()) {
-            LOG_WARNING(
-                    "scheduleDcpStep: Must only be called with a DCP "
-                    "connection: {}",
-                    connection.toJSON().dump());
-            throw std::logic_error(
-                    "scheduleDcpStep(): Provided cookie is not bound to a "
-                    "connection set up for DCP");
-        }
-
-        if (cookie.getRefcount() == 0) {
-            LOG_WARNING(
-                    "scheduleDcpStep: DCP connection did not reserve the "
-                    "cookie: {}",
-                    cookie.getConnection().toJSON().dump());
-            throw std::logic_error("scheduleDcpStep: cookie must be reserved!");
-        }
-
-        // @todo refactor so that notify_io_complete can ensure that it is
-        //       only notified in a blocked state (and for this case we
-        //       notify if it isn't already notified)
-        ::notify_io_complete(&cookie, ENGINE_SUCCESS);
+    void scheduleDcpStep(gsl::not_null<const void*> cookie) override {
+        ::scheduleDcpStep(getCookie(cookie));
     }
 
     ENGINE_ERROR_CODE reserve(gsl::not_null<const void*> void_cookie) override {
@@ -222,7 +199,6 @@ struct ServerCookieApi : public ServerCookieIface {
     ENGINE_ERROR_CODE release(gsl::not_null<const void*> void_cookie) override {
         auto& cookie = getCookie(void_cookie);
         auto& connection = cookie.getConnection();
-        int notify;
         auto& thr = connection.getThread();
 
         TRACE_LOCKGUARD_TIMED(thr.mutex,
@@ -235,11 +211,9 @@ struct ServerCookieApi : public ServerCookieIface {
         // worker threads), so put the connection in the pool of pending
         // IO and have the system retry the operation for the connection
         cookie.decrementRefcount();
-        notify = add_conn_to_pending_io_list(
-                &connection, nullptr, ENGINE_SUCCESS);
 
         // kick the thread in the butt
-        if (notify) {
+        if (thr.notification.push(&connection)) {
             notify_thread(thr);
         }
 

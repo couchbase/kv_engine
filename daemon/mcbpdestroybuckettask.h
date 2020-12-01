@@ -45,10 +45,9 @@ public:
     }
 
     void notifyExecutionComplete() override {
-        const auto* cookie = thread.getCookie();
-        if (cookie != nullptr) {
-            notify_io_complete(
-                static_cast<const void*>(cookie), thread.getResult());
+        auto* cookie = thread.getCookie();
+        if (cookie) {
+            ::notifyIoComplete(*cookie, thread.getResult());
         }
     }
 

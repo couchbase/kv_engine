@@ -61,7 +61,7 @@ public:
     }
 
     void notifyExecutionComplete() override {
-        notify_io_complete(static_cast<void*>(&cookie), status);
+        ::notifyIoComplete(cookie, status);
     }
 
 private:

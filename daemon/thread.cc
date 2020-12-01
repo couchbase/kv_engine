@@ -50,17 +50,26 @@ void FrontEndThread::ConnectionQueue::swap(std::vector<Entry>& other) {
     connections.lock()->swap(other);
 }
 
-void FrontEndThread::NotificationList::push(Connection* c) {
+bool FrontEndThread::NotificationList::push(Connection* c) {
     std::lock_guard<std::mutex> lock(mutex);
     auto iter = std::find(connections.begin(), connections.end(), c);
     if (iter == connections.end()) {
         try {
             connections.push_back(c);
+            return true;
         } catch (const std::bad_alloc&) {
             // Just ignore and hopefully we'll be able to signal it at a later
             // time.
+            try {
+                LOG_WARNING(
+                        "FrontEndThread::NotificationList::push(): Failed to "
+                        "enqueue {}",
+                        c->getId());
+            } catch (const std::bad_alloc&) {
+            }
         }
     }
+    return false;
 }
 
 void FrontEndThread::NotificationList::remove(Connection* c) {
@@ -318,19 +327,42 @@ void FrontEndThread::libevent_callback() {
     }
 }
 
-void notify_io_complete(gsl::not_null<const void*> void_cookie,
-                        ENGINE_ERROR_CODE status) {
-    auto* ccookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    auto& cookie = const_cast<Cookie&>(*ccookie);
-
+void notifyIoComplete(Cookie& cookie, ENGINE_ERROR_CODE status) {
     auto& thr = cookie.getConnection().getThread();
-    LOG_DEBUG("notify_io_complete: Got notify from {}, status {}",
+    LOG_DEBUG("notifyIoComplete: Got notify from {}, status {}",
               cookie.getConnection().getId(),
               status);
 
     /* kick the thread in the butt */
-    if (add_conn_to_pending_io_list(&cookie.getConnection(), &cookie, status)) {
+    if (add_conn_to_pending_io_list(cookie.getConnection(), cookie, status)) {
         notify_thread(thr);
+    }
+}
+
+void scheduleDcpStep(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    if (!connection.isDCP()) {
+        LOG_ERROR(
+                "scheduleDcpStep: Must only be called with a DCP "
+                "connection: {}",
+                connection.toJSON().dump());
+        throw std::logic_error(
+                "scheduleDcpStep(): Provided cookie is not bound to a "
+                "connection set up for DCP");
+    }
+
+    if (cookie.getRefcount() == 0) {
+        LOG_ERROR(
+                "scheduleDcpStep: DCP connection did not reserve the "
+                "cookie: {}",
+                cookie.getConnection().toJSON().dump());
+        throw std::logic_error("scheduleDcpStep: cookie must be reserved!");
+    }
+
+    auto& thread = connection.getThread();
+    LOG_DEBUG("scheduleDcpStep: {}", cookie.getConnection().getId());
+    if (thread.notification.push(&connection)) {
+        notify_thread(thread);
     }
 }
 
@@ -440,28 +472,28 @@ void notify_thread(FrontEndThread& thread) {
     }
 }
 
-int add_conn_to_pending_io_list(Connection* c,
-                                Cookie* cookie,
+int add_conn_to_pending_io_list(Connection& c,
+                                Cookie& cookie,
                                 ENGINE_ERROR_CODE status) {
-    auto& thread = c->getThread();
+    auto& thread = c.getThread();
 
     std::lock_guard<std::mutex> lock(thread.pending_io.mutex);
-    auto iter = thread.pending_io.map.find(c);
+    auto iter = thread.pending_io.map.find(&c);
     if (iter == thread.pending_io.map.end()) {
         thread.pending_io.map.emplace(
-                c,
+                &c,
                 std::vector<std::pair<Cookie*, ENGINE_ERROR_CODE>>{
-                        {cookie, status}});
+                        {&cookie, status}});
         return 1;
     }
 
     for (const auto& pair : iter->second) {
-        if (pair.first == cookie) {
+        if (pair.first == &cookie) {
             // we've already got a pending notification for this
             // cookie.. Ignore it
             return 0;
         }
     }
-    iter->second.emplace_back(cookie, status);
+    iter->second.emplace_back(&cookie, status);
     return 1;
 }
