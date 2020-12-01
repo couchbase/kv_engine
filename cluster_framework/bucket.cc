@@ -79,7 +79,7 @@ Bucket::Bucket(const Cluster& cluster,
 
     };
 
-    auto [ipv4, ipv6] = cb::test::Cluster::getIpAddresses();
+    auto [ipv4, ipv6] = cb::net::getIpAddresses(true);
     (void)ipv6; // currently not used
     const auto& hostname = ipv4.front();
     cluster.iterateNodes([this, &hostname](const cb::test::Node& node) {
