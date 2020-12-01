@@ -512,7 +512,7 @@ STAT(connagg_items_remaining,
 STAT(connagg_total_bytes,
      "{connection_type}:total_bytes",
      bytes,
-     dcp_total_bytes, )
+     dcp_total_data_size, )
 STAT(connagg_total_uncompressed_data_size,
      "{connection_type}:total_uncompressed_data_size",
      bytes,
