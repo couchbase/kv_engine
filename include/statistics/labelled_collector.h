@@ -51,7 +51,7 @@
  * adding additional labels to every addStat call.
  *
  */
-class LabelledStatCollector : public StatCollector {
+class STATISTICS_PUBLIC_API LabelledStatCollector : public StatCollector {
 public:
     // Allow usage of the "helper" methods defined in the base type.
     // They would otherwise be shadowed
@@ -153,7 +153,7 @@ class ColStatCollector;
  * label) to add stats for a single bucket, regardless of stat backend
  * implementation.
  */
-class BucketStatCollector : public LabelledStatCollector {
+class STATISTICS_PUBLIC_API BucketStatCollector : public LabelledStatCollector {
 public:
     BucketStatCollector(const StatCollector& parent, std::string_view bucket);
     [[nodiscard]] ScopeStatCollector forScope(ScopeID scope) const;
@@ -164,7 +164,7 @@ public:
  *
  * See BucketStatCollector.
  */
-class ScopeStatCollector : public LabelledStatCollector {
+class STATISTICS_PUBLIC_API ScopeStatCollector : public LabelledStatCollector {
 public:
     ScopeStatCollector(const BucketStatCollector& parent, ScopeID scope);
     [[nodiscard]] ColStatCollector forCollection(CollectionID collection) const;
@@ -175,7 +175,7 @@ public:
  *
  * See BucketStatCollector.
  */
-class ColStatCollector : public LabelledStatCollector {
+class STATISTICS_PUBLIC_API ColStatCollector : public LabelledStatCollector {
 public:
     ColStatCollector(const ScopeStatCollector& parent, CollectionID collection);
 };

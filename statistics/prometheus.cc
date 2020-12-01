@@ -25,6 +25,7 @@
 #include <logger/logger.h>
 #include <prometheus/exposer.h>
 #include <gsl/gsl>
+#include <utility>
 
 namespace cb::prometheus {
 
@@ -35,6 +36,7 @@ const std::string MetricServer::authRealm = "KV Prometheus Exporter";
 folly::SynchronizedPtr<std::unique_ptr<MetricServer>> instance;
 
 void initialize(const std::pair<in_port_t, sa_family_t>& config,
+                GetStatsCallback getStatsCB,
                 AuthCallback authCB) {
     auto handle = instance.wlockPointer();
     // May be called at init or on config change.
@@ -43,7 +45,8 @@ void initialize(const std::pair<in_port_t, sa_family_t>& config,
     handle->reset();
 
     auto [port, family] = config;
-    *handle = std::make_unique<MetricServer>(port, family, std::move(authCB));
+    *handle = std::make_unique<MetricServer>(
+            port, family, std::move(getStatsCB), std::move(authCB));
     if (!(*handle)->isAlive()) {
         FATAL_ERROR(EXIT_FAILURE,
                     fmt::format("Failed to start Prometheus exposer on "
@@ -75,7 +78,8 @@ std::pair<in_port_t, sa_family_t> getRunningConfig() {
 
 class MetricServer::KVCollectable : public ::prometheus::Collectable {
 public:
-    explicit KVCollectable(Cardinality cardinality) : cardinality(cardinality) {
+    KVCollectable(Cardinality cardinality, GetStatsCallback getStatsCB)
+        : cardinality(cardinality), getStatsCB(std::move(getStatsCB)) {
     }
     /**
      * Gathers high or low cardinality metrics
@@ -85,7 +89,7 @@ public:
             const override {
         std::unordered_map<std::string, ::prometheus::MetricFamily> statsMap;
         PrometheusStatCollector collector(statsMap);
-        server_prometheus_stats(collector, cardinality);
+        getStatsCB(collector, cardinality);
 
         // KVCollectable interface requires a vector of metric families,
         // but during collection it is necessary to frequently look up
@@ -104,13 +108,17 @@ public:
 
 private:
     Cardinality cardinality;
+
+    // function to call on every incoming request to generate stats
+    GetStatsCallback getStatsCB;
 };
 
 MetricServer::MetricServer(in_port_t port,
                            sa_family_t family,
+                           GetStatsCallback getStatsCB,
                            AuthCallback authCB)
-    : stats(std::make_shared<KVCollectable>(Cardinality::Low)),
-      statsHC(std::make_shared<KVCollectable>(Cardinality::High)),
+    : stats(std::make_shared<KVCollectable>(Cardinality::Low, getStatsCB)),
+      statsHC(std::make_shared<KVCollectable>(Cardinality::High, getStatsCB)),
       family(family) {
     try {
         /*

@@ -20,12 +20,16 @@
 #include <memory>
 #include <string>
 
+#include <memcached/engine_error.h>
 #include <platform/socket.h>
+#include <statistics/visibility.h>
 
 namespace prometheus {
 // forward declaration
 class Exposer;
 } // namespace prometheus
+
+class StatCollector;
 
 namespace cb::prometheus {
 
@@ -38,11 +42,19 @@ namespace cb::prometheus {
 enum class Cardinality { Low, High };
 using AuthCallback =
         std::function<bool(const std::string&, const std::string&)>;
+
+using GetStatsCallback =
+        std::function<ENGINE_ERROR_CODE(const StatCollector&, Cardinality)>;
+
+STATISTICS_PUBLIC_API
 void initialize(const std::pair<in_port_t, sa_family_t>& config,
+                GetStatsCallback getStatsCB,
                 AuthCallback authCB);
 
+STATISTICS_PUBLIC_API
 void shutdown();
 
+STATISTICS_PUBLIC_API
 std::pair<in_port_t, sa_family_t> getRunningConfig();
 
 /**
@@ -62,6 +74,7 @@ public:
      */
     explicit MetricServer(in_port_t port,
                           sa_family_t family,
+                          GetStatsCallback getStatsCB,
                           AuthCallback authCB);
     ~MetricServer();
 

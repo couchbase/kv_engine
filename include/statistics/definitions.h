@@ -44,7 +44,7 @@ namespace cb::stats {
  * stats.def.h, but can also be created directly as a fallback until
  * all stats have been transitioned to stats.def.h.
  */
-struct StatDef {
+struct STATISTICS_PUBLIC_API StatDef {
     using Labels = std::unordered_map<std::string_view, std::string_view>;
     /**
      * Construct from char* to minimize code change while migrating to
@@ -116,7 +116,7 @@ struct StatDef {
 #define LABEL(...)
 #define STAT(statName, ...) statName,
 #define CBSTAT(statName, ...) statName,
-enum class Key {
+enum class STATISTICS_PUBLIC_API Key {
 #include "stats.def.h"
 
     enum_max

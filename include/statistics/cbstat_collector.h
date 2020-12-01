@@ -32,7 +32,7 @@ struct ServerApi;
  * Formats all stats to text and immediately calls the provided
  * addStatFn.
  */
-class CBStatCollector : public StatCollector {
+class STATISTICS_PUBLIC_API CBStatCollector : public StatCollector {
 public:
     /**
      * Construct a collector which calls the provided addStatFn

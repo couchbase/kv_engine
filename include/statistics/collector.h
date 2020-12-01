@@ -20,6 +20,7 @@
 #include "definitions.h"
 
 #include <platform/histogram.h>
+#include <statistics/visibility.h>
 
 #include <optional>
 #include <string>
@@ -148,7 +149,7 @@ class BucketStatCollector;
  * disk_size{bucket="bucketName", scope="0x0"} 123
  *
  */
-class StatCollector {
+class STATISTICS_PUBLIC_API StatCollector {
 public:
     using Labels = std::unordered_map<std::string_view, std::string_view>;
 

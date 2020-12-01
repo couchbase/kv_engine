@@ -256,6 +256,7 @@ static bool prometheus_auth_callback(const std::string& user,
 
 static void prometheus_changed_listener(const std::string&, Settings& s) {
     cb::prometheus::initialize(s.getPrometheusConfig(),
+                               server_prometheus_stats,
                                prometheus_auth_callback);
     if (networkInterfaceManager) {
         networkInterfaceManager->signal();
@@ -267,6 +268,7 @@ static void prometheus_init() {
 
     if (Settings::instance().has.prometheus_config) {
         cb::prometheus::initialize(settings.getPrometheusConfig(),
+                                   server_prometheus_stats,
                                    prometheus_auth_callback);
     } else {
         LOG_WARNING("Prometheus config not specified");

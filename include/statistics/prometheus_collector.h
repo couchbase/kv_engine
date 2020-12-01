@@ -22,7 +22,7 @@
 #include <prometheus/client_metric.h>
 #include <prometheus/metric_family.h>
 
-class PrometheusStatCollector : public StatCollector {
+class STATISTICS_PUBLIC_API PrometheusStatCollector : public StatCollector {
 public:
     /**
      * Construct a collector for Prometheus stats.

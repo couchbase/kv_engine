@@ -17,6 +17,8 @@
 
 #pragma once
 
+#include <statistics/visibility.h>
+
 #include <folly/lang/Assume.h>
 #include <gsl/gsl>
 
@@ -61,7 +63,7 @@ enum class BaseUnit {
  *
  * units::kilobytes.toBaseUnit(10) == 10000
  */
-class Unit {
+class STATISTICS_PUBLIC_API Unit {
 public:
     explicit constexpr Unit(BaseUnit baseUnit)
         : Unit(std::ratio<1>{}, baseUnit) {
