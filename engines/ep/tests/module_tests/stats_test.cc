@@ -44,6 +44,7 @@
 #include <statistics/units.h>
 
 #include <functional>
+#include <string_view>
 #include <thread>
 
 void StatTest::SetUp() {
@@ -337,6 +338,13 @@ TEST_F(StatTest, UnitSuffix) {
     }
 }
 
+std::ostream& operator<<(
+        std::ostream& os,
+        const std::pair<std::string_view, std::string_view>& mapEntry) {
+    os << mapEntry.first << ":" << mapEntry.second;
+    return os;
+}
+
 TEST_F(StatTest, CollectorForBucketScopeCollection) {
     // Confirm that StatCollector::for{Bucket,Scope,Collection}(...)
     // returns a collector which adds the corresponding labels to every
@@ -366,10 +374,13 @@ TEST_F(StatTest, CollectorForBucketScopeCollection) {
                                     ContainerEq(labels)));
             };
 
+    auto scopeName = "scope-bar";
+    auto collectionName = "collection-baz";
+
     // Create a collector for a bucket
     auto bucket = collector.forBucket("foo");
-    auto scope = bucket.forScope(ScopeID(0x0));
-    auto collection = scope.forCollection(CollectionID(0x8));
+    auto scope = bucket.forScope(scopeName, ScopeID(0x0));
+    auto collection = scope.forCollection(collectionName, CollectionID(0x8));
 
     InSequence s;
 
@@ -381,13 +392,23 @@ TEST_F(StatTest, CollectorForBucketScopeCollection) {
     expectAddStatWithLabels({{"bucket", "foo"}});
     bucket.addStat(key, value);
 
+    auto scopeNameKey = ScopeStatCollector::scopeNameKey;
+    auto scopeIDKey = ScopeStatCollector::scopeIDKey;
+    auto collectionNameKey = ColStatCollector::collectionNameKey;
+    auto collectionIDKey = ColStatCollector::collectionIDKey;
+
     // adds scope label
-    expectAddStatWithLabels({{"bucket", "foo"}, {"scope", "0x0"}});
+    expectAddStatWithLabels({{"bucket", "foo"},
+                             {scopeNameKey, scopeName},
+                             {scopeIDKey, "0x0"}});
     scope.addStat(key, value);
 
     // adds collection label
-    expectAddStatWithLabels(
-            {{"bucket", "foo"}, {"scope", "0x0"}, {"collection", "0x8"}});
+    expectAddStatWithLabels({{"bucket", "foo"},
+                             {scopeNameKey, scopeName},
+                             {scopeIDKey, "0x0"},
+                             {collectionNameKey, collectionName},
+                             {collectionIDKey, "0x8"}});
     collection.addStat(key, value);
 }
 
@@ -555,8 +576,8 @@ TEST_F(StatTest, CBStatsScopeCollectionPrefix) {
     CBStatCollector collector(cbFunc, cookie, engine->getServerApi());
 
     auto bucket = collector.forBucket("BucketName");
-    auto scope = bucket.forScope(ScopeID(0x0));
-    auto collection = scope.forCollection(CollectionID(0x8));
+    auto scope = bucket.forScope("scope-name", ScopeID(0x0));
+    auto collection = scope.forCollection("collection-name", CollectionID(0x8));
 
     cb::stats::StatDef statDef("foo");
 

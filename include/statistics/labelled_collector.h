@@ -156,7 +156,8 @@ class ColStatCollector;
 class STATISTICS_PUBLIC_API BucketStatCollector : public LabelledStatCollector {
 public:
     BucketStatCollector(const StatCollector& parent, std::string_view bucket);
-    [[nodiscard]] ScopeStatCollector forScope(ScopeID scope) const;
+    [[nodiscard]] ScopeStatCollector forScope(std::string_view scopeName,
+                                              ScopeID scope) const;
 };
 
 /**
@@ -166,8 +167,14 @@ public:
  */
 class STATISTICS_PUBLIC_API ScopeStatCollector : public LabelledStatCollector {
 public:
-    ScopeStatCollector(const BucketStatCollector& parent, ScopeID scope);
-    [[nodiscard]] ColStatCollector forCollection(CollectionID collection) const;
+    ScopeStatCollector(const BucketStatCollector& parent,
+                       std::string_view scopeName,
+                       ScopeID scope);
+    [[nodiscard]] ColStatCollector forCollection(
+            std::string_view collectionName, CollectionID collection) const;
+
+    static constexpr std::string_view scopeNameKey{"scope"};
+    static constexpr std::string_view scopeIDKey{"scope_id"};
 };
 
 /**
@@ -177,5 +184,10 @@ public:
  */
 class STATISTICS_PUBLIC_API ColStatCollector : public LabelledStatCollector {
 public:
-    ColStatCollector(const ScopeStatCollector& parent, CollectionID collection);
+    ColStatCollector(const ScopeStatCollector& parent,
+                     std::string_view collectionName,
+                     CollectionID collection);
+
+    static constexpr std::string_view collectionNameKey{"collection"};
+    static constexpr std::string_view collectionIDKey{"collection_id"};
 };

@@ -244,10 +244,10 @@ std::string CBStatCollector::formatKey(std::string_view key,
     try {
         // if this stat was added through a scope or collection collector,
         // prepend the appropriate prefix
-        if (labels.count("scope")) {
-            fmt::format_to(buf, "{}:", labels.at("scope"));
-            if (labels.count("collection")) {
-                fmt::format_to(buf, "{}:", labels.at("collection"));
+        if (labels.count("scope_id")) {
+            fmt::format_to(buf, "{}:", labels.at("scope_id"));
+            if (labels.count("collection_id")) {
+                fmt::format_to(buf, "{}:", labels.at("collection_id"));
             }
         }
         // now format the key itself, it may contain replacement specifiers

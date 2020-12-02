@@ -422,9 +422,10 @@ void Manifest::addCollectionStats(KVBucket& bucket,
         // is useful for assisting in access failures
         collector.addStat(Key::manifest_uid, uid);
         for (const auto& scope : scopes) {
-            auto scopeC = collector.forScope(scope.first);
+            std::string_view scopeName = scope.second.name;
+            auto scopeC = collector.forScope(scopeName, scope.first);
             for (const auto& entry : scope.second.collections) {
-                auto collectionC = scopeC.forCollection(entry.cid);
+                auto collectionC = scopeC.forCollection(entry.name, entry.cid);
                 // The inclusion of each collection requires an appropriate
                 // privilege
                 if (collectionC.testPrivilegeForStat(scope.first, entry.cid) !=
@@ -462,7 +463,8 @@ void Manifest::addScopeStats(KVBucket& bucket,
         }
 
         for (const auto& entry : scopes) {
-            auto scopeC = collector.forScope(entry.first);
+            std::string_view scopeName = entry.second.name;
+            auto scopeC = collector.forScope(scopeName, entry.first);
             // The inclusion of each scope requires an appropriate
             // privilege
             if (scopeC.testPrivilegeForStat(entry.first, {}) !=
@@ -475,7 +477,8 @@ void Manifest::addScopeStats(KVBucket& bucket,
             scopeC.addStat(Key::scope_collection_count, entry.second.collections.size());
             // add each collection name and id
             for (const auto& colEntry : entry.second.collections) {
-                auto collectionC = scopeC.forCollection(colEntry.cid);
+                auto collectionC =
+                        scopeC.forCollection(colEntry.name, colEntry.cid);
                 collectionC.addStat(Key::collection_name, colEntry.name);
             }
         }

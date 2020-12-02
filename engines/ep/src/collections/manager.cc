@@ -752,7 +752,8 @@ void Collections::CachedStats::addStatsForCollection(
         CollectionID cid,
         const CollectionEntry& collection,
         const BucketStatCollector& collector) {
-    auto collectionC = collector.forScope(collection.sid).forCollection(cid);
+    auto collectionC = collector.forScope(scope.name, collection.sid)
+                               .forCollection(collection.name, cid);
 
     addAggregatedCollectionStats({cid}, collectionC);
 
@@ -769,7 +770,7 @@ void Collections::CachedStats::addStatsForCollection(
 
 void Collections::CachedStats::addStatsForScope(
         ScopeID sid, const Scope& scope, const BucketStatCollector& collector) {
-    auto scopeC = collector.forScope(sid);
+    auto scopeC = collector.forScope(scope.name, sid);
     std::vector<CollectionID> collections;
     collections.reserve(scope.collections.size());
 

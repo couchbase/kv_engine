@@ -94,21 +94,26 @@ BucketStatCollector::BucketStatCollector(const StatCollector& parent,
                                          std::string_view bucket)
     : LabelledStatCollector(parent, {{"bucket", bucket}}) {
 }
-ScopeStatCollector BucketStatCollector::forScope(ScopeID scope) const {
-    return {*this, scope};
+ScopeStatCollector BucketStatCollector::forScope(std::string_view scopeName,
+                                                 ScopeID scope) const {
+    return {*this, scopeName, scope};
 }
 
 ScopeStatCollector::ScopeStatCollector(const BucketStatCollector& parent,
+                                       std::string_view scopeName,
                                        ScopeID scope)
-    : LabelledStatCollector(parent.withLabels({{"scope", scope.to_string()}})) {
+    : LabelledStatCollector(parent.withLabels(
+              {{scopeNameKey, scopeName}, {scopeIDKey, scope.to_string()}})) {
 }
 ColStatCollector ScopeStatCollector::forCollection(
-        CollectionID collection) const {
-    return {*this, collection};
+        std::string_view collectionName, CollectionID collection) const {
+    return {*this, collectionName, collection};
 }
 
 ColStatCollector::ColStatCollector(const ScopeStatCollector& parent,
+                                   std::string_view collectionName,
                                    CollectionID collection)
     : LabelledStatCollector(
-              parent.withLabels({{"collection", collection.to_string()}})) {
+              parent.withLabels({{collectionNameKey, collectionName},
+                                 {collectionIDKey, collection.to_string()}})) {
 }
