@@ -62,7 +62,6 @@ AuthProviderService::AuthProviderService(Cluster& cluster) : cluster(cluster) {
 AuthProviderService::~AuthProviderService() {
     // Just break out of the loop
     event_base_loopbreak(base.get());
-    base.reset();
     thread.join();
 }
 
