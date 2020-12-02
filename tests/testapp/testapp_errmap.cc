@@ -27,8 +27,7 @@ public:
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          ErrmapTest,
-                         ::testing::Values(TransportProtocols::McbpPlain,
-                                           TransportProtocols::McbpSsl),
+                         ::testing::Values(TransportProtocols::McbpSsl),
                          ::testing::PrintToStringParamName());
 
 bool ErrmapTest::validateJson(const nlohmann::json& json, size_t reqversion) {

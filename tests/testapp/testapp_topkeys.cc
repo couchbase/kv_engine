@@ -251,8 +251,7 @@ TEST_P(McdTopkeysTest, test_topkeys) {
 INSTANTIATE_TEST_SUITE_P(
         Transport,
         McdTopkeysTest,
-        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,
-                                             TransportProtocols::McbpSsl),
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpSsl),
                            ::testing::Values(ClientJSONSupport::Yes,
                                              ClientJSONSupport::No)),
         McdTestappTest::PrintToStringCombinedName);

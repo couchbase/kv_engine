@@ -40,8 +40,7 @@ protected:
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          StatsTest,
-                         ::testing::Values(TransportProtocols::McbpPlain,
-                                           TransportProtocols::McbpSsl),
+                         ::testing::Values(TransportProtocols::McbpSsl),
                          ::testing::PrintToStringParamName());
 
 TEST_P(StatsTest, TestDefaultStats) {
@@ -622,6 +621,5 @@ TEST_P(NoBucketStatsTest, TestTopkeysNoBucket) {
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          NoBucketStatsTest,
-                         ::testing::Values(TransportProtocols::McbpPlain,
-                                           TransportProtocols::McbpSsl),
+                         ::testing::Values(TransportProtocols::McbpSsl),
                          ::testing::PrintToStringParamName());

@@ -39,8 +39,7 @@ protected:
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          LockTest,
-                         ::testing::Values(TransportProtocols::McbpPlain,
-                                           TransportProtocols::McbpSsl),
+                         ::testing::Values(TransportProtocols::McbpSsl),
                          ::testing::PrintToStringParamName());
 
 TEST_P(LockTest, LockNonexistingDocument) {

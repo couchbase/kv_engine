@@ -45,8 +45,7 @@ protected:
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          TouchTest,
-                         ::testing::Values(TransportProtocols::McbpPlain,
-                                           TransportProtocols::McbpSsl),
+                         ::testing::Values(TransportProtocols::McbpSsl),
                          ::testing::PrintToStringParamName());
 
 size_t TouchTest::get_cmd_counter(const std::string& name,

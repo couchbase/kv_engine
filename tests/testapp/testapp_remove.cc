@@ -73,8 +73,7 @@ void RemoveTest::verify_MB_22553(const std::string& config) {
 INSTANTIATE_TEST_SUITE_P(
         TransportProtocols,
         RemoveTest,
-        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,
-                                             TransportProtocols::McbpSsl),
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpSsl),
                            ::testing::Values(XattrSupport::Yes),
                            ::testing::Values(ClientJSONSupport::Yes,
                                              ClientJSONSupport::No),

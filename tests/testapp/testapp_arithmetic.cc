@@ -30,8 +30,7 @@ class ArithmeticXattrOnTest : public TestappXattrClientTest {};
 INSTANTIATE_TEST_SUITE_P(
         TransportProtocols,
         ArithmeticTest,
-        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,
-                                             TransportProtocols::McbpSsl),
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpSsl),
                            ::testing::Values(XattrSupport::Yes,
                                              XattrSupport::No),
                            ::testing::Values(ClientJSONSupport::Yes,
@@ -45,8 +44,7 @@ INSTANTIATE_TEST_SUITE_P(
 INSTANTIATE_TEST_SUITE_P(
         TransportProtocols,
         ArithmeticXattrOnTest,
-        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,
-                                             TransportProtocols::McbpSsl),
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpSsl),
                            ::testing::Values(XattrSupport::Yes),
                            ::testing::Values(ClientJSONSupport::Yes,
                                              ClientJSONSupport::No),

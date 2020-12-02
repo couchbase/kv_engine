@@ -25,8 +25,7 @@ class MiscTest : public TestappClientTest {};
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          MiscTest,
-                         ::testing::Values(TransportProtocols::McbpPlain,
-                                           TransportProtocols::McbpSsl),
+                         ::testing::Values(TransportProtocols::McbpSsl),
                          ::testing::PrintToStringParamName());
 
 TEST_P(MiscTest, GetFailoverLog) {

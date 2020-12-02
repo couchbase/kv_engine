@@ -48,8 +48,7 @@ public:
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          BucketTest,
-                         ::testing::Values(TransportProtocols::McbpPlain,
-                                           TransportProtocols::McbpSsl),
+                         ::testing::Values(TransportProtocols::McbpSsl),
                          ::testing::PrintToStringParamName());
 
 TEST_P(BucketTest, TestNameTooLong) {

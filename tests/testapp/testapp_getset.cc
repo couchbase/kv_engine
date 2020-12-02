@@ -425,8 +425,7 @@ void GetSetSnappyOnOffTest::doTestCompressedJSON(std::string mode) {
 INSTANTIATE_TEST_SUITE_P(
         TransportProtocols,
         GetSetTest,
-        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,
-                                             TransportProtocols::McbpSsl),
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpSsl),
                            ::testing::Values(XattrSupport::Yes),
                            ::testing::Values(ClientJSONSupport::Yes,
                                              ClientJSONSupport::No),
@@ -436,8 +435,7 @@ INSTANTIATE_TEST_SUITE_P(
 INSTANTIATE_TEST_SUITE_P(
         TransportProtocols,
         GetSetSnappyOnOffTest,
-        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,
-                                             TransportProtocols::McbpSsl),
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpSsl),
                            ::testing::Values(XattrSupport::Yes),
                            ::testing::Values(ClientJSONSupport::Yes,
                                              ClientJSONSupport::No),

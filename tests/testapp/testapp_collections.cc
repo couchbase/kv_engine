@@ -47,8 +47,7 @@ class CollectionsTest : public TestappClientTest {
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          CollectionsTest,
-                         ::testing::Values(TransportProtocols::McbpPlain,
-                                           TransportProtocols::McbpSsl),
+                         ::testing::Values(TransportProtocols::McbpSsl),
                          ::testing::PrintToStringParamName());
 
 // Check that an unknown scope/collection error returns the expected JSON

@@ -98,8 +98,7 @@ protected:
 INSTANTIATE_TEST_SUITE_P(
         TransportProtocols,
         WithMetaTest,
-        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,
-                                             TransportProtocols::McbpSsl),
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpSsl),
                            ::testing::Values(XattrSupport::Yes,
                                              XattrSupport::No),
                            ::testing::Values(ClientJSONSupport::Yes,
