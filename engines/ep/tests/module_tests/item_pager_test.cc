@@ -168,7 +168,7 @@ protected:
         return count;
     }
 
-    void populateUntilAboveHighWaterMark(Vbid vbid) {
+    int populateUntilAboveHighWaterMark(Vbid vbid) {
         bool populate = true;
         int count = 0;
         auto& stats = engine->getEpStats();
@@ -182,6 +182,7 @@ protected:
             populate = stats.getEstimatedTotalMemoryUsed() <=
                        stats.mem_high_wat.load();
         }
+        return count;
     }
 
     /**
@@ -1001,6 +1002,57 @@ TEST_P(STItemPagerTest, ItemPagerEvictionOrder) {
     // visitor is definitely done, rather than paused
     while (task.run())
         ;
+}
+
+TEST_P(STItemPagerTest, MB43055_MemUsedDropDoesNotBreakEviction) {
+    // MB-43055: Test that having current memory usage drop below the low
+    // watermark before the item pager runs does not prevent future item
+    // pager runs.
+
+    if (std::get<1>(GetParam()) == "fail_new_data") {
+        // items are not auto-deleted, so the ItemPager does not run.
+        return;
+    }
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // this triggers eviction, scheduling the ItemPager task
+    auto itemCount = populateUntilAboveHighWaterMark(vbid);
+
+    // now delete some items to lower memory usage
+    for (int i = 0; i < itemCount; i++) {
+        auto key = makeStoredDocKey("key_" + std::to_string(i));
+        uint64_t cas = 0;
+        mutation_descr_t mutation_descr;
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  store->deleteItem(key,
+                                    cas,
+                                    vbid,
+                                    cookie,
+                                    {},
+                                    /*itemMeta*/ nullptr,
+                                    mutation_descr));
+    }
+
+    auto& stats = engine->getEpStats();
+    // confirm we are now below the low watermark, and can test the item pager
+    // behaviour
+    ASSERT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat.load());
+
+    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    // run the item pager. It should _not_ create and schedule a PagingVisitor
+    runNextTask(lpNonioQ, "Paging out items.");
+
+    EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
+    EXPECT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
+
+    // populate again, and confirm this time that the item pager does shedule
+    // a paging visitor
+    populateUntilAboveHighWaterMark(vbid);
+
+    runNextTask(lpNonioQ, "Paging out items.");
+
+    runNextTask(lpNonioQ, "Item pager on vb:0");
 }
 
 /**
