@@ -563,12 +563,22 @@ bool ItemPager::run(void) {
     }
 
     if (current <= lower) {
+        // doEvict may have been set to ensure eviction would continue until the
+        // low watermark was reached - it now has, so clear the flag.
         doEvict = false;
+        // If a PagingVisitor were to be created now, it would visit vbuckets
+        // but not try to evict anything. Stop now instead.
+        return true;
     }
 
-    bool inverse = true;
-    if (((current > upper) || doEvict || wasNotified) &&
-        (*available).compare_exchange_strong(inverse, false)) {
+    if ((current > upper) || doEvict || wasNotified) {
+        bool inverse = true;
+        if (!(*available).compare_exchange_strong(inverse, false)) {
+            // available != true, another PagingVisitor exists and is still
+            // running. Don't create another.
+            return true;
+        }
+        // Note: available is reset to true by PagingVisitor::complete()
         if (kvBucket->getItemEvictionPolicy() == VALUE_ONLY) {
             doEvict = true;
         }
