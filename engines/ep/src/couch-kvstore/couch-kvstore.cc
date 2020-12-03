@@ -669,6 +669,7 @@ void CouchKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) {
 void CouchKVStore::getRange(Vbid vb,
                             const DiskDocKey& startKey,
                             const DiskDocKey& endKey,
+                            ValueFilter filter,
                             const KVStore::GetRangeCb& cb) {
     DbHolder db(*this);
     auto errCode = openDB(vb, db, COUCHSTORE_OPEN_FLAG_RDONLY);
@@ -683,10 +684,11 @@ void CouchKVStore::getRange(Vbid vb,
     // C-style callback.
     struct TrampolineState {
         Vbid vb;
+        const ValueFilter filter;
         const DiskDocKey& endKey;
         const KVStore::GetRangeCb& userFunc;
     };
-    TrampolineState trampoline_state{vb, endKey, cb};
+    TrampolineState trampoline_state{vb, filter, endKey, cb};
 
     // Trampoline to fetch the document value, and map C++ std::function to
     // C-style callback expected by couchstore.
@@ -716,21 +718,28 @@ void CouchKVStore::getRange(Vbid vb,
             return COUCHSTORE_ERROR_DB_NO_LONGER_VALID;
         }
 
-        // Fetch document value.
+        // Fetch document value if requested.
+        const bool fetchCompressed =
+                (state.filter == ValueFilter::VALUES_COMPRESSED);
         Doc* doc = nullptr;
-        const couchstore_open_options openOptions = DECOMPRESS_DOC_BODIES;
-        auto errCode = couchstore_open_doc_with_docinfo(
-                db, docinfo, &doc, openOptions);
-        if (errCode != COUCHSTORE_SUCCESS) {
-            // Failed to fetch document - cancel couchstore_docinfos_by_id
-            // scan.
-            return errCode;
+        if (state.filter != ValueFilter::KEYS_ONLY) {
+            const couchstore_open_options openOptions =
+                    fetchCompressed ? 0 : DECOMPRESS_DOC_BODIES;
+            auto errCode = couchstore_open_doc_with_docinfo(
+                    db, docinfo, &doc, openOptions);
+            if (errCode != COUCHSTORE_SUCCESS) {
+                // Failed to fetch document - cancel couchstore_docinfos_by_id
+                // scan.
+                return errCode;
+            }
         }
 
-        const bool fetchCompressed = (openOptions & DECOMPRESS_DOC_BODIES) == 0;
+        auto value = doc ? doc->data : sized_buf{nullptr, 0};
         state.userFunc(GetValue{makeItemFromDocInfo(
-                state.vb, *docinfo, *metadata, doc->data, fetchCompressed)});
-        couchstore_free_document(doc);
+                state.vb, *docinfo, *metadata, value, fetchCompressed)});
+        if (doc) {
+            couchstore_free_document(doc);
+        }
         return COUCHSTORE_SUCCESS;
     };
 

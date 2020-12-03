@@ -271,6 +271,7 @@ public:
     void getRange(Vbid vb,
                   const DiskDocKey& startKey,
                   const DiskDocKey& endKey,
+                  ValueFilter filter,
                   const GetRangeCb& cb) override;
 
     void del(queued_item itm) override;

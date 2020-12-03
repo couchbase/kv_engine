@@ -405,6 +405,7 @@ TEST_P(KVStoreParamTest, GetRangeMissNumGetFailure) {
             Vbid{0},
             makeDiskDocKey("a"),
             makeDiskDocKey("b"),
+            ValueFilter::KEYS_ONLY,
             [&results](GetValue&& cb) { results.push_back(std::move(cb)); });
 
     for (auto& fetched : results) {
@@ -923,8 +924,7 @@ TEST_P(KVStoreParamTest, HighSeqnoCorrectlyStoredForCommitBatch) {
     EXPECT_EQ(kvstore->getVBucketState(vbid)->highSeqno, 10);
 }
 
-// Test the getRange() function
-TEST_P(KVStoreParamTest, GetRangeBasic) {
+void KVStoreParamTest::testGetRange(ValueFilter filter) {
     // Setup: store 5 keys, a, b, c, d, e (with matching values)
     kvstore->begin(std::make_unique<TransactionContext>(vbid));
     int64_t seqno = 1;
@@ -942,12 +942,47 @@ TEST_P(KVStoreParamTest, GetRangeBasic) {
             Vbid{0},
             makeDiskDocKey("b"),
             makeDiskDocKey("d"),
+            filter,
             [&results](GetValue&& cb) { results.push_back(std::move(cb)); });
     ASSERT_EQ(2, results.size());
-    EXPECT_EQ("b"s, results.at(0).item->getKey().c_str());
-    EXPECT_EQ("value_b"s, results.at(0).item->getValue()->to_s());
-    EXPECT_EQ("c"s, results.at(1).item->getKey().c_str());
-    EXPECT_EQ("value_c"s, results.at(1).item->getValue()->to_s());
+
+    auto checkItem = [filter](Item& item,
+                              std::string_view expectedKey,
+                              std::string_view expectedValue) {
+        const auto expectedDatatype = filter == ValueFilter::VALUES_COMPRESSED
+                                              ? PROTOCOL_BINARY_DATATYPE_SNAPPY
+                                              : PROTOCOL_BINARY_RAW_BYTES;
+        EXPECT_EQ(expectedKey, item.getKey().c_str());
+        EXPECT_EQ(expectedDatatype, item.getDataType());
+        if (filter == ValueFilter::KEYS_ONLY) {
+            EXPECT_EQ(0, item.getValue()->valueSize());
+        } else {
+            item.decompressValue();
+            EXPECT_EQ(expectedValue, item.getValue()->to_s());
+        }
+    };
+
+    checkItem(*results.at(0).item, "b", "value_b");
+    checkItem(*results.at(1).item, "c", "value_c");
+}
+
+// Test the getRange() function
+TEST_P(KVStoreParamTest, GetRangeBasic) {
+    testGetRange(ValueFilter::VALUES_DECOMPRESSED);
+}
+
+// Test the getRange() function support for returning Snappy-compressed
+// documents.
+TEST_P(KVStoreParamTest, GetRangeCompressed) {
+    if (!supportsFetchingAsSnappy()) {
+        GTEST_SKIP();
+    }
+    testGetRange(ValueFilter::VALUES_COMPRESSED);
+}
+
+// Test the getRange() function support for returning only keys.
+TEST_P(KVStoreParamTest, GetRangeKeys) {
+    testGetRange(ValueFilter::KEYS_ONLY);
 }
 
 // Test the getRange() function skips deleted items.
@@ -980,6 +1015,7 @@ TEST_P(KVStoreParamTest, GetRangeDeleted) {
             Vbid{0},
             makeDiskDocKey("b"),
             makeDiskDocKey("f"),
+            ValueFilter::VALUES_DECOMPRESSED,
             [&results](GetValue&& cb) { results.push_back(std::move(cb)); });
     ASSERT_EQ(2, results.size());
     EXPECT_EQ("c"s, results.at(0).item->getKey().c_str());

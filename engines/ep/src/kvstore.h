@@ -759,6 +759,7 @@ public:
      * @param vb vBucket id to fetch from.
      * @param startKey The key to start searching at. Search includes this key.
      * @param endKey The key to end searching at. Search excludes this key.
+     * @param filter In what form should the item be fetched?
      * @param callback Callback invoked for each key found.
      * @throws std::runtime_error if the range scan could not be successfully
      *         completed. (Note: finding zero docments in the given range is
@@ -767,6 +768,7 @@ public:
     virtual void getRange(Vbid vb,
                           const DiskDocKey& startKey,
                           const DiskDocKey& endKey,
+                          ValueFilter filter,
                           const GetRangeCb& cb) {
         throw std::runtime_error("Backend does not support getRange()");
     }

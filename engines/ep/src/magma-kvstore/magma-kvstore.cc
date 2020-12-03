@@ -876,6 +876,7 @@ void MagmaKVStore::getMulti(Vbid vbid, vb_bgfetch_queue_t& itms) {
 void MagmaKVStore::getRange(Vbid vbid,
                             const DiskDocKey& startKey,
                             const DiskDocKey& endKey,
+                            ValueFilter filter,
                             const GetRangeCb& cb) {
     Slice startKeySlice = {reinterpret_cast<const char*>(startKey.data()),
                            startKey.size()};
@@ -896,11 +897,7 @@ void MagmaKVStore::getRange(Vbid vbid,
         if (magmakv::isDeleted(metaSlice)) {
             return;
         }
-        auto rv = makeGetValue(vbid,
-                               keySlice,
-                               metaSlice,
-                               valueSlice,
-                               ValueFilter::VALUES_DECOMPRESSED);
+        auto rv = makeGetValue(vbid, keySlice, metaSlice, valueSlice, filter);
         cb(std::move(rv));
     };
 
@@ -911,8 +908,11 @@ void MagmaKVStore::getRange(Vbid vbid,
                       cb::UserData{makeDiskDocKey(endKeySlice).to_string()});
     }
 
-    auto status = magma->GetRange(
-            vbid.get(), startKeySlice, endKeySlice, callback, true);
+    auto status = magma->GetRange(vbid.get(),
+                                  startKeySlice,
+                                  endKeySlice,
+                                  callback,
+                                  filter != ValueFilter::KEYS_ONLY);
     if (!status) {
         logger->critical(
                 "MagmaKVStore::getRange {} start:{} end:{} status:{}",

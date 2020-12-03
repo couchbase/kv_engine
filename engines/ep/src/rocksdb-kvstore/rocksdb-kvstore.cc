@@ -730,6 +730,7 @@ void RocksDBKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) {
 void RocksDBKVStore::getRange(Vbid vb,
                               const DiskDocKey& startKey,
                               const DiskDocKey& endKey,
+                              ValueFilter filter,
                               const KVStore::GetRangeCb& cb) {
     auto startSlice = getKeySlice(startKey);
     auto endSlice = getKeySlice(endKey);
@@ -747,7 +748,8 @@ void RocksDBKVStore::getRange(Vbid vb,
 
     for (it->Seek(startSlice); it->Valid(); it->Next()) {
         auto key = DiskDocKey{it->key().data(), it->key().size()};
-        auto gv = makeGetValue(vb, key, it->value(), true);
+        auto gv = makeGetValue(
+                vb, key, it->value(), filter != ValueFilter::KEYS_ONLY);
         if (gv.item->isDeleted()) {
             // Ignore deleted items.
             continue;

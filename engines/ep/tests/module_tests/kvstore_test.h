@@ -120,6 +120,9 @@ protected:
                                 ValueFilter requestMode2,
                                 ValueFilter fetchedMode);
 
+    // Test getRange with the given ValueFilter.
+    void testGetRange(ValueFilter filter);
+
     // Helper method to store a test document named "key".
     queued_item storeDocument(bool deleted = false);
 
