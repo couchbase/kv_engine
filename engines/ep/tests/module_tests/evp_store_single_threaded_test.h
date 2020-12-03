@@ -118,9 +118,23 @@ public:
                        bool dropDeletes = false);
 
     /**
-     * Run the task responsible for iterating the documents and erasing them
+     * Schedule and run the task responsible for iterating the documents and
+     * erasing them.
+     *
      * For persistent buckets integrated into compaction.
      * For ephemeral buckets integrated into stale item removal task
+     *
+     * @param id vbucket to process
+     */
+    void scheduleAndRunCollectionsEraser(Vbid id);
+
+    /**
+     * Run the task responsible for iterating the documents and erasing them.
+     * Throws if we have not queued something in the write queue.
+     *
+     * For persistent buckets integrated into compaction.
+     * For ephemeral buckets integrated into stale item removal task
+     *
      * @param id vbucket to process
      */
     void runCollectionsEraser(Vbid id);

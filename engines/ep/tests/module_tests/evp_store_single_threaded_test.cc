@@ -348,9 +348,8 @@ void SingleThreadedKVBucketTest::runCompaction(Vbid id,
     runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX], taskDescription);
 }
 
-void SingleThreadedKVBucketTest::runCollectionsEraser(Vbid id) {
+void SingleThreadedKVBucketTest::scheduleAndRunCollectionsEraser(Vbid id) {
     if (isPersistent()) {
-        // Collection's eraser will run after a delay, so poke again to run now
         store->scheduleCompaction(id, {}, nullptr, std::chrono::seconds(0));
         std::string task = "Compact DB file " + std::to_string(id.get());
         runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX], task);
@@ -371,6 +370,24 @@ void SingleThreadedKVBucketTest::runCollectionsEraser(Vbid id) {
         runNextTask(lpAuxioQ);
         runNextTask(lpAuxioQ);
     }
+}
+
+void SingleThreadedKVBucketTest::runCollectionsEraser(Vbid id) {
+    // Check that the task has already been scheduled by the caller
+    if (isPersistent()) {
+        auto* mockEPBucket = dynamic_cast<MockEPBucket*>(store);
+        Expects(mockEPBucket);
+        auto task = mockEPBucket->getCompactionTask(id);
+        if (!task) {
+            throw std::logic_error("No compaction scheduled for " +
+                                   id.to_string());
+        }
+    }
+
+    // Collection's eraser gets scheduled when we persist a drop with a
+    // multi-second delay. We don't want to wait around for it so kick it
+    // into action by rescheduling without delay.
+    scheduleAndRunCollectionsEraser(id);
 }
 
 size_t SingleThreadedKVBucketTest::getFutureQueueSize(task_type_t type) const {
