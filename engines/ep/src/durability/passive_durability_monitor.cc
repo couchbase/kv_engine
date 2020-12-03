@@ -179,16 +179,8 @@ void PassiveDurabilityMonitor::addSyncWrite(
         }
         if (itr != s->trackedWrites.end()) {
             Expects(itr->getBySeqno() == overwritingPrepareSeqno);
-            // We have found a trackedWrite with the same key to remove. Update
-            // the HCS and HPS iterators and then remove the SyncWrite.
-            if (itr == s->highCompletedSeqno.it) {
-                s->highCompletedSeqno.it = s->trackedWrites.end();
-            }
-            if (itr == s->highPreparedSeqno.it) {
-                s->highPreparedSeqno.it = s->trackedWrites.end();
-            }
-
-            s->trackedWrites.erase(itr);
+            // We have found a trackedWrite with the same key to remove.
+            s->safeEraseSyncWrite(itr);
         }
     }
 
@@ -529,6 +521,7 @@ PassiveDurabilityMonitor::State::safeEraseSyncWrite(
     // Find the correct iterator for setting HCS and HPS. We can't leave them
     // pointing to invalid elements. We always need to move the iterator back
     // to ensure that we never advance the HCS or HPS.
+    Expects(toErase != trackedWrites.end());
     auto valid = toErase == trackedWrites.begin() ? trackedWrites.end()
                                                   : std::prev(toErase);
 
