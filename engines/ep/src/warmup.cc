@@ -562,9 +562,8 @@ static bool batchWarmupCallback(Vbid vbId,
             DiskDocKey diskKey{key, /*prepared*/ false};
             // Deleted below via a unique_ptr in the next loop
             vb_bgfetch_item_ctx_t& bg_itm_ctx = items2fetch[diskKey];
-            // TODO: Set based on bucket compression mode.
             bg_itm_ctx.addBgFetch(std::make_unique<FrontEndBGFetchItem>(
-                    nullptr, ValueFilter::VALUES_DECOMPRESSED));
+                    nullptr, c->epstore->getValueFilterForCompressionMode()));
         }
 
         c->epstore->getROUnderlying(vbId)->getMulti(vbId, items2fetch);

@@ -1252,6 +1252,57 @@ TEST_P(EPBucketTest, getDeletedItemWithValue) {
     EXPECT_TRUE(itm->isDeleted());
 }
 
+/**
+ * Verify that a get of a non-resident item is returned compressed to client
+ * iff client supports Snappy.
+ */
+TEST_P(EPBucketTest, GetNonResidentCompressed) {
+    // Setup: Change bucket to passive compression.
+    engine->setCompressionMode("passive");
+
+    // Setup: Store item then evict.
+    const DocKey dockey("key", DocKeyEncodesCollectionId::No);
+    store_item(vbid,
+               dockey,
+               "\"A JSON value which repeated strings so will compress "
+               "compress compress compress.\"");
+    flush_vbucket_to_disk(vbid);
+
+    auto doGet = [&] {
+        evict_key(vbid, dockey);
+        auto options = static_cast<get_options_t>(
+                QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+                HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+        GetValue gv = store->get(dockey, vbid, cookie, options);
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+        runBGFetcherTask();
+
+        // The Get should succeed in this case
+        gv = store->get(dockey, vbid, cookie, options);
+        EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+        return std::move(gv.item);
+    };
+
+    // Test 1: perform a get when snappy is supported.
+    // Check the item is returned compressed (if supported by KVStore)
+    const auto Json = PROTOCOL_BINARY_DATATYPE_JSON;
+    const auto JsonSnappy = Json | PROTOCOL_BINARY_DATATYPE_SNAPPY;
+    mock_set_datatype_support(cookie, JsonSnappy);
+
+    auto item = doGet();
+    if (supportsFetchingAsSnappy()) {
+        EXPECT_EQ(JsonSnappy, item->getDataType());
+    } else {
+        EXPECT_EQ(Json, item->getDataType());
+    }
+
+    // Test 2: perform a get when snappy is not supported.
+    // Check the item is returned uncompressed.
+    mock_set_datatype_support(cookie, Json);
+    item = doGet();
+    EXPECT_EQ(Json, item->getDataType());
+}
+
 //Test to verify the behavior in the condition where
 //memOverhead is greater than the bucket quota
 TEST_P(EPBucketTest, memOverheadMemoryCondition) {

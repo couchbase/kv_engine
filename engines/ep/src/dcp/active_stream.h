@@ -207,7 +207,7 @@ public:
      */
     void completeOSOBackfill();
 
-    bool isCompressionEnabled();
+    bool isCompressionEnabled() const;
 
     bool isForceValueCompressionEnabled() const {
         return forceValueCompression == ForceValueCompression::Yes;

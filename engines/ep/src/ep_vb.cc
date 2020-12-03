@@ -741,7 +741,8 @@ void EPVBucket::bgFetch(const DocKey& key,
     // schedule to the current batch of background fetch of the given
     // vbucket
     const auto filter =
-            isMeta ? ValueFilter::KEYS_ONLY : ValueFilter::VALUES_DECOMPRESSED;
+            isMeta ? ValueFilter::KEYS_ONLY
+                   : epBucket->getValueFilterForCompressionMode(cookie);
     size_t bgfetch_size = queueBGFetchItem(
             key,
             std::make_unique<FrontEndBGFetchItem>(cookie, filter),

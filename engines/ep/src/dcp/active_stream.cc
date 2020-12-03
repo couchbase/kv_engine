@@ -788,7 +788,7 @@ std::unique_ptr<DcpResponse> ActiveStream::deadPhase() {
     return resp;
 }
 
-bool ActiveStream::isCompressionEnabled() {
+bool ActiveStream::isCompressionEnabled() const {
     auto producer = producerPtr.lock();
     if (producer) {
         return producer->isCompressionEnabled();

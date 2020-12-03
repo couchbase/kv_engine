@@ -1922,13 +1922,17 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
     return {storageCB.itemsVisited, numPrepares};
 }
 
-ValueFilter EPBucket::getValueFilterForCompressionMode() {
+ValueFilter EPBucket::getValueFilterForCompressionMode(const void* cookie) {
     auto compressionMode = engine.getCompressionMode();
-    if (compressionMode != BucketCompressionMode::Off) {
-        return ValueFilter::VALUES_COMPRESSED;
+    auto filter = ValueFilter::VALUES_COMPRESSED;
+    if (compressionMode == BucketCompressionMode::Off) {
+        filter = ValueFilter::VALUES_DECOMPRESSED;
     }
-
-    return ValueFilter::VALUES_DECOMPRESSED;
+    if (cookie &&
+        !engine.isDatatypeSupported(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
+        filter = ValueFilter::VALUES_DECOMPRESSED;
+    }
+    return filter;
 }
 
 void EPBucket::notifyNewSeqno(const Vbid vbid, const VBNotifyCtx& notifyCtx) {

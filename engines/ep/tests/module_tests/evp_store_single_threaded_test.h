@@ -449,6 +449,10 @@ public:
         return engine->getConfiguration().isBfilterEnabled();
     }
 
+    bool supportsFetchingAsSnappy() const {
+        return !(isMagma() || isRocksDB());
+    }
+
     /// @returns a string representing this tests' parameters.
     static std::string PrintToStringParamName(
             const ::testing::TestParamInfo<ParamType>& info);

@@ -208,9 +208,13 @@ public:
 
     /**
      * Returns the ValueFilter to use for KVStore scans, given the bucket
-     * compression mode.
+     * compression mode and (optional) cookie.
+     * @param Cookie we are performing the operation for. If non-null, then
+     *        acts as an additional constraint on ValueFilter - if cookie
+     *        doesn't support Snappy compression then ValueFilter will not
+     *        return compressed data.
      */
-    ValueFilter getValueFilterForCompressionMode();
+    ValueFilter getValueFilterForCompressionMode(const void* cookie = nullptr);
 
     void notifyNewSeqno(const Vbid vbid, const VBNotifyCtx& notifyCtx) override;
 

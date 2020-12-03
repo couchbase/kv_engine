@@ -70,14 +70,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
                     vbid);
         return backfill_finished;
     }
-    ValueFilter valFilter = ValueFilter::VALUES_DECOMPRESSED;
-    if (stream->isKeyOnly()) {
-        valFilter = ValueFilter::KEYS_ONLY;
-    } else {
-        if (stream->isCompressionEnabled()) {
-            valFilter = ValueFilter::VALUES_COMPRESSED;
-        }
-    }
+    auto valFilter = getValueFilter(*stream);
 
     auto scanCtx = kvstore->initBySeqnoScanContext(
             std::make_unique<DiskCallback>(stream),

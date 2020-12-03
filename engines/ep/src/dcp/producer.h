@@ -198,7 +198,7 @@ public:
         return enableExtMetaData;
     }
 
-    bool isCompressionEnabled() {
+    bool isCompressionEnabled() const {
         if (forceValueCompression ||
             engine_.isDatatypeSupported(getCookie(), PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
             return true;

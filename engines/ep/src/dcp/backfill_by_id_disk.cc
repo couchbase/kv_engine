@@ -42,14 +42,7 @@ backfill_status_t DCPBackfillByIdDisk::create() {
     Vbid vbid = stream->getVBucket();
 
     KVStore* kvstore = bucket.getROUnderlying(vbid);
-    ValueFilter valFilter = ValueFilter::VALUES_DECOMPRESSED;
-    if (stream->isKeyOnly()) {
-        valFilter = ValueFilter::KEYS_ONLY;
-    } else {
-        if (stream->isCompressionEnabled()) {
-            valFilter = ValueFilter::VALUES_COMPRESSED;
-        }
-    }
+    auto valFilter = getValueFilter(*stream);
 
     // Create two ranges of keys to have loaded from the scan.
     // 1) system/collection/cid - for the 'metadata', i.e the create/drop marker
