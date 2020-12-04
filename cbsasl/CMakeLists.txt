@@ -32,6 +32,7 @@ add_library(cbsasl STATIC
      user.cc
      user.h
      util.h)
+kv_enable_pch(cbsasl)
 
 target_link_libraries(cbsasl cbcrypto mcd_util platform)
 add_sanitizers(cbsasl)

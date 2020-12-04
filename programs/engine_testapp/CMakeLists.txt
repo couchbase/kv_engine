@@ -9,6 +9,7 @@ add_library(mock_server STATIC
             mock_server.h
 )
 set_property(TARGET mock_server PROPERTY POSITION_INDEPENDENT_CODE 1)
+kv_enable_pch(mock_server)
 target_link_libraries(mock_server PUBLIC memcached_logger)
 target_link_libraries(mock_server PRIVATE platform_headers)
 target_link_libraries(mock_server INTERFACE

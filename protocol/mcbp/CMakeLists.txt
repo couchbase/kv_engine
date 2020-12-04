@@ -27,6 +27,7 @@ add_library(mcbp STATIC
 
 target_link_libraries(mcbp mcd_util platform)
 set_property(TARGET mcbp PROPERTY POSITION_INDEPENDENT_CODE 1)
+kv_enable_pch(mcbp)
 cb_enable_unity_build(mcbp)
 
 add_executable(mcbp_packet_printer mcbp_packet_printer.cc)

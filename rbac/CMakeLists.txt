@@ -4,6 +4,7 @@ add_library(memcached_rbac STATIC
             ${PROJECT_SOURCE_DIR}/include/memcached/rbac/privilege_database.h
             ${PROJECT_SOURCE_DIR}/include/memcached/rbac.h
             )
+kv_enable_pch(memcached_rbac)
 
 target_link_libraries(memcached_rbac cbsasl platform)
 

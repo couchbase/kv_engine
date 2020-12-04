@@ -3,6 +3,7 @@ ADD_LIBRARY(mcd_time STATIC
             ${PROJECT_SOURCE_DIR}/include/memcached/isotime.h)
 set_property(TARGET mcd_time PROPERTY POSITION_INDEPENDENT_CODE 1)
 TARGET_LINK_LIBRARIES(mcd_time platform)
+kv_enable_pch(mcd_time)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     ADD_EXECUTABLE(memcached_timestamp_test timestamp_test.cc

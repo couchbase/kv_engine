@@ -6,6 +6,7 @@ ADD_LIBRARY(mc_client_connection STATIC
             client_mcbp_commands.cc
             client_mcbp_commands.h
             frameinfo.cc frameinfo.h)
+kv_enable_pch(mc_client_connection)
 
 TARGET_LINK_LIBRARIES(mc_client_connection
   PUBLIC

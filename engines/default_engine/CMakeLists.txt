@@ -11,6 +11,7 @@ ADD_LIBRARY(default_engine STATIC
             scrubber_task.h
             slabs.cc
             slabs.h)
+kv_enable_pch(default_engine)
 
 TARGET_LINK_LIBRARIES(default_engine
         memcached_logger

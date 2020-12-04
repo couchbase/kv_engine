@@ -1,6 +1,7 @@
 add_library(cbcrypto STATIC
             cbcrypto.cc
             ${PROJECT_SOURCE_DIR}/include/cbcrypto/cbcrypto.h)
+kv_enable_pch(cbcrypto)
 
 if (APPLE)
     # Apple is using the Common Crypto Framework for all crypto functions

@@ -6,6 +6,7 @@ add_library(memcached_logger STATIC
             custom_rotating_file_sink.cc
             custom_rotating_file_sink.h
             logger_test_fixture.h)
+kv_enable_pch(memcached_logger)
 
 target_link_libraries(memcached_logger PUBLIC platform spdlog)
 add_sanitizers(memcached_logger)

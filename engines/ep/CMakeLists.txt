@@ -222,6 +222,8 @@ ADD_LIBRARY(ep-engine_collections STATIC
 
 SET_PROPERTY(TARGET ep-engine_collections PROPERTY POSITION_INDEPENDENT_CODE 1)
 
+kv_enable_pch(ep-engine_collections)
+
 TARGET_LINK_LIBRARIES(ep-engine_collections platform)
 
 TARGET_INCLUDE_DIRECTORIES(ep-engine_collections
@@ -398,6 +400,7 @@ target_link_libraries(ep_objs PUBLIC mcd_executor platform spdlog ${EP_STORAGE_L
 kv_enable_pch(ep_objs)
 
 ADD_LIBRARY(ep STATIC $<TARGET_OBJECTS:ep_objs>)
+kv_enable_pch(ep)
 
 if (NOT WIN32)
   # Enable the more efficient ThreadLocalStorage model

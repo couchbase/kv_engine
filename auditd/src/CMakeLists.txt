@@ -7,6 +7,7 @@ add_library(auditd STATIC
             event.cc event.h
             eventdescriptor.cc
             eventdescriptor.h)
+kv_enable_pch(auditd)
 target_link_libraries(auditd
                       memcached_logger
                       mcd_time
