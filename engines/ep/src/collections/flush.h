@@ -265,16 +265,19 @@ private:
     // Helper class for doing collection stat updates
     class StatisticsUpdate {
     public:
-        explicit StatisticsUpdate(uint64_t committedHighSeqno)
-            : persistedCommittedSeqno(committedHighSeqno) {
+        StatisticsUpdate(uint64_t seqno, bool isCommitted)
+            : persistedCommittedSeqno(isCommitted ? seqno : 0),
+              persistedPrepareSeqno(isCommitted ? 0 : seqno) {
         }
 
         /**
-         * Set the persistedCommittedSeqno only if seqno is > than
-         * this->persistedCommittedSeqno
+         * Set either the persistedCommittedSeqno or the persistedPrepareSeqno
+         * iff seqno is > than the current value
+         *
          * @param seqno to use if it's greater than current value
+         * @param isCommitted committed/prepared seqno to change
          */
-        void maybeSetPersistedCommittedSeqno(uint64_t seqno);
+        void maybeSetPersistedSeqno(uint64_t seqno, bool isCommitted);
 
         /**
          * Process an insert into the collection
@@ -284,10 +287,12 @@ private:
          * @param diskSize size in bytes 'inserted' into disk. Should be
          *        representative of the bytes used by each document, but does
          *        not need to be exact.
+         * @param isCommitted does the item belong to the committed namespace?
          */
         void insert(bool isSystem,
                     bool isDelete,
-                    ssize_t diskSize);
+                    ssize_t diskSize,
+                    bool isCommitted);
 
         /**
          * Process an update into the collection
@@ -303,8 +308,9 @@ private:
          * @param diskSizeDelta size in bytes difference. Should be
          *        representative of the difference between existing and new
          *        documents, but does not need to be exact.
+         * @param isCommitted does the item belong to the committed namespace?
          */
-        void remove(bool isSystem, ssize_t diskSizeDelta);
+        void remove(bool isSystem, ssize_t diskSizeDelta, bool isCommitted);
 
         /**
          * @return the highest committed namespace persisted seqno recorded by
@@ -312,6 +318,10 @@ private:
          */
         uint64_t getPersistedMaxVisibleSeqno() const {
             return persistedCommittedSeqno;
+        }
+
+        uint64_t getPersistedPrepareSeqno() const {
+            return persistedPrepareSeqno;
         }
 
         /// @returns the items flushed (can be negative due to deletes)
@@ -325,6 +335,7 @@ private:
             return diskSize;
         }
 
+
     private:
         void incrementItemCount();
 
@@ -333,6 +344,7 @@ private:
         void updateDiskSize(ssize_t delta);
 
         uint64_t persistedCommittedSeqno{0};
+        uint64_t persistedPrepareSeqno{0};
         ssize_t itemCount{0};
         ssize_t diskSize{0};
     };
@@ -341,9 +353,15 @@ private:
      * Obtain a Stats reference so insert/update/remove can be tracked.
      * The function may also update the persisted high-seqno of the collection
      * if the given seqno is greater than the currently recorded one.
+     *
+     * @param cid CollectionID
+     * @param seqno New high seqno to potentially update the persisted one
+     * @param isCommitted If the seqno belongs to prepare or commit namespace
+     * @return Stats reference
      */
     StatisticsUpdate& getStatsAndMaybeSetPersistedHighSeqno(CollectionID cid,
-                                                            uint64_t seqno);
+                                                            uint64_t seqno,
+                                                            bool isCommitted);
 
     /**
      * Iterate through the 'droppedCollections' container and call a function

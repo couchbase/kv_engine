@@ -1213,6 +1213,11 @@ void EPBucket::compactionCompletionCallback(CompactionContext& ctx) {
 
     vb->setPurgeSeqno(ctx.max_purged_seq);
     vb->decrNumTotalItems(ctx.stats.collectionsItemsPurged);
+
+    for (const auto& [cid, droppedPrepareBytes] :
+         ctx.stats.collectionStatsUpdates) {
+        vb->getManifest().lock(cid).updateDiskSize(-droppedPrepareBytes);
+    }
 }
 
 void EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {

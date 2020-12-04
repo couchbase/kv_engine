@@ -1115,23 +1115,31 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
                     isTombstone);
         }
 
-
-        if (docExists) {
-            commitData.collections.updateStats(
-                    docKey,
-                    req->getDocMeta().bySeqno,
-                    diskDocKey.isCommitted(),
-                    req->isDelete(),
-                    req->getBodySize(),
-                    configuration.magmaCfg.GetSeqNum(oldMeta),
-                    isTombstone,
-                    configuration.magmaCfg.GetValueSize(oldMeta));
-        } else {
-            commitData.collections.updateStats(docKey,
-                                               req->getDocMeta().bySeqno,
-                                               diskDocKey.isCommitted(),
-                                               req->isDelete(),
-                                               req->getBodySize());
+        // We don't track collection stats for prepares for magma. The only
+        // non-committed stat we count for collections is the on disk size (as
+        // this includes prepares for couchstore Buckets). As we remove prepares
+        // at compaction we can't currently track them or their on disk size
+        // correctly as magma as we may visit stale values. The same follows for
+        // the on disk size of collections. As we cannot track prepare size
+        // correctly for magma we must avoid counting it at all.
+        if (diskDocKey.isCommitted()) {
+            if (docExists) {
+                commitData.collections.updateStats(
+                        docKey,
+                        req->getDocMeta().bySeqno,
+                        diskDocKey.isCommitted(),
+                        req->isDelete(),
+                        req->getBodySize(),
+                        configuration.magmaCfg.GetSeqNum(oldMeta),
+                        isTombstone,
+                        configuration.magmaCfg.GetValueSize(oldMeta));
+            } else {
+                commitData.collections.updateStats(docKey,
+                                                   req->getDocMeta().bySeqno,
+                                                   diskDocKey.isCommitted(),
+                                                   req->isDelete(),
+                                                   req->getBodySize());
+            }
         }
 
         if (docExists) {

@@ -445,6 +445,10 @@ public:
         return std::get<0>(GetParam()).find("Magma") != std::string::npos;
     }
 
+    std::string getBackend() const {
+        return std::get<0>(GetParam());
+    }
+
     bool bloomFilterEnabled() const {
         return engine->getConfiguration().isBfilterEnabled();
     }

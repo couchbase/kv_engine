@@ -2035,6 +2035,25 @@ TEST_F(CollectionsTest, PerCollectionDiskSizeRollback) {
     }
 }
 
+/**
+ * 'Sanitize' the StatChecker PostFunc supplied after taking into consideration
+ * the test backend. Magma does not track prepares so a few stats work
+ * differently.
+ */
+StatChecker::PostFunc getPrepareStatCheckerPostFuncForBackend(
+        std::string backend, StatChecker::PostFunc fn) {
+    if (backend.find("Magma") != std::string::npos) {
+        // Magma doesn't currently track prepares as we remove them during
+        // compaction and we don't know if we are removing a stale one or not,
+        // making it impossible to count them accurately. As such we also cannot
+        // count prepare bytes and we do not include prepares in the collection
+        // disk size.
+        return std::equal_to<>();
+    }
+
+    return fn;
+}
+
 TEST_P(CollectionsPersistentParameterizedTest,
        PerCollectionDiskSizeDurability) {
     // test that the per-collection disk size (updated by saveDocsCallback)
@@ -2052,9 +2071,12 @@ TEST_P(CollectionsPersistentParameterizedTest,
 
     {
         SCOPED_TRACE("Prepare item");
-        // default collection disk size should _stay the same_ - prepares are
-        // not included
-        auto d = DiskChecker(vb, CollectionEntry::defaultC, std::equal_to<>());
+        // default collection disk size should _increase_ - prepares are
+        // included
+        auto d = DiskChecker(vb,
+                             CollectionEntry::defaultC,
+                             getPrepareStatCheckerPostFuncForBackend(
+                                     getBackend(), std::greater<>()));
 
         using namespace cb::durability;
         store_item(vbid,
@@ -2077,10 +2099,31 @@ TEST_P(CollectionsPersistentParameterizedTest,
     }
 
     {
-        SCOPED_TRACE("Prepare item round 2");
-        // default collection disk size should _stay the same_ - prepares are
-        // not included
+        SCOPED_TRACE("Purge completed prepare");
+        // default collection disk size should _decrease_
+        auto d = DiskChecker(vb,
+                             CollectionEntry::defaultC,
+                             getPrepareStatCheckerPostFuncForBackend(
+                                     getBackend(), std::less<>()));
+        runCompaction(vbid, 0, false);
+    }
+
+    {
+        SCOPED_TRACE("Warmup");
         auto d = DiskChecker(vb, CollectionEntry::defaultC, std::equal_to<>());
+        vb.reset();
+        resetEngineAndWarmup();
+        vb = store->getVBucket(vbid);
+    }
+
+    {
+        SCOPED_TRACE("Prepare item round 2");
+        // default collection disk size should _increase_ - prepares are
+        // included
+        auto d = DiskChecker(vb,
+                             CollectionEntry::defaultC,
+                             getPrepareStatCheckerPostFuncForBackend(
+                                     getBackend(), std::greater<>()));
 
         using namespace cb::durability;
         store_item(vbid,
@@ -2095,9 +2138,12 @@ TEST_P(CollectionsPersistentParameterizedTest,
 
     {
         SCOPED_TRACE("Abort item");
-        // default collection disk size should _stay the same_ - aborts are
-        // not included
-        auto d = DiskChecker(vb, CollectionEntry::defaultC, std::equal_to<>());
+        // default collection disk size should _decrease_ - aborts are
+        // included so should decrease
+        auto d = DiskChecker(vb,
+                             CollectionEntry::defaultC,
+                             getPrepareStatCheckerPostFuncForBackend(
+                                     getBackend(), std::less<>()));
 
         vb->abort(key, vb->getHighSeqno(), {}, vb->lockCollections(key));
         KVBucketTest::flushVBucketToDiskIfPersistent(vbid);

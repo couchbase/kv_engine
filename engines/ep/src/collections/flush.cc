@@ -29,20 +29,24 @@
 namespace Collections::VB {
 
 Flush::StatisticsUpdate& Flush::getStatsAndMaybeSetPersistedHighSeqno(
-        CollectionID cid, uint64_t seqno) {
-    auto [itr, inserted] = stats.try_emplace(cid, StatisticsUpdate{seqno});
+        CollectionID cid, uint64_t seqno, bool isCommitted) {
+    auto [itr, inserted] =
+            stats.try_emplace(cid, StatisticsUpdate{seqno, isCommitted});
     auto& [key, value] = *itr;
     (void)key;
     if (!inserted) {
-        value.maybeSetPersistedCommittedSeqno(seqno);
+        value.maybeSetPersistedSeqno(seqno, isCommitted);
     }
 
     return value;
 }
 
-void Flush::StatisticsUpdate::maybeSetPersistedCommittedSeqno(uint64_t seqno) {
-    if (seqno > persistedCommittedSeqno) {
-        persistedCommittedSeqno = seqno;
+void Flush::StatisticsUpdate::maybeSetPersistedSeqno(uint64_t seqno,
+                                                     bool isCommitted) {
+    auto& seqnoToChange =
+            isCommitted ? persistedCommittedSeqno : persistedPrepareSeqno;
+    if (seqno > seqnoToChange) {
+        seqnoToChange = seqno;
     }
 }
 
@@ -60,8 +64,9 @@ void Flush::StatisticsUpdate::updateDiskSize(ssize_t delta) {
 
 void Flush::StatisticsUpdate::insert(bool isSystem,
                                      bool isDelete,
-                                     ssize_t diskSizeDelta) {
-    if (!isSystem && !isDelete) {
+                                     ssize_t diskSizeDelta,
+                                     bool isCommitted) {
+    if (!isSystem && !isDelete && isCommitted) {
         incrementItemCount();
     } // else inserting a tombstone - no item increment
 
@@ -73,8 +78,9 @@ void Flush::StatisticsUpdate::update(ssize_t diskSizeDelta) {
 }
 
 void Flush::StatisticsUpdate::remove(bool isSystem,
-                                     ssize_t diskSizeDelta) {
-    if (!isSystem) {
+                                     ssize_t diskSizeDelta,
+                                     bool isCommitted) {
+    if (!isSystem && isCommitted) {
         decrementItemCount();
     }
     updateDiskSize(diskSizeDelta);
@@ -99,9 +105,12 @@ void Flush::saveCollectionStats(
             flushStats.getPersistedMaxVisibleSeqno() < itr->second.endSeqno) {
             continue;
         }
-        // Get the current stats of the collection (for the seqno)
-        auto collsFlushStats = manifest.lock().getStatsForFlush(
-                cid, flushStats.getPersistedMaxVisibleSeqno());
+
+        // Get the current stats of the collection (for the seqno). May have
+        // written only prepares so take the max of the two seqnos
+        auto seqno = std::max(flushStats.getPersistedPrepareSeqno(),
+                              flushStats.getPersistedMaxVisibleSeqno());
+        auto collsFlushStats = manifest.lock().getStatsForFlush(cid, seqno);
 
         // Generate new stats, add the deltas from this flush batch for count
         // and size and set the high-seqno
@@ -138,7 +147,8 @@ uint32_t Flush::countNonEmptyDroppedCollections() const {
         // the collection is in this flush, the collection is not empty.
         auto sItr = stats.find(cid);
 
-        if (sItr == stats.end()) {
+        if (sItr == stats.end() ||
+            sItr->second.getPersistedMaxVisibleSeqno() == 0) {
             const auto highSeqno =
                     manifest.lock()
                             .getStatsForFlush(cid, dropped.endSeqno)
@@ -255,10 +265,6 @@ void Flush::updateStats(const DocKey& key,
                         bool isCommitted,
                         bool isDelete,
                         size_t size) {
-    // Prepares don't change the stats
-    if (!isCommitted) {
-        return;
-    }
     auto [isSystemEvent, cid] = getCollectionID(key);
 
     if (!cid) {
@@ -276,8 +282,8 @@ void Flush::updateStats(const DocKey& key,
     }
 
     // Track high-seqno for the item
-    auto& collsFlushStats =
-            getStatsAndMaybeSetPersistedHighSeqno(cid.value(), seqno);
+    auto& collsFlushStats = getStatsAndMaybeSetPersistedHighSeqno(
+            cid.value(), seqno, isCommitted);
 
     // but don't track any changes if the item is logically deleted. Why?
     // A flush batch could of recreated the collection, the stats tracking code
@@ -286,7 +292,7 @@ void Flush::updateStats(const DocKey& key,
     // incorrect. Note this relates to an issue for MB-42272, magma assumes the
     // stats item count will include *everything*, but isn't.
     if (!isLogicallyDeleted(cid.value(), seqno)) {
-        collsFlushStats.insert(isSystemEvent, isDelete, size);
+        collsFlushStats.insert(isSystemEvent, isDelete, size, isCommitted);
     }
 }
 
@@ -298,10 +304,6 @@ void Flush::updateStats(const DocKey& key,
                         uint64_t oldSeqno,
                         bool oldIsDelete,
                         size_t oldSize) {
-    // Prepares don't change the stats
-    if (!isCommitted) {
-        return;
-    }
     // Same logic and comment as updateStats above.
     auto [isSystemEvent, cid] = getCollectionID(key);
 
@@ -323,14 +325,14 @@ void Flush::updateStats(const DocKey& key,
             oldIsDelete || (isLogicallyDeleted(cid.value(), oldSeqno) ||
                             isLogicallyDeletedInStore(cid.value(), oldSeqno));
 
-    auto& collsFlushStats =
-            getStatsAndMaybeSetPersistedHighSeqno(cid.value(), seqno);
+    auto& collsFlushStats = getStatsAndMaybeSetPersistedHighSeqno(
+            cid.value(), seqno, isCommitted);
     // As above, logically deleted items don't update item-count/disk-size
     if (!isLogicallyDeleted(cid.value(), seqno)) {
         if (oldIsDelete) {
-            collsFlushStats.insert(isSystemEvent, isDelete, size);
+            collsFlushStats.insert(isSystemEvent, isDelete, size, isCommitted);
         } else if (!oldIsDelete && isDelete) {
-            collsFlushStats.remove(isSystemEvent, size - oldSize);
+            collsFlushStats.remove(isSystemEvent, size - oldSize, isCommitted);
         } else {
             collsFlushStats.update(size - oldSize);
         }
