@@ -14,6 +14,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     add_executable(memcached_logger_test
                    logger_test.cc
                    logger_test_fixture.cc)
+    kv_enable_pch(memcached_logger_test)
     target_link_libraries(memcached_logger_test gtest gtest_main mcd_util memcached_logger platform)
     target_include_directories(memcached_logger_test INTERFACE PRIVATE ${Platform_SOURCE_DIR}/external)
     add_sanitizers(memcached_logger_test)
@@ -22,6 +23,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
              COMMAND memcached_logger_test)
 
     add_executable(memcached_logger_benchmark logger_benchmark.cc)
+    kv_enable_pch(memcached_logger_benchmark)
     target_include_directories(memcached_logger_benchmark
                                SYSTEM PRIVATE
                                ${benchmark_SOURCE_DIR}/include)

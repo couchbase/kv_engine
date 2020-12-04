@@ -6,6 +6,7 @@ target_link_libraries(couchfile_upgrade_objects PUBLIC couchstore)
 
 add_executable(couchfile_upgrade couchfile_upgrade.cc
                                  $<TARGET_OBJECTS:couchfile_upgrade_objects>)
+kv_enable_pch(couchfile_upgrade)
 target_link_libraries(couchfile_upgrade couchstore mcd_util platform
         ep-engine_collections)
 add_sanitizers(couchfile_upgrade)

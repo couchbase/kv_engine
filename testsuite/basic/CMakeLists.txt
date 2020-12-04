@@ -1,6 +1,7 @@
 add_executable(memcached-basic-engine-tests
                basic_engine_testsuite.cc
                engine_testsuite.cc)
+kv_enable_pch(memcached-basic-engine-tests)
 add_sanitizers(memcached-basic-engine-tests)
 target_link_libraries(memcached-basic-engine-tests
                       mock_server

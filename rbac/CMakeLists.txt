@@ -11,6 +11,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     add_executable(memcached_rbac_test
                    privilege_test.cc
                    privilege_database_test.cc)
+    kv_enable_pch(memcached_rbac_test)
     target_link_libraries(memcached_rbac_test memcached_rbac
                           gtest gtest_main)
     add_test(NAME memcached-rbac-test

@@ -32,6 +32,7 @@ endif()
 
 add_executable(memcached_mcbp_bench
         mcbp_bench.cc)
+kv_enable_pch(memcached_mcbp_bench)
 target_include_directories(memcached_mcbp_bench
     SYSTEM PRIVATE
     ${benchmark_SOURCE_DIR}/include)

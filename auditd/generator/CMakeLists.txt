@@ -12,6 +12,7 @@ add_executable(auditevent_generator
                auditevent_generator.cc
                auditevent_generator.h
                $<TARGET_OBJECTS:audit_generator_utilities>)
+kv_enable_pch(auditevent_generator)
 add_sanitizers(auditevent_generator)
 
 target_link_libraries(auditevent_generator platform)
@@ -56,6 +57,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    generator_event_test.cc
                    generator_module_test.cc
                    $<TARGET_OBJECTS:audit_generator_utilities>)
+    kv_enable_pch(audit_generator_unit_test)
     add_sanitizers(audit_generator_unit_test)
     target_link_libraries(audit_generator_unit_test platform gtest gtest_main
                           mcd_util)

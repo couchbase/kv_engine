@@ -3,6 +3,7 @@ IF(NOT WIN32)
 
     ADD_EXECUTABLE(jemalloc_allocator_stats
             jemalloc_allocator_stats.cc)
+    kv_enable_pch(jemalloc_allocator_stats)
 
     TARGET_LINK_LIBRARIES(jemalloc_allocator_stats platform ${JEMALLOC_LIBRARIES})
 

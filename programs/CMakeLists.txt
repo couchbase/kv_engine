@@ -7,6 +7,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     add_executable(memcached-hostutils-test
                    hostname_utils_test.cc
                    $<TARGET_OBJECTS:mc_program_utils>)
+    kv_enable_pch(memcached-hostutils-test)
     target_link_libraries(memcached-hostutils-test
                           platform
                           gtest

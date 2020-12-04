@@ -1,2 +1,3 @@
 add_executable(dcplatency dcplatency.cc)
+kv_enable_pch(dcplatency)
 target_link_libraries(dcplatency mc_program_utils mc_client_connection mcbp)

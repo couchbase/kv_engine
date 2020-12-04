@@ -1,5 +1,6 @@
 ADD_EXECUTABLE(memcached_errormap_sanity_check
                error_map_sanity_check.cc)
+kv_enable_pch(memcached_errormap_sanity_check)
 
 TARGET_LINK_LIBRARIES(memcached_errormap_sanity_check memcached_daemon)
 add_sanitizers(memcached_errormap_sanity_check)

@@ -89,7 +89,9 @@ IF (WIN32)
 ENDIF (WIN32)
 
 add_executable(gencode tools/gencode.cc)
+kv_enable_pch(gencode)
 add_executable(genconfig tools/genconfig.cc)
+kv_enable_pch(genconfig)
 if (WIN32)
     # windows need getopt
     target_link_libraries(gencode platform)
@@ -105,6 +107,7 @@ add_executable(kvstore_gen tools/kvstore_gen.cc
         ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
         ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
         $<TARGET_OBJECTS:ep_objs>)
+kv_enable_pch(kvstore_gen)
 
 target_link_libraries(kvstore_gen
         JSON_checker
@@ -420,6 +423,7 @@ if (NOT EP_BYPASS_TESTS)
         $<TARGET_OBJECTS:mock_dcp>
         $<TARGET_OBJECTS:engine_testapp>
         )
+      kv_enable_pch(${name})
 
       target_link_libraries(${name}
         ${LIBEVENT_LIBRARIES}
@@ -489,6 +493,7 @@ if (NOT EP_BYPASS_TESTS)
                    ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
                    ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
                    ${Memcached_SOURCE_DIR}/engines/ep/tests/module_tests/test_helpers.cc)
+    kv_enable_pch(ep_engine_benchmarks)
 
     TARGET_LINK_LIBRARIES(ep_engine_benchmarks PRIVATE
             benchmark
@@ -525,6 +530,7 @@ if (NOT EP_BYPASS_TESTS)
 
     ADD_EXECUTABLE(ep-engine_sizes src/sizes.cc
                    $<TARGET_OBJECTS:ep_objs>)
+    kv_enable_pch(ep-engine_sizes)
     TARGET_LINK_LIBRARIES(ep-engine_sizes JSON_checker hdr_histogram_static
                           engine_utilities ep-engine_collections ${EP_STORAGE_LIBS}
                           mcd_executor

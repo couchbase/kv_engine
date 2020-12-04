@@ -117,6 +117,7 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
         $<TARGET_OBJECTS:couchfile_upgrade_objects>
         ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
         ${Memcached_SOURCE_DIR}/logger/logger_test_fixture.cc)
+kv_enable_pch(ep-engine_ep_unit_tests)
 IF(EP_USE_MAGMA)
     target_sources(ep-engine_ep_unit_tests PUBLIC
             module_tests/magma_bucket_tests.cc
@@ -166,6 +167,7 @@ ADD_EXECUTABLE(ep-engine_couch-fs-stats_test
         module_tests/couch-fs-stats_test.cc
         ${Couchstore_SOURCE_DIR}/src/crc32.cc
         $<TARGET_OBJECTS:couchstore_wrapped_fileops_test_framework>)
+kv_enable_pch(ep-engine_couch-fs-stats_test)
 TARGET_INCLUDE_DIRECTORIES(ep-engine_couch-fs-stats_test
         PRIVATE
         ${Couchstore_SOURCE_DIR}
@@ -180,11 +182,13 @@ TARGET_LINK_LIBRARIES(ep-engine_couch-fs-stats_test
 add_sanitizers(ep-engine_couch-fs-stats_test)
 
 ADD_EXECUTABLE(ep-engine_misc_test module_tests/misc_test.cc)
+kv_enable_pch(ep-engine_misc_test)
 TARGET_LINK_LIBRARIES(ep-engine_misc_test mcbp platform)
 
 ADD_EXECUTABLE(ep-engine_string_utils_test
         module_tests/string_utils_test.cc
         ${EventuallyPersistentEngine_SOURCE_DIR}/src/string_utils.cc)
+kv_enable_pch(ep-engine_string_utils_test)
 TARGET_LINK_LIBRARIES(ep-engine_string_utils_test gtest gtest_main platform)
 
 ADD_TEST(NAME ep-engine_couch-fs-stats_test COMMAND ep-engine_couch-fs-stats_test)

@@ -62,6 +62,7 @@ add_sanitizers(mcd_test_util)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     add_executable(utilities_testapp util_test.cc)
+    kv_enable_pch(utilities_testapp)
     target_link_libraries(utilities_testapp
                           mcd_util
                           platform

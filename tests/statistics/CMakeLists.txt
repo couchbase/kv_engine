@@ -1,5 +1,6 @@
 ADD_EXECUTABLE(memcached_statistics_test
         prometheus_test.cc)
+kv_enable_pch(memcached_statistics_test)
 TARGET_LINK_LIBRARIES(memcached_statistics_test statistics memcached_daemon gtest_main gmock)
 
 add_sanitizers(memcached_statistics_test)
