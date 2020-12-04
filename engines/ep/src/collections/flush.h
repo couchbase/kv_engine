@@ -265,16 +265,16 @@ private:
     // Helper class for doing collection stat updates
     class StatisticsUpdate {
     public:
-        explicit StatisticsUpdate(uint64_t highSeqno)
-            : persistedHighSeqno(highSeqno) {
+        explicit StatisticsUpdate(uint64_t committedHighSeqno)
+            : persistedCommittedSeqno(committedHighSeqno) {
         }
 
         /**
-         * Set the persistedHighSeqno only if seqno is > than
-         * this->persistedHighSeqno
+         * Set the persistedCommittedSeqno only if seqno is > than
+         * this->persistedCommittedSeqno
          * @param seqno to use if it's greater than current value
          */
-        void maybeSetPersistedHighSeqno(uint64_t seqno);
+        void maybeSetPersistedCommittedSeqno(uint64_t seqno);
 
         /**
          * Process an insert into the collection
@@ -306,9 +306,12 @@ private:
          */
         void remove(bool isSystem, ssize_t diskSizeDelta);
 
-        /// @returns the highest persisted seqno recorded by the Flush object
-        uint64_t getPersistedHighSeqno() const {
-            return persistedHighSeqno;
+        /**
+         * @return the highest committed namespace persisted seqno recorded by
+         * the Flush object
+         */
+        uint64_t getPersistedMaxVisibleSeqno() const {
+            return persistedCommittedSeqno;
         }
 
         /// @returns the items flushed (can be negative due to deletes)
@@ -329,7 +332,7 @@ private:
 
         void updateDiskSize(ssize_t delta);
 
-        uint64_t persistedHighSeqno{0};
+        uint64_t persistedCommittedSeqno{0};
         ssize_t itemCount{0};
         ssize_t diskSize{0};
     };

@@ -34,15 +34,15 @@ Flush::StatisticsUpdate& Flush::getStatsAndMaybeSetPersistedHighSeqno(
     auto& [key, value] = *itr;
     (void)key;
     if (!inserted) {
-        value.maybeSetPersistedHighSeqno(seqno);
+        value.maybeSetPersistedCommittedSeqno(seqno);
     }
 
     return value;
 }
 
-void Flush::StatisticsUpdate::maybeSetPersistedHighSeqno(uint64_t seqno) {
-    if (seqno > persistedHighSeqno) {
-        persistedHighSeqno = seqno;
+void Flush::StatisticsUpdate::maybeSetPersistedCommittedSeqno(uint64_t seqno) {
+    if (seqno > persistedCommittedSeqno) {
+        persistedCommittedSeqno = seqno;
     }
 }
 
@@ -96,17 +96,17 @@ void Flush::saveCollectionStats(
         //    and a delete of the same in one flush (couchstore doesn't)
         auto itr = droppedCollections.find(cid);
         if (itr != droppedCollections.end() &&
-            flushStats.getPersistedHighSeqno() < itr->second.endSeqno) {
+            flushStats.getPersistedMaxVisibleSeqno() < itr->second.endSeqno) {
             continue;
         }
         // Get the current stats of the collection (for the seqno)
         auto stats = manifest.lock().getStatsForFlush(
-                cid, flushStats.getPersistedHighSeqno());
+                cid, flushStats.getPersistedMaxVisibleSeqno());
 
         // Generate new stats, add the deltas from this flush batch for count
         // and size and set the high-seqno
         PersistedStats ps(stats.itemCount + flushStats.getItemCount(),
-                          flushStats.getPersistedHighSeqno(),
+                          flushStats.getPersistedMaxVisibleSeqno(),
                           stats.diskSize + flushStats.getDiskSize());
         cb(cid, ps);
     }
@@ -160,7 +160,7 @@ void Flush::forEachDroppedCollection(
     for (const auto& [cid, dropped] : droppedCollections) {
         auto itr = stats.find(cid);
         if (itr == stats.end() ||
-            dropped.endSeqno > itr->second.getPersistedHighSeqno()) {
+            dropped.endSeqno > itr->second.getPersistedMaxVisibleSeqno()) {
             cb(cid);
         }
     }
@@ -179,14 +179,14 @@ void Flush::postCommitMakeStatsVisible() {
     for (const auto& [cid, flushStats] : stats) {
         auto lock = manifest.lock(cid);
         if (!lock.valid() ||
-            lock.isLogicallyDeleted(flushStats.getPersistedHighSeqno())) {
+            lock.isLogicallyDeleted(flushStats.getPersistedMaxVisibleSeqno())) {
             // Can be flushing for a dropped collection (no longer in the
             // manifest, or was flushed/recreated at a new seqno)
             continue;
         }
         // update the stats with the changes collected by the flusher
         lock.updateItemCount(flushStats.getItemCount());
-        lock.setPersistedHighSeqno(flushStats.getPersistedHighSeqno());
+        lock.setPersistedHighSeqno(flushStats.getPersistedMaxVisibleSeqno());
         lock.updateDiskSize(flushStats.getDiskSize());
     }
 }
