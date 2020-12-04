@@ -131,6 +131,13 @@ protected:
 struct CompactionReplayPrepareStats {
     uint64_t onDiskPrepares = 0;
     uint64_t onDiskPrepareBytes = 0;
+
+    /**
+     * Values which we will use to update the collection sizes. We load in the
+     * post-compaction values and apply deltas as we replay the new mutations to
+     * the new Db.
+     */
+    CompactionStats::CollectionSizeUpdates collectionSizes;
 };
 
 struct kvstats_ctx;
@@ -723,7 +730,7 @@ protected:
     /// and subtract the number of prepares pruned
     couchstore_error_t maybePatchOnDiskPrepares(
             Db& db,
-            const CompactionStats& stats,
+            CompactionStats& stats,
             PendingLocalDocRequestQueue& localDocQueue,
             Vbid vbid);
 
@@ -734,6 +741,10 @@ protected:
     void setConcurrentCompactionPostLockHook(
             std::function<void(const std::string&)> hook) {
         concurrentCompactionPostLockHook = std::move(hook);
+    }
+
+    void setConcurrentCompactionPreLockHook(std::function<void(const std::string&)> hook) {
+        concurrentCompactionPreLockHook = std::move(hook);
     }
 
     enum class ReadVBStateStatus : uint8_t {
@@ -800,6 +811,22 @@ protected:
     couchstore_error_t updateLocalDocument(Db& db,
                                            std::string_view name,
                                            std::string_view value);
+
+    /**
+     * Replay needs to update preapre counts, bytes, and collection sizes in the
+     * appropriate local documents as we might have changed their values during
+     * the compaction. In addition we need to set the purge sequence number in
+     * the couchstore header.
+     *
+     * @param db The database instance to update
+     * @param prepareStats All the prepare stats changed during compaction
+     * @param purge_seqno The new value to store in the couchstore header
+     * @returns COUCHSTORE_SUCCESS on success, couchstore error otherwise (which
+     *          will cause replay to fail).
+     */
+    couchstore_error_t replayPrecommitHook(Db&,
+                                           CompactionReplayPrepareStats&,
+                                           uint64_t);
 
     CouchKVStoreConfig& configuration;
 
@@ -949,5 +976,11 @@ protected:
     /// after each step in the catch-up-phase. Notably it gets called after
     /// the vbucket lock is re-acquired
     std::function<void(const std::string&)> concurrentCompactionPostLockHook =
+            [](const std::string&) {};
+
+    /// Same as above but the hook is called before the vBucket lock is
+    /// re-acquired. This allows the actual flusher to run in the hook rather
+    /// poking the kvstore manually
+    std::function<void(const std::string&)> concurrentCompactionPreLockHook =
             [](const std::string&) {};
 };

@@ -60,8 +60,17 @@ void Flush::StatisticsUpdate::updateDiskSize(ssize_t delta) {
 
 void Flush::StatisticsUpdate::insert(IsSystem isSystem,
                                      IsDeleted isDelete,
+                                     IsCommitted isCommitted,
                                      ssize_t diskSizeDelta) {
-    if (isSystem == IsSystem::No && isDelete == IsDeleted::No) {
+    if (isCommitted == IsCommitted::No && isDelete == IsDeleted::Yes) {
+        // This is an abort, if we're inserting one then we don't update the
+        // disk size as they are logically tombstones
+        return;
+    }
+
+    if (isSystem == IsSystem::No &&
+        isDelete == IsDeleted::No &&
+        isCommitted == IsCommitted::Yes) {
         incrementItemCount();
     } // else inserting a tombstone - no item increment
 
@@ -72,11 +81,23 @@ void Flush::StatisticsUpdate::update(ssize_t diskSizeDelta) {
     updateDiskSize(diskSizeDelta);
 }
 
-void Flush::StatisticsUpdate::remove(IsSystem isSystem, ssize_t diskSizeDelta) {
-    if (isSystem == IsSystem::No) {
+void Flush::StatisticsUpdate::remove(IsSystem isSystem,
+                                     IsDeleted isDelete,
+                                     IsCommitted isCommitted,
+                                     size_t oldSize,
+                                     size_t newSize) {
+    ssize_t delta = newSize - oldSize;
+    if (isCommitted == IsCommitted::No) {
+        // Prepare -> Abort just decrement the old size (of the prepare)
+        // as we don't include abort sizes in disk sizes (as they are
+        // basically tombstones)
+        delta = -oldSize;
+    }
+
+    if (isSystem == IsSystem::No && isCommitted == IsCommitted::Yes) {
         decrementItemCount();
     }
-    updateDiskSize(diskSizeDelta);
+    updateDiskSize(delta);
 }
 
 // Called from KVStore during the flush process and before we consider the
@@ -275,11 +296,6 @@ void Flush::updateStats(const DocKey& key,
     auto& collsFlushStats =
             getStatsAndMaybeSetPersistedHighSeqno(cid.value(), seqno);
 
-    // Prepares don't change the stats (other than seqno)
-    if (isCommitted == IsCommitted::No) {
-        return;
-    }
-
     // but don't track any changes if the item is logically deleted. Why?
     // A flush batch could of recreated the collection, the stats tracking code
     // only has stats stored for the most recent collection, we cannot then
@@ -287,8 +303,10 @@ void Flush::updateStats(const DocKey& key,
     // incorrect. Note this relates to an issue for MB-42272, magma assumes the
     // stats item count will include *everything*, but isn't.
     if (!isLogicallyDeleted(cid.value(), seqno)) {
-        collsFlushStats.insert(
-                isSystemEvent ? IsSystem::Yes : IsSystem::No, isDelete, size);
+        collsFlushStats.insert(isSystemEvent ? IsSystem::Yes : IsSystem::No,
+                               isDelete,
+                               isCommitted,
+                               size);
     }
 }
 
@@ -324,17 +342,13 @@ void Flush::updateStats(const DocKey& key,
     auto& collsFlushStats =
             getStatsAndMaybeSetPersistedHighSeqno(cid.value(), seqno);
 
-    // Prepares don't change the stats (other than seqno)
-    if (isCommitted == IsCommitted::No) {
-        return;
-    }
-
     // As above, logically deleted items don't update item-count/disk-size
     if (!isLogicallyDeleted(cid.value(), seqno)) {
         if (oldIsDeleteBool) {
-            collsFlushStats.insert(isSystemEvent, isDelete, size);
+            collsFlushStats.insert(isSystemEvent, isDelete, isCommitted, size);
         } else if (oldIsDelete == IsDeleted::No && isDelete == IsDeleted::Yes) {
-            collsFlushStats.remove(isSystemEvent, size - oldSize);
+            collsFlushStats.remove(
+                    isSystemEvent, isDelete, isCommitted, oldSize, size);
         } else {
             collsFlushStats.update(size - oldSize);
         }

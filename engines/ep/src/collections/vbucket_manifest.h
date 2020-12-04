@@ -521,6 +521,16 @@ protected:
         entry->second.updateDiskSize(delta);
     }
 
+    void setDiskSize(const container::const_iterator entry,
+                     size_t newValue) const {
+        if (entry == map.end()) {
+            throwException<std::invalid_argument>(__FUNCTION__,
+                                                  "iterator is invalid");
+        }
+
+        entry->second.setDiskSize(newValue);
+    }
+
     void setHighSeqno(const container::const_iterator entry,
                       uint64_t value) const {
         if (entry == map.end()) {

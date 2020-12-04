@@ -65,6 +65,7 @@ public:
     }
 
     using CouchKVStore::setConcurrentCompactionPostLockHook;
+    using CouchKVStore::setConcurrentCompactionPreLockHook;
     using CouchKVStore::setMb40415RegressionHook;
 
     /**

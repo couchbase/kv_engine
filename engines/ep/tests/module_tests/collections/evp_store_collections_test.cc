@@ -1433,6 +1433,289 @@ TEST_F(CollectionsTest, CollectionAddedAndRemovedBeforePersistence) {
     EXPECT_NO_THROW(flush_vbucket_to_disk(vbid, 1));
 }
 
+TEST_F(CollectionsTest, ConcCompactNewPrepare) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    replaceCouchKVStoreWithMock();
+
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::dairy);
+    cm.add(CollectionEntry::meat);
+
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // We add dairy and a key to it just to ensure that we're not breaking
+    // collections that may change during compaction but not during the replay
+    StoredDocKey dairyKey{"milk", CollectionEntry::dairy};
+    auto dairyPending = makePendingItem(dairyKey, "value");
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*dairyPending, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    vb->seqnoAcknowledged(
+            folly::SharedMutex::ReadHolder(vb->getStateLock()),
+            "replica",
+            vb->getHighSeqno());
+    vb->processResolvedSyncWrites();
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto postCommitDairySize = 0;
+    auto preCompactionMeatSize = 0;
+    auto postFlushMeatSize = 0;
+
+    {
+        Collections::Summary summary;
+        vb->getManifest().lock().updateSummary(summary);
+        postCommitDairySize = summary[CollectionEntry::dairy].diskSize;
+        EXPECT_NE(0, postCommitDairySize);
+
+        preCompactionMeatSize = summary[CollectionEntry::meat].diskSize;
+        EXPECT_EQ(57, preCompactionMeatSize);
+    }
+
+    auto& kvstore =
+            dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
+
+    bool seenPrepare = false;
+    kvstore.setConcurrentCompactionPreLockHook([&seenPrepare,
+                                                &vb,
+                                                &preCompactionMeatSize,
+                                                &postFlushMeatSize,
+                                                this](auto& compactionKey) {
+        if (seenPrepare) {
+            return;
+        }
+        seenPrepare = true;
+
+        StoredDocKey meatKey{"beef", CollectionEntry::meat};
+        auto meatPending = makePendingItem(meatKey, "value");
+        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*meatPending, cookie));
+        flushVBucketToDiskIfPersistent(vbid, 1);
+
+        {
+            Collections::Summary summary;
+            vb->getManifest().lock().updateSummary(summary);
+
+            // And that meat increases
+            EXPECT_GT(summary[CollectionEntry::meat].diskSize,
+                      preCompactionMeatSize);
+            postFlushMeatSize = summary[CollectionEntry::meat].diskSize;
+        }
+    });
+
+    runCompaction(vbid, 0, false);
+
+    {
+        // Check that dairy decreases
+        Collections::Summary summary;
+        vb->getManifest().lock().updateSummary(summary);
+        EXPECT_LT(summary[CollectionEntry::dairy].diskSize,
+                  postCommitDairySize);
+
+        // And that meat remains the same as post-flush
+        EXPECT_GT(summary[CollectionEntry::meat].diskSize,
+                  preCompactionMeatSize);
+        EXPECT_EQ(summary[CollectionEntry::meat].diskSize, postFlushMeatSize);
+    }
+}
+
+TEST_F(CollectionsTest, ConcCompactPrepareAbort) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    replaceCouchKVStoreWithMock();
+
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::dairy);
+    cm.add(CollectionEntry::meat);
+
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // We add dairy and a key to it just to ensure that we're not breaking
+    // collections that may change during compaction but not during the replay
+    StoredDocKey dairyKey{"milk", CollectionEntry::dairy};
+    auto dairyPending = makePendingItem(dairyKey, "value");
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*dairyPending, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                          "replica",
+                          vb->getHighSeqno());
+    vb->processResolvedSyncWrites();
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    StoredDocKey meatKey{"beef", CollectionEntry::meat};
+    auto meatPending = makePendingItem(meatKey, "value");
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*meatPending, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto postCommitDairySize = 0;
+    auto preCompactionMeatSize = 0;
+    auto postFlushMeatSize = 0;
+
+    {
+        Collections::Summary summary;
+        vb->getManifest().lock().updateSummary(summary);
+        postCommitDairySize = summary[CollectionEntry::dairy].diskSize;
+        EXPECT_NE(0, postCommitDairySize);
+
+        preCompactionMeatSize = summary[CollectionEntry::meat].diskSize;
+    }
+
+    auto& kvstore =
+            dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
+
+    bool seenPrepare = false;
+    kvstore.setConcurrentCompactionPreLockHook([&seenPrepare,
+                                                &vb,
+                                                &preCompactionMeatSize,
+                                                &postFlushMeatSize,
+                                                this](auto& compactionKey) {
+        if (seenPrepare) {
+            return;
+        }
+        seenPrepare = true;
+
+        vb->processDurabilityTimeout(std::chrono::steady_clock::now() +
+                                     std::chrono::seconds(1000));
+        vb->processResolvedSyncWrites();
+        flushVBucketToDiskIfPersistent(vbid, 1);
+
+        {
+            Collections::Summary summary;
+            vb->getManifest().lock().updateSummary(summary);
+
+            // And that meat decreases
+            EXPECT_LT(summary[CollectionEntry::meat].diskSize,
+                      preCompactionMeatSize);
+            postFlushMeatSize = summary[CollectionEntry::meat].diskSize;
+        }
+    });
+
+    runCompaction(vbid, 0, false);
+
+    {
+        // Check that dairy decreases
+        Collections::Summary summary;
+        vb->getManifest().lock().updateSummary(summary);
+        EXPECT_LT(summary[CollectionEntry::dairy].diskSize,
+                  postCommitDairySize);
+
+        // And that meat does too
+        EXPECT_LT(summary[CollectionEntry::meat].diskSize,
+                  preCompactionMeatSize);
+        EXPECT_EQ(summary[CollectionEntry::meat].diskSize, postFlushMeatSize);
+    }
+}
+
+TEST_F(CollectionsTest, ConcCompactAbortPrepare) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    replaceCouchKVStoreWithMock();
+
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::dairy);
+    cm.add(CollectionEntry::meat);
+
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // We add dairy and a key to it just to ensure that we're not breaking
+    // collections that may change during compaction but not during the replay
+    StoredDocKey dairyKey{"milk", CollectionEntry::dairy};
+    auto dairyPending = makePendingItem(dairyKey, "value");
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*dairyPending, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                          "replica",
+                          vb->getHighSeqno());
+    vb->processResolvedSyncWrites();
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    StoredDocKey meatKey{"beef", CollectionEntry::meat};
+    auto meatPending = makePendingItem(meatKey, "value");
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*meatPending, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    vb->processDurabilityTimeout(std::chrono::steady_clock::now() +
+                                 std::chrono::seconds(1000));
+    vb->processResolvedSyncWrites();
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto postCommitDairySize = 0;
+    auto preCompactionMeatSize = 0;
+    auto postFlushMeatSize = 0;
+
+    {
+        Collections::Summary summary;
+        vb->getManifest().lock().updateSummary(summary);
+        postCommitDairySize = summary[CollectionEntry::dairy].diskSize;
+        EXPECT_NE(0, postCommitDairySize);
+
+        preCompactionMeatSize = summary[CollectionEntry::meat].diskSize;
+    }
+
+    auto& kvstore =
+            dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
+
+    bool seenPrepare = false;
+    kvstore.setConcurrentCompactionPreLockHook([&seenPrepare,
+                                                &vb,
+                                                &preCompactionMeatSize,
+                                                &postFlushMeatSize,
+                                                this](auto& compactionKey) {
+        if (seenPrepare) {
+            return;
+        }
+        seenPrepare = true;
+
+        StoredDocKey meatKey{"beef", CollectionEntry::meat};
+        auto meatPending = makePendingItem(meatKey, "value");
+        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*meatPending, cookie));
+
+        flushVBucketToDiskIfPersistent(vbid, 1);
+
+        {
+            Collections::Summary summary;
+            vb->getManifest().lock().updateSummary(summary);
+
+            // And that meat increases
+            EXPECT_GT(summary[CollectionEntry::meat].diskSize,
+                      preCompactionMeatSize);
+            postFlushMeatSize = summary[CollectionEntry::meat].diskSize;
+        }
+    });
+
+    runCompaction(vbid, 0, false);
+
+    {
+        // Check that dairy decreases
+        Collections::Summary summary;
+        vb->getManifest().lock().updateSummary(summary);
+        EXPECT_LT(summary[CollectionEntry::dairy].diskSize,
+                  postCommitDairySize);
+
+        // And that meat increases
+        EXPECT_GT(summary[CollectionEntry::meat].diskSize,
+                  preCompactionMeatSize);
+        EXPECT_EQ(summary[CollectionEntry::meat].diskSize, postFlushMeatSize);
+    }
+}
+
 // Test the pager doesn't generate expired items for a dropped collection
 TEST_P(CollectionsParameterizedTest,
        collections_expiry_after_drop_collection_pager) {
@@ -2029,6 +2312,25 @@ TEST_F(CollectionsTest, PerCollectionDiskSizeRollback) {
     }
 }
 
+/**
+ * 'Sanitize' the StatChecker PostFunc supplied after taking into consideration
+ * the test backend. Magma does not track prepares so a few stats work
+ * differently.
+ */
+StatChecker::PostFunc getPrepareStatCheckerPostFuncForBackend(
+        std::string backend, StatChecker::PostFunc fn) {
+    if (backend.find("Magma") != std::string::npos) {
+        // Magma doesn't currently track prepares as we remove them during
+        // compaction and we don't know if we are removing a stale one or not,
+        // making it impossible to count them accurately. As such we also cannot
+        // count prepare bytes and we do not include prepares in the collection
+        // disk size.
+        return std::equal_to<>();
+    }
+
+    return fn;
+}
+
 TEST_P(CollectionsPersistentParameterizedTest,
        PerCollectionDiskSizeDurability) {
     // test that the per-collection disk size (updated by saveDocsCallback)
@@ -2046,9 +2348,12 @@ TEST_P(CollectionsPersistentParameterizedTest,
 
     {
         SCOPED_TRACE("Prepare item");
-        // default collection disk size should _stay the same_ - prepares are
-        // not included
-        auto d = DiskChecker(vb, CollectionEntry::defaultC, std::equal_to<>());
+        // default collection disk size should _increase_ - prepares are
+        // included
+        auto d = DiskChecker(vb,
+                             CollectionEntry::defaultC,
+                             getPrepareStatCheckerPostFuncForBackend(
+                                     getBackend(), std::greater<>()));
 
         using namespace cb::durability;
         store_item(vbid,
@@ -2071,10 +2376,31 @@ TEST_P(CollectionsPersistentParameterizedTest,
     }
 
     {
-        SCOPED_TRACE("Prepare item round 2");
-        // default collection disk size should _stay the same_ - prepares are
-        // not included
+        SCOPED_TRACE("Purge completed prepare");
+        // default collection disk size should _decrease_
+        auto d = DiskChecker(vb,
+                             CollectionEntry::defaultC,
+                             getPrepareStatCheckerPostFuncForBackend(
+                                     getBackend(), std::less<>()));
+        runCompaction(vbid, 0, false);
+    }
+
+    {
+        SCOPED_TRACE("Warmup");
         auto d = DiskChecker(vb, CollectionEntry::defaultC, std::equal_to<>());
+        vb.reset();
+        resetEngineAndWarmup();
+        vb = store->getVBucket(vbid);
+    }
+
+    {
+        SCOPED_TRACE("Prepare item round 2");
+        // default collection disk size should _increase_ - prepares are
+        // included
+        auto d = DiskChecker(vb,
+                             CollectionEntry::defaultC,
+                             getPrepareStatCheckerPostFuncForBackend(
+                                     getBackend(), std::greater<>()));
 
         using namespace cb::durability;
         store_item(vbid,
@@ -2089,9 +2415,12 @@ TEST_P(CollectionsPersistentParameterizedTest,
 
     {
         SCOPED_TRACE("Abort item");
-        // default collection disk size should _stay the same_ - aborts are
-        // not included
-        auto d = DiskChecker(vb, CollectionEntry::defaultC, std::equal_to<>());
+        // default collection disk size should _decrease_ - aborts are
+        // included so should decrease
+        auto d = DiskChecker(vb,
+                             CollectionEntry::defaultC,
+                             getPrepareStatCheckerPostFuncForBackend(
+                                     getBackend(), std::less<>()));
 
         vb->abort(key, vb->getHighSeqno(), {}, vb->lockCollections(key));
         KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
@@ -2917,4 +3246,9 @@ INSTANTIATE_TEST_SUITE_P(CollectionsEphemeralOrPersistent,
 INSTANTIATE_TEST_SUITE_P(CollectionsPersistent,
                          CollectionsPersistentParameterizedTest,
                          STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(CollectionsCouchstore,
+                         CollectionsCouchstoreParameterizedTest,
+                         STParameterizedBucketTest::couchstoreConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);

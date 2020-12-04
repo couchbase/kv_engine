@@ -277,12 +277,11 @@ private:
     // Helper class for doing collection stat updates
     class StatisticsUpdate {
     public:
-        StatisticsUpdate(uint64_t seqno) : persistedHighSeqno(seqno) {
+        explicit StatisticsUpdate(uint64_t seqno) : persistedHighSeqno(seqno) {
         }
 
         /**
-         * Set either the persistedHighSeqno iff seqno is > than the current
-         * value.
+         * Set the persistedHighSeqno iff seqno is > than the current value
          *
          * @param seqno to use if it's greater than current value
          */
@@ -293,11 +292,15 @@ private:
          * @param isSystem true if a system event is inserted
          * @param isDelete true if a deleted item is inserted (tombstone
          *        creation)
+         * @param isCommitted does the item belong to the committed namespace?
          * @param diskSize size in bytes 'inserted' into disk. Should be
          *        representative of the bytes used by each document, but does
          *        not need to be exact.
          */
-        void insert(IsSystem isSystem, IsDeleted isDelete, ssize_t diskSize);
+        void insert(IsSystem isSystem,
+                    IsDeleted isDelete,
+                    IsCommitted isCommitted,
+                    ssize_t diskSize);
 
         /**
          * Process an update into the collection
@@ -310,11 +313,17 @@ private:
         /**
          * Process a remove from the collection (store of a delete)
          * @param isSystem true if a system event is removed
-         * @param diskSizeDelta size in bytes difference. Should be
-         *        representative of the difference between existing and new
-         *        documents, but does not need to be exact.
+         * @param isDelete true if a deleted item is inserted (tombstone
+         *        creation)
+         * @param isCommitted does the item belong to the committed namespace?
+         * @param oldSize size of the item we are removing
+         * @param newSize size of the item that is replacing it
          */
-        void remove(IsSystem isSystem, ssize_t diskSizeDelta);
+        void remove(IsSystem isSystem,
+                    IsDeleted isDelete,
+                    IsCommitted isCommitted,
+                    size_t oldSize,
+                    size_t newSize);
 
         /**
          * @return the highest persisted seqno recorded by the Flush object.
@@ -334,7 +343,6 @@ private:
         ssize_t getDiskSize() const {
             return diskSize;
         }
-
 
     private:
         void incrementItemCount();

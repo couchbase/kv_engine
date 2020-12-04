@@ -1307,7 +1307,9 @@ public:
 
         kvstore->begin(std::make_unique<TransactionContext>(vbid));
         kvstore->del(qi);
-        kvstore->commit(flush);
+        VB::Commit commit(manifest);
+        commit.proposedVBState = kvstore->getPersistedVBucketState(vbid);
+        kvstore->commit(commit);
     }
 
     void persistAbort(std::string key, std::string value, uint64_t seqno) {
@@ -1318,7 +1320,9 @@ public:
 
         kvstore->begin(std::make_unique<TransactionContext>(vbid));
         kvstore->del(qi);
-        kvstore->commit(flush);
+        VB::Commit commit(manifest);
+        commit.proposedVBState = kvstore->getPersistedVBucketState(vbid);
+        kvstore->commit(commit);
     }
 
     ~CouchstoreTest() override {
@@ -1328,7 +1332,13 @@ public:
     void flushItem(queued_item item) {
         kvstore->begin(std::make_unique<TransactionContext>(vbid));
         kvstore->set(item);
-        kvstore->commit(flush);
+
+        // The collections flush data doesn't get reset after a commit (it
+        // normally would be reset by the flusher) so instead we just need to
+        // use a new Flush/Commit object each time
+        VB::Commit commit(manifest);
+        commit.proposedVBState = kvstore->getPersistedVBucketState(vbid);
+        kvstore->commit(commit);
     }
 
     void runCompaction() {
@@ -1336,6 +1346,18 @@ public:
         std::unique_lock<std::mutex> lock(mutex);
         CompactionConfig config;
         auto ctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
+
+        // We have some tests in this test suite that check that collection
+        // stats are updated. The manfiest stats are normally updated via the
+        // completionCallback which lives in EPBucket. Set the callback here
+        // @TODO move the tests that rely on this to a different test suite and
+        // remove
+        ctx->completionCallback = [this](CompactionContext& ctx) {
+            for (const auto& [cid, droppedPrepareBytes] :
+                 ctx.stats.collectionSizeUpdates) {
+                manifest.lock(cid).setDiskSize(droppedPrepareBytes);
+            }
+        };
         kvstore->compactDB(lock, ctx);
     }
 
@@ -2194,6 +2216,12 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingPrepareToPrepare) {
     auto prepareSize = vbstate.getOnDiskPrepareBytes();
     EXPECT_LT(0, prepareSize);
 
+    {
+        Collections::Summary summary;
+        manifest.lock().updateSummary(summary);
+        EXPECT_EQ(prepareSize, summary[CollectionID::Default].diskSize);
+    }
+
     bool seenPrepare = false;
     kvstore->setConcurrentCompactionPostLockHook(
             [&seenPrepare, &docKey, this](auto& key) {
@@ -2216,10 +2244,166 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingPrepareToPrepare) {
     // Prepare size should increase
     EXPECT_LT(prepareSize, vbstate.getOnDiskPrepareBytes());
 
+    {
+        Collections::Summary summary;
+        manifest.lock().updateSummary(summary);
+        EXPECT_EQ(vbstate.getOnDiskPrepareBytes(),
+                  summary[CollectionID::Default].diskSize);
+    }
+
     // Should also check the cached count
     auto cachedVBState = kvstore->getCachedVBucketState(vbid);
     EXPECT_EQ(1, cachedVBState->onDiskPrepares);
     EXPECT_LT(0, cachedVBState->getOnDiskPrepareBytes());
+}
+
+TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingPreparePurgeToPrepare) {
+    // 1) Set prepare first
+    StoredDocKey docKey = makeStoredDocKey("prepare");
+    auto prepare = makePendingItem(docKey, "value");
+    prepare->setBySeqno(1);
+    flushItem(prepare);
+
+    // 2) Persist a dummy item and bump the completed seqno to make the
+    //    prepare from step 1 eligible for purging
+    auto dummy = makeCommittedItem(makeStoredDocKey("dummy"), "dummy");
+    dummy->setBySeqno(2);
+
+    // And set the PCS so that the compactor tries to drop the prepare at 1
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    kvstore->set(dummy);
+    flush.proposedVBState = kvstore->getPersistedVBucketState(vbid);
+    flush.proposedVBState.persistedCompletedSeqno = 1;
+    kvstore->commit(flush);
+
+    // Verify our stats before the rest of the test
+    auto vbstate = kvstore->getPersistedVBucketState(vbid);
+    EXPECT_EQ(1, vbstate.onDiskPrepares);
+    auto prepareSize = vbstate.getOnDiskPrepareBytes();
+    EXPECT_LT(0, prepareSize);
+
+    uint64_t dummySize = 0;
+    {
+        Collections::Summary summary;
+        manifest.lock().updateSummary(summary);
+        dummySize = summary[CollectionID::Default].diskSize - prepareSize;
+        auto expectedPrepareSize =
+                summary[CollectionID::Default].diskSize - dummySize;
+        EXPECT_EQ(expectedPrepareSize, prepareSize);
+    }
+
+    bool seenPrepare = false;
+    kvstore->setConcurrentCompactionPostLockHook(
+            [&seenPrepare, &docKey, this](auto& compactionKey) {
+                if (seenPrepare) {
+                    return;
+                }
+                seenPrepare = true;
+
+                // 3) Flush a new value to the prepare, we should have a large
+                // prepare
+                //    size post compaction
+                flushItem(makePendingItem(docKey, "differentValue"));
+
+                auto state = kvstore->getPersistedVBucketState(vbid);
+                EXPECT_LT(0, state.getOnDiskPrepareBytes());
+            });
+
+    // 2) Do the compaction
+    runCompaction();
+
+    // And verify that we don't change the prepare count
+    vbstate = kvstore->getPersistedVBucketState(vbid);
+    EXPECT_EQ(1, vbstate.onDiskPrepares);
+    EXPECT_LT(0, vbstate.getOnDiskPrepareBytes());
+    // Prepare size should increase
+    EXPECT_LT(prepareSize, vbstate.getOnDiskPrepareBytes());
+
+    {
+        Collections::Summary summary;
+        manifest.lock().updateSummary(summary);
+        auto expected = summary[CollectionID::Default].diskSize - dummySize;
+        EXPECT_EQ(expected, vbstate.getOnDiskPrepareBytes());
+    }
+
+    // Should also check the cached count
+    auto cachedVBState = kvstore->getCachedVBucketState(vbid);
+    EXPECT_EQ(1, cachedVBState->onDiskPrepares);
+    EXPECT_LT(0, cachedVBState->getOnDiskPrepareBytes());
+}
+
+TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingPrepareCompleteToAbort) {
+    // 1) Set prepare first
+    StoredDocKey docKey = makeStoredDocKey("prepare");
+    auto prepare = makePendingItem(docKey, "value");
+    prepare->setBySeqno(1);
+    flushItem(prepare);
+
+    // 2) Persist a dummy item and bump the completed seqno to make the
+    //    prepare from step 1 eligible for purging
+    auto dummy = makeCommittedItem(makeStoredDocKey("dummy"), "dummy");
+    dummy->setBySeqno(2);
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    kvstore->set(dummy);
+
+    // And set the PCS so that the compactor tries to drop the prepare at 1
+    flush.proposedVBState = kvstore->getPersistedVBucketState(vbid);
+    flush.proposedVBState.persistedCompletedSeqno = 1;
+    kvstore->commit(flush);
+
+    // Verify our stats before the rest of the test
+    auto vbstate = kvstore->getPersistedVBucketState(vbid);
+    EXPECT_EQ(1, vbstate.onDiskPrepares);
+    auto prepareSize = vbstate.getOnDiskPrepareBytes();
+
+    EXPECT_LT(0, prepareSize);
+
+    uint64_t dummySize = 0;
+    {
+        Collections::Summary summary;
+        manifest.lock().updateSummary(summary);
+        dummySize = summary[CollectionID::Default].diskSize - prepareSize;
+        auto expectedPrepareSize =
+                summary[CollectionID::Default].diskSize - dummySize;
+        EXPECT_EQ(expectedPrepareSize, prepareSize);
+    }
+
+    bool seenPrepare = false;
+    kvstore->setConcurrentCompactionPostLockHook(
+            [&seenPrepare, &docKey, this](auto& compactionKey) {
+                if (seenPrepare) {
+                    return;
+                }
+                seenPrepare = true;
+
+                // 3) Flush a new value to the prepare, we should have a large
+                // prepare
+                //    size post compaction
+                flushItem(makeAbortedItem(docKey, "differentValue"));
+
+                auto state = kvstore->getPersistedVBucketState(vbid);
+                EXPECT_EQ(0, state.getOnDiskPrepareBytes());
+            });
+
+    // 2) Do the compaction
+    runCompaction();
+
+    // And verify that we don't change the prepare count
+    vbstate = kvstore->getPersistedVBucketState(vbid);
+    EXPECT_EQ(0, vbstate.onDiskPrepares);
+    EXPECT_EQ(0, vbstate.getOnDiskPrepareBytes());
+
+    {
+        Collections::Summary summary;
+        manifest.lock().updateSummary(summary);
+        auto expected = summary[CollectionID::Default].diskSize - dummySize;
+        EXPECT_EQ(expected, vbstate.getOnDiskPrepareBytes());
+    }
+
+    // Should also check the cached count
+    auto cachedVBState = kvstore->getCachedVBucketState(vbid);
+    EXPECT_EQ(0, cachedVBState->onDiskPrepares);
+    EXPECT_EQ(0, cachedVBState->getOnDiskPrepareBytes());
 }
 
 TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingAbortToAbort) {
@@ -2230,6 +2414,14 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingAbortToAbort) {
     // And verify that we dont' increment the on disk prepare count
     auto vbstate = kvstore->getPersistedVBucketState(vbid);
     EXPECT_EQ(0, vbstate.onDiskPrepares);
+    EXPECT_EQ(0, vbstate.getOnDiskPrepareBytes());
+
+    {
+        Collections::Summary summary;
+        manifest.lock().updateSummary(summary);
+        EXPECT_EQ(vbstate.getOnDiskPrepareBytes(),
+                  summary[CollectionID::Default].diskSize);
+    }
 
     bool seenPrepare = false;
     kvstore->setConcurrentCompactionPostLockHook(
@@ -2251,6 +2443,13 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingAbortToAbort) {
     EXPECT_EQ(0, vbstate.onDiskPrepares);
     EXPECT_EQ(0, vbstate.getOnDiskPrepareBytes());
 
+    {
+        Collections::Summary summary;
+        manifest.lock().updateSummary(summary);
+        EXPECT_EQ(vbstate.getOnDiskPrepareBytes(),
+                  summary[CollectionID::Default].diskSize);
+    }
+
     // Should also check the cached count
     auto cachedVBState = kvstore->getCachedVBucketState(vbid);
     EXPECT_EQ(0, cachedVBState->onDiskPrepares);
@@ -2266,6 +2465,13 @@ TEST_F(CouchstoreTest, PersistPrepareStats) {
 
     auto dbFileInfo = kvstore->getDbFileInfo(vbid);
     EXPECT_LT(0, dbFileInfo.prepareBytes);
+
+    {
+        Collections::Summary summary;
+        manifest.lock().updateSummary(summary);
+        EXPECT_EQ(persistedVBState.getOnDiskPrepareBytes(),
+                  summary[CollectionID::Default].diskSize);
+    }
 }
 
 TEST_F(CouchstoreTest, PersistAbortStats) {
@@ -2277,6 +2483,13 @@ TEST_F(CouchstoreTest, PersistAbortStats) {
 
     auto dbFileInfo = kvstore->getDbFileInfo(vbid);
     EXPECT_EQ(0, dbFileInfo.prepareBytes);
+
+    {
+        Collections::Summary summary;
+        manifest.lock().updateSummary(summary);
+        EXPECT_EQ(persistedVBState.getOnDiskPrepareBytes(),
+                  summary[CollectionID::Default].diskSize);
+    }
 }
 
 TEST_F(CouchstoreTest, PersistPreparePrepareStats) {
@@ -2289,6 +2502,13 @@ TEST_F(CouchstoreTest, PersistPreparePrepareStats) {
 
     auto dbFileInfo = kvstore->getDbFileInfo(vbid);
     EXPECT_LT(0, dbFileInfo.prepareBytes);
+
+    {
+        Collections::Summary summary;
+        manifest.lock().updateSummary(summary);
+        EXPECT_EQ(persistedVBState.getOnDiskPrepareBytes(),
+                  summary[CollectionID::Default].diskSize);
+    }
 }
 
 TEST_F(CouchstoreTest, PersistPrepareAbortStats) {
@@ -2301,6 +2521,13 @@ TEST_F(CouchstoreTest, PersistPrepareAbortStats) {
 
     auto dbFileInfo = kvstore->getDbFileInfo(vbid);
     EXPECT_EQ(0, dbFileInfo.prepareBytes);
+
+    {
+        Collections::Summary summary;
+        manifest.lock().updateSummary(summary);
+        EXPECT_EQ(persistedVBState.getOnDiskPrepareBytes(),
+                  summary[CollectionID::Default].diskSize);
+    }
 }
 
 TEST_F(CouchstoreTest, PersistAbortPrepareStats) {
@@ -2313,6 +2540,13 @@ TEST_F(CouchstoreTest, PersistAbortPrepareStats) {
 
     auto dbFileInfo = kvstore->getDbFileInfo(vbid);
     EXPECT_LT(0, dbFileInfo.prepareBytes);
+
+    {
+        Collections::Summary summary;
+        manifest.lock().updateSummary(summary);
+        EXPECT_EQ(persistedVBState.getOnDiskPrepareBytes(),
+                  summary[CollectionID::Default].diskSize);
+    }
 }
 
 TEST_F(CouchstoreTest, PersistAbortAbortStats) {
@@ -2325,4 +2559,11 @@ TEST_F(CouchstoreTest, PersistAbortAbortStats) {
 
     auto dbFileInfo = kvstore->getDbFileInfo(vbid);
     EXPECT_EQ(0, dbFileInfo.prepareBytes);
+
+    {
+        Collections::Summary summary;
+        manifest.lock().updateSummary(summary);
+        EXPECT_EQ(persistedVBState.getOnDiskPrepareBytes(),
+                  summary[CollectionID::Default].diskSize);
+    }
 }

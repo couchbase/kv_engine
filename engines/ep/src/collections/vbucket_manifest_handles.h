@@ -521,6 +521,10 @@ public:
         manifest->updateDiskSize(itr, delta);
     }
 
+    void setDiskSize(size_t newValue) const {
+        manifest->setDiskSize(itr, newValue);
+    }
+
     void dump();
 
 protected:

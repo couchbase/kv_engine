@@ -97,6 +97,12 @@ struct CompactionStats {
     uint64_t prepareBytesPurged = 0;
     FileInfo pre;
     FileInfo post;
+
+    /**
+     * Per-collection size updates to be applied post-compaction.
+     */
+    using CollectionSizeUpdates = std::unordered_map<CollectionID, ssize_t>;
+    CollectionSizeUpdates collectionSizeUpdates;
 };
 
 struct CompactionConfig {

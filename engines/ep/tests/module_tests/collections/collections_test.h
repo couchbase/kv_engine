@@ -75,3 +75,6 @@ public:
  */
 class CollectionsPersistentParameterizedTest
     : public CollectionsParameterizedTest {};
+
+class CollectionsCouchstoreParameterizedTest
+    : public CollectionsParameterizedTest {};

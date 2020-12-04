@@ -1204,6 +1204,10 @@ void EPBucket::compactionCompletionCallback(CompactionContext& ctx) {
 
     vb->setPurgeSeqno(ctx.max_purged_seq);
     vb->decrNumTotalItems(ctx.stats.collectionsItemsPurged);
+
+    for (const auto& [cid, newSize] : ctx.stats.collectionSizeUpdates) {
+        vb->getManifest().lock(cid).setDiskSize(newSize);
+    }
 }
 
 void EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {
