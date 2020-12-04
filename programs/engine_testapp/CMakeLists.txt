@@ -27,6 +27,7 @@ add_library(engine_testapp OBJECT engine_testapp.cc
         ${Memcached_SOURCE_DIR}/daemon/enginemap.h
         ${Memcached_SOURCE_DIR}/include/memcached/bucket_type.h
 )
+kv_enable_pch(engine_testapp)
 target_link_libraries(engine_testapp PUBLIC Folly::headers memcached_logger)
 cb_enable_unity_build(engine_testapp)
 

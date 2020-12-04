@@ -7,6 +7,7 @@ add_library(audit_generator_utilities OBJECT
             generator_module.h
             generator_utilities.cc
             generator_utilities.h)
+kv_enable_pch(audit_generator_utilities)
 
 add_executable(auditevent_generator
                auditevent_generator.cc

@@ -9,6 +9,7 @@ TARGET_LINK_LIBRARIES(generate_test_cbsaslpw cbsasl platform
 add_sanitizers(generate_test_cbsaslpw)
 
 add_library(testapp_auth_provider OBJECT auth_provider.h auth_provider.cc)
+kv_enable_pch(testapp_auth_provider)
 add_executable(testapp_auth_provider_test auth_provider_test.cc
                $<TARGET_OBJECTS:testapp_auth_provider>)
 kv_enable_pch(testapp_auth_provider_test)
