@@ -15,6 +15,7 @@ target_link_libraries(cluster_test cluster_framework)
 add_dependencies(cluster_test memcached)
 add_sanitizers(cluster_test)
 cb_enable_unity_build(cluster_test)
+kv_enable_pch(cluster_test)
 add_test(NAME cluster_test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND cluster_test)

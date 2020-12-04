@@ -158,6 +158,7 @@ if (NUMA_FOUND)
 endif()
 
 add_sanitizers(ep-engine_ep_unit_tests)
+kv_enable_pch(ep-engine_ep_unit_tests)
 
 ADD_EXECUTABLE(ep-engine_couch-fs-stats_test
         ${EventuallyPersistentEngine_SOURCE_DIR}/src/couch-kvstore/couch-fs-stats.cc

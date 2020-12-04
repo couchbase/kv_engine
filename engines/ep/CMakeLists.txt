@@ -252,6 +252,17 @@ SET(COLLECTIONS_SOURCE src/collections/collections_types.cc
                        src/collections/vbucket_manifest_entry.cc
                        src/collections/vbucket_manifest_handles.cc)
 
+# Skip precompiled headers for the (tiny minority) of C source files.
+# This is to avoid adding complexity to precompiled_headers.h to handle C & C++
+# includes differently. In addition to skipping the precompiled headers we also
+# need to avoid including them in a unity objects as the inclusion of the
+# precompiled header in the unity object would cause a similar issue.
+set_source_files_properties(src/crc32.c
+                            ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
+                            PROPERTIES
+                            SKIP_PRECOMPILE_HEADERS ON
+                            SKIP_UNITY_BUILD_INCLUSION ON)
+
 ADD_LIBRARY(ep_objs OBJECT
             src/access_scanner.cc
             src/bgfetcher.cc
@@ -381,6 +392,7 @@ endif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 
 add_sanitizers(ep_objs)
 target_link_libraries(ep_objs PUBLIC mcd_executor platform spdlog ${EP_STORAGE_LIBS})
+kv_enable_pch(ep_objs)
 
 ADD_LIBRARY(ep STATIC $<TARGET_OBJECTS:ep_objs>)
 
@@ -443,6 +455,7 @@ if (NOT EP_BYPASS_TESTS)
     target_link_libraries(ep_mocks PUBLIC platform spdlog)
     add_sanitizers(ep_mocks)
     cb_enable_unity_build(ep_mocks)
+    kv_enable_pch(ep_mocks)
 
     # While ep_perfsuite is arguably a "test" and hence should live under
     # tests/, we *don't* want optimizations disabled for it hence keep in

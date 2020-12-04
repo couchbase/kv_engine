@@ -126,6 +126,40 @@ IF (UNIX AND COUCHBASE_KV_BUILD_UNIT_TESTS)
     #          ${Memcached_BINARY_DIR}/memcached)
 ENDIF (UNIX AND COUCHBASE_KV_BUILD_UNIT_TESTS)
 
+# We commonly use a bunch of expensive headers so pre-compiling them should give
+# us a speed-up. It's simpler to define a single target and just re-use the
+# pre-compiled headers everywhere.
+# Some tools such as clang-tidy which only runs on changed files struggles with
+# pre-compiled headers. As such, we want to make them optional (but opt-out
+# rather than opt-in as they should generally be an improvement). Because of
+# this, users of the pre-compiled header target should include it via one of the
+# below functions
+if (CB_PCH)
+    # Need to give the target a SOURCE to make cmake happy so just including
+    # an empty .cc file.
+    add_library(kv_pch OBJECT precompiled_headers.cc)
+    target_link_libraries(kv_pch PRIVATE Folly::headers gtest)
+    target_precompile_headers(kv_pch PUBLIC precompiled_headers.h)
+
+    add_library(kv_pch_fpic OBJECT precompiled_headers.cc)
+    target_link_libraries(kv_pch_fpic PRIVATE Folly::headers gtest)
+    target_precompile_headers(kv_pch_fpic PUBLIC precompiled_headers.h)
+    set_property(TARGET kv_pch_fpic PROPERTY POSITION_INDEPENDENT_CODE 1)
+endif()
+
+function(kv_enable_pch target)
+    if (CB_PCH)
+        # ASan/TSan builds don't like a mix of position independent code so we
+        # need to use the correct pch target
+        get_property(fpic TARGET ${target} PROPERTY POSITION_INDEPENDENT_CODE)
+        if (fpic)
+            reuse_pch(${target} kv_pch_fpic)
+        else()
+            reuse_pch(${target} kv_pch)
+        endif()
+    endif()
+endfunction()
+
 ADD_SUBDIRECTORY(etc)
 ADD_SUBDIRECTORY(auditd)
 ADD_SUBDIRECTORY(cbcrypto)

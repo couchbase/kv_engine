@@ -21,6 +21,7 @@ add_executable(memcached_mcbp_test
 target_link_libraries(memcached_mcbp_test memcached_daemon platform gtest)
 add_sanitizers(memcached_mcbp_test)
 cb_enable_unity_build(memcached_mcbp_test)
+kv_enable_pch(memcached_mcbp_test)
 
 add_test(NAME memcached_mcbp_test COMMAND memcached_mcbp_test)
 

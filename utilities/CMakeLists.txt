@@ -2,8 +2,11 @@ if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
     # Breakpad has headers (which are dependencies for our breakpad integration
     # code) that don't compile cleanly as C++11, so the GNU standard is
     # used instead.
-    set_source_files_properties(breakpad.cc PROPERTIES COMPILE_FLAGS
-                                ${CB_GNU_CXX11_OPTION})
+    # This also means precompiled headers must be disabled given
+    # the compile flags differ from the other source files.
+    set_source_files_properties(breakpad.cc PROPERTIES
+        COMPILE_FLAGS ${CB_GNU_CXX11_OPTION}
+        SKIP_PRECOMPILE_HEADERS ON)
 endif ()
 
 # Mark third-party libraries as 'system' so we skip any warnings they
@@ -50,6 +53,7 @@ endif()
 target_link_libraries(mcd_util memcached_logger engine_utilities
                       hdr_histogram_static platform ${OPENSSL_LIBRARIES})
 add_sanitizers(mcd_util)
+kv_enable_pch(mcd_util)
 
 add_library(mcd_test_util STATIC test_manifest.h test_manifest.cc)
 set_property(TARGET mcd_test_util PROPERTY POSITION_INDEPENDENT_CODE 1)

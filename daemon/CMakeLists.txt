@@ -224,10 +224,12 @@ TARGET_LINK_LIBRARIES(memcached_daemon
                       ${COUCHBASE_NETWORK_LIBS}
                       ${MEMCACHED_EXTRA_LIBS})
 add_sanitizers(memcached_daemon)
+kv_enable_pch(memcached_daemon)
 
 ADD_EXECUTABLE(memcached main.cc)
 TARGET_LINK_LIBRARIES(memcached memcached_daemon)
 add_sanitizers(memcached)
+kv_enable_pch(memcached)
 
 INSTALL(TARGETS memcached
         RUNTIME DESTINATION bin)
@@ -250,6 +252,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
              COMMAND client_cert_config_test)
     add_sanitizers(client_cert_config_test)
+    kv_enable_pch(client_cert_config_test)
 
     add_executable(memcached_unit_tests
                    bucket_validator_test.cc
@@ -268,4 +271,5 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     add_test(NAME memcached_unit_tests
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
              COMMAND memcached_unit_tests)
+    kv_enable_pch(memcached_unit_tests)
 endif (COUCHBASE_KV_BUILD_UNIT_TESTS)

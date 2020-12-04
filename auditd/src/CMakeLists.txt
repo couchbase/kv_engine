@@ -16,6 +16,4 @@ target_link_libraries(auditd
                       cbsocket)
 cb_enable_unity_build(auditd)
 add_dependencies(auditd generate_audit_descriptors)
-
-
-
+kv_enable_pch(auditd)

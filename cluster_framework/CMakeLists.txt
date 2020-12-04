@@ -12,3 +12,4 @@ target_link_libraries(cluster_framework PUBLIC
                       platform
                       gtest)
 cb_enable_unity_build(cluster_framework)
+kv_enable_pch(cluster_framework)

@@ -18,3 +18,4 @@ TARGET_LINK_LIBRARIES(mc_client_connection
     ${OPENSSL_LIBRARIES}
   PRIVATE
     cbcompress)
+kv_enable_pch(mc_client_connection)
