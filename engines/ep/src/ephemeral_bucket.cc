@@ -289,15 +289,15 @@ VBucketPtr EphemeralBucket::makeVBucket(
                                     mightContainXattrs,
                                     replicationTopology);
 
-    vb->ht.setMemChangedCallback([this, vb](int64_t delta) {
+    vb->ht.setMemChangedCallback([vb, &stats = stats](int64_t delta) {
         if (vb->getState() == vbucket_state_replica) {
-            this->stats.replicaHTMemory += delta;
+            stats.replicaHTMemory += delta;
         }
     });
     vb->checkpointManager->setOverheadChangedCallback(
-            [this, vb](int64_t delta) {
+            [vb, &stats = stats](int64_t delta) {
                 if (vb->getState() == vbucket_state_replica) {
-                    this->stats.replicaCheckpointOverhead += delta;
+                    stats.replicaCheckpointOverhead += delta;
                 }
             });
     return VBucketPtr(vb, VBucket::DeferredDeleter(engine));
