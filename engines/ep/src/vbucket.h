@@ -907,9 +907,6 @@ public:
 
     HashTable ht;
 
-    /// Manager of this vBucket's checkpoints. unique_ptr for pimpl.
-    std::unique_ptr<CheckpointManager> checkpointManager;
-
     /**
      * Searches for a 'valid' StoredValue in the VBucket.
      *
@@ -2471,6 +2468,15 @@ private:
 
     vbucket_state_t                 initialState;
 
+public:
+    /**
+     * Manager of this vBucket's checkpoints. unique_ptr for pimpl.
+     * Declared after state as Checkpoint destruction may update stats
+     * based on the vbucket's current state.
+     */
+    std::unique_ptr<CheckpointManager> checkpointManager;
+
+private:
     /**
      * The replication topology, set as part of SET_VBUCKET_STATE.
      * It is encoded as nlohmann::json array of (max 2) replication chains.
