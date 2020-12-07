@@ -1898,10 +1898,7 @@ TEST_F(CollectionsTest, PerCollectionMemUsed) {
     }
 }
 
-TEST_P(CollectionsParameterizedTest, PerCollectionDiskSize) {
-    if (!persistent()) {
-        GTEST_SKIP();
-    }
+TEST_P(CollectionsPersistentParameterizedTest, PerCollectionDiskSize) {
     // test that the per-collection disk size (updated by saveDocsCallback)
     // changes when items in the collection are added/updated/deleted (but not
     // when evicted) and does not change when items in other collections are
@@ -2029,11 +2026,8 @@ TEST_F(CollectionsTest, PerCollectionDiskSizeRollback) {
     }
 }
 
-TEST_P(CollectionsParameterizedTest, PerCollectionDiskSizeDurability) {
-    if (!persistent()) {
-        GTEST_SKIP();
-    }
-
+TEST_P(CollectionsPersistentParameterizedTest,
+       PerCollectionDiskSizeDurability) {
     // test that the per-collection disk size (updated by saveDocsCallback)
     // changes when items in the collection are added/updated/deleted (but not
     // when evicted) and does not change when items in other collections are
@@ -2794,9 +2788,6 @@ TEST_F(CollectionsRbacTest, TestVKeyStats) {
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 }
-
-class CollectionsPersistentParameterizedTest
-    : public CollectionsParameterizedTest {};
 
 TEST_P(CollectionsPersistentParameterizedTest, SystemEventsDoNotCount) {
     // Run through some manifest changes and warmup a few times.

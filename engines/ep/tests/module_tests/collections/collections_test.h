@@ -69,3 +69,9 @@ public:
         CollectionsTest::internalSetUp();
     }
 };
+
+/**
+ * Test for Collection functionality against persistent buckets types.
+ */
+class CollectionsPersistentParameterizedTest
+    : public CollectionsParameterizedTest {};
