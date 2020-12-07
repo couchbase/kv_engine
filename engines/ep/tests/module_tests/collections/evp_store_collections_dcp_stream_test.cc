@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include "checkpoint_manager.h"
 #include "collections/manifest.h"
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_manifest_handles.h"
@@ -725,4 +726,130 @@ TEST_F(CollectionsDcpStreamsTest, two_streams_different) {
     EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
               producers->last_system_event);
     EXPECT_EQ(cb::mcbp::DcpStreamId(101), producers->last_stream_id);
+}
+
+/**
+ * MB-41092: Test to ensure that we scheduled compaction after a pending vbucket
+ * after the following steps occur:
+ * 1. disk snapshot marker received
+ * 2. collection creation system event received for disk snapshot
+ * 3. mutation for the collection received for disk snapshot
+ * 4. memory snapshot marker received
+ * 5. collection drop system event received for memory snapshot.
+ * 6. Flush of items for steps 2, 3 and 5
+ *
+ * As before we MB-41092 we wouldn't schedule compaction as
+ * Flush::countNonEmptyDroppedCollections() would be given the persisted seqno
+ * instead of the high seqno of the collection. Which in this case the persisted
+ * seqno would be 0 as we've not flushed anything in the collection at the point
+ * we've enqueued the collection drop system event.
+ */
+TEST_F(CollectionsDcpStreamsTest,
+       MB_41092_Ensure_compaction_scheduled_dropped_collection) {
+    // set the vbucket to the pending state
+    setVBucketStateAndRunPersistTask(replicaVB, vbucket_state_pending);
+    auto vbucketPtr = store->getVBucket(replicaVB);
+
+    // enable V7 DCP status codes to make it easier to debug if there is no
+    // stream or opaque miss match
+    consumer->enableV7DcpStatus();
+    const uint32_t opaque = 1;
+    consumer->addStream(opaque, replicaVB, 0);
+
+    // create a disk snapshot of range {1 ... 3}
+    uint64_t snapStart = 1;
+    uint64_t snapEnd = 3;
+    // set flags for disk snapshot and checkpoint range
+    uint32_t flags = dcp_marker_flag_t::MARKER_FLAG_DISK |
+                     dcp_marker_flag_t::MARKER_FLAG_CHK;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->snapshotMarker(
+                      opaque, replicaVB, snapStart, snapEnd, flags, {}, {}));
+    // double check no items on disk
+    EXPECT_EQ(0, vbucketPtr->getNumTotalItems());
+    // set seqno at the begging of snapshot
+    auto seqno = snapStart;
+    // create a DCP collection creation event
+    Collections::ManifestUid manifestUid;
+    Collections::CreateEventDcpData createEventDcpData{
+            {manifestUid,
+             {ScopeEntry::defaultS.getId(),
+              CollectionEntry::dairy.getId(),
+              CollectionEntry::dairy.name,
+              {}}}};
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->systemEvent(
+                      opaque,
+                      replicaVB,
+                      mcbp::systemevent::id::CreateCollection,
+                      seqno,
+                      mcbp::systemevent::version::version0,
+                      {reinterpret_cast<const uint8_t*>(
+                               CollectionEntry::dairy.name.data()),
+                       CollectionEntry::dairy.name.size()},
+                      {reinterpret_cast<const uint8_t*>(&createEventDcpData),
+                       Collections::CreateEventDcpData::size}));
+    EXPECT_EQ(0, vbucketPtr->getNumTotalItems());
+
+    // Store a document in the collection
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->mutation(
+                      opaque,
+                      StoredDocKey("key", CollectionEntry::dairy.getId()),
+                      {},
+                      0,
+                      0,
+                      123,
+                      replicaVB,
+                      0,
+                      ++seqno,
+                      0,
+                      0,
+                      0,
+                      {},
+                      0));
+    // Ensure on disk item count is 0 as we've not flushed anything
+    EXPECT_EQ(0, vbucketPtr->getNumTotalItems());
+
+    // Update snap range for next snapshot marker to contain the collection
+    // drop SystemEvent
+    snapStart = seqno;
+    snapEnd = snapStart + 1;
+    // set flags for memory snapshot and checkpoint range
+    flags = dcp_marker_flag_t::MARKER_FLAG_MEMORY |
+            dcp_marker_flag_t::MARKER_FLAG_CHK;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->snapshotMarker(
+                      opaque, replicaVB, snapStart, snapEnd, flags, {}, {}));
+
+    // create collection drop system event and apply it to the pending vbucket
+    Collections::DropEventDcpData dropEventDcpData{
+            {Collections::ManifestUid{manifestUid++},
+             ScopeEntry::defaultS.getId(),
+             CollectionEntry::dairy.getId()}};
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->systemEvent(
+                      opaque,
+                      replicaVB,
+                      mcbp::systemevent::id::DeleteCollection,
+                      ++seqno,
+                      mcbp::systemevent::version::version0,
+                      {reinterpret_cast<const uint8_t*>(
+                               CollectionEntry::dairy.name.data()),
+                       CollectionEntry::dairy.name.size()},
+                      {reinterpret_cast<const uint8_t*>(&dropEventDcpData),
+                       Collections::DropEventDcpData::size}));
+    EXPECT_EQ(0, vbucketPtr->getNumTotalItems());
+
+    // Flush collection create, mutation and collection drop events to disk
+    flushVBucketToDiskIfPersistent(replicaVB, 3);
+    // ensure that our on disk doc count is 1 for the mutation as we've not
+    // yet erased the collection on disk. But with the fix for MB-41092 we
+    // should have scheduled compaction to do this, as before we wouldn't.
+    EXPECT_EQ(1, vbucketPtr->getNumTotalItems());
+
+    // ensure we've schedule compaction after the collection drop and that after
+    // compaction is run the on disk doc count is 0
+    runCollectionsEraser(replicaVB);
+    EXPECT_EQ(0, vbucketPtr->getNumTotalItems());
 }

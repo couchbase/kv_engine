@@ -715,7 +715,7 @@ void Manifest::saveDroppedCollection(CollectionID cid,
                                   droppedSeqno,
                                   droppedEntry.getItemCount(),
                                   droppedEntry.getDiskSize(),
-                                  droppedEntry.getPersistedHighSeqno()});
+                                  droppedEntry.getHighSeqno()});
 }
 
 StatsForFlush Manifest::getStatsForFlush(CollectionID cid,

@@ -118,7 +118,7 @@ uint32_t Flush::countNonEmptyDroppedCollections() const {
     // non-empty collections so we can schedule a purge only if needed (avoids
     // a compaction if the collection is empty)
     for (const auto& [cid, dropped] : droppedCollections) {
-        // An empty collection never had items committed to it. From the meta
+        // An empty collection never had items added to it. From the meta
         // data we have regarding the collection this is evident by having the
         // start-seqno equal to the collection's high-seqno. However for the
         // flusher one corner case exists and that is when the collection was
@@ -134,8 +134,8 @@ uint32_t Flush::countNonEmptyDroppedCollections() const {
         // manifest "StatsForFlush" object which stores the state of the dropped
         // collection. From there inspect the high-seqno and start-seqno.
         //
-        // 2) If the 'stats' map does store the dropped 'cid', then an item was
-        // committed in this flush, the collection is not empty.
+        // 2) If the 'stats' map does store the dropped 'cid', then an item for
+        // the collection is in this flush, the collection is not empty.
         auto sItr = stats.find(cid);
 
         if (sItr == stats.end()) {

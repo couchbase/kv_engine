@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include "checkpoint_manager.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "durability/active_durability_monitor.h"
 #include "ephemeral_tombstone_purger.h"
@@ -989,11 +990,7 @@ public:
         dropCollection();
         EXPECT_EQ(1, adm.getNumTracked());
 
-        if (isPersistent()) {
-            runCompaction(vbid);
-        } else {
-            runCollectionsEraser(vbid);
-        }
+        runCollectionsEraser(vbid);
 
         EXPECT_EQ(0, adm.getNumTracked());
         EXPECT_EQ(expectedHPS, adm.getHighPreparedSeqno());
@@ -1047,6 +1044,15 @@ protected:
     void createPendingWrite(bool deleted = false) {
         auto persistedHighSeqno = vb->lockCollections().getPersistedHighSeqno(
                 key.getCollectionID());
+        auto getOnDiskPrepares = [this]() {
+            auto* vbstate = store->getOneRWUnderlying()->getVBucketState(vbid);
+            return vbstate->onDiskPrepares;
+        };
+
+        int initPendingDocOnDisk = 0;
+        if (persistent() && !isMagma()) {
+            initPendingDocOnDisk = getOnDiskPrepares();
+        }
 
         if (deleted) {
             auto item = makeCommittedItem(key, "value");
@@ -1072,6 +1078,10 @@ protected:
             EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
         }
         flushVBucketToDiskIfPersistent(vbid, 1);
+
+        if (persistent() && !isMagma()) {
+            EXPECT_EQ(initPendingDocOnDisk + 1, getOnDiskPrepares());
+        }
 
         // Validate the collection high-persisted-seqno didn't change for the
         // pending item
@@ -1186,9 +1196,9 @@ TEST_P(CollectionsEraserSyncWriteTest, DropAfterAbort) {
     VBucketTestIntrospector::destroyDM(*vb.get());
 
     if (isPersistent()) {
-        // Nothing has been committed to the collection, the drop won't trigger
-        // a forced purge
-        EXPECT_EQ(0, getFutureQueueSize(WRITER_TASK_IDX));
+        // Expect compaction task to be scheduled as the collections as we've
+        // added an abort to the collection before it was dropped.
+        EXPECT_EQ(1, getFutureQueueSize(WRITER_TASK_IDX));
         EXPECT_EQ(0, getReadyQueueSize(WRITER_TASK_IDX));
     }
 }
@@ -1223,10 +1233,14 @@ public:
     void testEmptyCollectionsWithPending(bool flushInTheMiddle);
 };
 
-// Test that empty collections don't lead to a compaction trigger even with
-// a prepare. Prepares are cleaned up separately
+// Test that we schedule compaction after dropping a collection that only
+// contains prepares
 void CollectionsEraserPersistentOnly::testEmptyCollectionsWithPending(
         bool flushInTheMiddle) {
+    auto getOnDiskPrepares = [this]() {
+        auto* vbstate = store->getOneRWUnderlying()->getVBucketState(vbid);
+        return vbstate->onDiskPrepares;
+    };
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,
@@ -1260,12 +1274,18 @@ void CollectionsEraserPersistentOnly::testEmptyCollectionsWithPending(
 
     flushVBucketToDiskIfPersistent(vbid, 2 /* 2 x system */ + 2 /* prepares */);
 
+    if (isPersistent() && !isMagma()) {
+        EXPECT_EQ(2, getOnDiskPrepares());
+    }
+
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
 
-    // Expect that the eraser task is not scheduled
-    EXPECT_EQ(0, getFutureQueueSize(WRITER_TASK_IDX));
-    EXPECT_EQ(0, getReadyQueueSize(WRITER_TASK_IDX));
+    runCollectionsEraser(vbid);
+
+    if (isPersistent() && !isMagma()) {
+        EXPECT_EQ(0, getOnDiskPrepares());
+    }
 
     EXPECT_EQ(0, vb->getNumItems());
 
