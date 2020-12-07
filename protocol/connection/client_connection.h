@@ -906,6 +906,13 @@ public:
         agentInfo["i"] = std::move(id);
     }
 
+    /// Get the interface uuid for the connection (set if read from
+    /// the portnumber file written by the server)
+    const std::string& getServerInterfaceUuid() const;
+
+    /// Set the interface uuid for the connection
+    void setServerInterfaceUuid(std::string serverInterfaceUuid);
+
 protected:
     void read(Frame& frame, size_t bytes);
 
@@ -959,6 +966,7 @@ protected:
     std::string tag;
     nlohmann::json agentInfo;
     std::string name;
+    std::string serverInterfaceUuid;
     std::optional<std::chrono::microseconds> traceData;
 
     typedef std::unordered_set<uint16_t> Featureset;

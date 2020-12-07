@@ -57,6 +57,10 @@ bool ConnectionMap::contains(bool ssl, sa_family_t family) {
 
 void ConnectionMap::initialize(const nlohmann::json& ports) {
     invalidate();
+    addPorts(ports);
+}
+
+void ConnectionMap::addPorts(const nlohmann::json& ports) {
     auto array = ports.find("ports");
     if (array == ports.end()) {
         throw std::runtime_error("ports not found in portnumber file: " +
@@ -72,18 +76,40 @@ void ConnectionMap::initialize(const nlohmann::json& ports) {
             family = AF_INET6;
         }
 
-        auto ssl = cb::jsonGet<bool>(obj, "ssl");
+        bool ssl = obj.find("tls") != obj.cend();
+        if (obj.find("ssl") != obj.cend()) {
+            ssl = cb::jsonGet<bool>(obj, "ssl");
+        }
         auto port = static_cast<in_port_t>(cb::jsonGet<size_t>(obj, "port"));
         if (port == in_port_t(-1)) {
             throw std::runtime_error("port cannot be -1");
         }
         connections.push_back(
                 std::make_unique<MemcachedConnection>("", port, family, ssl));
-        connections.back()->setTag(cb::jsonGet<std::string>(obj, "tag"));
-        connections.back()->setName(cb::jsonGet<std::string>(obj, "name"));
+        if (obj.find("tag") != obj.cend()) {
+            connections.back()->setTag(obj["tag"]);
+        }
+        if (obj.find("name") != obj.cend()) {
+            connections.back()->setName(obj["name"]);
+        }
+        if (obj.find("uuid") != obj.cend()) {
+            connections.back()->setServerInterfaceUuid(obj["uuid"]);
+        }
     }
 }
 
 void ConnectionMap::invalidate() {
     connections.resize(0);
+}
+
+void ConnectionMap::add(const nlohmann::json& description) {
+    addPorts(description);
+}
+
+void ConnectionMap::remove(const std::string& uuid) {
+    for (auto iter = connections.begin(); iter != connections.end(); iter++) {
+        if ((*iter)->getServerInterfaceUuid() == uuid) {
+            connections.erase(iter);
+        }
+    }
 }

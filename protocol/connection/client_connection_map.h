@@ -75,6 +75,14 @@ public:
         }
     }
 
-private:
+    /// Add a new entry to the map
+    void add(const nlohmann::json& description);
+
+    /// Remove the entry with the given UUID
+    void remove(const std::string& uuid);
+
+protected:
+    void addPorts(const nlohmann::json& ports);
+
     std::vector<std::unique_ptr<MemcachedConnection>> connections;
 };

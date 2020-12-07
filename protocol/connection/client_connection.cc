@@ -1699,6 +1699,13 @@ void MemcachedConnection::applyFrameInfos(BinprotCommand& command,
         }
     }
 }
+const std::string& MemcachedConnection::getServerInterfaceUuid() const {
+    return serverInterfaceUuid;
+}
+
+void MemcachedConnection::setServerInterfaceUuid(std::string value) {
+    serverInterfaceUuid = std::move(value);
+}
 
 /////////////////////////////////////////////////////////////////////////
 // Implementation of the ConnectionError class
