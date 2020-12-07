@@ -1243,11 +1243,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                     // as it'll come back in the next database header anyway
                     PendingLocalDocRequestQueue localDocQueue;
                     auto ret = maybePatchOnDiskPrepares(
-                            compacted,
-                            hook_ctx->stats.preparesPurged,
-                            hook_ctx->stats.prepareBytesPurged,
-                            localDocQueue,
-                            vbid);
+                            compacted, hook_ctx->stats, localDocQueue, vbid);
                     if (ret == COUCHSTORE_SUCCESS) {
                         ret = updateLocalDocuments(compacted, localDocQueue);
                     }
@@ -1331,11 +1327,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                                 CouchLocalDocRequest::IsDeleted{});
                     }
                     auto ret = maybePatchOnDiskPrepares(
-                            compacted,
-                            hook_ctx->stats.preparesPurged,
-                            hook_ctx->stats.prepareBytesPurged,
-                            localDocQueue,
-                            vbid);
+                            compacted, hook_ctx->stats, localDocQueue, vbid);
                     if (ret == COUCHSTORE_SUCCESS) {
                         ret = updateLocalDocuments(compacted, localDocQueue);
                     }
@@ -1519,11 +1511,10 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
 
 couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
         Db& db,
-        uint64_t preparesPurged,
-        uint64_t prepareBytesPurged,
+        const CompactionStats& stats,
         PendingLocalDocRequestQueue& localDocQueue,
         Vbid vbid) {
-    if (preparesPurged == 0) {
+    if (stats.preparesPurged == 0) {
         return COUCHSTORE_SUCCESS;
     }
 
@@ -1562,7 +1553,7 @@ couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
     if (prepares != json.end()) {
         const auto onDiskPrepares = std::stoull(prepares->get<std::string>());
 
-        if (preparesPurged > onDiskPrepares) {
+        if (stats.preparesPurged > onDiskPrepares) {
             // Log the message before throwing the exception just in case
             // someone catch the exception but don't log it...
             const std::string msg =
@@ -1571,13 +1562,13 @@ couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
                     vbid.to_string() + " there should be " +
                     std::to_string(onDiskPrepares) +
                     " prepares, but we just purged " +
-                    std::to_string(preparesPurged);
+                    std::to_string(stats.preparesPurged);
             logger.critical("{}", msg);
             logger.flush();
             throw std::runtime_error(msg);
         }
 
-        *prepares = std::to_string(onDiskPrepares - preparesPurged);
+        *prepares = std::to_string(onDiskPrepares - stats.preparesPurged);
         updateVbState = true;
     }
 
@@ -1586,9 +1577,9 @@ couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
     if (prepareBytes != json.end()) {
         const uint64_t onDiskPrepareBytes =
                 std::stoull(prepareBytes->get<std::string>());
-        if (onDiskPrepareBytes > prepareBytesPurged) {
-            *prepareBytes =
-                    std::to_string(onDiskPrepareBytes - prepareBytesPurged);
+        if (onDiskPrepareBytes > stats.prepareBytesPurged) {
+            *prepareBytes = std::to_string(onDiskPrepareBytes -
+                                           stats.prepareBytesPurged);
         } else {
             // prepare-bytes has been introduced in 6.6.1. Thus, at compaction
             // we may end up purging prepares that have been persisted by a

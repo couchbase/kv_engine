@@ -720,8 +720,7 @@ protected:
     /// and subtract the number of prepares pruned
     couchstore_error_t maybePatchOnDiskPrepares(
             Db& db,
-            uint64_t preparesPurged,
-            uint64_t prepareBytesPurged,
+            const CompactionStats& stats,
             PendingLocalDocRequestQueue& localDocQueue,
             Vbid vbid);
 
