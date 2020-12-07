@@ -375,6 +375,26 @@ public:
             const KVFileHandle& kvFileHandle, CollectionID collection) override;
 
     /**
+     * Get the alive collection stats for the given collection
+     *
+     * @param vbid
+     * @param collection to find stats for
+     * @return Bool status and Stats (defaulted to 0 if not found)
+     */
+    std::pair<bool, Collections::VB::PersistedStats> getCollectionStats(Vbid,
+                                                       CollectionID collection);
+
+    /**
+     * Get the collection stats for the given key
+     *
+     * @param vbid
+     * @param keySlice Stats key to lookup
+     * @return Bool status and Stats (defaulted to 0 if not found)
+     */
+    std::pair<bool, Collections::VB::PersistedStats> getCollectionStats(
+            Vbid, magma::Slice keySlice);
+
+    /**
      * Increment the kvstore revision.
      */
     void prepareToCreateImpl(Vbid vbid) override;

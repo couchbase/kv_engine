@@ -2452,8 +2452,17 @@ MagmaKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
                                  CollectionID cid) {
     const auto& kvfh = static_cast<const MagmaKVFileHandle&>(kvFileHandle);
     auto vbid = kvfh.vbid;
+    return getCollectionStats(vbid, cid);
+}
+
+std::pair<bool, Collections::VB::PersistedStats> MagmaKVStore::getCollectionStats(
+        Vbid vbid, CollectionID cid) {
     auto key = getCollectionsStatsKey(cid);
-    Slice keySlice(key);
+    return getCollectionStats(vbid, key);
+}
+
+std::pair<bool, Collections::VB::PersistedStats> MagmaKVStore::getCollectionStats(
+        Vbid vbid, magma::Slice keySlice) {
     Status status;
     std::string stats;
     std::tie(status, stats) = readLocalDoc(vbid, keySlice);
