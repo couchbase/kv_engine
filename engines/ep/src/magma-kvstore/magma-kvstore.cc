@@ -493,6 +493,16 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
         ObjectRegistry::onSwitchThread(nullptr);
     };
 
+    // If currEngine is null, which can happen with some tests,
+    // that is ok because a null currEngine means we are operating
+    // in a global environment.
+    configuration.magmaCfg.ExecutionEnv = currEngine;
+    configuration.magmaCfg.SwitchExecutionEnvFunc =
+            [](void* env) -> EventuallyPersistentEngine* {
+        auto eng = static_cast<EventuallyPersistentEngine*>(env);
+        return ObjectRegistry::onSwitchThread(eng, true);
+    };
+
     configuration.magmaCfg.MakeCompactionCallback = [&]() {
         return std::make_unique<MagmaKVStore::MagmaCompactionCB>(*this);
     };
