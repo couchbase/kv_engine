@@ -321,11 +321,22 @@ TEST_P(AuditTest, AuditFailedAuth) {
 
 TEST_P(AuditTest, AuditX509SuccessfulAuth) {
     reconfigure_client_cert_auth("enable", "subject.cn", "", " ");
-    MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
-    setClientCertData(connection);
+    std::unique_ptr<MemcachedConnection> conn;
+    connectionMap.iterate([&conn](const MemcachedConnection& c) {
+        if (!conn && c.isSsl()) {
+            auto family = c.getFamily();
+            conn = std::make_unique<MemcachedConnection>(
+                    family == AF_INET ? "127.0.0.1" : "::1",
+                    c.getPort(),
+                    family,
+                    true);
+        }
+    });
 
-    connection.connect();
-    connection.listBuckets();
+    ASSERT_TRUE(conn) << "Failed to locate a SSL port";
+    setClientCertData(*conn);
+    conn->connect();
+    conn->listBuckets();
 
     ASSERT_TRUE(searchAuditLogForID(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED,
                                     "Trond"));
@@ -333,12 +344,25 @@ TEST_P(AuditTest, AuditX509SuccessfulAuth) {
 
 TEST_P(AuditTest, AuditX509FailedAuth) {
     reconfigure_client_cert_auth("mandatory", "subject.cn", "Tr", "");
-    MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
-    setClientCertData(connection);
 
-    connection.connect();
+    std::unique_ptr<MemcachedConnection> conn;
+    connectionMap.iterate([&conn](const MemcachedConnection& c) {
+        if (!conn && c.isSsl()) {
+            auto family = c.getFamily();
+            conn = std::make_unique<MemcachedConnection>(
+                    family == AF_INET ? "127.0.0.1" : "::1",
+                    c.getPort(),
+                    family,
+                    true);
+        }
+    });
+
+    ASSERT_TRUE(conn) << "Failed to locate a SSL port";
+    setClientCertData(*conn);
+    conn->connect();
+
     try {
-        connection.listBuckets();
+        conn->listBuckets();
     } catch (const std::exception&) {
         // Ignore the exception as all we want to now is that we got the
         // authentication failed audit event
