@@ -15,21 +15,12 @@
  *   limitations under the License.
  */
 
-#include <ctype.h>
-#include <errno.h>
 #include <evutil.h>
-#include <fcntl.h>
-#include <getopt.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
 #include <string>
 
 #include <folly/portability/GTest.h>
 #include <platform/dirutils.h>
 
-#include "memcached/openssl.h"
 #include "testapp.h"
 
 /**
@@ -40,6 +31,21 @@
  */
 
 class SslCertTest : public TestappTest {
+protected:
+    std::unique_ptr<MemcachedConnection> createConnection() {
+        std::unique_ptr<MemcachedConnection> conn;
+        connectionMap.iterate([&conn](const MemcachedConnection& c) {
+            if (!conn && c.isSsl()) {
+                auto family = c.getFamily();
+                conn = std::make_unique<MemcachedConnection>(
+                        family == AF_INET ? "127.0.0.1" : "::1",
+                        c.getPort(),
+                        family,
+                        true);
+            }
+        });
+        return conn;
+    }
 };
 
 /**
@@ -68,9 +74,10 @@ class SslCertTest : public TestappTest {
 TEST_F(SslCertTest, LoginWhenDiabledWithoutCert) {
     reconfigure_client_cert_auth("disable", "", "", "");
 
-    MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
-    connection.connect();
-    connection.authenticate("@admin", "password", "PLAIN");
+    auto connection = createConnection();
+    ASSERT_TRUE(connection) << "Failed to locate a SSL port";
+    connection->connect();
+    connection->authenticate("@admin", "password", "PLAIN");
 }
 
 /**
@@ -81,10 +88,11 @@ TEST_F(SslCertTest, LoginWhenDiabledWithoutCert) {
 TEST_F(SslCertTest, LoginWhenDiabledWithCert) {
     reconfigure_client_cert_auth("disable", "", "", "");
 
-    MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
-    setClientCertData(connection);
-    connection.connect();
-    connection.authenticate("@admin", "password", "PLAIN");
+    auto connection = createConnection();
+    ASSERT_TRUE(connection) << "Failed to locate a SSL port";
+    setClientCertData(*connection);
+    connection->connect();
+    connection->authenticate("@admin", "password", "PLAIN");
 }
 
 /**
@@ -94,9 +102,10 @@ TEST_F(SslCertTest, LoginWhenDiabledWithCert) {
 TEST_F(SslCertTest, LoginEnabledWithoutCert) {
     reconfigure_client_cert_auth("enable", "subject.cn", "", " ");
 
-    MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
-    connection.connect();
-    connection.authenticate("@admin", "password", "PLAIN");
+    auto connection = createConnection();
+    ASSERT_TRUE(connection) << "Failed to locate a SSL port";
+    connection->connect();
+    connection->authenticate("@admin", "password", "PLAIN");
 }
 
 /**
@@ -106,10 +115,11 @@ TEST_F(SslCertTest, LoginEnabledWithoutCert) {
 TEST_F(SslCertTest, LoginEnabledWithCertNoMapping) {
     reconfigure_client_cert_auth("enable", "", "", " ");
 
-    MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
-    setClientCertData(connection);
-    connection.connect();
-    connection.authenticate("@admin", "password", "PLAIN");
+    auto connection = createConnection();
+    ASSERT_TRUE(connection) << "Failed to locate a SSL port";
+    setClientCertData(*connection);
+    connection->connect();
+    connection->authenticate("@admin", "password", "PLAIN");
 }
 
 /**
@@ -120,22 +130,23 @@ TEST_F(SslCertTest, LoginEnabledWithCertNoMapping) {
 TEST_F(SslCertTest, LoginEnabledWithCert) {
     reconfigure_client_cert_auth("enable", "subject.cn", "", " ");
 
-    MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
-    setClientCertData(connection);
-    connection.connect();
-    connection.setXerrorSupport(true);
+    auto connection = createConnection();
+    ASSERT_TRUE(connection) << "Failed to locate a SSL port";
+    setClientCertData(*connection);
+    connection->connect();
+    connection->setXerrorSupport(true);
 
     try {
-        connection.get("foo", Vbid(0));
+        connection->get("foo", Vbid(0));
         FAIL() << "Should not be associated with a bucket";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isAccessDenied())
                 << "Received: " << to_string(error.getReason());
     }
 
-    connection.selectBucket("default");
+    connection->selectBucket("default");
     try {
-        connection.get("foo", Vbid(0));
+        connection->get("foo", Vbid(0));
         FAIL() << "document should not exists";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound())
@@ -150,10 +161,12 @@ TEST_F(SslCertTest, LoginEnabledWithCert) {
 TEST_F(SslCertTest, LoginWhenMandatoryWithoutCert) {
     reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
 
-    MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
+    auto connection = createConnection();
+    ASSERT_TRUE(connection) << "Failed to locate a SSL port";
     try {
-        connection.connect();
-        connection.execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop});
+        connection->connect();
+        connection->execute(
+                BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop});
         FAIL() << "It should not be possible to connect without certificate";
     } catch (const std::runtime_error&) {
     }
@@ -167,22 +180,23 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithoutCert) {
 TEST_F(SslCertTest, LoginWhenMandatoryWithCert) {
     reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
 
-    MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
-    setClientCertData(connection);
-    connection.connect();
-    connection.setXerrorSupport(true);
+    auto connection = createConnection();
+    ASSERT_TRUE(connection) << "Failed to locate a SSL port";
+    setClientCertData(*connection);
+    connection->connect();
+    connection->setXerrorSupport(true);
 
     try {
-        connection.get("foo", Vbid(0));
+        connection->get("foo", Vbid(0));
         FAIL() << "Should not be associated with a bucket";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isAccessDenied())
                 << "Received: " << to_string(error.getReason());
     }
 
-    connection.selectBucket("default");
+    connection->selectBucket("default");
     try {
-        connection.get("foo", Vbid(0));
+        connection->get("foo", Vbid(0));
         FAIL() << "document should not exists";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound())
@@ -197,16 +211,17 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithCert) {
 TEST_F(SslCertTest, LoginWhenMandatoryWithCertIncorrectMapping) {
     reconfigure_client_cert_auth("mandatory", "subject.cn", "Tr", "");
 
-    MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
-    setClientCertData(connection);
+    auto connection = createConnection();
+    ASSERT_TRUE(connection) << "Failed to locate a SSL port";
+    setClientCertData(*connection);
 
     // The certificate will be accepted, so the connection is established
     // but the server will disconnect the client immediately
-    connection.connect();
+    connection->connect();
 
     // Try to run a hello (should NOT work)
     try {
-        connection.setXerrorSupport(true);
+        connection->setXerrorSupport(true);
         FAIL() << "The server should disconnect the client due to missing RBAC lookup";
     } catch (const std::exception&) {
 
@@ -220,13 +235,14 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithCertIncorrectMapping) {
 TEST_F(SslCertTest, LoginWhenMandatoryWithCertShouldNotSupportSASL) {
     reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
 
-    MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
-    setClientCertData(connection);
-    connection.connect();
-    connection.setXerrorSupport(true);
+    auto connection = createConnection();
+    ASSERT_TRUE(connection) << "Failed to locate a SSL port";
+    setClientCertData(*connection);
+    connection->connect();
+    connection->setXerrorSupport(true);
 
     try {
-        connection.authenticate("@admin", "password", "PLAIN");
+        connection->authenticate("@admin", "password", "PLAIN");
         FAIL() << "SASL Auth should be disabled for cert auth'd connections";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isNotSupported())
