@@ -1523,86 +1523,86 @@ couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
         uint64_t prepareBytesPurged,
         PendingLocalDocRequestQueue& localDocQueue,
         Vbid vbid) {
-    // Must sync the modified state back
-    // we need to update the _local/vbstate to update the number of
-    // on_disk_prepared to match whatever we purged
-    if (preparesPurged != 0) {
-        LocalDoc* ldoc = nullptr;
-        sized_buf id{(char*)"_local/vbstate", sizeof("_local/vbstate") - 1};
-        auto err = couchstore_open_local_document(
-                &db, (void*)id.buf, id.size, &ldoc);
-        if (err != COUCHSTORE_SUCCESS) {
-            logger.warn(
-                    "CouchKVStore::maybePatchOnDiskPrepares: Failed to "
-                    "load _local/vbstate: {}",
-                    couchstore_strerror(err));
-            return err;
-        }
+    if (preparesPurged == 0) {
+        return COUCHSTORE_SUCCESS;
+    }
 
-        nlohmann::json json;
-        try {
-            json = nlohmann::json::parse(
-                    std::string{ldoc->json.buf, ldoc->json.size});
-        } catch (const nlohmann::json::exception& e) {
-            couchstore_free_local_document(ldoc);
-            logger.warn(
-                    "CouchKVStore::maybePatchOnDiskPrepares: Failed to "
-                    "parse the vbstat json: {}",
-                    std::string{ldoc->json.buf, ldoc->json.size});
-            return COUCHSTORE_ERROR_CANCEL;
-        }
+    // Must sync the modified state back we need to update the _local/vbstate to
+    // update the number of on_disk_prepares to match whatever we purged
+    LocalDoc* ldoc = nullptr;
+    sized_buf id{(char*)"_local/vbstate", sizeof("_local/vbstate") - 1};
+    auto err =
+            couchstore_open_local_document(&db, (void*)id.buf, id.size, &ldoc);
+    if (err != COUCHSTORE_SUCCESS) {
+        logger.warn(
+                "CouchKVStore::maybePatchOnDiskPrepares: Failed to load "
+                "_local/vbstate: {}",
+                couchstore_strerror(err));
+        return err;
+    }
+
+    nlohmann::json json;
+    try {
+        json = nlohmann::json::parse(
+                std::string{ldoc->json.buf, ldoc->json.size});
+    } catch (const nlohmann::json::exception& e) {
         couchstore_free_local_document(ldoc);
+        logger.warn(
+                "CouchKVStore::maybePatchOnDiskPrepares: Failed to parse the "
+                "vbstate json: {}",
+                std::string{ldoc->json.buf, ldoc->json.size});
+        return COUCHSTORE_ERROR_CANCEL;
+    }
+    couchstore_free_local_document(ldoc);
 
-        bool updateVbState = false;
+    bool updateVbState = false;
 
-        auto prepares = json.find("on_disk_prepares");
-        // only update if it's there..
-        if (prepares != json.end()) {
-            const auto onDiskPrepares =
-                    std::stoull(prepares->get<std::string>());
+    auto prepares = json.find("on_disk_prepares");
+    // only update if it's there..
+    if (prepares != json.end()) {
+        const auto onDiskPrepares = std::stoull(prepares->get<std::string>());
 
-            if (preparesPurged > onDiskPrepares) {
-                // Log the message before throwing the exception just in
-                // case someone catch the exception but don't log it...
-                const std::string msg =
-                        "CouchKVStore::maybePatchOnDiskPrepares(): According "
-                        "to _local/vbstate for " +
-                        vbid.to_string() + " there should be " +
-                        std::to_string(onDiskPrepares) +
-                        " prepares, but we just purged " +
-                        std::to_string(preparesPurged);
-                logger.critical("{}", msg);
-                logger.flush();
-                throw std::runtime_error(msg);
-            }
-
-            *prepares = std::to_string(onDiskPrepares - preparesPurged);
-            updateVbState = true;
+        if (preparesPurged > onDiskPrepares) {
+            // Log the message before throwing the exception just in case
+            // someone catch the exception but don't log it...
+            const std::string msg =
+                    "CouchKVStore::maybePatchOnDiskPrepares(): According to "
+                    "_local/vbstate for " +
+                    vbid.to_string() + " there should be " +
+                    std::to_string(onDiskPrepares) +
+                    " prepares, but we just purged " +
+                    std::to_string(preparesPurged);
+            logger.critical("{}", msg);
+            logger.flush();
+            throw std::runtime_error(msg);
         }
 
-        auto prepareBytes = json.find("on_disk_prepare_bytes");
-        // only update if it's there..
-        if (prepareBytes != json.end()) {
-            const uint64_t onDiskPrepareBytes =
-                    std::stoull(prepareBytes->get<std::string>());
-            if (onDiskPrepareBytes > prepareBytesPurged) {
-                *prepareBytes =
-                        std::to_string(onDiskPrepareBytes - prepareBytesPurged);
-            } else {
-                // prepare-bytes has been introduced in 6.6.1. Thus, at
-                // compaction we may end up purging prepares that have been
-                // persisted by a pre-6.6.1 node and that are not accounted in
-                // prepare-bytes. The counter would go negative, just set to 0.
-                *prepareBytes = "0";
-            }
-            updateVbState = true;
-        }
+        *prepares = std::to_string(onDiskPrepares - preparesPurged);
+        updateVbState = true;
+    }
 
-        // only update if at least one of the prepare stats is already there
-        if (updateVbState) {
-            const auto doc = json.dump();
-            localDocQueue.emplace_back("_local/vbstate", json.dump());
+    auto prepareBytes = json.find("on_disk_prepare_bytes");
+    // only update if it's there..
+    if (prepareBytes != json.end()) {
+        const uint64_t onDiskPrepareBytes =
+                std::stoull(prepareBytes->get<std::string>());
+        if (onDiskPrepareBytes > prepareBytesPurged) {
+            *prepareBytes =
+                    std::to_string(onDiskPrepareBytes - prepareBytesPurged);
+        } else {
+            // prepare-bytes has been introduced in 6.6.1. Thus, at compaction
+            // we may end up purging prepares that have been persisted by a
+            // a pre-6.6.1 node and that are not accounted in prepare-bytes. The
+            // counter would go negative, just set to 0.
+            *prepareBytes = "0";
         }
+        updateVbState = true;
+    }
+
+    // only update if at least one of the prepare stats is already there
+    if (updateVbState) {
+        const auto doc = json.dump();
+        localDocQueue.emplace_back("_local/vbstate", json.dump());
     }
 
     return COUCHSTORE_SUCCESS;
