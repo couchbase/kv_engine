@@ -17,8 +17,6 @@ add_test(NAME testapp_auth_provider_test
 
 set(memcached_testapp_SOURCES
     $<TARGET_OBJECTS:testapp_auth_provider>
-    openssl_impl.cc
-    ssl_impl.h
     subdoc_encoder.cc
     subdoc_encoder.h
     testapp.cc

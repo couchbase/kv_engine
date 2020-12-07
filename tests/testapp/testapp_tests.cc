@@ -102,7 +102,7 @@ void test_quit_impl(ClientOpcode cmd) {
     }
 
     /* Socket should be closed now, read should return 0 */
-    EXPECT_EQ(0, phase_recv(blob.data(), blob.size()));
+    EXPECT_EQ(0, cb::net::recv(sock, blob.data(), blob.size(), 0));
     reconnect_to_server();
 }
 
@@ -652,7 +652,7 @@ TEST_P(McdTestappTest, ExceedMaxPacketSize) {
     // the server will read the header, and figure out that the packet
     // is too big and close the socket
     std::vector<uint8_t> blob(1024);
-    EXPECT_EQ(0, phase_recv(blob.data(), blob.size()));
+    EXPECT_EQ(0, cb::net::recv(sock, blob.data(), blob.size(), 0));
     reconnect_to_server();
 }
 
@@ -709,8 +709,7 @@ TEST_F(TestappTest, CollectionsSelectBucket) {
 INSTANTIATE_TEST_SUITE_P(
         Transport,
         McdTestappTest,
-        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,
-                                             TransportProtocols::McbpSsl),
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain),
                            ::testing::Values(ClientJSONSupport::Yes,
                                              ClientJSONSupport::No)),
         McdTestappTest::PrintToStringCombinedName);

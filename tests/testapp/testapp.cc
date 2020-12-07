@@ -16,7 +16,6 @@
 
 #include "testapp.h"
 
-#include "ssl_impl.h"
 #include <JSON_checker.h>
 #include <cbsasl/client.h>
 #include <folly/portability/GTest.h>
@@ -42,18 +41,9 @@
 
 McdEnvironment* mcd_env = nullptr;
 
-/* test phases (bitmasks) */
-#define phase_plain 0x2
-#define phase_ssl 0x4
-
-#define phase_max 4
-static int current_phase = 0;
-
 pid_t server_pid = -1;
 in_port_t port = -1;
-in_port_t ssl_port = -1;
 SOCKET sock = INVALID_SOCKET;
-SOCKET sock_ssl;
 static time_t server_start_time = 0;
 
 // used in embedded mode to shutdown memcached
@@ -65,8 +55,6 @@ int memcached_verbose = 0;
 // State variable if we're running the memcached server in a
 // thread in the same process or not
 static bool embedded_memcached_server;
-
-static SOCKET connect_to_server_ssl(in_port_t ssl_port);
 
 time_t get_server_start_time() {
     return server_start_time;
@@ -201,7 +189,6 @@ bool TestappTest::isJSON(std::string_view value) {
 // per test setup function.
 void TestappTest::SetUp() {
     verify_server_running();
-    current_phase = phase_plain;
     sock = connect_to_server_plain(port);
     ASSERT_NE(INVALID_SOCKET, sock);
 
@@ -230,13 +217,10 @@ const std::string TestappTest::bucketName = "default";
 void McdTestappTest::SetUp() {
     verify_server_running();
     if (getProtocolParam() == TransportProtocols::McbpPlain) {
-        current_phase = phase_plain;
         sock = connect_to_server_plain(port);
         ASSERT_NE(INVALID_SOCKET, sock);
     } else {
-        current_phase = phase_ssl;
-        sock_ssl = connect_to_server_ssl(ssl_port);
-        ASSERT_NE(INVALID_SOCKET, sock_ssl);
+        // Not reached (exception is thrown)
     }
 
     set_json_feature(hasJSONSupport() == ClientJSONSupport::Yes);
@@ -251,13 +235,7 @@ void McdTestappTest::SetUp() {
 
 // per test tear-down function.
 void McdTestappTest::TearDown() {
-    if (getProtocolParam() == TransportProtocols::McbpPlain) {
-        cb::net::closesocket(sock);
-    } else {
-        cb::net::closesocket(sock_ssl);
-        sock_ssl = INVALID_SOCKET;
-        destroy_ssl_socket();
-    }
+    cb::net::closesocket(sock);
 }
 
 ClientJSONSupport McdTestappTest::hasJSONSupport() const {
@@ -488,13 +466,10 @@ void TestappTest::parse_portnumber_file() {
         // The tests which don't use the MemcachedConnection class needs the
         // global variables port and ssl_port to be set
         port = (in_port_t)-1;
-        ssl_port = (in_port_t)-1;
 
         connectionMap.iterate([](const MemcachedConnection& connection) {
             if (connection.getFamily() == AF_INET) {
-                if (connection.isSsl()) {
-                    ssl_port = connection.getPort();
-                } else {
+                if (!connection.isSsl()) {
                     port = connection.getPort();
                 }
             }
@@ -511,19 +486,6 @@ void TestappTest::parse_portnumber_file() {
                     "connection from: " +
                     ss.str());
         }
-
-        if (ssl_port == in_port_t(-1)) {
-            std::stringstream ss;
-            connectionMap.iterate([&ss](const MemcachedConnection& connection) {
-                ss << "[" << connection.to_string() << "]," << std::endl;
-            });
-
-            throw std::runtime_error(
-                    "parse_portnumber_file: Failed to locate a SSL IPv4 "
-                    "connection from: " +
-                    ss.str());
-        }
-
         EXPECT_EQ(0, remove(portnumber_file.c_str()));
     } catch (const std::exception& e) {
         std::cerr << "FATAL ERROR in parse_portnumber_file!" << std::endl
@@ -645,37 +607,15 @@ SOCKET connect_to_server_plain(in_port_t port) {
     return create_connect_plain_socket(port);
 }
 
-static SOCKET connect_to_server_ssl(in_port_t ssl_port) {
-    if (ssl_port == in_port_t(-1)) {
-        throw std::runtime_error(
-                "connect_to_server_ssl: Can't connect to port == -1");
-    }
-    SOCKET sock = create_connect_ssl_socket(ssl_port);
-    if (sock == INVALID_SOCKET) {
-        ADD_FAILURE() << "Failed to connect SSL socket to port" << ssl_port;
-        return INVALID_SOCKET;
-    }
-
-    return sock;
-}
-
 /*
     re-connect to server.
     Uses global port and ssl_port values.
     New socket-fd written to global "sock" and "ssl_bio"
 */
 void reconnect_to_server() {
-    if (current_phase == phase_ssl) {
-        cb::net::closesocket(sock_ssl);
-        destroy_ssl_socket();
-
-        sock_ssl = connect_to_server_ssl(ssl_port);
-        ASSERT_NE(INVALID_SOCKET, sock_ssl);
-    } else {
-        cb::net::closesocket(sock);
-        sock = connect_to_server_plain(port);
-        ASSERT_NE(INVALID_SOCKET, sock);
-    }
+    cb::net::closesocket(sock);
+    sock = connect_to_server_plain(port);
+    ASSERT_NE(INVALID_SOCKET, sock);
 }
 
 static void set_feature(cb::mcbp::Feature feature, bool enable) {
@@ -939,37 +879,9 @@ void TestappTest::stop_memcached_server() {
     }
 }
 
-ssize_t socket_send(SOCKET s, const char* buf, size_t len) {
-    return cb::net::send(s, buf, len, 0);
-}
-
-static ssize_t phase_send(const void* buf, size_t len) {
-    if (current_phase == phase_ssl) {
-        return phase_send_ssl(buf, len);
-    } else {
-        return socket_send(sock, reinterpret_cast<const char*>(buf), len);
-    }
-}
-
-ssize_t socket_recv(SOCKET s, char* buf, size_t len) {
-    return cb::net::recv(s, buf, len, 0);
-}
-
-ssize_t phase_recv(void* buf, size_t len) {
-    if (current_phase == phase_ssl) {
-        return phase_recv_ssl(buf, len);
-    } else {
-        return socket_recv(sock, reinterpret_cast<char*>(buf), len);
-    }
-}
-
 static bool dump_socket_traffic = getenv("TESTAPP_PACKET_DUMP") != nullptr;
 
 static const std::string phase_get_errno() {
-    if (current_phase == phase_ssl) {
-        /* could do with more work here, but so far this has sufficed */
-        return "SSL error";
-    }
     return cb_strerror();
 }
 
@@ -985,7 +897,7 @@ void safe_send(const void* buf, size_t len, bool hickup) {
             }
         }
 
-        nw = phase_send(ptr + offset, num_bytes);
+        nw = cb::net::send(sock, ptr + offset, num_bytes, 0);
 
         if (nw == -1) {
             if (errno != EINTR) {
@@ -1001,12 +913,7 @@ void safe_send(const void* buf, size_t len, bool hickup) {
             }
 
             if (dump_socket_traffic) {
-                if (current_phase == phase_ssl) {
-                    std::cerr << "SSL";
-                } else {
-                    std::cerr << "PLAIN";
-                }
-                std::cerr << "> ";
+                std::cerr << "PLAIN> ";
                 for (ssize_t ii = 0; ii < nw; ++ii) {
                     std::cerr << "0x" << std::hex << std::setfill('0')
                               << std::setw(2)
@@ -1026,7 +933,8 @@ bool safe_recv(void* buf, size_t len) {
         return true;
     }
     do {
-        ssize_t nr = phase_recv(((char*)buf) + offset, len - offset);
+        ssize_t nr =
+                cb::net::recv(sock, ((char*)buf) + offset, len - offset, 0);
 
         if (nr == -1) {
             EXPECT_EQ(EINTR, errno) << "Failed to read: " << phase_get_errno();
@@ -1081,12 +989,7 @@ bool safe_recv_packetT(T& info) {
 
     if (dump_socket_traffic) {
         if (dump_socket_traffic) {
-            if (current_phase == phase_ssl) {
-                std::cerr << "SSL";
-            } else {
-                std::cerr << "PLAIN";
-            }
-            std::cerr << "< ";
+            std::cerr << "PLAIN< ";
             for (const auto& val : info) {
                 std::cerr << cb::to_hex(uint8_t(val)) << ", ";
             }

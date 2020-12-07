@@ -64,10 +64,6 @@ extern SOCKET sock;
 extern in_port_t port;
 extern pid_t server_pid;
 
-// Needed by testapp_tests
-extern in_port_t ssl_port;
-extern SOCKET sock_ssl;
-
 // Set of HELLO features which are currently enabled.
 extern std::set<cb::mcbp::Feature> enabled_hello_features;
 
@@ -351,6 +347,13 @@ protected:
 
     /// return the TransportProtocol parameter for this test instance.
     TransportProtocols getProtocolParam() const {
+        // We've removed support for anything but McbpPlain
+        if (std::get<0>(GetParam()) != TransportProtocols::McbpPlain) {
+            throw std::runtime_error(
+                    "McdTestappTest::getProtocolParam(): Only McbpPlain is "
+                    "supported from the old style tests");
+        }
+
         return std::get<0>(GetParam());
     }
 
@@ -460,11 +463,6 @@ bool safe_recv_packet(void* buf, size_t size);
 bool safe_recv_packet(std::vector<uint8_t>& buf);
 bool safe_recv_packet(std::vector<char>& buf);
 
-/* The opposite of safe_recv. Simply tries to read from the socket (will use
- * SSL if the socket is SSL configured.
- */
-ssize_t phase_recv(void* buf, size_t len);
-
 SOCKET create_connect_plain_socket(in_port_t port);
 
 time_t get_server_start_time();
@@ -485,8 +483,6 @@ stats_response_t request_stats();
  */
 uint64_t extract_single_stat(const stats_response_t& stats, const char* name);
 
-ssize_t socket_recv(SOCKET s, char* buf, size_t len);
-ssize_t socket_send(SOCKET s, const char* buf, size_t len);
 void adjust_memcached_clock(
         int64_t clock_shift,
         cb::mcbp::request::AdjustTimePayload::TimeType timeType);

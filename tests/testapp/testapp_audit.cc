@@ -272,7 +272,7 @@ TEST_P(AuditTest, AuditIllegalFrame_MB31071) {
     safe_send(blob.data(), blob.size(), false);
 
     // This should terminate the conenction
-    EXPECT_EQ(0, phase_recv(blob.data(), blob.size()));
+    EXPECT_EQ(0, cb::net::recv(sock, blob.data(), blob.size(), 0));
     reconnect_to_server();
 
     bool found = false;
