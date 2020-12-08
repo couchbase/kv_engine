@@ -630,9 +630,10 @@ class MemcachedClient(object):
         while not done:
             cmd, opaque, cas, klen, extralen, data = self._handleKeyedResponse(None)
             if klen:
-                kv = data.decode()
-                key = kv[0:klen]
-                value = kv[klen:]
+                # Allow values which are not valid UTF-8 to be permitted, but
+                # not keys.
+                key = data[0:klen].decode()
+                value = data[klen:].decode(errors='replace')
                 rv[key] = value
             else:
                 done = True
