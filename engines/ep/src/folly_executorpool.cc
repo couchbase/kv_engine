@@ -146,11 +146,10 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
                 // then schedule on the IOThreadPool for the given time.
                 // If false: Cancel task, will not run again.
 
-                const auto start = steady_clock::now();
-                proxy.task->updateLastStartTime(start);
+                const auto executedAt = steady_clock::now();
 
                 // Calculate and record scheduler overhead.
-                auto scheduleOverhead = start - proxy.task->getWaketime();
+                auto scheduleOverhead = executedAt - proxy.task->getWaketime();
                 // scheduleOverhead can be a negative number if the task has
                 // been woken up before we expected it too be. In this case this
                 // means that we have no schedule overhead and thus need to set
@@ -160,6 +159,9 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
                 }
                 proxy.task->getTaskable().logQTime(proxy.task->getTaskId(),
                                                    scheduleOverhead);
+
+                const auto start = steady_clock::now();
+                proxy.task->updateLastStartTime(start);
 
                 proxy.task->setState(TASK_RUNNING, TASK_SNOOZED);
                 runAgain = proxy.task->execute();
