@@ -528,7 +528,7 @@ STAT(collection_maxTTL, "maxTTL", seconds, , )
 STAT(scope_name, "name", none, , )
 STAT(scope_collection_count, "collections", count, , )
 
-STAT(collection_mem_used, "mem_used", bytes, , )
+STAT(collection_mem_used, "collections_mem_used", bytes, , )
 STAT(collection_item_count, "items", count, , )
 STAT(collection_disk_size, "disk_size", bytes, , )
 
