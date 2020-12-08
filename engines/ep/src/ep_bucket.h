@@ -165,6 +165,11 @@ public:
 
     ENGINE_ERROR_CODE getPerVBucketDiskStats(
             const void* cookie, const AddStatFn& add_stat) override;
+
+    size_t getPageableMemCurrent() const override;
+    size_t getPageableMemHighWatermark() const override;
+    size_t getPageableMemLowWatermark() const override;
+
     /**
      * Creates a VBucket object from warmup (can set collection state)
      */

@@ -18,6 +18,7 @@
 #include "ephemeral_bucket.h"
 
 #include "bucket_logger.h"
+#include "checkpoint_manager.h"
 #include "collections/vbucket_manifest.h"
 #include "ep_engine.h"
 #include "ep_types.h"
@@ -31,6 +32,8 @@
 
 #include <statistics/collector.h>
 #include <statistics/labelled_collector.h>
+
+#include <algorithm>
 
 /**
  * A configuration value changed listener that responds to Ephemeral bucket
@@ -149,6 +152,70 @@ bool EphemeralBucket::initialize() {
     return true;
 }
 
+size_t EphemeralBucket::getPageableMemCurrent() const {
+    // Ephemeral buckets differ from persistent in terms of how memory can
+    // be freed - only active items can (potentially) be directly deleted
+    // (auto-delete or items which have expired) - given that the replica
+    // must be an exact copy of the active.
+    // As such, 'pageable' memory is non-replica memmory.
+
+    // We don't directly track "active_mem_used", but we can roughtly estimate
+    // it from mem_used - replica_ht_mem - replica_checkpoint_mem
+    const auto estimatedActiveMemory =
+            int64_t(stats.getEstimatedTotalMemoryUsed()) -
+            stats.replicaHTMemory - stats.replicaCheckpointOverhead;
+    return std::max(estimatedActiveMemory, int64_t(0));
+}
+
+size_t EphemeralBucket::getPageableMemHighWatermark() const {
+    // Ephemeral buckets can only page out non-replica memory (see comments
+    // in getPageableMemCurrent). As such, set pagable high watermark to
+    // a fraction of the overall high watermark based on what faction of
+    // vBuckets are active. Memory used by any dead vbs should be reclaimed
+    // soon, so ignore them here; they don't need to be allocated a portion
+    // of the quota.
+    const double activeVBCount = vbMap.getVBStateCount(vbucket_state_active);
+    const double pendingVBCount = vbMap.getVBStateCount(vbucket_state_pending);
+    const double replicaVBCount = vbMap.getVBStateCount(vbucket_state_replica);
+    const double totalVBCount = activeVBCount + pendingVBCount + replicaVBCount;
+
+    if (totalVBCount <= 0) {
+        // not an expected situation, bail out and return the full high
+        // watermark
+        return stats.mem_high_wat.load();
+    }
+
+    const double activePendingHighWat =
+            (stats.mem_high_wat.load() / totalVBCount) *
+            (activeVBCount + pendingVBCount);
+
+    return activePendingHighWat;
+}
+
+size_t EphemeralBucket::getPageableMemLowWatermark() const {
+    // Ephemeral buckets can only page out non-replica memory (see comments
+    // in getPageableMemCurrent). As such, set pagable low watermark to
+    // a fraction of the overall low watermark based on what faction of
+    // vBuckets are active. Memory used by any dead vbs should be reclaimed
+    // soon, so ignore them here; they don't need to be allocated a portion
+    // of the quota.
+    const double activeVBCount = vbMap.getVBStateCount(vbucket_state_active);
+    const double pendingVBCount = vbMap.getVBStateCount(vbucket_state_pending);
+    const double replicaVBCount = vbMap.getVBStateCount(vbucket_state_replica);
+    const double totalVBCount = activeVBCount + pendingVBCount + replicaVBCount;
+
+    if (totalVBCount <= 0) {
+        // not an expected situation, bail out and return the full low
+        // watermark
+        return stats.mem_low_wat.load();
+    }
+
+    const double activeLowWat = (stats.mem_low_wat.load() / totalVBCount) *
+                                (activeVBCount + pendingVBCount);
+
+    return activeLowWat;
+}
+
 void EphemeralBucket::attemptToFreeMemory() {
     // Call down to the base class; do to whatever it can to free memory.
     KVBucket::attemptToFreeMemory();
@@ -203,28 +270,40 @@ VBucketPtr EphemeralBucket::makeVBucket(
     // 1. make_shared doesn't accept a Deleter
     // 2. allocate_shared has inconsistencies between platforms in calling
     //    alloc.destroy (libc++ doesn't call it)
-    return VBucketPtr(new EphemeralVBucket(id,
-                                           state,
-                                           stats,
-                                           engine.getCheckpointConfig(),
-                                           shard,
-                                           lastSeqno,
-                                           lastSnapStart,
-                                           lastSnapEnd,
-                                           std::move(table),
-                                           std::move(newSeqnoCb),
-                                           makeSyncWriteResolvedCB(),
-                                           makeSyncWriteCompleteCB(),
-                                           makeSeqnoAckCB(),
-                                           engine.getConfiguration(),
-                                           eviction_policy,
-                                           std::move(manifest),
-                                           initState,
-                                           purgeSeqno,
-                                           maxCas,
-                                           mightContainXattrs,
-                                           replicationTopology),
-                      VBucket::DeferredDeleter(engine));
+    auto* vb = new EphemeralVBucket(id,
+                                    state,
+                                    stats,
+                                    engine.getCheckpointConfig(),
+                                    shard,
+                                    lastSeqno,
+                                    lastSnapStart,
+                                    lastSnapEnd,
+                                    std::move(table),
+                                    std::move(newSeqnoCb),
+                                    makeSyncWriteResolvedCB(),
+                                    makeSyncWriteCompleteCB(),
+                                    makeSeqnoAckCB(),
+                                    engine.getConfiguration(),
+                                    eviction_policy,
+                                    std::move(manifest),
+                                    initState,
+                                    purgeSeqno,
+                                    maxCas,
+                                    mightContainXattrs,
+                                    replicationTopology);
+
+    vb->ht.setMemChangedCallback([vb, &stats = stats](int64_t delta) {
+        if (vb->getState() == vbucket_state_replica) {
+            stats.replicaHTMemory += delta;
+        }
+    });
+    vb->checkpointManager->setOverheadChangedCallback(
+            [vb, &stats = stats](int64_t delta) {
+                if (vb->getState() == vbucket_state_replica) {
+                    stats.replicaCheckpointOverhead += delta;
+                }
+            });
+    return VBucketPtr(vb, VBucket::DeferredDeleter(engine));
 }
 
 void EphemeralBucket::completeStatsVKey(const void* cookie,

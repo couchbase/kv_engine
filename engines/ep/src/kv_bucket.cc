@@ -907,6 +907,7 @@ void KVBucket::setVBucketState_UNLOCKED(
     }
 
     auto oldstate = vbMap.setState_UNLOCKED(*vb, to, meta, vbStateLock);
+    vb->updateStatsForStateChange(oldstate, to);
 
     if (oldstate != to && notify_dcp) {
         bool closeInboundStreams = false;
@@ -2088,9 +2089,10 @@ bool KVBucket::isMemUsageAboveBackfillThreshold() {
     return memoryUsed > (maxSize * backfillMemoryThreshold);
 }
 
-// Trigger memory reduction (ItemPager) if we've exceeded high water
+// Trigger memory reduction (ItemPager) if we've exceeded the pageable high
+// watermark.
 void KVBucket::checkAndMaybeFreeMemory() {
-    if (stats.getEstimatedTotalMemoryUsed() > stats.mem_high_wat) {
+    if (getPageableMemCurrent() > getPageableMemHighWatermark()) {
         attemptToFreeMemory();
     }
 }

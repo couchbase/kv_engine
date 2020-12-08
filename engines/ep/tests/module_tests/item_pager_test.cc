@@ -475,7 +475,9 @@ TEST_P(STItemPagerTest, ReplicaItemsVisitedFirst) {
 
     // Add a document to both the active and pending vbucket.
     const std::string value(512, 'x'); // 512B value to use for documents.
-    for (int ii = 0; ii < 10; ii++) {
+    // add sufficient items to the active vb to trigger eviction even for
+    // ephemeral.
+    for (int ii = 0; ii < 40; ii++) {
         auto key = makeStoredDocKey("key_" + std::to_string(ii));
         auto activeItem = make_item(activeVB, key, value);
         auto pendingItem = make_item(pendingVB, key, value);

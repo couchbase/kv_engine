@@ -648,6 +648,7 @@ void HashTable::Statistics::epilogue(StoredValueProperties pre,
 
         local.cacheSize.fetch_add(sizeDelta);
         local.memSize.fetch_add(sizeDelta);
+        memChangedCallback(sizeDelta);
     }
     if (pre.metaDataSize != post.metaDataSize) {
         local.metaDataMemory.fetch_add(post.metaDataSize - pre.metaDataSize);
@@ -712,6 +713,16 @@ void HashTable::Statistics::epilogue(StoredValueProperties pre,
     if (postNonTemp && !post.isDeleted && !post.isPreparedSyncWrite) {
         ++local.datatypeCounts[post.datatype];
     }
+}
+
+void HashTable::Statistics::setMemChangedCallback(
+        std::function<void(int64_t delta)> callback) {
+    memChangedCallback = std::move(callback);
+}
+
+const std::function<void(int64_t delta)>&
+HashTable::Statistics::getMemChangedCallback() const {
+    return memChangedCallback;
 }
 
 void HashTable::Statistics::reset() {

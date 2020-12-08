@@ -1398,6 +1398,20 @@ ENGINE_ERROR_CODE EPBucket::getPerVBucketDiskStats(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
+size_t EPBucket::getPageableMemCurrent() const {
+    // EP Buckets can (theoretically) page out all memory, active(+pending) or
+    // replica.
+    return stats.getEstimatedTotalMemoryUsed();
+}
+
+size_t EPBucket::getPageableMemHighWatermark() const {
+    return stats.mem_high_wat;
+}
+
+size_t EPBucket::getPageableMemLowWatermark() const {
+    return stats.mem_low_wat;
+}
+
 VBucketPtr EPBucket::makeVBucket(
         Vbid id,
         vbucket_state_t state,
