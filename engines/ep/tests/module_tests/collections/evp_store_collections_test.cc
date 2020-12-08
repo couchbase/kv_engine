@@ -1760,9 +1760,18 @@ class StatChecker {
 public:
     using PostFunc = std::function<bool(size_t, size_t)>;
 
-    StatChecker(VBucket& vb,
+    /**
+     * Create a StatChecker object that on destruction compares stats to the
+     * on creation state. Takes a VBucketPtr reference, from which we gather
+     * stats, which also allows us to use the StatChecker across different
+     * VBucket objects. The use case for this is warmup tests which can create
+     * a StatChecker against the pre-warmup VBucket object and then reset the
+     * VBucketPtr to the post-warmup VBucket object to test stats after a
+     * restart.
+     */
+    StatChecker(VBucketPtr& vb,
                 const CollectionEntry::Entry& entry,
-                std::function<size_t(VBucket&, CollectionID)> getter,
+                std::function<size_t(VBucketPtr&, CollectionID)> getter,
                 std::string statName,
                 PostFunc postCondition)
         : vb(vb),
@@ -1788,22 +1797,22 @@ private:
         return getter(vb, entry.uid);
     }
 
-    VBucket& vb;
+    VBucketPtr& vb;
     const CollectionEntry::Entry& entry;
-    std::function<size_t(VBucket&, CollectionID)> getter;
+    std::function<size_t(VBucketPtr&, CollectionID)> getter;
     std::string statName;
     PostFunc postCondition;
     size_t initialValue = 0;
 };
 
-size_t getCollectionMemUsed(VBucket& vb, CollectionID cid) {
-    const auto& stats = VBucketTestIntrospector::getStats(vb);
+size_t getCollectionMemUsed(VBucketPtr& vb, CollectionID cid) {
+    const auto& stats = VBucketTestIntrospector::getStats(*vb);
     return stats.getCollectionMemUsed(cid);
 }
 
 class MemChecker : public StatChecker {
 public:
-    MemChecker(VBucket& vb,
+    MemChecker(VBucketPtr& vb,
                const CollectionEntry::Entry& entry,
                PostFunc postCondition)
         : StatChecker(vb,
@@ -1814,15 +1823,15 @@ public:
     }
 };
 
-size_t getCollectionDiskSize(VBucket& vb, CollectionID cid) {
+size_t getCollectionDiskSize(VBucketPtr& vb, CollectionID cid) {
     Collections::Summary summary;
-    vb.lockCollections().updateSummary(summary);
+    vb->lockCollections().updateSummary(summary);
     return summary[cid].diskSize;
 }
 
 class DiskChecker : public StatChecker {
 public:
-    DiskChecker(VBucket& vb,
+    DiskChecker(VBucketPtr& vb,
                 const CollectionEntry::Entry& entry,
                 PostFunc postCondition)
         : StatChecker(vb,
@@ -1849,9 +1858,9 @@ TEST_F(CollectionsTest, PerCollectionMemUsed) {
     {
         SCOPED_TRACE("new item added to collection");
         // default collection memory usage should _increase_
-        auto d = MemChecker(*vb, CollectionEntry::defaultC, std::greater<>());
+        auto d = MemChecker(vb, CollectionEntry::defaultC, std::greater<>());
         // meta collection memory usage should _stay the same_
-        auto m = MemChecker(*vb, CollectionEntry::meat, std::equal_to<>());
+        auto m = MemChecker(vb, CollectionEntry::meat, std::equal_to<>());
 
         store_item(
                 vbid, StoredDocKey{"key", CollectionEntry::defaultC}, "value");
@@ -1860,8 +1869,8 @@ TEST_F(CollectionsTest, PerCollectionMemUsed) {
 
     {
         SCOPED_TRACE("new item added to collection");
-        auto d = MemChecker(*vb, CollectionEntry::defaultC, std::equal_to<>());
-        auto m = MemChecker(*vb, CollectionEntry::meat, std::greater<>());
+        auto d = MemChecker(vb, CollectionEntry::defaultC, std::equal_to<>());
+        auto m = MemChecker(vb, CollectionEntry::meat, std::greater<>());
 
         store_item(vbid,
                    StoredDocKey{"meat:beef", CollectionEntry::meat},
@@ -1871,8 +1880,8 @@ TEST_F(CollectionsTest, PerCollectionMemUsed) {
 
     {
         SCOPED_TRACE("update item with larger value");
-        auto d = MemChecker(*vb, CollectionEntry::defaultC, std::greater<>());
-        auto m = MemChecker(*vb, CollectionEntry::meat, std::equal_to<>());
+        auto d = MemChecker(vb, CollectionEntry::defaultC, std::greater<>());
+        auto m = MemChecker(vb, CollectionEntry::meat, std::equal_to<>());
 
         store_item(vbid,
                    StoredDocKey{"key", CollectionEntry::defaultC},
@@ -1882,8 +1891,8 @@ TEST_F(CollectionsTest, PerCollectionMemUsed) {
 
     {
         SCOPED_TRACE("delete item");
-        auto d = MemChecker(*vb, CollectionEntry::defaultC, std::less<>());
-        auto m = MemChecker(*vb, CollectionEntry::meat, std::equal_to<>());
+        auto d = MemChecker(vb, CollectionEntry::defaultC, std::less<>());
+        auto m = MemChecker(vb, CollectionEntry::meat, std::equal_to<>());
 
         delete_item(vbid, StoredDocKey{"key", CollectionEntry::defaultC});
         KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
@@ -1891,8 +1900,8 @@ TEST_F(CollectionsTest, PerCollectionMemUsed) {
 
     {
         SCOPED_TRACE("evict item");
-        auto d = MemChecker(*vb, CollectionEntry::defaultC, std::equal_to<>());
-        auto m = MemChecker(*vb, CollectionEntry::meat, std::less<>());
+        auto d = MemChecker(vb, CollectionEntry::defaultC, std::equal_to<>());
+        auto m = MemChecker(vb, CollectionEntry::meat, std::less<>());
 
         evict_key(vbid, StoredDocKey{"meat:beef", CollectionEntry::meat});
     }
@@ -1914,9 +1923,9 @@ TEST_P(CollectionsPersistentParameterizedTest, PerCollectionDiskSize) {
     {
         SCOPED_TRACE("new item added to collection");
         // default collection disk size should _increase_
-        auto d = DiskChecker(*vb, CollectionEntry::defaultC, std::greater<>());
+        auto d = DiskChecker(vb, CollectionEntry::defaultC, std::greater<>());
         // meta collection disk size should _stay the same_
-        auto m = DiskChecker(*vb, CollectionEntry::meat, std::equal_to<>());
+        auto m = DiskChecker(vb, CollectionEntry::meat, std::equal_to<>());
 
         store_item(
                 vbid, StoredDocKey{"key", CollectionEntry::defaultC}, "value");
@@ -1925,8 +1934,8 @@ TEST_P(CollectionsPersistentParameterizedTest, PerCollectionDiskSize) {
 
     {
         SCOPED_TRACE("new item added to collection");
-        auto d = DiskChecker(*vb, CollectionEntry::defaultC, std::equal_to<>());
-        auto m = DiskChecker(*vb, CollectionEntry::meat, std::greater<>());
+        auto d = DiskChecker(vb, CollectionEntry::defaultC, std::equal_to<>());
+        auto m = DiskChecker(vb, CollectionEntry::meat, std::greater<>());
 
         store_item(vbid,
                    StoredDocKey{"meat:beef", CollectionEntry::meat},
@@ -1936,8 +1945,8 @@ TEST_P(CollectionsPersistentParameterizedTest, PerCollectionDiskSize) {
 
     {
         SCOPED_TRACE("update item with larger value");
-        auto d = DiskChecker(*vb, CollectionEntry::defaultC, std::greater<>());
-        auto m = DiskChecker(*vb, CollectionEntry::meat, std::equal_to<>());
+        auto d = DiskChecker(vb, CollectionEntry::defaultC, std::greater<>());
+        auto m = DiskChecker(vb, CollectionEntry::meat, std::equal_to<>());
 
         store_item(vbid,
                    StoredDocKey{"key", CollectionEntry::defaultC},
@@ -1947,20 +1956,20 @@ TEST_P(CollectionsPersistentParameterizedTest, PerCollectionDiskSize) {
 
     {
         SCOPED_TRACE("delete item");
-        auto d = DiskChecker(*vb, CollectionEntry::defaultC, std::less<>());
-        auto m = DiskChecker(*vb, CollectionEntry::meat, std::equal_to<>());
+        auto d = DiskChecker(vb, CollectionEntry::defaultC, std::less<>());
+        auto m = DiskChecker(vb, CollectionEntry::meat, std::equal_to<>());
 
         delete_item(vbid, StoredDocKey{"key", CollectionEntry::defaultC});
         KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
 
-        EXPECT_EQ(0, getCollectionDiskSize(*vb, CollectionEntry::defaultC.uid));
+        EXPECT_EQ(0, getCollectionDiskSize(vb, CollectionEntry::defaultC.uid));
     }
 
     {
         SCOPED_TRACE("evict item");
         // should not change the on disk size
-        auto d = DiskChecker(*vb, CollectionEntry::defaultC, std::equal_to<>());
-        auto m = DiskChecker(*vb, CollectionEntry::meat, std::equal_to<>());
+        auto d = DiskChecker(vb, CollectionEntry::defaultC, std::equal_to<>());
+        auto m = DiskChecker(vb, CollectionEntry::meat, std::equal_to<>());
 
         evict_key(vbid, StoredDocKey{"meat:beef", CollectionEntry::meat});
     }
@@ -1986,8 +1995,8 @@ TEST_F(CollectionsTest, PerCollectionDiskSizeRollback) {
         SCOPED_TRACE("Rollback");
         // post rollback, stats should have been reset to what they are
         // currently
-        auto d = DiskChecker(*vb, CollectionEntry::defaultC, std::equal_to<>());
-        auto m = DiskChecker(*vb, CollectionEntry::meat, std::equal_to<>());
+        auto d = DiskChecker(vb, CollectionEntry::defaultC, std::equal_to<>());
+        auto m = DiskChecker(vb, CollectionEntry::meat, std::equal_to<>());
 
         auto seqnoToRollbackTo = vb->getHighSeqno();
 
@@ -1997,9 +2006,9 @@ TEST_F(CollectionsTest, PerCollectionDiskSizeRollback) {
             SCOPED_TRACE("new item added to collection");
             // default collection disk size should _increase_ as we add the item
             auto d = DiskChecker(
-                    *vb, CollectionEntry::defaultC, std::greater<>());
+                    vb, CollectionEntry::defaultC, std::greater<>());
             // meta collection disk size should _stay the same_
-            auto m = DiskChecker(*vb, CollectionEntry::meat, std::equal_to<>());
+            auto m = DiskChecker(vb, CollectionEntry::meat, std::equal_to<>());
 
             store_item(vbid,
                        StoredDocKey{"key2", CollectionEntry::defaultC},
@@ -2045,7 +2054,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
         SCOPED_TRACE("Prepare item");
         // default collection disk size should _stay the same_ - prepares are
         // not included
-        auto d = DiskChecker(*vb, CollectionEntry::defaultC, std::equal_to<>());
+        auto d = DiskChecker(vb, CollectionEntry::defaultC, std::equal_to<>());
 
         using namespace cb::durability;
         store_item(vbid,
@@ -2061,7 +2070,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
     {
         SCOPED_TRACE("Commit item");
         // default collection disk size should _increase_
-        auto d = DiskChecker(*vb, CollectionEntry::defaultC, std::greater<>());
+        auto d = DiskChecker(vb, CollectionEntry::defaultC, std::greater<>());
 
         vb->commit(key, vb->getHighSeqno(), {}, vb->lockCollections(key));
         KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
@@ -2071,7 +2080,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
         SCOPED_TRACE("Prepare item round 2");
         // default collection disk size should _stay the same_ - prepares are
         // not included
-        auto d = DiskChecker(*vb, CollectionEntry::defaultC, std::equal_to<>());
+        auto d = DiskChecker(vb, CollectionEntry::defaultC, std::equal_to<>());
 
         using namespace cb::durability;
         store_item(vbid,
@@ -2088,7 +2097,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
         SCOPED_TRACE("Abort item");
         // default collection disk size should _stay the same_ - aborts are
         // not included
-        auto d = DiskChecker(*vb, CollectionEntry::defaultC, std::equal_to<>());
+        auto d = DiskChecker(vb, CollectionEntry::defaultC, std::equal_to<>());
 
         vb->abort(key, vb->getHighSeqno(), {}, vb->lockCollections(key));
         KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
