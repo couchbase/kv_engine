@@ -272,18 +272,17 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
         }
 
         // Cancel any previously set future execution of the
-        // task.
+        // task, and set its waketime (scheduled time) to now.
         cancelTimeout();
+        task->updateWaketime(std::chrono::steady_clock::now());
 
-        // Run directly on the appropriate cpuPool, if not
-        // already enqueued.
         if (!scheduledOnCpuPool) {
+            // Not currently scheduled on cpuPool - schedule to run now.
             scheduleViaCPUPool();
         } else {
-            // Set wakeTime to "now" - so when the current
-            // execution finishes the task will be re-scheduled
-            // immediately.
-            task->updateWaketime(std::chrono::steady_clock::now());
+            // Task already scheduled on cpuPool - given wakeTime was set to
+            // "now" just above, when the current execution finishes the task
+            // will be re-scheduled to run immediately.
             task->setState(TASK_RUNNING, TASK_SNOOZED);
         }
     }

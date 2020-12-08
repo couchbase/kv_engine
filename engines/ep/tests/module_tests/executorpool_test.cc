@@ -351,6 +351,46 @@ TYPED_TEST(ExecutorPoolTest, WakeWithoutSchedule) {
     this->pool->unregisterTaskable(taskable, false);
 }
 
+/// Test that waketime (the time a task desires to be run) is correctly updated
+/// when a wake() is called to run a task immediately.
+TYPED_TEST(ExecutorPoolTest, WakeUpdatesWaketime) {
+    this->makePool(1);
+    NiceMock<MockTaskable> taskable;
+    this->pool->registerTaskable(taskable);
+
+    // Create a lambda task with an initial sleep time of 1 hour and hence will
+    // not run until explicitly woken below. When is is woken and runs, it
+    // checks its waketime has been updated - i.e. is no longer 1 hour in
+    // the future.
+    folly::Baton baton;
+    auto sleepTime = 60.0 * 60.0; // 1 hour.
+    auto task = std::make_shared<LambdaTask>(
+            taskable,
+            TaskId::ItemPager,
+            sleepTime,
+            false,
+            [&baton](LambdaTask& t) {
+                EXPECT_LE(t.getWaketime(), std::chrono::steady_clock::now());
+                baton.post();
+                return false;
+            });
+    const auto taskId = this->pool->schedule(task);
+
+    // Saity check - waketime should be ~60 mins after schedule (shouldn't take
+    // anywhere close to 1minuteto actually schedule the task!).
+    ASSERT_GT(task->getWaketime(),
+              std::chrono::steady_clock::now() + std::chrono::minutes{59})
+            << "Waketime should be ~60 mins in future";
+
+    // Test: Wake the task, and expect to run "immediately" (give a generous
+    // deadline of 10s.
+    // Note check inside lamda itself,
+    this->pool->wake(taskId);
+    EXPECT_TRUE(baton.try_wait_for(std::chrono::seconds{10}));
+
+    this->pool->unregisterTaskable(taskable, true);
+}
+
 /// Test that snooze correctly updates the waketime of a task.
 TYPED_TEST(ExecutorPoolTest, Snooze) {
     this->makePool(1);
