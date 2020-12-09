@@ -336,7 +336,7 @@ protected:
      *        currently locked. Required to ensure we lock correctly around
      *        VBucket::notifyNewSeqno
      * @param vb The vbucket to add the collection to.
-     * @param manifestUid the uid of the manifest which made the change
+     * @param newManUid the uid of the manifest which made the change
      * @param identifiers ScopeID and CollectionID pair
      * @param collectionName Name of the added collection
      * @param maxTtl An optional maxTTL for the collection
@@ -346,7 +346,7 @@ protected:
      */
     void addCollection(const WriteHandle& wHandle,
                        ::VBucket& vb,
-                       ManifestUid manifestUid,
+                       ManifestUid newManUid,
                        ScopeCollectionPair identifiers,
                        std::string_view collectionName,
                        cb::ExpiryLimit maxTtl,
@@ -360,7 +360,7 @@ protected:
      *        currently locked. Required to ensure we lock correctly around
      *        VBucket::notifyNewSeqno
      * @param vb The vbucket to drop the collection from
-     * @param manifestUid the uid of the manifest which made the change
+     * @param newManUid the uid of the manifest which made the change
      * @param cid CollectionID to drop
      * @param optionalSeqno Either a seqno to assign to the delete of the
      *        collection or none (none means the checkpoint assigns the seqno).
@@ -368,7 +368,7 @@ protected:
      */
     void dropCollection(WriteHandle& wHandle,
                         ::VBucket& vb,
-                        ManifestUid manifestUid,
+                        ManifestUid newManUid,
                         CollectionID cid,
                         OptionalSeqno optionalSeqno,
                         bool isForcedDrop);
@@ -380,7 +380,7 @@ protected:
      *        currently locked. Required to ensure we lock correctly around
      *        VBucket::notifyNewSeqno
      * @param vb The vbucket to add the collection to.
-     * @param manifestUid the uid of the manifest which made the change
+     * @param newManUid the uid of the manifest which made the change
      * @param sid ScopeID
      * @param scopeName Name of the added scope
      * @param optionalSeqno Either a seqno to assign to the new collection or
@@ -389,7 +389,7 @@ protected:
      */
     void addScope(const WriteHandle& wHandle,
                   ::VBucket& vb,
-                  ManifestUid manifestUid,
+                  ManifestUid newManUid,
                   ScopeID sid,
                   std::string_view scopeName,
                   OptionalSeqno optionalSeqno,
@@ -402,7 +402,7 @@ protected:
      *        currently locked. Required to ensure we lock correctly around
      *        VBucket::notifyNewSeqno
      * @param vb The vbucket to drop the scope from
-     * @param manifestUid the uid of the manifest which made the change
+     * @param newManUid the uid of the manifest which made the change
      * @param sid ScopeID to drop
      * @param optionalSeqno Either a seqno to assign to the drop of the
      *        scope or none (none means the checkpoint will assign the seqno)
@@ -410,7 +410,7 @@ protected:
      */
     void dropScope(const WriteHandle& wHandle,
                    ::VBucket& vb,
-                   ManifestUid manifestUid,
+                   ManifestUid newManUid,
                    ScopeID sid,
                    OptionalSeqno optionalSeqno,
                    bool isForcedDrop);
@@ -868,8 +868,6 @@ protected:
     friend std::ostream& operator<<(std::ostream&,
                                     const DroppedCollectionInfo&);
     friend std::ostream& operator<<(std::ostream&, const DroppedCollections&);
-
-    static constexpr char const* UidKey = "uid";
 };
 
 /// Note that the VB::Manifest << operator does not obtain the rwlock

@@ -265,7 +265,7 @@ ManifestUpdateStatus Manifest::canUpdate(
 
 void Manifest::addCollection(const WriteHandle& wHandle,
                              ::VBucket& vb,
-                             ManifestUid manifestUid,
+                             ManifestUid newManUid,
                              ScopeCollectionPair identifiers,
                              std::string_view collectionName,
                              cb::ExpiryLimit maxTtl,
@@ -276,7 +276,7 @@ void Manifest::addCollection(const WriteHandle& wHandle,
     auto& entry = addNewCollectionEntry(identifiers, maxTtl);
 
     // 1.1 record the uid of the manifest which is adding the collection
-    updateUid(manifestUid, optionalSeqno.has_value() || isForcedAdd);
+    updateUid(newManUid, optionalSeqno.has_value() || isForcedAdd);
 
     // 2. Queue a system event, this will take a copy of the manifest ready
     //    for persistence into the vb state file.
@@ -302,7 +302,7 @@ void Manifest::addCollection(const WriteHandle& wHandle,
             maxTtl.value_or(std::chrono::seconds::zero()).count(),
             optionalSeqno.has_value(),
             seqno,
-            manifestUid,
+            newManUid,
             isForcedAdd);
 
     // 3. Now patch the entry with the seqno of the system event, note the copy
@@ -334,7 +334,7 @@ ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
 
 void Manifest::dropCollection(WriteHandle& wHandle,
                               ::VBucket& vb,
-                              ManifestUid manifestUid,
+                              ManifestUid newManUid,
                               CollectionID cid,
                               OptionalSeqno optionalSeqno,
                               bool isForcedDrop) {
@@ -362,7 +362,7 @@ void Manifest::dropCollection(WriteHandle& wHandle,
     }
 
     // record the uid of the manifest which removed the collection
-    updateUid(manifestUid, optionalSeqno.has_value() || isForcedDrop);
+    updateUid(newManUid, optionalSeqno.has_value() || isForcedDrop);
 
     auto seqno = queueCollectionSystemEvent(
             wHandle,
@@ -382,7 +382,7 @@ void Manifest::dropCollection(WriteHandle& wHandle,
             itr->second.getScopeID(),
             optionalSeqno.has_value(),
             seqno,
-            manifestUid,
+            newManUid,
             processingTombstone,
             isForcedDrop);
 
@@ -407,7 +407,7 @@ const ManifestEntry& Manifest::getManifestEntry(CollectionID identifier) const {
 
 void Manifest::addScope(const WriteHandle& wHandle,
                         ::VBucket& vb,
-                        ManifestUid manifestUid,
+                        ManifestUid newManUid,
                         ScopeID sid,
                         std::string_view scopeName,
                         OptionalSeqno optionalSeqno,
@@ -420,7 +420,7 @@ void Manifest::addScope(const WriteHandle& wHandle,
     scopes.insert(sid);
 
     // record the uid of the manifest which added the scope
-    updateUid(manifestUid, optionalSeqno.has_value() || isForcedAdd);
+    updateUid(newManUid, optionalSeqno.has_value() || isForcedAdd);
 
     flatbuffers::FlatBufferBuilder builder;
     auto scope = CreateScope(
@@ -452,7 +452,7 @@ void Manifest::addScope(const WriteHandle& wHandle,
 
 void Manifest::dropScope(const WriteHandle& wHandle,
                          ::VBucket& vb,
-                         ManifestUid manifestUid,
+                         ManifestUid newManUid,
                          ScopeID sid,
                          OptionalSeqno optionalSeqno,
                          bool isForcedDrop) {
@@ -472,7 +472,7 @@ void Manifest::dropScope(const WriteHandle& wHandle,
     scopes.erase(sid);
 
     // record the uid of the manifest which removed the scope
-    updateUid(manifestUid, optionalSeqno.has_value() || isForcedDrop);
+    updateUid(newManUid, optionalSeqno.has_value() || isForcedDrop);
 
     flatbuffers::FlatBufferBuilder builder;
     auto scope = CreateDroppedScope(builder, getManifestUid(), uint32_t(sid));

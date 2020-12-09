@@ -100,14 +100,14 @@ void Flush::saveCollectionStats(
             continue;
         }
         // Get the current stats of the collection (for the seqno)
-        auto stats = manifest.lock().getStatsForFlush(
+        auto collsFlushStats = manifest.lock().getStatsForFlush(
                 cid, flushStats.getPersistedMaxVisibleSeqno());
 
         // Generate new stats, add the deltas from this flush batch for count
         // and size and set the high-seqno
-        PersistedStats ps(stats.itemCount + flushStats.getItemCount(),
+        PersistedStats ps(collsFlushStats.itemCount + flushStats.getItemCount(),
                           flushStats.getPersistedMaxVisibleSeqno(),
-                          stats.diskSize + flushStats.getDiskSize());
+                          collsFlushStats.diskSize + flushStats.getDiskSize());
         cb(cid, ps);
     }
 }
@@ -276,7 +276,8 @@ void Flush::updateStats(const DocKey& key,
     }
 
     // Track high-seqno for the item
-    auto& stats = getStatsAndMaybeSetPersistedHighSeqno(cid.value(), seqno);
+    auto& collsFlushStats =
+            getStatsAndMaybeSetPersistedHighSeqno(cid.value(), seqno);
 
     // but don't track any changes if the item is logically deleted. Why?
     // A flush batch could of recreated the collection, the stats tracking code
@@ -285,7 +286,7 @@ void Flush::updateStats(const DocKey& key,
     // incorrect. Note this relates to an issue for MB-42272, magma assumes the
     // stats item count will include *everything*, but isn't.
     if (!isLogicallyDeleted(cid.value(), seqno)) {
-        stats.insert(isSystemEvent, isDelete, size);
+        collsFlushStats.insert(isSystemEvent, isDelete, size);
     }
 }
 
@@ -322,15 +323,16 @@ void Flush::updateStats(const DocKey& key,
             oldIsDelete || (isLogicallyDeleted(cid.value(), oldSeqno) ||
                             isLogicallyDeletedInStore(cid.value(), oldSeqno));
 
-    auto& stats = getStatsAndMaybeSetPersistedHighSeqno(cid.value(), seqno);
+    auto& collsFlushStats =
+            getStatsAndMaybeSetPersistedHighSeqno(cid.value(), seqno);
     // As above, logically deleted items don't update item-count/disk-size
     if (!isLogicallyDeleted(cid.value(), seqno)) {
         if (oldIsDelete) {
-            stats.insert(isSystemEvent, isDelete, size);
+            collsFlushStats.insert(isSystemEvent, isDelete, size);
         } else if (!oldIsDelete && isDelete) {
-            stats.remove(isSystemEvent, size - oldSize);
+            collsFlushStats.remove(isSystemEvent, size - oldSize);
         } else {
-            stats.update(size - oldSize);
+            collsFlushStats.update(size - oldSize);
         }
     }
 }
@@ -475,9 +477,6 @@ flatbuffers::DetachedBuffer Flush::encodeManifestUid() {
     auto toWrite =
             Collections::KVStore::CreateCommittedManifest(builder, manifestUid);
     builder.Finish(toWrite);
-    std::string_view buffer{
-            reinterpret_cast<const char*>(builder.GetBufferPointer()),
-            builder.GetSize()};
     return builder.Release();
 }
 
