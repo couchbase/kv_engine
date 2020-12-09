@@ -22,6 +22,7 @@
 #include "checkpoint_utils.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/active_stream_checkpoint_processor_task.h"
+#include "dcp/backfill-manager.h"
 #include "dcp/producer.h"
 #include "dcp/response.h"
 #include "dcp_utils.h"
@@ -2363,7 +2364,7 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
 
     // Now remove the earlier checkpoint
     bool new_ckpt_created;
-    EXPECT_EQ(0, ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created));
+    EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created));
 
     store->setVBucketState(vbid, vbucket_state_replica);
 
@@ -2398,16 +2399,15 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
 
     auto stream = producer->findStream(vbid);
     ASSERT_TRUE(stream->isActive());
+    ASSERT_TRUE(stream->isBackfilling());
 
     producer->notifySeqnoAvailable(
             vb->getId(), vb->getHighSeqno(), SyncWriteOperation::No);
 
-    // Step which will notify the snapshot task
-    EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
-    EXPECT_EQ(1, producer->getCheckpointSnapshotTask()->queueSize());
-
-    // Now call run on the snapshot task to move checkpoint into DCP stream
-    producer->getCheckpointSnapshotTask()->run();
+    auto& bfm = producer->getBFM();
+    for (uint8_t i = 0; i < 3; ++i) {
+        bfm.backfill();
+    }
 
     // snapshot marker
     EXPECT_EQ(cb::engine_errc::success, producer->step(*producers));
@@ -2427,9 +2427,6 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
     EXPECT_EQ(cb::engine_errc::success, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers->last_op)
             << "stream should have received a STREAM_END";
-
-    // Stop Producer checkpoint processor task
-    producer->cancelCheckpointCreatorTask();
 }
 
 auto allConfigValues =

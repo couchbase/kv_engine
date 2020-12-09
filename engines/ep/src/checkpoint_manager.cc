@@ -49,7 +49,6 @@ CheckpointManager::CheckpointManager(EPStats& st,
       numItems(0),
       lastBySeqno(lastSeqno),
       maxVisibleSeqno(maxVisibleSeqno),
-      pCursorPreCheckpointId(0),
       flusherCB(std::move(cb)) {
     LockHolder lh(queueLock);
 
@@ -489,7 +488,7 @@ bool CheckpointManager::isCheckpointCreationForHighMemUsage_UNLOCKED(
 size_t CheckpointManager::removeClosedUnrefCheckpoints(
         VBucket& vbucket, bool& newOpenCheckpointCreated, size_t limit) {
     // This function is executed periodically by the non-IO dispatcher.
-    size_t numUnrefItems = 0;
+    size_t numNonMetaItems = 0;
     // Checkpoints in the `unrefCheckpointList` have to be deleted before we
     // return from this function. With smart pointers, deletion happens when
     // `unrefCheckpointList` goes out of scope (i.e., when this function
@@ -536,15 +535,12 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
         for (; it != checkpointList.end() &&
                std::next(it) != checkpointList.end();
              ++it) {
-
-            // When we encounter the first checkpoint which has cursor(s) in it,
-            // or if the persistence cursor is still operating, stop.
-            if ((*it)->getNumCursorsInCheckpoint() > 0 ||
-                (checkpointConfig.isPersistenceEnabled() &&
-                 (*it)->getId() > pCursorPreCheckpointId)) {
+            // Stop when we encounter the first checkpoint which has cursor(s)
+            // in it.
+            if ((*it)->getNumCursorsInCheckpoint() > 0) {
                 break;
             } else {
-                numUnrefItems += (*it)->getNumItems();
+                numNonMetaItems += (*it)->getNumItems();
                 numMetaItems += (*it)->getNumMetaItems();
                 ++numCheckpointsRemoved;
 
@@ -564,8 +560,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
                 }
             }
         }
-        size_t total_items = numUnrefItems + numMetaItems;
-        numItems.fetch_sub(total_items);
+        numItems.fetch_sub(numNonMetaItems + numMetaItems);
         unrefCheckpointList.splice(unrefCheckpointList.begin(),
                                    checkpointList,
                                    checkpointList.begin(),
@@ -578,7 +573,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
     // it would have a relevant impact on front-end operations.
     // Also note that this function is O(N), with N being checkpointList.size().
 
-    return numUnrefItems;
+    return numNonMetaItems;
 }
 
 CheckpointManager::ExpelResult
@@ -1216,25 +1211,19 @@ void CheckpointManager::clear_UNLOCKED(vbucket_state_t vbState, uint64_t seqno) 
     numItems = 0;
     lastBySeqno.reset(seqno);
     maxVisibleSeqno.reset(seqno);
-    pCursorPreCheckpointId = 0;
     addOpenCheckpoint(vbState == vbucket_state_active ? 1 : 0 /* id */,
                       lastBySeqno,
                       lastBySeqno,
                       maxVisibleSeqno,
                       {},
                       CheckpointType::Memory);
-    resetCursors();
+    resetCursors(true);
 }
 
 void CheckpointManager::resetCursors(bool resetPersistenceCursor) {
     for (auto& cit : cursors) {
-        if (cit.second->name == pCursorName) {
-            if (!resetPersistenceCursor) {
-                continue;
-            } else {
-                uint64_t chkid = checkpointList.front()->getId();
-                pCursorPreCheckpointId = chkid ? chkid - 1 : 0;
-            }
+        if (cit.second->name == pCursorName && !resetPersistenceCursor) {
+            continue;
         }
 
         // Remove this cursor from the accounting of it's old checkpoint.
@@ -1498,17 +1487,6 @@ uint64_t CheckpointManager::createNewCheckpoint(bool force) {
     return getOpenCheckpointId_UNLOCKED(lh);
 }
 
-uint64_t CheckpointManager::getPersistenceCursorPreChkId() {
-    LockHolder lh(queueLock);
-    return pCursorPreCheckpointId;
-}
-
-void CheckpointManager::itemsPersisted() {
-    LockHolder lh(queueLock);
-    auto itr = persistenceCursor->currentCheckpoint;
-    pCursorPreCheckpointId = ((*itr)->getId() > 0) ? (*itr)->getId() - 1 : 0;
-}
-
 size_t CheckpointManager::getMemoryUsage_UNLOCKED() const {
     size_t memUsage = 0;
     for (const auto& checkpoint : checkpointList) {
@@ -1670,7 +1648,7 @@ void CheckpointManager::takeAndResetCursors(CheckpointManager& other) {
     }
     other.cursors.clear();
 
-    resetCursors(true /*reset persistence*/);
+    resetCursors(true);
 }
 
 bool CheckpointManager::isOpenCheckpointDisk() {

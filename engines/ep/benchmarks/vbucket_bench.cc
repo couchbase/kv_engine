@@ -377,7 +377,6 @@ BENCHMARK_DEFINE_F(CheckpointBench, QueueDirtyWithManyClosedUnrefCheckpoints)
     // for removing (cannot remove checkpoint flusher is in).
     std::vector<queued_item> items;
     ckptMgr->getNextItemsForPersistence(items);
-    ckptMgr->itemsPersisted();
 
     ThreadGate tg(2);
 

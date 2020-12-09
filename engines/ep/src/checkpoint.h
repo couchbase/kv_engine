@@ -486,6 +486,10 @@ public:
         return (numOfCursorsInCheckpoint == 0);
     }
 
+    /**
+     * @return The number of all cursors (ie, persistence and DCP) that reside
+     *  in this Checkpoint
+     */
     size_t getNumCursorsInCheckpoint() const {
         return numOfCursorsInCheckpoint;
     }
@@ -712,7 +716,8 @@ private:
     /// Number of meta items (see Item::isCheckPointMetaItem).
     size_t numMetaItems;
 
-    // Count of the number of cursors that reside in the checkpoint
+    // Count of the number of all cursors (ie persistence and DCP) that reside
+    // in the checkpoint
     cb::NonNegativeCounter<size_t> numOfCursorsInCheckpoint = 0;
 
     // Allocator used for tracking memory used by toWrite

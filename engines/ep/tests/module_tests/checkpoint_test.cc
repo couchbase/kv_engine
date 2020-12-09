@@ -712,13 +712,6 @@ TEST_P(CheckpointTest, CursorOffsetOnCheckpointClose) {
     EXPECT_TRUE(item->isCheckPointMetaItem());
     EXPECT_FALSE(isLastMutationItem);
 
-    // Tell Checkpoint manager the items have been persisted, so it advances
-    // pCursorPreCheckpointId, which will allow us to remove the closed
-    // unreferenced checkpoints.
-    if (persistent()) {
-        manager->itemsPersisted();
-    }
-
     // Both previous checkpoints are unreferenced. Close them. This will
     // cause the offset of this cursor to be recalculated.
     bool new_open_ckpt_created;
@@ -1766,13 +1759,6 @@ TEST_P(CheckpointTest, checkpointMemoryTest) {
     // and move the persistence cursor to the new checkpoint.
     this->manager->createNewCheckpoint();
 
-    // Tell Checkpoint manager the items have been persisted, so it
-    // advances pCursorPreCheckpointId, which will allow us to remove
-    // the closed unreferenced checkpoints.
-    if (persistent()) {
-        manager->itemsPersisted();
-    }
-
     // We are now in a position to remove the checkpoint that had the
     // mutation in it.
     bool new_open_ckpt_created;
@@ -1855,13 +1841,6 @@ TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadTest) {
     // Create a new checkpoint, which will close the old checkpoint
     // and move the persistence cursor to the new checkpoint.
     this->manager->createNewCheckpoint();
-
-    // Tell Checkpoint manager the items have been persisted, so it
-    // advances pCursorPreCheckpointId, which will allow us to remove
-    // the closed unreferenced checkpoints.
-    if (persistent()) {
-        manager->itemsPersisted();
-    }
 
     // We are now in a position to remove the checkpoint that had the
     // mutation in it.

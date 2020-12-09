@@ -7657,7 +7657,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
 
         // Add stats which are only available for persistent buckets:
         static const char* persistence_stats[] = {
-                "vb_0:persisted_checkpoint_id",
                 "vb_0:persistence:cursor_checkpoint_id",
                 "vb_0:persistence:cursor_seqno",
                 "vb_0:persistence:num_visits",

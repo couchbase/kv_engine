@@ -1445,16 +1445,16 @@ void MB22960callbackBeforeRegisterCursor(
                                           GenerateCas::Yes,
                                           /*preLinkDocCtx*/ nullptr);
 
-        EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::Yes),
+        EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
                   store->flushVBucket(vb->getId()));
         ckpt_mgr.createNewCheckpoint();
-        EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
+        EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
         EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
 
         // Now remove the earlier checkpoint
         EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(
                 *vb, new_ckpt_created));
-        EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
+        EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
         EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
 
         queued_item qi2(new Item(makeStoredDocKey("key3"),
@@ -1475,16 +1475,16 @@ void MB22960callbackBeforeRegisterCursor(
                                           GenerateCas::Yes,
                                           /*preLinkDocCtx*/ nullptr);
 
-        EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::Yes),
+        EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
                   store->flushVBucket(vb->getId()));
         ckpt_mgr.createNewCheckpoint();
-        EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
+        EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
         EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
 
         // Now remove the earlier checkpoint
         EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(
                 *vb, new_ckpt_created));
-        EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
+        EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
         EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
     }
 }
@@ -1588,9 +1588,12 @@ TEST_P(STParamPersistentBucketTest, MB22960_cursor_dropping_data_loss) {
         << "pendingBackfill is not true";
     EXPECT_EQ(3, ckpt_mgr.getNumCheckpoints());
 
-    // Because we dropped the cursor we can now remove checkpoint
-    EXPECT_EQ(1, ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created));
-    EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
+    // We dropped the DCP cursor and the persistent cursor is at the last (3rd)
+    // checkpoint, so we can now remove the 2 closed checkpoints
+    EXPECT_EQ(1,
+              ckpt_mgr.getCheckpointList().back()->getNumCursorsInCheckpoint());
+    EXPECT_EQ(2, ckpt_mgr.removeClosedUnrefCheckpoints(*vb, new_ckpt_created));
+    EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
 
     //schedule a backfill
     mock_stream->next();
@@ -1642,7 +1645,7 @@ TEST_P(STParamPersistentBucketTest, MB22960_cursor_dropping_data_loss) {
     // return NULL
     resp = mock_stream->next();
     EXPECT_EQ(nullptr, resp);
-    EXPECT_EQ(2, ckpt_mgr.getNumCheckpoints());
+    EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
     EXPECT_EQ(2, ckpt_mgr.getNumOfCursors());
 
     // BackfillManagerTask

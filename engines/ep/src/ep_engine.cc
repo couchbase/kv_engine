@@ -3540,15 +3540,6 @@ public:
                             add_stat,
                             cookie);
             vb.checkpointManager->addStats(add_stat, cookie);
-
-            auto result = eps->getLastPersistedCheckpointId(vbid);
-            if (result.second) {
-                checked_snprintf(buf.data(),
-                                 buf.size(),
-                                 "vb_%d:persisted_checkpoint_id",
-                                 vbid.get());
-                add_casted_stat(buf.data(), result.first, add_stat, cookie);
-            }
         } catch (std::exception& error) {
             EP_LOG_WARN(
                     "StatCheckpointVisitor::addCheckpointStat: error building "

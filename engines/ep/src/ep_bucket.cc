@@ -385,15 +385,6 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
                     : WakeCkptRemover::No;
 
     if (toFlush.items.empty()) {
-        // getItemsToPersist() may move the persistence cursor to a new
-        // checkpoint, so some pending CheckpointPersistence request could be
-        // satisfied now.
-        //
-        // Note: We do not need to notify SeqnoPersistence request here, as
-        //   there is definitely nothing new to notify if we do not flush any
-        //   mutation.
-        handleCheckpointPersistence(*vb);
-
         return {moreAvailable, 0, wakeupCheckpointRemover};
     }
 
@@ -659,10 +650,6 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
 
     // Just return if nothing to flush
     if (!mustPersistVBState && flushBatchSize == 0) {
-        // The persistence cursor may have moved to a new checkpoint, which may
-        // satisfy pending checkpoint-persistence requests
-        handleCheckpointPersistence(*vb);
-
         return {moreAvailable, 0, wakeupCheckpointRemover};
     }
 
@@ -828,14 +815,6 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
     return {moreAvailable, flushBatchSize, wakeupCheckpointRemover};
 }
 
-void EPBucket::handleCheckpointPersistence(VBucket& vb) const {
-    auto& manager = *vb.checkpointManager;
-    manager.itemsPersisted(); // update pCursorPreCkptId
-    vb.notifyHighPriorityRequests(engine,
-                                  manager.getPersistenceCursorPreChkId(),
-                                  HighPriorityVBNotify::ChkPersistence);
-}
-
 void EPBucket::flushSuccessEpilogue(
         VBucket& vb,
         const std::chrono::steady_clock::time_point flushStart,
@@ -871,10 +850,6 @@ void EPBucket::flushSuccessEpilogue(
     // data, so it can be safely skipped if no flush performed or if flush
     // failed.
     getRWUnderlying(vb.getId())->pendingTasks();
-
-    // The persistence cursor may have moved to a new checkpoint, which may
-    // satisfy pending checkpoint-persistence requests
-    handleCheckpointPersistence(vb);
 }
 
 void EPBucket::flushFailureEpilogue(VBucket& vb, VBucket::ItemsToFlush& flush) {
@@ -1375,16 +1350,6 @@ bool EPBucket::updateCompactionTasks(Vbid vbid, bool canErase) {
         }
     }
     return reschedule;
-}
-
-std::pair<uint64_t, bool> EPBucket::getLastPersistedCheckpointId(Vbid vb) {
-    auto vbucket = vbMap.getBucket(vb);
-    if (vbucket) {
-        return {vbucket->checkpointManager->getPersistenceCursorPreChkId(),
-                true};
-    } else {
-        return {0, true};
-    }
 }
 
 cb::engine_errc EPBucket::getFileStats(const BucketStatCollector& collector) {

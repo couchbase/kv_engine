@@ -162,8 +162,6 @@ public:
      */
     bool updateCompactionTasks(Vbid vbid, bool canErase);
 
-    std::pair<uint64_t, bool> getLastPersistedCheckpointId(Vbid vb) override;
-
     cb::engine_errc getFileStats(const BucketStatCollector& collector) override;
 
     cb::engine_errc getPerVBucketDiskStats(const void* cookie,
@@ -324,20 +322,6 @@ protected:
                          int64_t bySeqno,
                          bool isAbort,
                          int64_t highCompletedSeqno);
-
-    /**
-     * @todo MB-37858: legacy from TAP, remove.
-     * Probably used only by ns_server in the old days of TAP, should be the
-     * TAP-equivalent of the current DCP SeqnoPersistence. Must be confirmed.
-     * It uses the CM::pCursorPreCheckpointId for inferring what is the last
-     * complete checkpoint persisted.
-     * Note that currently CM::pCursorPreCheckpointId is used only by
-     * CheckpointPersistence and some checkpoint-removal logic that does not
-     * need it strictly, so we can remove that too when we resolve MB-37858.
-     *
-     * @param vb
-     */
-    void handleCheckpointPersistence(VBucket& vb) const;
 
     /**
      * Performs operations that must be performed after flush succeeds,

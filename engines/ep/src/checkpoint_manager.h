@@ -163,7 +163,7 @@ public:
      * @param vbucket the vbucket that this checkpoint manager belongs to.
      * @param newOpenCheckpointCreated the flag indicating if the new open
      * checkpoint was created as a result of running this function.
-     * @return the number of items that are purged from checkpoint
+     * @return the number of non-meta items that are purged from checkpoint
      * @param limit Max number of checkpoint that can be removed.
      *     No limit by default, overidden only for testing.
      */
@@ -383,17 +383,6 @@ public:
      * @return the new open checkpoint id
      */
     uint64_t createNewCheckpoint(bool force = false);
-
-    /**
-     * Get id of the previous checkpoint that is followed by the checkpoint
-     * where the persistence cursor is currently walking.
-     */
-    uint64_t getPersistenceCursorPreChkId();
-
-    /**
-     * Update the checkpoint manager persistence cursor checkpoint offset
-     */
-    void itemsPersisted();
 
     /**
      * Return memory consumption of all the checkpoints managed
@@ -668,7 +657,7 @@ protected:
     bool isCheckpointCreationForHighMemUsage_UNLOCKED(const LockHolder& lh,
                                                       const VBucket& vbucket);
 
-    void resetCursors(bool resetPersistenceCursor = true);
+    void resetCursors(bool resetPersistenceCursor);
 
     queued_item createCheckpointItem(uint64_t id,
                                      Vbid vbid,
@@ -692,7 +681,6 @@ protected:
      * to the seqno of a prepare.
      */
     Monotonic<int64_t> maxVisibleSeqno;
-    uint64_t                 pCursorPreCheckpointId;
 
     /**
      * cursors: stores all known CheckpointCursor objects which are held via
