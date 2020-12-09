@@ -1074,7 +1074,7 @@
             "type": "size_t"
         },
         "magma_checkpoint_interval": {
-            "default": "60",
+            "default": "120",
             "dynamic": false,
             "descr": "Frequency of checkpoint interval; in seconds. A checkpoint interval provides a rollback point to which the data store can rollback to in the event of a failure.",
             "type": "size_t"
