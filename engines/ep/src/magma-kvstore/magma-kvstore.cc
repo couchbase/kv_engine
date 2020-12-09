@@ -431,11 +431,6 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
             configuration.getMagmaDeleteMemtableWritecache();
     configuration.magmaCfg.LSDFragmentationRatio =
             configuration.getMagmaDeleteFragRatio();
-    configuration.magmaCfg.MaxCommitPoints =
-            configuration.getMagmaMaxCommitPoints();
-    auto commitPointInterval = configuration.getMagmaCommitPointInterval();
-    configuration.magmaCfg.CommitPointInterval =
-            commitPointInterval * std::chrono::milliseconds{1s};
     configuration.magmaCfg.MaxCheckpoints =
             configuration.getMagmaMaxCheckpoints();
     configuration.magmaCfg.CheckpointCreationInterval =

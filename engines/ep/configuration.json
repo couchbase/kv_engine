@@ -1067,22 +1067,10 @@
             "descr": "Magma compaction always removes duplicate keys but not all sstables are visited during compaction.. This is the minimum fragmentation ratio threshold for when a compaction will be triggerred.",
             "type": "float"
         },
-        "magma_max_commit_points": {
-            "default": "5",
-            "dynamic": false,
-            "descr": "Maximum # of commit points retained for rollback.",
-            "type": "size_t"
-        },
         "magma_max_checkpoints": {
             "default": "5",
             "dynamic": false,
             "descr": "Maximum # of checkpoints retained for rollback.",
-            "type": "size_t"
-        },
-        "magma_commit_point_interval": {
-            "default": "60",
-            "dynamic": false,
-            "descr": "Frequency of commit point interval; in seconds. A commit point interval provides a rollback point to which the data store can rollback to in the event of a failure.",
             "type": "size_t"
         },
         "magma_checkpoint_interval": {

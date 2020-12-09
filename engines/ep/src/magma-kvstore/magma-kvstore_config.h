@@ -46,14 +46,8 @@ public:
     float getMagmaDeleteFragRatio() const {
         return magmaDeleteFragRatio;
     }
-    size_t getMagmaMaxCommitPoints() const {
-        return magmaMaxCommitPoints;
-    }
     size_t getMagmaMaxCheckpoints() const {
         return magmaMaxCheckpoints;
-    }
-    size_t getMagmaCommitPointInterval() const {
-        return magmaCommitPointInterval;
     }
     std::chrono::milliseconds getMagmaCheckpointInterval() const {
         return magmaCheckpointInterval;
@@ -170,14 +164,8 @@ private:
     // Intervals at which magma expiry purger is executed
     std::chrono::seconds magmaExpiryPurgerInterval;
 
-    // Max commit points that can be rolled back to
-    int magmaMaxCommitPoints;
-
     // Max checkpoints that can be rolled back to
     int magmaMaxCheckpoints;
-
-    // Time interval (in minutes) between commit points
-    size_t magmaCommitPointInterval;
 
     // Time interval between checkpoints
     std::chrono::milliseconds magmaCheckpointInterval;

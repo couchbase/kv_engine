@@ -43,8 +43,6 @@ static std::string magmaConfig =
 // to generate a rollback point with each item batch, similar to what
 // couchstore does.
 static std::string magmaRollbackConfig =
-        "magma_max_commit_points=10;"
-        "magma_commit_point_interval=0;"
         "magma_max_checkpoints=10;"
         "magma_checkpoint_interval=0;"
         "magma_checkpoint_every_batch=true";

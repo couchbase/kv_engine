@@ -7101,7 +7101,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_magma_checkpoint_every_batch",
               "ep_magma_checkpoint_interval",
               "ep_magma_checkpoint_threshold",
-              "ep_magma_commit_point_interval",
               "ep_magma_delete_frag_ratio",
               "ep_magma_delete_memtable_writecache",
               "ep_magma_enable_block_cache",
@@ -7112,7 +7111,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_magma_flusher_thread_percentage",
               "ep_magma_heartbeat_interval",
               "ep_magma_max_checkpoints",
-              "ep_magma_max_commit_points",
               "ep_magma_max_default_storage_threads",
               "ep_magma_max_level_0_ttl",
               "ep_magma_max_recovery_bytes",
@@ -7388,7 +7386,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_magma_checkpoint_every_batch",
               "ep_magma_checkpoint_interval",
               "ep_magma_checkpoint_threshold",
-              "ep_magma_commit_point_interval",
               "ep_magma_delete_frag_ratio",
               "ep_magma_delete_memtable_writecache",
               "ep_magma_enable_block_cache",
@@ -7399,7 +7396,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_magma_flusher_thread_percentage",
               "ep_magma_heartbeat_interval",
               "ep_magma_max_checkpoints",
-              "ep_magma_max_commit_points",
               "ep_magma_max_default_storage_threads",
               "ep_magma_max_level_0_ttl",
               "ep_magma_max_recovery_bytes",
@@ -8596,7 +8592,6 @@ BaseTestCase testsuite_testcases[] = {
                  test_vb_file_stats,
                  test_setup,
                  teardown,
-                 "magma_commit_point_interval=0;"
                  "magma_checkpoint_interval=0;"
                  "magma_checkpoint_every_batch=true",
                  /* TODO RDB: Needs stat:ep_db_data_size */
@@ -8606,7 +8601,6 @@ BaseTestCase testsuite_testcases[] = {
                  test_vb_file_stats_after_warmup,
                  test_setup,
                  teardown,
-                 "magma_commit_point_interval=0;"
                  "magma_checkpoint_interval=0;"
                  "magma_checkpoint_every_batch=true",
                  prepare,
@@ -8687,8 +8681,6 @@ BaseTestCase testsuite_testcases[] = {
                  test_stats_diskinfo,
                  test_setup,
                  teardown,
-                 "magma_commit_point_interval=0;"
-                 "magma_commit_point_interval=0;"
                  "magma_checkpoint_interval=0;"
                  "magma_checkpoint_every_batch=true",
                  /* TODO RDB: DB file size is not reported correctly */
