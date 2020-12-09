@@ -323,7 +323,7 @@ public:
     std::vector<queued_item> getTrackedWrites() const;
 
     /// Debug - print a textual description of this object to stderr.
-    void dump() const;
+    void dump() const override;
 
     /// Prints the given ReplicationChain to the stream.
     static void chainToOstream(std::ostream& os,

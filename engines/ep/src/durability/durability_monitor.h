@@ -70,6 +70,11 @@ public:
      */
     virtual void notifyLocalPersistence() = 0;
 
+    /**
+     * Debug function that prints the DM state to stderr.
+     */
+    virtual void dump() const = 0;
+
     enum class ReplicationChainName {
         First = 1,
         Second = 2,

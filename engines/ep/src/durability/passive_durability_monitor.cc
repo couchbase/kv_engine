@@ -495,6 +495,10 @@ int64_t PassiveDurabilityMonitor::getHighestTrackedSeqno() const {
     }
 }
 
+void PassiveDurabilityMonitor::dump() const {
+    toOStream(std::cerr);
+}
+
 void PassiveDurabilityMonitor::toOStream(std::ostream& os) const {
     os << "PassiveDurabilityMonitor[" << this << "] " << *state.rlock();
 }

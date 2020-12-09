@@ -187,6 +187,8 @@ public:
      */
     int64_t getHighestTrackedSeqno() const;
 
+    void dump() const override;
+
     /**
      * Test only: Hook which if non-empty is called from
      * notifySnapshotEndReceived()
