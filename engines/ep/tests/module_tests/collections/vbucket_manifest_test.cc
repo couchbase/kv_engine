@@ -724,7 +724,7 @@ TEST_F(VBucketManifestTest, updates3) {
             StoredDocKey{"anykey", CollectionEntry::defaultC}));
 }
 
-TEST_F(VBucketManifestTest, resurection) {
+TEST_F(VBucketManifestTest, resurrection) {
     EXPECT_TRUE(manifest.update(cm));
 
     const int cycles = 3;
@@ -767,15 +767,91 @@ TEST_F(VBucketManifestTest, resurection) {
     expects(7, 3);
 
     EXPECT_NO_THROW(
-            manifest.collectionDropPersisted(CollectionEntry::dairy, 5));
+            manifest.collectionDropPersisted(CollectionEntry::dairy, 3));
     EXPECT_TRUE(manifest.checkDroppedSize(1));
     EXPECT_TRUE(manifest.checkDroppedSize(2, CollectionEntry::dairy));
 
     EXPECT_NO_THROW(
-            manifest.collectionDropPersisted(CollectionEntry::dairy, 3));
+            manifest.collectionDropPersisted(CollectionEntry::dairy, 5));
     EXPECT_TRUE(manifest.checkDroppedSize(1));
     EXPECT_TRUE(manifest.checkDroppedSize(1, CollectionEntry::dairy));
 
+    EXPECT_NO_THROW(
+            manifest.collectionDropPersisted(CollectionEntry::dairy, 7));
+    EXPECT_TRUE(manifest.checkDroppedSize(0));
+}
+
+TEST_F(VBucketManifestTest, resurrection_part2) {
+    EXPECT_TRUE(manifest.update(cm));
+
+    const int cycles = 3;
+
+    for (int ii = 0; ii < cycles; ii++) {
+        cm.add(CollectionEntry::dairy);
+        EXPECT_TRUE(manifest.update(cm));
+
+        // increment the item count for each generation - more items for
+        // each generation - then we know later we get the correct stats back
+        // post drop
+        manifest.getActiveManifest().lock().incrementItemCount(
+                CollectionEntry::dairy);
+        for (int zz = 0; zz < ii; zz++) {
+            manifest.getActiveManifest().lock().incrementItemCount(
+                    CollectionEntry::dairy);
+        }
+
+        cm.remove(CollectionEntry::dairy);
+        EXPECT_TRUE(manifest.update(cm));
+    }
+
+    // map is 1, but will have 3 entries
+    EXPECT_TRUE(manifest.checkDroppedSize(1));
+    EXPECT_TRUE(manifest.checkDroppedSize(3, CollectionEntry::dairy));
+
+    // The flusher would only store the greatest seqno for the collection (in
+    // the case many were dropped in a batch). So call collectionDropPersisted
+    // once for the greatest seqno and test everything got discarded
+    EXPECT_NO_THROW(
+            manifest.collectionDropPersisted(CollectionEntry::dairy, 7));
+    EXPECT_TRUE(manifest.checkDroppedSize(0));
+}
+
+TEST_F(VBucketManifestTest, resurrection_part3) {
+    EXPECT_TRUE(manifest.update(cm));
+
+    const int cycles = 3;
+
+    for (int ii = 0; ii < cycles; ii++) {
+        cm.add(CollectionEntry::dairy);
+        EXPECT_TRUE(manifest.update(cm));
+
+        // increment the item count for each generation - more items for
+        // each generation - then we know later we get the correct stats back
+        // post drop
+        manifest.getActiveManifest().lock().incrementItemCount(
+                CollectionEntry::dairy);
+        for (int zz = 0; zz < ii; zz++) {
+            manifest.getActiveManifest().lock().incrementItemCount(
+                    CollectionEntry::dairy);
+        }
+
+        cm.remove(CollectionEntry::dairy);
+        EXPECT_TRUE(manifest.update(cm));
+    }
+
+    // map is 1, but will have 3 entries
+    EXPECT_TRUE(manifest.checkDroppedSize(1));
+    EXPECT_TRUE(manifest.checkDroppedSize(3, CollectionEntry::dairy));
+
+    // The flusher would only store the greatest seqno for the collection (in
+    // the case many were dropped in a batch). So call collectionDropPersisted
+    // once for the 'middle' seqno and test nearly everything gets discarded
+    EXPECT_NO_THROW(
+            manifest.collectionDropPersisted(CollectionEntry::dairy, 5));
+    EXPECT_TRUE(manifest.checkDroppedSize(1));
+    EXPECT_TRUE(manifest.checkDroppedSize(1, CollectionEntry::dairy));
+
+    // And now highest
     EXPECT_NO_THROW(
             manifest.collectionDropPersisted(CollectionEntry::dairy, 7));
     EXPECT_TRUE(manifest.checkDroppedSize(0));

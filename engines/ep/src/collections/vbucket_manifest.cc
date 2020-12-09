@@ -1040,11 +1040,13 @@ void Manifest::DroppedCollections::remove(CollectionID cid, uint64_t seqno) {
     auto& [key, vector] = *dropItr;
     (void)key;
     bool erased = false;
-    for (auto itr = vector.begin(); itr != vector.end(); itr++) {
-        if (seqno == itr->end) {
-            vector.erase(itr);
+    for (auto itr = vector.begin(); itr != vector.end();) {
+        // remove every dropped collection in the 'list' if seqno is >=
+        if (seqno >= itr->end) {
+            itr = vector.erase(itr);
             erased = true;
-            break;
+        } else {
+            itr++;
         }
     }
 
