@@ -40,6 +40,7 @@ enum class ClientOpcode : uint8_t;
 
 class CheckpointConfig;
 struct CompactionConfig;
+enum class ConflictResolutionMode;
 class DcpConnMap;
 class DcpFlowControlManager;
 class ItemMetaData;
@@ -726,6 +727,8 @@ public:
 
     void setCompressionMode(const std::string& compressModeStr);
 
+    bool setConflictResolutionMode(std::string_view mode);
+
     void setMinCompressionRatio(float minCompressRatio) {
         minCompressionRatio = minCompressRatio;
     }
@@ -1243,6 +1246,10 @@ protected:
     std::unique_ptr<KVBucket> kvBucket;
     WorkLoadPolicy *workload;
     bucket_priority_t workloadPriority;
+
+    // The conflict resolution mode for this bucket (as used by XDCR via
+    // SET/DEL_WITH_META operations).
+    ConflictResolutionMode conflictResolutionMode;
 
     std::map<const void*, std::unique_ptr<Item>> lookups;
     std::unordered_map<const void*, ENGINE_ERROR_CODE> allKeysLookups;

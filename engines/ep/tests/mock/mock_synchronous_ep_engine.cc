@@ -89,6 +89,13 @@ SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
 
     setCompressionMode(configuration.getCompressionMode());
 
+    const auto& confResMode = configuration.getConflictResolutionType();
+    if (!setConflictResolutionMode(confResMode)) {
+        throw std::invalid_argument{"Invalid enum value '" + confResMode +
+                                    "' for config option "
+                                    "conflict_resolution_type."};
+    }
+
     allowDelWithMetaPruneUserData =
             configuration.isAllowDelWithMetaPruneUserData();
 

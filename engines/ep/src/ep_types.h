@@ -60,6 +60,16 @@ enum class CheckpointType : char {
     Memory,
 };
 
+enum class ConflictResolutionMode {
+    /// Resolve conflicts based on document revision id (revid).
+    RevisionId,
+    /// Resolve conflicts based on "last write" (most recently modified)
+    LastWriteWins,
+    /// Resolve conflicts based on custom conflict resolution. Currently
+    /// acts the same as 'LastWriteWins' in ep-engine.
+    Custom,
+};
+
 /**
  * We need to send SyncWrite Commits as Mutations when backfilling from disk as
  * the preceding prepare may have been de-duped and the replica needs to know

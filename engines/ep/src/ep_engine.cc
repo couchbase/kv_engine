@@ -2159,6 +2159,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     auto numShards = configuration.getMaxNumShards();
     workload = new WorkLoadPolicy(configuration.getMaxNumWorkers(), numShards);
 
+    const auto& confResMode = configuration.getConflictResolutionType();
+    if (!setConflictResolutionMode(confResMode)) {
+        EP_LOG_WARN(
+                "Invalid enum value '{}' for config option "
+                "conflict_resolution_type.",
+                confResMode);
+        return ENGINE_FAILED;
+    }
+
     dcpConnMap_ = std::make_unique<DcpConnMap>(*this);
 
     /* Get the flow control policy */
@@ -2230,6 +2239,20 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             std::make_unique<EpEngineValueChangeListener>(*this));
 
     return ENGINE_SUCCESS;
+}
+
+bool EventuallyPersistentEngine::setConflictResolutionMode(
+        std::string_view mode) {
+    if (mode == "seqno") {
+        conflictResolutionMode = ConflictResolutionMode::RevisionId;
+    } else if (mode == "lww") {
+        conflictResolutionMode = ConflictResolutionMode::LastWriteWins;
+    } else if (mode == "custom") {
+        conflictResolutionMode = ConflictResolutionMode::Custom;
+    } else {
+        return false;
+    }
+    return true;
 }
 
 void EventuallyPersistentEngine::destroyInner(bool force) {
@@ -5268,12 +5291,14 @@ bool EventuallyPersistentEngine::decodeWithMetaOptions(
                   checkConflicts == CheckConflicts::Yes;
 
     // 2) If bucket is LWW/Custom and forceFlag is not set and GenerateCas::No
-    bool check2 = configuration.getConflictResolutionType() != "seqno" &&
-                  !forceFlag && generateCas == GenerateCas::No;
+    bool check2 =
+            conflictResolutionMode != ConflictResolutionMode::RevisionId &&
+            !forceFlag && generateCas == GenerateCas::No;
 
-    // 3) If bucket is seqno then forceFlag must be false.
+    // 3) If bucket is revid then forceFlag must be false.
     bool check3 =
-            configuration.getConflictResolutionType() == "seqno" && forceFlag;
+            conflictResolutionMode == ConflictResolutionMode::RevisionId &&
+            forceFlag;
 
     // So if either check1/2/3 is true, return false
     return !(check1 || check2 || check3);
