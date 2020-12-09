@@ -1203,7 +1203,8 @@ TEST_P(CollectionsEraserSyncWriteTest, DropAfterAbort) {
     }
 }
 
-TEST_P(CollectionsEraserSyncWriteTest, CommitAfterDropBeforeErase) {
+TEST_P(CollectionsEraserSyncWriteTest,
+       CommitDifferentItemAfterDropBeforeErase) {
     addCollection();
     createPendingWrite();
     dropCollection();
@@ -1222,9 +1223,28 @@ TEST_P(CollectionsEraserSyncWriteTest, CommitAfterDropBeforeErase) {
     // Should have moved the prepare to the resolvedQ but not run the task.
     // Try to process the queue and we should commit the new prepare and skip
     // the one for the dropped collection (after notifying the client with an
-    // ambiguous response).
+    // ambiguous response). Flushing 1 item verifies that we don't commit both.
     vb->processResolvedSyncWrites();
     flushVBucketToDiskIfPersistent(vbid, 1);
+
+    EXPECT_EQ(4, vb->getHighCompletedSeqno());
+}
+
+TEST_P(CollectionsEraserSyncWriteTest, AbortAfterDropBeforeErase) {
+    addCollection();
+    createPendingWrite();
+    dropCollection();
+
+    vb->processDurabilityTimeout(std::chrono::steady_clock::now() +
+                                 std::chrono::seconds(1000));
+
+    // Should have moved the prepare to the resolvedQ but not run the task.
+    // Try to process the queue and we should commit the new prepare and skip
+    // the one for the dropped collection (after notifying the client with an
+    // ambiguous response).
+    vb->processResolvedSyncWrites();
+
+    EXPECT_EQ(0, vb->getHighCompletedSeqno());
 }
 
 class CollectionsEraserPersistentOnly : public CollectionsEraserTest {

@@ -875,21 +875,23 @@ void ActiveDurabilityMonitor::abort(const ActiveSyncWrite& sw) {
     const auto& key = sw.getKey();
 
     auto cHandle = vb.lockCollections(key);
-    if (cHandle.valid()) {
-        auto result = vb.abort(key,
-                               sw.getBySeqno() /*prepareSeqno*/,
-                               {} /*abortSeqno*/,
-                               cHandle,
-                               sw.getCookie());
-        if (result != ENGINE_SUCCESS) {
-            throwException<std::logic_error>(
-                    __func__, "failed with status:" + std::to_string(result));
-        }
-    } else {
+    if (!cHandle.valid()) {
         // collection no longer exists, don't generate an abort
         vb.notifyClientOfSyncWriteComplete(sw.getCookie(),
                                            ENGINE_SYNC_WRITE_AMBIGUOUS);
+        return;
     }
+
+    auto result = vb.abort(key,
+                           sw.getBySeqno() /*prepareSeqno*/,
+                           {} /*abortSeqno*/,
+                           cHandle,
+                           sw.getCookie());
+    if (result != ENGINE_SUCCESS) {
+        throwException<std::logic_error>(
+                __func__, "failed with status:" + std::to_string(result));
+    }
+
     auto s = state.wlock();
     s->lastAbortedSeqno = sw.getBySeqno();
     s->updateHighCompletedSeqno();
