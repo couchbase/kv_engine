@@ -819,7 +819,7 @@ void ActiveDurabilityMonitor::commit(const ActiveSyncWrite& sw) {
     const auto& key = sw.getKey();
     auto cHandle = vb.lockCollections(key);
 
-    if (!cHandle.valid()) {
+    if (!cHandle.valid() || cHandle.isLogicallyDeleted(sw.getBySeqno())) {
         if (sw.getCookie() != nullptr) {
             // collection no longer exists, cannot commit
             vb.notifyClientOfSyncWriteComplete(sw.getCookie(),
@@ -875,7 +875,7 @@ void ActiveDurabilityMonitor::abort(const ActiveSyncWrite& sw) {
     const auto& key = sw.getKey();
 
     auto cHandle = vb.lockCollections(key);
-    if (!cHandle.valid()) {
+    if (!cHandle.valid() || cHandle.isLogicallyDeleted(sw.getBySeqno())) {
         // collection no longer exists, don't generate an abort
         vb.notifyClientOfSyncWriteComplete(sw.getCookie(),
                                            ENGINE_SYNC_WRITE_AMBIGUOUS);

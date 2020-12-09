@@ -1090,6 +1090,17 @@ protected:
                           key.getCollectionID()));
     }
 
+    void processAck(uint64_t prepareSeqno) {
+        vb->seqnoAcknowledged(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                "replica",
+                prepareSeqno);
+    }
+
+    void processResolvedSyncWrites() {
+        vb->processResolvedSyncWrites();
+    }
+
     void commit() {
         EXPECT_EQ(ENGINE_SUCCESS,
                   vb->commit(key,
@@ -1245,6 +1256,78 @@ TEST_P(CollectionsEraserSyncWriteTest, AbortAfterDropBeforeErase) {
     vb->processResolvedSyncWrites();
 
     EXPECT_EQ(0, vb->getHighCompletedSeqno());
+}
+
+TEST_P(CollectionsEraserSyncWriteTest, ResurrectionTestDontCommitOldPrepare) {
+    {
+        SCOPED_TRACE("First generation");
+        addCollection();
+
+        // Do a prepare
+        createPendingWrite();
+        EXPECT_EQ(2, vb->getHighSeqno());
+        EXPECT_EQ(0, vb->getHighCompletedSeqno());
+
+        // Ack it, don't commit it yet
+        processAck(2 /*prepareSeqno*/);
+        EXPECT_EQ(2, vb->getHighSeqno());
+        EXPECT_EQ(0, vb->getHighCompletedSeqno());
+
+        // Now drop this version of the collection
+        dropCollection();
+        EXPECT_EQ(3, vb->getHighSeqno());
+        EXPECT_EQ(0, vb->getHighCompletedSeqno());
+    }
+
+    {
+        SCOPED_TRACE("Second generation");
+        addCollection();
+        EXPECT_EQ(4, vb->getHighSeqno());
+        EXPECT_EQ(0, vb->getHighCompletedSeqno());
+
+        // Processing the resolved queue should NOT commit the prepare that we
+        // created against the old collection
+        processResolvedSyncWrites();
+        EXPECT_EQ(4, vb->getHighSeqno());
+        EXPECT_EQ(0, vb->getHighCompletedSeqno());
+    }
+}
+
+TEST_P(CollectionsEraserSyncWriteTest, ResurrectionTestDontAbortOldPrepare) {
+    {
+        SCOPED_TRACE("First generation");
+        addCollection();
+
+        // Do a prepare
+        createPendingWrite();
+        EXPECT_EQ(2, vb->getHighSeqno());
+        EXPECT_EQ(0, vb->getHighCompletedSeqno());
+
+        // Ack it, don't commit it yet
+        vb->processDurabilityTimeout(std::chrono::steady_clock::now() +
+                                     std::chrono::seconds(70));
+
+        EXPECT_EQ(2, vb->getHighSeqno());
+        EXPECT_EQ(0, vb->getHighCompletedSeqno());
+
+        // Now drop this version of the collection
+        dropCollection();
+        EXPECT_EQ(3, vb->getHighSeqno());
+        EXPECT_EQ(0, vb->getHighCompletedSeqno());
+    }
+
+    {
+        SCOPED_TRACE("Second generation");
+        addCollection();
+        EXPECT_EQ(4, vb->getHighSeqno());
+        EXPECT_EQ(0, vb->getHighCompletedSeqno());
+
+        // Processing the resolved queue should NOT commit the prepare that we
+        // created against the old collection
+        processResolvedSyncWrites();
+        EXPECT_EQ(4, vb->getHighSeqno());
+        EXPECT_EQ(0, vb->getHighCompletedSeqno());
+    }
 }
 
 class CollectionsEraserPersistentOnly : public CollectionsEraserTest {
