@@ -19,12 +19,15 @@
 #include <getopt.h>
 #include <libevent/utilities.h>
 #include <mcbp/protocol/framebuilder.h>
+#include <nlohmann/json.hpp>
 #include <platform/compress.h>
+#include <platform/dirutils.h>
 #include <platform/socket.h>
 #include <programs/getpass.h>
 #include <programs/hostname_utils.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
+#include <utilities/json_utilities.h>
 #include <utilities/terminate_handler.h>
 #include <cstdlib>
 #include <iostream>
@@ -54,6 +57,22 @@ Options:
   -v or --verbose                Add more output
   -4 or --ipv4                   Connect over IPv4
   -6 or --ipv6                   Connect over IPv6
+  --enable-oso                   Enable 'Out-of-Sequence Order' backfills
+  --stream-request-value         Path to a file containing stream-request value.
+                                 This must be a file storing a JSON object
+                                 matching the stream-request value
+                                 specification.
+  --stream-id                    Path to a file containing stream-ID config.
+                                 This must be a file storing a JSON object that
+                                 stores a single array of JSON objects, the
+                                 JSON objects are stream-request values (with
+                                 stream-ID configured). Use of this parameter
+                                 enables DCP stream-id. Example:
+                                 {
+                                    "streams":[
+                                      {"collections" : ["0"], "sid":2},
+                                      {"collections" : ["8"], "sid":5}]
+                                 }
   --help                         This help text
 )";
 
@@ -102,6 +121,7 @@ size_t buffersize = 13421772;
 size_t current_buffer_window = 0;
 size_t total_bytes = 0;
 size_t max_vbuckets = 0;
+size_t totalStreams = 0;
 bool verbose = false;
 
 static void handleDcpNoop(const cb::mcbp::Request& header, bufferevent* bev) {
@@ -194,7 +214,7 @@ void read_callback(bufferevent* bev, void*) {
         }
 
         evbuffer_drain(input, header->getBodylen() + sizeof(cb::mcbp::Header));
-        if (stream_end == max_vbuckets) {
+        if (stream_end == totalStreams) {
             // Received all stream end messages.. shut down our read
             // side and wait for our send pipe to be drained to cause
             // the bufferevent loop to stop
@@ -311,7 +331,8 @@ void setupVBMap(const std::string& host,
              cb::mcbp::Feature::XATTR,
              cb::mcbp::Feature::XERROR,
              cb::mcbp::Feature::SNAPPY,
-             cb::mcbp::Feature::JSON}};
+             cb::mcbp::Feature::JSON,
+             cb::mcbp::Feature::Collections}};
     connection.setFeatures(features);
     connection.selectBucket(bucket);
 
@@ -373,10 +394,16 @@ int main(int argc, char** argv) {
     bool memcached = false;
     std::vector<std::pair<std::string, std::string>> controls;
     std::string name = "dcpdrain";
+    bool enableOso{false};
+    std::string streamRequestFileName;
+    std::string streamIdFileName;
 
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
 
+    const int valueOptionId = 1;
+    const int streamIdOptionId = 2;
+    const int enableOsoOptionId = 3;
     std::vector<option> long_options = {
             {"ipv4", no_argument, nullptr, '4'},
             {"ipv6", no_argument, nullptr, '6'},
@@ -392,6 +419,9 @@ int main(int argc, char** argv) {
             {"memcached", no_argument, nullptr, 'M'},
             {"name", required_argument, nullptr, 'N'},
             {"verbose", no_argument, nullptr, 'v'},
+            {"enable-oso", no_argument, nullptr, enableOsoOptionId},
+            {"stream-request-value", required_argument, nullptr, valueOptionId},
+            {"stream-id", required_argument, nullptr, streamIdOptionId},
             {nullptr, 0, nullptr, 0}};
 
     while ((cmd = getopt_long(argc,
@@ -439,6 +469,15 @@ int main(int argc, char** argv) {
         case 'N':
             name = optarg;
             break;
+        case enableOsoOptionId:
+            enableOso = true;
+            break;
+        case valueOptionId:
+            streamRequestFileName = optarg;
+            break;
+        case streamIdOptionId:
+            streamIdFileName = optarg;
+            break;
         default:
             usage();
             return EXIT_FAILURE;
@@ -464,6 +503,31 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
+    if (!streamRequestFileName.empty() && !streamIdFileName.empty()) {
+        std::cerr << "Please only specify --stream-request-value or --stream-id"
+                  << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    std::string streamRequestValue;
+    if (!streamRequestFileName.empty()) {
+        streamRequestValue = cb::io::loadFile(streamRequestFileName);
+    }
+
+    std::optional<nlohmann::json> streamIdConfig;
+    if (!streamIdFileName.empty()) {
+        auto json = nlohmann::json::parse(cb::io::loadFile(streamIdFileName));
+        // Expected that the document is an array of stream-request values
+        auto itr = json.find("streams");
+        if (itr == json.end()) {
+            std::cerr << "stream-id content invalid:" << json.dump()
+                      << std::endl;
+            return EXIT_FAILURE;
+        }
+        cb::throwIfWrongType("streams", *itr, nlohmann::json::value_t::array);
+        streamIdConfig = *itr;
+    }
+
     cb::libevent::unique_event_base_ptr base(event_base_new());
     std::vector<cb::libevent::unique_bufferevent_ptr> events;
     try {
@@ -481,7 +545,8 @@ int main(int argc, char** argv) {
                      cb::mcbp::Feature::XATTR,
                      cb::mcbp::Feature::XERROR,
                      cb::mcbp::Feature::SNAPPY,
-                     cb::mcbp::Feature::JSON}};
+                     cb::mcbp::Feature::JSON,
+                     cb::mcbp::Feature::Collections}};
 
             auto c = std::make_unique<MemcachedConnection>(
                     host, in_port, family, false);
@@ -545,6 +610,17 @@ int main(int argc, char** argv) {
                              {"send_stream_end_on_client_close_stream", "true"},
                              {"enable_expiry_opcode", "true"}}};
                 }
+
+                if (streamIdConfig) {
+                    controls.emplace_back(
+                            std::make_pair("enable_stream_id", "true"));
+                }
+
+                if (enableOso) {
+                    controls.emplace_back(std::make_pair(
+                            "enable_out_of_order_snapshots", "true"));
+                }
+
                 setControlMessages(*c, controls);
             }
 
@@ -560,20 +636,37 @@ int main(int argc, char** argv) {
             bufferevent_setcb(bev, read_callback, {}, event_callback, nullptr);
             bufferevent_enable(bev, EV_READ);
 
-            for (auto vb : vbuckets) {
-                BinprotDcpStreamRequestCommand streamRequestCommand;
-                streamRequestCommand.setDcpFlags(DCP_ADD_STREAM_FLAG_LATEST);
-                streamRequestCommand.setDcpReserved(0);
-                streamRequestCommand.setDcpStartSeqno(0);
-                streamRequestCommand.setDcpEndSeqno(0xffffffff);
-                streamRequestCommand.setDcpVbucketUuid(0);
-                streamRequestCommand.setDcpSnapStartSeqno(0);
-                streamRequestCommand.setDcpSnapEndSeqno(0xfffffff);
-                streamRequestCommand.setVBucket(Vbid(vb));
+            int streamsPerVb =
+                    streamIdConfig ? streamIdConfig.value().size() : 1;
 
-                std::vector<uint8_t> vec;
-                streamRequestCommand.encode(vec);
-                bufferevent_write(bev, vec.data(), vec.size());
+            for (int ii = 0; ii < streamsPerVb; ii++) {
+                for (auto vb : vbuckets) {
+                    totalStreams++;
+                    BinprotDcpStreamRequestCommand streamRequestCommand;
+                    streamRequestCommand.setDcpFlags(
+                            DCP_ADD_STREAM_FLAG_LATEST);
+                    streamRequestCommand.setDcpReserved(0);
+                    streamRequestCommand.setDcpStartSeqno(0);
+                    streamRequestCommand.setDcpEndSeqno(~0);
+                    streamRequestCommand.setDcpVbucketUuid(0);
+                    streamRequestCommand.setDcpSnapStartSeqno(0);
+                    streamRequestCommand.setDcpSnapEndSeqno(0);
+                    streamRequestCommand.setVBucket(Vbid(vb));
+
+                    if (!streamRequestValue.empty()) {
+                        streamRequestCommand.setValue(
+                                std::string_view{streamRequestValue});
+                    }
+
+                    if (streamIdConfig) {
+                        streamRequestCommand.setValue(
+                                streamIdConfig.value()[ii]);
+                    }
+
+                    std::vector<uint8_t> vec;
+                    streamRequestCommand.encode(vec);
+                    bufferevent_write(bev, vec.data(), vec.size());
+                }
             }
         }
     } catch (const ConnectionError& ex) {
