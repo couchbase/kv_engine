@@ -246,15 +246,15 @@ public:
 
     bool operator!=(const Manifest& rhs) const;
 
-    // local struct for managing collection addition
-    struct CollectionAddition {
+    // local struct for managing collection creation
+    struct CollectionCreation {
         ScopeCollectionPair identifiers;
         std::string name;
         cb::ExpiryLimit maxTtl;
     };
 
-    // local struct for managing scope addition
-    struct ScopeAddition {
+    // local struct for managing scope creation
+    struct ScopeCreation {
         ScopeID sid;
         std::string name;
     };
@@ -267,16 +267,16 @@ public:
         explicit ManifestChanges(ManifestUid uid, bool forced)
             : uid(uid), forced(forced) {
         }
-        std::vector<ScopeAddition> scopesToAdd;
-        std::vector<ScopeID> scopesToRemove;
-        std::vector<CollectionAddition> collectionsToAdd;
-        std::vector<CollectionID> collectionsToRemove;
+        std::vector<ScopeCreation> scopesToCreate;
+        std::vector<ScopeID> scopesToDrop;
+        std::vector<CollectionCreation> collectionsToCreate;
+        std::vector<CollectionID> collectionsToDrop;
         const ManifestUid uid{0};
         const bool forced{false};
 
         bool empty() const {
-            return scopesToAdd.empty() && scopesToRemove.empty() &&
-                   collectionsToAdd.empty() && collectionsToRemove.empty();
+            return scopesToCreate.empty() && scopesToDrop.empty() &&
+                   collectionsToCreate.empty() && collectionsToDrop.empty();
         }
     };
 
@@ -313,7 +313,7 @@ protected:
      * @param changes a vector of CollectionIDs to add/delete (based on update)
      * @return the last element of the changes vector
      */
-    std::optional<CollectionAddition> applyCreates(const WriteHandle& wHandle,
+    std::optional<CollectionCreation> applyCreates(const WriteHandle& wHandle,
                                                    ::VBucket& vb,
                                                    ManifestChanges& changes);
 
@@ -321,7 +321,7 @@ protected:
                                                ::VBucket& vb,
                                                ManifestChanges& changes);
 
-    std::optional<ScopeAddition> applyScopeCreates(const WriteHandle& wHandle,
+    std::optional<ScopeCreation> applyScopeCreates(const WriteHandle& wHandle,
                                                    ::VBucket& vb,
                                                    ManifestChanges& changes);
 
@@ -330,31 +330,32 @@ protected:
                                            ManifestChanges& changes);
 
     /**
-     * Add a collection to the manifest.
+     * Create a collection in the vbucket
      *
      * @param wHandle The manifest write handle under which this operation is
      *        currently locked. Required to ensure we lock correctly around
      *        VBucket::notifyNewSeqno
-     * @param vb The vbucket to add the collection to.
+     * @param vb The vbucket to create the collection in.
      * @param newManUid the uid of the manifest which made the change
      * @param identifiers ScopeID and CollectionID pair
-     * @param collectionName Name of the added collection
+     * @param collectionName Name of the created collection
      * @param maxTtl An optional maxTTL for the collection
      * @param optionalSeqno Either a seqno to assign to the new collection or
      *        none (none means the checkpoint will assign a seqno).
-     * @param isForcedAdd is the addCollection the result of a forced update
+     * @param isForcedCreate is the createCollection the result of a forced
+     *        update
      */
-    void addCollection(const WriteHandle& wHandle,
-                       ::VBucket& vb,
-                       ManifestUid newManUid,
-                       ScopeCollectionPair identifiers,
-                       std::string_view collectionName,
-                       cb::ExpiryLimit maxTtl,
-                       OptionalSeqno optionalSeqno,
-                       bool isForcedAdd);
+    void createCollection(const WriteHandle& wHandle,
+                          ::VBucket& vb,
+                          ManifestUid newManUid,
+                          ScopeCollectionPair identifiers,
+                          std::string_view collectionName,
+                          cb::ExpiryLimit maxTtl,
+                          OptionalSeqno optionalSeqno,
+                          bool isForcedCreate);
 
     /**
-     * Drop the collection from the manifest
+     * Drop the collection from the vbucket
      *
      * @param wHandle The manifest write handle under which this operation is
      *        currently locked. Required to ensure we lock correctly around
@@ -374,26 +375,26 @@ protected:
                         bool isForcedDrop);
 
     /**
-     * Add a scope to the manifest.
+     * Create a scope in the vbucket.
      *
      * @param wHandle The manifest write handle under which this operation is
      *        currently locked. Required to ensure we lock correctly around
      *        VBucket::notifyNewSeqno
-     * @param vb The vbucket to add the collection to.
+     * @param vb The vbucket to create the collection in.
      * @param newManUid the uid of the manifest which made the change
      * @param sid ScopeID
      * @param scopeName Name of the added scope
      * @param optionalSeqno Either a seqno to assign to the new collection or
      *        none (none means the checkpoint will assign a seqno).
-     * @param isForcedAdd is the addScope the result of a forced update
+     * @param isForcedAdd is the createScope the result of a forced update
      */
-    void addScope(const WriteHandle& wHandle,
-                  ::VBucket& vb,
-                  ManifestUid newManUid,
-                  ScopeID sid,
-                  std::string_view scopeName,
-                  OptionalSeqno optionalSeqno,
-                  bool isForcedAdd);
+    void createScope(const WriteHandle& wHandle,
+                     ::VBucket& vb,
+                     ManifestUid newManUid,
+                     ScopeID sid,
+                     std::string_view scopeName,
+                     OptionalSeqno optionalSeqno,
+                     bool isForcedAdd);
 
     /**
      * Drop a scope

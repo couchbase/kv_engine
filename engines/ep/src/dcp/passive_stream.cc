@@ -879,11 +879,12 @@ ENGINE_ERROR_CODE PassiveStream::processSystemEvent(
 ENGINE_ERROR_CODE PassiveStream::processCreateCollection(
         VBucket& vb, const CreateCollectionEvent& event) {
     try {
-        vb.replicaAddCollection(event.getManifestUid(),
-                                {event.getScopeID(), event.getCollectionID()},
-                                event.getKey(),
-                                event.getMaxTtl(),
-                                event.getBySeqno());
+        vb.replicaCreateCollection(
+                event.getManifestUid(),
+                {event.getScopeID(), event.getCollectionID()},
+                event.getKey(),
+                event.getMaxTtl(),
+                event.getBySeqno());
     } catch (std::exception& e) {
         log(spdlog::level::level_enum::warn,
             "PassiveStream::processCreateCollection {} exception {}",
@@ -913,10 +914,10 @@ ENGINE_ERROR_CODE PassiveStream::processDropCollection(
 ENGINE_ERROR_CODE PassiveStream::processCreateScope(
         VBucket& vb, const CreateScopeEvent& event) {
     try {
-        vb.replicaAddScope(event.getManifestUid(),
-                           event.getScopeID(),
-                           event.getKey(),
-                           event.getBySeqno());
+        vb.replicaCreateScope(event.getManifestUid(),
+                              event.getScopeID(),
+                              event.getKey(),
+                              event.getBySeqno());
     } catch (std::exception& e) {
         log(spdlog::level::level_enum::warn,
             "PassiveStream::processCreateScope {} exception {}",

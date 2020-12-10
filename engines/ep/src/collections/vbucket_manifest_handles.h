@@ -553,31 +553,31 @@ public:
     }
 
     /**
-     * Add a collection for a replica VB, this is for receiving
-     * collection updates via DCP and the collection already has a start
-     * seqno assigned.
+     * Create a collection for a replica VB, this is for receiving
+     * collection updates via DCP when the collection already has a start
+     * seqno assigned (assigned by the active).
      *
-     * @param vb The vbucket to add the collection to.
+     * @param vb The vbucket to create the collection in
      * @param manifestUid the uid of the manifest which made the change
-     * @param identifiers ScopeID and CollectionID pair
-     * @param collectionName name of the added collection
+     * @param identifiers ScopeID and CollectionID pair for the new collection
+     * @param collectionName name of the new collection
      * @param maxTtl An optional maxTtl for the collection
      * @param startSeqno The start-seqno assigned to the collection.
      */
-    void replicaAdd(::VBucket& vb,
-                    ManifestUid manifestUid,
-                    ScopeCollectionPair identifiers,
-                    std::string_view collectionName,
-                    cb::ExpiryLimit maxTtl,
-                    int64_t startSeqno) {
-        manifest.addCollection(*this,
-                               vb,
-                               manifestUid,
-                               identifiers,
-                               collectionName,
-                               maxTtl,
-                               OptionalSeqno{startSeqno},
-                               false);
+    void replicaCreate(::VBucket& vb,
+                       ManifestUid manifestUid,
+                       ScopeCollectionPair identifiers,
+                       std::string_view collectionName,
+                       cb::ExpiryLimit maxTtl,
+                       int64_t startSeqno) {
+        manifest.createCollection(*this,
+                                  vb,
+                                  manifestUid,
+                                  identifiers,
+                                  collectionName,
+                                  maxTtl,
+                                  OptionalSeqno{startSeqno},
+                                  false);
     }
 
     /**
@@ -599,26 +599,26 @@ public:
     }
 
     /**
-     * Add a scope for a replica VB
+     * Create a scope in the replica VB
      *
-     * @param vb The vbucket to add the scope to
+     * @param vb The vbucket to create the scope in
      * @param manifestUid the uid of the manifest which made the change
      * @param sid ScopeID of the new scope
-     * @param scopeName name of the added scope
+     * @param scopeName name of the new scope
      * @param startSeqno The start-seqno assigned to the scope
      */
-    void replicaAddScope(::VBucket& vb,
-                         ManifestUid manifestUid,
-                         ScopeID sid,
-                         std::string_view scopeName,
-                         int64_t startSeqno) {
-        manifest.addScope(*this,
-                          vb,
-                          manifestUid,
-                          sid,
-                          scopeName,
-                          OptionalSeqno{startSeqno},
-                          false);
+    void replicaCreateScope(::VBucket& vb,
+                            ManifestUid manifestUid,
+                            ScopeID sid,
+                            std::string_view scopeName,
+                            int64_t startSeqno) {
+        manifest.createScope(*this,
+                             vb,
+                             manifestUid,
+                             sid,
+                             scopeName,
+                             OptionalSeqno{startSeqno},
+                             false);
     }
 
     /**

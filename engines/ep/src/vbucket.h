@@ -783,11 +783,11 @@ public:
      * @param maxTtl An optional maxTTL for the collection
      * @param bySeqno The seqno assigned to the collection create event.
      */
-    void replicaAddCollection(Collections::ManifestUid uid,
-                              ScopeCollectionPair identifiers,
-                              std::string_view collectionName,
-                              cb::ExpiryLimit maxTtl,
-                              int64_t bySeqno);
+    void replicaCreateCollection(Collections::ManifestUid uid,
+                                 ScopeCollectionPair identifiers,
+                                 std::string_view collectionName,
+                                 cb::ExpiryLimit maxTtl,
+                                 int64_t bySeqno);
 
     /**
      * Drop a collection from this vbucket with a pre-assigned seqno. I.e.
@@ -810,10 +810,10 @@ public:
      * @param scopeName name of the added scope
      * @param bySeqno The seqno assigned to the scope create event.
      */
-    void replicaAddScope(Collections::ManifestUid uid,
-                         ScopeID sid,
-                         std::string_view scopeName,
-                         int64_t bySeqno);
+    void replicaCreateScope(Collections::ManifestUid uid,
+                            ScopeID sid,
+                            std::string_view scopeName,
+                            int64_t bySeqno);
 
     /**
      * Drop a scope from this vbucket with a pre-assigned seqno. I.e. this VB

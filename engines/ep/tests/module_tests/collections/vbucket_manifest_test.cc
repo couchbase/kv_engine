@@ -113,7 +113,7 @@ public:
     }
 
     // Wire through to private method
-    std::optional<Manifest::CollectionAddition> public_applyCreates(
+    std::optional<Manifest::CollectionCreation> public_applyCreates(
             ::VBucket& vb, Manifest::ManifestChanges& changes) {
         auto wHandle = wlock();
         return applyCreates(wHandle, vb, changes);
@@ -341,7 +341,7 @@ public:
                         auto dcpData =
                                 Collections::VB::Manifest::getCreateEventData(
                                         {qi->getData(), qi->getNBytes()});
-                        replica.wlock().replicaAdd(
+                        replica.wlock().replicaCreate(
                                 vbR,
                                 dcpData.manifestUid,
                                 {dcpData.metaData.sid, dcpData.metaData.cid},
@@ -365,11 +365,12 @@ public:
                         auto dcpData = Collections::VB::Manifest::
                                 getCreateScopeEventData(
                                         {qi->getData(), qi->getNBytes()});
-                        replica.wlock().replicaAddScope(vbR,
-                                                        dcpData.manifestUid,
-                                                        dcpData.metaData.sid,
-                                                        dcpData.metaData.name,
-                                                        qi->getBySeqno());
+                        replica.wlock().replicaCreateScope(
+                                vbR,
+                                dcpData.manifestUid,
+                                dcpData.metaData.sid,
+                                dcpData.metaData.name,
+                                qi->getBySeqno());
                     }
                     break;
                 }
@@ -1012,7 +1013,7 @@ TEST_F(VBucketManifestTest, check_applyChanges) {
     auto value = manifest.getActiveManifest().public_applyCreates(
             manifest.getActiveVB(), changes);
     EXPECT_FALSE(value.has_value());
-    changes.collectionsToAdd.push_back(
+    changes.collectionsToCreate.push_back(
             {std::make_pair(0, 8), "name1", cb::NoExpiryLimit});
     value = manifest.getActiveManifest().public_applyCreates(
             manifest.getActiveVB(), changes);
@@ -1020,11 +1021,11 @@ TEST_F(VBucketManifestTest, check_applyChanges) {
     EXPECT_EQ(ScopeID(0), value.value().identifiers.first);
     EXPECT_EQ(8, value.value().identifiers.second);
     EXPECT_EQ("name1", value.value().name);
-    EXPECT_TRUE(changes.collectionsToAdd.empty());
+    EXPECT_TRUE(changes.collectionsToCreate.empty());
 
-    changes.collectionsToAdd.push_back(
+    changes.collectionsToCreate.push_back(
             {std::make_pair(0, 8), "name2", cb::NoExpiryLimit});
-    changes.collectionsToAdd.push_back(
+    changes.collectionsToCreate.push_back(
             {std::make_pair(0, 9), "name3", cb::NoExpiryLimit});
     EXPECT_EQ(1, manifest.getActiveManifest().size());
     value = manifest.getActiveManifest().public_applyCreates(
