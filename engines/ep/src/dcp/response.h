@@ -311,7 +311,8 @@ public:
     }
 
     uint32_t getMessageSize() const override {
-        return baseMsgBytes;
+        return baseMsgBytes +
+               (getStreamId() ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0);
     }
 
     static const uint32_t baseMsgBytes;
@@ -323,11 +324,8 @@ private:
 
 class SetVBucketState : public DcpResponse {
 public:
-    SetVBucketState(uint32_t opaque,
-                    Vbid vbucket,
-                    vbucket_state_t state,
-                    cb::mcbp::DcpStreamId sid)
-        : DcpResponse(Event::SetVbucket, opaque, sid),
+    SetVBucketState(uint32_t opaque, Vbid vbucket, vbucket_state_t state)
+        : DcpResponse(Event::SetVbucket, opaque, {/*no sid*/}),
           vbucket_(vbucket),
           state_(state) {
     }

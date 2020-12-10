@@ -503,10 +503,18 @@ TEST_F(CollectionsDcpStreamsTest, end_stream_for_state_change) {
     producer->closeStreamDueToVbStateChange(
             vbid, vbucket_state_replica, nullptr);
 
+    // And mutations
+    size_t endSize = sizeof(cb::mcbp::Request) +
+                     sizeof(cb::mcbp::request::DcpStreamEndPayload) +
+                     sizeof(cb::mcbp::DcpStreamIdFrameInfo);
+
     stepAndExpect(cb::mcbp::ClientOpcode::DcpStreamEnd);
     EXPECT_EQ(cb::mcbp::DcpStreamId(1984), producers->last_stream_id);
+    EXPECT_EQ(endSize, producer->getBytesOutstanding());
+
     stepAndExpect(cb::mcbp::ClientOpcode::DcpStreamEnd);
     EXPECT_EQ(cb::mcbp::DcpStreamId(42), producers->last_stream_id);
+    EXPECT_EQ(endSize * 2, producer->getBytesOutstanding());
 }
 
 // Core test method for close with a stream ID.

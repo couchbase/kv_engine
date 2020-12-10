@@ -1510,6 +1510,12 @@ BinprotDcpStreamRequestCommand& BinprotDcpStreamRequestCommand::setValue(
     return *this;
 }
 
+BinprotDcpStreamRequestCommand& BinprotDcpStreamRequestCommand::setValue(
+        std::string_view value) {
+    BinprotDcpStreamRequestCommand::value = value;
+    return *this;
+}
+
 void BinprotSetParamCommand::encode(std::vector<uint8_t>& buf) const {
     writeHeader(buf, value.size(), 4);
     cb::mcbp::request::SetParamPayload payload;

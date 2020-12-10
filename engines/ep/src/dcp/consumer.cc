@@ -816,8 +816,7 @@ ENGINE_ERROR_CODE DcpConsumer::setVBucketState(uint32_t opaque,
     lastMessageTime = ep_current_time();
     UpdateFlowControl ufc(*this, SetVBucketState::baseMsgBytes);
 
-    auto msg = std::make_unique<SetVBucketState>(
-            opaque, vbucket, state, cb::mcbp::DcpStreamId{});
+    auto msg = std::make_unique<SetVBucketState>(opaque, vbucket, state);
     return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }
 

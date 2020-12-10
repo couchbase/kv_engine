@@ -762,7 +762,7 @@ std::unique_ptr<DcpResponse> ActiveStream::takeoverSendPhase() {
         if (producer->bufferLogInsert(SetVBucketState::baseMsgBytes)) {
             transitionState(StreamState::TakeoverWait);
             return std::make_unique<SetVBucketState>(
-                    opaque_, vb_, takeoverState, sid);
+                    opaque_, vb_, takeoverState);
         }
     }
     return nullptr;

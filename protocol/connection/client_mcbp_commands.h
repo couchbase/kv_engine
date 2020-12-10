@@ -870,6 +870,8 @@ public:
 
     BinprotDcpStreamRequestCommand& setValue(const nlohmann::json& value);
 
+    BinprotDcpStreamRequestCommand& setValue(std::string_view value);
+
     void encode(std::vector<uint8_t>& buf) const override;
 
 private:
