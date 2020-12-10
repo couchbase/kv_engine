@@ -207,7 +207,11 @@ Checkpoint::Checkpoint(
       highCompletedSeqno(std::move(highCompletedSeqno)),
       memOverheadChangedCallback(memOverheadChangedCallback) {
     stats.coreLocal.get()->memOverhead.fetch_add(sizeof(Checkpoint));
-    memOverheadChangedCallback(sizeof(Checkpoint));
+    // the memOverheadChangedCallback uses the accurately tracked overhead
+    // from trackingAllocator. The above memOverhead stat is "manually"
+    // accounted in queueDirty, and approximates the overhead based on
+    // key sizes and the size of queued_item and index_entry.
+    memOverheadChangedCallback(getMemoryOverhead());
 }
 
 Checkpoint::~Checkpoint() {
@@ -220,9 +224,9 @@ Checkpoint::~Checkpoint() {
      * of queued_items in the checkpoint.
      */
     auto queueMemOverhead = sizeof(queued_item) * toWrite.size();
-    auto overhead = sizeof(Checkpoint) + keyIndexMemUsage + queueMemOverhead;
-    stats.coreLocal.get()->memOverhead.fetch_sub(overhead);
-    memOverheadChangedCallback(-ssize_t(overhead));
+    stats.coreLocal.get()->memOverhead.fetch_sub(
+            sizeof(Checkpoint) + keyIndexMemUsage + queueMemOverhead);
+    memOverheadChangedCallback(-getMemoryOverhead());
 }
 
 QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
@@ -235,6 +239,14 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
     }
 
     QueueDirtyStatus rv;
+    // trigger the memOverheadChangedCallback if the overhead is different
+    // when this helper is destroyed
+    auto overheadCheck = gsl::finally([pre = getMemoryOverhead(), this]() {
+        auto post = getMemoryOverhead();
+        if (pre != post) {
+            memOverheadChangedCallback(post - pre);
+        }
+    });
 
     // Check if the item is a meta item
     if (qi->isCheckPointMetaItem()) {
@@ -393,9 +405,8 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
              * item to the queue (toWrite).  This is approximated to the
              * addition to metaKeyIndex / keyIndex plus sizeof(queued_item).
              */
-            auto overhead = indexKeyUsage + sizeof(queued_item);
-            stats.coreLocal.get()->memOverhead.fetch_add(overhead);
-            memOverheadChangedCallback(overhead);
+            stats.coreLocal.get()->memOverhead.fetch_add(indexKeyUsage +
+                                                         sizeof(queued_item));
             /**
              *  Update the total metaKeyIndex / keyIndex memory usage which is
              *  used when the checkpoint is destructed to manually account

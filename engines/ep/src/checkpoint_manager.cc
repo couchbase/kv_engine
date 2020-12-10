@@ -572,6 +572,15 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
 
 CheckpointManager::ExpelResult
 CheckpointManager::expelUnreferencedCheckpointItems() {
+    // trigger the overheadChangedCallback if the overhead is different
+    // when this helper is destroyed - which occurs _after_ the destruction
+    // of expelledItems (declared below)
+    auto overheadCheck = gsl::finally([pre = getMemoryOverhead(), this]() {
+        auto post = getMemoryOverhead();
+        if (pre != post) {
+            overheadChangedCallback(post - pre);
+        }
+    });
     CheckpointQueue expelledItems;
     {
         LockHolder lh(queueLock);
