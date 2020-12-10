@@ -60,9 +60,17 @@ sequences = {
           'couchbase/mad-hatter'),
          ('couchbase/mad-hatter',
           'couchbase/master')],
-        # kv_engine 6.5.0 specific branch
+        # kv_engine 6.5.x release train; merging into 6.6.x ('mad-hatter') branch
         [('couchbase/6.5.0',
-          'couchbase/mad-hatter')]],
+          'couchbase/6.5.1'),
+         ('couchbase/6.5.1',
+          'couchbase/6.5.2'),
+         ('couchbase/6.5.2',
+          'couchbase/mad-hatter')],
+        # kv_engine 6.6.x release train.
+        [('couchbase/6.6.0',
+          'couchbase/mad-hatter')]
+    ],
 
     'platform': [
         [('couchbase/spock', 'couchbase/vulcan'),
