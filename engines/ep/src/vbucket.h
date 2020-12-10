@@ -449,6 +449,16 @@ public:
     void processResolvedSyncWrites();
 
     /**
+     * Update any stats which depend upon the current vb state, immediately
+     * before the vbucket changes state.
+     * @param from old vbucket state
+     * @param to new vbucket state
+     */
+    virtual void updateStatsForStateChange(vbucket_state_t from,
+                                           vbucket_state_t to) {
+    }
+
+    /**
      * This method performs operations on the stored value prior
      * to expiring the item.
      *

@@ -293,6 +293,18 @@ public:
          */
         void epilogue(StoredValueProperties pre, const StoredValue* post);
 
+        /**
+         * Sets the callback to be invoked whenever prologue() or epilogue() are
+         * called.
+         */
+        void setMemChangedCallback(std::function<void(int64_t delta)> callback);
+
+        /**
+         * Gets the callback which is invoked whenever prologue() or epilogue()
+         * are called.
+         */
+        const std::function<void(int64_t delta)>& getMemChangedCallback() const;
+
         /// Reset the values of all statistics to zero.
         void reset();
 
@@ -322,6 +334,14 @@ public:
         struct CacheLocalStatistics;
 
         LastLevelCacheStore<CacheLocalStatistics> llcLocal;
+
+        /**
+         * Used to hold the function to invoke whenever Statistics::epilogue is
+         * called. This allows an object to listen on changes to HashTable
+         * Statistics - for example to accumulate counts across multiple
+         * vBuckets.
+         */
+        std::function<void(int64_t delta)> memChangedCallback{[](int64_t) {}};
 
         EPStats& epStats;
     };
@@ -454,6 +474,23 @@ public:
      */
     void setFreqSaturatedCallback(std::function<void()> callbackFunction) {
         frequencyCounterSaturated = callbackFunction;
+    }
+
+    /**
+     * Sets the callback to be invoked whenever HashTable::Statistics::prologue
+     * or HashTable::Statistics::epilogue are called. This allows changes in
+     * HashTable Statistics to be monitored.
+     */
+    void setMemChangedCallback(std::function<void(int64_t delta)> callback) {
+        valueStats.setMemChangedCallback(std::move(callback));
+    }
+
+    /**
+     * Gets the callback invoked whenever HashTable::Statistics::prologue
+     * or HashTable::Statistics::epilogue are called.
+     */
+    const std::function<void(int64_t delta)>& getMemChangedCallback() const {
+        return valueStats.getMemChangedCallback();
     }
 
     /**

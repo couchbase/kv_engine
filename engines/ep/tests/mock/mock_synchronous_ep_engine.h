@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <checkpoint_config.h>
 #include <dcp/dcpconnmap.h>
 #include <ep_engine.h>
 
@@ -97,4 +98,10 @@ public:
     using EventuallyPersistentEngine::doConnAggStats;
     using EventuallyPersistentEngine::doEngineStats;
     MockReplicationThrottle& getMockReplicationThrottle();
+
+    // re-create the checkpoint config from the engine config.
+    // For use after altering the engine config.
+    void updateCheckpointConfig() {
+        *checkpointConfig = CheckpointConfig(*this);
+    }
 };

@@ -528,10 +528,32 @@ public:
     bool isMemUsageAboveBackfillThreshold() override;
 
     /**
+     * @return The current pageable memory usage of the Bucket. This is the
+     * amount of bytes which could _potentially_ be paged out (made available)
+     * by the ItemPager.
+     * Note: This *isn't* necessarily the same as mem_used - for example an
+     * Ephemeral bucket can only page out (auto-delete) non-replica items so
+     * this is a measure of active memory there.
+     */
+    virtual size_t getPageableMemCurrent() const = 0;
+
+    /**
+     * @return The pageable memory high watermark of the Bucket. this is the
+     * threshold of pageable memory that the ItemPager will be run to attempt
+     * to reduce memory usage.
+     */
+    virtual size_t getPageableMemHighWatermark() const = 0;
+
+    /**
+     * @return The pageable memory low watermark of the Bucket. this is the
+     * amount of bytes the ItemPager will attempt to reduce pagable memory
+     * usage to when it has exceeded the pageable high watermark.
+     */
+    virtual size_t getPageableMemLowWatermark() const = 0;
+
+    /**
      * Check the status of memory used and maybe begin to free memory if
      * required.
-     *
-     * This checks if the bucket's mem_used has exceeded the high water mark.
      */
     void checkAndMaybeFreeMemory();
 

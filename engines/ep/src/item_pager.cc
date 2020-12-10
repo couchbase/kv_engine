@@ -100,9 +100,9 @@ bool ItemPager::run() {
     notified.store(false);
 
     KVBucket* kvBucket = engine.getKVBucket();
-    auto current = static_cast<double>(stats.getEstimatedTotalMemoryUsed());
-    auto upper = static_cast<double>(stats.mem_high_wat);
-    auto lower = static_cast<double>(stats.mem_low_wat);
+    auto current = engine.getKVBucket()->getPageableMemCurrent();
+    auto upper = engine.getKVBucket()->getPageableMemHighWatermark();
+    auto lower = engine.getKVBucket()->getPageableMemLowWatermark();
 
     if (current <= lower) {
         doEvict = false;

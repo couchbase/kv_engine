@@ -64,6 +64,10 @@ public:
         return ENGINE_KEY_ENOENT;
     }
 
+    size_t getPageableMemCurrent() const override;
+    size_t getPageableMemHighWatermark() const override;
+    size_t getPageableMemLowWatermark() const override;
+
     void attemptToFreeMemory() override;
 
     /**

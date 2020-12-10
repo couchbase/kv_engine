@@ -3080,6 +3080,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(
                     add_stat,
                     cookie);
 
+    add_casted_stat(
+            "ht_mem_used_replica", stats.replicaHTMemory, add_stat, cookie);
+
+    add_casted_stat("replica_checkpoint_memory_overhead",
+                    stats.replicaCheckpointOverhead,
+                    add_stat,
+                    cookie);
+
     add_casted_stat("ep_kv_size", stats.getCurrentSize(), add_stat, cookie);
     add_casted_stat(
             "ep_value_size", stats.getTotalValueSize(), add_stat, cookie);

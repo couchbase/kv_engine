@@ -395,6 +395,10 @@ std::string to_string(QueueDirtyStatus value);
  * if the cursor is pointing to a meta-item the position to expel from is moved
  * backwards until either a mutation item or the dummy item is reached.
  *
+ * Checkpoints call the provided memOverheadChangedCallback on any action that
+ * changes the memory overhead of the checkpoint - that is, the memory required
+ * _beyond_ that of the Items the Checkpoint holds. This occurs at
+ * creation/destruction or when queuing new items.
  */
 class Checkpoint {
 public:
@@ -405,7 +409,9 @@ public:
                uint64_t visibleSnapEnd,
                std::optional<uint64_t> highCompletedSeqno,
                Vbid vbid,
-               CheckpointType checkpointType);
+               CheckpointType checkpointType,
+               const std::function<void(int64_t delta)>&
+                       memOverheadChangedCallback);
 
     ~Checkpoint();
 
@@ -771,6 +777,9 @@ private:
     // and allows the flusher to get the max value irrespective of
     // de-duplication.
     std::optional<uint64_t> maxDeletedRevSeqno;
+
+    // Reference to callback owned by checkpoint manager for stat tracking
+    const std::function<void(int64_t delta)>& memOverheadChangedCallback;
 
     friend std::ostream& operator <<(std::ostream& os, const Checkpoint& m);
 };
