@@ -367,8 +367,8 @@ void SingleThreadedKVBucketTest::scheduleAndRunCollectionsEraser(Vbid id) {
         // 2 tasks to run to complete a purge
         // EphTombstoneHTCleaner
         // EphTombstoneStaleItemDeleter
-        runNextTask(lpAuxioQ);
-        runNextTask(lpAuxioQ);
+        runNextTask(lpAuxioQ, "Eph tombstone hashtable cleaner");
+        runNextTask(lpAuxioQ, "Eph tombstone stale item deleter");
     }
 }
 

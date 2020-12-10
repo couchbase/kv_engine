@@ -341,9 +341,8 @@ ScopeID getScopeIDFromKey(const DocKey& key);
  *
  * @param DocKey the key of the item we should process
  * @param int64_t the seqno of the item
- * @param bool whether or not the item is a prepare (true if prepare)
  */
-using IsDroppedEphemeralCb = std::function<bool(const DocKey&, int64_t, bool)>;
+using IsDroppedEphemeralCb = std::function<bool(const DocKey&, int64_t)>;
 
 /**
  * A function for determining if a collection is visible

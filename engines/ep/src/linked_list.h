@@ -116,7 +116,7 @@ public:
     size_t purgeTombstones(
             seqno_t purgeUpToSeqno,
             Collections::IsDroppedEphemeralCb isDroppedKeyCb =
-                    [](const DocKey, int64_t, bool) { return false; },
+                    [](const DocKey, int64_t) { return false; },
             std::function<bool()> shouldPause =
                     []() { return false; }) override;
 

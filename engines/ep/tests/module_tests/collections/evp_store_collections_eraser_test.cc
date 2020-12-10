@@ -1330,6 +1330,41 @@ TEST_P(CollectionsEraserSyncWriteTest, ResurrectionTestDontAbortOldPrepare) {
     }
 }
 
+TEST_P(CollectionsEraserSyncWriteTest, ErasePendingPrepare) {
+    auto& vb = *store->getVBucket(vbid);
+    auto& ht = vb.ht;
+    ASSERT_EQ(0, ht.getNumItems());
+    auto& dm = vb.getDurabilityMonitor();
+    ASSERT_EQ(0, dm.getNumTracked());
+
+    // Note: All operations against the same collection
+    addCollection();
+    createPendingWrite();
+    dropCollection();
+
+    EXPECT_EQ(3, vb.getHighSeqno());
+
+    // Prepare still in HT and DM
+    {
+        auto res = ht.findForUpdate(key);
+        ASSERT_TRUE(res.pending);
+        ASSERT_EQ(CommittedState::Pending, res.pending->getCommitted());
+        EXPECT_EQ(2, res.pending->getBySeqno());
+        ASSERT_FALSE(res.committed);
+    }
+    ASSERT_EQ(1, dm.getNumTracked());
+
+    scheduleAndRunCollectionsEraser(vbid);
+
+    // Prepare removed from HT and DM
+    {
+        auto res = ht.findForUpdate(key);
+        ASSERT_FALSE(res.pending);
+        ASSERT_FALSE(res.committed);
+    }
+    ASSERT_EQ(0, dm.getNumTracked());
+}
+
 class CollectionsEraserPersistentOnly : public CollectionsEraserTest {
 public:
     void testEmptyCollections(bool flushInTheMiddle);
