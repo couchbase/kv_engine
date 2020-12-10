@@ -173,18 +173,10 @@ The *ssl* object contains the two *mandatory* attributes:
 be modified by instructing memcached to reread the configuration
 file.
 
-=== extensions
-
-The *extensions* attribute is deprecated and no longer in use
-
 === stdin_listener
 
 The *stdin_listener* attribute is a boolean attribute set to true
 if the standard input listener should be used or not.
-
-=== engine
-
-The *engine* parameter is no longer used and ignored.
 
 === default_reqs_per_event
 
