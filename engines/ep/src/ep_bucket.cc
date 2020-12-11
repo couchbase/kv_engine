@@ -732,8 +732,6 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
         // again because of the optimization at
         // vbucket_state::needsToBePersisted().
         if (!rwUnderlying->snapshotVBucket(vbid, commitData.proposedVBState)) {
-            // @todo: MB-36773, vbstate update is not retried
-
             // Flush failed, we need to reset the pcursor to the original
             // position. At the next run the flusher will re-attempt by
             // retrieving all the items from the disk queue again.
