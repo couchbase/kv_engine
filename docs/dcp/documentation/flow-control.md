@@ -60,7 +60,7 @@ The Producer will not specifically request [Buffer Acknowledgement](commands/buf
 
 ### Large items
 
-Couchbase allows a maximum data size of 20MB which means a client must be ready to receive an item of this size. Consumers will rarely want to keep stream buffers of this size since this would mean the application would need to reserve 20MB * 1024 Vbuckets or 20GB of buffer space if they stream all VBuckets. In order to deal with this issue Consumers must be aware that their code will need to be able to handle recieving items that will overflow their buffers. The Producer will continue to send items as long as there is any space available in the Consumers buffer no matter what the size of the item.
+Couchbase allows a maximum data size of 20MB which means a client must be ready to receive an item of this size. Consumers will rarely want to keep stream buffers of this size since this would mean the application would need to reserve 20MB * 1024 Vbuckets or 20GB of buffer space if they stream all VBuckets. In order to deal with this issue Consumers must be aware that their code will need to be able to handle receiving items that will overflow their buffers. The Producer will continue to send items as long as there is any space available in the Consumers buffer no matter what the size of the item.
 
 ### Setting 0 Buffer Size
 
@@ -68,7 +68,11 @@ Setting the buffer size for a stream to zero is a special case for flow control.
 
 ### Buffering Messages
 
-Only Mutation, Deletion, Expiration, Snapshot Markers, OSO Snapshot Markers, Set VBucket State, and Stream End messages should be buffered. All other messages should be processed immediately and should not be counted as taking up buffer space. This is important because DCP connections should always be able to process [No-op](commands/no-op.md) messages quickly. Other messages like [Control](commands/control.md) messages do not take up significant memory space and can be applied immediatley without having to take up buffer space.
+Certain messages should be buffered and [acknowledged](commands/buffer-ack.md). All other messages can be processed immediately and should not be counted as taking up buffer space. This is important because DCP connections should always be able to process [No-op](commands/no-op.md) messages quickly. Other messages like [Control](commands/control.md) messages do not take up significant memory space and can be applied immediately without having to take up buffer space.
+
+### What messages must be acknowledged by DCP clients?
+
+Every DCP [request](../../BinaryProtocol.md#magic-byte) message the server sends except for [no-op](commands/no-op.md) requires [acknowledgement](commands/buffer-ack.md).
 
 ## Flow control policies in DCP Consumer (replica connection) on Couchbase Data Nodes
 There are 4 different types are of flow control policies that are supported by DCP consumers on couchbase data nodes. They are **(1) none (2) static (3) dynamic (4) aggressive**. One of these policies can be chosen by setting it in the configuration file.  The DCP consumers on couchbase data nodes are created for data replication from active to replica vbuckets.
