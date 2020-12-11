@@ -33,6 +33,7 @@
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/dcpconnmap.h"
 #include "ep_bucket.h"
+#include "ep_time.h"
 #include "flusher.h"
 #include "item_eviction.h"
 #include "kvstore.h"
@@ -1634,6 +1635,52 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
     EXPECT_FALSE(mockEPBucket->getCompactionTask(vbid));
 }
 
+class EPBucketTestCouchstore : public EPBucketTest {
+public:
+    void SetUp() override {
+        EPBucketTest::SetUp();
+    }
+    void TearDown() override {
+        EPBucketTest::TearDown();
+    }
+};
+
+// Relates to MB-43242 where we need to be sure we can trigger compaction
+// with arbitrary settings. This test is only functional with couchstore
+TEST_P(EPBucketTestCouchstore, CompactionWithPurgeOptions) {
+    storeAndDeleteItem(vbid, makeStoredDocKey("key1"), "value");
+    storeAndDeleteItem(vbid, makeStoredDocKey("key2"), "value");
+    flush_vbucket_to_disk(vbid, 0);
+    std::array<CompactionConfig, 3> configs;
+
+    auto vb = store->getVBucket(vbid);
+
+    // purge_before_seq only takes affect if purge_before_ts is set
+    configs[0].purge_before_seq = vb->getHighSeqno();
+    configs[0].purge_before_ts = ep_real_time() + 86400; // now + 1 day
+
+    configs[1].purge_before_ts = ep_real_time() + 86400; // now + 1 day
+
+    configs[2].drop_deletes = true;
+
+    int ii = 0;
+    for (const auto& c : configs) {
+        EXPECT_EQ(2, vb->getNumPersistedDeletes());
+        engine->compactDB(vbid, c, cookie);
+        auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
+        auto task = mockEPBucket->getCompactionTask(vbid);
+        ASSERT_TRUE(task);
+        EXPECT_FALSE(task->run());
+        // Expect 1 to remain as compaction cannot purge the high-seqno
+        EXPECT_EQ(1, vb->getNumPersistedDeletes());
+
+        // Store/delete a new key ready for next test
+        storeAndDeleteItem(
+                vbid, makeStoredDocKey(std::to_string(ii++)), "value");
+        flush_vbucket_to_disk(vbid, 0);
+    }
+}
+
 struct PrintToStringCombinedName {
     std::string
     operator()(const ::testing::TestParamInfo<
@@ -1679,4 +1726,9 @@ INSTANTIATE_TEST_SUITE_P(
 INSTANTIATE_TEST_SUITE_P(EPBucketTestNoRocksDb,
                          EPBucketTestNoRocksDb,
                          STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(EPBucketTestCouchstore,
+                         EPBucketTestCouchstore,
+                         STParameterizedBucketTest::couchstoreConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
