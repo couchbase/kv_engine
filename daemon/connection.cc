@@ -971,7 +971,6 @@ void Connection::chainDataToOutputStream(std::unique_ptr<SendBuffer> buffer) {
 Connection::Connection(FrontEndThread& thr)
     : socketDescriptor(INVALID_SOCKET),
       connectedToSystemPort(false),
-      base(nullptr),
       thread(thr),
       peername(R"({"ip":"unknown","port":0})"),
       sockname(R"({"ip":"unknown","port":0})"),
@@ -985,12 +984,10 @@ Connection::Connection(FrontEndThread& thr)
 }
 
 Connection::Connection(SOCKET sfd,
-                       event_base* b,
                        const ListeningPort& ifc,
                        FrontEndThread& thr)
     : socketDescriptor(sfd),
       connectedToSystemPort(ifc.system),
-      base(b),
       thread(thr),
       parent_port(ifc.port),
       peername(cb::net::getPeerNameAsJson(socketDescriptor).dump()),
@@ -1007,7 +1004,7 @@ Connection::Connection(SOCKET sfd,
                          BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS;
     if (ssl) {
         bev.reset(bufferevent_openssl_socket_new(
-                base,
+                thr.base,
                 sfd,
                 createSslStructure(ifc).release(),
                 BUFFEREVENT_SSL_ACCEPTING,
@@ -1018,7 +1015,7 @@ Connection::Connection(SOCKET sfd,
                           Connection::event_callback,
                           static_cast<void*>(this));
     } else {
-        bev.reset(bufferevent_socket_new(base, sfd, options));
+        bev.reset(bufferevent_socket_new(thr.base, sfd, options));
         bufferevent_setcb(bev.get(),
                           Connection::rw_callback,
                           Connection::rw_callback,

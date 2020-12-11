@@ -71,7 +71,6 @@ public:
     Connection(const Connection&) = delete;
 
     Connection(SOCKET sfd,
-               event_base* b,
                const ListeningPort& ifc,
                FrontEndThread& thr);
 
@@ -825,11 +824,6 @@ protected:
     // The number of times we've been backing off and yielding
     // to allow other threads to run
     cb::RelaxedAtomic<uint64_t> yields;
-
-    /**
-     * The event base this connection is bound to
-     */
-    event_base *base;
 
     /**
      * The current privilege context

@@ -32,13 +32,11 @@ class Bucket;
  *
  * @param sfd the socket descriptor
  * @param interface the interface description for the connection
- * @param base the event base to bind the client to
  * @param thread the libevent thread object to bind the client to
  * @return a connection object on success, nullptr otherwise
  */
 Connection* conn_new(SOCKET sfd,
                      const ListeningPort& interface,
-                     struct event_base* base,
                      FrontEndThread& thread);
 
 /**

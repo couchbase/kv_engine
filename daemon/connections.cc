@@ -63,13 +63,12 @@ void iterate_thread_connections(FrontEndThread* thread,
 
 Connection* conn_new(SOCKET sfd,
                      const ListeningPort& interface,
-                     struct event_base* base,
                      FrontEndThread& thread) {
     std::unique_ptr<Connection> ret;
     Connection* c = nullptr;
 
     try {
-        ret = std::make_unique<Connection>(sfd, base, interface, thread);
+        ret = std::make_unique<Connection>(sfd, interface, thread);
         getConnections().wlock()->push_back(ret.get());
         c = ret.release();
         stats.total_conns++;

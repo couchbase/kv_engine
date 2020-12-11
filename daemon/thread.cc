@@ -217,7 +217,7 @@ static void dispatch_new_connections(FrontEndThread& me) {
     me.new_conn_queue.swap(connections);
 
     for (const auto& entry : connections) {
-        if (conn_new(entry.first, *entry.second, me.base, me) == nullptr) {
+        if (conn_new(entry.first, *entry.second, me) == nullptr) {
             if (entry.second->system) {
                 --stats.system_conns;
             }
