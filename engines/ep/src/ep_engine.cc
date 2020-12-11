@@ -3971,7 +3971,6 @@ void EventuallyPersistentEngine::doTimingStats(
 
     // Misc
     collector.addStat(Key::notify_io, stats.notifyIOHisto);
-    collector.addStat(Key::batch_read, stats.getMultiHisto);
 
     // Disk stats
     collector.addStat(Key::disk_insert, stats.diskInsertHisto);

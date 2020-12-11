@@ -320,7 +320,6 @@ void EPStats::reset() {
     itemAllocSizeHisto.reset();
     getMultiBatchSizeHisto.reset();
     dirtyAgeHisto.reset();
-    getMultiHisto.reset();
     persistenceCursorGetItemsHisto.reset();
     dcpCursorsGetItemsHisto.reset();
 
@@ -364,7 +363,7 @@ size_t EPStats::getMemFootPrint() const {
            diskCommitHisto.getMemFootPrint() +
            itemAllocSizeHisto.getMemFootPrint() +
            getMultiBatchSizeHisto.getMemFootPrint() +
-           dirtyAgeHisto.getMemFootPrint() + getMultiHisto.getMemFootPrint() +
+           dirtyAgeHisto.getMemFootPrint() +
            persistenceCursorGetItemsHisto.getMemFootPrint() +
            dcpCursorsGetItemsHisto.getMemFootPrint() +
            activeOrPendingFrequencyValuesEvictedHisto.getMemFootPrint() +

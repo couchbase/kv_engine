@@ -579,9 +579,6 @@ public:
     //! Histogram of disk commits
     Hdr1sfMicroSecHistogram diskCommitHisto;
 
-    //! Historgram of batch reads
-    Hdr1sfMicroSecHistogram getMultiHisto;
-
     // ! Histograms of various task wait times, one per Task.
     std::vector<Hdr1sfMicroSecHistogram> schedulingHisto;
 

@@ -296,7 +296,6 @@ STAT(chk_persistence_cmd,
      cmd_time_taken,
      LABEL(op, chk_persistence))
 STAT(notify_io, , microseconds, , )
-STAT(batch_read, , microseconds, , )
 STAT(disk_insert, , microseconds, disk, LABEL(op, insert))
 STAT(disk_update, , microseconds, disk, LABEL(op, update))
 STAT(disk_del, , microseconds, disk, LABEL(op, del))
