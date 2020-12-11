@@ -17,6 +17,7 @@
 
 #include "server_socket.h"
 
+#include "front_end_thread.h"
 #include "listening_port.h"
 #include "memcached.h"
 #include "network_interface.h"
@@ -129,6 +130,11 @@ void ServerSocket::acceptNewClient() {
     }
 
     stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
+    if (cb::net::set_socket_noblocking(client) == -1) {
+        LOG_WARNING("Failed to make socket non-blocking. closing it");
+        safe_close(client);
+        return;
+    }
 
     // Check if we're exceeding the connection limits
     size_t current;
@@ -162,13 +168,33 @@ void ServerSocket::acceptNewClient() {
         return;
     }
 
-    if (cb::net::set_socket_noblocking(client) == -1) {
-        LOG_WARNING("Failed to make socket non-blocking. closing it");
+    uniqueSslPtr ssl;
+    bool failed = false;
+    if (interface->isSslPort()) {
+        try {
+            ssl = createSslStructure(*interface);
+            if (!ssl) {
+                failed = true;
+            }
+        } catch (const std::exception&) {
+            failed = true;
+        }
+    }
+
+    if (failed) {
+        LOG_WARNING(
+                "{} Failed to create OpenSSL SSL structure, "
+                "closing connection",
+                client);
+        if (interface->system) {
+            --stats.system_conns;
+        }
         safe_close(client);
         return;
     }
 
-    dispatch_conn_new(client, interface);
+    FrontEndThread::dispatch(
+            client, interface->system, interface->port, std::move(ssl));
 }
 
 nlohmann::json ServerSocket::toJson() const {

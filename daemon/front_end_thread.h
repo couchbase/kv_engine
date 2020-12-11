@@ -17,14 +17,15 @@
 
 #pragma once
 
+#include "ssl_utils.h"
 #include <JSON_checker.h>
 #include <event.h>
+#include <folly/Synchronized.h>
 #include <memcached/engine_error.h>
 #include <platform/platform_thread.h>
 #include <platform/sized_buffer.h>
 #include <platform/socket.h>
 #include <subdoc/operations.h>
-
 #include <array>
 #include <atomic>
 #include <memory>
@@ -37,8 +38,6 @@ class Cookie;
 class Connection;
 class ListeningPort;
 struct thread_stats;
-
-using SharedListeningPort = std::shared_ptr<ListeningPort>;
 
 struct FrontEndThread {
     /**
@@ -75,22 +74,19 @@ struct FrontEndThread {
     std::array<SOCKET, 2> notify = {{INVALID_SOCKET, INVALID_SOCKET}};
 
     /**
-     * The dispatcher accepts new clients and needs to dispatch them
-     * to the worker threads. In order to do so we use the ConnectionQueue
-     * where the dispatcher allocates the items and push on to the queue,
-     * and the actual worker thread pop's the items off and start
-     * serving them.
+     * Dispatches a new connection to the worker thread by using round
+     * robin.
+     *
+     * @param sfd the socket to use
+     * @param system is this a system connection or not
+     * @param port the port number the socket is bound to
+     * @param ssl the OpenSSL SSL structure to use (if this is a connection
+     *            using SSL)
      */
-    class ConnectionQueue {
-    public:
-        ~ConnectionQueue();
-        void push(SOCKET socket, SharedListeningPort interface);
-        void swap(std::vector<std::pair<SOCKET, SharedListeningPort>>& other);
-
-    protected:
-        std::mutex mutex;
-        std::vector<std::pair<SOCKET, SharedListeningPort>> connections;
-    } new_conn_queue;
+    static void dispatch(SOCKET sfd,
+                         bool system,
+                         in_port_t port,
+                         uniqueSslPtr ssl);
 
     /// Mutex to lock protect access to this object.
     std::mutex mutex;
@@ -149,6 +145,38 @@ struct FrontEndThread {
     /// so that we only log every 5 second (so that we can find the root cause
     /// of the problem)
     time_t shutdown_next_log = 0;
+
+    static void libevent_callback(evutil_socket_t fd, short, void* arg);
+
+protected:
+    void libevent_callback();
+    void dispatch_new_connections();
+
+    /**
+     * The dispatcher accepts new clients and needs to dispatch them
+     * to the worker threads. In order to do so we use the ConnectionQueue
+     * where the dispatcher allocates the items and push on to the queue,
+     * and the actual worker thread pop's the items off and start
+     * serving them.
+     */
+    class ConnectionQueue {
+    public:
+        struct Entry {
+            Entry(SOCKET sock, bool system, in_port_t port, uniqueSslPtr ssl)
+                : sock(sock), system(system), port(port), ssl(std::move(ssl)) {
+            }
+            SOCKET sock;
+            bool system;
+            in_port_t port;
+            uniqueSslPtr ssl;
+        };
+        ~ConnectionQueue();
+        void push(SOCKET sock, bool system, in_port_t port, uniqueSslPtr ssl);
+        void swap(std::vector<Entry>& other);
+
+    protected:
+        folly::Synchronized<std::vector<Entry>, std::mutex> connections;
+    } new_conn_queue;
 };
 
 void notify_thread(FrontEndThread& thread);

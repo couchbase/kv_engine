@@ -60,9 +60,6 @@ void threads_cleanup();
  */
 bool create_nonblocking_socketpair(std::array<SOCKET, 2>& sockets);
 
-class ListeningPort;
-void dispatch_conn_new(SOCKET sfd, std::shared_ptr<ListeningPort>& interface);
-
 void threadlocal_stats_reset(std::vector<thread_stats>& thread_stats);
 
 void notify_io_complete(gsl::not_null<const void*> cookie,

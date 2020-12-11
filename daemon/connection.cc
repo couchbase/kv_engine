@@ -984,17 +984,19 @@ Connection::Connection(FrontEndThread& thr)
 }
 
 Connection::Connection(SOCKET sfd,
-                       const ListeningPort& ifc,
-                       FrontEndThread& thr)
+                       FrontEndThread& thr,
+                       bool system,
+                       in_port_t parent_port,
+                       uniqueSslPtr sslStructure)
     : socketDescriptor(sfd),
-      connectedToSystemPort(ifc.system),
+      connectedToSystemPort(system),
       thread(thr),
-      parent_port(ifc.port),
+      parent_port(parent_port),
       peername(cb::net::getPeerNameAsJson(socketDescriptor).dump()),
       sockname(cb::net::getSockNameAsJson(socketDescriptor).dump()),
       max_reqs_per_event(Settings::instance().getRequestsPerEventNotification(
               EventPriority::Default)),
-      ssl(ifc.isSslPort()) {
+      ssl(sslStructure) {
     setTcpNoDelay(true);
     updateDescription();
     cookies.emplace_back(std::make_unique<Cookie>(*this));
@@ -1003,12 +1005,11 @@ Connection::Connection(SOCKET sfd,
     const auto options = BEV_OPT_THREADSAFE | BEV_OPT_UNLOCK_CALLBACKS |
                          BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS;
     if (ssl) {
-        bev.reset(bufferevent_openssl_socket_new(
-                thr.base,
-                sfd,
-                createSslStructure(ifc).release(),
-                BUFFEREVENT_SSL_ACCEPTING,
-                options));
+        bev.reset(bufferevent_openssl_socket_new(thr.base,
+                                                 sfd,
+                                                 sslStructure.release(),
+                                                 BUFFEREVENT_SSL_ACCEPTING,
+                                                 options));
         bufferevent_setcb(bev.get(),
                           Connection::ssl_read_callback,
                           Connection::rw_callback,

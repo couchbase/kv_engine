@@ -32,21 +32,22 @@
 
 /* An item in the connection queue. */
 FrontEndThread::ConnectionQueue::~ConnectionQueue() {
-    for (const auto& entry : connections) {
-        safe_close(entry.first);
-    }
+    connections.withLock([](auto& c) {
+        for (auto& entry : c) {
+            safe_close(entry.sock);
+        }
+    });
 }
 
 void FrontEndThread::ConnectionQueue::push(SOCKET sock,
-                                           SharedListeningPort interface) {
-    std::lock_guard<std::mutex> guard(mutex);
-    connections.emplace_back(sock, interface);
+                                           bool system,
+                                           in_port_t port,
+                                           uniqueSslPtr ssl) {
+    connections.lock()->emplace_back(Entry{sock, system, port, std::move(ssl)});
 }
 
-void FrontEndThread::ConnectionQueue::swap(
-        std::vector<std::pair<SOCKET, SharedListeningPort>>& other) {
-    std::lock_guard<std::mutex> guard(mutex);
-    connections.swap(other);
+void FrontEndThread::ConnectionQueue::swap(std::vector<Entry>& other) {
+    connections.lock()->swap(other);
 }
 
 void FrontEndThread::NotificationList::push(Connection* c) {
@@ -88,8 +89,6 @@ std::vector<Hdr1sfMicroSecHistogram> scheduler_info;
 static size_t init_count = 0;
 static std::mutex init_mutex;
 static std::condition_variable init_cond;
-
-static void thread_libevent_process(evutil_socket_t, short, void*);
 
 /*
  * Creates a worker thread.
@@ -162,7 +161,7 @@ static void setup_thread(FrontEndThread& me) {
                       me.base,
                       me.notify[0],
                       EV_READ | EV_PERSIST,
-                      thread_libevent_process,
+                      FrontEndThread::libevent_callback,
                       &me) == -1) ||
         (event_add(&me.notify_event, nullptr) == -1)) {
         FATAL_ERROR(EXIT_FAILURE, "Can't monitor libevent notify pipe");
@@ -212,16 +211,20 @@ void drain_notification_channel(evutil_socket_t fd) {
     }
 }
 
-static void dispatch_new_connections(FrontEndThread& me) {
-    std::vector<std::pair<SOCKET, SharedListeningPort>> connections;
-    me.new_conn_queue.swap(connections);
+void FrontEndThread::dispatch_new_connections() {
+    std::vector<ConnectionQueue::Entry> connections;
+    new_conn_queue.swap(connections);
 
-    for (const auto& entry : connections) {
-        if (conn_new(entry.first, *entry.second, me) == nullptr) {
-            if (entry.second->system) {
+    for (auto& entry : connections) {
+        if (conn_new(entry.sock,
+                     *this,
+                     entry.system,
+                     entry.port,
+                     std::move(entry.ssl)) == nullptr) {
+            if (entry.system) {
                 --stats.system_conns;
             }
-            safe_close(entry.first);
+            safe_close(entry.sock);
         }
     }
 }
@@ -230,9 +233,7 @@ static void dispatch_new_connections(FrontEndThread& me) {
  * Processes an incoming "handle a new connection" item. This is called when
  * input arrives on the libevent wakeup pipe.
  */
-static void thread_libevent_process(evutil_socket_t fd, short, void* arg) {
-    auto& me = *reinterpret_cast<FrontEndThread*>(arg);
-
+void FrontEndThread::libevent_callback(evutil_socket_t fd, short, void* arg) {
     // Start by draining the notification channel before doing any work.
     // By doing so we know that we'll be notified again if someone
     // tries to notify us while we're doing the work below (so we don't have
@@ -240,29 +241,34 @@ static void thread_libevent_process(evutil_socket_t fd, short, void* arg) {
     // about.
     drain_notification_channel(fd);
 
+    auto& me = *reinterpret_cast<FrontEndThread*>(arg);
+    me.libevent_callback();
+}
+
+void FrontEndThread::libevent_callback() {
     if (is_memcached_shutting_down()) {
-        if (signal_idle_clients(me, false) == 0) {
-            LOG_INFO("Stopping worker thread {}", me.index);
-            event_base_loopbreak(me.base);
+        if (signal_idle_clients(*this, false) == 0) {
+            LOG_INFO("Stopping worker thread {}", index);
+            event_base_loopbreak(base);
             return;
         }
     }
 
-    dispatch_new_connections(me);
+    dispatch_new_connections();
 
     FrontEndThread::PendingIoMap pending;
     {
-        std::lock_guard<std::mutex> lock(me.pending_io.mutex);
-        me.pending_io.map.swap(pending);
+        std::lock_guard<std::mutex> lock(pending_io.mutex);
+        pending_io.map.swap(pending);
     }
 
-    TRACE_LOCKGUARD_TIMED(me.mutex,
+    TRACE_LOCKGUARD_TIMED(mutex,
                           "mutex",
                           "thread_libevent_process::threadLock",
                           SlowMutexThreshold);
 
-    std::vector<Connection*> notify;
-    me.notification.swap(notify);
+    std::vector<Connection*> toNotify;
+    notification.swap(toNotify);
 
     for (auto& io : pending) {
         auto* c = io.first;
@@ -277,9 +283,9 @@ static void thread_libevent_process(evutil_socket_t fd, short, void* arg) {
         // Remove from the notify list if it's there as we don't
         // want to run them twice
         {
-            auto iter = std::find(notify.begin(), notify.end(), c);
-            if (iter != notify.end()) {
-                notify.erase(iter);
+            auto iter = std::find(toNotify.begin(), toNotify.end(), c);
+            if (iter != toNotify.end()) {
+                toNotify.erase(iter);
             }
         }
 
@@ -287,7 +293,7 @@ static void thread_libevent_process(evutil_socket_t fd, short, void* arg) {
     }
 
     // Notify the connections we haven't notified yet
-    for (auto& c : notify) {
+    for (auto& c : toNotify) {
         c->triggerCallback();
     }
 
@@ -295,19 +301,19 @@ static void thread_libevent_process(evutil_socket_t fd, short, void* arg) {
         // Someone requested memcached to shut down. If we don't have
         // any connections bound to this thread we can just shut down
         time_t now = time(nullptr);
-        bool log = now > me.shutdown_next_log;
+        bool log = now > shutdown_next_log;
         if (log) {
-            me.shutdown_next_log = now + 5;
+            shutdown_next_log = now + 5;
         }
 
-        auto connected = signal_idle_clients(me, log);
+        auto connected = signal_idle_clients(*this, log);
         if (connected == 0) {
-            LOG_INFO("Stopping worker thread {}", me.index);
-            event_base_loopbreak(me.base);
+            LOG_INFO("Stopping worker thread {}", index);
+            event_base_loopbreak(base);
         } else if (log) {
             LOG_INFO("Waiting for {} connected clients on worker thread {}",
                      connected,
-                     me.index);
+                     index);
         }
     }
 }
@@ -328,32 +334,28 @@ void notify_io_complete(gsl::not_null<const void*> void_cookie,
     }
 }
 
-/* Which thread we assigned a connection to most recently. */
-static size_t last_thread = 0;
-
-/*
- * Dispatches a new connection to another thread. This is only ever called
- * from the main thread, or because of an incoming connection.
- */
-void dispatch_conn_new(SOCKET sfd, SharedListeningPort& interface) {
+void FrontEndThread::dispatch(SOCKET sfd,
+                              bool system,
+                              in_port_t port,
+                              uniqueSslPtr ssl) {
+    // Which thread we assigned a connection to most recently.
+    static std::atomic<size_t> last_thread = 0;
     size_t tid = (last_thread + 1) % Settings::instance().getNumWorkerThreads();
     auto& thread = threads[tid];
     last_thread = tid;
 
     try {
-        thread.new_conn_queue.push(sfd, interface);
+        thread.new_conn_queue.push(sfd, system, port, move(ssl));
+        notify_thread(thread);
     } catch (const std::bad_alloc& e) {
         LOG_WARNING("dispatch_conn_new: Failed to dispatch new connection: {}",
                     e.what());
 
-        if (interface->system) {
+        if (system) {
             --stats.system_conns;
         }
         safe_close(sfd);
-        return ;
     }
-
-    notify_thread(thread);
 }
 
 /******************************* GLOBAL STATS ******************************/

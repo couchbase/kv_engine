@@ -18,6 +18,7 @@
 
 #include "datatype_filter.h"
 #include "sendbuffer.h"
+#include "ssl_utils.h"
 #include "stats.h"
 #include "task.h"
 
@@ -71,8 +72,10 @@ public:
     Connection(const Connection&) = delete;
 
     Connection(SOCKET sfd,
-               const ListeningPort& ifc,
-               FrontEndThread& thr);
+               FrontEndThread& thr,
+               bool system,
+               in_port_t parent_port,
+               uniqueSslPtr sslStructure);
 
     ~Connection() override;
 

@@ -19,6 +19,7 @@
 /*
  * Connection management and event loop handling.
  */
+#include "connection.h"
 #include "memcached.h"
 
 #include <functional>
@@ -31,13 +32,18 @@ class Bucket;
  * Cerate a new client connection
  *
  * @param sfd the socket descriptor
- * @param interface the interface description for the connection
- * @param thread the libevent thread object to bind the client to
+ * @param thread The front end thread the connection should be bound to
+ * @param system Is the connection bound to a port marked as a system port
+ * @param parent_port The port number the connection connected to
+ * @param ssl The SSL structure to use if the connection is connecting
+ *            over a port marked as SSL
  * @return a connection object on success, nullptr otherwise
  */
 Connection* conn_new(SOCKET sfd,
-                     const ListeningPort& interface,
-                     FrontEndThread& thread);
+                     FrontEndThread& thread,
+                     bool system,
+                     in_port_t parent_port,
+                     uniqueSslPtr ssl);
 
 /**
  * Destroy the connection
