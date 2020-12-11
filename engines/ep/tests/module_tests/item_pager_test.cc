@@ -47,7 +47,7 @@ using MoreAvailable = EPBucket::MoreAvailable;
 using WakeCkptRemover = EPBucket::WakeCkptRemover;
 
 /**
- * Test fixture for bucket quota tests. Sets quota (max_size) to 200KB
+ * Test fixture for bucket quota tests.
  *
  * NOTE: All the tests using this (including subclasses) require memory
  * tracking to be enabled.
@@ -64,11 +64,11 @@ protected:
 
         ObjectRegistry::onSwitchThread(engine.get());
 
-        // By settig the magma config params above, it causes
+        // By setting the magma config params above, it causes
         // magma to flush with every batch. This will release memory
         // being held by streaming sstables (~600KB). Otherwise, we would
         // have to bump up the quota for magma.
-        increaseQuota(700 * 1024);
+        increaseQuota(800 * 1024);
 
         // How many nonIO tasks we expect initially
         // - 0 for persistent.

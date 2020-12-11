@@ -18,10 +18,9 @@
 #include <folly/portability/GTest.h>
 #include <platform/cb_arena_malloc.h>
 #include <platform/cb_malloc.h>
-#include <platform/dirutils.h>
 
-#include <atomic>
 #include <cstring>
+#include <new>
 #include <string>
 #include <thread>
 
@@ -31,7 +30,7 @@
 
 // Test pointer in global scope to prevent compiler optimizing malloc/free away
 // via DCE.
-char* p;
+void* p;
 
 class MemoryTrackerTest : public ::testing::Test {
 public:
@@ -52,51 +51,114 @@ void MemoryTrackerTest::AccountingTestThread() {
     cb::ArenaMallocGuard guard(client);
 
     // Test new & delete //////////////////////////////////////////////////
-    p = new char();
-    EXPECT_GT(cb::ArenaMalloc::getPreciseAllocated(client), 0);
-    delete p;
+    //
+    // Covers all variations of new & delete as of C++17
+    // (https://en.cppreference.com/w/cpp/memory/new/operator_new &
+    //  https://en.cppreference.com/w/cpp/memory/new/operator_delete)
+    //
+    // Note that the compiler will generally automatically use the "correct"
+    // deallocation function for the particular new variant.
+    // For example, allocating via new a type which requires extended alignment
+    // will invoke 'operator new( std::size_t count, std::align_val_t al )',
+    // and then calling 'delete' on it will invoke the aligned deletion
+    // function.
+    // However, to make it totally explicit exactly which new / delete
+    // variant is being tested, we manually call the overload we are concerned
+    // with.
+    // (new X) or (del Y) annotations refer to the overload numbers from
+    // the cppreference.com links above.
+    // replaceable allocation functions:
+    // void* operator new  ( std::size_t count );                       (new 1)
+    p = operator new(1);
+    EXPECT_GE(cb::ArenaMalloc::getPreciseAllocated(client), 1);
+    // void operator delete  ( void* ptr ) noexcept;                    (del 1)
+    operator delete(p);
     EXPECT_EQ(0, cb::ArenaMalloc::getPreciseAllocated(client));
 
-    // Test sized delete //////////////////////////////////////////////////
-    p = new char();
-    EXPECT_GT(cb::ArenaMalloc::getPreciseAllocated(client), 0);
-    operator delete(p, sizeof(char));
+    // void* operator new[]( std::size_t count );                       (new 2)
+    p = operator new[](1);
+    EXPECT_GE(cb::ArenaMalloc::getPreciseAllocated(client), 1);
+    // void operator delete[]( void* ptr ) noexcept;                    (del 2)
+    operator delete[](p);
     EXPECT_EQ(0, cb::ArenaMalloc::getPreciseAllocated(client));
 
-    // Test new[] & delete[] //////////////////////////////////////////////
-    p = new char[100];
-    EXPECT_GE(cb::ArenaMalloc::getPreciseAllocated(client), 100);
-    delete []p;
+    // void* operator new  ( std::size_t count, std::align_val_t al );  (new 3)
+    //     (since C++17)
+    const std::align_val_t Alignment{__STDCPP_DEFAULT_NEW_ALIGNMENT__ * 2};
+    p = operator new(1, Alignment);
+    EXPECT_GE(cb::ArenaMalloc::getPreciseAllocated(client), 1);
+    // void operator delete ( void* ptr, std::align_val_t al );         (del 3)
+    //     (since C++17)
+    operator delete(p, Alignment);
     EXPECT_EQ(0, cb::ArenaMalloc::getPreciseAllocated(client));
 
-    // Test sized delete[] ////////////////////////////////////////////////
-    p = new char[100];
-    EXPECT_GE(cb::ArenaMalloc::getPreciseAllocated(client), 100);
-    operator delete[](p, sizeof(char) * 100);
+    // void* operator new[]( std::size_t count, std::align_val_t al );  (new 4)
+    //     (since C++17)
+    p = operator new[](1, Alignment);
+    EXPECT_GE(cb::ArenaMalloc::getPreciseAllocated(client), 1);
+    // void operator delete[]( void* ptr, std::align_val_t al );        (del 4)
+    operator delete[](p, Alignment);
     EXPECT_EQ(0, cb::ArenaMalloc::getPreciseAllocated(client));
 
-    // Test nothrow new, with normal delete
-    p = new (std::nothrow) char;
-    EXPECT_GT(cb::ArenaMalloc::getPreciseAllocated(client), 0);
-    delete (p);
+    // Repeat allocations to test sized-delete overloads.
+    // void operator delete  ( void* ptr, std::size_t sz );             (del 5)
+    p = operator new(1);
+    EXPECT_GE(cb::ArenaMalloc::getPreciseAllocated(client), 1);
+    operator delete(p, 1);
     EXPECT_EQ(0, cb::ArenaMalloc::getPreciseAllocated(client));
 
-    // Test nothrow new[], with normal delete[]
-    p = new (std::nothrow) char[100];
-    EXPECT_GE(cb::ArenaMalloc::getPreciseAllocated(client), 100);
-    delete[] p;
+    // void operator delete[]( void* ptr, std::size_t sz ) noexcept;    (del 6)
+    p = operator new[](1);
+    EXPECT_GE(cb::ArenaMalloc::getPreciseAllocated(client), 1);
+    operator delete[](p, 1);
     EXPECT_EQ(0, cb::ArenaMalloc::getPreciseAllocated(client));
 
-    // Test new, with nothrow delete
-    p = new char();
-    EXPECT_GT(cb::ArenaMalloc::getPreciseAllocated(client), 0);
+    // void operator delete  ( void* ptr, std::size_t sz,
+    //                        std::align_val_t al );                    (del 7)
+    p = operator new(1, Alignment);
+    EXPECT_GE(cb::ArenaMalloc::getPreciseAllocated(client), 1);
+    operator delete(p, 1, Alignment);
+    EXPECT_EQ(0, cb::ArenaMalloc::getPreciseAllocated(client));
+
+    // void operator delete[]( void* ptr, std::size_t sz,
+    //                        std::align_val_t al );                    (del 8)
+    p = operator new[](1, Alignment);
+    EXPECT_GE(cb::ArenaMalloc::getPreciseAllocated(client), 1);
+    operator delete[](p, 1, Alignment);
+    EXPECT_EQ(0, cb::ArenaMalloc::getPreciseAllocated(client));
+
+    // replaceable non-throwing allocation functions
+    // void* operator new  ( std::size_t count, const std::nothrow_t&); (new 5)
+    p = operator new(1, std::nothrow);
+    EXPECT_GE(cb::ArenaMalloc::getPreciseAllocated(client), 1);
+    // void operator delete  ( void* ptr, const std::nothrow_t& tag );  (del 9)
     operator delete(p, std::nothrow);
     EXPECT_EQ(0, cb::ArenaMalloc::getPreciseAllocated(client));
 
-    // Test new[], with nothrow delete[]
-    p = new char[100];
-    EXPECT_GE(cb::ArenaMalloc::getPreciseAllocated(client), 100);
+    // void* operator new[]( std::size_t count,
+    //                       const std::nothrow_t& tag );               (new 6)
+    p = operator new[](1, std::nothrow);
+    EXPECT_GE(cb::ArenaMalloc::getPreciseAllocated(client), 1);
+    // void operator delete[]( void* ptr, const std::nothrow_t& tag ); (del 10)
     operator delete[](p, std::nothrow);
+    EXPECT_EQ(0, cb::ArenaMalloc::getPreciseAllocated(client));
+
+    // void* operator new  ( std::size_t count, std::align_val_t al,
+    //                       const std::nothrow_t& );                   (new 7)
+    p = operator new(1, Alignment, std::nothrow);
+    EXPECT_GE(cb::ArenaMalloc::getPreciseAllocated(client), 1);
+    // void operator delete  ( void* ptr, std::align_val_t al,
+    //                        const std::nothrow_t& tag );             (del 11)
+    operator delete(p, Alignment, std::nothrow);
+    EXPECT_EQ(0, cb::ArenaMalloc::getPreciseAllocated(client));
+
+    // void* operator new[]( std::size_t count, std::align_val_t al,
+    //                       const std::nothrow_t& );                   (new 8)
+    p = operator new[](1, Alignment, std::nothrow);
+    EXPECT_GE(cb::ArenaMalloc::getPreciseAllocated(client), 1);
+    // void operator delete[]( void* ptr, std::align_val_t al,
+    //                        const std::nothrow_t& tag );             (del 12)
+    operator delete[](p, Alignment, std::nothrow);
     EXPECT_EQ(0, cb::ArenaMalloc::getPreciseAllocated(client));
 
     // Test cb_malloc() / cb_free() /////////////////////////////////////////////
