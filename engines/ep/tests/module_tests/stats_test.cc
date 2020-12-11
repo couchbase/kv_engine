@@ -127,42 +127,6 @@ TEST_F(StatTest, vbucket_takeover_stats_no_stream) {
     EXPECT_EQ(0, std::stoi(vals["backfillRemaining"]));
 }
 
-// Test that if we request takeover stats for stream that is not active we
-// return does_not_exist.
-TEST_F(StatTest, vbucket_takeover_stats_stream_not_active) {
-    // Create a new Dcp producer, reserving its cookie.
-    get_mock_server_api()->cookie->reserve(cookie);
-    DcpProducer* producer = engine->getDcpConnMap().newProducer(
-            cookie,
-            "test_producer",
-            cb::mcbp::request::DcpOpenPayload::Notifier);
-
-    uint64_t rollbackSeqno;
-    const std::string stat = "dcp-vbtakeover " + std::to_string(vbid.get()) +
-            " test_producer";;
-    ASSERT_EQ(ENGINE_SUCCESS,
-              producer->streamRequest(/*flags*/ 0,
-                                      /*opaque*/ 0,
-                                      /*vbucket*/ vbid,
-                                      /*start_seqno*/ 0,
-                                      /*end_seqno*/ 0,
-                                      /*vb_uuid*/ 0,
-                                      /*snap_start*/ 0,
-                                      /*snap_end*/ 0,
-                                      &rollbackSeqno,
-                                      fakeDcpAddFailoverLog,
-                                      {}));
-
-    // Ensure its a notifier connection - this means that streams requested will
-    // not be active
-    ASSERT_EQ("notifier", std::string(producer->getType()));
-    auto vals = get_stat(stat.c_str());
-    EXPECT_EQ("does_not_exist", vals["status"]);
-    EXPECT_EQ(0, std::stoi(vals["estimate"]));
-    EXPECT_EQ(0, std::stoi(vals["backfillRemaining"]));
-    producer->closeStream(/*opaque*/ 0, vbid);
-}
-
 // MB-32589: Check that _hash-dump stats correctly accounts temporary memory.
 TEST_F(StatTest, HashStatsMemUsed) {
     // Add some items to VBucket 0 so the stats call has some data to

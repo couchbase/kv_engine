@@ -667,7 +667,7 @@ another colon.  For example, if your client is named, =slave1=, the
 | supports_ack       | True if the connection use flow control                     |
 | total_acked_bytes  | The amount of bytes that the consumer has acked             |
 | unacked_bytes      | The amount of bytes the consumer has processed but not acked|
-| type               | The connection type (producer, consumer, or notifier)       |
+| type               | The connection type (producer or consumer)                  |
 | max_buffer_bytes   | Size of flow control buffer                                 |
 | paused             | true if this client is blocked                              |
 | paused_reason      | Description of why client is paused                         |
@@ -687,7 +687,7 @@ another colon.  For example, if your client is named, =slave1=, the
 | state              | The stream state (pending, reading, or dead)          |
 | vb_uuid            | The vb uuid used to create this stream                |
 
-***Producer/Notifier Connections
+***Producer Connections
 
 | buf_backfill_bytes                     | The amount of bytes backfilled but not sent            |
 | buf_backfill_items                     | The amount of items backfilled but not sent            |
@@ -713,7 +713,7 @@ another colon.  For example, if your client is named, =slave1=, the
 | total_bytes_sent                       | The amount of bytes actually sent to the consumer      |
 | total_uncompressed_data_size           | Size of data before compression sent to the consumer.  |
 |                                        | Only present if compression is enabled                 |
-| type                                   | The connection type (producer, consumer, or notifier)  |
+| type                                   | The connection type (producer or consumer)             |
 | unacked_bytes                          | The amount of bytes the consumer has no acked          |
 | backfill_num_active                    | Number of active (running) backfills                   |
 | backfill_num_snoozing                  | Number of snoozing (running) backfills                 |

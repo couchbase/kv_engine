@@ -35,48 +35,6 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          ::testing::Values(TransportProtocols::McbpSsl),
                          ::testing::PrintToStringParamName());
 
-TEST_P(DcpTest, TestDcpOpenCantBeProducerAndConsumer) {
-    auto& conn = getConnection();
-
-    conn.sendCommand(BinprotDcpOpenCommand{
-            "ewb_internal:1",
-            cb::mcbp::request::DcpOpenPayload::Producer |
-                    cb::mcbp::request::DcpOpenPayload::Notifier});
-
-    BinprotResponse rsp;
-    conn.recvResponse(rsp);
-    EXPECT_FALSE(rsp.isSuccess());
-    EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus());
-}
-
-TEST_P(DcpTest, TestDcpNotfierCantBeNoValue) {
-    auto& conn = getConnection();
-
-    conn.sendCommand(BinprotDcpOpenCommand{
-            "ewb_internal:1",
-            cb::mcbp::request::DcpOpenPayload::NoValue |
-                    cb::mcbp::request::DcpOpenPayload::Notifier});
-
-    BinprotResponse rsp;
-    conn.recvResponse(rsp);
-    EXPECT_FALSE(rsp.isSuccess());
-    EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus());
-}
-
-TEST_P(DcpTest, TestDcpNotfierCantIncludeXattrs) {
-    auto& conn = getConnection();
-
-    conn.sendCommand(BinprotDcpOpenCommand{
-            "ewb_internal:1",
-            cb::mcbp::request::DcpOpenPayload::IncludeXattrs |
-                    cb::mcbp::request::DcpOpenPayload::Notifier});
-
-    BinprotResponse rsp;
-    conn.recvResponse(rsp);
-    EXPECT_FALSE(rsp.isSuccess());
-    EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus());
-}
-
 /**
  * Make sure that the rollback sequence number in the response isn't being
  * stripped / replaced with an error object

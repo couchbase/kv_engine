@@ -1376,11 +1376,6 @@ BinprotDcpOpenCommand::BinprotDcpOpenCommand(const std::string& name,
       flags(flags_) {
 }
 BinprotDcpOpenCommand& BinprotDcpOpenCommand::makeProducer() {
-    if (flags & cb::mcbp::request::DcpOpenPayload::Notifier) {
-        throw std::invalid_argument(
-                "BinprotDcpOpenCommand::makeProducer: a stream can't be both a "
-                "consumer and producer");
-    }
     flags |= cb::mcbp::request::DcpOpenPayload::Producer;
     return *this;
 }
@@ -1390,7 +1385,6 @@ BinprotDcpOpenCommand& BinprotDcpOpenCommand::makeConsumer() {
                 "BinprotDcpOpenCommand::makeConsumer: a stream can't be both a "
                 "consumer and producer");
     }
-    flags |= cb::mcbp::request::DcpOpenPayload::Notifier;
     return *this;
 }
 BinprotDcpOpenCommand& BinprotDcpOpenCommand::makeIncludeXattr() {

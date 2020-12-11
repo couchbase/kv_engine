@@ -100,7 +100,7 @@ public:
         // Stream defaults to do nothing
     }
 
-    /// @returns the name of this stream type - "Active", "Passive", "Notifier"
+    /// @returns the name of this stream type - "Active", "Passive"
     virtual std::string getStreamTypeName() const = 0;
 
     /**

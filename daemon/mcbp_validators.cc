@@ -491,17 +491,6 @@ static Status dcp_open_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    if ((flags & DcpOpenPayload::Notifier) &&
-        (flags & ~DcpOpenPayload::Notifier)) {
-        LOG_INFO(
-                "Invalid flags combination ({:x}) specified for a DCP "
-                "consumer {}",
-                flags,
-                get_peer_description(cookie));
-        cookie.setErrorContext("Request contains invalid flags combination");
-        return Status::Einval;
-    }
-
     if ((flags & DcpOpenPayload::NoValue) &&
         (flags & DcpOpenPayload::NoValueWithUnderlyingDatatype)) {
         LOG_INFO(
@@ -551,8 +540,7 @@ static Status dcp_open_validator(Cookie& cookie) {
             }
             for (const auto& kv : json.items()) {
                 if (kv.key() == "consumer_name") {
-                    if (flags &
-                        (DcpOpenPayload::Producer | DcpOpenPayload::Notifier)) {
+                    if (flags & DcpOpenPayload::Producer) {
                         cookie.setErrorContext(
                                 "consumer_name only valid for Consumer "
                                 "connections");

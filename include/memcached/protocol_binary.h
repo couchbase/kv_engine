@@ -567,9 +567,15 @@ public:
         DcpOpenPayload::flags = htonl(flags);
     }
 
-    // Flags is a bitmask where the following values is used
+    // Flags is a bitmask where the following values are used:
+
+    /**
+     * If set a Producer connection should be opened, if clear a Consumer
+     * connection should be opened.
+     */
     static const uint32_t Producer = 1;
-    static const uint32_t Notifier = 2;
+    /// Invalid - should not be set (Previously the Notifier flag)
+    static const uint32_t Invalid = 2;
     /**
      * Indicate that the server include the documents' XATTRs
      * within mutation and deletion bodies.

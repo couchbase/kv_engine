@@ -80,13 +80,8 @@ void dcp_open_executor(Cookie& cookie) {
         // String buffer with max length = total length of all possible contents
         std::string logBuffer;
 
-        const bool dcpNotifier =
-                (flags & DcpOpenPayload::Notifier) == DcpOpenPayload::Notifier;
-
         if (dcpProducer) {
             logBuffer.append("PRODUCER, ");
-        } else if (dcpNotifier) {
-            logBuffer.append("NOTIFIER, ");
         } else {
             logBuffer.append("CONSUMER, ");
         }

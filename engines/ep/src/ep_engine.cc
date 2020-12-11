@@ -6124,8 +6124,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
     std::string connName{stream_name};
     ConnHandler* handler = nullptr;
 
-    if (flags & (cb::mcbp::request::DcpOpenPayload::Producer |
-                 cb::mcbp::request::DcpOpenPayload::Notifier)) {
+    if (flags & cb::mcbp::request::DcpOpenPayload::Producer) {
         if (flags & cb::mcbp::request::DcpOpenPayload::PiTR) {
             auto* store = getKVBucket()->getOneROUnderlying();
             if (!store || !store->supportsHistoricalSnapshots()) {

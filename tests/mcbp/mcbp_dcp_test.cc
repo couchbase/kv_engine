@@ -97,13 +97,6 @@ TEST_P(DcpOpenValidatorTest, Pitr) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate())
             << "Consumer can't use PiTR";
 
-    // Neither should Notifiers
-    payload.setFlags(DcpOpenPayload::PiTR | DcpOpenPayload::Notifier);
-    builder.setExtras(
-            {reinterpret_cast<const char*>(&payload), sizeof(payload)});
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate())
-            << "Notifier can't use PiTR";
-
     // Producers should be able to use PiTR
     payload.setFlags(DcpOpenPayload::PiTR | DcpOpenPayload::Producer);
     builder.setExtras(

@@ -1876,40 +1876,6 @@ TEST_F(DcpConnMapTest, DeleteProducerOnUncleanDCPConnMapDelete) {
 }
 
 /* Tests that there is no memory loss due to cyclic reference between a
- * notifier connection and a notifier stream.
- */
-TEST_F(DcpConnMapTest, DeleteNotifierConnOnUncleanDCPConnMapDelete) {
-    /* Create a new Dcp producer */
-    auto* dummyMockCookie = create_mock_cookie(engine.get());
-    DcpProducer* producer = engine->getDcpConnMap().newProducer(
-            dummyMockCookie,
-            "test_producer",
-            cb::mcbp::request::DcpOpenPayload::Notifier);
-    /* Open notifier stream */
-    uint64_t rollbackSeqno = 0;
-    uint32_t opaque = 0;
-    EXPECT_EQ(ENGINE_SUCCESS,
-              producer->streamRequest(/*flags*/ 0,
-                                      opaque,
-                                      vbid,
-                                      /*start_seqno*/ 0,
-                                      /*end_seqno*/ ~0,
-                                      /*vb_uuid*/ 0,
-                                      /*snap_start*/ 0,
-                                      /*snap_end*/ 0,
-                                      &rollbackSeqno,
-                                      fakeDcpAddFailoverLog,
-                                      {}));
-
-    destroy_mock_cookie(dummyMockCookie);
-
-    /* Delete the connmap, connection should be deleted as the owner of
-       the connection (connmap) is deleted. Checks that there is no cyclic
-       reference between conn (producer) and stream or any other object */
-    engine->setDcpConnMap(nullptr);
-}
-
-/* Tests that there is no memory loss due to cyclic reference between a
  * consumer connection and a passive stream.
  */
 TEST_F(DcpConnMapTest, DeleteConsumerConnOnUncleanDCPConnMapDelete) {

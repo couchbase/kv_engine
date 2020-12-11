@@ -566,8 +566,6 @@ protected:
     // stash response for retry if E2BIG was hit
     std::unique_ptr<DcpResponse> rejectResp;
 
-    const bool notifyOnly;
-
     cb::RelaxedAtomic<bool> enableExtMetaData;
     cb::RelaxedAtomic<bool> forceValueCompression;
     cb::RelaxedAtomic<bool> supportsCursorDropping;

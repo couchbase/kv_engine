@@ -30,7 +30,6 @@
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/dcpconnmap.h"
-#include "dcp/notifier_stream.h"
 #include "dcp/response.h"
 #include "executorpool.h"
 #include "failover-table.h"
@@ -166,7 +165,6 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
                          uint32_t flags,
                          bool startTask)
     : ConnHandler(e, cookie, name),
-      notifyOnly((flags & cb::mcbp::request::DcpOpenPayload::Notifier) != 0),
       sendStreamEndOnClientStreamClose(false),
       consumerSupportsHifiMfu(false),
       lastSendTime(ep_current_time()),
@@ -194,11 +192,8 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
     setSupportAck(true);
     setReserved(true);
     pause(PausedReason::Initializing);
-    if (notifyOnly) {
-        setLogHeader("DCP (Notifier) " + getName() + " -");
-    } else {
-        setLogHeader("DCP (Producer) " + getName() + " -");
-    }
+    setLogHeader("DCP (Producer) " + getName() + " -");
+
     // Reduce the minimum log level of view engine DCP streams as they are
     // extremely noisy due to creating new stream, per vbucket,per design doc
     // every ~10s.
@@ -317,7 +312,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    if (!notifyOnly && start_seqno > end_seqno) {
+    if (start_seqno > end_seqno) {
         EP_LOG_WARN(
                 "{} ({}) Stream request failed because the start "
                 "seqno ({}) is larger than the end seqno ({}); "
@@ -329,8 +324,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
         return ENGINE_ERANGE;
     }
 
-    if (!notifyOnly && !(snap_start_seqno <= start_seqno &&
-        start_seqno <= snap_end_seqno)) {
+    if (!(snap_start_seqno <= start_seqno && start_seqno <= snap_end_seqno)) {
         logger->warn(
                 "({}) Stream request failed because "
                 "the snap start seqno ({}) <= start seqno ({})"
@@ -399,15 +393,6 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
         }
     }
 
-    // If we are a notify stream then we can't use the start_seqno supplied
-    // since if it is greater than the current high seqno then it will always
-    // trigger a rollback. As a result we should use the current high seqno for
-    // rollback purposes.
-    uint64_t notifySeqno = start_seqno;
-    if (notifyOnly && start_seqno > static_cast<uint64_t>(vb->getHighSeqno())) {
-        start_seqno = static_cast<uint64_t>(vb->getHighSeqno());
-    }
-
     std::pair<bool, std::string> need_rollback =
             vb->failovers->needsRollback(start_seqno,
                                          vb->getHighSeqno(),
@@ -449,7 +434,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
         return ENGINE_EINVAL;
     }
 
-    if (!notifyOnly && start_seqno > end_seqno) {
+    if (start_seqno > end_seqno) {
         EP_LOG_WARN(
                 "{} ({}) Stream request failed because "
                 "the start seqno ({}) is larger than the end seqno ({}"
@@ -466,8 +451,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
         return ENGINE_ERANGE;
     }
 
-    if (!notifyOnly && start_seqno > static_cast<uint64_t>(vb->getHighSeqno()))
-    {
+    if (start_seqno > static_cast<uint64_t>(vb->getHighSeqno())) {
         EP_LOG_WARN(
                 "{} ({}) Stream request failed because "
                 "the start seqno ({}) is larger than the vb highSeqno "
@@ -489,52 +473,38 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
     const auto streamID = filter.getStreamId();
 
     std::shared_ptr<Stream> s;
-    if (notifyOnly) {
-        s = std::make_shared<NotifierStream>(&engine_,
-                                             shared_from_this(),
-                                             getName(),
-                                             flags,
-                                             opaque,
-                                             vbucket,
-                                             notifySeqno,
-                                             end_seqno,
-                                             vbucket_uuid,
-                                             snap_start_seqno,
-                                             snap_end_seqno);
-    } else {
-        try {
-            s = std::make_shared<ActiveStream>(&engine_,
-                                               shared_from_this(),
-                                               getName(),
-                                               flags,
-                                               opaque,
-                                               *vb,
-                                               start_seqno,
-                                               end_seqno,
-                                               vbucket_uuid,
-                                               snap_start_seqno,
-                                               snap_end_seqno,
-                                               includeValue,
-                                               includeXattrs,
-                                               includeDeleteTime,
-                                               includeDeletedUserXattrs,
-                                               std::move(filter));
-        } catch (const cb::engine_error& e) {
-            logger->warn(
-                    "({}) Stream request failed because "
-                    "the filter cannot be constructed, returning:{}",
-                    Vbid(vbucket),
-                    e.code().value());
-            return ENGINE_ERROR_CODE(e.code().value());
-        }
-        /* We want to create the 'createCheckpointProcessorTask' here even if
-           the stream creation fails later on in the func. The goal is to
-           create the 'checkpointProcessorTask' before any valid active stream
-           is created */
-        if (createChkPtProcessorTsk && !checkpointCreator->task) {
-            createCheckpointProcessorTask();
-            scheduleCheckpointProcessorTask();
-        }
+    try {
+        s = std::make_shared<ActiveStream>(&engine_,
+                                           shared_from_this(),
+                                           getName(),
+                                           flags,
+                                           opaque,
+                                           *vb,
+                                           start_seqno,
+                                           end_seqno,
+                                           vbucket_uuid,
+                                           snap_start_seqno,
+                                           snap_end_seqno,
+                                           includeValue,
+                                           includeXattrs,
+                                           includeDeleteTime,
+                                           includeDeletedUserXattrs,
+                                           std::move(filter));
+    } catch (const cb::engine_error& e) {
+        logger->warn(
+                "({}) Stream request failed because "
+                "the filter cannot be constructed, returning:{}",
+                Vbid(vbucket),
+                e.code().value());
+        return ENGINE_ERROR_CODE(e.code().value());
+    }
+    /* We want to create the 'createCheckpointProcessorTask' here even if
+       the stream creation fails later on in the func. The goal is to
+       create the 'checkpointProcessorTask' before any valid active stream
+       is created */
+    if (createChkPtProcessorTsk && !checkpointCreator->task) {
+        createCheckpointProcessorTask();
+        scheduleCheckpointProcessorTask();
     }
 
     {
@@ -555,11 +525,9 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
             return ENGINE_TMPFAIL;
         }
 
-        if (!notifyOnly) {
-            // MB-19428: Only activate the stream if we are adding it to the
-            // streams map.
-            static_cast<ActiveStream*>(s.get())->setActive();
-        }
+        // MB-19428: Only activate the stream if we are adding it to the
+        // streams map.
+        static_cast<ActiveStream*>(s.get())->setActive();
 
         updateStreamsMap(vbucket, streamID, s);
     }
@@ -1727,11 +1695,7 @@ void DcpProducer::closeAllStreams() {
 }
 
 const char* DcpProducer::getType() const {
-    if (notifyOnly) {
-        return "notifier";
-    } else {
-        return "producer";
-    }
+    return "producer";
 }
 
 std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {

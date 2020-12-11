@@ -22,8 +22,8 @@ Extra looks like:
 Flags are specified as a bitmask in network byte order with the following bits defined:
 
 * 0x1: __DCP type__ requests a producer is created, if this bit is clear a consumer
-  is created (unless the notifier bit is set).
-* 0x2: __DCP notifier__ request a 'notifier', cannot be combined with 0x1.
+  is created.
+* 0x2: ___Invalid___ Should always be clear.
 * 0x4: __Include XATTRs__ requests that DCP_MUTATION, DCP_DELETION and DCP_EXPIRATION
   (if [enabled](control.md)) messages should include any XATTRs associated with the Document.
 * 0x8: __No value__ requests that DCP_MUTATION, DCP_DELETION and DCP_EXPIRATION
