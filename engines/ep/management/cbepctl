@@ -160,6 +160,20 @@ def get_collections(mc):
     except Exception as e:
         print('Generic error (%s)' % e)
 
+@cmd
+def run_compaction(mc, vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes):
+    engine_param = memcacheConstants.ENGINE_PARAM_VBUCKET
+
+    try:
+        mc.compact_db(int(vbucket), int(purgeBeforeTs), int(purgeBeforeSeq), int(dropDeletes))
+        print('compaction started on vbucket {}'.format(vbucket))
+    except mc_bin_client.MemcachedError as error:
+        print('Error: %s' % error.msg)
+    except mc_bin_client.TimeoutError as error:
+        print(error)
+    except Exception as e:
+        print('Generic error (%s)' % e)
+
 if __name__ == '__main__':
 
     c = cli_auth_utils.get_authed_clitool("""
@@ -298,11 +312,27 @@ Available params for "set":
     dcp_idle_timeout - The maximum time a DCP connection can be idle before it
                        is disconnected.
 
-Available params for "set_vbucket_param":
+  Available params for "set_vbucket_param":
     max_cas - Change the max_cas of a vbucket. The value and vbucket are specified as decimal
               integers. The new-value is interpretted as an unsigned 64-bit integer.
 
               cbepctl host:port -b default set_vbucket_param max_cas <vbucket-id> <new-value>
+
+  Triggering compaction with "compact":
+    4 parameters
+      vbucket        - ID of the vbucket to compact
+      purgeBeforeTs  - Purge deleted-items less than this UNIX epoch time-stamp.
+                       Compaction will discard any delete with a delete-time
+                       less than this value.
+      purgeBeforeSeq - Purge deleted-items with a seqno less than this value.
+                       This value is only used when non 0.
+      dropDeletes    - When non-zero, any persisted deletes are discarded.
+
+    Examples (all on vbucket 512):
+
+      Drop all deletes: cbepctl host:port -b default compact 512 0 0 1
+      Purge everything before 11/Dec/2021 14:11:25 : cbepctl host:port -b default compact 512 1639231885 0 0
+      Purge everything before seqno 1000 : cbepctl host:port -b default compact 512 0 1000 0
 
     """)
 
@@ -311,6 +341,7 @@ Available params for "set_vbucket_param":
     c.addCommand('set_vbucket_param', set_vbucket_param, 'type vbucket value')
     c.addCommand('start', start, 'start')
     c.addCommand('stop', stop, 'stop')
+    c.addCommand('compact', run_compaction, 'vbucket purgeBeforeTs purgeBeforeSeq dropDeletes')
 
     # Add collection get manifest methods - These should not be executed
     # except for when required by support/development
