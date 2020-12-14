@@ -261,6 +261,26 @@ private:
 
 MockTestHarness harness;
 
+/**
+ * Attempts to run the given test function; returning the status code returned
+ * from test func, or if an exception is thrown then catch and return a failure
+ * code
+ */
+test_result try_run_test(std::function<test_result()> testFunc) noexcept {
+    try {
+        return testFunc();
+    } catch (const TestExpectationFailed&) {
+        return FAIL;
+    } catch (const std::exception& e) {
+        fprintf(stderr, "Uncaught std::exception. what():%s\n", e.what());
+        return DIED;
+    } catch (...) {
+        // This is a non-test exception (i.e. not an explicit test check which
+        // failed) - mark as "died".
+        return DIED;
+    }
+}
+
 static test_result execute_test(engine_test_t test,
                                 const char* engine,
                                 const char* default_cfg) {
@@ -375,7 +395,7 @@ static test_result execute_test(engine_test_t test,
                 return FAIL;
             }
 
-            ret = test.tfun(currentEngineHandle);
+            ret = try_run_test([&] { return test.tfun(currentEngineHandle); });
 
             if (test.test_teardown != nullptr &&
                 !test.test_teardown(currentEngineHandle)) {
@@ -393,8 +413,7 @@ static test_result execute_test(engine_test_t test,
                 return FAIL;
             }
 
-
-            ret = test.api_v2.tfun(&test);
+            ret = try_run_test([&] { return test.api_v2.tfun(&test); });
 
             if (test.api_v2.test_teardown != nullptr &&
                 !test.api_v2.test_teardown(&test)) {
@@ -405,7 +424,10 @@ static test_result execute_test(engine_test_t test,
         }
 
         if (currentEngineHandle) {
-            harness.destroy_bucket(currentEngineHandle, false);
+            // If test failed then bucket is in unknown state - force shutdown
+            // in such a case.
+            const bool force = ret != SUCCESS;
+            harness.destroy_bucket(currentEngineHandle, force);
             currentEngineHandle = nullptr;
         }
 
