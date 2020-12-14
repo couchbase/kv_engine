@@ -19,7 +19,6 @@
 #include <iostream>
 #include <sstream>
 #include <stdlib.h>
-#include <strings.h>
 #include <cstring>
 
 #include <memcached/isotime.h>
