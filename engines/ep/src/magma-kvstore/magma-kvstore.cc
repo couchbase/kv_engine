@@ -1140,6 +1140,10 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
                                                    req->isDelete(),
                                                    req->getBodySize());
             }
+        } else {
+            // Tell Collections::Flush that it may need to record this seqno
+            commitData.collections.maybeUpdatePersistedHighSeqno(
+                    docKey, req->getDocMeta().bySeqno, req->isDelete());
         }
 
         if (docExists) {

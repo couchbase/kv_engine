@@ -1083,11 +1083,13 @@ protected:
             EXPECT_EQ(initPendingDocOnDisk + 1, getOnDiskPrepares());
         }
 
-        // Validate the collection high-persisted-seqno didn't change for the
-        // pending item
-        EXPECT_EQ(persistedHighSeqno,
-                  vb->lockCollections().getPersistedHighSeqno(
-                          key.getCollectionID()));
+        if (persistent()) {
+            // Validate the collection high-persisted-seqno changed for the
+            // pending item
+            EXPECT_EQ(persistedHighSeqno + 1,
+                      vb->lockCollections().getPersistedHighSeqno(
+                              key.getCollectionID()));
+        }
     }
 
     void processAck(uint64_t prepareSeqno) {
@@ -1368,13 +1370,14 @@ TEST_P(CollectionsEraserSyncWriteTest, ErasePendingPrepare) {
 class CollectionsEraserPersistentOnly : public CollectionsEraserTest {
 public:
     void testEmptyCollections(bool flushInTheMiddle);
-    void testEmptyCollectionsWithPending(bool flushInTheMiddle);
+    void testEmptyCollectionsWithPending(bool flushInTheMiddle,
+                                         bool warmupInTheMiddle);
 };
 
 // Test that we schedule compaction after dropping a collection that only
 // contains prepares
 void CollectionsEraserPersistentOnly::testEmptyCollectionsWithPending(
-        bool flushInTheMiddle) {
+        bool flushInTheMiddle, bool warmupInTheMiddle) {
     auto getOnDiskPrepares = [this]() {
         auto* vbstate = store->getOneRWUnderlying()->getVBucketState(vbid);
         return vbstate->onDiskPrepares;
@@ -1388,10 +1391,14 @@ void CollectionsEraserPersistentOnly::testEmptyCollectionsWithPending(
     CollectionsManifest cm(CollectionEntry::dairy);
     vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
 
+    // 2x collection creates
+    int waitingForFlush = 2;
+
     // The flusher will see the drop as a separate event or in the same batch
     // as the create
     if (flushInTheMiddle) {
-        flushVBucketToDiskIfPersistent(vbid, 2 /* 2 x system */);
+        flushVBucketToDiskIfPersistent(vbid, waitingForFlush);
+        waitingForFlush = 0;
         auto handle = vb->lockCollections();
         EXPECT_EQ(1, handle.getHighSeqno(CollectionEntry::dairy));
         EXPECT_EQ(1, handle.getPersistedHighSeqno(CollectionEntry::dairy));
@@ -1406,11 +1413,26 @@ void CollectionsEraserPersistentOnly::testEmptyCollectionsWithPending(
                            "vv");
     EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
 
+    // 2x prepares
+    waitingForFlush += 2;
+
+    if (warmupInTheMiddle) {
+        // Persist the prepares and do a warmup
+        flushVBucketToDiskIfPersistent(vbid, waitingForFlush);
+        waitingForFlush = 0;
+        vb.reset();
+        resetEngineAndWarmup();
+        vb = store->getVBucket(vbid);
+    } else if (!flushInTheMiddle) {
+        // The delete collection events will cancel out the creates.
+        waitingForFlush -= 2;
+    }
+
     // Delete the collections
     vb->updateFromManifest(makeManifest(
             cm.remove(CollectionEntry::dairy).remove(CollectionEntry::fruit)));
-
-    flushVBucketToDiskIfPersistent(vbid, 2 /* 2 x system */ + 2 /* prepares */);
+    waitingForFlush += 2;
+    flushVBucketToDiskIfPersistent(vbid, waitingForFlush);
 
     if (isPersistent() && !isMagma()) {
         EXPECT_EQ(2, getOnDiskPrepares());
@@ -1431,11 +1453,18 @@ void CollectionsEraserPersistentOnly::testEmptyCollectionsWithPending(
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
 }
 
+TEST_P(CollectionsEraserPersistentOnly,
+       logically_empty_with_flush_with_warmup) {
+    testEmptyCollectionsWithPending(true, true);
+}
+TEST_P(CollectionsEraserPersistentOnly, logically_empty_no_flush_with_warmup) {
+    testEmptyCollectionsWithPending(false, true);
+}
 TEST_P(CollectionsEraserPersistentOnly, logically_empty_with_flush) {
-    testEmptyCollectionsWithPending(true);
+    testEmptyCollectionsWithPending(true, false);
 }
 TEST_P(CollectionsEraserPersistentOnly, logically_empty_no_flush) {
-    testEmptyCollectionsWithPending(false);
+    testEmptyCollectionsWithPending(false, false);
 }
 
 // Test that empty collections don't lead to a compaction trigger

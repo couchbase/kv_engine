@@ -29,24 +29,20 @@
 namespace Collections::VB {
 
 Flush::StatisticsUpdate& Flush::getStatsAndMaybeSetPersistedHighSeqno(
-        CollectionID cid, uint64_t seqno, bool isCommitted) {
-    auto [itr, inserted] =
-            stats.try_emplace(cid, StatisticsUpdate{seqno, isCommitted});
+        CollectionID cid, uint64_t seqno) {
+    auto [itr, inserted] = stats.try_emplace(cid, StatisticsUpdate{seqno});
     auto& [key, value] = *itr;
     (void)key;
     if (!inserted) {
-        value.maybeSetPersistedSeqno(seqno, isCommitted);
+        value.maybeSetPersistedHighSeqno(seqno);
     }
 
     return value;
 }
 
-void Flush::StatisticsUpdate::maybeSetPersistedSeqno(uint64_t seqno,
-                                                     bool isCommitted) {
-    auto& seqnoToChange =
-            isCommitted ? persistedCommittedSeqno : persistedPrepareSeqno;
-    if (seqno > seqnoToChange) {
-        seqnoToChange = seqno;
+void Flush::StatisticsUpdate::maybeSetPersistedHighSeqno(uint64_t seqno) {
+    if (seqno > persistedHighSeqno) {
+        persistedHighSeqno = seqno;
     }
 }
 
@@ -102,20 +98,18 @@ void Flush::saveCollectionStats(
         //    and a delete of the same in one flush (couchstore doesn't)
         auto itr = droppedCollections.find(cid);
         if (itr != droppedCollections.end() &&
-            flushStats.getPersistedMaxVisibleSeqno() < itr->second.endSeqno) {
+            flushStats.getPersistedHighSeqno() < itr->second.endSeqno) {
             continue;
         }
 
-        // Get the current stats of the collection (for the seqno). May have
-        // written only prepares so take the max of the two seqnos
-        auto seqno = std::max(flushStats.getPersistedPrepareSeqno(),
-                              flushStats.getPersistedMaxVisibleSeqno());
-        auto collsFlushStats = manifest.lock().getStatsForFlush(cid, seqno);
+        // Get the current stats of the collection (for the seqno).
+        auto collsFlushStats = manifest.lock().getStatsForFlush(
+                cid, flushStats.getPersistedHighSeqno());
 
         // Generate new stats, add the deltas from this flush batch for count
-        // and size and set the high-seqno
+        // and size and set the high-seqno (which includes prepares)
         PersistedStats ps(collsFlushStats.itemCount + flushStats.getItemCount(),
-                          flushStats.getPersistedMaxVisibleSeqno(),
+                          flushStats.getPersistedHighSeqno(),
                           collsFlushStats.diskSize + flushStats.getDiskSize());
         cb(cid, ps);
     }
@@ -147,8 +141,7 @@ uint32_t Flush::countNonEmptyDroppedCollections() const {
         // the collection is in this flush, the collection is not empty.
         auto sItr = stats.find(cid);
 
-        if (sItr == stats.end() ||
-            sItr->second.getPersistedMaxVisibleSeqno() == 0) {
+        if (sItr == stats.end() || sItr->second.getPersistedHighSeqno() == 0) {
             const auto highSeqno =
                     manifest.lock()
                             .getStatsForFlush(cid, dropped.endSeqno)
@@ -170,7 +163,7 @@ void Flush::forEachDroppedCollection(
     for (const auto& [cid, dropped] : droppedCollections) {
         auto itr = stats.find(cid);
         if (itr == stats.end() ||
-            dropped.endSeqno > itr->second.getPersistedMaxVisibleSeqno()) {
+            dropped.endSeqno > itr->second.getPersistedHighSeqno()) {
             cb(cid);
         }
     }
@@ -189,14 +182,14 @@ void Flush::postCommitMakeStatsVisible() {
     for (const auto& [cid, flushStats] : stats) {
         auto lock = manifest.lock(cid);
         if (!lock.valid() ||
-            lock.isLogicallyDeleted(flushStats.getPersistedMaxVisibleSeqno())) {
+            lock.isLogicallyDeleted(flushStats.getPersistedHighSeqno())) {
             // Can be flushing for a dropped collection (no longer in the
             // manifest, or was flushed/recreated at a new seqno)
             continue;
         }
         // update the stats with the changes collected by the flusher
         lock.updateItemCount(flushStats.getItemCount());
-        lock.setPersistedHighSeqno(flushStats.getPersistedMaxVisibleSeqno());
+        lock.setPersistedHighSeqno(flushStats.getPersistedHighSeqno());
         lock.updateDiskSize(flushStats.getDiskSize());
     }
 }
@@ -282,8 +275,8 @@ void Flush::updateStats(const DocKey& key,
     }
 
     // Track high-seqno for the item
-    auto& collsFlushStats = getStatsAndMaybeSetPersistedHighSeqno(
-            cid.value(), seqno, isCommitted);
+    auto& collsFlushStats =
+            getStatsAndMaybeSetPersistedHighSeqno(cid.value(), seqno);
 
     // but don't track any changes if the item is logically deleted. Why?
     // A flush batch could of recreated the collection, the stats tracking code
@@ -325,8 +318,8 @@ void Flush::updateStats(const DocKey& key,
             oldIsDelete || (isLogicallyDeleted(cid.value(), oldSeqno) ||
                             isLogicallyDeletedInStore(cid.value(), oldSeqno));
 
-    auto& collsFlushStats = getStatsAndMaybeSetPersistedHighSeqno(
-            cid.value(), seqno, isCommitted);
+    auto& collsFlushStats =
+            getStatsAndMaybeSetPersistedHighSeqno(cid.value(), seqno);
     // As above, logically deleted items don't update item-count/disk-size
     if (!isLogicallyDeleted(cid.value(), seqno)) {
         if (oldIsDelete) {
@@ -337,6 +330,23 @@ void Flush::updateStats(const DocKey& key,
             collsFlushStats.update(size - oldSize);
         }
     }
+}
+
+void Flush::maybeUpdatePersistedHighSeqno(const DocKey& key,
+                                          uint64_t seqno,
+                                          bool isDelete) {
+    // Same logic and comment as updateStats.
+    auto [isSystemEvent, cid] = getCollectionID(key);
+
+    if (!cid) {
+        return;
+    }
+
+    if (isDelete && isSystemEvent) {
+        return;
+    }
+    // don't care for the return value, just update the persisted high seqno
+    getStatsAndMaybeSetPersistedHighSeqno(cid.value(), seqno);
 }
 
 void Flush::setDroppedCollectionsForStore(

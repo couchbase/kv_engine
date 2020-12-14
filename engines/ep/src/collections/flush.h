@@ -102,6 +102,17 @@ public:
                      size_t oldSize);
 
     /**
+     * Update the collection high-seqno (only if the flushed item is higher)
+     *
+     * @param key The key of the item flushed
+     * @param seqno The seqno of the item flushed
+     * @param isDelete alive/delete stats of the item flushed
+     */
+    void maybeUpdatePersistedHighSeqno(const DocKey& key,
+                                       uint64_t seqno,
+                                       bool isDelete);
+
+    /**
      * Method for KVStore implementation to call before flushing a batch of
      * items - tells this Flush object about the collections that have been
      * dropped (and to be purged). Note if a KVStore knows there are no dropped
@@ -265,19 +276,16 @@ private:
     // Helper class for doing collection stat updates
     class StatisticsUpdate {
     public:
-        StatisticsUpdate(uint64_t seqno, bool isCommitted)
-            : persistedCommittedSeqno(isCommitted ? seqno : 0),
-              persistedPrepareSeqno(isCommitted ? 0 : seqno) {
+        StatisticsUpdate(uint64_t seqno) : persistedHighSeqno(seqno) {
         }
 
         /**
-         * Set either the persistedCommittedSeqno or the persistedPrepareSeqno
-         * iff seqno is > than the current value
+         * Set either the persistedHighSeqno iff seqno is > than the current
+         * value.
          *
          * @param seqno to use if it's greater than current value
-         * @param isCommitted committed/prepared seqno to change
          */
-        void maybeSetPersistedSeqno(uint64_t seqno, bool isCommitted);
+        void maybeSetPersistedHighSeqno(uint64_t seqno);
 
         /**
          * Process an insert into the collection
@@ -313,15 +321,11 @@ private:
         void remove(bool isSystem, ssize_t diskSizeDelta, bool isCommitted);
 
         /**
-         * @return the highest committed namespace persisted seqno recorded by
-         * the Flush object
+         * @return the highest persisted seqno recorded by the Flush object.
+         *         this includes prepare/abort and committed items
          */
-        uint64_t getPersistedMaxVisibleSeqno() const {
-            return persistedCommittedSeqno;
-        }
-
-        uint64_t getPersistedPrepareSeqno() const {
-            return persistedPrepareSeqno;
+        uint64_t getPersistedHighSeqno() const {
+            return persistedHighSeqno;
         }
 
         /// @returns the items flushed (can be negative due to deletes)
@@ -343,8 +347,7 @@ private:
 
         void updateDiskSize(ssize_t delta);
 
-        uint64_t persistedCommittedSeqno{0};
-        uint64_t persistedPrepareSeqno{0};
+        uint64_t persistedHighSeqno{0};
         ssize_t itemCount{0};
         ssize_t diskSize{0};
     };
@@ -356,12 +359,10 @@ private:
      *
      * @param cid CollectionID
      * @param seqno New high seqno to potentially update the persisted one
-     * @param isCommitted If the seqno belongs to prepare or commit namespace
      * @return Stats reference
      */
     StatisticsUpdate& getStatsAndMaybeSetPersistedHighSeqno(CollectionID cid,
-                                                            uint64_t seqno,
-                                                            bool isCommitted);
+                                                            uint64_t seqno);
 
     /**
      * Iterate through the 'droppedCollections' container and call a function
