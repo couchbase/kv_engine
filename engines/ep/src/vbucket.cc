@@ -3656,6 +3656,12 @@ VBucket::processExpiredItem(HashTable::FindUpdateResult& htRes,
                 cHandle.getKey().getCollectionID().to_string());
     }
 
+    if (htRes.pending && !htRes.pending->isCompleted()) {
+        return std::make_tuple(MutationStatus::IsPendingSyncWrite,
+                               htRes.committed,
+                               VBNotifyCtx{});
+    }
+
     // Callers should have ensured that v exists
     Expects(htRes.committed);
     auto& v = *htRes.committed;

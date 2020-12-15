@@ -2670,6 +2670,30 @@ TEST_P(DurabilityEPBucketTest, DoNotExpirePendingItem) {
     EXPECT_TRUE(gv.item->isDeleted());
 }
 
+TEST_P(DurabilityBucketTest, DoNotExpireCommittedIfPending) {
+    setVBucketToActiveWithValidTopology();
+    using namespace cb::durability;
+
+    auto key = makeStoredDocKey("key");
+    auto item = makeCommittedItem(key, "value");
+    item->setExpTime(5);
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(*item, cookie));
+
+    auto pending = makePendingItem(key, "value");
+    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*pending, cookie));
+
+    auto vb = store->getVBucket(vbid);
+    EXPECT_EQ(0, vb->numExpiredItems);
+
+    auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS);
+    auto gv = store->get(key, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+    EXPECT_EQ(0, vb->numExpiredItems);
+}
+
 // @TODO Rocksdb when we have manual compaction/compaction filtering this test
 // should be made to pass.
 TEST_P(DurabilityEPBucketTest,
