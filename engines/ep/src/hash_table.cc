@@ -114,6 +114,13 @@ StoredValue* HashTable::StoredValueProxy::release() {
     return tmp;
 }
 
+HashTable::FindUpdateResult::FindUpdateResult(
+        HashTable::StoredValueProxy&& prepare,
+        StoredValue* committed,
+        HashTable& ht)
+    : pending(std::move(prepare)), committed(committed), ht(ht) {
+}
+
 StoredValue* HashTable::FindUpdateResult::selectSVToModify(bool durability) {
     if (durability) {
         if (pending) {
@@ -132,6 +139,18 @@ StoredValue* HashTable::FindUpdateResult::selectSVToModify(bool durability) {
 
 StoredValue* HashTable::FindUpdateResult::selectSVToModify(const Item& itm) {
     return selectSVToModify(itm.isPending());
+}
+
+StoredValue* HashTable::FindUpdateResult::selectSVForRead(
+        TrackReference trackReference,
+        WantsDeleted wantsDeleted,
+        ForGetReplicaOp forGetReplicaOp) {
+    return ht.selectSVForRead(trackReference,
+                              wantsDeleted,
+                              forGetReplicaOp,
+                              getHBL(),
+                              committed,
+                              pending.getSV());
 }
 
 HashTable::HashTable(EPStats& st,
@@ -826,41 +845,55 @@ StoredValue::UniquePtr HashTable::unlocked_createSyncDeletePrepare(
     return pendingDel;
 }
 
-HashTable::FindROResult HashTable::findForRead(
-        const DocKey& key,
-        TrackReference trackReference,
-        WantsDeleted wantsDeleted,
-        const ForGetReplicaOp fetchRequestedForReplicaItem) {
-    auto result = findInner(key);
-
+StoredValue* HashTable::selectSVForRead(TrackReference trackReference,
+                                        WantsDeleted wantsDeleted,
+                                        ForGetReplicaOp forGetReplica,
+                                        HashTable::HashBucketLock& hbl,
+                                        StoredValue* committed,
+                                        StoredValue* pending) {
     /// Reading normally uses the Committed StoredValue - however if a
     /// pendingSV is found we must check if it's marked as MaybeVisible -
     /// which will block reading.
     /// However if this request is for a GET_REPLICA then we should only
     /// return committed items
-    if (fetchRequestedForReplicaItem == ForGetReplicaOp::No &&
-        result.pendingSV && result.pendingSV->isPreparedMaybeVisible()) {
+    if (forGetReplica == ForGetReplicaOp::No && pending &&
+        pending->isPreparedMaybeVisible()) {
         // Return the pending one as an indication the caller cannot read it.
-        return {result.pendingSV, std::move(result.lock)};
+        return pending;
     }
-    auto* sv = result.committedSV;
+    auto* sv = committed;
 
     if (!sv) {
         // No item found - return null.
-        return {nullptr, std::move(result.lock)};
+        return nullptr;
     }
 
-    if (result.committedSV->isDeleted()) {
+    if (committed->isDeleted()) {
         // Deleted items should only be returned if caller asked for them,
         // and we don't update ref-counts for them.
-        return {(wantsDeleted == WantsDeleted::Yes) ? sv : nullptr,
-                std::move(result.lock)};
+        return (wantsDeleted == WantsDeleted::Yes) ? sv : nullptr;
     }
 
     // Found a non-deleted item. Now check if we should update ref-count.
     if (trackReference == TrackReference::Yes) {
         updateFreqCounter(*sv);
     }
+
+    return sv;
+}
+
+HashTable::FindROResult HashTable::findForRead(
+        const DocKey& key,
+        TrackReference trackReference,
+        WantsDeleted wantsDeleted,
+        const ForGetReplicaOp fetchRequestedForReplicaItem) {
+    auto result = findInner(key);
+    auto* sv = selectSVForRead(trackReference,
+                               wantsDeleted,
+                               fetchRequestedForReplicaItem,
+                               result.lock,
+                               result.committedSV,
+                               result.pendingSV);
 
     return {sv, std::move(result.lock)};
 }
@@ -962,7 +995,7 @@ HashTable::FindUpdateResult HashTable::findForUpdate(const DocKey& key) {
 
     StoredValueProxy prepare{
             std::move(result.lock), result.pendingSV, valueStats};
-    return {std::move(prepare), result.committedSV};
+    return {std::move(prepare), result.committedSV, *this};
 }
 
 HashTable::FindResult HashTable::findOnlyCommitted(const DocKey& key) {

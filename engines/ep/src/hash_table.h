@@ -738,6 +738,10 @@ public:
      * returned (in the pending StoredValueProxy).
      */
     struct FindUpdateResult {
+        FindUpdateResult(StoredValueProxy&& prepare,
+                         StoredValue* committed,
+                         HashTable& ht);
+
         /**
          * Return the StoredValue (prepared or committed) that should generally
          * be used to modify a key.
@@ -757,12 +761,27 @@ public:
         /// Overload of above selectSVToModify that takes an Item.
         StoredValue* selectSVToModify(const Item& itm);
 
+        /**
+         * Return the StoredValue (prepared or committed) that should generally
+         * be used in read cases.
+         *
+         * @return The StoredValue that the callers should use for reads based
+         *         on the options supplied. Maybe be nullptr if no StoredValues
+         *         exist for the key or there are no suitable StoredValues.
+         */
+        StoredValue* selectSVForRead(TrackReference trackReference,
+                                     WantsDeleted wantsDeleted,
+                                     ForGetReplicaOp forGetReplica);
+
         HashBucketLock& getHBL() {
             return pending.getHBL();
         }
 
         StoredValueProxy pending;
         StoredValue* committed;
+
+    private:
+        HashTable& ht;
     };
 
     /**
@@ -1357,6 +1376,17 @@ private:
      * not found then HashBucketLock is empty.
      */
     FindInnerResult findInner(const DocKey& key);
+
+    /**
+     * Select the StoredValue that should be used for read cases based on the
+     * supplied options and the presence of committed/pending StoredValues
+     */
+    StoredValue* selectSVForRead(TrackReference trackReference,
+                                 WantsDeleted wantsDeleted,
+                                 ForGetReplicaOp forGetReplica,
+                                 HashBucketLock& hbl,
+                                 StoredValue* committed,
+                                 StoredValue* pending);
 
     // The initial (and minimum) size of the HashTable.
     const size_t initialSize;
