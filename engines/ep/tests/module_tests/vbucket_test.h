@@ -121,6 +121,10 @@ protected:
     std::pair<MutationStatus, GetValue> public_getAndUpdateTtl(
             const DocKey& key, time_t exptime);
 
+    std::tuple<MutationStatus, StoredValue*, VBNotifyCtx>
+    public_processExpiredItem(HashTable::FindUpdateResult& htRes,
+                              const Collections::VB::Manifest::CachingReadHandle& cHandle);
+
     SWCompleteTrace swCompleteTrace;
 
     // Mock SyncWriteCompleteCallback that helps in testing client-notify for
