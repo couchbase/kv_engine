@@ -20,8 +20,8 @@
 #include "queue_op.h"
 
 #include <folly/lang/Assume.h>
+#include <folly/lang/Bits.h>
 #include <libcouchstore/couch_common.h>
-#include <libcouchstore/couch_db.h>
 #include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
@@ -133,7 +133,7 @@ protected:
         MetaDataV1() : flexCode(0), dataType(PROTOCOL_BINARY_RAW_BYTES) {
         }
 
-        void initialise(const char* raw, couchstore_open_options openOptions) {
+        void initialise(const char* raw) {
             flexCode = raw[0];
             dataType = raw[1];
 
@@ -142,15 +142,6 @@ protected:
                         "MetaDataV1::initialise illegal "
                         "flexCode \"" +
                         std::to_string(flexCode) + "\"");
-            }
-
-            if ((openOptions & DECOMPRESS_DOC_BODIES) == 0) {
-                // Couchstore always stores the document body compressed on
-                // disk, but if the client didn't specify DECOMPRESS_DOC_BODIES
-                // then they fetch the document value in compressed mode. Update
-                // the datatype flag for this item to reflect that it is
-                // compressed so that the receiver of the object may notice.
-                dataType |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
             }
         }
 
@@ -400,12 +391,8 @@ public:
     /*
      * Construct metadata from a sized_buf, the assumption is that the
      * data has come back from couchstore.
-     * @param in Buffer containing the raw metadata.
-     * @param openOptions The options passed to couchstore_open_doc which the
-     *        metadata was loaded from.
      */
-    explicit MetaData(const sized_buf& in, couchstore_open_options openOptions)
-        : initVersion(Version::V0) {
+    explicit MetaData(const sized_buf& in) : initVersion(Version::V0) {
         // Expect metadata to be V0, V1, V2 or V3
         // V2 part is ignored, but valid to find in storage.
         if (in.size < getMetaDataSize(Version::V0) ||
@@ -421,7 +408,7 @@ public:
         // The rest depends on in.size
         if (in.size >= (sizeof(MetaDataV0) + sizeof(MetaDataV1))) {
             // The size extends enough to include V1 meta, initialise that.
-            allMeta.v1.initialise(in.buf + sizeof(MetaDataV0), openOptions);
+            allMeta.v1.initialise(in.buf + sizeof(MetaDataV0));
             initVersion = Version::V1;
         }
 
@@ -614,18 +601,8 @@ protected:
  */
 class MetaDataFactory {
 public:
-    /**
-     * Create the appropriate version of MetaData object based on the content
-     * of 'metadata'.
-     * @param metadata View on metadata to create the object from.
-     * @param openOptions The options passed to couchstore_open_doc() /
-     *        couchstore_open_doc_with_docinfo() which this metadata is being
-     *        created from.
-     *        Required to ensure datatype of metadata is set correctly.
-     */
-    static std::unique_ptr<MetaData> createMetaData(
-            sized_buf metadata, couchstore_open_options openOptions) {
-        return std::make_unique<MetaData>(metadata, openOptions);
+    static std::unique_ptr<MetaData> createMetaData(sized_buf metadata) {
+        return std::unique_ptr<MetaData>(new MetaData(metadata));
     }
 
     static std::unique_ptr<MetaData> createMetaData() {

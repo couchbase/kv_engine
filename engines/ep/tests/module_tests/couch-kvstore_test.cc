@@ -1547,39 +1547,38 @@ TEST_F(CouchKVStoreMetaData, overlay) {
     sized_buf meta;
     meta.buf = data.data();
     meta.size = data.size();
-    EXPECT_THROW(MetaDataFactory::createMetaData(meta, {}),
-                 std::invalid_argument);
+    EXPECT_THROW(MetaDataFactory::createMetaData(meta), std::invalid_argument);
 
     data.resize(16 + 2);
     meta.buf = data.data();
     meta.size = data.size();
-    auto metadata = MetaDataFactory::createMetaData(meta, {});
+    auto metadata = MetaDataFactory::createMetaData(meta);
     EXPECT_EQ(MetaData::Version::V1, metadata->getVersionInitialisedFrom());
 
     // Even with a 19 byte (v2) meta, the expectation is we become V1
     data.resize(16 + 2 + 1);
     meta.buf = data.data();
     meta.size = data.size();
-    metadata = MetaDataFactory::createMetaData(meta, {});
+    metadata = MetaDataFactory::createMetaData(meta);
     EXPECT_EQ(MetaData::Version::V1, metadata->getVersionInitialisedFrom());
 
     // Increase to size of V3; should create V3.
     data.resize(16 + 2 + 7);
     meta.buf = data.data();
     meta.size = data.size();
-    metadata = MetaDataFactory::createMetaData(meta, {});
+    metadata = MetaDataFactory::createMetaData(meta);
     EXPECT_EQ(MetaData::Version::V3, metadata->getVersionInitialisedFrom());
 
     // Buffers too large and small
     data.resize(MetaData::getMetaDataSize(MetaData::Version::V3) + 1);
     meta.buf = data.data();
     meta.size = data.size();
-    EXPECT_THROW(MetaDataFactory::createMetaData(meta, {}), std::logic_error);
+    EXPECT_THROW(MetaDataFactory::createMetaData(meta), std::logic_error);
 
     data.resize(MetaData::getMetaDataSize(MetaData::Version::V0) - 1);
     meta.buf = data.data();
     meta.size = data.size();
-    EXPECT_THROW(MetaDataFactory::createMetaData(meta, {}), std::logic_error);
+    EXPECT_THROW(MetaDataFactory::createMetaData(meta), std::logic_error);
 }
 
 TEST_F(CouchKVStoreMetaData, overlayExpands2) {
@@ -1590,7 +1589,7 @@ TEST_F(CouchKVStoreMetaData, overlayExpands2) {
     meta.size = data.size();
 
     // V1 in V1 "moved out"
-    auto metadata = MetaDataFactory::createMetaData(meta, {});
+    auto metadata = MetaDataFactory::createMetaData(meta);
     EXPECT_EQ(MetaData::Version::V1, metadata->getVersionInitialisedFrom());
     out.size = MetaData::getMetaDataSize(MetaData::Version::V1);
     out.buf = new char[out.size];
@@ -1609,7 +1608,7 @@ TEST_F(CouchKVStoreMetaData, overlayExpands3) {
     meta.size = data.size();
 
     // V1 in V1 "moved out"
-    auto metadata = MetaDataFactory::createMetaData(meta, {});
+    auto metadata = MetaDataFactory::createMetaData(meta);
     EXPECT_EQ(MetaData::Version::V3, metadata->getVersionInitialisedFrom());
     out.size = MetaData::getMetaDataSize(MetaData::Version::V3);
     out.buf = new char[out.size];
@@ -1629,7 +1628,7 @@ TEST_F(CouchKVStoreMetaData, writeToOverlay) {
 
     // Test that we can initialise from V1 but still set
     // all fields of all versions
-    auto metadata = MetaDataFactory::createMetaData(meta, {});
+    auto metadata = MetaDataFactory::createMetaData(meta);
     EXPECT_EQ(MetaData::Version::V1, metadata->getVersionInitialisedFrom());
 
     uint64_t cas = 0xf00f00ull;
@@ -1664,7 +1663,7 @@ TEST_F(CouchKVStoreMetaData, writeToOverlay) {
     out.size = MetaData::getMetaDataSize(MetaData::Version::V1);
     out.buf = new char[out.size];
     metadata->copyToBuf(out);
-    metadata = MetaDataFactory::createMetaData(out, DECOMPRESS_DOC_BODIES);
+    metadata = MetaDataFactory::createMetaData(out);
     EXPECT_EQ(MetaData::Version::V1,
               metadata->getVersionInitialisedFrom()); // Is it V1?
 
@@ -1684,7 +1683,7 @@ TEST_F(CouchKVStoreMetaData, writeToOverlay) {
     out.size = MetaData::getMetaDataSize(MetaData::Version::V3);
     out.buf = new char[out.size];
     metadata->copyToBuf(out);
-    metadata = MetaDataFactory::createMetaData(out, {});
+    metadata = MetaDataFactory::createMetaData(out);
     EXPECT_EQ(MetaData::Version::V3,
               metadata->getVersionInitialisedFrom()); // Is it V1?
 
@@ -1700,7 +1699,7 @@ TEST_F(CouchKVStoreMetaData, assignment) {
     sized_buf meta;
     meta.buf = data.data();
     meta.size = data.size();
-    auto metadata = MetaDataFactory::createMetaData(meta, {});
+    auto metadata = MetaDataFactory::createMetaData(meta);
     ASSERT_EQ(MetaData::Version::V1, metadata->getVersionInitialisedFrom());
     uint64_t cas = 0xf00f00ull;
     uint32_t exp = 0xcafe1234;
