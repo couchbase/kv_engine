@@ -774,9 +774,10 @@ void Connection::event_callback(bufferevent*, short event, void* ctx) {
     }
 
     if ((event & BEV_EVENT_ERROR) == BEV_EVENT_ERROR) {
-        LOG_INFO("{}: Connection::on_event: Socket error: {}",
-                 instance.getId(),
-                 evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
+        LOG_INFO(
+                "{}: Connection::on_event: unrecoverable error encountered, "
+                "shutting down connection",
+                instance.getId());
         instance.setTerminationReason("Network error");
         term = true;
     }
@@ -823,48 +824,92 @@ void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
     auto& instance = *reinterpret_cast<Connection*>(ctx);
     // Lets inspect the certificate before we'll do anything further
     auto* ssl_st = bufferevent_openssl_get_ssl(bev);
-    cb::openssl::unique_x509_ptr cert(SSL_get_peer_certificate(ssl_st));
-    auto certResult = Settings::instance().lookupUser(cert.get());
+    const auto verifyMode = SSL_get_verify_mode(ssl_st);
+    const auto enabled = ((verifyMode & SSL_VERIFY_PEER) == SSL_VERIFY_PEER);
+
     bool disconnect = false;
-    switch (certResult.first) {
-    case cb::x509::Status::NoMatch:
-    case cb::x509::Status::Error:
-        disconnect = true;
-        break;
-    case cb::x509::Status::NotPresent:
-        if (Settings::instance().getClientCertMode() ==
-            cb::x509::Mode::Mandatory) {
-            disconnect = true;
-        } else if (is_default_bucket_enabled()) {
-            associate_bucket(instance, "default");
+    if (enabled) {
+        const auto mandatory =
+                ((verifyMode & SSL_VERIFY_FAIL_IF_NO_PEER_CERT) ==
+                 SSL_VERIFY_FAIL_IF_NO_PEER_CERT);
+        // Check certificate
+        cb::openssl::unique_x509_ptr cert(SSL_get_peer_certificate(ssl_st));
+        if (cert) {
+            auto [status, name] = Settings::instance().lookupUser(cert.get());
+            switch (status) {
+            case cb::x509::Status::NoMatch:
+                audit_auth_failure(instance,
+                                   "Failed to map a user from the client "
+                                   "provided X.509 certificate");
+                instance.setTerminationReason(
+                        "Failed to map a user from the client provided X.509 "
+                        "certificate");
+                LOG_WARNING(
+                        "{}: conn_ssl_init: Failed to map a user from the "
+                        "client provided X.509 certificate: [{}]",
+                        instance.getId(),
+                        name);
+                disconnect = true;
+                break;
+            case cb::x509::Status::Error:
+                audit_auth_failure(
+                        instance,
+                        "Failed to use client provided X.509 certificate");
+                instance.setTerminationReason(
+                        "Failed to use client provided X.509 certificate");
+                LOG_WARNING(
+                        "{}: conn_ssl_init: disconnection client due to error "
+                        "[{}]",
+                        instance.getId(),
+                        name);
+                disconnect = true;
+                break;
+            case cb::x509::Status::NotPresent:
+                // Note: NotPresent in this context is that there is no
+                //       mapper present in the _configuration_ which is
+                //       allowd in "Enabled" mode as it just means that we'll
+                //       try to verify the peer.
+                if (mandatory) {
+                    const char* reason =
+                            "The server does not have any mapping rules "
+                            "configured for certificate authentication";
+                    audit_auth_failure(instance, reason);
+                    instance.setTerminationReason(reason);
+                    disconnect = true;
+                    LOG_WARNING("{}: ssl_conn_init: disconnecting client: {}",
+                                instance.getId(),
+                                reason);
+                } else if (is_default_bucket_enabled()) {
+                    associate_bucket(instance, "default");
+                }
+                break;
+            case cb::x509::Status::Success:
+                if (!instance.tryAuthFromSslCert(name)) {
+                    const std::string reason =
+                            "User [" + name + "] not defined in Couchbase";
+                    audit_auth_failure(instance, reason.c_str());
+                    instance.setTerminationReason(reason.c_str());
+                    disconnect = true;
+                }
+            }
+        } else {
+            // Client did not provide a X.509 certificate, and we're not
+            // using mandatory mode (if so openssl would disconnect before
+            // getting here)
+            if (is_default_bucket_enabled()) {
+                // We've not configured the socket to try to authenticate from
+                // the peer certificate
+                associate_bucket(instance, "default");
+            }
         }
-        break;
-    case cb::x509::Status::Success:
-        if (!instance.tryAuthFromSslCert(certResult.second)) {
-            disconnect = true;
-            // Don't print an error message... already logged
-            certResult.second.clear();
-        }
+    } else if (is_default_bucket_enabled()) {
+        // We've not configured the socket to try to authenticate from
+        // the peer certificate
+        associate_bucket(instance, "default");
     }
 
     if (disconnect) {
-        if (certResult.first == cb::x509::Status::NotPresent) {
-            audit_auth_failure(instance,
-                               "Client did not provide an X.509 certificate");
-            instance.setTerminationReason("Client did not provide an X.509 certificate");
-        } else {
-            audit_auth_failure(
-                    instance,
-                    "Failed to use client provided X.509 certificate");
-            instance.setTerminationReason("Failed to use client provided X.509 certificate");
-        }
         instance.shutdown();
-        if (!certResult.second.empty()) {
-            LOG_WARNING(
-                    "{}: conn_ssl_init: disconnection client due to error [{}]",
-                    instance.getId(),
-                    certResult.second);
-        }
     } else {
         LOG_INFO("{}: Using SSL cipher:{}",
                  instance.getId(),
