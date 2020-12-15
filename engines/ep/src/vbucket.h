@@ -2297,9 +2297,7 @@ private:
      * deleting an item in in-memory structures like HT, and checkpoint mgr.
      * Assumes that HT bucket lock is grabbed.
      *
-     * @param hbl Hash table bucket lock that must be held
-     * @param v Reference to the StoredValue to be soft deleted
-     * @param cHandle Collections readhandle (caching mode) for this key
+     * @param htRes Hash table result containg both prepare and committed SVs
      *
      * @return status of the operation.
      *         pointer to the updated StoredValue. It can be same as that of
@@ -2308,8 +2306,7 @@ private:
      *         notification info.
      */
     std::tuple<MutationStatus, StoredValue*, VBNotifyCtx> processExpiredItem(
-            const HashTable::HashBucketLock& hbl,
-            StoredValue& v,
+            HashTable::FindUpdateResult& htRes,
             const Collections::VB::Manifest::CachingReadHandle& cHandle);
 
     /**
