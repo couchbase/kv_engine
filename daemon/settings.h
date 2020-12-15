@@ -542,8 +542,8 @@ public:
     void setSslMinimumProtocol(std::string protocol);
 
     void reconfigureClientCertAuth(
-            std::unique_ptr<cb::x509::ClientCertConfig>& config) {
-        client_cert_mapper.reconfigure(config);
+            std::unique_ptr<cb::x509::ClientCertConfig> config) {
+        client_cert_mapper.reconfigure(std::move(config));
         has.client_cert_auth = true;
         notify_changed("client_cert_auth");
     }

@@ -283,8 +283,7 @@ std::pair<Status, std::string> ClientCertConfig::Mapping::match(
     return std::make_pair(Status::NotPresent, "No mapping defined");
 }
 
-void ClientCertMapper::reconfigure(std::unique_ptr<ClientCertConfig>& next) {
-    std::lock_guard<std::mutex> guard(mutex);
+void ClientCertMapper::reconfigure(std::unique_ptr<ClientCertConfig> next) {
     config = std::move(next);
 }
 
@@ -293,28 +292,34 @@ std::pair<Status, std::string> ClientCertMapper::lookupUser(X509* cert) const {
         return std::make_pair(Status::NotPresent,
                               "certificate not presented by client");
     }
-    std::lock_guard<std::mutex> guard(mutex);
-    if (!config) {
-        return std::make_pair(Status::Error, "No database configured");
-    }
-    return config->lookupUser(cert);
+
+    return config.withRLock([cert](auto& c) -> std::pair<Status, std::string> {
+        if (c) {
+            return c->lookupUser(cert);
+        } else {
+            return std::make_pair(Status::Error, "No database configured");
+        }
+    });
 }
 
 Mode ClientCertMapper::getMode() const {
-    std::lock_guard<std::mutex> guard(mutex);
-    if (!config) {
-        return Mode::Disabled;
-    }
-
-    return config->getMode();
+    return config.withRLock([](auto& c) {
+        if (c) {
+            return c->getMode();
+        } else {
+            return Mode::Disabled;
+        }
+    });
 }
-std::string ClientCertMapper::to_string() const {
-    std::lock_guard<std::mutex> guard(mutex);
-    if (!config) {
-        return std::string(R"({"state":"disable"})");
-    }
 
-    return config->to_string();
+std::string ClientCertMapper::to_string() const {
+    return config.withRLock([](auto& c) {
+        if (c) {
+            return c->to_string();
+        } else {
+            return std::string{R"({"state":"disable"})"};
+        }
+    });
 }
 
 } // namespace cb::x509

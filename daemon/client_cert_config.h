@@ -16,9 +16,9 @@
  */
 #pragma once
 
+#include <folly/Synchronized.h>
 #include <nlohmann/json_fwd.hpp>
 #include <openssl/ossl_typ.h>
-#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -155,7 +155,7 @@ public:
      *
      * @param next The new configuration to use
      */
-    void reconfigure(std::unique_ptr<ClientCertConfig>& next);
+    void reconfigure(std::unique_ptr<ClientCertConfig> next);
 
     /**
      * Try to look up a username by using the defined mappings
@@ -176,8 +176,7 @@ public:
     std::string to_string() const;
 
 protected:
-    mutable std::mutex mutex;
-    std::unique_ptr<ClientCertConfig> config;
+    folly::Synchronized<std::unique_ptr<ClientCertConfig>> config;
 };
 
 } // namespace cb::x509

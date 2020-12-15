@@ -521,7 +521,7 @@ static void handle_xattr_enabled(Settings& s, const nlohmann::json& obj) {
  */
 static void handle_client_cert_auth(Settings& s, const nlohmann::json& obj) {
     auto config = cb::x509::ClientCertConfig::create(obj);
-    s.reconfigureClientCertAuth(config);
+    s.reconfigureClientCertAuth(std::move(config));
 }
 
 /**
@@ -1016,7 +1016,7 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             // TODO MB-30041: Remove when we migrate settings
             nlohmann::json json = nlohmann::json::parse(o);
             auto config = cb::x509::ClientCertConfig::create(json);
-            reconfigureClientCertAuth(config);
+            reconfigureClientCertAuth(std::move(config));
         }
     }
     if (other.has.ssl_minimum_protocol) {
