@@ -59,15 +59,14 @@ struct PersistedStats;
 
 struct vb_bgfetch_item_ctx_t;
 struct TransactionContext;
-union protocol_binary_request_compact_db;
 
 using vb_bgfetch_queue_t =
         std::unordered_map<DiskDocKey, vb_bgfetch_item_ctx_t>;
 
 enum class GetMetaOnly { Yes, No };
 
-typedef std::shared_ptr<Callback<Vbid&, const DocKey&, bool&>> BloomFilterCBPtr;
-typedef std::shared_ptr<Callback<Item&, time_t&> > ExpiredItemsCBPtr;
+using BloomFilterCBPtr = std::shared_ptr<Callback<Vbid&, const DocKey&, bool&>>;
+using ExpiredItemsCBPtr = std::shared_ptr<Callback<Item&, time_t&>>;
 
 enum class SnapshotSource { Historical, Head };
 
@@ -172,9 +171,6 @@ struct kvstats_ctx {
 
 class NoLookupCallback : public StatusCallback<CacheLookup> {
 public:
-    NoLookupCallback() {}
-    ~NoLookupCallback() override {
-    }
     void callback(CacheLookup&) override {
     }
 };
@@ -249,10 +245,7 @@ struct vbucket_state;
  */
 class KVFileHandle {
 public:
-    KVFileHandle() {
-    }
-    virtual ~KVFileHandle() {
-    }
+    virtual ~KVFileHandle() = default;
 };
 
 class ScanContext {
@@ -267,8 +260,7 @@ public:
                         droppedCollections,
                 int64_t maxSeqno);
 
-    virtual ~ScanContext() {
-    }
+    virtual ~ScanContext() = default;
 
     const StatusCallback<GetValue>& getValueCallback() const {
         return *callback;
@@ -1191,8 +1183,7 @@ std::string to_string(KVStore::FlushStateMutation state);
  * They could be the same underlying object, or different.
  */
 struct KVStoreRWRO {
-    KVStoreRWRO() /*rw/ro default init is ok*/ {
-    }
+    KVStoreRWRO() = default;
     KVStoreRWRO(KVStore* rw, KVStore* ro) : rw(rw), ro(ro) {
     }
 
@@ -1223,9 +1214,6 @@ public:
  */
 class RollbackCB : public StatusCallback<GetValue> {
 public:
-    RollbackCB() {
-    }
-
     void callback(GetValue& val) override = 0;
 
     void setKVFileHandle(std::unique_ptr<KVFileHandle> handle) {
@@ -1251,7 +1239,7 @@ protected:
 struct TransactionContext {
     explicit TransactionContext(Vbid vbid) : vbid(vbid) {
     }
-    virtual ~TransactionContext(){};
+    virtual ~TransactionContext() = default;
 
     /**
      * Callback for sets. Invoked after persisting an item. Does nothing by

@@ -76,7 +76,7 @@ struct KVStoreRWRO;
 class KVShard {
 public:
     // Identifier for a KVShard
-    typedef uint16_t id_type;
+    using id_type = uint16_t;
     KVShard(EventuallyPersistentEngine& engine, KVShard::id_type id);
     ~KVShard();
 
