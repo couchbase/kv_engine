@@ -211,6 +211,15 @@ protected:
     void testPrepareCompletedAtAbort(cb::durability::Level level,
                                      Resolution res,
                                      bool flush = false);
+
+    /**
+     * The test verifies that Replica repositions the HPS iterator correctly at
+     * Prepare deduplication.
+     *
+     * @param level The level of the Prepares under testing
+     */
+    void testPrepareDeduplicationCorrectlyResetsHPS(
+            cb::durability::Level level);
 };
 
 /**

@@ -832,6 +832,14 @@ struct PassiveDurabilityMonitor::State {
      */
     void checkForAndRemovePrepares();
 
+    /**
+     * Erase the SyncWrite at the given iterator after fixing up the iterators
+     * for the HCS and HPS values (if they point to the element to be erased)
+     *
+     * @return trackedWrites.erase(...) result
+     */
+    Container::iterator safeEraseSyncWrite(Container::iterator toErase);
+
     /// The container of pending Prepares.
     Container trackedWrites;
 
