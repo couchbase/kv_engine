@@ -88,6 +88,14 @@ public:
                                               CollectionEntry::Entry collection,
                                               int64_t seqnoOffset = 0);
 
+    /**
+     * Setup for expiry resurrection tests that persists the item given to an
+     * old generation collection then resurrects the collection (same cid)
+     *
+     * @param item Item to persist (should have expiry set by caller)
+     */
+    void expiryResurrectionTestSetup(Item& item);
+
     VBucketPtr vb;
 };
 
@@ -966,6 +974,74 @@ TEST_P(CollectionsEraserTest, ScopePurgedItemsCorrectAfterDrop) {
 
     testScopePurgedItemsCorrectAfterDrop(
             cm, ScopeEntry::shop1, CollectionEntry::dairy, 2 /*seqnoOffset*/);
+}
+
+void CollectionsEraserTest::expiryResurrectionTestSetup(Item& item) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::dairy);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Add the item that we want to expire
+    auto key = makeStoredDocKey("key", CollectionEntry::dairy);
+    auto storedItem = store_item(vbid, key, "nice", 10 /*expiryTime*/);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Drop the old gen collection
+    cm.remove(CollectionEntry::dairy);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Add new gen
+    cm.add(CollectionEntry::dairy);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+}
+
+TEST_P(CollectionsEraserTest, FetchValidValueExpiryResurrectionTest) {
+    auto key = makeStoredDocKey("key", CollectionEntry::dairy);
+    auto item = make_item(vbid, key, "nice", 10 /*expiryTime*/);
+    expiryResurrectionTestSetup(item);
+
+    auto expectedHighSeqno = vb->getHighSeqno();
+    EXPECT_EQ(0, vb->numExpiredItems);
+
+    // And run the expiry which should not generate a new seqno
+    {
+        auto cHandle = vb->lockCollections(key);
+        auto result = vb->fetchValidValue(WantsDeleted::Yes,
+                                          TrackReference::Yes,
+                                          QueueExpired::Yes,
+                                          cHandle);
+        EXPECT_FALSE(result.storedValue);
+    }
+
+    EXPECT_EQ(expectedHighSeqno, vb->getHighSeqno());
+    EXPECT_EQ(0, vb->numExpiredItems);
+}
+
+TEST_P(CollectionsEraserTest, DeleteExpiryResurrectionTest) {
+    // Add the item that we want to expire
+    auto key = makeStoredDocKey("key", CollectionEntry::dairy);
+    auto item = make_item(vbid, key, "nice", 10 /*expiryTime*/);
+    expiryResurrectionTestSetup(item);
+
+    auto expectedHighSeqno = vb->getHighSeqno();
+
+    // And run the expiry which should not generate a new seqno. Importantly it
+    // should return ENOENT as the item it found belongs to a logically deleted
+    // collection and it should NOT try to expire it.
+    uint64_t cas = item.getCas();
+    mutation_descr_t mutation_descr;
+    ASSERT_EQ(ENGINE_KEY_ENOENT,
+              store->deleteItem(key,
+                                cas,
+                                vbid,
+                                /*cookie*/ nullptr,
+                                {},
+                                /*itemMeta*/ nullptr,
+                                mutation_descr));
+    EXPECT_EQ(expectedHighSeqno, vb->getHighSeqno());
 }
 
 class CollectionsEraserSyncWriteTest : public CollectionsEraserTest {

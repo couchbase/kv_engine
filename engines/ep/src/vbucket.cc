@@ -3666,6 +3666,11 @@ VBucket::processExpiredItem(HashTable::FindUpdateResult& htRes,
     Expects(htRes.committed);
     auto& v = *htRes.committed;
 
+    if (cHandle.isLogicallyDeleted(v.getBySeqno())) {
+        return std::make_tuple(
+                MutationStatus::NotFound, nullptr, VBNotifyCtx{});
+    }
+
     if (v.isTempInitialItem() && eviction == EvictionPolicy::Full) {
         incExpirationStat(expirySource);
         return std::make_tuple(
