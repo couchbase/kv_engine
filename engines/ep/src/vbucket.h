@@ -2119,6 +2119,8 @@ protected:
      * Assumes that HT bucket lock is grabbed.
      *
      * @param htRes Hash table result containg both prepare and committed SVs
+     * @param cHandle Collections Manifest read handle for the given collection
+     * @param expirySource Source for which we attribute stats (i.e. Compactor)
      *
      * @return status of the operation.
      *         pointer to the updated StoredValue. It can be same as that of
@@ -2128,7 +2130,8 @@ protected:
      */
     std::tuple<MutationStatus, StoredValue*, VBNotifyCtx> processExpiredItem(
             HashTable::FindUpdateResult& htRes,
-            const Collections::VB::CachingReadHandle& cHandle);
+            const Collections::VB::CachingReadHandle& cHandle,
+            ExpireBy expirySource);
 
     /// The VBucket collection state
     std::unique_ptr<Collections::VB::Manifest> manifest;

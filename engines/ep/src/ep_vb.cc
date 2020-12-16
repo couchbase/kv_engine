@@ -286,13 +286,12 @@ void EPVBucket::completeCompactionExpiryBgFetch(
                 htRes.getHBL(), *sVToUse, fetchedItem.compactionItem);
         VBNotifyCtx notifyCtx;
         std::tie(std::ignore, std::ignore, notifyCtx) =
-                processExpiredItem(htRes, cHandle);
+                processExpiredItem(htRes, cHandle, ExpireBy::Compactor);
         // we unlock ht lock here because we want to avoid potential
         // lock inversions arising from notifyNewSeqno() call
         htRes.getHBL().getHTLock().unlock();
         notifyNewSeqno(notifyCtx);
         doCollectionsStats(cHandle, notifyCtx);
-        incExpirationStat(ExpireBy::Compactor);
     }
 }
 

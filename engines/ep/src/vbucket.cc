@@ -1410,11 +1410,10 @@ HashTable::FindResult VBucket::fetchValidValue(
             // queueDirty only allowed on active VB
             if (queueExpired == QueueExpired::Yes &&
                 getState() == vbucket_state_active) {
-                incExpirationStat(ExpireBy::Access);
                 handlePreExpiry(res.getHBL(), *v);
                 VBNotifyCtx notifyCtx;
                 std::tie(std::ignore, v, notifyCtx) =
-                        processExpiredItem(res, cHandle);
+                        processExpiredItem(res, cHandle, ExpireBy::Access);
                 notifyNewSeqno(notifyCtx);
                 doCollectionsStats(cHandle, notifyCtx);
             }
@@ -1476,10 +1475,10 @@ VBucket::FetchForWriteResult VBucket::fetchValueForWrite(
     // Expired - but queueDirty only allowed on active VB
     if ((getState() == vbucket_state_active) &&
         (queueExpired == QueueExpired::Yes)) {
-        incExpirationStat(ExpireBy::Access);
         handlePreExpiry(res.getHBL(), *sv);
         VBNotifyCtx notifyCtx;
-        std::tie(std::ignore, sv, notifyCtx) = processExpiredItem(res, cHandle);
+        std::tie(std::ignore, sv, notifyCtx) =
+                processExpiredItem(res, cHandle, ExpireBy::Access);
         notifyNewSeqno(notifyCtx);
         doCollectionsStats(cHandle, notifyCtx);
     }
@@ -2159,7 +2158,8 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
         auto* v = htRes.selectSVToModify(durability.has_value());
 
         if (htRes.committed->isExpired(ep_real_time())) {
-            std::tie(delrv, v, notifyCtx) = processExpiredItem(htRes, cHandle);
+            std::tie(delrv, v, notifyCtx) =
+                    processExpiredItem(htRes, cHandle, ExpireBy::Access);
         } else {
             ItemMetaData metadata;
             metadata.revSeqno = htRes.committed->getRevSeqno() + 1;
@@ -2460,11 +2460,12 @@ void VBucket::deleteExpiredItem(const Item& it,
                         std::to_string(v->getBySeqno()) + " from bucket " +
                         std::to_string(hbl.getBucketNum()));
             }
+            incExpirationStat(source);
         } else if (v->isExpired(startTime) && !v->isDeleted()) {
             VBNotifyCtx notifyCtx;
             ht.unlocked_updateStoredValue(hbl, *v, it);
             std::tie(std::ignore, std::ignore, notifyCtx) =
-                    processExpiredItem(htRes, cHandle);
+                    processExpiredItem(htRes, cHandle, source);
             // we unlock ht lock here because we want to avoid potential lock
             // inversions arising from notifyNewSeqno() call
             hbl.getHTLock().unlock();
@@ -2509,7 +2510,7 @@ void VBucket::deleteExpiredItem(const Item& it,
             ht.unlocked_updateStoredValue(hbl, *v, it);
             VBNotifyCtx notifyCtx;
             std::tie(std::ignore, std::ignore, notifyCtx) =
-                    processExpiredItem(htRes, cHandle);
+                    processExpiredItem(htRes, cHandle, source);
             // we unlock ht lock here because we want to avoid potential
             // lock inversions arising from notifyNewSeqno() call
             hbl.getHTLock().unlock();
@@ -2517,7 +2518,6 @@ void VBucket::deleteExpiredItem(const Item& it,
             doCollectionsStats(cHandle, notifyCtx);
         }
     }
-    incExpirationStat(source);
 }
 
 ENGINE_ERROR_CODE VBucket::add(
@@ -3642,7 +3642,8 @@ VBucket::processSoftDeleteInner(const HashTable::HashBucketLock& hbl,
 
 std::tuple<MutationStatus, StoredValue*, VBNotifyCtx>
 VBucket::processExpiredItem(HashTable::FindUpdateResult& htRes,
-                            const Collections::VB::CachingReadHandle& cHandle) {
+                            const Collections::VB::CachingReadHandle& cHandle,
+                            ExpireBy expirySource) {
     if (!htRes.getHBL().getHTLock()) {
         throw std::invalid_argument(
                 "VBucket::processExpiredItem: htLock not held for " +
@@ -3660,6 +3661,7 @@ VBucket::processExpiredItem(HashTable::FindUpdateResult& htRes,
     auto& v = *htRes.committed;
 
     if (v.isTempInitialItem() && eviction == EvictionPolicy::Full) {
+        incExpirationStat(expirySource);
         return std::make_tuple(
                 MutationStatus::NeedBgFetch,
                 &v,
@@ -3690,8 +3692,8 @@ VBucket::processExpiredItem(HashTable::FindUpdateResult& htRes,
     switch (delStatus) {
     case DeletionStatus::Success:
         ht.updateMaxDeletedRevSeqno(newSv->getRevSeqno() + 1);
+        incExpirationStat(expirySource);
         return std::make_tuple(MutationStatus::NotFound, newSv, notifyCtx);
-
     case DeletionStatus::IsPendingSyncWrite:
         return std::make_tuple(
                 MutationStatus::IsPendingSyncWrite, newSv, VBNotifyCtx{});

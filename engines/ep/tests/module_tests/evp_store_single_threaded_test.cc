@@ -3018,6 +3018,23 @@ TEST_F(SingleThreadedEPBucketTest, CreatedItemFreqDecayerTask) {
     EXPECT_TRUE(isItemFreqDecayerTaskSnoozed());
 }
 
+TEST_P(STParameterizedBucketTest, DeleteExpiredItem) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto key = makeStoredDocKey("key");
+    auto item = makeCommittedItem(key, "value");
+    item->setExpTime(5);
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(*item, cookie));
+
+    mutation_descr_t delInfo;
+    uint64_t cas = item->getCas();
+    using namespace cb::durability;
+    EXPECT_EQ(ENGINE_KEY_ENOENT,
+              store->deleteItem(key, cas, vbid, cookie, {}, nullptr, delInfo));
+
+    auto vb = store->getVBucket(vbid);
+    EXPECT_EQ(1, vb->numExpiredItems);
+}
+
 // MB-26907
 TEST_P(STParameterizedBucketTest, enable_expiry_output) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
