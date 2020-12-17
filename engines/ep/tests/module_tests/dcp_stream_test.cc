@@ -2661,22 +2661,32 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
                         CheckpointType::Disk /*expectedOpenCkptType*/);
     }
 
-    // Memory snap but previous snap is Disk -> no merge
+    // From Disk to Disk + we miss the MARKER_FLAG_CHK, still not merged
     {
         SCOPED_TRACE("");
         receiveSnapshot(5 /*snapStart*/,
                         5 /*snapEnd*/,
-                        dcp_marker_flag_t::MARKER_FLAG_MEMORY,
+                        dcp_marker_flag_t::MARKER_FLAG_DISK,
                         4 /*expectedNumCheckpoint*/,
+                        CheckpointType::Disk /*expectedOpenCkptType*/);
+    }
+
+    // Memory snap but previous snap is Disk -> no merge
+    {
+        SCOPED_TRACE("");
+        receiveSnapshot(6 /*snapStart*/,
+                        6 /*snapEnd*/,
+                        dcp_marker_flag_t::MARKER_FLAG_MEMORY,
+                        5 /*expectedNumCheckpoint*/,
                         CheckpointType::Memory /*expectedOpenCkptType*/);
     }
 
     {
         SCOPED_TRACE("");
-        receiveSnapshot(6 /*snapStart*/,
-                        6 /*snapEnd*/,
+        receiveSnapshot(7 /*snapStart*/,
+                        7 /*snapEnd*/,
                         dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
-                        5 /*expectedNumCheckpoint*/,
+                        6 /*expectedNumCheckpoint*/,
                         CheckpointType::Memory /*expectedOpenCkptType*/);
     }
 }
