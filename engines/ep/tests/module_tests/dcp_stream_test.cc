@@ -2575,8 +2575,7 @@ TEST_P(SingleThreadedPassiveStreamTest,
  * Note: this test does not cover any issue, it just shows what happens at
  * Replica if the Active misses to set the MARKER_FLAG_CHK in SnapshotMarker.
  */
-TEST_P(SingleThreadedPassiveStreamTest,
-       ReplicaCreatesCheckpointsOnlyIfFlagSetInSnapMarker) {
+TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
     auto vb = engine->getVBucket(vbid);
     ASSERT_TRUE(vb);
     auto& ckptMgr = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
@@ -2643,14 +2642,13 @@ TEST_P(SingleThreadedPassiveStreamTest,
                         CheckpointType::Memory /*expectedOpenCkptType*/);
     }
 
-    // Merged with the previous snapshot (which has been turned from Memory to
-    // Disk)
+    // Disk + we miss the MARKER_FLAG_CHK, still not merged
     {
         SCOPED_TRACE("");
         receiveSnapshot(3 /*snapStart*/,
                         3 /*snapEnd*/,
                         dcp_marker_flag_t::MARKER_FLAG_DISK,
-                        1 /*expectedNumCheckpoint*/,
+                        2 /*expectedNumCheckpoint*/,
                         CheckpointType::Disk /*expectedOpenCkptType*/);
     }
 
@@ -2659,18 +2657,17 @@ TEST_P(SingleThreadedPassiveStreamTest,
         receiveSnapshot(4 /*snapStart*/,
                         4 /*snapEnd*/,
                         dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
-                        2 /*expectedNumCheckpoint*/,
+                        3 /*expectedNumCheckpoint*/,
                         CheckpointType::Disk /*expectedOpenCkptType*/);
     }
 
-    // Merged with the previous snapshot (which has been turned from Disk to
-    // Memory)
+    // Memory snap but previous snap is Disk -> no merge
     {
         SCOPED_TRACE("");
         receiveSnapshot(5 /*snapStart*/,
                         5 /*snapEnd*/,
                         dcp_marker_flag_t::MARKER_FLAG_MEMORY,
-                        2 /*expectedNumCheckpoint*/,
+                        4 /*expectedNumCheckpoint*/,
                         CheckpointType::Memory /*expectedOpenCkptType*/);
     }
 
@@ -2679,7 +2676,7 @@ TEST_P(SingleThreadedPassiveStreamTest,
         receiveSnapshot(6 /*snapStart*/,
                         6 /*snapEnd*/,
                         dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
-                        3 /*expectedNumCheckpoint*/,
+                        5 /*expectedNumCheckpoint*/,
                         CheckpointType::Memory /*expectedOpenCkptType*/);
     }
 }
@@ -3804,6 +3801,223 @@ public:
 
 TEST_P(SingleThreadedBackfillBufferTest, SingleItemBuffer) {
     testBackfill();
+}
+
+TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
+    // Note: We need at least one cursor in the replica checkpoint to hit the
+    //  issue. Given that in Ephemeral (a) there is no persistence cursor and
+    //  (b) we cannot have any outbound stream / DCP cursor from replica
+    //  vbuckets, then we cannot hit the issue in Ephemeral.
+    if (ephemeral()) {
+        return;
+    }
+
+    auto& vb = *store->getVBucket(vbid);
+    auto& manager = static_cast<MockCheckpointManager&>(*vb.checkpointManager);
+    const auto& ckptList = manager.getCheckpointList();
+    ASSERT_EQ(1, ckptList.size());
+    ASSERT_EQ(CheckpointType::Memory, ckptList.front()->getCheckpointType());
+    ASSERT_EQ(0, ckptList.front()->getSnapshotStartSeqno());
+    ASSERT_EQ(0, ckptList.front()->getSnapshotEndSeqno());
+    ASSERT_EQ(0, ckptList.front()->getNumItems());
+    ASSERT_EQ(0, manager.getHighSeqno());
+
+    // Replica receives a complete disk snapshot {keyA:1, keyB:2}
+    const uint32_t opaque = 1;
+    const uint64_t snapStart = 1;
+    const uint64_t snapEnd = 2;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       snapStart,
+                                       snapEnd,
+                                       MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+                                       {} /*HCS*/,
+                                       {} /*maxVisibleSeqno*/));
+    ASSERT_EQ(1, ckptList.size());
+    ASSERT_EQ(CheckpointType::Disk, ckptList.front()->getCheckpointType());
+    ASSERT_EQ(1, ckptList.front()->getSnapshotStartSeqno());
+    ASSERT_EQ(2, ckptList.front()->getSnapshotEndSeqno());
+    ASSERT_EQ(0, ckptList.front()->getNumItems());
+    ASSERT_EQ(0, manager.getHighSeqno());
+
+    const auto keyA = makeStoredDocKey("keyA");
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->mutation(opaque,
+                                 keyA,
+                                 {},
+                                 0,
+                                 0,
+                                 0,
+                                 vbid,
+                                 0,
+                                 snapStart,
+                                 0,
+                                 0,
+                                 0,
+                                 {},
+                                 0));
+    const auto keyB = makeStoredDocKey("keyB");
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->mutation(opaque,
+                                 keyB,
+                                 {},
+                                 0,
+                                 0,
+                                 0,
+                                 vbid,
+                                 0,
+                                 snapEnd,
+                                 0,
+                                 0,
+                                 0,
+                                 {},
+                                 0));
+
+    ASSERT_EQ(1, ckptList.size());
+    ASSERT_EQ(CheckpointType::Disk, ckptList.front()->getCheckpointType());
+    ASSERT_EQ(1, ckptList.front()->getSnapshotStartSeqno());
+    ASSERT_EQ(2, ckptList.front()->getSnapshotEndSeqno());
+    ASSERT_EQ(2, ckptList.front()->getNumItems());
+    ASSERT_EQ(2, manager.getHighSeqno());
+
+    // Move the persistence cursor to point to keyB:2.
+    flush_vbucket_to_disk(vbid, 2 /*expected_num_flushed*/);
+    const auto pCursorPos = manager.getPersistenceCursorPos();
+    ASSERT_EQ(keyB, (*pCursorPos)->getKey());
+    ASSERT_EQ(2, (*pCursorPos)->getBySeqno());
+
+    // Simulate a possible behaviour in pre-6.5: Producer may send a SnapMarker
+    // and miss to set the MARKER_FLAG_CHK, eg MB-32862
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       3 /*snapStart*/,
+                                       3 /*snapEnd*/,
+                                       MARKER_FLAG_MEMORY,
+                                       {} /*HCS*/,
+                                       {} /*maxVisibleSeqno*/));
+
+    // 6.6.1 PassiveStream is resilient to any Active misbehaviour with regard
+    // to MARKER_FLAG_CHK. Even if Active missed to set the flag, Replica closes
+    // the checkpoint and creates a new one for queueing the new Memory
+    // snapshot.
+    // This is an important step in the test. Essentially here we verify that
+    // the fix eliminates one of the preconditions for hitting the issue:
+    // snapshots cannot be merged into the same checkpoint if the merge involves
+    // Disk snapshots.
+    ASSERT_EQ(2, ckptList.size());
+    ASSERT_EQ(CheckpointType::Disk, ckptList.front()->getCheckpointType());
+    ASSERT_EQ(CHECKPOINT_CLOSED, ckptList.front()->getState());
+    ASSERT_EQ(1, ckptList.front()->getSnapshotStartSeqno());
+    ASSERT_EQ(2, ckptList.front()->getSnapshotEndSeqno());
+    ASSERT_EQ(2, ckptList.front()->getNumItems());
+    ASSERT_EQ(CheckpointType::Memory, ckptList.back()->getCheckpointType());
+    ASSERT_EQ(CHECKPOINT_OPEN, ckptList.back()->getState());
+    ASSERT_EQ(3, ckptList.back()->getSnapshotStartSeqno());
+    ASSERT_EQ(3, ckptList.back()->getSnapshotEndSeqno());
+    ASSERT_EQ(0, ckptList.back()->getNumItems());
+    ASSERT_EQ(2, manager.getHighSeqno());
+
+    // Now replica receives a doc within the new Memory snapshot.
+    // Note: This step queues keyC into the checkpoint. Given that it is a
+    //  Memory checkpoint, then keyC is added to the keyIndex too.
+    //  That is a precondition for executing the deduplication path that throws
+    //  in Checkpoint::queueDirty before the fix.
+    const auto keyC = makeStoredDocKey("keyC");
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->mutation(opaque,
+                                 keyC,
+                                 {},
+                                 0,
+                                 0,
+                                 0,
+                                 vbid,
+                                 0,
+                                 3 /*seqno*/,
+                                 0,
+                                 0,
+                                 0,
+                                 {},
+                                 0));
+
+    ASSERT_EQ(2, ckptList.size());
+    ASSERT_EQ(CheckpointType::Memory, ckptList.back()->getCheckpointType());
+    ASSERT_EQ(CHECKPOINT_OPEN, ckptList.back()->getState());
+    ASSERT_EQ(3, ckptList.back()->getSnapshotStartSeqno());
+    ASSERT_EQ(3, ckptList.back()->getSnapshotEndSeqno());
+    ASSERT_EQ(1, ckptList.back()->getNumItems());
+    ASSERT_EQ(3, manager.getHighSeqno());
+
+    // Another SnapMarker with no MARKER_FLAG_CHK
+    // Note: This is not due to any pre-6.5 bug, this is legal also in 6.6.x and
+    //  7.x. The active may generate multiple Memory snapshots from the same
+    //  physical checkpoint. Those snapshots may contain duplicates of the same
+    //  key.
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       4 /*snapStart*/,
+                                       4 /*snapEnd*/,
+                                       MARKER_FLAG_MEMORY,
+                                       {} /*HCS*/,
+                                       {} /*maxVisibleSeqno*/));
+    // The new snapshot will be queued into the existing checkpoint.
+    // Note: It is important that Memory snapshots still are queued into the
+    //  same checkpoint if the active requires so. Otherwise, by generating
+    //  many checkpoints we would probably hit again perf regressions already
+    //  seen in the CheckpointManager.
+    ASSERT_EQ(2, ckptList.size());
+    ASSERT_EQ(CheckpointType::Memory, ckptList.back()->getCheckpointType());
+    ASSERT_EQ(CHECKPOINT_OPEN, ckptList.back()->getState());
+    ASSERT_EQ(3, ckptList.back()->getSnapshotStartSeqno());
+    ASSERT_EQ(4, ckptList.back()->getSnapshotEndSeqno());
+    ASSERT_EQ(1, ckptList.back()->getNumItems());
+    ASSERT_EQ(3, manager.getHighSeqno());
+
+    // Now replica receives again keyC. KeyC is in the KeyIndex of the
+    // open/Memory checkpoint and triggers deduplication checks. Note that dedup
+    // checks involve accessing the key-entry in the KeyIndex for the mutation
+    // pointed by cursors within that checkpoint.
+    //
+    // Before the fix, we merged a Disk snapshot and a Memory snapshot into the
+    // same checkpoint. The persistence cursor points to a mutation that
+    // was received within the Disk checkpoint, so there is no entry in the
+    // KeyIndex for that mutation and we fail with:
+    //
+    //   libc++abi.dylib: terminating with uncaught exception of type
+    //   std::logic_error: Checkpoint::queueDirty: Unable to find key in
+    //   keyIndex with op:mutation seqno:2 for cursor:persistence in current
+    //   checkpoint.
+    //
+    // At fix, the Memory snapshot is in its own checkpoint. The persistence
+    // cursor is in the old (closed) checkpoint, so we don't even try to access
+    // the KeyIndex for that cursor.
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->mutation(opaque,
+                                 keyC,
+                                 {},
+                                 0,
+                                 0,
+                                 0,
+                                 vbid,
+                                 0,
+                                 4 /*seqno*/,
+                                 0,
+                                 0,
+                                 0,
+                                 {},
+                                 0));
+
+    // Check that we have executed the deduplication path, the test is invalid
+    // otherwise.
+    ASSERT_EQ(2, ckptList.size());
+    ASSERT_EQ(CheckpointType::Memory, ckptList.back()->getCheckpointType());
+    ASSERT_EQ(CHECKPOINT_OPEN, ckptList.back()->getState());
+    ASSERT_EQ(3, ckptList.back()->getSnapshotStartSeqno());
+    ASSERT_EQ(4, ckptList.back()->getSnapshotEndSeqno());
+    ASSERT_EQ(1, ckptList.back()->getNumItems());
+    ASSERT_EQ(4, manager.getHighSeqno());
 }
 
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
