@@ -73,9 +73,16 @@ public:
         return numInstances.load();
     }
 
+    const std::string& getUuid() const {
+        return uuid;
+    }
+
 protected:
     /// The socket object to accept clients from
     const SOCKET sfd;
+
+    /// The unique id used to identify _this_ port
+    const std::string uuid;
 
     std::shared_ptr<ListeningPort> interface;
 

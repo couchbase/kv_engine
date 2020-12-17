@@ -20,7 +20,6 @@
 #include "front_end_thread.h"
 #include "listening_port.h"
 #include "memcached.h"
-#include "network_interface.h"
 #include "settings.h"
 #include "stats.h"
 
@@ -28,6 +27,7 @@
 #include <nlohmann/json.hpp>
 #include <platform/socket.h>
 #include <platform/strerror.h>
+#include <platform/uuid.h>
 #include <exception>
 #include <memory>
 #include <string>
@@ -63,6 +63,7 @@ ServerSocket::ServerSocket(SOCKET fd,
                            event_base* b,
                            std::shared_ptr<ListeningPort> interf)
     : sfd(fd),
+      uuid(to_string(cb::uuid::random())),
       interface(std::move(interf)),
       sockname(cb::net::getsockname(fd)),
       ev(event_new(b,
@@ -200,18 +201,21 @@ void ServerSocket::acceptNewClient() {
 nlohmann::json ServerSocket::toJson() const {
     nlohmann::json ret;
 
-    ret["ssl"] = interface->isSslPort();
+    const auto sockinfo = cb::net::getSockNameAsJson(sfd);
+    ret["host"] = sockinfo["ip"];
+    ret["port"] = sockinfo["port"];
 
     if (interface->family == AF_INET) {
-        ret["family"] = "AF_INET";
+        ret["family"] = "inet";
     } else {
-        ret["family"] = "AF_INET6";
+        ret["family"] = "inet6";
     }
 
-    ret["name"] = sockname;
-    ret["port"] = interface->port;
+    ret["tls"] = interface->isSslPort();
     ret["system"] = interface->system;
     ret["tag"] = interface->tag;
+    ret["type"] = "mcbp";
+    ret["uuid"] = uuid;
 
     return ret;
 }
