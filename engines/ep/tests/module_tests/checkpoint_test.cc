@@ -1444,14 +1444,18 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
     store->deleteVBucket(vb->getId(), cookie);
 }
 
+// MB-42780: Test disabled as already marked as "could validly be removed now"
+// above + the test is now legally failing due to changes in the checkpoint-list
 TEST_F(SingleThreadedCheckpointTest,
-       CloseReplicaCheckpointOnMemorySnapshotEnd_HighMemDisk) {
+       DISABLED_CloseReplicaCheckpointOnMemorySnapshotEnd_HighMemDisk) {
     closeReplicaCheckpointOnMemorySnapshotEnd(
             true, dcp_marker_flag_t::MARKER_FLAG_DISK);
 }
 
+// MB-42780: Test disabled as already marked as "could validly be removed now"
+// above + the test is now legally failing due to changes in the checkpoint-list
 TEST_F(SingleThreadedCheckpointTest,
-       CloseReplicaCheckpointOnMemorySnapshotEnd_Disk) {
+       DISABLED_CloseReplicaCheckpointOnMemorySnapshotEnd_Disk) {
     closeReplicaCheckpointOnMemorySnapshotEnd(
             false, dcp_marker_flag_t::MARKER_FLAG_DISK);
 }
