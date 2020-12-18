@@ -60,9 +60,8 @@ void Flush::StatisticsUpdate::updateDiskSize(ssize_t delta) {
 
 void Flush::StatisticsUpdate::insert(bool isSystem,
                                      bool isDelete,
-                                     ssize_t diskSizeDelta,
-                                     bool isCommitted) {
-    if (!isSystem && !isDelete && isCommitted) {
+                                     ssize_t diskSizeDelta) {
+    if (!isSystem && !isDelete) {
         incrementItemCount();
     } // else inserting a tombstone - no item increment
 
@@ -73,10 +72,8 @@ void Flush::StatisticsUpdate::update(ssize_t diskSizeDelta) {
     updateDiskSize(diskSizeDelta);
 }
 
-void Flush::StatisticsUpdate::remove(bool isSystem,
-                                     ssize_t diskSizeDelta,
-                                     bool isCommitted) {
-    if (!isSystem && isCommitted) {
+void Flush::StatisticsUpdate::remove(bool isSystem, ssize_t diskSizeDelta) {
+    if (!isSystem) {
         decrementItemCount();
     }
     updateDiskSize(diskSizeDelta);
@@ -278,6 +275,11 @@ void Flush::updateStats(const DocKey& key,
     auto& collsFlushStats =
             getStatsAndMaybeSetPersistedHighSeqno(cid.value(), seqno);
 
+    // Prepares don't change the stats (other than seqno)
+    if (!isCommitted) {
+        return;
+    }
+
     // but don't track any changes if the item is logically deleted. Why?
     // A flush batch could of recreated the collection, the stats tracking code
     // only has stats stored for the most recent collection, we cannot then
@@ -285,7 +287,7 @@ void Flush::updateStats(const DocKey& key,
     // incorrect. Note this relates to an issue for MB-42272, magma assumes the
     // stats item count will include *everything*, but isn't.
     if (!isLogicallyDeleted(cid.value(), seqno)) {
-        collsFlushStats.insert(isSystemEvent, isDelete, size, isCommitted);
+        collsFlushStats.insert(isSystemEvent, isDelete, size);
     }
 }
 
@@ -320,12 +322,18 @@ void Flush::updateStats(const DocKey& key,
 
     auto& collsFlushStats =
             getStatsAndMaybeSetPersistedHighSeqno(cid.value(), seqno);
+
+    // Prepares don't change the stats (other than seqno)
+    if (!isCommitted) {
+        return;
+    }
+
     // As above, logically deleted items don't update item-count/disk-size
     if (!isLogicallyDeleted(cid.value(), seqno)) {
         if (oldIsDelete) {
-            collsFlushStats.insert(isSystemEvent, isDelete, size, isCommitted);
+            collsFlushStats.insert(isSystemEvent, isDelete, size);
         } else if (!oldIsDelete && isDelete) {
-            collsFlushStats.remove(isSystemEvent, size - oldSize, isCommitted);
+            collsFlushStats.remove(isSystemEvent, size - oldSize);
         } else {
             collsFlushStats.update(size - oldSize);
         }

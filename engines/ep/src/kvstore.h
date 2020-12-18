@@ -95,13 +95,6 @@ struct CompactionStats {
     uint64_t prepareBytesPurged = 0;
     FileInfo pre;
     FileInfo post;
-
-    /**
-     * Collection stats that will be updated at the end of compaction. Map of
-     * cid to the size of prepares purged during compaction (so that we can
-     * update collection stats accordingly)
-     */
-    std::map<CollectionID, uint64_t> collectionStatsUpdates;
 };
 
 struct CompactionConfig {

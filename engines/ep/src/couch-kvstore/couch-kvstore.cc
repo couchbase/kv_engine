@@ -891,9 +891,6 @@ static int time_purge_hook(Db* d,
         if (metadata->isPrepare()) {
             ctx->stats.preparesPurged++;
             ctx->stats.prepareBytesPurged += info->physical_size;
-
-            // Track nothing for the individual collection as the stats doc has
-            // already been deleted.
         } else {
             if (!info->deleted) {
                 ctx->stats.collectionsItemsPurged++;
@@ -950,15 +947,6 @@ static int time_purge_hook(Db* d,
             if (info->db_seq <= ctx->highCompletedSeqno) {
                 ctx->stats.preparesPurged++;
                 ctx->stats.prepareBytesPurged += info->physical_size;
-
-                // Decrement individual collection disk sizes as we track
-                // prepares in the value. We don't do this at collection drop
-                // as the stat doc will have already been deleted (for
-                // couchstore)
-                auto itr = ctx->stats.collectionStatsUpdates.emplace(
-                        docKey.getCollectionID(), 0);
-                itr.first->second += info->physical_size;
-
                 return COUCHSTORE_COMPACT_DROP_ITEM;
             }
 
@@ -1606,23 +1594,6 @@ couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
     if (updateVbState) {
         const auto doc = json.dump();
         localDocQueue.emplace_back("_local/vbstate", json.dump());
-    }
-
-    // Need to adjust prepare disk size as we have purged some prepares for
-    // collections that have not been dropped (we may have entered this
-    // function by purging prepares in dropped collections but we won't update
-    // their stats here as the stats docs has already been deleted).
-    for (const auto& [cid, droppedPrepareBytes] :
-         stats.collectionStatsUpdates) {
-        // Need to read the collection stats
-        auto stats = getCollectionStats(db, cid);
-
-        // To update them
-        stats.diskSize -= droppedPrepareBytes;
-
-        // To write them back
-        localDocQueue.emplace_back("|" + cid.to_string() + "|",
-                                   stats.getLebEncodedStats());
     }
 
     return COUCHSTORE_SUCCESS;
@@ -3094,13 +3065,8 @@ void CouchKVStore::deleteCollectionStats(CollectionID cid) {
 Collections::VB::PersistedStats CouchKVStore::getCollectionStats(
         const KVFileHandle& kvFileHandle, CollectionID collection) {
     const auto& db = static_cast<const CouchKVFileHandle&>(kvFileHandle);
-    return getCollectionStats(*db.getDb(), collection);
-}
-
-Collections::VB::PersistedStats CouchKVStore::getCollectionStats(
-        Db& db, CollectionID collection) {
     std::string statDocName = "|" + collection.to_string() + "|";
-    return getCollectionStats(db, statDocName);
+    return getCollectionStats(*db.getDb(), statDocName);
 }
 
 Collections::VB::PersistedStats CouchKVStore::getCollectionStats(

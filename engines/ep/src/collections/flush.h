@@ -295,12 +295,8 @@ private:
          * @param diskSize size in bytes 'inserted' into disk. Should be
          *        representative of the bytes used by each document, but does
          *        not need to be exact.
-         * @param isCommitted does the item belong to the committed namespace?
          */
-        void insert(bool isSystem,
-                    bool isDelete,
-                    ssize_t diskSize,
-                    bool isCommitted);
+        void insert(bool isSystem, bool isDelete, ssize_t diskSize);
 
         /**
          * Process an update into the collection
@@ -316,9 +312,8 @@ private:
          * @param diskSizeDelta size in bytes difference. Should be
          *        representative of the difference between existing and new
          *        documents, but does not need to be exact.
-         * @param isCommitted does the item belong to the committed namespace?
          */
-        void remove(bool isSystem, ssize_t diskSizeDelta, bool isCommitted);
+        void remove(bool isSystem, ssize_t diskSizeDelta);
 
         /**
          * @return the highest persisted seqno recorded by the Flush object.
