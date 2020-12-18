@@ -1025,9 +1025,8 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                 // may still miss the MARKER_FLAG_CHK.
                 if (prevSnapType == Snapshot::Memory &&
                     cur_snapshot_type == Snapshot::Memory) {
-                    ckptMgr.updateCurrentSnapshot(cur_snapshot_end.load(),
-                                                  visibleSeq,
-                                                  checkpointType);
+                    ckptMgr.extendOpenCheckpoint(cur_snapshot_end.load(),
+                                                 visibleSeq);
                 } else {
                     ckptMgr.createSnapshot(cur_snapshot_start.load(),
                                            cur_snapshot_end.load(),

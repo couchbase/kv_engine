@@ -1363,13 +1363,18 @@ void CheckpointManager::createSnapshot(
                               checkpointType);
 }
 
-void CheckpointManager::updateCurrentSnapshot(uint64_t snapEnd,
-                                              uint64_t visibleSnapEnd,
-                                              CheckpointType checkpointType) {
+void CheckpointManager::extendOpenCheckpoint(uint64_t snapEnd,
+                                             uint64_t visibleSnapEnd) {
     LockHolder lh(queueLock);
     auto& ckpt = getOpenCheckpoint_UNLOCKED(lh);
+
+    if (ckpt.getCheckpointType() == CheckpointType::Disk) {
+        throw std::logic_error(
+                "CheckpointManager::extendOpenCheckpoint: Cannot extend a Disk "
+                "checkpoint");
+    }
+
     ckpt.setSnapshotEndSeqno(snapEnd, visibleSnapEnd);
-    ckpt.setCheckpointType(checkpointType);
 }
 
 snapshot_info_t CheckpointManager::getSnapshotInfo() {

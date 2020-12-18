@@ -34,6 +34,7 @@
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_stream.h"
 
+#include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
 #include <valgrind/valgrind.h>
 
@@ -2023,7 +2024,7 @@ TEST_P(CheckpointTest, testExpelCheckpointItemsMemory) {
 }
 
 TEST_P(CheckpointTest, testExpelCheckpointItemsDisk) {
-    this->manager->updateCurrentSnapshot(1000, 1001, CheckpointType::Disk);
+    manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1001);
     testExpelCheckpointItems();
 }
 
@@ -2128,7 +2129,7 @@ TEST_P(CheckpointTest, testExpelCursorPointingToLastItemMemory) {
 }
 
 TEST_P(CheckpointTest, testExpelCursorPointingToLastItemDisk) {
-    this->manager->updateCurrentSnapshot(1000, 1001, CheckpointType::Disk);
+    manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1001);
     testExpelCursorPointingToLastItem();
 }
 
@@ -2160,7 +2161,7 @@ TEST_P(CheckpointTest, testExpelCursorPointingToChkptStartMemory) {
 }
 
 TEST_P(CheckpointTest, testExpelCursorPointingToChkptStartDisk) {
-    this->manager->updateCurrentSnapshot(1000, 1001, CheckpointType::Disk);
+    manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1001);
     testExpelCursorPointingToChkptStart();
 }
 
@@ -2221,7 +2222,7 @@ TEST_P(CheckpointTest, testDontExpelIfCursorAtMetadataItemWithSameSeqnoMemory) {
 }
 
 TEST_P(CheckpointTest, testDontExpelIfCursorAtMetadataItemWithSameSeqnoDisk) {
-    this->manager->updateCurrentSnapshot(1000, 1001, CheckpointType::Disk);
+    manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1001);
     testDontExpelIfCursorAtMetadataItemWithSameSeqno();
 }
 
@@ -2304,7 +2305,7 @@ TEST_P(CheckpointTest, testDoNotExpelIfHaveSameSeqnoAfterMutationMemory) {
 }
 
 TEST_P(CheckpointTest, testDoNotExpelIfHaveSameSeqnoAfterMutationDisk) {
-    this->manager->updateCurrentSnapshot(1000, 1001, CheckpointType::Disk);
+    manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1001);
     testDoNotExpelIfHaveSameSeqnoAfterMutation();
 }
 
@@ -2416,7 +2417,7 @@ TEST_P(CheckpointTest, testExpelCheckpointItemsMemoryRecoveredMemory) {
 }
 
 TEST_P(CheckpointTest, testExpelCheckpointItemsMemoryRecoveredDisk) {
-    this->manager->updateCurrentSnapshot(1000, 1001, CheckpointType::Disk);
+    manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1001);
     testExpelCheckpointItemsMemoryRecovered();
 }
 
@@ -2879,6 +2880,32 @@ TEST_P(CheckpointTest,
     pos = *CheckpointCursorIntrospector::getCurrentPos(*cursor);
     EXPECT_EQ(queue_op::mutation, pos->getOperation());
     EXPECT_EQ(1003, pos->getBySeqno());
+}
+
+/*
+ * This test replaces the old tests for MB-41283.
+ * Since the fix for MB-42780, code in those test was simulating an invalid
+ * scenario that is now prevented by strict assertion in the CheckpointManager.
+ * Specifically, the CM now fails if the user tries to extend a Disk Checkpoint.
+ */
+TEST_P(CheckpointTest, CheckpointManagerForbidsMergingDiskSnapshot) {
+    vbucket->setState(vbucket_state_replica);
+
+    // Positive check first: extending Memory checkpoints is allowed
+    manager->createSnapshot(1000, 2000, 0, CheckpointType::Memory, 2000);
+    EXPECT_TRUE(queueReplicatedItem("keyA", 1001));
+    manager->extendOpenCheckpoint(2001, 3000);
+
+    // Negative check
+    manager->createSnapshot(3001, 4000, 0, CheckpointType::Disk, 4000);
+    try {
+        manager->extendOpenCheckpoint(4001, 5000);
+    } catch (const std::logic_error& e) {
+        EXPECT_THAT(e.what(),
+                    testing::HasSubstr("Cannot extend a Disk checkpoint"));
+        return;
+    }
+    FAIL();
 }
 
 TEST_P(CheckpointTest, CheckpointItemToString) {

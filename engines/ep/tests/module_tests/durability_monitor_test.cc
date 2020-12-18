@@ -3661,24 +3661,36 @@ TEST_P(PassiveDurabilityMonitorTest, dropLastKeyAndCompletePreviousDiskSnap) {
 TEST_P(PassiveDurabilityMonitorTest, dropFirstKeyAndCompleteOutOfOrder) {
     auto& pdm = getPassiveDM();
 
+    // Replica needs to be in a Disk snapshot for allowing OoO
+    vb->checkpointManager->createSnapshot(0, 4, 0, CheckpointType::Disk, 4);
+
     using namespace cb::durability;
-    addSyncWrite(1 /*seqno*/,
-                 Requirements{Level::Majority, Timeout::Infinity()});
-    addSyncWrite(2 /*seqno*/,
-                 Requirements{Level::Majority, Timeout::Infinity()});
-    addSyncWrite(3 /*seqno*/,
-                 Requirements{Level::Majority, Timeout::Infinity()});
+    auto req = Requirements{Level::Majority, Timeout::Infinity()};
+    for (const uint64_t seqno : {1, 2, 3}) {
+        auto item = Item(makeStoredDocKey("key" + std::to_string(seqno)),
+                         0 /*flags*/,
+                         0 /*exp*/,
+                         "value",
+                         5 /*valueSize*/,
+                         PROTOCOL_BINARY_RAW_BYTES,
+                         0 /*cas*/,
+                         seqno);
+        using namespace cb::durability;
+        item.setPendingSyncWrite(req);
+        processSet(item);
+    }
+
+    ASSERT_EQ(3, vb->getHighSeqno());
     ASSERT_EQ(3, pdm.getNumTracked());
     ASSERT_EQ(0, pdm.getHighCompletedSeqno());
     ASSERT_EQ(0, pdm.getHighPreparedSeqno());
 
-    // Need to make this a disk snapshot or OoO won't work
-    vb->checkpointManager->updateCurrentSnapshot(4, 4, CheckpointType::Disk);
-
     pdm.eraseSyncWrite(makeStoredDocKey("key3"), 3);
 
     EXPECT_TRUE(vb->isReceivingDiskSnapshot());
-    pdm.completeSyncWrite(makeStoredDocKey("key2"), PassiveDurabilityMonitor::Resolution::Commit, 2);
+    pdm.completeSyncWrite(makeStoredDocKey("key2"),
+                          PassiveDurabilityMonitor::Resolution::Commit,
+                          2);
 
     ASSERT_EQ(2, pdm.getNumTracked());
     ASSERT_EQ(2, pdm.getHighCompletedSeqno());

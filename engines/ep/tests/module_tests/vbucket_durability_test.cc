@@ -1795,6 +1795,8 @@ void VBucketDurabilityTest::testConvertPDMToADMWithNullTopologyPostDiskSnap(
     ASSERT_TRUE(vbucket);
     simulateSetVBState(initialState);
 
+    ckptMgr->createSnapshot(3, 3, 0, CheckpointType::Disk, 3);
+
     // Queue some Prepares into the PDM
     auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
     ASSERT_EQ(0, pdm.getNumTracked());
@@ -1807,23 +1809,19 @@ void VBucketDurabilityTest::testConvertPDMToADMWithNullTopologyPostDiskSnap(
     setOne(makeStoredDocKey("committedItem"));
     ASSERT_EQ(3, vbucket->getHighSeqno());
 
-    // Trick the ckptMgr and PDM into thinking this is a Disk
-    // snapshot/checkpoint
-    ckptMgr->updateCurrentSnapshot(3, 3, CheckpointType::Disk);
-
     // "Persist" them too and notify the PDM.
     pdm.notifySnapshotEndReceived(3);
     vbucket->setPersistenceSeqno(3);
     pdm.notifyLocalPersistence();
     EXPECT_EQ(2, pdm.getNumTracked());
-    EXPECT_EQ(3, pdm.getHighPreparedSeqno());
+    EXPECT_EQ(2, pdm.getHighPreparedSeqno());
     EXPECT_EQ(0, pdm.getHighCompletedSeqno());
 
     // VBState transitions from Replica to Active with a null topology
     simulateSetVBState(vbucket_state_active, {});
     auto& adm = VBucketTestIntrospector::public_getActiveDM(*vbucket);
 
-    EXPECT_EQ(3, adm.getHighPreparedSeqno());
+    EXPECT_EQ(2, adm.getHighPreparedSeqno());
     EXPECT_EQ(0, adm.getHighCompletedSeqno());
     EXPECT_EQ(2, adm.getNumTracked());
 
@@ -1831,16 +1829,16 @@ void VBucketDurabilityTest::testConvertPDMToADMWithNullTopologyPostDiskSnap(
     simulateSetVBState(vbucket_state_active,
                        {{"topology", nlohmann::json::array({{active}})}});
 
-    // And we commit our prepares
+    // Note: transitioning from a null topology resets the HPS, see ADM code for
+    // details.
     EXPECT_EQ(3, adm.getHighPreparedSeqno());
     EXPECT_EQ(2, adm.getHighCompletedSeqno());
     EXPECT_EQ(0, adm.getNumTracked());
 
+    // Adding a SyncWrite does not update the HPS
     auto key = makeStoredDocKey("newPrepare");
     auto newPrepare = makePendingItem(key, "value");
     newPrepare->setBySeqno(4);
-
-    // Adding a SyncWrite does not update the HPS
     ht->set(*newPrepare.get());
     adm.addSyncWrite(nullptr /*cookie*/, newPrepare);
     EXPECT_EQ(3, adm.getHighPreparedSeqno());
@@ -1925,7 +1923,7 @@ void VBucketDurabilityTest::testConvertPDMToADMMidSnapSetup(
 
     // Tell the PDM to commit the prepare
     auto key = makeStoredDocKey("key1");
-    ckptMgr->updateCurrentSnapshot(4, 4, CheckpointType::Memory);
+    ckptMgr->extendOpenCheckpoint(4, 4);
     vbucket->commit(key,
                     1 /*prepareSeqno*/,
                     3 /*commitSeqno*/,
@@ -2013,7 +2011,7 @@ void VBucketDurabilityTest::testConvertPDMToADMMidSnapAllPreparesCompleted(
     testConvertPDMToADMMidSnapSetup(initialState);
 
     // Commit the other outstanding preparea
-    ckptMgr->updateCurrentSnapshot(5, 5, CheckpointType::Memory);
+    ckptMgr->extendOpenCheckpoint(5, 5);
     auto key = makeStoredDocKey("key2");
     vbucket->commit(key,
                     2 /*prepareSeqno*/,

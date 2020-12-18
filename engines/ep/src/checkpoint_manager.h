@@ -441,9 +441,26 @@ public:
                         CheckpointType checkpointType,
                         uint64_t maxVisibleSnapEnd);
 
-    void updateCurrentSnapshot(uint64_t snapEnd,
-                               uint64_t maxVisibleSnapEnd,
-                               CheckpointType checkpointType);
+    /**
+     * Extend the open checkpoint to contain more mutations. Allowed only for
+     * Memory checkpoints.
+     * Note:
+     * 1) We forbid merging of checkpoints of different type for multiple
+     * reasons (eg, MB-42780).
+     * 2) Extending a Disk checkpoint would be theoretically possible, but the
+     * function doesn't support it (eg, we would need to update other quantities
+     * like the HCS). Adding support for that doesn't seem necessary. The
+     * original idea behind "extending a checkpoint" is that under load the
+     * active may send many/tiny snapshots. Creating a checkpoint for every
+     * snapshot would be unnecessarily expensive at runtime and also we would
+     * end up quickly with a huge CheckpointList, which would degrade the
+     * performance of some code-paths in the CM (eg, checkpoint removal).
+     *
+     * @param snapEnd
+     * @param maxVisibleSnapEnd
+     * @throws std::logic_error If the user tries to extend a Disk checkpoint
+     */
+    void extendOpenCheckpoint(uint64_t snapEnd, uint64_t maxVisibleSnapEnd);
 
     snapshot_info_t getSnapshotInfo();
 

@@ -920,15 +920,15 @@ TEST_P(EPBucketFullEvictionTest, ExpiryFindsPrepareWithSameCas) {
 
     auto vb = store->getVBucket(vbid);
 
-    // 2) Seqno ack and commit the prepare
+    // 2) Set vbucket on a disk snapshot so that when we warmup we scan the
+    // entire snapshot for prepares (i.e. incomplete disk snapshot)
+    vb->checkpointManager->createSnapshot(2, 3, 0, CheckpointType::Disk, 3);
+
+    // 3) Seqno ack and commit the prepare
     vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
                           "replica",
                           1 /*prepareSeqno*/);
     vb->processResolvedSyncWrites();
-
-    // 3) Fudge the current snapshot so that when we warmup we scan the entire
-    //    snapshot for prepares (i.e. incomplete disk snapshot)
-    vb->checkpointManager->updateCurrentSnapshot(3, 3, CheckpointType::Disk);
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // 4) Restart and warmup
