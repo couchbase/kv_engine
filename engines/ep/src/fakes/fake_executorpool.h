@@ -178,13 +178,17 @@ public:
         // Configure a checker to run, some tasks are subtly different
         if (getTaskName() == "Snapshotting vbucket states" ||
             getTaskName() == "Removing closed unreferenced checkpoints from memory" ||
-            getTaskName() == "Paging out items." ||
             getTaskName() == "Paging expired items." ||
             getTaskName() == "Adjusting hash table sizes." ||
             getTaskName() == "Generating access log") {
             checker = [=](bool taskRescheduled) {
                 // These tasks all schedule one other task
                 this->oneExecutes(taskRescheduled, 1);
+            };
+        } else if (getTaskName() == "Paging out items.") {
+            checker = [=](bool taskRescheduled) {
+                // This task _may_ schedule a single task.
+                this->oneExecutes(taskRescheduled, /*min*/ 0, /*max*/ 1);
             };
         } else {
             checker = [=](bool taskRescheduled) {
@@ -229,17 +233,33 @@ private:
      *   - request itself to be rescheduled
      *   - schedule other tasks (expectedToBeScheduled)
      */
-    void oneExecutes(bool rescheduled, int expectedToBeScheduled) {
-        if (rescheduled) {
-            // One task executed and was rescheduled, account for it.
-            expectedToBeScheduled++;
+    void oneExecutes(bool rescheduled,
+                     int minExpectedToBeScheduled,
+                     int maxExpectedToBeScheduled) {
+        auto expected = preFutureQueueSize + preReadyQueueSize;
+        auto actual = queue.getFutureQueueSize() + queue.getReadyQueueSize();
+
+        if (!rescheduled) {
+            // the task did _not_ reschedule itself, so expect one fewer task
+            expected--;
         }
 
         // Check that the new sizes of the future and ready tally given
         // one executed and n were scheduled as a side effect.
-        EXPECT_EQ((preFutureQueueSize + preReadyQueueSize) - 1,
-                  (queue.getFutureQueueSize() + queue.getReadyQueueSize()) -
-                  expectedToBeScheduled);
+
+        // there should now be _at least_ minExpectedToBeScheduled extra
+        // tasks
+        EXPECT_GE(actual, expected + minExpectedToBeScheduled);
+        // there should now be _no more than_ maxExpectedToBeScheduled extra
+        // tasks
+        EXPECT_LE(actual, expected + maxExpectedToBeScheduled);
+    }
+
+    void oneExecutes(bool rescheduled, int expectedToBeScheduled) {
+        // expect _exactly_ the specified number of tasks to be scheduled
+        oneExecutes(rescheduled,
+                    /*min*/ expectedToBeScheduled,
+                    /*max*/ expectedToBeScheduled);
     }
 
     /*
