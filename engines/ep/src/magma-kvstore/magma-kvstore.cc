@@ -244,6 +244,7 @@ bool MagmaKVStore::compactionCallBack(MagmaKVStore::MagmaCompactionCB& cbCtx,
                                       const magma::Slice& keySlice,
                                       const magma::Slice& metaSlice,
                                       const magma::Slice& valueSlice) {
+    Expects(currEngine == ObjectRegistry::getCurrentEngine());
     // If we are compacting the localDb, items don't have metadata so
     // we always keep everything.
     if (metaSlice.Len() == 0) {
@@ -424,7 +425,8 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
       pendingReqs(std::make_unique<PendingRequestQueue>()),
       magmaPath(configuration.getDBName() + "/magma." +
                 std::to_string(configuration.getShardId())),
-      scanCounter(0) {
+      scanCounter(0),
+      currEngine(ObjectRegistry::getCurrentEngine()) {
     configuration.magmaCfg.Path = magmaPath;
     configuration.magmaCfg.MaxKVStores = configuration.getMaxVBuckets();
     configuration.magmaCfg.MaxKVStoreLSDBufferSize =
@@ -485,8 +487,9 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     doCheckpointEveryBatch = configuration.getMagmaCheckpointEveryBatch();
 
     // Set up thread and memory tracking.
-    auto currEngine = ObjectRegistry::getCurrentEngine();
-    configuration.magmaCfg.SetupThreadContext = [currEngine]() {
+    // Please note... SetupThreadContext and ResetThreadContext
+    // will being removed once magma tracking is complete.
+    configuration.magmaCfg.SetupThreadContext = [this]() {
         ObjectRegistry::onSwitchThread(currEngine, false);
     };
     configuration.magmaCfg.ResetThreadContext = []() {

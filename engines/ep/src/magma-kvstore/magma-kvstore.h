@@ -741,4 +741,7 @@ protected:
 
     folly::Synchronized<std::queue<std::tuple<Vbid, uint64_t>>>
             pendingVbucketDeletions;
+
+private:
+    EventuallyPersistentEngine* currEngine;
 };
