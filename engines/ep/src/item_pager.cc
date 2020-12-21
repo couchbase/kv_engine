@@ -141,9 +141,25 @@ PagingVisitor::PagingVisitor(KVBucket& s,
             uint64_t age = (maxCas > v.getCas()) ? (maxCas - v.getCas()) : 0;
             age = age >> ItemEviction::casBitsNotTime;
 
-            if ((storedValueFreqCounter <= freqCounterThreshold) &&
-                    ((storedValueFreqCounter < freqCounterAgeThreshold)
-                            || (age >= ageThreshold))) {
+            const bool belowMFUThreshold =
+                    storedValueFreqCounter <= freqCounterThreshold;
+            // age exceeds threshold (from age histogram, set by config param
+            // item_eviction_age_percentage
+            // OR
+            // MFU is below threshold set by config param
+            // item_eviction_freq_counter_age_threshold
+            // Below this threshold the item is considered "cold" enough
+            // to be evicted even if it is "young".
+            const bool meetsAgeRequirements =
+                    age >= ageThreshold ||
+                    storedValueFreqCounter < freqCounterAgeThreshold;
+
+            // For replica vbuckets, young items are not protected from
+            // eviction.
+            const bool isReplica =
+                    currentBucket->getState() == vbucket_state_replica;
+
+            if (belowMFUThreshold && (meetsAgeRequirements || isReplica)) {
                 /*
                  * If the storedValue is eligible for eviction then add its
                  * frequency counter value to the histogram, otherwise add the
