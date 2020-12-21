@@ -1043,7 +1043,7 @@ Connection::Connection(FrontEndThread& thr)
       ssl(false) {
     updateDescription();
     cookies.emplace_back(std::make_unique<Cookie>(*this));
-    setConnectionId(peername.c_str());
+    setConnectionId("unknown:0");
     stats.conn_structs++;
 }
 
@@ -1064,7 +1064,7 @@ Connection::Connection(SOCKET sfd,
     setTcpNoDelay(true);
     updateDescription();
     cookies.emplace_back(std::make_unique<Cookie>(*this));
-    setConnectionId(peername.c_str());
+    setConnectionId(cb::net::getpeername(socketDescriptor).c_str());
 
     const auto options = BEV_OPT_THREADSAFE | BEV_OPT_UNLOCK_CALLBACKS |
                          BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS;
@@ -1130,6 +1130,9 @@ void Connection::setConnectionId(std::string_view uuid) {
     std::copy(uuid.begin(), uuid.begin() + size, connectionId.begin());
     // the uuid string shall always be zero terminated
     connectionId[size] = '\0';
+    // Remove any occurrences of " so that the client won't be allowed
+    // to mess up the output where we log the cid
+    std::replace(connectionId.begin(), connectionId.end(), '"', ' ');
 }
 
 size_t Connection::getNumberOfCookies() const {

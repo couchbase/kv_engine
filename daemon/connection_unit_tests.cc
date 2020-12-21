@@ -51,3 +51,10 @@ protected:
     MockConnection connection;
 };
 
+TEST_F(ConnectionUnitTests, MB43374) {
+    EXPECT_STREQ("unknown:0", connection.getConnectionId().data());
+    // Verify that the client can't mess up the output by providing "
+    connection.setConnectionId(R"(This "is" my life)");
+    auto msg = fmt::format("{}", connection.getConnectionId().data());
+    EXPECT_EQ("This  is  my life", msg);
+}
