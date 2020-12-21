@@ -186,6 +186,17 @@ void KVBucketTest::flushVBucketToDiskIfPersistent(uint16_t vbid, int expected) {
     }
 }
 
+void KVBucketTest::flushAndRemoveCheckpoints(uint16_t vbid) {
+    auto& vb = *store->getVBucket(vbid);
+    auto& ckpt_mgr = *vb.checkpointManager;
+    ckpt_mgr.createNewCheckpoint();
+
+    dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
+
+    bool new_ckpt_created = false;
+    ckpt_mgr.removeClosedUnrefCheckpoints(vb, new_ckpt_created);
+}
+
 void KVBucketTest::removeCheckpoint(VBucket& vb, int numItems) {
     /* Create new checkpoint so that we can remove the current checkpoint
        and force a backfill in the DCP stream */

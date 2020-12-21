@@ -89,6 +89,8 @@ public:
 
     void removeCheckpoint(VBucket& vb, int numItems);
 
+    void flushAndRemoveCheckpoints(uint16_t vbid);
+
     /* Delete the given item from the given vbucket, verifying it was
      * successfully deleted.
      */

@@ -91,6 +91,22 @@ protected:
                 << "Expected to start below 50% of bucket quota";
     }
 
+    void increaseQuota(size_t val) {
+        // Setup the bucket from the entry state, which can be polluted from
+        // previous tests, i.e. not guaranteed to be '0'. The worst offender is
+        // if a background thread is still around, it could have data in the
+        // arena inflating it - e.g. rocksdb threads
+        auto& stats = engine->getEpStats();
+        const size_t expectedStart = stats.getPreciseTotalMemoryUsed();
+
+        const size_t quota = expectedStart + val;
+        engine->getConfiguration().setMaxSize(quota);
+
+        // Set the water marks to 70% and 85%
+        engine->getConfiguration().setMemLowWat(quota * 0.7);
+        engine->getConfiguration().setMemHighWat(quota * 0.85);
+    }
+
     ENGINE_ERROR_CODE storeItem(Item& item) {
         uint64_t cas = 0;
         return engine->store(cookie, &item, cas, OPERATION_SET);
@@ -161,6 +177,49 @@ protected:
             populate = stats.getEstimatedTotalMemoryUsed() <=
                        stats.mem_high_wat.load();
         }
+    }
+
+    /**
+     * Store items evenly into the provided vbuckets until the given
+     * predicate is met.
+     * @return the number of items stored into each vbucket NB: may be off by 1
+     *         for some vbuckets, dependent on when the predicate is satisfied
+     */
+    size_t populateVbsUntil(const std::vector<uint16_t>& vbids,
+                            const std::function<bool()>& predicate,
+                            std::string keyPrefix = "key_") {
+        bool populate = true;
+        int count = 0;
+        while (populate) {
+            for (auto vbid : vbids) {
+                // scope to ensure everything is destroyed before checking the
+                // predicate (in case the predicate depends on memory usage)
+                {
+                    auto key = makeStoredDocKey(keyPrefix +
+                                                std::to_string(count++));
+                    auto item = make_item(vbid, key, std::string(100, 'x'));
+                    // make the items have a range of MFU values
+                    // without this, no matter what percent of items should be
+                    // evicted, either all of them or none of them would be
+                    // evicted as they are evicted/kept based on an mfu
+                    // threshold
+                    auto& ht = store->getVBucket(vbid)->ht;
+                    auto mfu = item.getFreqCounterValue();
+                    for (int i = 0; i < count % 256; ++i) {
+                        // probabilistically update the MFU
+                        mfu = ht.generateFreqValue(mfu);
+                    }
+                    item.setFreqCounterValue(mfu);
+                    EXPECT_EQ(ENGINE_SUCCESS, storeItem(item));
+                    flushAndRemoveCheckpoints(vbid);
+                }
+                populate = !predicate();
+                if (!populate) {
+                    break;
+                }
+            }
+        }
+        return count;
     }
 
     /// Count of nonIO tasks we should initially have.
@@ -249,6 +308,13 @@ protected:
         }
     }
 
+    // get the resident ratio of the provided vbucket, expressed as a percentage
+    static size_t getRRPercent(VBucket& vb) {
+        size_t numItems = vb.getNumItems();
+        size_t numResident = numItems - vb.getNumNonResidentItems();
+        return (numItems != 0) ? size_t((numResident * 100.0) / numItems) : 100;
+    }
+
     /// Has the item pager been scheduled to run?
     bool itemPagerScheduled = false;
 };
@@ -306,17 +372,10 @@ TEST_P(STItemPagerTest, ReplicaItemsVisitedFirst) {
     // Set replicaVB online, initially as active (so we can populate it).
     store->setVBucketState(replicaVB, vbucket_state_active, false);
 
-    // Add a document to both the active and pending vbucket.
-    const std::string value(512, 'x'); // 512B value to use for documents.
-    // add sufficient items to the active vb to trigger eviction even for
-    // ephemeral.
-    for (int ii = 0; ii < 20; ii++) {
-        auto key = makeStoredDocKey("key_" + std::to_string(ii));
-        auto activeItem = make_item(activeVB, key, value);
-        auto pendingItem = make_item(pendingVB, key, value);
-        ASSERT_EQ(ENGINE_SUCCESS, storeItem(activeItem));
-        ASSERT_EQ(ENGINE_SUCCESS, storeItem(pendingItem));
-    }
+    // Add sufficient items to the active/pending vb to trigger eviction even
+    // for ephemeral.
+    populateUntilAboveHighWaterMark(activeVB);
+    populateUntilAboveHighWaterMark(pendingVB);
 
     store->setVBucketState(pendingVB, vbucket_state_pending, false);
 
@@ -326,7 +385,7 @@ TEST_P(STItemPagerTest, ReplicaItemsVisitedFirst) {
     runNextTask(lpNonioQ, "Paging out items.");
     runNextTask(lpNonioQ, "Item pager on vb 0");
 
-    if (std::get<0>(GetParam()) == "ephemeral") {
+    if (ephemeral()) {
         // For ephemeral we do not evict from replicas and so they are
         // not visited first.  This means there will be another Item
         // pager task to run.
@@ -348,7 +407,6 @@ TEST_P(STItemPagerTest, ReplicaItemsVisitedFirst) {
         // We should not have evicted from active or pending vbuckets
         EXPECT_EQ(0, evictedActiveAndPendingItems);
     }
-    ASSERT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
 }
 
 // Test that when the server quota is reached, we delete items which have
@@ -547,7 +605,9 @@ TEST_P(STItemPagerTest, isEligible) {
             isEphemeral,
             cfg.getItemEvictionAgePercentage(),
             cfg.getItemEvictionFreqCounterAgeThreshold(),
-            evictionPolicy);
+            evictionPolicy,
+            EvictionRatios{0.0 /* active&pending */,
+                           0.0 /* replica */} /*evict nothing*/);
 
     VBucketPtr vb = store->getVBucket(vbid);
     pv->visitBucket(vb);
@@ -589,7 +649,9 @@ TEST_P(STItemPagerTest, decayByOne) {
             isEphemeral,
             cfg.getItemEvictionAgePercentage(),
             cfg.getItemEvictionFreqCounterAgeThreshold(),
-            evictionPolicy);
+            evictionPolicy,
+            EvictionRatios{1.0 /* active&pending */,
+                           1.0 /* replica */} /*try evict everything*/);
 
     pv->setCurrentBucket(engine->getKVBucket()->getVBucket(vbid));
     if (std::get<0>(GetParam()) == "persistent") {
@@ -640,7 +702,9 @@ TEST_P(STItemPagerTest, doNotDecayIfCannotEvict) {
             isEphemeral,
             cfg.getItemEvictionAgePercentage(),
             cfg.getItemEvictionFreqCounterAgeThreshold(),
-            evictionPolicy);
+            evictionPolicy,
+            EvictionRatios{1.0 /* active&pending */,
+                           1.0 /* replica */} /*try evict everything*/);
 
     pv->setCurrentBucket(engine->getKVBucket()->getVBucket(vbid));
     store->setVBucketState(vbid, vbucket_state_replica, false);
@@ -668,6 +732,212 @@ TEST_P(STItemPagerTest, doNotDecayIfCannotEvict) {
               pv->getItemEviction().getThresholds(100.0, 0.0).first);
     EXPECT_EQ(0, pv->getEjected());
 
+}
+
+TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
+    // MB-40531 test that the item pager does not evict from active vbuckets
+    // if evicting from replicas can reclaim enough memory to reach the low
+    // water mark (determined when the item pager first runs).
+    // Test populates replicas to have _just_ enough pageable memory usage
+    // so that eviction can bring memory usage below the low watermark
+    // entirely by evicting from replicas, to confirm active vbuckets are _not_
+    // evicted from.
+
+    if (ephemeral()) {
+        // Ephemeral does not evict from replicas
+        return;
+    }
+
+    std::vector<uint16_t> activeVBs = {0, 1};
+    std::vector<uint16_t> replicaVBs = {2, 3};
+
+    setVBucketStateAndRunPersistTask(activeVBs[0], vbucket_state_active);
+    setVBucketStateAndRunPersistTask(activeVBs[1], vbucket_state_active);
+
+    // Set replicaVBs as active initially (so we can populate them easily).
+    setVBucketStateAndRunPersistTask(replicaVBs[0], vbucket_state_active);
+    setVBucketStateAndRunPersistTask(replicaVBs[1], vbucket_state_active);
+
+    // bump the quota up. We need the evictable data stored in replicas to be
+    // greater than the gap between high and low watermarks. With the default
+    // quota, there's not enough "headroom" left after base memory usage to
+    // populate vbs as desired.
+    increaseQuota(1100000);
+
+    auto& stats = engine->getEpStats();
+
+    auto watermarkDiff = stats.mem_high_wat.load() - stats.mem_low_wat.load();
+
+    // populate the replica vbs until its evictable memory _exceeds_ the gap
+    // between the high and low water mark. When the mem usage later passes the
+    // high water mark, evicting from the replica should reclaim enough memory.
+    auto replicaItemCount = populateVbsUntil(
+            replicaVBs, [this, &stats, replicaVBs, watermarkDiff] {
+                // sanity check - if this fails the quota is too low -
+                EXPECT_LT(stats.getPreciseTotalMemoryUsed(),
+                          stats.mem_high_wat.load());
+
+                size_t pageableMem = 0;
+                for (const auto vbid : replicaVBs) {
+                    pageableMem +=
+                            store->getVBucket(vbid)->getPageableMemUsage();
+                }
+                // When the actives are populated, mem used will go _over_
+                // the high water mark by a small amount. To evict only from
+                // replicas, their total pageable memory must be at least the
+                // watermark diff + a small excess to account for the final
+                // inserted item _passing_ the high watermark.
+                return pageableMem > watermarkDiff * 1.1;
+            });
+
+    for (const auto vbid : replicaVBs) {
+        ASSERT_GT(store->getVBucket(vbid)->getNumItems(), 0)
+                << "0 items for vb " << vbid;
+    }
+
+    // We don't care exactly how many were stored, just that it is a
+    // "large enough" number for percentages to be somewhat useful
+    EXPECT_GT(replicaItemCount, 100);
+
+    // Now fill the active VB until the high watermark is reached
+    auto activeItemCount = populateVbsUntil(activeVBs, [this, &stats] {
+        bool readyToEvict =
+                stats.getPreciseTotalMemoryUsed() > stats.mem_high_wat.load();
+        if (readyToEvict) {
+            // This would be normally triggered by the _next_ item stored.
+            // Done within this predicate, before any deallocations take the
+            // memory usage below the watermark again
+            store->attemptToFreeMemory();
+        }
+        return readyToEvict;
+    });
+
+    EXPECT_GT(activeItemCount, 100);
+
+    setVBucketStateAndRunPersistTask(replicaVBs[0], vbucket_state_replica);
+    setVBucketStateAndRunPersistTask(replicaVBs[1], vbucket_state_replica);
+
+    // check all vbuckets are fully resident to start
+    for (const uint16_t vbid : {0, 1, 2, 3}) {
+        ASSERT_EQ(100, getRRPercent(*store->getVBucket(vbid)))
+                << vbid << " not fully resident before eviction";
+    }
+
+    // Run the ItemPager.
+    // The ItemPager schedules a VBCBAdaptor that processes our PagingVisitor.
+    // On alice we need 2 runs of the adaptor for touching 2 vbuckets.
+    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    runNextTask(lpNonioQ, "Paging out items.");
+    runNextTask(lpNonioQ);
+    runNextTask(lpNonioQ);
+
+    // nothing left to do
+    EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
+
+    for (const auto vbid : activeVBs) {
+        EXPECT_EQ(100, getRRPercent(*store->getVBucket(vbid)))
+                << vbid << " not fully resident after eviction";
+    }
+    // Confirm the replica RR is "low"
+    // the replica RR could be constrained further (around 5%) but checking
+    // it is below 10% to avoid making the test too sensitive to small
+    // changes in base memory usage.
+    for (const auto vbid : replicaVBs) {
+        EXPECT_LT(getRRPercent(*store->getVBucket(vbid)), 10)
+                << vbid << " has residency higher than expected";
+    }
+}
+
+TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
+    // MB-40531 test that the item pager _does_ evict from active vbuckets
+    // if evicting from replicas can _not_ reclaim enough memory to reach the
+    // low water mark (determined when the item pager first runs)
+
+    if (ephemeral()) {
+        // Ephemeral does not evict from replicas
+        return;
+    }
+
+    uint16_t activeVB = 0;
+    uint16_t replicaVB = 1;
+
+    setVBucketStateAndRunPersistTask(activeVB, vbucket_state_active);
+
+    // Set replicaVB as active initially (so we can populate it).
+    setVBucketStateAndRunPersistTask(replicaVB, vbucket_state_active);
+
+    // We need total evictable data to comfortably exceed the gap between
+    // high and low watermarks. With the default quota, there's not enough
+    // "headroom" left after base memory usage to populate vbs as desired.
+    // Bump the quota up, raise the low water mark to reduce the
+    // gap. This avoids bloating the test duration and memory footprint.
+
+    increaseQuota(900000);
+
+    auto quota = engine->getConfiguration().getMaxSize();
+
+    // Set the water marks to 80% and 85%
+    engine->getConfiguration().setMemLowWat(quota * 0.80);
+    engine->getConfiguration().setMemHighWat(quota * 0.85);
+
+    auto& stats = engine->getEpStats();
+
+    auto targetReplicaMem =
+            stats.getPreciseTotalMemoryUsed() +
+            double(stats.mem_high_wat.load() - stats.mem_low_wat.load()) * 0.9;
+
+    // store items in the replica vb such that evicting everything in the
+    // replica when at the high watermark will _not_ reach the low watermark
+    auto replicaItemCount =
+            populateVbsUntil({replicaVB}, [&stats, targetReplicaMem] {
+                return stats.getPreciseTotalMemoryUsed() >= targetReplicaMem;
+            });
+    setVBucketStateAndRunPersistTask(replicaVB, vbucket_state_replica);
+
+    // We don't care exactly how many were stored, just that it is a
+    // "large enough" number for percentages to be somewhat useful
+    EXPECT_GT(replicaItemCount, 100);
+
+    // Now fill the active VB until the high watermark is reached
+    auto activeItemCount = populateVbsUntil({activeVB}, [this, &stats] {
+        bool readyToEvict =
+                stats.getPreciseTotalMemoryUsed() > stats.mem_high_wat.load();
+        if (readyToEvict) {
+            // This would be normally triggered by the _next_ item
+            // stored. Done within this predicate, before any
+            // deallocations take the memory usage below the watermark
+            // again
+            store->attemptToFreeMemory();
+        }
+        return readyToEvict;
+    });
+
+    EXPECT_GT(activeItemCount, 100);
+
+    size_t activeRR = getRRPercent(*store->getVBucket(activeVB));
+    size_t replicaRR = getRRPercent(*store->getVBucket(replicaVB));
+
+    ASSERT_EQ(100, activeRR);
+    ASSERT_EQ(100, replicaRR);
+
+    // Run the ItemPager.
+    // The ItemPager schedules a VBCBAdaptor that processes our PagingVisitor.
+    // On alice we need 2 runs of the adaptor for touching 2 vbuckets.
+    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    runNextTask(lpNonioQ, "Paging out items.");
+    runNextTask(lpNonioQ);
+    runNextTask(lpNonioQ);
+
+    // nothing left to do
+    EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
+
+    activeRR = getRRPercent(*store->getVBucket(activeVB));
+    replicaRR = getRRPercent(*store->getVBucket(replicaVB));
+
+    EXPECT_LT(activeRR, 100);
+    EXPECT_GT(activeRR, 70);
+
+    EXPECT_LT(replicaRR, 5);
 }
 
 /**
@@ -1086,7 +1356,8 @@ TEST_P(STItemPagerTest, ItemPagerEvictionOrder) {
             isEphemeral,
             config.getItemEvictionAgePercentage(),
             config.getItemEvictionFreqCounterAgeThreshold(),
-            PagingVisitor::EvictionPolicy::hifi_mfu);
+            PagingVisitor::EvictionPolicy::hifi_mfu,
+            EvictionRatios{0.7 /* active&pending */, 0.7 /* replica */});
 
     using namespace testing;
     InSequence s;
@@ -1156,7 +1427,8 @@ TEST_P(STItemPagerTest, ItemPagerEvictionOrderIsSafe) {
             isEphemeral,
             config.getItemEvictionAgePercentage(),
             config.getItemEvictionFreqCounterAgeThreshold(),
-            PagingVisitor::EvictionPolicy::hifi_mfu);
+            PagingVisitor::EvictionPolicy::hifi_mfu,
+            EvictionRatios{0.7 /* active&pending */, 0.7 /* replica */});
 
     // now test that even with state changes, the comparator sorts the vbuckets
     // acceptably
@@ -1299,33 +1571,6 @@ TEST_P(STPersistentExpiryPagerTest, MB_25991_ExpiryNonResident) {
     // Check our item - should not exist.
     auto result = store->get(key, vbid, cookie, get_options_t());
     EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus());
-}
-
-// Test that if the eviction policy changes we re-initialise the item pager
-// phase to the correct value.
-TEST_P(STItemPagerTest, phaseWhenPolicyChange) {
-    ASSERT_EQ("hifi_mfu", engine->getConfiguration().getHtEvictionPolicy());
-    ItemPager it(*engine, engine->getEpStats());
-    if (std::get<0>(GetParam()) == "persistent") {
-        ASSERT_EQ(REPLICA_ONLY, it.getPhase());
-    } else {
-        ASSERT_EQ(ACTIVE_AND_PENDING_ONLY, it.getPhase());
-    }
-    // Change from hifi_mfu policy to 2-bit_lru
-    engine->getConfiguration().setHtEvictionPolicy("2-bit_lru");
-    it.run();
-    // The item pager run method should have re-initialised the phase
-    EXPECT_EQ(PAGING_UNREFERENCED, it.getPhase());
-
-    // change from 2-bit_lru policy to hifi_mfu
-    engine->getConfiguration().setHtEvictionPolicy("hifi_mfu");
-    it.run();
-    // The item pager run method should have re-initialised the phase
-    if (std::get<0>(GetParam()) == "persistent") {
-        EXPECT_EQ(REPLICA_ONLY, it.getPhase());
-    } else {
-        EXPECT_EQ(ACTIVE_AND_PENDING_ONLY, it.getPhase());
-    }
 }
 
 class MB_32669 : public STPersistentExpiryPagerTest {

@@ -74,6 +74,12 @@ VBucketFilter VBucketFilter::filter_intersection(const VBucketFilter &other)
     return VBucketFilter(std::vector<uint16_t>(tmp.begin(), end));
 }
 
+VBucketFilter VBucketFilter::filter_union(const VBucketFilter& other) const {
+    auto copy = *this;
+    copy.acceptable.insert(other.acceptable.begin(), other.acceptable.end());
+    return copy;
+}
+
 static bool isRange(std::set<uint16_t>::const_iterator it,
                     const std::set<uint16_t>::const_iterator &end,
                     size_t &length)

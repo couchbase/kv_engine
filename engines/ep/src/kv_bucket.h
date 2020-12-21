@@ -767,6 +767,11 @@ public:
         return eviction_policy;
     }
 
+    /**
+     * Check if this bucket supports eviction from replica vbuckets.
+     */
+    virtual bool canEvictFromReplicas() = 0;
+
     /*
      * Request a rollback of the vbucket to the specified seqno.
      * If the rollbackSeqno is not a checkpoint boundary, then the rollback

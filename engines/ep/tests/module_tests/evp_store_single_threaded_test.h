@@ -179,6 +179,10 @@ public:
         return std::get<0>(GetParam()) == "persistent";
     }
 
+    bool ephemeral() {
+        return std::get<0>(GetParam()) == "ephemeral";
+    }
+
 protected:
     void SetUp() {
         if (!config_string.empty()) {

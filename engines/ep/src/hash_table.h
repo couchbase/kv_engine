@@ -854,6 +854,15 @@ public:
      */
     void dump() const;
 
+    /**
+     * Generates a new value that is either the same or higher than the input
+     * value.  It is intended to be used to increment the frequency counter of a
+     * storedValue.
+     * @param value  The value counter to try to generate an increment for.
+     * @returns      The new value that is the same or higher than value.
+     */
+    uint8_t generateFreqValue(uint8_t value);
+
 private:
     // The container for actually holding the StoredValues.
     using table_type = std::vector<StoredValue::UniquePtr>;
@@ -950,15 +959,6 @@ private:
     }
 
     void clear_UNLOCKED(bool deactivate);
-
-    /**
-     * Generates a new value that is either the same or higher than the input
-     * value.  It is intended to be used to increment the frequency counter of a
-     * storedValue.
-     * @param value  The value counter to try to generate an increment for.
-     * @returns      The new value that is the same or higher than value.
-     */
-    uint8_t generateFreqValue(uint8_t value);
 
     DISALLOW_COPY_AND_ASSIGN(HashTable);
 };

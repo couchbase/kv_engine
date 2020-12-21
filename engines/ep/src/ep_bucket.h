@@ -147,6 +147,10 @@ public:
         return true;
     }
 
+    bool canEvictFromReplicas() override {
+        return true;
+    }
+
 protected:
     class ValueChangedListener;
 

@@ -21,12 +21,50 @@
 #include "config.h"
 
 #include "globaltask.h"
+#include "memcached/vbucket.h"
 
 typedef std::pair<int64_t, int64_t> row_range_t;
 
 // Forward declaration.
 class EPStats;
 class EventuallyPersistentEngine;
+class VBucketFilter;
+
+/**
+ * Tracks the desired eviction ratios for different vbucket states.
+ *
+ * PagingVisitor attempts to evict the specified fraction of the items from
+ * vbuckets in the given state.
+ *
+ * Note, deleted vbuckets are not evicted from, and pending vbuckets currently
+ * share a ratio with active vbuckets, so only two ratios are tracked.
+ */
+class EvictionRatios {
+public:
+    EvictionRatios() = default;
+
+    EvictionRatios(double activeAndPending, double replica)
+        : activeAndPending(activeAndPending), replica(replica) {
+    }
+    /**
+     * Get the fraction of items to be evicted from vbuckets in the given state.
+     */
+    double getForState(vbucket_state_t state);
+    /**
+     * Set the fraction of items to be evicted from vbuckets in the given state.
+     *
+     * Active and pending vbuckets share a ratio, setting either will overwrite
+     * the existing value for both states.
+     *
+     * Dead vbuckets are not evicted from, so setting a ratio for dead
+     * will be ignored.
+     */
+    void setForState(vbucket_state_t state, double value);
+
+private:
+    double activeAndPending = 0.0;
+    double replica = 0.0;
+};
 
 /**
  * The item pager phase
@@ -78,6 +116,17 @@ public:
     void scheduleNow();
 
 private:
+    /**
+     * Get how many bytes could theoretically be reclaimed from
+     * vbuckets matching the given filter, if all resident items were evicted.
+     */
+    size_t getEvictableBytes(const VBucketFilter& filter) const;
+
+    /**
+     * Reset the phase to the default determined by the bucket type
+     */
+    void resetPhase();
+
     EventuallyPersistentEngine& engine;
     EPStats& stats;
     std::shared_ptr<std::atomic<bool>> available;

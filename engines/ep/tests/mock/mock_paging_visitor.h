@@ -40,7 +40,8 @@ public:
                       bool _isEphemeral,
                       size_t agePercentage,
                       size_t freqCounterAgeThreshold,
-                      EvictionPolicy evictionPolicy)
+                      EvictionPolicy evictionPolicy,
+                      EvictionRatios evictionRatios)
         : PagingVisitor(s,
                         st,
                         pcnt,
@@ -53,7 +54,8 @@ public:
                         _isEphemeral,
                         agePercentage,
                         freqCounterAgeThreshold,
-                        evictionPolicy) {
+                        evictionPolicy,
+                        evictionRatios) {
         using namespace testing;
         ON_CALL(*this, visitBucket(_))
                 .WillByDefault(Invoke([this](VBucketPtr& vb) {
