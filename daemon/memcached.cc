@@ -65,7 +65,6 @@
 #include <utilities/openssl_utils.h>
 #include <gsl/gsl>
 
-#include <cerrno>
 #include <chrono>
 #include <memory>
 #include <thread>
