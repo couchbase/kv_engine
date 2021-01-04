@@ -755,11 +755,7 @@ static void release_signal_handlers() {
 #endif
 
 const char* get_server_version() {
-    if (strlen(PRODUCT_VERSION) == 0) {
-        return "unknown";
-    } else {
-        return PRODUCT_VERSION;
-    }
+    return PRODUCT_VERSION;
 }
 
 static std::condition_variable shutdown_cv;
