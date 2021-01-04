@@ -159,7 +159,8 @@ Item KVBucketTest::store_item(Vbid vbid,
     auto expectedCount = std::count(
             expected.begin(), expected.end(), cb::engine_errc(returnCode));
     EXPECT_NE(0, expectedCount)
-            << "unexpected error:" << cb::to_engine_errc(returnCode);
+            << "unexpected error:" << cb::to_engine_errc(returnCode)
+            << " for key:" << key.to_string();
     return item;
 }
 

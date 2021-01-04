@@ -30,9 +30,6 @@
 #include "test_helpers.h"
 
 void CheckpointRemoverTest::SetUp() {
-    // Set a large period for checkpoint creation so that time isn't a factor
-    // in checkpoint creation, triggering spurious failures
-    config_string += "chk_period=10000";
     SingleThreadedKVBucketTest::SetUp();
 }
 
