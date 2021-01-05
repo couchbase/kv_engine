@@ -50,6 +50,12 @@ TEST_P(StatsTest, TestDefaultStats) {
     // Don't expect the entire stats set, but we should at least have
     // the uptime
     EXPECT_NE(stats.end(), stats.find("uptime"));
+
+    // MB-39722: bytes_read and bytes_written counts all the bytes sent and
+    //           received on _all_ connections. It should therefore be a
+    //           positive number and never equal to 0
+    EXPECT_LT(0, stats["bytes_written"].get<int>());
+    EXPECT_LT(0, stats["bytes_read"].get<int>());
 }
 
 TEST_P(StatsTest, TestGetMeta) {

@@ -591,6 +591,7 @@ void Connection::executeCommandPipeline() {
             }
 
             totalRecv += drainSize;
+            get_thread_stats(this)->bytes_read += drainSize;
         }
     }
 
@@ -1004,6 +1005,7 @@ void Connection::copyToOutputStream(std::string_view data) {
     }
 
     totalSend += data.size();
+    get_thread_stats(this)->bytes_written += data.size();
 }
 
 static void sendbuffer_cleanup_cb(const void*, size_t, void* extra) {
@@ -1030,6 +1032,7 @@ void Connection::chainDataToOutputStream(std::unique_ptr<SendBuffer> buffer) {
     // Move the ownership of the buffer!
     (void)buffer.release();
     totalSend += data.size();
+    get_thread_stats(this)->bytes_written += data.size();
 }
 
 Connection::Connection(FrontEndThread& thr)
