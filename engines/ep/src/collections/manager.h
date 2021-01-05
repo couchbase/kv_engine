@@ -51,28 +51,27 @@ public:
                         accumulatedStats);
     /**
      * Add stats for a single collection.
-     * @param scope
-     * @param cid
-     * @param collection
+     * @param scopeName the name of the collections scope
+     * @param collection The entry object
      * @param collector stat collector to which stats will be added
-     * @param cookie
      */
-    void addStatsForCollection(const Scope& scope,
-                               CollectionID cid,
+    void addStatsForCollection(std::string_view scopeName,
                                const CollectionEntry& collection,
                                const BucketStatCollector& collector);
 
     /**
      * Add stats for a single scope, by aggregating over all collections in the
      * scope.
-     * @param cid
-     * @param collection
+     * @param sid ID of the scope generating stats for
+     * @param scopeName Name of the scope
+     * @param scopeCollections All collections in the scope
      * @param collector stat collector to which stats will be added
-     * @param cookie
      */
-    void addStatsForScope(ScopeID sid,
-                          const Scope& scope,
-                          const BucketStatCollector& collector);
+    void addStatsForScope(
+            ScopeID sid,
+            std::string_view scopeName,
+            const std::vector<Collections::CollectionEntry>& scopeCollections,
+            const BucketStatCollector& collector);
 
 private:
     /**
@@ -276,6 +275,19 @@ private:
      * @return copy of the stats to use to format stats for a request
      */
     static CachedStats getPerCollectionStats(KVBucket& bucket);
+
+    /**
+     * Get a copy of the stats for the given collections. This requires
+     * vbucket visiting to accumulate various counters. The returned CachedStats
+     * object stores the accumulated values for active vbuckets for all of the
+     * collections specified.
+     *
+     * @param collections Collection entries to to collect stats for
+     * @param bucket bucket to collect stats for
+     * @return copy of the stats to use to format stats for a request
+     */
+    static CachedStats getPerCollectionStats(
+            const std::vector<CollectionEntry>& collections, KVBucket& bucket);
 
     /**
      * validate the path is correctly formed for get_collection_id.

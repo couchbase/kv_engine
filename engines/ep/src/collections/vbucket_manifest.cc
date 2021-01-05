@@ -959,6 +959,14 @@ void Manifest::updateSummary(Summary& summary) const {
     }
 }
 
+void Manifest::accumulateStats(const std::vector<CollectionEntry>& collections,
+                               Summary& summary) const {
+    for (const auto& entry : collections) {
+        auto itr = map.find(entry.cid);
+        summary[entry.cid] += itr->second.getStatsForSummary();
+    }
+}
+
 std::optional<std::vector<CollectionID>> Manifest::getCollectionsForScope(
         ScopeID identifier) const {
     if (std::find(scopes.begin(), scopes.end(), identifier) == scopes.end()) {

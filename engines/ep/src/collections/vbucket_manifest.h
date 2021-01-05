@@ -670,6 +670,9 @@ protected:
 
     void updateSummary(Summary& summary) const;
 
+    void accumulateStats(const std::vector<CollectionEntry>& collections,
+                         Summary& summary) const;
+
     /**
      * Add a collection entry to the manifest specifing the revision that it was
      * seen in and the sequence number span covering it.

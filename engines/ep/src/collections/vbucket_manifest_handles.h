@@ -171,10 +171,22 @@ public:
         return manifest->addScopeStats(vbid, collector);
     }
 
+    /**
+     * Update the 'summary' object with all the 'summary' stats for all
+     * collections
+     */
     void updateSummary(Summary& summary) const {
         manifest->updateSummary(summary);
     }
 
+    /**
+     * Update the 'summary' object with all the 'summary' stats for the given
+     * collections
+     */
+    void accumulateStats(const std::vector<CollectionEntry> collections,
+                         Summary& summary) const {
+        manifest->accumulateStats(collections, summary);
+    }
     /**
      * @return true if a collection drop is in-progress, at least 1
      * collection is in the state isDeleting

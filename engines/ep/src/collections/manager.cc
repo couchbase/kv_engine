@@ -347,13 +347,35 @@ void Collections::Manager::warmupCompleted(EPBucket& bucket) const {
     }
 }
 
-class CollectionCountVBucketVisitor : public VBucketVisitor {
+/// VbucketVisitor that gathers stats for all collections
+class AllCollectionsGetStatsVBucketVisitor : public VBucketVisitor {
 public:
     void visitBucket(const VBucketPtr& vb) override {
         if (vb->getState() == vbucket_state_active) {
             vb->lockCollections().updateSummary(summary);
         }
     }
+    Collections::Summary summary;
+};
+
+/// VbucketVisitor that gathers stats for the given collections
+class CollectionsGetStatsVBucketVisitor : public VBucketVisitor {
+public:
+    explicit CollectionsGetStatsVBucketVisitor(
+            const std::vector<Collections::CollectionEntry>& collections)
+        : collections(collections) {
+        for (const auto& entry : collections) {
+            summary.emplace(entry.cid, Collections::AccumulatedStats{});
+        }
+    }
+
+    void visitBucket(const VBucketPtr& vb) override {
+        if (vb->getState() == vbucket_state_active) {
+            vb->lockCollections().accumulateStats(collections, summary);
+        }
+    }
+
+    const std::vector<Collections::CollectionEntry>& collections;
     Collections::Summary summary;
 };
 
@@ -487,7 +509,7 @@ Collections::Manager::doAllCollectionsStats(
         const auto scopeItr = current->findScope(entry.second.sid);
         Expects(scopeItr != current->endScopes());
         cachedStats.addStatsForCollection(
-                scopeItr->second, entry.first, entry.second, collector);
+                scopeItr->second.name, entry.second, collector);
     }
     return {cb::engine_errc::success,
             cb::EngineErrorGetCollectionIDResult::allowSuccess{}};
@@ -499,7 +521,6 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doOneCollectionStats(
         const BucketStatCollector& collector,
         const std::string& arg,
         const std::string& statKey) {
-    auto cachedStats = getPerCollectionStats(bucket);
     cb::EngineErrorGetCollectionIDResult res{cb::engine_errc::failed};
     // An argument was provided, maybe an id or a 'path'
     if (cb_isPrefix(statKey, "collections-byid")) {
@@ -544,26 +565,31 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doOneCollectionStats(
         return res;
     }
 
-    auto current = bucket.getCollectionsManager().currentManifest.rlock();
-    auto collectionItr = current->findCollection(res.getCollectionId());
+    // Take a copy of the two items needed from the manifest and then release
+    // the lock before vbucket visiting.
+    std::string scopeName;
+    Collections::CollectionEntry entry;
+    {
+        auto current = bucket.getCollectionsManager().currentManifest.rlock();
+        auto collectionItr = current->findCollection(res.getCollectionId());
 
-    if (collectionItr == current->end()) {
-        EP_LOG_WARN(
-                "Collections::Manager::doOneCollectionStats unknown "
-                "collection arg:{} cid:{}",
-                arg,
-                res.getCollectionId().to_string());
-        return {cb::engine_errc::unknown_collection, current->getUid()};
+        if (collectionItr == current->end()) {
+            EP_LOG_WARN(
+                    "Collections::Manager::doOneCollectionStats unknown "
+                    "collection arg:{} cid:{}",
+                    arg,
+                    res.getCollectionId().to_string());
+            return {cb::engine_errc::unknown_collection, current->getUid()};
+        }
+        auto scopeItr = current->findScope(collectionItr->second.sid);
+        Expects(scopeItr != current->endScopes());
+        scopeName = scopeItr->second.name;
+        entry = collectionItr->second;
     }
 
-    // collection was specified, do stats for that collection only
-    const auto& collection = collectionItr->second;
-    const auto scopeItr = current->findScope(collection.sid);
-    Expects(scopeItr != current->endScopes());
-
-    cachedStats.addStatsForCollection(
-            scopeItr->second, res.getCollectionId(), collection, collector);
-
+    // Visit the vbuckets and generate the stat payload
+    auto cachedStats = getPerCollectionStats({entry}, bucket);
+    cachedStats.addStatsForCollection(scopeName, entry, collector);
     return res;
 }
 
@@ -647,7 +673,11 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doAllScopesStats(
             cb::engine_errc::success) {
             continue; // skip this scope
         }
-        cachedStats.addStatsForScope(itr->first, itr->second, collector);
+
+        cachedStats.addStatsForScope(itr->first,
+                                     itr->second.name,
+                                     itr->second.collections,
+                                     collector);
     }
     return {cb::engine_errc::success,
             cb::EngineErrorGetScopeIDResult::allowSuccess{}};
@@ -659,7 +689,6 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doOneScopeStats(
         const BucketStatCollector& collector,
         const std::string& arg,
         const std::string& statKey) {
-    auto cachedStats = getPerCollectionStats(bucket);
     cb::EngineErrorGetScopeIDResult res{cb::engine_errc::failed};
     if (cb_isPrefix(statKey, "scopes-byid")) {
         ScopeID scopeID;
@@ -691,26 +720,32 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doOneScopeStats(
         return res;
     }
 
-    auto current = bucket.getCollectionsManager().currentManifest.rlock();
-    auto scopeItr = current->findScope(res.getScopeId());
+    // Take a copy of the two items needed from the manifest and then release
+    // the lock before vbucket visiting.
+    std::string scopeName;
+    std::vector<Collections::CollectionEntry> scopeCollections;
+    {
+        auto current = bucket.getCollectionsManager().currentManifest.rlock();
+        auto scopeItr = current->findScope(res.getScopeId());
 
-    if (scopeItr == current->endScopes()) {
-        EP_LOG_WARN(
-                "Collections::Manager::doOneScopeStats unknown "
-                "scope arg:{} sid:{}",
-                arg,
-                res.getScopeId().to_string());
-        return cb::EngineErrorGetScopeIDResult{current->getUid()};
+        if (scopeItr == current->endScopes()) {
+            EP_LOG_WARN(
+                    "Collections::Manager::doOneScopeStats unknown "
+                    "scope arg:{} sid:{}",
+                    arg,
+                    res.getScopeId().to_string());
+            return cb::EngineErrorGetScopeIDResult{current->getUid()};
+        }
+
+        scopeName = scopeItr->second.name;
+        scopeCollections = scopeItr->second.collections;
     }
-
-    const auto& scope = scopeItr->second;
-    cachedStats.addStatsForScope(res.getScopeId(), scope, collector);
+    auto cachedStats = getPerCollectionStats(scopeCollections, bucket);
+    cachedStats.addStatsForScope(
+            res.getScopeId(), scopeName, scopeCollections, collector);
     // add stats for each collection in the scope
-    for (const auto& entry : scope.collections) {
-        auto itr = current->findCollection(entry.cid);
-        Expects(itr != current->end());
-        const auto& [cid, collection] = *itr;
-        cachedStats.addStatsForCollection(scope, cid, collection, collector);
+    for (const auto& entry : scopeCollections) {
+        cachedStats.addStatsForCollection(scopeName, entry, collector);
     }
     return res;
 }
@@ -735,9 +770,27 @@ Collections::CachedStats Collections::Manager::getPerCollectionStats(
         KVBucket& bucket) {
     auto memUsed = bucket.getEPEngine().getEpStats().getAllCollectionsMemUsed();
 
-    CollectionCountVBucketVisitor visitor;
+    AllCollectionsGetStatsVBucketVisitor visitor;
     bucket.visit(visitor);
 
+    return {std::move(memUsed),
+            std::move(visitor.summary) /* accumulated collection stats */};
+}
+
+Collections::CachedStats Collections::Manager::getPerCollectionStats(
+        const std::vector<Collections::CollectionEntry>& collections,
+        KVBucket& bucket) {
+    // Gather per-vbucket stats for the collections of interest
+    CollectionsGetStatsVBucketVisitor visitor{collections};
+    bucket.visit(visitor);
+
+    // And the mem_used which is stored in EpStats
+    std::unordered_map<CollectionID, size_t> memUsed;
+    for (const auto& entry : collections) {
+        memUsed.emplace(entry.cid,
+                        bucket.getEPEngine().getEpStats().getCollectionMemUsed(
+                                entry.cid));
+    }
     return {std::move(memUsed),
             std::move(visitor.summary) /* accumulated collection stats */};
 }
@@ -748,19 +801,19 @@ Collections::CachedStats::CachedStats(
     : colMemUsed(std::move(colMemUsed)),
       accumulatedStats(std::move(accumulatedStats)) {
 }
+
 void Collections::CachedStats::addStatsForCollection(
-        const Scope& scope,
-        CollectionID cid,
+        std::string_view scopeName,
         const CollectionEntry& collection,
         const BucketStatCollector& collector) {
-    auto collectionC = collector.forScope(scope.name, collection.sid)
-                               .forCollection(collection.name, cid);
+    auto collectionC = collector.forScope(scopeName, collection.sid)
+                               .forCollection(collection.name, collection.cid);
 
-    addAggregatedCollectionStats({cid}, collectionC);
+    addAggregatedCollectionStats({collection.cid}, collectionC);
 
     using namespace cb::stats;
     collectionC.addStat(Key::collection_name, collection.name);
-    collectionC.addStat(Key::collection_scope_name, scope.name);
+    collectionC.addStat(Key::collection_scope_name, scopeName);
 
     // add ttl if valid
     if (collection.maxTtl.has_value()) {
@@ -770,22 +823,25 @@ void Collections::CachedStats::addStatsForCollection(
 }
 
 void Collections::CachedStats::addStatsForScope(
-        ScopeID sid, const Scope& scope, const BucketStatCollector& collector) {
-    auto scopeC = collector.forScope(scope.name, sid);
+        ScopeID sid,
+        std::string_view scopeName,
+        const std::vector<Collections::CollectionEntry>& scopeCollections,
+        const BucketStatCollector& collector) {
+    auto scopeC = collector.forScope(scopeName, sid);
     std::vector<CollectionID> collections;
-    collections.reserve(scope.collections.size());
+    collections.reserve(scopeCollections.size());
 
     // get the CollectionIDs - extract the keys from the map
-    for (const auto& entry : scope.collections) {
+    for (const auto& entry : scopeCollections) {
         collections.push_back(entry.cid);
     }
     addAggregatedCollectionStats(collections, scopeC);
 
     using namespace cb::stats;
     // add scope name
-    scopeC.addStat(Key::scope_name, scope.name);
+    scopeC.addStat(Key::scope_name, scopeName);
     // add scope collection count
-    scopeC.addStat(Key::scope_collection_count, scope.collections.size());
+    scopeC.addStat(Key::scope_collection_count, scopeCollections.size());
 }
 
 void Collections::CachedStats::addAggregatedCollectionStats(
