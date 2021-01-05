@@ -451,7 +451,7 @@ void Connection::shutdownIfSendQueueStuck(
     // pipe again. During bucket deletion we want to disconnect the
     // clients relatively fast.
     const auto limit = (getBucket().state == Bucket::State::Ready)
-                               ? std::chrono::seconds(29)
+                               ? std::chrono::seconds(360)
                                : std::chrono::seconds(1);
     if ((now - sendQueueInfo.last) > limit) {
         LOG_WARNING(
