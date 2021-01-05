@@ -66,7 +66,7 @@ def get_build_info(build):
     return (key, info)
 
 
-def fetch_failed_builds(server_url, username, password):
+def fetch_failed_builds(server_url, username, password, build_limit):
     """For the given Jenkins server URL & credentials, fetch details of all
     failed builds.
     Returns a dictionary of job+build_number to build details dictionary."""
@@ -95,8 +95,8 @@ def fetch_failed_builds(server_url, username, password):
             logging.debug(
                 "get_job_info({}) returned {} builds".format(job, len(builds)))
 
-            # Constrain to last 200 builds of each job.
-            builds = builds[:200]
+            # Constrain to last N builds of each job.
+            builds = builds[:build_limit]
             results = pool.map(get_build_info, builds)
             for r in results:
                 if r:
@@ -236,11 +236,16 @@ if __name__ == '__main__':
                               'download: Download build details, writing to stdout as JSON.\n'
                               'parse: Parse previously-downloaded build details read from stdin.\n'
                               'download_and_parse: Download and parse build details.\n'))
+    parser.add_argument('--build-limit',
+                        type=int,
+                        default=200,
+                        help=('Maximum number of builds to download & scan '
+                              'for each job'))
     args = parser.parse_args()
 
     if args.mode != 'parse':
         raw_builds = fetch_failed_builds('http://cv.jenkins.couchbase.com',
-                                         args.username, args.password)
+                                         args.username, args.password, args.build_limit)
     if args.mode == 'download':
         print(json.dumps(raw_builds))
         sys.exit(0)
