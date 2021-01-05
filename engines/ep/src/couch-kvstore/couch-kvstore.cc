@@ -382,7 +382,7 @@ CouchKVStore::CouchKVStore(CreateReadWrite,
 
     // 3) clean up any .compact files
     for (const auto& id : map) {
-        removeCompactFile(dbname, id.first);
+        maybeRemoveCompactFile(dbname, id.first);
     }
 
     // 4) continue to intialise the store (reads vbstate etc...)
@@ -1200,7 +1200,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
     // up an old and stale file header at the end of the file!)
     // (couchstore don't remove the target file before starting compaction
     // as callers _may_ use the existence of those for locking purposes)
-    removeCompactFile(compact_file);
+    removeCompactFile(compact_file, hook_ctx->vbid);
 
     // Perform COMPACTION of vbucket.couch.rev into
     // vbucket.couch.rev.compact
@@ -1344,7 +1344,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                 dbfile);
         // Remove the compacted file (in the case it was created and
         // partly written)
-        removeCompactFile(compact_file);
+        removeCompactFile(compact_file, hook_ctx->vbid);
         return false;
     }
 
@@ -1443,7 +1443,7 @@ bool CouchKVStore::compactDBInternal(std::unique_lock<std::mutex>& vbLock,
                 compact_file,
                 new_file);
 
-        removeCompactFile(compact_file);
+        removeCompactFile(compact_file, hook_ctx->vbid);
         return false;
     }
 
@@ -3491,39 +3491,45 @@ void CouchKVStore::unlinkCouchFile(Vbid vbucket, uint64_t fRev) {
     }
 }
 
-void CouchKVStore::removeCompactFile(const std::string& filename, Vbid vbid) {
+void CouchKVStore::maybeRemoveCompactFile(const std::string& filename,
+                                          Vbid vbid) {
     const auto compact_file =
             getDBFileName(filename, vbid, getDbRevision(vbid)) +
             ".compact";
 
     if (!isReadOnly()) {
-        removeCompactFile(compact_file);
+        removeCompactFile(compact_file, vbid);
     } else {
         logger.warn(
-                "CouchKVStore::removeCompactFile: A read-only instance of "
-                "the underlying store was not allowed to delete a temporary"
+                "CouchKVStore::maybeRemoveCompactFile: {} A read-only instance "
+                "of the underlying store was not allowed to delete a temporary "
                 "file: {}",
+                vbid,
                 compact_file);
     }
 }
 
-void CouchKVStore::removeCompactFile(const std::string &filename) {
+void CouchKVStore::removeCompactFile(const std::string& filename, Vbid vbid) {
     if (isReadOnly()) {
-        throw std::logic_error("CouchKVStore::removeCompactFile: Not valid on "
+        throw std::logic_error(
+                "CouchKVStore::removeCompactFile: " + vbid.to_string() +
+                "Not valid on "
                 "a read-only object.");
     }
 
     if (cb::io::isFile(filename)) {
         if (remove(filename.c_str()) == 0) {
             logger.warn(
-                    "CouchKVStore::removeCompactFile: Removed compact "
+                    "CouchKVStore::removeCompactFile: {} Removed compact "
                     "filename:{}",
+                    vbid,
                     filename);
         }
         else {
             logger.warn(
-                    "CouchKVStore::removeCompactFile: remove error:{}, "
+                    "CouchKVStore::removeCompactFile: {} remove error:{}, "
                     "filename:{}",
+                    vbid,
                     cb_strerror(),
                     filename);
 

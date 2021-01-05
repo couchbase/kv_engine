@@ -671,14 +671,15 @@ protected:
     void unlinkCouchFile(Vbid vbucket, uint64_t fRev);
 
     /**
-     * Remove compact file
-     *
-     * @param dbname
-     * @param vbucket id
+     * Remove compact file if this isn't the RO store
      */
-    void removeCompactFile(const std::string& dbname, Vbid vbid);
+    void maybeRemoveCompactFile(const std::string& dbname, Vbid vbid);
 
-    void removeCompactFile(const std::string &filename);
+    /**
+     * Remove compact file if this isn't the RO store
+     * @throws logic_error if this is the RO store
+     */
+    void removeCompactFile(const std::string& filename, Vbid vbid);
 
     /** Try to move all modifications from the source Db over to the
      * destination database.
