@@ -1149,7 +1149,7 @@ void FollyExecutorPool::removeTaskAfterRun(TaskProxy& proxy) {
     bool taskFound = state->removeTask(proxy.taskId);
     if (!taskFound) {
         auto msg = fmt::format(
-                "FollyExecutorPool::rescheduleTaskAfterRun(): Failed to locate "
+                "FollyExecutorPool::removeTaskAfterRun(): Failed to locate "
                 "an owner for task id:{}",
                 proxy.taskId);
         throw std::logic_error(msg);
