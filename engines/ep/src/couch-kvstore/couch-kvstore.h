@@ -695,12 +695,17 @@ protected:
     /**
      * Perform compaction using the context and dhook call back.
      *
+     * @param sourceDb the source database to compact
+     * @param compact_file the name of the temporary file to use for the
+     *                     compacted version
      * @param vbLock the lock to acquire exclusive write access to the bucket
      * @param hook_ctx a context with information for the compaction process
      * @param dhook a docinfo hook which will be called with each compacted key
      * @return true indicating the compaction was successful.
      */
-    bool compactDBInternal(std::unique_lock<std::mutex>& vbLock,
+    bool compactDBInternal(DbHolder& sourceDb,
+                           const std::string& compact_file,
+                           std::unique_lock<std::mutex>& vbLock,
                            CompactionContext* hook_ctx);
 
     /// try to load _local/vbstate and patch the num_on_disk_prepares
