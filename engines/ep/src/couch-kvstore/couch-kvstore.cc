@@ -1411,7 +1411,7 @@ bool CouchKVStore::compactDBInternal(DbHolder& sourceDb,
     // up.
     vbLock.lock();
     for (int ii = 0; ii < 10; ++ii) {
-        concurrentCompactionUnitTestHook();
+        concurrentCompactionUnitTestHook(compact_file);
         if (vbAbortCompaction[vbid.get()]) {
             logger.warn("Compaction aborted for {}", vbid);
             return false;
@@ -1428,7 +1428,7 @@ bool CouchKVStore::compactDBInternal(DbHolder& sourceDb,
         }
     }
 
-    concurrentCompactionUnitTestHook();
+    concurrentCompactionUnitTestHook(compact_file);
 
     if (vbAbortCompaction[vbid.get()]) {
         logger.warn("Compaction aborted for {}", vbid);
@@ -3773,6 +3773,18 @@ couchstore_error_t CouchKVStore::updateLocalDocument(Db& db,
     }
 
     return errCode;
+}
+void CouchKVStore::abortCompactionIfRunning(
+        std::unique_lock<std::mutex>& vbLock, Vbid vbid) {
+    if (!vbLock.owns_lock()) {
+        throw std::logic_error(
+                "CouchKVStore::abortCompactionIfRunning: lock should be held");
+    }
+    // Note that this isn't racy as we'll hold the vbucket lock
+    if (vbCompactionRunning[vbid.get()]) {
+        // Set the flag so that the compactor aborts the compaction
+        vbAbortCompaction[vbid.get()] = true;
+    }
 }
 
 CouchLocalDocRequest::CouchLocalDocRequest(std::string&& key,

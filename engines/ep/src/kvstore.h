@@ -834,6 +834,18 @@ public:
     virtual bool compactDB(std::unique_lock<std::mutex>& vbLock,
                            std::shared_ptr<CompactionContext> c) = 0;
 
+    /**
+     * Abort compaction for the provided vbucket if it is running
+     *
+     * @param vbLock The lock used to serialize access for compaction and
+     *               flusher (should be held when calling the method; added to
+     *               the API so that the inner parts can ensure that it is
+     *               held).
+     * @param vbucket The vbucket of interest
+     */
+    virtual void abortCompactionIfRunning(std::unique_lock<std::mutex>& vbLock,
+                                          Vbid vbid){};
+
     virtual vbucket_state* getVBucketState(Vbid vbid) = 0;
 
     void setVBucketState(Vbid vbid, const vbucket_state& vbs);

@@ -1075,6 +1075,8 @@ ENGINE_ERROR_CODE KVBucket::deleteVBucket(Vbid vbid, const void* c) {
         auto lockedVB = getLockedVBucket(vbid);
         vbMap.decVBStateCount(lockedVB->getState());
         lockedVB->setState(vbucket_state_dead);
+        getRWUnderlying(vbid)->abortCompactionIfRunning(lockedVB.getLock(),
+                                                        vbid);
         engine.getDcpConnMap().vbucketStateChanged(vbid, vbucket_state_dead);
 
         // Drop the VB to begin the delete, the last holder of the VB will
@@ -1121,6 +1123,8 @@ bool KVBucket::resetVBucket_UNLOCKED(LockedVBucketPtr& vb,
         vbucket_state_t vbstate = vb->getState();
 
         // 1) Remove the vb from the map and begin the deferred deletion
+        getRWUnderlying(vb->getId())
+                ->abortCompactionIfRunning(vb.getLock(), vb->getId());
         vbMap.dropVBucketAndSetupDeferredDeletion(vb->getId(),
                                                   nullptr /*no cookie*/);
 

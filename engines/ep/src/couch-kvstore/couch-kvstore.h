@@ -254,6 +254,9 @@ public:
     bool compactDB(std::unique_lock<std::mutex>& vbLock,
                    std::shared_ptr<CompactionContext> ctx) override;
 
+    void abortCompactionIfRunning(std::unique_lock<std::mutex>& vbLock,
+                                  Vbid vbid) override;
+
     vbucket_state* getVBucketState(Vbid vbid) override;
 
     /**
@@ -720,7 +723,8 @@ protected:
         mb40415_regression_hook = value;
     }
 
-    void setConcurrentCompactionUnitTestHook(std::function<void()> hook) {
+    void setConcurrentCompactionUnitTestHook(
+            std::function<void(const std::string&)> hook) {
         concurrentCompactionUnitTestHook = std::move(hook);
     }
 
@@ -933,5 +937,6 @@ protected:
     /// in parallel.
     /// The hook gets called after the initial compaction runs, and then
     /// after each step in the catch-up-phase
-    std::function<void()> concurrentCompactionUnitTestHook = []() {};
+    std::function<void(const std::string&)> concurrentCompactionUnitTestHook =
+            [](const std::string&) {};
 };

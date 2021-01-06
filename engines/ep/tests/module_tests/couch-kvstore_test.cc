@@ -1926,7 +1926,8 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushing) {
     ASSERT_EQ(5, kvstore->getItemCount(Vbid{0}));
 
     int ii = 0;
-    kvstore->setConcurrentCompactionUnitTestHook([&ii, &seqno, this]() {
+    kvstore->setConcurrentCompactionUnitTestHook([&ii, &seqno, this](
+                                                         const std::string&) {
         StoredDocKey key = makeStoredDocKey("concurrent-" + std::to_string(ii));
         kvstore->begin(std::make_unique<TransactionContext>(vbid));
         kvstore->set(
@@ -1962,7 +1963,7 @@ TEST_F(CouchstoreTest, MB_39946_diskSize_could_underflow) {
     int64_t seqno = 1;
     const int items = 2;
     std::string value(2047, 'b');
-    auto doWrite = [&seqno, &value, items, this]() {
+    auto doWrite = [&seqno, &value, items, this](const std::string&) {
         for (int ii = 0; ii < items; ++ii) {
             StoredDocKey key = makeStoredDocKey("key-" + std::to_string(ii));
             kvstore->begin(std::make_unique<TransactionContext>(vbid));
@@ -1980,7 +1981,7 @@ TEST_F(CouchstoreTest, MB_39946_diskSize_could_underflow) {
         }
     };
 
-    doWrite();
+    doWrite("");
     kvstore->setConcurrentCompactionUnitTestHook(doWrite);
 
     std::mutex mutex;
@@ -1989,7 +1990,7 @@ TEST_F(CouchstoreTest, MB_39946_diskSize_could_underflow) {
     auto ctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
     kvstore->compactDB(lock, ctx);
 
-    kvstore->setConcurrentCompactionUnitTestHook([]() {});
+    kvstore->setConcurrentCompactionUnitTestHook([](const std::string&) {});
 
     // Delete all keys, should result in collection stats being 0
     for (int ii = 0; ii < items; ++ii) {
@@ -2006,4 +2007,52 @@ TEST_F(CouchstoreTest, MB_39946_diskSize_could_underflow) {
     auto stats = manifest.lock().getStatsForFlush(CollectionID::Default, seqno);
     EXPECT_EQ(0, stats.itemCount);
     EXPECT_EQ(0, stats.diskSize);
+}
+
+/// MB-43121: Make sure that we abort compaction if someone tries to delete
+///           the same vbucket while it is running.
+TEST_F(CouchstoreTest, MB43121) {
+    StoredDocKey key = makeStoredDocKey("mykey");
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    kvstore->set(queued_item{std::make_unique<Item>(
+            key, 0, 0, "value", 5, PROTOCOL_BINARY_RAW_BYTES, 0, 1)});
+    kvstore->commit(flush);
+
+    std::mutex mutex;
+    std::unique_lock<std::mutex> lock(mutex);
+    std::string filename;
+    bool aborted = false;
+    kvstore->setConcurrentCompactionUnitTestHook(
+            [&aborted, &lock, &filename, this](const std::string& fname) {
+                ASSERT_TRUE(lock.owns_lock())
+                        << "Unit test callback should be called "
+                           "when the compactor holds the lock";
+                ASSERT_TRUE(cb::io::isFile(fname))
+                        << "The compaction file " << fname << " should exist!";
+                kvstore->abortCompactionIfRunning(lock, vbid);
+                aborted = true;
+                filename = fname;
+            });
+
+    CompactionConfig config;
+    auto ctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
+    ASSERT_FALSE(kvstore->compactDB(lock, ctx)) << "Compaciton should fail";
+    ASSERT_TRUE(aborted) << "Callback not called";
+    ASSERT_FALSE(filename.empty()) << "A filename should be set";
+
+    // The filenames look like: somepath/<vbid>.couch.<rev>, and when
+    // compaction starts it will compact the input file into a new file
+    // adding with the same name with a .compact suffix. Once compaction
+    // is _complete_ it bumps the revision number and renames the file to
+    // the new filename.
+    // To verify that the compaction was indeed aborted we should check
+    // that we've only got a single vbucket file for vb0, and that it has
+    // the same revision number it had before compaction:
+    filename.resize(filename.find(".compact"));
+    ASSERT_TRUE(cb::io::isFile(filename));
+    // Strip off the revison number and verify that the only file we have
+    // for vbucket 0 is the expected one (and no temporary files etc)
+    filename.resize(filename.rfind('.'));
+    auto files = cb::io::findFilesWithPrefix(filename);
+    ASSERT_EQ(1, files.size()) << "Multiple files exists";
 }
