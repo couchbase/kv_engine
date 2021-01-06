@@ -49,6 +49,9 @@ public:
     TaggedPtr() : raw(NoTagValue) {
     }
 
+    TaggedPtr(std::nullptr_t) : TaggedPtr() {
+    }
+
     TaggedPtr(T* obj, uint16_t tag) : TaggedPtr() {
         set(obj);
         setTag(tag);
