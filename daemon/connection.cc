@@ -783,6 +783,42 @@ void Connection::rw_callback(bufferevent*, void* ctx) {
     }
 }
 
+static nlohmann::json BevEvent2Json(short event) {
+    if (!event) {
+        return {};
+    }
+    nlohmann::json err = nlohmann::json::array();
+
+    if ((event & BEV_EVENT_READING) == BEV_EVENT_READING) {
+        err.push_back("reading");
+    }
+    if ((event & BEV_EVENT_WRITING) == BEV_EVENT_WRITING) {
+        err.push_back("writing");
+    }
+    if ((event & BEV_EVENT_EOF) == BEV_EVENT_EOF) {
+        err.push_back("EOF");
+    }
+    if ((event & BEV_EVENT_ERROR) == BEV_EVENT_ERROR) {
+        err.push_back("error");
+    }
+    if ((event & BEV_EVENT_TIMEOUT) == BEV_EVENT_TIMEOUT) {
+        err.push_back("timeout");
+    }
+    if ((event & BEV_EVENT_CONNECTED) == BEV_EVENT_CONNECTED) {
+        err.push_back("connected");
+    }
+
+    const short known = BEV_EVENT_READING | BEV_EVENT_WRITING | BEV_EVENT_EOF |
+                        BEV_EVENT_ERROR | BEV_EVENT_TIMEOUT |
+                        BEV_EVENT_CONNECTED;
+
+    if (event & ~known) {
+        err.push_back(cb::to_hex(uint16_t(event)));
+    }
+
+    return err;
+}
+
 void Connection::event_callback(bufferevent*, short event, void* ctx) {
     auto& instance = *reinterpret_cast<Connection*>(ctx);
     bool term = false;
@@ -795,9 +831,10 @@ void Connection::event_callback(bufferevent*, short event, void* ctx) {
 
     if ((event & BEV_EVENT_ERROR) == BEV_EVENT_ERROR) {
         LOG_INFO(
-                "{}: Connection::on_event: unrecoverable error encountered, "
-                "shutting down connection",
-                instance.getId());
+                "{}: Connection::on_event: unrecoverable error encountered: "
+                "{}, shutting down connection",
+                instance.getId(),
+                BevEvent2Json(event).dump());
         instance.setTerminationReason("Network error");
         term = true;
     }
