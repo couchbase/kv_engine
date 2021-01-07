@@ -1525,7 +1525,20 @@ void ActiveDurabilityMonitor::State::updateHighPreparedSeqno(
 }
 
 void ActiveDurabilityMonitor::State::updateHighCompletedSeqno() {
-    highCompletedSeqno = std::max(lastCommittedSeqno, lastAbortedSeqno);
+    // @todo MB-41434: Remove extra logging when fixed
+    try {
+        highCompletedSeqno = std::max(lastCommittedSeqno, lastAbortedSeqno);
+    } catch (const std::exception& e) {
+        std::stringstream ss;
+        ss << e.what() << std::endl;
+        ss << *this << std::endl;
+        EP_LOG_ERR(
+                "({}) "
+                "ActiveDurabilityMonitor::State:::updateHighCompletedSeqno: {}",
+                adm.vb.getId(),
+                ss.str());
+        throw e;
+    }
 }
 
 void ActiveDurabilityMonitor::State::dump() const {
