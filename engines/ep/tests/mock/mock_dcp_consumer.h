@@ -132,7 +132,15 @@ public:
     }
 
     /**
-     * Enable the use of V7 status codes for DCP
+     * @return the entire v7 DCP status code Negotiation struct used to send
+     * DCP_CONTROL messages for testing.
+     */
+    BlockingDcpControlNegotiation public_getV7StatusCodesNegotiation() const {
+        return v7DcpStatusCodesNegotiation;
+    }
+
+    /**
+     * Enable the use of V7 status codes for DCP in tests
      */
     void enableV7DcpStatus() {
         isV7DcpStatusEnabled = true;

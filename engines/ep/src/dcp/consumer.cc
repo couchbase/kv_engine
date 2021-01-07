@@ -203,6 +203,9 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
     // Consumer needs to know if the Producer supports IncludeDeletedUserXattrs
     deletedUserXattrsNegotiation.state =
             BlockingDcpControlNegotiation::State::PendingRequest;
+    // Consumer need to know if the Producer supports v7 DCP status codes
+    v7DcpStatusCodesNegotiation.state =
+            BlockingDcpControlNegotiation::State::PendingRequest;
 }
 
 DcpConsumer::~DcpConsumer() {
@@ -1016,13 +1019,13 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
     } else if (opcode == cb::mcbp::ClientOpcode::DcpBufferAcknowledgement) {
         return true;
     } else if (opcode == cb::mcbp::ClientOpcode::DcpControl) {
-        // The Consumer-Producer negotiation for Sync Replication happens over
-        // DCP_CONTROL and introduces a blocking step.
-        // The blocking DCP_CONTROL request is signed at Consumer by tracking
-        // the opaque value sent to the Producer, so here we can identify it and
-        // complete the negotiation.
-        // Note that a pre-6.5 Producer sends EINVAL as it does not recognize
-        // the Sync Replication negotiation-key.
+        // The Consumer-Producer negotiation for Sync Replication, deleted user
+        // xattrs and v7 DCP status codes happens over DCP_CONTROL and
+        // introduces a blocking step. The blocking DCP_CONTROL request is
+        // signed at Consumer by tracking the opaque value sent to the Producer,
+        // so here we can identify it and complete the negotiation. Note that a
+        // pre-6.5 Producer sends EINVAL as it does not recognize the Sync
+        // Replication negotiation-key.
         if (response.getOpaque() == syncReplNegotiation.opaque) {
             syncReplNegotiation.state =
                     BlockingDcpControlNegotiation::State::Completed;
@@ -1037,6 +1040,11 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
                     (response.getStatus() == cb::mcbp::Status::Success
                              ? IncludeDeletedUserXattrs::Yes
                              : IncludeDeletedUserXattrs::No);
+        } else if (response.getOpaque() == v7DcpStatusCodesNegotiation.opaque) {
+            v7DcpStatusCodesNegotiation.state =
+                    BlockingDcpControlNegotiation::State::Completed;
+            isV7DcpStatusEnabled =
+                    response.getStatus() == cb::mcbp::Status::Success;
         }
         return true;
     } else if (opcode == cb::mcbp::ClientOpcode::GetErrorMap) {
@@ -1609,14 +1617,19 @@ ENGINE_ERROR_CODE DcpConsumer::enableSynchronousReplication(
 
 ENGINE_ERROR_CODE DcpConsumer::enableV7DcpStatus(
         DcpMessageProducersIface& producers) {
-    if (pendingV7DcpStatusEnabled) {
-        pendingV7DcpStatusEnabled = false;
+    switch (v7DcpStatusCodesNegotiation.state) {
+    case BlockingDcpControlNegotiation::State::PendingRequest: {
         uint32_t opaque = ++opaqueCounter;
         auto ret = producers.control(opaque, "v7_dcp_status_codes", "true");
-        if (ret == ENGINE_SUCCESS) {
-            isV7DcpStatusEnabled = true;
-            return ret;
-        }
+        v7DcpStatusCodesNegotiation.state =
+                BlockingDcpControlNegotiation::State::PendingResponse;
+        v7DcpStatusCodesNegotiation.opaque = opaque;
+        return ret;
+    }
+    case BlockingDcpControlNegotiation::State::PendingResponse:
+        return ENGINE_EWOULDBLOCK;
+    case BlockingDcpControlNegotiation::State::Completed:
+        break;
     }
     return ENGINE_FAILED;
 }

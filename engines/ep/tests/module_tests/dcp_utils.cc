@@ -50,7 +50,9 @@ void handleProducerResponseIfStepBlocked(MockDcpConsumer& consumer,
         if (producers.last_opaque ==
                     consumer.public_getSyncReplNegotiationOpaque() ||
             producers.last_opaque ==
-                    consumer.public_getDeletedUserXattrsNegotiation().opaque) {
+                    consumer.public_getDeletedUserXattrsNegotiation().opaque ||
+            producers.last_opaque ==
+                    consumer.public_getV7StatusCodesNegotiation().opaque) {
             cb::mcbp::Response resp{};
             resp.setMagic(cb::mcbp::Magic::ClientResponse);
             resp.setOpcode(cb::mcbp::ClientOpcode::DcpControl);

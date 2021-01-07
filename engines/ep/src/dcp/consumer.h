@@ -596,7 +596,9 @@ protected:
     bool pendingSendStreamEndOnClientStreamClose;
     bool pendingSupportHifiMFU;
     bool pendingEnableExpiryOpcode;
-    bool pendingV7DcpStatusEnabled = true;
+
+    // Maintains the state of the v7 Dcp Status codes negotiation
+    BlockingDcpControlNegotiation v7DcpStatusCodesNegotiation;
 
     // Flag to state that the DCP consumer has negotiate the with the producer
     // that V7 DCP status codes can be used.
