@@ -664,6 +664,10 @@ FollyExecutorPool::FollyExecutorPool(size_t maxThreads,
       maxWriters(calcNumWriters(maxWriters_)),
       maxAuxIO(calcNumAuxIO(maxAuxIO_)),
       maxNonIO(calcNumNonIO(maxNonIO_)) {
+    // Disable dynamic thread creation / destruction to match CB3ExecutorPool
+    // behaviour. At least AtomicQueue cannot be used when this is set to true.
+    FLAGS_dynamic_cputhreadpoolexecutor = false;
+
     /*
      * Define a function to create thread factory with a given prefix,
      * and priority where supported.
