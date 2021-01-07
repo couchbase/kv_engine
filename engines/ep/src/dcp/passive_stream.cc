@@ -681,6 +681,7 @@ ENGINE_ERROR_CODE PassiveStream::processMessage(
                 std::string("PassiveStream::processMessage: "
                             "Message type not supported"));
     }
+
     if (ret != ENGINE_SUCCESS) {
         // ENOMEM logging is handled by maybeLogMemoryState
         if (ret != ENGINE_ENOMEM) {
