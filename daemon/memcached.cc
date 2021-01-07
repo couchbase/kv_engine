@@ -254,11 +254,19 @@ static bool prometheus_auth_callback(const std::string& user,
 }
 
 static void prometheus_changed_listener(const std::string&, Settings& s) {
-    cb::prometheus::initialize(s.getPrometheusConfig(),
-                               server_prometheus_stats,
-                               prometheus_auth_callback);
-    if (networkInterfaceManager) {
-        networkInterfaceManager->signal();
+    try {
+        cb::prometheus::initialize(s.getPrometheusConfig(),
+                                   server_prometheus_stats,
+                                   prometheus_auth_callback);
+        if (networkInterfaceManager) {
+            networkInterfaceManager->signal();
+        }
+    } catch (const std::exception& exception) {
+        // Error message already formatted. Just log the failure but don't
+        // terminate memcached... ns_server could always try to store
+        // a new configuration and we'll try again (once we move over to
+        // ifconfig they will know when it fails)!
+        LOG_CRITICAL("{}", exception.what());
     }
 }
 
@@ -266,9 +274,14 @@ static void prometheus_init() {
     auto& settings = Settings::instance();
 
     if (Settings::instance().has.prometheus_config) {
-        cb::prometheus::initialize(settings.getPrometheusConfig(),
-                                   server_prometheus_stats,
-                                   prometheus_auth_callback);
+        try {
+            cb::prometheus::initialize(settings.getPrometheusConfig(),
+                                       server_prometheus_stats,
+                                       prometheus_auth_callback);
+        } catch (const std::exception& exception) {
+            // Error message already formatted in the exception
+            FATAL_ERROR(EXIT_FAILURE, "{}", exception.what());
+        }
     } else {
         LOG_WARNING("Prometheus config not specified");
     }

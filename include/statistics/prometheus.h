@@ -40,16 +40,30 @@ using AuthCallback =
 using GetStatsCallback =
         std::function<ENGINE_ERROR_CODE(const StatCollector&, Cardinality)>;
 
+/**
+ * Initialize the prometheus exporter
+ *
+ * @param config the port number and address family to bind to (specifying
+ *               0 as the port number will use an ephemeral port)
+ * @param getStatsCB The callback function to call to retrieve the statistic
+ * @param authCB The callback to use for authentication for the requests
+ * @return The current configuration
+ * @throws std::bad_alloc for memory allocation failures
+ * @throws std::runtime_errors if we failed to start the exporter service
+ */
 STATISTICS_PUBLIC_API
-void initialize(const std::pair<in_port_t, sa_family_t>& config,
-                GetStatsCallback getStatsCB,
-                AuthCallback authCB);
+nlohmann::json initialize(const std::pair<in_port_t, sa_family_t>& config,
+                          GetStatsCallback getStatsCB,
+                          AuthCallback authCB);
 
 STATISTICS_PUBLIC_API
 void shutdown();
 
 STATISTICS_PUBLIC_API
 std::pair<in_port_t, sa_family_t> getRunningConfig();
+
+STATISTICS_PUBLIC_API
+nlohmann::json getRunningConfigAsJson();
 
 /**
  * Global manager for exposing stats for Prometheus.
@@ -98,6 +112,8 @@ public:
 
     [[nodiscard]] std::pair<in_port_t, sa_family_t> getRunningConfig() const;
 
+    [[nodiscard]] nlohmann::json getRunningConfigAsJson() const;
+
 private:
     class KVCollectable;
 
@@ -116,5 +132,6 @@ private:
     static const std::string authRealm;
 
     const sa_family_t family;
+    const std::string uuid;
 };
 } // namespace cb::prometheus
