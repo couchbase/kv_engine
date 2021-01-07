@@ -237,44 +237,45 @@ void KVStore::setVBucketState(Vbid vbid, const vbucket_state& vbs) {
 bool KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
     vbucket_state* vbState = getVBucketState(vbid);
 
-    bool state_change_detected = true;
-    if (vbState != nullptr) {
-        //Check if there's a need for persistence
-        if (vbState->needsToBePersisted(newState)) {
-            vbState->transition.state = newState.transition.state;
-            vbState->transition.failovers = newState.transition.failovers;
-            vbState->transition.replicationTopology =
-                    newState.transition.replicationTopology;
-            vbState->persistedCompletedSeqno = newState.persistedCompletedSeqno;
-            vbState->persistedPreparedSeqno = newState.persistedPreparedSeqno;
-            vbState->highPreparedSeqno =
-                    newState.highPreparedSeqno;
-            vbState->maxVisibleSeqno = newState.maxVisibleSeqno;
-            vbState->onDiskPrepares = newState.onDiskPrepares;
-            vbState->setOnDiskPrepareBytes(newState.getOnDiskPrepareBytes());
-        } else {
-            state_change_detected = false;
-        }
-
-        if (newState.maxDeletedSeqno > 0 &&
-                vbState->maxDeletedSeqno < newState.maxDeletedSeqno) {
-            vbState->maxDeletedSeqno = newState.maxDeletedSeqno;
-        }
-
-        vbState->highSeqno = newState.highSeqno;
-        vbState->lastSnapStart = newState.lastSnapStart;
-        vbState->lastSnapEnd = newState.lastSnapEnd;
-        vbState->maxCas = std::max(vbState->maxCas, newState.maxCas);
-        vbState->hlcCasEpochSeqno = newState.hlcCasEpochSeqno;
-        vbState->mightContainXattrs = newState.mightContainXattrs;
-        vbState->checkpointType = newState.checkpointType;
-    } else {
+    if (!vbState) {
         cachedVBStates[vbid.get()] = std::make_unique<vbucket_state>(newState);
         if (cachedVBStates[vbid.get()]->transition.state !=
             vbucket_state_dead) {
             cachedValidVBCount++;
         }
+        return true;
     }
+
+    bool state_change_detected = true;
+
+    // Check if there's a need for persistence
+    if (vbState->needsToBePersisted(newState)) {
+        vbState->transition.state = newState.transition.state;
+        vbState->transition.failovers = newState.transition.failovers;
+        vbState->transition.replicationTopology =
+                newState.transition.replicationTopology;
+        vbState->persistedCompletedSeqno = newState.persistedCompletedSeqno;
+        vbState->persistedPreparedSeqno = newState.persistedPreparedSeqno;
+        vbState->highPreparedSeqno = newState.highPreparedSeqno;
+        vbState->maxVisibleSeqno = newState.maxVisibleSeqno;
+        vbState->onDiskPrepares = newState.onDiskPrepares;
+        vbState->setOnDiskPrepareBytes(newState.getOnDiskPrepareBytes());
+    } else {
+        state_change_detected = false;
+    }
+
+    if (newState.maxDeletedSeqno > 0 &&
+        vbState->maxDeletedSeqno < newState.maxDeletedSeqno) {
+        vbState->maxDeletedSeqno = newState.maxDeletedSeqno;
+    }
+
+    vbState->highSeqno = newState.highSeqno;
+    vbState->lastSnapStart = newState.lastSnapStart;
+    vbState->lastSnapEnd = newState.lastSnapEnd;
+    vbState->maxCas = std::max(vbState->maxCas, newState.maxCas);
+    vbState->hlcCasEpochSeqno = newState.hlcCasEpochSeqno;
+    vbState->mightContainXattrs = newState.mightContainXattrs;
+    vbState->checkpointType = newState.checkpointType;
 
     return state_change_detected;
 }
