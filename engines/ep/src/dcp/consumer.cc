@@ -42,7 +42,6 @@ const std::string DcpConsumer::noopIntervalCtrlMsg = "set_noop_interval";
 const std::string DcpConsumer::connBufferCtrlMsg = "connection_buffer_size";
 const std::string DcpConsumer::priorityCtrlMsg = "set_priority";
 const std::string DcpConsumer::extMetadataCtrlMsg = "enable_ext_metadata";
-const std::string DcpConsumer::forceCompressionCtrlMsg = "force_value_compression";
 // from vulcan onwards we only use the _vulcan control message
 const std::string DcpConsumer::cursorDroppingCtrlMsg =
         "supports_cursor_dropping_vulcan";

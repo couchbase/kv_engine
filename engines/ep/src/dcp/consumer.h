@@ -25,13 +25,13 @@
 #include "globaltask.h"
 #include "vb_ready_queue.h"
 
+#include <collections/collections_types.h>
 #include <memcached/dcp_stream_id.h>
-
 #include <relaxed_atomic.h>
 
 #include <list>
 #include <map>
-#include <engines/ep/src/collections/collections_types.h>
+#include <utility>
 
 class DcpResponse;
 class PassiveStream;
@@ -662,7 +662,6 @@ protected:
     static const std::string connBufferCtrlMsg;
     static const std::string priorityCtrlMsg;
     static const std::string extMetadataCtrlMsg;
-    static const std::string forceCompressionCtrlMsg;
     static const std::string cursorDroppingCtrlMsg;
     static const std::string sendStreamEndOnClientStreamCloseCtrlMsg;
     static const std::string hifiMFUCtrlMsg;
@@ -686,7 +685,7 @@ public:
           opaque(opaque_),
           vbid(vbid_),
           rollbackSeqno(rollbackSeqno_),
-          cons(conn) {
+          cons(std::move(conn)) {
     }
 
     std::string getDescription() override {
