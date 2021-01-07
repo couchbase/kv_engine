@@ -84,7 +84,7 @@ ItemPager::ItemPager(EventuallyPersistentEngine& e, EPStats& st)
       notified(false) {
 }
 
-bool ItemPager::run() {
+bool ItemPager::run() noexcept {
     TRACE_EVENT0("ep-engine/task", "ItemPager");
 
     // Setup so that we will sleep before clearing notified.
@@ -300,7 +300,7 @@ ExpiredItemPager::ExpiredItemPager(EventuallyPersistentEngine *e,
     updateExpPagerTime(initialSleep);
 }
 
-bool ExpiredItemPager::run() {
+bool ExpiredItemPager::run() noexcept {
     TRACE_EVENT0("ep-engine/task", "ExpiredItemPager");
     KVBucket* kvBucket = engine->getKVBucket();
     bool inverse = true;

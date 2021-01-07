@@ -36,7 +36,7 @@ ActiveStreamCheckpointProcessorTask::ActiveStreamCheckpointProcessorTask(
       producerPtr(p) {
 }
 
-bool ActiveStreamCheckpointProcessorTask::run() {
+bool ActiveStreamCheckpointProcessorTask::run() noexcept {
     if (engine->getEpStats().isShutdown) {
         return false;
     }

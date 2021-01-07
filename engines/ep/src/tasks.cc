@@ -30,7 +30,7 @@
 
 static const double WORKLOAD_MONITOR_FREQ(5.0);
 
-bool FlusherTask::run() {
+bool FlusherTask::run() noexcept {
     return flusher->step(this);
 }
 
@@ -63,7 +63,7 @@ CompactTask::CompactTask(EPBucket& bucket,
             lockedState->config.drop_deletes);
 }
 
-bool CompactTask::run() {
+bool CompactTask::run() noexcept {
     TRACE_EVENT1("ep-engine/task", "CompactTask", "file_id", vbid.get());
 
     // pull out the config we have been requested to run with
@@ -120,7 +120,7 @@ void CompactTask::runCompactionWithConfig(
     lockedState->rescheduleRequired = true;
 }
 
-bool StatSnap::run() {
+bool StatSnap::run() noexcept {
     TRACE_EVENT0("ep-engine/task", "StatSnap");
     engine->getKVBucket()->snapshotStats();
     ExecutorPool::get()->snooze(uid, 60);
@@ -136,12 +136,12 @@ MultiBGFetcherTask::MultiBGFetcherTask(EventuallyPersistentEngine* e,
       bgfetcher(b) {
 }
 
-bool MultiBGFetcherTask::run() {
+bool MultiBGFetcherTask::run() noexcept {
     TRACE_EVENT0("ep-engine/task", "MultiBGFetcherTask");
     return bgfetcher->run(this);
 }
 
-bool VKeyStatBGFetchTask::run() {
+bool VKeyStatBGFetchTask::run() noexcept {
     TRACE_EVENT2("ep-engine/task",
                  "VKeyStatBGFetchTask",
                  "cookie",
@@ -151,7 +151,6 @@ bool VKeyStatBGFetchTask::run() {
     engine->getKVBucket()->completeStatsVKey(cookie, key, vbucket, bySeqNum);
     return false;
 }
-
 
 WorkLoadMonitor::WorkLoadMonitor(EventuallyPersistentEngine *e,
                                  bool completeBeforeShutdown) :
@@ -175,7 +174,7 @@ size_t WorkLoadMonitor::getNumGets() {
            engine->getEpStats().numOpsGetMeta;
 }
 
-bool WorkLoadMonitor::run() {
+bool WorkLoadMonitor::run() noexcept {
     size_t curr_num_mutations = getNumMutations();
     size_t curr_num_gets = getNumGets();
     auto delta_mutations = static_cast<double>(curr_num_mutations -

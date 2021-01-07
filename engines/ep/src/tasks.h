@@ -44,7 +44,7 @@ public:
         desc = ss.str();
     }
 
-    bool run() override;
+    bool run() noexcept override;
 
     std::string getDescription() override {
         return desc;
@@ -76,7 +76,7 @@ public:
                 const void* ck,
                 bool completeBeforeShutdown = false);
 
-    bool run() override;
+    bool run() noexcept override;
 
     std::string getDescription() override;
 
@@ -158,7 +158,7 @@ public:
                      /*completeBeforeShutdown*/ false) {
     }
 
-    bool run() override;
+    bool run() noexcept override;
 
     std::string getDescription() override {
         return "Updating stat snapshot on disk";
@@ -182,7 +182,7 @@ class MultiBGFetcherTask : public GlobalTask {
 public:
     MultiBGFetcherTask(EventuallyPersistentEngine* e, BgFetcher* b);
 
-    bool run() override;
+    bool run() noexcept override;
 
     std::string getDescription() override {
         return "Batching background fetch";
@@ -227,7 +227,7 @@ public:
                       std::string(key.c_str()) + "} " + vbucket.to_string()) {
     }
 
-    bool run() override;
+    bool run() noexcept override;
 
     std::string getDescription() override {
         return description;
@@ -259,7 +259,7 @@ public:
     explicit WorkLoadMonitor(EventuallyPersistentEngine* e,
                              bool completeBeforeShutdown = false);
 
-    bool run() override;
+    bool run() noexcept override;
 
     std::chrono::microseconds maxExpectedDuration() override {
         // Runtime should be very quick (lookup a few statistics; perform

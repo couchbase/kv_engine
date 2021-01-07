@@ -215,7 +215,7 @@ public:
         return std::chrono::milliseconds(100);
     }
 
-    bool run() override {
+    bool run() noexcept override {
         TRACE_EVENT1("ep-engine/task",
                      "PendingOpsNotification",
                      "vb",
@@ -258,7 +258,7 @@ public:
         return std::chrono::milliseconds(100);
     }
 
-    bool run() override {
+    bool run() noexcept override {
         auto vbucket = weakVb.lock();
         if (!vbucket) {
             return false;
@@ -2371,7 +2371,7 @@ std::string VBCBAdaptor::getDescription() {
     }
 }
 
-bool VBCBAdaptor::run() {
+bool VBCBAdaptor::run() noexcept {
     visitor->begin();
 
     while (!vbucketsToVisit.empty()) {

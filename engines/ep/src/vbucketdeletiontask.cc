@@ -60,7 +60,7 @@ std::chrono::microseconds VBucketMemoryDeletionTask::maxExpectedDuration() {
     return std::chrono::milliseconds(100);
 }
 
-bool VBucketMemoryDeletionTask::run() {
+bool VBucketMemoryDeletionTask::run() noexcept {
     TRACE_EVENT1("ep-engine/task",
                  "VBucketMemoryDeletionTask",
                  "vb",
@@ -91,7 +91,7 @@ VBucketMemoryAndDiskDeletionTask::VBucketMemoryAndDiskDeletionTask(
     description += " and disk";
 }
 
-bool VBucketMemoryAndDiskDeletionTask::run() {
+bool VBucketMemoryAndDiskDeletionTask::run() noexcept {
     TRACE_EVENT1("ep-engine/task",
                  "VBucketMemoryAndDiskDeletionTask",
                  "vb",

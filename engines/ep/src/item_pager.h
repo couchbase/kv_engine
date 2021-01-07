@@ -77,7 +77,7 @@ public:
      */
     ItemPager(EventuallyPersistentEngine& e, EPStats& st);
 
-    bool run() override;
+    bool run() noexcept override;
 
     std::string getDescription() override {
         return "Paging out items.";
@@ -140,7 +140,7 @@ public:
     ExpiredItemPager(EventuallyPersistentEngine *e, EPStats &st,
                      size_t stime, ssize_t taskTime = -1);
 
-    bool run() override;
+    bool run() noexcept override;
 
     std::string getDescription() override {
         return "Paging expired items.";

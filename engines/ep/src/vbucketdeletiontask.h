@@ -46,7 +46,7 @@ public:
 
     std::chrono::microseconds maxExpectedDuration() override;
 
-    bool run() override;
+    bool run() noexcept override;
 
 protected:
     /**
@@ -89,7 +89,7 @@ public:
                                      KVShard& shard,
                                      EPVBucket* vbucket);
 
-    bool run() override;
+    bool run() noexcept override;
 
 protected:
     KVShard& shard;

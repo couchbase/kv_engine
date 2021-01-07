@@ -73,7 +73,7 @@ public:
         }
     }
 
-    bool run() override {
+    bool run() noexcept override {
         TRACE_EVENT0("ep-engine/task", "DcpConsumerTask");
         auto consumer = consumerPtr.lock();
         if (!consumer) {
@@ -941,7 +941,7 @@ ENGINE_ERROR_CODE DcpConsumer::step(DcpMessageProducersIface& producers) {
     return ret;
 }
 
-bool RollbackTask::run() {
+bool RollbackTask::run() noexcept {
     TRACE_EVENT0("ep-engine/task", "RollbackTask");
     if (cons->doDisconnect()) {
         return false;

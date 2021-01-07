@@ -91,7 +91,7 @@ public:
         return std::chrono::milliseconds(100);
     }
 
-    bool run() override;
+    bool run() noexcept override;
 
 private:
     const void* cookie;

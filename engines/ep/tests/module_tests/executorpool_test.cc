@@ -69,6 +69,7 @@ void ExecutorPoolTest<T>::makePool(int maxThreads,
 
 using ExecutorPoolTypes = ::testing::Types<TestExecutorPool, FollyExecutorPool>;
 TYPED_TEST_SUITE(ExecutorPoolTest, ExecutorPoolTypes);
+TYPED_TEST_SUITE(ExecutorPoolDeathTest, ExecutorPoolTypes);
 
 /**
  * Tests basic registration / unregistration of Taskables.
@@ -576,7 +577,7 @@ TYPED_TEST(ExecutorPoolTest, ThreadPriorities) {
         }
 
     protected:
-        bool run() override {
+        bool run() noexcept override {
             threadPriority = getpriority(PRIO_PROCESS, 0);
             threadGate.threadUp();
             return false;
@@ -892,6 +893,45 @@ TYPED_TEST(ExecutorPoolTest, SchedulerStats) {
     this->pool->unregisterTaskable(taskable, true);
 }
 
+/**
+ * MB-43373: Test that if an uncaught exception is thrown from a Tasks' run()
+ * method, then the process is terminated (and doesn't leave Task in invalid
+ * state).
+ */
+TYPED_TEST(ExecutorPoolDeathTest, UncaughtExceptionWhileRunning) {
+    // Windows' fatal exception handler doesn't print the exception.
+    const char* expectedMsg = folly::kIsWindows ? "" : "Logic error in run";
+
+    ASSERT_DEATH(
+            {
+                this->makePool(1);
+                NiceMock<MockTaskable> taskable;
+                this->pool->registerTaskable(taskable);
+
+                // Create a task which when run throws an exception.
+                folly::Baton taskStart;
+                this->pool->schedule(std::make_shared<LambdaTask>(
+                        taskable,
+                        TaskId::ItemPager,
+                        0,
+                        true,
+                        [&taskStart](LambdaTask&) {
+                            throw std::logic_error{"Logic error in run()"};
+                            // Never reached, but ensures main thread waits.
+                            taskStart.post();
+                            return false;
+                        }));
+
+                // Test should die before baton is posted, but this is needed to
+                // block execution in main thread until bg thread runs (and
+                // crashes). Deadline added so test fails (and doesn't hang) if
+                // an uncaught exception incorrectly doesn't terminate the
+                // process.
+                taskStart.try_wait_for(std::chrono::seconds{1});
+            },
+            expectedMsg);
+}
+
 TYPED_TEST_SUITE(ExecutorPoolDynamicWorkerTest, ExecutorPoolTypes);
 
 TYPED_TEST(ExecutorPoolDynamicWorkerTest, decrease_workers) {
@@ -1148,7 +1188,7 @@ public:
           scheduleOnDestruct(pool, taskable, cv, stopTaskHasRun) {
     }
 
-    bool run() override {
+    bool run() noexcept override {
         return false;
     }
 
@@ -1171,7 +1211,7 @@ public:
           cv(cv) {
     }
 
-    bool run() override {
+    bool run() noexcept override {
         std::lock_guard<std::mutex> guard(cv);
         taskHasRun = true;
         cv.notify_one();
@@ -1313,7 +1353,7 @@ TYPED_TEST(ExecutorPoolEpEngineTest, MemoryTracking_Run) {
         }
 
     protected:
-        bool run() override {
+        bool run() noexcept override {
             // Sleep until we are explicitly told to wake.
             this->snooze(INT_MAX);
 

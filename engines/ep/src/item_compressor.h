@@ -30,7 +30,7 @@ class ItemCompressorTask : public GlobalTask {
 public:
     ItemCompressorTask(EventuallyPersistentEngine* e, EPStats& stats_);
 
-    bool run() override;
+    bool run() noexcept override;
 
     void stop();
 

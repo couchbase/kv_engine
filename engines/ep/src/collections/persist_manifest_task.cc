@@ -49,7 +49,7 @@ std::string PersistManifestTask::getDescription() {
 
 static bool renameFile(const std::string& src, const std::string& dst);
 
-bool PersistManifestTask::run() {
+bool PersistManifestTask::run() noexcept {
     std::string finalFile = engine->getConfiguration().getDbname();
 
     if (!cb::io::isDirectory(finalFile)) {

@@ -41,7 +41,7 @@ public:
         return std::chrono::seconds(1);
     }
 
-    bool run() override;
+    bool run() noexcept override;
 
     /**
      * Load back what this task writes.

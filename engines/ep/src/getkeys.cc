@@ -86,7 +86,7 @@ FetchAllKeysTask::FetchAllKeysTask(EventuallyPersistentEngine* e,
       collection(std::move(collection)) {
 }
 
-bool FetchAllKeysTask::run() {
+bool FetchAllKeysTask::run() noexcept {
     TRACE_EVENT0("ep-engine/task", "FetchAllKeysTask");
     ENGINE_ERROR_CODE err;
     if (engine->getKVBucket()

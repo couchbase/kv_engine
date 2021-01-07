@@ -55,6 +55,9 @@ protected:
     std::unique_ptr<T> pool;
 };
 
+template <typename T>
+class ExecutorPoolDeathTest : public ExecutorPoolTest<T> {};
+
 /**
  * Test fixture for ExecutorPool tests which require a full EPEngine instance.
  * @tparam T

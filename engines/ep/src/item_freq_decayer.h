@@ -34,7 +34,7 @@ public:
 
     ~ItemFreqDecayerTask() override;
 
-    bool run() override;
+    bool run() noexcept override;
 
     void stop();
 

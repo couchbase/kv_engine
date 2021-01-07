@@ -72,7 +72,7 @@ public:
      * back to the executor - to allow any higher priority tasks to run.
      * When run() is called again, will resume from the vBucket it paused at.
      */
-    bool run() override;
+    bool run() noexcept override;
 
 private:
     KVBucket* store;
