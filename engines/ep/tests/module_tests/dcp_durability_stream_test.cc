@@ -4083,6 +4083,113 @@ TEST_P(DurabilityPassiveStreamTest,
               stream->processBufferedMessages(processedBytes, 1));
 }
 
+void DurabilityPassiveStreamTest::testPrepareDeduplicationCorrectlyResetsHPS(
+        cb::durability::Level level) {
+    using namespace cb::durability;
+    if (ephemeral()) {
+        ASSERT_EQ(Level::Majority, level);
+    }
+
+    auto keyA = makeStoredDocKey("keyA");
+    makeAndReceiveDcpPrepare(keyA, 1 /*cas*/, 1 /*prepareSeqno*/, level);
+    auto keyB = makeStoredDocKey("keyB");
+    makeAndReceiveDcpPrepare(keyB, 2 /*cas*/, 2 /*prepareSeqno*/, level);
+    flushVBucketToDiskIfPersistent(vbid, 2 /*expected_num_flushed*/);
+
+    // Expected state in PDM:
+    //
+    // P(keyA):1    P(keyB):2
+    //              ^
+    //              HPS:2
+    const auto& vb = *store->getVBucket(vbid);
+    const auto& pdm = dynamic_cast<const PassiveDurabilityMonitor&>(
+            vb.getDurabilityMonitor());
+    EXPECT_EQ(2, pdm.getNumTracked());
+    EXPECT_EQ(2, pdm.getHighestTrackedSeqno());
+    EXPECT_EQ(2, pdm.getHighPreparedSeqno());
+
+    // Replica receives a disk snapshot now, key duplicates legal in PDM
+    const uint32_t opaque = 0;
+    SnapshotMarker marker(opaque,
+                          vbid,
+                          3 /*snapStart*/,
+                          3 /*snapEnd*/,
+                          MARKER_FLAG_DISK | MARKER_FLAG_CHK /*flags*/,
+                          0 /*HCS*/,
+                          {} /*maxVisibleSeqno*/,
+                          {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    // Before the fix, the next steps will end up with the following invalid
+    // state, which is a pre-requirement for the next steps to fail:
+    //
+    // P(keyA):1    x    P(keyB):3
+    //              ^
+    //              HPS:2
+    //
+    // At fix, this is the state:
+    //
+    // P(keyA):1    x    P(keyB):3
+    // ^
+    // HPS:2
+
+    auto qi = makePendingItem(keyB, "value", Requirements(level, Timeout(60)));
+    qi->setBySeqno(3);
+    qi->setCas(3);
+    // Receiving the snap-end seqno. Before the fix, this is where we fail on
+    // Ephemeral, as we callback into the PDM for updating the HPS from
+    // PassiveStream::handleSnapshotEnd().
+    // The PDM throws as we break the monotonicity invariant on HPS (set to
+    // seqno:2) by trying to reset it to PDM::trackedWrites::begin (ie, seqno:1)
+    EXPECT_EQ(ENGINE_SUCCESS,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      qi,
+                      opaque,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    if (persistent()) {
+        EXPECT_EQ(2, pdm.getNumTracked());
+        EXPECT_EQ(3, pdm.getHighestTrackedSeqno());
+        EXPECT_EQ(2, pdm.getHighPreparedSeqno());
+
+        // At flush we persist the full disk snapshot and we call back into the
+        // PDM for moving the HPS. Before the fix the PDM throws here the same
+        // as already described for Ephemeral.
+        flush_vbucket_to_disk(vbid, 1 /*expected_num_flushed*/);
+    }
+
+    // Final state at fix
+    //
+    // P(keyA):1    x    P(keyB):3
+    //                   ^
+    //                   HPS:3
+    EXPECT_EQ(2, pdm.getNumTracked());
+    EXPECT_EQ(3, pdm.getHighestTrackedSeqno());
+    EXPECT_EQ(3, pdm.getHighPreparedSeqno());
+}
+
+TEST_P(DurabilityPassiveStreamTest, PrepareDedupCorrectlyResetsHPS_Majority) {
+    testPrepareDeduplicationCorrectlyResetsHPS(cb::durability::Level::Majority);
+}
+
+TEST_P(DurabilityPassiveStreamPersistentTest,
+       PrepareDedupCorrectlyResetsHPS_MajorityAndPersistOnMaster) {
+    testPrepareDeduplicationCorrectlyResetsHPS(
+            cb::durability::Level::MajorityAndPersistOnMaster);
+}
+
+TEST_P(DurabilityPassiveStreamPersistentTest,
+       PrepareDedupCorrectlyResetsHPS_PersistToMajority) {
+    testPrepareDeduplicationCorrectlyResetsHPS(
+            cb::durability::Level::PersistToMajority);
+}
+
 void DurabilityPromotionStreamTest::SetUp() {
     // Set up as a replica
     DurabilityPassiveStreamTest::SetUp();
