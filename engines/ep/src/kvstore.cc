@@ -236,8 +236,9 @@ void KVStore::setVBucketState(Vbid vbid, const vbucket_state& vbs) {
 
 bool KVStore::needsToBePersisted(Vbid vbid, const vbucket_state& newVbstate) {
     /*
-     * The vbucket state information is to be persisted only if a change is
-     * detected in:
+     * The vbucket state information is to be persisted only if there is no
+     * cached vbstate (ie, we are writing a vbstate on disk for the first time)
+     * or if a change is detected in:
      * - the state
      * - the failover table, or
      * - the replication topology or
@@ -247,6 +248,11 @@ bool KVStore::needsToBePersisted(Vbid vbid, const vbucket_state& newVbstate) {
      * - the high prepared seqno
      */
     const auto* cached = getVBucketState(vbid);
+
+    if (!cached) {
+        return true;
+    }
+
     return (cached->transition.needsToBePersisted(newVbstate.transition) ||
             cached->persistedCompletedSeqno !=
                     newVbstate.persistedCompletedSeqno ||
@@ -257,8 +263,11 @@ bool KVStore::needsToBePersisted(Vbid vbid, const vbucket_state& newVbstate) {
 }
 
 bool KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
-    vbucket_state* vbState = getVBucketState(vbid);
+    if (!needsToBePersisted(vbid, newState)) {
+        return false;
+    }
 
+    vbucket_state* vbState = getVBucketState(vbid);
     if (!vbState) {
         cachedVBStates[vbid.get()] = std::make_unique<vbucket_state>(newState);
         if (cachedVBStates[vbid.get()]->transition.state !=
@@ -266,10 +275,6 @@ bool KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
             cachedValidVBCount++;
         }
         return true;
-    }
-
-    if (!needsToBePersisted(vbid, newState)) {
-        return false;
     }
 
     vbState->transition.state = newState.transition.state;
