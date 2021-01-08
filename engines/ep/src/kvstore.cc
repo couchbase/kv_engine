@@ -246,23 +246,20 @@ bool KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
         return true;
     }
 
-    bool state_change_detected = true;
-
-    // Check if there's a need for persistence
-    if (vbState->needsToBePersisted(newState)) {
-        vbState->transition.state = newState.transition.state;
-        vbState->transition.failovers = newState.transition.failovers;
-        vbState->transition.replicationTopology =
-                newState.transition.replicationTopology;
-        vbState->persistedCompletedSeqno = newState.persistedCompletedSeqno;
-        vbState->persistedPreparedSeqno = newState.persistedPreparedSeqno;
-        vbState->highPreparedSeqno = newState.highPreparedSeqno;
-        vbState->maxVisibleSeqno = newState.maxVisibleSeqno;
-        vbState->onDiskPrepares = newState.onDiskPrepares;
-        vbState->setOnDiskPrepareBytes(newState.getOnDiskPrepareBytes());
-    } else {
-        state_change_detected = false;
+    if (!vbState->needsToBePersisted(newState)) {
+        return false;
     }
+
+    vbState->transition.state = newState.transition.state;
+    vbState->transition.failovers = newState.transition.failovers;
+    vbState->transition.replicationTopology =
+            newState.transition.replicationTopology;
+    vbState->persistedCompletedSeqno = newState.persistedCompletedSeqno;
+    vbState->persistedPreparedSeqno = newState.persistedPreparedSeqno;
+    vbState->highPreparedSeqno = newState.highPreparedSeqno;
+    vbState->maxVisibleSeqno = newState.maxVisibleSeqno;
+    vbState->onDiskPrepares = newState.onDiskPrepares;
+    vbState->setOnDiskPrepareBytes(newState.getOnDiskPrepareBytes());
 
     if (newState.maxDeletedSeqno > 0 &&
         vbState->maxDeletedSeqno < newState.maxDeletedSeqno) {
@@ -277,7 +274,7 @@ bool KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
     vbState->mightContainXattrs = newState.mightContainXattrs;
     vbState->checkpointType = newState.checkpointType;
 
-    return state_change_detected;
+    return true;
 }
 
 bool KVStore::snapshotStats(const std::map<std::string,
