@@ -77,10 +77,8 @@ TEST_P(CollectionsSyncWriteParamTest,
        seqno_advanced_one_mutation_plus_pending) {
     VBucketPtr vb = store->getVBucket(vbid);
     CollectionsManifest cm{};
-    setCollections(
-            cookie,
-            std::string{
-                    cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
+    setCollections(cookie,
+                   cm.add(CollectionEntry::meat).add(CollectionEntry::dairy));
     // filter only CollectionEntry::dairy
     createDcpObjects({{R"({"collections":["c"]})"}});
 
@@ -116,7 +114,7 @@ TEST_P(CollectionsSyncWriteParamTest,
 TEST_P(CollectionsSyncWriteParamTest, drop_collection_with_pending_write) {
     VBucketPtr vb = store->getVBucket(vbid);
     CollectionsManifest cm{};
-    setCollections(cookie, std::string{cm.add(CollectionEntry::dairy)});
+    setCollections(cookie, cm.add(CollectionEntry::dairy));
 
     store_item(vbid, StoredDocKey{"milk", CollectionEntry::defaultC}, "milk");
 
@@ -148,7 +146,7 @@ TEST_P(CollectionsSyncWriteParamTest, drop_collection_with_pending_write) {
         flush_vbucket_to_disk(replicaVB, 4);
     }
 
-    setCollections(cookie, std::string{cm.remove(CollectionEntry::dairy)});
+    setCollections(cookie, cm.remove(CollectionEntry::dairy));
     notifyAndStepToCheckpoint();
     EXPECT_EQ(ENGINE_SUCCESS,
               producer->stepAndExpect(*producers,
@@ -188,7 +186,7 @@ failover_entry_t CollectionsSyncWriteParamTest::
         testCompleteDifferentPrepareOnActiveBeforeReplicaDropSetUp() {
     VBucketPtr vb = store->getVBucket(vbid);
     CollectionsManifest cm{};
-    setCollections(cookie, std::string{cm.add(CollectionEntry::dairy)});
+    setCollections(cookie, cm.add(CollectionEntry::dairy));
 
     auto item = makePendingItem(StoredDocKey{"cream", CollectionEntry::dairy},
                                 "value");
@@ -212,7 +210,7 @@ failover_entry_t CollectionsSyncWriteParamTest::
                                       cb::mcbp::ClientOpcode::DcpPrepare));
     flushVBucketToDiskIfPersistent(replicaVB, 3);
 
-    setCollections(cookie, std::string{cm.remove(CollectionEntry::dairy)});
+    setCollections(cookie, cm.remove(CollectionEntry::dairy));
 
     // Get DCP ready, but don't step the drop event yet
     notifyAndStepToCheckpoint();

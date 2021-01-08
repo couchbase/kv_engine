@@ -35,14 +35,14 @@ class CollectionsManifestUpdate : public CollectionsParameterizedTest {};
 
 TEST_P(CollectionsManifestUpdate, update_epoch) {
     CollectionsManifest cm;
-    setCollections(cookie, std::string{cm});
+    setCollections(cookie, cm);
 }
 
 TEST_P(CollectionsManifestUpdate, update_add1) {
     CollectionsManifest cm, cm1;
     cm.add(CollectionEntry::Entry{"fruit", 22});
     EXPECT_FALSE(store->getVBucket(vbid)->lockCollections().exists(22));
-    setCollections(cookie, std::string{cm});
+    setCollections(cookie, cm);
     EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().exists(22));
 
     // Finally, we cannot setCollections to something which is not a
@@ -51,13 +51,12 @@ TEST_P(CollectionsManifestUpdate, update_add1) {
     // switched name from fruit to woodwind - very odd and not a successor.
     cm1.add(CollectionEntry::Entry{"woodwind", 22});
     cm1.add(CollectionEntry::Entry{"brass", 23});
-    setCollections(cookie,
-                   std::string{cm1},
-                   cb::engine_errc::cannot_apply_collections_manifest);
+    setCollections(
+            cookie, cm1, cb::engine_errc::cannot_apply_collections_manifest);
 
     // But now force it
     cm1.setForce(true);
-    setCollections(cookie, std::string{cm1});
+    setCollections(cookie, cm1);
 
     // @todo: MB-39292 The force update has changed fruit to woodwind - but the
     // vbucket's only know about collection:22 and have done nothing about it -
@@ -68,7 +67,7 @@ TEST_P(CollectionsManifestUpdate, update_add1_warmup) {
     CollectionsManifest cm, cm1;
     cm.add(CollectionEntry::Entry{"fruit", 22});
     EXPECT_FALSE(store->getVBucket(vbid)->lockCollections().exists(22));
-    setCollections(cookie, std::string{cm});
+    setCollections(cookie, cm);
     // Check the current manifest is not a forced update
     EXPECT_FALSE(store->getCollectionsManager()
                          .getCurrentManifest()
@@ -87,9 +86,8 @@ TEST_P(CollectionsManifestUpdate, update_add1_warmup) {
                              ->isForcedUpdate());
     }
     // cm1 is default state - uid of 0, cannot go back
-    setCollections(cookie,
-                   std::string{cm1},
-                   cb::engine_errc::cannot_apply_collections_manifest);
+    setCollections(
+            cookie, cm1, cb::engine_errc::cannot_apply_collections_manifest);
     EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().exists(22));
 
     // Finally, we cannot setCollections to something which is not a
@@ -98,13 +96,12 @@ TEST_P(CollectionsManifestUpdate, update_add1_warmup) {
     // switched name from fruit to woodwind - very odd and not a successor.
     cm1.add(CollectionEntry::Entry{"woodwind", 22});
     cm1.add(CollectionEntry::Entry{"brass", 23});
-    setCollections(cookie,
-                   std::string{cm1},
-                   cb::engine_errc::cannot_apply_collections_manifest);
+    setCollections(
+            cookie, cm1, cb::engine_errc::cannot_apply_collections_manifest);
 
     // But now force it
     cm1.setForce(true);
-    setCollections(cookie, std::string{cm1});
+    setCollections(cookie, cm1);
 
     if (isPersistent()) {
         resetEngineAndWarmup();
@@ -124,7 +121,7 @@ TEST_P(CollectionsManifestUpdate, update_add1_move1_warmup) {
     cm.add(CollectionEntry::Entry{"fruit", 22});
     cm.add(ScopeEntry::shop1);
     EXPECT_FALSE(store->getVBucket(vbid)->lockCollections().exists(22));
-    setCollections(cookie, std::string{cm});
+    setCollections(cookie, cm);
     // Check the current manifest is not a forced update
     EXPECT_FALSE(store->getCollectionsManager()
                          .getCurrentManifest()
@@ -147,13 +144,12 @@ TEST_P(CollectionsManifestUpdate, update_add1_move1_warmup) {
     // immutable
     cm.remove(CollectionEntry::Entry{"fruit", 22})
             .add(CollectionEntry::Entry{"fruit", 22}, ScopeEntry::shop1);
-    setCollections(cookie,
-                   std::string{cm},
-                   cb::engine_errc::cannot_apply_collections_manifest);
+    setCollections(
+            cookie, cm, cb::engine_errc::cannot_apply_collections_manifest);
 
     // But now force it
     cm.setForce(true);
-    setCollections(cookie, std::string{cm});
+    setCollections(cookie, cm);
 
     // KV doesn't yet respond to this yet
 }
@@ -190,7 +186,7 @@ TEST_P(CollectionsManifestUpdatePersistent, update_fail_persist) {
 TEST_P(CollectionsManifestUpdatePersistent, update_fail_warmup) {
     CollectionsManifest cm, cm1;
     cm.add(CollectionEntry::Entry{"fruit", 22});
-    setCollections(cookie, std::string{cm});
+    setCollections(cookie, cm);
     EXPECT_EQ(1, store->getVBucket(vbid)->lockCollections().getManifestUid());
     EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().exists(22));
 

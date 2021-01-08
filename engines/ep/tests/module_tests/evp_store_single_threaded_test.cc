@@ -409,7 +409,11 @@ void SingleThreadedKVBucketTest::replaceCouchKVStoreWithMock() {
 }
 
 cb::engine_errc SingleThreadedKVBucketTest::setCollections(
-        const void* c, std::string_view json, cb::engine_errc status1) {
+        const void* c,
+        const CollectionsManifest& manifest,
+        cb::engine_errc status1) {
+    std::string json{manifest};
+
     auto status = engine->set_collection_manifest(c, json);
     if (!isPersistent()) {
         return status;

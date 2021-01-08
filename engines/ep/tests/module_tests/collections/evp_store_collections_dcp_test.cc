@@ -222,7 +222,7 @@ TEST_F(CollectionsDcpTest, failover_partial_drop) {
 
     CollectionsManifest cm(CollectionEntry::meat);
     // Update the bucket::manifest (which will apply changes to the active VB)
-    setCollections(cookie, std::string{cm.add(CollectionEntry::fruit)});
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
 
     notifyAndStepToCheckpoint();
 
@@ -315,7 +315,7 @@ TEST_F(CollectionsDcpTest, MB_38019) {
 
     // setCollections will update active node
     CollectionsManifest cm(CollectionEntry::fruit);
-    setCollections(cookie, std::string{cm});
+    setCollections(cookie, cm);
 
     VBucketPtr replica = store->getVBucket(replicaVB);
 
@@ -348,12 +348,10 @@ TEST_F(CollectionsDcpTest, MB_38019) {
     // Finally apply the changes the replica saw, but via setCollections, the
     // replica should be ignoring the downlevel manifests
     cm.add(CollectionEntry::meat);
-    EXPECT_EQ(cb::engine_errc::success,
-              setCollections(cookie, std::string{cm}));
+    EXPECT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     cm.add(CollectionEntry::dairy);
-    EXPECT_EQ(cb::engine_errc::success,
-              setCollections(cookie, std::string{cm}));
+    EXPECT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 }
 
 /*
@@ -1254,7 +1252,7 @@ void CollectionsDcpParameterizedTest::testVBPromotionUpdateManifest() {
     cm.add(CollectionEntry::fruit);
 
     // This will update the active but NOT the replica.
-    setCollections(cookie, std::string{cm});
+    setCollections(cookie, cm);
     auto active = store->getVBucket(vbid);
     ASSERT_TRUE(active->lockCollections().exists(CollectionEntry::fruit));
     auto replica = store->getVBucket(replicaVB);
@@ -1327,9 +1325,9 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     // _default (see MB-32131)
     CollectionsManifest cm;
     setCollections(cookie,
-                   std::string{cm.add(CollectionEntry::meat)
-                                       .add(CollectionEntry::dairy)
-                                       .remove(CollectionEntry::defaultC)});
+                   cm.add(CollectionEntry::meat)
+                           .add(CollectionEntry::dairy)
+                           .remove(CollectionEntry::defaultC));
 
     // Setup filtered DCP for CID 12/0xc (dairy)
     createDcpObjects({{R"({"collections":["c"]})"}});
@@ -1401,10 +1399,9 @@ TEST_F(CollectionsFilteredDcpTest, filtering_scope) {
     // Perform a create of meat/dairy via the bucket level
     CollectionsManifest cm;
     setCollections(cookie,
-                   std::string{cm.add(CollectionEntry::meat)
-                                       .add(ScopeEntry::shop1)
-                                       .add(CollectionEntry::dairy,
-                                            ScopeEntry::shop1)});
+                   cm.add(CollectionEntry::meat)
+                           .add(ScopeEntry::shop1)
+                           .add(CollectionEntry::dairy, ScopeEntry::shop1));
     // Setup filtered DCP for SID 8 (shop1)
     createDcpObjects({{R"({"scope":"8"})"}});
     notifyAndStepToCheckpoint();
@@ -1500,7 +1497,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope_from_empty) {
 
     // Create the scope but don't add any collections to it
     CollectionsManifest cm;
-    setCollections(cookie, std::string{cm.add(ScopeEntry::shop1)});
+    setCollections(cookie, cm.add(ScopeEntry::shop1));
     // Setup filtered DCP for SID 8 (shop1)
     try {
         createDcpObjects({{R"({"scope":"8"})"}});
@@ -1512,9 +1509,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope_from_empty) {
     ASSERT_NE(nullptr, vb0Stream.get());
 
     // Now lets add a collection to the shop1 scope
-    setCollections(
-            cookie,
-            std::string{cm.add(CollectionEntry::dairy, ScopeEntry::shop1)});
+    setCollections(cookie, cm.add(CollectionEntry::dairy, ScopeEntry::shop1));
 
     notifyAndStepToCheckpoint();
 
@@ -1577,10 +1572,9 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope) {
     // Perform a create of meat/dairy(shop1) via the bucket level
     CollectionsManifest cm;
     setCollections(cookie,
-                   std::string{cm.add(CollectionEntry::meat)
-                                       .add(ScopeEntry::shop1)
-                                       .add(CollectionEntry::dairy,
-                                            ScopeEntry::shop1)});
+                   cm.add(CollectionEntry::meat)
+                           .add(ScopeEntry::shop1)
+                           .add(CollectionEntry::dairy, ScopeEntry::shop1));
     // Setup filtered DCP for SID 8 (shop1)
     createDcpObjects({{R"({"scope":"8"})"}});
     notifyAndStepToCheckpoint();
@@ -1601,9 +1595,8 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope) {
     ASSERT_NE(nullptr, vb0Stream.get());
 
     // Add a new collection to the scope that we are filtering
-    setCollections(
-            cookie,
-            std::string{cm.add(CollectionEntry::vegetable, ScopeEntry::shop1)});
+    setCollections(cookie,
+                   cm.add(CollectionEntry::vegetable, ScopeEntry::shop1));
     notifyAndStepToCheckpoint();
 
     // Check we got the system event
@@ -1667,13 +1660,11 @@ TEST_F(CollectionsFilteredDcpTest, filtering_shrink_scope) {
     // Perform a create of meat/dairy(shop1)/vegetable(shop1) via the bucket
     // level
     CollectionsManifest cm;
-    setCollections(
-            cookie,
-            std::string{cm.add(CollectionEntry::meat)
-                                .add(ScopeEntry::shop1)
-                                .add(CollectionEntry::dairy, ScopeEntry::shop1)
-                                .add(CollectionEntry::vegetable,
-                                     ScopeEntry::shop1)});
+    setCollections(cookie,
+                   cm.add(CollectionEntry::meat)
+                           .add(ScopeEntry::shop1)
+                           .add(CollectionEntry::dairy, ScopeEntry::shop1)
+                           .add(CollectionEntry::vegetable, ScopeEntry::shop1));
     // Setup filtered DCP for SID 8 (shop1)
     createDcpObjects({{R"({"scope":"8"})"}});
     notifyAndStepToCheckpoint();
@@ -1738,9 +1729,8 @@ TEST_F(CollectionsFilteredDcpTest, filtering_shrink_scope) {
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(*producers));
 
     // Now delete the dairy collection
-    setCollections(
-            cookie,
-            std::string{cm.remove(CollectionEntry::dairy, ScopeEntry::shop1)});
+    setCollections(cookie,
+                   cm.remove(CollectionEntry::dairy, ScopeEntry::shop1));
     notifyAndStepToCheckpoint();
 
     // Check we got the system event
@@ -1788,21 +1778,18 @@ TEST_F(CollectionsFilteredDcpTest, collection_tombstone_on_scope_filter) {
     // Perform a create of meat/dairy(shop1)/vegetable(shop1) via the bucket
     // level
     CollectionsManifest cm;
-    setCollections(
-            cookie,
-            std::string{cm.add(CollectionEntry::meat)
-                                .add(ScopeEntry::shop1)
-                                .add(CollectionEntry::dairy, ScopeEntry::shop1)
-                                .add(CollectionEntry::vegetable,
-                                     ScopeEntry::shop1)});
+    setCollections(cookie,
+                   cm.add(CollectionEntry::meat)
+                           .add(ScopeEntry::shop1)
+                           .add(CollectionEntry::dairy, ScopeEntry::shop1)
+                           .add(CollectionEntry::vegetable, ScopeEntry::shop1));
 
     store_item(vbid, StoredDocKey{"dairy1", CollectionEntry::dairy}, "value");
     store_item(vbid, StoredDocKey{"dairy2", CollectionEntry::dairy}, "value");
 
     // Now delete the dairy collection
-    setCollections(
-            cookie,
-            std::string{cm.remove(CollectionEntry::dairy, ScopeEntry::shop1)});
+    setCollections(cookie,
+                   cm.remove(CollectionEntry::dairy, ScopeEntry::shop1));
 
     // Flush it all out
     flush_vbucket_to_disk(vbid, 6);
@@ -1844,10 +1831,8 @@ TEST_P(CollectionsDcpParameterizedTest, MB_24572) {
 
     // Perform a create of meat/dairy via the bucket level
     CollectionsManifest cm;
-    setCollections(
-            cookie,
-            std::string{
-                    cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
+    setCollections(cookie,
+                   cm.add(CollectionEntry::meat).add(CollectionEntry::dairy));
     // Setup filtered DCP
     createDcpObjects({{R"({"collections":["c"]})"}});
 
@@ -1882,10 +1867,8 @@ TEST_P(CollectionsDcpParameterizedTest, default_only) {
 
     // Perform a create of meat/dairy via the bucket level
     CollectionsManifest cm;
-    setCollections(
-            cookie,
-            std::string{
-                    cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
+    setCollections(cookie,
+                   cm.add(CollectionEntry::meat).add(CollectionEntry::dairy));
 
     // Setup DCP
     createDcpObjects({/*no collections*/});
@@ -1920,7 +1903,7 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes) {
 
     // Perform a create of meat via the bucket level
     CollectionsManifest cm;
-    setCollections(cookie, std::string{cm.add(CollectionEntry::meat)});
+    setCollections(cookie, cm.add(CollectionEntry::meat));
 
     // Setup filtered DCP
     createDcpObjects({{R"({"collections":["8"]})"}});
@@ -1940,7 +1923,7 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes) {
     EXPECT_TRUE(vb0Stream->isActive());
 
     // Perform a delete of meat via the bucket level
-    setCollections(cookie, std::string{cm.remove(CollectionEntry::meat)});
+    setCollections(cookie, cm.remove(CollectionEntry::meat));
 
     notifyAndStepToCheckpoint();
 
@@ -1964,7 +1947,7 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes_scope) {
     CollectionsManifest cm;
     cm.add(ScopeEntry::shop1);
     cm.add(CollectionEntry::meat, ScopeEntry::shop1);
-    setCollections(cookie, std::string{cm});
+    setCollections(cookie, cm);
 
     // Setup filtered DCP
     createDcpObjects({{R"({"scope":"8"})"}});
@@ -2003,7 +1986,7 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes_scope) {
     EXPECT_TRUE(vb0Stream->isActive());
 
     // Remove the scope
-    setCollections(cookie, std::string{cm.remove(ScopeEntry::shop1)});
+    setCollections(cookie, cm.remove(ScopeEntry::shop1));
 
     notifyAndStepToCheckpoint();
 
@@ -2049,13 +2032,13 @@ TEST_P(CollectionsDcpParameterizedTest, empty_filter_stream_closes) {
 
     // Perform a create of meat via the bucket level
     CollectionsManifest cm;
-    setCollections(cookie, std::string{cm.add(CollectionEntry::meat)});
+    setCollections(cookie, cm.add(CollectionEntry::meat));
 
     producer = createDcpProducer(cookieP, IncludeDeleteTime::No);
     createDcpConsumer();
 
     // Perform a delete of meat
-    setCollections(cookie, std::string{cm.remove(CollectionEntry::meat)});
+    setCollections(cookie, cm.remove(CollectionEntry::meat));
 
     uint64_t rollbackSeqno;
     try {
@@ -2082,7 +2065,7 @@ TEST_P(CollectionsDcpParameterizedTest, legacy_stream_closes) {
 
     // Perform a create of meat via the bucket level
     CollectionsManifest cm;
-    setCollections(cookie, std::string{cm.add(CollectionEntry::meat)});
+    setCollections(cookie, cm.add(CollectionEntry::meat));
 
     // Make cookie look like a non-collection client
     mock_set_collections_support(cookieP, false);
@@ -2101,7 +2084,7 @@ TEST_P(CollectionsDcpParameterizedTest, legacy_stream_closes) {
     EXPECT_TRUE(vb0Stream->isActive());
 
     // Perform a delete of $default
-    setCollections(cookie, std::string{cm.remove(CollectionEntry::defaultC)});
+    setCollections(cookie, cm.remove(CollectionEntry::defaultC));
 
     // Expect a stream end marker
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);
@@ -2126,8 +2109,8 @@ TEST_P(CollectionsDcpParameterizedTest, DefaultCollectionDropped) {
     // 1) Drop the default collection
     // 2) Add a new collection so that the drop event is not the high-seq
     CollectionsManifest cm;
-    setCollections(cookie, std::string{cm.remove(CollectionEntry::defaultC)});
-    setCollections(cookie, std::string{cm.add(CollectionEntry::meat)});
+    setCollections(cookie, cm.remove(CollectionEntry::defaultC));
+    setCollections(cookie, cm.add(CollectionEntry::meat));
     flushVBucketToDiskIfPersistent(vbid, 3);
 
     TimeTraveller bill(
@@ -2215,7 +2198,7 @@ TEST_P(CollectionsDcpCloseAfterLosingPrivs, collection_stream) {
     VBucketPtr vb = store->getVBucket(vbid);
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
-    setCollections(cookie, std::string{cm});
+    setCollections(cookie, cm);
     createDcpObjects({{R"({"collections":["9"]})"}});
     auto vb0Stream = producer->findStream(Vbid(0));
     ASSERT_NE(nullptr, vb0Stream.get());
@@ -2256,7 +2239,7 @@ TEST_P(CollectionsDcpCloseAfterLosingPrivs, collection_stream_from_backfill) {
     VBucketPtr vb = store->getVBucket(vbid);
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
-    setCollections(cookie, std::string{cm});
+    setCollections(cookie, cm);
     store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "green");
     store_item(vbid, StoredDocKey{"grape", CollectionEntry::fruit}, "red");
     flushVBucketToDiskIfPersistent(vbid, 3);
@@ -2320,10 +2303,8 @@ TEST_P(CollectionsDcpCloseAfterLosingPrivs, legacy_stream_closes) {
 TEST_P(CollectionsDcpParameterizedTest, no_seqno_advanced_from_memory) {
     VBucketPtr vb = store->getVBucket(vbid);
     CollectionsManifest cm{};
-    setCollections(
-            cookie,
-            std::string{
-                    cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
+    setCollections(cookie,
+                   cm.add(CollectionEntry::meat).add(CollectionEntry::dairy));
     // filter only CollectionEntry::dairy
     createDcpObjects({{R"({"collections":["c"]})"}});
 
@@ -2347,10 +2328,8 @@ TEST_P(CollectionsDcpParameterizedTest, no_seqno_advanced_from_memory) {
 TEST_P(CollectionsDcpParameterizedTest, no_seqno_advanced_from_memory_replica) {
     VBucketPtr vb = store->getVBucket(vbid);
     CollectionsManifest cm{};
-    setCollections(
-            cookie,
-            std::string{
-                    cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
+    setCollections(cookie,
+                   cm.add(CollectionEntry::meat).add(CollectionEntry::dairy));
 
     store_item(vbid, StoredDocKey{"meat::one", CollectionEntry::meat}, "pork");
     store_item(vbid, StoredDocKey{"meat::two", CollectionEntry::meat}, "beef");
@@ -2377,10 +2356,8 @@ TEST_P(CollectionsDcpParameterizedTest,
        seqno_advanced_backfill_from_empty_disk_snapshot) {
     VBucketPtr vb = store->getVBucket(vbid);
     CollectionsManifest cm{};
-    setCollections(
-            cookie,
-            std::string{
-                    cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
+    setCollections(cookie,
+                   cm.add(CollectionEntry::meat).add(CollectionEntry::dairy));
 
     store_item(vbid, StoredDocKey{"meat::one", CollectionEntry::meat}, "pork");
     store_item(vbid, StoredDocKey{"meat::two", CollectionEntry::meat}, "beef");
@@ -2408,10 +2385,8 @@ TEST_P(CollectionsDcpParameterizedTest,
        seqno_advanced_backfill_from_empty_disk_snapshot_replica) {
     VBucketPtr vb = store->getVBucket(vbid);
     CollectionsManifest cm{};
-    setCollections(
-            cookie,
-            std::string{
-                    cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
+    setCollections(cookie,
+                   cm.add(CollectionEntry::meat).add(CollectionEntry::dairy));
 
     store_item(vbid, StoredDocKey{"meat::one", CollectionEntry::meat}, "pork");
     store_item(vbid, StoredDocKey{"meat::two", CollectionEntry::meat}, "beef");
@@ -2439,10 +2414,8 @@ TEST_P(CollectionsDcpParameterizedTest,
        seqno_advanced_backfill_from_empty_disk_snapshot_replica_due_deleted) {
     VBucketPtr vb = store->getVBucket(vbid);
     CollectionsManifest cm{};
-    setCollections(
-            cookie,
-            std::string{
-                    cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
+    setCollections(cookie,
+                   cm.add(CollectionEntry::meat).add(CollectionEntry::dairy));
 
     StoredDocKey keyOne{"meat::one", CollectionEntry::meat};
     StoredDocKey keyTwo{"meat::two", CollectionEntry::meat};
@@ -2492,10 +2465,8 @@ TEST_P(CollectionsDcpParameterizedTest,
        seqno_advanced_backfill_from_disk_snapshot) {
     VBucketPtr vb = store->getVBucket(vbid);
     CollectionsManifest cm{};
-    setCollections(
-            cookie,
-            std::string{
-                    cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
+    setCollections(cookie,
+                   cm.add(CollectionEntry::meat).add(CollectionEntry::dairy));
 
     store_item(
             vbid, StoredDocKey{"dairy::one", CollectionEntry::dairy}, "milk");
@@ -2528,10 +2499,8 @@ TEST_P(CollectionsDcpParameterizedTest,
        seqno_advanced_backfill_from_disk_snapshot_replica) {
     VBucketPtr vb = store->getVBucket(vbid);
     CollectionsManifest cm{};
-    setCollections(
-            cookie,
-            std::string{
-                    cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
+    setCollections(cookie,
+                   cm.add(CollectionEntry::meat).add(CollectionEntry::dairy));
 
     store_item(
             vbid, StoredDocKey{"dairy::one", CollectionEntry::dairy}, "milk");
@@ -2566,10 +2535,8 @@ TEST_P(CollectionsDcpParameterizedTest,
        no_seqno_advanced_from_disk_to_memory_sync_rep) {
     VBucketPtr vb = store->getVBucket(vbid);
     CollectionsManifest cm{};
-    setCollections(
-            cookie,
-            std::string{
-                    cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
+    setCollections(cookie,
+                   cm.add(CollectionEntry::meat).add(CollectionEntry::dairy));
 
     store_item(vbid, StoredDocKey{"meat::one", CollectionEntry::meat}, "pork");
     store_item(
@@ -2614,10 +2581,8 @@ TEST_P(CollectionsDcpParameterizedTest,
 TEST_P(CollectionsDcpParameterizedTest, seqno_advanced_from_disk_to_memory) {
     VBucketPtr vb = store->getVBucket(vbid);
     CollectionsManifest cm{};
-    setCollections(
-            cookie,
-            std::string{
-                    cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
+    setCollections(cookie,
+                   cm.add(CollectionEntry::meat).add(CollectionEntry::dairy));
 
     store_item(vbid, StoredDocKey{"meat::one", CollectionEntry::meat}, "pork");
     store_item(
@@ -2682,7 +2647,7 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd) {
     // Add the fruit collection
     CollectionEntry::Entry target = CollectionEntry::fruit;
     CollectionsManifest cm(target);
-    setCollections(cookie, std::string{cm});
+    setCollections(cookie, cm);
     auto key = makeStoredDocKey("orange", target);
     // Put a key in for the original 'fruit'
     store_item(vbid, key, "yum");
@@ -2707,15 +2672,15 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd) {
     // the collection, but going backwards/forwards 'resurrecting' the
     // collection. KV needs to be robust against such events.
     cm.remove(target);
-    setCollections(cookie, std::string{cm});
+    setCollections(cookie, cm);
     target.name += "a";
     cm.add(target);
-    setCollections(cookie, std::string{cm});
+    setCollections(cookie, cm);
     cm.remove(target);
-    setCollections(cookie, std::string{cm});
+    setCollections(cookie, cm);
     target.name += "b";
     cm.add(target);
-    setCollections(cookie, std::string{cm});
+    setCollections(cookie, cm);
 
     // Store one key in the last generation of the target collection, this
     // allows stats to be tested at the end.
@@ -2723,7 +2688,7 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd) {
 
     if (dropAtEnd) {
         cm.remove(target);
-        setCollections(cookie, std::string{cm});
+        setCollections(cookie, cm);
     }
 
     auto stepDelete = [this] {
@@ -2885,7 +2850,7 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
     // Add the target collection
     CollectionEntry::Entry target = CollectionEntry::fruit;
     CollectionsManifest cm(target);
-    setCollections(cookie, std::string{cm});
+    setCollections(cookie, cm);
     auto key1 = makeStoredDocKey("orange", target);
     // Put a key in for the original 'fruit'
     store_item(vbid, key1, "yum1");
@@ -2919,10 +2884,10 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
 
     // remove
     cm.remove(target);
-    setCollections(cookie, std::string{cm});
+    setCollections(cookie, cm);
 
     cm.add(target);
-    setCollections(cookie, std::string{cm});
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, reproduceUnderflow ? 1 : 2);
 
     stats = vb->getManifest().lock(target.getId()).getPersistedStats();
@@ -2980,7 +2945,7 @@ void CollectionsDcpParameterizedTest::replicateForcedUpdate(uint64_t newUid,
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
     cm.updateUid(4);
-    setCollections(cookie, std::string{cm});
+    setCollections(cookie, cm);
 
     notifyAndStepToCheckpoint();
 
@@ -3001,7 +2966,7 @@ void CollectionsDcpParameterizedTest::replicateForcedUpdate(uint64_t newUid,
     cm.add(CollectionEntry::vegetable);
     cm.updateUid(newUid);
     cm.setForce(true);
-    setCollections(cookie, std::string{cm});
+    setCollections(cookie, cm);
 
     notifyAndStepToCheckpoint();
     // Now step the producer to transfer the next collection creation
@@ -3023,11 +2988,10 @@ void CollectionsDcpParameterizedTest::replicateForcedUpdate(uint64_t newUid,
     // does nothing will this ever happen? If forced it will not fail
     cm.updateUid(cm.getUid() + 1);
     cm.setForce(false);
-    setCollections(cookie,
-                   std::string{cm},
-                   cb::engine_errc::cannot_apply_collections_manifest);
+    setCollections(
+            cookie, cm, cb::engine_errc::cannot_apply_collections_manifest);
     cm.setForce(true);
-    setCollections(cookie, std::string{cm});
+    setCollections(cookie, cm);
 
     replica.reset();
 
@@ -3054,7 +3018,7 @@ void CollectionsDcpParameterizedTest::replicateForcedUpdate(uint64_t newUid,
     cm.setForce(false);
     cm.add(ScopeEntry::shop1);
     cm.add(CollectionEntry::dairy, ScopeEntry::shop1);
-    setCollections(cookie, std::string{cm});
+    setCollections(cookie, cm);
 
     notifyAndStepToCheckpoint();
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);

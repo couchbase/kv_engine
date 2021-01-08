@@ -26,6 +26,7 @@
 #include <libcouchstore/couch_db.h>
 #include <nlohmann/json.hpp>
 
+class CollectionsManifest;
 struct DcpMessageProducersIface;
 class EPBucket;
 class MockActiveStreamWithOverloadedRegisterCursor;
@@ -175,13 +176,13 @@ public:
     /**
      * Set the collections manifest using the engine API (and drive any tasks)
      * @param cookie a cookie is needed for i/o callback
-     * @param json the manifest JSON to set
+     * @param manifest the CollectionsManifest to set
      * @param status1 the first call to set_collection_manifest expected result
      *        usually would_block
      */
     cb::engine_errc setCollections(
             const void* cookie,
-            std::string_view json,
+            const CollectionsManifest& manifest,
             cb::engine_errc status1 = cb::engine_errc::would_block);
 
     /// @return the size of the future queue for the given task type
