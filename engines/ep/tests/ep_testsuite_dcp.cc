@@ -3192,7 +3192,7 @@ static test_result test_dcp_cursor_dropping_backfill(EngineIface* h) {
     // did not wait for this then we would often end up just attempting to
     // stream from memory which is not what we want to test and would fail later
     // on in the test when we expect to receive at least 2 snapshots.
-    wait_for_stat_to_be_gte(h, "ep_items_rm_from_checkpoints", 1);
+    wait_for_stat_to_be_gte(h, "ep_items_rm_from_checkpoints", num_items);
 
     /* Set up a connection */
     auto* cookie = testHarness->create_cookie(h);
