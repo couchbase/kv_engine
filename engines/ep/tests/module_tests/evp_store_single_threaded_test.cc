@@ -4906,26 +4906,26 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistNonMetaItems(
     };
     checkPreFlushHTState();
 
-    // Note: Because of MB-37920 we may cache a stale vbstate. So, checking the
-    //  cached vbstate for verifying persistence would invalidate the test.
-    //  Check the actual vbstate on disk instead.
     auto& kvStore = dynamic_cast<CouchKVStore&>(*store->getRWUnderlying(vbid));
-    const auto checkPersistedVBState = [this, &kvStore](
-                                               uint64_t lastSnapStart,
-                                               uint64_t lastSnapEnd,
-                                               uint64_t highSeqno,
-                                               CheckpointType type,
-                                               uint64_t hps,
-                                               uint64_t hcs,
-                                               uint64_t maxDelRevSeqno) {
-        const auto vbs = kvStore.readVBState(vbid);
-        EXPECT_EQ(lastSnapStart, vbs.lastSnapStart);
-        EXPECT_EQ(lastSnapEnd, vbs.lastSnapEnd);
-        EXPECT_EQ(highSeqno, vbs.highSeqno);
-        EXPECT_EQ(type, vbs.checkpointType);
-        EXPECT_EQ(hps, vbs.highPreparedSeqno);
-        EXPECT_EQ(hcs, vbs.persistedCompletedSeqno);
-        EXPECT_EQ(maxDelRevSeqno, vbs.maxDeletedSeqno);
+    const auto checkCachedAndOnDiskVBState = [this, &kvStore](
+                                                     uint64_t lastSnapStart,
+                                                     uint64_t lastSnapEnd,
+                                                     uint64_t highSeqno,
+                                                     CheckpointType type,
+                                                     uint64_t hps,
+                                                     uint64_t hcs,
+                                                     uint64_t maxDelRevSeqno) {
+        const auto& cached = *kvStore.getVBucketState(vbid);
+        const auto& onDisk = kvStore.readVBState(vbid);
+        for (const auto& vbs : {cached, onDisk}) {
+            EXPECT_EQ(lastSnapStart, vbs.lastSnapStart);
+            EXPECT_EQ(lastSnapEnd, vbs.lastSnapEnd);
+            EXPECT_EQ(highSeqno, vbs.highSeqno);
+            EXPECT_EQ(type, vbs.checkpointType);
+            EXPECT_EQ(hps, vbs.highPreparedSeqno);
+            EXPECT_EQ(hcs, vbs.persistedCompletedSeqno);
+            EXPECT_EQ(maxDelRevSeqno, vbs.maxDeletedSeqno);
+        }
     };
 
     // This flush fails, we have not written anything to disk
@@ -4936,13 +4936,13 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistNonMetaItems(
     EXPECT_EQ(2, vb.dirtyQueueSize);
     {
         SCOPED_TRACE("");
-        checkPersistedVBState(0 /*lastSnapStart*/,
-                              0 /*lastSnapEnd*/,
-                              0 /*highSeqno*/,
-                              CheckpointType::Memory,
-                              0 /*HPS*/,
-                              0 /*HCS*/,
-                              0 /*maxDelRevSeqno*/);
+        checkCachedAndOnDiskVBState(0 /*lastSnapStart*/,
+                                    0 /*lastSnapEnd*/,
+                                    0 /*highSeqno*/,
+                                    CheckpointType::Memory,
+                                    0 /*HPS*/,
+                                    0 /*HCS*/,
+                                    0 /*maxDelRevSeqno*/);
         checkPreFlushHTState();
     }
 
@@ -4967,13 +4967,13 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistNonMetaItems(
         SCOPED_TRACE("");
         // Notes: expected (snapStart = snapEnd) for complete snap flushed,
         //  which is always the case at Active
-        checkPersistedVBState(3 /*lastSnapStart*/,
-                              3 /*lastSnapEnd*/,
-                              3 /*highSeqno*/,
-                              CheckpointType::Memory,
-                              1 /*HPS*/,
-                              0 /*HCS*/,
-                              2 /*maxDelRevSeqno*/);
+        checkCachedAndOnDiskVBState(3 /*lastSnapStart*/,
+                                    3 /*lastSnapEnd*/,
+                                    3 /*highSeqno*/,
+                                    CheckpointType::Memory,
+                                    1 /*HPS*/,
+                                    0 /*HCS*/,
+                                    2 /*maxDelRevSeqno*/);
 
         // Check HT state
         const auto resA = vb.ht.findForUpdate(makeStoredDocKey("keyA"));
@@ -5748,27 +5748,27 @@ TEST_P(STParamMagmaBucketTest, ResetPCursorAtPersistNonMetaItems) {
     ASSERT_EQ(2, vb->checkpointManager->getNumItemsForPersistence());
     EXPECT_EQ(2, vb->dirtyQueueSize);
 
-    // Note: Because of MB-37920 we may cache a stale vbstate. So, checking the
-    //  cached vbstate for verifying persistence would invalidate the test.
-    //  Check the actual vbstate on disk instead.
     auto& kvStore =
             dynamic_cast<MockMagmaKVStore&>(*store->getRWUnderlying(vbid));
-    const auto checkPersistedVBState = [this, &kvStore](
-                                               uint64_t lastSnapStart,
-                                               uint64_t lastSnapEnd,
-                                               uint64_t highSeqno,
-                                               CheckpointType type,
-                                               uint64_t hps,
-                                               uint64_t hcs,
-                                               uint64_t maxDelRevSeqno) {
-        const auto vbs = kvStore.readVBStateFromDisk(vbid).vbstate;
-        EXPECT_EQ(lastSnapStart, vbs.lastSnapStart);
-        EXPECT_EQ(lastSnapEnd, vbs.lastSnapEnd);
-        EXPECT_EQ(highSeqno, vbs.highSeqno);
-        EXPECT_EQ(type, vbs.checkpointType);
-        EXPECT_EQ(hps, vbs.highPreparedSeqno);
-        EXPECT_EQ(hcs, vbs.persistedCompletedSeqno);
-        EXPECT_EQ(maxDelRevSeqno, vbs.maxDeletedSeqno);
+    const auto checkCachedAndOnDiskVBState = [this, &kvStore](
+                                                     uint64_t lastSnapStart,
+                                                     uint64_t lastSnapEnd,
+                                                     uint64_t highSeqno,
+                                                     CheckpointType type,
+                                                     uint64_t hps,
+                                                     uint64_t hcs,
+                                                     uint64_t maxDelRevSeqno) {
+        const auto& cached = *kvStore.getVBucketState(vbid);
+        const auto& onDisk = kvStore.readVBStateFromDisk(vbid).vbstate;
+        for (const auto& vbs : {cached, onDisk}) {
+            EXPECT_EQ(lastSnapStart, vbs.lastSnapStart);
+            EXPECT_EQ(lastSnapEnd, vbs.lastSnapEnd);
+            EXPECT_EQ(highSeqno, vbs.highSeqno);
+            EXPECT_EQ(type, vbs.checkpointType);
+            EXPECT_EQ(hps, vbs.highPreparedSeqno);
+            EXPECT_EQ(hcs, vbs.persistedCompletedSeqno);
+            EXPECT_EQ(maxDelRevSeqno, vbs.maxDeletedSeqno);
+        }
     };
 
     // This flush fails, we have not written anything to disk
@@ -5783,13 +5783,13 @@ TEST_P(STParamMagmaBucketTest, ResetPCursorAtPersistNonMetaItems) {
     EXPECT_EQ(2, vb->dirtyQueueSize);
     {
         SCOPED_TRACE("");
-        checkPersistedVBState(0 /*lastSnapStart*/,
-                              0 /*lastSnapEnd*/,
-                              0 /*highSeqno*/,
-                              CheckpointType::Memory,
-                              0 /*HPS*/,
-                              0 /*HCS*/,
-                              0 /*maxDelRevSeqno*/);
+        checkCachedAndOnDiskVBState(0 /*lastSnapStart*/,
+                                    0 /*lastSnapEnd*/,
+                                    0 /*highSeqno*/,
+                                    CheckpointType::Memory,
+                                    0 /*HPS*/,
+                                    0 /*HCS*/,
+                                    0 /*maxDelRevSeqno*/);
     }
 
     // This flush succeeds, we must write all the expected items and new vbstate
@@ -5803,13 +5803,13 @@ TEST_P(STParamMagmaBucketTest, ResetPCursorAtPersistNonMetaItems) {
         SCOPED_TRACE("");
         // Notes: expected (snapStart = snapEnd) for complete snap flushed,
         //  which is always the case at Active
-        checkPersistedVBState(3 /*lastSnapStart*/,
-                              3 /*lastSnapEnd*/,
-                              3 /*highSeqno*/,
-                              CheckpointType::Memory,
-                              1 /*HPS*/,
-                              0 /*HCS*/,
-                              2 /*maxDelRevSeqno*/);
+        checkCachedAndOnDiskVBState(3 /*lastSnapStart*/,
+                                    3 /*lastSnapEnd*/,
+                                    3 /*highSeqno*/,
+                                    CheckpointType::Memory,
+                                    1 /*HPS*/,
+                                    0 /*HCS*/,
+                                    2 /*maxDelRevSeqno*/);
     }
 }
 
