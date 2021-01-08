@@ -21,7 +21,6 @@
 #include "bucket_logger.h"
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
-#include "collections/collection_persisted_stats.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "conflict_resolution.h"
 #include "dcp/dcpconnmap.h"
@@ -41,16 +40,13 @@
 #include "vb_filter.h"
 #include "vbucket_queue_item_ctx.h"
 #include "vbucket_state.h"
-#include "vbucketdeletiontask.h"
 
 #include <folly/lang/Assume.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/server_document_iface.h>
-#include <platform/compress.h>
 #include <platform/optional.h>
 #include <statistics/cbstat_collector.h>
 #include <xattr/blob.h>
-#include <xattr/utils.h>
 
 #include <gsl/gsl-lite.hpp>
 #include <logtags.h>
@@ -72,7 +68,7 @@ const auto MAX_CHK_FLUSH_TIMEOUT = std::chrono::seconds(30);
 cb::AtomicDuration<> VBucket::chkFlushTimeout(MIN_CHK_FLUSH_TIMEOUT);
 double VBucket::mutationMemThreshold = 0.9;
 
-VBucketFilter VBucketFilter::filter_diff(const VBucketFilter &other) const {
+VBucketFilter VBucketFilter::filter_diff(const VBucketFilter& other) const {
     std::vector<Vbid> tmp(acceptable.size() + other.size());
     std::vector<Vbid>::iterator end;
     end = std::set_symmetric_difference(acceptable.begin(),
@@ -155,15 +151,6 @@ std::ostream& operator <<(std::ostream &out, const VBucketFilter &filter)
 // error: statement expression not allowed at file scope
 #undef htonl
 #endif
-
-const vbucket_state_t VBucket::ACTIVE =
-                     static_cast<vbucket_state_t>(htonl(vbucket_state_active));
-const vbucket_state_t VBucket::REPLICA =
-                    static_cast<vbucket_state_t>(htonl(vbucket_state_replica));
-const vbucket_state_t VBucket::PENDING =
-                    static_cast<vbucket_state_t>(htonl(vbucket_state_pending));
-const vbucket_state_t VBucket::DEAD =
-                    static_cast<vbucket_state_t>(htonl(vbucket_state_dead));
 
 VBucket::VBucket(Vbid i,
                  vbucket_state_t newState,
@@ -2315,14 +2302,14 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
     MutationStatus delrv;
     std::optional<VBNotifyCtx> notifyCtx;
     bool metaBgFetch = true;
-    const auto state = getState(); // read state once
+    const auto cachedVbState = getState(); // read cachedVbState once
     if (!v) {
         if (eviction == EvictionPolicy::Full) {
             delrv = MutationStatus::NeedBgFetch;
         } else {
             delrv = MutationStatus::NotFound;
         }
-    } else if (state == vbucket_state_active &&
+    } else if (cachedVbState == vbucket_state_active &&
                mcbp::datatype::is_xattr(v->getDatatype()) && !v->isResident()) {
         // MB-25671: A temp deleted xattr with no value must be fetched before
         // the deleteWithMeta can be applied.
@@ -2342,7 +2329,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
                                    {} /*overwritingPrepareSeqno*/};
 
         std::unique_ptr<Item> itm;
-        if (state == vbucket_state_active &&
+        if (cachedVbState == vbucket_state_active &&
             mcbp::datatype::is_xattr(v->getDatatype()) &&
             (itm = pruneXattrDocument(*v, itemMeta))) {
             // A new item has been generated and must be given a new seqno
@@ -4044,14 +4031,6 @@ void VBucket::setDuplicatePrepareWindow() {
     // less than or equal to this value.
     // If no SyncWrites are being tracked, nothing can be duplicated
     allowedDuplicatePrepareThreshold = pdm.getHighestTrackedSeqno();
-}
-
-void VBucket::addSyncWriteForRollback(const Item& item) {
-    // Search the HashTable for an existing prepare, it should not exist.
-    Expects(item.isPending());
-    auto htRes = ht.findItem(item);
-    Expects(!htRes.storedValue);
-    ht.unlocked_addNewStoredValue(htRes.lock, item);
 }
 
 bool VBucket::isReceivingDiskSnapshot() const {

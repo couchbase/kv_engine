@@ -175,6 +175,11 @@ public:
 
     virtual ~VBucket();
 
+    VBucket(const VBucket&) = delete;
+    VBucket& operator=(const VBucket&) = delete;
+    VBucket(VBucket&&) = delete;
+    VBucket& operator=(VBucket&&) = delete;
+
     /**
      * Get the vBucket's high seqno. This is the sequence number of the highest
      * in-memory mutation the vBucket has performed.
@@ -839,11 +844,6 @@ public:
     const Collections::VB::Manifest& getManifest() const {
         return *manifest;
     }
-
-    static const vbucket_state_t ACTIVE;
-    static const vbucket_state_t REPLICA;
-    static const vbucket_state_t PENDING;
-    static const vbucket_state_t DEAD;
 
     HashTable ht;
 
@@ -1622,13 +1622,6 @@ public:
      * @return a const reference to the current Durability Monitor.
      */
     const DurabilityMonitor& getDurabilityMonitor() const;
-
-    /**
-     * Rollback callback function to add a new pending SyncWrite
-     *
-     * @param item the prepare to add
-     */
-    void addSyncWriteForRollback(const Item& item);
 
     /**
      * Remove any queued acks for the given node from the ActiveDM.
@@ -2544,8 +2537,6 @@ private:
     friend class VBucketTestIntrospector;
     friend class VBucketDurabilityTest;
     friend class DurabilityEPBucketTest;
-
-    DISALLOW_COPY_AND_ASSIGN(VBucket);
 };
 
 /**
