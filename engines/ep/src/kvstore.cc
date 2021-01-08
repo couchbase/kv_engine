@@ -234,6 +234,28 @@ void KVStore::setVBucketState(Vbid vbid, const vbucket_state& vbs) {
     }
 }
 
+bool KVStore::needsToBePersisted(Vbid vbid, const vbucket_state& newVbstate) {
+    /*
+     * The vbucket state information is to be persisted only if a change is
+     * detected in:
+     * - the state
+     * - the failover table, or
+     * - the replication topology or
+     *   (above owned by struct vbucket_transition_state)
+     * - the persisted completed seqno or
+     * - the persisted prepared seqno or
+     * - the high prepared seqno
+     */
+    const auto* cached = getVBucketState(vbid);
+    return (cached->transition.needsToBePersisted(newVbstate.transition) ||
+            cached->persistedCompletedSeqno !=
+                    newVbstate.persistedCompletedSeqno ||
+            cached->persistedPreparedSeqno !=
+                    newVbstate.persistedPreparedSeqno ||
+            cached->highPreparedSeqno != newVbstate.highPreparedSeqno ||
+            cached->maxVisibleSeqno != newVbstate.maxVisibleSeqno);
+}
+
 bool KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
     vbucket_state* vbState = getVBucketState(vbid);
 
@@ -246,7 +268,7 @@ bool KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
         return true;
     }
 
-    if (!vbState->needsToBePersisted(newState)) {
+    if (!needsToBePersisted(vbid, newState)) {
         return false;
     }
 

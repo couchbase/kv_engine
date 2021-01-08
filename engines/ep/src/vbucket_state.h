@@ -29,7 +29,7 @@ class Item;
 // Sub structure that stores the data which only changes as part of a state
 // transition.
 struct vbucket_transition_state {
-    bool needsToBePersisted(const vbucket_transition_state& transition);
+    bool needsToBePersisted(const vbucket_transition_state& transition) const;
 
     /// update the given item with a JSON version of this structure
     void toItem(Item& item) const;
@@ -92,8 +92,6 @@ struct vbucket_state {
      * v4: 6.6.1, added with MB-32670. Adds onDiskPrepareBytes.
      */
     static constexpr int CurrentVersion = 4;
-
-    bool needsToBePersisted(const vbucket_state& vbstate);
 
     uint64_t getOnDiskPrepareBytes() const {
         return onDiskPrepareBytes;

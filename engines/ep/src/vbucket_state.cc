@@ -20,7 +20,7 @@
 #include "vbucket.h"
 
 bool vbucket_transition_state::needsToBePersisted(
-        const vbucket_transition_state& transition) {
+        const vbucket_transition_state& transition) const {
     return state != transition.state || failovers != transition.failovers ||
            replicationTopology != transition.replicationTopology;
 }
@@ -64,25 +64,6 @@ bool vbucket_transition_state::operator==(
 bool vbucket_transition_state::operator!=(
         const vbucket_transition_state& other) const {
     return !(*this == other);
-}
-
-bool vbucket_state::needsToBePersisted(const vbucket_state& vbstate) {
-    /*
-     * The vbucket state information is to be persisted only if a change is
-     * detected in:
-     * - the state
-     * - the failover table, or
-     * - the replication topology or
-     *   (above owned by struct vbucket_transition_state)
-     * - the persisted completed seqno or
-     * - the persisted prepared seqno or
-     * - the high prepared seqno
-     */
-    return (transition.needsToBePersisted(vbstate.transition) ||
-            persistedCompletedSeqno != vbstate.persistedCompletedSeqno ||
-            persistedPreparedSeqno != vbstate.persistedPreparedSeqno ||
-            highPreparedSeqno != vbstate.highPreparedSeqno ||
-            maxVisibleSeqno != vbstate.maxVisibleSeqno);
 }
 
 void vbucket_state::reset() {

@@ -1162,6 +1162,13 @@ protected:
     void createDataDir(const std::string& dbname);
 
     /**
+     * @param vbid
+     * @param newVbstate
+     * @return Whether or not the new vbstate needs to be persisted
+     */
+    bool needsToBePersisted(Vbid vbid, const vbucket_state& newVbstate);
+
+    /**
      * Updates the cached state for a vbucket
      *
      * @param vbid the vbucket id
