@@ -1754,19 +1754,22 @@ bool CouchKVStore::snapshotVBucket(Vbid vbucketId,
         return false;
     }
 
+    if (!needsToBePersisted(vbucketId, vbstate)) {
+        return true;
+    }
+
     auto start = std::chrono::steady_clock::now();
 
-    if (updateCachedVBState(vbucketId, vbstate)) {
-        vbucket_state* vbs = getVBucketState(vbucketId);
-        if (!writeVBucketState(vbucketId, *vbs)) {
-            logger.warn(
-                    "CouchKVStore::snapshotVBucket: writeVBucketState failed "
-                    "state:{}, {}",
-                    VBucket::toString(vbstate.transition.state),
-                    vbucketId);
-            return false;
-        }
+    if (!writeVBucketState(vbucketId, vbstate)) {
+        logger.warn(
+                "CouchKVStore::snapshotVBucket: writeVBucketState failed "
+                "state:{}, {}",
+                VBucket::toString(vbstate.transition.state),
+                vbucketId);
+        return false;
     }
+
+    updateCachedVBState(vbucketId, vbstate);
 
     EP_LOG_DEBUG("CouchKVStore::snapshotVBucket: Snapshotted {} state:{}",
                  vbucketId,

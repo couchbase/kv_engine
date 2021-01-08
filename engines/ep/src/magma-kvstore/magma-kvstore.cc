@@ -1023,15 +1023,17 @@ bool MagmaKVStore::snapshotVBucket(Vbid vbid, const vbucket_state& newVBState) {
                       j.dump());
     }
 
+    if (!needsToBePersisted(vbid, newVBState)) {
+        return true;
+    }
+
     auto start = std::chrono::steady_clock::now();
 
-    if (updateCachedVBState(vbid, newVBState)) {
-        auto currVBState = getVBucketState(vbid);
-        auto status = writeVBStateToDisk(vbid, *currVBState);
-        if (!status) {
-            return false;
-        }
+    if (!writeVBStateToDisk(vbid, newVBState)) {
+        return false;
     }
+
+    updateCachedVBState(vbid, newVBState);
 
     st.snapshotHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - start));

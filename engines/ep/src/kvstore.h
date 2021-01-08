@@ -1173,10 +1173,8 @@ protected:
      *
      * @param vbid the vbucket id
      * @param vbState the new state information for the vbucket
-     *
-     * @return true if the cached vbucket state is updated
      */
-    bool updateCachedVBState(Vbid vbid, const vbucket_state& vbState);
+    void updateCachedVBState(Vbid vbid, const vbucket_state& vbState);
 
     /**
      * Reset the cached state for a vbucket (see vbucket_state::reset)

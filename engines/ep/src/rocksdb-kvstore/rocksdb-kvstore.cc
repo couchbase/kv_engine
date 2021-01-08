@@ -810,35 +810,38 @@ void RocksDBKVStore::delVBucket(Vbid vbid, uint64_t vb_version) {
 
 bool RocksDBKVStore::snapshotVBucket(Vbid vbucketId,
                                      const vbucket_state& vbstate) {
-    // TODO RDB: Refactor out behaviour common to this and CouchKVStore
+    if (!needsToBePersisted(vbucketId, vbstate)) {
+        return true;
+    }
+
     auto start = std::chrono::steady_clock::now();
 
-    if (updateCachedVBState(vbucketId, vbstate)) {
-        const auto vbh = getVBHandle(vbucketId);
-        rocksdb::WriteBatch batch;
-        auto status = saveVBStateToBatch(*vbh, vbstate, batch);
-        if (!status.ok()) {
-            ++st.numVbSetFailure;
-            logger.warn(
-                    "RocksDBKVStore::snapshotVBucket: saveVBStateToBatch() "
-                    "failed state:{} {} :{}",
-                    VBucket::toString(vbstate.transition.state),
-                    vbucketId,
-                    status.getState());
-            return false;
-        }
-        status = rdb->Write(writeOptions, &batch);
-        if (!status.ok()) {
-            ++st.numVbSetFailure;
-            logger.warn(
-                    "RocksDBKVStore::snapshotVBucket: Write() "
-                    "failed state:{} {} :{}",
-                    VBucket::toString(vbstate.transition.state),
-                    vbucketId,
-                    status.getState());
-            return false;
-        }
+    const auto vbh = getVBHandle(vbucketId);
+    rocksdb::WriteBatch batch;
+    auto status = saveVBStateToBatch(*vbh, vbstate, batch);
+    if (!status.ok()) {
+        ++st.numVbSetFailure;
+        logger.warn(
+                "RocksDBKVStore::snapshotVBucket: saveVBStateToBatch() "
+                "failed state:{} {} :{}",
+                VBucket::toString(vbstate.transition.state),
+                vbucketId,
+                status.getState());
+        return false;
     }
+    status = rdb->Write(writeOptions, &batch);
+    if (!status.ok()) {
+        ++st.numVbSetFailure;
+        logger.warn(
+                "RocksDBKVStore::snapshotVBucket: Write() "
+                "failed state:{} {} :{}",
+                VBucket::toString(vbstate.transition.state),
+                vbucketId,
+                status.getState());
+        return false;
+    }
+
+    updateCachedVBState(vbucketId, vbstate);
 
     EP_LOG_DEBUG("RocksDBKVStore::snapshotVBucket: Snapshotted {} state:{}",
                  vbucketId,

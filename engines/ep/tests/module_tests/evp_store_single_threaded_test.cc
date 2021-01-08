@@ -5020,6 +5020,9 @@ TEST_P(STParamCouchstoreBucketTest,
  * This test verifies scenario (2) by checking that we persist the new vbstate
  * when we re-attempt flush.
  *
+ * The test verifies MB-37920 too. Ie, the cached vbstate is not updated if
+ * persistence fails.
+ *
  * @TODO magma: Test does not run for magma as we don't yet have a way of inject
  * errors.
  */
@@ -5036,20 +5039,19 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistVBStateOnly(
             .WillOnce(testing::Return(failureCode))
             .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
 
-    // Note: Because of MB-37920 we may cache a stale vbstate. So, checking the
-    //  cached vbstate for verifying persistence would invalidate the test.
-    //  Check the actual vbstate on disk instead.
     auto& kvStore = dynamic_cast<CouchKVStore&>(*store->getRWUnderlying(vbid));
-    const auto checkPersistedVBState =
+    const auto checkCachedAndOnDiskVBState =
             [this, &kvStore](vbucket_state_t expectedState) -> void {
-        const auto vbs = kvStore.readVBState(vbid);
-        ASSERT_EQ(expectedState, vbs.transition.state);
+        EXPECT_EQ(expectedState,
+                  kvStore.getVBucketState(vbid)->transition.state); // cached
+        EXPECT_EQ(expectedState,
+                  kvStore.readVBState(vbid).transition.state); // on-disk
     };
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     {
         SCOPED_TRACE("");
-        checkPersistedVBState(vbucket_state_active);
+        checkCachedAndOnDiskVBState(vbucket_state_active);
     }
 
     const auto& vb = *engine->getKVBucket()->getVBucket(vbid);
@@ -5066,7 +5068,7 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistVBStateOnly(
               store->setVBucketState(vbid, vbucket_state_replica));
     {
         SCOPED_TRACE("");
-        checkPersistedVBState(vbucket_state_active);
+        checkCachedAndOnDiskVBState(vbucket_state_active);
         checkSetVBStateItemForCursor();
         EXPECT_EQ(1, vb.dirtyQueueSize);
     }
@@ -5078,17 +5080,9 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistVBStateOnly(
     EXPECT_EQ(1, vb.dirtyQueueSize);
     {
         SCOPED_TRACE("");
-        checkPersistedVBState(vbucket_state_active);
+        checkCachedAndOnDiskVBState(vbucket_state_active);
         checkSetVBStateItemForCursor();
     }
-
-    // @todo MB-37920: Remove this step, necessary as a workaround.
-    // To trigger a flush to disk, we need to alter the current cached vbstate,
-    // as at the first (failed) flush we wrongly cached the vbstate that we did
-    // not persist. If we skip this step then we would not even re-attempt the
-    // flush as the optimization logic at KVStore::updateCachedVBState sees
-    // "don't need to persist the new vbstate".
-    kvStore.getVBucketState(vbid)->transition.state = vbucket_state_active;
 
     // This flush succeeds, we must write the new vbstate on disk
     // Note: set-vbstate items are not accounted in numFlushed
@@ -5097,7 +5091,7 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistVBStateOnly(
     EXPECT_EQ(0, vb.dirtyQueueSize);
     {
         SCOPED_TRACE("");
-        checkPersistedVBState(vbucket_state_replica);
+        checkCachedAndOnDiskVBState(vbucket_state_replica);
     }
 }
 

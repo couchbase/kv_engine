@@ -262,19 +262,16 @@ bool KVStore::needsToBePersisted(Vbid vbid, const vbucket_state& newVbstate) {
             cached->maxVisibleSeqno != newVbstate.maxVisibleSeqno);
 }
 
-bool KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
-    if (!needsToBePersisted(vbid, newState)) {
-        return false;
-    }
-
+void KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
     vbucket_state* vbState = getVBucketState(vbid);
+
     if (!vbState) {
         cachedVBStates[vbid.get()] = std::make_unique<vbucket_state>(newState);
         if (cachedVBStates[vbid.get()]->transition.state !=
             vbucket_state_dead) {
             cachedValidVBCount++;
         }
-        return true;
+        return;
     }
 
     vbState->transition.state = newState.transition.state;
@@ -300,8 +297,6 @@ bool KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
     vbState->hlcCasEpochSeqno = newState.hlcCasEpochSeqno;
     vbState->mightContainXattrs = newState.mightContainXattrs;
     vbState->checkpointType = newState.checkpointType;
-
-    return true;
 }
 
 bool KVStore::snapshotStats(const std::map<std::string,
