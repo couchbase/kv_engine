@@ -1106,6 +1106,13 @@ Connection::Connection(SOCKET sfd,
     cookies.emplace_back(std::make_unique<Cookie>(*this));
     setConnectionId(cb::net::getpeername(socketDescriptor).c_str());
 
+    // We need to use BEV_OPT_UNLOCK_CALLBACKS (which again require
+    // BEV_OPT_DEFER_CALLBACKS) to avoid lock ordering problem (and potential
+    // deadlock) because otherwise we'll hold the internal mutex in libevent
+    // as part of the callback and later on we acquire the worker threads
+    // mutex, but when we try to signal another cookie we hold
+    // the worker thread mutex when we try to acquire the mutex inside
+    // libevent.
     const auto options = BEV_OPT_THREADSAFE | BEV_OPT_UNLOCK_CALLBACKS |
                          BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS;
     if (ssl) {
