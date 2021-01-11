@@ -708,6 +708,7 @@ void VBucket::doStatsForQueueing(const Item& qi, size_t itemBytes)
 }
 
 void VBucket::AggregatedFlushStats::accountItem(const Item& item) {
+    Expects(item.getQueuedTime().time_since_epoch().count() != 0);
     ++numItems;
     totalBytes += item.size();
     totalAgeInMicro += std::chrono::duration_cast<std::chrono::microseconds>(

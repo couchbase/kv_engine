@@ -125,6 +125,7 @@ bool queueNewItem(VBucket& vbucket, const std::string& key) {
                             queue_op::mutation,
                             /*revSeq*/ 0,
                             /*bySeq*/ 0)};
+    qi->setQueuedTime();
     auto handle = vbucket.lockCollections(qi->getKey());
     return vbucket.checkpointManager->queueDirty(vbucket,
                                                  qi,

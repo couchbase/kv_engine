@@ -1409,6 +1409,7 @@ void MB22960callbackBeforeRegisterCursor(
                                  0,
                                  -1,
                                  vb->getId()));
+        qi1->setQueuedTime();
 
         // queue an Item and close previous checkpoint
         vb->checkpointManager->queueDirty(*vb,
@@ -1438,6 +1439,7 @@ void MB22960callbackBeforeRegisterCursor(
                                  0,
                                  -1,
                                  vb->getId()));
+        qi2->setQueuedTime();
 
         // queue an Item and close previous checkpoint
         vb->checkpointManager->queueDirty(*vb,
