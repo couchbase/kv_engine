@@ -791,7 +791,7 @@ ENGINE_ERROR_CODE dcpPrepare(Cookie& cookie,
                             document_state,
                             level);
     if (ret == ENGINE_DISCONNECT) {
-        LOG_WARNING("{}: {} dcp.seqno_acknowledged returned ENGINE_DISCONNECT",
+        LOG_WARNING("{}: {} dcp.prepare returned ENGINE_DISCONNECT",
                     connection.getId(),
                     connection.getDescription());
         connection.setTerminationReason("Engine forced disconnect");
