@@ -1292,10 +1292,28 @@ public:
         // simulate a setVBState - increment the dbFile revision
         kvstore->prepareToCreateImpl(vbid);
         kvstore->snapshotVBucket(vbid, state);
+
+        // Flush defaults the vBucket state to deleted and any test reading
+        // the state from disk needs it to be active so set to active here
+        flush.proposedVBState.transition.state = vbucket_state_active;
     }
 
     ~CouchstoreTest() override {
         cb::io::rmrf(data_dir.c_str());
+    }
+
+    void flushItem(queued_item item) {
+        kvstore->begin(std::make_unique<TransactionContext>(vbid));
+        kvstore->set(item);
+        kvstore->commit(flush);
+    }
+
+    void runCompaction() {
+        std::mutex mutex;
+        std::unique_lock<std::mutex> lock(mutex);
+        CompactionConfig config;
+        auto ctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
+        kvstore->compactDB(lock, ctx);
     }
 
 protected:
@@ -2055,4 +2073,121 @@ TEST_F(CouchstoreTest, MB43121) {
     filename.resize(filename.rfind('.'));
     auto files = cb::io::findFilesWithPrefix(filename);
     ASSERT_EQ(1, files.size()) << "Multiple files exists";
+}
+
+TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingPrepareToAbort) {
+    // 1) Set prepare first
+    auto docKey = makeStoredDocKey("key");
+    auto item = makePendingItem(docKey, "value");
+    flushItem(item);
+
+    // And verify that we count it towards the on disk prepares stat
+    auto vbstate = kvstore->getPersistedVBucketState(vbid);
+    EXPECT_EQ(1, vbstate.onDiskPrepares);
+
+    bool seenPrepare = false;
+    kvstore->setConcurrentCompactionUnitTestHook(
+            [&seenPrepare, &docKey, this](auto& key) {
+                if (seenPrepare) {
+                    return;
+                }
+                seenPrepare = true;
+
+                // 3) Set the prepare to an abort
+                flushItem(makeAbortedItem(docKey, "differentValue"));
+            });
+
+    // 2) Do the compaction
+    runCompaction();
+
+    // And verify that we decrement the on disk prepare count
+    vbstate = kvstore->getPersistedVBucketState(vbid);
+    EXPECT_EQ(0, vbstate.onDiskPrepares);
+}
+
+TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingAbortToPrepare) {
+    // 1) Set abort first
+    auto docKey = makeStoredDocKey("key");
+    flushItem(makeAbortedItem(docKey, "value"));
+
+    // And verify that we don't count it towards the prepare count
+    auto vbstate = kvstore->getPersistedVBucketState(vbid);
+    EXPECT_EQ(0, vbstate.onDiskPrepares);
+
+    bool seenPrepare = false;
+    kvstore->setConcurrentCompactionUnitTestHook(
+            [&seenPrepare, &docKey, this](auto& key) {
+                if (seenPrepare) {
+                    return;
+                }
+                seenPrepare = true;
+
+                // 3) Change the abort to a prepare
+                flushItem(makePendingItem(docKey, "differentValue"));
+            });
+
+    // 2) Do the compaction
+    runCompaction();
+
+    // And verify that we increment the on disk prepare count
+    vbstate = kvstore->getPersistedVBucketState(vbid);
+    EXPECT_EQ(1, vbstate.onDiskPrepares);
+}
+
+TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingPrepareToPrepare) {
+    // 1) Set prepare first
+    auto docKey = makeStoredDocKey("key");
+    flushItem(makePendingItem(docKey, "value"));
+
+    // And verify that we increment the on disk prepare count
+    auto vbstate = kvstore->getPersistedVBucketState(vbid);
+    EXPECT_EQ(1, vbstate.onDiskPrepares);
+
+    bool seenPrepare = false;
+    kvstore->setConcurrentCompactionUnitTestHook(
+            [&seenPrepare, &docKey, this](auto& key) {
+                if (seenPrepare) {
+                    return;
+                }
+                seenPrepare = true;
+
+                // 3) Update the prepare
+                flushItem(makePendingItem(docKey, "differentValue"));
+            });
+
+    // 2) Do the compaction
+    runCompaction();
+
+    // And verify that we don't change the prepare count
+    vbstate = kvstore->getPersistedVBucketState(vbid);
+    EXPECT_EQ(1, vbstate.onDiskPrepares);
+}
+
+TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingAbortToAbort) {
+    // 1) Set abort first
+    auto docKey = makeStoredDocKey("key");
+    flushItem(makeAbortedItem(docKey, "value"));
+
+    // And verify that we dont' increment the on disk prepare count
+    auto vbstate = kvstore->getPersistedVBucketState(vbid);
+    EXPECT_EQ(0, vbstate.onDiskPrepares);
+
+    bool seenPrepare = false;
+    kvstore->setConcurrentCompactionUnitTestHook(
+            [&seenPrepare, &docKey, this](auto& key) {
+                if (seenPrepare) {
+                    return;
+                }
+                seenPrepare = true;
+
+                // 3) Update the abort
+                flushItem(makeAbortedItem(docKey, "differentValue"));
+            });
+
+    // 2) Do the compaction
+    runCompaction();
+
+    // And verify that we don't change the prepare count
+    vbstate = kvstore->getPersistedVBucketState(vbid);
+    EXPECT_EQ(0, vbstate.onDiskPrepares);
 }

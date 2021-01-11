@@ -86,6 +86,12 @@ queued_item makePendingItem(StoredDocKey key,
     return qi;
 }
 
+queued_item makeAbortedItem(StoredDocKey key, const std::string& value) {
+    queued_item qi{new Item(key, 0, 0, value.data(), value.size())};
+    qi->setAbortSyncWrite();
+    return qi;
+}
+
 std::unique_ptr<Item> makeCompressibleItem(Vbid vbid,
                                            const DocKey& key,
                                            const std::string& body,

@@ -64,6 +64,8 @@ queued_item makePendingItem(StoredDocKey key,
                                     cb::durability::Level::Majority,
                                     cb::durability::Timeout()});
 
+queued_item makeAbortedItem(StoredDocKey key, const std::string& value);
+
 /// Make a queued_item representing a commited (normal mutation).
 queued_item makeCommittedItem(StoredDocKey key, std::string value);
 

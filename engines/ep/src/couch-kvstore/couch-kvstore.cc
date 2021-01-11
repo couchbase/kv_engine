@@ -1135,12 +1135,9 @@ static couchstore_error_t replayPrecommitHook(Db& db,
 
 /**
  * The callback hook called for all documents being copied over from the
- * old database to the new database as part of replay. If the document
- * is a prepare we need to check if we should adjust on_disk_prepares.
- * If it is a NEW (or update of a deleted document) prepare we need to
- * increment it, if it is a _delete_ we need to decrement it.
- * If it is an update of an existing (not deleted) document we shouldn't
- * do anything.
+ * old database to the new database as part of replay. We need to adjust the
+ * on_disk_prepare stat based on the before and after states of the docs we've
+ * changed.
  *
  * @param target The destination database
  * @param docInfo The document to check
@@ -1152,22 +1149,30 @@ static couchstore_error_t replayPreCopyHook(Db& target,
                                             uint64_t& on_disk_prepares) {
     if (docInfo) {
         auto metadata = MetaDataFactory::createMetaData(docInfo->rev_meta);
-        if (metadata->isPrepare()) {
-            if (docInfo->deleted) {
+        // Reminder! An abort is a deleted (by the DocInfo flag) prepare. A
+        // SyncDelete is an alive (not deleted in DocInfo) prepare with a
+        // metadata bit set to deleted instead.
+        if (metadata->isAbort()) {
+            // We have an abort, may have to decrement onDiskPrepares if the
+            // doc was previously a prepare (not deleted).
+            auto [st, di] = cb::couchstore::openDocInfo(
+                    target,
+                    std::string_view{docInfo->id.buf, docInfo->id.size});
+            if (st == COUCHSTORE_SUCCESS && !di->deleted) {
                 --on_disk_prepares;
-            } else {
-                auto [st, di] = cb::couchstore::openDocInfo(
-                        target,
-                        std::string_view{docInfo->id.buf, docInfo->id.size});
-                if (st == COUCHSTORE_ERROR_DOC_NOT_FOUND) {
-                    ++on_disk_prepares;
-                } else if (st == COUCHSTORE_SUCCESS) {
-                    if (di->deleted) {
-                        ++on_disk_prepares;
-                    }
-                } else {
-                    return st;
-                }
+            }
+        }
+
+        if (metadata->isPrepare()) {
+            // We have a prepare, may have to increment onDiskPrepares if it
+            // didn't exist before or was an abort (deleted)
+            auto [st, di] = cb::couchstore::openDocInfo(
+                    target,
+                    std::string_view{docInfo->id.buf, docInfo->id.size});
+            if (st == COUCHSTORE_ERROR_DOC_NOT_FOUND) {
+                ++on_disk_prepares;
+            } else if (st == COUCHSTORE_SUCCESS && di->deleted) {
+                ++on_disk_prepares;
             }
         }
     }
