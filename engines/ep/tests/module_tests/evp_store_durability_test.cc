@@ -3859,6 +3859,12 @@ TEST_P(BackingStoreMaxVisibleSeqnoTest, PrepareAbort) {
     vb->processResolvedSyncWrites();
 
     ASSERT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
+
+    if (isPersistent()) {
+        EXPECT_NE(0, vb->dirtyQueueAge);
+        EXPECT_EQ(1, vb->dirtyQueueSize);
+    }
+
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // abort should not maxVisibleSeqno
