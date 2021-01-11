@@ -711,7 +711,7 @@ TEST_P(CollectionsEraserTest, EraserFindsPrepares) {
     // We expect the prepare to have been visited (and dropped due to
     // completion) during this compaction as the compaction must iterate over
     // the prepare namespace
-    auto state = store->getRWUnderlying(vbid)->getVBucketState(vbid);
+    auto state = store->getRWUnderlying(vbid)->getCachedVBucketState(vbid);
     ASSERT_TRUE(state);
     EXPECT_EQ(0, state->onDiskPrepares);
 }
@@ -802,7 +802,7 @@ TEST_P(CollectionsEraserTest, PrepareCountCorrectAfterErase) {
     // Check doc and prepare counts
     EXPECT_EQ(0, kvStore->getItemCount(vbid));
 
-    auto state = kvStore->getVBucketState(vbid);
+    auto state = kvStore->getCachedVBucketState(vbid);
     ASSERT_TRUE(state);
     EXPECT_EQ(0, state->onDiskPrepares);
 
@@ -1121,7 +1121,8 @@ protected:
         auto persistedHighSeqno = vb->lockCollections().getPersistedHighSeqno(
                 key.getCollectionID());
         auto getOnDiskPrepares = [this]() {
-            auto* vbstate = store->getOneRWUnderlying()->getVBucketState(vbid);
+            auto* vbstate =
+                    store->getOneRWUnderlying()->getCachedVBucketState(vbid);
             return vbstate->onDiskPrepares;
         };
 
@@ -1226,7 +1227,7 @@ void CollectionsEraserSyncWriteTest::basicDropWithSyncWrite() {
         ASSERT_TRUE(kvstore);
         EXPECT_EQ(0, kvstore->getItemCount(vbid));
 
-        auto vbstate = kvstore->getVBucketState(vbid);
+        auto vbstate = kvstore->getCachedVBucketState(vbid);
         ASSERT_TRUE(vbstate);
         EXPECT_EQ(0, vbstate->onDiskPrepares);
     }
@@ -1253,7 +1254,7 @@ TEST_P(CollectionsEraserSyncWriteTest, BasicDropWithDeletedPendingSyncWrite) {
         ASSERT_TRUE(kvstore);
         EXPECT_EQ(0, kvstore->getItemCount(vbid));
 
-        auto vbstate = kvstore->getVBucketState(vbid);
+        auto vbstate = kvstore->getCachedVBucketState(vbid);
         ASSERT_TRUE(vbstate);
         EXPECT_EQ(0, vbstate->onDiskPrepares);
     }
@@ -1455,7 +1456,8 @@ public:
 void CollectionsEraserPersistentOnly::testEmptyCollectionsWithPending(
         bool flushInTheMiddle, bool warmupInTheMiddle) {
     auto getOnDiskPrepares = [this]() {
-        auto* vbstate = store->getOneRWUnderlying()->getVBucketState(vbid);
+        auto* vbstate =
+                store->getOneRWUnderlying()->getCachedVBucketState(vbid);
         return vbstate->onDiskPrepares;
     };
     setVBucketStateAndRunPersistTask(

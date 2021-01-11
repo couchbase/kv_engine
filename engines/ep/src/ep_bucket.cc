@@ -428,7 +428,8 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
 
     // Read the vbucket_state from disk as many values from the
     // in-memory vbucket_state may be ahead of what we are flushing.
-    const auto* persistedVbState = rwUnderlying->getVBucketState(vb->getId());
+    const auto* persistedVbState =
+            rwUnderlying->getCachedVBucketState(vb->getId());
 
     // The first flush we do populates the cachedVBStates of the KVStore
     // so we may not (if this is the first flush) have a state returned
@@ -1797,7 +1798,7 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
     auto* kvStore = getRWUnderlyingByShard(epVb.getShard()->getId());
 
     // Need the HPS/HCS so the DurabilityMonitor can be fully resumed
-    auto vbState = kvStore->getVBucketState(epVb.getId());
+    auto vbState = kvStore->getCachedVBucketState(epVb.getId());
     if (!vbState) {
         throw std::logic_error("EPBucket::loadPreparedSyncWrites: processing " +
                                epVb.getId().to_string() +

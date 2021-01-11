@@ -846,7 +846,12 @@ public:
     virtual void abortCompactionIfRunning(std::unique_lock<std::mutex>& vbLock,
                                           Vbid vbid){};
 
-    virtual vbucket_state* getVBucketState(Vbid vbid) = 0;
+    /**
+     * Returns a ptr to the vbucket_state in the KVStore cache. Not all
+     * implementations can simply return the cached value (magma) so this is
+     * virtual.
+     */
+    virtual vbucket_state* getCachedVBucketState(Vbid vbid) = 0;
 
     void setVBucketState(Vbid vbid, const vbucket_state& vbs);
 

@@ -140,7 +140,7 @@ protected:
 
         kvstore->commit(f);
         // Just check that the VBucket High Seqno has been updated correctly
-        EXPECT_EQ(kvstore->getVBucketState(vbid)->highSeqno, numItems);
+        EXPECT_EQ(kvstore->getCachedVBucketState(vbid)->highSeqno, numItems);
     }
 
     void TearDown(const benchmark::State& state) override {

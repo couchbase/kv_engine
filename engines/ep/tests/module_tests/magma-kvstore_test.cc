@@ -103,7 +103,7 @@ TEST_F(MagmaKVStoreRollbackTest, Rollback) {
     rv = kvstore->get(makeDiskDocKey("key10"), Vbid(0));
     EXPECT_EQ(rv.getStatus(), ENGINE_KEY_ENOENT);
 
-    auto vbs = kvstore->getVBucketState(Vbid(0));
+    auto vbs = kvstore->getCachedVBucketState(Vbid(0));
     ASSERT_EQ(uint64_t(5), vbs->highSeqno);
     ASSERT_EQ(size_t(5), kvstore->getItemCount(Vbid(0)));
 }
@@ -233,7 +233,7 @@ TEST_F(MagmaKVStoreTest, initializeWithHeaderButNoVBState) {
     EXPECT_TRUE(kvstore->deleteLocalDoc(vbid, "_vbstate").IsOK());
 
     vbucket_state defaultState;
-    auto* vbstate = kvstore->getVBucketState(vbid);
+    auto* vbstate = kvstore->getCachedVBucketState(vbid);
     EXPECT_NE(defaultState, *vbstate);
 
     auto res = kvstore->readVBStateFromDisk(vbid);
@@ -243,7 +243,7 @@ TEST_F(MagmaKVStoreTest, initializeWithHeaderButNoVBState) {
     // state (and not throw an exception)
     kvstore = std::make_unique<MockMagmaKVStore>(*kvstoreConfig);
 
-    vbstate = kvstore->getVBucketState(vbid);
+    vbstate = kvstore->getCachedVBucketState(vbid);
     EXPECT_EQ(defaultState, *vbstate);
 
     res = kvstore->readVBStateFromDisk(vbid);
@@ -303,7 +303,7 @@ TEST_F(MagmaKVStoreTest, ScanReadsVBStateFromSnapshot) {
     // Change the vBucket state after grabbing the snapshot but before reading
     // the state. If we read the state from the snapshot then it should not
     // see the following change to the maxVisibleSeqno.
-    auto vbstate = kvstore->getVBucketState(vbid);
+    auto vbstate = kvstore->getCachedVBucketState(vbid);
     vbstate->maxVisibleSeqno = 999;
     kvstore->snapshotVBucket(vbid, *vbstate);
 
@@ -317,7 +317,7 @@ TEST_F(MagmaKVStoreTest, ScanReadsVBStateFromSnapshot) {
     // change as it should read state from the snapshot). If we read the state
     // again though we should see the updated value.
     EXPECT_EQ(0, scanCtx->maxVisibleSeqno);
-    EXPECT_EQ(999, kvstore->getVBucketState(vbid)->maxVisibleSeqno);
+    EXPECT_EQ(999, kvstore->getCachedVBucketState(vbid)->maxVisibleSeqno);
 }
 
 TEST_F(MagmaKVStoreTest, MagmaGetExpiryTimeAlive) {

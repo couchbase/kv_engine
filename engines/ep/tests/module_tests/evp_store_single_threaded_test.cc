@@ -4917,7 +4917,7 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistNonMetaItems(
                                                      uint64_t hps,
                                                      uint64_t hcs,
                                                      uint64_t maxDelRevSeqno) {
-        const auto& cached = *kvStore.getVBucketState(vbid);
+        const auto& cached = *kvStore.getCachedVBucketState(vbid);
         const auto& onDisk = kvStore.readVBState(vbid);
         for (const auto& vbs : {cached, onDisk}) {
             EXPECT_EQ(lastSnapStart, vbs.lastSnapStart);
@@ -5045,7 +5045,7 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistVBStateOnly(
     const auto checkCachedAndOnDiskVBState =
             [this, &kvStore](vbucket_state_t expectedState) -> void {
         EXPECT_EQ(expectedState,
-                  kvStore.getVBucketState(vbid)->transition.state); // cached
+                  kvStore.getCachedVBucketState(vbid)->transition.state);
         EXPECT_EQ(expectedState,
                   kvStore.readVBState(vbid).transition.state); // on-disk
     };
@@ -5760,7 +5760,7 @@ TEST_P(STParamMagmaBucketTest, ResetPCursorAtPersistNonMetaItems) {
                                                      uint64_t hps,
                                                      uint64_t hcs,
                                                      uint64_t maxDelRevSeqno) {
-        const auto& cached = *kvStore.getVBucketState(vbid);
+        const auto& cached = *kvStore.getCachedVBucketState(vbid);
         const auto& onDisk = kvStore.readVBStateFromDisk(vbid).vbstate;
         for (const auto& vbs : {cached, onDisk}) {
             EXPECT_EQ(lastSnapStart, vbs.lastSnapStart);

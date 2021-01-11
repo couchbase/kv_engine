@@ -4127,7 +4127,7 @@ TEST_P(STPassiveStreamCouchstoreTest, VBStateNotLostAfterFlushFailure) {
                                                   2 /*revSeqno*/)));
 
     KVStore& kvStore = *store->getRWUnderlying(vbid);
-    auto& vbs = *kvStore.getVBucketState(vbid);
+    auto& vbs = *kvStore.getCachedVBucketState(vbid);
     // Check the vbstate entries that are set by SnapRange info
     const auto checkVBState = [&vbs](uint64_t lastSnapStart,
                                      uint64_t lastSnapEnd,
@@ -4189,7 +4189,7 @@ TEST_P(STPassiveStreamCouchstoreTest, VBStateNotLostAfterFlushFailure) {
     CompactionConfig cc;
     auto context = std::make_shared<CompactionContext>(vbid, cc, 1);
     underlying.compactDB(res.getLock(), context);
-    EXPECT_EQ(0, underlying.getVBucketState(vbid)->onDiskPrepares);
+    EXPECT_EQ(0, underlying.getCachedVBucketState(vbid)->onDiskPrepares);
 }
 
 /**

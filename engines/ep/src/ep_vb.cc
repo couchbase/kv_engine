@@ -1077,7 +1077,7 @@ void EPVBucket::collectionsRolledBack(KVStore& kvstore) {
 
 void EPVBucket::setNumTotalItems(KVStore& kvstore) {
     size_t vbItemCount = kvstore.getItemCount(getId());
-    const auto* vbState = kvstore.getVBucketState(getId());
+    const auto* vbState = kvstore.getCachedVBucketState(getId());
     Expects(vbState);
     // We don't want to include the number of prepares on disk in the number
     // of items in the vBucket/Bucket that is displayed to the user so

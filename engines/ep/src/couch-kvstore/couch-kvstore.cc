@@ -476,7 +476,7 @@ void CouchKVStore::reset(Vbid vbucketId) {
                         "object.");
     }
 
-    vbucket_state* state = getVBucketState(vbucketId);
+    vbucket_state* state = getCachedVBucketState(vbucketId);
     if (state) {
         state->reset();
 
@@ -1476,7 +1476,7 @@ bool CouchKVStore::compactDBInternal(DbHolder& sourceDb,
     cachedSpaceUsed[vbid.get()] = info.spaceUsed;
 
     // also update cached state with dbinfo (the disk entry is already updated)
-    auto* state = getVBucketState(vbid);
+    auto* state = getCachedVBucketState(vbid);
     if (state) {
         state->highSeqno = info.updateSeqNum;
         state->purgeSeqno = info.purgeSeqNum;
@@ -1679,7 +1679,7 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
     return ret;
 }
 
-vbucket_state* CouchKVStore::getVBucketState(Vbid vbucketId) {
+vbucket_state* CouchKVStore::getCachedVBucketState(Vbid vbucketId) {
     return cachedVBStates[vbucketId.get()].get();
 }
 
@@ -3399,7 +3399,7 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
         return RollbackResult(false);
     }
 
-    vbucket_state* vb_state = getVBucketState(vbid);
+    vbucket_state* vb_state = getCachedVBucketState(vbid);
     return RollbackResult(true,
                           vb_state->highSeqno,
                           vb_state->lastSnapStart,

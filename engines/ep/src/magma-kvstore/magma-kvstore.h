@@ -562,13 +562,12 @@ public:
     void mergeMagmaDbStatsIntoVBState(vbucket_state& vbstate, Vbid vbid);
 
     /**
-     * Get vbstate from cache. If cache not populated, read it from disk
-     * and populate cache. If not on disk, return nullptr;
+     * Get vbstate from cache.
      *
      * Note: When getting the vbstate, we merge in the MagmaDbStats stats.
      * See mergeMagmaDbStatsIntoVBState() above.
      */
-    vbucket_state* getVBucketState(Vbid vbucketId) override;
+    vbucket_state* getCachedVBucketState(Vbid vbucketId) override;
 
     /**
      * Populate kvstore stats with magma specific stats

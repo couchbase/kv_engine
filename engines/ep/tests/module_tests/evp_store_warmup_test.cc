@@ -1108,7 +1108,7 @@ TEST_P(DurabilityWarmupTest, ReplicationTopologyMissing) {
 
     // Remove the replicationTopology and re-persist.
     auto* kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
-    auto vbstate = *kvstore->getVBucketState(vbid);
+    auto vbstate = *kvstore->getCachedVBucketState(vbid);
     vbstate.transition.replicationTopology.clear();
     kvstore->snapshotVBucket(vbid, vbstate);
 
@@ -1204,7 +1204,7 @@ void DurabilityWarmupTest::testCheckpointTypePersistedAndLoadedIntoVBState(
     ASSERT_TRUE(vb);
     EXPECT_EQ(type,
               store->getRWUnderlying(vbid)
-                      ->getVBucketState(vbid)
+                      ->getCachedVBucketState(vbid)
                       ->checkpointType);
 }
 
@@ -1240,7 +1240,7 @@ void DurabilityWarmupTest::testFullyPersistedSnapshotSetsHPS(
         flushVBucketToDiskIfPersistent(vbid, 2);
         EXPECT_EQ(cpType,
                   store->getRWUnderlying(vbid)
-                          ->getVBucketState(vbid)
+                          ->getCachedVBucketState(vbid)
                           ->checkpointType);
     }
 
@@ -1287,7 +1287,7 @@ void DurabilityWarmupTest::testPartiallyPersistedSnapshotDoesNotSetHPS(
         flushVBucketToDiskIfPersistent(vbid, 2);
         EXPECT_EQ(cpType,
                   store->getRWUnderlying(vbid)
-                          ->getVBucketState(vbid)
+                          ->getCachedVBucketState(vbid)
                           ->checkpointType);
     }
 
@@ -1321,7 +1321,7 @@ void DurabilityWarmupTest::testPromotedReplicaMidSnapshotHPS(
 
     store = engine->getKVBucket();
     KVStore* rwUnderlying = store->getRWUnderlying(vbid);
-    const auto* persistedVbState = rwUnderlying->getVBucketState(vbid);
+    const auto* persistedVbState = rwUnderlying->getCachedVBucketState(vbid);
     auto pps = persistedVbState->persistedPreparedSeqno;
     auto hps = persistedVbState->highPreparedSeqno;
 
@@ -1353,7 +1353,7 @@ void DurabilityWarmupTest::testPromotedReplicaCompleteSnapshotHPS(
 
     store = engine->getKVBucket();
     KVStore* rwUnderlying = store->getRWUnderlying(vbid);
-    const auto* persistedVbState = rwUnderlying->getVBucketState(vbid);
+    const auto* persistedVbState = rwUnderlying->getCachedVBucketState(vbid);
     auto pps = persistedVbState->persistedPreparedSeqno;
     auto hps = persistedVbState->highPreparedSeqno;
 
@@ -1405,7 +1405,7 @@ void DurabilityWarmupTest::testHCSPersistedAndLoadedIntoVBState() {
 
     auto checkHCS = [this](int64_t hcs) -> void {
         auto* kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
-        auto vbstate = *kvstore->getVBucketState(vbid);
+        auto vbstate = *kvstore->getCachedVBucketState(vbid);
         ASSERT_EQ(hcs, vbstate.persistedCompletedSeqno);
     };
 
@@ -1454,7 +1454,7 @@ TEST_P(DurabilityWarmupTest, testHPSPersistedAndLoadedIntoVBState) {
 
     // Not flushed yet
     auto* kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
-    auto vbstate = *kvstore->getVBucketState(vbid);
+    auto vbstate = *kvstore->getCachedVBucketState(vbid);
     ASSERT_EQ(0, vbstate.persistedPreparedSeqno);
     ASSERT_EQ(0, vbstate.onDiskPrepares);
     ASSERT_EQ(0, vbstate.getOnDiskPrepareBytes());
@@ -1472,7 +1472,7 @@ TEST_P(DurabilityWarmupTest, testHPSPersistedAndLoadedIntoVBState) {
     flush_vbucket_to_disk(vbid);
 
     // HPS and prepare counter incremented
-    vbstate = *kvstore->getVBucketState(vbid);
+    vbstate = *kvstore->getCachedVBucketState(vbid);
     EXPECT_EQ(preparedSeqno, vbstate.persistedPreparedSeqno);
 
     // @TODO: RocksDB currently does not track the prepare count
@@ -1489,7 +1489,7 @@ TEST_P(DurabilityWarmupTest, testHPSPersistedAndLoadedIntoVBState) {
     resetEngineAndWarmup();
 
     kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
-    vbstate = *kvstore->getVBucketState(vbid);
+    vbstate = *kvstore->getCachedVBucketState(vbid);
     EXPECT_EQ(preparedSeqno, vbstate.persistedPreparedSeqno);
 
     // @TODO: RocksDB currently does not track the prepare count
@@ -1676,7 +1676,7 @@ TEST_P(DurabilityWarmupTest, AbortDoesNotMovePCSInDiskSnapshot) {
         flushVBucketToDiskIfPersistent(vbid, 2);
         EXPECT_EQ(0,
                   store->getRWUnderlying(vbid)
-                          ->getVBucketState(vbid)
+                          ->getCachedVBucketState(vbid)
                           ->persistedCompletedSeqno);
     }
 
@@ -1684,7 +1684,7 @@ TEST_P(DurabilityWarmupTest, AbortDoesNotMovePCSInDiskSnapshot) {
 
     EXPECT_EQ(0,
               store->getRWUnderlying(vbid)
-                      ->getVBucketState(vbid)
+                      ->getCachedVBucketState(vbid)
                       ->persistedCompletedSeqno);
 
     auto vb = engine->getKVBucket()->getVBucket(vbid);
@@ -1871,7 +1871,7 @@ TEST_P(DurabilityWarmupTest, CompleteDiskSnapshotWarmsUpPCStoPPS) {
         flushVBucketToDiskIfPersistent(vbid, 2);
         EXPECT_EQ(CheckpointType::Disk,
                   store->getRWUnderlying(vbid)
-                          ->getVBucketState(vbid)
+                          ->getCachedVBucketState(vbid)
                           ->checkpointType);
     }
 

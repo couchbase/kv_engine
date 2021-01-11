@@ -921,7 +921,7 @@ TEST_P(KVStoreParamTest, HighSeqnoCorrectlyStoredForCommitBatch) {
 
     GetValue gv = kvstore->get(DiskDocKey{key}, vbid);
     checkGetValue(gv);
-    EXPECT_EQ(kvstore->getVBucketState(vbid)->highSeqno, 10);
+    EXPECT_EQ(kvstore->getCachedVBucketState(vbid)->highSeqno, 10);
 }
 
 void KVStoreParamTest::testGetRange(ValueFilter filter) {

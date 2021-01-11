@@ -927,7 +927,7 @@ void MagmaKVStore::getRange(Vbid vbid,
 }
 
 void MagmaKVStore::reset(Vbid vbid) {
-    auto vbstate = getVBucketState(vbid);
+    auto vbstate = getCachedVBucketState(vbid);
     if (!vbstate) {
         throw std::invalid_argument(
                 "MagmaKVStore::reset: No entry in cached "
@@ -987,7 +987,7 @@ void MagmaKVStore::delVBucket(Vbid vbid, uint64_t vb_version) {
 }
 
 void MagmaKVStore::prepareToCreateImpl(Vbid vbid) {
-    auto vbstate = getVBucketState(vbid);
+    auto vbstate = getCachedVBucketState(vbid);
     if (vbstate) {
         vbstate->reset();
     }
@@ -1631,13 +1631,13 @@ void MagmaKVStore::mergeMagmaDbStatsIntoVBState(vbucket_state& vbstate,
     // track the number for magma
 }
 
-vbucket_state* MagmaKVStore::getVBucketState(Vbid vbid) {
+vbucket_state* MagmaKVStore::getCachedVBucketState(Vbid vbid) {
     auto& vbstate = cachedVBStates[vbid.get()];
     if (vbstate) {
         mergeMagmaDbStatsIntoVBState(*vbstate, vbid);
         if (logger->should_log(spdlog::level::TRACE)) {
             auto j = encodeVBState(*vbstate, kvstoreRevList[vbid.get()]);
-            logger->TRACE("MagmaKVStore::getVBucketState {} vbstate:{}",
+            logger->TRACE("MagmaKVStore::getCachedVBucketState {} vbstate:{}",
                           vbid,
                           j.dump());
         }
@@ -2184,7 +2184,7 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
         return RollbackResult(false);
     }
 
-    auto vbstate = getVBucketState(vbid);
+    auto vbstate = getCachedVBucketState(vbid);
     if (!vbstate) {
         logger->critical(
                 "MagmaKVStore::rollback getVBState {} vbstate not found", vbid);

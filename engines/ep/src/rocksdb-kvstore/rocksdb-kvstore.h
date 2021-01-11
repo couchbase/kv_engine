@@ -224,7 +224,7 @@ public:
         return true;
     }
 
-    vbucket_state* getVBucketState(Vbid vbucketId) override {
+    vbucket_state* getCachedVBucketState(Vbid vbucketId) override {
         return cachedVBStates[vbucketId.get()].get();
     }
 

@@ -247,7 +247,7 @@ bool KVStore::needsToBePersisted(Vbid vbid, const vbucket_state& newVbstate) {
      * - the persisted prepared seqno or
      * - the high prepared seqno
      */
-    const auto* cached = getVBucketState(vbid);
+    const auto* cached = getCachedVBucketState(vbid);
 
     if (!cached) {
         return true;
@@ -263,7 +263,7 @@ bool KVStore::needsToBePersisted(Vbid vbid, const vbucket_state& newVbstate) {
 }
 
 void KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
-    vbucket_state* vbState = getVBucketState(vbid);
+    vbucket_state* vbState = getCachedVBucketState(vbid);
 
     if (!vbState) {
         cachedVBStates[vbid.get()] = std::make_unique<vbucket_state>(newState);
@@ -539,7 +539,7 @@ void KVStore::optimizeWrites(std::vector<queued_item>& items) {
 }
 
 uint64_t KVStore::getLastPersistedSeqno(Vbid vbid) {
-    vbucket_state* state = getVBucketState(vbid);
+    vbucket_state* state = getCachedVBucketState(vbid);
     if (state) {
         return state->highSeqno;
     }
@@ -559,7 +559,7 @@ void KVStore::prepareToCreate(Vbid vbid) {
 }
 
 void KVStore::resetCachedVBState(Vbid vbid) {
-    vbucket_state* state = getVBucketState(vbid);
+    vbucket_state* state = getCachedVBucketState(vbid);
     if (state) {
         state->reset();
     }

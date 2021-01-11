@@ -257,7 +257,7 @@ public:
     void abortCompactionIfRunning(std::unique_lock<std::mutex>& vbLock,
                                   Vbid vbid) override;
 
-    vbucket_state* getVBucketState(Vbid vbid) override;
+    vbucket_state* getCachedVBucketState(Vbid vbid) override;
 
     /**
      * Get the number of deleted items that are persisted to a vbucket file

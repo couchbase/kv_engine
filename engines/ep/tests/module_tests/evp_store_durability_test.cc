@@ -218,7 +218,7 @@ protected:
 
         // Check prepare state is as expected.
         auto* kvstore = store->getOneRWUnderlying();
-        auto* vbstate = kvstore->getVBucketState(vbid);
+        auto* vbstate = kvstore->getCachedVBucketState(vbid);
         ASSERT_EQ(1, vbstate->onDiskPrepares);
         ASSERT_GT(vbstate->getOnDiskPrepareBytes(), 0);
 
@@ -241,7 +241,7 @@ protected:
 
         // on-disk prepare count should still be one, but bytes should have
         // been reset to default of zero.
-        vbstate = kvstore->getVBucketState(vbid);
+        vbstate = kvstore->getCachedVBucketState(vbid);
         ASSERT_EQ(1, vbstate->onDiskPrepares);
         ASSERT_EQ(0, vbstate->getOnDiskPrepareBytes());
     }
@@ -521,7 +521,8 @@ public:
     uint64_t getMVS() {
         if(persistent()) {
             KVStore* rwUnderlying = store->getRWUnderlying(vbid);
-            const auto* persistedVbState = rwUnderlying->getVBucketState(vbid);
+            const auto* persistedVbState =
+                    rwUnderlying->getCachedVBucketState(vbid);
 
             return persistedVbState->maxVisibleSeqno;
         } else {
@@ -2728,10 +2729,10 @@ TEST_P(DurabilityEPBucketTest,
 
     if (isMagma()) {
         // Magma doesn't track number of prepares
-        EXPECT_EQ(0, kvstore->getVBucketState(vbid)->onDiskPrepares);
+        EXPECT_EQ(0, kvstore->getCachedVBucketState(vbid)->onDiskPrepares);
         EXPECT_EQ(1, kvstore->getItemCount(vbid));
     } else {
-        EXPECT_EQ(1, kvstore->getVBucketState(vbid)->onDiskPrepares);
+        EXPECT_EQ(1, kvstore->getCachedVBucketState(vbid)->onDiskPrepares);
         EXPECT_EQ(2, kvstore->getItemCount(vbid));
     }
 
@@ -2746,11 +2747,11 @@ TEST_P(DurabilityEPBucketTest,
 
     if (isMagma()) {
         // Magma doesn't track number of prepares
-        EXPECT_EQ(0, kvstore->getVBucketState(vbid)->onDiskPrepares);
+        EXPECT_EQ(0, kvstore->getCachedVBucketState(vbid)->onDiskPrepares);
         EXPECT_EQ(1, kvstore->getItemCount(vbid));
     } else {
         // Check onDiskPrepares is updated correctly too.
-        EXPECT_EQ(1, kvstore->getVBucketState(vbid)->onDiskPrepares);
+        EXPECT_EQ(1, kvstore->getCachedVBucketState(vbid)->onDiskPrepares);
         EXPECT_EQ(2, kvstore->getItemCount(vbid));
     }
 
@@ -2761,11 +2762,11 @@ TEST_P(DurabilityEPBucketTest,
 
     if (isMagma()) {
         // Magma doesn't track number of prepares
-        EXPECT_EQ(0, kvstore->getVBucketState(vbid)->onDiskPrepares);
+        EXPECT_EQ(0, kvstore->getCachedVBucketState(vbid)->onDiskPrepares);
         EXPECT_EQ(1, kvstore->getItemCount(vbid));
     } else {
         EXPECT_EQ(2, kvstore->getItemCount(vbid));
-        EXPECT_EQ(1, kvstore->getVBucketState(vbid)->onDiskPrepares);
+        EXPECT_EQ(1, kvstore->getCachedVBucketState(vbid)->onDiskPrepares);
     }
 }
 
@@ -2781,7 +2782,7 @@ TEST_P(DurabilityEPBucketTest, RemoveCommittedPreparesAtCompaction) {
 
     // Sanity check preconditions.
     auto* kvstore = store->getOneRWUnderlying();
-    const auto* vbstate = kvstore->getVBucketState(vbid);
+    const auto* vbstate = kvstore->getCachedVBucketState(vbid);
     ASSERT_EQ(0, vbstate->onDiskPrepares);
     ASSERT_EQ(0, vbstate->getOnDiskPrepareBytes());
 
@@ -2806,7 +2807,7 @@ TEST_P(DurabilityEPBucketTest, RemoveCommittedPreparesAtCompaction) {
     DiskDocKey prefixedKey(key, true /*prepare*/);
     auto gv = kvstore->get(prefixedKey, Vbid(0));
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
-    vbstate = kvstore->getVBucketState(vbid);
+    vbstate = kvstore->getCachedVBucketState(vbid);
     if (isMagma()) {
         // Magma doesn't track number of prepares and prepareBytes
         EXPECT_EQ(0, vbstate->onDiskPrepares);
@@ -2834,7 +2835,7 @@ TEST_P(DurabilityEPBucketTest, RemoveCommittedPreparesAtCompaction) {
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
 
     // Check onDiskPrepares is updated correctly after compaction.
-    vbstate = kvstore->getVBucketState(vbid);
+    vbstate = kvstore->getCachedVBucketState(vbid);
     EXPECT_EQ(0, vbstate->onDiskPrepares);
     EXPECT_EQ(0, vbstate->getOnDiskPrepareBytes());
     EXPECT_EQ(1, kvstore->getItemCount(vbid));
@@ -2842,7 +2843,7 @@ TEST_P(DurabilityEPBucketTest, RemoveCommittedPreparesAtCompaction) {
     vb.reset();
     resetEngineAndWarmup();
     kvstore = store->getOneRWUnderlying();
-    vbstate = kvstore->getVBucketState(vbid);
+    vbstate = kvstore->getCachedVBucketState(vbid);
     EXPECT_EQ(1, kvstore->getItemCount(vbid));
     EXPECT_EQ(0, vbstate->onDiskPrepares);
     EXPECT_EQ(0, vbstate->getOnDiskPrepareBytes());
@@ -2858,7 +2859,7 @@ TEST_P(DurabilityEPBucketTest, RemoveAbortedPreparesAtCompaction) {
 
     // Sanity check preconditions.
     auto* kvstore = store->getOneRWUnderlying();
-    const auto* vbstate = kvstore->getVBucketState(vbid);
+    const auto* vbstate = kvstore->getCachedVBucketState(vbid);
     ASSERT_EQ(0, vbstate->onDiskPrepares);
     ASSERT_EQ(0, vbstate->getOnDiskPrepareBytes());
 
@@ -2885,7 +2886,7 @@ TEST_P(DurabilityEPBucketTest, RemoveAbortedPreparesAtCompaction) {
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     EXPECT_EQ(1, kvstore->getItemCount(vbid));
-    vbstate = kvstore->getVBucketState(vbid);
+    vbstate = kvstore->getCachedVBucketState(vbid);
     EXPECT_EQ(0, vbstate->onDiskPrepares);
     EXPECT_EQ(0, vbstate->getOnDiskPrepareBytes())
             << "Aborted prepares shouldn't be included in onDiskPrepareBytes "
@@ -2925,7 +2926,7 @@ TEST_P(DurabilityEPBucketTest, RemoveAbortedPreparesAtCompaction) {
     vb.reset();
     resetEngineAndWarmup();
     kvstore = store->getOneRWUnderlying();
-    vbstate = kvstore->getVBucketState(vbid);
+    vbstate = kvstore->getCachedVBucketState(vbid);
     EXPECT_EQ(1, kvstore->getItemCount(vbid));
     EXPECT_EQ(0, vbstate->onDiskPrepares);
     EXPECT_EQ(0, vbstate->getOnDiskPrepareBytes());
@@ -2950,7 +2951,7 @@ void DurabilityCouchstoreBucketTest::
 
     // Check onDiskPrepares is updated correctly after compaction.
     EXPECT_EQ(1, kvstore.getItemCount(vbid));
-    const auto* vbstateCached = kvstore.getVBucketState(vbid);
+    const auto* vbstateCached = kvstore.getCachedVBucketState(vbid);
     EXPECT_EQ(0, vbstateCached->onDiskPrepares);
     EXPECT_EQ(0, vbstateCached->getOnDiskPrepareBytes());
     const auto vbstateDisk = kvstore.readVBState(vbid);
@@ -2988,7 +2989,7 @@ void DurabilityCouchstoreBucketTest::testOnDiskPrepareSizeUpgrade(
 
     // Check onDiskPrepares is updated correctly after flush.
     auto& kvstore = dynamic_cast<CouchKVStore&>(*store->getOneRWUnderlying());
-    const auto* vbstateCached = kvstore.getVBucketState(vbid);
+    const auto* vbstateCached = kvstore.getCachedVBucketState(vbid);
     EXPECT_EQ(1, vbstateCached->onDiskPrepares);
     EXPECT_EQ(0, vbstateCached->getOnDiskPrepareBytes());
     const auto vbstateDisk = kvstore.readVBState(vbid);
@@ -3021,7 +3022,8 @@ TEST_P(DurabilityCouchstoreBucketTest, MB_36739) {
             .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
 
     setVBucketToActiveWithValidTopology();
-    vbucket_state vbs = *store->getRWUnderlying(vbid)->getVBucketState(vbid);
+    vbucket_state vbs =
+            *store->getRWUnderlying(vbid)->getCachedVBucketState(vbid);
     using namespace cb::durability;
 
     auto key = makeStoredDocKey("key");
@@ -3036,7 +3038,7 @@ TEST_P(DurabilityCouchstoreBucketTest, MB_36739) {
     EXPECT_EQ(EPBucket::WakeCkptRemover::No, res.wakeupCkptRemover);
     EXPECT_EQ(1, engine->getEpStats().commitFailed);
     EXPECT_EQ(0, engine->getEpStats().flusherCommits);
-    EXPECT_EQ(vbs, *store->getRWUnderlying(vbid)->getVBucketState(vbid));
+    EXPECT_EQ(vbs, *store->getRWUnderlying(vbid)->getCachedVBucketState(vbid));
 
     res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
     EXPECT_EQ(EPBucket::MoreAvailable::No, res.moreAvailable);
@@ -3047,7 +3049,7 @@ TEST_P(DurabilityCouchstoreBucketTest, MB_36739) {
 
     // Now expect that the vbucket state has been mutated by the flush
     vbucket_state newState =
-            *store->getRWUnderlying(vbid)->getVBucketState(vbid);
+            *store->getRWUnderlying(vbid)->getCachedVBucketState(vbid);
     EXPECT_NE(vbs, newState);
     EXPECT_EQ(1, newState.persistedPreparedSeqno);
 }
@@ -3689,7 +3691,7 @@ TEST_P(DurabilityEPBucketTest, ActivePersistedDurabilitySeqnosAdvanceOnSyncWrite
 
     store = engine->getKVBucket();
     KVStore* rwUnderlying = store->getRWUnderlying(vbid);
-    const auto* persistedVbState = rwUnderlying->getVBucketState(vbid);
+    const auto* persistedVbState = rwUnderlying->getCachedVBucketState(vbid);
     auto& pcs = persistedVbState->persistedCompletedSeqno;
     auto& pps = persistedVbState->persistedPreparedSeqno;
     auto& hps = persistedVbState->highPreparedSeqno;

@@ -518,7 +518,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, initializeWithHeaderButNoVBState) {
     vbid = Vbid(10);
 
     // Make sure the vBucket does not exist before this test
-    ASSERT_FALSE(kvstore->getVBucketState(vbid));
+    ASSERT_FALSE(kvstore->getCachedVBucketState(vbid));
     ASSERT_THROW(kvstore->readVBState(vbid), std::logic_error);
     ASSERT_EQ(0, kvstore->getKVStoreStat().numVbSetFailure);
 
