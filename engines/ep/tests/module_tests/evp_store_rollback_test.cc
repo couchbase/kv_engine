@@ -907,6 +907,36 @@ TEST_P(RollbackTest, RollbackBeforeFirstFailoverTableEntry) {
     EXPECT_EQ(maxFailoverEntries + 2, vb->getNumTotalItems());
 }
 
+TEST_P(RollbackTest, DirtyQueueAgeUnpersistedReset) {
+    // Stay as active until the rollback as it's easier to store things
+    // Store 1 item as our base (and post-rollback) state
+    const int numItems = 1;
+    for (int i = 0; i < numItems; i++) {
+        store_item(vbid,
+                   makeStoredDocKey("key_" + std::to_string(i)),
+                   "not rolled back");
+    }
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    auto htState = getHtState();
+    auto vb = store->getVBucket(vbid);
+    auto rollbackSeqno = vb->getHighSeqno();
+
+    // Put an unpersisted item into the checkpoint manager in two different
+    // checkpoints of different type
+    store_item(vbid, makeStoredDocKey("key_memory"), "rolled back");
+
+    // Flip to replica and rollback
+    store->setVBucketState(vbid, vbucket_state_replica);
+    EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollbackSeqno));
+    EXPECT_EQ(rollbackSeqno, vb->getHighSeqno());
+
+    EXPECT_EQ(htState.dump(0), getHtState().dump(0));
+
+    EXPECT_EQ(0, vb->dirtyQueueSize);
+    EXPECT_EQ(0, vb->dirtyQueueAge);
+}
+
 class RollbackDcpTest : public RollbackTest {
 public:
     // Mock implementation of DcpMessageProducersIface which ... TODO

@@ -1180,6 +1180,7 @@ void CheckpointManager::clear(VBucket& vb, uint64_t seqno) {
         size_t currentDqSize = vb.dirtyQueueSize.load();
         vb.dirtyQueueSize.fetch_sub(currentDqSize);
         stats.diskQueueSize.fetch_sub(currentDqSize);
+        vb.dirtyQueueAge.store(0);
     }
 }
 
