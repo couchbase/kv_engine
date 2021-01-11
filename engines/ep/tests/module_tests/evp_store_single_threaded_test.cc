@@ -6136,3 +6136,15 @@ TEST_P(STParamCouchstoreBucketTest, CompactionUpdatesBloomFilter) {
     }
     EXPECT_EQ(expected, vb->getFilterSize());
 }
+
+TEST_P(STParamPersistentBucketTest, SetVBucketStateDirtyQueueAge) {
+    store->setVBucketState(vbid, vbucket_state_pending);
+
+    auto vb = store->getVBucket(vbid);
+    EXPECT_NE(0, vb->dirtyQueueAge);
+    EXPECT_EQ(1, vb->dirtyQueueSize);
+
+    flushVBucketToDiskIfPersistent(vbid, 0);
+    EXPECT_EQ(0, vb->dirtyQueueAge);
+    EXPECT_EQ(0, vb->dirtyQueueSize);
+}

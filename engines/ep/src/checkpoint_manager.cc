@@ -965,6 +965,10 @@ void CheckpointManager::queueSetVBState(VBucket& vb) {
     // We do this 'atomically' as we are holding the ::queueLock.
     item->setCas(vb.nextHLCCas());
 
+    // MB-43528: To ensure that we have a reasonable queue_age stat we need to
+    // set the queue time here.
+    item->setQueuedTime();
+
     // Store a JSON version of the vbucket transition data in the value
     vbstate.toItem(*item);
 
