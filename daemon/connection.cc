@@ -686,7 +686,7 @@ bool Connection::executeCommandsCallback() {
                     LOG_WARNING(
                             R"({}: step returned {} - closing connection {})",
                             getId(),
-                            std::to_string(ret),
+                            cb::to_string(cb::to_engine_errc(ret)),
                             getDescription());
                     if (ret == ENGINE_DISCONNECT) {
                         setTerminationReason("Engine forced disconnect");
