@@ -988,7 +988,7 @@ void DestroyBucketThread::destroy() {
 
     if (ret != ENGINE_SUCCESS) {
         auto code = cb::mcbp::to_status(cb::engine_errc(ret));
-        LOG_INFO("{} Delete bucket [{}]: {}",
+        LOG_INFO("{}: Delete bucket [{}]: {}",
                  connection_id,
                  name,
                  to_string(code));
@@ -996,12 +996,12 @@ void DestroyBucketThread::destroy() {
         return;
     }
 
-    LOG_INFO("{} Delete bucket [{}]. Notifying engine", connection_id, name);
+    LOG_INFO("{}: Delete bucket [{}]. Notifying engine", connection_id, name);
 
     all_buckets[idx].getEngine().initiate_shutdown();
     all_buckets[idx].getEngine().cancel_all_operations_in_ewb_state();
 
-    LOG_INFO("{} Delete bucket [{}]. Engine ready for shutdown",
+    LOG_INFO("{}: Delete bucket [{}]. Engine ready for shutdown",
              connection_id,
              name);
 
@@ -1015,10 +1015,11 @@ void DestroyBucketThread::destroy() {
     {
         std::unique_lock<std::mutex> guard(bucket.mutex);
         if (bucket.clients > 0) {
-            LOG_INFO("{} Delete bucket [{}]. Wait for {} clients to disconnect",
-                     connection_id,
-                     name,
-                     bucket.clients);
+            LOG_INFO(
+                    "{}: Delete bucket [{}]. Wait for {} clients to disconnect",
+                    connection_id,
+                    name,
+                    bucket.clients);
 
             // Signal clients bound to the bucket before waiting
             guard.unlock();
@@ -1095,13 +1096,13 @@ void DestroyBucketThread::destroy() {
             prevDump = std::move(current);
             if (diff.empty()) {
                 LOG_INFO(
-                        R"({} Delete bucket [{}]. Still waiting: {} clients connected (state is unchanged).)",
+                        R"({}: Delete bucket [{}]. Still waiting: {} clients connected (state is unchanged).)",
                         connection_id,
                         name,
                         bucket.clients);
             } else {
                 LOG_INFO(
-                        R"({} Delete bucket [{}]. Still waiting: {} clients connected: {})",
+                        R"({}: Delete bucket [{}]. Still waiting: {} clients connected: {})",
                         connection_id,
                         name,
                         bucket.clients,
@@ -1117,7 +1118,7 @@ void DestroyBucketThread::destroy() {
     while (num != 0) {
         if (++counter % 100 == 0) {
             LOG_INFO(
-                    R"({} Delete bucket [{}]. Still waiting: {} items still stuck in transfer.)",
+                    R"({}: Delete bucket [{}]. Still waiting: {} items still stuck in transfer.)",
                     connection_id,
                     name,
                     num);
@@ -1126,16 +1127,17 @@ void DestroyBucketThread::destroy() {
         num = bucket.items_in_transit.load();
     }
 
-    LOG_INFO(
-            "{} Delete bucket [{}]. Shut down the bucket", connection_id, name);
+    LOG_INFO("{}: Delete bucket [{}]. Shut down the bucket",
+             connection_id,
+             name);
     bucket.destroyEngine(force);
 
-    LOG_INFO("{} Delete bucket [{}]. Clean up allocated resources ",
+    LOG_INFO("{}: Delete bucket [{}]. Clean up allocated resources ",
              connection_id,
              name);
     bucket.reset();
 
-    LOG_INFO("{} Delete bucket [{}] complete", connection_id, name);
+    LOG_INFO("{}: Delete bucket [{}] complete", connection_id, name);
     result = ENGINE_SUCCESS;
 }
 
