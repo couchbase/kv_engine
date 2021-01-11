@@ -294,7 +294,7 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
       backfillMemoryThreshold(0.95),
       statsSnapshotTaskId(0),
       lastTransTimePerItem(0),
-      collectionsManager(std::make_unique<Collections::Manager>()),
+      collectionsManager(std::make_shared<Collections::Manager>()),
       xattrEnabled(true),
       maxTtl(engine.getConfiguration().getMaxTtl()) {
     cachedResidentRatio.activeRatio.store(0);
@@ -984,13 +984,13 @@ ENGINE_ERROR_CODE KVBucket::createVBucket_UNLOCKED(
     auto ft = std::make_unique<FailoverTable>(engine.getMaxFailoverEntries());
     KVShard* shard = vbMap.getShardByVbId(vbid);
 
-    VBucketPtr newvb =
-            makeVBucket(vbid,
-                        to,
-                        shard,
-                        std::move(ft),
-                        std::make_unique<NotifyNewSeqnoCB>(*this),
-                        std::make_unique<Collections::VB::Manifest>());
+    VBucketPtr newvb = makeVBucket(
+            vbid,
+            to,
+            shard,
+            std::move(ft),
+            std::make_unique<NotifyNewSeqnoCB>(*this),
+            std::make_unique<Collections::VB::Manifest>(collectionsManager));
 
     newvb->setFreqSaturatedCallback(
             [this] { this->wakeItemFreqDecayerTask(); });
@@ -2517,10 +2517,7 @@ TaskStatus KVBucket::rollback(Vbid vbid, uint64_t rollbackSeqno) {
                 rollbackUnpersistedItems(*vb, result.highSeqno);
                 loadPreparedSyncWrites(wlh, *vb);
                 auto& epVb = static_cast<EPVBucket&>(*vb.getVB());
-                epVb.postProcessRollback(
-                        result,
-                        prevHighSeqno,
-                        *vbMap.getShardByVbId(vbid)->getRWUnderlying());
+                epVb.postProcessRollback(result, prevHighSeqno, *this);
                 engine.getDcpConnMap().closeStreamsDueToRollback(vbid);
                 return TaskStatus::Complete;
             }
@@ -2708,11 +2705,16 @@ std::pair<uint64_t, std::optional<ScopeID>> KVBucket::getScopeID(
 }
 
 const Collections::Manager& KVBucket::getCollectionsManager() const {
-    return *collectionsManager.get();
+    return *collectionsManager;
 }
 
 Collections::Manager& KVBucket::getCollectionsManager() {
-    return *collectionsManager.get();
+    return *collectionsManager;
+}
+
+const std::shared_ptr<Collections::Manager>&
+KVBucket::getSharedCollectionsManager() const {
+    return collectionsManager;
 }
 
 bool KVBucket::isXattrEnabled() const {

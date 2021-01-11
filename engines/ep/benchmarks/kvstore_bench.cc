@@ -16,6 +16,7 @@
  */
 
 #include "callbacks.h"
+#include "collections/manager.h"
 #include "collections/vbucket_manifest.h"
 #include "configuration.h"
 #include "item.h"
@@ -135,7 +136,8 @@ protected:
             qi->setBySeqno(i);
             kvstore->set(qi);
         }
-        Collections::VB::Manifest m;
+
+        Collections::VB::Manifest m{std::make_shared<Collections::Manager>()};
         VB::Commit f(m);
 
         kvstore->commit(f);

@@ -17,6 +17,7 @@
 
 #include "checkpoint_config.h"
 #include "checkpoint_manager.h"
+#include "collections/manager.h"
 #include "collections/manifest.h"
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_manifest_handles.h"
@@ -34,11 +35,14 @@
 
 class MockVBManifest : public Collections::VB::Manifest {
 public:
-    MockVBManifest() {
+    MockVBManifest(std::shared_ptr<Collections::Manager> manager)
+        : Collections::VB::Manifest(manager) {
     }
 
-    explicit MockVBManifest(const Collections::KVStore::Manifest& manifestData)
-        : Collections::VB::Manifest(manifestData) {
+    explicit MockVBManifest(
+            const std::shared_ptr<Collections::Manager>& manager,
+            const Collections::KVStore::Manifest& manifestData)
+        : Collections::VB::Manifest(manager, manifestData) {
     }
 
     bool exists(CollectionID identifier) const {
@@ -188,7 +192,7 @@ public:
               NoopSeqnoAckCb,
               config,
               EvictionPolicy::Value,
-              std::make_unique<Collections::VB::Manifest>()),
+              std::make_unique<Collections::VB::Manifest>(collectionsManager)),
           vbR(Vbid(1),
               vbucket_state_replica,
               global_stats,
@@ -205,7 +209,7 @@ public:
               NoopSeqnoAckCb,
               config,
               EvictionPolicy::Value,
-              std::make_unique<Collections::VB::Manifest>()),
+              std::make_unique<Collections::VB::Manifest>(collectionsManager)),
           lastCompleteDeletionArgs(0) {
     }
 
@@ -383,8 +387,10 @@ public:
         }
     }
 
-    MockVBManifest active;
-    MockVBManifest replica;
+    std::shared_ptr<Collections::Manager> collectionsManager =
+            std::make_shared<Collections::Manager>();
+    MockVBManifest active{collectionsManager};
+    MockVBManifest replica{collectionsManager};
     EPStats global_stats;
     CheckpointConfig checkpoint_config;
     Configuration config;

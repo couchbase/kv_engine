@@ -259,11 +259,11 @@ public:
      *                       snapshot end seqno of the last snapshot in the
      *                       vBucket after the rollback
      * @param prevHighSeqno high seqno before the rollback
-     * @param kvstore A KVStore that is used for retrieving stored metadata
+     * @param bucket The KVBucket which logically owns the VBucket
      */
     void postProcessRollback(const RollbackResult& rollbackResult,
                              uint64_t prevHighSeqno,
-                             KVStore& kvstore);
+                             KVBucket& bucket);
 
     /**
      * Use the KVStore to calculate and set the 'onDiskItemCount'
@@ -360,9 +360,9 @@ private:
     /**
      * Update collections following a rollback
      *
-     * @param kvstore A KVStore that is used for retrieving stored metadata
+     * @param bucket The KVBucket which logically owns the VBucket
      */
-    void collectionsRolledBack(KVStore& kvstore);
+    void collectionsRolledBack(KVBucket& bucket);
 
     /**
      * Total number of alive (non-deleted), Committed items on-disk in this

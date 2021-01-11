@@ -1035,10 +1035,12 @@ void Warmup::createVBuckets(uint16_t shardId) {
             std::unique_ptr<Collections::VB::Manifest> manifest;
             if (config.isCollectionsEnabled()) {
                 manifest = std::make_unique<Collections::VB::Manifest>(
+                        store.getSharedCollectionsManager(),
                         store.getROUnderlyingByShard(shardId)
                                 ->getCollectionsManifest(vbid));
             } else {
-                manifest = std::make_unique<Collections::VB::Manifest>();
+                manifest = std::make_unique<Collections::VB::Manifest>(
+                        store.getSharedCollectionsManager());
             }
 
             const auto* topology =

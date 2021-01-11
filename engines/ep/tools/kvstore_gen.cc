@@ -22,6 +22,7 @@
 
 #include "atomic.h"
 #include "bucket_logger.h"
+#include "collections/manager.h"
 #include "collections/vbucket_manifest.h"
 #include "configuration.h"
 #include "couch-kvstore/couch-kvstore-config.h"
@@ -132,7 +133,8 @@ int main(int argc, char** argv) {
         qi->setBySeqno(i);
         kvstore.rw->set(qi);
     }
-    Collections::VB::Manifest manifest;
+    Collections::VB::Manifest manifest{
+            std::make_shared<Collections::Manager>()};
     VB::Commit commit(manifest);
     kvstore.rw->commit(commit);
 
@@ -157,7 +159,6 @@ int main(int argc, char** argv) {
             }
             updates++;
         }
-        Collections::VB::Manifest manifest;
         VB::Commit commit(manifest);
         kvstore.rw->commit(commit);
     }

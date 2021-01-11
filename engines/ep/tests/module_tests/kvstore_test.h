@@ -18,6 +18,7 @@
 #pragma once
 
 #include "callbacks.h"
+#include "collections/manager.h"
 #include "collections/vbucket_manifest.h"
 #include "kvstore.h"
 #include "vb_commit.h"
@@ -48,7 +49,8 @@ protected:
     }
 
     std::string data_dir;
-    Collections::VB::Manifest manifest;
+    Collections::VB::Manifest manifest{
+            std::make_shared<Collections::Manager>()};
     VB::Commit flush;
     const Vbid vbid = Vbid(0);
     std::mutex vbLock;

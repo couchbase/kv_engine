@@ -16,6 +16,7 @@
  */
 
 #include "checkpoint_config.h"
+#include "collections/manager.h"
 #include "collections/vbucket_filter.h"
 #include "collections/vbucket_manifest.h"
 #include "configuration.h"
@@ -64,7 +65,7 @@ public:
 
     VBucketPtr vb;
     CollectionsManifest cm;
-    Collections::VB::Manifest vbm;
+    Collections::VB::Manifest vbm{std::make_shared<Collections::Manager>()};
     cb::tracing::Traceable* cookie = nullptr;
 };
 

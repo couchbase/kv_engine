@@ -698,9 +698,21 @@ public:
     std::pair<uint64_t, std::optional<ScopeID>> getScopeID(
             CollectionID cid) const;
 
+    /**
+     * @return the Collections::Manager as a const reference
+     */
     const Collections::Manager& getCollectionsManager() const;
 
+    /**
+     * @return the Collections::Manager as a reference
+     */
     Collections::Manager& getCollectionsManager();
+
+    /**
+     * @return the Collections::Manager (as a shared_ptr)
+     */
+    const std::shared_ptr<Collections::Manager>& getSharedCollectionsManager()
+            const;
 
     bool isXattrEnabled() const;
 
@@ -872,7 +884,7 @@ protected:
     std::atomic<size_t> lastTransTimePerItem;
     EvictionPolicy eviction_policy;
 
-    std::unique_ptr<Collections::Manager> collectionsManager;
+    const std::shared_ptr<Collections::Manager> collectionsManager;
 
     /**
      * Status of XATTR support for this bucket - this is set from the

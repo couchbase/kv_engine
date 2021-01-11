@@ -21,6 +21,7 @@
 
 #include "bucket_logger.h"
 #include "collections/collection_persisted_stats.h"
+#include "collections/manager.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "couch-kvstore/couch-kvstore-config.h"
 #include "couch-kvstore/couch-kvstore.h"
@@ -506,7 +507,8 @@ protected:
     CouchKVStoreConfig config;
     std::unique_ptr<CouchKVStore> kvstore;
     std::vector<queued_item> items;
-    Collections::VB::Manifest manifest;
+    Collections::VB::Manifest manifest{
+            std::make_shared<Collections::Manager>()};
     VB::Commit flush;
     Vbid vbid = Vbid(0);
 };
@@ -1342,7 +1344,8 @@ protected:
     std::unique_ptr<MockCouchKVStore> kvstore;
     Vbid vbid;
     CouchKVStoreConfig config;
-    Collections::VB::Manifest manifest;
+    Collections::VB::Manifest manifest{
+            std::make_shared<Collections::Manager>()};
     VB::Commit flush;
 };
 

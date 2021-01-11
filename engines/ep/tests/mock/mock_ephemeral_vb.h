@@ -43,7 +43,8 @@ public:
                          SyncWriteCompleteCallback syncWriteCb,
                          SeqnoAckCallback seqnoAckCb,
                          Configuration& config,
-                         EvictionPolicy evictionPolicy);
+                         EvictionPolicy evictionPolicy,
+                         std::unique_ptr<Collections::VB::Manifest> manifest);
 
     /* Register fake shared range lock for testing */
     RangeGuard registerFakeSharedRangeLock(seqno_t start, seqno_t end) {

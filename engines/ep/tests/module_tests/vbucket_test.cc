@@ -19,6 +19,7 @@
 #include "../mock/mock_checkpoint_manager.h"
 #include "bgfetcher.h"
 #include "checkpoint_manager.h"
+#include "collections/manager.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "ep_time.h"
 #include "ep_vb.h"
@@ -35,6 +36,7 @@
 
 #include <nlohmann/json.hpp>
 #include <platform/cb_malloc.h>
+#include <memory>
 
 using namespace std::string_literals;
 
@@ -59,29 +61,32 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
     config.parseConfiguration("sync_writes_max_allowed_replicas=3",
                               get_mock_server_api());
 
+    auto manifest = std::make_unique<Collections::VB::Manifest>(
+            std::make_shared<Collections::Manager>());
+
     switch (vbType) {
     case VBType::Persistent:
-        vbucket.reset(
-                new EPVBucket(vbid,
-                              vbucket_state_active,
-                              global_stats,
-                              checkpoint_config,
-                              /*kvshard*/ nullptr,
-                              lastSeqno,
-                              range.getStart(),
-                              range.getEnd(),
-                              std::make_unique<FailoverTable>(1 /*capacity*/),
-                              /*flusher callback*/ nullptr,
-                              /*newSeqnoCb*/ nullptr,
-                              noOpSyncWriteResolvedCb,
-                              TracedSyncWriteCompleteCb,
-                              NoopSeqnoAckCb,
-                              config,
-                              eviction_policy,
-                              std::make_unique<Collections::VB::Manifest>()));
+        vbucket = std::make_unique<EPVBucket>(
+                vbid,
+                vbucket_state_active,
+                global_stats,
+                checkpoint_config,
+                /*kvshard*/ nullptr,
+                lastSeqno,
+                range.getStart(),
+                range.getEnd(),
+                std::make_unique<FailoverTable>(1 /*capacity*/),
+                /*flusher callback*/ nullptr,
+                /*newSeqnoCb*/ nullptr,
+                noOpSyncWriteResolvedCb,
+                TracedSyncWriteCompleteCb,
+                NoopSeqnoAckCb,
+                config,
+                eviction_policy,
+                std::move(manifest));
         break;
     case VBType::Ephemeral: {
-        vbucket.reset(new MockEphemeralVBucket(
+        vbucket = std::make_unique<MockEphemeralVBucket>(
                 vbid,
                 vbucket_state_active,
                 global_stats,
@@ -96,7 +101,8 @@ VBucketTestBase::VBucketTestBase(VBType vbType,
                 TracedSyncWriteCompleteCb,
                 NoopSeqnoAckCb,
                 config,
-                eviction_policy));
+                eviction_policy,
+                std::move(manifest));
         break;
     }
     }

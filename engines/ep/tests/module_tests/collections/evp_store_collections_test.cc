@@ -935,11 +935,12 @@ void CollectionsFlushTest::collectionsFlusher(int items) {
                                                        CollectionEntry::dairy2);
              }}};
 
-    auto m1 = std::make_unique<Collections::VB::Manifest>();
+    auto m1 = std::make_unique<Collections::VB::Manifest>(
+            store->getSharedCollectionsManager());
     int step = 0;
     for (auto& f : test) {
-        auto m2 =
-                std::make_unique<Collections::VB::Manifest>(f.function(items));
+        auto m2 = std::make_unique<Collections::VB::Manifest>(
+                store->getSharedCollectionsManager(), f.function(items));
         // The manifest should change for each step
         EXPECT_NE(*m1, *m2) << "Failed step:" + std::to_string(step) << "\n"
                             << *m1 << "\n should not match " << *m2 << "\n";

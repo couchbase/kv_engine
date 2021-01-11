@@ -39,6 +39,9 @@ class FlatBufferBuilder;
 }
 
 namespace Collections {
+
+class Manager;
+
 namespace KVStore {
 struct Manifest;
 }
@@ -100,8 +103,11 @@ public:
      * The manifest will initialise with the following.
      * - Default Collection enabled.
      * - uid of 0
+     * @param manager this object needs access to the manager so that it can
+     *        access collection metadata. This is a shared reference as a
+     *        VBucket can outlive the KVBucket.
      */
-    Manifest();
+    explicit Manifest(std::shared_ptr<Manager> manager);
 
     /**
      * Construct a VBucket::Manifest from KVStore::Manifest
@@ -116,9 +122,12 @@ public:
      * A non-empty object must contain valid flatbuffers VB::Manifest which is
      * used to define the new object.
      *
+     * @param manager this object needs access to the manager so that it can
+     *        access collection metadata. This is a shared reference as a
+     *        VBucket can outlive the KVBucket.
      * @param data object storing flatbuffer manifest data (or empty)
      */
-    explicit Manifest(const KVStore::Manifest& data);
+    Manifest(std::shared_ptr<Manager> manager, const KVStore::Manifest& data);
 
     /**
      * @return ReadHandle, no iterator is held on the collection container
@@ -876,6 +885,9 @@ protected:
 
     /// The manifest UID which updated this vb::manifest
     ManifestUid manifestUid{0};
+
+    /// Manager of collections
+    const std::shared_ptr<Manager> manager;
 
     /// Does this vbucket need collection purging triggering
     bool dropInProgress{false};
