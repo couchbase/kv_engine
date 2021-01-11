@@ -6613,8 +6613,8 @@ static enum test_result test_mb38031_illegal_json_throws(EngineIface* h) {
         testHarness->reload_engine(
                 &h, testHarness->get_current_testcase()->cfg, true, false);
     } catch (const std::runtime_error& e) {
-        check(std::string(e.what()).find(
-                      "CouchKVStore::initialize: no vbstate for") !=
+        check(std::string(e.what()).find("CouchKVStore::initialize: "
+                                         "readVBState error:JsonInvalid") !=
                       std::string::npos,
               "unexpected exception");
         return SUCCESS;

@@ -424,53 +424,43 @@ std::unique_ptr<CouchKVStore> CouchKVStore::makeReadOnlyStore() const {
 
 void CouchKVStore::initialize(
         const std::unordered_map<Vbid, std::unordered_set<uint64_t>>& map) {
-    couchstore_error_t errorCode;
-
     for (const auto& [vbid, revisions] : map) {
         (void)revisions;
         DbHolder db(*this);
-        errorCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
-        bool abort = false;
-        if (errorCode == COUCHSTORE_SUCCESS) {
-            auto readStatus = readVBStateAndUpdateCache(db, vbid).status;
-            if (readStatus == ReadVBStateStatus::Success) {
-                /* update stat */
-                ++st.numLoadedVb;
 
-                // Populate cache delete count
-                cachedDeleteCount[vbid.get()] =
-                        cb::couchstore::getHeader(*db.getDb()).deletedCount;
-            } else if (readStatus != ReadVBStateStatus::CorruptSnapshot) {
-                logger.warn(
-                        "CouchKVStore::initialize: readVBState"
-                        " readVBState:{}, name:{}",
-                        int(readStatus),
-                        getDBFileName(dbname, vbid, db.getFileRev()));
+        const auto openRes = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
+        if (openRes != COUCHSTORE_SUCCESS) {
+            const auto msg = "CouchKVStore::initialize: openDB error:" +
+                             std::string(couchstore_strerror(openRes)) +
+                             ", file_name:" +
+                             getDBFileName(dbname, vbid, db.getFileRev());
+            logger.error(msg);
+            throw std::runtime_error(msg);
+        }
 
-                abort = true;
+        const auto readRes = readVBStateAndUpdateCache(db, vbid).status;
+        if (readRes != ReadVBStateStatus::Success) {
+            const auto msg = "CouchKVStore::initialize: readVBState error:" +
+                             to_string(readRes) + ", file_name:" +
+                             getDBFileName(dbname, vbid, db.getFileRev());
+
+            // Note: The  CorruptSnapshot error is a special case. That is
+            // generated for replica/pending vbuckets only and we want to
+            // continue as if the vbucket does not exist so it gets rebuilt from
+            // the active.
+            if (readRes == ReadVBStateStatus::CorruptSnapshot) {
+                logger.warn(msg);
+                continue;
             }
-        } else {
-            logger.warn(
-                    "CouchKVStore::initialize: openDB"
-                    " error:{}, name:{}",
-                    couchstore_strerror(errorCode),
-                    getDBFileName(dbname, vbid, db.getFileRev()));
-            abort = true;
+
+            logger.error(msg);
+            throw std::runtime_error(msg);
         }
 
-        // Abort couch-kvstore initialisation for two cases:
-        // 1) open fails
-        // 2) readVBState returns !Success and !CorruptSnapshot. Note the error
-        // CorruptSnapshot is generated for replica/pending vbuckets only and
-        // we want to continue as if the vbucket does not exist so it gets
-        // rebuilt from the active.
-        if (abort) {
-            throw std::runtime_error(
-                    "CouchKVStore::initialize: no vbstate for " +
-                    getDBFileName(dbname, vbid, db.getFileRev()));
-        }
-
-        // Setup cachedDocCount
+        // Success, update stats
+        ++st.numLoadedVb;
+        cachedDeleteCount[vbid.get()] =
+                cb::couchstore::getHeader(*db.getDb()).deletedCount;
         cachedDocCount[vbid.get()] =
                 cb::couchstore::getHeader(*db.getDb()).docCount;
     }
@@ -3712,7 +3702,7 @@ vbucket_state CouchKVStore::readVBState(Vbid vbid) {
     const auto errorCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errorCode != COUCHSTORE_SUCCESS) {
         throw std::logic_error("CouchKVStore::readVBState: openDB for vbid:" +
-                               to_string(vbid) + " failed with error " +
+                               ::to_string(vbid) + " failed with error " +
                                std::to_string(static_cast<int8_t>(errorCode)));
     }
 
@@ -3720,7 +3710,7 @@ vbucket_state CouchKVStore::readVBState(Vbid vbid) {
     if (res.status != ReadVBStateStatus::Success) {
         throw std::logic_error(
                 "CouchKVStore::readVBState: readVBState for vbid:" +
-                to_string(vbid) + " failed with status " +
+                ::to_string(vbid) + " failed with status " +
                 std::to_string(static_cast<uint8_t>(res.status)));
     }
 
@@ -3824,6 +3814,20 @@ void CouchLocalDocRequest::setupValue() {
 
 LocalDoc& CouchLocalDocRequest::getLocalDoc() {
     return doc;
+}
+
+std::string CouchKVStore::to_string(ReadVBStateStatus status) {
+    switch (status) {
+    case ReadVBStateStatus::Success:
+        return "Success";
+    case ReadVBStateStatus::JsonInvalid:
+        return "JsonInvalid";
+    case ReadVBStateStatus::CorruptSnapshot:
+        return "CorruptSnapshot";
+    case ReadVBStateStatus::CouchstoreError:
+        return "CouchstoreError";
+    }
+    folly::assume_unreachable();
 }
 
 /* end of couch-kvstore.cc */

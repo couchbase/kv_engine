@@ -728,12 +728,14 @@ protected:
         concurrentCompactionUnitTestHook = std::move(hook);
     }
 
-    enum class ReadVBStateStatus {
-        Success,
+    enum class ReadVBStateStatus : uint8_t {
+        Success = 0,
         JsonInvalid,
         CorruptSnapshot,
         CouchstoreError
     };
+
+    std::string to_string(ReadVBStateStatus status);
 
     /**
      * Result of the readVBState function
