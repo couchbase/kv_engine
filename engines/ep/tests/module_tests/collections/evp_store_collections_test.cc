@@ -108,12 +108,17 @@ TEST_F(CollectionsTest, namespace_separation) {
                DocKeyEncodesCollectionId::No);
 
     store_item(vbid, key, "value");
-    VBucketPtr vb = store->getVBucket(vbid);
+    flush_vbucket_to_disk(vbid, 1);
+
     // Add the meat collection
+    VBucketPtr vb = store->getVBucket(vbid);
     CollectionsManifest cm(CollectionEntry::meat);
     vb->updateFromManifest(makeManifest(cm));
-    // Trigger a flush to disk. Flushes the meat create event and 1 item
-    flush_vbucket_to_disk(vbid, 2);
+
+    EXPECT_EQ(1, vb->dirtyQueueSize);
+    EXPECT_NE(0, vb->dirtyQueueAge);
+
+    flush_vbucket_to_disk(vbid, 1);
 
     // evict and load - should not see the system key for create collections
     evict_key(vbid, key);
