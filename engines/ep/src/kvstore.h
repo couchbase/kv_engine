@@ -853,6 +853,13 @@ public:
      */
     virtual vbucket_state* getCachedVBucketState(Vbid vbid) = 0;
 
+    /**
+     * Return the vbucket_state stored on disk for the given vBucket. Does NOT
+     * update the cachedVBState.
+     * @throws exceptions if there was a problem returning the state.
+     */
+    virtual vbucket_state getPersistedVBucketState(Vbid vbid) = 0;
+
     void setVBucketState(Vbid vbid, const vbucket_state& vbs);
 
     /**

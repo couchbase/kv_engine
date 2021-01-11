@@ -2954,7 +2954,7 @@ void DurabilityCouchstoreBucketTest::
     const auto* vbstateCached = kvstore.getCachedVBucketState(vbid);
     EXPECT_EQ(0, vbstateCached->onDiskPrepares);
     EXPECT_EQ(0, vbstateCached->getOnDiskPrepareBytes());
-    const auto vbstateDisk = kvstore.readVBState(vbid);
+    const auto vbstateDisk = kvstore.getPersistedVBucketState(vbid);
     EXPECT_EQ(0, vbstateDisk.onDiskPrepares);
     EXPECT_EQ(0, vbstateDisk.getOnDiskPrepareBytes());
 }
@@ -2992,7 +2992,7 @@ void DurabilityCouchstoreBucketTest::testOnDiskPrepareSizeUpgrade(
     const auto* vbstateCached = kvstore.getCachedVBucketState(vbid);
     EXPECT_EQ(1, vbstateCached->onDiskPrepares);
     EXPECT_EQ(0, vbstateCached->getOnDiskPrepareBytes());
-    const auto vbstateDisk = kvstore.readVBState(vbid);
+    const auto vbstateDisk = kvstore.getPersistedVBucketState(vbid);
     EXPECT_EQ(1, vbstateDisk.onDiskPrepares);
     EXPECT_EQ(0, vbstateDisk.getOnDiskPrepareBytes());
 }

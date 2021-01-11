@@ -3697,7 +3697,7 @@ const KVStoreConfig& CouchKVStore::getConfig() const {
     return configuration;
 }
 
-vbucket_state CouchKVStore::readVBState(Vbid vbid) {
+vbucket_state CouchKVStore::getPersistedVBucketState(Vbid vbid) {
     DbHolder db(*this);
     const auto errorCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errorCode != COUCHSTORE_SUCCESS) {

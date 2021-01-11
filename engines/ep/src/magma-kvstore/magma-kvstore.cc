@@ -1658,6 +1658,18 @@ vbucket_state* MagmaKVStore::getCachedVBucketState(Vbid vbid) {
     return vbstate.get();
 }
 
+vbucket_state MagmaKVStore::getPersistedVBucketState(Vbid vbid) {
+    auto state = readVBStateFromDisk(vbid);
+    if (!state.status.IsOK()) {
+        throw std::runtime_error(
+                "MagmaKVStore::getPersistedVBucketState "
+                "failed with status " +
+                state.status.String());
+    }
+
+    return state.vbstate;
+}
+
 MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(Vbid vbid) {
     Status status;
     std::string valString;

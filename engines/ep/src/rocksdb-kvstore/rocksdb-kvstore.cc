@@ -1893,3 +1893,16 @@ void RocksDBKVStore::addStats(const AddStatFn& add_stat,
 const KVStoreConfig& RocksDBKVStore::getConfig() const {
     return configuration;
 }
+
+vbucket_state RocksDBKVStore::getPersistedVBucketState(Vbid vbid) {
+    auto handle = getVBHandle(vbid);
+    auto state = readVBStateFromDisk(*handle);
+    if (!state.status.ok()) {
+        throw std::runtime_error(
+                "RocksDBKVStore::getPersistedVBucketState "
+                "failed with status " +
+                state.status.ToString());
+    }
+
+    return state.vbstate;
+}

@@ -381,7 +381,7 @@ public:
      * @param vbid
      * @return the persisted vbstate
      */
-    vbucket_state readVBState(Vbid vbid);
+    vbucket_state getPersistedVBucketState(Vbid vbid) override;
 
     /// Get the logger used by this bucket
     BucketLogger& getLogger() {

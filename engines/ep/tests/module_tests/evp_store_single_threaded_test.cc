@@ -4918,7 +4918,7 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistNonMetaItems(
                                                      uint64_t hcs,
                                                      uint64_t maxDelRevSeqno) {
         const auto& cached = *kvStore.getCachedVBucketState(vbid);
-        const auto& onDisk = kvStore.readVBState(vbid);
+        const auto& onDisk = kvStore.getPersistedVBucketState(vbid);
         for (const auto& vbs : {cached, onDisk}) {
             EXPECT_EQ(lastSnapStart, vbs.lastSnapStart);
             EXPECT_EQ(lastSnapEnd, vbs.lastSnapEnd);
@@ -5047,7 +5047,7 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistVBStateOnly(
         EXPECT_EQ(expectedState,
                   kvStore.getCachedVBucketState(vbid)->transition.state);
         EXPECT_EQ(expectedState,
-                  kvStore.readVBState(vbid).transition.state); // on-disk
+                  kvStore.getPersistedVBucketState(vbid).transition.state);
     };
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);

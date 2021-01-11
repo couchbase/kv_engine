@@ -228,6 +228,8 @@ public:
         return cachedVBStates[vbucketId.get()].get();
     }
 
+    vbucket_state getPersistedVBucketState(Vbid vbid) override;
+
     size_t getNumPersistedDeletes(Vbid vbid) override {
         // TODO vmx 2016-10-29: implement
         return 0;
