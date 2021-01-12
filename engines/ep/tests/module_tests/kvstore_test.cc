@@ -1047,7 +1047,6 @@ TEST_P(KVStoreParamTest, Durability_PersistAbort) {
     StoredDocKey key = makeStoredDocKey("key");
     auto qi = makePendingItem(key, "value");
     qi->setAbortSyncWrite();
-    qi->setDeleted();
     qi->setPrepareSeqno(999);
     qi->setBySeqno(1);
 

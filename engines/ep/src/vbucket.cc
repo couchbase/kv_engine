@@ -1357,8 +1357,6 @@ queued_item VBucket::createNewAbortedItem(const DocKey& key,
                                    getId());
 
     item->setAbortSyncWrite();
-    item->setDeleted();
-
     item->setPrepareSeqno(prepareSeqno);
 
     return item;

@@ -233,8 +233,6 @@ std::unique_ptr<Item> StoredValue::toItem(
 std::unique_ptr<Item> StoredValue::toItemAbort(Vbid vbid) const {
     auto item = toItemBase(vbid, HideLockedCas::No, IncludeValue::No);
     item->setAbortSyncWrite();
-    // Note: An abort has the same life-cycle as a deletion.
-    item->setDeleted();
     return item;
 }
 

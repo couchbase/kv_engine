@@ -378,6 +378,14 @@ void Item::setCommittedviaPrepareSyncWrite() {
 
 void Item::setAbortSyncWrite() {
     op = queue_op::abort_sync_write;
+
+    // Note: An abort has the same life-cycle as a deletion. If we are building
+    // an item via the KVStore or a StoredValue it should already be deleted.
+    if (!deleted) {
+        // Cause doesn't matter here, aborts will get sent as aborts not
+        // deletions or expiries.
+        setDeleted();
+    }
 }
 
 bool Item::isAnySyncWriteOp() const {
