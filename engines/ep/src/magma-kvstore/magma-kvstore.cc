@@ -559,7 +559,7 @@ MagmaKVStore::~MagmaKVStore() {
 }
 
 void MagmaKVStore::deinitialize() {
-    logger->debug("MagmaKVStore deinitialize");
+    logger->info("MagmaKVStore: {} deinitializing", configuration.getShardId());
 
     if (!inTransaction) {
         magma->Sync(true);
@@ -573,6 +573,8 @@ void MagmaKVStore::deinitialize() {
     // Flusher should have already been stopped so it should be safe to destroy
     // the magma instance now
     magma.reset();
+
+    logger->info("MagmaKVStore: {} deinitialized", configuration.getShardId());
 }
 
 std::string MagmaKVStore::getVBDBSubdir(Vbid vbid) {
