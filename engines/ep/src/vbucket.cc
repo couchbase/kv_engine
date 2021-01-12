@@ -753,7 +753,7 @@ void VBucket::resetStats() {
 }
 
 uint64_t VBucket::getQueueAge() {
-    uint64_t currDirtyQueueAge = dirtyQueueAge.load(std::memory_order_relaxed);
+    uint64_t currDirtyQueueAge = dirtyQueueAge.load();
     // dirtyQueue size is 0, so the queueAge is 0.
     if (currDirtyQueueAge == 0) {
         return 0;
@@ -3167,15 +3167,7 @@ void VBucket::decrDirtyQueueMem(size_t decrementBy)
 }
 
 void VBucket::decrDirtyQueueAge(size_t decrementBy) {
-    uint64_t oldVal, newVal;
-    do {
-        oldVal = dirtyQueueAge.load(std::memory_order_relaxed);
-        if (oldVal < decrementBy) {
-            newVal = 0;
-        } else {
-            newVal = oldVal - decrementBy;
-        }
-    } while (!dirtyQueueAge.compare_exchange_strong(oldVal, newVal));
+    dirtyQueueAge.fetch_sub(decrementBy);
 }
 
 void VBucket::decrDirtyQueuePendingWrites(size_t decrementBy)

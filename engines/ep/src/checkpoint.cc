@@ -318,6 +318,16 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
                     }
                 }
 
+                if (rv == QueueDirtyStatus::SuccessExistingItem) {
+                    // Set the queuedTime of the item to the original queued
+                    // time. We must do this to ensure that the dirtyQueueAge
+                    // is tracked correctly when this item is persisted. If we
+                    // get PersistAgain from the above code then we'd just
+                    // increment/decrement the stat again so no adjustment is
+                    // necessary.
+                    qi->setQueuedTime((*it->second.position)->getQueuedTime());
+                }
+
                 addItemToCheckpoint(qi);
 
                 // Reduce the size of the checkpoint by the size of the

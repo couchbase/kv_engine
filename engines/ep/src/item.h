@@ -303,8 +303,9 @@ public:
         return static_cast<DeleteSource>(deletionCause);
     }
 
-    void setQueuedTime() {
-        queuedTime = std::chrono::steady_clock::now();
+    void setQueuedTime(std::chrono::steady_clock::time_point newTime =
+                               std::chrono::steady_clock::now()) {
+        queuedTime = newTime;
     }
 
     std::chrono::steady_clock::time_point getQueuedTime() const {
