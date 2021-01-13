@@ -16,7 +16,9 @@
  */
 
 #include "magma-kvstore.h"
+
 #include "bucket_logger.h"
+#include "ep_engine.h"
 #include "ep_time.h"
 #include "item.h"
 #include "magma-kvstore_config.h"
@@ -518,9 +520,20 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     createDataDir(configuration.magmaCfg.Path);
 
     // Create a logger that is prefixed with magma so that all code from
-    // wrapper down through magma use this logger.
-    std::string loggerName =
-            "magma_" + std::to_string(configuration.getShardId());
+    // wrapper down through magma uses this logger. As the spdlog API does not
+    // set their log functions to virtual and magma needs to maintain some
+    // separation from KV it does not use the BucketLogger log functions which
+    // prefix the engine name. As such we have to manually add the prefix to the
+    // logger name/prefix here.
+
+    EventuallyPersistentEngine* engine = ObjectRegistry::getCurrentEngine();
+    // Some tests may not have an engine.
+    std::string loggerName;
+    if (engine) {
+        loggerName += '(' + engine->getName() + ") ";
+    }
+
+    loggerName += "magma_" + std::to_string(configuration.getShardId());
     logger = BucketLogger::createBucketLogger(loggerName, loggerName);
     configuration.magmaCfg.LogContext = logger;
     configuration.magmaCfg.UID = loggerName;
