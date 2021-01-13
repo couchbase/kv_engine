@@ -2379,8 +2379,8 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getInner(
         Vbid vbucket,
         get_options_t options) {
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
-            HdrMicroSecStopwatch(stats.getCmdHisto),
-            TracerStopwatch(cookie, cb::tracing::Code::Get));
+            std::forward_as_tuple(stats.getCmdHisto),
+            std::forward_as_tuple(cookie, cb::tracing::Code::Get));
 
     GetValue gv(kvBucket->get(key, vbucket, cookie, options));
     ENGINE_ERROR_CODE ret = gv.getStatus();
@@ -2441,8 +2441,8 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
         Vbid vbucket,
         std::function<bool(const item_info&)> filter) {
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
-            HdrMicroSecStopwatch(stats.getCmdHisto),
-            TracerStopwatch(cookie, cb::tracing::Code::GetIf));
+            std::forward_as_tuple(stats.getCmdHisto),
+            std::forward_as_tuple(cookie, cb::tracing::Code::GetIf));
 
     // Fetch an item from the hashtable (without trying to schedule a bg-fetch
     // and pass it through the filter. If the filter accepts the document
@@ -2560,8 +2560,8 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
         const cb::StoreIfPredicate& predicate,
         bool preserveTtl) {
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
-            HdrMicroSecStopwatch(stats.storeCmdHisto),
-            TracerStopwatch(cookie, cb::tracing::Code::Store));
+            std::forward_as_tuple(stats.storeCmdHisto),
+            std::forward_as_tuple(cookie, cb::tracing::Code::Store));
 
     // MB-37374: Ensure that documents in deleted state have no user value.
     if (mcbp::datatype::is_xattr(item.getDataType()) && item.isDeleted()) {
@@ -4567,8 +4567,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(
         std::string_view value,
         const AddStatFn& add_stat) {
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
-            HdrMicroSecStopwatch(stats.getStatsCmdHisto),
-            TracerStopwatch(cookie, cb::tracing::Code::GetStats));
+            std::forward_as_tuple(stats.getStatsCmdHisto),
+            std::forward_as_tuple(cookie, cb::tracing::Code::GetStats));
 
     if (key.empty()) {
         EP_LOG_DEBUG("stats engine");
