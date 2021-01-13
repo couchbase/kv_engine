@@ -1104,14 +1104,15 @@ static FileInfo toFileInfo(const cb::couchstore::Header& info) {
  * we need to set the purge sequence number in the couchstore header.
  *
  * @param db The database instance to update
- * @param on_disk_prepares The new value to store in _local/vbstate
+ * @param prepareStats All the prepare stats changed during compaction
  * @param purge_seqno The new value to store in the couchstore header
  * @returns COUCHSTORE_SUCCESS on success, couchstore error otherwise (which
  *          will cause replay to fail).
  */
-static couchstore_error_t replayPrecommitHook(Db& db,
-                                              uint64_t on_disk_prepares,
-                                              uint64_t purge_seqno) {
+static couchstore_error_t replayPrecommitHook(
+        Db& db,
+        CompactionReplayPrepareStats prepareStats,
+        uint64_t purge_seqno) {
     couchstore_set_purge_seq(&db, purge_seqno);
     auto [status, json] = getLocalVbState(db);
     if (status != COUCHSTORE_SUCCESS) {
@@ -1119,12 +1120,12 @@ static couchstore_error_t replayPrecommitHook(Db& db,
     }
     try {
         if (std::stoul(json["on_disk_prepares"].get<std::string>()) ==
-            on_disk_prepares) {
+            prepareStats.onDiskPrepares) {
             // The value in _local/vbstate is already up to date!
             return COUCHSTORE_SUCCESS;
         }
 
-        json["on_disk_prepares"] = std::to_string(on_disk_prepares);
+        json["on_disk_prepares"] = std::to_string(prepareStats.onDiskPrepares);
         return setLocalVbState(db, json);
     } catch (std::exception& e) {
         return COUCHSTORE_ERROR_CORRUPT;
@@ -1141,12 +1142,13 @@ static couchstore_error_t replayPrecommitHook(Db& db,
  *
  * @param target The destination database
  * @param docInfo The document to check
- * @param on_disk_prepares The current number of on_disk_prepares [IN/OUT]
+ * @param prepareStats All the prepare stats changed during compaction[IN/OUT]
  * @return COUCHSTORE_SUCCESS on success, couchstore error otherwise
  */
-static couchstore_error_t replayPreCopyHook(Db& target,
-                                            const DocInfo* docInfo,
-                                            uint64_t& on_disk_prepares) {
+static couchstore_error_t replayPreCopyHook(
+        Db& target,
+        const DocInfo* docInfo,
+        CompactionReplayPrepareStats& prepareStats) {
     if (docInfo) {
         auto metadata = MetaDataFactory::createMetaData(docInfo->rev_meta);
         // Reminder! An abort is a deleted (by the DocInfo flag) prepare. A
@@ -1159,7 +1161,7 @@ static couchstore_error_t replayPreCopyHook(Db& target,
                     target,
                     std::string_view{docInfo->id.buf, docInfo->id.size});
             if (st == COUCHSTORE_SUCCESS && !di->deleted) {
-                --on_disk_prepares;
+                --prepareStats.onDiskPrepares;
             }
         }
 
@@ -1170,9 +1172,9 @@ static couchstore_error_t replayPreCopyHook(Db& target,
                     target,
                     std::string_view{docInfo->id.buf, docInfo->id.size});
             if (st == COUCHSTORE_ERROR_DOC_NOT_FOUND) {
-                ++on_disk_prepares;
+                ++prepareStats.onDiskPrepares;
             } else if (st == COUCHSTORE_SUCCESS && di->deleted) {
-                ++on_disk_prepares;
+                ++prepareStats.onDiskPrepares;
             }
         }
     }
@@ -1246,7 +1248,7 @@ bool CouchKVStore::compactDBInternal(DbHolder& sourceDb,
         //       traversing historical data is what we want to do :S
         hook_ctx->bloomFilterCallback = {};
 
-        uint64_t on_disk_prepares = 0;
+        CompactionReplayPrepareStats prepareStats;
         uint64_t purge_seqno = 0;
         errCode = cb::couchstore::compact(
                 *sourceDb,
@@ -1282,24 +1284,23 @@ bool CouchKVStore::compactDBInternal(DbHolder& sourceDb,
                                     getDroppedCollections(db));
                     return COUCHSTORE_SUCCESS;
                 },
-                [this, &vbid, &on_disk_prepares, &purge_seqno](Db& db) {
+                [this, &vbid, &prepareStats, &purge_seqno](Db& db) {
                     auto [status, state] = readVBState(&db, vbid);
                     if (status != ReadVBStateStatus::Success) {
                         return COUCHSTORE_ERROR_CANCEL;
                     }
-                    on_disk_prepares = state.onDiskPrepares;
+                    prepareStats.onDiskPrepares = state.onDiskPrepares;
                     purge_seqno = cb::couchstore::getHeader(db).purgeSeqNum;
                     return COUCHSTORE_SUCCESS;
                 },
-                [&on_disk_prepares](Db&,
-                                    Db& target,
-                                    const DocInfo* docInfo,
-                                    const DocInfo*) {
-                    return replayPreCopyHook(target, docInfo, on_disk_prepares);
+                [&prepareStats](Db&,
+                                Db& target,
+                                const DocInfo* docInfo,
+                                const DocInfo*) {
+                    return replayPreCopyHook(target, docInfo, prepareStats);
                 },
-                [&on_disk_prepares, &purge_seqno](Db& db) {
-                    return replayPrecommitHook(
-                            db, on_disk_prepares, purge_seqno);
+                [&prepareStats, &purge_seqno](Db& db) {
+                    return replayPrecommitHook(db, prepareStats, purge_seqno);
                 });
     } else {
         auto [status, state] = readVBState(sourceDb.getDb(), vbid);
@@ -1386,7 +1387,7 @@ bool CouchKVStore::compactDBInternal(DbHolder& sourceDb,
         return false;
     }
 
-    uint64_t on_disk_prepares;
+    CompactionReplayPrepareStats prepareStats;
     {
         auto [status, json] = getLocalVbState(*targetDb);
         if (status != COUCHSTORE_SUCCESS) {
@@ -1395,7 +1396,7 @@ bool CouchKVStore::compactDBInternal(DbHolder& sourceDb,
                         couchstore_strerror(status));
             return false;
         }
-        on_disk_prepares =
+        prepareStats.onDiskPrepares =
                 std::stoul(json["on_disk_prepares"].get<std::string>());
     }
 
@@ -1416,7 +1417,7 @@ bool CouchKVStore::compactDBInternal(DbHolder& sourceDb,
                                vbLock,
                                true, // copy without lock
                                hook_ctx->max_purged_seq,
-                               on_disk_prepares,
+                               prepareStats,
                                vbid)) {
             // I'm at the tip
             break;
@@ -1436,7 +1437,7 @@ bool CouchKVStore::compactDBInternal(DbHolder& sourceDb,
                        vbLock,
                        false, // copy with lock
                        hook_ctx->max_purged_seq,
-                       on_disk_prepares,
+                       prepareStats,
                        vbid);
     // Close the source Database File once compaction is done
     sourceDb.close();
@@ -1487,7 +1488,7 @@ bool CouchKVStore::compactDBInternal(DbHolder& sourceDb,
         state->purgeSeqno = info.purgeSeqNum;
         cachedDeleteCount[vbid.get()] = info.deletedCount;
         cachedDocCount[vbid.get()] = info.docCount;
-        state->onDiskPrepares = on_disk_prepares;
+        state->onDiskPrepares = prepareStats.onDiskPrepares;
         state->updateOnDiskPrepareBytes(
                 -int64_t(hook_ctx->stats.prepareBytesPurged));
         cachedOnDiskPrepareSize[vbid.get()] = state->getOnDiskPrepareBytes();
@@ -1604,13 +1605,14 @@ couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
     return COUCHSTORE_SUCCESS;
 }
 
-bool CouchKVStore::tryToCatchUpDbFile(Db& source,
-                                      Db& destination,
-                                      std::unique_lock<std::mutex>& lock,
-                                      bool copyWithoutLock,
-                                      uint64_t purge_seqno,
-                                      uint64_t& on_disk_prepares,
-                                      Vbid vbid) {
+bool CouchKVStore::tryToCatchUpDbFile(
+        Db& source,
+        Db& destination,
+        std::unique_lock<std::mutex>& lock,
+        bool copyWithoutLock,
+        uint64_t purge_seqno,
+        CompactionReplayPrepareStats& prepareStats,
+        Vbid vbid) {
     if (!lock.owns_lock()) {
         throw std::logic_error(
                 "CouchKVStore::tryToCatchUpDbFile: lock must be held");
@@ -1657,13 +1659,13 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
             destination,
             delta,
             end.headerPosition,
-            [&on_disk_prepares](
+            [&prepareStats](
                     Db&, Db& target, const DocInfo* docInfo, const DocInfo*) {
-                return replayPreCopyHook(target, docInfo, on_disk_prepares);
+                return replayPreCopyHook(target, docInfo, prepareStats);
             },
-            [&on_disk_prepares, &purge_seqno](Db& compacted) {
+            [&prepareStats, &purge_seqno](Db& compacted) {
                 return replayPrecommitHook(
-                        compacted, on_disk_prepares, purge_seqno);
+                        compacted, prepareStats, purge_seqno);
             });
     if (err != COUCHSTORE_SUCCESS) {
         throw std::runtime_error("Failed to replay data!");

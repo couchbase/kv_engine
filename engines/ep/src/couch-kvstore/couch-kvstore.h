@@ -128,6 +128,10 @@ protected:
     LocalDoc doc{};
 };
 
+struct CompactionReplayPrepareStats {
+    uint64_t onDiskPrepares = 0;
+};
+
 struct kvstats_ctx;
 
 /**
@@ -682,7 +686,7 @@ protected:
      *                        prevents other threads to write to the
      *                        source database)
      * @param purge_seqno The purge seqno to set in the headers
-     * @param on_disk_prepares The current count of disk prepares)
+     * @param prepareStats The prepare stats that compaction updates
      * @param vbid the vbucket (used for logging)
      * @return true if the destination database is caught up with the source
      *              database
@@ -692,7 +696,7 @@ protected:
                             std::unique_lock<std::mutex>& lock,
                             bool copyWithoutLock,
                             uint64_t purge_seqno,
-                            uint64_t& on_disk_prepares,
+                            CompactionReplayPrepareStats& prepareStats,
                             Vbid vbid);
 
     /**
