@@ -2497,6 +2497,11 @@ void VBucket::deleteExpiredItem(const Item& it,
             //  HashTable
             ht.unlocked_updateStoredValue(hbl, *v, it);
             VBNotifyCtx notifyCtx;
+
+            // processExpiredItem expires the StoredValue at htRes.committed so
+            // we must set it to our new StoredValue
+            htRes.committed = v;
+
             std::tie(std::ignore, std::ignore, notifyCtx) =
                     processExpiredItem(htRes, cHandle, source);
             // we unlock ht lock here because we want to avoid potential

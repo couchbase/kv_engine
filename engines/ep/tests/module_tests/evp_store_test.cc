@@ -659,6 +659,39 @@ TEST_P(EPBucketFullEvictionTest, xattrExpiryOnFullyEvictedItem) {
             << "The foo attribute should be gone";
 }
 
+TEST_P(EPBucketFullEvictionTest, ExpiryFindNonResidentItem) {
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setVBucketState(vbid, vbucket_state_active, {}));
+
+    // 1) Store item
+    auto key = makeStoredDocKey("a");
+    store_item(vbid, key, "v1");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // 2) Grab item from disk just like the compactor would
+    vb_bgfetch_queue_t q;
+    vb_bgfetch_item_ctx_t ctx;
+    ctx.addBgFetch(std::make_unique<FrontEndBGFetchItem>(
+            nullptr, ValueFilter::VALUES_DECOMPRESSED));
+    auto diskDocKey = makeDiskDocKey("a");
+    q[diskDocKey] = std::move(ctx);
+    store->getRWUnderlying(vbid)->getMulti(vbid, q);
+    EXPECT_EQ(ENGINE_SUCCESS, q[diskDocKey].value.getStatus());
+    EXPECT_EQ("v1", q[diskDocKey].value.item->getValue()->to_s());
+
+    // 3) Evict item
+    evict_key(vbid, key);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_EQ(0, vb->numExpiredItems);
+
+    // 4) Callback from the "pager" with the item.
+    vb->deleteExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Pager);
+    EXPECT_EQ(1, vb->numExpiredItems);
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+}
+
 void EPBucketFullEvictionTest::compactionFindsNonResidentItem(
         bool dropCollection) {
     EXPECT_EQ(ENGINE_SUCCESS,
