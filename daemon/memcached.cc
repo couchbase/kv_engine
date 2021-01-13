@@ -1078,23 +1078,13 @@ void DestroyBucketThread::destroy() {
             guard.lock();
         }
 
+        using std::chrono::minutes;
         using std::chrono::seconds;
         using std::chrono::steady_clock;
 
-        auto nextLog = steady_clock::now() + seconds(30);
-        nlohmann::json prevDump;
-
         // We need to disconnect all of the clients before we can delete the
-        // bucket. We try to log stuff while we're waiting in order to
-        // know why stuff isn't complete. We'll do it in the following way:
-        //
-        //       1. Don't log anything the first 30 seconds. Then
-        //          dump the state of all stuck connections.
-        //       2. Don't og anything for the next 30 seconds. Then
-        //          dump the state of all stuck connections which
-        //          changed since the previous dump.
-        //       3. goto 2.
-        //
+        // bucket. We log pending connections that are blocking bucket deletion.
+        auto nextLog = steady_clock::now() + minutes(2);
         while (bucket.clients > 0) {
             bucket.cond.wait_for(guard, seconds(1), [&bucket] {
                 return bucket.clients == 0;
@@ -1116,45 +1106,25 @@ void DestroyBucketThread::destroy() {
                 continue;
             }
 
-            nextLog = steady_clock::now() + seconds(30);
+            nextLog = steady_clock::now() + minutes(1);
 
             // drop the lock and notify the worker threads
             guard.unlock();
 
-            nlohmann::json current;
-            iterate_all_connections([&bucket, &current](Connection& conn) {
+            nlohmann::json currConns;
+            iterate_all_connections([&bucket, &currConns](Connection& conn) {
                 if (&conn.getBucket() == &bucket) {
                     conn.signalIfIdle();
-                    current[std::to_string(conn.getId())] = conn.toJSON();
+                    currConns[std::to_string(conn.getId())] = conn.toJSON();
                 }
             });
-            auto diff = current;
 
-            // remove all connections which didn't change
-            for (auto it = prevDump.begin(); it != prevDump.end(); ++it) {
-                auto entry = diff.find(it.key());
-                if (entry != diff.end()) {
-                    if (it.value().dump() == entry->dump()) {
-                        diff.erase(entry);
-                    }
-                }
-            }
-
-            prevDump = std::move(current);
-            if (diff.empty()) {
-                LOG_INFO(
-                        R"({}: Delete bucket [{}]. Still waiting: {} clients connected (state is unchanged).)",
-                        connection_id,
-                        name,
-                        bucket.clients);
-            } else {
-                LOG_INFO(
-                        R"({}: Delete bucket [{}]. Still waiting: {} clients connected: {})",
-                        connection_id,
-                        name,
-                        bucket.clients,
-                        diff.dump());
-            }
+            LOG_INFO(
+                    R"({}: Delete bucket [{}]. Still waiting: {} clients connected: {})",
+                    connection_id,
+                    name,
+                    bucket.clients,
+                    currConns.dump());
 
             guard.lock();
         }
