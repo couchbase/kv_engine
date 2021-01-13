@@ -21,6 +21,7 @@
 
 #include "../mock/mock_global_task.h"
 #include "../mock/mock_paging_visitor.h"
+#include "../mock/mock_stat_collector.h"
 #include "bgfetcher.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_utils.h"
@@ -36,6 +37,7 @@
 
 #include <folly/portability/GTest.h>
 #include <programs/engine_testapp/mock_server.h>
+#include <statistics/labelled_collector.h>
 #include <string_utilities.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
@@ -198,7 +200,8 @@ protected:
      */
     size_t populateVbsUntil(const std::vector<Vbid>& vbids,
                             const std::function<bool()>& predicate,
-                            std::string_view keyPrefix = "key_") {
+                            std::string_view keyPrefix = "key_",
+                            size_t itemSize = 5000) {
         bool populate = true;
         int count = 0;
         while (populate) {
@@ -208,7 +211,8 @@ protected:
                 {
                     auto key = makeStoredDocKey(std::string(keyPrefix) +
                                                 std::to_string(count++));
-                    auto item = make_item(vbid, key, std::string(5000, 'x'));
+                    auto item =
+                            make_item(vbid, key, std::string(itemSize, 'x'));
                     // make the items have a range of MFU values
                     // without this, no matter what percent of items should be
                     // evicted, either all of them or none of them would be
@@ -1217,6 +1221,122 @@ TEST_P(STItemPagerTest, ItemPagerEvictionOrder) {
     // visitor is definitely done, rather than paused
     while (task.run())
         ;
+}
+
+TEST_P(STItemPagerTest, MB43559_EvictionWithoutReplicasReachesLWM) {
+    // MB-43559: Test that eviction does not stop once memory usage drops
+    // below the high watermark if there are no replica vbuckets
+
+    if (!persistent()) {
+        // ephemeral buckets are never less than 100% resident and are not
+        // vulnerable to the bug (see MB)
+        return;
+    }
+
+    // Magma's memory usage makes calculations around recovering memory
+    // through eviction difficult. Increase the quota to allow eviction
+    // to actually reach the low watermark despite magma's memory usage
+    if (isMagma()) {
+        increaseQuota(2 * 1024 * 1024);
+    }
+
+    // issue involves eviction skipping vbuckets after mem_used < hwm,
+    // so multiple vbuckets are needed
+    std::vector<Vbid> vbids = {Vbid(0), Vbid(1), Vbid(2), Vbid(3)};
+
+    // set vbs active
+    for (const auto& vb : vbids) {
+        setVBucketStateAndRunPersistTask(vb, vbucket_state_active);
+    }
+
+    auto& stats = engine->getEpStats();
+
+    // check that baseline memory usage is definitely below the LWM
+    ASSERT_LT(stats.getPreciseTotalMemoryUsed(), stats.mem_low_wat.load());
+
+    auto aboveHWM = [&stats]() {
+        return stats.getPreciseTotalMemoryUsed() > stats.mem_high_wat.load();
+    };
+
+    auto itemCount = 0;
+    auto i = 0;
+    // items need to be persisted to be evicted, but flushing after each item
+    // would be slow. Load to the HWM, then flush, then repeat if we dropped
+    // below the HWM
+    while (!aboveHWM()) {
+        itemCount += populateVbsUntil(
+                vbids, aboveHWM, "keys_" + std::to_string(i++) + "_", 500);
+        for (const auto& vb : vbids) {
+            // flush and remove checkpoints as eviction will not touch
+            // dirty items
+            flushAndRemoveCheckpoints(vb);
+        }
+    }
+
+    EXPECT_GT(itemCount, 100);
+
+    // Note: prior to the fix for this MB, eviction relied upon cached
+    // residency ratios _which were only updated when gathering stats_.
+    // This is no longer the case post-fix, but to ensure the test _would_
+    // fail prior to the fix, this is done here.
+    auto refreshCachedResidentRatios = [&store=store, &engine=engine]() {
+        // call getAggregatedVBucketStats to updated cached resident ratios (as
+        // returned by `store->get*ResidentRatio()`)
+        testing::NiceMock<MockStatCollector> collector;
+        store->getAggregatedVBucketStats(collector.forBucket("foobar"));
+    };
+    refreshCachedResidentRatios();
+
+    // confirm we are above the high watermark, and can test the item pager
+    // behaviour
+    ASSERT_GT(stats.getEstimatedTotalMemoryUsed(), stats.mem_high_wat.load());
+
+    // there are no replica buckets
+    ASSERT_EQ(0, store->getNumOfVBucketsInState(vbucket_state_replica));
+    // the replica resident ratio defaults to 100 as there are no replica items
+    ASSERT_EQ(100, store->getReplicaResidentRatio());
+
+    // age is not relevant to this test, increase the mfu threshold under which
+    // age is ignored
+    auto& config = engine->getConfiguration();
+    config.setItemEvictionFreqCounterAgeThreshold(255);
+
+    // to make sure this isn't sensitive to small changes in memory usage,
+    // try to evict _everything_ (eviction ratio 1.0). If mem_used still hasn't
+    // gone below the lwm then something is definitely wrong.
+    auto available = std::make_shared<std::atomic<bool>>();
+
+    auto pv = std::make_unique<MockPagingVisitor>(
+            *store,
+            stats,
+            EvictionRatios{1.0 /* active&pending */, 1.0 /* replica */},
+            available,
+            ITEM_PAGER,
+            false,
+            VBucketFilter(vbids),
+            config.getItemEvictionAgePercentage(),
+            config.getItemEvictionFreqCounterAgeThreshold());
+
+    auto label = "Item pager";
+    auto taskid = TaskId::ItemPagerVisitor;
+    VBCBAdaptor task(store,
+                     taskid,
+                     std::move(pv),
+                     label,
+                     /*shutdown*/ false);
+
+    // call the run method repeatedly until it returns false, indicating the
+    // visitor is definitely done, rather than paused
+    while (task.run()) {
+        // need to refresh the resident ratio so it reflects active RR < 100
+        // after some items have been evicted. This wouldn't need to happen
+        // _during_ eviction in a full repro, just _once_ ever after active RR
+        // drops.
+        refreshCachedResidentRatios();
+    }
+
+    // confirm that memory usage is now below the low watermark
+    EXPECT_LT(stats.getPreciseTotalMemoryUsed(), stats.mem_low_wat.load());
 }
 
 /**

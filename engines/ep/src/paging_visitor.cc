@@ -228,11 +228,6 @@ void PagingVisitor::visitBucket(const VBucketPtr& vb) {
     // skip active vbuckets if active resident ratio is lower than replica
     auto current = static_cast<double>(stats.getEstimatedTotalMemoryUsed());
     auto lower = static_cast<double>(stats.mem_low_wat);
-    auto high = static_cast<double>(stats.mem_high_wat);
-    if (vb->getState() == vbucket_state_active && current < high &&
-        store.getActiveResidentRatio() < store.getReplicaResidentRatio()) {
-        return;
-    }
 
     if (current > lower) {
         if (vBucketFilter(vb->getId())) {

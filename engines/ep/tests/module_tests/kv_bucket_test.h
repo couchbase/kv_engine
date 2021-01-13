@@ -96,6 +96,11 @@ public:
     void flush_vbucket_to_disk(Vbid vbid, size_t expected = 1);
 
     /**
+     * Check if the current bucket is a persistent bucket.
+     */
+    bool persistent() const;
+
+    /**
      * Flush the given vBucket to disk if the bucket is peristent, otherwise
      * do nothing.
      * @param vbid vBucket to flush
