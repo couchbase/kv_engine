@@ -89,11 +89,11 @@ public:
         }
     }
 
-    void start(std::chrono::steady_clock::time_point tp) {
+    void start(cb::tracing::Clock::time_point tp) {
         startTime = tp;
     }
 
-    void stop(std::chrono::steady_clock::time_point tp) {
+    void stop(cb::tracing::Clock::time_point tp) {
         stopTime = tp;
     }
 
@@ -101,6 +101,6 @@ protected:
     cb::tracing::Traceable* const traceable;
     const cb::tracing::Code code;
 
-    std::chrono::steady_clock::time_point startTime;
-    std::chrono::steady_clock::time_point stopTime;
+    cb::tracing::Clock::time_point startTime;
+    cb::tracing::Clock::time_point stopTime;
 };

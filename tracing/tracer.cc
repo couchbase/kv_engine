@@ -22,23 +22,16 @@
 #include <limits>
 #include <sstream>
 
-std::chrono::microseconds to_micros(
-        const std::chrono::steady_clock::time_point tp) {
-    return std::chrono::time_point_cast<std::chrono::microseconds>(tp)
-            .time_since_epoch();
-}
-
 namespace cb::tracing {
 
-SpanId Tracer::begin(Code tracecode,
-                     std::chrono::steady_clock::time_point startTime) {
+SpanId Tracer::begin(Code tracecode, Clock::time_point startTime) {
     return vecSpans.withLock([tracecode, startTime](auto& spans) {
         spans.emplace_back(tracecode, startTime);
         return spans.size() - 1;
     });
 }
 
-bool Tracer::end(SpanId spanId, std::chrono::steady_clock::time_point endTime) {
+bool Tracer::end(SpanId spanId, Clock::time_point endTime) {
     return vecSpans.withLock([spanId, endTime](auto& spans) {
         if (spanId >= spans.size()) {
             return false;
@@ -65,8 +58,8 @@ Span::Duration Tracer::getTotalMicros() const {
         const auto& top = spans.at(0);
         // If the Span has not yet been closed; return the duration up to now.
         if (top.duration == Span::Duration::max()) {
-            return std::chrono::duration_cast<Span::Duration>(
-                    std::chrono::steady_clock::now() - top.start);
+            return std::chrono::duration_cast<Span::Duration>(Clock::now() -
+                                                              top.start);
         }
         return top.duration;
     });

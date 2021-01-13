@@ -51,6 +51,7 @@ enum class Code : uint8_t {
 };
 
 using SpanId = std::size_t;
+using Clock = std::chrono::steady_clock;
 
 class MEMCACHED_PUBLIC_CLASS Span {
 public:
@@ -59,11 +60,11 @@ public:
     using Duration = std::chrono::duration<int32_t, std::micro>;
 
     Span(Code code,
-         std::chrono::steady_clock::time_point start,
+         Clock::time_point start,
          Duration duration = Duration::max())
         : start(start), duration(duration), code(code) {
     }
-    std::chrono::steady_clock::time_point start;
+    Clock::time_point start;
     Duration duration;
     Code code;
 };
@@ -75,14 +76,10 @@ public:
 class MEMCACHED_PUBLIC_CLASS Tracer {
 public:
     /// Begin a Span starting from the specified time point (defaults to now)
-    SpanId begin(Code tracecode,
-                 std::chrono::steady_clock::time_point startTime =
-                         std::chrono::steady_clock::now());
+    SpanId begin(Code tracecode, Clock::time_point startTime = Clock::now());
 
     /// End a Span, stopping at the specified time point (defaults to now).
-    bool end(SpanId spanId,
-             std::chrono::steady_clock::time_point endTime =
-                     std::chrono::steady_clock::now());
+    bool end(SpanId spanId, Clock::time_point endTime = Clock::now());
 
     // Extract the trace vector (and clears the internal trace vector)
     std::vector<Span> extractDurations();
