@@ -120,14 +120,18 @@ std::pair<CompactionConfig, std::vector<const void*>>
 CompactTask::preDoCompact() {
     auto lockedState = compaction.wlock();
     lockedState->rescheduleRequired = false;
-    return {lockedState->config, std::move(lockedState->cookiesWaiting)};
+    // config and cookiesWaiting are moved out to the task run loop, any
+    // subsequent schedule now operates on the 'empty' objects whilst run
+    // gets on with compacting using the returned values.
+    return {std::move(lockedState->config),
+            std::move(lockedState->cookiesWaiting)};
 }
 
 void CompactTask::runCompactionWithConfig(
         std::optional<CompactionConfig> config, const void* cookie) {
     auto lockedState = compaction.wlock();
     if (config) {
-        lockedState->config = config.value();
+        lockedState->config.merge(config.value());
     }
     if (cookie) {
         lockedState->cookiesWaiting.push_back(cookie);

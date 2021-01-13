@@ -1671,6 +1671,40 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionWithNewConfig) {
     EXPECT_FALSE(task);
 }
 
+// Test that scheduling compaction means the task which runs, runs with a merged
+// configuration that meets all requests.
+TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionAndMergeNewConfig) {
+    auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
+    // Array of configs to use for each call to schedule, it should result
+    // in a config for the run which is the 'merge of all'.
+    std::array<CompactionConfig, 5> configs = {{{0, 0, false, false},
+                                                {0, 1000, false, false},
+                                                {1000, 0, false, false},
+                                                {9, 900, false, true},
+                                                {9, 900, true, false}}};
+
+    for (const auto& config : configs) {
+        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+                  mockEPBucket->scheduleCompaction(
+                          vbid, config, nullptr, std::chrono::seconds(0)));
+    }
+    auto task = mockEPBucket->getCompactionTask(vbid);
+    ASSERT_TRUE(task);
+    auto finalConfig = task->getCurrentConfig();
+
+    // Merged values, max for 'purge_before_' and true for the bools
+    EXPECT_EQ(1000, finalConfig.purge_before_ts);
+    EXPECT_EQ(1000, finalConfig.purge_before_seq);
+    EXPECT_TRUE(finalConfig.drop_deletes);
+    EXPECT_TRUE(finalConfig.retain_erroneous_tombstones);
+
+    // no reschedule needed
+    EXPECT_FALSE(task->run());
+
+    task = mockEPBucket->getCompactionTask(vbid);
+    EXPECT_FALSE(task);
+}
+
 // Test that scheduling compaction when a task is already running the task
 // will reschedule *and* the reschedule picks up the new config.
 TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {

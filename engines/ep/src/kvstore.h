@@ -98,14 +98,44 @@ struct CompactionStats {
 };
 
 struct CompactionConfig {
-    uint64_t purge_before_ts = 0;
-    uint64_t purge_before_seq = 0;
-    uint8_t drop_deletes = 0;
-    bool retain_erroneous_tombstones = false;
+    CompactionConfig() = default;
+    CompactionConfig(uint64_t purge_before_ts,
+                     uint64_t purge_before_seq,
+                     bool drop_deletes,
+                     bool retain_erroneous_tombstones)
+        : purge_before_ts(purge_before_ts),
+          purge_before_seq(purge_before_seq),
+          drop_deletes(drop_deletes),
+          retain_erroneous_tombstones(retain_erroneous_tombstones) {
+    }
+
+    CompactionConfig(const CompactionConfig&) = default;
+    CompactionConfig& operator=(const CompactionConfig& other) = default;
+
+    /// Move will value copy from 'other' and leave 'other' default constructed
+    CompactionConfig(CompactionConfig&& other);
+    /// Move will value copy from 'other' and leave 'other' default constructed
+    CompactionConfig& operator=(CompactionConfig&& other);
+
     bool operator==(const CompactionConfig& c) const;
     bool operator!=(const CompactionConfig& c) const {
         return !(*this == c);
     }
+
+    /**
+     * Merge 'other' into this instance. Merge results in this object being
+     * representative of the current config and the other config.
+     *
+     * - drop_deletes/retain_erroneous_tombstones are 'sticky', once true
+     *   they will remain true.
+     * - purge_before_ts and purge_before_seq become the max of this vs other
+     */
+    void merge(const CompactionConfig& other);
+
+    uint64_t purge_before_ts = 0;
+    uint64_t purge_before_seq = 0;
+    bool drop_deletes = false;
+    bool retain_erroneous_tombstones = false;
 };
 
 struct CompactionContext {

@@ -622,9 +622,39 @@ bool IORequest::isDelete() const {
     return item->isDeleted() && !item->isPending();
 }
 
+CompactionConfig::CompactionConfig(CompactionConfig&& other) {
+    *this = std::move(other);
+}
+
+CompactionConfig& CompactionConfig::operator=(CompactionConfig&& other) {
+    if (*this != other) {
+        purge_before_ts = other.purge_before_ts;
+        purge_before_seq = other.purge_before_seq;
+        drop_deletes = other.drop_deletes;
+        retain_erroneous_tombstones = other.retain_erroneous_tombstones;
+        other = CompactionConfig{}; // back to default values
+    }
+    return *this;
+}
+
 bool CompactionConfig::operator==(const CompactionConfig& other) const {
     return purge_before_ts == other.purge_before_ts &&
            purge_before_seq == other.purge_before_seq &&
            drop_deletes == other.drop_deletes &&
            retain_erroneous_tombstones == other.retain_erroneous_tombstones;
+}
+
+// Merge other into this.
+// drop_deletes and retain_erroneous_tombstones are 'sticky' once true
+// they should stay true for all subsequent merges.
+// purge_before_ts and purge_before_seq should be the largest value out of
+// the current and the input
+void CompactionConfig::merge(const CompactionConfig& other) {
+    retain_erroneous_tombstones =
+            retain_erroneous_tombstones || other.retain_erroneous_tombstones;
+    drop_deletes = drop_deletes || other.drop_deletes;
+    purge_before_ts =
+            std::max<uint64_t>(purge_before_ts, other.purge_before_ts);
+    purge_before_seq =
+            std::max<uint64_t>(purge_before_seq, other.purge_before_seq);
 }
