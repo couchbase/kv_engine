@@ -1703,13 +1703,17 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
     // the task has copied the config and logically compaction is running.
     CompactionConfig config3{300, 3, 0, false};
     task->setRunningCallback([this, &config3, mockEPBucket]() {
+        cookie_to_mock_cookie(cookie)->status = ENGINE_FAILED;
         EXPECT_EQ(ENGINE_EWOULDBLOCK,
                   mockEPBucket->scheduleCompaction(
-                          vbid, config3, nullptr, std::chrono::seconds(0)));
+                          vbid, config3, cookie, std::chrono::seconds(0)));
     });
 
     // Now we will manually call run, returns true means executor to run again.
     EXPECT_TRUE(task->run());
+
+    // Compaction for the cookie not yet executed
+    EXPECT_EQ(ENGINE_FAILED, cookie_to_mock_cookie(cookie)->status);
 
     // config3 is now the current config
     EXPECT_EQ(config3, task->getCurrentConfig());
@@ -1719,6 +1723,7 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
     // task is now done
     EXPECT_FALSE(task->run());
     EXPECT_FALSE(mockEPBucket->getCompactionTask(vbid));
+    EXPECT_EQ(ENGINE_SUCCESS, cookie_to_mock_cookie(cookie)->status);
 }
 
 class EPBucketTestCouchstore : public EPBucketTest {

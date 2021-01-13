@@ -1043,7 +1043,7 @@ ENGINE_ERROR_CODE EPBucket::scheduleCompaction(
     if (!emplaced) {
         // The existing task must be poked - it needs to either reschedule if
         // it is currently running or run with the given config.
-        task->runCompactionWithConfig(config);
+        task->runCompactionWithConfig(config, cookie);
         if (execDelay.count() > 0.0) {
             ExecutorPool::get()->snooze(task->getId(), execDelay.count());
         } else {
@@ -1254,7 +1254,7 @@ void EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {
 // Running on WriterTask - CompactTask
 bool EPBucket::doCompact(Vbid vbid,
                          CompactionConfig& config,
-                         const void* cookie) {
+                         std::vector<const void*>& cookies) {
     ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
 
     auto vb = getLockedVBucket(vbid, std::try_to_lock);
@@ -1265,9 +1265,11 @@ bool EPBucket::doCompact(Vbid vbid,
 
     if (vb) {
         compactInternal(vb, config);
-    } else if (cookie) {
+    } else if (!cookies.empty()) {
         err = ENGINE_NOT_MY_VBUCKET;
-        engine.storeEngineSpecific(cookie, nullptr);
+        for (const void* cookie : cookies) {
+            engine.storeEngineSpecific(cookie, nullptr);
+        }
         /**
          * Decrement session counter here, as memcached thread wouldn't
          * visit the engine interface in case of a NOT_MY_VB notification
@@ -1275,10 +1277,13 @@ bool EPBucket::doCompact(Vbid vbid,
         engine.decrementSessionCtr();
     }
 
-    if (cookie) {
+    for (const void* cookie : cookies) {
         engine.notifyIOComplete(cookie, err);
     }
-    --stats.pendingCompactions; // just size of map??
+    // All cookies notified so clear the container
+    cookies.clear();
+
+    --stats.pendingCompactions;
     return false;
 }
 

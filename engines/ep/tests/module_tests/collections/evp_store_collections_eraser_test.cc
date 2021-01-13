@@ -22,6 +22,7 @@
 #include "ephemeral_vb.h"
 #include "item.h"
 #include "kvstore.h"
+#include "programs/engine_testapp/mock_cookie.h"
 #include "tests/mock/mock_ep_bucket.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
@@ -1645,6 +1646,27 @@ TEST_P(CollectionsEraserPersistentOnly, DropManyCompactOnce) {
     EXPECT_EQ(1,
               (*task_executor->getLpTaskQ()[WRITER_TASK_IDX])
                       .getFutureQueueSize());
+
+    // Test extended to cover MB-43199
+    const int nCookies = 3;
+    std::vector<cb::tracing::Traceable*> cookies;
+    for (int ii = 0; ii < nCookies; ii++) {
+        cookies.push_back(create_mock_cookie());
+        cookie_to_mock_cookie(cookies.back())->status = ENGINE_FAILED;
+        // Now schedule as if a command had requested (i.e. set a cookie)
+        store->scheduleCompaction(
+                vbid, {}, cookies.back(), std::chrono::seconds(0));
+    }
+
+    std::string taskDescription =
+            "Compact DB file " + std::to_string(vbid.get());
+    runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX],
+                "Compact DB file " + std::to_string(vbid.get()));
+
+    for (auto* cookie : cookies) {
+        EXPECT_EQ(ENGINE_SUCCESS, cookie_to_mock_cookie(cookie)->status);
+        destroy_mock_cookie(cookie);
+    }
 }
 
 // Test cases which run for persistent and ephemeral buckets

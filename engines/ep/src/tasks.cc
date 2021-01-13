@@ -44,12 +44,15 @@ CompactTask::CompactTask(EPBucket& bucket,
                  0,
                  completeBeforeShutdown),
       bucket(bucket),
-      vbid(vbid),
-      cookie(ck) {
+      vbid(vbid) {
     auto lockedState = compaction.wlock();
 
     if (config) {
         lockedState->config = config.value();
+    }
+
+    if (ck) {
+        lockedState->cookiesWaiting.push_back(ck);
     }
 
     EP_LOG_INFO(
@@ -66,8 +69,9 @@ CompactTask::CompactTask(EPBucket& bucket,
 bool CompactTask::run() noexcept {
     TRACE_EVENT1("ep-engine/task", "CompactTask", "file_id", vbid.get());
 
-    // pull out the config we have been requested to run with
-    auto config = preDoCompact();
+    // pull out the config we have been requested to run with and any cookies
+    // that maybe waiting.
+    auto compactionData = preDoCompact();
 
     if (runningCallback) {
         runningCallback();
@@ -79,11 +83,15 @@ bool CompactTask::run() noexcept {
      * the erroneous tombstones especially in customer environments
      * for further analysis
      */
-    config.retain_erroneous_tombstones = bucket.isRetainErroneousTombstones();
+    compactionData.first.retain_erroneous_tombstones =
+            bucket.isRetainErroneousTombstones();
 
-    auto reschedule = bucket.doCompact(vbid, config, cookie);
+    auto reschedule =
+            bucket.doCompact(vbid, compactionData.first, compactionData.second);
+
     bucket.updateCompactionTasks(vbid, !reschedule /*canErase if !reschedule*/);
-    return reschedule || getRescheduleRequiredAndClear();
+
+    return isTaskDone(compactionData.second) || reschedule;
 }
 
 std::string CompactTask::getDescription() {
@@ -94,28 +102,35 @@ bool CompactTask::isRescheduleRequired() const {
     return compaction.rlock()->rescheduleRequired;
 }
 
-bool CompactTask::getRescheduleRequiredAndClear() {
+bool CompactTask::isTaskDone(const std::vector<const void*>& cookies) {
     auto handle = compaction.wlock();
     bool value = handle->rescheduleRequired;
     handle->rescheduleRequired = false;
-    return value;
+    // Any cookies remaining must be retained for a future run
+    handle->cookiesWaiting.insert(
+            handle->cookiesWaiting.end(), cookies.begin(), cookies.end());
+    return value || !handle->cookiesWaiting.empty();
 }
 
 CompactionConfig CompactTask::getCurrentConfig() const {
     return compaction.rlock()->config;
 }
 
-CompactionConfig CompactTask::preDoCompact() {
+std::pair<CompactionConfig, std::vector<const void*>>
+CompactTask::preDoCompact() {
     auto lockedState = compaction.wlock();
     lockedState->rescheduleRequired = false;
-    return lockedState->config;
+    return {lockedState->config, std::move(lockedState->cookiesWaiting)};
 }
 
 void CompactTask::runCompactionWithConfig(
-        std::optional<CompactionConfig> config) {
+        std::optional<CompactionConfig> config, const void* cookie) {
     auto lockedState = compaction.wlock();
     if (config) {
         lockedState->config = config.value();
+    }
+    if (cookie) {
+        lockedState->cookiesWaiting.push_back(cookie);
     }
     lockedState->rescheduleRequired = true;
 }

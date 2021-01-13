@@ -102,7 +102,8 @@ public:
      * the current compaction is complete, the latest config will be used in the
      * reschedule run.
      */
-    void runCompactionWithConfig(std::optional<CompactionConfig> config);
+    void runCompactionWithConfig(std::optional<CompactionConfig> config,
+                                 const void* cookie);
 
     /**
      * @return true if a reschedule is required
@@ -126,21 +127,30 @@ private:
     /**
      * @return a copy of the current config and clear rescheduleRequired
      */
-    CompactionConfig preDoCompact();
+    std::pair<CompactionConfig, std::vector<const void*>> preDoCompact();
 
     /**
-     * @return the value of rescheduleRequired and then set it to false
+     * Using the input cookies and current "Compaction" state, determine if
+     * the task is done. The task may have cookies to notify (compaction could
+     * not run this time) or the task was notified to run again.
+     *
+     * @param cookies Any cookies which haven't been notified should be passed
+     *        via this parameter for re-insertion into the Compaction state.
+     *        This results in a reschedule for a future run.
+     *
+     * @return true if the task reschedule for a future run.
      */
-    bool getRescheduleRequiredAndClear();
+    bool isTaskDone(const std::vector<const void*>& cookies);
 
     EPBucket& bucket;
     Vbid vbid;
-    const void* cookie;
 
     struct Compaction {
         CompactionConfig config{};
+        std::vector<const void*> cookiesWaiting;
         bool rescheduleRequired{false};
     };
+
     folly::Synchronized<Compaction> compaction;
     std::function<void()> runningCallback;
 };

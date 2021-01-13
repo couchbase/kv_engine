@@ -140,14 +140,16 @@ public:
      *
      * @param Vbid vbucket to compact
      * @param config Compaction configuration to use
-     * @param cookie used to notify connection of operation completion
+     * @param cookies used to notify connections of operation completion. This
+     *        is non-const as doCompact will update cookies, removing all the
+     *        cookies it notified.
      *
      * return true if the compaction needs to be rescheduled and false
      *             otherwise
      */
     bool doCompact(Vbid vbid,
                    CompactionConfig& config,
-                   const void* cookie);
+                   std::vector<const void*>& cookies);
 
     /**
      * After compaction completes the task can be removed if no further
