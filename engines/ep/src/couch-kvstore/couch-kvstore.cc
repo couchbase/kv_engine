@@ -2656,25 +2656,28 @@ static void saveDocsCallback(const DocInfo* oldInfo,
         onDiskMutationType = DocMutationType::Insert;
     }
 
+    const ssize_t newSize = newInfo->physical_size;
+    const ssize_t oldSize = oldInfo ? oldInfo->physical_size : 0;
+
     switch (onDiskMutationType) {
     case DocMutationType::Delete:
         if (newKey.isPrepared()) {
             cbCtx->onDiskPrepareDelta--;
+            cbCtx->onDiskPrepareBytesDelta -= oldSize;
         }
         break;
     case DocMutationType::Insert:
         if (newKey.isPrepared()) {
             cbCtx->onDiskPrepareDelta++;
+            cbCtx->onDiskPrepareBytesDelta += newSize;
         }
         break;
     case DocMutationType::Update:
+        if (!newInfo->deleted) {
+            // Not an abort, update the stat
+            cbCtx->onDiskPrepareBytesDelta += (newSize - oldSize);
+        }
         break;
-    }
-
-    if (newKey.isPrepared()) {
-        const ssize_t newSize = newInfo->physical_size;
-        const ssize_t oldSize = oldInfo ? oldInfo->physical_size : 0;
-        cbCtx->onDiskPrepareBytesDelta += (newSize - oldSize);
     }
 }
 

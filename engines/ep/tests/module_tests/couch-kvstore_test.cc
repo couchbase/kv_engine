@@ -1298,6 +1298,27 @@ public:
         flush.proposedVBState.transition.state = vbucket_state_active;
     }
 
+    void persistPrepare(std::string key, std::string value, uint64_t seqno) {
+        auto storedDocKey = makeStoredDocKey(key);
+        auto qi = makePendingItem(storedDocKey, value);
+        qi->setBySeqno(seqno);
+
+        kvstore->begin(std::make_unique<TransactionContext>(vbid));
+        kvstore->del(qi);
+        kvstore->commit(flush);
+    }
+
+    void persistAbort(std::string key, std::string value, uint64_t seqno) {
+        auto storedDocKey = makeStoredDocKey(key);
+        auto qi = makePendingItem(storedDocKey, value);
+        qi->setBySeqno(seqno);
+        qi->setAbortSyncWrite();
+
+        kvstore->begin(std::make_unique<TransactionContext>(vbid));
+        kvstore->del(qi);
+        kvstore->commit(flush);
+    }
+
     ~CouchstoreTest() override {
         cb::io::rmrf(data_dir.c_str());
     }
@@ -2190,4 +2211,74 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingAbortToAbort) {
     // And verify that we don't change the prepare count
     vbstate = kvstore->getPersistedVBucketState(vbid);
     EXPECT_EQ(0, vbstate.onDiskPrepares);
+}
+
+TEST_F(CouchstoreTest, PersistPrepareStats) {
+    persistPrepare("key", "value", 1);
+
+    auto persistedVBState = kvstore->getPersistedVBucketState(vbid);
+    EXPECT_EQ(1, persistedVBState.onDiskPrepares);
+    EXPECT_LT(0, persistedVBState.getOnDiskPrepareBytes());
+
+    auto dbFileInfo = kvstore->getDbFileInfo(vbid);
+    EXPECT_LT(0, dbFileInfo.prepareBytes);
+}
+
+TEST_F(CouchstoreTest, PersistAbortStats) {
+    persistAbort("key", "value", 1);
+
+    auto persistedVBState = kvstore->getPersistedVBucketState(vbid);
+    EXPECT_EQ(0, persistedVBState.onDiskPrepares);
+    EXPECT_EQ(0, persistedVBState.getOnDiskPrepareBytes());
+
+    auto dbFileInfo = kvstore->getDbFileInfo(vbid);
+    EXPECT_EQ(0, dbFileInfo.prepareBytes);
+}
+
+TEST_F(CouchstoreTest, PersistPreparePrepareStats) {
+    persistPrepare("key", "value", 1);
+    persistPrepare("key", "longervalue", 2);
+
+    auto persistedVBState = kvstore->getPersistedVBucketState(vbid);
+    EXPECT_EQ(1, persistedVBState.onDiskPrepares);
+    EXPECT_LT(0, persistedVBState.getOnDiskPrepareBytes());
+
+    auto dbFileInfo = kvstore->getDbFileInfo(vbid);
+    EXPECT_LT(0, dbFileInfo.prepareBytes);
+}
+
+TEST_F(CouchstoreTest, PersistPrepareAbortStats) {
+    persistPrepare("key", "value", 1);
+    persistAbort("key", "differentvalue", 2);
+
+    auto persistedVBState = kvstore->getPersistedVBucketState(vbid);
+    EXPECT_EQ(0, persistedVBState.onDiskPrepares);
+    EXPECT_EQ(0, persistedVBState.getOnDiskPrepareBytes());
+
+    auto dbFileInfo = kvstore->getDbFileInfo(vbid);
+    EXPECT_EQ(0, dbFileInfo.prepareBytes);
+}
+
+TEST_F(CouchstoreTest, PersistAbortPrepareStats) {
+    persistAbort("key", "value", 1);
+    persistPrepare("key", "differentvalue", 2);
+
+    auto persistedVBState = kvstore->getPersistedVBucketState(vbid);
+    EXPECT_EQ(1, persistedVBState.onDiskPrepares);
+    EXPECT_LT(0, persistedVBState.getOnDiskPrepareBytes());
+
+    auto dbFileInfo = kvstore->getDbFileInfo(vbid);
+    EXPECT_LT(0, dbFileInfo.prepareBytes);
+}
+
+TEST_F(CouchstoreTest, PersistAbortAbortStats) {
+    persistAbort("key", "value", 1);
+    persistAbort("key", "differentvalue", 2);
+
+    auto persistedVBState = kvstore->getPersistedVBucketState(vbid);
+    EXPECT_EQ(0, persistedVBState.onDiskPrepares);
+    EXPECT_EQ(0, persistedVBState.getOnDiskPrepareBytes());
+
+    auto dbFileInfo = kvstore->getDbFileInfo(vbid);
+    EXPECT_EQ(0, dbFileInfo.prepareBytes);
 }
