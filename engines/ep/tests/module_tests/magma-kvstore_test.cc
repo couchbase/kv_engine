@@ -339,3 +339,20 @@ TEST_F(MagmaKVStoreTest, MagmaGetExpiryTimeTombstone) {
     EXPECT_EQ(10 + kvstoreConfig->getMetadataPurgeAge(),
               kvstore->getExpiryOrPurgeTime(tombstoneSlice));
 }
+
+TEST_F(MagmaKVStoreTest, ReadLocalDocErrorCode) {
+    initialize_kv_store(kvstore.get(), vbid);
+
+    auto res = kvstore->readLocalDoc(vbid, "_vbstate");
+    EXPECT_EQ(magma::Status::Code::Ok, res.first.ErrorCode());
+
+    EXPECT_TRUE(kvstore->deleteLocalDoc(vbid, "_vbstate").IsOK());
+    res = kvstore->readLocalDoc(vbid, "_vbstate");
+    EXPECT_EQ(magma::Status::Code::NotFound, res.first.ErrorCode());
+
+    auto kvsRev = kvstore->prepareToDelete(Vbid(0));
+    kvstore->delVBucket(vbid, kvsRev);
+
+    res = kvstore->readLocalDoc(vbid, "_vbstate");
+    EXPECT_EQ(magma::Status::Code::NotExists, res.first.ErrorCode());
+}

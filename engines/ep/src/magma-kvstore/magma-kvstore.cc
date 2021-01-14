@@ -1801,9 +1801,7 @@ std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
 
     auto status =
             magma->GetLocal(vbid.get(), keySlice, valBuf, valSlice, found);
-    // If the kvstore hasn't been created yet, we get a NotExists error.
-    // We don't know if its been created.
-    if (!status && status.ErrorCode() != Status::Code::NotExists) {
+    if (!status) {
         retStatus = magma::Status(
                 status.ErrorCode(),
                 "MagmaKVStore::readLocalDoc " + vbid.to_string() +
