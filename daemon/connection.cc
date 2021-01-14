@@ -450,9 +450,11 @@ void Connection::shutdownIfSendQueueStuck(
     // task which consume a lot of resources on the server to fill the
     // pipe again. During bucket deletion we want to disconnect the
     // clients relatively fast.
-    const auto limit = (getBucket().state == Bucket::State::Ready)
-                               ? std::chrono::seconds(360)
-                               : std::chrono::seconds(1);
+    const auto limit = is_memcached_shutting_down()
+                               ? std::chrono::seconds(0)
+                               : (getBucket().state == Bucket::State::Ready)
+                                         ? std::chrono::seconds(360)
+                                         : std::chrono::seconds(1);
     if ((now - sendQueueInfo.last) > limit) {
         LOG_WARNING(
                 "{}: send buffer stuck at {} for ~{} seconds. Shutting "
