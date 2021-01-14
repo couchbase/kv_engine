@@ -2105,6 +2105,7 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingPrepareToAbort) {
     // And verify that we count it towards the on disk prepares stat
     auto vbstate = kvstore->getPersistedVBucketState(vbid);
     EXPECT_EQ(1, vbstate.onDiskPrepares);
+    EXPECT_LT(0, vbstate.getOnDiskPrepareBytes());
 
     bool seenPrepare = false;
     kvstore->setConcurrentCompactionUnitTestHook(
@@ -2124,6 +2125,12 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingPrepareToAbort) {
     // And verify that we decrement the on disk prepare count
     vbstate = kvstore->getPersistedVBucketState(vbid);
     EXPECT_EQ(0, vbstate.onDiskPrepares);
+    EXPECT_EQ(0, vbstate.getOnDiskPrepareBytes());
+
+    // Should also check the cached count
+    auto cachedVBState = kvstore->getCachedVBucketState(vbid);
+    EXPECT_EQ(0, cachedVBState->onDiskPrepares);
+    EXPECT_EQ(0, cachedVBState->getOnDiskPrepareBytes());
 }
 
 TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingAbortToPrepare) {
@@ -2134,6 +2141,7 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingAbortToPrepare) {
     // And verify that we don't count it towards the prepare count
     auto vbstate = kvstore->getPersistedVBucketState(vbid);
     EXPECT_EQ(0, vbstate.onDiskPrepares);
+    EXPECT_EQ(0, vbstate.getOnDiskPrepareBytes());
 
     bool seenPrepare = false;
     kvstore->setConcurrentCompactionUnitTestHook(
@@ -2153,6 +2161,12 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingAbortToPrepare) {
     // And verify that we increment the on disk prepare count
     vbstate = kvstore->getPersistedVBucketState(vbid);
     EXPECT_EQ(1, vbstate.onDiskPrepares);
+    EXPECT_LT(0, vbstate.getOnDiskPrepareBytes());
+
+    // Should also check the cached count
+    auto cachedVBState = kvstore->getCachedVBucketState(vbid);
+    EXPECT_EQ(1, cachedVBState->onDiskPrepares);
+    EXPECT_LT(0, cachedVBState->getOnDiskPrepareBytes());
 }
 
 TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingPrepareToPrepare) {
@@ -2163,6 +2177,8 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingPrepareToPrepare) {
     // And verify that we increment the on disk prepare count
     auto vbstate = kvstore->getPersistedVBucketState(vbid);
     EXPECT_EQ(1, vbstate.onDiskPrepares);
+    auto prepareSize = vbstate.getOnDiskPrepareBytes();
+    EXPECT_LT(0, prepareSize);
 
     bool seenPrepare = false;
     kvstore->setConcurrentCompactionUnitTestHook(
@@ -2182,6 +2198,14 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingPrepareToPrepare) {
     // And verify that we don't change the prepare count
     vbstate = kvstore->getPersistedVBucketState(vbid);
     EXPECT_EQ(1, vbstate.onDiskPrepares);
+    EXPECT_LT(0, vbstate.getOnDiskPrepareBytes());
+    // Prepare size should increase
+    EXPECT_LT(prepareSize, vbstate.getOnDiskPrepareBytes());
+
+    // Should also check the cached count
+    auto cachedVBState = kvstore->getCachedVBucketState(vbid);
+    EXPECT_EQ(1, cachedVBState->onDiskPrepares);
+    EXPECT_LT(0, cachedVBState->getOnDiskPrepareBytes());
 }
 
 TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingAbortToAbort) {
@@ -2211,6 +2235,12 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingAbortToAbort) {
     // And verify that we don't change the prepare count
     vbstate = kvstore->getPersistedVBucketState(vbid);
     EXPECT_EQ(0, vbstate.onDiskPrepares);
+    EXPECT_EQ(0, vbstate.getOnDiskPrepareBytes());
+
+    // Should also check the cached count
+    auto cachedVBState = kvstore->getCachedVBucketState(vbid);
+    EXPECT_EQ(0, cachedVBState->onDiskPrepares);
+    EXPECT_EQ(0, cachedVBState->getOnDiskPrepareBytes());
 }
 
 TEST_F(CouchstoreTest, PersistPrepareStats) {

@@ -1119,13 +1119,19 @@ static couchstore_error_t replayPrecommitHook(
         return status;
     }
     try {
-        if (std::stoul(json["on_disk_prepares"].get<std::string>()) ==
+        if (std::stoul(json["on_disk_prepares"].get<std::string>()) !=
             prepareStats.onDiskPrepares) {
-            // The value in _local/vbstate is already up to date!
-            return COUCHSTORE_SUCCESS;
+            json["on_disk_prepares"] =
+                    std::to_string(prepareStats.onDiskPrepares);
         }
 
-        json["on_disk_prepares"] = std::to_string(prepareStats.onDiskPrepares);
+        auto prepareBytes = json.find("on_disk_prepare_bytes");
+        // only update if it's there..
+        if (prepareBytes != json.end()) {
+            json["on_disk_prepare_bytes"] =
+                    std::to_string(prepareStats.onDiskPrepareBytes);
+        }
+
         return setLocalVbState(db, json);
     } catch (std::exception& e) {
         return COUCHSTORE_ERROR_CORRUPT;
@@ -1162,6 +1168,7 @@ static couchstore_error_t replayPreCopyHook(
                     std::string_view{docInfo->id.buf, docInfo->id.size});
             if (st == COUCHSTORE_SUCCESS && !di->deleted) {
                 --prepareStats.onDiskPrepares;
+                prepareStats.onDiskPrepareBytes -= di->physical_size;
             }
         }
 
@@ -1171,10 +1178,22 @@ static couchstore_error_t replayPreCopyHook(
             auto [st, di] = cb::couchstore::openDocInfo(
                     target,
                     std::string_view{docInfo->id.buf, docInfo->id.size});
+            // New prepare
             if (st == COUCHSTORE_ERROR_DOC_NOT_FOUND) {
                 ++prepareStats.onDiskPrepares;
-            } else if (st == COUCHSTORE_SUCCESS && di->deleted) {
-                ++prepareStats.onDiskPrepares;
+                prepareStats.onDiskPrepareBytes += docInfo->physical_size;
+            }
+
+            if (st == COUCHSTORE_SUCCESS) {
+                if (di->deleted) {
+                    // Abort -> Prepare
+                    ++prepareStats.onDiskPrepares;
+                    prepareStats.onDiskPrepareBytes += di->physical_size;
+                } else {
+                    // Prepare -> Prepare
+                    prepareStats.onDiskPrepareBytes +=
+                            (docInfo->physical_size - di->physical_size);
+                }
             }
         }
     }
@@ -1398,6 +1417,13 @@ bool CouchKVStore::compactDBInternal(DbHolder& sourceDb,
         }
         prepareStats.onDiskPrepares =
                 std::stoul(json["on_disk_prepares"].get<std::string>());
+
+        auto prepareBytes = json.find("on_disk_prepare_bytes");
+        // only update if it's there..
+        if (prepareBytes != json.end()) {
+            prepareStats.onDiskPrepareBytes =
+                    std::stoul(prepareBytes->get<std::string>());
+        }
     }
 
     // We'll do catch-up in two phases. First we'll try to catch up with
@@ -1489,8 +1515,7 @@ bool CouchKVStore::compactDBInternal(DbHolder& sourceDb,
         cachedDeleteCount[vbid.get()] = info.deletedCount;
         cachedDocCount[vbid.get()] = info.docCount;
         state->onDiskPrepares = prepareStats.onDiskPrepares;
-        state->updateOnDiskPrepareBytes(
-                -int64_t(hook_ctx->stats.prepareBytesPurged));
+        state->setOnDiskPrepareBytes(prepareStats.onDiskPrepareBytes);
         cachedOnDiskPrepareSize[vbid.get()] = state->getOnDiskPrepareBytes();
     }
 

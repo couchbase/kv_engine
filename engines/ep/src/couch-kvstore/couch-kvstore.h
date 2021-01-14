@@ -130,6 +130,7 @@ protected:
 
 struct CompactionReplayPrepareStats {
     uint64_t onDiskPrepares = 0;
+    uint64_t onDiskPrepareBytes = 0;
 };
 
 struct kvstats_ctx;
