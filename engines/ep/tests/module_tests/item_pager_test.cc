@@ -1695,6 +1695,13 @@ TEST_P(STItemPagerTest, MB43055_MemUsedDropDoesNotBreakEviction) {
     // Need a slightly higher quota here
     increaseQuota(800 * 1024);
 
+    // Magma has been failing this test consistently after more memory was
+    // allocated to histograms so bump the quota accordingly. If others start
+    // to fail then we should consider moving this to affect all magma tests.
+    if (isMagma()) {
+        increaseQuota(1024 * 1024);
+    }
+
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     // this triggers eviction, scheduling the ItemPager task
