@@ -132,6 +132,8 @@ MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Code tracecode) {
         return "request";
     case Code::SnappyDecompress:
         return "snappy.decompress";
+    case Code::JsonValidate:
+        return "json_validate";
     case Code::BackgroundWait:
         return "bg.wait";
     case Code::BackgroundLoad:

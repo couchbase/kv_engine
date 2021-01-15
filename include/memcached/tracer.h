@@ -29,6 +29,8 @@ enum class Code : uint8_t {
     Request,
     /// Time spent decompressing Snappy data.
     SnappyDecompress,
+    /// Time spent validating if incoming value is JSON.
+    JsonValidate,
     /// Time spent waiting for a background fetch operation to be scheduled.
     BackgroundWait,
     /// Time spent performing the actual background load from disk.

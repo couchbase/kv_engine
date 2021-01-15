@@ -17,12 +17,16 @@
 #include "steppable_command_context.h"
 #include "executors.h"
 
+#include <daemon/buckets.h>
 #include <daemon/connection.h>
 #include <daemon/cookie.h>
 #include <daemon/front_end_thread.h>
 #include <daemon/memcached.h>
 #include <daemon/stats.h>
 #include <logger/logger.h>
+#include <platform/histogram.h>
+#include <platform/scope_timer.h>
+#include <utilities/hdrhistogram.h>
 
 SteppableCommandContext::SteppableCommandContext(Cookie& cookie_)
     : cookie(cookie_), connection(cookie.getConnection()) {
@@ -60,6 +64,14 @@ void SteppableCommandContext::drive() {
 void SteppableCommandContext::setDatatypeJSONFromValue(
         const cb::const_byte_buffer& value,
         protocol_binary_datatype_t& datatype) {
+    // Record how long JSON checking takes to both Tracer and bucket-level
+    // histogram.
+    using namespace cb::tracing;
+    ScopeTimer2<HdrMicroSecStopwatch, SpanStopwatch> timer(
+            std::forward_as_tuple(
+                    cookie.getConnection().getBucket().jsonValidateTimes),
+            std::forward_as_tuple(cookie, Code::JsonValidate));
+
     // Determine if document is JSON or not. We do not trust what the client
     // sent - instead we check for ourselves.
     if (connection.getThread().validator.validate(value.data(), value.size())) {

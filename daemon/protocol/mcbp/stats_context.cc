@@ -334,6 +334,18 @@ static ENGINE_ERROR_CODE stat_histogram_executor(
 }
 
 /**
+ * Handler for the <code>stats json_validate</code> command used to retrieve
+ * histograms of how long it took to validate JSON.
+ *
+ * @param arg - should be empty
+ * @param cookie the command context
+ */
+static ENGINE_ERROR_CODE stat_json_validate_executor(const std::string& arg,
+                                                     Cookie& cookie) {
+    return stat_histogram_executor(arg, cookie, &Bucket::jsonValidateTimes);
+}
+
+/**
  * Handler for the <code>stats topkeys</code> command used to retrieve
  * the most popular keys in the attached bucket.
  *
@@ -583,6 +595,8 @@ static std::unordered_map<std::string, struct command_stat_handler>
                 {"aggregate", {false, true, true, stat_aggregate_executor}},
                 {"connections",
                  {false, false, true, stat_connections_executor}},
+                {"json_validate",
+                 {false, true, true, stat_json_validate_executor}},
                 {"topkeys", {false, true, true, stat_topkeys_executor}},
                 {"topkeys_json",
                  {false, true, true, stat_topkeys_json_executor}},
