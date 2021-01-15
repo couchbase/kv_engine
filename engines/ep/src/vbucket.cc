@@ -2970,19 +2970,8 @@ void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
          * be done to ensure that the item count is accurate in the case of full
          * eviction. We should only decrement the counter for committed (via
          * mutation or commit) items as we only increment for these.
-         * Note this is done irrespective of if a StoredValue was found in the
-         * HashTable - the SV may have already been replaced (e.g. with
-         * a pending SyncWrite). We "know" the delete happened on disk thus
-         * should decrement the total number of items.
-         *
-         * @todo: About "the SV may have already been replaced (e.g. with
-         * a pending SyncWrite)" above.. Need to check if that is true. If it
-         * is, that shouldn't happen as we may end up with this at FullEviction:
-         *  - deleted key queued for persistence and removed from the HT
-         *  - deletion not persisted yet
-         *  - frontend read bg-fecthes a previous alive state (if any) from disk
          */
-        if (queuedItem.isCommitted()) {
+        if (v && queuedItem.isCommitted()) {
             decrNumTotalItems();
             ++opsDelete;
         }
@@ -3397,7 +3386,16 @@ std::pair<AddStatus, boost::optional<VBNotifyCtx>> VBucket::processAdd(
 
     std::pair<AddStatus, VBNotifyCtx> rv = {AddStatus::Success, {}};
 
-    if (v) {
+    // We cannot replace a committed SV with a pending one. If we were to do
+    // so then a delete that has not yet been persisted could be replaced
+    // with a prepare. A subsequent get could trigger a bg fetch that may
+    // return the old (not deleted) document from disk if it runs before the
+    // flusher. As such, we must keep the unpersisted delete and add a new
+    // prepare for the SyncWrite. Any get will see the unpersisted delete
+    // and return KEYNOENT.
+    auto replacingCommittedItemWithPending =
+            v && v == htRes.committed && itm.isPending();
+    if (v && !replacingCommittedItemWithPending) {
         if (v->isTempInitialItem() && eviction == EvictionPolicy::Full &&
             maybeKeyExists) {
             // Need to figure out if an item exists on disk
@@ -3421,7 +3419,8 @@ std::pair<AddStatus, boost::optional<VBNotifyCtx>> VBucket::processAdd(
         std::tie(v, std::ignore, rv.second) =
                 updateStoredValue(htRes.getHBL(), *v, itm, queueItmCtx);
     } else {
-        if (itm.getBySeqno() != StoredValue::state_temp_init) {
+        if (itm.getBySeqno() != StoredValue::state_temp_init &&
+            !replacingCommittedItemWithPending) {
             if (eviction == EvictionPolicy::Full && maybeKeyExists) {
                 return {AddStatus::AddTmpAndBgFetch, VBNotifyCtx()};
             }
@@ -3441,6 +3440,8 @@ std::pair<AddStatus, boost::optional<VBNotifyCtx>> VBucket::processAdd(
 
         if (v->isTempItem()) {
             rv.first = AddStatus::BgFetch;
+        } else if (replacingCommittedItemWithPending) {
+            rv.first = AddStatus::UnDel;
         }
     }
 
