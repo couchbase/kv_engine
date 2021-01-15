@@ -1934,16 +1934,14 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     serverApi = getServerApiFunc();
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::reserveCookie(const void *cookie)
-{
+void EventuallyPersistentEngine::reserveCookie(const void* cookie) {
     NonBucketAllocationGuard guard;
-    return serverApi->cookie->reserve(cookie);
+    serverApi->cookie->reserve(cookie);
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::releaseCookie(const void *cookie)
-{
+void EventuallyPersistentEngine::releaseCookie(const void* cookie) {
     NonBucketAllocationGuard guard;
-    return serverApi->cookie->release(cookie);
+    serverApi->cookie->release(cookie);
 }
 
 void EventuallyPersistentEngine::setDcpConnHandler(
@@ -6196,12 +6194,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
     }
 
     // Success creating dcp object which has stored the cookie, now reserve it.
-    if (reserveCookie(cookie) != ENGINE_SUCCESS) {
-        EP_LOG_WARN(
-                "Cannot create DCP connection because cookie "
-                "cannot be reserved");
-        return ENGINE_DISCONNECT;
-    }
+    reserveCookie(cookie);
     setDcpConnHandler(cookie, handler);
 
     return ENGINE_SUCCESS;

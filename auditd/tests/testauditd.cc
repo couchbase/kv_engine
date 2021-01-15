@@ -93,10 +93,10 @@ public:
         throw std::runtime_error("Not implemented");
     }
 
-    ENGINE_ERROR_CODE reserve(gsl::not_null<const void*> cookie) override {
+    void reserve(gsl::not_null<const void*> cookie) override {
         throw std::runtime_error("Not implemented");
     }
-    ENGINE_ERROR_CODE release(gsl::not_null<const void*> cookie) override {
+    void release(gsl::not_null<const void*> cookie) override {
         throw std::runtime_error("Not implemented");
     }
     void set_priority(gsl::not_null<const void*> cookie,

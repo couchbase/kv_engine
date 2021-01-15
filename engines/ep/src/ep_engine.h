@@ -532,8 +532,8 @@ public:
     void notifyIOComplete(const void* cookie, ENGINE_ERROR_CODE status);
     void scheduleDcpStep(gsl::not_null<const void*> cookie);
 
-    ENGINE_ERROR_CODE reserveCookie(const void *cookie);
-    ENGINE_ERROR_CODE releaseCookie(const void *cookie);
+    void reserveCookie(const void* cookie);
+    void releaseCookie(const void* cookie);
 
     void setDcpConnHandler(const void* cookie, DcpConnHandlerIface* handler);
     DcpConnHandlerIface* getDcpConnHandler(const void* cookie);

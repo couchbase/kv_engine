@@ -191,12 +191,11 @@ struct ServerCookieApi : public ServerCookieIface {
         ::scheduleDcpStep(getCookie(cookie));
     }
 
-    ENGINE_ERROR_CODE reserve(gsl::not_null<const void*> void_cookie) override {
+    void reserve(gsl::not_null<const void*> void_cookie) override {
         getCookie(void_cookie).incrementRefcount();
-        return ENGINE_SUCCESS;
     }
 
-    ENGINE_ERROR_CODE release(gsl::not_null<const void*> void_cookie) override {
+    void release(gsl::not_null<const void*> void_cookie) override {
         auto& cookie = getCookie(void_cookie);
         auto& connection = cookie.getConnection();
         auto& thr = connection.getThread();
@@ -216,8 +215,6 @@ struct ServerCookieApi : public ServerCookieIface {
         if (thr.notification.push(&connection)) {
             notify_thread(thr);
         }
-
-        return ENGINE_SUCCESS;
     }
 
     void set_priority(gsl::not_null<const void*> cookie,

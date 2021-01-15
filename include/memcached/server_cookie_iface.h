@@ -170,14 +170,14 @@ struct ServerCookieIface {
      * future use. (The core guarantees it will not invalidate the
      * memory until the cookie is invalidated by calling release())
      */
-    virtual ENGINE_ERROR_CODE reserve(gsl::not_null<const void*> cookie) = 0;
+    virtual void reserve(gsl::not_null<const void*> cookie) = 0;
 
     /**
      * Notify the core that we're releasing the reference to the
      * The engine is not allowed to use the cookie (the core may invalidate
      * the memory)
      */
-    virtual ENGINE_ERROR_CODE release(gsl::not_null<const void*> cookie) = 0;
+    virtual void release(gsl::not_null<const void*> cookie) = 0;
 
     /**
      * Set the priority for this connection

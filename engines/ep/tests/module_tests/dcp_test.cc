@@ -123,11 +123,11 @@ public:
     void scheduleDcpStep(gsl::not_null<const void*> cookie) override {
         wrapped->scheduleDcpStep(cookie);
     }
-    ENGINE_ERROR_CODE reserve(gsl::not_null<const void*> cookie) override {
-        return wrapped->reserve(cookie);
+    void reserve(gsl::not_null<const void*> cookie) override {
+        wrapped->reserve(cookie);
     }
-    ENGINE_ERROR_CODE release(gsl::not_null<const void*> cookie) override {
-        return wrapped->release(cookie);
+    void release(gsl::not_null<const void*> cookie) override {
+        wrapped->release(cookie);
     }
     void set_priority(gsl::not_null<const void*> cookie,
                       ConnectionPriority priority) override {

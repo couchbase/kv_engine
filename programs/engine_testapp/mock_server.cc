@@ -294,14 +294,13 @@ struct MockServerCookieApi : public ServerCookieIface {
         session_ctr--;
     }
 
-    ENGINE_ERROR_CODE reserve(gsl::not_null<const void*> cookie) override {
+    void reserve(gsl::not_null<const void*> cookie) override {
         std::lock_guard<std::mutex> guard(mock_server_cookie_mutex);
         auto* c = cookie_to_mock_cookie(cookie.get());
         c->references++;
-        return ENGINE_SUCCESS;
     }
 
-    ENGINE_ERROR_CODE release(gsl::not_null<const void*> cookie) override {
+    void release(gsl::not_null<const void*> cookie) override {
         std::lock_guard<std::mutex> guard(mock_server_cookie_mutex);
         auto* c = cookie_to_mock_cookie(cookie.get());
 
@@ -309,8 +308,8 @@ struct MockServerCookieApi : public ServerCookieIface {
         if (new_rc == 0) {
             delete c;
         }
-        return ENGINE_SUCCESS;
     }
+
     void set_priority(gsl::not_null<const void*> cookie,
                       ConnectionPriority) override {
         (void)cookie_to_mock_cookie(cookie.get()); // validate cookie
