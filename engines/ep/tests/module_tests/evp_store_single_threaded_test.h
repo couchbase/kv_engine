@@ -373,4 +373,6 @@ protected:
      * @param dropDeletes compaction config param
      */
     void testCompactionPersistedDeletes(bool dropDeletes);
+
+    void testFailoverTableEntryPersistedAtWarmup(std::function<void()>);
 };
