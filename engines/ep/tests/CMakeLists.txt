@@ -187,6 +187,19 @@ gtest_discover_tests(ep-engine_ep_unit_tests
         ONE_CTEST_PER_SUITE
         DISCOVERY_TIMEOUT 60
         PROPERTIES TIMEOUT 300)
+IF (COUCHBASE_MAGMA_COMMIT_VALIDATION)
+    # Create a set of tests for magma which are filtered such that only the
+    # magma variants should run
+    gtest_discover_tests(ep-engine_ep_unit_tests
+            WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+            TEST_PREFIX ep-engine_ep_unit_tests_magma.
+            ONE_CTEST_PER_SUITE
+            # Magma variants have either Magma or magma in the names so it's
+            # easier to just supply "agma" to the filter to capture both.
+            POST_SUITE_FILTER *agma
+            DISCOVERY_TIMEOUT 60
+            PROPERTIES TIMEOUT 300)
+ENDIF()
 
 ADD_TEST(NAME ep-engine_misc_test COMMAND ep-engine_misc_test)
 
