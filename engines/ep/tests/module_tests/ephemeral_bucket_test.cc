@@ -745,3 +745,81 @@ TEST_F(SingleThreadedEphemeralPurgerTest, HTCleanerSkipsPrepares) {
         ASSERT_FALSE(res.committed);
     }
 }
+
+TEST_F(SingleThreadedEphemeralPurgerTest, MB_42568) {
+    // Test relies on that the HTCleaner does its work when it runs
+    ASSERT_EQ(0, engine->getConfiguration().getEphemeralMetadataPurgeAge());
+
+    auto& vb = dynamic_cast<EphemeralVBucket&>(*store->getVBucket(vbid));
+    ASSERT_EQ(0, vb.getHighSeqno());
+    ASSERT_EQ(0, vb.getSeqListNumItems());
+    ASSERT_EQ(0, vb.getSeqListNumDeletedItems());
+
+    const auto runHTCleaner = [this]() -> void {
+        auto* bucket = dynamic_cast<EphemeralBucket*>(store);
+        bucket->enableTombstonePurgerTask();
+        auto& queue = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+        bucket->attemptToFreeMemory(); // This wakes up the HTCleaner
+        runNextTask(queue, "Eph tombstone hashtable cleaner");
+        // Scheduled by HTCleaner
+        runNextTask(queue, "Eph tombstone stale item deleter");
+    };
+
+    // keyA - SyncDelete and Commit
+    const auto keyA = makeStoredDocKey("keyA");
+    const std::string value = "value";
+    store_item(vbid,
+               keyA,
+               value,
+               0 /*exptime*/,
+               {cb::engine_errc::sync_write_pending},
+               PROTOCOL_BINARY_RAW_BYTES,
+               cb::durability::Requirements(),
+               true /*deleted*/);
+    EXPECT_EQ(1, vb.getHighSeqno());
+    EXPECT_EQ(1, vb.getSeqListNumItems());
+    EXPECT_EQ(1, vb.getSeqListNumDeletedItems());
+    EXPECT_EQ(
+            ENGINE_SUCCESS,
+            vb.commit(keyA, 1 /*prepareSeqno*/, {}, vb.lockCollections(keyA)));
+    EXPECT_EQ(2, vb.getHighSeqno());
+    EXPECT_EQ(2, vb.getSeqListNumItems());
+    EXPECT_EQ(2, vb.getSeqListNumDeletedItems());
+
+    // Cover seqno 1 and 2 with a range-read, then queue a SyncWrite for keyA.
+    // Seqno 1 is PrepareCommitted and we could just move that OSV to the end of
+    // the SeqList and update it to store the new Pending. But we cannot touch
+    // seqno:1 because of the range-read, so we append a new OSV to the SeqList.
+    {
+        const auto rangeIt = vb.makeRangeIterator(true /*isBackfill*/);
+        ASSERT_TRUE(rangeIt);
+
+        // keyA - SyncWrite
+        store_item(vbid,
+                   keyA,
+                   value,
+                   0 /*exptime*/,
+                   {cb::engine_errc::sync_write_pending},
+                   PROTOCOL_BINARY_RAW_BYTES,
+                   cb::durability::Requirements(),
+                   false /*deleted*/);
+    }
+    EXPECT_EQ(3, vb.getHighSeqno());
+    // Note: This would be 2 with no range-read
+    EXPECT_EQ(3, vb.getSeqListNumItems());
+
+    // Core check: We have not updated the deleted at seqno:1 with the alive at
+    // seqno:3, we have just appended seqno:3. So, num-deleted-items must not
+    // change. Before the fix this was decremented to 1.
+    EXPECT_EQ(2, vb.getSeqListNumDeletedItems());
+
+    // As a side effect, before the fix this step throws with
+    // ThrowExceptionUnderflowPolicy, as we try to remove seqno 1 and 2 (ie,
+    // (two deleted items) from the SeqList and we try to decrement
+    // num-deleted-items to -1.
+    runHTCleaner();
+
+    EXPECT_EQ(3, vb.getHighSeqno());
+    EXPECT_EQ(1, vb.getSeqListNumItems());
+    EXPECT_EQ(0, vb.getSeqListNumDeletedItems());
+}

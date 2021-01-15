@@ -437,6 +437,9 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
             auto result = ht.unlocked_updateStoredValue(hbl, v, itm);
             status = result.status;
             newSv = result.storedValue;
+
+            seqList->updateNumDeletedItems(oldValueDeleted, itm.isDeleted());
+
         } break;
 
         case SequenceList::UpdateStatus::Append: {
@@ -456,6 +459,11 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
 
             seqList->appendToList(
                     lh, listWriteLg, *(newSv->toOrderedStoredValue()));
+
+            // We couldn't overwrite any existing OVS due to a range-read, we
+            // just update with the same logic of an "add new stored value"
+            seqList->updateNumDeletedItems(false, itm.isDeleted());
+
         } break;
         }
 
@@ -496,8 +504,6 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
             ++opsUpdate;
         }
     }
-
-    seqList->updateNumDeletedItems(oldValueDeleted, itm.isDeleted());
 
     return std::make_tuple(newSv, status, notifyCtx);
 }

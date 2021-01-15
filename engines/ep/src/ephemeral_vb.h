@@ -280,6 +280,14 @@ public:
         return {};
     }
 
+    size_t getSeqListNumItems() const {
+        return seqList->getNumItems();
+    }
+
+    size_t getSeqListNumDeletedItems() const {
+        return seqList->getNumDeletedItems();
+    }
+
 protected:
     /* Data structure for in-memory sequential storage */
     std::unique_ptr<SequenceList> seqList;
