@@ -95,9 +95,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::getItem() {
                 std::string_view payload(
                         static_cast<const char*>(oldItemInfo.value[0].iov_base),
                         oldItemInfo.value[0].iov_len);
-                if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
-                                              payload,
-                                              buffer)) {
+                if (!cookie.inflateSnappy(payload, buffer)) {
                     return ENGINE_FAILED;
                 }
             } catch (const std::bad_alloc&) {

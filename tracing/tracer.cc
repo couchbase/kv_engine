@@ -44,6 +44,13 @@ bool Tracer::end(SpanId spanId, Clock::time_point endTime) {
     });
 }
 
+void Tracer::record(Code code, Clock::time_point start, Clock::time_point end) {
+    auto duration = std::chrono::duration_cast<Span::Duration>(end - start);
+    vecSpans.withLock([code, start, duration](auto& spans) {
+        spans.emplace_back(code, start, duration);
+    });
+}
+
 std::vector<Span> Tracer::extractDurations() {
     std::vector<Span> ret;
     vecSpans.swap(ret);
@@ -123,6 +130,8 @@ MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Code tracecode) {
     switch (tracecode) {
     case Code::Request:
         return "request";
+    case Code::SnappyDecompress:
+        return "snappy.decompress";
     case Code::BackgroundWait:
         return "bg.wait";
     case Code::BackgroundLoad:

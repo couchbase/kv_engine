@@ -304,6 +304,36 @@ static ENGINE_ERROR_CODE stat_connections_executor(const std::string& arg,
 }
 
 /**
+ * Helper function to append JSON-formatted histogram statistics for the
+ * specified Bucket histogram data member.
+ */
+static ENGINE_ERROR_CODE stat_histogram_executor(
+        const std::string& arg,
+        Cookie& cookie,
+        Hdr1sfMicroSecHistogram Bucket::*histogram) {
+    if (arg.empty()) {
+        const auto index = cookie.getConnection().getBucketIndex();
+        std::string json_str;
+        if (index == 0) {
+            // Aggregrated timings for all buckets.
+            Hdr1sfMicroSecHistogram aggregated{};
+            for (const auto& bucket : all_buckets) {
+                aggregated += bucket.*histogram;
+            }
+            json_str = aggregated.to_string();
+        } else {
+            // Timings for a specific bucket.
+            auto& bucket = all_buckets[cookie.getConnection().getBucketIndex()];
+            json_str = (bucket.*histogram).to_string();
+        }
+        append_stats({}, json_str, &cookie);
+        return ENGINE_SUCCESS;
+    } else {
+        return ENGINE_EINVAL;
+    }
+}
+
+/**
  * Handler for the <code>stats topkeys</code> command used to retrieve
  * the most popular keys in the attached bucket.
  *
@@ -355,6 +385,19 @@ static ENGINE_ERROR_CODE stat_topkeys_json_executor(const std::string& arg,
 }
 
 /**
+ * Handler for the <code>stats snappy_decompress</code> command used to retrieve
+ * histograms of how long it took to decompress Snappy compressed values.
+ *
+ * @param arg - should be empty
+ * @param cookie the command context
+ */
+static ENGINE_ERROR_CODE stat_snappy_decompress_executor(const std::string& arg,
+                                                         Cookie& cookie) {
+    return stat_histogram_executor(
+            arg, cookie, &Bucket::snappyDecompressionTimes);
+}
+
+/**
  * Handler for the <code>stats subdoc_execute</code> command used to retrieve
  * information from the subdoc subsystem.
  *
@@ -363,26 +406,8 @@ static ENGINE_ERROR_CODE stat_topkeys_json_executor(const std::string& arg,
  */
 static ENGINE_ERROR_CODE stat_subdoc_execute_executor(const std::string& arg,
                                                       Cookie& cookie) {
-    if (arg.empty()) {
-        const auto index = cookie.getConnection().getBucketIndex();
-        std::string json_str;
-        if (index == 0) {
-            // Aggregrated timings for all buckets.
-            Hdr1sfMicroSecHistogram aggregated{};
-            for (const auto& bucket : all_buckets) {
-                aggregated += bucket.subjson_operation_times;
-            }
-            json_str = aggregated.to_string();
-        } else {
-            // Timings for a specific bucket.
-            auto& bucket = all_buckets[cookie.getConnection().getBucketIndex()];
-            json_str = bucket.subjson_operation_times.to_string();
-        }
-        append_stats({}, json_str, &cookie);
-        return ENGINE_SUCCESS;
-    } else {
-        return ENGINE_EINVAL;
-    }
+    return stat_histogram_executor(
+            arg, cookie, &Bucket::subjson_operation_times);
 }
 
 static ENGINE_ERROR_CODE stat_responses_json_executor(const std::string& arg,
@@ -561,6 +586,8 @@ static std::unordered_map<std::string, struct command_stat_handler>
                 {"topkeys", {false, true, true, stat_topkeys_executor}},
                 {"topkeys_json",
                  {false, true, true, stat_topkeys_json_executor}},
+                {"snappy_decompress",
+                 {false, true, true, stat_snappy_decompress_executor}},
                 {"subdoc_execute",
                  {false, true, true, stat_subdoc_execute_executor}},
                 {"responses",

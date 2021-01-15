@@ -36,6 +36,9 @@ class Header;
 class Request;
 class Response;
 } // namespace cb::mcbp
+namespace cb::compression {
+class Buffer;
+} // namespace cb::compression
 
 /**
  * The Cookie class represents the cookie passed from the memcached core
@@ -476,13 +479,25 @@ public:
     std::string_view getInflatedInputPayload() const;
 
     /**
-     * Inflate the value (if deflated)
+     * Inflate the value (if deflated); caching the inflated value inside the
+     * cookie.
      *
      * @param header The packet header
      * @return true if success, false if an error occurs (the error context
      *         contains the reason why)
      */
     bool inflateInputPayload(const cb::mcbp::Header& header);
+
+    /**
+     * Helper function to inflate the specified Snappy-compressed buffer.
+     *
+     * Records the time taken to decompress as SnappyDecompress tracing span
+     * against this cookie.
+     * @param input Snappy-compressed input buffer.
+     * @param output Buffer to write uncompressed data to.
+     * @returns true if successfully inflated, else false.
+     */
+    bool inflateSnappy(std::string_view input, cb::compression::Buffer& output);
 
     /// Set the current collection meta information. The packet validator
     /// is responsible for checking that the requested collection identifier

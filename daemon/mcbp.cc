@@ -49,8 +49,7 @@ static bool mcbp_response_handler(std::string_view key,
          mcbp::datatype::is_xattr(datatype))) {
         // The client is not snappy-aware, and the content contains
         // snappy encoded data. Or it's xattr compressed. We need to inflate it!
-        if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
-                                      payload, buffer)) {
+        if (!cookie->inflateSnappy(payload, buffer)) {
             std::string mykey(key.data(), key.size());
             LOG_WARNING(
                     "<{} ERROR: Failed to inflate body, "

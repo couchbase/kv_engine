@@ -134,6 +134,9 @@ public:
      */
     Hdr1sfMicroSecHistogram subjson_operation_times;
 
+    /// Snappy decompression time histogram.
+    Hdr1sfMicroSecHistogram snappyDecompressionTimes;
+
     using ResponseCounter = cb::RelaxedAtomic<uint64_t>;
 
     /**

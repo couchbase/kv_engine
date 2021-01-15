@@ -61,8 +61,7 @@ ENGINE_ERROR_CODE GetCommandContext::getItem() {
 
 ENGINE_ERROR_CODE GetCommandContext::inflateItem() {
     try {
-        if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
-                                      payload, buffer)) {
+        if (!cookie.inflateSnappy(payload, buffer)) {
             LOG_WARNING("{}: Failed to inflate item", connection.getId());
             return ENGINE_FAILED;
         }

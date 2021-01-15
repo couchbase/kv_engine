@@ -86,8 +86,7 @@ ENGINE_ERROR_CODE GatCommandContext::getAndTouchItem() {
 
 ENGINE_ERROR_CODE GatCommandContext::inflateItem() {
     try {
-        if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
-                                      payload, buffer)) {
+        if (!cookie.inflateSnappy(payload, buffer)) {
             LOG_WARNING("{}: Failed to inflate item", connection.getId());
             return ENGINE_FAILED;
         }

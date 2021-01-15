@@ -27,6 +27,8 @@ namespace cb::tracing {
 enum class Code : uint8_t {
     /// Time spent in the entire request
     Request,
+    /// Time spent decompressing Snappy data.
+    SnappyDecompress,
     /// Time spent waiting for a background fetch operation to be scheduled.
     BackgroundWait,
     /// Time spent performing the actual background load from disk.
@@ -81,6 +83,9 @@ public:
     /// End a Span, stopping at the specified time point (defaults to now).
     bool end(SpanId spanId, Clock::time_point endTime = Clock::now());
 
+    // Record a complete Span (when both start and end are already known).
+    void record(Code code, Clock::time_point start, Clock::time_point end);
+
     // Extract the trace vector (and clears the internal trace vector)
     std::vector<Span> extractDurations();
 
@@ -123,6 +128,55 @@ public:
 protected:
     bool tracingEnabled = false;
     Tracer tracer;
+};
+
+/**
+ * Helper class to assist in recording a Span into Tracer objects via
+ * ScopeTimerN<> classes.
+ *
+ * The start and stop methods record the duration of the span and it is
+ * injected into the provided traceable object as part of object destruction (as
+ * long as start() was at least called).
+ */
+class MEMCACHED_PUBLIC_CLASS SpanStopwatch {
+public:
+    SpanStopwatch(Traceable& traceable, Code code)
+        : traceable(traceable), code(code) {
+    }
+
+    // Disable copy and move: doesn't make sense for this class (could
+    // result in recording spurious spans).
+    SpanStopwatch(const SpanStopwatch&) = delete;
+    SpanStopwatch& operator=(const SpanStopwatch&) = delete;
+    SpanStopwatch& operator=(SpanStopwatch&&) = delete;
+#if defined(_MSC_VER) && (_MSC_VER < 1920)
+    // Prior to MSVC 2019, the move constructor must be defined, if it is
+    // deleted then the code fails to compile (even though MSVC doesn't
+    // actually call the move constructor :S)
+    SpanStopwatch(SpanStopwatch&&) = default;
+#else
+    SpanStopwatch(SpanStopwatch&&) = delete;
+#endif
+
+    ~SpanStopwatch() {
+        if (traceable.isTracingEnabled()) {
+            traceable.getTracer().record(code, startTime, stopTime);
+        }
+    }
+
+    void start(Clock::time_point tp) {
+        startTime = tp;
+    }
+
+    void stop(Clock::time_point tp) {
+        stopTime = tp;
+    }
+
+private:
+    Traceable& traceable;
+    Clock::time_point startTime;
+    Clock::time_point stopTime;
+    const Code code;
 };
 
 } // namespace cb::tracing

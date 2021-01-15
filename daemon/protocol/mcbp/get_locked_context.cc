@@ -64,8 +64,7 @@ ENGINE_ERROR_CODE GetLockedCommandContext::getAndLockItem() {
 
 ENGINE_ERROR_CODE GetLockedCommandContext::inflateItem() {
     try {
-        if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
-                                      payload, buffer)) {
+        if (!cookie.inflateSnappy(payload, buffer)) {
             LOG_WARNING(
                     "{}: GetLockedCommandContext::inflateItem:"
                     " Failed to inflate item",

@@ -711,8 +711,7 @@ cb::mcbp::Status SubdocCmdContext::get_document_for_searching(
     if (mcbp::datatype::is_snappy(info.datatype)) {
         // Need to expand before attempting to extract from it.
         try {
-            using namespace cb::compression;
-            if (!inflate(Algorithm::Snappy, in_doc.view, inflated_doc_buffer)) {
+            if (!cookie.inflateSnappy(in_doc.view, inflated_doc_buffer)) {
                 char clean_key[KEY_MAX_LENGTH + 32];
                 if (buf_to_printable_buffer(
                             clean_key,
