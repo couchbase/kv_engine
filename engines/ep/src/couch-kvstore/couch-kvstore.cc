@@ -1829,7 +1829,7 @@ bool CouchKVStore::commit(VB::Commit& commitData) {
     return !inTransaction;
 }
 
-bool CouchKVStore::getStat(std::string_view name, size_t& value) {
+bool CouchKVStore::getStat(std::string_view name, size_t& value) const {
     if (name == "failure_compaction") {
         value = st.numCompactionFailure.load();
         return true;

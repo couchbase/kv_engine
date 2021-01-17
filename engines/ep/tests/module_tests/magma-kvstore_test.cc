@@ -139,6 +139,52 @@ TEST_F(MagmaKVStoreTest, prepareToCreate) {
     EXPECT_NO_THROW(kvstore->prepareToCreate(Vbid(0)));
 }
 
+TEST_F(MagmaKVStoreTest, getStats) {
+    constexpr std::array<std::string_view, 33> statNames = {{
+            "magma_NCompacts",
+            "magma_NFlushes",
+            "magma_NTTLCompacts",
+            "magma_NFileCountCompacts",
+            "magma_NWriterCompacts",
+            "magma_BytesOutgoing",
+            "magma_NReadBytes",
+            "magma_NReadBytesGet",
+            "magma_NGets",
+            "magma_NReadIO",
+            "magma_NReadBytesCompact",
+            "magma_BytesIncoming",
+            "magma_NWriteBytes",
+            "magma_NWriteBytesCompact",
+            "magma_LogicalDataSize",
+            "magma_LogicalDiskSize",
+            "magma_TotalDiskUsage",
+            "magma_WALDiskUsage",
+            "magma_BlockCacheMemUsed",
+            "magma_KeyIndexSize",
+            "magma_SeqIndex_IndexBlockSize",
+            "magma_WriteCacheMemUsed",
+            "magma_WALMemUsed",
+            "magma_TableMetaMemUsed",
+            "magma_BufferMemUsed",
+            "magma_TotalBloomFilterMemUsed",
+            "magma_BlockCacheHits",
+            "magma_BlockCacheMisses",
+            "magma_NTablesDeleted",
+            "magma_NTablesCreated",
+            "magma_NTableFiles",
+            "magma_NSyncs",
+            "foo",
+    }};
+    auto stats = kvstore->getStats(statNames);
+    for (auto name : statNames) {
+        if (name == "foo") {
+            EXPECT_EQ(stats.find(name), stats.end());
+        } else {
+            EXPECT_NE(stats.find(name), stats.end());
+        }
+    }
+}
+
 TEST_F(MagmaKVStoreTest, getStat) {
     size_t value;
     ASSERT_FALSE(kvstore->getStat("foobar", value));

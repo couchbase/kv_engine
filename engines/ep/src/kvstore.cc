@@ -387,6 +387,17 @@ std::string KVStore::getStatsPrefix() const {
     return "rw_" + std::to_string(shardId);
 }
 
+GetStatsMap KVStore::getStats(gsl::span<const std::string_view> keys) const {
+    GetStatsMap stats;
+    for (const auto& key : keys) {
+        size_t value;
+        if (getStat(key, value)) {
+            stats.try_emplace(key, value);
+        }
+    }
+    return stats;
+}
+
 void KVStore::addStats(const AddStatFn& add_stat,
                        const void* c,
                        const std::string& args) {

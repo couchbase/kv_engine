@@ -486,6 +486,48 @@ class KVBucketParamTest : public STParameterizedBucketTest {
     }
 };
 
+#ifdef EP_USE_MAGMA
+// Test to verify stats aggregation across shards is working.
+TEST_P(KVBucketParamTest, GetKVStoreStats) {
+    if (!isMagma()) {
+        GTEST_SKIP_("magma only");
+    }
+    auto vbid1 = vbid;
+    auto vbid2 = vbid;
+    vbid2++;
+    store->setVBucketState(vbid2, vbucket_state_active);
+
+    auto key1 = makeStoredDocKey("key1");
+    store_item(vbid1, key1, "value");
+    flush_vbucket_to_disk(vbid1, 1);
+
+    auto key2 = makeStoredDocKey("key2");
+    store_item(vbid2, key2, "value");
+    flush_vbucket_to_disk(vbid2, 1);
+
+    size_t nSetsVbid1 = 0;
+    size_t nSetsVbid2 = 0;
+    size_t nSetsAll = 0;
+    constexpr auto nSetsStatName = "magma_NSets";
+    constexpr auto fooStatName = "foo";
+    constexpr std::array<std::string_view, 2> keys = {
+            {nSetsStatName, fooStatName}};
+
+    auto stats = store->getKVStoreStats(keys, KVBucketIface::KVSOption::RW);
+    store->getRWUnderlying(vbid1)->getStat(nSetsStatName, nSetsVbid1);
+    store->getRWUnderlying(vbid2)->getStat(nSetsStatName, nSetsVbid2);
+    store->getKVStoreStat(
+            nSetsStatName, nSetsAll, KVBucketIface::KVSOption::RW);
+
+    EXPECT_EQ(nSetsVbid1, 1);
+    EXPECT_EQ(nSetsVbid2, 1);
+    EXPECT_NE(stats.find(nSetsStatName), stats.end());
+    EXPECT_EQ(stats[nSetsStatName], 2);
+    EXPECT_EQ(nSetsAll, 2);
+    EXPECT_EQ(stats.find(fooStatName), stats.end());
+}
+#endif
+
 // getKeyStats tests //////////////////////////////////////////////////////////
 
 // Check that keystats on resident items works correctly.

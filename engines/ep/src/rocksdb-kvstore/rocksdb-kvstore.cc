@@ -866,7 +866,7 @@ size_t RocksDBKVStore::getNumShards() {
     return configuration.getMaxShards();
 }
 
-bool RocksDBKVStore::getStat(std::string_view name, size_t& value) {
+bool RocksDBKVStore::getStat(std::string_view name, size_t& value) const {
     // Memory Usage
     if (name == "kMemTableTotal") {
         return getStatFromMemUsage(rocksdb::MemoryUtil::kMemTableTotal, value);
@@ -954,7 +954,8 @@ StorageProperties RocksDBKVStore::getStorageProperties() {
     return rv;
 }
 
-std::unordered_set<const rocksdb::Cache*> RocksDBKVStore::getCachePointers() {
+std::unordered_set<const rocksdb::Cache*> RocksDBKVStore::getCachePointers()
+        const {
     std::unordered_set<const rocksdb::Cache*> cache_set;
 
     // TODO: Cache from DBImpl. The 'std::shared_ptr<Cache>
@@ -1601,7 +1602,7 @@ scan_error_t RocksDBKVStore::scan(BySeqnoScanContext& ctx) {
 }
 
 bool RocksDBKVStore::getStatFromMemUsage(
-        const rocksdb::MemoryUtil::UsageType type, size_t& value) {
+        const rocksdb::MemoryUtil::UsageType type, size_t& value) const {
     std::vector<rocksdb::DB*> dbs = {rdb.get()};
     auto cache_set = getCachePointers();
     std::map<rocksdb::MemoryUtil::UsageType, uint64_t> usageByType;
@@ -1622,7 +1623,7 @@ bool RocksDBKVStore::getStatFromMemUsage(
 }
 
 bool RocksDBKVStore::getStatFromStatistics(const rocksdb::Tickers ticker,
-                                           size_t& value) {
+                                           size_t& value) const {
     const auto statistics = rdb->GetDBOptions().statistics;
     if (!statistics) {
         return false;
@@ -1633,7 +1634,7 @@ bool RocksDBKVStore::getStatFromStatistics(const rocksdb::Tickers ticker,
 
 bool RocksDBKVStore::getStatFromProperties(ColumnFamily cf,
                                            const std::string& property,
-                                           size_t& value) {
+                                           size_t& value) const {
     value = 0;
     std::lock_guard<std::mutex> lg(vbhMutex);
     for (const auto& vbh : vbHandles) {

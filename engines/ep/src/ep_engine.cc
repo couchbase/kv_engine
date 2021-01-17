@@ -2867,97 +2867,116 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
         const BucketStatCollector& collector) {
     using namespace cb::stats;
     auto divide = [](double a, double b) { return b ? a / b : 0; };
+    constexpr std::array<std::string_view, 32> statNames = {
+            {"magma_NCompacts",
+             "magma_NFlushes",
+             "magma_NTTLCompacts",
+             "magma_NFileCountCompacts",
+             "magma_NWriterCompacts",
+             "magma_BytesOutgoing",
+             "magma_NReadBytes",
+             "magma_NReadBytesGet",
+             "magma_NGets",
+             "magma_NReadIO",
+             "magma_NReadBytesCompact",
+             "magma_BytesIncoming",
+             "magma_NWriteBytes",
+             "magma_NWriteBytesCompact",
+             "magma_LogicalDataSize",
+             "magma_LogicalDiskSize",
+             "magma_TotalDiskUsage",
+             "magma_WALDiskUsage",
+             "magma_BlockCacheMemUsed",
+             "magma_KeyIndexSize",
+             "magma_SeqIndex_IndexBlockSize",
+             "magma_WriteCacheMemUsed",
+             "magma_WALMemUsed",
+             "magma_TableMetaMemUsed",
+             "magma_BufferMemUsed",
+             "magma_TotalBloomFilterMemUsed",
+             "magma_BlockCacheHits",
+             "magma_BlockCacheMisses",
+             "magma_NTablesDeleted",
+             "magma_NTablesCreated",
+             "magma_NTableFiles",
+             "magma_NSyncs"}};
 
-    size_t value;
+    auto stats =
+            kvBucket->getKVStoreStats(statNames, KVBucketIface::KVSOption::RW);
+
+    // Return whether stat exists. If exists, save value in output param value.
+    auto statExists = [&](std::string_view name, size_t& value) {
+        auto stat = stats.find(name);
+        if (stat != stats.end()) {
+            value = stat->second;
+            return true;
+        }
+        return false;
+    };
+
+    // If given stat exists, add it to collector.
+    auto addStat = [&](Key key, std::string_view name) {
+        size_t value = 0;
+        if (statExists(name, value)) {
+            collector.addStat(key, value);
+        }
+    };
+
     // Compaction counter stats.
-    if (kvBucket->getKVStoreStat(
-                "magma_NCompacts", value, KVBucketIface::KVSOption::RW)) {
-        collector.addStat(Key::ep_magma_compactions, value);
-    }
-    if (kvBucket->getKVStoreStat(
-                "magma_NFlushes", value, KVBucketIface::KVSOption::RW)) {
-        collector.addStat(Key::ep_magma_flushes, value);
-    }
-    if (kvBucket->getKVStoreStat(
-                "magma_NTTLCompacts", value, KVBucketIface::KVSOption::RW)) {
-        collector.addStat(Key::ep_magma_ttl_compactions, value);
-    }
-    if (kvBucket->getKVStoreStat("magma_NFileCountCompacts",
-                                 value,
-                                 KVBucketIface::KVSOption::RW)) {
-        collector.addStat(Key::ep_magma_filecount_compactions, value);
-    }
-    if (kvBucket->getKVStoreStat(
-                "magma_NWriterCompacts", value, KVBucketIface::KVSOption::RW)) {
-        collector.addStat(Key::ep_magma_writer_compactions, value);
-    }
+    addStat(Key::ep_magma_compactions, "magma_NCompacts");
+    addStat(Key::ep_magma_flushes, "magma_NFlushes");
+    addStat(Key::ep_magma_ttl_compactions, "magma_NTTLCompacts");
+    addStat(Key::ep_magma_filecount_compactions, "magma_NFileCountCompacts");
+    addStat(Key::ep_magma_writer_compactions, "magma_NWriterCompacts");
 
     // Read amp, ReadIOAmp.
-    size_t bytesOutgoing, readBytes;
-    if (kvBucket->getKVStoreStat("magma_BytesOutgoing",
-                                 bytesOutgoing,
-                                 KVBucketIface::KVSOption::RW) &&
-        kvBucket->getKVStoreStat(
-                "magma_NReadBytes", readBytes, KVBucketIface::KVSOption::RW)) {
+    size_t bytesOutgoing = 0;
+    size_t readBytes = 0;
+    if (statExists("magma_BytesOutgoing", bytesOutgoing) &&
+        statExists("magma_NReadBytes", readBytes)) {
         collector.addStat(Key::ep_magma_bytes_outgoing, bytesOutgoing);
         collector.addStat(Key::ep_magma_read_bytes, readBytes);
         auto readAmp = divide(readBytes, bytesOutgoing);
         collector.addStat(Key::ep_magma_readamp, readAmp);
 
-        size_t readBytesGet;
-        if (kvBucket->getKVStoreStat("magma_NReadBytesGet",
-                                     readBytesGet,
-                                     KVBucketIface::KVSOption::RW)) {
+        size_t readBytesGet = 0;
+        if (statExists("magma_NReadBytesGet", readBytesGet)) {
             collector.addStat(Key::ep_magma_read_bytes_get, readBytesGet);
             auto readAmpGet = divide(readBytesGet, bytesOutgoing);
             collector.addStat(Key::ep_magma_readamp_get, readAmpGet);
-        }
 
-        // ReadIOAmp.
-        size_t gets, readIOs;
-        if (kvBucket->getKVStoreStat(
-                    "magma_NGets", gets, KVBucketIface::KVSOption::RW) &&
-            kvBucket->getKVStoreStat(
-                    "magma_NReadIO", readIOs, KVBucketIface::KVSOption::RW)) {
-            collector.addStat(Key::ep_magma_readio, readIOs);
-            collector.addStat(Key::ep_magma_readioamp, divide(readIOs, gets));
-            collector.addStat(Key::ep_magma_bytes_per_read,
-                              divide(readBytesGet, gets));
+            // ReadIOAmp.
+            size_t gets = 0;
+            size_t readIOs = 0;
+            if (statExists("magma_NGets", gets) &&
+                statExists("magma_NReadIO", readIOs)) {
+                collector.addStat(Key::ep_magma_readio, readIOs);
+                collector.addStat(Key::ep_magma_readioamp,
+                                  divide(readIOs, gets));
+                collector.addStat(Key::ep_magma_bytes_per_read,
+                                  divide(readBytesGet, gets));
+            }
         }
     }
-    if (kvBucket->getKVStoreStat("magma_NReadBytesCompact",
-                                 value,
-                                 KVBucketIface::KVSOption::RW)) {
-        collector.addStat(Key::ep_magma_read_bytes_compact, value);
-    }
+    addStat(Key::ep_magma_read_bytes_compact, "magma_NReadBytesCompact");
 
     // Write amp.
-    size_t bytesIncoming, writeBytes;
-    if (kvBucket->getKVStoreStat("magma_BytesIncoming",
-                                 bytesIncoming,
-                                 KVBucketIface::KVSOption::RW) &&
-        kvBucket->getKVStoreStat("magma_NWriteBytes",
-                                 writeBytes,
-                                 KVBucketIface::KVSOption::RW)) {
+    size_t bytesIncoming = 0;
+    size_t writeBytes = 0;
+    if (statExists("magma_BytesIncoming", bytesIncoming) &&
+        statExists("magma_NWriteBytes", writeBytes)) {
         collector.addStat(Key::ep_magma_bytes_incoming, bytesIncoming);
         collector.addStat(Key::ep_magma_write_bytes, writeBytes);
         auto writeAmp = divide(writeBytes, bytesIncoming);
         collector.addStat(Key::ep_magma_writeamp, writeAmp);
     }
-    if (kvBucket->getKVStoreStat("magma_NWriteBytesCompact",
-                                 value,
-                                 KVBucketIface::KVSOption::RW)) {
-        collector.addStat(Key::ep_magma_write_bytes_compact, value);
-    }
+    addStat(Key::ep_magma_write_bytes_compact, "magma_NWriteBytesCompact");
 
     // Fragmentation.
-    size_t logicalDataSize, logicalDiskSize;
-    if (kvBucket->getKVStoreStat("magma_LogicalDataSize",
-                                 logicalDataSize,
-                                 KVBucketIface::KVSOption::RW) &&
-        kvBucket->getKVStoreStat("magma_LogicalDiskSize",
-                                 logicalDiskSize,
-                                 KVBucketIface::KVSOption::RW)) {
+    size_t logicalDataSize = 0;
+    size_t logicalDiskSize = 0;
+    if (statExists("magma_LogicalDataSize", logicalDataSize) &&
+        statExists("magma_LogicalDiskSize", logicalDiskSize)) {
         collector.addStat(Key::ep_magma_logical_data_size, logicalDataSize);
         collector.addStat(Key::ep_magma_logical_disk_size, logicalDiskSize);
         double fragmentation =
@@ -2966,68 +2985,38 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
     }
 
     // Disk usage.
-    if (kvBucket->getKVStoreStat(
-                "magma_TotalDiskUsage", value, KVBucketIface::KVSOption::RW)) {
-        collector.addStat(Key::ep_magma_total_disk_usage, value);
-    }
-    if (kvBucket->getKVStoreStat(
-                "magma_WALDiskUsage", value, KVBucketIface::KVSOption::RW)) {
-        collector.addStat(Key::ep_magma_wal_disk_usage, value);
-    }
+    addStat(Key::ep_magma_total_disk_usage, "magma_TotalDiskUsage");
+    addStat(Key::ep_magma_wal_disk_usage, "magma_WALDiskUsage");
 
     // Memory usage.
     size_t blockCacheMemUsed = 0;
-    if (kvBucket->getKVStoreStat("magma_BlockCacheMemUsed",
-                                 blockCacheMemUsed,
-                                 KVBucketIface::KVSOption::RW)) {
+    if (statExists("magma_BlockCacheMemUsed", blockCacheMemUsed)) {
         collector.addStat(Key::ep_magma_block_cache_mem_used,
                           blockCacheMemUsed);
 
-        size_t keyIndexSize, seqIndex_IndexBlockSize;
-        if (kvBucket->getKVStoreStat("magma_KeyIndexSize",
-                                     keyIndexSize,
-                                     KVBucketIface::KVSOption::RW) &&
-            kvBucket->getKVStoreStat("magma_SeqIndex_IndexBlockSize",
-                                     seqIndex_IndexBlockSize,
-                                     KVBucketIface::KVSOption::RW)) {
+        size_t keyIndexSize = 0;
+        size_t seqIndex_IndexBlockSize = 0;
+        if (statExists("magma_KeyIndexSize", keyIndexSize) &&
+            statExists("magma_SeqIndex_IndexBlockSize",
+                       seqIndex_IndexBlockSize)) {
             auto total = keyIndexSize + seqIndex_IndexBlockSize;
             double residentRatio = divide(blockCacheMemUsed, total);
             collector.addStat(Key::ep_magma_index_resident_ratio,
                               residentRatio);
         }
     }
-    if (kvBucket->getKVStoreStat("magma_WriteCacheMemUsed",
-                                 value,
-                                 KVBucketIface::KVSOption::RW)) {
-        collector.addStat(Key::ep_magma_write_cache_mem_used, value);
-    }
-    if (kvBucket->getKVStoreStat(
-                "magma_WALMemUsed", value, KVBucketIface::KVSOption::RW)) {
-        collector.addStat(Key::ep_magma_wal_mem_used, value);
-    }
-    if (kvBucket->getKVStoreStat("magma_TableMetaMemUsed",
-                                 value,
-                                 KVBucketIface::KVSOption::RW)) {
-        collector.addStat(Key::ep_magma_table_meta_mem_used, value);
-    }
-    if (kvBucket->getKVStoreStat(
-                "magma_BufferMemUsed", value, KVBucketIface::KVSOption::RW)) {
-        collector.addStat(Key::ep_magma_buffer_mem_used, value);
-    }
-    if (kvBucket->getKVStoreStat("magma_TotalBloomFilterMemUsed",
-                                 value,
-                                 KVBucketIface::KVSOption::RW)) {
-        collector.addStat(Key::ep_magma_bloom_filter_mem_used, value);
-    }
+    addStat(Key::ep_magma_write_cache_mem_used, "magma_WriteCacheMemUsed");
+    addStat(Key::ep_magma_wal_mem_used, "magma_WALMemUsed");
+    addStat(Key::ep_magma_table_meta_mem_used, "magma_TableMetaMemUsed");
+    addStat(Key::ep_magma_buffer_mem_used, "magma_BufferMemUsed");
+    addStat(Key::ep_magma_bloom_filter_mem_used,
+            "magma_TotalBloomFilterMemUsed");
 
     // Block cache.
-    size_t blockCacheHits, blockCacheMisses;
-    if (kvBucket->getKVStoreStat("magma_BlockCacheHits",
-                                 blockCacheHits,
-                                 KVBucketIface::KVSOption::RW) &&
-        kvBucket->getKVStoreStat("magma_BlockCacheMisses",
-                                 blockCacheMisses,
-                                 KVBucketIface::KVSOption::RW)) {
+    size_t blockCacheHits = 0;
+    size_t blockCacheMisses = 0;
+    if (statExists("magma_BlockCacheHits", blockCacheHits) &&
+        statExists("magma_BlockCacheMisses", blockCacheMisses)) {
         collector.addStat(Key::ep_magma_block_cache_hits, blockCacheHits);
         collector.addStat(Key::ep_magma_block_cache_misses, blockCacheMisses);
         auto total = blockCacheHits + blockCacheMisses;
@@ -3036,24 +3025,12 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
     }
 
     // SST file counts.
-    if (kvBucket->getKVStoreStat(
-                "magma_NTablesDeleted", value, KVBucketIface::KVSOption::RW)) {
-        collector.addStat(Key::ep_magma_tables_deleted, value);
-    }
-    if (kvBucket->getKVStoreStat(
-                "magma_NTablesCreated", value, KVBucketIface::KVSOption::RW)) {
-        collector.addStat(Key::ep_magma_tables_created, value);
-    }
-    if (kvBucket->getKVStoreStat(
-                "magma_NTableFiles", value, KVBucketIface::KVSOption::RW)) {
-        collector.addStat(Key::ep_magma_tables, value);
-    }
+    addStat(Key::ep_magma_tables_deleted, "magma_NTablesDeleted");
+    addStat(Key::ep_magma_tables_created, "magma_NTablesCreated");
+    addStat(Key::ep_magma_tables, "magma_NTableFiles");
 
     // NSyncs.
-    if (kvBucket->getKVStoreStat(
-                "magma_NSyncs", value, KVBucketIface::KVSOption::RW)) {
-        collector.addStat(Key::ep_magma_syncs, value);
-    }
+    addStat(Key::ep_magma_syncs, "magma_NSyncs");
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(

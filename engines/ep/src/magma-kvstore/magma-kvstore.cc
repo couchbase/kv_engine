@@ -2376,121 +2376,69 @@ void MagmaKVStore::updateScopes(Vbid vbid,
     localDbReqs.emplace_back(MagmaLocalReq(openScopesKey, buf));
 }
 
-bool MagmaKVStore::getStat(std::string_view name, size_t& value) {
-    Magma::MagmaStats magmaStats;
-    if (name == "memory_quota") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.MemoryQuota);
-    } else if (name == "write_cache_quota") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.WriteCacheQuota);
-    } else if (name == "failure_get") {
-        value = st.numGetFailure.load();
-    } else if (name == "failure_compaction") {
-        value = st.numCompactionFailure.load();
-    } else if (name == "storage_mem_used") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.TotalMemUsed);
-    } else if (name == "magma_NCompacts") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.NCompacts);
-    } else if (name == "magma_NFlushes") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.NFlushes);
-    } else if (name == "magma_NTTLCompacts") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.NTTLCompacts);
-    } else if (name == "magma_NFileCountCompacts") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.NFileCountCompacts);
-    } else if (name == "magma_NWriterCompacts") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.NWriterCompacts);
-    } else if (name == "magma_BytesOutgoing") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.BytesOutgoing);
-    } else if (name == "magma_NReadBytes") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.NReadBytes);
-    } else if (name == "magma_NReadBytesGet") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.NReadBytesGet);
-    } else if (name == "magma_NGets") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.NGets);
-    } else if (name == "magma_NReadIO") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.NReadIOs);
-    } else if (name == "magma_NReadBytesCompact") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.NReadBytesCompact);
-    } else if (name == "magma_BytesIncoming") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.BytesIncoming);
-    } else if (name == "magma_NWriteBytes") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.NWriteBytes);
-    } else if (name == "magma_NWriteBytesCompact") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.NWriteBytesCompact);
-    } else if (name == "magma_LogicalDataSize") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.LogicalDataSize);
-    } else if (name == "magma_LogicalDiskSize") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.LogicalDiskSize);
-    } else if (name == "magma_TotalDiskUsage") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.TotalDiskUsage);
-    } else if (name == "magma_WALDiskUsage") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.WalStats.DiskUsed);
-    } else if (name == "magma_BlockCacheMemUsed") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.BlockCacheMemUsed);
-    } else if (name == "magma_KeyIndexSize") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.KeyStats.LogicalDataSize);
-    } else if (name == "magma_SeqIndex_IndexBlockSize") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.SeqStats.TotalIndexBlocksSize);
-    } else if (name == "magma_WriteCacheMemUsed") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.WriteCacheMemUsed);
-    } else if (name == "magma_WALMemUsed") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.WALMemUsed);
-    } else if (name == "magma_TableMetaMemUsed") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.TableMetaMemUsed);
-    } else if (name == "magma_BufferMemUsed") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.BufferMemUsed);
-    } else if (name == "magma_TotalBloomFilterMemUsed") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.TotalBloomFilterMemUsed);
-    } else if (name == "magma_BlockCacheHits") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.BlockCacheHits);
-    } else if (name == "magma_BlockCacheMisses") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.BlockCacheMisses);
-    } else if (name == "magma_NTablesDeleted") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.NTablesDeleted);
-    } else if (name == "magma_NTablesCreated") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.NTablesCreated);
-    } else if (name == "magma_NTableFiles") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.NTableFiles);
-    } else if (name == "magma_NSyncs") {
-        magma->GetStats(magmaStats);
-        value = static_cast<size_t>(magmaStats.NSyncs);
-    } else {
-        return false;
+bool MagmaKVStore::getStat(std::string_view name, size_t& value) const {
+    std::array<std::string_view, 1> keys = {{name}};
+    auto stats = getStats(keys);
+    auto stat = stats.find(name);
+    if (stat != stats.end()) {
+        value = stat->second;
+        return true;
     }
-    return true;
+    return false;
+}
+
+GetStatsMap MagmaKVStore::getStats(
+        gsl::span<const std::string_view> keys) const {
+    Magma::MagmaStats magmaStats;
+    magma->GetStats(magmaStats);
+
+    GetStatsMap stats;
+    auto fill = [&](std::string_view statName, size_t value) {
+        auto it = std::find(keys.begin(), keys.end(), statName);
+        if (it != keys.end()) {
+            stats.try_emplace(*it, value);
+        }
+    };
+    fill("memory_quota", magmaStats.MemoryQuota);
+    fill("write_cache_quota", magmaStats.WriteCacheQuota);
+    fill("failure_get", st.numGetFailure.load());
+    fill("failure_compaction", st.numCompactionFailure.load());
+    fill("storage_mem_used", magmaStats.TotalMemUsed);
+    fill("magma_NCompacts", magmaStats.NCompacts);
+    fill("magma_NFlushes", magmaStats.NFlushes);
+    fill("magma_NTTLCompacts", magmaStats.NTTLCompacts);
+    fill("magma_NFileCountCompacts", magmaStats.NFileCountCompacts);
+    fill("magma_NWriterCompacts", magmaStats.NWriterCompacts);
+    fill("magma_BytesOutgoing", magmaStats.BytesOutgoing);
+    fill("magma_NReadBytes", magmaStats.NReadBytes);
+    fill("magma_NReadBytesGet", magmaStats.NReadBytesGet);
+    fill("magma_NGets", magmaStats.NGets);
+    fill("magma_NSets", magmaStats.NSets);
+    fill("magma_NReadIO", magmaStats.NReadIOs);
+    fill("magma_NReadBytesCompact", magmaStats.NReadBytesCompact);
+    fill("magma_BytesIncoming", magmaStats.BytesIncoming);
+    fill("magma_NWriteBytes", magmaStats.NWriteBytes);
+    fill("magma_NWriteBytesCompact", magmaStats.NWriteBytesCompact);
+    fill("magma_LogicalDataSize", magmaStats.LogicalDataSize);
+    fill("magma_LogicalDiskSize", magmaStats.LogicalDiskSize);
+    fill("magma_TotalDiskUsage", magmaStats.TotalDiskUsage);
+    fill("magma_WALDiskUsage", magmaStats.WalStats.DiskUsed);
+    fill("magma_BlockCacheMemUsed", magmaStats.BlockCacheMemUsed);
+    fill("magma_KeyIndexSize", magmaStats.KeyStats.LogicalDataSize);
+    fill("magma_SeqIndex_IndexBlockSize",
+         magmaStats.SeqStats.TotalIndexBlocksSize);
+    fill("magma_WriteCacheMemUsed", magmaStats.WriteCacheMemUsed);
+    fill("magma_WALMemUsed", magmaStats.WALMemUsed);
+    fill("magma_TableMetaMemUsed", magmaStats.TableMetaMemUsed);
+    fill("magma_BufferMemUsed", magmaStats.BufferMemUsed);
+    fill("magma_TotalBloomFilterMemUsed", magmaStats.TotalBloomFilterMemUsed);
+    fill("magma_BlockCacheHits", magmaStats.BlockCacheHits);
+    fill("magma_BlockCacheMisses", magmaStats.BlockCacheMisses);
+    fill("magma_NTablesDeleted", magmaStats.NTablesDeleted);
+    fill("magma_NTablesCreated", magmaStats.NTablesCreated);
+    fill("magma_NTableFiles", magmaStats.NTableFiles);
+    fill("magma_NSyncs", magmaStats.NSyncs);
+    return stats;
 }
 
 void MagmaKVStore::addStats(const AddStatFn& add_stat,

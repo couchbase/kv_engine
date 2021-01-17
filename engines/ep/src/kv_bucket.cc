@@ -2440,25 +2440,39 @@ void KVBucket::addKVStoreTimingStats(const AddStatFn& add_stat,
     }
 }
 
-bool KVBucket::getKVStoreStat(std::string_view name,
-                              size_t& value,
-                              KVSOption option) {
-    value = 0;
-    bool success = true;
-    for (const auto& shard : vbMap.shards) {
-        size_t per_shard_value;
+bool KVBucket::getKVStoreStat(std::string_view name, size_t& value, KVSOption option)
+{
+    std::array<std::string_view, 1> keys = {{name}};
+    auto stats = getKVStoreStats(keys, option);
+    auto stat = stats.find(name);
+    if (stat != stats.end()) {
+        value = stat->second;
+        return true;
+    }
+    return false;
+}
 
-        if (option == KVSOption::RO || option == KVSOption::BOTH) {
-            success &= shard->getROUnderlying()->getStat(name, per_shard_value);
-            value += per_shard_value;
+GetStatsMap KVBucket::getKVStoreStats(gsl::span<const std::string_view> keys,
+                                      KVSOption option) {
+    GetStatsMap stats;
+    auto aggShardStats = [&](KVStore* store) {
+        auto shardStats = store->getStats(keys);
+        for (const auto& [name, value] : shardStats) {
+            auto [itr, emplaced] = stats.try_emplace(name, value);
+            if (!emplaced) {
+                itr->second += value;
+            }
         }
-
+    };
+    for (const auto& shard : vbMap.shards) {
+        if (option == KVSOption::RO || option == KVSOption::BOTH) {
+            aggShardStats(shard->getROUnderlying());
+        }
         if (option == KVSOption::RW || option == KVSOption::BOTH) {
-            success &= shard->getRWUnderlying()->getStat(name, per_shard_value);
-            value += per_shard_value;
+            aggShardStats(shard->getRWUnderlying());
         }
     }
-    return success;
+    return stats;
 }
 
 KVStore *KVBucket::getOneROUnderlying() {

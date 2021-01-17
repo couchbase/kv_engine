@@ -161,7 +161,7 @@ public:
      * @return True if the stat exists, is of type size_t and was successfully
      *         returned, else false.
      */
-    bool getStat(std::string_view name, size_t& value) override;
+    bool getStat(std::string_view name, size_t& value) const override;
 
     /**
      * Query the properties of the underlying storage.
@@ -354,7 +354,7 @@ private:
     // before accessing the vector to get a copy of any shared_ptr owned by
     // the vector. The mutex can be unlocked once a thread has its own copy
     // of the shared_ptr.
-    std::mutex vbhMutex;
+    mutable std::mutex vbhMutex;
 
     // This vector stores a VBHandle (i.e., handles for all the ColumnFamilies)
     // for each VBucket. The entry for a VBucket can be inserted in two
@@ -413,7 +413,7 @@ private:
      * This function returns a set of pointers to all Caches allocated for
      * the rocksdb::DB instances managed by the current Shard.
      */
-    std::unordered_set<const rocksdb::Cache*> getCachePointers();
+    std::unordered_set<const rocksdb::Cache*> getCachePointers() const;
 
     // This helper function adds all the block cache pointers of 'cfOptions'
     // to 'cache_set'
@@ -480,16 +480,17 @@ private:
 
     // Helper function to retrieve stats from the RocksDB MemoryUtil API.
     bool getStatFromMemUsage(const rocksdb::MemoryUtil::UsageType type,
-                             size_t& value);
+                             size_t& value) const;
 
     // Helper function to retrieve stats from the RocksDB Statistics API.
-    bool getStatFromStatistics(const rocksdb::Tickers ticker, size_t& value);
+    bool getStatFromStatistics(const rocksdb::Tickers ticker,
+                               size_t& value) const;
 
     // Helper function to retrieve stats from the RocksDB Property API for a
     // given Column Family.
     bool getStatFromProperties(ColumnFamily cf,
                                const std::string& property,
-                               size_t& value);
+                               size_t& value) const;
 
     // The Memtable Quota is given by the 'rocksdb_memtables_ratio'
     // configuration parameter as ratio of the Bucket Quota. This function

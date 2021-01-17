@@ -20,6 +20,7 @@
 #include "callbacks.h"
 #include "collections/eraser_context.h"
 #include "collections/kvstore.h"
+#include "kvstore_fwd.h"
 
 #include <memcached/engine_common.h>
 #include <utilities/hdrhistogram.h>
@@ -654,9 +655,18 @@ public:
      * @return True if the stat exists, is of type size_t and was successfully
      *         returned, else false.
      */
-    virtual bool getStat(std::string_view name, size_t& value) {
+    virtual bool getStat(std::string_view name, size_t& value) const {
         return false;
     }
+
+    /// Request the specified statistics from kvstore.
+    ///
+    /// @param [in] keys specifies a set of statistics to be fetched.
+    /// @return statistic values. Note that the string_view keys in the returned
+    /// map refer to the same string keys that the input string_view refers to.
+    /// Hence the map is ok to use only as long as the string keys live.
+    ///
+    virtual GetStatsMap getStats(gsl::span<const std::string_view> keys) const;
 
     /**
      * Show kvstore specific timing stats.

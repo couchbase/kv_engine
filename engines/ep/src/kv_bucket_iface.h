@@ -18,6 +18,7 @@
 #pragma once
 
 #include "globaltask.h"
+#include "kvstore_fwd.h"
 #include "permitted_vb_states.h"
 #include "rollback_result.h"
 #include "vbucket_fwd.h"
@@ -706,6 +707,17 @@ public:
     virtual bool getKVStoreStat(std::string_view name,
                                 size_t& value,
                                 KVSOption option) = 0;
+
+    /// Get statistic values for specified ones, accumulated across any shards.
+    ///
+    /// @param [in] keys specifies the statistics to be fetched.
+    /// @param option the kind of KVStore to read stats from.
+    /// @return statistic values. Note that the string_view keys in the returned
+    /// map refer to the same string keys that the input string_view refers to.
+    /// Hence the map is ok to use only as long as the string keys live.
+    ///
+    virtual GetStatsMap getKVStoreStats(gsl::span<const std::string_view> keys,
+                                        KVSOption option) = 0;
 
     virtual void resetUnderlyingStats() = 0;
     virtual KVStore *getOneROUnderlying() = 0;
