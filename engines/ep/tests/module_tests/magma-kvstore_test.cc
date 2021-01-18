@@ -140,9 +140,51 @@ TEST_F(MagmaKVStoreTest, prepareToCreate) {
 }
 
 TEST_F(MagmaKVStoreTest, getStat) {
-    size_t val;
-    ASSERT_FALSE(kvstore->getStat("foobar", val));
-    ASSERT_TRUE(kvstore->getStat("memory_quota", val));
+    size_t value;
+    ASSERT_FALSE(kvstore->getStat("foobar", value));
+    ASSERT_TRUE(kvstore->getStat("memory_quota", value));
+
+    // Compaction counters
+    ASSERT_TRUE(kvstore->getStat("magma_NCompacts", value));
+    ASSERT_TRUE(kvstore->getStat("magma_NFlushes", value));
+    ASSERT_TRUE(kvstore->getStat("magma_NTTLCompacts", value));
+    ASSERT_TRUE(kvstore->getStat("magma_NFileCountCompacts", value));
+    ASSERT_TRUE(kvstore->getStat("magma_NWriterCompacts", value));
+    // Read amp, ReadIOAmp.
+    ASSERT_TRUE(kvstore->getStat("magma_BytesOutgoing", value));
+    ASSERT_TRUE(kvstore->getStat("magma_NReadBytes", value));
+    ASSERT_TRUE(kvstore->getStat("magma_NReadBytesGet", value));
+    ASSERT_TRUE(kvstore->getStat("magma_NGets", value));
+    ASSERT_TRUE(kvstore->getStat("magma_NReadIO", value));
+    ASSERT_TRUE(kvstore->getStat("magma_NReadBytesCompact", value));
+    // Write amp.
+    ASSERT_TRUE(kvstore->getStat("magma_BytesIncoming", value));
+    ASSERT_TRUE(kvstore->getStat("magma_NWriteBytes", value));
+    ASSERT_TRUE(kvstore->getStat("magma_NWriteBytesCompact", value));
+    // Fragmentation.
+    ASSERT_TRUE(kvstore->getStat("magma_LogicalDataSize", value));
+    ASSERT_TRUE(kvstore->getStat("magma_LogicalDiskSize", value));
+    // Disk usage.
+    ASSERT_TRUE(kvstore->getStat("magma_TotalDiskUsage", value));
+    ASSERT_TRUE(kvstore->getStat("magma_WALDiskUsage", value));
+    // Memory usage.
+    ASSERT_TRUE(kvstore->getStat("magma_BlockCacheMemUsed", value));
+    ASSERT_TRUE(kvstore->getStat("magma_KeyIndexSize", value));
+    ASSERT_TRUE(kvstore->getStat("magma_SeqIndex_IndexBlockSize", value));
+    ASSERT_TRUE(kvstore->getStat("magma_WriteCacheMemUsed", value));
+    ASSERT_TRUE(kvstore->getStat("magma_WALMemUsed", value));
+    ASSERT_TRUE(kvstore->getStat("magma_TableMetaMemUsed", value));
+    ASSERT_TRUE(kvstore->getStat("magma_BufferMemUsed", value));
+    ASSERT_TRUE(kvstore->getStat("magma_TotalBloomFilterMemUsed", value));
+    // Block cache.
+    ASSERT_TRUE(kvstore->getStat("magma_BlockCacheHits", value));
+    ASSERT_TRUE(kvstore->getStat("magma_BlockCacheMisses", value));
+    // SST file counts.
+    ASSERT_TRUE(kvstore->getStat("magma_NTablesDeleted", value));
+    ASSERT_TRUE(kvstore->getStat("magma_NTablesCreated", value));
+    ASSERT_TRUE(kvstore->getStat("magma_NTableFiles", value));
+    // NSyncs.
+    ASSERT_TRUE(kvstore->getStat("magma_NSyncs", value));
 }
 
 // TODO: MB-40008: Disabled as the test has started recently failing.

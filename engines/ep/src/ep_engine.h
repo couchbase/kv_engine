@@ -1218,6 +1218,10 @@ protected:
             const AddResponseFn& response);
 
 private:
+    void doEngineStatsCouchDB(const BucketStatCollector& collector, const EPStats& epstats);
+    void doEngineStatsMagma(const BucketStatCollector& collector);
+    void doEngineStatsRocksDB(const BucketStatCollector& collector);
+
     cb::EngineErrorGetCollectionIDResult parseKeyStatCollection(
             std::string_view expectedStatPrefix,
             std::string_view statKeyArg,

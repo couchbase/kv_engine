@@ -2373,12 +2373,10 @@ void MagmaKVStore::updateScopes(Vbid vbid,
 
 bool MagmaKVStore::getStat(const char* name, size_t& value) {
     Magma::MagmaStats magmaStats;
-    if (strncmp(name, "memory_quota", sizeof("memory_quota")) == 0) {
+    if (strcmp(name, "memory_quota") == 0) {
         magma->GetStats(magmaStats);
         value = static_cast<size_t>(magmaStats.MemoryQuota);
-    } else if (strncmp(name,
-                       "write_cache_quota",
-                       sizeof("write_cache_quota")) == 0) {
+    } else if (strcmp(name, "write_cache_quota") == 0) {
         magma->GetStats(magmaStats);
         value = static_cast<size_t>(magmaStats.WriteCacheQuota);
     } else if (strcmp("failure_get", name) == 0) {
@@ -2388,6 +2386,102 @@ bool MagmaKVStore::getStat(const char* name, size_t& value) {
     } else if (strcmp("storage_mem_used", name) == 0) {
         magma->GetStats(magmaStats);
         value = static_cast<size_t>(magmaStats.TotalMemUsed);
+    } else if (strcmp("magma_NCompacts", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.NCompacts);
+    } else if (strcmp("magma_NFlushes", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.NFlushes);
+    } else if (strcmp("magma_NTTLCompacts", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.NTTLCompacts);
+    } else if (strcmp("magma_NFileCountCompacts", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.NFileCountCompacts);
+    } else if (strcmp("magma_NWriterCompacts", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.NWriterCompacts);
+    } else if (strcmp("magma_BytesOutgoing", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.BytesOutgoing);
+    } else if (strcmp("magma_NReadBytes", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.NReadBytes);
+    } else if (strcmp("magma_NReadBytesGet", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.NReadBytesGet);
+    } else if (strcmp("magma_NGets", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.NGets);
+    } else if (strcmp("magma_NReadIO", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.NReadIOs);
+    } else if (strcmp("magma_NReadBytesCompact", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.NReadBytesCompact);
+    } else if (strcmp("magma_BytesIncoming", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.BytesIncoming);
+    } else if (strcmp("magma_NWriteBytes", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.NWriteBytes);
+    } else if (strcmp("magma_NWriteBytesCompact", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.NWriteBytesCompact);
+    } else if (strcmp("magma_LogicalDataSize", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.LogicalDataSize);
+    } else if (strcmp("magma_LogicalDiskSize", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.LogicalDiskSize);
+    } else if (strcmp("magma_TotalDiskUsage", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.TotalDiskUsage);
+    } else if (strcmp("magma_WALDiskUsage", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.WalStats.DiskUsed);
+    } else if (strcmp("magma_BlockCacheMemUsed", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.BlockCacheMemUsed);
+    } else if (strcmp("magma_KeyIndexSize", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.KeyStats.LogicalDataSize);
+    } else if (strcmp("magma_SeqIndex_IndexBlockSize", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.SeqStats.TotalIndexBlocksSize);
+    } else if (strcmp("magma_WriteCacheMemUsed", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.WriteCacheMemUsed);
+    } else if (strcmp("magma_WALMemUsed", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.WALMemUsed);
+    } else if (strcmp("magma_TableMetaMemUsed", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.TableMetaMemUsed);
+    } else if (strcmp("magma_BufferMemUsed", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.BufferMemUsed);
+    } else if (strcmp("magma_TotalBloomFilterMemUsed", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.TotalBloomFilterMemUsed);
+    } else if (strcmp("magma_BlockCacheHits", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.BlockCacheHits);
+    } else if (strcmp("magma_BlockCacheMisses", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.BlockCacheMisses);
+    } else if (strcmp("magma_NTablesDeleted", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.NTablesDeleted);
+    } else if (strcmp("magma_NTablesCreated", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.NTablesCreated);
+    } else if (strcmp("magma_NTableFiles", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.NTableFiles);
+    } else if (strcmp("magma_NSyncs", name) == 0) {
+        magma->GetStats(magmaStats);
+        value = static_cast<size_t>(magmaStats.NSyncs);
     } else {
         return false;
     }

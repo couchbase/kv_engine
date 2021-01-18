@@ -265,6 +265,56 @@ STAT(ep_io_compaction_read_bytes, , bytes, , )
 STAT(ep_io_compaction_write_bytes, , bytes, , )
 STAT(ep_io_bg_fetch_read_count, , count, , )
 STAT(ep_bg_fetch_avg_read_amplification, , ratio, , )
+
+// Magma stats
+// Compaction.
+STAT(ep_magma_compactions, , count, , )
+STAT(ep_magma_flushes, , count, , )
+STAT(ep_magma_ttl_compactions, , count, , )
+STAT(ep_magma_filecount_compactions, , count, , )
+STAT(ep_magma_writer_compactions, , count, , )
+// Read amp.
+STAT(ep_magma_readamp, , ratio, , )
+STAT(ep_magma_readamp_get, , ratio, , )
+STAT(ep_magma_read_bytes, , bytes, , )
+STAT(ep_magma_read_bytes_compact, , bytes, , )
+STAT(ep_magma_read_bytes_get, , bytes, , )
+STAT(ep_magma_bytes_outgoing, , bytes, , )
+// ReadIOAmp.
+STAT(ep_magma_readio, , count, , )
+STAT(ep_magma_readioamp, , ratio, , )
+STAT(ep_magma_bytes_per_read, , ratio, , )
+// Write amp.
+STAT(ep_magma_writeamp, , ratio, , )
+STAT(ep_magma_bytes_incoming, , bytes, , )
+STAT(ep_magma_write_bytes, , bytes, , )
+STAT(ep_magma_write_bytes_compact, , bytes, , )
+// Fragmentation.
+STAT(ep_magma_logical_data_size, , bytes, , )
+STAT(ep_magma_logical_disk_size, , bytes, , )
+STAT(ep_magma_fragmentation, , ratio, , )
+// Disk usage.
+STAT(ep_magma_total_disk_usage, , bytes, , )
+STAT(ep_magma_wal_disk_usage, , bytes, , )
+// Memory usage.
+STAT(ep_magma_block_cache_mem_used, , bytes, , )
+STAT(ep_magma_write_cache_mem_used, , bytes, , )
+STAT(ep_magma_wal_mem_used, , bytes, , )
+STAT(ep_magma_table_meta_mem_used, , bytes, , )
+STAT(ep_magma_buffer_mem_used, , bytes, , )
+STAT(ep_magma_bloom_filter_mem_used, , bytes, , )
+STAT(ep_magma_index_resident_ratio, , ratio, , )
+// Block cache.
+STAT(ep_magma_block_cache_hits, , count, , )
+STAT(ep_magma_block_cache_misses, , count, , )
+STAT(ep_magma_block_cache_hit_ratio, , ratio, , )
+// SST file count.
+STAT(ep_magma_tables_created, , count, , )
+STAT(ep_magma_tables_deleted, , count, , )
+STAT(ep_magma_tables, , count, , )
+// NSync.
+STAT(ep_magma_syncs, , count, , )
+
 STAT(ep_rocksdb_kMemTableTotal, , bytes, , )
 STAT(ep_rocksdb_kMemTableUnFlushed, , bytes, , )
 STAT(ep_rocksdb_kTableReadersTotal, , bytes, , )
