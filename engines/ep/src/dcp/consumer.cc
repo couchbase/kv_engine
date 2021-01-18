@@ -201,6 +201,8 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
     // Consumer needs to know if the Producer supports IncludeDeletedUserXattrs
     deletedUserXattrsNegotiation.state =
             BlockingDcpControlNegotiation::State::PendingRequest;
+
+    allowSanitizeValueInDeletion.store(config.isAllowSanitizeValueInDeletion());
 }
 
 DcpConsumer::~DcpConsumer() {

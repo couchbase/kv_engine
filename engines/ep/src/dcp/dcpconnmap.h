@@ -200,6 +200,13 @@ protected:
     void blacklistFtsConnectionLogsConfigChanged(bool newValue);
 
     /**
+     * Reflect the EP configuration change into all existing consumers.
+     *
+     * @param newValue
+     */
+    void consumerAllowSanitizeValueInDeletionConfigChanged(bool newValue);
+
+    /**
      * @param engine The engine
      * @param cookie The cookie that identifies the connection
      * @param connName The name that identifies the connection

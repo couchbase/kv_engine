@@ -328,6 +328,10 @@ public:
 
     void setDisconnect() override;
 
+    void setAllowSanitizeValueInDeletion(bool value) {
+        allowSanitizeValueInDeletion.store(value);
+    }
+
 protected:
     /**
      * Records when the consumer last received a message from producer.
@@ -631,6 +635,13 @@ protected:
      * in one call of stream->processBufferedMessages()
      */
     size_t processBufferedMessagesBatchSize;
+
+    /**
+     * Whether this consumer should just sanitize invalid payloads in deletions
+     * or fail the operation if an invalid payload is detected.
+     * Non-const as the related configuration param is dynamic.
+     */
+    std::atomic_bool allowSanitizeValueInDeletion;
 
     static const std::string noopCtrlMsg;
     static const std::string noopIntervalCtrlMsg;

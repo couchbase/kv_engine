@@ -53,17 +53,21 @@ DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
                     engine.getConfiguration().getDcpMinCompressionRatio());
 
     // Note: these allocations are deleted by ~Configuration
-    engine.getConfiguration().addValueChangedListener(
+    auto& config = engine.getConfiguration();
+    config.addValueChangedListener(
             "dcp_blacklist_fts_connection_logs",
             std::make_unique<DcpConfigChangeListener>(*this));
-    engine.getConfiguration().addValueChangedListener(
+    config.addValueChangedListener(
             "dcp_consumer_process_buffered_messages_yield_limit",
             std::make_unique<DcpConfigChangeListener>(*this));
-    engine.getConfiguration().addValueChangedListener(
+    config.addValueChangedListener(
             "dcp_consumer_process_buffered_messages_batch_size",
             std::make_unique<DcpConfigChangeListener>(*this));
-    engine.getConfiguration().addValueChangedListener(
+    config.addValueChangedListener(
             "dcp_idle_timeout",
+            std::make_unique<DcpConfigChangeListener>(*this));
+    config.addValueChangedListener(
+            "allow_sanitize_value_in_deletion",
             std::make_unique<DcpConfigChangeListener>(*this));
 }
 
@@ -583,6 +587,8 @@ void DcpConnMap::DcpConfigChangeListener::booleanValueChanged(const std::string&
                                                            bool value) {
     if (key == "dcp_blacklist_fts_connection_logs") {
         myConnMap.blacklistFtsConnectionLogsConfigChanged(value);
+    } else if (key == "allow_sanitize_value_in_deletion") {
+        myConnMap.consumerAllowSanitizeValueInDeletionConfigChanged(value);
     }
 }
 
@@ -632,6 +638,17 @@ void DcpConnMap::blacklistFtsConnectionLogsConfigChanged(bool newValue) {
             dynamic_cast<DcpProducer*>(cookieToConn.second.get());
         if (dcpProducer) {
             dcpProducer->setBlacklistFtsConnectionLogs(newValue);
+        }
+    }
+}
+
+void DcpConnMap::consumerAllowSanitizeValueInDeletionConfigChanged(
+        bool newValue) {
+    LockHolder lh(connsLock);
+    for (const auto& cookieToConn : map_) {
+        auto* consumer = dynamic_cast<DcpConsumer*>(cookieToConn.second.get());
+        if (consumer) {
+            consumer->setAllowSanitizeValueInDeletion(newValue);
         }
     }
 }
