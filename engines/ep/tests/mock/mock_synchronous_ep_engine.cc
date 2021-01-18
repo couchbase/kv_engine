@@ -75,8 +75,8 @@ SynchronousEPEngine::SynchronousEPEngine(std::string extra_config)
     maxItemSize = configuration.getMaxItemSize();
 
     setCompressionMode(configuration.getCompressionMode());
-    allowDelWithMetaPruneUserData =
-            configuration.isAllowDelWithMetaPruneUserData();
+    allowSanitizeValueInDeletion =
+            configuration.isAllowSanitizeValueInDeletion();
 }
 
 void SynchronousEPEngine::setKVBucket(std::unique_ptr<KVBucket> store) {

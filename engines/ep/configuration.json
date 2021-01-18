@@ -1,8 +1,8 @@
 {
     "params": {
-        "allow_del_with_meta_prune_user_data" : {
+        "allow_sanitize_value_in_deletion" : {
             "default" : "true",
-            "descr": "Let del_with_meta prune user data provided from the user instead of failing",
+            "descr": "Let EPE delete/prepare/del_with_meta prune any invalid body in the payload instead of failing",
             "dynamic" : true,
             "type" : "bool"
         },

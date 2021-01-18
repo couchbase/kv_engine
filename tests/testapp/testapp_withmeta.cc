@@ -216,7 +216,7 @@ TEST_P(WithMetaTest, MB36321_DeleteWithMetaRefuseUserXattrs) {
         conn.selectBucket(bucketName);
         const auto setParam = BinprotSetParamCommand(
                 cb::mcbp::request::SetParamPayload::Type::Flush,
-                "allow_del_with_meta_prune_user_data",
+                "allow_sanitize_value_in_deletion",
                 "false");
         const auto resp = BinprotMutationResponse(conn.execute(setParam));
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
@@ -292,7 +292,7 @@ void WithMetaTest::testDeleteWithMetaAcceptsUserXattrs(bool allowValuePruning,
         conn.selectBucket(bucketName);
         const auto setParam = BinprotSetParamCommand(
                 cb::mcbp::request::SetParamPayload::Type::Flush,
-                "allow_del_with_meta_prune_user_data",
+                "allow_sanitize_value_in_deletion",
                 allowValuePruning ? "true" : "false");
         const auto resp = BinprotMutationResponse(conn.execute(setParam));
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
@@ -356,7 +356,7 @@ void WithMetaTest::testDeleteWithMetaRejectsBody(bool allowValuePruning,
         conn.selectBucket(bucketName);
         const auto setParam = BinprotSetParamCommand(
                 cb::mcbp::request::SetParamPayload::Type::Flush,
-                "allow_del_with_meta_prune_user_data",
+                "allow_sanitize_value_in_deletion",
                 allowValuePruning ? "true" : "false");
         const auto resp = BinprotMutationResponse(conn.execute(setParam));
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());

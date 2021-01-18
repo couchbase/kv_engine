@@ -6961,7 +6961,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
             {"info", {"info"}},
             {"allocator", {"detailed"}},
             {"config",
-             {"ep_allow_del_with_meta_prune_user_data",
+             {"ep_allow_sanitize_value_in_deletion",
               "ep_backend",
               "ep_backfill_mem_threshold",
               "ep_bfilter_enabled",
@@ -7131,7 +7131,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "vb_0:num_entries",
               "vb_0:num_erroneous_entries_erased"}},
             {"", // Note: we convert empty to a null to get engine stats
-             {"ep_allow_del_with_meta_prune_user_data",
+             {"ep_allow_sanitize_value_in_deletion",
               "bytes",
               "curr_items",
               "curr_items_tot",
