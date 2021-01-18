@@ -75,37 +75,26 @@ DcpConsumer* DcpConnMap::newConsumer(const void* cookie,
     std::string conn_name("eq_dcpq:");
     conn_name.append(name);
 
+    auto consumer = makeConsumer(engine, cookie, conn_name, consumerName);
+    EP_LOG_DEBUG("{} Connection created", consumer->logHeader());
+    auto* rawPtr = consumer.get();
+
+    // Get a write-handle!
     auto handle = connStore->getCookieToConnectionMapHandle();
 
-    const auto& connForCookie = handle->findConnHandlerByCookie(cookie);
-    if (connForCookie) {
-        connForCookie->setDisconnect();
-        EP_LOG_INFO(
-                "Failed to create Dcp Consumer because connection "
-                "({}) already exists.",
-                cookie);
-        return nullptr;
-    }
-
-    /*
-     *  If we request a connection of the same name then
-     *  mark the existing connection as "want to disconnect".
-     */
+    //  If we request a connection of the same name then
+    //  mark the existing connection as "want to disconnect".
     const auto& connForName = handle->findConnHandlerByName(conn_name);
     if (connForName) {
         EP_LOG_INFO(
                 "{} Disconnecting existing Dcp Consumer {} as it has the "
-                "same "
-                "name as a new connection {}",
+                "same name as a new connection {}",
                 connForName->logHeader(),
                 connForName->getCookie(),
                 cookie);
         connForName->setDisconnect();
     }
 
-    auto consumer = makeConsumer(engine, cookie, conn_name, consumerName);
-    EP_LOG_DEBUG("{} Connection created", consumer->logHeader());
-    auto* rawPtr = consumer.get();
     handle->addConnByCookie(cookie, std::move(consumer));
     return rawPtr;
 }
@@ -160,16 +149,13 @@ DcpProducer* DcpConnMap::newProducer(const void* cookie,
     std::string conn_name("eq_dcpq:");
     conn_name.append(name);
 
+    auto producer = std::make_shared<DcpProducer>(
+            engine, cookie, conn_name, flags, true /*startTask*/);
+    EP_LOG_DEBUG("{} Connection created", producer->logHeader());
+    auto* result = producer.get();
+
+    // Get a write-handle!
     auto handle = connStore->getCookieToConnectionMapHandle();
-    const auto& connForCookie = handle->findConnHandlerByCookie(cookie);
-    if (connForCookie) {
-        connForCookie->flagDisconnect();
-        EP_LOG_INFO(
-                "Failed to create Dcp Producer because connection "
-                "({}) already exists.",
-                cookie);
-        return nullptr;
-    }
 
     // If we request a connection of the same name then mark the
     // existing connection as "want to disconnect" and pull it out from
@@ -182,8 +168,7 @@ DcpProducer* DcpConnMap::newProducer(const void* cookie,
     if (connForName) {
         EP_LOG_INFO(
                 "{} Disconnecting existing Dcp Producer {} as it has the "
-                "same "
-                "name as a new connection {}",
+                "same name as a new connection {}",
                 connForName->logHeader(),
                 connForName->getCookie(),
                 cookie);
@@ -197,12 +182,7 @@ DcpProducer* DcpConnMap::newProducer(const void* cookie,
         // here will lead to issues described MB-36451.
     }
 
-    auto producer = std::make_shared<DcpProducer>(
-            engine, cookie, conn_name, flags, true /*startTask*/);
-    EP_LOG_DEBUG("{} Connection created", producer->logHeader());
-    auto* result = producer.get();
     handle->addConnByCookie(cookie, producer);
-
     return result;
 }
 

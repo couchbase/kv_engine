@@ -1749,61 +1749,6 @@ static enum test_result test_dcp_producer_open(EngineIface* h) {
     return SUCCESS;
 }
 
-static enum test_result test_dcp_producer_open_same_cookie(EngineIface* h) {
-    auto* cookie = testHarness->create_cookie(h);
-    const std::string name("unittest");
-    uint32_t opaque = 0;
-    const uint32_t seqno = 0;
-    auto dcp = requireDcpIface(h);
-
-    checkeq(ENGINE_SUCCESS,
-            dcp->open(cookie,
-                      opaque,
-                      seqno,
-                      cb::mcbp::request::DcpOpenPayload::Producer,
-                      name,
-                      R"({"consumer_name":"replica1"})"),
-            "Failed dcp producer open connection.");
-
-    const auto stat_type("eq_dcpq:" + name + ":type");
-    auto type = get_str_stat(h, stat_type.c_str(), "dcp");
-    checkeq(0, type.compare("producer"), "Producer not found");
-    /*
-     * Number of references is 2 (as opposed to 1) because a
-     * mock_connstuct is initialised to having 1 reference
-     * to represent a client being connected to it.
-     */
-    checkeq(2,
-            testHarness->get_number_of_mock_cookie_references(cookie),
-            "Number of cookie references is not two");
-    /*
-     * engine_data needs to be reset so that it passes the check that
-     * a connection does not already exist on the same socket.
-     */
-    testHarness->store_engine_specific(cookie, nullptr);
-
-    checkeq(ENGINE_DISCONNECT,
-            dcp->open(cookie,
-                      opaque++,
-                      seqno,
-                      cb::mcbp::request::DcpOpenPayload::Producer,
-                      name,
-                      R"({"consumer_name":"replica1"})"),
-            "Failed to return ENGINE_DISCONNECT");
-
-    checkeq(2,
-            testHarness->get_number_of_mock_cookie_references(cookie),
-            "Number of cookie references is not two");
-
-    testHarness->destroy_cookie(cookie);
-
-    checkeq(1,
-            testHarness->get_number_of_mock_cookie_references(cookie),
-            "Number of cookie references is not one");
-
-    return SUCCESS;
-}
-
 static enum test_result test_dcp_noop(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
     const std::string name("unittest");
@@ -8245,8 +8190,6 @@ BaseTestCase testsuite_testcases[] = {
                  prepare,
                  cleanup),
         TestCase("test open producer", test_dcp_producer_open,
-                 test_setup, teardown, nullptr, prepare, cleanup),
-        TestCase("test open producer same cookie", test_dcp_producer_open_same_cookie,
                  test_setup, teardown, nullptr, prepare, cleanup),
         TestCase("test dcp noop", test_dcp_noop, test_setup, teardown, nullptr,
                  prepare, cleanup),

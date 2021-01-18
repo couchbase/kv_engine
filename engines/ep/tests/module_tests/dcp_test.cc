@@ -1340,35 +1340,6 @@ TEST_P(ConnectionTest, test_mb17042_duplicate_name_consumer_connections) {
         << "Dead connections still remain";
 }
 
-TEST_P(ConnectionTest, test_mb17042_duplicate_cookie_producer_connections) {
-    MockDcpConnMap connMap(*engine);
-    connMap.initialize();
-    auto* cookie = create_mock_cookie(engine);
-    // Create a new Dcp producer
-    DcpProducer* producer = connMap.newProducer(cookie,
-                                                "test_producer1",
-                                                /*flags*/ 0);
-
-    // Create a duplicate Dcp producer
-    DcpProducer* duplicateproducer = connMap.newProducer(cookie,
-                                                         "test_producer2",
-                                                         /*flags*/ 0);
-
-    EXPECT_TRUE(producer->doDisconnect()) << "producer doDisconnect == false";
-    EXPECT_EQ(nullptr, duplicateproducer) << "duplicateproducer is not null";
-
-    // Disconnect the producer connection
-    connMap.disconnect(cookie);
-    // Cleanup the deadConnections
-    connMap.manageConnections();
-    // Should be zero deadConnections
-    EXPECT_EQ(0, connMap.getNumberOfDeadConnections())
-        << "Dead connections still remain";
-}
-
-
-
-
 TEST_P(ConnectionTest, test_producer_unknown_ctrl_msg) {
     auto* cookie = create_mock_cookie(engine);
     /* Create a new Dcp producer */
@@ -1384,28 +1355,6 @@ TEST_P(ConnectionTest, test_producer_unknown_ctrl_msg) {
     EXPECT_EQ(ENGINE_EINVAL,
               producer->control(0, unknownCtrlMsg, unknownCtrlValue));
     destroy_mock_cookie(cookie);
-}
-
-TEST_P(ConnectionTest, test_mb17042_duplicate_cookie_consumer_connections) {
-    MockDcpConnMap connMap(*engine);
-    connMap.initialize();
-    auto* cookie = create_mock_cookie(engine);
-    // Create a new Dcp consumer
-    DcpConsumer* consumer = connMap.newConsumer(cookie, "test_consumer1");
-
-    // Create a duplicate Dcp consumer
-    DcpConsumer* duplicateconsumer =
-            connMap.newConsumer(cookie, "test_consumer2");
-    EXPECT_TRUE(consumer->doDisconnect()) << "consumer doDisconnect == false";
-    EXPECT_EQ(nullptr, duplicateconsumer) << "duplicateconsumer is not null";
-
-    // Disconnect the consumer connection
-    connMap.disconnect(cookie);
-    // Cleanup the deadConnections
-    connMap.manageConnections();
-    // Should be zero deadConnections
-    EXPECT_EQ(0, connMap.getNumberOfDeadConnections())
-        << "Dead connections still remain";
 }
 
 TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
@@ -1774,12 +1723,12 @@ protected:
      * MB-36915: With a recent change, we unconditionally acquire an exclusive
      * lock to vbstate in KVBucket::setVBucketState. But, the new lock
      * introduces a potential deadlock by lock-inversion on connLock and
-     * vbstateLock in EPE::dcpOpen if a connection with the same cookie or name
+     * vbstateLock in EPE::dcpOpen if a connection with the same name
      * already exists in conn-map. TSAN easily spots the issue as soon as we
      * have an execution where two threads run in parallel and execute the code
      * responsible for the potential deadlock, which is what this test achieves.
      */
-    void testLockInversionInSetVBucketStateAndNewProducer(ConnExistsBy by);
+    void testLockInversionInSetVBucketStateAndNewProducer();
 
     SynchronousEPEngineUniquePtr engine;
     const Vbid vbid = Vbid(0);
@@ -2227,8 +2176,7 @@ TEST_F(DcpConnMapTest, ConnAggStats) {
     destroy_mock_cookie(statsCookie);
 }
 
-void DcpConnMapTest::testLockInversionInSetVBucketStateAndNewProducer(
-        ConnExistsBy by) {
+void DcpConnMapTest::testLockInversionInSetVBucketStateAndNewProducer() {
     auto& connMap = dynamic_cast<MockDcpConnMap&>(engine->getDcpConnMap());
     auto* cookie = create_mock_cookie(engine.get());
     const std::string connName = "producer";
@@ -2277,28 +2225,15 @@ void DcpConnMapTest::testLockInversionInSetVBucketStateAndNewProducer(
     // Note: ActiveStream::setDead executed only if re-creating the same
     // connection (ie, same cookie or connection name).
     auto* cookie2 = create_mock_cookie(engine.get());
-    switch (by) {
-    case ConnExistsBy::Cookie: {
-        const std::string newConnName = "newName";
-        EXPECT_FALSE(connMap.newProducer(cookie, newConnName, flags));
-        // Note: Connection flagged as disconnected but not yet removed
-        // from conn-map. See comments in ConnMap::newProducer.
-        EXPECT_TRUE(connMap.doesVbConnExist(vbid, "eq_dcpq:" + connName));
-        break;
+    producer = connMap.newProducer(cookie2, connName, flags);
+    ASSERT_TRUE(producer);
+    // Check that the connection has been re-created with the same name
+    // and exists in vbConns at stream-req
+    {
+        SCOPED_TRACE("");
+        streamRequest(*producer);
     }
-    case ConnExistsBy ::Name: {
-        producer = connMap.newProducer(cookie2, connName, flags);
-        ASSERT_TRUE(producer);
-        // Check that the connection has been re-created with the same name
-        // and exists in vbConns at stream-req
-        {
-            SCOPED_TRACE("");
-            streamRequest(*producer);
-        }
-        EXPECT_TRUE(connMap.doesVbConnExist(vbid, "eq_dcpq:" + connName));
-        break;
-    }
-    }
+    EXPECT_TRUE(connMap.doesVbConnExist(vbid, "eq_dcpq:" + connName));
 
     t1.join();
 
@@ -2309,13 +2244,8 @@ void DcpConnMapTest::testLockInversionInSetVBucketStateAndNewProducer(
 }
 
 TEST_F(DcpConnMapTest,
-       AvoidLockInversionInSetVBucketStateAndNewProducerExistingCookie) {
-    testLockInversionInSetVBucketStateAndNewProducer(ConnExistsBy::Cookie);
-}
-
-TEST_F(DcpConnMapTest,
        AvoidLockInversionInSetVBucketStateAndNewProducerExistingName) {
-    testLockInversionInSetVBucketStateAndNewProducer(ConnExistsBy::Name);
+    testLockInversionInSetVBucketStateAndNewProducer();
 }
 
 class NotifyTest : public DCPTest {
