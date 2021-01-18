@@ -116,7 +116,8 @@ public:
     std::optional<Manifest::CollectionCreation> public_applyCreates(
             ::VBucket& vb, Manifest::ManifestChanges& changes) {
         auto wHandle = wlock();
-        return applyCreates(wHandle, vb, changes);
+        return applyCreates(
+                wHandle, vb, changes.collectionsToCreate, changes.forced);
     }
 
     std::optional<std::vector<CollectionID>> public_getCollectionsForScope(

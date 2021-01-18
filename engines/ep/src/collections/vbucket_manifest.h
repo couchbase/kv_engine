@@ -300,10 +300,15 @@ protected:
                         ManifestChanges& changes);
 
     /**
-     * Sub-functions used by update
-     * Removes the last ID of the changes vector and then calls 'update' on
-     * every remaining ID (using the current manifest ManifestUid).
-     * So if the vector has 1 element, it returns that element and does nothing.
+     * Sub-functions used by update.
+     * applyCreates/applyDrops and applyScopeCreates/applyScopeDrops follow
+     * a similar pattern as follows.
+     *
+     * Given a 'changeset' (vector of changes) remove the last entry of the
+     * changes vector and then call an 'update' function on every remaining
+     * entry (using the current manifest ManifestUid).
+     *
+     * If the vector has 1 element, it returns that element and does nothing.
      *
      * @param wHandle The manifest write handle under which this operation is
      *        currently locked. Required to ensure we lock correctly around
@@ -311,23 +316,30 @@ protected:
      * @param update a function to call (either addCollection or
      *        beginCollectionDelete)
      * @param changes a vector of CollectionIDs to add/delete (based on update)
-     * @return the last element of the changes vector
+     * @param isForce if the change comes from a force=true manifest
+     * @return the last element which has been removed from the changes vector
      */
-    std::optional<CollectionCreation> applyCreates(const WriteHandle& wHandle,
-                                                   ::VBucket& vb,
-                                                   ManifestChanges& changes);
+    std::optional<CollectionCreation> applyCreates(
+            const WriteHandle& wHandle,
+            ::VBucket& vb,
+            std::vector<CollectionCreation>& changes,
+            bool isForce);
 
-    std::optional<CollectionID> applyDeletions(WriteHandle& wHandle,
-                                               ::VBucket& vb,
-                                               ManifestChanges& changes);
+    std::optional<CollectionID> applyDrops(WriteHandle& wHandle,
+                                           ::VBucket& vb,
+                                           std::vector<CollectionID>& changes,
+                                           bool isForce);
 
-    std::optional<ScopeCreation> applyScopeCreates(const WriteHandle& wHandle,
-                                                   ::VBucket& vb,
-                                                   ManifestChanges& changes);
+    std::optional<ScopeCreation> applyScopeCreates(
+            const WriteHandle& wHandle,
+            ::VBucket& vb,
+            std::vector<ScopeCreation>& changes,
+            bool isForce);
 
     std::optional<ScopeID> applyScopeDrops(const WriteHandle& wHandle,
                                            ::VBucket& vb,
-                                           ManifestChanges& changes);
+                                           std::vector<ScopeID>& scopesToDrop,
+                                           bool isForce);
 
     /**
      * Create a collection in the vbucket

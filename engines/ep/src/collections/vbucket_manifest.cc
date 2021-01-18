@@ -51,34 +51,58 @@ Manifest::Manifest(const KVStore::Manifest& data)
     }
 }
 
-std::optional<CollectionID> Manifest::applyDeletions(WriteHandle& wHandle,
-                                                     ::VBucket& vb,
-                                                     ManifestChanges& changes) {
+//
+// applyDrops (and applyCreates et'al) all follow a similar pattern and are
+// tightly coupled with completeUpdate. As input the function is given a set of
+// changes to process (non const reference). The set could have 0, 1 or n
+// entries to process. An input 'changes' of zero length means nothing happens.
+// The function just skips and returns an empty optional.
+//
+// For 1 or n, the function starts by copying and removing 1 entry from the
+// input set, leaving 0, 1 or n - 1 entries to be processed.
+//
+// In the case of 0, nothing further happens except returning the 'popped' copy.
+//
+// For the 1 or n -1  case, the entries are now dropped (or created based on the
+// function), importantly the drop is tagged with the current manifest-UID and
+// not the new manifest-UID. This is because we have not reached the end of the
+// new manifest and cannot yet move the state forward to the new UID.
+//
+// Finally the changes are cleared and the 0 or 1 we copied earlier is returned.
+//
+std::optional<CollectionID> Manifest::applyDrops(
+        WriteHandle& wHandle,
+        ::VBucket& vb,
+        std::vector<CollectionID>& changes,
+        bool isForce) {
     std::optional<CollectionID> rv;
-    if (!changes.collectionsToDrop.empty()) {
-        rv = changes.collectionsToDrop.back();
-        changes.collectionsToDrop.pop_back();
+    if (!changes.empty()) {
+        rv = changes.back();
+        changes.pop_back();
     }
-    for (CollectionID id : changes.collectionsToDrop) {
+    for (CollectionID cid : changes) {
         dropCollection(wHandle,
                        vb,
                        manifestUid,
-                       id,
+                       cid,
                        OptionalSeqno{/*no-seqno*/},
-                       changes.forced);
+                       isForce);
     }
-
+    changes.clear();
     return rv;
 }
 
 std::optional<Manifest::CollectionCreation> Manifest::applyCreates(
-        const WriteHandle& wHandle, ::VBucket& vb, ManifestChanges& changes) {
+        const WriteHandle& wHandle,
+        ::VBucket& vb,
+        std::vector<CollectionCreation>& changes,
+        bool isForce) {
     std::optional<CollectionCreation> rv;
-    if (!changes.collectionsToCreate.empty()) {
-        rv = changes.collectionsToCreate.back();
-        changes.collectionsToCreate.pop_back();
+    if (!changes.empty()) {
+        rv = changes.back();
+        changes.pop_back();
     }
-    for (const auto& creation : changes.collectionsToCreate) {
+    for (const auto& creation : changes) {
         createCollection(wHandle,
                          vb,
                          manifestUid,
@@ -86,49 +110,54 @@ std::optional<Manifest::CollectionCreation> Manifest::applyCreates(
                          creation.name,
                          creation.maxTtl,
                          OptionalSeqno{/*no-seqno*/},
-                         changes.forced);
+                         isForce);
     }
-
+    changes.clear();
     return rv;
 }
 
 std::optional<ScopeID> Manifest::applyScopeDrops(const WriteHandle& wHandle,
                                                  ::VBucket& vb,
-                                                 ManifestChanges& changes) {
+                                                 std::vector<ScopeID>& changes,
+                                                 bool isForce) {
     std::optional<ScopeID> rv;
-    if (!changes.scopesToDrop.empty()) {
-        rv = changes.scopesToDrop.back();
-        changes.scopesToDrop.pop_back();
+    if (!changes.empty()) {
+        rv = changes.back();
+        changes.pop_back();
     }
-    for (ScopeID id : changes.scopesToDrop) {
+    for (ScopeID sid : changes) {
         dropScope(wHandle,
                   vb,
                   manifestUid,
-                  id,
+                  sid,
                   OptionalSeqno{/*no-seqno*/},
-                  changes.forced);
+                  isForce);
     }
 
+    changes.clear();
     return rv;
 }
 
 std::optional<Manifest::ScopeCreation> Manifest::applyScopeCreates(
-        const WriteHandle& wHandle, ::VBucket& vb, ManifestChanges& changes) {
+        const WriteHandle& wHandle,
+        ::VBucket& vb,
+        std::vector<ScopeCreation>& changes,
+        bool isForce) {
     std::optional<ScopeCreation> rv;
-    if (!changes.scopesToCreate.empty()) {
-        rv = changes.scopesToCreate.back();
-        changes.scopesToCreate.pop_back();
+    if (!changes.empty()) {
+        rv = changes.back();
+        changes.pop_back();
     }
-    for (const auto& creation : changes.scopesToCreate) {
+    for (const auto& creation : changes) {
         createScope(wHandle,
                     vb,
                     manifestUid,
                     creation.sid,
                     creation.name,
                     OptionalSeqno{/*no-seqno*/},
-                    changes.forced);
+                    isForce);
     }
-
+    changes.clear();
     return rv;
 }
 
@@ -184,52 +213,66 @@ ManifestUpdateStatus Manifest::update(::VBucket& vb,
     return ManifestUpdateStatus::Success;
 }
 
+// This function peforms the final part of the vbucket collection update.
+// The function processes each of the changeset vectors and the ordering is
+// important. The ordering of the system-events into the vbucket defines
+// the order DCP transmits the events.
+//
+// 1) First collections are dropped, this must happen before step 3 and step 4.
+//    Before step 3 because a collection can be re-created by force (so it must
+//    drop before create). Before step 4 because the collection drops could
+//    be due to a scope drop, and the collection drop events must happen before
+//    the scope drop event.
+// 2) Scopes are created. This must happen before step 3, collection creation.
+// 3) Collections are created.
+// 4) Scopes are dropped, this is last so the scope drop will come after any
+//    collections dropped as part of the scope removal.
+//
+// As the function runs it also has to decide at each point which manifest-UID
+// to associate with the system-events. The new manifest UID is only "exposed"
+// for the final event of the changeset.
 void Manifest::completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
                               ::VBucket& vb,
-                              Manifest::ManifestChanges& changes) {
+                              Manifest::ManifestChanges& changeset) {
     // Write Handle now needed
     WriteHandle wHandle(*this, std::move(upgradeLock));
 
     // Capture the UID
-    if (changes.empty()) {
-        updateUid(changes.uid, changes.forced);
+    if (changeset.empty()) {
+        updateUid(changeset.uid, changeset.forced);
         return;
     }
 
-    auto finalScopeCreate = applyScopeCreates(wHandle, vb, changes);
+    auto finalDeletion = applyDrops(
+            wHandle, vb, changeset.collectionsToDrop, changeset.forced);
+    if (finalDeletion) {
+        auto uid = changeset.empty() ? changeset.uid : manifestUid;
+        dropCollection(wHandle,
+                       vb,
+                       uid,
+                       *finalDeletion,
+                       OptionalSeqno{/*no-seqno*/},
+                       changeset.forced);
+    }
+
+    auto finalScopeCreate = applyScopeCreates(
+            wHandle, vb, changeset.scopesToCreate, changeset.forced);
     if (finalScopeCreate) {
-        auto uid = changes.collectionsToCreate.empty() &&
-                                   changes.collectionsToDrop.empty() &&
-                                   changes.scopesToDrop.empty()
-                           ? changes.uid
-                           : manifestUid;
+        auto uid = changeset.empty() ? changeset.uid : manifestUid;
         createScope(wHandle,
                     vb,
                     uid,
                     finalScopeCreate.value().sid,
                     finalScopeCreate.value().name,
                     OptionalSeqno{/*no-seqno*/},
-                    changes.forced);
+                    changeset.forced);
     }
 
-    auto finalDeletion = applyDeletions(wHandle, vb, changes);
-    if (finalDeletion) {
-        auto uid = changes.collectionsToCreate.empty() &&
-                                   changes.scopesToDrop.empty()
-                           ? changes.uid
-                           : manifestUid;
-        dropCollection(wHandle,
-                       vb,
-                       uid,
-                       *finalDeletion,
-                       OptionalSeqno{/*no-seqno*/},
-                       changes.forced);
-    }
-
-    auto finalAddition = applyCreates(wHandle, vb, changes);
+    auto finalAddition = applyCreates(
+            wHandle, vb, changeset.collectionsToCreate, changeset.forced);
 
     if (finalAddition) {
-        auto uid = changes.scopesToDrop.empty() ? changes.uid : manifestUid;
+        auto uid = changeset.empty() ? changeset.uid : manifestUid;
         createCollection(wHandle,
                          vb,
                          uid,
@@ -237,20 +280,21 @@ void Manifest::completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
                          finalAddition.value().name,
                          finalAddition.value().maxTtl,
                          OptionalSeqno{/*no-seqno*/},
-                         changes.forced);
+                         changeset.forced);
     }
 
     // This is done last so the scope deletion follows any collection
     // deletions
-    auto finalScopeDrop = applyScopeDrops(wHandle, vb, changes);
+    auto finalScopeDrop = applyScopeDrops(
+            wHandle, vb, changeset.scopesToDrop, changeset.forced);
 
     if (finalScopeDrop) {
         dropScope(wHandle,
                   vb,
-                  changes.uid,
+                  changeset.uid,
                   *finalScopeDrop,
                   OptionalSeqno{/*no-seqno*/},
-                  changes.forced);
+                  changeset.forced);
     }
 }
 
