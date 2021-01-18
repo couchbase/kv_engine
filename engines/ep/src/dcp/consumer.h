@@ -540,8 +540,6 @@ protected:
             uint32_t opaque,
             std::unique_ptr<DcpResponse> msg);
 
-    /* Reference to the ep engine; need to create the 'Processor' task */
-    EventuallyPersistentEngine& engine;
     uint64_t opaqueCounter;
     size_t processorTaskId;
     std::atomic<enum process_items_error_t> processorTaskState;
