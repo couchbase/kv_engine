@@ -332,6 +332,10 @@ public:
         allowSanitizeValueInDeletion.store(value);
     }
 
+    bool isAllowSanitizeValueInDeletion() {
+        return allowSanitizeValueInDeletion.load();
+    }
+
 protected:
     /**
      * Records when the consumer last received a message from producer.

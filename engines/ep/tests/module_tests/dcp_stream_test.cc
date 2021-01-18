@@ -3447,8 +3447,14 @@ TEST_P(SingleThreadedActiveStreamTest, testExpirationRemovesBody_UserXa_SysXa) {
                               Xattrs::UserAndSys);
 }
 
-void SingleThreadedPassiveStreamTest::testConsumerRejectsBodyInDelete(
+void SingleThreadedPassiveStreamTest::testConsumerRejectsBodyInDeletion(
         const boost::optional<cb::durability::Requirements>& durReqs) {
+    auto& connMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    connMap.addConn(cookie, consumer);
+    ASSERT_TRUE(consumer->isAllowSanitizeValueInDeletion());
+    engine->getConfiguration().setAllowSanitizeValueInDeletion(false);
+    ASSERT_FALSE(consumer->isAllowSanitizeValueInDeletion());
+
     consumer->public_setIncludeDeletedUserXattrs(IncludeDeletedUserXattrs::Yes);
 
     // Send deletion in a single seqno snapshot
@@ -3462,7 +3468,8 @@ void SingleThreadedPassiveStreamTest::testConsumerRejectsBodyInDelete(
                                        {} /*maxVisibleSeqno*/));
 
     const auto verifyDCPFailure =
-            [this, &durReqs](const cb::const_byte_buffer& value) -> void {
+            [this, &durReqs](const cb::const_byte_buffer& value,
+                             protocol_binary_datatype_t datatype) -> void {
         const uint32_t opaque = 1;
         int64_t bySeqno = 1;
         if (durReqs) {
@@ -3471,7 +3478,7 @@ void SingleThreadedPassiveStreamTest::testConsumerRejectsBodyInDelete(
                                         {"key", DocKeyEncodesCollectionId::No},
                                         value,
                                         0 /*priv_bytes*/,
-                                        PROTOCOL_BINARY_RAW_BYTES,
+                                        datatype,
                                         0 /*cas*/,
                                         vbid,
                                         0 /*flags*/,
@@ -3488,7 +3495,7 @@ void SingleThreadedPassiveStreamTest::testConsumerRejectsBodyInDelete(
                                          {"key", DocKeyEncodesCollectionId::No},
                                          value,
                                          0 /*priv_bytes*/,
-                                         PROTOCOL_BINARY_RAW_BYTES,
+                                         datatype,
                                          0 /*cas*/,
                                          vbid,
                                          bySeqno,
@@ -3503,7 +3510,7 @@ void SingleThreadedPassiveStreamTest::testConsumerRejectsBodyInDelete(
                                 body.size()};
     {
         SCOPED_TRACE("");
-        verifyDCPFailure(value);
+        verifyDCPFailure(value, PROTOCOL_BINARY_RAW_BYTES);
     }
 
     // Verify the same for body + xattrs
@@ -3512,16 +3519,106 @@ void SingleThreadedPassiveStreamTest::testConsumerRejectsBodyInDelete(
              xattrValue.size()};
     {
         SCOPED_TRACE("");
-        verifyDCPFailure(value);
+        verifyDCPFailure(
+                value,
+                PROTOCOL_BINARY_RAW_BYTES | PROTOCOL_BINARY_DATATYPE_XATTR);
+    }
+
+    connMap.removeConn(cookie);
+}
+
+TEST_P(SingleThreadedPassiveStreamTest, ConsumerRejectsBodyInDeletion) {
+    testConsumerRejectsBodyInDeletion({});
+}
+
+TEST_P(SingleThreadedPassiveStreamTest, ConsumerRejectsBodyInSyncDeletion) {
+    testConsumerRejectsBodyInDeletion(cb::durability::Requirements());
+}
+
+void SingleThreadedPassiveStreamTest::testConsumerSanitizesBodyInDeletion() {
+    ASSERT_TRUE(consumer->isAllowSanitizeValueInDeletion());
+    consumer->public_setIncludeDeletedUserXattrs(IncludeDeletedUserXattrs::Yes);
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->snapshotMarker(1 /*opaque*/,
+                                       vbid,
+                                       1 /*startSeqno*/,
+                                       10 /*endSeqno*/,
+                                       MARKER_FLAG_CHK,
+                                       {} /*HCS*/,
+                                       {} /*maxVisibleSeqno*/));
+
+    // Build up a value with just raw body and verify that DCP deletion succeeds
+    // and the Body has been removed from the payload.
+    const std::string body = "body";
+    cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(body.data()),
+                                body.size()};
+    const uint32_t opaque = 1;
+    const auto key = makeStoredDocKey("key");
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->deletion(opaque,
+                                 key,
+                                 value,
+                                 0 /*priv_bytes*/,
+                                 PROTOCOL_BINARY_RAW_BYTES,
+                                 0 /*cas*/,
+                                 vbid,
+                                 1 /*bySeqno*/,
+                                 0 /*revSeqno*/,
+                                 {} /*meta*/));
+    // Verify that the body has been removed
+    auto& vb = *store->getVBucket(vbid);
+    auto& ht = vb.ht;
+    {
+        const auto& res = ht.findForUpdate(key);
+        const auto* sv = res.committed;
+        EXPECT_TRUE(sv);
+        EXPECT_EQ(1, sv->getBySeqno());
+        EXPECT_FALSE(sv->getValue().get());
+    }
+
+    // Verify the same for body + user-xattrs + sys-xattrs
+    const auto xattrValue = createXattrValue(body);
+    value = {reinterpret_cast<const uint8_t*>(xattrValue.data()),
+             xattrValue.size()};
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->deletion(opaque,
+                                 key,
+                                 value,
+                                 0 /*priv_bytes*/,
+                                 PROTOCOL_BINARY_RAW_BYTES |
+                                         PROTOCOL_BINARY_DATATYPE_XATTR,
+                                 0 /*cas*/,
+                                 vbid,
+                                 2 /*bySeqno*/,
+                                 0 /*revSeqno*/,
+                                 {} /*meta*/));
+
+    {
+        const auto& res = ht.findForUpdate(key);
+        const auto* sv = res.committed;
+        EXPECT_TRUE(sv);
+        EXPECT_EQ(2, sv->getBySeqno());
+        EXPECT_TRUE(sv->getValue().get());
+        EXPECT_LT(sv->getValue()->valueSize(), xattrValue.size());
+
+        const auto finalValue =
+                cb::char_buffer(const_cast<char*>(sv->getValue()->getData()),
+                                sv->getValue()->valueSize());
+        // No body
+        EXPECT_EQ(0, cb::xattr::get_body_size(sv->getDatatype(), finalValue));
+        // Must have user/sys xattrs (created at createXattrValue())
+        cb::xattr::Blob blob(finalValue, false /*compressed*/);
+        for (uint8_t i = 1; i <= 6; ++i) {
+            EXPECT_FALSE(blob.get("ABCuser" + std::to_string(i)).empty());
+        }
+        EXPECT_FALSE(blob.get("meta").empty());
+        EXPECT_FALSE(blob.get("_sync").empty());
     }
 }
 
-TEST_P(SingleThreadedPassiveStreamTest, ConsumerRejectsBodyInDelete) {
-    testConsumerRejectsBodyInDelete({});
-}
-
-TEST_P(SingleThreadedPassiveStreamTest, ConsumerRejectsBodyInSyncDelete) {
-    testConsumerRejectsBodyInDelete(cb::durability::Requirements());
+TEST_P(SingleThreadedPassiveStreamTest, ConsumerSanitizesBodyInDeletion) {
+    testConsumerSanitizesBodyInDeletion();
 }
 
 void SingleThreadedPassiveStreamTest::testConsumerReceivesUserXattrsInDelete(

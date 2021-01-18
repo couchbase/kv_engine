@@ -151,12 +151,18 @@ protected:
             vbucket_state_t initialState);
 
     /**
-     * Test that the Consumer rejects body in deletion's value
+     * Test that the Consumer rejects body in deletion's value abd fails.
+     * That is the behaviour when (allowSanitizeValueInDeletion = false).
      *
      * @param durReqs (optional) The Dur Reqs, if we are testing SyncDelete
      */
-    void testConsumerRejectsBodyInDelete(
+    void testConsumerRejectsBodyInDeletion(
             const boost::optional<cb::durability::Requirements>& durReqs);
+
+    /**
+     * Test that the Consumer removes the body (if any) in deletion's value.
+     */
+    void testConsumerSanitizesBodyInDeletion();
 
     /**
      * Test that the Consumer accepts user-xattrs in deletion for enabled
