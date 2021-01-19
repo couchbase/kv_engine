@@ -503,10 +503,9 @@ public:
             Vbid vbid, const magma::Slice& keySlice);
 
     /**
-     * Encode the cached vbucket_state into a nlohmann json struct
+     * Encode the cached vbucket_state into a JSON string
      */
-    nlohmann::json encodeVBState(const vbucket_state& vbstate,
-                                 uint64_t kvstoreRev) const;
+    std::string encodeVBState(const vbucket_state& vbstate) const;
 
     /**
      * Read the vbstate from disk and load into cache
@@ -601,6 +600,14 @@ public:
      * in histograms used to determine when to run compaction.
      */
     uint32_t getExpiryOrPurgeTime(const magma::Slice& slice);
+
+    /**
+     * Return magma kvstore revision
+     * @param vbid
+     *
+     * @return revision returns 0 (default) if the kvstore does not exist
+     */
+    uint64_t getKVStoreRevision(Vbid vbid) const;
 
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.

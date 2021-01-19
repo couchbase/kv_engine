@@ -1032,10 +1032,9 @@ uint64_t MagmaKVStore::prepareToDeleteImpl(Vbid vbid) {
 // there will be issues with writes coming from multiple threads.
 bool MagmaKVStore::snapshotVBucket(Vbid vbid, const vbucket_state& newVBState) {
     if (logger->should_log(spdlog::level::TRACE)) {
-        auto j = encodeVBState(newVBState, kvstoreRevList[vbid.get()]);
         logger->TRACE("MagmaKVStore::snapshotVBucket {} newVBState:{}",
                       vbid,
-                      j.dump());
+                      encodeVBState(newVBState));
     }
 
     if (!needsToBePersisted(vbid, newVBState)) {
@@ -1649,10 +1648,9 @@ vbucket_state* MagmaKVStore::getCachedVBucketState(Vbid vbid) {
     if (vbstate) {
         mergeMagmaDbStatsIntoVBState(*vbstate, vbid);
         if (logger->should_log(spdlog::level::TRACE)) {
-            auto j = encodeVBState(*vbstate, kvstoreRevList[vbid.get()]);
             logger->TRACE("MagmaKVStore::getCachedVBucketState {} vbstate:{}",
                           vbid,
-                          j.dump());
+                          encodeVBState(*vbstate));
         }
     }
     return vbstate.get();
@@ -1670,14 +1668,25 @@ vbucket_state MagmaKVStore::getPersistedVBucketState(Vbid vbid) {
     return state.vbstate;
 }
 
+uint64_t MagmaKVStore::getKVStoreRevision(Vbid vbid) const {
+    uint64_t kvstoreRev{0};
+    auto [status, kvsRev] = magma->GetKVStoreRevision(vbid.get());
+    if (status) {
+        kvstoreRev = static_cast<uint64_t>(kvsRev);
+    }
+
+    return kvstoreRev;
+}
+
 MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(Vbid vbid) {
     Status status;
     std::string valString;
     Slice keySlice(vbstateKey);
+    auto kvstoreRev = getKVStoreRevision(vbid);
     std::tie(status, valString) = readLocalDoc(vbid, keySlice);
 
     if (!status.IsOK()) {
-        return {status, {}, {}};
+        return {status, {}, kvstoreRev};
     }
 
     nlohmann::json j;
@@ -1690,7 +1699,7 @@ MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(Vbid vbid) {
                        " Failed to parse the vbstate json doc: " + valString +
                        ". Reason: " + e.what()),
                 {},
-                {}};
+                kvstoreRev};
     }
 
     logger->TRACE(
@@ -1698,8 +1707,6 @@ MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(Vbid vbid) {
 
     vbucket_state vbstate = j;
     mergeMagmaDbStatsIntoVBState(vbstate, vbid);
-    uint64_t kvstoreRev =
-            std::stoul(j.at("kvstore_revision").get<std::string>());
 
     return {status, vbstate, kvstoreRev};
 }
@@ -1710,12 +1717,13 @@ MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(
     std::string val;
     bool found{false};
     auto status = Status::OK();
+    auto kvstoreRev = getKVStoreRevision(vbid);
 
     // Read from the snapshot
     status = magma->GetLocal(snapshot, keySlice, val, found);
 
     if (!status.IsOK()) {
-        return {status, {}, {}};
+        return {status, {}, kvstoreRev};
     }
 
     nlohmann::json j;
@@ -1727,7 +1735,7 @@ MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(
                        vbid.to_string() + " failed to parse the vbstate json " +
                        "doc: " + val + ". Reason: " + e.what()),
                 {},
-                {}};
+                kvstoreRev};
     }
 
     vbucket_state vbstate = j;
@@ -1737,7 +1745,7 @@ MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(
         return {Status("MagmaKVStore::readVBStateFromDisk failed - " +
                        vbid.to_string() + " magma didn't return UserStats"),
                 {},
-                {}};
+                kvstoreRev};
     }
 
     auto* magmaUserStats = dynamic_cast<MagmaDbStats*>(userStats.get());
@@ -1748,9 +1756,6 @@ MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(
     }
     auto lockedStats = magmaUserStats->stats.rlock();
     vbstate.purgeSeqno = lockedStats->purgeSeqno;
-
-    uint64_t kvstoreRev =
-            std::stoul(j.at("kvstore_revision").get<std::string>());
 
     return {status, vbstate, kvstoreRev};
 }
@@ -1784,7 +1789,7 @@ magma::Status MagmaKVStore::loadVBStateCache(Vbid vbid, bool resetKVStoreRev) {
 void MagmaKVStore::addVBStateUpdateToLocalDbReqs(LocalDbReqs& localDbReqs,
                                                  const vbucket_state& vbs,
                                                  uint64_t kvstoreRev) {
-    std::string vbstateString = encodeVBState(vbs, kvstoreRev).dump();
+    std::string vbstateString = encodeVBState(vbs);
     logger->TRACE("MagmaKVStore::addVBStateUpdateToLocalDbReqs vbstate:{}",
                   vbstateString);
     localDbReqs.emplace_back(
@@ -1822,11 +1827,9 @@ std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
     return std::make_pair(retStatus, valSlice.ToString());
 }
 
-nlohmann::json MagmaKVStore::encodeVBState(const vbucket_state& vbstate,
-                                           uint64_t kvstoreRev) const {
+std::string MagmaKVStore::encodeVBState(const vbucket_state& vbstate) const {
     nlohmann::json j = vbstate;
-    j["kvstore_revision"] = std::to_string(kvstoreRev);
-    return j;
+    return j.dump();
 }
 
 ENGINE_ERROR_CODE MagmaKVStore::magmaErr2EngineErr(Status::Code err,

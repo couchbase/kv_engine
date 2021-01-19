@@ -356,3 +356,16 @@ TEST_F(MagmaKVStoreTest, ReadLocalDocErrorCode) {
     res = kvstore->readLocalDoc(vbid, "_vbstate");
     EXPECT_EQ(magma::Status::Code::NotExists, res.first.ErrorCode());
 }
+
+TEST_F(MagmaKVStoreTest, KVStoreRevisionAfterReopen) {
+    initialize_kv_store(kvstore.get(), vbid);
+
+    auto kvsRev = kvstore->getKVStoreRevision(vbid);
+    auto currRev = kvstore->prepareToDelete(vbid);
+    EXPECT_EQ(kvsRev, currRev);
+
+    // Reopen kvstore
+    kvstore.reset();
+    kvstore = std::make_unique<MockMagmaKVStore>(*kvstoreConfig);
+    EXPECT_EQ(kvsRev, kvstore->getKVStoreRevision(vbid));
+}
