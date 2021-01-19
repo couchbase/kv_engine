@@ -557,6 +557,8 @@ protected:
      */
     void testCompactionPersistedDeletes(bool dropDeletes);
 
+    void testFailoverTableEntryPersistedAtWarmup(std::function<void()>);
+
 protected:
     EPBucket& getEPBucket();
 };

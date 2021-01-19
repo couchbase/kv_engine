@@ -1072,6 +1072,12 @@ void Warmup::createVBuckets(uint16_t shardId) {
                 } else {
                     vb->failovers->createEntry(vbs.lastSnapStart);
                 }
+
+                // MB-41942: Persist the latest VB state to ensure that the
+                // FailoverTable is correct if we write any new seqnos during
+                // warmup (e.g. due to expiration)
+                vb->checkpointManager->queueSetVBState(*vb);
+
                 auto entry = vb->failovers->getLatestEntry();
                 EP_LOG_INFO(
                         "Warmup::createVBuckets: {} created new failover entry "
