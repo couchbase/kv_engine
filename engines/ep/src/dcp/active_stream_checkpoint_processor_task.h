@@ -48,7 +48,7 @@ public:
         return std::chrono::milliseconds(210);
     }
 
-    bool run() noexcept override;
+    bool run() override;
     void schedule(std::shared_ptr<ActiveStream> stream);
     void wakeup();
 

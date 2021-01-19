@@ -187,7 +187,7 @@ private:
     public:
         explicit NotifyHighPriorityReqTask(EventuallyPersistentEngine& e);
 
-        bool run() noexcept override;
+        bool run() override;
 
         std::string getDescription() override;
 

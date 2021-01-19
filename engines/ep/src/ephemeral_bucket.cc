@@ -434,7 +434,7 @@ EphemeralBucket::NotifyHighPriorityReqTask::NotifyHighPriorityReqTask(
                  false) {
 }
 
-bool EphemeralBucket::NotifyHighPriorityReqTask::run() noexcept {
+bool EphemeralBucket::NotifyHighPriorityReqTask::run() {
     std::map<const void*, ENGINE_ERROR_CODE> notifyQ;
     {
         /* It is necessary that the toNotifyLock is not held while

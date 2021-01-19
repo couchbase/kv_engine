@@ -283,7 +283,7 @@ AccessScanner::AccessScanner(KVBucket& _store,
     updateAlogTime(initialSleep);
 }
 
-bool AccessScanner::run() noexcept {
+bool AccessScanner::run() {
     TRACE_EVENT0("ep-engine/task", "AccessScanner");
 
     bool inverse = true;

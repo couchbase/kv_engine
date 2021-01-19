@@ -28,7 +28,7 @@ public:
     }
 
     // returning true will also drive the ExecutorPool::reschedule path.
-    bool run() noexcept override {
+    bool run() override {
         return true;
     }
 

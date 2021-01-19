@@ -29,7 +29,7 @@ public:
     MockGlobalTask(Taskable& t, TaskId id) : GlobalTask(t, id) {
     }
 
-    bool run() noexcept override {
+    bool run() override {
         return false;
     }
     std::string getDescription() override {

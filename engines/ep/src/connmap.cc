@@ -75,7 +75,7 @@ public:
      * (2) To notify idle connections; either for connections that need to be
      * closed or to ensure dcp noop messages are sent once a second.
      */
-    bool run() noexcept override {
+    bool run() override {
         TRACE_EVENT0("ep-engine/task", "ConnManager");
         connmap->manageConnections();
         snooze(snoozeTime);

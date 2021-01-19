@@ -147,7 +147,7 @@ public:
         return std::chrono::milliseconds(50);
     }
 
-    bool run() noexcept override {
+    bool run() override {
         TRACE_EVENT0("ep-engine/task", "WarmupInitialize");
         _warmup->initialize();
         _warmup->removeFromTaskSet(uid);
@@ -178,7 +178,7 @@ public:
         return std::chrono::milliseconds(100);
     }
 
-    bool run() noexcept override {
+    bool run() override {
         TRACE_EVENT0("ep-engine/task", "WarmupCreateVBuckets");
         _warmup->createVBuckets(_shardId);
         _warmup->removeFromTaskSet(uid);
@@ -214,7 +214,7 @@ public:
         return std::chrono::seconds(10);
     }
 
-    bool run() noexcept override {
+    bool run() override {
         TRACE_EVENT0("ep-engine/task", "WarmupLoadingCollectionCounts");
         warmup.loadCollectionStatsForShard(shardId);
         warmup.removeFromTaskSet(uid);
@@ -250,7 +250,7 @@ public:
         return std::chrono::milliseconds(100);
     }
 
-    bool run() noexcept override {
+    bool run() override {
         TRACE_EVENT0("ep-engine/task", "WarpupEstimateDatabaseItemCount");
         _warmup->estimateDatabaseItemCount(_shardId);
         _warmup->removeFromTaskSet(uid);
@@ -290,7 +290,7 @@ public:
         return std::chrono::minutes(10);
     }
 
-    bool run() noexcept override {
+    bool run() override {
         TRACE_EVENT1("ep-engine/task",
                      "WarmupLoadPreparedSyncWrites",
                      "shard",
@@ -331,7 +331,7 @@ public:
         return std::chrono::milliseconds(1);
     }
 
-    bool run() noexcept override {
+    bool run() override {
         TRACE_EVENT1(
                 "ep-engine/task", "WarmupPopulateVBucketMap", "shard", shardId);
         warmup.populateVBucketMap(shardId);
@@ -367,7 +367,7 @@ public:
         return std::chrono::hours(1);
     }
 
-    bool run() noexcept override {
+    bool run() override {
         TRACE_EVENT1("ep-engine/task", "WarmupKeyDump", "shard", _shardId);
         _warmup->keyDumpforShard(_shardId);
         _warmup->removeFromTaskSet(uid);
@@ -400,7 +400,7 @@ public:
         return std::chrono::milliseconds(100);
     }
 
-    bool run() noexcept override {
+    bool run() override {
         TRACE_EVENT0("ep-engine/task", "WarmupCheckForAccessLog");
         _warmup->checkForAccessLog();
         _warmup->removeFromTaskSet(uid);
@@ -434,7 +434,7 @@ public:
         return std::chrono::hours(1);
     }
 
-    bool run() noexcept override {
+    bool run() override {
         TRACE_EVENT0("ep-engine/task", "WarmupLoadAccessLog");
         _warmup->loadingAccessLog(_shardId);
         _warmup->removeFromTaskSet(uid);
@@ -471,7 +471,7 @@ public:
         return std::chrono::hours(1);
     }
 
-    bool run() noexcept override {
+    bool run() override {
         TRACE_EVENT0("ep-engine/task", "WarmupLoadingKVPairs");
         _warmup->loadKVPairsforShard(_shardId);
         _warmup->removeFromTaskSet(uid);
@@ -508,7 +508,7 @@ public:
         return std::chrono::hours(1);
     }
 
-    bool run() noexcept override {
+    bool run() override {
         TRACE_EVENT0("ep-engine/task", "WarmupLoadingData");
         _warmup->loadDataforShard(_shardId);
         _warmup->removeFromTaskSet(uid);
@@ -538,7 +538,7 @@ public:
         return std::chrono::milliseconds(1);
     }
 
-    bool run() noexcept override {
+    bool run() override {
         TRACE_EVENT0("ep-engine/task", "WarmupCompletion");
         _warmup->done();
         _warmup->removeFromTaskSet(uid);

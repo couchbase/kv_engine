@@ -33,7 +33,7 @@ public:
     DurabilityTimeoutTask(EventuallyPersistentEngine& engine,
                           std::chrono::milliseconds interval);
 
-    bool run() noexcept override;
+    bool run() override;
 
     std::string getDescription() override {
         return "DurabilityTimeoutTask";

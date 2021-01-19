@@ -33,7 +33,7 @@ DefragmenterTask::DefragmenterTask(EventuallyPersistentEngine* e,
       epstore_position(engine->getKVBucket()->startPosition()) {
 }
 
-bool DefragmenterTask::run() noexcept {
+bool DefragmenterTask::run() {
     TRACE_EVENT0("ep-engine/task", "DefragmenterTask");
     if (engine->getConfiguration().isDefragmenterEnabled()) {
         // Get our pause/resume visitor. If we didn't finish the previous pass,

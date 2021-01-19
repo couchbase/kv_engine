@@ -38,7 +38,7 @@ ItemFreqDecayerTask::ItemFreqDecayerTask(EventuallyPersistentEngine* e,
 
 ItemFreqDecayerTask::~ItemFreqDecayerTask() = default;
 
-bool ItemFreqDecayerTask::run() noexcept {
+bool ItemFreqDecayerTask::run() {
     TRACE_EVENT0("ep-engine/task", "ItemFreqDecayerTask");
 
     // Setup so that we will sleep before clearing notified.

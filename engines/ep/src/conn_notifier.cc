@@ -33,7 +33,7 @@ public:
           connNotifierPtr(notifier) {
     }
 
-    bool run() noexcept override {
+    bool run() override {
         auto connNotifier = connNotifierPtr.lock();
         if (connNotifier) {
             return connNotifier->notifyConnections();

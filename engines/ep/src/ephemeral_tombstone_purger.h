@@ -135,7 +135,7 @@ public:
     EphTombstoneHTCleaner(EventuallyPersistentEngine* e,
                           EphemeralBucket& bucket);
 
-    bool run() noexcept override;
+    bool run() override;
 
     std::string getDescription() override;
 
@@ -185,7 +185,7 @@ public:
     EphTombstoneStaleItemDeleter(EventuallyPersistentEngine* e,
                                  EphemeralBucket& bucket);
 
-    bool run() noexcept override;
+    bool run() override;
 
     std::string getDescription() override;
 

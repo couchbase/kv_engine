@@ -99,7 +99,7 @@ class DefragmenterTask : public GlobalTask {
 public:
     DefragmenterTask(EventuallyPersistentEngine* e, EPStats& stats_);
 
-    bool run() noexcept override;
+    bool run() override;
 
     void stop();
 

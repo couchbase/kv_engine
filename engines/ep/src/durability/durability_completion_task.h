@@ -41,7 +41,7 @@ class DurabilityCompletionTask : public GlobalTask {
 public:
     explicit DurabilityCompletionTask(EventuallyPersistentEngine& engine);
 
-    bool run() noexcept override;
+    bool run() override;
 
     std::string getDescription() override {
         return "DurabilityCompletionTask";

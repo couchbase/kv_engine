@@ -53,7 +53,7 @@ public:
     size_t attemptMemoryRecovery(MemoryRecoveryMechanism mechanism,
                                  size_t amountOfMemoryToClear);
 
-    bool run() noexcept override;
+    bool run() override;
 
     std::string getDescription() override {
         return "Removing closed unreferenced checkpoints from memory";

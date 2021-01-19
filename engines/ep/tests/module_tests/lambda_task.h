@@ -42,7 +42,7 @@ public:
           func(std::move(f)) {
     }
 
-    bool run() noexcept override {
+    bool run() override {
         return func(*this);
     }
 

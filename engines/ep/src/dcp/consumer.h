@@ -700,7 +700,7 @@ public:
         return std::chrono::seconds(10);
     }
 
-    bool run() noexcept override;
+    bool run() override;
 
 private:
     const std::string description;

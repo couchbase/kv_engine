@@ -3517,7 +3517,7 @@ public:
           cookie(c),
           add_stat(std::move(a)) {
     }
-    bool run() noexcept override {
+    bool run() override {
         TRACE_EVENT0("ep-engine/task", "StatsCheckpointTask");
         StatCheckpointVisitor scv(ep->getKVBucket(), cookie, add_stat);
         ep->getKVBucket()->visit(scv);

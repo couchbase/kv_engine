@@ -50,7 +50,7 @@ DurabilityTimeoutTask::DurabilityTimeoutTask(EventuallyPersistentEngine& engine,
             std::make_unique<ConfigChangeListener>(*this));
 }
 
-bool DurabilityTimeoutTask::run() noexcept {
+bool DurabilityTimeoutTask::run() {
     TRACE_EVENT0("ep-engine/task", "DurabilityTimeoutTask");
 
     // @todo: A meaningful value will be the P99.99

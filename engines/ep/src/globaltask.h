@@ -254,15 +254,9 @@ protected:
      * how long to sleep before it should be scheduled again.
      * If the task is complete (and should never be run again), return false.
      *
-     * This method should not throw any (uncaught) exceptions - if it did then
-     * the task is potentially in a undefined state and hence not possible to
-     * know if it should be re-scheduled or not. As such this method is marked
-     * 'noexcept' - if any exceptions are thrown then the program will be
-     * terminated.
-     *
-     * @return Whether or not this task should be rescheduled.
+     * @return Whether or not this task should be rescheduled
      */
-    virtual bool run() noexcept = 0;
+    virtual bool run() = 0;
 
     /**
      * Wake up a task, setting it's wakeTime to "now".

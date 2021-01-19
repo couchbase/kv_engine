@@ -30,7 +30,7 @@ DurabilityCompletionTask::DurabilityCompletionTask(
     : GlobalTask(&engine, TaskId::DurabilityCompletionTask) {
 }
 
-bool DurabilityCompletionTask::run() noexcept {
+bool DurabilityCompletionTask::run() {
     if (engine->getEpStats().isShutdown) {
         return false;
     }

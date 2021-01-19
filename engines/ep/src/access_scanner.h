@@ -36,7 +36,7 @@ public:
                   bool useStartTime = false,
                   bool completeBeforeShutdown = false);
 
-    bool run() noexcept override;
+    bool run() override;
     std::string getDescription() override;
     std::chrono::microseconds maxExpectedDuration() override;
 

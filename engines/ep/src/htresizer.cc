@@ -45,7 +45,7 @@ HashtableResizerTask::HashtableResizerTask(KVBucketIface& s, double sleepTime)
       store(s) {
 }
 
-bool HashtableResizerTask::run() noexcept {
+bool HashtableResizerTask::run() {
     TRACE_EVENT0("ep-engine/task", "HashtableResizerTask");
     auto pv = std::make_unique<ResizingVisitor>();
 

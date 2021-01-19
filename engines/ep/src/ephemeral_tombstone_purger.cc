@@ -99,7 +99,7 @@ EphTombstoneHTCleaner::EphTombstoneHTCleaner(EventuallyPersistentEngine* e,
             ExecutorPool::get()->schedule(staleItemDeleterTask);
 }
 
-bool EphTombstoneHTCleaner::run() noexcept {
+bool EphTombstoneHTCleaner::run() {
     // Get our pause/resume visitor. If we didn't finish the previous pass,
     // then resume from where we last were, otherwise create a new visitor
     // starting from the beginning.
@@ -258,7 +258,7 @@ EphTombstoneStaleItemDeleter::EphTombstoneStaleItemDeleter(
       bucketPosition(bucket.endPosition()) {
 }
 
-bool EphTombstoneStaleItemDeleter::run() noexcept {
+bool EphTombstoneStaleItemDeleter::run() {
     // Get our pause/resume visitor. If we didn't finish the previous pass,
     // then resume from where we last were, otherwise create a new visitor
     // starting from the beginning.

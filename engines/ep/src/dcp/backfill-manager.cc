@@ -45,7 +45,7 @@ public:
           weak_manager(std::move(mgr)) {
     }
 
-    bool run() noexcept override;
+    bool run() override;
 
     std::string getDescription() override;
 
@@ -61,7 +61,7 @@ private:
     std::weak_ptr<BackfillManager> weak_manager;
 };
 
-bool BackfillManagerTask::run() noexcept {
+bool BackfillManagerTask::run() {
     TRACE_EVENT0("ep-engine/task", "BackFillManagerTask");
     // Create a new shared_ptr to the manager for the duration of this
     // execution.

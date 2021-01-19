@@ -2007,7 +2007,7 @@ TEST_F(SingleThreadedEPBucketTest, ReadyQueueMaintainsWakeTimeOrder) {
     public:
         TestTask(Taskable& t, TaskId id, double s) : GlobalTask(t, id, s) {
         }
-        bool run() noexcept override {
+        bool run() override {
             return false;
         }
 
@@ -2049,7 +2049,7 @@ TEST_F(SingleThreadedEPBucketTest, MB20235_wake_and_work_count) {
         TestTask(EventuallyPersistentEngine* e, double s)
             : GlobalTask(e, TaskId::AccessScanner, s) {
         }
-        bool run() noexcept override {
+        bool run() override {
             return false;
         }
 
@@ -2740,7 +2740,7 @@ TEST_F(SingleThreadedEPBucketTest, MB20735_rescheduleWaketime) {
         SnoozingTestTask(Taskable& t, TaskId id) : TestTask(t, id) {
         }
 
-        bool run() noexcept override {
+        bool run() override {
             snooze(0.1); // snooze for 100milliseconds only
             // Rescheduled to run 100 milliseconds later..
             return true;
