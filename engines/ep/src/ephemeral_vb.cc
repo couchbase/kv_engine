@@ -105,10 +105,10 @@ void EphemeralVBucket::completeStatsVKey(const DocKey& key,
 bool EphemeralVBucket::pageOut(const Collections::VB::ReadHandle& readHandle,
                                const HashTable::HashBucketLock& lh,
                                StoredValue*& v) {
-    if (!eligibleToPageOut(lh, *v)) {
+    auto cid = v->getKey().getCollectionID();
+    if (!eligibleToPageOut(lh, *v) || !readHandle.exists(cid)) {
         return false;
     }
-    auto cid = v->getKey().getCollectionID();
     VBQueueItemCtx queueCtx;
     v->setRevSeqno(v->getRevSeqno() + 1);
     DeletionStatus status;
@@ -1034,7 +1034,7 @@ uint64_t EphemeralVBucket::addSystemEventItem(
 
     // We don't record anything interesting for scopes
     if (cid) {
-        doCollectionsStats(wHandle, *cid, notifyCtx);
+        VBucket::doCollectionsStats(wHandle, *cid, notifyCtx);
         if (item->isDeleted()) {
             stats.dropCollectionStats(*cid);
 
@@ -1069,4 +1069,17 @@ bool EphemeralVBucket::isValidDurabilityLevel(cb::durability::Level level) {
 void EphemeralVBucket::processImplicitlyCompletedPrepare(
         HashTable::StoredValueProxy& v) {
     v.setCommitted(CommittedState::PrepareCommitted);
+}
+
+void EphemeralVBucket::doCollectionsStats(
+        const Collections::VB::ReadHandle& readHandle,
+        CollectionID collection,
+        const VBNotifyCtx& notifyCtx) {
+    readHandle.setHighSeqno(collection, notifyCtx.bySeqno);
+
+    if (notifyCtx.itemCountDifference == 1) {
+        readHandle.incrementItemCount(collection);
+    } else if (notifyCtx.itemCountDifference == -1) {
+        readHandle.decrementItemCount(collection);
+    }
 }

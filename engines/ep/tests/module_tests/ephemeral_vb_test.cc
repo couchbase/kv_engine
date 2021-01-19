@@ -24,11 +24,14 @@
 #include "failover-table.h"
 #include "item.h"
 #include "test_helpers.h"
+#include "tests/module_tests/collections/collections_test_helpers.h"
 #include "thread_gate.h"
 #include "vbucket_test.h"
 
 #include <folly/portability/GTest.h>
 #include <programs/engine_testapp/mock_server.h>
+#include <utilities/test_manifest.h>
+
 #include <thread>
 
 /**
@@ -147,6 +150,27 @@ TEST_F(EphemeralVBucketTest, PageOutAfterDeleteWithValue) {
     EXPECT_EQ(0, vbucket->getNumItems());
     EXPECT_TRUE(storedVal->isDeleted());
     EXPECT_FALSE(storedVal->getValue());
+}
+
+TEST_F(EphemeralVBucketTest, PageOutAfterCollectionsDrop) {
+    auto key = makeStoredDocKey("key");
+    std::string value = "value";
+    Item item(key, 0, /*expiry*/ 0, value.data(), value.size());
+    ASSERT_EQ(AddStatus::Success, public_processAdd(item));
+
+    // Drop the collection
+    CollectionsManifest cm;
+    vbucket->updateFromManifest(
+            makeManifest(cm.remove(CollectionEntry::defaultC)));
+
+    auto readHandle = vbucket->lockCollections();
+    auto lock_sv = lockAndFind(key);
+    auto* storedVal = lock_sv.second;
+
+    // Try and page it out, but with MB-43745 we would of seen an exception
+    // here.
+    EXPECT_FALSE(vbucket->pageOut(readHandle, lock_sv.first, storedVal));
+    EXPECT_EQ(1, vbucket->getNumItems());
 }
 
 // NRU: check the seqlist has correct statistics for a create, pageout,

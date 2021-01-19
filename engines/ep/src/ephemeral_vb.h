@@ -392,6 +392,19 @@ private:
             OrderedStoredValue& osv);
 
     /**
+     * Perform the post-queue collections stat counting using a read handle and
+     * a given CollectionID.
+     *
+     * @param readHandle read handle for the entire collection manifest that
+     *        allows us to lookup a collection then set the high seqno for it
+     * @param collection the collection we need to update
+     * @param notifyCtx holds info needed for stat counting
+     */
+    void doCollectionsStats(const Collections::VB::ReadHandle& readHandle,
+                            CollectionID collection,
+                            const VBNotifyCtx& notifyCtx);
+
+    /**
      * Lock to synchronize order of bucket elements.
      * The sequence number is not generated in EphemeralVBucket for now. It is
      * generated in the CheckpointManager and is synchronized on "queueLock" in

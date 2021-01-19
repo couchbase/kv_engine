@@ -842,7 +842,8 @@ void Manifest::setHighSeqno(CollectionID collection, uint64_t value) const {
     if (itr == map.end()) {
         throwException<std::invalid_argument>(
                 __FUNCTION__,
-                "failed find of collection:" + collection.to_string());
+                "failed find of collection:" + collection.to_string() +
+                        " with value:" + std::to_string(value));
     }
     itr->second.setHighSeqno(value);
 }

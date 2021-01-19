@@ -1964,19 +1964,6 @@ protected:
                             const VBNotifyCtx& notifyCtx);
 
     /**
-     * Perform the post-queue collections stat counting using a read handle and
-     * a given CollectionID.
-     *
-     * @param readHandle read handle for the entire collection manifest that
-     *        allows us to lookup a collection then set the high seqno for it
-     * @param collection the collection we need to update
-     * @param notifyCtx holds info needed for stat counting
-     */
-    void doCollectionsStats(const Collections::VB::ReadHandle& readHandle,
-                            CollectionID collection,
-                            const VBNotifyCtx& notifyCtx);
-
-    /**
      * Perform the post-queue collections stat counting using a write handle and
      * a given CollectionID.
      *

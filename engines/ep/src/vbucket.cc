@@ -3758,17 +3758,6 @@ void VBucket::doCollectionsStats(
     }
 }
 
-void VBucket::doCollectionsStats(const Collections::VB::ReadHandle& readHandle,
-                                 CollectionID collection,
-                                 const VBNotifyCtx& notifyCtx) {
-    readHandle.setHighSeqno(collection, notifyCtx.bySeqno);
-
-    if (notifyCtx.itemCountDifference == 1) {
-        readHandle.incrementItemCount(collection);
-    } else if (notifyCtx.itemCountDifference == -1) {
-        readHandle.decrementItemCount(collection);
-    }
-}
 
 void VBucket::doCollectionsStats(
         const Collections::VB::WriteHandle& writeHandle,
