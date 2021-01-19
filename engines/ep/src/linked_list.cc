@@ -357,6 +357,7 @@ size_t BasicLinkedList::purgeTombstones(
                 //  so next time purge is attempted it will resume from here (the
                 //  range lock "blocking" part of the requested seqno range may have
                 //  moved/gone)
+                std::lock_guard<std::mutex> writeGuard(getListWriteLock());
                 pausedPurgePoint = it;
             }
             // reached the end of the locked range, stop
