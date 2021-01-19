@@ -69,8 +69,13 @@ GlobalTask::~GlobalTask() {
 
 bool GlobalTask::execute() {
     // Invoke run with the engine as the target for alloc/dalloc
-    BucketAllocationGuard guard(engine);
-    return run();
+    try {
+        BucketAllocationGuard guard(engine);
+        return run();
+    } catch (...) {
+        // Our terminate handler will print details of the exception.
+        std::terminate();
+    }
 }
 
 void GlobalTask::snooze(const double secs) {

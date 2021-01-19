@@ -254,6 +254,12 @@ protected:
      * how long to sleep before it should be scheduled again.
      * If the task is complete (and should never be run again), return false.
      *
+     * This method should not throw any (uncaught) exceptions - if it did then
+     * the task is potentially in a undefined state and hence not possible to
+     * know if it should be re-scheduled or not. If any exceptions are thrown
+     * then the exception will be logged and the program will be terminated
+     * via std::terminate.
+     *
      * @return Whether or not this task should be rescheduled
      */
     virtual bool run() = 0;
