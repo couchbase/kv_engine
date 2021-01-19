@@ -1757,11 +1757,16 @@ ENGINE_ERROR_CODE DcpConsumer::prepare(uint32_t opaque,
                     datatype,
                     {reinterpret_cast<const char*>(value.data()),
                      value.size()}) > 0) {
-            logger->warn(
-                    "DcpConsumer::prepare: ({}) Value cannot contain a body "
-                    "for SyncDelete",
-                    vbucket);
-            return ENGINE_EINVAL;
+            if (!allowSanitizeValueInDeletion) {
+                logger->error(
+                        "DcpConsumer::prepare: ({}) Value cannot contain a "
+                        "body "
+                        "for SyncDelete",
+                        vbucket);
+                return ENGINE_EINVAL;
+            }
+
+            item->removeBody();
         }
     }
 

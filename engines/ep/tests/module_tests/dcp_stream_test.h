@@ -161,8 +161,12 @@ protected:
 
     /**
      * Test that the Consumer removes the body (if any) in deletion's value.
+     * That is the behaviour when (allowSanitizeValueInDeletion = true).
+     *
+     * @param durReqs (optional) The Dur Reqs, if we are testing SyncDelete
      */
-    void testConsumerSanitizesBodyInDeletion();
+    void testConsumerSanitizesBodyInDeletion(
+            const boost::optional<cb::durability::Requirements>& durReqs);
 
     /**
      * Test that the Consumer accepts user-xattrs in deletion for enabled
