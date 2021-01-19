@@ -214,10 +214,6 @@ nlohmann::json Connection::toJSON() const {
     return ret;
 }
 
-void Connection::setDCP(bool enable) {
-    dcp = enable;
-}
-
 void Connection::restartAuthentication() {
     if (authenticated && user.domain == cb::sasl::Domain::External) {
         externalAuthManager->logoff(user.name);

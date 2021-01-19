@@ -166,7 +166,9 @@ private:
 };
 
 /** ewouldblock_engine class */
-class EWB_Engine : public EngineIface, public DcpIface {
+class EWB_Engine : public EngineIface,
+                   public DcpIface,
+                   public DcpConnHandlerIface {
 private:
     enum class Cmd {
         NONE,
@@ -1387,6 +1389,8 @@ ENGINE_ERROR_CODE EWB_Engine::open(gsl::not_null<const void*> cookie,
             dcp_stream[cookie] =
                     std::make_pair(false, std::numeric_limits<uint64_t>::max());
         }
+
+        real_api->cookie->setDcpConnHandler(cookie, this);
         return ENGINE_SUCCESS;
     }
 

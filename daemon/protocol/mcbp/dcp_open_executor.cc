@@ -49,14 +49,42 @@ void dcp_open_executor(Cookie& cookie) {
             auto key = request.getKey();
             auto value = request.getValue();
 
-            ret = dcpOpen(
-                    cookie,
-                    request.getOpaque(),
-                    payload->getSeqno(),
-                    flags,
-                    {reinterpret_cast<const char*>(key.data()), key.size()},
-                    {reinterpret_cast<const char*>(value.data()),
-                     value.size()});
+            // MB-43622 There is a race condition in the creation and
+            //          notification of the DCP connections. Initially
+            //          I tried to reserve the cookie from the constructor
+            //          of the ConnHandler, but that caused a ton of problems
+            //          in the unit tests as they didn't explicitly release
+            //          the reference (and trying to clean up all of that was
+            //          a lot of work). In addition to that we could end up
+            //          with a memory allocation failure trying to insert
+            //          the new cookie in the connection array which would
+            //          also make it hard to figure out when to release
+            //          the reference (and the engine is not allowed to call
+            //          release from a workerthread as it tries to reschedule
+            //          the cookie). The workaround for used is to bump
+            //          the refcount before calling DCP Open so that the
+            //          the checks in scheduleDcpStep can see that the ref
+            //          count is correct if we get a notification before
+            //          this thread call reserve.
+            cookie.incrementRefcount();
+            try {
+                ret = dcpOpen(
+                        cookie,
+                        request.getOpaque(),
+                        payload->getSeqno(),
+                        flags,
+                        {reinterpret_cast<const char*>(key.data()), key.size()},
+                        {reinterpret_cast<const char*>(value.data()),
+                         value.size()});
+            } catch (const std::exception& e) {
+                LOG_WARNING(
+                        "{}: Received an exception as part DCP Open: {}, "
+                        "disconnect client",
+                        connection.getId(),
+                        e.what());
+                ret = ENGINE_DISCONNECT;
+            }
+            cookie.decrementRefcount();
         }
     }
 
@@ -74,8 +102,14 @@ void dcp_open_executor(Cookie& cookie) {
         connection.setDcpDeletedUserXattr(dcpDeletedUserXattr);
         connection.setDcpNoValue(dcpNoValue);
         connection.setDcpDeleteTimeEnabled(dcpDeleteTimes);
-        connection.setDCP(true);
         connection.disableSaslAuth();
+
+        if (!connection.getDcpConnHandlerIface()) {
+            throw std::logic_error(
+                    "dcp_open_executor(): The underlying engine returned "
+                    "success but did not set up a DCP connection handler "
+                    "interface");
+        }
 
         // String buffer with max length = total length of all possible contents
         std::string logBuffer;

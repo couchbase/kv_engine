@@ -330,10 +330,8 @@ public:
     void setTerminationReason(std::string reason);
 
     bool isDCP() const {
-        return dcp;
+        return dcpConnHandlerIface.load() != nullptr;
     }
-
-    void setDCP(bool enable);
 
     bool isDcpXattrAware() const {
         return dcpXattrAware;
@@ -963,9 +961,6 @@ protected:
 
     /// The reason why the session was terminated
     std::string terminationReason;
-
-    /** Is this connection used by a DCP connection? */
-    bool dcp = false;
 
     /** Is this DCP channel XAttrAware */
     bool dcpXattrAware = false;

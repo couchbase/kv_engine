@@ -694,7 +694,7 @@ protected:
     /// Previously reserve would lock the connection, but with OOO we
     /// might have multiple cookies in flight and needs to be able to
     /// lock them independently
-    uint8_t refcount = 0;
+    std::atomic<uint8_t> refcount = 0;
 
     /// see isAuthorized/setAuthorized
     bool authorized = false;

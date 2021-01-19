@@ -6195,8 +6195,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
 
     // Success creating dcp object which has stored the cookie, now reserve it.
     reserveCookie(cookie);
-    setDcpConnHandler(cookie, handler);
-
     return ENGINE_SUCCESS;
 }
 
