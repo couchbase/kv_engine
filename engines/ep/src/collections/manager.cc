@@ -187,6 +187,19 @@ std::optional<Vbid> Collections::Manager::updateAllVBuckets(
     return {};
 }
 
+void Collections::Manager::updatePersistManifestTaskDone(
+        EventuallyPersistentEngine& engine,
+        const void* cookie,
+        cb::engine_errc status) {
+    // If !success the command will return to the caller, so must clean-up
+    // ready for any further task.
+    if (status != cb::engine_errc::success) {
+        auto lockedUpdateCookie = updateInProgress.wlock();
+        *lockedUpdateCookie = nullptr;
+        engine.storeEngineSpecific(cookie, nullptr);
+    }
+}
+
 std::pair<cb::mcbp::Status, nlohmann::json> Collections::Manager::getManifest(
         const Collections::IsVisibleFunction& isVisible) const {
     return {cb::mcbp::Status::Success,

@@ -19,7 +19,9 @@
 #include <cluster_framework/auth_provider_service.h>
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
+#include <cluster_framework/node.h>
 #include <include/mcbp/protocol/unsigned_leb128.h>
+#include <platform/dirutils.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <protocol/connection/frameinfo.h>
@@ -292,4 +294,48 @@ TEST_F(CollectionsTests, ResurrectCollection) {
         ASSERT_TRUE(error.isNotFound()) << to_string(error.getReason());
     }
     conn->get(createKey(CollectionEntry::vegetable, "Generation2"), Vbid{0});
+}
+
+// Remove the data directory and SetCollection should fail, but work again
+// once the data-dir is restored.
+TEST_F(CollectionsTests, SetCollectionsWithNoDirectory) {
+    auto bucket = cluster->getBucket("default");
+    ASSERT_NE(nullptr, bucket);
+
+    // Remove the data dir, with a retry loop. Windows KV maybe accessing
+    // the directory.
+    cluster->iterateNodes([this](const cb::test::Node& node) {
+        auto path = node.directory + "/default";
+        int tries = 0;
+        const int retries = 50;
+        do {
+            tries++;
+            try {
+                cb::io::rmrf(cb::io::sanitizePath(path));
+                break;
+            } catch (const std::system_error&) {
+                using namespace std::chrono_literals;
+                std::this_thread::sleep_for(100ms);
+            }
+        } while (tries < retries);
+    });
+
+    cluster->collections.remove(CollectionEntry::vegetable);
+    try {
+        bucket->setCollectionManifest(cluster->collections.getJson());
+    } catch (const ConnectionError& err) {
+        EXPECT_EQ(cb::mcbp::Status::CannotApplyCollectionsManifest,
+                  err.getReason());
+    }
+
+    cluster->iterateNodes([this](const cb::test::Node& node) {
+        auto path = node.directory + "/default";
+        cb::io::mkdirp(cb::io::sanitizePath(path));
+    });
+    try {
+        bucket->setCollectionManifest(cluster->collections.getJson());
+    } catch (const ConnectionError& err) {
+        FAIL() << "setCollectionManifest Should not of thrown "
+               << err.getErrorContext();
+    }
 }

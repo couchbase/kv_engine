@@ -23,12 +23,16 @@
 
 void collections_set_manifest_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
-    auto& req = cookie.getRequest();
-    auto val = req.getValue();
-    std::string_view jsonBuffer{reinterpret_cast<const char*>(val.data()),
-                                val.size()};
-    const auto ret = connection.getBucketEngine().set_collection_manifest(
-            &cookie, jsonBuffer);
-
-    handle_executor_status(cookie, ret);
+    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    if (ret == ENGINE_SUCCESS) {
+        auto& req = cookie.getRequest();
+        auto val = req.getValue();
+        std::string_view jsonBuffer{reinterpret_cast<const char*>(val.data()),
+                                    val.size()};
+        auto status = connection.getBucketEngine().set_collection_manifest(
+                &cookie, jsonBuffer);
+        handle_executor_status(cookie, status);
+    } else {
+        handle_executor_status(cookie, ret);
+    }
 }

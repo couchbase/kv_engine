@@ -18,6 +18,7 @@
 #pragma once
 
 #include "globaltask.h"
+#include <memcached/engine_error.h>
 
 #include <optional>
 
@@ -55,6 +56,8 @@ public:
     static std::optional<Manifest> tryAndLoad(std::string_view dbpath);
 
 private:
+    cb::engine_errc doTaskCore();
+
     /**
      * The task is given ownership whilst scheduled and running of the manifest
      * to store. The task releases ownership on successful store or keeps it

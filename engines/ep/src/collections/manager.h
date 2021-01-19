@@ -26,6 +26,7 @@
 #include <mutex>
 
 class EPBucket;
+class EventuallyPersistentEngine;
 class StatCollector;
 class BucketStatCollector;
 class KVBucket;
@@ -112,6 +113,17 @@ public:
     cb::engine_error update(KVBucket& bucket,
                             std::string_view manifest,
                             const void* cookie);
+
+    /**
+     * Function used to provide a status when any update PersistManifestTask
+     * completes.
+     * @param engine The task's engine
+     * @param cookie Cookie of the command that triggered the task
+     * @param status The final status of the task execution
+     */
+    void updatePersistManifestTaskDone(EventuallyPersistentEngine& engine,
+                                       const void* cookie,
+                                       cb::engine_errc status);
 
     /**
      * Retrieve the current manifest

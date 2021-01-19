@@ -18,6 +18,7 @@
 #include "collections/persist_manifest_task.h"
 #include "bucket_logger.h"
 #include "collections/collections_types.h"
+#include "collections/manager.h"
 #include "collections/manifest.h"
 #include "collections/manifest_generated.h"
 #include "ep_bucket.h"
@@ -50,15 +51,24 @@ std::string PersistManifestTask::getDescription() {
 static bool renameFile(const std::string& src, const std::string& dst);
 
 bool PersistManifestTask::run() {
+    auto status = doTaskCore();
+    engine->getKVBucket()
+            ->getCollectionsManager()
+            .updatePersistManifestTaskDone(*engine, cookie, status);
+    engine->notifyIOComplete(cookie, ENGINE_ERROR_CODE(status));
+    if (status == cb::engine_errc::success) {
+        // Success, release the manifest back to set_collections
+        manifest.release();
+    }
+    return false;
+}
+
+cb::engine_errc PersistManifestTask::doTaskCore() {
     std::string finalFile = engine->getConfiguration().getDbname();
 
     if (!cb::io::isDirectory(finalFile)) {
         EP_LOG_WARN("PersistManifestTask::run fail isDirectory {}", finalFile);
-        engine->notifyIOComplete(
-                cookie,
-                ENGINE_ERROR_CODE(
-                        cb::engine_errc::cannot_apply_collections_manifest));
-        return false;
+        return cb::engine_errc::cannot_apply_collections_manifest;
     }
 
     finalFile += cb::io::DirectorySeparator + std::string(ManifestFileName);
@@ -78,29 +88,26 @@ bool PersistManifestTask::run() {
                  builder.GetSize());
     writer.close();
 
-    ENGINE_ERROR_CODE status = ENGINE_SUCCESS;
+    cb::engine_errc status = cb::engine_errc::success;
     if (!writer.good()) {
-        status = ENGINE_ERROR_CODE(
-                cb::engine_errc::cannot_apply_collections_manifest);
+        // failure, when this task goes away the manifest will be destroyed
+        status = cb::engine_errc::cannot_apply_collections_manifest;
         // log the bad, the fail and the eof.
         EP_LOG_WARN(
                 "PersistManifestTask::run writer error bad:{} fail:{} eof:{}",
                 writer.bad(),
                 writer.fail(),
                 writer.eof());
-        // failure, when this task goes away the manifest will be destroyed
     } else {
         if (!renameFile(tmpFile, finalFile)) {
+            // failure, when this task goes away the manifest will be destroyed
+            status = cb::engine_errc::cannot_apply_collections_manifest;
             EP_LOG_WARN(
                     "PersistManifestTask::run failed renameFile {} to {}, "
                     "errno:{}",
                     tmpFile,
                     finalFile,
                     errno);
-            status = ENGINE_FAILED;
-        } else {
-            // Success, release the manifest back to set_collections
-            manifest.release();
         }
     }
 
@@ -110,8 +117,7 @@ bool PersistManifestTask::run() {
                     errno);
     }
 
-    engine->notifyIOComplete(cookie, status);
-    return false;
+    return status;
 }
 
 std::optional<Manifest> PersistManifestTask::tryAndLoad(
