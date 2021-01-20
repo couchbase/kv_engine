@@ -588,10 +588,13 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll,
                                : spdlog::level::level_enum::debug;
 
     EP_LOG_FMT(severity,
-               "{} Created range iterator from {} to {}",
+               "{} Created range iterator from {} to {}, earlySnapEndSeqno:{}, "
+               "maxVisibleSeqno:{}",
                list.vbid,
                itrRange.getBegin(),
-               itrRange.getEnd());
+               itrRange.getEnd(),
+               earlySnapShotEndSeqno,
+               maxVisibleSeqno);
 }
 
 BasicLinkedList::RangeIteratorLL::~RangeIteratorLL() {
