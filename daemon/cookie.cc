@@ -34,7 +34,6 @@
 #include <mcbp/protocol/framebuilder.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
-#include <platform/checked_snprintf.h>
 #include <platform/compress.h>
 #include <platform/histogram.h>
 #include <platform/scope_timer.h>
@@ -385,18 +384,7 @@ void Cookie::maybeLogSlowCommand(
     const auto limit = cb::mcbp::sla::getSlowOpThreshold(opcode);
 
     if (elapsed > limit) {
-        const auto& header = getHeader();
         std::chrono::nanoseconds timings(elapsed);
-        std::string command;
-        try {
-            command = to_string(opcode);
-        } catch (const std::exception&) {
-            char opcode_s[16];
-            checked_snprintf(
-                    opcode_s, sizeof(opcode_s), "0x%X", header.getOpcode());
-            command.assign(opcode_s);
-        }
-
         auto& c = getConnection();
 
         TRACE_COMPLETE2("memcached/slow",
@@ -415,7 +403,7 @@ void Cookie::maybeLogSlowCommand(
                 ntohl(getHeader().getOpaque()),
                 cb::time2text(timings),
                 tracer.to_string(),
-                command,
+                to_string(opcode),
                 c.getPeername(),
                 c.getBucket().name,
                 getHeader().toJSON(validated));
