@@ -80,7 +80,7 @@ class WriteHandle;
  */
 class Manifest {
 public:
-    using container = folly::F14FastMap<CollectionID, ManifestEntry>;
+    using container = folly::F14NodeMap<CollectionID, ManifestEntry>;
 #ifdef THREAD_SANITIZER
     // SharedMutexReadPriority has no TSAN annotations, so use WritePrioity
     using mutex_type = folly::SharedMutexWritePriority;
