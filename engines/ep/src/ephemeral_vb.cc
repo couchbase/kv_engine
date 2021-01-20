@@ -998,6 +998,10 @@ uint64_t EphemeralVBucket::addSystemEventItem(
     }
 
     item->setVBucketId(getId());
+
+    // ephemeral keeps system events in-memory, so keep it compressed.
+    item->compressValue();
+
     auto htRes = ht.findForWrite(item->getKey());
     auto* v = htRes.storedValue;
     auto& hbl = htRes.lock;

@@ -132,6 +132,7 @@ int main(int, char **) {
     display("queued_item", sizeof(queued_item));
     display("Collections::VB::ManifestEntry",
             sizeof(Collections::VB::ManifestEntry));
+    display("cb::ExpiryLimit", sizeof(cb::ExpiryLimit));
 
     std::cout << std::endl << "Histogram Ranges" << std::endl << std::endl;
 
