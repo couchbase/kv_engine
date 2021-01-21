@@ -152,20 +152,10 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
        remaining count */
     while (rangeItr.curr() != rangeItr.end()) {
         if (static_cast<uint64_t>((*rangeItr).getBySeqno()) >= startSeqno) {
-            /* Determine the endSeqno of the current snapshot.
-               We want to send till requested endSeqno, but if that cannot
-               constitute a snapshot then we need to send till the point
-               which can be called as snapshot end */
-            endSeqno = std::max(
-                    endSeqno,
-                    static_cast<uint64_t>(rangeItr.getEarlySnapShotEnd()));
+            // Backfill covers the full SeqList range.
+            endSeqno = rangeItr.back();
 
-            /* We want to send items only till the point it is necessary to do
-               so */
-            endSeqno =
-                    std::min(endSeqno, static_cast<uint64_t>(rangeItr.back()));
-
-            /* Mark disk snapshot */
+            // Send SnapMarker
             bool markerSent =
                     stream->markDiskSnapshot(startSeqno,
                                              endSeqno,
@@ -173,13 +163,9 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
                                              rangeItr.getMaxVisibleSeqno());
 
             if (markerSent) {
-                /* Set backfill remaining
-                   [EPHE TODO]: This will be inaccurate if do not backfill till
-                   end of the iterator Additionally, this value may be an
-                   overestimate even if backfilled to the iterator end - it
-                   includes prepares/aborts which will not be sent if the stream
-                   is not sync write aware
-                 */
+                // @todo: This value may be an overestimate, as it includes
+                //  prepares/aborts which will not be sent if the stream is not
+                //  sync write aware
                 stream->setBackfillRemaining(rangeItr.count());
 
                 /* Change the backfill state and return for next stage. */
