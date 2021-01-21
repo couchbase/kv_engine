@@ -1193,6 +1193,18 @@
             "descr": "Maximum time (in seconds) that data is kept in level 0 before it is merged.",
             "type": "size_t"
         },
+        "magma_bloom_filter_accuracy": {
+            "default": "0.99",
+            "desr": "Magma maintains a bloom filter per sstable in the LSMTree. The bloom filters are used to reduce IO in case of non-existent  This config sets the accuracy of the bloom filters ie. (1 - accuracy) = false positive rate",
+            "dynamic": false,
+            "type": "float"
+        },
+        "magma_bloom_filter_accuracy_for_bottom_level": {
+            "default": "0.95",
+            "desr": "The bloom filters at the bottom level are used to avoid IO in case of non-existent keys. Also most of the data resides in the bottom level. This config allows for lowering of bloom filter accuracy of sstables residing in the lowermost level of the LSMTree.",
+            "dynamic": false,
+            "type": "float"
+        },
         "retain_erroneous_tombstones": {
             "default": "true",
             "descr": "whether erroneous tombstones need to be retain during compaction. Erroneous tombstones are those that have invalid meta data in it. For example, a delete time of 0.",

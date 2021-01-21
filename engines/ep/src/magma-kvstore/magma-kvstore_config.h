@@ -131,6 +131,14 @@ public:
         return magmaMaxLevel0TTL;
     }
 
+    float getMagmaBloomFilterAccuracy() const {
+        return magmaBloomFilterAccuracy;
+    }
+
+    float getMagmaBloomFilterAccuracyForBottomLevel() const {
+        return magmaBloomFilterAccuracyForBottomLevel;
+    }
+
     magma::Magma::Config magmaCfg;
 
 private:
@@ -263,4 +271,7 @@ private:
      * merged
      */
     std::chrono::seconds magmaMaxLevel0TTL{600};
+
+    float magmaBloomFilterAccuracy;
+    float magmaBloomFilterAccuracyForBottomLevel;
 };

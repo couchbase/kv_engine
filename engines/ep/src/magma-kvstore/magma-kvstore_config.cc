@@ -77,6 +77,9 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaMaxDefaultStorageThreads = config.getMagmaMaxDefaultStorageThreads();
     numWriterThreads = config.getNumWriterThreads();
     metadataPurgeAge = config.getPersistentMetadataPurgeAge();
+    magmaBloomFilterAccuracy = config.getMagmaBloomFilterAccuracy();
+    magmaBloomFilterAccuracyForBottomLevel =
+            config.getMagmaBloomFilterAccuracyForBottomLevel();
 
     config.addValueChangedListener(
             "magma_fragmentation_percentage",

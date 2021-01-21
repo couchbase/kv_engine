@@ -470,6 +470,10 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
             configuration.getMagmaMaxRecoveryBytes();
     configuration.magmaCfg.LSMMaxLevel0CompactionTTL =
             configuration.getMagmaMaxLevel0TTL();
+    configuration.magmaCfg.BloomFilterAccuracy =
+            configuration.getMagmaBloomFilterAccuracy();
+    configuration.magmaCfg.BloomFilterAccuracyForBottomLevel =
+            configuration.getMagmaBloomFilterAccuracyForBottomLevel();
 
     configuration.setStore(this);
 
