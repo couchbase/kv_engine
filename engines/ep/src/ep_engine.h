@@ -1273,6 +1273,14 @@ protected:
     EpEngineTaskable taskable;
     std::atomic<BucketCompressionMode> compressionMode;
     std::atomic<float> minCompressionRatio;
-    std::atomic_bool allowDelWithMetaPruneUserData;
+
+    /**
+     * Whether del-operations at EPE level (currently only DelWithMeta) should
+     * just sanitize invalid payloads or fail the operation if an invalid
+     * payload is detected.
+     * Non-const as the related configuration param is dynamic.
+     */
+    std::atomic_bool allowSanitizeValueInDeletion;
+
     cb::ArenaMallocClient arena;
 };

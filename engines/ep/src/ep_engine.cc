@@ -754,8 +754,8 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
             getConfiguration().setCouchstoreWriteValidation(cb_stob(val));
         } else if (key == "couchstore_mprotect") {
             getConfiguration().setCouchstoreMprotect(cb_stob(val));
-        } else if (key == "allow_del_with_meta_prune_user_data") {
-            getConfiguration().setAllowDelWithMetaPruneUserData(cb_stob(val));
+        } else if (key == "allow_sanitize_value_in_deletion") {
+            getConfiguration().setAllowSanitizeValueInDeletion(cb_stob(val));
         } else if (key == "pitr_enabled") {
             getConfiguration().setPitrEnabled(cb_stob(val));
         } else if (key == "pitr_max_history_age") {
@@ -2070,8 +2070,8 @@ public:
     }
 
     void booleanValueChanged(const std::string& key, bool b) override {
-        if (key == "allow_del_with_meta_prune_user_data") {
-            engine.allowDelWithMetaPruneUserData.store(b);
+        if (key == "allow_sanitize_value_in_deletion") {
+            engine.allowSanitizeValueInDeletion.store(b);
         }
     }
 
@@ -2148,10 +2148,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             "getl_max_timeout",
             std::make_unique<EpEngineValueChangeListener>(*this));
 
-    allowDelWithMetaPruneUserData.store(
-            configuration.isAllowDelWithMetaPruneUserData());
+    allowSanitizeValueInDeletion.store(
+            configuration.isAllowSanitizeValueInDeletion());
     configuration.addValueChangedListener(
-            "allow_del_with_meta_prune_user_data",
+            "allow_sanitize_value_in_deletion",
             std::make_unique<EpEngineValueChangeListener>(*this));
 
     auto numShards = configuration.getMaxNumShards();
@@ -5655,7 +5655,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
             datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
         }
 
-        if (allowDelWithMetaPruneUserData) {
+        if (allowSanitizeValueInDeletion) {
             if (mcbp::datatype::is_xattr(datatype)) {
                 // Whatever we have in the value, just keep Xattrs
                 const auto valBuffer = std::string_view{
