@@ -16,6 +16,7 @@
  */
 
 #include "collections/vbucket_manifest.h"
+#include "collections/manager.h"
 #include "collections/vbucket_manifest_handles.h"
 
 #include "bucket_logger.h"
@@ -35,8 +36,12 @@
 namespace Collections::VB {
 
 Manifest::Manifest(std::shared_ptr<Manager> manager)
-    : scopes({{ScopeID::Default}}), manager(std::move(manager)) {
-    addNewCollectionEntry({ScopeID::Default, CollectionID::Default}, {});
+    : manager(std::move(manager)) {
+    addNewScopeEntry(ScopeID::Default, DefaultScopeIdentifier);
+    addNewCollectionEntry({ScopeID::Default, CollectionID::Default},
+                          DefaultCollectionIdentifier,
+                          {} /*ttl*/,
+                          0 /*startSeqno*/);
 }
 
 Manifest::Manifest(std::shared_ptr<Manager> manager,
@@ -45,12 +50,29 @@ Manifest::Manifest(std::shared_ptr<Manager> manager,
       manager(std::move(manager)),
       dropInProgress(data.droppedCollectionsExist) {
     for (const auto& scope : data.scopes) {
-        scopes.insert(scope.metaData.sid);
+        addNewScopeEntry(scope.metaData.sid, scope.metaData.name);
     }
 
     for (const auto& e : data.collections) {
         const auto& meta = e.metaData;
-        addNewCollectionEntry({meta.sid, meta.cid}, meta.maxTtl, e.startSeqno);
+        addNewCollectionEntry(
+                {meta.sid, meta.cid}, meta.name, meta.maxTtl, e.startSeqno);
+    }
+}
+
+Manifest::~Manifest() {
+    // Erase our collections/scopes and tell the manager so that metadata can
+    // be deleted if no longer in use.
+    for (auto itr = map.begin(); itr != map.end();) {
+        auto id = itr->first;
+        itr = map.erase(itr);
+        manager->dereferenceMeta(id);
+    }
+
+    for (auto itr = scopes.begin(); itr != scopes.end();) {
+        auto id = itr->first;
+        itr = scopes.erase(itr);
+        manager->dereferenceMeta(id);
     }
 }
 
@@ -319,8 +341,9 @@ void Manifest::createCollection(const WriteHandle& wHandle,
                                 OptionalSeqno optionalSeqno,
                                 bool isForcedAdd) {
     // 1. Update the manifest, adding or updating an entry in the collections
-    // map. Specify a non-zero start and 0 for the TTL
-    auto& entry = addNewCollectionEntry(identifiers, maxTtl);
+    // map. The start-seqno is 0 here and is patched up once we've created and
+    // queued the system-event Item (step 2 and 3)
+    auto& entry = addNewCollectionEntry(identifiers, collectionName, maxTtl, 0);
 
     // 1.1 record the uid of the manifest which is adding the collection
     updateUid(newManUid, optionalSeqno.has_value() || isForcedAdd);
@@ -359,11 +382,17 @@ void Manifest::createCollection(const WriteHandle& wHandle,
 }
 
 ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
+                                               std::string_view collectionName,
                                                cb::ExpiryLimit maxTtl,
                                                int64_t startSeqno) {
-    // This method is only for when the map does not have the collection
-    auto itr = map.find(identifiers.second);
-    if (itr != map.end()) {
+    CollectionSharedMetaDataView meta{
+            collectionName, identifiers.first, maxTtl};
+    auto [itr, inserted] = map.try_emplace(
+            identifiers.second,
+            manager->createOrReferenceMeta(identifiers.second, meta),
+            startSeqno);
+
+    if (!inserted) {
         throwException<std::logic_error>(
                 __FUNCTION__,
                 "The collection already exists: failed adding collection:" +
@@ -372,11 +401,24 @@ ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
                         ", startSeqno:" + std::to_string(startSeqno));
     }
 
-    auto inserted =
-            map.emplace(identifiers.second,
-                        ManifestEntry(identifiers.first, maxTtl, startSeqno));
+    return itr->second;
+}
 
-    return (*inserted.first).second;
+void Manifest::addNewScopeEntry(ScopeID sid, std::string_view scopeName) {
+    addNewScopeEntry(sid,
+                     manager->createOrReferenceMeta(
+                             sid, ScopeSharedMetaDataView{scopeName}));
+}
+
+void Manifest::addNewScopeEntry(
+        ScopeID sid,
+        SingleThreadedRCPtr<const ScopeSharedMetaData> sharedMeta) {
+    if (isScopeValid(sid)) {
+        throwException<std::logic_error>(
+                __FUNCTION__, "scope already exists, scope:" + sid.to_string());
+    }
+
+    scopes.emplace(sid, sharedMeta);
 }
 
 void Manifest::dropCollection(WriteHandle& wHandle,
@@ -399,7 +441,10 @@ void Manifest::dropCollection(WriteHandle& wHandle,
         // as normal, the system event we generate can now be used to re-trigger
         // DCP delete collection if the replica is itself DCP streamed (or made
         // active)
-        addNewCollectionEntry({ScopeID::Default, cid}, {});
+        addNewCollectionEntry({ScopeID::Default, cid},
+                              "tombstone",
+                              cb::ExpiryLimit{},
+                              0 /*startSeq*/);
     }
 
     auto itr = map.find(cid);
@@ -434,6 +479,7 @@ void Manifest::dropCollection(WriteHandle& wHandle,
             isForcedDrop);
 
     map.erase(itr);
+    manager->dereferenceMeta(cid);
 }
 
 // Method is cleaning up for insertions made in Manifest::dropCollection
@@ -452,6 +498,16 @@ const ManifestEntry& Manifest::getManifestEntry(CollectionID identifier) const {
     return itr->second;
 }
 
+const ScopeSharedMetaData& Manifest::getScopeEntry(ScopeID sid) const {
+    auto itr = scopes.find(sid);
+    if (itr == scopes.end()) {
+        throwException<std::logic_error>(
+                __FUNCTION__, "did not find scope:" + sid.to_string());
+    }
+
+    return *itr->second;
+}
+
 void Manifest::createScope(const WriteHandle& wHandle,
                            ::VBucket& vb,
                            ManifestUid newManUid,
@@ -459,12 +515,7 @@ void Manifest::createScope(const WriteHandle& wHandle,
                            std::string_view scopeName,
                            OptionalSeqno optionalSeqno,
                            bool isForcedAdd) {
-    if (isScopeValid(sid)) {
-        throwException<std::logic_error>(
-                __FUNCTION__, "scope already exists, scope:" + sid.to_string());
-    }
-
-    scopes.insert(sid);
+    addNewScopeEntry(sid, scopeName);
 
     // record the uid of the manifest which added the scope
     updateUid(newManUid, optionalSeqno.has_value() || isForcedAdd);
@@ -503,20 +554,22 @@ void Manifest::dropScope(const WriteHandle& wHandle,
                          ScopeID sid,
                          OptionalSeqno optionalSeqno,
                          bool isForcedDrop) {
+    auto itr = scopes.find(sid);
     // An active manifest must store the scope in-order to drop it, the optional
     // seqno being uninitialised is how we know we're active. A replica though
     // can accept scope drop events against scopes it doesn't store, i.e. a
     // tombstone being transmitted from the active.
-    if (!optionalSeqno && scopes.count(sid) == 0) {
+    if (!optionalSeqno && itr == scopes.end()) {
         throwException<std::logic_error>(
                 __FUNCTION__,
                 "no seqno defined and the scope doesn't exist, scope:" +
                         sid.to_string());
+    } else if (itr != scopes.end()) {
+        // erase the entry (drops our reference to meta)
+        scopes.erase(itr);
+        // Tell the manager so that it can check for final clean-up
+        manager->dereferenceMeta(sid);
     }
-
-    // Note: the following erase may actually do nothing if we're processing a
-    // drop-scope tombstone
-    scopes.erase(sid);
 
     // record the uid of the manifest which removed the scope
     updateUid(newManUid, optionalSeqno.has_value() || isForcedDrop);
@@ -564,10 +617,10 @@ Manifest::ManifestChanges Manifest::processManifest(
         }
     }
 
-    for (ScopeID sid : scopes) {
+    for (const auto& entry : scopes) {
         // Remove the scopes that don't exist in the new manifest
-        if (manifest.findScope(sid) == manifest.endScopes()) {
-            rv.scopesToDrop.push_back(sid);
+        if (manifest.findScope(entry.first) == manifest.endScopes()) {
+            rv.scopesToDrop.push_back(entry.first);
         }
     }
 
@@ -575,8 +628,8 @@ Manifest::ManifestChanges Manifest::processManifest(
     for (auto scopeItr = manifest.beginScopes();
          scopeItr != manifest.endScopes();
          scopeItr++) {
-        if (std::find(scopes.begin(), scopes.end(), scopeItr->first) ==
-            scopes.end()) {
+        if (scopes.count(scopeItr->first) == 0) {
+            // Scope is not mapped
             rv.scopesToCreate.push_back(
                     {scopeItr->first, scopeItr->second.name});
         }
@@ -599,7 +652,7 @@ bool Manifest::doesKeyContainValidCollection(const DocKey& key) const {
 }
 
 bool Manifest::isScopeValid(ScopeID scopeID) const {
-    return std::find(scopes.begin(), scopes.end(), scopeID) != scopes.end();
+    return scopes.count(scopeID) != 0;
 }
 
 Manifest::container::const_iterator Manifest::getManifestEntry(
@@ -972,14 +1025,12 @@ bool Manifest::addScopeStats(Vbid vbid, const StatCollector& collector) const {
     format_to(key, "vb_{}:manifest:uid", vbid.get());
     collector.addStat(std::string_view(key.data(), key.size()), manifestUid);
 
-    // Dump the scopes container, which only stores scope-identifiers, so that
-    // we have a key and value we include the iteration index as the value.
-    int i = 0;
-    for (auto sid : scopes) {
+    // Get names
+    for (const auto& [sid, value] : scopes) {
         key.resize(0);
-
         format_to(key, "vb_{}:{}", vbid.get(), sid);
-        collector.addStat(std::string_view(key.data(), key.size()), i++);
+        collector.addStat(std::string_view(key.data(), key.size()),
+                          value->name);
     }
 
     // Dump all collections and how they map to a scope. Stats requires unique
@@ -1018,7 +1069,7 @@ void Manifest::accumulateStats(const std::vector<CollectionEntry>& collections,
 
 std::optional<std::vector<CollectionID>> Manifest::getCollectionsForScope(
         ScopeID identifier) const {
-    if (std::find(scopes.begin(), scopes.end(), identifier) == scopes.end()) {
+    if (scopes.count(identifier) == 0) {
         return {};
     }
 
@@ -1040,11 +1091,8 @@ bool Manifest::operator==(const Manifest& rhs) const {
         return false;
     }
     // Check all collections match
-    for (const auto& e : map) {
-        const auto& entry1 = e.second;
-        const auto& entry2 = rhs.getManifestEntry(e.first);
-
-        if (!(entry1 == entry2)) {
+    for (const auto& [cid, entry] : map) {
+        if (entry != rhs.getManifestEntry(cid)) {
             return false;
         }
     }
@@ -1053,9 +1101,8 @@ bool Manifest::operator==(const Manifest& rhs) const {
         return false;
     }
     // Check all scopes can be found
-    for (ScopeID sid : scopes) {
-        if (std::find(rhs.scopes.begin(), rhs.scopes.end(), sid) ==
-            rhs.scopes.end()) {
+    for (const auto& [sid, entry] : scopes) {
+        if (*entry != rhs.getScopeEntry(sid)) {
             return false;
         }
     }
@@ -1236,12 +1283,12 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
        << "uid:" << manifest.manifestUid
        << ", scopes.size:" << manifest.scopes.size()
        << ", map.size:" << manifest.map.size() << std::endl;
-    for (auto& m : manifest.map) {
-        os << "cid:" << m.first.to_string() << ":" << m.second << std::endl;
+    for (const auto& [cid, entry] : manifest.map) {
+        os << "cid:" << cid.to_string() << ":" << entry << std::endl;
     }
 
-    for (auto s : manifest.scopes) {
-        os << "scope:" << s.to_string() << std::endl;
+    for (const auto& [sid, value] : manifest.scopes) {
+        os << "scope:" << sid.to_string() << ":" << *value << std::endl;
     }
 
     os << *manifest.droppedCollections.rlock() << std::endl;

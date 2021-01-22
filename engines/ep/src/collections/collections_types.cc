@@ -26,6 +26,7 @@
 #include <cstring>
 #include <iostream>
 #include <sstream>
+#include <utility>
 
 namespace Collections {
 
@@ -129,6 +130,83 @@ std::string to_string(ManifestUpdateStatus status) {
     }
     return "Unknown " + std::to_string(int(status));
 }
+
+CollectionSharedMetaDataView::CollectionSharedMetaDataView(
+        std::string_view name, ScopeID scope, cb::ExpiryLimit maxTtl)
+    : name(name), scope(scope), maxTtl(std::move(maxTtl)) {
+}
+
+CollectionSharedMetaDataView::CollectionSharedMetaDataView(
+        const CollectionSharedMetaData& meta)
+    : name(meta.name), scope(meta.scope), maxTtl(meta.maxTtl) {
+}
+
+std::string CollectionSharedMetaDataView::to_string() const {
+    std::string rv = "Collection: name:" + std::string(name) +
+                     ", scope:" + scope.to_string();
+    if (maxTtl) {
+        rv += " maxTtl:" + std::to_string(maxTtl.value().count());
+    }
+    return rv;
+}
+
+CollectionSharedMetaData::CollectionSharedMetaData(std::string_view name,
+                                                   ScopeID scope,
+                                                   cb::ExpiryLimit maxTtl)
+    : name(name), scope(scope), maxTtl(std::move(maxTtl)) {
+}
+
+CollectionSharedMetaData::CollectionSharedMetaData(
+        const CollectionSharedMetaDataView& view)
+    : name(view.name), scope(view.scope), maxTtl(view.maxTtl) {
+}
+
+bool CollectionSharedMetaData::operator==(
+        const CollectionSharedMetaDataView& view) const {
+    return name == view.name && scope == view.scope && maxTtl == view.maxTtl;
+}
+
+bool CollectionSharedMetaData::operator==(
+        const CollectionSharedMetaData& meta) const {
+    return *this == CollectionSharedMetaDataView(meta);
+}
+
+std::ostream& operator<<(std::ostream& os,
+                         const CollectionSharedMetaData& meta) {
+    os << " name:" << meta.name << ", scope:" << meta.scope;
+    if (meta.maxTtl) {
+        os << ", maxTtl:" << meta.maxTtl.value().count();
+    }
+    return os;
+}
+
+ScopeSharedMetaDataView::ScopeSharedMetaDataView(
+        const ScopeSharedMetaData& meta)
+    : name(meta.name) {
+}
+
+std::string ScopeSharedMetaDataView::to_string() const {
+    return "Scope: name:" + std::string(name);
+}
+
+ScopeSharedMetaData::ScopeSharedMetaData(const ScopeSharedMetaDataView& view)
+    : name(view.name) {
+}
+
+bool ScopeSharedMetaData::operator==(
+        const ScopeSharedMetaDataView& view) const {
+    return name == view.name;
+}
+
+bool ScopeSharedMetaData::operator==(const ScopeSharedMetaData& meta) const {
+    return *this == ScopeSharedMetaDataView(meta);
+}
+
+std::ostream& operator<<(std::ostream& os, const ScopeSharedMetaData& meta) {
+    os << " name:" << meta.name;
+    return os;
+}
+
 } // namespace VB
 
 } // end namespace Collections

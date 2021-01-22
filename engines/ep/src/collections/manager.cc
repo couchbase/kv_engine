@@ -360,6 +360,27 @@ void Collections::Manager::warmupCompleted(EPBucket& bucket) const {
     }
 }
 
+SingleThreadedRCPtr<const Collections::VB::CollectionSharedMetaData>
+Collections::Manager::createOrReferenceMeta(
+        CollectionID cid,
+        const Collections::VB::CollectionSharedMetaDataView& view) {
+    return collectionSMT.wlock()->createOrReference(cid, view);
+}
+
+void Collections::Manager::dereferenceMeta(CollectionID cid) {
+    collectionSMT.wlock()->dereference(cid);
+}
+
+SingleThreadedRCPtr<const Collections::VB::ScopeSharedMetaData>
+Collections::Manager::createOrReferenceMeta(
+        ScopeID sid, const Collections::VB::ScopeSharedMetaDataView& view) {
+    return scopeSMT.wlock()->createOrReference(sid, view);
+}
+
+void Collections::Manager::dereferenceMeta(ScopeID sid) {
+    scopeSMT.wlock()->dereference(sid);
+}
+
 /// VbucketVisitor that gathers stats for all collections
 class AllCollectionsGetStatsVBucketVisitor : public VBucketVisitor {
 public:
@@ -776,6 +797,8 @@ std::ostream& Collections::operator<<(std::ostream& os,
                                       const Collections::Manager& manager) {
     os << "Collections::Manager current:" << *manager.currentManifest.rlock()
        << "\n";
+    os << "collectionMeta:\n" << *manager.collectionSMT.rlock() << "\n";
+    os << "scopeMeta:\n" << *manager.scopeSMT.rlock() << "\n";
     return os;
 }
 

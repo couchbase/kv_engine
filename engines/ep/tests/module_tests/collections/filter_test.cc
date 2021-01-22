@@ -52,6 +52,12 @@ public:
         cookie = create_mock_cookie();
     }
 
+    ~CollectionsVBFilterTest() override {
+        entryInDefaultScope.reset();
+        entryInShop1Scope.reset();
+        manager->dereferenceMeta(CollectionID{});
+    }
+
     void TearDown() override {
         destroy_mock_cookie(cookie);
         vb.reset();
@@ -65,7 +71,23 @@ public:
 
     VBucketPtr vb;
     CollectionsManifest cm;
-    Collections::VB::Manifest vbm{std::make_shared<Collections::Manager>()};
+    std::shared_ptr<Collections::Manager> manager =
+            std::make_shared<Collections::Manager>();
+    Collections::VB::Manifest vbm{manager};
+    // Tests need entry data which appear in default and 'shop1' scopes
+    std::unique_ptr<Collections::VB::ManifestEntry> entryInDefaultScope =
+            std::make_unique<Collections::VB::ManifestEntry>(
+                    manager->createOrReferenceMeta(
+                            CollectionID::Default,
+                            {"name1", ScopeID::Default, {}}),
+                    0);
+    std::unique_ptr<Collections::VB::ManifestEntry> entryInShop1Scope =
+            std::make_unique<Collections::VB::ManifestEntry>(
+                    manager->createOrReferenceMeta(
+                            CollectionID::Default,
+                            {"name2", ScopeUid::shop1, {}}),
+                    0);
+
     cb::tracing::Traceable* cookie = nullptr;
 };
 
@@ -741,7 +763,7 @@ TEST_F(CollectionsVBFilterTest, remove1) {
             Collections::ManifestUid(0),
             CollectionUid::fruit,
             CollectionName::fruit,
-            {ScopeUid::defaultS, {}, 0},
+            *entryInDefaultScope,
             true,
             {});
     auto sz = vbf.size();
@@ -769,7 +791,7 @@ TEST_F(CollectionsVBFilterTest, remove1) {
             Collections::ManifestUid(0),
             CollectionUid::meat,
             CollectionName::meat,
-            {ScopeUid::defaultS, {}, 0},
+            *entryInDefaultScope,
             true,
             {});
     EXPECT_TRUE(checkAndUpdate(vbf, *ev));
@@ -807,7 +829,7 @@ TEST_F(CollectionsVBFilterTest, remove2) {
             Collections::ManifestUid(0),
             CollectionUid::defaultC,
             CollectionName::defaultC,
-            {ScopeUid::defaultS, {}, 0},
+            *entryInDefaultScope,
             true,
             {});
     EXPECT_TRUE(checkAndUpdate(vbf, *ev));
@@ -832,7 +854,7 @@ TEST_F(CollectionsVBFilterTest, remove2) {
             Collections::ManifestUid(0),
             CollectionUid::meat,
             CollectionName::meat,
-            {ScopeUid::defaultS, {}, 0},
+            *entryInDefaultScope,
             true,
             {});
     EXPECT_TRUE(checkAndUpdate(vbf, *ev));
@@ -909,7 +931,7 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
             Collections::ManifestUid(0),
             CollectionUid::meat,
             CollectionName::meat,
-            {ScopeUid::defaultS, {}, 0},
+            *entryInDefaultScope,
             false,
             {});
     EXPECT_TRUE(checkAndUpdate(vbf, *ev));
@@ -919,7 +941,7 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
             Collections::ManifestUid(0),
             CollectionUid::defaultC,
             CollectionName::defaultC,
-            {ScopeUid::defaultS, {}, 0},
+            *entryInDefaultScope,
             false,
             {});
     EXPECT_TRUE(checkAndUpdate(vbf, *ev));
@@ -929,7 +951,7 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
             Collections::ManifestUid(0),
             CollectionUid::dairy,
             CollectionName::dairy,
-            {ScopeUid::defaultS, {}, 0},
+            *entryInDefaultScope,
             false,
             {});
     EXPECT_FALSE(checkAndUpdate(vbf, *ev));
@@ -957,7 +979,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_default_scope) {
             Collections::ManifestUid(0),
             CollectionUid::defaultC,
             CollectionName::defaultC,
-            {ScopeUid::defaultS, {}, 0},
+            *entryInDefaultScope,
             false,
             {});
     EXPECT_TRUE(checkAndUpdate(vbf, *ev));
@@ -967,7 +989,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_default_scope) {
             Collections::ManifestUid(0),
             CollectionUid::dairy,
             CollectionName::dairy,
-            {ScopeUid::defaultS, {}, 0},
+            *entryInDefaultScope,
             false,
             {});
     EXPECT_TRUE(checkAndUpdate(vbf, *ev));
@@ -977,7 +999,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_default_scope) {
             Collections::ManifestUid(0),
             CollectionUid::meat,
             CollectionName::meat,
-            {ScopeUid::shop1, {}, 0},
+            *entryInShop1Scope,
             false,
             {});
     EXPECT_FALSE(checkAndUpdate(vbf, *ev));
@@ -1005,7 +1027,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_non_default_scope) {
             Collections::ManifestUid(0),
             CollectionUid::meat,
             CollectionName::meat,
-            {ScopeUid::shop1, {}, 0},
+            *entryInShop1Scope,
             false,
             {});
     EXPECT_TRUE(checkAndUpdate(vbf, *ev));
@@ -1015,7 +1037,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_non_default_scope) {
             Collections::ManifestUid(0),
             CollectionUid::defaultC,
             CollectionName::defaultC,
-            {ScopeUid::defaultS, {}, 0},
+            *entryInDefaultScope,
             false,
             {});
     EXPECT_FALSE(checkAndUpdate(vbf, *ev));
@@ -1025,7 +1047,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_non_default_scope) {
             Collections::ManifestUid(0),
             CollectionUid::dairy,
             CollectionName::dairy,
-            {ScopeUid::defaultS, {}, 0},
+            *entryInDefaultScope,
             false,
             {});
     EXPECT_FALSE(checkAndUpdate(vbf, *ev));
@@ -1082,7 +1104,7 @@ TEST_F(CollectionsVBFilterTest, add_collection_to_scope_filter) {
             Collections::ManifestUid(0),
             CollectionUid::dairy,
             CollectionName::dairy,
-            {ScopeUid::shop1, {}, 0},
+            *entryInShop1Scope,
             false,
             {});
     ASSERT_TRUE(checkAndUpdate(vbf, *ev));
@@ -1114,7 +1136,7 @@ TEST_F(CollectionsVBFilterTest, remove_collection_from_scope_filter) {
             Collections::ManifestUid(0),
             CollectionUid::dairy,
             CollectionName::dairy,
-            {ScopeUid::shop1, {}, 0},
+            *entryInShop1Scope,
             true,
             {});
     ASSERT_TRUE(checkAndUpdate(vbf, *ev));
@@ -1125,7 +1147,7 @@ TEST_F(CollectionsVBFilterTest, remove_collection_from_scope_filter) {
             Collections::ManifestUid(0),
             CollectionUid::meat,
             CollectionName::meat,
-            {ScopeUid::shop1, {}, 0},
+            *entryInShop1Scope,
             true,
             {});
 
@@ -1160,7 +1182,7 @@ TEST_F(CollectionsVBFilterTest, empty_scope_filter) {
             Collections::ManifestUid(0),
             CollectionUid::meat,
             CollectionName::meat,
-            {ScopeUid::shop1, {}, 0},
+            *entryInShop1Scope,
             false,
             {});
     ASSERT_TRUE(checkAndUpdate(vbf, *ev));
@@ -1194,7 +1216,7 @@ TEST_F(CollectionsVBFilterTest, snappy_event) {
             Collections::ManifestUid(0),
             CollectionUid::fruit,
             CollectionName::fruit,
-            {ScopeUid::defaultS, {}, 0},
+            *entryInDefaultScope,
             true,
             {});
     ev->compressValue();

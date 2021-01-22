@@ -56,29 +56,12 @@ public:
     }
 
     bool compareEntry(CollectionID id,
-                      const Collections::VB::ManifestEntry& entry,
-                      bool ignoreHighSeqno = false) const {
+                      const Collections::VB::ManifestEntry& entry) const {
         std::shared_lock<mutex_type> readLock(rwlock);
         if (exists_UNLOCKED(id)) {
             auto itr = map.find(id);
             const auto& myEntry = itr->second;
-            if (myEntry == entry) {
-                return true;
-            } else if (ignoreHighSeqno) {
-                // @todo JimW Collections metadata
-                // We might not be able to set the high seqno correctly from
-                // a persisted manifest pulled from a queued item as we don't
-                // write the high seqno to the flatbuffers data. This is
-                // changing soon, so for now take a copy of the manifest
-                // entry and modify only the high seqno. If the equality check
-                // now passes and we're on a path where this matters, we will
-                // ignore the original check.
-                auto copy = Collections::VB::ManifestEntry(myEntry);
-                copy.setHighSeqno(myEntry.getHighSeqno());
-                if (myEntry == copy) {
-                    return true;
-                }
-            }
+            return myEntry == entry;
         }
         return false;
     }
@@ -99,9 +82,8 @@ public:
             return false;
         }
         // Check all scopes can be found
-        for (ScopeID sid : scopes) {
-            if (std::find(rhs.scopes.begin(), rhs.scopes.end(), sid) ==
-                rhs.scopes.end()) {
+        for (const auto& [sid, entry] : scopes) {
+            if (*entry != rhs.getScopeEntry(sid)) {
                 return false;
             }
         }

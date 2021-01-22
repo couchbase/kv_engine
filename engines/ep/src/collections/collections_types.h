@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "atomic.h"
 #include "monotonic.h"
 
 #include <memcached/types.h>
@@ -360,6 +361,71 @@ struct StatsForFlush {
     size_t diskSize;
     uint64_t highSeqno;
 };
+
+// Following classes define the metadata that will be held by the Manager but
+// referenced from VB::Manifest
+class CollectionSharedMetaData;
+class CollectionSharedMetaDataView {
+public:
+    CollectionSharedMetaDataView(std::string_view name,
+                                 ScopeID scope,
+                                 cb::ExpiryLimit maxTtl);
+    CollectionSharedMetaDataView(const CollectionSharedMetaData&);
+    std::string to_string() const;
+    std::string_view name;
+    const ScopeID scope;
+    const cb::ExpiryLimit maxTtl;
+};
+
+// The type stored by the Manager SharedMetaDataTable
+class CollectionSharedMetaData : public RCValue {
+public:
+    CollectionSharedMetaData(std::string_view name,
+                             ScopeID scope,
+                             cb::ExpiryLimit maxTtl);
+    CollectionSharedMetaData(const CollectionSharedMetaDataView& view);
+    bool operator==(const CollectionSharedMetaDataView& view) const;
+    bool operator!=(const CollectionSharedMetaDataView& view) const {
+        return !(*this == view);
+    }
+    bool operator==(const CollectionSharedMetaData& meta) const;
+    bool operator!=(const CollectionSharedMetaData& meta) const {
+        return !(*this == meta);
+    }
+
+    const std::string name;
+    const ScopeID scope;
+    const cb::ExpiryLimit maxTtl;
+};
+std::ostream& operator<<(std::ostream& os,
+                         const CollectionSharedMetaData& meta);
+
+class ScopeSharedMetaData;
+class ScopeSharedMetaDataView {
+public:
+    ScopeSharedMetaDataView(const ScopeSharedMetaData&);
+    ScopeSharedMetaDataView(std::string_view name) : name(name) {
+    }
+    std::string to_string() const;
+    std::string_view name;
+};
+
+// The type stored by the Manager SharedMetaDataTable
+class ScopeSharedMetaData : public RCValue {
+public:
+    ScopeSharedMetaData(const ScopeSharedMetaDataView& view);
+    bool operator==(const ScopeSharedMetaDataView& view) const;
+    bool operator!=(const ScopeSharedMetaDataView& view) const {
+        return !(*this == view);
+    }
+    bool operator==(const ScopeSharedMetaData& meta) const;
+    bool operator!=(const ScopeSharedMetaData& meta) const {
+        return !(*this == meta);
+    }
+
+    const std::string name;
+};
+std::ostream& operator<<(std::ostream& os, const ScopeSharedMetaData& meta);
 
 } // namespace VB
 

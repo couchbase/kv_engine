@@ -130,6 +130,11 @@ public:
     Manifest(std::shared_ptr<Manager> manager, const KVStore::Manifest& data);
 
     /**
+     * Destruct the object, which releases all references to data in the manager
+     */
+    ~Manifest();
+
+    /**
      * @return ReadHandle, no iterator is held on the collection container
      */
     ReadHandle lock() const;
@@ -715,21 +720,42 @@ protected:
                          Summary& summary) const;
 
     /**
-     * Add a collection entry to the manifest specifing the revision that it was
-     * seen in and the sequence number span covering it.
+     * Add a collection entry to the manifest. This will fail if the collection
+     * already exists.
+     *
      * @param identifiers ScopeID and CollectionID pair
+     * @param collectionName The name of the collection
      * @param maxTtl The maxTTL that if defined will be applied to new items of
      *        the collection (overriding bucket maxTTL)
-     * @param startSeqno The seqno where the collection begins. Defaults to 0.
+     * @param startSeqno The seqno where the collection begins.
      * @return a non const reference to the new ManifestEntry so the caller can
-     *         set the correct seqno.
+     *         make any changes that are needed post construction.
      */
     ManifestEntry& addNewCollectionEntry(ScopeCollectionPair identifiers,
+                                         std::string_view collectionName,
                                          cb::ExpiryLimit maxTtl,
-                                         int64_t startSeqno = 0);
+                                         int64_t startSeqno);
 
     /**
-     * Get the ManifestEntry for the given collection. Throws an
+     * Add a scope to the manifest. This will fail if the scope already exists.
+     *
+     * @param sid is of the new scope
+     * @param name The name of the scope
+     */
+    void addNewScopeEntry(ScopeID sid, std::string_view name);
+
+    /**
+     * Add a scope to the manifest. This will fail if the scope already exists.
+     *
+     * @param sid is of the new scope
+     * @param sharedMeta The name of the scope (the shared view)
+     */
+    void addNewScopeEntry(
+            ScopeID sid,
+            SingleThreadedRCPtr<const ScopeSharedMetaData> sharedMeta);
+
+    /**
+     * Get the ManifestEntry for the given collection. Throws a
      * std::logic_error if the collection was not found.
      *
      * @param collectionID CollectionID of the collection to lookup
@@ -737,7 +763,14 @@ protected:
      */
     const ManifestEntry& getManifestEntry(CollectionID collectionID) const;
 
-
+    /**
+     * Get the ScopeSharedMetaData for the given scope. Throws a
+     * std::logic_error if the collection was not found.
+     *
+     * @param sid id of the scope to lookup
+     * @return a const reference to the scope's metadata
+     */
+    const ScopeSharedMetaData& getScopeEntry(ScopeID sid) const;
 
     /**
      * Process a Collections::Manifest to determine if collections need adding
@@ -843,9 +876,10 @@ protected:
     container map;
 
     /**
-     * The current scopes.
+     * The current scopes and their names.
      */
-    std::unordered_set<ScopeID> scopes;
+    std::unordered_map<ScopeID, SingleThreadedRCPtr<const ScopeSharedMetaData>>
+            scopes;
 
     // Information we need to retain for a collection that is dropped but the
     // drop event has not been persisted by the flusher.

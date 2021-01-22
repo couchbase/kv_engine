@@ -40,25 +40,26 @@ namespace VB {
  */
 class ManifestEntry {
 public:
-    ManifestEntry(ScopeID scopeID, cb::ExpiryLimit maxTtl, uint64_t startSeqno)
+    ManifestEntry(SingleThreadedRCPtr<const VB::CollectionSharedMetaData> meta,
+                  uint64_t startSeqno)
         : startSeqno(startSeqno),
-          scopeID(scopeID),
-          maxTtl(std::move(maxTtl)),
           itemCount(0),
           highSeqno(startSeqno),
-          persistedHighSeqno(startSeqno) {
+          persistedHighSeqno(startSeqno),
+          meta(std::move(meta)) {
     }
 
-    /**
-     * Explicitly define the copy constructor otherwise it would be
-     * implicitly deleted via the deleted copy constructor in std::atomic
-     * (which is used inside highSeqno - AtomicMonotonic). This is required for
-     * using ManifestEntries in an unordered_map.
-     */
-    ManifestEntry(const ManifestEntry& other);
-    ManifestEntry& operator=(const ManifestEntry& other);
+    // Mark copy and move as deleted as it simplifies the lifetime of
+    // CollectionSharedMetaData
+    ManifestEntry(const ManifestEntry&) = delete;
+    ManifestEntry& operator=(const ManifestEntry&) = delete;
+    ManifestEntry(ManifestEntry&&) = delete;
+    ManifestEntry& operator=(ManifestEntry&&) = delete;
 
     bool operator==(const ManifestEntry& other) const;
+    bool operator!=(const ManifestEntry& other) const {
+        return !(*this == other);
+    }
 
     uint64_t getStartSeqno() const {
         return startSeqno;
@@ -76,11 +77,15 @@ public:
     }
 
     ScopeID getScopeID() const {
-        return scopeID;
+        return meta->scope;
     }
 
     cb::ExpiryLimit getMaxTtl() const {
-        return maxTtl;
+        return meta->maxTtl;
+    }
+
+    std::string_view getName() const {
+        return meta->name;
     }
 
     /// increment how many items are stored for this collection
@@ -225,12 +230,6 @@ private:
      */
     uint64_t startSeqno;
 
-    /// The scope the collection belongs to
-    ScopeID scopeID;
-
-    /// The maxTTL of the collection
-    cb::ExpiryLimit maxTtl;
-
     /**
      * The count of items in this collection
      * mutable - the VB:Manifest read/write lock protects this object and
@@ -284,6 +283,13 @@ private:
     mutable cb::RelaxedAtomic<uint64_t> numOpsDelete;
     //! The number of basic get operations
     mutable cb::RelaxedAtomic<uint64_t> numOpsGet;
+
+    /**
+     * The 'static' metadata associated with this collection.
+     * The VB::Manifest (ManifestEntry) does not own this data, but instead has
+     * a reference to the data, which is stored inside the Manager.
+     */
+    SingleThreadedRCPtr<const CollectionSharedMetaData> meta;
 };
 
 std::ostream& operator<<(std::ostream& os, const ManifestEntry& manifestEntry);

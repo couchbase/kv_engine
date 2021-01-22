@@ -24,58 +24,32 @@ using namespace std::chrono_literals;
 
 // Basic ManifestEntry construction checks
 TEST(ManifestEntry, test_getters) {
-    Collections::VB::ManifestEntry m(ScopeEntry::defaultS,
-                                     5000s, // ttl
-                                     1000);
+    auto meta = make_STRCPtr<const Collections::VB::CollectionSharedMetaData>(
+            "name", ScopeID{101}, cb::ExpiryLimit{5000});
+
+    Collections::VB::ManifestEntry m(meta, 1000);
     EXPECT_EQ(1000, m.getStartSeqno());
     EXPECT_TRUE(m.getMaxTtl());
+    EXPECT_TRUE(m.getMaxTtl().has_value());
     EXPECT_EQ(5000s, m.getMaxTtl().value());
+    EXPECT_EQ("name", m.getName());
+    EXPECT_EQ(ScopeID{101}, m.getScopeID());
 }
 
 TEST(ManifestEntry, exceptions) {
+    auto meta = make_STRCPtr<const Collections::VB::CollectionSharedMetaData>(
+            "name", ScopeID{101}, cb::NoExpiryLimit);
 
-    // Collection starts at seqno 1000
-    Collections::VB::ManifestEntry m(ScopeEntry::defaultS, {}, 1000);
+    // Collection starts at seqno 1000, note these test require a name because
+    // the ManifestEntry ostream<< will be invoked by the exception path
+    Collections::VB::ManifestEntry m(meta, 1000);
+
+    EXPECT_FALSE(m.getMaxTtl().has_value());
 
     // Now start = 1000 and end = 2000
     // Check we cannot change start to be...
     EXPECT_THROW(m.setStartSeqno(999), std::invalid_argument); // ... smaller
     EXPECT_THROW(m.setStartSeqno(1000), std::invalid_argument); // ... the same
 
-    EXPECT_NO_THROW(m.setStartSeqno(3000));
-}
-
-TEST(ManifestEntry, construct_assign) {
-    // Collection starts at seqno 2
-    Collections::VB::ManifestEntry entry1(ScopeEntry::defaultS, {}, 2);
-    entry1.setHighSeqno(101);
-    entry1.setPersistedHighSeqno(99);
-
-    //  Move entry1 to entry2
-    Collections::VB::ManifestEntry entry2(std::move(entry1));
-    EXPECT_EQ(2, entry2.getStartSeqno());
-    EXPECT_EQ(101, entry2.getHighSeqno());
-    EXPECT_EQ(99, entry2.getPersistedHighSeqno());
-
-    // Take a copy of entry2
-    Collections::VB::ManifestEntry entry3(entry2);
-    EXPECT_EQ(2, entry3.getStartSeqno());
-    EXPECT_EQ(101, entry3.getHighSeqno());
-    EXPECT_EQ(99, entry3.getPersistedHighSeqno());
-
-    // change entry2
-    entry2.setStartSeqno(3);
-
-    // Now copy entry2 assign over entry3
-    entry3 = entry2;
-    EXPECT_EQ(3, entry3.getStartSeqno());
-    EXPECT_EQ(101, entry3.getHighSeqno());
-    EXPECT_EQ(99, entry3.getPersistedHighSeqno());
-
-    // And move entry3 back to entry1
-    entry1 = std::move(entry3);
-
-    EXPECT_EQ(3, entry1.getStartSeqno());
-    EXPECT_EQ(101, entry1.getHighSeqno());
-    EXPECT_EQ(99, entry1.getPersistedHighSeqno());
+    EXPECT_NO_THROW(m.setStartSeqno(3000)); // bigger is fine
 }

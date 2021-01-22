@@ -1036,7 +1036,7 @@ std::function<void(int64_t)> EPVBucket::getSaveDroppedCollectionCallback(
         const Collections::VB::ManifestEntry& droppedEntry) const {
     // Return a function which will call back into the manifest to save the
     // collection and the seqno assigned to it
-    return [&writeHandle, cid, droppedEntry](uint64_t droppedSeqno) {
+    return [&writeHandle, cid, &droppedEntry](uint64_t droppedSeqno) {
         writeHandle.saveDroppedCollection(cid, droppedEntry, droppedSeqno);
     };
 }

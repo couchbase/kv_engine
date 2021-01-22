@@ -39,6 +39,12 @@ namespace Collections {
 template <class Key, class Value>
 class SharedMetaDataTable {
 public:
+    ~SharedMetaDataTable() {
+#if CB_DEVELOPMENT_ASSERTS
+        Expects(smt.empty());
+#endif
+    }
+
     /**
      * Function returns a Value which references the given name. This may
      * reference an existing Value or insert it as a new Value in the map. The

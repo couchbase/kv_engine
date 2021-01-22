@@ -23,35 +23,13 @@
 
 #include <sstream>
 
-Collections::VB::ManifestEntry::ManifestEntry(
-        const Collections::VB::ManifestEntry& other) {
-    *this = other;
-}
-
-Collections::VB::ManifestEntry& Collections::VB::ManifestEntry::operator=(
-        const ManifestEntry& other) {
-    startSeqno = other.startSeqno;
-    scopeID = other.scopeID;
-    maxTtl = other.maxTtl;
-    itemCount = other.itemCount;
-    diskSize = other.diskSize;
-    highSeqno.reset(other.highSeqno);
-    persistedHighSeqno.store(other.persistedHighSeqno,
-                             std::memory_order_relaxed);
-    numOpsStore = other.numOpsStore;
-    numOpsDelete = other.numOpsDelete;
-    numOpsGet = other.numOpsGet;
-    return *this;
-}
-
 bool Collections::VB::ManifestEntry::operator==(
         const ManifestEntry& other) const {
-    return scopeID == other.scopeID && startSeqno == other.startSeqno &&
-           maxTtl == other.maxTtl && highSeqno == other.highSeqno &&
+    return startSeqno == other.startSeqno && highSeqno == other.highSeqno &&
            itemCount == other.itemCount && diskSize == other.diskSize &&
            persistedHighSeqno == other.persistedHighSeqno &&
            numOpsGet == other.numOpsGet && numOpsDelete == other.numOpsDelete &&
-           numOpsStore == other.numOpsStore;
+           numOpsStore == other.numOpsStore && meta == other.meta;
 }
 
 std::string Collections::VB::ManifestEntry::getExceptionString(
@@ -78,7 +56,7 @@ bool Collections::VB::ManifestEntry::addStats(
                   statKey);
         collector.addStat(std::string_view(key.data(), key.size()), statValue);
     };
-
+    addStat("name", getName());
     addStat("scope", getScopeID().to_string().c_str());
     addStat("start_seqno", getStartSeqno());
     addStat("high_seqno", getHighSeqno());
@@ -98,7 +76,9 @@ bool Collections::VB::ManifestEntry::addStats(
 std::ostream& Collections::VB::operator<<(
         std::ostream& os,
         const Collections::VB::ManifestEntry& manifestEntry) {
-    os << "ManifestEntry: scope:" << manifestEntry.getScopeID() << std::dec
+    os << "ManifestEntry:"
+       << " name:" << manifestEntry.getName()
+       << ", scope:" << manifestEntry.getScopeID() << std::dec
        << ", startSeqno:" << manifestEntry.getStartSeqno()
        << ", highSeqno:" << manifestEntry.getHighSeqno()
        << ", persistedHighSeqno:" << manifestEntry.getPersistedHighSeqno()
