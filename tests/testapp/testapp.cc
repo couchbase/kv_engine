@@ -1221,6 +1221,74 @@ MemcachedConnection& TestappTest::prepare(MemcachedConnection& connection) {
     return connection;
 }
 
+/* Request stats
+ * @return a map of stat key & values in the server response.
+ */
+stats_response_t request_stats() {
+    BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Stat);
+    std::vector<uint8_t> blob;
+    cmd.encode(blob);
+    safe_send(blob);
+
+    stats_response_t result;
+    while (true) {
+        safe_recv_packet(blob);
+        BinprotResponse rsp;
+        rsp.assign(std::move(blob));
+        mcbp_validate_response_header(
+                const_cast<cb::mcbp::Response&>(rsp.getResponse()),
+                cb::mcbp::ClientOpcode::Stat,
+                cb::mcbp::Status::Success);
+        // key length zero indicates end of the stats.
+        if (rsp.getKeyString().empty()) {
+            break;
+        }
+
+        result.insert(std::make_pair(rsp.getKeyString(), rsp.getDataString()));
+    }
+
+    return result;
+}
+
+// Extracts a single statistic from the set of stats, returning as
+// a uint64_t
+uint64_t extract_single_stat(const stats_response_t& stats, const char* name) {
+    auto iter = stats.find(name);
+    EXPECT_NE(stats.end(), iter);
+    uint64_t result = 0;
+    result = std::stoul(iter->second);
+    return result;
+}
+
+/*
+    Using a memcached protocol extesnsion, shift the time
+*/
+void adjust_memcached_clock(
+        int64_t clock_shift,
+        cb::mcbp::request::AdjustTimePayload::TimeType timeType) {
+    cb::mcbp::request::AdjustTimePayload payload;
+    payload.setOffset(uint64_t(clock_shift));
+    payload.setTimeType(timeType);
+
+    std::vector<uint8_t> blob(sizeof(cb::mcbp::Request) + sizeof(payload));
+    cb::mcbp::FrameBuilder<cb::mcbp::Request> builder(
+            {blob.data(), blob.size()});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::AdjustTimeofday);
+    builder.setExtras(payload.getBuffer());
+    builder.setOpaque(0xdeadbeef);
+    safe_send(builder.getFrame()->getFrame());
+
+    blob.resize(0);
+    safe_recv_packet(blob);
+    BinprotResponse rsp;
+    rsp.assign(std::move(blob));
+    mcbp_validate_response_header(
+            const_cast<cb::mcbp::Response&>(rsp.getResponse()),
+            cb::mcbp::ClientOpcode::AdjustTimeofday,
+            cb::mcbp::Status::Success);
+}
+
 nlohmann::json TestappTest::memcached_cfg;
 const std::string TestappTest::portnumber_file =
         "memcached_ports." + std::to_string(getpid()) + "." +
@@ -1323,72 +1391,4 @@ int main(int argc, char** argv) {
 #endif
 
     return RUN_ALL_TESTS();
-}
-
-/* Request stats
- * @return a map of stat key & values in the server response.
- */
-stats_response_t request_stats() {
-    BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Stat);
-    std::vector<uint8_t> blob;
-    cmd.encode(blob);
-    safe_send(blob);
-
-    stats_response_t result;
-    while (true) {
-        safe_recv_packet(blob);
-        BinprotResponse rsp;
-        rsp.assign(std::move(blob));
-        mcbp_validate_response_header(
-                const_cast<cb::mcbp::Response&>(rsp.getResponse()),
-                cb::mcbp::ClientOpcode::Stat,
-                cb::mcbp::Status::Success);
-        // key length zero indicates end of the stats.
-        if (rsp.getKeyString().empty()) {
-            break;
-        }
-
-        result.insert(std::make_pair(rsp.getKeyString(), rsp.getDataString()));
-    }
-
-    return result;
-}
-
-// Extracts a single statistic from the set of stats, returning as
-// a uint64_t
-uint64_t extract_single_stat(const stats_response_t& stats, const char* name) {
-    auto iter = stats.find(name);
-    EXPECT_NE(stats.end(), iter);
-    uint64_t result = 0;
-    result = std::stoul(iter->second);
-    return result;
-}
-
-/*
-    Using a memcached protocol extesnsion, shift the time
-*/
-void adjust_memcached_clock(
-        int64_t clock_shift,
-        cb::mcbp::request::AdjustTimePayload::TimeType timeType) {
-    cb::mcbp::request::AdjustTimePayload payload;
-    payload.setOffset(uint64_t(clock_shift));
-    payload.setTimeType(timeType);
-
-    std::vector<uint8_t> blob(sizeof(cb::mcbp::Request) + sizeof(payload));
-    cb::mcbp::FrameBuilder<cb::mcbp::Request> builder(
-            {blob.data(), blob.size()});
-    builder.setMagic(cb::mcbp::Magic::ClientRequest);
-    builder.setOpcode(cb::mcbp::ClientOpcode::AdjustTimeofday);
-    builder.setExtras(payload.getBuffer());
-    builder.setOpaque(0xdeadbeef);
-    safe_send(builder.getFrame()->getFrame());
-
-    blob.resize(0);
-    safe_recv_packet(blob);
-    BinprotResponse rsp;
-    rsp.assign(std::move(blob));
-    mcbp_validate_response_header(
-            const_cast<cb::mcbp::Response&>(rsp.getResponse()),
-            cb::mcbp::ClientOpcode::AdjustTimeofday,
-            cb::mcbp::Status::Success);
 }
