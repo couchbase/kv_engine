@@ -96,8 +96,8 @@ SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
                                     "conflict_resolution_type."};
     }
 
-    allowDelWithMetaPruneUserData =
-            configuration.isAllowDelWithMetaPruneUserData();
+    allowSanitizeValueInDeletion =
+            configuration.isAllowSanitizeValueInDeletion();
 
     if (configuration.getMemLowWat() == std::numeric_limits<size_t>::max()) {
         stats.mem_low_wat_percent.store(0.75);

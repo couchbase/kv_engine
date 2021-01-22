@@ -42,7 +42,7 @@ public:
         if (!config_string.empty()) {
             config_string += ";";
         }
-        config_string += "allow_del_with_meta_prune_user_data=true";
+        config_string += "allow_sanitize_value_in_deletion=true";
         SingleThreadedEPBucketTest::SetUp();
         store->setVBucketState(vbid, vbucket_state_active);
         expiry = ep_real_time() + 31557600; // +1 year in seconds
