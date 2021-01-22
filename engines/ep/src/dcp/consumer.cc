@@ -154,7 +154,6 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
                          std::string consumerName_)
     : ConnHandler(engine, cookie, name),
       lastMessageTime(ep_current_time()),
-      engine(engine),
       opaqueCounter(0),
       processorTaskId(0),
       processorTaskState(all_processed),
@@ -312,7 +311,7 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque,
     bool exp = false;
     if (processorTaskRunning.compare_exchange_strong(exp, true)) {
         ExTask task = std::make_shared<DcpConsumerTask>(
-                &engine, shared_from_this(), 1);
+                &engine_, shared_from_this(), 1);
         processorTaskId = ExecutorPool::get()->schedule(task);
     }
 
