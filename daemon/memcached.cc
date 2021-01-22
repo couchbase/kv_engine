@@ -1447,6 +1447,8 @@ int memcached_main(int argc, char** argv) {
         FATAL_ERROR(EXIT_FAILURE, "Failed to load error maps: {}", e.what());
     }
 
+    prometheus_init();
+
     LOG_INFO("Starting external authentication manager");
     externalAuthManager = std::make_unique<ExternalAuthManagerThread>();
     externalAuthManager->setPushActiveUsersInterval(
@@ -1481,8 +1483,6 @@ int memcached_main(int argc, char** argv) {
 
     /* initialize other stuff */
     stats_init();
-
-    prometheus_init();
 
 #ifndef WIN32
     /*
