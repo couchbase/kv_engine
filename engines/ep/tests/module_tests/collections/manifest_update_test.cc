@@ -20,6 +20,7 @@
  */
 
 #include "collections/manager.h"
+#include "collections/shared_metadata_table.h"
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "collections_test.h"
@@ -222,3 +223,85 @@ INSTANTIATE_TEST_SUITE_P(CollectionsPersistent,
                          CollectionsManifestUpdatePersistent,
                          STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
+
+// Run through the basic API of the SharedMetaDataTable
+// We need two types which wrap owned and non-owned views of the meta
+//
+// 1) Non owning "lookup" type, but must be able to
+// compare Meta and MetaView
+class Meta;
+class MetaView {
+public:
+    MetaView(const Meta& meta);
+    std::string to_string() const {
+        return "MetaView of " + std::string{name};
+    }
+    std::string_view name;
+    int something;
+};
+
+// Owning type, what the table actually stores
+// The owning type must be constructable from the view type and comparable
+class Meta : public RCValue {
+public:
+    Meta(std::string_view name, int something)
+        : name(name), something(something) {
+    }
+    // Construct owned type from view type
+    Meta(const MetaView& view) : name(view.name), something(view.something) {
+    }
+
+    // Compare with view type
+    bool operator==(const MetaView& view) const {
+        return name == view.name && something == view.something;
+    }
+
+    std::string name;
+    int something;
+};
+
+std::ostream& operator<<(std::ostream& os, const Meta& meta) {
+    os << " name:" << meta.name << ", something:" << meta.something;
+    return os;
+}
+
+MetaView::MetaView(const Meta& meta)
+    : name(meta.name), something(meta.something) {
+}
+
+TEST(SharedMetaDataTable, basic) {
+    Collections::SharedMetaDataTable<CollectionID, Meta> table;
+    EXPECT_EQ(0, table.count(8));
+    Meta m1{"brass", 9};
+    Meta m2{"woodwind", 10};
+
+    auto ref1 = table.createOrReference(8, MetaView{m1});
+    EXPECT_EQ(1, table.count(8));
+    auto ref2 = table.createOrReference(8, MetaView{m2});
+    EXPECT_EQ(2, table.count(8));
+
+    // Get 3rd ref to the same as ref2/m2, table should not increase
+    auto ref3 = table.createOrReference(8, MetaView{m2});
+    EXPECT_EQ(2, table.count(8)) << table;
+
+    EXPECT_EQ(ref1->name, "brass");
+    EXPECT_EQ(ref2, ref3);
+
+    EXPECT_THROW(table.dereference(7), std::invalid_argument);
+
+    // Release one and tell the table
+    ref1.reset();
+    table.dereference(8);
+    EXPECT_EQ(1, table.count(8));
+
+    // And the others
+    ref2.reset();
+    table.dereference(8);
+    EXPECT_EQ(1, table.count(8));
+
+    ref3.reset();
+    table.dereference(8);
+    EXPECT_EQ(0, table.count(8));
+
+    EXPECT_THROW(table.dereference(8), std::invalid_argument);
+}
