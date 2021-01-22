@@ -558,8 +558,6 @@ protected:
      */
     ENGINE_ERROR_CODE getOpaqueMissMatchErrorCode() const;
 
-    /* Reference to the ep engine; need to create the 'Processor' task */
-    EventuallyPersistentEngine& engine;
     uint64_t opaqueCounter;
     size_t processorTaskId;
     std::atomic<enum process_items_error_t> processorTaskState;
