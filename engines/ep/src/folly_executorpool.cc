@@ -461,8 +461,17 @@ struct FollyExecutorPool::State {
             auto& tasks = owner.second;
             it = tasks.locator.find(taskId);
             if (it != tasks.locator.end()) {
-                it->second->task->snooze(toSleep);
-                it->second->updateTimeoutFromWakeTime();
+                auto& proxy = it->second;
+                if (!proxy->task) {
+                    // Task has been cancelled ('task' shared ptr reset to
+                    // null via resetTaskPtrViaCpuPool), but TaskProxy not yet
+                    // been cleaned up) - i.e. a snooze and cancel have raced.
+                    // Treat as if cancellation has completed and task no
+                    // longer present.
+                    return false;
+                }
+                proxy->task->snooze(toSleep);
+                proxy->updateTimeoutFromWakeTime();
                 return true;
                 break;
             }

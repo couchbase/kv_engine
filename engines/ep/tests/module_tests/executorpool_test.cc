@@ -495,6 +495,78 @@ TYPED_TEST(ExecutorPoolTest, SnoozeWithoutSchedule) {
     this->pool->unregisterTaskable(taskable, false);
 }
 
+/// Test that cancel() followed by snooze(); where cancel has only partially
+/// completed is handled correctly.
+/// Regression test for MB-43546 (which affected FollyExecutorPool).
+TYPED_TEST(ExecutorPoolTest, CancelThenSnooze) {
+    if (typeid(TypeParam) == typeid(TestExecutorPool)) {
+        // CB3ExecutorPool deadlocks if one attempts to call snooze() while
+        // cancel() is still running.
+        // Could probably re-write test to call snooze() on a different thread
+        // with appropriate synchronization, but given this issue doesn't
+        // affect CB3, just skip the test.
+        GTEST_SKIP();
+    }
+
+    this->makePool(1);
+    NiceMock<MockTaskable> taskable;
+    this->pool->registerTaskable(taskable);
+
+    // To force the scheduling we want, need to call snooze after cancel()
+    // has set TaskProxy::task to null; but before that TaskProxy is removed
+    // from the owners. To do this, use a custom GlobalTask whose dtor
+    // calls snooze - GlobalTask is destroyed before removing TaskProxy from
+    // owners.
+    struct TestTask : public GlobalTask {
+        TestTask(Taskable& taskable, ExecutorPool& pool)
+            : GlobalTask(taskable, TaskId::ItemPager, INT_MAX), pool(pool) {
+        }
+
+        ~TestTask() override {
+            pool.snooze(getId(), 10.0);
+        }
+
+        std::string getDescription() override {
+            return "TestTask - "s + GlobalTask::getTaskName(taskId);
+        }
+
+        std::chrono::microseconds maxExpectedDuration() override {
+            return {};
+        }
+
+    protected:
+        bool run() override {
+            ADD_FAILURE() << "TestTask should never run";
+            return false;
+        }
+        ExecutorPool& pool;
+    };
+
+    auto taskPtr = std::make_shared<TestTask>(taskable, *this->pool);
+    auto taskId = this->pool->schedule(taskPtr);
+
+    // reset our local taskPtr so only the ExecutorPool has a reference.
+    taskPtr.reset();
+
+    // Test: We want to setup the follow sequence:
+    // 1. cancel() the task; which should cause TaskProxy::task in taskOwners
+    //    to be set to null.
+    // 2. Before the taskOwners element is removed
+    //    (via FollyExecutorPool::removeTaskAfterRun), the refcount of the
+    //    ExTask is decremented, which given our above TestTask has just one
+    //    reference should trigger it's destruction.
+    // 3. In TestTask dtor; attempt to snooze() task again. This _should be
+    //    handled correctly (ignored) given task is already in the process of
+    //    being cancelled, but in MB-43546 snooze() incorrectly attempted to
+    //    dereference the null TaskProxy::task member.
+    // 4. (Not really important) taskOwners entry is removed via
+    //    FollyExecutorPool::removeTaskAfterRun
+    this->pool->cancel(taskId, true);
+
+    // Cleanup.
+    this->pool->unregisterTaskable(taskable, false);
+}
+
 /* This test creates an ExecutorPool, and attempts to verify that calls to
  * setNumWriters are able to dynamically create more workers than were present
  * at initialisation. A ThreadGate is used to confirm that two tasks
