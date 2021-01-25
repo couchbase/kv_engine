@@ -99,9 +99,6 @@ public:
     void updateHighSeqno(std::lock_guard<std::mutex>& listWriteLg,
                          const OrderedStoredValue& v) override;
 
-    void updateHighestDedupedSeqno(std::lock_guard<std::mutex>& listWriteLg,
-                                   const OrderedStoredValue& v) override;
-
     void maybeUpdateMaxVisibleSeqno(std::lock_guard<std::mutex>& seqLock,
                                     std::lock_guard<std::mutex>& writeLock,
                                     const OrderedStoredValue& newSV) override;
@@ -129,8 +126,6 @@ public:
     uint64_t getNumItems() const override;
 
     uint64_t getHighSeqno() const override;
-
-    uint64_t getHighestDedupedSeqno() const override;
 
     seqno_t getHighestPurgedDeletedSeqno() const override;
 
@@ -234,14 +229,6 @@ private:
     Monotonic<seqno_t> highSeqno;
 
     /**
-     * We need to this to send out point-in-time snapshots in range read
-     *
-     * highestDedupedSeqno is monotonically increasing and is reset to a lower
-     * value only in case of a rollback.
-     */
-    Monotonic<seqno_t> highestDedupedSeqno;
-
-    /**
      * The sequence number of the highest purged element.
      *
      * This should be non-decrementing, apart from a rollback where it will be
@@ -327,10 +314,6 @@ private:
             return numRemaining;
         }
 
-        seqno_t getEarlySnapShotEnd() const override {
-            return earlySnapShotEndSeqno;
-        }
-
         uint64_t getMaxVisibleSeqno() const override {
             return maxVisibleSeqno;
         }
@@ -384,10 +367,6 @@ private:
         /* Number of items that can be iterated over by this (forward only)
            iterator at that instance */
         uint64_t numRemaining;
-
-        /* Indicates the minimum seqno in the iterator that can give a
-           consistent read snapshot */
-        seqno_t earlySnapShotEndSeqno;
 
         uint64_t maxVisibleSeqno;
 

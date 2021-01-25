@@ -28,7 +28,6 @@ BasicLinkedList::BasicLinkedList(Vbid vbucketId, EPStats& st)
       staleSize(0),
       staleMetaDataSize(0),
       highSeqno(0),
-      highestDedupedSeqno(0),
       highestPurgedDeletedSeqno(0),
       numStaleItems(0),
       numDeletedItems(0),
@@ -98,19 +97,6 @@ void BasicLinkedList::updateHighSeqno(std::lock_guard<std::mutex>& listWriteLg,
                 std::to_string(v.getBySeqno()) + " which is < 1");
     }
     highSeqno = v.getBySeqno();
-}
-
-void BasicLinkedList::updateHighestDedupedSeqno(
-        std::lock_guard<std::mutex>& listWriteLg, const OrderedStoredValue& v) {
-    if (v.getBySeqno() < 1) {
-        throw std::invalid_argument(
-                "BasicLinkedList::updateHighestDedupedSeqno(): " +
-                vbid.to_string() +
-                "; Cannot set the highestDedupedSeqno to "
-                "a value " +
-                std::to_string(v.getBySeqno()) + " which is < 1");
-    }
-    highestDedupedSeqno = v.getBySeqno();
 }
 
 void BasicLinkedList::maybeUpdateMaxVisibleSeqno(
@@ -337,11 +323,6 @@ uint64_t BasicLinkedList::getHighSeqno() const {
     return highSeqno;
 }
 
-uint64_t BasicLinkedList::getHighestDedupedSeqno() const {
-    std::lock_guard<std::mutex> lckGd(getListWriteLock());
-    return highestDedupedSeqno;
-}
-
 seqno_t BasicLinkedList::getHighestPurgedDeletedSeqno() const {
     return highestPurgedDeletedSeqno;
 }
@@ -438,7 +419,6 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll,
     : list(ll),
       itrRange(0, 0),
       numRemaining(0),
-      earlySnapShotEndSeqno(0),
       maxVisibleSeqno(0),
       isBackfill(isBackfill) {
 
@@ -455,10 +435,6 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll,
 
     /* Number of items that can be iterated over */
     numRemaining = list.seqList.size();
-
-    /* The minimum seqno in the iterator that must be read to get a consistent
-       read snapshot */
-    earlySnapShotEndSeqno = list.highestDedupedSeqno;
 
     maxVisibleSeqno = list.maxVisibleSeqno;
 
@@ -487,12 +463,10 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll,
                                : spdlog::level::level_enum::debug;
 
     EP_LOG_FMT(severity,
-               "{} Created range iterator from {} to {}, earlySnapEndSeqno:{}, "
-               "maxVisibleSeqno:{}",
+               "{} Created range iterator from {} to {}, maxVisibleSeqno:{}",
                list.vbid,
                itrRange.getBegin(),
                itrRange.getEnd(),
-               earlySnapShotEndSeqno,
                maxVisibleSeqno);
 }
 

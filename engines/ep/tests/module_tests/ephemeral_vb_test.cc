@@ -781,40 +781,6 @@ TEST_F(EphTombstoneTest, DoubleDeleteTimeCorrect) {
     EXPECT_GE(secondDelTime, initialDelTime + timeJump);
 }
 
-TEST_F(EphemeralVBucketTest, UpdateUpdatesHighestDedupedSeqno) {
-    /* Add 3 items and then update all of them */
-    const int numItems = 3;
-
-    auto keys = generateKeys(numItems);
-    setMany(keys, MutationStatus::WasClean);
-
-    ASSERT_EQ(0, mockEpheVB->getLL()->getHighestDedupedSeqno());
-
-    /* Update the items */
-    setMany(keys, MutationStatus::WasDirty);
-
-    EXPECT_EQ(6, mockEpheVB->getLL()->getHighestDedupedSeqno());
-}
-
-TEST_F(EphemeralVBucketTest, AppendUpdatesHighestDedupedSeqno) {
-    /* Add 3 items and then update all of them */
-    const int numItems = 3;
-
-    auto keys = generateKeys(numItems);
-    setMany(keys, MutationStatus::WasClean);
-
-    ASSERT_EQ(0, mockEpheVB->getLL()->getHighestDedupedSeqno());
-
-    {
-        auto itr = mockEpheVB->getLL()->makeRangeIterator(true /*isBackfill*/);
-
-        /* Update the items */
-        setMany(keys, MutationStatus::WasClean);
-    }
-
-    ASSERT_EQ(6, mockEpheVB->getLL()->getHighestDedupedSeqno());
-}
-
 // Check that tombstone purger runs fine in pause-resume mode
 TEST_F(EphTombstoneTest, PurgePauseResume) {
     // Delete the second item

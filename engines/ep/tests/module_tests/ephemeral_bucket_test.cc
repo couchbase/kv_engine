@@ -60,7 +60,6 @@ TEST_F(EphemeralBucketStatTest, VBSeqlistStats) {
         << "Expected both current and deleted documents";
     EXPECT_EQ("1", stats.at("vb_0:seqlist_deleted_count"));
     EXPECT_EQ("4", stats.at("vb_0:seqlist_high_seqno"));
-    EXPECT_EQ("4", stats.at("vb_0:seqlist_highest_deduped_seqno"));
     EXPECT_EQ("0", stats.at("vb_0:seqlist_range_read_begin"));
     EXPECT_EQ("0", stats.at("vb_0:seqlist_range_read_end"));
     EXPECT_EQ("0", stats.at("vb_0:seqlist_range_read_count"));

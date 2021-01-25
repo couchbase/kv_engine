@@ -118,12 +118,6 @@ protected:
          */
         virtual uint64_t count() const = 0;
 
-        /**
-         * Indicates the minimum seqno in the iterator that must be read to
-         * get a consistent read snapshot
-         */
-        virtual seqno_t getEarlySnapShotEnd() const = 0;
-
         virtual uint64_t getMaxVisibleSeqno() const = 0;
     };
 
@@ -216,12 +210,6 @@ public:
          */
         uint64_t count() const;
 
-        /**
-         * Indicates the minimum seqno in the iterator that must be read to
-         * get a consistent read snapshot
-         */
-        seqno_t getEarlySnapShotEnd() const;
-
         uint64_t getMaxVisibleSeqno() const;
 
     private:
@@ -274,19 +262,6 @@ public:
      */
     virtual void updateHighSeqno(std::lock_guard<std::mutex>& listWriteLg,
                                  const OrderedStoredValue& v) = 0;
-
-    /**
-     * Updates the highestDedupedSeqno in the list. Since seqno is generated and
-     * managed outside the list, the module managing it must update this after
-     * the seqno is generated for the item already put in the list.
-     *
-     * @param listWriteLg Write lock of the sequenceList from getListWriteLock()
-     * @param v Ref to orderedStoredValue
-     *
-     */
-    virtual void updateHighestDedupedSeqno(
-            std::lock_guard<std::mutex>& listWriteLg,
-            const OrderedStoredValue& v) = 0;
 
     /**
      * Updates the max-visible-seqno to the seqno of the new StoredValue, only
@@ -399,11 +374,6 @@ public:
      * Returns the highSeqno in the list.
      */
     virtual uint64_t getHighSeqno() const = 0;
-
-    /**
-     * Returns the highest de-duplicated sequence number in the list.
-     */
-    virtual uint64_t getHighestDedupedSeqno() const = 0;
 
     /**
      * Returns the highest purged Deleted sequence number in the list.
