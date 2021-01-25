@@ -23,6 +23,8 @@
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/test_helpers.h"
 
+#include <spdlog/fmt/fmt.h>
+
 class CollectionsOSODcpTest : public CollectionsDcpTest {
 public:
     CollectionsOSODcpTest() : CollectionsDcpTest() {
@@ -37,6 +39,8 @@ public:
     }
 
     void testTwoCollections(bool backfillWillPause);
+
+    void MB_43700(CollectionID cid);
 
     std::pair<CollectionsManifest, uint64_t> setupTwoCollections();
 };
@@ -415,6 +419,69 @@ TEST_F(CollectionsOSODcpTest, basic_with_stream_id) {
 
     outstanding += snapshotSz;
     EXPECT_EQ(outstanding, producer->getBytesOutstanding());
+}
+
+// Run through the issue of MB-43700, we were generating the end key of the OSO
+// rage incorrectly which showed up when the collection-ID was certain value
+void CollectionsOSODcpTest::MB_43700(CollectionID cid) {
+    store_item(vbid, makeStoredDocKey("b", cid), cid.to_string() + "b");
+    store_item(vbid, makeStoredDocKey("d", cid), cid.to_string() + "d");
+    store_item(vbid, makeStoredDocKey("a", cid), cid.to_string() + "a");
+    store_item(vbid, makeStoredDocKey("c", cid), cid.to_string() + "c");
+    flush_vbucket_to_disk(vbid, 4);
+
+    // Reset so we have to stream from backfill
+    resetEngineAndWarmup();
+
+    nlohmann::json filter;
+    fmt::memory_buffer key;
+    format_to(key, "{:x}", uint32_t(cid));
+    filter["collections"] = {std::string_view{key.data(), key.size()}};
+    createDcpObjects(filter.dump(), true /* enable oso */);
+
+    // We have a single filter, expect the backfill to be OSO
+    runBackfill();
+
+    // Manually step the producer and inspect all callbacks
+    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
+    EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::Start),
+              producers->last_oso_snapshot_flags);
+
+    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
+    EXPECT_EQ(cid, producers->last_collection_id);
+    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+              producers->last_system_event);
+
+    std::array<std::string, 4> keys = {{"a", "b", "c", "d"}};
+    for (auto& k : keys) {
+        // Now we get the mutations, they aren't guaranteed to be in seqno
+        // order, but we know that for now they will be in key order.
+        EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
+        EXPECT_EQ(cid, producers->last_collection_id);
+        EXPECT_EQ(k, producers->last_key);
+        EXPECT_EQ(cid.to_string() + k, producers->last_value);
+    }
+
+    // Now we get the end message
+    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
+    EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::End),
+              producers->last_oso_snapshot_flags);
+}
+
+TEST_F(CollectionsOSODcpTest, MB_43700) {
+    // Bug was raised with ID 0xff, we shall test some other 'max' values
+    std::array<CollectionID, 3> collections = {{0xff, 0xffff, 0xffffffff}};
+    CollectionsManifest cm;
+    for (auto cid : collections) {
+        cm.add(CollectionEntry::Entry{cid.to_string(), cid});
+        setCollections(cookie, cm);
+        flush_vbucket_to_disk(vbid, 1);
+        MB_43700(cid);
+    }
 }
 
 // OSO doesn't support ephemeral - this one test checks it falls back to normal

@@ -54,7 +54,14 @@ backfill_status_t DCPBackfillByIdDisk::create() {
 
     // Create the start and end keys for the collection itself
     cb::mcbp::unsigned_leb128<CollectionIDType> start(uint32_t{cid});
-    cb::mcbp::unsigned_leb128<CollectionIDType> end(uint32_t{cid} + 1);
+
+    // The end key is the start key + 1, so we clone the start key and increment
+    // the last (stop) byte by 1
+    std::array<uint8_t,
+               cb::mcbp::unsigned_leb128<CollectionIDType>::getMaxSize()>
+            end;
+    std::copy(start.begin(), start.end(), end.begin());
+    end[start.size() - 1]++;
 
     std::vector<ByIdRange> ranges;
     ranges.emplace_back(ByIdRange{DiskDocKey{sysStart}, DiskDocKey{sysEnd}});
