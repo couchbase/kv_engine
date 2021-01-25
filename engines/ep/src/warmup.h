@@ -223,6 +223,11 @@ public:
 
     ~Warmup();
 
+    Warmup(const Warmup&) = delete;
+    Warmup& operator=(const Warmup&) = delete;
+    Warmup(Warmup&&) = delete;
+    Warmup& operator=(Warmup&&) = delete;
+
     void start();
     void stop();
 
@@ -451,8 +456,6 @@ private:
      * removed at the PopulateVBucketMap phase
      */
     folly::AtomicHashMap<uint16_t, VBucketPtr> warmedUpVbuckets;
-
-    DISALLOW_COPY_AND_ASSIGN(Warmup);
 
     // To avoid making a number of methods on Warmup public; grant friendship
     // to the various Tasks which run the stages of warmup.

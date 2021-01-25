@@ -20,7 +20,6 @@
 #include "bucket_logger.h"
 #include "callbacks.h"
 #include "checkpoint_manager.h"
-#include "collections/collection_persisted_stats.h"
 #include "collections/manager.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "common.h"
@@ -722,7 +721,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
     }
 
     bool stopLoading = false;
-    if (i != NULL && !epstore.getWarmup()->isComplete()) {
+    if (i && !epstore.getWarmup()->isComplete()) {
         VBucketPtr vb = vbuckets.getBucket(i->getVBucketId());
         if (!vb) {
             setStatus(ENGINE_NOT_MY_VBUCKET);
@@ -977,9 +976,7 @@ void Warmup::initialize()
     std::map<std::string, std::string> session_stats;
     store.getOneROUnderlying()->getPersistedStats(session_stats);
 
-
-    std::map<std::string, std::string>::const_iterator it =
-        session_stats.find("ep_force_shutdown");
+    auto it = session_stats.find("ep_force_shutdown");
 
     if (it == session_stats.end() || it->second.compare("false") != 0) {
         cleanShutdown = false;
@@ -1657,7 +1654,7 @@ void Warmup::addStats(const AddStatFn& add_stat, const void* c) const {
     using namespace std::chrono;
 
     EPStats& stats = store.getEPEngine().getEpStats();
-    addStat(NULL, "enabled", add_stat, c);
+    addStat(nullptr, "enabled", add_stat, c);
     const char* stateName = state.toString();
     addStat("state", stateName, add_stat, c);
     if (warmupComplete.load()) {
@@ -1721,20 +1718,18 @@ void Warmup::addStats(const AddStatFn& add_stat, const void* c) const {
  * are stored in a single instance. Others (e.g. RocksDBKVStore) store
  * only the vbucket states specific to that shard. Hence the vbucket
  * states of all the shards need to be retrieved */
-uint16_t Warmup::getNumKVStores()
-{
-    Configuration& config = store.getEPEngine().getConfiguration();
-    if (config.getBackend().compare("couchdb") == 0) {
+uint16_t Warmup::getNumKVStores() {
+    auto backend = store.getEPEngine().getConfiguration().getBackend();
+    if (backend.compare("couchdb") == 0) {
         return 1;
-    } else if (config.getBackend().compare("rocksdb") == 0 ||
-               config.getBackend().compare("magma") == 0) {
+    } else if (backend.compare("rocksdb") == 0 ||
+               backend.compare("magma") == 0) {
         return store.vbMap.getNumShards();
     }
     return 0;
 }
 
-void Warmup::populateShardVbStates()
-{
+void Warmup::populateShardVbStates() {
     uint16_t numKvs = getNumKVStores();
 
     for (size_t i = 0; i < numKvs; i++) {
@@ -1754,9 +1749,9 @@ void Warmup::populateShardVbStates()
     for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
         std::vector<Vbid> activeVBs, otherVBs;
         std::map<Vbid, vbucket_state>::const_iterator it;
-        for (auto it : shardVbStates[i]) {
-            Vbid vbid = it.first;
-            vbucket_state vbs = it.second;
+        for (auto shardIt : shardVbStates[i]) {
+            Vbid vbid = shardIt.first;
+            vbucket_state vbs = shardIt.second;
             if (vbs.transition.state == vbucket_state_active) {
                 activeVBs.push_back(vbid);
             } else {
