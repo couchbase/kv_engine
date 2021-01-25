@@ -14,13 +14,15 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include <nlohmann/json.hpp>
-#include <platform/checked_snprintf.h>
-#include <statistics/cbstat_collector.h>
+
+#include "failover-table.h"
 
 #include "atomic.h"
 #include "bucket_logger.h"
-#include "failover-table.h"
+
+#include <nlohmann/json.hpp>
+#include <platform/checked_snprintf.h>
+#include <statistics/cbstat_collector.h>
 
 FailoverTable::FailoverTable(size_t capacity)
     : max_entries(capacity), erroneousEntriesErased(0) {
@@ -39,7 +41,7 @@ FailoverTable::FailoverTable(const std::string& json,
     sanitizeFailoverTable(highSeqno);
 }
 
-FailoverTable::~FailoverTable() { }
+FailoverTable::~FailoverTable() = default;
 
 failover_entry_t FailoverTable::getLatestEntry() const {
     std::lock_guard<std::mutex> lh(lock);
@@ -276,32 +278,36 @@ void FailoverTable::addStats(const void* cookie,
                              const AddStatFn& add_stat) {
     std::lock_guard<std::mutex> lh(lock);
     try {
-        char statname[80] = {0};
-        checked_snprintf(
-                statname, sizeof(statname), "vb_%d:num_entries", vbid.get());
-        add_casted_stat(statname, table.size(), add_stat, cookie);
-        checked_snprintf(statname,
-                         sizeof(statname),
+        std::array<char, 80> statname;
+        checked_snprintf(statname.data(),
+                         statname.size(),
+                         "vb_%d:num_entries",
+                         vbid.get());
+        add_casted_stat(statname.data(), table.size(), add_stat, cookie);
+        checked_snprintf(statname.data(),
+                         statname.size(),
                          "vb_%d:num_erroneous_entries_erased",
                          vbid.get());
-        add_casted_stat(statname, getNumErroneousEntriesErased(), add_stat,
+        add_casted_stat(statname.data(),
+                        getNumErroneousEntriesErased(),
+                        add_stat,
                         cookie);
 
         table_t::iterator it;
         int entrycounter = 0;
         for (it = table.begin(); it != table.end(); ++it) {
-            checked_snprintf(statname,
-                             sizeof(statname),
+            checked_snprintf(statname.data(),
+                             statname.size(),
                              "vb_%d:%d:id",
                              vbid.get(),
                              entrycounter);
-            add_casted_stat(statname, it->vb_uuid, add_stat, cookie);
-            checked_snprintf(statname,
-                             sizeof(statname),
+            add_casted_stat(statname.data(), it->vb_uuid, add_stat, cookie);
+            checked_snprintf(statname.data(),
+                             statname.size(),
                              "vb_%d:%d:seq",
                              vbid.get(),
                              entrycounter);
-            add_casted_stat(statname, it->by_seqno, add_stat, cookie);
+            add_casted_stat(statname.data(), it->by_seqno, add_stat, cookie);
             entrycounter++;
         }
     } catch (std::exception& error) {

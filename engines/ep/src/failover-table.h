@@ -39,14 +39,19 @@ struct failover_entry_t {
  * detect changes of history caused by node failures.
  */
 class FailoverTable {
- public:
-    typedef std::list<failover_entry_t> table_t;
+public:
+    using table_t = std::list<failover_entry_t>;
 
     explicit FailoverTable(size_t capacity);
 
     FailoverTable(const std::string& json, size_t capacity, int64_t highSeqno);
 
     ~FailoverTable();
+
+    FailoverTable(const FailoverTable&) = delete;
+    FailoverTable& operator=(const FailoverTable&) = delete;
+    FailoverTable(FailoverTable&&) = delete;
+    FailoverTable& operator=(FailoverTable&&) = delete;
 
     /**
      * Returns the latest entry in the failover table
@@ -210,7 +215,6 @@ class FailoverTable {
 
     friend std::ostream& operator<<(std::ostream& os,
                                     const FailoverTable& table);
-    DISALLOW_COPY_AND_ASSIGN(FailoverTable);
 };
 
 std::ostream& operator<<(std::ostream& os, const failover_entry_t& entry);
