@@ -147,6 +147,20 @@ std::chrono::microseconds decayingSleep(std::chrono::microseconds uSeconds) {
     return std::min(uSeconds * 2, maxSleepTime);
 }
 
+bool waitForPredicate(const std::function<bool()>& pred,
+                      std::chrono::microseconds maxWaitTime) {
+    using namespace std::chrono;
+    auto deadline = steady_clock::now() + maxWaitTime;
+    std::chrono::microseconds sleepTime(128);
+    do {
+        if (pred()) {
+            return true;
+        }
+        sleepTime = decayingSleep(sleepTime);
+    } while (steady_clock::now() < deadline);
+    return false;
+}
+
 std::string createXattrValue(const std::string& body,
                              bool withSystemKey,
                              bool makeItSnappy) {

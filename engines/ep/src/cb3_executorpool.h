@@ -165,6 +165,8 @@ public:
         return numTaskables;
     }
 
+    size_t getNumTasks(const Taskable& taskable) const override;
+
     void doWorkerStat(Taskable& taskable,
                       const void* cookie,
                       const AddStatFn& add_stat) override;
@@ -274,7 +276,8 @@ protected:
     // Numbers of registered taskables.
     size_t numTaskables;
 
-    SyncObject tMutex; // to serialize taskLocator, threadQ, numBuckets access
+    // to serialize taskLocator, threadQ, numBuckets access
+    mutable SyncObject tMutex;
 
     std::atomic<uint16_t> numSleepers; // total number of sleeping threads
     std::vector<std::atomic<uint16_t>>

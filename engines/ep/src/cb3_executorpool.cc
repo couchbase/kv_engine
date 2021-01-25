@@ -635,6 +635,15 @@ std::vector<ExTask> CB3ExecutorPool::unregisterTaskable(Taskable& taskable,
     return _unregisterTaskable(taskable, force);
 }
 
+size_t CB3ExecutorPool::getNumTasks(const Taskable& taskable) const {
+    std::unique_lock<std::mutex> lh(tMutex);
+    const auto gid = taskable.getGID();
+    return std::count_if(
+            taskLocator.begin(), taskLocator.end(), [gid](const auto& task) {
+                return task.second.first->getTaskable().getGID() == gid;
+            });
+}
+
 void CB3ExecutorPool::doTaskQStat(Taskable& taskable,
                                   const void* cookie,
                                   const AddStatFn& add_stat) {

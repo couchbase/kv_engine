@@ -622,7 +622,7 @@ struct FollyExecutorPool::State {
     /**
      * Returns the number of tasks owned by the specified taskable.
      */
-    int numTasksForOwner(Taskable& taskable) {
+    int numTasksForOwner(const Taskable& taskable) {
         return taskOwners.at(&taskable).locator.size();
     };
 
@@ -867,12 +867,23 @@ std::vector<ExTask> FollyExecutorPool::unregisterTaskable(Taskable& taskable,
 }
 
 size_t FollyExecutorPool::getNumTaskables() const {
+    NonBucketAllocationGuard guard;
     int numTaskables = 0;
     futurePool->getEventBase()->runInEventBaseThreadAndWait(
             [state = this->state.get(), &numTaskables] {
                 numTaskables = state->numTaskables();
             });
     return numTaskables;
+}
+
+size_t FollyExecutorPool::getNumTasks(const Taskable& taskable) const {
+    NonBucketAllocationGuard guard;
+    int count;
+    futurePool->getEventBase()->runInEventBaseThreadAndWait(
+            [this, &taskable, &count] {
+                count = state->numTasksForOwner(taskable);
+            });
+    return count;
 }
 
 size_t FollyExecutorPool::schedule(ExTask task) {

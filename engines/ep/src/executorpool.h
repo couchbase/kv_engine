@@ -102,6 +102,12 @@ public:
     /// @returns the number of registered Taskables.
     virtual size_t getNumTaskables() const = 0;
 
+    /**
+     * @returns the number of Tasks managed by the executor (added via
+     * schedule() and not cancelled) for the given taskable.
+     */
+    virtual size_t getNumTasks(const Taskable& taskable) const = 0;
+
     /***************** Task Scheduling **************************************/
 
     /**

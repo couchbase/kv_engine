@@ -145,6 +145,17 @@ private:
 std::chrono::microseconds decayingSleep(std::chrono::microseconds uSeconds);
 
 /**
+ * Waits for the specified predicate to return true, repeating until either
+ * the predicate is true or timeLimit is exceeded. Between attempts sleeps
+ * the calling thread for an exponentially increasing amount of time.
+ *
+ * @returns true if the predicate returned true within the maximum wait time,
+ *          else false.
+ */
+bool waitForPredicate(const std::function<bool()>& pred,
+                      std::chrono::microseconds maxWaitTime);
+
+/**
  * Rewrite the vbstate of the vbucket/revision
  * i.e. the file @ dbDir/<vbid>.couch.<revision>
  * This method makes the vbstate appear to be from the past so we can test

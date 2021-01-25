@@ -23,6 +23,7 @@
 #include "../mock/mock_add_stat_fn.h"
 #include "folly_executorpool.h"
 #include "lambda_task.h"
+#include "test_helpers.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include <folly/portability/GMock.h>
 #include <folly/synchronization/Baton.h>
@@ -1445,8 +1446,8 @@ TYPED_TEST(ExecutorPoolEpEngineTest, MemoryTracking_Run) {
     // Test 1: Schedule both tasks - memory usage shouldn't have changed - any
     // internal memory used by ExecutorPool to track task shouldn't be accounted
     // to bucket.
-    ExecutorPool::get()->schedule(task1);
-    ExecutorPool::get()->schedule(task2);
+    const auto task1Id = ExecutorPool::get()->schedule(task1);
+    const auto task2Id = ExecutorPool::get()->schedule(task2);
     const auto memoryPostTaskSchedule1 = getMemUsed(engine1);
     ASSERT_EQ(memoryPostTaskCreate1, memoryPostTaskSchedule1)
             << "engine1 mem_used has unexpectedly changed after calling "
@@ -1458,12 +1459,12 @@ TYPED_TEST(ExecutorPoolEpEngineTest, MemoryTracking_Run) {
 
     // Test 2 - wake each buckets' MemoryAllocTask, then check mem_used has
     // not changed on first execution.
-    ExecutorPool::get()->wake(task1->getId());
+    ExecutorPool::get()->wake(task1Id);
     {
         std::unique_lock<std::mutex> guard(task1->cv);
         task1->cv.wait(guard, [&task1] { return task1->runCount == 1; });
     }
-    ExecutorPool::get()->wake(task2->getId());
+    ExecutorPool::get()->wake(task2Id);
     {
         std::unique_lock<std::mutex> guard(task2->cv);
         task2->cv.wait(guard, [&task2] { return task2->runCount == 1; });
@@ -1479,12 +1480,12 @@ TYPED_TEST(ExecutorPoolEpEngineTest, MemoryTracking_Run) {
 
     // Test 3 - wake each buckets' MemoryAllocTask, then check mem_used has
     // changed after second execution.
-    ExecutorPool::get()->wake(task1->getId());
+    ExecutorPool::get()->wake(task1Id);
     {
         std::unique_lock<std::mutex> guard(task1->cv);
         task1->cv.wait(guard, [&task1] { return task1->runCount == 2; });
     }
-    ExecutorPool::get()->wake(task2->getId());
+    ExecutorPool::get()->wake(task2Id);
     {
         std::unique_lock<std::mutex> guard(task2->cv);
         task2->cv.wait(guard, [&task2] { return task2->runCount == 2; });
@@ -1502,12 +1503,12 @@ TYPED_TEST(ExecutorPoolEpEngineTest, MemoryTracking_Run) {
 
     // Test 4 - wake each task again, this time the memory usage should drop
     // back down.
-    ExecutorPool::get()->wake(task1->getId());
+    ExecutorPool::get()->wake(task1Id);
     {
         std::unique_lock<std::mutex> guard(task1->cv);
         task1->cv.wait(guard, [&task1] { return task1->runCount == 3; });
     }
-    ExecutorPool::get()->wake(task2->getId());
+    ExecutorPool::get()->wake(task2Id);
     {
         std::unique_lock<std::mutex> guard(task2->cv);
         task2->cv.wait(guard, [&task2] { return task2->runCount == 3; });
@@ -1520,4 +1521,34 @@ TYPED_TEST(ExecutorPoolEpEngineTest, MemoryTracking_Run) {
     EXPECT_EQ(memoryPostTaskThirdRun2, memoryPostTaskCreate2)
             << "engine2 mem_used has not returned back to previous value after "
                "running task a third time.";
+
+    // test 5 - cancel each task; removing from ExecutorPool tracking. Memory
+    // usage should decrease to original value before tasks created.
+
+    // Given cancel is (partially) async for FollyExecutorPool, need to wait
+    // until tasks have been cancelled.
+    auto waitForZeroTasks = [](auto& taskable) {
+        return waitForPredicate(
+                [&taskable] {
+                    return ExecutorPool::get()->getNumTasks(taskable) == 0;
+                },
+                std::chrono::seconds{10});
+    };
+
+    task1.reset();
+    ExecutorPool::get()->cancel(task1Id);
+    ASSERT_TRUE(waitForZeroTasks(engine1->getTaskable()));
+
+    task2.reset();
+    ExecutorPool::get()->cancel(task2Id);
+    ASSERT_TRUE(waitForZeroTasks(engine2->getTaskable()));
+
+    auto memoryPostCancel1 = getMemUsed(engine1);
+    EXPECT_EQ(memoryInitial1, memoryPostCancel1)
+            << "engine1 mem_used has not returned to initial value after "
+               "cancelling task";
+    auto memoryPostCancel2 = getMemUsed(engine2);
+    EXPECT_EQ(memoryInitial2, memoryPostCancel2)
+            << "engine2 mem_used has not returned to initial value after "
+               "cancelling task";
 }
