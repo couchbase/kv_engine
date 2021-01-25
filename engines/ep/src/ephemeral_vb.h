@@ -129,25 +129,6 @@ public:
             uint64_t endSeqno) override;
 
     /**
-     * Reads backfill items from in memory ordered data structure.
-     *
-     * Because the backfill may have to be extended to ensure consistency (e.g.,
-     * an item in the range has been updated and the new version is
-     * outside of the original range would result in a missing item), the
-     * end of the range may be at a higher seqno than was requested; this new
-     * end value is returned.
-     *
-     * @param startSeqno requested start sequence number of the backfill
-     * @param endSeqno requested end sequence number of the backfill
-     *
-     * @return ENGINE_SUCCESS, items in the snapshot, adjusted endSeqno
-     *         ENGINE_ENOMEM on no memory to copy items
-     *         ENGINE_ERANGE on incorrect start and end
-     */
-    std::tuple<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>, seqno_t>
-    inMemoryBackfill(uint64_t start, uint64_t end);
-
-    /**
      * Creates a range iterator for the underlying SequenceList 'optionally'.
      * Under scenarios like where we want to limit the number of range iterators
      * the SequenceList, new range iterator will not be allowed

@@ -316,15 +316,11 @@ std::unique_ptr<DCPBackfillIface> EphemeralVBucket::createDCPBackfill(
             evb, stream, startSeqno, endSeqno);
 }
 
-std::tuple<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>, seqno_t>
-EphemeralVBucket::inMemoryBackfill(uint64_t start, uint64_t end) {
-    return seqList->rangeRead(start, end);
-}
-
 boost::optional<SequenceList::RangeIterator>
 EphemeralVBucket::makeRangeIterator(bool isBackfill) {
     return seqList->makeRangeIterator(isBackfill);
 }
+
 bool EphemeralVBucket::isKeyLogicallyDeleted(const DocKey& key,
                                              int64_t bySeqno) {
     auto cid = key.getCollectionID();

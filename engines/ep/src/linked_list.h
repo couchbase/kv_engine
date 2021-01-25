@@ -96,9 +96,6 @@ public:
             std::lock_guard<std::mutex>& writeLock,
             OrderedStoredValue& v) override;
 
-    std::tuple<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>, seqno_t>
-    rangeRead(seqno_t start, seqno_t end) override;
-
     void updateHighSeqno(std::lock_guard<std::mutex>& listWriteLg,
                          const OrderedStoredValue& v) override;
 

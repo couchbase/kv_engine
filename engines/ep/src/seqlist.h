@@ -265,27 +265,6 @@ public:
             OrderedStoredValue& v) = 0;
 
     /**
-     * Provides point-in-time snapshots which can be used for incremental
-     * replication.
-     *
-     * Copies the StoredValues as a vector of ref counterd items starting from
-     * 'start + 1' seqno into 'items' as a snapshot.
-     *
-     * Since we use monotonically increasing point-in-time snapshots we cannot
-     * guarantee that the snapshot ends at the requested end seqno. Due to
-     * dedups we may have to send till a higher seqno in the snapshot.
-     *
-     * @param start requested start seqno
-     * @param end requested end seqno
-     *
-     * @return ENGINE_SUCCESS, items in the snapshot and adjusted endSeqNo
-     *         ENGINE_ENOMEM on no memory to copy items
-     *         ENGINE_ERANGE on incorrect start and end
-     */
-    virtual std::tuple<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>, seqno_t>
-    rangeRead(seqno_t start, seqno_t end) = 0;
-
-    /**
      * Updates the highSeqno in the list. Since seqno is generated and managed
      * outside the list, the module managing it must update this after the seqno
      * is generated for the item already put in the list.
