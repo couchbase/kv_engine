@@ -245,6 +245,14 @@ public:
 
     uint64_t getMaxVisibleSeqno() const;
 
+    size_t getSeqListNumItems() const {
+        return seqList->getNumItems();
+    }
+
+    size_t getSeqListNumStaleItems() const {
+        return seqList->getNumStaleItems();
+    }
+
 protected:
     /* Data structure for in-memory sequential storage */
     std::unique_ptr<SequenceList> seqList;
