@@ -128,7 +128,7 @@ ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Cookie& cookie,
     // Create the new dump associated with a random uuid
     cb::uuid::uuid_t uuid = cb::uuid::random();
     {
-        std::lock_guard<std::mutex> lh(traceDumps.mutex);
+        std::lock_guard<std::mutex> guard(traceDumps.mutex);
         traceDumps.dumps.emplace(
                 uuid, std::make_unique<DumpContext>(std::move(context)));
     }
