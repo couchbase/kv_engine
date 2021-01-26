@@ -902,12 +902,10 @@ TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
         EXPECT_EQ(100, getRRPercent(*store->getVBucket(vbid)))
                 << vbid << " not fully resident after eviction";
     }
-    // Confirm the replica RR is "low"
-    // the replica RR could be constrained further (around 5%) but checking
-    // it is below 10% to avoid making the test too sensitive to small
-    // changes in base memory usage.
+
+    // Confirm the replica RR is lower that active RR
     for (const auto vbid : replicaVBs) {
-        EXPECT_LT(getRRPercent(*store->getVBucket(vbid)), 10)
+        EXPECT_LT(getRRPercent(*store->getVBucket(vbid)), 100)
                 << vbid << " has residency higher than expected";
     }
 }
