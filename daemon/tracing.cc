@@ -109,17 +109,22 @@ void deinitializeTracing() {
     traceDumps.dumps.clear();
 }
 
-ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Cookie& cookie,
-                                           const StrToStrMap&,
-                                           std::string& value,
-                                           cb::mcbp::Datatype& datatype) {
+phosphor::TraceContext getTraceContext() {
+    // Lock the instance until we've grabbed the trace context
     std::lock_guard<phosphor::TraceLog> lh(PHOSPHOR_INSTANCE);
     if (PHOSPHOR_INSTANCE.isEnabled()) {
         PHOSPHOR_INSTANCE.stop(lh);
     }
 
-    phosphor::TraceContext context = PHOSPHOR_INSTANCE.getTraceContext(lh);
-    if (context.getBuffer() == nullptr) {
+    return PHOSPHOR_INSTANCE.getTraceContext(lh);
+}
+
+ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Cookie& cookie,
+                                           const StrToStrMap&,
+                                           std::string& value,
+                                           cb::mcbp::Datatype& datatype) {
+    auto context = getTraceContext();
+    if (!context.getBuffer()) {
         cookie.setErrorContext(
                 "Cannot begin a dump when there is no existing trace");
         return ENGINE_EINVAL;
