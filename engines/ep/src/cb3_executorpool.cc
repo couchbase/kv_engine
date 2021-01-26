@@ -823,6 +823,17 @@ void CB3ExecutorPool::doTasksStat(Taskable& taskable,
 
     checked_snprintf(statname.data(), statname.size(), "%s:uptime_s", prefix);
     add_casted_stat(statname.data(), ep_current_time(), add_stat, cookie);
+
+    // It is possible that elements of `tasks` are now the last reference to
+    // a GlobalTask, if the GlobalTask was cancelled while this function was
+    // running. As such, we need to ensure that if the task is deleted, its
+    // memory is accounted to the correct bucket.
+    for (auto& pair : taskLocatorCopy) {
+        auto& task = pair.second.first;
+        auto* engine = task->getEngine();
+        BucketAllocationGuard guard(engine);
+        task.reset();
+    }
 }
 
 void CB3ExecutorPool::_stopAndJoinThreads() {

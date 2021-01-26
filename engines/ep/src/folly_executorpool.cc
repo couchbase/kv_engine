@@ -1017,6 +1017,16 @@ void FollyExecutorPool::doTasksStat(Taskable& taskable,
                     add_stat,
                     cookie);
     add_casted_stat("ep_tasks:uptime_s", ep_current_time(), add_stat, cookie);
+
+    // It is possible that elements of `tasks` are now the last reference to
+    // a GlobalTask, if the GlobalTask was cancelled while this function was
+    // running. As such, we need to ensure that if the task is deleted, its
+    // memory is accounted to the correct bucket.
+    for (auto& task : tasks) {
+        auto* engine = task->getEngine();
+        BucketAllocationGuard guard(engine);
+        task.reset();
+    }
 }
 
 void FollyExecutorPool::doTaskQStat(Taskable& taskable,

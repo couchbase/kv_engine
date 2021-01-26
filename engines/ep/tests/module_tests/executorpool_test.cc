@@ -1352,6 +1352,19 @@ TYPED_TEST(ExecutorPoolEpEngineTest, cancel_can_schedule) {
     pool->shutdown();
 }
 
+/**
+ * Waits for up to 10 seconds for the given taskable to have zero tasks.
+ * @returns true on success, or false if zero tasks were not observed
+ * within the time limit.
+ */
+static bool waitForZeroTasks(Taskable& taskable) {
+    return waitForPredicate(
+            [&taskable] {
+                return ExecutorPool::get()->getNumTasks(taskable) == 0;
+            },
+            std::chrono::seconds{10});
+}
+
 // Test that per-bucket memory tracking is handled correctly when
 // tasks are running on background threads.
 TYPED_TEST(ExecutorPoolEpEngineTest, MemoryTracking_Run) {
@@ -1527,14 +1540,6 @@ TYPED_TEST(ExecutorPoolEpEngineTest, MemoryTracking_Run) {
 
     // Given cancel is (partially) async for FollyExecutorPool, need to wait
     // until tasks have been cancelled.
-    auto waitForZeroTasks = [](auto& taskable) {
-        return waitForPredicate(
-                [&taskable] {
-                    return ExecutorPool::get()->getNumTasks(taskable) == 0;
-                },
-                std::chrono::seconds{10});
-    };
-
     task1.reset();
     ExecutorPool::get()->cancel(task1Id);
     ASSERT_TRUE(waitForZeroTasks(engine1->getTaskable()));
@@ -1550,5 +1555,80 @@ TYPED_TEST(ExecutorPoolEpEngineTest, MemoryTracking_Run) {
     auto memoryPostCancel2 = getMemUsed(engine2);
     EXPECT_EQ(memoryInitial2, memoryPostCancel2)
             << "engine2 mem_used has not returned to initial value after "
+               "cancelling task";
+}
+
+// Test that a task being cancelled during task stats being generated doesn't
+// cause a memory accounting issue (due to the Task being deleted via
+// doTasksStat.
+TYPED_TEST(ExecutorPoolEpEngineTest, TaskStats_MemAccounting) {
+    if (folly::kIsSanitizeAddress || folly::kIsSanitizeThread) {
+        // ASan/TSan perform their own interposing of global new / delete, which
+        // means KV-Engine's memory tracking (which this test relies on)
+        // doesn't work.
+        GTEST_SKIP();
+    }
+
+    // Disassociate current thread with any engine - we need to create various
+    // testing object (GoogleMock objects, etc) which we don't want interfering
+    // with specific bucket memory. This does require that we correctly switch
+    // _to_ the engine where necessary.
+    ObjectRegistry::onSwitchThread(nullptr);
+
+    // Establish initial memory accounting of the bucket, including the
+    // initial payload vector memory.
+    auto getMemUsed = [](EventuallyPersistentEngine& engine) {
+        return engine.getEpStats().getPreciseTotalMemoryUsed();
+    };
+    const auto memoryInitial = getMemUsed(*this->engine);
+
+    // Setup - create an instance of a test task (with correct memory
+    // accounting) and schedule it.
+    auto task = [&] {
+        BucketAllocationGuard guard(this->engine.get());
+        return std::make_shared<LambdaTask>(
+                this->engine.get(),
+                TaskId::ItemPager,
+                INT_MAX,
+                false,
+                [&](LambdaTask& task) { return false; });
+    }();
+    auto taskId = ExecutorPool::get()->schedule(std::move(task));
+
+    // Sanity check - memory should have increased by at least
+    // sizeof(LambdaTask) for the engine.
+    const auto memoryPostTaskCreate = getMemUsed(*this->engine);
+    ASSERT_GE(memoryPostTaskCreate - memoryInitial, sizeof(LambdaTask))
+            << "engine1 mem_used has not grown by at least sizeof(task) after "
+               "creating it.";
+
+    // We need to call cancel() while doTasksStat is running, to end up with
+    // the final reference to task being owned doTakStat's copy of all tasks,
+    // so it is freed when doTasksStat returns.
+    // To achive this setup a AddStat mock which calls cancel on the first
+    // call to it (doTasksStat makes 3 calls to this).
+    MockAddStat mockAddStat;
+    auto& taskable = this->engine->getTaskable();
+    EXPECT_CALL(mockAddStat, callback(_, _, _))
+            .WillOnce(
+                    [taskId, &taskable](std::string, std::string, const void*) {
+                        ExecutorPool::get()->cancel(taskId);
+                    })
+            .WillRepeatedly(Return());
+
+    const auto memoryPostMock = getMemUsed(*this->engine);
+    ASSERT_EQ(memoryPostTaskCreate, memoryPostMock);
+
+    // Test: Call doTasksStat, which should cause the mock to cancel the
+    // task while it's running. Then check memory usage is same as before
+    // task created.
+    ExecutorPool::get()->doTasksStat(
+            taskable, this, mockAddStat.asStdFunction());
+
+    ASSERT_TRUE(waitForZeroTasks(taskable));
+
+    auto memoryPostCancel = getMemUsed(*this->engine);
+    EXPECT_EQ(0, memoryPostCancel - memoryInitial)
+            << "mem_used has not returned to initial value after "
                "cancelling task";
 }
