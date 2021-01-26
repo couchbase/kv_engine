@@ -40,6 +40,7 @@ public:
     ~DcpConfigChangeListener() override {
     }
     void sizeValueChanged(const std::string& key, size_t value) override;
+    void booleanValueChanged(const std::string& key, bool value) override;
 
 private:
     DcpConnMap& myConnMap;
@@ -54,14 +55,18 @@ DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
                     engine.getConfiguration().getDcpMinCompressionRatio());
 
     // Note: these allocations are deleted by ~Configuration
-    engine.getConfiguration().addValueChangedListener(
+    auto& config = engine.getConfiguration();
+    config.addValueChangedListener(
             "dcp_consumer_process_buffered_messages_yield_limit",
             std::make_unique<DcpConfigChangeListener>(*this));
-    engine.getConfiguration().addValueChangedListener(
+    config.addValueChangedListener(
             "dcp_consumer_process_buffered_messages_batch_size",
             std::make_unique<DcpConfigChangeListener>(*this));
-    engine.getConfiguration().addValueChangedListener(
+    config.addValueChangedListener(
             "dcp_idle_timeout",
+            std::make_unique<DcpConfigChangeListener>(*this));
+    config.addValueChangedListener(
+            "allow_sanitize_value_in_deletion",
             std::make_unique<DcpConfigChangeListener>(*this));
 }
 
@@ -512,6 +517,13 @@ void DcpConnMap::DcpConfigChangeListener::sizeValueChanged(const std::string &ke
     }
 }
 
+void DcpConnMap::DcpConfigChangeListener::booleanValueChanged(
+        const std::string& key, bool value) {
+    if (key == "allow_sanitize_value_in_deletion") {
+        myConnMap.consumerAllowSanitizeValueInDeletionConfigChanged(value);
+    }
+}
+
 /*
  * Find all DcpConsumers and set the yield threshold
  */
@@ -545,6 +557,17 @@ void DcpConnMap::idleTimeoutConfigChanged(size_t newValue) {
     for (const auto& cookieToConn : *handle) {
         cookieToConn.second.get()->setIdleTimeout(
                 std::chrono::seconds(newValue));
+    }
+}
+
+void DcpConnMap::consumerAllowSanitizeValueInDeletionConfigChanged(
+        bool newValue) {
+    auto handle = connStore->getCookieToConnectionMapHandle();
+    for (const auto& cookieToConn : *handle) {
+        auto* consumer = dynamic_cast<DcpConsumer*>(cookieToConn.second.get());
+        if (consumer) {
+            consumer->setAllowSanitizeValueInDeletion(newValue);
+        }
     }
 }
 
