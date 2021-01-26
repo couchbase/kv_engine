@@ -3093,8 +3093,13 @@ void CouchKVStore::deleteCollectionStats(CollectionID cid) {
 Collections::VB::PersistedStats CouchKVStore::getCollectionStats(
         const KVFileHandle& kvFileHandle, CollectionID collection) {
     const auto& db = static_cast<const CouchKVFileHandle&>(kvFileHandle);
+    return getCollectionStats(*db.getDb(), collection);
+}
+
+Collections::VB::PersistedStats CouchKVStore::getCollectionStats(
+        Db& db, CollectionID collection) {
     std::string statDocName = "|" + collection.to_string() + "|";
-    return getCollectionStats(*db.getDb(), statDocName);
+    return getCollectionStats(db, statDocName);
 }
 
 Collections::VB::PersistedStats CouchKVStore::getCollectionStats(
@@ -3630,12 +3635,14 @@ Collections::KVStore::Manifest CouchKVStore::getCollectionsManifest(Vbid vbid) {
                 Collections::KVStore::Manifest::Default{}};
     }
 
-    auto manifest = readLocalDoc(*db.getDb(), Collections::manifestName);
-    auto collections =
-            readLocalDoc(*db.getDb(), Collections::openCollectionsName);
-    auto scopes = readLocalDoc(*db.getDb(), Collections::scopesName);
-    auto dropped =
-            readLocalDoc(*db.getDb(), Collections::droppedCollectionsName);
+    return getCollectionsManifest(*db.getDb());
+}
+
+Collections::KVStore::Manifest CouchKVStore::getCollectionsManifest(Db& db) {
+    auto manifest = readLocalDoc(db, Collections::manifestName);
+    auto collections = readLocalDoc(db, Collections::openCollectionsName);
+    auto scopes = readLocalDoc(db, Collections::scopesName);
+    auto dropped = readLocalDoc(db, Collections::droppedCollectionsName);
 
     cb::const_byte_buffer empty;
     return Collections::KVStore::decodeManifest(

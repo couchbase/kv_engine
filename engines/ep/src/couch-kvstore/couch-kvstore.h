@@ -373,6 +373,7 @@ public:
      * CouchKVStore implements this method as a read of 3 _local documents
      */
     Collections::KVStore::Manifest getCollectionsManifest(Vbid vbid) override;
+    Collections::KVStore::Manifest getCollectionsManifest(Db& db);
 
     /**
      * CouchKVStore implements this method as a read of 1 _local document
@@ -584,6 +585,8 @@ protected:
     /// Get the collection stats for the given collection
     Collections::VB::PersistedStats getCollectionStats(
             const KVFileHandle& kvFileHandle, CollectionID collection) override;
+    Collections::VB::PersistedStats getCollectionStats(Db& db,
+                                                       CollectionID collection);
 
     /// Get the collection stats from the local doc named statDocName
     Collections::VB::PersistedStats getCollectionStats(
