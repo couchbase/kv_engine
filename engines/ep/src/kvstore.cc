@@ -627,12 +627,15 @@ CompactionConfig::CompactionConfig(CompactionConfig&& other) {
 }
 
 CompactionConfig& CompactionConfig::operator=(CompactionConfig&& other) {
-    if (*this != other) {
+    if (this != &other) {
         purge_before_ts = other.purge_before_ts;
         purge_before_seq = other.purge_before_seq;
         drop_deletes = other.drop_deletes;
         retain_erroneous_tombstones = other.retain_erroneous_tombstones;
-        other = CompactionConfig{}; // back to default values
+        other.purge_before_ts = 0;
+        other.purge_before_seq = 0;
+        other.drop_deletes = false;
+        other.retain_erroneous_tombstones = false;
     }
     return *this;
 }
