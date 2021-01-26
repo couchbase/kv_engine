@@ -1965,7 +1965,7 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushing) {
     ASSERT_EQ(5, kvstore->getItemCount(Vbid{0}));
 
     int ii = 0;
-    kvstore->setConcurrentCompactionUnitTestHook([&ii, &seqno, this](
+    kvstore->setConcurrentCompactionPostLockHook([&ii, &seqno, this](
                                                          const std::string&) {
         StoredDocKey key = makeStoredDocKey("concurrent-" + std::to_string(ii));
         kvstore->begin(std::make_unique<TransactionContext>(vbid));
@@ -2021,7 +2021,7 @@ TEST_F(CouchstoreTest, MB_39946_diskSize_could_underflow) {
     };
 
     doWrite("");
-    kvstore->setConcurrentCompactionUnitTestHook(doWrite);
+    kvstore->setConcurrentCompactionPostLockHook(doWrite);
 
     std::mutex mutex;
     std::unique_lock<std::mutex> lock(mutex);
@@ -2029,7 +2029,7 @@ TEST_F(CouchstoreTest, MB_39946_diskSize_could_underflow) {
     auto ctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
     kvstore->compactDB(lock, ctx);
 
-    kvstore->setConcurrentCompactionUnitTestHook([](const std::string&) {});
+    kvstore->setConcurrentCompactionPostLockHook([](const std::string&) {});
 
     // Delete all keys, should result in collection stats being 0
     for (int ii = 0; ii < items; ++ii) {
@@ -2061,7 +2061,7 @@ TEST_F(CouchstoreTest, MB43121) {
     std::unique_lock<std::mutex> lock(mutex);
     std::string filename;
     bool aborted = false;
-    kvstore->setConcurrentCompactionUnitTestHook(
+    kvstore->setConcurrentCompactionPostLockHook(
             [&aborted, &lock, &filename, this](const std::string& fname) {
                 ASSERT_TRUE(lock.owns_lock())
                         << "Unit test callback should be called "
@@ -2108,7 +2108,7 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingPrepareToAbort) {
     EXPECT_LT(0, vbstate.getOnDiskPrepareBytes());
 
     bool seenPrepare = false;
-    kvstore->setConcurrentCompactionUnitTestHook(
+    kvstore->setConcurrentCompactionPostLockHook(
             [&seenPrepare, &docKey, this](auto& key) {
                 if (seenPrepare) {
                     return;
@@ -2153,7 +2153,7 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingAbortToPrepare) {
     EXPECT_EQ(0, vbstate.getOnDiskPrepareBytes());
 
     bool seenPrepare = false;
-    kvstore->setConcurrentCompactionUnitTestHook(
+    kvstore->setConcurrentCompactionPostLockHook(
             [&seenPrepare, &docKey, this](auto& key) {
                 if (seenPrepare) {
                     return;
@@ -2192,7 +2192,7 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingPrepareToPrepare) {
     EXPECT_LT(0, prepareSize);
 
     bool seenPrepare = false;
-    kvstore->setConcurrentCompactionUnitTestHook(
+    kvstore->setConcurrentCompactionPostLockHook(
             [&seenPrepare, &docKey, this](auto& key) {
                 if (seenPrepare) {
                     return;
@@ -2229,7 +2229,7 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingAbortToAbort) {
     EXPECT_EQ(0, vbstate.onDiskPrepares);
 
     bool seenPrepare = false;
-    kvstore->setConcurrentCompactionUnitTestHook(
+    kvstore->setConcurrentCompactionPostLockHook(
             [&seenPrepare, &docKey, this](auto& key) {
                 if (seenPrepare) {
                     return;

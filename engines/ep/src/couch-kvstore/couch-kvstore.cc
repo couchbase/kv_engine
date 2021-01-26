@@ -1433,7 +1433,7 @@ bool CouchKVStore::compactDBInternal(DbHolder& sourceDb,
     // up.
     vbLock.lock();
     for (int ii = 0; ii < 10; ++ii) {
-        concurrentCompactionUnitTestHook(compact_file);
+        concurrentCompactionPostLockHook(compact_file);
         if (vbAbortCompaction[vbid.get()]) {
             logger.warn("Compaction aborted for {}", vbid);
             return false;
@@ -1450,7 +1450,7 @@ bool CouchKVStore::compactDBInternal(DbHolder& sourceDb,
         }
     }
 
-    concurrentCompactionUnitTestHook(compact_file);
+    concurrentCompactionPostLockHook(compact_file);
 
     if (vbAbortCompaction[vbid.get()]) {
         logger.warn("Compaction aborted for {}", vbid);

@@ -728,9 +728,9 @@ protected:
         mb40415_regression_hook = value;
     }
 
-    void setConcurrentCompactionUnitTestHook(
+    void setConcurrentCompactionPostLockHook(
             std::function<void(const std::string&)> hook) {
-        concurrentCompactionUnitTestHook = std::move(hook);
+        concurrentCompactionPostLockHook = std::move(hook);
     }
 
     enum class ReadVBStateStatus : uint8_t {
@@ -943,7 +943,8 @@ protected:
     /// Hook to allow for unit testing of compaction and flushing happening
     /// in parallel.
     /// The hook gets called after the initial compaction runs, and then
-    /// after each step in the catch-up-phase
-    std::function<void(const std::string&)> concurrentCompactionUnitTestHook =
+    /// after each step in the catch-up-phase. Notably it gets called after
+    /// the vbucket lock is re-acquired
+    std::function<void(const std::string&)> concurrentCompactionPostLockHook =
             [](const std::string&) {};
 };
