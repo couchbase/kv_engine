@@ -469,6 +469,21 @@ TEST(ManifestTest, validation) {
     }
 }
 
+TEST(ManifestTest, forceVsNoForce) {
+    Collections::Manifest force(
+            R"({"uid" : "1", "force":true,
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"_default","uid":"0"}]}]})");
+
+    Collections::Manifest noForce(
+            R"({"uid" : "1",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"_default","uid":"0"}]}]})");
+    // The == operator was broken with force not being checked
+    EXPECT_FALSE(force == noForce);
+    EXPECT_TRUE(force != noForce);
+}
+
 TEST(ManifestTest, getUid) {
     std::vector<std::pair<Collections::ManifestUid, std::string>>
             validManifests = {{Collections::ManifestUid(1),

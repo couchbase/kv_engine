@@ -238,7 +238,7 @@ Manifest::Manifest(Manifest&& other) {
 }
 
 Manifest& Manifest::operator=(Manifest&& other) {
-    if (*this != other) {
+    if (this != &other) {
         defaultCollectionExists = other.defaultCollectionExists;
         scopes = std::move(other.scopes);
         collections = std::move(other.collections);
@@ -249,6 +249,7 @@ Manifest& Manifest::operator=(Manifest&& other) {
         }
         force = other.force;
     }
+
     return *this;
 }
 
@@ -608,7 +609,8 @@ bool Scope::operator==(const Scope& other) const {
 }
 
 bool Manifest::operator==(const Manifest& other) const {
-    return (uid == other.uid) && isEqualContent(other);
+    return (uid == other.uid) && (force == other.force) &&
+           isEqualContent(other);
 }
 
 // tests the equality of contents, i.e. everything but the uid
