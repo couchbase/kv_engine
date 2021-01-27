@@ -984,7 +984,9 @@ uint64_t EPVBucket::addSystemEventItem(
             // Inform the PDM about the dropped collection so that it knows
             // that it can skip any outstanding prepares until they are cleaned
             // up
-            if (getState() != vbucket_state_active) {
+            auto state = getState();
+            if (state == vbucket_state_replica ||
+                state == vbucket_state_pending) {
                 getPassiveDM().notifyDroppedCollection(*cid, notifyCtx.bySeqno);
             }
         } else {

@@ -1275,6 +1275,24 @@ TEST_P(CollectionsEraserSyncWriteTest, DropAfterCommit) {
     runCollectionsEraser(vbid);
 }
 
+TEST_P(CollectionsEraserSyncWriteTest, DropPrepareWhileDead) {
+    // Test that dropping a prepare does not attempt to use the PDM of a dead
+    // vbucket.
+
+    addCollection();
+    createPendingWrite();
+
+    dropCollection();
+
+    store->setVBucketState(vb->getId(), vbucket_state_dead);
+
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    runNextTask(lpAuxioQ, "Notify clients of Sync Write Ambiguous vb:0");
+
+    // `Expects` in getPassiveDM() would fail during this call
+    runCollectionsEraser(vbid);
+}
+
 TEST_P(CollectionsEraserSyncWriteTest, DropAfterAbort) {
     addCollection();
     createPendingWrite();

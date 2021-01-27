@@ -1238,8 +1238,7 @@ VBNotifyCtx VBucket::queueItem(queued_item& item, const VBQueueItemCtx& ctx) {
         }
         break;
     case vbucket_state_replica:
-    case vbucket_state_pending:
-    case vbucket_state_dead:
+    case vbucket_state_pending: {
         auto& pdm = getPassiveDM();
         if (item->isPending()) {
             pdm.addSyncWrite(item, ctx.overwritingPrepareSeqno);
@@ -1254,6 +1253,10 @@ VBNotifyCtx VBucket::queueItem(queued_item& item, const VBQueueItemCtx& ctx) {
                                   PassiveDurabilityMonitor::Resolution::Abort,
                                   {} /* no prepareSeqno*/);
         }
+        break;
+    }
+    case vbucket_state_dead:
+        // Do nothing, the vbucket is dead and the DM shouldn't be used
         break;
     }
 
@@ -4027,9 +4030,17 @@ uint64_t VBucket::getMaxVisibleSeqno() const {
 }
 
 void VBucket::dropPendingKey(const DocKey& key, int64_t seqno) {
-    if (state == vbucket_state_active) {
+    switch (state) {
+    case vbucket_state_active:
         getActiveDM().eraseSyncWrite(key, seqno);
-    } else {
+        return;
+    case vbucket_state_replica:
+    case vbucket_state_pending:
         getPassiveDM().eraseSyncWrite(key, seqno);
+        return;
+    case vbucket_state_dead:
+        // Do nothing, the vbucket is dead and the DM shouldn't be used
+        return;
     }
+    folly::assume_unreachable();
 }
