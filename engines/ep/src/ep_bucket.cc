@@ -722,16 +722,6 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
 
     // Are we flushing only a new vbstate?
     if (mustPersistVBState && (flushBatchSize == 0)) {
-        // @todo MB-37920: This call potentially does 2 things:
-        //   1) update the cached vbstate
-        //   2) persisted the new vbstate
-        // The function returns false if the operation fails. But, (1) may
-        // succeed and (2) may fail, which makes function to return false.
-        // In that case we do not rollback the cached vbstate, which exposes
-        // a wrong on-disk state at that point.
-        // Also, when we re-attempt to flush a set-vbstate item we may fail
-        // again because of the optimization at
-        // vbucket_state::needsToBePersisted().
         if (!rwUnderlying->snapshotVBucket(vbid, commitData.proposedVBState)) {
             // Flush failed, we need to reset the pcursor to the original
             // position. At the next run the flusher will re-attempt by
