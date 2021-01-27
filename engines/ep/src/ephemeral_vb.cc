@@ -924,30 +924,45 @@ void EphemeralVBucket::dropKey(const DocKey& key, int64_t bySeqno) {
         return;
     }
 
-    auto res = ht.findForUpdate(key);
-    auto releaseAndMarkStale = [this](const HashTable::HashBucketLock& hbl,
-                                      StoredValue* sv) {
-        auto ownedSV = ht.unlocked_release(hbl, sv);
-        {
-            std::lock_guard<std::mutex> listWriteLg(
-                    seqList->getListWriteLock());
-            // Mark the item stale, with no replacement item
-            seqList->markItemStale(listWriteLg, std::move(ownedSV), nullptr);
-        }
-    };
+    // if there is a pending item which will need removing from the DM,
+    // store its seqno here for use after the HT lock has been released.
+    int64_t prepareSeqno = 0;
 
-    if (res.pending) {
-        // We don't need to drop a complete prepare or an abort from the DM so
-        // only call for in-flight prepares
-        if (res.pending->isPending()) {
-            dropPendingKey(key, res.pending->getBySeqno());
-        }
+    {
+        auto res = ht.findForUpdate(key);
+        auto releaseAndMarkStale = [this](const HashTable::HashBucketLock& hbl,
+                                          StoredValue* sv) {
+            auto ownedSV = ht.unlocked_release(hbl, sv);
+            {
+                std::lock_guard<std::mutex> listWriteLg(
+                        seqList->getListWriteLock());
+                // Mark the item stale, with no replacement item
+                seqList->markItemStale(
+                        listWriteLg, std::move(ownedSV), nullptr);
+            }
+        };
 
-        releaseAndMarkStale(res.getHBL(), res.pending.release());
+        if (res.pending) {
+            // We don't need to drop a complete prepare or an abort from the DM
+            // so only call for in-flight prepares
+            if (res.pending->isPending()) {
+                prepareSeqno = res.pending->getBySeqno();
+            }
+
+            releaseAndMarkStale(res.getHBL(), res.pending.release());
+        }
+        if (res.committed) {
+            releaseAndMarkStale(res.getHBL(), res.committed);
+        }
+    } // hashtable lock released here
+
+    // if a pending prepare has been dropped from the HT, remove it from the DM
+    // as well. Done outside of HT lock scope to avoid lock order inversion with
+    // KVBucket::set when dropPendingKey takes the vbucket state lock.
+    if (prepareSeqno) {
+        dropPendingKey(key, prepareSeqno);
     }
-    if (res.committed) {
-        releaseAndMarkStale(res.getHBL(), res.committed);
-    }
+
     return;
 }
 

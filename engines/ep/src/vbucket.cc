@@ -4041,6 +4041,7 @@ uint64_t VBucket::getMaxVisibleSeqno() const {
 }
 
 void VBucket::dropPendingKey(const DocKey& key, int64_t seqno) {
+    folly::SharedMutex::ReadHolder vbStateLh(getStateLock());
     switch (state) {
     case vbucket_state_active:
         getActiveDM().eraseSyncWrite(key, seqno);
