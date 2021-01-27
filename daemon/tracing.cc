@@ -20,6 +20,7 @@
 #include "cookie.h"
 #include "executorpool.h"
 #include "memcached.h"
+#include "settings.h"
 #include "task.h"
 #include "tracing_types.h"
 
@@ -29,10 +30,14 @@
 #include <memory>
 #include <mutex>
 
-// TODO: MB-20640 The default config should be configurable from memcached.json
 static phosphor::TraceConfig lastConfig{
         phosphor::TraceConfig(phosphor::BufferMode::ring, 20 * 1024 * 1024)};
 static std::mutex configMutex;
+
+static void setTraceConfig(const std::string& config) {
+    std::lock_guard<std::mutex> lh(configMutex);
+    lastConfig = phosphor::TraceConfig::fromString(config);
+}
 
 ENGINE_ERROR_CODE ioctlGetTracingStatus(Cookie& cookie,
                                         const StrToStrMap&,
@@ -76,22 +81,29 @@ Task::Status StaleTraceDumpRemover::periodicExecute() {
 static TraceDumps traceDumps;
 static std::shared_ptr<StaleTraceDumpRemover> dump_remover;
 
-void initializeTracing() {
+void initializeTracing(const std::string& traceConfig,
+                       std::chrono::seconds interval,
+                       std::chrono::seconds max_age) {
     // Currently just creating the stale dump remover periodic task
-    // @todo make period and max_age configurable
     dump_remover = std::make_shared<StaleTraceDumpRemover>(
-            traceDumps, std::chrono::seconds(60), std::chrono::seconds(300));
+            traceDumps, interval, max_age);
     std::shared_ptr<Task> task = dump_remover;
     {
         std::lock_guard<std::mutex> lg(task->getMutex());
         executorPool->schedule(task);
     }
 
+    setTraceConfig(traceConfig);
     // and begin tracing.
     {
         std::lock_guard<std::mutex> lh(configMutex);
         PHOSPHOR_INSTANCE.start(lastConfig);
     }
+
+    Settings::instance().addChangeListener(
+            "phosphor_config", [](const std::string&, Settings& s) {
+                setTraceConfig(s.getPhosphorConfig());
+            });
 }
 
 void deinitializeTracing() {

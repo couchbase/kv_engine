@@ -16,6 +16,7 @@
  */
 
 #include <nlohmann/json.hpp>
+#include <phosphor/trace_config.h>
 #include <platform/base64.h>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
@@ -173,6 +174,13 @@ static void handle_scramsha_fallback_salt(Settings& s,
     std::string salt = obj.get<std::string>();
     cb::base64::decode(salt);
     s.setScramshaFallbackSalt(salt);
+}
+
+static void handle_phosphor_config(Settings& s, const nlohmann::json& obj) {
+    auto config = obj.get<std::string>();
+    // throw an exception if the config is invalid
+    phosphor::TraceConfig::fromString(config);
+    s.setPhosphorConfig(config);
 }
 
 static void handle_external_auth_service(Settings& s,
@@ -770,6 +778,7 @@ void Settings::reconfigure(const nlohmann::json& json) {
              handle_active_external_users_push_interval},
             {"max_concurrent_commands_per_connection",
              handle_max_concurrent_commands_per_connection},
+            {"phosphor_config", handle_phosphor_config},
             {"prometheus", handle_prometheus},
             {"portnumber_file", handle_portnumber_file},
             {"parent_identifier", handle_parent_identifier}};
@@ -1284,6 +1293,15 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                  storageThreadConfig2String(other.getNumStorageThreads()));
         setNumStorageThreads(other.getNumStorageThreads());
 
+    }
+
+    if (other.has.phosphor_config) {
+        const auto o = other.getPhosphorConfig();
+        const auto m = getPhosphorConfig();
+        if (o != m) {
+            LOG_INFO(R"(Change Phosphor config from "{}" to "{}")", o, m);
+            setPhosphorConfig(o);
+        }
     }
 }
 

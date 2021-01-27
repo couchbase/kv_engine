@@ -835,6 +835,16 @@ public:
         notify_changed("num_storage_threads");
     }
 
+    void setPhosphorConfig(std::string value) {
+        *phosphor_config.wlock() = std::move(value);
+        has.phosphor_config = true;
+        notify_changed("phosphor_config");
+    }
+
+    std::string getPhosphorConfig() const {
+        return std::string{*phosphor_config.rlock()};
+    }
+
 protected:
     /// Should the server always collect trace information for commands
     std::atomic_bool always_collect_trace_info{false};
@@ -1038,6 +1048,9 @@ protected:
     /// Number of storage backend threads
     std::atomic<int> num_storage_threads{0};
 
+    folly::Synchronized<std::string> phosphor_config{
+            "buffer-mode:ring;buffer-size:20971520;enabled-categories:*"};
+
 public:
     /**
      * Flags for each of the above config options, indicating if they were
@@ -1094,5 +1107,6 @@ public:
         bool portnumber_file = false;
         bool parent_identifier = false;
         bool prometheus_config = false;
+        bool phosphor_config = false;
     } has;
 };

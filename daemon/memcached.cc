@@ -1503,7 +1503,11 @@ int memcached_main(int argc, char** argv) {
     executorPool = std::make_unique<cb::ExecutorPool>(
             Settings::instance().getNumWorkerThreads());
 
-    initializeTracing();
+    LOG_INFO(R"(Starting Phosphor tracing with config: "{}")",
+             Settings::instance().getPhosphorConfig());
+    initializeTracing(Settings::instance().getPhosphorConfig(),
+                      std::chrono::minutes(1),
+                      std::chrono::minutes(5));
     TRACE_GLOBAL0("memcached", "Started");
 
     /*

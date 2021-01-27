@@ -113,6 +113,15 @@ The *prometheus* is a object with the following properties:
     port         The port number to bind to
     family       The address family to use (IPv4/IPv6)
 
+=== phosphor_config
+
+The *phosphor_config* attribute is used to provide the configuration
+to use for Phosphor tracing. It is specified in a string value.
+By default a ring buffer of 20MB is used with all categories enabled.
+
+NOTE: The in order to change the configuration one would also need
+to stop and start phosphor via ioctl command.
+
 === interfaces
 
 The *interfaces* attribute is used to specify an array of interfaces
