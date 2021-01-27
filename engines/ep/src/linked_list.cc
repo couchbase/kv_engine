@@ -28,7 +28,6 @@ BasicLinkedList::BasicLinkedList(Vbid vbucketId, EPStats& st)
       staleSize(0),
       staleMetaDataSize(0),
       highSeqno(0),
-      highestDedupedSeqno(0),
       highestPurgedDeletedSeqno(0),
       numStaleItems(0),
       numDeletedItems(0),
@@ -89,107 +88,6 @@ SequenceList::UpdateStatus BasicLinkedList::updateListElem(
     return UpdateStatus::Success;
 }
 
-std::tuple<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>, seqno_t>
-BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
-    if ((start > end) || (start <= 0)) {
-        EP_LOG_WARN(
-                "BasicLinkedList::rangeRead(): ({}) ERANGE: start {} > end {}",
-                vbid,
-                start,
-                end);
-        return std::make_tuple(ENGINE_ERANGE, std::vector<UniqueItemPtr>(), 0);
-    }
-
-    RangeGuard range;
-
-    {
-        std::lock_guard<std::mutex> listWriteLg(getListWriteLock());
-
-        if (start > highSeqno) {
-            EP_LOG_WARN(
-                    "BasicLinkedList::rangeRead(): "
-                    "({}) ERANGE: start {} > highSeqno {}",
-                    vbid,
-                    start,
-                    static_cast<seqno_t>(highSeqno));
-            /* If the request is for an invalid range, return before iterating
-               through the list */
-            return std::make_tuple(
-                    ENGINE_ERANGE, std::vector<UniqueItemPtr>(), 0);
-        }
-
-        /* Mark the initial read range */
-        end = std::min(end, static_cast<seqno_t>(highSeqno));
-        end = std::max(end, static_cast<seqno_t>(highestDedupedSeqno));
-
-        // the range lock will be released when the RangeGuard is destroyed.
-        range = tryLockSeqnoRangeShared(1, end);
-        if (!range) {
-            return std::make_tuple(
-                    ENGINE_TMPFAIL, std::vector<UniqueItemPtr>(), 0);
-        }
-    }
-
-    /* Read items in the range */
-    std::vector<UniqueItemPtr> items;
-
-    for (const auto& osv : seqList) {
-        int64_t currSeqno(osv.getBySeqno());
-
-        if (currSeqno > end || currSeqno < 0) {
-            /* We have read all the items in the requested range, or the osv
-             * does not yet have a valid seqno; either way we are done */
-            break;
-        }
-
-        if (currSeqno < start) {
-            /* skip this item */
-            continue;
-        }
-
-        if (currSeqno > 1) {
-            // strictly monotonically update the range lock
-            range.updateRangeStart(currSeqno);
-            /* [EPHE TODO] MB-37710: Will updating the range start every time
-             * have a negative performance impact? */
-        }
-
-        /* Check if this OSV has been made stale and has been superseded by a
-         * newer version. If it has, and the replacement is /also/ in the range
-         * we are reading, we should skip this item to avoid duplicates */
-        StoredValue* replacement;
-        {
-            std::lock_guard<std::mutex> writeGuard(getListWriteLock());
-            replacement = osv.getReplacementIfStale(writeGuard);
-        }
-
-        if (replacement &&
-            replacement->toOrderedStoredValue()->getBySeqno() <= end) {
-            continue;
-        }
-
-        try {
-            items.push_back(UniqueItemPtr(osv.toItem(vbid)));
-        } catch (const std::bad_alloc&) {
-            /* [EPHE TODO]: Do we handle backfill in a better way ?
-                            Perhaps do backfilling partially (that is
-                            backfill ==> stream; backfill ==> stream ..so on )?
-             */
-            EP_LOG_WARN(
-                    "BasicLinkedList::rangeRead(): "
-                    "({}) ENOMEM while trying to copy "
-                    "item with seqno {} before streaming it",
-                    vbid,
-                    currSeqno);
-            return std::make_tuple(
-                    ENGINE_ENOMEM, std::vector<UniqueItemPtr>(), 0);
-        }
-    }
-
-    /* Return all the range read items */
-    return std::make_tuple(ENGINE_SUCCESS, std::move(items), end);
-}
-
 void BasicLinkedList::updateHighSeqno(std::lock_guard<std::mutex>& listWriteLg,
                                       const OrderedStoredValue& v) {
     if (v.getBySeqno() < 1) {
@@ -199,19 +97,6 @@ void BasicLinkedList::updateHighSeqno(std::lock_guard<std::mutex>& listWriteLg,
                 std::to_string(v.getBySeqno()) + " which is < 1");
     }
     highSeqno = v.getBySeqno();
-}
-
-void BasicLinkedList::updateHighestDedupedSeqno(
-        std::lock_guard<std::mutex>& listWriteLg, const OrderedStoredValue& v) {
-    if (v.getBySeqno() < 1) {
-        throw std::invalid_argument(
-                "BasicLinkedList::updateHighestDedupedSeqno(): " +
-                vbid.to_string() +
-                "; Cannot set the highestDedupedSeqno to "
-                "a value " +
-                std::to_string(v.getBySeqno()) + " which is < 1");
-    }
-    highestDedupedSeqno = v.getBySeqno();
 }
 
 void BasicLinkedList::maybeUpdateMaxVisibleSeqno(
@@ -442,11 +327,6 @@ uint64_t BasicLinkedList::getHighSeqno() const {
     return highSeqno;
 }
 
-uint64_t BasicLinkedList::getHighestDedupedSeqno() const {
-    std::lock_guard<std::mutex> lckGd(getListWriteLock());
-    return highestDedupedSeqno;
-}
-
 seqno_t BasicLinkedList::getHighestPurgedDeletedSeqno() const {
     return highestPurgedDeletedSeqno;
 }
@@ -545,7 +425,6 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll,
     : list(ll),
       itrRange(0, 0),
       numRemaining(0),
-      earlySnapShotEndSeqno(0),
       maxVisibleSeqno(0),
       isBackfill(isBackfill) {
 
@@ -562,10 +441,6 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll,
 
     /* Number of items that can be iterated over */
     numRemaining = list.seqList.size();
-
-    /* The minimum seqno in the iterator that must be read to get a consistent
-       read snapshot */
-    earlySnapShotEndSeqno = list.highestDedupedSeqno;
 
     maxVisibleSeqno = list.maxVisibleSeqno;
 
@@ -594,12 +469,10 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll,
                                : spdlog::level::level_enum::debug;
 
     EP_LOG_FMT(severity,
-               "{} Created range iterator from {} to {}, earlySnapEndSeqno:{}, "
-               "maxVisibleSeqno:{}",
+               "{} Created range iterator from {} to {}, maxVisibleSeqno:{}",
                list.vbid,
                itrRange.getBegin(),
                itrRange.getEnd(),
-               earlySnapShotEndSeqno,
                maxVisibleSeqno);
 }
 

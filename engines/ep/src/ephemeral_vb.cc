@@ -194,10 +194,6 @@ void EphemeralVBucket::addStats(VBucketStatsDetailLevel detail,
                 add_stat,
                 c);
         addStat("seqlist_high_seqno", seqList->getHighSeqno(), add_stat, c);
-        addStat("seqlist_highest_deduped_seqno",
-                seqList->getHighestDedupedSeqno(),
-                add_stat,
-                c);
         addStat("seqlist_purged_count", seqListPurgeCount.load(), add_stat, c);
 
         uint64_t rr_begin, rr_end;
@@ -327,11 +323,6 @@ std::unique_ptr<DCPBackfillIface> EphemeralVBucket::createDCPBackfill(
             "variant)");
 }
 
-std::tuple<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>, seqno_t>
-EphemeralVBucket::inMemoryBackfill(uint64_t start, uint64_t end) {
-    return seqList->rangeRead(start, end);
-}
-
 std::optional<SequenceList::RangeIterator> EphemeralVBucket::makeRangeIterator(
         bool isBackfill) {
     return seqList->makeRangeIterator(isBackfill);
@@ -412,17 +403,15 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
 
     std::lock_guard<std::mutex> lh(sequenceLock);
 
-    const bool wasTemp = v.isTempItem();
     const bool oldValueDeleted = v.isDeleted();
     const bool recreatingDeletedItem = v.isDeleted() && !itm.isDeleted();
 
     StoredValue::UniquePtr ownedSv;
 
     {
-        // Once we update the seqList, there is a short period where the
-        // highSeqno and highestDedupedSeqno are both incorrect. We have to hold
-        // this lock to prevent a new rangeRead starting, and covering an
-        // inconsistent range.
+        // Once we update the seqList, there is a short period where highSeqno
+        // is incorrect. We have to hold this lock to prevent a new rangeRead
+        // starting, and covering an inconsistent range.
         std::lock_guard<std::mutex> listWriteLg(seqList->getListWriteLock());
 
         /* Update in the Ordered data structure (seqList) first and then update
@@ -475,12 +464,6 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
         seqList->updateHighSeqno(listWriteLg, osv);
 
         seqList->maybeUpdateMaxVisibleSeqno(lh, listWriteLg, osv);
-
-        /* Temp items are never added to the seqList, hence updating a temp
-           item should not update the deduped seqno */
-        if (!wasTemp) {
-            seqList->updateHighestDedupedSeqno(listWriteLg, osv);
-        }
 
         if (res == SequenceList::UpdateStatus::Append) {
             /* Mark the un-updated storedValue as stale. This must be done after
@@ -578,10 +561,9 @@ EphemeralVBucket::softDeleteStoredValue(const HashTable::HashBucketLock& hbl,
 
     VBNotifyCtx notifyCtx;
     {
-        // Once we update the seqList, there is a short period where the
-        // highSeqno and highestDedupedSeqno are both incorrect. We have to hold
-        // this lock to prevent a new rangeRead starting, and covering an
-        // inconsistent range.
+        // Once we update the seqList, there is a short period where highSeqno
+        // is incorrect. We have to hold this lock to prevent a new rangeRead
+        // starting, and covering an inconsistent range.
         std::lock_guard<std::mutex> listWriteLg(seqList->getListWriteLock());
 
         /* Update the in the Ordered data structure (seqList) first and then
@@ -640,12 +622,6 @@ EphemeralVBucket::softDeleteStoredValue(const HashTable::HashBucketLock& hbl,
         seqList->updateHighSeqno(listWriteLg, osv);
 
         seqList->maybeUpdateMaxVisibleSeqno(lh, listWriteLg, osv);
-
-        /* Temp items are never added to the seqList, hence updating a temp
-           item should not update the deduped seqno */
-        if (wasCommittedNonTemp) {
-            seqList->updateHighestDedupedSeqno(listWriteLg, osv);
-        }
 
         if (res == SequenceList::UpdateStatus::Append) {
             /* Mark the un-updated storedValue as stale. This must be done after
@@ -805,11 +781,6 @@ VBNotifyCtx EphemeralVBucket::abortStoredValue(
         if (res == SequenceList::UpdateStatus::Append) {
             seqList->markItemStale(listWriteLg, std::move(oldSv), newSv);
         }
-
-        // We de-duped a prepare so we need to update the highest deduped seqno
-        // to prevent a backfill range read from ending without reaching this
-        // abort
-        seqList->updateHighestDedupedSeqno(listWriteLg, osv);
     }
 
     return notifyCtx;
