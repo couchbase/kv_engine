@@ -2132,9 +2132,9 @@ static enum test_result test_dcp_producer_stream_req_full(EngineIface* h) {
 
     checkne(num_items - get_stat<uint64_t>(h, "ep_items_rm_from_checkpoints"),
             uint64_t{0},
-            "Require a non-zero number of items to still be present in "
-            "CheckpointManager to be able to get 2x snapshot markers "
-            "(1x disk, 1x memory)");
+            "Ensure a non-zero number of items to still be present in "
+            "CheckpointManager to verify that we still get all mutations in the"
+            " storage in a single Backfill snapshot");
 
     auto* cookie = testHarness->create_cookie(h);
 
@@ -2142,9 +2142,7 @@ static enum test_result test_dcp_producer_stream_req_full(EngineIface* h) {
     ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {0, get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno")};
     ctx.exp_mutations = num_items;
-    /* Memory backfill sends items from checkpoint snapshots as much as possible
-       Relies on backfill only when checkpoint snapshot is cleaned up */
-    ctx.exp_markers = 2;
+    ctx.exp_markers = 1;
 
     TestDcpConsumer tdc("unittest", cookie, h);
     tdc.addStreamCtx(ctx);
@@ -2282,7 +2280,14 @@ static enum test_result test_dcp_producer_stream_req_backfill(EngineIface* h) {
     DcpStreamCtx ctx;
     ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {0, 200};
-    ctx.exp_mutations = 200;
+    // The idea here is that at backfill we get the full Disk/SeqList snapshot.
+    // Persistence has been stopped at seqno 200, while Ephemeral stores all
+    // seqnos in the SeqList.
+    if (isEphemeralBucket(h)) {
+        ctx.exp_mutations = 400;
+    } else {
+        ctx.exp_mutations = 200;
+    }
     ctx.exp_markers = 1;
 
     TestDcpConsumer tdc("unittest", cookie, h);

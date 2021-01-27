@@ -22,6 +22,7 @@
 #include "checkpoint_manager.h"
 #include "collections/manager.h"
 #include "collections/vbucket_manifest_handles.h"
+#include "dcp/backfill-manager.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/response.h"
 #include "durability/active_durability_monitor.h"
@@ -2545,8 +2546,11 @@ TEST_P(CollectionsDcpParameterizedTest,
     if (persistent()) {
         flush_vbucket_to_disk(vbid, 4);
     }
+
+    EXPECT_EQ(4, vb->getHighSeqno());
+
     ensureDcpWillBackfill();
-    // filter only CollectionEntry::dairy
+    // filter only CollectionEntry::meat
     createDcpObjects({{R"({"collections":["8"]})"}}, false, 0, true);
     store_item(
             vbid, StoredDocKey{"dairy::two", CollectionEntry::dairy}, "dairy");
@@ -2555,7 +2559,20 @@ TEST_P(CollectionsDcpParameterizedTest,
                StoredDocKey{"dairy::three", CollectionEntry::dairy},
                "dairy123");
 
-    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+    EXPECT_EQ(7, vb->getHighSeqno());
+
+    // Push items into the ActiveStream::readyQ
+    if (persistent()) {
+        notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                                  false);
+    } else {
+        BackfillManager& bfm = producer->getBFM();
+        ASSERT_EQ(1, bfm.getNumBackfills());
+        while (bfm.backfill() != backfill_finished) {
+        }
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                      cb::engine_errc::success);
+    }
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
                   cb::engine_errc::success);
@@ -2566,7 +2583,12 @@ TEST_P(CollectionsDcpParameterizedTest,
     EXPECT_EQ(producers->last_collection_id, CollectionEntry::meat.getId());
     EXPECT_EQ(producers->last_key, "meat::one");
 
-    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    // Persistent bucket has not persisted some mutations, so it gets another
+    // marker for the a following Memory snapshot.
+    // While Ephemeral just sends everything in the Backfill snapshot.
+    if (persistent()) {
+        notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    }
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
                   cb::engine_errc::success);
@@ -2591,8 +2613,12 @@ TEST_P(CollectionsDcpParameterizedTest, seqno_advanced_from_disk_to_memory) {
     if (persistent()) {
         flush_vbucket_to_disk(vbid, 4);
     }
+
+    EXPECT_EQ(4, vb->getHighSeqno());
+
     ensureDcpWillBackfill();
-    // filter only CollectionEntry::dairy
+    // filter only CollectionEntry::meat
+    // Note: The stream will not support SyncRepl
     createDcpObjects({{R"({"collections":["8"]})"}});
     store_item(
             vbid, StoredDocKey{"dairy::two", CollectionEntry::dairy}, "dairy");
@@ -2601,7 +2627,20 @@ TEST_P(CollectionsDcpParameterizedTest, seqno_advanced_from_disk_to_memory) {
                StoredDocKey{"dairy::three", CollectionEntry::dairy},
                "dairy123");
 
-    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+    EXPECT_EQ(7, vb->getHighSeqno());
+
+    // Push items into the ActiveStream::readyQ
+    if (persistent()) {
+        notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                                  false);
+    } else {
+        BackfillManager& bfm = producer->getBFM();
+        ASSERT_EQ(1, bfm.getNumBackfills());
+        while (bfm.backfill() != backfill_finished) {
+        }
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                      cb::engine_errc::success);
+    }
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
                   cb::engine_errc::success);
@@ -2612,16 +2651,29 @@ TEST_P(CollectionsDcpParameterizedTest, seqno_advanced_from_disk_to_memory) {
     EXPECT_EQ(producers->last_collection_id, CollectionEntry::meat.getId());
     EXPECT_EQ(producers->last_key, "meat::one");
 
-    stepAndExpect(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced,
-                  cb::engine_errc::success);
-    EXPECT_EQ(producers->last_byseqno.load(), 4);
+    // Persistent bucket has not persisted some mutations, so it gets a
+    // SeqnoAdvance at the end of the backfill + another marker for the a
+    // following Memory snapshot.
+    if (persistent()) {
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced,
+                      cb::engine_errc::success);
+        EXPECT_EQ(producers->last_byseqno.load(), 4);
 
-    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+        notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    }
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
                   cb::engine_errc::success);
     EXPECT_EQ(producers->last_collection_id, CollectionEntry::meat.getId());
     EXPECT_EQ(producers->last_key, "meat::two");
+
+    if (ephemeral()) {
+        // Ephemeral sends everything in the Backfill snapshot, so SeqnoAdvance
+        // is at the end of that.
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced,
+                      cb::engine_errc::success);
+        EXPECT_EQ(producers->last_byseqno.load(), 7);
+    }
 
     // should be no more ops
     EXPECT_EQ(ENGINE_ERROR_CODE(cb::engine_errc::would_block),

@@ -4187,6 +4187,113 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     ASSERT_EQ(4, manager.getHighSeqno());
 }
 
+/**
+ * MB-38444: We fix an Ephemeral-only bug, but test covers Persistent bucket too
+ */
+TEST_P(SingleThreadedActiveStreamTest, BackfillRangeCoversAllDataInTheStorage) {
+    // We need to re-create the stream in a condition that triggers a backfill
+    stream.reset();
+    producer.reset();
+
+    auto& vb = *engine->getVBucket(vbid);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    auto& manager = *vb.checkpointManager;
+    const auto& list =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    manager);
+    ASSERT_EQ(1, list.size());
+
+    const auto keyA = makeStoredDocKey("keyA");
+    const std::string value = "value";
+    store_item(vbid, keyA, value);
+    EXPECT_EQ(1, vb.getHighSeqno());
+    EXPECT_EQ(1, vb.getMaxVisibleSeqno());
+    const auto keyB = makeStoredDocKey("keyB");
+    store_item(vbid, keyB, value);
+    EXPECT_EQ(2, vb.getHighSeqno());
+    EXPECT_EQ(2, vb.getMaxVisibleSeqno());
+
+    // Steps to ensure backfill when we re-create the stream in the following
+    manager.createNewCheckpoint();
+    flushVBucketToDiskIfPersistent(vbid, 2 /*expected_num_flushed*/);
+    ASSERT_EQ(2, list.size());
+    bool newCkptCreated;
+    EXPECT_EQ(2, manager.removeClosedUnrefCheckpoints(vb, newCkptCreated));
+    EXPECT_FALSE(newCkptCreated);
+    ASSERT_EQ(1, list.size());
+    ASSERT_EQ(0, manager.getNumOpenChkItems());
+
+    // Move high-seqno to 4
+    const auto keyC = makeStoredDocKey("keyC");
+    store_item(vbid, keyC, value);
+    EXPECT_EQ(3, vb.getHighSeqno());
+    EXPECT_EQ(3, vb.getMaxVisibleSeqno());
+    const auto keyD = makeStoredDocKey("keyD");
+    store_item(vbid, keyD, value);
+    EXPECT_EQ(4, vb.getHighSeqno());
+    EXPECT_EQ(4, vb.getMaxVisibleSeqno());
+
+    // At this point we havehigh-seqno=4 but only seqnos 3 and 4 in the CM, so
+    // we'll backfill.
+
+    // Note: The aim here is to verify that Backfill picks up everything from
+    // the storage even in the case where some seqnos are in the CM. So, we need
+    // to ensure that all seqnos are on-disk for Persistent.
+    flushVBucketToDiskIfPersistent(vbid, 2 /*expected_num_flushed*/);
+
+    // Re-create producer and stream
+    recreateProducerAndStream(vb, 0 /*flags*/);
+    ASSERT_TRUE(producer);
+    producer->createCheckpointProcessorTask();
+    ASSERT_TRUE(stream);
+    ASSERT_TRUE(stream->isBackfilling());
+    ASSERT_TRUE(stream->public_supportSyncReplication());
+    auto resp = stream->next();
+    EXPECT_FALSE(resp);
+
+    // Drive the backfill - execute
+    auto& bfm = producer->getBFM();
+    ASSERT_EQ(1, bfm.getNumBackfills());
+
+    // Backfill::create
+    // Before the fix this steps generates SnapMarker{start:0, end:2, mvs:4},
+    // while we want SnapMarker{start:0, end:4, mvs:4}
+    ASSERT_EQ(backfill_success, bfm.backfill());
+    const auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(1, readyQ.size());
+    resp = stream->next();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(0, snapMarker.getStartSeqno());
+    EXPECT_EQ(4, snapMarker.getEndSeqno());
+    EXPECT_EQ(4, *snapMarker.getMaxVisibleSeqno());
+
+    // Verify that all seqnos are sent at Backfill::scan
+    ASSERT_EQ(backfill_success, bfm.backfill());
+    ASSERT_EQ(4, readyQ.size());
+    resp = stream->next();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(1, *resp->getBySeqno());
+    ASSERT_EQ(3, readyQ.size());
+    resp = stream->next();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(2, *resp->getBySeqno());
+    ASSERT_EQ(2, readyQ.size());
+    resp = stream->next();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(3, *resp->getBySeqno());
+    ASSERT_EQ(1, readyQ.size());
+    resp = stream->next();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(4, *resp->getBySeqno());
+    ASSERT_EQ(0, readyQ.size());
+}
+
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
                          SingleThreadedActiveStreamTest,
                          STParameterizedBucketTest::allConfigValues(),
