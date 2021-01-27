@@ -29,10 +29,9 @@ PersistenceCallback::PersistenceCallback() {
 PersistenceCallback::~PersistenceCallback() = default;
 
 // This callback is invoked for set only.
-void PersistenceCallback::operator()(TransactionContext& txCtx,
+void PersistenceCallback::operator()(EPTransactionContext& epCtx,
                                      queued_item queuedItem,
                                      KVStore::FlushStateMutation state) {
-    auto& epCtx = dynamic_cast<EPTransactionContext&>(txCtx);
     auto& vbucket = epCtx.vbucket;
 
     using State = KVStore::FlushStateMutation;
@@ -103,10 +102,9 @@ void PersistenceCallback::operator()(TransactionContext& txCtx,
 //
 // The boolean indicates whether the underlying storage
 // successfully deleted the item.
-void PersistenceCallback::operator()(TransactionContext& txCtx,
+void PersistenceCallback::operator()(EPTransactionContext& epCtx,
                                      queued_item queuedItem,
                                      KVStore::FlushStateDeletion state) {
-    auto& epCtx = dynamic_cast<EPTransactionContext&>(txCtx);
     auto& vbucket = epCtx.vbucket;
 
     switch (state) {

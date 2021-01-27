@@ -20,6 +20,7 @@
 
 class EPStats;
 class VBucket;
+struct EPTransactionContext;
 
 /**
  * Callback invoked after persisting an item from memory to disk.
@@ -35,7 +36,7 @@ public:
     ~PersistenceCallback();
 
     // This callback is invoked for set only.
-    void operator()(TransactionContext&,
+    void operator()(EPTransactionContext&,
                     queued_item,
                     KVStore::FlushStateMutation);
 
@@ -43,7 +44,7 @@ public:
     //
     // The boolean indicates whether the underlying storage
     // successfully deleted the item.
-    void operator()(TransactionContext&,
+    void operator()(EPTransactionContext&,
                     queued_item,
                     KVStore::FlushStateDeletion);
 };
