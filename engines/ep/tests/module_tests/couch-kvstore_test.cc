@@ -2134,12 +2134,21 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingPrepareToAbort) {
 }
 
 TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingAbortToPrepare) {
-    // 1) Set abort first
+    // Setup - Flush the item as a prepare so that we can check that we add the
+    // correct amount when we turn the abort to a prepare (i.e. the new size
+    // rather than the original
     auto docKey = makeStoredDocKey("key");
+    flushItem(makePendingItem(docKey, "value"));
+
+    auto vbstate = kvstore->getPersistedVBucketState(vbid);
+    auto abortSize = vbstate.getOnDiskPrepareBytes();
+    EXPECT_NE(0, abortSize);
+
+    // 1) Set abort first
     flushItem(makeAbortedItem(docKey, "value"));
 
     // And verify that we don't count it towards the prepare count
-    auto vbstate = kvstore->getPersistedVBucketState(vbid);
+    vbstate = kvstore->getPersistedVBucketState(vbid);
     EXPECT_EQ(0, vbstate.onDiskPrepares);
     EXPECT_EQ(0, vbstate.getOnDiskPrepareBytes());
 
@@ -2162,11 +2171,13 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingAbortToPrepare) {
     vbstate = kvstore->getPersistedVBucketState(vbid);
     EXPECT_EQ(1, vbstate.onDiskPrepares);
     EXPECT_LT(0, vbstate.getOnDiskPrepareBytes());
+    EXPECT_LT(abortSize, vbstate.getOnDiskPrepareBytes());
 
     // Should also check the cached count
     auto cachedVBState = kvstore->getCachedVBucketState(vbid);
     EXPECT_EQ(1, cachedVBState->onDiskPrepares);
-    EXPECT_LT(0, cachedVBState->getOnDiskPrepareBytes());
+    EXPECT_EQ(vbstate.getOnDiskPrepareBytes(),
+              cachedVBState->getOnDiskPrepareBytes());
 }
 
 TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingPrepareToPrepare) {

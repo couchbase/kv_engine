@@ -1188,7 +1188,7 @@ static couchstore_error_t replayPreCopyHook(
                 if (di->deleted) {
                     // Abort -> Prepare
                     ++prepareStats.onDiskPrepares;
-                    prepareStats.onDiskPrepareBytes += di->physical_size;
+                    prepareStats.onDiskPrepareBytes += docInfo->physical_size;
                 } else {
                     // Prepare -> Prepare
                     prepareStats.onDiskPrepareBytes +=
