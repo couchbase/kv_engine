@@ -464,15 +464,8 @@ TEST_P(McdTestappTest, IOCTL_Tracing) {
     // get the data
     auto uuid = conn.ioctl_get("trace.dump.begin");
 
-    const std::string chunk_key = "trace.dump.chunk?id=" + uuid;
-    std::string dump;
-    std::string chunk;
-
-    do {
-        chunk = conn.ioctl_get(chunk_key);
-        dump += chunk;
-    } while (!chunk.empty());
-
+    const std::string chunk_key = "trace.dump.get?id=" + uuid;
+    std::string dump = conn.ioctl_get(chunk_key);
     conn.ioctl_set("trace.dump.clear", uuid);
 
     // Difficult to tell what's been written to the buffer so just check

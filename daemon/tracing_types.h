@@ -26,32 +26,27 @@
 #include <map>
 #include <mutex>
 
+class Connection;
+
 /**
  * DumpContext holds all the information required for an ongoing
  * trace dump
  */
 struct DumpContext {
-    explicit DumpContext(phosphor::TraceContext&& _context)
-        : context(std::move(_context)),
-          json_export(context),
+    explicit DumpContext(std::string content)
+        : content(std::move(content)),
           last_touch(std::chrono::steady_clock::now()) {
     }
 
-    // Moving is dangerous as json_export contains a reference to
-    // context.
-    DumpContext(DumpContext&& other) = delete;
-
-    phosphor::TraceContext context;
-    phosphor::tools::JSONExport json_export;
-    std::chrono::steady_clock::time_point last_touch;
-    std::mutex mutex;
+    const std::string content;
+    const std::chrono::steady_clock::time_point last_touch;
 };
 
 /**
  * Aggregate object to hold a map of dumps and a mutex protecting them
  */
 struct TraceDumps {
-    std::map<cb::uuid::uuid_t, std::unique_ptr<DumpContext>> dumps;
+    std::map<cb::uuid::uuid_t, DumpContext> dumps;
     std::mutex mutex;
 };
 

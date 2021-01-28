@@ -334,23 +334,14 @@ TEST_F(StaleTraceDumpRemoverTest, DoesRemove) {
     std::unique_lock<std::mutex> lock(task->getMutex());
     executorpool->schedule(task, false);
 
-    // Fastest way to create a TraceContext is to start tracing, stop it, and
-    // pull out the context
-    PHOSPHOR_INSTANCE.start(
-            phosphor::TraceConfig(phosphor::BufferMode::ring, 1024 * 1024));
-    PHOSPHOR_INSTANCE.stop();
-    auto context = PHOSPHOR_INSTANCE.getTraceContext();
-
     cb::uuid::uuid_t uuid = cb::uuid::random();
     {
         std::lock_guard<std::mutex> lh(traceDumps.mutex);
-        traceDumps.dumps.emplace(
-                uuid,
-                std::make_unique<DumpContext>(
-                        phosphor::TraceContext(std::move(context))));
+        traceDumps.dumps.emplace(uuid,
+                                 DumpContext("{}")); // Dummy trace content
     }
 
-    auto now = traceDumps.dumps.begin()->second->last_touch;
+    auto now = traceDumps.dumps.begin()->second.last_touch;
     auto removeTime = now + std::chrono::seconds(1);
     task->makeRunnable(now);
 

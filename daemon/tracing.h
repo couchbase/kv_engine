@@ -77,15 +77,13 @@ ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Cookie& cookie,
                                            cb::mcbp::Datatype& datatype);
 
 /**
- * IOCTL Get callback to generate and return chunks from the specified dump
- * @param arguments 'id' argument should be given to specify uuid of dump to
-          continue
- * @param[out] value The contents of the next chunk (or empty if dump is done)
+ * IOCTL Get callback to fetch an entire trace dump
+ * @param[out] value The uuid of the newly created dump
  */
-ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Cookie& cookie,
-                                           const StrToStrMap& arguments,
-                                           std::string& value,
-                                           cb::mcbp::Datatype& datatype);
+ENGINE_ERROR_CODE ioctlGetTraceDump(Cookie& cookie,
+                                    const StrToStrMap&,
+                                    std::string& value,
+                                    cb::mcbp::Datatype& datatype);
 
 /**
  * IOCTL Set callback to clear a tracing dump

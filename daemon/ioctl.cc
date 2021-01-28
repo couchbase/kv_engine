@@ -148,7 +148,7 @@ static const std::unordered_map<std::string, GetCallbackFunc> ioctl_get_map{
         {"trace.status", ioctlGetTracingStatus},
         {"trace.dump.list", ioctlGetTracingList},
         {"trace.dump.begin", ioctlGetTracingBeginDump},
-        {"trace.dump.chunk", ioctlGetTracingDumpChunk},
+        {"trace.dump.get", ioctlGetTraceDump},
         {"sla", ioctlGetMcbpSla},
         {"rbac.db.dump", ioctlRbacDbDump}};
 

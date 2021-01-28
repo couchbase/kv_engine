@@ -68,15 +68,7 @@ Task::Status StaleTraceDumpRemover::periodicExecute() {
 
     using value_type = decltype(TraceDumps::dumps)::value_type;
     erase_if(traceDumps.dumps, [now, this](const value_type& dump) {
-        // If the mutex is locked then a
-        // chunk is being generated from this dump
-        auto isLocked = dump.second->mutex.try_lock();
-        if (!isLocked) {
-            return false;
-        }
-
-        std::lock_guard<std::mutex> guard(dump.second->mutex, std::adopt_lock);
-        return (dump.second->last_touch + std::chrono::seconds(max_age)) <= now;
+        return (dump.second.last_touch + std::chrono::seconds(max_age)) <= now;
     });
     return Status::Continue; // always repeat
 }
@@ -109,6 +101,43 @@ void deinitializeTracing() {
     traceDumps.dumps.clear();
 }
 
+/// Task to run on the executor pool to convert the TraceContext to JSON
+class TraceFormatterTask : public Task {
+public:
+    TraceFormatterTask(Cookie& cookie, phosphor::TraceContext&& context)
+        : Task(), cookie(cookie), context(std::move(context)) {
+    }
+
+    Status execute() override {
+        phosphor::tools::JSONExport exporter(context);
+        static const std::size_t chunksize = 1024 * 1024;
+        size_t last_wrote;
+        do {
+            formatted.resize(formatted.size() + chunksize);
+            last_wrote = exporter.read(&formatted[formatted.size() - chunksize],
+                                       chunksize);
+        } while (!exporter.done());
+        formatted.resize(formatted.size() - (chunksize - last_wrote));
+        return Status::Finished;
+    }
+
+    void notifyExecutionComplete() override {
+        notifyIoComplete(cookie, ENGINE_SUCCESS);
+    }
+
+    Cookie& cookie;
+    std::string formatted;
+    phosphor::TraceContext context;
+};
+
+struct TraceFormatterContext : public CommandContext {
+    explicit TraceFormatterContext(std::shared_ptr<TraceFormatterTask>& task)
+        : task(task) {
+    }
+
+    std::shared_ptr<TraceFormatterTask> task;
+};
+
 phosphor::TraceContext getTraceContext() {
     // Lock the instance until we've grabbed the trace context
     std::lock_guard<phosphor::TraceLog> lh(PHOSPHOR_INSTANCE);
@@ -123,83 +152,49 @@ ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Cookie& cookie,
                                            const StrToStrMap&,
                                            std::string& value,
                                            cb::mcbp::Datatype& datatype) {
-    auto context = getTraceContext();
-    if (!context.getBuffer()) {
-        cookie.setErrorContext(
-                "Cannot begin a dump when there is no existing trace");
-        return ENGINE_EINVAL;
+    auto* cctx = cookie.getCommandContext();
+    if (!cctx) {
+        auto context = getTraceContext();
+        if (!context.getBuffer()) {
+            cookie.setErrorContext(
+                    "Cannot begin a dump when there is no existing trace");
+            return ENGINE_EINVAL;
+        }
+
+        // Create a task to format the dump
+        auto task = std::make_shared<TraceFormatterTask>(cookie,
+                                                         std::move(context));
+        cookie.setCommandContext(new TraceFormatterContext{task});
+
+        cookie.setEwouldblock(true);
+        std::lock_guard<std::mutex> guard(task->getMutex());
+        std::shared_ptr<Task> basicTask = task;
+        executorPool->schedule(basicTask, true);
+
+        return ENGINE_EWOULDBLOCK;
     }
 
-    // Create the new dump associated with a random uuid
-    cb::uuid::uuid_t uuid = cb::uuid::random();
+    auto* ctx = dynamic_cast<TraceFormatterContext*>(cctx);
+    if (!ctx) {
+        throw std::runtime_error(
+                "ioctlGetTracingBeginDump: Unknown value for command context");
+    }
+    const auto uuid = cb::uuid::random();
     {
         std::lock_guard<std::mutex> guard(traceDumps.mutex);
-        traceDumps.dumps.emplace(
-                uuid, std::make_unique<DumpContext>(std::move(context)));
+        traceDumps.dumps.emplace(uuid,
+                                 DumpContext{std::move(ctx->task->formatted)});
     }
 
-    // Return the textual form of the uuid back to the user with success
     value = to_string(uuid);
+    cookie.setCommandContext();
     return ENGINE_SUCCESS;
 }
 
-/**
- * A task for generating tasks in the background on an
- * executor thread instead of a front-end thread
- */
-class ChunkBuilderTask : public Task {
-public:
-    /// This constructor assumes that the dump's
-    /// mutex has already been locked
-    ChunkBuilderTask(Cookie& cookie_,
-                     DumpContext& dump,
-                     std::unique_lock<std::mutex> lck,
-                     size_t chunk_size)
-        : Task(), cookie(cookie_), dump(dump), lck(std::move(lck)) {
-        chunk.resize(chunk_size);
-    }
-
-    Status execute() override {
-        size_t count = dump.json_export.read(&chunk[0], chunk.size());
-        chunk.resize(count);
-        return Status::Finished;
-    }
-
-    void notifyExecutionComplete() override {
-        notifyIoComplete(cookie, ENGINE_SUCCESS);
-    }
-
-    std::string& getChunk() {
-        return chunk;
-    }
-
-private:
-    std::string chunk;
-    Cookie& cookie;
-    DumpContext& dump;
-    std::unique_lock<std::mutex> lck;
-};
-
-struct ChunkBuilderContext : public CommandContext {
-    explicit ChunkBuilderContext(std::shared_ptr<ChunkBuilderTask>& task)
-        : task(task) {
-    }
-
-    std::shared_ptr<ChunkBuilderTask> task;
-};
-
-ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Cookie& cookie,
-                                           const StrToStrMap& arguments,
-                                           std::string& value,
-                                           cb::mcbp::Datatype& datatype) {
-    // If we have a context then we already generated the chunk
-    auto* ctx = dynamic_cast<ChunkBuilderContext*>(cookie.getCommandContext());
-    if (ctx != nullptr) {
-        value = std::move(ctx->task->getChunk());
-        cookie.setCommandContext();
-        return ENGINE_SUCCESS;
-    }
-
+ENGINE_ERROR_CODE ioctlGetTraceDump(Cookie& cookie,
+                                    const StrToStrMap& arguments,
+                                    std::string& value,
+                                    cb::mcbp::Datatype& datatype) {
     auto id = arguments.find("id");
     if (id == arguments.end()) {
         cookie.setErrorContext("Dump ID must be specified as a key argument");
@@ -220,39 +215,13 @@ ENGINE_ERROR_CODE ioctlGetTracingDumpChunk(Cookie& cookie,
         if (iter == traceDumps.dumps.end()) {
             cookie.setErrorContext(
                     "Dump ID must correspond to an existing dump");
-            return ENGINE_EINVAL;
-        }
-        auto& dump = *(iter->second);
-
-        // @todo make configurable
-        const size_t chunk_size = 1024 * 1024;
-
-        if (dump.json_export.done()) {
-            value = "";
-            return ENGINE_SUCCESS;
+            return ENGINE_KEY_ENOENT;
         }
 
-        std::unique_lock<std::mutex> lck(dump.mutex, std::try_to_lock);
-        // A chunk is already being generated for this dump
-        if (!lck) {
-            value = "";
-            cookie.setErrorContext(
-                    "A chunk is already being fetched for this dump");
-            return ENGINE_TMPFAIL;
-        }
-
-        // ChunkBuilderTask assumes the lock above is already held
-        auto task = std::make_shared<ChunkBuilderTask>(
-                cookie, dump, std::move(lck), chunk_size);
-        cookie.setCommandContext(new ChunkBuilderContext{task});
-
-        cookie.setEwouldblock(true);
-        std::lock_guard<std::mutex> guard(task->getMutex());
-        std::shared_ptr<Task> basicTask = task;
-        executorPool->schedule(basicTask, true);
-
-        return ENGINE_EWOULDBLOCK;
+        value.assign(iter->second.content);
     }
+
+    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE ioctlSetTracingClearDump(Cookie& cookie,

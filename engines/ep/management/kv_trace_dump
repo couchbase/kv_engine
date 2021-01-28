@@ -77,15 +77,12 @@ uuid = subprocess.check_output(mcctl_args + ['get', 'trace.dump.begin'],
                                universal_newlines=True)
 uuid = uuid.strip()
 
-# Repeatedly get chunks, until we get one with zero length.
-while True:
-    chunk = subprocess.check_output(
-        mcctl_args + ['get', 'trace.dump.chunk?id=' + uuid],
-        universal_newlines=True).rstrip()
-    if len(chunk) == 0:
-        break
-    args.outfile.write(chunk)
+chunk = subprocess.check_output(
+    mcctl_args + ['get', 'trace.dump.get?id=' + uuid],
+    universal_newlines=True).rstrip()
+args.outfile.write(chunk)
 
+# Delete the trace dump on the server
 subprocess.check_call(mcctl_args + ['set', 'trace.dump.clear', uuid])
 
 if args.restart:
