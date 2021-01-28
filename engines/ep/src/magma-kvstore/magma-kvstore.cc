@@ -1226,6 +1226,9 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
     MagmaDbStats magmaDbStats;
     int64_t lastSeqno = 0;
 
+    auto beginTime = std::chrono::steady_clock::now();
+    std::chrono::microseconds saveDocsDuration;
+
     auto postWriteDocsCB = [this,
                             &commitData,
                             &kvctx,
@@ -1234,7 +1237,9 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
                             &vbid,
                             &ninserts,
                             &ndeletes,
-                            &magmaDbStats](WriteOps& postWriteOps) {
+                            &magmaDbStats,
+                            &beginTime,
+                            &saveDocsDuration](WriteOps& postWriteOps) {
         // Merge in the delta changes
         {
             auto lockedStats = magmaDbStats.stats.wlock();
@@ -1262,9 +1267,12 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
             updateCollectionsMeta(vbid, localDbReqs, commitData.collections);
         }
         addLocalDbReqs(localDbReqs, postWriteOps);
+        auto now = std::chrono::steady_clock::now();
+        saveDocsDuration =
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                        now - beginTime);
+        beginTime = now;
     };
-
-    auto begin = std::chrono::steady_clock::now();
 
     // Vector of updates to be written to the data store.
     WriteOps writeOps;
@@ -1294,31 +1302,36 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
                                    kvstoreRevList[vbid.get()],
                                    writeDocsCB,
                                    postWriteDocsCB);
+    if (status) {
+        st.saveDocsHisto.add(saveDocsDuration);
+        kvctx.commitData.collections.postCommitMakeStatsVisible();
 
-    st.saveDocsHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now() - begin));
-    if (!status) {
+        // Commit duration can be approximately calculated as the time taken
+        // between post writedocs callback and now
+        st.commitHisto.add(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                        std::chrono::steady_clock::now() - beginTime));
+
+        st.batchSize.add(pendingReqs->size());
+        st.docsCommitted = pendingReqs->size();
+    } else {
         logger->critical(
                 "MagmaKVStore::saveDocs {} WriteDocs failed. Status:{}",
                 vbid,
                 status.String());
     }
 
-    begin = std::chrono::steady_clock::now();
-    status = magma->Sync(doCheckpointEveryBatch);
-    if (!status) {
-        logger->critical("MagmaKVStore::saveDocs {} Sync failed. Status:{}",
-                         vbid,
-                         status.String());
-    } else {
-        kvctx.commitData.collections.postCommitMakeStatsVisible();
+    // Only used for unit testing
+    if (doCheckpointEveryBatch) {
+        auto chkStatus = magma->Sync(true);
+        if (!chkStatus) {
+            logger->critical(
+                    "MagmaKVStore::saveDocs {} Unable to create checkpoint. "
+                    "Status:{}",
+                    vbid,
+                    chkStatus.String());
+        }
     }
-
-    st.commitHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now() - begin));
-
-    st.batchSize.add(pendingReqs->size());
-    st.docsCommitted = pendingReqs->size();
 
     return status.ErrorCode();
 }
@@ -2136,13 +2149,18 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<CompactionContext> ctx) {
                     status.String());
             return false;
         }
-        status = magma->Sync(doCheckpointEveryBatch);
-        if (!status) {
-            logger->critical(
-                    "MagmaKVStore::compactDBInternal {} Sync failed. Status:{}",
-                    vbid,
-                    status.String());
-            return false;
+
+        if (doCheckpointEveryBatch) {
+            status = magma->Sync(true);
+            if (!status) {
+                logger->critical(
+                        "MagmaKVStore::compactDBInternal {} Sync "
+                        "failed. "
+                        "Status:{}",
+                        vbid,
+                        status.String());
+                return false;
+            }
         }
 
         st.compactHisto.add(
@@ -2570,15 +2588,18 @@ Status MagmaKVStore::writeVBStateToDisk(Vbid vbid,
                 status.String());
         return status;
     }
-    status = magma->Sync(doCheckpointEveryBatch);
-    if (!status) {
-        ++st.numVbSetFailure;
-        logger->critical(
-                "MagmaKVStore::writeVBStateToDisk: "
-                "magma::SyncCommitBatches {} "
-                "status:{}",
-                vbid,
-                status.String());
+
+    if (doCheckpointEveryBatch) {
+        status = magma->Sync(true);
+        if (!status) {
+            ++st.numVbSetFailure;
+            logger->critical(
+                    "MagmaKVStore::writeVBStateToDisk: "
+                    "magma::Sync {} "
+                    "status:{}",
+                    vbid,
+                    status.String());
+        }
     }
     return Status::OK();
 }
