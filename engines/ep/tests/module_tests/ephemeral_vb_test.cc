@@ -357,9 +357,9 @@ TEST_F(EphemeralVBucketTest, Backfill) {
     auto keys = generateKeys(numItems);
     setMany(keys, MutationStatus::WasClean);
 
-    auto res = mockEpheVB->inMemoryBackfill(1, numItems);
-    EXPECT_EQ(ENGINE_SUCCESS, std::get<0>(res));
-    EXPECT_EQ(numItems, std::get<1>(res).size());
+    const auto rangeItr = mockEpheVB->makeRangeIterator(true /*isBackfill*/);
+    ASSERT_TRUE(rangeItr);
+    EXPECT_EQ(numItems, rangeItr->count());
 }
 
 TEST_F(EphemeralVBucketTest, UpdateDuringBackfill) {
@@ -808,143 +808,6 @@ TEST_F(EphTombstoneTest, DoubleDeleteTimeCorrect) {
 
     auto secondDelTime = delOSV->getCompletedOrDeletedTime();
     EXPECT_GE(secondDelTime, initialDelTime + timeJump);
-}
-
-TEST_F(EphemeralVBucketTest, UpdateUpdatesHighestDedupedSeqno) {
-    /* Add 3 items and then update all of them */
-    const int numItems = 3;
-
-    auto keys = generateKeys(numItems);
-    setMany(keys, MutationStatus::WasClean);
-
-    ASSERT_EQ(0, mockEpheVB->getLL()->getHighestDedupedSeqno());
-
-    /* Update the items */
-    setMany(keys, MutationStatus::WasDirty);
-
-    EXPECT_EQ(6, mockEpheVB->getLL()->getHighestDedupedSeqno());
-}
-
-TEST_F(EphemeralVBucketTest, AppendUpdatesHighestDedupedSeqno) {
-    /* Add 3 items and then update all of them */
-    const int numItems = 3;
-
-    auto keys = generateKeys(numItems);
-    setMany(keys, MutationStatus::WasClean);
-
-    ASSERT_EQ(0, mockEpheVB->getLL()->getHighestDedupedSeqno());
-
-    {
-        auto itr = mockEpheVB->getLL()->makeRangeIterator(true /*isBackfill*/);
-
-        /* Update the items */
-        setMany(keys, MutationStatus::WasClean);
-    }
-
-    ASSERT_EQ(6, mockEpheVB->getLL()->getHighestDedupedSeqno());
-}
-
-TEST_F(EphemeralVBucketTest, SnapshotHasNoDuplicates) {
-    /* Add 2 items and then update all of them */
-    const int numItems = 2;
-
-    auto keys = generateKeys(numItems);
-    setMany(keys, MutationStatus::WasClean);
-
-    {
-        auto itr = mockEpheVB->getLL()->makeRangeIterator(true /*isBackfill*/);
-
-        /* Update the items  */
-        setMany(keys, MutationStatus::WasClean);
-    }
-
-    // backfill to infinity would include both the stale and updated versions,
-    // ensure we receive the right number of items
-    auto res = mockEpheVB->inMemoryBackfill(
-            1, std::numeric_limits<seqno_t>::max());
-    EXPECT_EQ(ENGINE_SUCCESS, std::get<0>(res));
-    EXPECT_EQ(numItems, std::get<1>(res).size());
-    EXPECT_EQ(numItems * 2, std::get<2>(res));
-}
-
-TEST_F(EphemeralVBucketTest, SnapshotIncludesNonDuplicateStaleItems) {
-    /* Add 2 items and then update all of them */
-    const int numItems = 2;
-
-    auto keys = generateKeys(numItems);
-    setMany(keys, MutationStatus::WasClean);
-
-    {
-        auto itr = mockEpheVB->getLL()->makeRangeIterator(true /*isBackfill*/);
-
-        /* Update the items  */
-        setMany(keys, MutationStatus::WasClean);
-    }
-
-    // backfill to numItems would /not/ include both the stale and updated
-    // versions, ensure we receive only one copy
-    auto res = mockEpheVB->inMemoryBackfill(1, numItems);
-    EXPECT_EQ(ENGINE_SUCCESS, std::get<0>(res));
-    EXPECT_EQ(numItems, std::get<1>(res).size());
-    EXPECT_EQ(numItems * 2, std::get<2>(res));
-}
-
-TEST_F(EphemeralVBucketTest, SnapshotHasNoDuplicatesWithInterveningItems) {
-    // Add 3 items, begin a rangeRead, add 1 more item, then update the first 2
-    const int numItems = 2;
-
-    auto keysToUpdate = generateKeys(numItems);
-    auto firstFillerKey = makeStoredDocKey(std::to_string(numItems + 1));
-    auto secondFillerKey = makeStoredDocKey(std::to_string(numItems + 2));
-
-    setMany(keysToUpdate, MutationStatus::WasClean);
-    EXPECT_EQ(MutationStatus::WasClean, setOne(firstFillerKey));
-
-    {
-        auto itr = mockEpheVB->getLL()->makeRangeIterator(true /*isBackfill*/);
-
-        EXPECT_EQ(MutationStatus::WasClean, setOne(secondFillerKey));
-
-        /* Update the items  */
-        setMany(keysToUpdate, MutationStatus::WasClean);
-    }
-
-    // backfill to infinity would include both the stale and updated versions,
-    // ensure we receive the right number of items
-    auto res = mockEpheVB->inMemoryBackfill(
-            1, std::numeric_limits<seqno_t>::max());
-    EXPECT_EQ(ENGINE_SUCCESS, std::get<0>(res));
-    EXPECT_EQ(numItems * 2, std::get<1>(res).size()); // how many items returned
-    EXPECT_EQ(numItems * 3, std::get<2>(res)); // extended end of readRange
-}
-
-TEST_F(EphemeralVBucketTest, SnapshotHasNoDuplicatesWithMultipleStale) {
-    /* repeatedly update two items, ensure the backfill ignores all stale
-     * versions */
-    const int numItems = 2;
-    const int updateIterations = 10;
-
-    auto keys = generateKeys(numItems);
-
-    setMany(keys, MutationStatus::WasClean);
-    for (int i = 0; i < updateIterations; ++i) {
-        /* Set up a mock backfill, cover all items */
-        {
-            auto itr =
-                    mockEpheVB->getLL()->makeRangeIterator(true /*isBackfill*/);
-            /* Update the items  */
-            setMany(keys, MutationStatus::WasClean);
-        }
-    }
-
-    // backfill to infinity would include both the stale and updated versions,
-    // ensure we receive the right number of items
-    auto res = mockEpheVB->inMemoryBackfill(
-            1, std::numeric_limits<seqno_t>::max());
-    EXPECT_EQ(ENGINE_SUCCESS, std::get<0>(res));
-    EXPECT_EQ(numItems, std::get<1>(res).size()); // how many items returned
-    EXPECT_EQ(numItems * (updateIterations + 1),
-              std::get<2>(res)); // extended end of readRange
 }
 
 // Check that tombstone purger runs fine in pause-resume mode

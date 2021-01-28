@@ -7750,7 +7750,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                            "vb_0:seqlist_count",
                            "vb_0:seqlist_deleted_count",
                            "vb_0:seqlist_high_seqno",
-                           "vb_0:seqlist_highest_deduped_seqno",
                            "vb_0:seqlist_purged_count",
                            "vb_0:seqlist_range_read_begin",
                            "vb_0:seqlist_range_read_count",

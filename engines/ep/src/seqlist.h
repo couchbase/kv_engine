@@ -118,12 +118,6 @@ protected:
          */
         virtual uint64_t count() const = 0;
 
-        /**
-         * Indicates the minimum seqno in the iterator that must be read to
-         * get a consistent read snapshot
-         */
-        virtual seqno_t getEarlySnapShotEnd() const = 0;
-
         virtual uint64_t getMaxVisibleSeqno() const = 0;
     };
 
@@ -217,12 +211,6 @@ public:
          */
         uint64_t count() const;
 
-        /**
-         * Indicates the minimum seqno in the iterator that must be read to
-         * get a consistent read snapshot
-         */
-        seqno_t getEarlySnapShotEnd() const;
-
         uint64_t getMaxVisibleSeqno() const;
 
     private:
@@ -266,27 +254,6 @@ public:
             OrderedStoredValue& v) = 0;
 
     /**
-     * Provides point-in-time snapshots which can be used for incremental
-     * replication.
-     *
-     * Copies the StoredValues as a vector of ref counterd items starting from
-     * 'start + 1' seqno into 'items' as a snapshot.
-     *
-     * Since we use monotonically increasing point-in-time snapshots we cannot
-     * guarantee that the snapshot ends at the requested end seqno. Due to
-     * dedups we may have to send till a higher seqno in the snapshot.
-     *
-     * @param start requested start seqno
-     * @param end requested end seqno
-     *
-     * @return ENGINE_SUCCESS, items in the snapshot and adjusted endSeqNo
-     *         ENGINE_ENOMEM on no memory to copy items
-     *         ENGINE_ERANGE on incorrect start and end
-     */
-    virtual std::tuple<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>, seqno_t>
-    rangeRead(seqno_t start, seqno_t end) = 0;
-
-    /**
      * Updates the highSeqno in the list. Since seqno is generated and managed
      * outside the list, the module managing it must update this after the seqno
      * is generated for the item already put in the list.
@@ -296,19 +263,6 @@ public:
      */
     virtual void updateHighSeqno(std::lock_guard<std::mutex>& listWriteLg,
                                  const OrderedStoredValue& v) = 0;
-
-    /**
-     * Updates the highestDedupedSeqno in the list. Since seqno is generated and
-     * managed outside the list, the module managing it must update this after
-     * the seqno is generated for the item already put in the list.
-     *
-     * @param listWriteLg Write lock of the sequenceList from getListWriteLock()
-     * @param v Ref to orderedStoredValue
-     *
-     */
-    virtual void updateHighestDedupedSeqno(
-            std::lock_guard<std::mutex>& listWriteLg,
-            const OrderedStoredValue& v) = 0;
 
     /**
      * Updates the max-visible-seqno to the seqno of the new StoredValue, only
@@ -421,11 +375,6 @@ public:
      * Returns the highSeqno in the list.
      */
     virtual uint64_t getHighSeqno() const = 0;
-
-    /**
-     * Returns the highest de-duplicated sequence number in the list.
-     */
-    virtual uint64_t getHighestDedupedSeqno() const = 0;
 
     /**
      * Returns the highest purged Deleted sequence number in the list.

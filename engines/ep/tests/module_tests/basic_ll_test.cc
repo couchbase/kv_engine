@@ -270,98 +270,6 @@ TEST_F(BasicLinkedListTest, SetItems) {
     EXPECT_EQ(expectedSeqno, basicLL->getAllSeqnoForVerification());
 }
 
-TEST_F(BasicLinkedListTest, TestRangeRead) {
-    const int numItems = 3;
-
-    /* Add 3 new items */
-    addNewItemsToList(1, std::string("key"), numItems);
-
-    /* Now do a range read */
-    ENGINE_ERROR_CODE status;
-    std::vector<UniqueItemPtr> items;
-    seqno_t endSeqno;
-    std::tie(status, items, endSeqno) = basicLL->rangeRead(1, numItems);
-
-    EXPECT_EQ(ENGINE_SUCCESS, status);
-    EXPECT_EQ(numItems, items.size());
-    EXPECT_EQ(numItems, items.back()->getBySeqno());
-    EXPECT_EQ(numItems, endSeqno);
-}
-
-TEST_F(BasicLinkedListTest, TestRangeReadTillInf) {
-    const int numItems = 3;
-
-    /* Add 3 new items */
-    addNewItemsToList(1, std::string("key"), numItems);
-
-    /* Now do a range read */
-    ENGINE_ERROR_CODE status;
-    std::vector<UniqueItemPtr> items;
-    seqno_t endSeqno;
-    std::tie(status, items, endSeqno) =
-            basicLL->rangeRead(1, std::numeric_limits<seqno_t>::max());
-
-    EXPECT_EQ(ENGINE_SUCCESS, status);
-    EXPECT_EQ(numItems, items.size());
-    EXPECT_EQ(numItems, items.back()->getBySeqno());
-    EXPECT_EQ(numItems, endSeqno);
-}
-
-TEST_F(BasicLinkedListTest, TestRangeReadFromMid) {
-    const int numItems = 3;
-
-    /* Add 3 new items */
-    addNewItemsToList(1, std::string("key"), numItems);
-
-    /* Now do a range read */
-    ENGINE_ERROR_CODE status;
-    std::vector<UniqueItemPtr> items;
-    seqno_t endSeqno;
-    std::tie(status, items, endSeqno) = basicLL->rangeRead(2, numItems);
-
-    EXPECT_EQ(ENGINE_SUCCESS, status);
-    EXPECT_EQ(numItems - 1, items.size());
-    EXPECT_EQ(numItems, items.back()->getBySeqno());
-    EXPECT_EQ(numItems, endSeqno);
-}
-
-TEST_F(BasicLinkedListTest, TestRangeReadStopBeforeEnd) {
-    const int numItems = 3;
-
-    /* Add 3 new items */
-    addNewItemsToList(1, std::string("key"), numItems);
-
-    /* Now request for a range read of just 2 items */
-    ENGINE_ERROR_CODE status;
-    std::vector<UniqueItemPtr> items;
-    seqno_t endSeqno;
-    std::tie(status, items, endSeqno) = basicLL->rangeRead(1, numItems - 1);
-
-    EXPECT_EQ(ENGINE_SUCCESS, status);
-    EXPECT_EQ(numItems - 1, items.size());
-    EXPECT_EQ(numItems - 1, items.back()->getBySeqno());
-    EXPECT_EQ(numItems - 1, endSeqno);
-}
-
-TEST_F(BasicLinkedListTest, TestRangeReadNegatives) {
-    const int numItems = 3;
-
-    /* Add 3 new items */
-    addNewItemsToList(1, std::string("key"), numItems);
-
-    ENGINE_ERROR_CODE status;
-    std::vector<UniqueItemPtr> items;
-
-    /* Now do a range read with start > end */
-    std::tie(status, items, std::ignore) = basicLL->rangeRead(2, 1);
-    EXPECT_EQ(ENGINE_ERANGE, status);
-
-    /* Now do a range read with start > highSeqno */
-    std::tie(status, items, std::ignore) =
-            basicLL->rangeRead(numItems + 1, numItems + 2);
-    EXPECT_EQ(ENGINE_ERANGE, status);
-}
-
 TEST_F(BasicLinkedListTest, UpdateFirstElem) {
     const int numItems = 3;
     const std::string keyPrefix("key");
@@ -884,28 +792,6 @@ TEST_F(BasicLinkedListTest,
     expectRange({1, 2}, guard1);
     // exclusive lock blocked by shared lock covering entire requested range
     EXPECT_FALSE(guard2);
-}
-
-TEST_F(BasicLinkedListTest, RangeReadStopsOnInvalidSeqno) {
-    /* MB-24376: rangeRead has to stop if it encounters an OSV with a seqno of
-     * -1; this item is definitely past the end of the rangeRead, and has not
-     * yet had its seqno updated in queueDirty */
-    const int numItems = 2;
-    const std::string keyPrefix("key");
-
-    /* Add 2 new items */
-    addNewItemsToList(1, keyPrefix, numItems);
-
-    /* Add a key that does not yet have a vaild seqno (say -1) */
-    addItemWithoutSeqno("key3");
-
-    EXPECT_EQ(-1, basicLL->getSeqList().back().getBySeqno());
-
-    auto res = basicLL->rangeRead(1, std::numeric_limits<seqno_t>::max());
-
-    EXPECT_EQ(ENGINE_SUCCESS, std::get<0>(res));
-    EXPECT_EQ(numItems, std::get<1>(res).size());
-    EXPECT_EQ(numItems, std::get<2>(res));
 }
 
 /* 'EphemeralVBucket' (class that has the list) never calls the purge of last
