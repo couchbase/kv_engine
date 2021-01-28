@@ -2643,14 +2643,18 @@ static void saveDocsCallback(const DocInfo* oldInfo,
         throw std::logic_error("saveDocsCallback: newInfo should not be null");
     }
     auto newKey = makeDiskDocKey(newInfo->id);
+    auto isCommitted =
+            newKey.isCommitted() ? IsCommitted::Yes : IsCommitted::No;
+    auto isDeleted = newInfo->deleted ? IsDeleted::Yes : IsDeleted::No;
     if (oldInfo) {
+        auto oldIsDeleted = oldInfo->deleted ? IsDeleted::Yes : IsDeleted::No;
         cbCtx->commitData.collections.updateStats(newKey.getDocKey(),
                                                   newInfo->db_seq,
-                                                  newKey.isCommitted(),
-                                                  newInfo->deleted,
+                                                  isCommitted,
+                                                  isDeleted,
                                                   newInfo->physical_size,
                                                   oldInfo->db_seq,
-                                                  oldInfo->deleted,
+                                                  oldIsDeleted,
                                                   oldInfo->physical_size);
 
         if (!oldInfo->deleted) {
@@ -2660,8 +2664,8 @@ static void saveDocsCallback(const DocInfo* oldInfo,
     } else {
         cbCtx->commitData.collections.updateStats(newKey.getDocKey(),
                                                   newInfo->db_seq,
-                                                  newKey.isCommitted(),
-                                                  newInfo->deleted,
+                                                  isCommitted,
+                                                  isDeleted,
                                                   newInfo->physical_size);
     }
 

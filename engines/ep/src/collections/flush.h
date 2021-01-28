@@ -20,6 +20,7 @@
 #include "collections/collection_persisted_stats.h"
 #include "collections/collections_types.h"
 #include "collections/kvstore.h"
+#include "ep_types.h"
 
 #include <flatbuffers/flatbuffers.h>
 #include <unordered_map>
@@ -75,8 +76,8 @@ public:
      */
     void updateStats(const DocKey& key,
                      uint64_t seqno,
-                     bool isCommitted,
-                     bool isDelete,
+                     IsCommitted isCommitted,
+                     IsDeleted isDelete,
                      size_t size);
 
     /**
@@ -94,11 +95,11 @@ public:
      */
     void updateStats(const DocKey& key,
                      uint64_t seqno,
-                     bool isCommitted,
-                     bool isDelete,
+                     IsCommitted isCommitted,
+                     IsDeleted isDelete,
                      size_t size,
                      uint64_t oldSeqno,
-                     bool oldIsDelete,
+                     IsDeleted oldIsDelete,
                      size_t oldSize);
 
     /**
@@ -296,7 +297,7 @@ private:
          *        representative of the bytes used by each document, but does
          *        not need to be exact.
          */
-        void insert(bool isSystem, bool isDelete, ssize_t diskSize);
+        void insert(IsSystem isSystem, IsDeleted isDelete, ssize_t diskSize);
 
         /**
          * Process an update into the collection
@@ -313,7 +314,7 @@ private:
          *        representative of the difference between existing and new
          *        documents, but does not need to be exact.
          */
-        void remove(bool isSystem, ssize_t diskSizeDelta);
+        void remove(IsSystem isSystem, ssize_t diskSizeDelta);
 
         /**
          * @return the highest persisted seqno recorded by the Flush object.

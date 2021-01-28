@@ -46,6 +46,9 @@ enum class TrackReference : char { No, Yes };
 enum class QueueExpired : char { No, Yes };
 enum class CheckConflicts : char { No, Yes };
 enum class SyncWriteOperation : char { No, Yes };
+enum class IsSystem : char { No, Yes };
+enum class IsDeleted : char { No, Yes };
+enum class IsCommitted : char { No, Yes };
 
 enum class CheckpointType : char {
     /**

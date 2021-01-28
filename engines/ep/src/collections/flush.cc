@@ -58,10 +58,10 @@ void Flush::StatisticsUpdate::updateDiskSize(ssize_t delta) {
     diskSize += delta;
 }
 
-void Flush::StatisticsUpdate::insert(bool isSystem,
-                                     bool isDelete,
+void Flush::StatisticsUpdate::insert(IsSystem isSystem,
+                                     IsDeleted isDelete,
                                      ssize_t diskSizeDelta) {
-    if (!isSystem && !isDelete) {
+    if (isSystem == IsSystem::No && isDelete == IsDeleted::No) {
         incrementItemCount();
     } // else inserting a tombstone - no item increment
 
@@ -72,8 +72,8 @@ void Flush::StatisticsUpdate::update(ssize_t diskSizeDelta) {
     updateDiskSize(diskSizeDelta);
 }
 
-void Flush::StatisticsUpdate::remove(bool isSystem, ssize_t diskSizeDelta) {
-    if (!isSystem) {
+void Flush::StatisticsUpdate::remove(IsSystem isSystem, ssize_t diskSizeDelta) {
+    if (isSystem == IsSystem::No) {
         decrementItemCount();
     }
     updateDiskSize(diskSizeDelta);
@@ -252,8 +252,8 @@ static std::pair<bool, std::optional<CollectionID>> getCollectionID(
 
 void Flush::updateStats(const DocKey& key,
                         uint64_t seqno,
-                        bool isCommitted,
-                        bool isDelete,
+                        IsCommitted isCommitted,
+                        IsDeleted isDelete,
                         size_t size) {
     auto [isSystemEvent, cid] = getCollectionID(key);
 
@@ -266,7 +266,7 @@ void Flush::updateStats(const DocKey& key,
     // empty collection detection will fail because the high-seqno of the
     // collection will change to be equal to the drop-event's seqno. Empty
     // collection detection relies on start-seqno == high-seqno.
-    if (isDelete && isSystemEvent) {
+    if (isDelete == IsDeleted::Yes && isSystemEvent) {
         // Delete collection event - no tracking
         return;
     }
@@ -276,7 +276,7 @@ void Flush::updateStats(const DocKey& key,
             getStatsAndMaybeSetPersistedHighSeqno(cid.value(), seqno);
 
     // Prepares don't change the stats (other than seqno)
-    if (!isCommitted) {
+    if (isCommitted == IsCommitted::No) {
         return;
     }
 
@@ -287,26 +287,27 @@ void Flush::updateStats(const DocKey& key,
     // incorrect. Note this relates to an issue for MB-42272, magma assumes the
     // stats item count will include *everything*, but isn't.
     if (!isLogicallyDeleted(cid.value(), seqno)) {
-        collsFlushStats.insert(isSystemEvent, isDelete, size);
+        collsFlushStats.insert(
+                isSystemEvent ? IsSystem::Yes : IsSystem::No, isDelete, size);
     }
 }
 
 void Flush::updateStats(const DocKey& key,
                         uint64_t seqno,
-                        bool isCommitted,
-                        bool isDelete,
+                        IsCommitted isCommitted,
+                        IsDeleted isDelete,
                         size_t size,
                         uint64_t oldSeqno,
-                        bool oldIsDelete,
+                        IsDeleted oldIsDelete,
                         size_t oldSize) {
     // Same logic and comment as updateStats above.
-    auto [isSystemEvent, cid] = getCollectionID(key);
-
+    auto [systemEvent, cid] = getCollectionID(key);
+    auto isSystemEvent = systemEvent ? IsSystem::Yes : IsSystem::No;
     if (!cid) {
         return;
     }
 
-    if (isDelete && isSystemEvent) {
+    if (isDelete == IsDeleted::Yes && isSystemEvent == IsSystem::Yes) {
         return;
     }
 
@@ -316,23 +317,23 @@ void Flush::updateStats(const DocKey& key,
     // 3) the key's collection is dropped in the snapshot we are writing to
     // For 2 and 3 we are switching live documents of dropped collections into
     // being deleted, thus any update flips to an insert
-    oldIsDelete =
-            oldIsDelete || (isLogicallyDeleted(cid.value(), oldSeqno) ||
+    auto oldIsDeleteBool = oldIsDelete == IsDeleted::Yes ||
+                           (isLogicallyDeleted(cid.value(), oldSeqno) ||
                             isLogicallyDeletedInStore(cid.value(), oldSeqno));
 
     auto& collsFlushStats =
             getStatsAndMaybeSetPersistedHighSeqno(cid.value(), seqno);
 
     // Prepares don't change the stats (other than seqno)
-    if (!isCommitted) {
+    if (isCommitted == IsCommitted::No) {
         return;
     }
 
     // As above, logically deleted items don't update item-count/disk-size
     if (!isLogicallyDeleted(cid.value(), seqno)) {
-        if (oldIsDelete) {
+        if (oldIsDeleteBool) {
             collsFlushStats.insert(isSystemEvent, isDelete, size);
-        } else if (!oldIsDelete && isDelete) {
+        } else if (oldIsDelete == IsDeleted::No && isDelete == IsDeleted::Yes) {
             collsFlushStats.remove(isSystemEvent, size - oldSize);
         } else {
             collsFlushStats.update(size - oldSize);

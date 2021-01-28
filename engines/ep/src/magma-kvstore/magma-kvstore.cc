@@ -1158,21 +1158,26 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
         // the on disk size of collections. As we cannot track prepare size
         // correctly for magma we must avoid counting it at all.
         if (diskDocKey.isCommitted()) {
+            auto isDeleted = req->isDelete() ? IsDeleted::Yes : IsDeleted::No;
+            auto isCommitted = diskDocKey.isCommitted() ? IsCommitted::Yes
+                                                        : IsCommitted::No;
             if (docExists) {
+                auto oldIsDeleted =
+                        isTombstone ? IsDeleted::Yes : IsDeleted::No;
                 commitData.collections.updateStats(
                         docKey,
                         req->getDocMeta().bySeqno,
-                        diskDocKey.isCommitted(),
-                        req->isDelete(),
+                        isCommitted,
+                        isDeleted,
                         req->getBodySize(),
                         configuration.magmaCfg.GetSeqNum(oldMeta),
-                        isTombstone,
+                        oldIsDeleted,
                         configuration.magmaCfg.GetValueSize(oldMeta));
             } else {
                 commitData.collections.updateStats(docKey,
                                                    req->getDocMeta().bySeqno,
-                                                   diskDocKey.isCommitted(),
-                                                   req->isDelete(),
+                                                   isCommitted,
+                                                   isDeleted,
                                                    req->getBodySize());
             }
         } else {
