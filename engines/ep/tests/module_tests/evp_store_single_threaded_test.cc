@@ -174,7 +174,7 @@ void SingleThreadedKVBucketTest::runReadersUntilWarmedUp() {
  * Finally, run warmup.
  */
 void SingleThreadedKVBucketTest::resetEngineAndEnableWarmup(
-        std::string new_config) {
+        std::string new_config, bool force) {
     shutdownAndPurgeTasks(engine.get());
     std::string config = config_string;
 
@@ -193,7 +193,7 @@ void SingleThreadedKVBucketTest::resetEngineAndEnableWarmup(
         config += new_config;
     }
 
-    reinitialise(config);
+    reinitialise(config, force);
     if (engine->getConfiguration().getBucketType() == "persistent") {
         static_cast<EPBucket*>(engine->getKVBucket())->initializeWarmupTask();
         static_cast<EPBucket*>(engine->getKVBucket())->startWarmupTask();
@@ -204,8 +204,9 @@ void SingleThreadedKVBucketTest::resetEngineAndEnableWarmup(
  * Destroy engine and replace it with a new engine that can be warmed up.
  * Finally, run warmup.
  */
-void SingleThreadedKVBucketTest::resetEngineAndWarmup(std::string new_config) {
-    resetEngineAndEnableWarmup(new_config);
+void SingleThreadedKVBucketTest::resetEngineAndWarmup(std::string new_config,
+                                                      bool force) {
+    resetEngineAndEnableWarmup(new_config, force);
 
     // Now get the engine warmed up
     runReadersUntilWarmedUp();
@@ -4904,8 +4905,34 @@ void STParamPersistentBucketTest::testAbortDoesNotIncrementOpsDelete(
     EXPECT_EQ(0, vb.opsDelete);
 }
 
+TEST_P(STParamPersistentBucketTest, CleanShutdown) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
 
-void STParamPersistentBucketTest::testFailoverTableEntryPersistedAtWarmup(std::function<void()> testFunction) {
+    auto initialUuid = vb->failovers->getLatestUUID();
+
+    vb.reset();
+    resetEngineAndWarmup();
+    vb = engine->getKVBucket()->getVBucket(vbid);
+
+    EXPECT_EQ(initialUuid, vb->failovers->getLatestUUID());
+}
+
+TEST_P(STParamPersistentBucketTest, UncleanShutdown) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+
+    auto initialUuid = vb->failovers->getLatestUUID();
+
+    vb.reset();
+    resetEngineAndWarmup("", true /* force shutdown*/);
+    vb = engine->getKVBucket()->getVBucket(vbid);
+
+    EXPECT_NE(initialUuid, vb->failovers->getLatestUUID());
+}
+
+void STParamPersistentBucketTest::testFailoverTableEntryPersistedAtWarmup(
+        std::function<void()> testFunction) {
     // 1) Store something so we can expire it later
     engine->getKVBucket()->setVBucketState(vbid, vbucket_state_active);
     auto vb = engine->getKVBucket()->getVBucket(vbid);
@@ -4921,7 +4948,7 @@ void STParamPersistentBucketTest::testFailoverTableEntryPersistedAtWarmup(std::f
     // 2) Restart as though we had an unclean shutdown (creating a new failover
     //    table entry) and run the warmup up to the point of completion.
     vb.reset();
-    resetEngineAndEnableWarmup();
+    resetEngineAndEnableWarmup("", true /*unclean*/);
 
     auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
     auto* warmup = engine->getKVBucket()->getWarmup();

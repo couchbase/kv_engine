@@ -167,8 +167,10 @@ public:
     /**
      * Effectively shutdown/restart. This destroys the test engine/store/cookie
      * and re-creates them.
+     *
+     * @param force Force the shutdown making it appear unclean
      */
-    void reinitialise(std::string config);
+    void reinitialise(std::string config, bool force = false);
 
     /**
      * Create a *_with_meta packet with the key/body
@@ -249,8 +251,10 @@ private:
 
     /**
      * Destroy the test objects - e.g. engine/store/cookie
+     *
+     * @param force Force the shutdown making it appear unclean
      */
-    void destroy();
+    void destroy(bool force = false);
 
     bool completeWarmup = true;
 

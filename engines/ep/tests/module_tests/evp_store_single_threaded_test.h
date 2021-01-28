@@ -149,14 +149,22 @@ protected:
 
     /**
      * Destroy engine and replace it with a new engine that can be warmed up.
+     *
+     * @param new_config The config to supply to engine creation
+     * @param unclean Should the restart be made to appear unclean
      */
-    void resetEngineAndEnableWarmup(std::string new_config = "");
+    void resetEngineAndEnableWarmup(std::string new_config = "",
+                                    bool unclean = false);
 
     /**
      * Destroy engine and replace it with a new engine that can be warmed up.
      * Finally, run warmup.
+     *
+     * @param new_config The config to supply to engine creation
+     * @param unclean Should the restart be made to appear unclean
      */
-    void resetEngineAndWarmup(std::string new_config = "");
+    void resetEngineAndWarmup(std::string new_config = "",
+                              bool unclean = false);
 
     /*
      * Fake callback emulating dcp_add_failover_log
