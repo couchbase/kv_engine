@@ -564,7 +564,8 @@ public:
     void addKVStoreTimingStats(const AddStatFn& add_stat,
                                const void* cookie) override;
 
-    bool getKVStoreStat(const char* name, size_t& value,
+    bool getKVStoreStat(std::string_view name,
+                        size_t& value,
                         KVSOption option) override;
 
     void resetUnderlyingStats() override;

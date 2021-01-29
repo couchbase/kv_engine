@@ -311,7 +311,7 @@ public:
      */
     void pendingTasks() override;
 
-    bool getStat(const char* name, size_t& value) override;
+    bool getStat(std::string_view name, size_t& value) override;
 
     couchstore_error_t fetchDoc(Db* db,
                                 DocInfo* docinfo,

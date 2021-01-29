@@ -26,6 +26,7 @@
 #include <memcached/engine.h>
 #include <nlohmann/json_fwd.hpp>
 #include <list>
+#include <string_view>
 
 /* Forward declarations */
 struct CompactionConfig;
@@ -702,7 +703,8 @@ public:
      * @return True if the statistic was successfully returned via {value},
      *              else false.
      */
-    virtual bool getKVStoreStat(const char* name, size_t& value,
+    virtual bool getKVStoreStat(std::string_view name,
+                                size_t& value,
                                 KVSOption option) = 0;
 
     virtual void resetUnderlyingStats() = 0;

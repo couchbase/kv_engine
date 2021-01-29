@@ -251,7 +251,7 @@ public:
      * @param value returned value when function return is true
      * @return true if stat found, value is set
      */
-    bool getStat(const char* name, size_t& value) override;
+    bool getStat(std::string_view name, size_t& value) override;
 
     /**
      * Adds a request to a queue for batch processing at commit()

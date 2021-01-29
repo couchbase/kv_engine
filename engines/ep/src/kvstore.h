@@ -31,6 +31,7 @@
 #include <list>
 #include <map>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -653,7 +654,7 @@ public:
      * @return True if the stat exists, is of type size_t and was successfully
      *         returned, else false.
      */
-    virtual bool getStat(const char* name, size_t& value) {
+    virtual bool getStat(std::string_view name, size_t& value) {
         return false;
     }
 

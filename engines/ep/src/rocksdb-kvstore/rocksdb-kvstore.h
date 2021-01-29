@@ -161,7 +161,7 @@ public:
      * @return True if the stat exists, is of type size_t and was successfully
      *         returned, else false.
      */
-    bool getStat(const char* name, size_t& value) override;
+    bool getStat(std::string_view name, size_t& value) override;
 
     /**
      * Query the properties of the underlying storage.

@@ -2440,8 +2440,9 @@ void KVBucket::addKVStoreTimingStats(const AddStatFn& add_stat,
     }
 }
 
-bool KVBucket::getKVStoreStat(const char* name, size_t& value, KVSOption option)
-{
+bool KVBucket::getKVStoreStat(std::string_view name,
+                              size_t& value,
+                              KVSOption option) {
     value = 0;
     bool success = true;
     for (const auto& shard : vbMap.shards) {

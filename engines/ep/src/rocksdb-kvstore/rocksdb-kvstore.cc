@@ -866,9 +866,7 @@ size_t RocksDBKVStore::getNumShards() {
     return configuration.getMaxShards();
 }
 
-bool RocksDBKVStore::getStat(const char* name_, size_t& value) {
-    std::string name(name_);
-
+bool RocksDBKVStore::getStat(std::string_view name, size_t& value) {
     // Memory Usage
     if (name == "kMemTableTotal") {
         return getStatFromMemUsage(rocksdb::MemoryUtil::kMemTableTotal, value);

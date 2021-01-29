@@ -1829,34 +1829,34 @@ bool CouchKVStore::commit(VB::Commit& commitData) {
     return !inTransaction;
 }
 
-bool CouchKVStore::getStat(const char* name, size_t& value)  {
-    if (strcmp("failure_compaction", name) == 0) {
+bool CouchKVStore::getStat(std::string_view name, size_t& value) {
+    if (name == "failure_compaction") {
         value = st.numCompactionFailure.load();
         return true;
-    } else if (strcmp("failure_get", name) == 0) {
+    } else if (name == "failure_get") {
         value = st.numGetFailure.load();
         return true;
-    } else if (strcmp("io_document_write_bytes", name) == 0) {
+    } else if (name == "io_document_write_bytes") {
         value = st.io_document_write_bytes;
         return true;
-    } else if (strcmp("io_flusher_write_bytes", name) == 0) {
+    } else if (name == "io_flusher_write_bytes") {
         value = st.fsStats.totalBytesWritten;
         return true;
-    } else if (strcmp("io_total_read_bytes", name) == 0) {
+    } else if (name == "io_total_read_bytes") {
         value = st.fsStats.totalBytesRead.load() +
                 st.fsStatsCompaction.totalBytesRead.load();
         return true;
-    } else if (strcmp("io_total_write_bytes", name) == 0) {
+    } else if (name == "io_total_write_bytes") {
         value = st.fsStats.totalBytesWritten.load() +
                 st.fsStatsCompaction.totalBytesWritten.load();
         return true;
-    } else if (strcmp("io_compaction_read_bytes", name) == 0) {
+    } else if (name == "io_compaction_read_bytes") {
         value = st.fsStatsCompaction.totalBytesRead;
         return true;
-    } else if (strcmp("io_compaction_write_bytes", name) == 0) {
+    } else if (name == "io_compaction_write_bytes") {
         value = st.fsStatsCompaction.totalBytesWritten;
         return true;
-    } else if (strcmp("io_bg_fetch_read_count", name) == 0) {
+    } else if (name == "io_bg_fetch_read_count") {
         value = st.getMultiFsReadCount;
         return true;
     }
