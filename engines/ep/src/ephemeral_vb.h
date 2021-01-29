@@ -245,7 +245,7 @@ public:
      * @param bySeqno The seqno of the key
      * @return true if the key is logically deleted
      */
-    bool isKeyLogicallyDeleted(const DocKey& key, int64_t bySeqno);
+    bool isKeyLogicallyDeleted(const DocKey& key, int64_t bySeqno) const;
 
     uint64_t getMaxVisibleSeqno() const;
 
