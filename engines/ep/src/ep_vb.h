@@ -212,11 +212,10 @@ public:
     /**
      * If the key@bySeqno is found, drop it from the hash table
      *
-     * @param bySeqno The seqno of the key to remove
-     * @param cHandle Collections readhandle (caching mode) for this key
+     * @paran key key to drop
+     * @param bySeqno The seqno of the key to drop
      */
-    void dropKey(int64_t bySeqno,
-                 Collections::VB::CachingReadHandle& cHandle) override;
+    void dropKey(const DocKey& key, int64_t bySeqno) override;
 
     /**
      * Add a system event Item to the vbucket and return its seqno.

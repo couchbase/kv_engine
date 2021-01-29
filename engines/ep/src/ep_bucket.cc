@@ -1156,14 +1156,8 @@ void EPBucket::dropKey(Vbid vbid,
         vb->dropPendingKey(docKey, bySeqno);
     }
 
-    { // collections read lock scope
-        // @todo this lock could be removed - fetchValidValue requires it
-        // in-case of expiry, however dropKey doesn't generate expired values
-        auto cHandle = vb->lockCollections(docKey);
-
-        // ... drop it from the VB (hashtable)
-        vb->dropKey(bySeqno, cHandle);
-    }
+    // ... drop it from the VB (hashtable)
+    vb->dropKey(docKey, bySeqno);
 }
 
 std::shared_ptr<CompactionContext> EPBucket::makeCompactionContext(

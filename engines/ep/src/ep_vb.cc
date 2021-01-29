@@ -917,11 +917,9 @@ size_t EPVBucket::getNumPersistedDeletes() const {
     return shard->getRWUnderlying()->getNumPersistedDeletes(getId());
 }
 
-void EPVBucket::dropKey(int64_t bySeqno,
-                        Collections::VB::CachingReadHandle& cHandle) {
+void EPVBucket::dropKey(const DocKey& key, int64_t bySeqno) {
     // dropKey must not generate expired items as it's used for erasing a
     // collection.
-    const auto& key = cHandle.getKey();
 
     auto res = ht.findForUpdate(key);
     if (res.committed && res.committed->getBySeqno() == bySeqno) {

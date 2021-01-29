@@ -335,7 +335,7 @@ bool EphemeralVBucket::isKeyLogicallyDeleted(const DocKey& key,
     }
     auto cHandle = lockCollections(key);
     if (!cHandle.valid() || cHandle.isLogicallyDeleted(bySeqno)) {
-        dropKey(bySeqno, cHandle);
+        dropKey(key, bySeqno);
         return true;
     }
     return false;
@@ -918,10 +918,7 @@ size_t EphemeralVBucket::getNumPersistedDeletes() const {
     return getNumInMemoryDeletes();
 }
 
-void EphemeralVBucket::dropKey(int64_t bySeqno,
-                               Collections::VB::CachingReadHandle& cHandle) {
-    const auto& key = cHandle.getKey();
-
+void EphemeralVBucket::dropKey(const DocKey& key, int64_t bySeqno) {
     // The system event doesn't get dropped here (tombstone purger will deal)
     if (key.isInSystemCollection()) {
         return;

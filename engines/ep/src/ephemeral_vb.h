@@ -213,8 +213,7 @@ public:
      */
     size_t getNumPersistedDeletes() const override;
 
-    void dropKey(int64_t bySeqno,
-                 Collections::VB::CachingReadHandle& cHandle) override;
+    void dropKey(const DocKey& key, int64_t bySeqno) override;
 
     /**
      * Add a system event Item to the vbucket and return its seqno.

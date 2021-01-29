@@ -1532,11 +1532,10 @@ public:
     /**
      * Implementation dependent method called by the collections erasing code
      *
+     * @paran key key to drop
      * @param bySeqno The seqno of the key to drop
-     * @param cHandle Collections readhandle (caching mode) for this key
      */
-    virtual void dropKey(int64_t bySeqno,
-                         Collections::VB::CachingReadHandle& cHandle) = 0;
+    virtual void dropKey(const DocKey& key, int64_t bySeqno) = 0;
 
     /**
      * Drops the key from the DM so we can purge a collection
