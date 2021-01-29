@@ -3054,6 +3054,49 @@ TEST_P(DurabilityCouchstoreBucketTest, MB_36739) {
     EXPECT_EQ(1, newState.persistedPreparedSeqno);
 }
 
+/**
+ * Verify that vbstate::onDiskPrepareBytes is not updated for normal mutations.
+ */
+TEST_P(DurabilityCouchstoreBucketTest, MB_43964) {
+    setVBucketToActiveWithValidTopology();
+
+    auto* kvstore = store->getRWUnderlying(vbid);
+    ASSERT_EQ(0,
+              kvstore->getPersistedVBucketState(vbid).getOnDiskPrepareBytes());
+
+    // Insert
+    const auto key = makeStoredDocKey("key");
+    auto item = makeCommittedItem(key, "smallValue");
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(*item, cookie));
+
+    // Persist
+    auto res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
+    EXPECT_EQ(EPBucket::MoreAvailable::No, res.moreAvailable);
+    EXPECT_EQ(1, res.numFlushed);
+    EXPECT_EQ(EPBucket::WakeCkptRemover::No, res.wakeupCkptRemover);
+    EXPECT_EQ(1, engine->getEpStats().flusherCommits);
+
+    // Still 0
+    EXPECT_EQ(0,
+              kvstore->getPersistedVBucketState(vbid).getOnDiskPrepareBytes());
+
+    // Update
+    item = makeCommittedItem(key, "bigValue0123456789abcdef");
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(*item, cookie));
+
+    // Persist
+    res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
+    EXPECT_EQ(EPBucket::MoreAvailable::No, res.moreAvailable);
+    EXPECT_EQ(1, res.numFlushed);
+    EXPECT_EQ(EPBucket::WakeCkptRemover::No, res.wakeupCkptRemover);
+    EXPECT_EQ(2, engine->getEpStats().flusherCommits);
+
+    // Still 0
+    // Before the fix this is > 0
+    EXPECT_EQ(0,
+              kvstore->getPersistedVBucketState(vbid).getOnDiskPrepareBytes());
+}
+
 template <typename F>
 void DurabilityEphemeralBucketTest::testPurgeCompletedPrepare(F& func) {
     setVBucketStateAndRunPersistTask(
