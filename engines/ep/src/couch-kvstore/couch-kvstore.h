@@ -399,13 +399,6 @@ public:
      */
     vbucket_state readVBState(Vbid vbid);
 
-    /**
-     * Test-only. See definition of postFlushHook for details.
-     */
-    void setPostFlushHook(std::function<void()> hook) {
-        postFlushHook = hook;
-    }
-
 protected:
     /**
      * Internal RAII class for managing a Db* and having it closed when
@@ -845,10 +838,6 @@ protected:
      * Base fileops implementation to be wrapped by stat collecting fileops
      */
     FileOpsInterface& base_ops;
-
-    // Test-only. If set, this is executed after the a flush-batch is committed
-    // to disk but before we call back into the PersistenceCallback.
-    std::function<void()> postFlushHook;
 
     void setMb40415RegressionHook(bool value) {
         mb40415_regression_hook = value;

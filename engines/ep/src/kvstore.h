@@ -921,6 +921,13 @@ public:
     virtual std::vector<Collections::KVStore::DroppedCollection>
     getDroppedCollections(Vbid vbid) = 0;
 
+    /**
+     * Test-only. See definition of postFlushHook for details.
+     */
+    void setPostFlushHook(std::function<void()> hook) {
+        postFlushHook = hook;
+    }
+
 protected:
     /**
      * Prepare for delete of the vbucket file - Implementation specific method
@@ -951,6 +958,10 @@ protected:
 
     /// Metadata that the underlying implementation must persist
     Collections::KVStore::CommitMetaData collectionsMeta;
+
+    // Test-only. If set, this is executed after the a flush-batch is committed
+    // to disk but before we call back into the PersistenceCallback.
+    std::function<void()> postFlushHook;
 
     void createDataDir(const std::string& dbname);
     template <typename T>
