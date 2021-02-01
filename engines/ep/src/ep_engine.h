@@ -580,9 +580,10 @@ public:
                                     bool waitForCompletion,
                                     const void* cookie = nullptr);
 
-    ENGINE_ERROR_CODE compactDB(Vbid vbid,
-                                const CompactionConfig& c,
-                                const void* cookie);
+    /// Schedule compaction (used by unit tests)
+    ENGINE_ERROR_CODE scheduleCompaction(Vbid vbid,
+                                         const CompactionConfig& c,
+                                         const void* cookie);
 
     cb::mcbp::Status evictKey(const void* cookie,
                               const cb::mcbp::Request& request,
@@ -872,6 +873,18 @@ public:
 
 protected:
     friend class EpEngineValueChangeListener;
+
+    /**
+     * Function to implement the compaction request from the client:
+     *
+     * @param cookie cookie to identify the client
+     * @param req the request from the client
+     * @param response callback function to inject data to send back
+     *                 to the client
+     */
+    ENGINE_ERROR_CODE compactDB(const void* cookie,
+                                const cb::mcbp::Request& req,
+                                const AddResponseFn& response);
 
     cb::engine_errc checkPrivilege(const void* cookie,
                                    cb::rbac::Privilege priv,

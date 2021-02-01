@@ -1790,7 +1790,7 @@ TEST_P(EPBucketTestCouchstore, CompactionWithPurgeOptions) {
     int ii = 0;
     for (const auto& c : configs) {
         EXPECT_EQ(2, vb->getNumPersistedDeletes());
-        engine->compactDB(vbid, c, cookie);
+        engine->scheduleCompaction(vbid, c, cookie);
         auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
         auto task = mockEPBucket->getCompactionTask(vbid);
         ASSERT_TRUE(task);

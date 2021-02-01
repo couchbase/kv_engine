@@ -5483,7 +5483,7 @@ TEST_P(STParamPersistentBucketTest,
        TestExpiryDueToCompactionPersistsFailoverTableEntryDuringWarmup) {
     testFailoverTableEntryPersistedAtWarmup([this]() {
         CompactionConfig config;
-        engine->compactDB(vbid, config, cookie);
+        engine->scheduleCompaction(vbid, config, cookie);
         std::string taskDescription =
                 "Compact DB file " + std::to_string(vbid.get());
         runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX],

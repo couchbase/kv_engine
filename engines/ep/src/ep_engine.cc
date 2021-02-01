@@ -1097,15 +1097,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getReplicaCmd(
     return error_code;
 }
 
-static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine& engine,
-                                   const void* cookie,
-                                   const cb::mcbp::Request& req,
-                                   const AddResponseFn& response) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::compactDB(
+        const void* cookie,
+        const cb::mcbp::Request& req,
+        const AddResponseFn& response) {
     const auto res = cb::mcbp::Status::Success;
     CompactionConfig compactionConfig;
     uint64_t cas = req.getCas();
 
-    EPStats& stats = engine.getEpStats();
     auto extras = req.getExtdata();
     const auto* payload =
             reinterpret_cast<const cb::mcbp::request::CompactDbPayload*>(
@@ -1117,12 +1116,12 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine& engine,
     Vbid vbid = req.getVBucket();
 
     ENGINE_ERROR_CODE err;
-    if (engine.getEngineSpecific(cookie) == nullptr) {
+    if (getEngineSpecific(cookie) == nullptr) {
         ++stats.pendingCompactions;
-        engine.storeEngineSpecific(cookie, &engine);
-        err = engine.compactDB(vbid, compactionConfig, cookie);
+        storeEngineSpecific(cookie, this);
+        err = scheduleCompaction(vbid, compactionConfig, cookie);
     } else {
-        engine.storeEngineSpecific(cookie, nullptr);
+        storeEngineSpecific(cookie, nullptr);
         err = ENGINE_SUCCESS;
     }
 
@@ -1143,24 +1142,23 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine& engine,
     case ENGINE_EWOULDBLOCK:
         // We don't use the value stored in the engine-specific code, just
         // that it is non-null...
-        engine.storeEngineSpecific(cookie, &engine);
+        storeEngineSpecific(cookie, this);
         return ENGINE_EWOULDBLOCK;
     case ENGINE_TMPFAIL:
         EP_LOG_WARN(
                 "Request to compact {} hit a temporary failure and may need to "
                 "be retried",
                 vbid);
-        engine.setErrorContext(cookie,
-                               "Temporary failure in compacting db file.");
+        setErrorContext(cookie, "Temporary failure in compacting db file.");
         return ENGINE_TMPFAIL;
     default:
         --stats.pendingCompactions;
         EP_LOG_WARN("Compaction of {} failed: {}",
                     vbid,
                     cb::to_string(cb::engine_errc(err)));
-        engine.setErrorContext(cookie,
-                               "Failed to compact db file: " +
-                                       cb::to_string(cb::engine_errc(err)));
+        setErrorContext(cookie,
+                        "Failed to compact db file: " +
+                                cb::to_string(cb::engine_errc(err)));
         return err;
     }
 
@@ -1270,7 +1268,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::processUnknownCommandInner(
     case cb::mcbp::ClientOpcode::DisableTraffic:
         return handleTrafficControlCmd(cookie, request, response);
     case cb::mcbp::ClientOpcode::CompactDb: {
-        const auto rv = ::compactDB(*this, cookie, request, response);
+        const auto rv = compactDB(cookie, request, response);
         if (rv != ENGINE_EWOULDBLOCK) {
             decrementSessionCtr();
             storeEngineSpecific(cookie, nullptr);
@@ -6556,7 +6554,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteVBucket(
     return status;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::compactDB(
+ENGINE_ERROR_CODE EventuallyPersistentEngine::scheduleCompaction(
         Vbid vbid, const CompactionConfig& c, const void* cookie) {
     return kvBucket->scheduleCompaction(
             vbid, c, cookie, std::chrono::seconds(0));
