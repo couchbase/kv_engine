@@ -110,6 +110,14 @@ TEST_F(FlusherTest, GetToLowPrioWhenSomeHighPriIsPending) {
     kvBucket->setVBucketState(hpVbid, vbucket_state_replica);
     kvBucket->setVBucketState(lpVbid, vbucket_state_replica);
 
+    // SetVBucketState notifies the flusher but we don't want to consider that
+    // in this test so just run the flusher to clear the queue to set up for the
+    // rest of the test
+    while (flusher->getLPQueueSize() != 0) {
+        task_executor->runNextTask(WRITER_TASK_IDX, flusherName);
+    }
+    ASSERT_EQ(0, flusher->getLPQueueSize());
+
     // Ensure that the 2 vbuckets are managed under the same shard/flusher
     ASSERT_EQ(flusher,
               dynamic_cast<MockEPBucket*>(engine->getKVBucket())

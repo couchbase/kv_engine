@@ -42,6 +42,7 @@
 #include "evp_store_test.h"
 #include "failover-table.h"
 #include "fakes/fake_executorpool.h"
+#include "flusher.h"
 #include "item_freq_decayer_visitor.h"
 #include "kv_bucket.h"
 #include "programs/engine_testapp/mock_server.h"
@@ -5064,6 +5065,108 @@ TEST_P(STParamPersistentBucketTest, UncleanShutdown) {
     vb = engine->getKVBucket()->getVBucket(vbid);
 
     EXPECT_NE(initialUuid, vb->failovers->getLatestUUID());
+}
+
+/**
+ * Test for MB-43744 in which a race condition was spotted during warmup that
+ * could cause us to lose a FailoverTable entry in the following scenario.
+ *
+ * 1) Unclean shutdown
+ * 2) Warmup and generate new FailoverTable entry in CreateVBucket phase
+ * 3) Queue into CkptMgr <- The issue was here as the flusher wasn't notified
+ *                          and couldn't run until PopulateVBucketMap phase
+ * 4) Do no other mutations
+ * 5) Cleanly shutdown
+ * 6) Warmup and we now don't generate a new FailoverTable entry
+ *
+ * This is fixed by moving the queueing of the new state into the
+ * PopulateVBucketMap phase of warmup.
+ */
+TEST_P(STParamPersistentBucketTest,
+       TestUncleanShutdownVBStateNotLostAfterCleanShutdown) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // 1) Make sure we have something to warmup
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, "value", 1 /*expiryTime*/);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+
+    // Grab initialUuid for testing
+    auto initialUuid = vb->failovers->getLatestUUID();
+
+    // 2) Restart as though we had an unclean shutdown (creating a new failover
+    //    table entry) and run the warmup up to the point of completion.
+    vb.reset();
+    resetEngineAndEnableWarmup("", true /*force*/);
+
+    // Manually start the flusher. This is typically done by
+    // EPBucket::initialize which is done during engine setup but we don't want
+    // to start up the warmup task or we run into some test issues.
+    auto& epBucket = static_cast<EPBucket&>(*engine->getKVBucket());
+    epBucket.startFlusher();
+
+    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    auto* warmup = engine->getKVBucket()->getWarmup();
+    ASSERT_TRUE(warmup);
+
+    // Warmup - run past the PopulateVBucketMap step which is the one that
+    // now triggers the flusher and persists the FailoverTable entry.
+    // CheckForAccessLog is the first step common to both value and full
+    // eviction.
+    while (warmup->getWarmupState() != WarmupState::State::CheckForAccessLog) {
+        runNextTask(readerQueue);
+    }
+
+    EXPECT_EQ(WarmupState::State::CheckForAccessLog, warmup->getWarmupState());
+
+    // We can't get the vBucket via the traditional means to get the failover
+    // table but we can see what the on disk state is by reading the persisted
+    // state and loading it into a new FailoverTable
+    auto& couchKVStore =
+            static_cast<CouchKVStore&>(*store->getRWUnderlying(vbid));
+
+    auto state = couchKVStore.readVBState(vbid);
+    FailoverTable preFlushTable{state.transition.failovers, 5, 0};
+    auto preFlushUuid = preFlushTable.getLatestUUID();
+
+    auto flusher = store->getFlusher(0);
+    EXPECT_EQ(1, flusher->getLPQueueSize());
+
+    // Normally running the flusher would be done during a clean shutdown but
+    // unit tests just cancel the tasks instead. The presence of something in
+    // one of the flusher queues is enough for this to happen. We'll run it
+    // manually for simplicity
+    auto& writerQueue = *task_executor->getLpTaskQ()[WRITER_TASK_IDX];
+    while (flusher->getLPQueueSize() != 0) {
+        runNextTask(writerQueue);
+    }
+
+    // Check that the on disk state shows a change in failover table
+    state = couchKVStore.readVBState(vbid);
+    FailoverTable postFlushTable{state.transition.failovers, 5, 0};
+    auto postFlushUuid = postFlushTable.getLatestUUID();
+    EXPECT_NE(preFlushUuid, postFlushUuid);
+
+    // Run through the rest of the warmup so that we can shutdown properly.
+    // This isn't actually required in a production setup but the test will hang
+    // if we don't.
+    while (warmup->getWarmupState() != WarmupState::State::Done) {
+        runNextTask(readerQueue);
+    }
+
+    // And once more to get it out of the queue
+    runNextTask(readerQueue);
+
+    // Final clean shutdown
+    resetEngineAndWarmup();
+
+    // And test that we persisted the new failover table entry
+    vb = engine->getKVBucket()->getVBucket(vbid);
+    EXPECT_NE(initialUuid, vb->failovers->getLatestUUID());
+    EXPECT_NE(preFlushUuid, vb->failovers->getLatestUUID());
+    EXPECT_EQ(postFlushUuid, vb->failovers->getLatestUUID());
 }
 
 void STParamPersistentBucketTest::testFailoverTableEntryPersistedAtWarmup(
