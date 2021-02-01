@@ -1353,14 +1353,22 @@ TYPED_TEST(ExecutorPoolEpEngineTest, cancel_can_schedule) {
 }
 
 /**
- * Waits for up to 10 seconds for the given taskable to have zero tasks.
- * @returns true on success, or false if zero tasks were not observed
- * within the time limit.
+ * Waits for up to 10 seconds for the given engine to have memory usage
+ * equal to expected.
+ * @param engine The engine to test for memory usage
+ * @param expected The expected memory usage
+ * @param[out] actual The last read memory used value. If function returns
+ *             true, this will equal expected.
+ * @returns true on success, or false if memory never became equal to expected
+ *          within the time limit.
  */
-static bool waitForZeroTasks(Taskable& taskable) {
+static bool waitForMemUsedToBe(EventuallyPersistentEngine& engine,
+                               size_t expected,
+                               size_t& actual) {
     return waitForPredicate(
-            [&taskable] {
-                return ExecutorPool::get()->getNumTasks(taskable) == 0;
+            [&engine, expected, &actual] {
+                actual = engine.getEpStats().getPreciseTotalMemoryUsed();
+                return expected == actual;
             },
             std::chrono::seconds{10});
 }
@@ -1424,6 +1432,10 @@ TYPED_TEST(ExecutorPoolEpEngineTest, MemoryTracking_Run) {
         // Some test data which is later expanded / shrunk when task runs.
         std::vector<char> payload;
     };
+
+    // Disassociate current thread with any engine - we create various testing
+    // objects which we don't want interfering with specific bucket memory.
+    ObjectRegistry::onSwitchThread(nullptr);
 
     // Establish initial memory accounting of the bucket, including the
     // initial payload vector memory.
@@ -1538,24 +1550,24 @@ TYPED_TEST(ExecutorPoolEpEngineTest, MemoryTracking_Run) {
     // test 5 - cancel each task; removing from ExecutorPool tracking. Memory
     // usage should decrease to original value before tasks created.
 
-    // Given cancel is (partially) async for FollyExecutorPool, need to wait
-    // until tasks have been cancelled.
+    // Given cancel is (partially) async for both ExecutorPools (task deletion
+    // will happen on one of the background threads, need to poll until memory
+    // usage returns to expected.
     task1.reset();
     ExecutorPool::get()->cancel(task1Id);
-    ASSERT_TRUE(waitForZeroTasks(engine1->getTaskable()));
+    size_t memoryPostCancel1;
+    EXPECT_TRUE(waitForMemUsedToBe(*engine1, memoryInitial1, memoryPostCancel1))
+            << "Exceeded wait time for memoryPostCancel1 (which is "
+            << memoryPostCancel1 << ") to return to memoryInitial1 (which is "
+            << memoryInitial1 << ")";
 
     task2.reset();
     ExecutorPool::get()->cancel(task2Id);
-    ASSERT_TRUE(waitForZeroTasks(engine2->getTaskable()));
-
-    auto memoryPostCancel1 = getMemUsed(engine1);
-    EXPECT_EQ(memoryInitial1, memoryPostCancel1)
-            << "engine1 mem_used has not returned to initial value after "
-               "cancelling task";
-    auto memoryPostCancel2 = getMemUsed(engine2);
-    EXPECT_EQ(memoryInitial2, memoryPostCancel2)
-            << "engine2 mem_used has not returned to initial value after "
-               "cancelling task";
+    size_t memoryPostCancel2;
+    EXPECT_TRUE(waitForMemUsedToBe(*engine2, memoryInitial2, memoryPostCancel2))
+            << "Exceeded wait time for memoryPostCancel2 (which is "
+            << memoryPostCancel2 << ") to return to memoryInitial2 (which is "
+            << memoryInitial2 << ")";
 }
 
 // Test that a task being cancelled during task stats being generated doesn't
@@ -1603,8 +1615,8 @@ TYPED_TEST(ExecutorPoolEpEngineTest, TaskStats_MemAccounting) {
                "creating it.";
 
     // We need to call cancel() while doTasksStat is running, to end up with
-    // the final reference to task being owned doTakStat's copy of all tasks,
-    // so it is freed when doTasksStat returns.
+    // the final reference to task being owned by doTaskStat's copy of all
+    // tasks, so it is freed when doTasksStat returns.
     // To achive this setup a AddStat mock which calls cancel on the first
     // call to it (doTasksStat makes 3 calls to this).
     MockAddStat mockAddStat;
@@ -1625,10 +1637,11 @@ TYPED_TEST(ExecutorPoolEpEngineTest, TaskStats_MemAccounting) {
     ExecutorPool::get()->doTasksStat(
             taskable, this, mockAddStat.asStdFunction());
 
-    ASSERT_TRUE(waitForZeroTasks(taskable));
-
-    auto memoryPostCancel = getMemUsed(*this->engine);
-    EXPECT_EQ(0, memoryPostCancel - memoryInitial)
-            << "mem_used has not returned to initial value after "
-               "cancelling task";
+    // Poll for 10s waiting for memory usage to return to initial.
+    size_t memoryPostCancel;
+    EXPECT_TRUE(
+            waitForMemUsedToBe(*this->engine, memoryInitial, memoryPostCancel))
+            << "Exceeded wait time for memoryPostCancel (which is "
+            << memoryPostCancel << ") to return to memoryInitial (which is "
+            << memoryInitial << ")";
 }

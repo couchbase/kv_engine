@@ -163,7 +163,6 @@ public:
     std::vector<ExTask> unregisterTaskable(Taskable& taskable,
                                            bool force) override;
     size_t getNumTaskables() const override;
-    size_t getNumTasks(const Taskable& taskable) const override;
 
     size_t schedule(ExTask task) override;
     bool cancel(size_t taskId, bool eraseTask) override;

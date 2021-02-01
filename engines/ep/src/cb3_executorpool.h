@@ -165,8 +165,6 @@ public:
         return numTaskables;
     }
 
-    size_t getNumTasks(const Taskable& taskable) const override;
-
     void doWorkerStat(Taskable& taskable,
                       const void* cookie,
                       const AddStatFn& add_stat) override;

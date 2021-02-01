@@ -876,16 +876,6 @@ size_t FollyExecutorPool::getNumTaskables() const {
     return numTaskables;
 }
 
-size_t FollyExecutorPool::getNumTasks(const Taskable& taskable) const {
-    NonBucketAllocationGuard guard;
-    int count;
-    futurePool->getEventBase()->runInEventBaseThreadAndWait(
-            [this, &taskable, &count] {
-                count = state->numTasksForOwner(taskable);
-            });
-    return count;
-}
-
 size_t FollyExecutorPool::schedule(ExTask task) {
     NonBucketAllocationGuard guard;
 
