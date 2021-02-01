@@ -78,7 +78,7 @@ VBucketPtr MockEPBucket::makeVBucket(
             lastSnapStart,
             lastSnapEnd,
             maxVisibleSeqno,
-            /*flusher callback*/ nullptr);
+            std::make_shared<NotifyFlusherCB>(shard));
     return vptr;
 }
 

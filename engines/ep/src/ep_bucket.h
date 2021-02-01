@@ -296,3 +296,17 @@ protected:
 
     std::unique_ptr<Warmup> warmupTask;
 };
+
+/**
+ * Callback for notifying flusher about pending mutations.
+ */
+class NotifyFlusherCB : public Callback<Vbid> {
+public:
+    NotifyFlusherCB(KVShard* sh) : shard(sh) {
+    }
+
+    void callback(Vbid& vb) override;
+
+private:
+    KVShard* shard;
+};
