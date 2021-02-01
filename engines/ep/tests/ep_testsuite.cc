@@ -3341,33 +3341,6 @@ static enum test_result test_datatype_with_unknown_command(EngineIface* h) {
     return SUCCESS;
 }
 
-static enum test_result test_session_cas_validation(EngineIface* h) {
-    // Testing cb::mcbp::ClientOpcode::SetVbucket..
-    char ext[4];
-    vbucket_state_t state = vbucket_state_active;
-    auto val = static_cast<uint32_t>(state);
-    val = htonl(val);
-    memcpy(ext, (char*)&val, sizeof(val));
-
-    std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    uint64_t cas = 0x0101010101010101;
-    auto pkt = createPacket(
-            cb::mcbp::ClientOpcode::SetVbucket, Vbid(0), cas, {ext, 4});
-    checkeq(ENGINE_KEY_EEXISTS,
-            h->unknown_command(cookie.get(), *pkt, add_response),
-            "SET_VBUCKET command failed");
-
-    cas = 0x0102030405060708;
-    pkt = createPacket(
-            cb::mcbp::ClientOpcode::SetVbucket, Vbid(0), cas, {ext, 4});
-    checkeq(ENGINE_SUCCESS,
-            h->unknown_command(cookie.get(), *pkt, add_response),
-            "SET_VBUCKET command failed");
-    cb_assert(last_status == cb::mcbp::Status::Success);
-
-    return SUCCESS;
-}
-
 static enum test_result test_access_scanner_settings(EngineIface* h) {
     if (!isWarmupEnabled(h)) {
         // Access scanner n/a without warmup.
@@ -8510,13 +8483,6 @@ BaseTestCase testsuite_testcases[] = {
                  cleanup),
         TestCase("test datatype with unknown command",
                  test_datatype_with_unknown_command,
-                 test_setup,
-                 teardown,
-                 nullptr,
-                 prepare,
-                 cleanup),
-        TestCase("test session cas validation",
-                 test_session_cas_validation,
                  test_setup,
                  teardown,
                  nullptr,

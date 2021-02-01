@@ -553,10 +553,6 @@ public:
 
     cb::mcbp::ClientOpcode getOpcodeIfEwouldblockSet(const void* cookie);
 
-    bool validateSessionCas(const uint64_t cas);
-
-    void decrementSessionCtr();
-
     void setErrorContext(const void* cookie, std::string_view message);
 
     void setErrorJsonExtras(const void* cookie,
@@ -600,35 +596,34 @@ public:
     VBucketPtr getVBucket(Vbid vbucket) const;
 
     ENGINE_ERROR_CODE setVBucketState(const void* cookie,
-                                      const AddResponseFn& response,
                                       Vbid vbid,
                                       vbucket_state_t to,
                                       const nlohmann::json* meta,
                                       TransferVB transfer,
                                       uint64_t cas);
 
-    cb::mcbp::Status setParam(const cb::mcbp::Request& req, std::string& msg);
+    cb::engine_errc setParam(const cb::mcbp::Request& req, std::string& msg);
 
-    cb::mcbp::Status setFlushParam(const std::string& key,
-                                   const std::string& val,
-                                   std::string& msg);
+    cb::engine_errc setFlushParam(const std::string& key,
+                                  const std::string& val,
+                                  std::string& msg);
 
-    cb::mcbp::Status setReplicationParam(const std::string& key,
-                                         const std::string& val,
-                                         std::string& msg);
-
-    cb::mcbp::Status setCheckpointParam(const std::string& key,
+    cb::engine_errc setReplicationParam(const std::string& key,
                                         const std::string& val,
                                         std::string& msg);
 
-    cb::mcbp::Status setDcpParam(const std::string& key,
-                                 const std::string& val,
-                                 std::string& msg);
+    cb::engine_errc setCheckpointParam(const std::string& key,
+                                       const std::string& val,
+                                       std::string& msg);
 
-    cb::mcbp::Status setVbucketParam(Vbid vbucket,
-                                     const std::string& key,
-                                     const std::string& val,
-                                     std::string& msg);
+    cb::engine_errc setDcpParam(const std::string& key,
+                                const std::string& val,
+                                std::string& msg);
+
+    cb::engine_errc setVbucketParam(Vbid vbucket,
+                                    const std::string& key,
+                                    const std::string& val,
+                                    std::string& msg);
 
     ENGINE_ERROR_CODE getReplicaCmd(const cb::mcbp::Request& request,
                                     const AddResponseFn& response,

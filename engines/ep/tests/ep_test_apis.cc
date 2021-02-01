@@ -730,12 +730,25 @@ bool set_param(EngineIface* h,
             {val, strlen(val)});
 
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    if (h->unknown_command(cookie.get(), *request, add_response) !=
-        ENGINE_SUCCESS) {
-        return false;
+    auto err = h->unknown_command(cookie.get(), *request, add_response);
+
+    if (err == ENGINE_SUCCESS) {
+        last_status = cb::mcbp::Status::Success;
+        return true;
     }
 
-    return last_status == cb::mcbp::Status::Success;
+    // remap the error codes being used
+    if (err == ENGINE_EINVAL) {
+        last_status = cb::mcbp::Status::Einval;
+    } else if (err == ENGINE_NOT_MY_VBUCKET) {
+        last_status = cb::mcbp::Status::NotMyVbucket;
+    } else if (err == ENGINE_KEY_ENOENT) {
+        last_status = cb::mcbp::Status::Einval;
+    } else {
+        std::cerr << "Unknown error code returned!" << std::endl;
+        std::abort();
+    }
+    return false;
 }
 
 bool set_vbucket_state(EngineIface* h,
@@ -766,12 +779,8 @@ bool set_vbucket_state(EngineIface* h,
                                 meta /*value*/,
                                 datatype);
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    if (h->unknown_command(cookie.get(), *request, add_response) !=
-        ENGINE_SUCCESS) {
-        return false;
-    }
-
-    return last_status == cb::mcbp::Status::Success;
+    return h->unknown_command(cookie.get(), *request, add_response) ==
+           ENGINE_SUCCESS;
 }
 
 bool get_all_vb_seqnos(EngineIface* h,

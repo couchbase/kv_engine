@@ -46,6 +46,7 @@
 #include "protocol/mcbp/remove_context.h"
 #include "protocol/mcbp/sasl_auth_command_context.h"
 #include "protocol/mcbp/sasl_refresh_command_context.h"
+#include "protocol/mcbp/session_validated_command_context.h"
 #include "protocol/mcbp/stats_context.h"
 #include "protocol/mcbp/unlock_context.h"
 #include "sasl_tasks.h"
@@ -553,6 +554,10 @@ static void update_user_permissions_executor(Cookie& cookie) {
     cookie.sendResponse(status);
 }
 
+static void session_control_validated_executor(Cookie& cookie) {
+    cookie.obtainContext<SessionValidatedCommandContext>(cookie).drive();
+}
+
 static void rbac_refresh_executor(Cookie& cookie) {
     cookie.obtainContext<RbacReloadCommandContext>(cookie).drive();
 }
@@ -819,6 +824,15 @@ void initialize_mbcp_lookup_map() {
 
     setup_handler(cb::mcbp::ClientOpcode::AdjustTimeofday,
                   adjust_timeofday_executor);
+
+    setup_handler(cb::mcbp::ClientOpcode::SetParam,
+                  session_control_validated_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SetVbucket,
+                  session_control_validated_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DelVbucket,
+                  session_control_validated_executor);
+    setup_handler(cb::mcbp::ClientOpcode::CompactDb,
+                  session_control_validated_executor);
 }
 
 static ENGINE_ERROR_CODE getEngineErrorCode(

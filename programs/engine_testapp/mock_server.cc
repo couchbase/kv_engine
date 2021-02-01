@@ -54,13 +54,6 @@ std::atomic<rel_time_t> time_travel_offset;
 std::mutex mock_server_cookie_mutex;
 spdlog::level::level_enum log_level = spdlog::level::level_enum::info;
 
-/**
- * Session cas elements
- */
-static uint64_t session_cas;
-uint8_t session_ctr;
-static std::mutex session_mutex;
-
 /* Forward declarations */
 
 static PreLinkFunction pre_link_function;
@@ -273,27 +266,6 @@ struct MockServerCookieApi : public ServerCookieIface {
         return cb::mcbp::ClientOpcode::Invalid;
     }
 
-    bool validate_session_cas(uint64_t cas) override {
-        bool ret = true;
-        std::lock_guard<std::mutex> guard(session_mutex);
-        if (cas != 0) {
-            if (session_cas != cas) {
-                ret = false;
-            } else {
-                session_ctr++;
-            }
-        } else {
-            session_ctr++;
-        }
-        return ret;
-    }
-
-    void decrement_session_ctr() override {
-        std::lock_guard<std::mutex> guard(session_mutex);
-        cb_assert(session_ctr != 0);
-        session_ctr--;
-    }
-
     void reserve(gsl::not_null<const void*> cookie) override {
         std::lock_guard<std::mutex> guard(mock_server_cookie_mutex);
         auto* c = cookie_to_mock_cookie(cookie.get());
@@ -450,7 +422,4 @@ void init_mock_server() {
     process_started = time(nullptr);
     time_travel_offset = 0;
     log_level = spdlog::level::level_enum::critical;
-
-    session_cas = 0x0102030405060708;
-    session_ctr = 0;
 }

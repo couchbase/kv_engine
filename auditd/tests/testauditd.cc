@@ -77,12 +77,6 @@ public:
             gsl::not_null<const void*> cookie) override {
         throw std::runtime_error("Not implemented");
     }
-    bool validate_session_cas(uint64_t cas) override {
-        throw std::runtime_error("Not implemented");
-    }
-    void decrement_session_ctr() override {
-        throw std::runtime_error("Not implemented");
-    }
     void notify_io_complete(gsl::not_null<const void*> cookie,
                             ENGINE_ERROR_CODE status) override {
         std::lock_guard<std::mutex> lock(mutex);

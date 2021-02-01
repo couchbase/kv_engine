@@ -1246,18 +1246,16 @@ bool EPBucket::doCompact(Vbid vbid,
     if (vb) {
         compactInternal(vb, config);
     } else if (!cookies.empty()) {
+        // The memcached core won't call back into the engine if the error
+        // code returned in notifyIOComplete is != success so we need to
+        // do all of the cleanup for here.
         err = ENGINE_NOT_MY_VBUCKET;
-        for (const void* cookie : cookies) {
+        for (const auto& cookie : cookies) {
             engine.storeEngineSpecific(cookie, nullptr);
         }
-        /**
-         * Decrement session counter here, as memcached thread wouldn't
-         * visit the engine interface in case of a NOT_MY_VB notification
-         */
-        engine.decrementSessionCtr();
     }
 
-    for (const void* cookie : cookies) {
+    for (const auto& cookie : cookies) {
         engine.notifyIOComplete(cookie, err);
     }
     // All cookies notified so clear the container

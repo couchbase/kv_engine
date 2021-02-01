@@ -110,12 +110,6 @@ public:
             gsl::not_null<const void*> cookie) override {
         return wrapped->get_opcode_if_ewouldblock_set(cookie);
     }
-    bool validate_session_cas(uint64_t cas) override {
-        return wrapped->validate_session_cas(cas);
-    }
-    void decrement_session_ctr() override {
-        return wrapped->decrement_session_ctr();
-    }
     void notify_io_complete(gsl::not_null<const void*> cookie,
                             ENGINE_ERROR_CODE status) override {
         return wrapped->notify_io_complete(cookie, status);

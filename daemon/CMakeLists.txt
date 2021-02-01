@@ -140,6 +140,8 @@ ADD_LIBRARY(memcached_daemon STATIC
             protocol/mcbp/sasl_refresh_command_context.cc
             protocol/mcbp/sasl_refresh_command_context.h
             protocol/mcbp/select_bucket_executor.cc
+            protocol/mcbp/session_validated_command_context.cc
+            protocol/mcbp/session_validated_command_context.h
             protocol/mcbp/stats_context.cc
             protocol/mcbp/stats_context.h
             protocol/mcbp/steppable_command_context.cc

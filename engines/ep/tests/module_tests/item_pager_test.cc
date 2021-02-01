@@ -593,7 +593,7 @@ TEST_P(STItemPagerTest, test_memory_limit) {
     // Now set max_size to be 10MiB
     std::string msg;
     EXPECT_EQ(
-            cb::mcbp::Status::Success,
+            cb::engine_errc::success,
             engine->setFlushParam(
                     "max_size", std::to_string(10 * 1024 * 1204).c_str(), msg));
 
@@ -628,7 +628,7 @@ TEST_P(STItemPagerTest, test_memory_limit) {
 
     // Now set max_size to be mem_used + 10% (we need some headroom)
     auto& stats = engine->getEpStats();
-    EXPECT_EQ(cb::mcbp::Status::Success,
+    EXPECT_EQ(cb::engine_errc::success,
               engine->setFlushParam(
                       "max_size",
                       std::to_string(stats.getEstimatedTotalMemoryUsed() * 1.10)

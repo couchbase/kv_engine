@@ -131,24 +131,6 @@ struct ServerCookieIface {
             gsl::not_null<const void*> cookie) = 0;
 
     /**
-     * Validate given ns_server's session cas token against
-     * saved token in memached, and if so incrment the session
-     * counter.
-     *
-     * @param cas The cas token from the request
-     *
-     * @return true if session cas matches the one saved in
-     * memcached
-     */
-    virtual bool validate_session_cas(uint64_t cas) = 0;
-
-    /**
-     * Decrement session_cas's counter everytime a control
-     * command completes execution.
-     */
-    virtual void decrement_session_ctr() = 0;
-
-    /**
      * Let a connection know that IO has completed.
      * @param cookie cookie representing the connection
      * @param status the status for the io operation

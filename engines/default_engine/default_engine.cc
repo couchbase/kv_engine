@@ -733,23 +733,15 @@ static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
    return ret;
 }
 
-static bool set_vbucket(struct default_engine* e,
-                        const void* cookie,
-                        const cb::mcbp::Request& request,
-                        const AddResponseFn& response) {
+static ENGINE_ERROR_CODE set_vbucket(struct default_engine* e,
+                                     const cb::mcbp::Request& request) {
     vbucket_state_t state;
     auto extras = request.getExtdata();
     std::copy(extras.begin(), extras.end(), reinterpret_cast<uint8_t*>(&state));
     state = vbucket_state_t(ntohl(state));
 
     set_vbucket_state(e, request.getVBucket(), state);
-    return response({},
-                    {},
-                    {reinterpret_cast<const char*>(&state), sizeof(state)},
-                    PROTOCOL_BINARY_RAW_BYTES,
-                    cb::mcbp::Status::Success,
-                    0,
-                    cookie);
+    return ENGINE_SUCCESS;
 }
 
 static bool get_vbucket(struct default_engine* e,
@@ -769,18 +761,10 @@ static bool get_vbucket(struct default_engine* e,
                     cookie);
 }
 
-static bool rm_vbucket(struct default_engine* e,
-                       const void* cookie,
-                       const cb::mcbp::Request& request,
-                       const AddResponseFn& response) {
+static ENGINE_ERROR_CODE rm_vbucket(struct default_engine* e,
+                                    const cb::mcbp::Request& request) {
     set_vbucket_state(e, request.getVBucket(), vbucket_state_dead);
-    return response({},
-                    {},
-                    {},
-                    PROTOCOL_BINARY_RAW_BYTES,
-                    cb::mcbp::Status::Success,
-                    0,
-                    cookie);
+    return ENGINE_SUCCESS;
 }
 
 static bool scrub_cmd(struct default_engine* e,
@@ -798,10 +782,8 @@ static bool scrub_cmd(struct default_engine* e,
  * set_param only added to allow per bucket xattr on/off
  * and toggle between compression modes for testing purposes
  */
-static bool set_param(struct default_engine* e,
-                      const void* cookie,
-                      const cb::mcbp::Request& request,
-                      const AddResponseFn& response) {
+static ENGINE_ERROR_CODE set_param(struct default_engine* e,
+                                   const cb::mcbp::Request& request) {
     using cb::mcbp::request::SetParamPayload;
     auto extras = request.getExtdata();
     auto* payload = reinterpret_cast<const SetParamPayload*>(extras.data());
@@ -821,34 +803,28 @@ static bool set_param(struct default_engine* e,
             } else if (value == "false") {
                 e->config.xattr_enabled = false;
             } else {
-                return false;
+                return ENGINE_EINVAL;
             }
         } else if (key == "compression_mode") {
             try {
                 e->config.compression_mode = parseCompressionMode(
                         std::string(value.data(), value.size()));
             } catch (std::invalid_argument&) {
-                return false;
+                return ENGINE_EINVAL;
             }
         } else if (key == "min_compression_ratio") {
             std::string value_str{value.data(), value.size()};
             float min_comp_ratio;
             if (!safe_strtof(value_str.c_str(), min_comp_ratio)) {
-                return false;
+                return ENGINE_EINVAL;
             }
 
             e->config.min_compression_ratio = min_comp_ratio;
         }
 
-        return response({},
-                        {},
-                        {},
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        cb::mcbp::Status::Success,
-                        0,
-                        cookie);
+        return ENGINE_SUCCESS;
     }
-    return false;
+    return ENGINE_KEY_ENOENT;
 }
 
 ENGINE_ERROR_CODE default_engine::unknown_command(
@@ -862,17 +838,16 @@ ENGINE_ERROR_CODE default_engine::unknown_command(
         sent = scrub_cmd(this, cookie, response);
         break;
     case cb::mcbp::ClientOpcode::DelVbucket:
-        sent = rm_vbucket(this, cookie, request, response);
-        break;
+        return rm_vbucket(this, request);
     case cb::mcbp::ClientOpcode::SetVbucket:
-        sent = set_vbucket(this, cookie, request, response);
-        break;
+        return set_vbucket(this, request);
     case cb::mcbp::ClientOpcode::GetVbucket:
         sent = get_vbucket(this, cookie, request, response);
         break;
     case cb::mcbp::ClientOpcode::SetParam:
-        sent = set_param(this, cookie, request, response);
-        break;
+        return set_param(this, request);
+    case cb::mcbp::ClientOpcode::CompactDb:
+        return ENGINE_FAILED;
     default:
         sent = response({},
                         {},

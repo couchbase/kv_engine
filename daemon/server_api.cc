@@ -174,14 +174,6 @@ struct ServerCookieApi : public ServerCookieIface {
         return opcode;
     }
 
-    bool validate_session_cas(uint64_t cas) override {
-        return session_cas.increment_session_counter(cas);
-    }
-
-    void decrement_session_ctr() override {
-        session_cas.decrement_session_counter();
-    }
-
     void notify_io_complete(gsl::not_null<const void*> cookie,
                             ENGINE_ERROR_CODE status) override {
         notifyIoComplete(getCookie(cookie), status);

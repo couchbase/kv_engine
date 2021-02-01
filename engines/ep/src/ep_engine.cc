@@ -453,9 +453,9 @@ void EventuallyPersistentEngine::reset_stats(
     acquireEngine(this)->resetStats();
 }
 
-cb::mcbp::Status EventuallyPersistentEngine::setReplicationParam(
+cb::engine_errc EventuallyPersistentEngine::setReplicationParam(
         const std::string& key, const std::string& val, std::string& msg) {
-    auto rv = cb::mcbp::Status::Success;
+    auto rv = cb::engine_errc::success;
 
     try {
         if (key == "replication_throttle_threshold") {
@@ -467,33 +467,33 @@ cb::mcbp::Status EventuallyPersistentEngine::setReplicationParam(
             getConfiguration().setReplicationThrottleCapPcnt(std::stoull(val));
         } else {
             msg = "Unknown config param";
-            rv = cb::mcbp::Status::KeyEnoent;
+            rv = cb::engine_errc::no_such_key;
         }
         // Handles exceptions thrown by the standard
         // library stoi/stoul style functions when not numeric
     } catch (std::invalid_argument&) {
         msg = "Argument was not numeric";
-        rv = cb::mcbp::Status::Einval;
+        rv = cb::engine_errc::invalid_arguments;
 
         // Handles exceptions thrown by the standard library stoi/stoul
         // style functions when the conversion does not fit in the datatype
     } catch (std::out_of_range&) {
         msg = "Argument was out of range";
-        rv = cb::mcbp::Status::Einval;
+        rv = cb::engine_errc::invalid_arguments;
 
         // Handles any miscellaenous exceptions in addition to the range_error
         // exceptions thrown by the configuration::set<param>() methods
     } catch (std::exception& error) {
         msg = error.what();
-        rv = cb::mcbp::Status::Einval;
+        rv = cb::engine_errc::invalid_arguments;
     }
 
     return rv;
 }
 
-cb::mcbp::Status EventuallyPersistentEngine::setCheckpointParam(
+cb::engine_errc EventuallyPersistentEngine::setCheckpointParam(
         const std::string& key, const std::string& val, std::string& msg) {
-    auto rv = cb::mcbp::Status::Success;
+    auto rv = cb::engine_errc::success;
 
     try {
         if (key == "chk_max_items") {
@@ -527,39 +527,39 @@ cb::mcbp::Status EventuallyPersistentEngine::setCheckpointParam(
             getConfiguration().setCursorDroppingUpperMark(std::stoull(val));
         } else {
             msg = "Unknown config param";
-            rv = cb::mcbp::Status::KeyEnoent;
+            rv = cb::engine_errc::no_such_key;
         }
 
         // Handles exceptions thrown by the cb_stob function
     } catch (invalid_argument_bool& error) {
         msg = error.what();
-        rv = cb::mcbp::Status::Einval;
+        rv = cb::engine_errc::invalid_arguments;
 
         // Handles exceptions thrown by the standard
         // library stoi/stoul style functions when not numeric
     } catch (std::invalid_argument&) {
         msg = "Argument was not numeric";
-        rv = cb::mcbp::Status::Einval;
+        rv = cb::engine_errc::invalid_arguments;
 
         // Handles exceptions thrown by the standard library stoi/stoul
         // style functions when the conversion does not fit in the datatype
     } catch (std::out_of_range&) {
         msg = "Argument was out of range";
-        rv = cb::mcbp::Status::Einval;
+        rv = cb::engine_errc::invalid_arguments;
 
         // Handles any miscellaenous exceptions in addition to the range_error
         // exceptions thrown by the configuration::set<param>() methods
     } catch (std::exception& error) {
         msg = error.what();
-        rv = cb::mcbp::Status::Einval;
+        rv = cb::engine_errc::invalid_arguments;
     }
 
     return rv;
 }
 
-cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
+cb::engine_errc EventuallyPersistentEngine::setFlushParam(
         const std::string& key, const std::string& val, std::string& msg) {
-    auto rv = cb::mcbp::Status::Success;
+    auto rv = cb::engine_errc::success;
 
     // Handle the actual mutation.
     try {
@@ -711,7 +711,7 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
             getConfiguration().setDcpNoopMandatoryForV5Features(cb_stob(val));
         } else if (key == "access_scanner_run") {
             if (!(runAccessScannerTask())) {
-                rv = cb::mcbp::Status::Etmpfail;
+                rv = cb::engine_errc::temporary_failure;
             }
         } else if (key == "vb_state_persist_run") {
             runVbStatePersistTask(Vbid(std::stoi(val)));
@@ -740,7 +740,7 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
             if (safe_strtof(val.c_str(), min_comp_ratio)) {
                 getConfiguration().setMinCompressionRatio(min_comp_ratio);
             } else {
-                rv = cb::mcbp::Status::Einval;
+                rv = cb::engine_errc::invalid_arguments;
             }
         } else if (key == "max_ttl") {
             getConfiguration().setMaxTtl(std::stoull(val));
@@ -763,78 +763,78 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
             if (safe_strtoul(val.c_str(), value)) {
                 getConfiguration().setPitrMaxHistoryAge(value);
             } else {
-                rv = cb::mcbp::Status::Einval;
+                rv = cb::engine_errc::invalid_arguments;
             }
         } else if (key == "pitr_granularity") {
             uint32_t value;
             if (safe_strtoul(val.c_str(), value)) {
                 getConfiguration().setPitrGranularity(value);
             } else {
-                rv = cb::mcbp::Status::Einval;
+                rv = cb::engine_errc::invalid_arguments;
             }
         } else if (key == "magma_fragmentation_percentage") {
             float value;
             if (safe_strtof(val.c_str(), value)) {
                 getConfiguration().setMagmaFragmentationPercentage(value);
             } else {
-                rv = cb::mcbp::Status::Einval;
+                rv = cb::engine_errc::invalid_arguments;
             }
         } else if (key == "persistent_metadata_purge_age") {
             uint32_t value;
             if (safe_strtoul(val.c_str(), value)) {
                 getConfiguration().setPersistentMetadataPurgeAge(value);
             } else {
-                rv = cb::mcbp::Status::Einval;
+                rv = cb::engine_errc::invalid_arguments;
             }
         } else if (key == "magma_flusher_thread_percentage") {
             uint32_t value;
             if (safe_strtoul(val.c_str(), value)) {
                 getConfiguration().setMagmaFlusherThreadPercentage(value);
             } else {
-                rv = cb::mcbp::Status::Einval;
+                rv = cb::engine_errc::invalid_arguments;
             }
         } else if (key == "couchstore_file_cache_max_size") {
             uint32_t value;
             if (safe_strtoul(val.c_str(), value)) {
                 getConfiguration().setCouchstoreFileCacheMaxSize(value);
             } else {
-                rv = cb::mcbp::Status::Einval;
+                rv = cb::engine_errc::invalid_arguments;
             }
         } else {
             msg = "Unknown config param";
-            rv = cb::mcbp::Status::KeyEnoent;
+            rv = cb::engine_errc::invalid_arguments;
         }
         // Handles exceptions thrown by the cb_stob function
     } catch (invalid_argument_bool& error) {
         msg = error.what();
-        rv = cb::mcbp::Status::Einval;
+        rv = cb::engine_errc::invalid_arguments;
 
         // Handles exceptions thrown by the standard
         // library stoi/stoul style functions when not numeric
     } catch (std::invalid_argument&) {
         msg = "Argument was not numeric";
-        rv = cb::mcbp::Status::Einval;
+        rv = cb::engine_errc::invalid_arguments;
 
         // Handles exceptions thrown by the standard library stoi/stoul
         // style functions when the conversion does not fit in the datatype
     } catch (std::out_of_range&) {
         msg = "Argument was out of range";
-        rv = cb::mcbp::Status::Einval;
+        rv = cb::engine_errc::invalid_arguments;
 
         // Handles any miscellaneous exceptions in addition to the range_error
         // exceptions thrown by the configuration::set<param>() methods
     } catch (std::exception& error) {
         msg = error.what();
-        rv = cb::mcbp::Status::Einval;
+        rv = cb::engine_errc::invalid_arguments;
     }
 
     return rv;
 }
 
-cb::mcbp::Status EventuallyPersistentEngine::setDcpParam(const std::string& key,
-                                                         const std::string& val,
-                                                         std::string& msg) {
-    auto rv = cb::mcbp::Status::Success;
+cb::engine_errc EventuallyPersistentEngine::setDcpParam(const std::string& key,
+                                                        const std::string& val,
+                                                        std::string& msg) {
+    auto rv = cb::engine_errc::success;
     try {
         if (key == "dcp_conn_buffer_size") {
             getConfiguration().setDcpConnBufferSize(std::stoull(val));
@@ -876,22 +876,22 @@ cb::mcbp::Status EventuallyPersistentEngine::setDcpParam(const std::string& key,
             getConfiguration().setDcpTakeoverMaxTime(std::stoull(val));
         } else {
             msg = "Unknown config param";
-            rv = cb::mcbp::Status::KeyEnoent;
+            rv = cb::engine_errc::no_such_key;
         }
     } catch (std::runtime_error&) {
         msg = "Value out of range.";
-        rv = cb::mcbp::Status::Einval;
+        rv = cb::engine_errc::invalid_arguments;
     }
 
     return rv;
 }
 
-cb::mcbp::Status EventuallyPersistentEngine::setVbucketParam(
+cb::engine_errc EventuallyPersistentEngine::setVbucketParam(
         Vbid vbucket,
         const std::string& key,
         const std::string& val,
         std::string& msg) {
-    auto rv = cb::mcbp::Status::Success;
+    auto rv = cb::engine_errc::success;
     try {
         if (key == "hlc_drift_ahead_threshold_us") {
             uint64_t v = std::strtoull(val.c_str(), nullptr, 10);
@@ -906,16 +906,16 @@ cb::mcbp::Status EventuallyPersistentEngine::setVbucketParam(
             checkNumeric(val.c_str());
             EP_LOG_INFO("setVbucketParam: max_cas:{} {}", v, vbucket);
             if (getKVBucket()->forceMaxCas(vbucket, v) != ENGINE_SUCCESS) {
-                rv = cb::mcbp::Status::NotMyVbucket;
+                rv = cb::engine_errc::not_my_vbucket;
                 msg = "Not my vbucket";
             }
         } else {
             msg = "Unknown config param";
-            rv = cb::mcbp::Status::KeyEnoent;
+            rv = cb::engine_errc::no_such_key;
         }
     } catch (std::runtime_error&) {
         msg = "Value out of range.";
-        rv = cb::mcbp::Status::Einval;
+        rv = cb::engine_errc::invalid_arguments;
     }
     return rv;
 }
@@ -937,7 +937,7 @@ cb::mcbp::Status EventuallyPersistentEngine::evictKey(
     return rv;
 }
 
-cb::mcbp::Status EventuallyPersistentEngine::setParam(
+cb::engine_errc EventuallyPersistentEngine::setParam(
         const cb::mcbp::Request& req, std::string& msg) {
     using cb::mcbp::request::SetParamPayload;
     auto extras = req.getExtdata();
@@ -964,7 +964,7 @@ cb::mcbp::Status EventuallyPersistentEngine::setParam(
         return setVbucketParam(req.getVBucket(), keyz, valz, msg);
     }
 
-    return cb::mcbp::Status::UnknownCommand;
+    return cb::engine_errc::no_such_key;
 }
 
 static ENGINE_ERROR_CODE getVBucket(EventuallyPersistentEngine& e,
@@ -991,8 +991,7 @@ static ENGINE_ERROR_CODE getVBucket(EventuallyPersistentEngine& e,
 
 static ENGINE_ERROR_CODE setVBucket(EventuallyPersistentEngine& e,
                                     const void* cookie,
-                                    const cb::mcbp::Request& request,
-                                    const AddResponseFn& response) {
+                                    const cb::mcbp::Request& request) {
     nlohmann::json meta;
     vbucket_state_t state;
     auto extras = request.getExtdata();
@@ -1029,7 +1028,6 @@ static ENGINE_ERROR_CODE setVBucket(EventuallyPersistentEngine& e,
     }
 
     return e.setVBucketState(cookie,
-                             response,
                              request.getVBucket(),
                              state,
                              meta.empty() ? nullptr : &meta,
@@ -1045,18 +1043,7 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine& e,
     auto value = req.getValue();
     bool sync = value.size() == 7 && memcmp(value.data(), "async=0", 7) == 0;
 
-    auto error = e.deleteVBucket(vbucket, sync, cookie);
-    if (error == ENGINE_SUCCESS) {
-        return sendResponse(response,
-                            {}, // key
-                            {}, // extra
-                            {}, // body
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            cb::mcbp::Status::Success,
-                            req.getCas(),
-                            cookie);
-    }
-    return error;
+    return e.deleteVBucket(vbucket, sync, cookie);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getReplicaCmd(
@@ -1101,75 +1088,45 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::compactDB(
         const void* cookie,
         const cb::mcbp::Request& req,
         const AddResponseFn& response) {
-    const auto res = cb::mcbp::Status::Success;
-    CompactionConfig compactionConfig;
-    uint64_t cas = req.getCas();
+    if (getEngineSpecific(cookie)) {
+        // This is a completion of a compaction. Clear the engine-specific
+        // part
+        storeEngineSpecific(cookie, nullptr);
+        return ENGINE_SUCCESS;
+    }
 
     auto extras = req.getExtdata();
     const auto* payload =
             reinterpret_cast<const cb::mcbp::request::CompactDbPayload*>(
                     extras.data());
 
+    CompactionConfig compactionConfig;
     compactionConfig.purge_before_ts = payload->getPurgeBeforeTs();
     compactionConfig.purge_before_seq = payload->getPurgeBeforeSeq();
     compactionConfig.drop_deletes = payload->getDropDeletes();
-    Vbid vbid = req.getVBucket();
+    const auto vbid = req.getVBucket();
 
-    ENGINE_ERROR_CODE err;
-    if (getEngineSpecific(cookie) == nullptr) {
-        ++stats.pendingCompactions;
-        storeEngineSpecific(cookie, this);
-        err = scheduleCompaction(vbid, compactionConfig, cookie);
-    } else {
-        storeEngineSpecific(cookie, nullptr);
-        err = ENGINE_SUCCESS;
-    }
+    ++stats.pendingCompactions;
+    storeEngineSpecific(cookie, this);
+    const auto err = scheduleCompaction(vbid, compactionConfig, cookie);
 
     switch (err) {
     case ENGINE_SUCCESS:
         break;
-    case ENGINE_NOT_MY_VBUCKET:
-        --stats.pendingCompactions;
-        EP_LOG_WARN(
-                "Compaction of {} failed because the db file doesn't exist!!!",
-                vbid);
-        return ENGINE_NOT_MY_VBUCKET;
-    case ENGINE_EINVAL:
-        --stats.pendingCompactions;
-        EP_LOG_WARN("Compaction of {} failed because of an invalid argument",
-                    vbid);
-        return ENGINE_EINVAL;
     case ENGINE_EWOULDBLOCK:
         // We don't use the value stored in the engine-specific code, just
         // that it is non-null...
         storeEngineSpecific(cookie, this);
-        return ENGINE_EWOULDBLOCK;
-    case ENGINE_TMPFAIL:
-        EP_LOG_WARN(
-                "Request to compact {} hit a temporary failure and may need to "
-                "be retried",
-                vbid);
-        setErrorContext(cookie, "Temporary failure in compacting db file.");
-        return ENGINE_TMPFAIL;
+        break;
     default:
         --stats.pendingCompactions;
         EP_LOG_WARN("Compaction of {} failed: {}",
                     vbid,
                     cb::to_string(cb::engine_errc(err)));
-        setErrorContext(cookie,
-                        "Failed to compact db file: " +
-                                cb::to_string(cb::engine_errc(err)));
-        return err;
+        break;
     }
 
-    return sendResponse(response,
-                        {}, // key
-                        {}, // extra
-                        {}, // body
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        res,
-                        cas,
-                        cookie);
+    return err;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::processUnknownCommandInner(
@@ -1180,27 +1137,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::processUnknownCommandInner(
     std::string dynamic_msg;
     const char* msg = nullptr;
     size_t msg_size = 0;
-
-    /**
-     * Session validation
-     * (For ns_server commands only)
-     */
-    switch (request.getClientOpcode()) {
-    case cb::mcbp::ClientOpcode::SetParam:
-    case cb::mcbp::ClientOpcode::SetVbucket:
-    case cb::mcbp::ClientOpcode::DelVbucket:
-    case cb::mcbp::ClientOpcode::CompactDb:
-        if (!getEngineSpecific(cookie)) {
-            uint64_t cas = request.getCas();
-            if (!validateSessionCas(cas)) {
-                setErrorContext(cookie, "Invalid session token");
-                return ENGINE_KEY_EEXISTS;
-            }
-        }
-        break;
-    default:
-        break;
-    }
 
     switch (request.getClientOpcode()) {
     case cb::mcbp::ClientOpcode::GetAllVbSeqnos:
@@ -1214,16 +1150,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::processUnknownCommandInner(
         HdrMicroSecBlockTimer timer(&stats.delVbucketCmdHisto);
         const auto rv = ::delVBucket(*this, cookie, request, response);
         if (rv != ENGINE_EWOULDBLOCK) {
-            decrementSessionCtr();
             storeEngineSpecific(cookie, nullptr);
         }
         return rv;
     }
     case cb::mcbp::ClientOpcode::SetVbucket: {
         HdrMicroSecBlockTimer timer(&stats.setVbucketCmdHisto);
-        const auto rv = ::setVBucket(*this, cookie, request, response);
-        decrementSessionCtr();
-        return rv;
+        return ::setVBucket(*this, cookie, request);
     }
     case cb::mcbp::ClientOpcode::StopPersistence:
         res = stopFlusher(&msg, &msg_size);
@@ -1231,12 +1164,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::processUnknownCommandInner(
     case cb::mcbp::ClientOpcode::StartPersistence:
         res = startFlusher(&msg, &msg_size);
         break;
-    case cb::mcbp::ClientOpcode::SetParam:
-        res = setParam(request, dynamic_msg);
-        msg = dynamic_msg.c_str();
-        msg_size = dynamic_msg.length();
-        decrementSessionCtr();
-        break;
+    case cb::mcbp::ClientOpcode::SetParam: {
+        auto rv = setParam(request, dynamic_msg);
+        if (!dynamic_msg.empty()) {
+            setErrorContext(cookie, dynamic_msg);
+        }
+        return ENGINE_ERROR_CODE(rv);
+    }
     case cb::mcbp::ClientOpcode::EvictKey:
         res = evictKey(cookie, request, &msg);
         break;
@@ -1270,7 +1204,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::processUnknownCommandInner(
     case cb::mcbp::ClientOpcode::CompactDb: {
         const auto rv = compactDB(cookie, request, response);
         if (rv != ENGINE_EWOULDBLOCK) {
-            decrementSessionCtr();
             storeEngineSpecific(cookie, nullptr);
         }
         return rv;
@@ -1989,16 +1922,6 @@ cb::mcbp::ClientOpcode EventuallyPersistentEngine::getOpcodeIfEwouldblockSet(
         const void* cookie) {
     NonBucketAllocationGuard guard;
     return serverApi->cookie->get_opcode_if_ewouldblock_set(cookie);
-}
-
-bool EventuallyPersistentEngine::validateSessionCas(const uint64_t cas) {
-    NonBucketAllocationGuard guard;
-    return serverApi->cookie->validate_session_cas(cas);
-}
-
-void EventuallyPersistentEngine::decrementSessionCtr() {
-    NonBucketAllocationGuard guard;
-    serverApi->cookie->decrement_session_ctr();
 }
 
 void EventuallyPersistentEngine::setErrorContext(const void* cookie,
@@ -6413,25 +6336,6 @@ ConnHandler& EventuallyPersistentEngine::getConnHandler(const void* cookie) {
 
 void EventuallyPersistentEngine::handleDisconnect(const void *cookie) {
     dcpConnMap_->disconnect(cookie);
-    /**
-     * Decrement session_cas's counter, if the connection closes
-     * before a control command (that returned ENGINE_EWOULDBLOCK
-     * the first time) makes another attempt.
-     *
-     * Commands to be considered: DEL_VBUCKET, COMPACT_DB
-     */
-    if (getEngineSpecific(cookie) != nullptr) {
-        switch (getOpcodeIfEwouldblockSet(cookie)) {
-        case cb::mcbp::ClientOpcode::DelVbucket:
-        case cb::mcbp::ClientOpcode::CompactDb: {
-            decrementSessionCtr();
-            storeEngineSpecific(cookie, nullptr);
-            break;
-        }
-            default:
-                break;
-            }
-    }
 }
 
 void EventuallyPersistentEngine::initiate_shutdown() {
@@ -6747,28 +6651,17 @@ std::unique_ptr<KVBucket> EventuallyPersistentEngine::makeBucket(
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::setVBucketState(
         const void* cookie,
-        const AddResponseFn& response,
         Vbid vbid,
         vbucket_state_t to,
         const nlohmann::json* meta,
         TransferVB transfer,
         uint64_t cas) {
     auto status = kvBucket->setVBucketState(vbid, to, meta, transfer, cookie);
-
-    if (status == ENGINE_EWOULDBLOCK) {
-        return status;
-    } else if (status == ENGINE_ERANGE) {
+    if (status == ENGINE_ERANGE) {
         setErrorContext(cookie, "VBucket number too big");
     }
 
-    return sendResponse(response,
-                        {}, // key
-                        {}, // extra
-                        {}, // body
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        serverApi->cookie->engine_error2mcbp(cookie, status),
-                        cas,
-                        cookie);
+    return status;
 }
 
 EventuallyPersistentEngine::~EventuallyPersistentEngine() {
