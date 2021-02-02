@@ -788,10 +788,10 @@ protected:
      * bucket stats.
      */
     virtual void appendAggregatedVBucketStats(
-            VBucketCountVisitor& active,
-            VBucketCountVisitor& replica,
-            VBucketCountVisitor& pending,
-            VBucketCountVisitor& dead,
+            const VBucketCountVisitor& active,
+            const VBucketCountVisitor& replica,
+            const VBucketCountVisitor& pending,
+            const VBucketCountVisitor& dead,
             const BucketStatCollector& collector);
 
     /**

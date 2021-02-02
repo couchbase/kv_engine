@@ -375,15 +375,15 @@ std::unique_ptr<VBucketCountVisitor> EphemeralBucket::makeVBCountVisitor(
 }
 
 void EphemeralBucket::appendAggregatedVBucketStats(
-        VBucketCountVisitor& active,
-        VBucketCountVisitor& replica,
-        VBucketCountVisitor& pending,
-        VBucketCountVisitor& dead,
+        const VBucketCountVisitor& active,
+        const VBucketCountVisitor& replica,
+        const VBucketCountVisitor& pending,
+        const VBucketCountVisitor& dead,
         const BucketStatCollector& collector) {
     // The CountVisitors passed in are expected to all be Ephemeral subclasses.
-    auto& ephActive = dynamic_cast<EphemeralVBucket::CountVisitor&>(active);
-    auto& ephReplica = dynamic_cast<EphemeralVBucket::CountVisitor&>(replica);
-    auto& ephPending = dynamic_cast<EphemeralVBucket::CountVisitor&>(pending);
+    auto& ephActive = dynamic_cast<const EphemeralVBucket::CountVisitor&>(active);
+    auto& ephReplica = dynamic_cast<const EphemeralVBucket::CountVisitor&>(replica);
+    auto& ephPending = dynamic_cast<const EphemeralVBucket::CountVisitor&>(pending);
 
     // Add stats for the base class:
     KVBucket::appendAggregatedVBucketStats(

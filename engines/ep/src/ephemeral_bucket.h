@@ -164,10 +164,10 @@ protected:
             vbucket_state_t state) override;
 
     void appendAggregatedVBucketStats(
-            VBucketCountVisitor& active,
-            VBucketCountVisitor& replica,
-            VBucketCountVisitor& pending,
-            VBucketCountVisitor& dead,
+            const VBucketCountVisitor& active,
+            const VBucketCountVisitor& replica,
+            const VBucketCountVisitor& pending,
+            const VBucketCountVisitor& dead,
             const BucketStatCollector& collector) override;
 
     bool isValidBucketDurabilityLevel(

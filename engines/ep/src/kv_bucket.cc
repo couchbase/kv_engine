@@ -1205,10 +1205,10 @@ std::unique_ptr<VBucketCountVisitor> KVBucket::makeVBCountVisitor(
 }
 
 void KVBucket::appendAggregatedVBucketStats(
-        VBucketCountVisitor& active,
-        VBucketCountVisitor& replica,
-        VBucketCountVisitor& pending,
-        VBucketCountVisitor& dead,
+        const VBucketCountVisitor& active,
+        const VBucketCountVisitor& replica,
+        const VBucketCountVisitor& pending,
+        const VBucketCountVisitor& dead,
         const BucketStatCollector& collector) {
     using namespace cb::stats;
     // Top-level stats:

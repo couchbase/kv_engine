@@ -36,27 +36,27 @@ public:
 
     void visitBucket(const VBucketPtr& vb) override;
 
-    vbucket_state_t getVBucketState() {
+    vbucket_state_t getVBucketState() const {
         return desired_state;
     }
 
-    size_t getNumItems() {
+    size_t getNumItems() const {
         return numItems;
     }
 
-    size_t getNumTempItems() {
+    size_t getNumTempItems() const {
         return numTempItems;
     }
 
-    size_t getNonResident() {
+    size_t getNonResident() const {
         return nonResident;
     }
 
-    size_t getVBucketNumber() {
+    size_t getVBucketNumber() const {
         return numVbucket;
     }
 
-    size_t getMemResidentPer() {
+    size_t getMemResidentPer() const {
         if (numItems && numItems >= nonResident) {
             size_t numResident = numItems - nonResident;
             return size_t(numResident * 100.0) / (numItems);
@@ -65,27 +65,27 @@ public:
         return 100;
     }
 
-    size_t getEjects() {
+    size_t getEjects() const {
         return numEjects;
     }
 
-    size_t getExpired() {
+    size_t getExpired() const {
         return numExpiredItems;
     }
 
-    size_t getMetaDataMemory() {
+    size_t getMetaDataMemory() const {
         return metaDataMemory;
     }
 
-    size_t getMetaDataDisk() {
+    size_t getMetaDataDisk() const {
         return metaDataDisk;
     }
 
-    size_t getCheckpointMemory() {
+    size_t getCheckpointMemory() const {
         return checkpointMemory;
     }
 
-    size_t getCheckpointMemoryUnreferenced() {
+    size_t getCheckpointMemoryUnreferenced() const {
         return checkpointMemoryUnreferenced;
     }
 
@@ -93,55 +93,55 @@ public:
         return checkpointMemoryOverhead;
     }
 
-    size_t getHashtableMemory() {
+    size_t getHashtableMemory() const {
         return htMemory;
     }
 
-    size_t getItemMemory() {
+    size_t getItemMemory() const {
         return htItemMemory;
     }
 
-    size_t getUncompressedItemMemory() {
+    size_t getUncompressedItemMemory() const {
         return htUncompressedItemMemory;
     }
-    size_t getCacheSize() {
+    size_t getCacheSize() const {
         return htCacheSize;
     }
 
-    size_t getOpsCreate() {
+    size_t getOpsCreate() const {
         return opsCreate;
     }
-    size_t getOpsDelete() {
+    size_t getOpsDelete() const {
         return opsDelete;
     }
-    size_t getOpsGet() {
+    size_t getOpsGet() const {
         return opsGet;
     }
-    size_t getOpsReject() {
+    size_t getOpsReject() const {
         return opsReject;
     }
-    size_t getOpsUpdate() {
+    size_t getOpsUpdate() const {
         return opsUpdate;
     }
-    size_t getQueueSize() {
+    size_t getQueueSize() const {
         return queueSize;
     }
-    size_t getQueueMemory() {
+    size_t getQueueMemory() const {
         return queueMemory;
     }
-    size_t getQueueFill() {
+    size_t getQueueFill() const {
         return queueFill;
     }
-    size_t getQueueDrain() {
+    size_t getQueueDrain() const {
         return queueDrain;
     }
-    uint64_t getAge() {
+    uint64_t getAge() const {
         return queueAge;
     }
-    size_t getPendingWrites() {
+    size_t getPendingWrites() const {
         return pendingWrites;
     }
-    size_t getChkPersistRemaining() {
+    size_t getChkPersistRemaining() const {
         return chkPersistRemaining;
     }
 
@@ -152,30 +152,30 @@ public:
         return datatypeCounts.size();
     }
 
-    uint64_t getRollbackItemCount() {
+    uint64_t getRollbackItemCount() const {
         return rollbackItemCount;
     }
 
-    size_t getNumHpVBReqs() {
+    size_t getNumHpVBReqs() const {
         return numHpVBReqs;
     }
 
-    HLC::DriftStats getTotalAbsHLCDrift() {
+    HLC::DriftStats getTotalAbsHLCDrift() const {
         return totalAbsHLCDrift;
     }
-    HLC::DriftExceptions getTotalHLCDriftExceptionCounters() {
+    HLC::DriftExceptions getTotalHLCDriftExceptionCounters() const {
         return totalHLCDriftExceptionCounters;
     }
 
-    size_t getSyncWriteAcceptedCount() {
+    size_t getSyncWriteAcceptedCount() const {
         return syncWriteAcceptedCount;
     }
 
-    size_t getSyncWriteCommittedCount() {
+    size_t getSyncWriteCommittedCount() const {
         return syncWriteCommittedCount;
     }
 
-    size_t getSyncWriteAbortedCount() {
+    size_t getSyncWriteAbortedCount() const {
         return syncWriteAbortedCount;
     }
 
