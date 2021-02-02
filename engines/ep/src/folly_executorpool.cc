@@ -26,11 +26,39 @@
 #include <folly/executors/IOThreadPoolExecutor.h>
 #include <folly/executors/thread_factory/PriorityThreadFactory.h>
 #include <nlohmann/json.hpp>
+#include <phosphor/phosphor.h>
 #include <platform/string_hex.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/collector.h>
 
 using namespace std::string_literals;
+
+/**
+ * Thread factory wrapper.
+ *
+ * Wraps another thread factory, and registers/deregisters created threads with
+ * Phosphor for tracing.
+ */
+class CBRegisteredThreadFactory : public folly::ThreadFactory {
+public:
+    CBRegisteredThreadFactory(
+            std::shared_ptr<folly::ThreadFactory> threadFactory)
+        : threadFactory(std::move(threadFactory)) {
+    }
+    std::thread newThread(folly::Func&& func) override {
+        return threadFactory->newThread([func = std::move(func)]() mutable {
+            auto threadNameOpt = folly::getCurrentThreadName();
+
+            phosphor::TraceLog::getInstance().registerThread(
+                    threadNameOpt.value_or(""));
+            func();
+            phosphor::TraceLog::getInstance().deregisterThread();
+        });
+    }
+
+private:
+    std::shared_ptr<folly::ThreadFactory> threadFactory;
+};
 
 /**
  * Thread factory for CPU pool threads.
@@ -689,12 +717,14 @@ FollyExecutorPool::FollyExecutorPool(size_t maxThreads,
      *    setpriority() would be pointless.
      */
     auto makeThreadFactory = [](std::string prefix, task_type_t taskType) {
+        return std::make_shared<CBRegisteredThreadFactory>(
 #if defined(__linux__)
-        return std::make_shared<CBPriorityThreadFactory>(
-                prefix, ExecutorPool::getThreadPriority(taskType));
+                std::make_shared<CBPriorityThreadFactory>(
+                        prefix, ExecutorPool::getThreadPriority(taskType))
 #else
-        return std::make_shared<folly::NamedThreadFactory>(prefix);
+                std::make_shared<folly::NamedThreadFactory>(prefix)
 #endif
+        );
     };
 
     futurePool = std::make_unique<folly::IOThreadPoolExecutor>(

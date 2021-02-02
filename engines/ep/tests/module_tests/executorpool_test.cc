@@ -25,9 +25,12 @@
 #include "lambda_task.h"
 #include "test_helpers.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
+#include "thread_gate.h"
+
 #include <folly/portability/GMock.h>
 #include <folly/synchronization/Baton.h>
 #include <nlohmann/json.hpp>
+#include <phosphor/phosphor.h>
 
 using namespace std::chrono_literals;
 using namespace std::string_literals;
@@ -1644,4 +1647,53 @@ TYPED_TEST(ExecutorPoolEpEngineTest, TaskStats_MemAccounting) {
             << "Exceeded wait time for memoryPostCancel (which is "
             << memoryPostCancel << ") to return to memoryInitial (which is "
             << memoryInitial << ")";
+}
+
+TYPED_TEST(ExecutorPoolEpEngineTest, PoolThreadsAreRegisteredWithPhosphor) {
+    // Confirm executor pool threads record traces in phosphor
+
+#if PHOSPHOR_DISABLED
+    // if phosphor is disabled the test trace won't be recorded anyway
+    GTEST_SKIP();
+#endif
+
+    EpEngineTaskable& taskable = this->engine->getTaskable();
+    auto& pool = *ExecutorPool::get();
+
+    auto& instance = phosphor::TraceLog::getInstance();
+    instance.start(phosphor::TraceConfig::fromString(
+            "buffer-mode:ring;buffer-size:4096;enabled-categories:*"));
+
+    ThreadGate tg(1);
+
+    // Task which just traces an event, then exits.
+    ExTask task = std::make_shared<LambdaTask>(
+            taskable, TaskId::ItemPager, 0, true, [&tg](LambdaTask&) -> bool {
+                { TRACE_EVENT0("ep-engine/task", "TestTask"); }
+                tg.threadUp();
+                return false;
+            });
+
+    // schedule the task
+    pool.schedule(task);
+
+    // wait until the traced event has occurred (or timeout if not)
+
+    tg.waitFor(std::chrono::seconds(5));
+
+    EXPECT_TRUE(tg.isComplete());
+
+    instance.stop();
+
+    auto context = instance.getTraceContext();
+    auto* buffer = context.getBuffer();
+    ASSERT_NE(nullptr, buffer);
+    for (const auto& event : *buffer) {
+        if (event.getName() == std::string_view("TestTask")) {
+            // success, trace was recorded from NonIO thread
+            return;
+        }
+    }
+
+    FAIL();
 }
