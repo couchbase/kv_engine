@@ -32,7 +32,9 @@ using namespace std::string_view_literals;
                     ? #statEnum                                \
                     : std::string_view(cbstatsName),           \
             unit,                                              \
-            #prometheusName,                                   \
+            std::string_view(#prometheusName).empty()          \
+                    ? #statEnum                                \
+                    : std::string_view(#prometheusName),       \
             {__VA_ARGS__}),
 #define CBSTAT(statEnum, cbstatsName, ...)           \
     StatDef(std::string_view(cbstatsName).empty()    \
