@@ -57,23 +57,21 @@ TEST_F(HelloTest, AgentName) {
     const auto resp = BinprotHelloResponse(conn.execute(cmd));
     ASSERT_TRUE(resp.isSuccess());
 
-    auto stats = conn.stats("connections");
     bool found = false;
+    conn.stats(
+            [&found, &agentname](const std::string& key,
+                                 const std::string& value) {
+                ASSERT_EQ("0", key);
+                ASSERT_FALSE(value.empty());
+                auto json = nlohmann::json::parse(value);
+                auto agentStr = json["agent_name"].get<std::string>();
+                ASSERT_EQ(agentname.substr(0, MaxSavedAgentName), agentStr);
+                found = true;
+            },
+            "connections self");
 
-    // look over all of the entries and verify that it's set :)
-    // validate that at least thats true:
-    for (const auto& c : stats) {
-        ASSERT_NE(c.end(), c.find("connection"));
-        auto agent = c.find("agent_name");
-        if (agent != c.end()) {
-            auto agentStr = agent->get<std::string>();
-            ASSERT_EQ(agentname.substr(0, MaxSavedAgentName), agentStr);
-            found = true;
-            break;
-        }
-    }
-
-    EXPECT_TRUE(found) << "connection not found in stats: " + stats.dump();
+    ASSERT_TRUE(found)
+            << "connection self did not return the current connection";
 }
 
 /**
@@ -86,27 +84,21 @@ TEST_F(HelloTest, JsonAgentInformation) {
     const auto resp = BinprotHelloResponse(conn.execute(cmd));
     ASSERT_TRUE(resp.isSuccess());
 
-    auto stats = conn.stats("connections");
     bool found = false;
-
-    // look over all of the entries and verify that it's set :)
-    // validate that at least thats true:
-    for (const auto& c : stats) {
-        ASSERT_NE(c.end(), c.find("connection"));
-        auto agent = c.find("agent_name");
-        if (agent != c.end()) {
-            auto agentStr = agent->get<std::string>();
-            if (agentStr == "AgentInformation") {
-                // We should have the uuid here
-                EXPECT_EQ("c21fee83af4e7943/c21fee83af4e7943",
-                          c["connection_id"].get<std::string>());
+    conn.stats(
+            [&found](const std::string& key, const std::string& value) {
+                ASSERT_EQ("0", key);
+                ASSERT_FALSE(value.empty());
+                auto json = nlohmann::json::parse(value);
+                ASSERT_EQ("AgentInformation",
+                          json["agent_name"].get<std::string>());
+                ASSERT_EQ("c21fee83af4e7943/c21fee83af4e7943",
+                          json["connection_id"].get<std::string>());
                 found = true;
-                break;
-            }
-        }
-    }
-
-    EXPECT_TRUE(found) << "connection not found in stats: " + stats.dump();
+            },
+            "connections self");
+    ASSERT_TRUE(found)
+            << "connection self did not return the current connection";
 }
 
 /**
@@ -129,27 +121,22 @@ TEST_F(HelloTest, JsonAgentInformationStringsTruncated) {
     const auto resp = BinprotHelloResponse(conn.execute(cmd));
     ASSERT_TRUE(resp.isSuccess());
 
-    auto stats = conn.stats("connections");
     bool found = false;
-
-    // look over all of the entries and verify that it's set :)
-    // validate that at least thats true:
-    for (const auto& c : stats) {
-        ASSERT_NE(c.end(), c.find("connection"));
-        auto agent = c.find("agent_name");
-        if (agent != c.end()) {
-            if (agentname.substr(0, MaxSavedAgentName) ==
-                agent->get<std::string>()) {
-                // We should have the uuid here!
-                EXPECT_EQ(cid.substr(0, MaxSavedConnectionId),
-                          c["connection_id"].get<std::string>());
+    conn.stats(
+            [&found, &agentname, &cid](const std::string& key,
+                                       const std::string& value) {
+                ASSERT_EQ("0", key);
+                ASSERT_FALSE(value.empty());
+                auto json = nlohmann::json::parse(value);
+                ASSERT_EQ(agentname.substr(0, MaxSavedAgentName),
+                          json["agent_name"].get<std::string>());
+                ASSERT_EQ(cid.substr(0, MaxSavedConnectionId),
+                          json["connection_id"].get<std::string>());
                 found = true;
-                break;
-            }
-        }
-    }
-
-    EXPECT_TRUE(found) << "connection not found in stats: " + stats.dump();
+            },
+            "connections self");
+    ASSERT_TRUE(found)
+            << "connection self did not return the current connection";
 }
 
 /// Verify that the server gives me AltRequestSupport
