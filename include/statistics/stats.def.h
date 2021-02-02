@@ -562,6 +562,40 @@ STAT(ep_replica_ahead_exceptions, , count, , )
 STAT(ep_replica_behind_exceptions, , count, , )
 STAT(ep_clock_cas_drift_threshold_exceeded, , count, , )
 
+STAT(vb_auto_delete_count,
+     "vb_{state}_auto_delete_count",
+     count,
+     vb_auto_delete_count, )
+STAT(vb_ht_tombstone_purged_count,
+     "vb_{state}_ht_tombstone_purged_count",
+     count,
+     vb_ht_tombstone_purged_count, )
+STAT(vb_seqlist_count, "vb_{state}_seqlist_count", count, vb_seqlist_count, )
+STAT(vb_seqlist_deleted_count,
+     "vb_{state}_seqlist_deleted_count",
+     count,
+     vb_seqlist_deleted_count, )
+STAT(vb_seqlist_purged_count,
+     "vb_{state}_seqlist_purged_count",
+     count,
+     vb_seqlist_purged_count, )
+STAT(vb_seqlist_read_range_count,
+     "vb_{state}_seqlist_read_range_count",
+     count,
+     vb_seqlist_read_range_count, )
+STAT(vb_seqlist_stale_count,
+     "vb_{state}_seqlist_stale_count",
+     count,
+     vb_seqlist_stale_count, )
+STAT(vb_seqlist_stale_value_bytes,
+     "vb_{state}_seqlist_stale_value_bytes",
+     bytes,
+     vb_seqlist_stale_value, )
+STAT(vb_seqlist_stale_metadata_bytes,
+     "vb_{state}_seqlist_stale_metadata_bytes",
+     bytes,
+     vb_seqlist_stale_metadata, )
+
 STAT(connagg_connection_count,
      "{connection_type}:count",
      count,

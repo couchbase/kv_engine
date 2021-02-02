@@ -392,22 +392,29 @@ void EphemeralBucket::appendAggregatedVBucketStats(
     // Add Ephemeral-specific stats - add stats for each of active, replica
     // and pending vBuckets.
 
-#define ARP_STAT(k, v)                                    \
-    do {                                                  \
-        collector.addStat("vb_active_" k, ephActive.v);   \
-        collector.addStat("vb_replica_" k, ephReplica.v); \
-        collector.addStat("vb_pending_" k, ephPending.v); \
-    } while (0)
+    for (const auto& visitor : {ephActive, ephReplica, ephPending}) {
+        auto state = VBucket::toString(visitor.getVBucketState());
+        auto stateCol = collector.withLabels({{"state", state}});
 
-    ARP_STAT("auto_delete_count", autoDeleteCount);
-    ARP_STAT("ht_tombstone_purged_count", htDeletedPurgeCount);
-    ARP_STAT("seqlist_count", seqlistCount);
-    ARP_STAT("seqlist_deleted_count", seqlistDeletedCount);
-    ARP_STAT("seqlist_purged_count", seqListPurgeCount);
-    ARP_STAT("seqlist_read_range_count", seqlistReadRangeCount);
-    ARP_STAT("seqlist_stale_count", seqlistStaleCount);
-    ARP_STAT("seqlist_stale_value_bytes", seqlistStaleValueBytes);
-    ARP_STAT("seqlist_stale_metadata_bytes", seqlistStaleMetadataBytes);
+        using namespace cb::stats;
+
+        stateCol.addStat(Key::vb_auto_delete_count, visitor.autoDeleteCount);
+        stateCol.addStat(Key::vb_ht_tombstone_purged_count,
+                         visitor.htDeletedPurgeCount);
+        stateCol.addStat(Key::vb_seqlist_count, visitor.seqlistCount);
+        stateCol.addStat(Key::vb_seqlist_deleted_count,
+                         visitor.seqlistDeletedCount);
+        stateCol.addStat(Key::vb_seqlist_purged_count,
+                         visitor.seqListPurgeCount);
+        stateCol.addStat(Key::vb_seqlist_read_range_count,
+                         visitor.seqlistReadRangeCount);
+        stateCol.addStat(Key::vb_seqlist_stale_count,
+                         visitor.seqlistStaleCount);
+        stateCol.addStat(Key::vb_seqlist_stale_value_bytes,
+                         visitor.seqlistStaleValueBytes);
+        stateCol.addStat(Key::vb_seqlist_stale_metadata_bytes,
+                         visitor.seqlistStaleMetadataBytes);
+    }
 
 #undef ARP_STAT
 }
