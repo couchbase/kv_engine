@@ -1217,136 +1217,60 @@ void KVBucket::appendAggregatedVBucketStats(
                       active.getNumItems() + replica.getNumItems() +
                               pending.getNumItems());
 
-    // Active vBuckets:
-    collector.addStat(Key::vb_active_num, active.getVBucketNumber());
-    collector.addStat(Key::vb_active_curr_items, active.getNumItems());
-    collector.addStat(Key::vb_active_hp_vb_req_size, active.getNumHpVBReqs());
-    collector.addStat(Key::vb_active_num_non_resident, active.getNonResident());
-    collector.addStat(Key::vb_active_perc_mem_resident,
-                      active.getMemResidentPer());
-    collector.addStat(Key::vb_active_eject, active.getEjects());
-    collector.addStat(Key::vb_active_expired, active.getExpired());
-    collector.addStat(Key::vb_active_meta_data_memory,
-                      active.getMetaDataMemory());
-    collector.addStat(Key::vb_active_meta_data_disk, active.getMetaDataDisk());
-    collector.addStat(Key::vb_active_checkpoint_memory,
-                      active.getCheckpointMemory());
-    collector.addStat(Key::vb_active_checkpoint_memory_unreferenced,
-                      active.getCheckpointMemoryUnreferenced());
-    collector.addStat(Key::vb_active_checkpoint_memory_overhead,
-                      active.getCheckpointMemoryOverhead());
-    collector.addStat(Key::vb_active_ht_memory, active.getHashtableMemory());
-    collector.addStat(Key::vb_active_itm_memory, active.getItemMemory());
-    collector.addStat(Key::vb_active_itm_memory_uncompressed,
-                      active.getUncompressedItemMemory());
-    collector.addStat(Key::vb_active_ops_create, active.getOpsCreate());
-    collector.addStat(Key::vb_active_ops_update, active.getOpsUpdate());
-    collector.addStat(Key::vb_active_ops_delete, active.getOpsDelete());
-    collector.addStat(Key::vb_active_ops_get, active.getOpsGet());
-    collector.addStat(Key::vb_active_ops_reject, active.getOpsReject());
-    collector.addStat(Key::vb_active_queue_size, active.getQueueSize());
-    collector.addStat(Key::vb_active_queue_memory, active.getQueueMemory());
-    collector.addStat(Key::vb_active_queue_age, active.getAge());
-    collector.addStat(Key::vb_active_queue_pending, active.getPendingWrites());
-    collector.addStat(Key::vb_active_queue_fill, active.getQueueFill());
-    collector.addStat(Key::vb_active_queue_drain, active.getQueueDrain());
-    collector.addStat(Key::vb_active_rollback_item_count,
-                      active.getRollbackItemCount());
+    for (const auto& visitor : {active, replica, pending}) {
+        auto state = VBucket::toString(visitor.getVBucketState());
+        auto stateCol = collector.withLabels({{"state", state}});
 
-    // Replica vBuckets:
-    collector.addStat(Key::vb_replica_num, replica.getVBucketNumber());
-    collector.addStat(Key::vb_replica_curr_items, replica.getNumItems());
-    collector.addStat(Key::vb_replica_hp_vb_req_size, replica.getNumHpVBReqs());
-    collector.addStat(Key::vb_replica_num_non_resident,
-                      replica.getNonResident());
-    collector.addStat(Key::vb_replica_perc_mem_resident,
-                      replica.getMemResidentPer());
-    collector.addStat(Key::vb_replica_eject, replica.getEjects());
-    collector.addStat(Key::vb_replica_expired, replica.getExpired());
-    collector.addStat(Key::vb_replica_meta_data_memory,
-                      replica.getMetaDataMemory());
-    collector.addStat(Key::vb_replica_meta_data_disk,
-                      replica.getMetaDataDisk());
-    collector.addStat(Key::vb_replica_checkpoint_memory,
-                      replica.getCheckpointMemory());
-    collector.addStat(Key::vb_replica_checkpoint_memory_unreferenced,
-                      replica.getCheckpointMemoryUnreferenced());
-    collector.addStat(Key::vb_replica_checkpoint_memory_overhead,
-                      replica.getCheckpointMemoryOverhead());
-    collector.addStat(Key::vb_replica_ht_memory, replica.getHashtableMemory());
-    collector.addStat(Key::vb_replica_itm_memory, replica.getItemMemory());
-    collector.addStat(Key::vb_replica_itm_memory_uncompressed,
-                      replica.getUncompressedItemMemory());
-    collector.addStat(Key::vb_replica_ops_create, replica.getOpsCreate());
-    collector.addStat(Key::vb_replica_ops_update, replica.getOpsUpdate());
-    collector.addStat(Key::vb_replica_ops_delete, replica.getOpsDelete());
-    collector.addStat(Key::vb_replica_ops_get, replica.getOpsGet());
-    collector.addStat(Key::vb_replica_ops_reject, replica.getOpsReject());
-    collector.addStat(Key::vb_replica_queue_size, replica.getQueueSize());
-    collector.addStat(Key::vb_replica_queue_memory, replica.getQueueMemory());
-    collector.addStat(Key::vb_replica_queue_age, replica.getAge());
-    collector.addStat(Key::vb_replica_queue_pending,
-                      replica.getPendingWrites());
-    collector.addStat(Key::vb_replica_queue_fill, replica.getQueueFill());
-    collector.addStat(Key::vb_replica_queue_drain, replica.getQueueDrain());
-    collector.addStat(Key::vb_replica_rollback_item_count,
-                      replica.getRollbackItemCount());
+        stateCol.addStat(Key::vb_num, visitor.getVBucketNumber());
+        stateCol.addStat(Key::vb_curr_items, visitor.getNumItems());
+        stateCol.addStat(Key::vb_hp_vb_req_size, visitor.getNumHpVBReqs());
+        stateCol.addStat(Key::vb_num_non_resident, visitor.getNonResident());
+        stateCol.addStat(Key::vb_perc_mem_resident,
+                         visitor.getMemResidentPer());
+        stateCol.addStat(Key::vb_eject, visitor.getEjects());
+        stateCol.addStat(Key::vb_expired, visitor.getExpired());
+        stateCol.addStat(Key::vb_meta_data_memory, visitor.getMetaDataMemory());
+        stateCol.addStat(Key::vb_meta_data_disk, visitor.getMetaDataDisk());
+        stateCol.addStat(Key::vb_checkpoint_memory,
+                         visitor.getCheckpointMemory());
+        stateCol.addStat(Key::vb_checkpoint_memory_unreferenced,
+                         visitor.getCheckpointMemoryUnreferenced());
+        stateCol.addStat(Key::vb_checkpoint_memory_overhead,
+                         visitor.getCheckpointMemoryOverhead());
+        stateCol.addStat(Key::vb_ht_memory, visitor.getHashtableMemory());
+        stateCol.addStat(Key::vb_itm_memory, visitor.getItemMemory());
+        stateCol.addStat(Key::vb_itm_memory_uncompressed,
+                         visitor.getUncompressedItemMemory());
+        stateCol.addStat(Key::vb_ops_create, visitor.getOpsCreate());
+        stateCol.addStat(Key::vb_ops_update, visitor.getOpsUpdate());
+        stateCol.addStat(Key::vb_ops_delete, visitor.getOpsDelete());
+        stateCol.addStat(Key::vb_ops_get, visitor.getOpsGet());
+        stateCol.addStat(Key::vb_ops_reject, visitor.getOpsReject());
+        stateCol.addStat(Key::vb_queue_size, visitor.getQueueSize());
+        stateCol.addStat(Key::vb_queue_memory, visitor.getQueueMemory());
+        stateCol.addStat(Key::vb_queue_age, visitor.getAge());
+        stateCol.addStat(Key::vb_queue_pending, visitor.getPendingWrites());
+        stateCol.addStat(Key::vb_queue_fill, visitor.getQueueFill());
+        stateCol.addStat(Key::vb_queue_drain, visitor.getQueueDrain());
+        stateCol.addStat(Key::vb_rollback_item_count,
+                         visitor.getRollbackItemCount());
+    }
 
-    // Pending vBuckets:
-    collector.addStat(Key::vb_pending_num, pending.getVBucketNumber());
-    collector.addStat(Key::vb_pending_curr_items, pending.getNumItems());
-    collector.addStat(Key::vb_pending_hp_vb_req_size, pending.getNumHpVBReqs());
-    collector.addStat(Key::vb_pending_num_non_resident,
-                      pending.getNonResident());
-    collector.addStat(Key::vb_pending_perc_mem_resident,
-                      pending.getMemResidentPer());
-    collector.addStat(Key::vb_pending_eject, pending.getEjects());
-    collector.addStat(Key::vb_pending_expired, pending.getExpired());
-    collector.addStat(Key::vb_pending_meta_data_memory,
-                      pending.getMetaDataMemory());
-    collector.addStat(Key::vb_pending_meta_data_disk,
-                      pending.getMetaDataDisk());
-    collector.addStat(Key::vb_pending_checkpoint_memory,
-                      pending.getCheckpointMemory());
-    collector.addStat(Key::vb_pending_checkpoint_memory_unreferenced,
-                      pending.getCheckpointMemoryUnreferenced());
-    collector.addStat(Key::vb_pending_checkpoint_memory_overhead,
-                      pending.getCheckpointMemoryOverhead());
-    collector.addStat(Key::vb_pending_ht_memory, pending.getHashtableMemory());
-    collector.addStat(Key::vb_pending_itm_memory, pending.getItemMemory());
-    collector.addStat(Key::vb_pending_itm_memory_uncompressed,
-                      pending.getUncompressedItemMemory());
-    collector.addStat(Key::vb_pending_ops_create, pending.getOpsCreate());
-    collector.addStat(Key::vb_pending_ops_update, pending.getOpsUpdate());
-    collector.addStat(Key::vb_pending_ops_delete, pending.getOpsDelete());
-    collector.addStat(Key::vb_pending_ops_get, pending.getOpsGet());
-    collector.addStat(Key::vb_pending_ops_reject, pending.getOpsReject());
-    collector.addStat(Key::vb_pending_queue_size, pending.getQueueSize());
-    collector.addStat(Key::vb_pending_queue_memory, pending.getQueueMemory());
-    collector.addStat(Key::vb_pending_queue_age, pending.getAge());
-    collector.addStat(Key::vb_pending_queue_pending,
-                      pending.getPendingWrites());
-    collector.addStat(Key::vb_pending_queue_fill, pending.getQueueFill());
-    collector.addStat(Key::vb_pending_queue_drain, pending.getQueueDrain());
-    collector.addStat(Key::vb_pending_rollback_item_count,
-                      pending.getRollbackItemCount());
+    for (const auto& visitor : {active, replica}) {
+        auto state = VBucket::toString(visitor.getVBucketState());
+        auto stateCol = collector.withLabels({{"state", state}});
 
-    collector.addStat(Key::vb_active_sync_write_accepted_count,
-                      active.getSyncWriteAcceptedCount());
-    collector.addStat(Key::vb_active_sync_write_committed_count,
-                      active.getSyncWriteCommittedCount());
-    collector.addStat(Key::vb_active_sync_write_aborted_count,
-                      active.getSyncWriteAbortedCount());
-
-    collector.addStat(Key::vb_replica_sync_write_accepted_count,
-                      replica.getSyncWriteAcceptedCount());
-    collector.addStat(Key::vb_replica_sync_write_committed_count,
-                      replica.getSyncWriteCommittedCount());
-    collector.addStat(Key::vb_replica_sync_write_aborted_count,
-                      replica.getSyncWriteAbortedCount());
+        stateCol.addStat(Key::vb_sync_write_accepted_count,
+                         visitor.getSyncWriteAcceptedCount());
+        stateCol.addStat(Key::vb_sync_write_committed_count,
+                         visitor.getSyncWriteCommittedCount());
+        stateCol.addStat(Key::vb_sync_write_aborted_count,
+                         visitor.getSyncWriteAbortedCount());
+    }
 
     // Dead vBuckets:
-    collector.addStat(Key::vb_dead_num, dead.getVBucketNumber());
+    collector.withLabels({{"state", "dead"}})
+            .addStat(Key::vb_num, dead.getVBucketNumber());
 
     // Totals:
     collector.addStat(Key::ep_vb_total,

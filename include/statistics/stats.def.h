@@ -464,68 +464,78 @@ STAT(total_resp_errors, , count, , )
 STAT(audit_enabled, "enabled", none, audit_enabled, )
 STAT(audit_dropped_events, "dropped_events", count, audit_dropped_events, )
 
-// Vbucket aggreagated stats
-#define VB_AGG_STAT(enumKey, unit, familyName, ...) \
-    STAT(vb_active_##enumKey,                       \
-         ,                                          \
-         unit,                                      \
-         familyName,                                \
-         LABEL(state, active),                      \
-         ##__VA_ARGS__)                             \
-    STAT(vb_replica_##enumKey,                      \
-         ,                                          \
-         unit,                                      \
-         familyName,                                \
-         LABEL(state, replica),                     \
-         ##__VA_ARGS__)                             \
-    STAT(vb_pending_##enumKey,                      \
-         ,                                          \
-         unit,                                      \
-         familyName,                                \
-         LABEL(state, pending),                     \
-         ##__VA_ARGS__)
-
-VB_AGG_STAT(num, count, num_vbuckets, )
-VB_AGG_STAT(curr_items, count, , )
-VB_AGG_STAT(hp_vb_req_size, count, num_high_pri_requests, )
-VB_AGG_STAT(num_non_resident, count, , )
-VB_AGG_STAT(perc_mem_resident, percent, , )
-VB_AGG_STAT(eject, count, , )
-VB_AGG_STAT(expired, count, , )
-VB_AGG_STAT(meta_data_memory, bytes, , )
-VB_AGG_STAT(meta_data_disk, bytes, , )
-VB_AGG_STAT(checkpoint_memory, bytes, , )
-VB_AGG_STAT(checkpoint_memory_unreferenced, bytes, , )
-VB_AGG_STAT(checkpoint_memory_overhead, bytes, , )
-VB_AGG_STAT(ht_memory, bytes, , )
-VB_AGG_STAT(itm_memory, bytes, , )
-VB_AGG_STAT(itm_memory_uncompressed, bytes, , )
-VB_AGG_STAT(ops_create, count, , )
-VB_AGG_STAT(ops_update, count, , )
-VB_AGG_STAT(ops_delete, count, , )
-VB_AGG_STAT(ops_get, count, , )
-VB_AGG_STAT(ops_reject, count, , )
-VB_AGG_STAT(queue_size, count, , )
-VB_AGG_STAT(queue_memory, bytes, , )
-VB_AGG_STAT(queue_age, milliseconds, , )
-VB_AGG_STAT(queue_pending, bytes, , )
-VB_AGG_STAT(queue_fill, count, , )
-VB_AGG_STAT(queue_drain, count, , )
-VB_AGG_STAT(rollback_item_count, count, , )
-
-#undef VB_AGG_STAT
+STAT(vb_num, "vb_{state}_num", count, num_vbuckets, )
+STAT(vb_curr_items, "vb_{state}_curr_items", count, vb_curr_items, )
+STAT(vb_hp_vb_req_size,
+     "vb_{state}_hp_vb_req_size",
+     count,
+     num_high_pri_requests, )
+STAT(vb_num_non_resident,
+     "vb_{state}_num_non_resident",
+     count,
+     vb_num_non_resident, )
+STAT(vb_perc_mem_resident,
+     "vb_{state}_perc_mem_resident",
+     percent,
+     vb_perc_mem_resident, )
+STAT(vb_eject, "vb_{state}_eject", count, vb_eject, )
+STAT(vb_expired, "vb_{state}_expired", count, vb_expired, )
+STAT(vb_meta_data_memory,
+     "vb_{state}_meta_data_memory",
+     bytes,
+     vb_meta_data_memory, )
+STAT(vb_meta_data_disk, "vb_{state}_meta_data_disk", bytes, vb_meta_data_disk, )
+STAT(vb_checkpoint_memory,
+     "vb_{state}_checkpoint_memory",
+     bytes,
+     vb_checkpoint_memory, )
+STAT(vb_checkpoint_memory_unreferenced,
+     "vb_{state}_checkpoint_memory_unreferenced",
+     bytes,
+     vb_checkpoint_memory_unreferenced, )
+STAT(vb_checkpoint_memory_overhead,
+     "vb_{state}_checkpoint_memory_overhead",
+     bytes,
+     vb_checkpoint_memory_overhead, )
+STAT(vb_ht_memory, "vb_{state}_ht_memory", bytes, vb_ht_memory, )
+STAT(vb_itm_memory, "vb_{state}_itm_memory", bytes, vb_itm_memory, )
+STAT(vb_itm_memory_uncompressed,
+     "vb_{state}_itm_memory_uncompressed",
+     bytes,
+     vb_itm_memory_uncompressed, )
+STAT(vb_ops_create, "vb_{state}_ops_create", count, vb_ops_create, )
+STAT(vb_ops_update, "vb_{state}_ops_update", count, vb_ops_update, )
+STAT(vb_ops_delete, "vb_{state}_ops_delete", count, vb_ops_delete, )
+STAT(vb_ops_get, "vb_{state}_ops_get", count, vb_ops_get, )
+STAT(vb_ops_reject, "vb_{state}_ops_reject", count, vb_ops_reject, )
+STAT(vb_queue_size, "vb_{state}_queue_size", count, vb_queue_size, )
+STAT(vb_queue_memory, "vb_{state}_queue_memory", bytes, vb_queue_memory, )
+STAT(vb_queue_age, "vb_{state}_queue_age", milliseconds, vb_queue_age, )
+STAT(vb_queue_pending, "vb_{state}_queue_pending", bytes, vb_queue_pending, )
+STAT(vb_queue_fill, "vb_{state}_queue_fill", count, vb_queue_fill, )
+STAT(vb_queue_drain, "vb_{state}_queue_drain", count, vb_queue_drain, )
+STAT(vb_rollback_item_count,
+     "vb_{state}_rollback_item_count",
+     count,
+     vb_rollback_item_count, )
 
 STAT(curr_items, , count, , )
 STAT(curr_temp_items, , count, , )
 STAT(curr_items_tot, , count, , )
 
-STAT(vb_active_sync_write_accepted_count, , count, , )
-STAT(vb_active_sync_write_committed_count, , count, , )
-STAT(vb_active_sync_write_aborted_count, , count, , )
-STAT(vb_replica_sync_write_accepted_count, , count, , )
-STAT(vb_replica_sync_write_committed_count, , count, , )
-STAT(vb_replica_sync_write_aborted_count, , count, , )
-STAT(vb_dead_num, , count, , )
+STAT(vb_sync_write_accepted_count,
+     "vb_{state}_sync_write_accepted_count",
+     count,
+     vb_sync_write_accepted_count, )
+STAT(vb_sync_write_committed_count,
+     "vb_{state}_sync_write_committed_count",
+     count,
+     vb_sync_write_committed_count, )
+STAT(vb_sync_write_aborted_count,
+     "vb_{state}_sync_write_aborted_count",
+     count,
+     vb_sync_write_aborted_count, )
+
 STAT(ep_vb_total, , count, , )
 STAT(ep_total_new_items, , count, , )
 STAT(ep_total_del_items, , count, , )
