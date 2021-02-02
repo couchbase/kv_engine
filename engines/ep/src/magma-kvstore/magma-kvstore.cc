@@ -1688,11 +1688,9 @@ uint64_t MagmaKVStore::getKVStoreRevision(Vbid vbid) const {
 }
 
 MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(Vbid vbid) {
-    Status status;
-    std::string valString;
     Slice keySlice(vbstateKey);
     auto kvstoreRev = getKVStoreRevision(vbid);
-    std::tie(status, valString) = readLocalDoc(vbid, keySlice);
+    auto [status, valString] = readLocalDoc(vbid, keySlice);
 
     if (!status.IsOK()) {
         return {status, {}, kvstoreRev};
@@ -1724,12 +1722,10 @@ MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(
         Vbid vbid, magma::Magma::Snapshot& snapshot) {
     Slice keySlice(vbstateKey);
     std::string val;
-    bool found{false};
     auto status = Status::OK();
     auto kvstoreRev = getKVStoreRevision(vbid);
 
-    // Read from the snapshot
-    status = magma->GetLocal(snapshot, keySlice, val, found);
+    std::tie(status, val) = readLocalDoc(vbid, snapshot, keySlice);
 
     if (!status.IsOK()) {
         return {status, {}, kvstoreRev};
@@ -1805,16 +1801,13 @@ void MagmaKVStore::addVBStateUpdateToLocalDbReqs(LocalDbReqs& localDbReqs,
             MagmaLocalReq(vbstateKey, std::move(vbstateString)));
 }
 
-std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
-        Vbid vbid, const Slice& keySlice) {
-    Slice valSlice;
-    Magma::FetchBuffer valBuf;
-    bool found{false};
+std::pair<Status, std::string> MagmaKVStore::processReadLocalDocResult(
+        Status status,
+        Vbid vbid,
+        const magma::Slice& keySlice,
+        std::string_view value,
+        bool found) {
     magma::Status retStatus = Status::OK();
-    std::string valString;
-
-    auto status =
-            magma->GetLocal(vbid.get(), keySlice, valBuf, valSlice, found);
     if (!status) {
         retStatus = magma::Status(
                 status.ErrorCode(),
@@ -1830,10 +1823,34 @@ std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
             logger->TRACE("MagmaKVStore::readLocalDoc {} key:{} valueLen:{}",
                           vbid,
                           keySlice.ToString(),
-                          valString.length());
+                          value.length());
         }
     }
-    return std::make_pair(retStatus, valSlice.ToString());
+    return std::make_pair(retStatus, std::string(value));
+}
+
+std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
+        Vbid vbid, const Slice& keySlice) {
+    Slice valSlice;
+    Magma::FetchBuffer valBuf;
+    bool found{false};
+    magma::Status retStatus = Status::OK();
+    std::string valString;
+
+    auto status =
+            magma->GetLocal(vbid.get(), keySlice, valBuf, valSlice, found);
+    return processReadLocalDocResult(
+            status, vbid, keySlice, valSlice.ToString(), found);
+}
+
+std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
+        Vbid vbid, magma::Magma::Snapshot& snapshot, const Slice& keySlice) {
+    bool found{false};
+    magma::Status retStatus = Status::OK();
+    std::string valString;
+
+    auto status = magma->GetLocal(snapshot, keySlice, valString, found);
+    return processReadLocalDocResult(status, vbid, keySlice, valString, found);
 }
 
 std::string MagmaKVStore::encodeVBState(const vbucket_state& vbstate) const {

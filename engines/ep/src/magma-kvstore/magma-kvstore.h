@@ -505,6 +505,25 @@ public:
             Vbid vbid, const magma::Slice& keySlice);
 
     /**
+     * Read local doc from given snapshot
+     */
+    std::pair<magma::Status, std::string> readLocalDoc(
+            Vbid vbid,
+            magma::Magma::Snapshot& snapshot,
+            const magma::Slice& keySlice);
+
+    /**
+     * Processes the result of readLocalDoc adding information to the returned
+     * Status and logging if necessary
+     */
+    std::pair<magma::Status, std::string> processReadLocalDocResult(
+            magma::Status,
+            Vbid vbid,
+            const magma::Slice& keySlice,
+            std::string_view value,
+            bool found);
+
+    /**
      * Encode the cached vbucket_state into a JSON string
      */
     std::string encodeVBState(const vbucket_state& vbstate) const;
