@@ -1437,7 +1437,7 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
     uint64_t purgeSeqno = readState.vbstate.purgeSeqno;
     uint64_t nDocsToRead = highSeqno - startSeqno + 1;
 
-    auto collectionsManifest = getDroppedCollections(vbid);
+    auto collectionsManifest = getDroppedCollections(vbid, *snapshot);
 
     if (logger->should_log(spdlog::level::info)) {
         std::string docFilter;
@@ -2299,6 +2299,17 @@ MagmaKVStore::getDroppedCollections(Vbid vbid) {
     std::string dropped;
     Slice keySlice(droppedCollectionsKey);
     std::tie(status, dropped) = readLocalDoc(vbid, keySlice);
+    return Collections::KVStore::decodeDroppedCollections(
+            {reinterpret_cast<const uint8_t*>(dropped.data()),
+             dropped.length()});
+}
+
+std::vector<Collections::KVStore::DroppedCollection>
+MagmaKVStore::getDroppedCollections(Vbid vbid,
+                                    magma::Magma::Snapshot& snapshot) {
+    std::string dropped;
+    Slice keySlice(droppedCollectionsKey);
+    std::tie(std::ignore, dropped) = readLocalDoc(vbid, snapshot, keySlice);
     return Collections::KVStore::decodeDroppedCollections(
             {reinterpret_cast<const uint8_t*>(dropped.data()),
              dropped.length()});

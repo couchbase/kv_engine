@@ -408,6 +408,56 @@ TEST_F(MagmaKVStoreTest, ScanReadsVBStateFromSnapshot) {
     EXPECT_EQ(999, kvstore->getCachedVBucketState(vbid)->maxVisibleSeqno);
 }
 
+TEST_F(MagmaKVStoreTest, ScanReadDroppedCollectionsFromSnapshot) {
+    initialize_kv_store(kvstore.get(), vbid);
+
+    ThreadGate tg1(2);
+    ThreadGate tg2(2);
+    std::unique_ptr<BySeqnoScanContext> scanCtx;
+
+    kvstore->readVBStateFromDiskHook = [&tg1, &tg2]() {
+        // Wait until we modify the vbucket_state to test that we are reading
+        // the state from the snapshot
+        tg1.threadUp();
+
+        // And continue
+        tg2.threadUp();
+    };
+
+    std::thread t1 = std::thread{[this, &scanCtx]() {
+        EXPECT_NO_THROW(scanCtx = kvstore->initBySeqnoScanContext(
+                                std::make_unique<GetCallback>(
+                                        true /*expectcompressed*/),
+                                std::make_unique<KVStoreTestCacheCallback>(
+                                        1, 5, Vbid(0)),
+                                vbid,
+                                1,
+                                DocumentFilter::ALL_ITEMS,
+                                ValueFilter::VALUES_COMPRESSED,
+                                SnapshotSource::Head));
+        EXPECT_TRUE(scanCtx.get());
+    }};
+
+    // Wait until we have grabbed the snapshot in initBySeqnoScanContext
+    tg1.threadUp();
+
+    // Dropping a collection in a KVStoreTest is a bit tricky. We could craft
+    // the SystemEvent required but we'd just throw when we attempt to update
+    // stats in the KVStore as it calls back into the VBucket level manifest.
+    // We do have a VBucket level manifest but updating it in a KVStoreTest test
+    // is a PITA as it requires a VBucket. For the sake of testing this issue
+    // though we can be lazy. To test that we read the dropped collections of
+    // the snapshot we can instead write bad data to the droppedCollections
+    // local doc which would cause us to throw were we to attempt to parse it
+    // as the droppedCollections local doc. Not throwing in
+    // initBySeqnoScanContext is the test.
+    kvstore->addLocalDoc(vbid, "_collections/dropped", "garbled");
+
+    // Finish creating the scanCtx and join up the other thread
+    tg2.threadUp();
+    t1.join();
+}
+
 TEST_F(MagmaKVStoreTest, MagmaGetExpiryTimeAlive) {
     magmakv::MetaData expiredItem;
     expiredItem.exptime = 10;

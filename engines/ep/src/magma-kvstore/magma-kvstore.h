@@ -406,12 +406,25 @@ public:
     Collections::KVStore::Manifest getCollectionsManifest(Vbid vbid) override;
 
     /**
-     * read local document to get the vector of dropped collections
+     * Read local document to get the vector of dropped collections from the
+     * latest snapshot
+     *
      * @param vbid vbucket id
      * @return a vector of dropped collections (can be empty)
      */
     std::vector<Collections::KVStore::DroppedCollection> getDroppedCollections(
             Vbid vbid) override;
+
+    /**
+     * Read local doc to get the vector of dropped collections from the given
+     * snapshot
+     *
+     * @param vbid vbucket id
+     * @param snapshot The magma snapshot from which we want to read
+     * @return a vector of dropped collections (can be empty)
+     */
+    std::vector<Collections::KVStore::DroppedCollection> getDroppedCollections(
+            Vbid vbid, magma::Magma::Snapshot& snapshot);
 
     /**
      * This function maintains the set of open collections, adding newly opened
