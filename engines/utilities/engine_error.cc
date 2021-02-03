@@ -96,8 +96,6 @@ std::string cb::to_string(cb::engine_errc code) {
         return "predicate_failed";
     case cb::engine_errc::cannot_apply_collections_manifest:
         return "cannot_apply_collections_manifest";
-    case cb::engine_errc::collections_manifest_is_ahead:
-        return "collections_manifest_is_ahead";
     case cb::engine_errc::unknown_scope:
         return "unknown scope";
     case engine_errc::durability_impossible:
@@ -174,8 +172,6 @@ cb::engine_errc cb::to_engine_errc(ENGINE_ERROR_CODE eec) {
         return cb::engine_errc::locked_tmpfail;
     case ENGINE_UNKNOWN_COLLECTION:
         return cb::engine_errc::unknown_collection;
-    case ENGINE_COLLECTIONS_MANIFEST_IS_AHEAD:
-        return cb::engine_errc::collections_manifest_is_ahead;
     case ENGINE_UNKNOWN_SCOPE:
         return cb::engine_errc::unknown_scope;
     case ENGINE_FAILED:

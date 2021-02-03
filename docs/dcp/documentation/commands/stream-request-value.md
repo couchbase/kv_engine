@@ -15,7 +15,7 @@ The following keys can be included in the JSON object.
 
 ### uid
 
-`uid` should be set by the client when they are resuming a stream, the value must
+`uid` can be set by the client when they are resuming a stream, the value should
 be the `uid` they last observed from a collection's DCP System event.
 
 For example if the client observed a create-collection event with uid `0xb4` at
@@ -35,6 +35,9 @@ For example:
     "uid" : "b4"
 }
 ```
+
+This value is optional and is only used to assist debugging (it is included
+in log messages).
 
 ### sid
 

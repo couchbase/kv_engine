@@ -79,7 +79,8 @@ TEST_F(CollectionsVBFilterTest, junk_in) {
                                        R"({"collections:"this"})",
                                        R"({"collections:{"a":1})",
                                        R"({"collection:["a"])",
-                                       R"({"collections:[a])"};
+                                       R"({"collections:[a])",
+                                       R"({"scope":"1", "collections:[a])"};
 
     for (const auto& s : inputs) {
         std::optional<std::string_view> json(s);

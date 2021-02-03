@@ -62,8 +62,6 @@ cb::mcbp::Status cb::mcbp::to_status(cb::engine_errc code) {
         return Status::UnknownCollection;
     case engine_errc::cannot_apply_collections_manifest:
         return Status::CannotApplyCollectionsManifest;
-    case engine_errc::collections_manifest_is_ahead:
-        return Status::CollectionsManifestIsAhead;
     case engine_errc::unknown_scope:
         return Status::UnknownScope;
     case engine_errc::failed:

@@ -214,98 +214,126 @@ TEST_F(CollectionsDcpTest, stream_request_uid) {
 }
 
 /**
- * Test that we temp fail if we create a stream on a vbucket that is behind
- * our manifest
+ * This test was originally created to cover what happens when a stream-request
+ * from the "future" occurs, in collection terms the client claims to know about
+ * a manifest from the future. No longer though does KV do a 'tmpfail' error
+ * when this happens, it's flawed in the case of quorum loss and could lead to
+ * indefinite denial to the client. KV now allows the stream-request and uses
+ * normal rollback to guide the client to the correct start-seqno, this test
+ * now covers that.
  */
-TEST_F(CollectionsDcpTest, failover_partial_drop) {
-    // Create two collections and ensure they exist in both active and replica
-    VBucketPtr active = store->getVBucket(vbid);
+TEST_F(CollectionsDcpTest, failover_after_drop_collection) {
+    Vbid vbid0{vbid};
+    Vbid vbid1{replicaVB};
+
+    // This test begins with an active (vb:0) and replica (vb:1) vbucket and
+    // uses the CollectionsDcpTest 'producers' so step transfers system-events
+    // from active to replica.
+    //
+    // The test begins and sets our scenario:
+    //
+    // 1) Creates two collections and expect they exist in both vbuckets.
+    // 2) Drop one of the collections from vb:0 only.
+    auto vb0 = store->getVBucket(vbid0);
 
     CollectionsManifest cm(CollectionEntry::meat);
     // Update the bucket::manifest (which will apply changes to the active VB)
     setCollections(cookie, cm.add(CollectionEntry::fruit));
-
+    flushVBucketToDiskIfPersistent(vbid0, 2);
     notifyAndStepToCheckpoint();
 
-    VBucketPtr replica = store->getVBucket(replicaVB);
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
 
-    ASSERT_TRUE(active->lockCollections().doesKeyContainValidCollection(
-            StoredDocKey{"meat:bacon", CollectionEntry::meat}));
-    ASSERT_TRUE(active->lockCollections().doesKeyContainValidCollection(
-            StoredDocKey{"fruit:apple", CollectionEntry::fruit}));
-    ASSERT_TRUE(replica->lockCollections().doesKeyContainValidCollection(
-            StoredDocKey{"meat:bacon", CollectionEntry::meat}));
+    EXPECT_TRUE(vb0->lockCollections().exists(CollectionEntry::meat));
+    EXPECT_TRUE(vb0->lockCollections().exists(CollectionEntry::fruit));
+    auto vb1 = store->getVBucket(vbid1);
+    EXPECT_TRUE(vb1->lockCollections().exists(CollectionEntry::meat));
+    EXPECT_FALSE(vb1->lockCollections().exists(CollectionEntry::fruit));
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ("fruit", producers->last_key);
+    EXPECT_TRUE(vb1->lockCollections().exists(CollectionEntry::fruit));
 
-    ASSERT_TRUE(replica->lockCollections().doesKeyContainValidCollection(
-            StoredDocKey{"fruit:apple", CollectionEntry::fruit}));
-
-    // Create a new collections manifest so that we can use the old one for
-    // the new active
-    CollectionsManifest oldManifest(CollectionEntry::meat);
-    oldManifest.add(CollectionEntry::fruit);
-
-    // Drop one collection on the active but don't replicate the drop
-    // Directly do this against the vb, so the bucket::manifest is behind, i.e.
-    // the bucket::manifest still thinks fruit exists. This is done so that
-    // the promotion to active/replica makes no further changes to the
-    // collection state.
-    active->updateFromManifest(makeManifest(cm.remove(CollectionEntry::fruit)));
-
+    // Store and transfer items 0 to make rollback testing cover more ground.
+    auto key = StoredDocKey{"k1", CollectionEntry::fruit};
+    store_item(vbid0, key, "v1");
+    store_item(vbid0, StoredDocKey{"k2", CollectionEntry::fruit}, "v2");
+    flushVBucketToDiskIfPersistent(vbid0, 2);
     notifyAndStepToCheckpoint();
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+
+    // flush of vb:1 is required so that it later directs rollback to not 0.
+    flushVBucketToDiskIfPersistent(vbid1, 4);
+
+    // Now drop the collection
+    vb0->updateFromManifest(makeManifest(cm.remove(CollectionEntry::fruit)));
+    flushVBucketToDiskIfPersistent(vbid0, 1);
+
+    // vb:0 is at seqno:3 and has 1 collection
+    // vb:1 is at seqno:2 and has 2 collections
+    //
+    // Next the vbuckets will switch states for the next phase of the test.
+    // Here vb:0 will consume DCP from vb:1 (i.e. vb:0 is now a replica).
+    // This means that vb:0 will do a stream-request with a start-seqno {3}
+    // which is ahead of vb:1 {2}
 
     // Kill the producer, then set up a consumer from the active to the
-    // replica to simulate a failover
+    // replica to loosely simulate a failover
+    notifyAndStepToCheckpoint();
     producer->closeAllStreams();
     producer->cancelCheckpointCreatorTask();
     consumer->closeAllStreams();
     consumer->cancelTask();
-    store->setVBucketState(vbid, vbucket_state_replica, {});
-    store->setVBucketState(replicaVB, vbucket_state_active, {});
 
+    // Grab the vb:1 uuid for the stream-request
+    failover_entry_t entry = vb1->failovers->getLatestEntry();
+    auto vbucket_uuid = entry.vb_uuid;
+
+    // Switch the states
+    store->setVBucketState(vbid0, vbucket_state_replica, {});
+    store->setVBucketState(vbid1, vbucket_state_active, {});
+
+    // Some required setup
     consumer = std::make_shared<MockDcpConsumer>(
             *engine, cookieP, "test_consumer");
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(0, vbid, 0));
-
-    // Instead of stepping through a stream request to get the vb manifest
-    // uid we can just grab it from the mock stream
-    auto mockPassiveStream = dynamic_cast<MockPassiveStream*>(
-            consumer->getVbucketStream(vbid).get());
-    auto uidFilter = mockPassiveStream->public_createStreamReqValue();
-    ASSERT_EQ("{\"uid\":\"3\"}", uidFilter);
-
-    // Now attempt to resume the stream. Setup the producer using the vb
-    // manifest uid the consumer has. We should fail with collections
-    // manifest is ahead
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(0, vbid0, 0));
     producer = SingleThreadedKVBucketTest::createDcpProducer(
             cookieC, IncludeDeleteTime::No);
-    uint64_t rollbackSeqno;
-    try {
-        // The replicaVB (vb:1 which is now active) is at manifest:4
-        // The uid filter we generated from vb:0 is ahead because of the extra
-        // drop it processed.
-        producer->streamRequest(0, // flags
-                                1, // opaque
-                                replicaVB,
-                                1, // start_seqno
-                                ~0ull, // end_seqno
-                                0, // vbucket_uuid,
-                                1, // snap_start_seqno,
-                                2, // snap_end_seqno,
-                                &rollbackSeqno,
-                                &CollectionsDcpTest::dcpAddFailoverLog,
-                                std::string_view(uidFilter));
-        FAIL() << "Expected stream creation to throw";
-    } catch (const cb::engine_error& e) {
-        EXPECT_EQ(cb::engine_errc::collections_manifest_is_ahead, e.code());
-    }
+
+    uint64_t rollbackSeqno = 0;
+
+    // Now we ask vb:1 for a stream from 5 and expect to be told to rollback to
+    // 4 - i.e. dropped collection is now back in play.
+    EXPECT_EQ(5, vb0->getHighSeqno());
+    EXPECT_EQ(ENGINE_ROLLBACK,
+              producer->streamRequest(0, // flags
+                                      1, // opaque
+                                      vbid1,
+                                      vb0->getHighSeqno(), // start_seqno
+                                      ~0ull, // end_seqno
+                                      vbucket_uuid, // vbucket_uuid,
+                                      vb0->getHighSeqno(), // snap_start_seqno,
+                                      vb0->getHighSeqno(), // snap_end_seqno,
+                                      &rollbackSeqno,
+                                      &CollectionsDcpTest::dcpAddFailoverLog,
+                                      {}));
+
+    // Seqno 4 is for the high-seqno of fruit
+    EXPECT_EQ(rollbackSeqno, 4);
+    EXPECT_FALSE(vb0->lockCollections().exists(CollectionEntry::fruit));
+    GetValue gv = store->get(key, vbid0, cookie, {});
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, gv.getStatus());
+
+    EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid0, rollbackSeqno));
+    EXPECT_EQ(rollbackSeqno, vb0->getHighSeqno());
+    EXPECT_TRUE(vb0->lockCollections().exists(CollectionEntry::fruit));
+    gv = store->getReplica(key, vbid0, cookie, {});
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
 }
 
 // MB_38019 saw that if a replica gets ahead of the local node, and is
@@ -921,43 +949,6 @@ TEST_F(CollectionsDcpTest, MB_26455) {
     }
     EXPECT_TRUE(
             store->getVBucket(vbid)->lockCollections().exists((m - 1) + 10));
-}
-
-TEST_P(CollectionsDcpParameterizedTest, collections_manifest_is_ahead) {
-    CollectionsManifest cm;
-    cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy);
-    auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(makeManifest(cm));
-    store_item(vbid, makeStoredDocKey("k", CollectionEntry::dairy), "v");
-
-    producer = SingleThreadedKVBucketTest::createDcpProducer(
-            cookieP, IncludeDeleteTime::No);
-
-    try {
-        createDcpStream({{R"({"uid":"9"})"}});
-        FAIL() << "Expected stream creation to throw";
-    } catch (const cb::engine_error& e) {
-        EXPECT_EQ(cb::engine_errc::collections_manifest_is_ahead, e.code());
-    }
-
-    createDcpStream({{R"({"uid":"1"})"}});
-    notifyAndStepToCheckpoint();
-    EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(*producers,
-                                      cb::mcbp::ClientOpcode::DcpSystemEvent));
-    EXPECT_EQ(producers->last_collection_id, CollectionEntry::fruit.getId());
-
-    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
-    EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(*producers,
-                                      cb::mcbp::ClientOpcode::DcpSystemEvent));
-    EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
-    EXPECT_EQ(producers->last_system_event,
-              mcbp::systemevent::id::CreateCollection);
-    EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(*producers,
-                                      cb::mcbp::ClientOpcode::DcpMutation));
-    EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
 }
 
 // Test that create and delete (full deletion) keeps the collection drop marker

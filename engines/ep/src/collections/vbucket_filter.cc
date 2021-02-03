@@ -125,17 +125,6 @@ std::pair<cb::engine_errc, uint64_t> Filter::constructFromJson(
         auto jsonUid = cb::getJsonObject(
                 json, UidKey, UidType, "Filter::constructFromJson");
         uid = makeUid(jsonUid.get<std::string>());
-
-        // Critical - if the client has a uid ahead of the vbucket, tempfail
-        // we expect ns_server to update us to the latest manifest.
-        auto vbUid = rh.getManifestUid();
-        if (*uid > vbUid) {
-            throw cb::engine_error(
-                    cb::engine_errc::collections_manifest_is_ahead,
-                    "Filter::constructFromJson client is ahead client:uid:" +
-                            std::to_string(*uid) +
-                            ", vb:uid:" + std::to_string(vbUid));
-        }
     }
 
     const auto scopesObject = json.find(ScopeKey);
@@ -153,41 +142,40 @@ std::pair<cb::engine_errc, uint64_t> Filter::constructFromJson(
         if (!addScope(scope, rh)) {
             return {cb::engine_errc::unknown_scope, rh.getManifestUid()};
         }
-    } else {
-        if (collectionsObject != json.end()) {
-            passthrough = false;
-            disableDefaultCollection();
-            auto jsonCollections =
-                    cb::getJsonObject(json,
-                                      CollectionsKey,
-                                      CollectionsType,
-                                      "Filter::constructFromJson");
+    }
 
-            for (const auto& entry : jsonCollections) {
-                cb::throwIfWrongType(std::string(CollectionsKey),
-                                     entry,
-                                     nlohmann::json::value_t::string);
-                if (!addCollection(entry, rh)) {
-                    return {cb::engine_errc::unknown_collection,
-                            rh.getManifestUid()};
-                }
-            }
-        } else if (uidObject == json.end()) {
-            // The input JSON must of contained at least a UID, scope, or
-            // collections
-            //  * {} is valid JSON but is invalid for this class
-            //  * {uid:4} is OK - client wants everything (non-zero start)
-            //  * {collections:[...]} - is OK - client wants some collections
-            //  from epoch
-            //  * {uid:4, collections:[...]} - is OK
-            //  * {sid:4} - is OK
-            //  * {uid:4, sid:4} - is OK
-            if (collectionsObject == json.end() && uidObject == json.end()) {
-                throw cb::engine_error(cb::engine_errc::invalid_arguments,
-                                       "Filter::constructFromJson no uid or "
-                                       "collections found");
+    if (collectionsObject != json.end()) {
+        if (scopesObject != json.end()) {
+            throw cb::engine_error(cb::engine_errc::invalid_arguments,
+                                   "Filter::constructFromJson cannot specify "
+                                   "both scope and collections");
+        }
+        passthrough = false;
+        disableDefaultCollection();
+        auto jsonCollections = cb::getJsonObject(json,
+                                                 CollectionsKey,
+                                                 CollectionsType,
+                                                 "Filter::constructFromJson");
+
+        for (const auto& entry : jsonCollections) {
+            cb::throwIfWrongType(std::string(CollectionsKey),
+                                 entry,
+                                 nlohmann::json::value_t::string);
+            if (!addCollection(entry, rh)) {
+                return {cb::engine_errc::unknown_collection,
+                        rh.getManifestUid()};
             }
         }
+    }
+
+    // The input JSON must of contained at least a sid, uid, scope, or
+    // collections key
+    if (uidObject == json.end() && collectionsObject == json.end() &&
+        scopesObject == json.end() && streamIdObject == json.end()) {
+        throw cb::engine_error(
+                cb::engine_errc::invalid_arguments,
+                "Filter::constructFromJson no sid, uid, scope or "
+                "collections found");
     }
     return {cb::engine_errc::success, rh.getManifestUid()};
 }

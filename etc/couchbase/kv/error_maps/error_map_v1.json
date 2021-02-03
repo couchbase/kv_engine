@@ -226,13 +226,6 @@
                 "invalid-input"
             ]
         },
-         "8b": {
-            "name": "COLLECTIONS_MANIFEST_IS_AHEAD",
-            "desc": "The specified collection's manifest uid is greater than the requested vbucket's.",
-            "attrs": [
-                "retry-later"
-            ]
-        },
         "8c": {
             "name": "UNKNOWN_SCOPE",
             "desc": "Operation specified an unknown scope.",

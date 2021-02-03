@@ -56,7 +56,6 @@ bool isStatusSuccess(Status status) {
     case Status::XattrEinval:
     case Status::UnknownCollection:
     case Status::CannotApplyCollectionsManifest:
-    case Status::CollectionsManifestIsAhead:
     case Status::UnknownScope:
     case Status::DurabilityInvalidLevel:
     case Status::DurabilityImpossible:
@@ -181,8 +180,6 @@ std::string to_string(cb::mcbp::Status status) {
         return "Unknown Collection";
     case Status::CannotApplyCollectionsManifest:
         return "Cannot apply collections manifest";
-    case Status::CollectionsManifestIsAhead:
-        return "Collections manifest is ahead";
     case Status::UnknownScope:
         return "Unknown Scope";
     case Status::DcpStreamIdInvalid:

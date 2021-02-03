@@ -311,20 +311,11 @@ If the failover log could not be sent to due a failure to allocate memory.
 
 **PROTOCOL_BINARY_RESPONSE_ETEMPFAIL (0x86)**
 
-This error code is returned when the engine cannot complete a request at this 
+This error code is returned when the engine cannot complete a request at this
 time, but in the future it may be able to.
 
-* For instance, if a request is received for vbucket that is still in warm-up, 
+* For instance, if a request is received for vbucket that is still in warm-up,
 this error code will be returned.
-
-**PROTOCOL_BINARY_RESPONSE_MANIFEST_IS_AHEAD (0x8b)**
-
-The client's manifest `uid` (encoded in the [stream-request value](stream-request-value.md))
-is ahead of the vbucket's. Provided that the client observed the manifest uid from
-the cluster, the vbucket it is trying to request should catch up with the uid the
-client is using.
-
-The client should briefly pause and then retry the stream-request.
 
 **PROTOCOL_BINARY_RESPONSE_DCP_STREAMID_INVALID (0x8d)**
 
