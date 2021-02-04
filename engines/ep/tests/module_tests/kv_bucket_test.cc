@@ -128,14 +128,15 @@ void KVBucketTest::TearDown() {
     }
 }
 
-void KVBucketTest::destroy() {
+void KVBucketTest::destroy(bool force) {
     destroy_mock_cookie(cookie);
     engine->getDcpConnMap().manageConnections();
+    engine->destroyInner(force);
     engine.reset();
 }
 
-void KVBucketTest::reinitialise(std::string config) {
-    destroy();
+void KVBucketTest::reinitialise(std::string config, bool force) {
+    destroy(force);
     initialise(config);
 }
 
