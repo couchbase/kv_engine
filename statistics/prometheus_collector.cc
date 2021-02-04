@@ -19,6 +19,7 @@
 
 #include <memcached/dockey.h>
 #include <memcached/engine_error.h>
+#include <statistics/labelled_collector.h>
 #include <utilities/hdrhistogram.h>
 
 #include <cmath>
@@ -122,6 +123,13 @@ void PrometheusStatCollector::addClientMetric(
     // these are labels common to many stats, and have runtime values like
     // {{"bucket", "someBucketName"},{"scope", "scopeName"}}
     for (const auto& [label, value] : additionalLabels) {
+        // Strip scope and collection ID labels. The IDs are used by
+        // CBStatCollector so are set in collector labels, but they are not
+        // desired to in Prometheus.
+        if (label == ScopeStatCollector::scopeIDKey ||
+            label == ColStatCollector::collectionIDKey) {
+            continue;
+        }
         metric.label.push_back({std::string(label), std::string(value)});
     }
 
