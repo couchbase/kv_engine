@@ -20,6 +20,8 @@
 #include "collections/flush.h"
 #include "vbucket_state.h"
 
+#include "libcouchstore/couch_db.h"
+
 namespace Collections::VB {
 class Manifest;
 } // namespace Collections::VB
@@ -38,7 +40,8 @@ public:
      * code which just wants to all kvstore::commit
      */
     explicit Commit(Collections::VB::Manifest& manifest,
-                    vbucket_state vbs = {});
+                    vbucket_state vbs = {},
+                    SysErrorCallback sysErrorCallback = {});
 
     /// Object for updating the collection's meta-data during commit
     Collections::VB::Flush collections;
@@ -50,6 +53,12 @@ public:
      * part of the in-memory update.
      */
     vbucket_state proposedVBState;
+
+    /**
+     * Executed at KVStore::commit if operation fails.
+     * Allows EP to take decisions on how to react to the failure.
+     */
+    SysErrorCallback sysErrorCallback;
 };
 
 } // end namespace VB

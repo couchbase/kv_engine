@@ -3071,9 +3071,13 @@ TEST_P(DurabilityCouchstoreBucketTest, MB_36739) {
     replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig), ops);
 
     // Inject one fsync error when writing the pending mutation
+    //
+    // Note: Since MB-42224 at sync-header failure couchstore auto-retries
+    // the operation. Given that this test wants to verify a scenario where KV
+    // retries persistence, then we inject a sync-data failure (ie, it is the
+    // first call to fsync that fails, the second one succeeds).
     EXPECT_CALL(ops, sync(testing::_, testing::_))
             .Times(testing::AnyNumber())
-            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
             .WillOnce(testing::Return(COUCHSTORE_ERROR_WRITE))
             .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
 

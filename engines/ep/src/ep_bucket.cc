@@ -427,7 +427,26 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
         vbstate = *persistedVbState;
     }
 
-    VB::Commit commitData(vb->getManifest(), vbstate);
+    // Callback executed at KVStore::commit.
+    bool logged = false;
+    const auto callback = [this, &logged, vbid](const std::system_error& err) {
+        if (!logged) {
+            EP_LOG_WARN("EPBucket::flushVBucket: {} {}", vbid, err.what());
+            logged = true;
+        }
+
+        // MB-42224: sync-header failure callback increments
+        // ep_data_write_failed, which is what ns_server uses for
+        // detecting a high rate of disk-write failures and failing the
+        // node if the user enabled auto-failover.
+        ++(this->stats.commitFailed);
+
+        // Return true to let couchstore re-try the operation
+        return true;
+    };
+
+    VB::Commit commitData(vb->getManifest(), vbstate, callback);
+
     vbucket_state& proposedVBState = commitData.proposedVBState;
 
     // We need to set a few values from the in-memory state.

@@ -6504,3 +6504,61 @@ TEST_P(STParamCouchstoreBucketTest,
         EXPECT_EQ(collectionSize, summary[CollectionID::Default].diskSize);
     }
 }
+
+/**
+ * MB-42224: The test verifies that a failure in the header-sync phase at
+ * flush-vbucket causes couchstore auto-retry. Also, the test verifies that
+ * relevant stats are correctly updated when finally persistence succeeds.
+ */
+TEST_P(STParamCouchstoreBucketTest, HeaderSyncFails) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    // Use mock ops to inject syscall failures
+    ::testing::NiceMock<MockOps> ops(create_default_file_ops());
+    const auto& config = store->getRWUnderlying(vbid)->getConfig();
+    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
+    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig), ops);
+    // We do 2 syncs per flush. First is for data sync, second is for header
+    // sync. In this test we test we fail the second sync, which means that:
+    // - All data (docs+local) will be flushed to the OSBC and sync'ed to disk
+    // - New header flushed to OSBC but not sync'ed to disk
+    EXPECT_CALL(ops, sync(testing::_, testing::_))
+            .Times(testing::AnyNumber())
+            .WillOnce(testing::DoDefault())
+            .WillOnce(testing::Return(COUCHSTORE_ERROR_WRITE))
+            .WillRepeatedly(testing::DoDefault());
+
+    const auto& vb = *store->getVBucket(vbid);
+    ASSERT_EQ(0, vb.getNumItems());
+    auto* kvstore = store->getRWUnderlying(vbid);
+    ASSERT_EQ(0, kvstore->getPersistedVBucketState(vbid).onDiskPrepares);
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.commitFailed);
+    EXPECT_EQ(0, stats.flusherCommits);
+
+    // Store a mutation (that is for checking our num-items)
+    const auto keyM = makeStoredDocKey("keyM");
+    const auto item = makeCommittedItem(keyM, "value");
+    EXPECT_EQ(cb::engine_errc::success, store->set(*item, cookie));
+
+    // Store a prepare (that is for checking out on-dick-prepares)
+    const auto key = makeStoredDocKey("key");
+    const auto prepare =
+            makePendingItem(key, "value", cb::durability::Requirements());
+    EXPECT_EQ(cb::engine_errc::sync_write_pending,
+              store->set(*prepare, cookie));
+
+    // Try persistence, it fails the first attempt but couchstore auto-retry
+    // succeeds at the second attempt.
+    auto res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
+    EXPECT_EQ(EPBucket::MoreAvailable::No, res.moreAvailable);
+    EXPECT_EQ(2, res.numFlushed);
+    EXPECT_EQ(1, stats.commitFailed);
+    EXPECT_EQ(1, stats.flusherCommits);
+    EXPECT_EQ(1, vb.getNumTotalItems());
+    EXPECT_EQ(1, kvstore->getPersistedVBucketState(vbid).onDiskPrepares);
+    EXPECT_EQ(1, kvstore->getCachedVBucketState(vbid)->onDiskPrepares);
+}

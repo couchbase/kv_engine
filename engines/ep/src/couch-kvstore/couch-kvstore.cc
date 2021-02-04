@@ -2953,7 +2953,7 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
 
     auto cs_begin = std::chrono::steady_clock::now();
 
-    errCode = couchstore_commit(db);
+    errCode = couchstore_commit(db, kvctx.commitData.sysErrorCallback);
     st.commitHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - cs_begin));
     if (errCode) {
