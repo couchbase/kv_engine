@@ -17,8 +17,10 @@
 
 #include <fcntl.h>
 #include <platform/dirutils.h>
+#include <platform/histogram.h>
 #include <platform/strerror.h>
 #include <sys/stat.h>
+#include <utilities/hdrhistogram.h>
 #include <algorithm>
 #include <string>
 #include <system_error>

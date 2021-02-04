@@ -36,6 +36,7 @@
 #include "tests/mock/mock_synchronous_ep_engine.h"
 
 #include <folly/portability/GTest.h>
+#include <platform/cb_arena_malloc.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <statistics/labelled_collector.h>
 #include <string_utilities.h>

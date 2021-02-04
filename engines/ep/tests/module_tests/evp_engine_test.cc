@@ -24,10 +24,10 @@
 #include "ep_engine.h"
 #include "item.h"
 #include "kv_bucket.h"
-#include "taskqueue.h"
-
+#include "objectregistry.h"
 #include "programs/engine_testapp/mock_cookie.h"
 #include "programs/engine_testapp/mock_server.h"
+#include "taskqueue.h"
 #include "tests/module_tests/test_helpers.h"
 
 #include <boost/algorithm/string/join.hpp>

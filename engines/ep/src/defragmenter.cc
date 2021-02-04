@@ -24,6 +24,7 @@
 #include "kv_bucket.h"
 #include "stored-value.h"
 #include <phosphor/phosphor.h>
+#include <platform/cb_arena_malloc.h>
 #include <cinttypes>
 
 DefragmenterTask::DefragmenterTask(EventuallyPersistentEngine* e,

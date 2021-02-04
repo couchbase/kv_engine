@@ -27,6 +27,7 @@
 #include "tests/module_tests/test_helpers.h"
 
 #include <folly/portability/GTest.h>
+#include <platform/cb_arena_malloc.h>
 
 /**
  * Test fixture for StoredValue tests. Type-parameterized to test both

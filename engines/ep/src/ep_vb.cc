@@ -39,6 +39,7 @@
 #include "vbucket_state.h"
 #include "vbucketdeletiontask.h"
 #include <folly/lang/Assume.h>
+#include <platform/histogram.h>
 
 EPVBucket::EPVBucket(Vbid i,
                      vbucket_state_t newState,

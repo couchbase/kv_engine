@@ -137,6 +137,17 @@ void EPStats::setMaxDataSize(size_t size) {
     }
 }
 
+bool EPStats::isMemoryTrackingEnabled() {
+    return cb::ArenaMalloc::canTrackAllocations() && GlobalNewDeleteIsOurs;
+}
+
+size_t EPStats::getEstimatedTotalMemoryUsed() const {
+    if (isMemoryTrackingEnabled()) {
+        return cb::ArenaMalloc::getEstimatedAllocated(arena);
+    }
+    return size_t(std::max(size_t(0), getCurrentSize() + getMemOverhead()));
+}
+
 size_t EPStats::getPreciseTotalMemoryUsed() const {
     if (isMemoryTrackingEnabled()) {
         return cb::ArenaMalloc::getPreciseAllocated(arena);

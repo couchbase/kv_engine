@@ -18,20 +18,17 @@
 #pragma once
 
 #include "hdrhistogram.h"
-#include "objectregistry.h"
 
 #include <folly/Synchronized.h>
 #include <folly/lang/Aligned.h>
 #include <memcached/durability_spec.h>
 #include <memcached/types.h>
-#include <platform/cb_arena_malloc.h>
+#include <platform/cb_arena_malloc_client.h>
 #include <platform/corestore.h>
 #include <platform/non_negative_counter.h>
 #include <platform/platform_time.h>
 #include <relaxed_atomic.h>
-#include <statistics/units.h>
 
-#include <platform/histogram.h>
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -133,9 +130,7 @@ public:
      * allocations.
      * @return if memory tracking is enabled
      */
-    static constexpr bool isMemoryTrackingEnabled() {
-        return cb::ArenaMalloc::canTrackAllocations() && GlobalNewDeleteIsOurs;
-    }
+    static bool isMemoryTrackingEnabled();
 
     /**
      * The estimated memory lags behind the value getPreciseTotalMemoryUsed
@@ -150,12 +145,7 @@ public:
      *
      * @return a estimate of the total memory allocated to the engine
      */
-    size_t getEstimatedTotalMemoryUsed() const {
-        if (isMemoryTrackingEnabled()) {
-            return cb::ArenaMalloc::getEstimatedAllocated(arena);
-        }
-        return size_t(std::max(size_t(0), getCurrentSize() + getMemOverhead()));
-    }
+    size_t getEstimatedTotalMemoryUsed() const;
 
     /**
      * @return a "precise" memory used value. This asks the underlying platform

@@ -21,8 +21,8 @@
 #include "executorpool.h"
 #include "kvshard.h"
 #include "kvstore.h"
-
 #include <phosphor/phosphor.h>
+#include <platform/histogram.h>
 #include <chrono>
 
 VBucketMemoryDeletionTask::VBucketMemoryDeletionTask(
