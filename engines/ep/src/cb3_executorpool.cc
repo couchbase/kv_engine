@@ -247,7 +247,7 @@ bool CB3ExecutorPool::cancel(size_t taskId, bool remove) {
     // from the shared_ptr does destruct, the destructor is allowed to call
     // other ExecutorPool methods, e.g. pool->schedule(my_cleanup_task);
     bool taskFound = task != nullptr;
-    if (task && remove) {
+    if (task) {
         BucketAllocationGuard bucketGuard(task->getEngine());
         task.reset();
     }

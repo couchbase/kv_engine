@@ -237,7 +237,12 @@ void CB3ExecutorThread::resetCurrentTask() {
         // owns nothing.
         resetThisObject = std::move(currentTask);
     }
-    resetThisObject.reset();
+    {
+        // Freeing of the Task object should be accounted to the engine
+        // which owns it.
+        BucketAllocationGuard bucketGuard(resetThisObject->getEngine());
+        resetThisObject.reset();
+    }
 }
 
 std::string CB3ExecutorThread::getTaskName() {
