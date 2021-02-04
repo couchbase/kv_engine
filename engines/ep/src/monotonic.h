@@ -19,6 +19,7 @@
 
 #include "comparators.h"
 
+#include <platform/exceptions.h>
 #include <atomic>
 #include <limits>
 #include <stdexcept>
@@ -47,11 +48,11 @@ struct ThrowExceptionPolicy {
 
     void nonMonotonic(const T& curValue, const T& newValue) {
         using std::to_string;
-        throw std::logic_error(
+        cb::throwWithTrace(std::logic_error(
                 std::string("Monotonic<") + typeid(T).name() + "> (" + label +
                 ") invariant failed: new value (" + to_string(newValue) +
-                ") breaks invariant on current value (" +
-                to_string(curValue) + ")");
+                ") breaks invariant on current value (" + to_string(curValue) +
+                ")"));
     }
 
     /**
