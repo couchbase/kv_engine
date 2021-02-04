@@ -108,21 +108,18 @@ IF (BREAKPAD_FOUND)
         # file with GDB.
         FIND_PROGRAM(GDB_EXECUTABLE gdb)
         IF (GDB_EXECUTABLE)
-            # Three tests - crashing via segfault, std::exception and unknown exception
-            ADD_TEST(memcached-breakpad-test-segfault ${PYTHON_EXECUTABLE}
+            function(add_breakpad_test VARIANT)
+                ADD_TEST(memcached-breakpad-test-${VARIANT} ${PYTHON_EXECUTABLE}
                      ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
-                     ${Memcached_BINARY_DIR}/memcached segfault ${MINIDUMP2CORE}
+                     ${Memcached_BINARY_DIR}/memcached ${VARIANT} ${MINIDUMP2CORE}
                      ${GDB_EXECUTABLE})
-
-            ADD_TEST(memcached-breakpad-test-std-exception ${PYTHON_EXECUTABLE}
-                     ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
-                     ${Memcached_BINARY_DIR}/memcached std_exception ${MINIDUMP2CORE}
-                     ${GDB_EXECUTABLE})
-
-            ADD_TEST(memcached-breakpad-test-unknown-exception ${PYTHON_EXECUTABLE}
-                     ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
-                     ${Memcached_BINARY_DIR}/memcached unknown_exception ${MINIDUMP2CORE}
-                     ${GDB_EXECUTABLE})
+            endfunction()
+            # Four tests - crashing via segfault, std::exception,
+            # std::exception with trace and unknown exception
+            add_breakpad_test(segfault)
+            add_breakpad_test(std_exception)
+            add_breakpad_test(std_exception_with_trace)
+            add_breakpad_test(unknown_exception)
         ELSE (GDB_EXECUTABLE)
             MESSAGE(STATUS "GDB not available, skipping breakpad test")
         ENDIF (GDB_EXECUTABLE)

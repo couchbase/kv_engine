@@ -27,11 +27,13 @@
 
 #include <memcached/config_parser.h>
 #include <memcached/engine.h>
+#include <platform/exceptions.h>
 
 // How do I crash thee? Let me count the ways.
 enum class CrashMode {
     SegFault,
     UncaughtStdException,
+    UncaughtStdExceptionWithTrace,
     UncaughtUnknownException
 };
 
@@ -54,6 +56,9 @@ char recursive_crash_function(char depth, CrashMode mode) {
         case CrashMode::UncaughtStdException:
             throw std::runtime_error(
                     "crash_engine: This exception wasn't handled");
+        case CrashMode::UncaughtStdExceptionWithTrace:
+            cb::throwWithTrace(std::runtime_error(
+                    "crash_engine: This exception wasn't handled"));
         case CrashMode::UncaughtUnknownException:
             // Crash via exception not derived from std::exception
             class UnknownException {};
@@ -77,6 +82,8 @@ public:
             mode = CrashMode::SegFault;
         } else if (mode_string == "std_exception") {
             mode = CrashMode::UncaughtStdException;
+        } else if (mode_string == "std_exception_with_trace") {
+            mode = CrashMode::UncaughtStdExceptionWithTrace;
         } else if (mode_string == "unknown_exception") {
             mode = CrashMode::UncaughtUnknownException;
         } else {

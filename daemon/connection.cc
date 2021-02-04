@@ -43,7 +43,9 @@
 #include <memcached/durability_spec.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
+#include <platform/backtrace.h>
 #include <platform/checked_snprintf.h>
+#include <platform/exceptions.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>
 #include <platform/string_hex.h>
@@ -653,6 +655,12 @@ bool Connection::executeCommandsCallback() {
                         "execution. Closing connection: {}",
                         getId(),
                         e.what());
+            }
+            if (const auto* backtrace = cb::getBacktrace(e)) {
+                LOG_WARNING("{}: exception thrown from:");
+                print_backtrace_frames(*backtrace, [](const char* frame) {
+                    LOG_WARNING("    {}", frame);
+                });
             }
         }
     }

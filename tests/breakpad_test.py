@@ -114,7 +114,7 @@ if len(sys.argv) == 3:
 elif len(sys.argv) == 5:
     (memcached_exe, crash_mode, md2core_exe, gdb_exe) = sys.argv[1:]
 else:
-    print(("Usage: {0} <path/to/memcached> <segfault|std_exception|unknown_exception> [path/to/md2core] " +
+    print(("Usage: {0} <path/to/memcached> <segfault|std_exception|std_exception_with_trace|unknown_exception> [path/to/md2core] " +
           "[path/to/gdb]").format(os.path.basename(sys.argv[0])),
           file=sys.stderr)
     cleanup_and_exit(1)
@@ -165,6 +165,10 @@ memcached = Subprocess(args)
 # crash_engine).
 (status, stderrdata) = memcached.run(timeout=30)
 logging.info('Process exited with status ' + str(status))
+logging.debug("=== memcached stderr begin ===")
+logging.debug(stderrdata)
+logging.debug("=== memcached stderr end ===")
+
 
 # Cleanup config_file (no longer needed).
 os.remove(config_file.name)
@@ -177,8 +181,14 @@ if 'Breakpad caught a crash' not in stderrdata:
     cleanup_and_exit(3)
 
 # Check the message includes the exception what() message (std::exception crash)
-if crash_mode == 'std_exception' and 'what():' not in stderrdata:
+if crash_mode.startswith('std_exception') and 'what():' not in stderrdata:
     logging.error("FAIL - No exception what() message written to stderr on crash.")
+    print_stderrdata(stderrdata)
+    cleanup_and_exit(3)
+
+# Check the message include the location the exception was thrown from (throwWithTrace)
+if crash_mode == 'std_exception_with_trace' and 'Exception thrown from:' not in stderrdata:
+    logging.error("FAIL - No exception thrown backtrace message was written to stderr on crash.")
     print_stderrdata(stderrdata)
     cleanup_and_exit(3)
 

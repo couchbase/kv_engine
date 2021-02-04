@@ -22,6 +22,7 @@
 
 #include <logger/logger.h>
 #include <platform/backtrace.h>
+#include <platform/exceptions.h>
 
 static bool should_include_backtrace = true;
 static std::terminate_handler default_terminate_handler = nullptr;
@@ -47,6 +48,12 @@ static void log_handled_exception() {
         LOG_CRITICAL(
                 "Caught unhandled std::exception-derived exception. what(): {}",
                 e.what());
+        if (const auto* backtrace = cb::getBacktrace(e)) {
+            LOG_CRITICAL("Exception thrown from:");
+            print_backtrace_frames(*backtrace, [](const char* frame) {
+                LOG_CRITICAL("    {}", frame);
+            });
+        }
     } catch (...) {
         LOG_CRITICAL("Caught unknown/unhandled exception.");
     }
