@@ -1716,6 +1716,55 @@ TEST_F(CollectionsTest, ConcCompactAbortPrepare) {
     }
 }
 
+TEST_F(CollectionsTest, ConcCompactDropCollection) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    replaceCouchKVStoreWithMock();
+
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::meat);
+
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto& kvstore =
+            dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
+
+    bool seenPrepare = false;
+    kvstore.setConcurrentCompactionPreLockHook([&seenPrepare, &vb, &cm, this](
+                                                       auto& compactionKey) {
+        if (seenPrepare) {
+            return;
+        }
+        seenPrepare = true;
+
+        // Flush something to ensure that we try to update the size
+        StoredDocKey meatKey{"beef", CollectionEntry::meat};
+        auto meatPending = makePendingItem(meatKey, "value");
+        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*meatPending, cookie));
+
+        flushVBucketToDiskIfPersistent(vbid, 1);
+
+        // And drop the colleciton to check that we don't try to update the size
+        cm.remove(CollectionEntry::meat);
+        vb->updateFromManifest(makeManifest(cm));
+        flushVBucketToDiskIfPersistent(vbid, 1);
+    });
+
+    runCompaction(vbid, 0, false);
+
+    // Check that the compaction didn't fail. Before the fix it would fail as
+    // we'd attempt to update the stats of the dropped collection and throw
+    EXPECT_EQ(0,
+              store->getRWUnderlying(vbid)
+                      ->getKVStoreStat()
+                      .numCompactionFailure);
+}
+
 // Test the pager doesn't generate expired items for a dropped collection
 TEST_P(CollectionsParameterizedTest,
        collections_expiry_after_drop_collection_pager) {

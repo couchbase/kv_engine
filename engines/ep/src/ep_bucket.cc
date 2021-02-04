@@ -1200,7 +1200,11 @@ void EPBucket::compactionCompletionCallback(CompactionContext& ctx) {
     vb->decrNumTotalItems(ctx.stats.collectionsItemsPurged);
 
     for (const auto& [cid, newSize] : ctx.stats.collectionSizeUpdates) {
-        vb->getManifest().lock(cid).setDiskSize(newSize);
+        auto handle = vb->getManifest().lock(cid);
+
+        if (handle.valid()) {
+            handle.setDiskSize(newSize);
+        }
     }
 }
 
