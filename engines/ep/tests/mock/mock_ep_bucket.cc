@@ -147,3 +147,9 @@ std::shared_ptr<CompactTask> MockEPBucket::getCompactionTask(Vbid vbid) const {
     }
     return itr->second;
 }
+
+std::shared_ptr<CompactionContext> MockEPBucket::makeCompactionContext(
+        Vbid vbid, CompactionConfig& config, uint64_t purgeSeqno) {
+    auto context = EPBucket::makeCompactionContext(vbid, config, purgeSeqno);
+    return mockMakeCompactionContext(context);
+}

@@ -1079,7 +1079,7 @@ bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                             std::chrono::steady_clock::now() - start));
         }
     } catch (const std::exception& le) {
-        EP_LOG_WARN(
+        logger.error(
                 "CouchKVStore::compactDB: exception while performing "
                 "compaction for {}"
                 " - Details: {}",
@@ -1089,6 +1089,8 @@ bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
     }
 
     if (!result) {
+        logger.error("CouchKVStore::compactDB: compaction failed for {}",
+                     hook_ctx->vbid);
         removeCompactFile(compact_file, hook_ctx->vbid);
         ++st.numCompactionFailure;
     }
@@ -1529,28 +1531,37 @@ bool CouchKVStore::compactDBInternal(DbHolder& sourceDb,
     // Close the destination file so we may rename it
     targetDb.close();
 
-    // Rename the .compact file to one with the next revision number
+    // The final part of compaction is done as a sub-function in this try
+    // catch block - this is so any exception coming from this final part
+    // is caught with vbLock locked. That allows removal of the new_file
+    // whilst blocking any advancement of the vbucket's revision. If we
+    // don't do this the compacted file is at risk of being used by a future
+    // version of the vbucket.
+    bool success = false;
     const auto new_file = getDBFileName(dbname, vbid, new_rev);
-    if (rename(compact_file.c_str(), new_file.c_str()) != 0) {
-        logger.warn(
-                "CouchKVStore::compactDBInternal: rename error:{}, old:{}, "
-                "new:{}",
-                cb_strerror(),
-                compact_file,
-                new_file);
-        return false;
-    }
+    try {
+        // Rename the .compact file to one with the next revision number
+        if (rename(compact_file.c_str(), new_file.c_str()) != 0) {
+            logger.warn(
+                    "CouchKVStore::compactDBInternal: rename error:{}, old:{}, "
+                    "new:{}",
+                    cb_strerror(),
+                    compact_file,
+                    new_file);
+            return false;
+        }
 
-    // Open the newly compacted VBucket database to update the cached vbstate
-    errCode = openSpecificDB(
-            vbid, new_rev, targetDb, COUCHSTORE_OPEN_FLAG_RDONLY);
-    if (errCode != COUCHSTORE_SUCCESS) {
+        success = compactDBTryAndSwitchToNewFile(
+                vbid, new_rev, hook_ctx, prepareStats);
+    } catch (const std::exception& e) {
         logger.warn(
-                "CouchKVStore::compactDBInternal: openDB#2 error:{}, file:{}, "
-                "fileRev:{}",
-                couchstore_strerror(errCode),
-                new_file,
-                targetDb.getFileRev());
+                "CouchKVStore::compactDBInternal: exception while performing "
+                "finalisation of compaction for {}"
+                " - Details: {}",
+                vbid,
+                e.what());
+
+        // The new file must be removed
         if (remove(new_file.c_str()) != 0) {
             logger.warn(
                     "CouchKVStore::compactDBInternal: remove error:{}, path:{}",
@@ -1560,8 +1571,46 @@ bool CouchKVStore::compactDBInternal(DbHolder& sourceDb,
         return false;
     }
 
+    if (success) {
+        logger.debug(
+                "created new couch db file, name:{} rev:{}", new_file, new_rev);
+        // Update the global VBucket file map so all operations use the new file
+        updateDbFileMap(vbid, new_rev);
+        // Unlink the now stale file
+        unlinkCouchFile(vbid, sourceDb.getFileRev());
+    }
+
+    return success;
+}
+
+bool CouchKVStore::compactDBTryAndSwitchToNewFile(
+        Vbid vbid,
+        uint64_t newRevision,
+        CompactionContext* hookCtx,
+        const CompactionReplayPrepareStats& prepareStats) {
+    // Open the newly compacted VBucket database to update the cached vbstate
+    DbHolder targetDb(*this);
+    auto errCode = openSpecificDB(
+            vbid, newRevision, targetDb, COUCHSTORE_OPEN_FLAG_RDONLY);
+    if (errCode != COUCHSTORE_SUCCESS) {
+        const auto newFileName = getDBFileName(dbname, vbid, newRevision);
+        logger.warn(
+                "CouchKVStore::compactDBInternal: openDB#2 error:{}, file:{}, "
+                "fileRev:{}",
+                couchstore_strerror(errCode),
+                newFileName,
+                targetDb.getFileRev());
+        if (remove(newFileName.c_str()) != 0) {
+            logger.warn(
+                    "CouchKVStore::compactDBInternal: remove error:{}, path:{}",
+                    cb_strerror(),
+                    newFileName);
+        }
+        return false;
+    }
+
     auto info = cb::couchstore::getHeader(*targetDb.getDb());
-    hook_ctx->stats.post = toFileInfo(info);
+    hookCtx->stats.post = toFileInfo(info);
 
     cachedFileSize[vbid.get()] = info.fileSize;
     cachedSpaceUsed[vbid.get()] = info.spaceUsed;
@@ -1578,25 +1627,14 @@ bool CouchKVStore::compactDBInternal(DbHolder& sourceDb,
         cachedOnDiskPrepareSize[vbid.get()] = state->getOnDiskPrepareBytes();
     }
 
-    logger.debug("INFO: created new couch db file, name:{} rev:{}",
-                 new_file,
-                 new_rev);
-
     // Make our completion callback before writing the new file. We should
     // update our in memory state before we finalize on disk state so that we
     // don't have to worry about race conditions with things like the purge
     // seqno.
-    if (hook_ctx->completionCallback) {
-        hook_ctx->stats.collectionSizeUpdates = prepareStats.collectionSizes;
-        hook_ctx->completionCallback(*hook_ctx);
+    if (hookCtx->completionCallback) {
+        hookCtx->stats.collectionSizeUpdates = prepareStats.collectionSizes;
+        hookCtx->completionCallback(*hookCtx);
     }
-
-    // Update the global VBucket file map so all operations use the new file
-    updateDbFileMap(vbid, new_rev);
-
-    // Removing the stale couch file
-    unlinkCouchFile(vbid, sourceDb.getFileRev());
-
     return true;
 }
 

@@ -726,6 +726,23 @@ protected:
                            std::unique_lock<std::mutex>& vbLock,
                            CompactionContext* hook_ctx);
 
+    /**
+     * This is the final 'phase' of compaction, it assumes that we are going to
+     * make newRevision the new data-file and does some work to update
+     * memory state to reflect the newly compacted file.
+     *
+     * @param vbid the vbucket being compacted
+     * @param newRevision the revision of the new file
+     * @param hookCtx the context for this compaction run
+     * @param prepareStats data used for memory state update
+     * @returns true if success, false if some failure occurred
+     */
+    bool compactDBTryAndSwitchToNewFile(
+            Vbid vbid,
+            uint64_t newRevision,
+            CompactionContext* hookCtx,
+            const CompactionReplayPrepareStats& prepareStats);
+
     /// try to load _local/vbstate and patch the num_on_disk_prepares
     /// and subtract the number of prepares pruned
     couchstore_error_t maybePatchOnDiskPrepares(

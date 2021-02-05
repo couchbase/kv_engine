@@ -5950,6 +5950,48 @@ TEST_P(STParamCouchstoreBucketTest, ItemCountsAndCommitFailure_MB_41321) {
     EXPECT_EQ(0, stats.diskSize);
 }
 
+TEST_P(STParamCouchstoreBucketTest, MB_44098_compactionFailureLeavesNewFile) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Replace compaction completion function with one which throws
+    dynamic_cast<MockEPBucket*>(store)->mockMakeCompactionContext =
+            [](std::shared_ptr<CompactionContext> ctx) {
+                ctx->completionCallback = [](CompactionContext& ctx) {
+                    throw std::logic_error("forcing compaction to fail");
+                };
+                return ctx;
+            };
+
+    // Store some data into the vbucket (and flush)
+    auto key = makeStoredDocKey("keyB");
+    store_item(vbid, key, "value");
+
+    // flush to vbid.couch.1
+    flush_vbucket_to_disk(vbid, 1);
+
+    // Run compaction which will fail - but must not leave vbid.couch.2
+    runCompaction(vbid);
+
+    // Now delete and recreate the vbucket, the new vb will use vbid.couch.2
+    // and the test expects to not be able to read the key
+    store->deleteVBucket(vbid, cookie);
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // To demonstrate the MB without to much work, disable the bloomfilter.
+    // Prior to the fix, we can fetch the key which was written before the
+    // deleteVBucket/createVbucket
+    store->getVBucket(vbid)->setFilterStatus(BFILTER_DISABLED);
+
+    auto gv = store->get(key, vbid, cookie, QUEUE_BG_FETCH);
+
+    if (gv.getStatus() == cb::engine_errc::would_block) {
+        runBGFetcherTask();
+        gv = store->get(key, vbid, cookie, {});
+    }
+
+    EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
+}
+
 #ifdef EP_USE_MAGMA
 class STParamMagmaBucketTest : public STParamPersistentBucketTest {};
 

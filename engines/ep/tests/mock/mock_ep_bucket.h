@@ -84,4 +84,10 @@ public:
     std::function<void(Vbid)> completeBGFetchMultiHook;
 
     std::shared_ptr<CompactTask> getCompactionTask(Vbid vbid) const;
+    std::shared_ptr<CompactionContext> makeCompactionContext(
+            Vbid vbid, CompactionConfig& config, uint64_t purgeSeqno) override;
+    std::function<std::shared_ptr<CompactionContext>(
+            std::shared_ptr<CompactionContext>)>
+            mockMakeCompactionContext =
+                    [](std::shared_ptr<CompactionContext> ctx) { return ctx; };
 };

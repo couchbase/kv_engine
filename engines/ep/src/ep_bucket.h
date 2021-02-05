@@ -262,7 +262,7 @@ public:
 
     void warmupCompleted();
 
-    std::shared_ptr<CompactionContext> makeCompactionContext(
+    virtual std::shared_ptr<CompactionContext> makeCompactionContext(
             Vbid vbid, CompactionConfig& config, uint64_t purgeSeqno);
 
     // implemented by querying StorageProperties for the buckets KVStore
