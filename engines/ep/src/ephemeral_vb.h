@@ -268,6 +268,10 @@ public:
         return seqList->getNumDeletedItems();
     }
 
+    size_t getSeqListNumStaleItems() const {
+        return seqList->getNumStaleItems();
+    }
+
 protected:
     /* Data structure for in-memory sequential storage */
     std::unique_ptr<SequenceList> seqList;
