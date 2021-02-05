@@ -74,6 +74,10 @@ public:
     void setCollectionsManagerPreSetStateAtWarmupHook(
             std::function<void()> hook);
 
+    void setPostCompactionCompletionHook(std::function<void()> hook) {
+        postCompactionCompletionStatsUpdateHook = hook;
+    }
+
     void removeMakeCompactionContextCallback();
 
     void completeBGFetchMulti(

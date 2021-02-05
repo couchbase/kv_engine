@@ -531,6 +531,15 @@ protected:
         entry->second.setDiskSize(newValue);
     }
 
+    size_t getDiskSize(const container::const_iterator entry) const {
+        if (entry == map.end()) {
+            throwException<std::invalid_argument>(__FUNCTION__,
+                                                  "iterator is invalid");
+        }
+
+        return entry->second.getDiskSize();
+    }
+
     void setHighSeqno(const container::const_iterator entry,
                       uint64_t value) const {
         if (entry == map.end()) {

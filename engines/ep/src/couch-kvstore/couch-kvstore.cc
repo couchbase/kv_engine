@@ -1609,6 +1609,15 @@ bool CouchKVStore::compactDBTryAndSwitchToNewFile(
         return false;
     }
 
+    // Make our completion callback before writing the new file. We should
+    // update our in memory state before we finalize on disk state so that we
+    // don't have to worry about race conditions with things like the purge
+    // seqno.
+    if (hookCtx->completionCallback) {
+        hookCtx->stats.collectionSizeUpdates = prepareStats.collectionSizes;
+        hookCtx->completionCallback(*hookCtx);
+    }
+
     auto info = cb::couchstore::getHeader(*targetDb.getDb());
     hookCtx->stats.post = toFileInfo(info);
 
@@ -1627,14 +1636,6 @@ bool CouchKVStore::compactDBTryAndSwitchToNewFile(
         cachedOnDiskPrepareSize[vbid.get()] = state->getOnDiskPrepareBytes();
     }
 
-    // Make our completion callback before writing the new file. We should
-    // update our in memory state before we finalize on disk state so that we
-    // don't have to worry about race conditions with things like the purge
-    // seqno.
-    if (hookCtx->completionCallback) {
-        hookCtx->stats.collectionSizeUpdates = prepareStats.collectionSizes;
-        hookCtx->completionCallback(*hookCtx);
-    }
     return true;
 }
 

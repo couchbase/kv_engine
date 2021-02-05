@@ -18,6 +18,7 @@
 #pragma once
 
 #include "kv_bucket.h"
+#include "kvstore.h"
 
 class BgFetcher;
 namespace Collections::VB {
@@ -30,6 +31,7 @@ enum class ValueFilter;
 class BucketStatCollector;
 class CompactTask;
 struct CompactionContext;
+struct CompactionStats;
 
 /**
  * Eventually Persistent Bucket
@@ -301,6 +303,15 @@ protected:
      */
     void compactionCompletionCallback(CompactionContext& ctx);
 
+    /**
+     * Apply the collection size updates post-compaction
+     *
+     * @param vb VBucket ref
+     * @param stats Map of cid to new size value (new value not delta)
+     */
+    void applyPostCompactionCollectionStats(
+            VBucket& vb, CompactionStats::CollectionSizeUpdates& stats);
+
     void stopWarmup();
 
     /// function which is passed down to compactor for dropping keys
@@ -376,6 +387,12 @@ protected:
 
     folly::Synchronized<std::unordered_map<Vbid, std::shared_ptr<CompactTask>>>
             compactionTasks;
+
+    /**
+     * Testing hook called after we updated stats in the compactionCompletion
+     * function
+     */
+    std::function<void()> postCompactionCompletionStatsUpdateHook;
 };
 
 std::ostream& operator<<(std::ostream& os, const EPBucket::FlushResult& res);

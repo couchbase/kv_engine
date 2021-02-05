@@ -1183,11 +1183,46 @@ void EPBucket::compactionCompletionCallback(CompactionContext& ctx) {
         return;
     }
 
-    vb->setPurgeSeqno(ctx.max_purged_seq);
-    vb->decrNumTotalItems(ctx.stats.collectionsItemsPurged);
+    // Grab a pre-compaction snapshot of the stats
+    auto prePurgeSeqno = vb->getPurgeSeqno();
+    auto preNumTotalItems = vb->getNumTotalItems();
 
-    for (const auto& [cid, newSize] : ctx.stats.collectionSizeUpdates) {
+    auto preCollectionSizes = ctx.stats.collectionSizeUpdates;
+    for (auto& [cid, newSize] : preCollectionSizes) {
         auto handle = vb->getManifest().lock(cid);
+
+        if (handle.valid()) {
+            newSize = handle.getDiskSize();
+        }
+    }
+
+    try {
+        vb->setPurgeSeqno(ctx.max_purged_seq);
+        vb->decrNumTotalItems(ctx.stats.collectionsItemsPurged);
+
+        applyPostCompactionCollectionStats(*vb,
+                                           ctx.stats.collectionSizeUpdates);
+
+        if (postCompactionCompletionStatsUpdateHook) {
+            postCompactionCompletionStatsUpdateHook();
+        }
+    } catch (std::exception& e) {
+        // Re-apply our pre-compaction stats snapshot
+        vb->setPurgeSeqno(prePurgeSeqno);
+        vb->setNumTotalItems(preNumTotalItems);
+
+        applyPostCompactionCollectionStats(*vb, preCollectionSizes);
+
+        // And re-throw to "undo" the on disk compaction
+        throw e;
+    }
+}
+
+void EPBucket::applyPostCompactionCollectionStats(
+        VBucket& vb,
+        CompactionStats::CollectionSizeUpdates& collectionSizeUpdates) {
+    for (const auto& [cid, newSize] : collectionSizeUpdates) {
+        auto handle = vb.getManifest().lock(cid);
 
         if (handle.valid()) {
             handle.setDiskSize(newSize);
