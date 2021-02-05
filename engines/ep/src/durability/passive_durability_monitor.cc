@@ -371,21 +371,15 @@ void PassiveDurabilityMonitor::completeSyncWrite(
                         cb::tagUserData(key.to_string()));
     }
 
-    // Sanity checks for In-Order Commit
-    if (next->getKey() != key) {
-        std::stringstream ss;
-        ss << "Pending resolution for '" << *next
-           << "', but received unexpected " + to_string(res) + " for key "
-           << cb::tagUserData(key.to_string());
-        throwException<std::logic_error>(__func__, "" + ss.str());
-    }
-
-    if (prepareSeqno && next->getBySeqno() != static_cast<int64_t>(*prepareSeqno)) {
+    // Sanity checks (on key and seqno) for In-Order Commit
+    if ((next->getKey() != key) ||
+        (prepareSeqno &&
+         next->getBySeqno() != static_cast<int64_t>(*prepareSeqno))) {
         std::stringstream ss;
         ss << "Pending resolution for '" << *next
            << "', but received unexpected " + to_string(res) + " for key "
            << cb::tagUserData(key.to_string())
-           << " different prepare seqno: " << *prepareSeqno;
+           << " and prepare seqno: " << *prepareSeqno;
         throwException<std::logic_error>(__func__, "" + ss.str());
     }
 
