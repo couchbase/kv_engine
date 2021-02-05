@@ -1064,6 +1064,7 @@ MutationStatus HashTable::insertFromWarmup(const Item& itm,
 
     if (v == nullptr) {
         v = unlocked_addNewStoredValue(hbl, itm);
+        v->markClean();
 
         // TODO: Would be faster if we just skipped creating the value in the
         // first place instead of adding it to the Item and then discarding it
@@ -1101,10 +1102,9 @@ MutationStatus HashTable::insertFromWarmup(const Item& itm,
         // resident.
         if (!v->isResident()) {
             Expects(unlocked_restoreValue(hbl.getHTLock(), itm, *v));
+            v->markClean();
         }
     }
-
-    v->markClean();
 
     if (eject && !keyMetaDataOnly) {
         unlocked_ejectItem(hbl, v, evictionPolicy);

@@ -876,6 +876,9 @@ void LoadStorageKVPairCallback::purge() {
 
 void LoadValueCallback::callback(CacheLookup &lookup)
 {
+    // If not value-eviction (LoadingData), then skip attempting to check for
+    // value already resident, given we assume nothing has been loaded for this
+    // document yet.
     if (warmupState != WarmupState::State::LoadingData) {
         setStatus(ENGINE_SUCCESS);
         return;
@@ -1635,6 +1638,9 @@ void Warmup::transition(WarmupState::State to, bool force) {
     auto old = state.getState();
     if (old != WarmupState::State::Done) {
         state.transition(to, force);
+        if (stateTransitionHook) {
+            stateTransitionHook(to);
+        }
         step();
     }
 }

@@ -34,6 +34,7 @@
 #include "test_helpers.h"
 #include "vbucket_state.h"
 #include "warmup.h"
+#include <folly/synchronization/Baton.h>
 
 class WarmupTest : public SingleThreadedKVBucketTest {
 public:
@@ -703,6 +704,8 @@ protected:
     void storePrepare(const std::string& key, uint64_t seqno, uint64_t cas);
 
     void storeMutation(const std::string& key, uint64_t seqno, uint64_t cas);
+
+    void setupForPrepareWarmup(VBucket& vb, const StoredDocKey& key);
 };
 
 DurabilityWarmupTest::PrePostStateChecker::PrePostStateChecker(VBucketPtr vb) {
@@ -1139,29 +1142,39 @@ TEST_P(DurabilityWarmupTest, ReplicationTopologyLoaded) {
     EXPECT_EQ(topology.dump(), vb->getReplicationTopology().dump());
 }
 
-// Test that if we 'crashed' whilst committing, that the warmup will re-commit
-TEST_P(DurabilityWarmupTest, WarmupCommit) {
+void DurabilityWarmupTest::setupForPrepareWarmup(VBucket& vb,
+                                                 const StoredDocKey& key) {
     // Change the replication topology to a specific value (different from
     // normal test SetUp method).
     const auto topology = nlohmann::json::array({{"active"}});
     setVBucketToActiveWithValidTopology(topology);
-    auto key = makeStoredDocKey("key");
     auto item = makePendingItem(key, "do");
-    auto vb = store->getVBucket(vbid);
     { // collections read-lock scope
-        auto cHandle = vb->lockCollections(item->getKey());
+        auto cHandle = vb.lockCollections(item->getKey());
         EXPECT_TRUE(cHandle.valid());
         // Use vb level set so that the commit doesn't yet happen, we want to
         // simulate the prepare, but not commit landing on disk
         EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
-                  vb->set(*item, cookie, *engine, {}, cHandle));
+                  vb.set(*item, cookie, *engine, {}, cHandle));
     }
-    flush_vbucket_to_disk(vbid, 1);
-    vb.reset();
+
+    // Need at least one committed item on disk for warmup to run the
+    // LoadingData / LoadingKVPairs step, which some tests need to check for.
+    store_item(vbid, makeStoredDocKey("dummy"), "A");
+
+    flush_vbucket_to_disk(vbid, 2);
+}
+
+// Test that if we 'crashed' whilst committing, that the warmup will re-commit
+TEST_P(DurabilityWarmupTest, WarmupCommit) {
+    auto vb = store->getVBucket(vbid);
+    auto key = makeStoredDocKey("key");
+    setupForPrepareWarmup(*vb, key);
 
     // Now warmup, we've stored the prepare but never made it to commit
     // Because we bypassed KVBucket::set the HPS/HCS will be incorrect and fail
     // the pre/post warmup checker, so disable the checker for this test.
+    vb.reset();
     resetEngineAndWarmup().disable();
     EXPECT_EQ(1, store->getEPEngine().getEpStats().warmedUpPrepares);
     EXPECT_EQ(1,
@@ -1176,6 +1189,136 @@ TEST_P(DurabilityWarmupTest, WarmupCommit) {
     auto sv = vb->ht.findForRead(key).storedValue;
     ASSERT_TRUE(sv);
     ASSERT_TRUE(sv->isCommitted());
+}
+
+// Verify that if a SyncWrite is re-committed during warmup; if the re-commit
+// occurs before warmup has completed, newly-committed document is warmed-up
+// and then Persistance Callback runs, this is handled correctly.
+// Regression test for MB-41658.
+TEST_P(DurabilityWarmupTest, WarmupCommitRaceWithPersistence) {
+    // Setup: Create and flush a prepare to disk.
+    auto vb = store->getVBucket(vbid);
+    auto key = makeStoredDocKey("key");
+    setupForPrepareWarmup(*vb, key);
+
+    // Setup: Restart engine and begin warmup. This is a single-threaded
+    // test so we will run each phase in this main thread; using testing hooks
+    // to ensure steps are interleaved as we require:
+    // [1] Warmup loads prepare from disk.
+    // [2] ActiveDM completes prepare, adding Committed SyncWrite to HashTable
+    //     (as dirty).
+    // [3] Persistence runs, writing the Commit to disk - but crucially
+    //     *doesn't* get as far as executing PersistenceCallback.
+    // [4] Warmup advances to value load phase (LoadingKVPairs / LoadingData
+    //     depending on eviction mode), and loads the Commit from [3] into
+    //     HashTable (setting it clean).
+    // [5] Persistence Callback runs, encounters a clean item in HT for
+    //     item just persisted - BUG.
+    vb.reset();
+    resetEngineAndEnableWarmup();
+    // Increase early warmup finish item percentage to 200% - this is needed
+    // to avoid warmup finishing early before loading our new committed
+    // syncWrite (if we leave at default 100% it will stop as soon as it's
+    // warmed up the original 1 item it identified earlier in warmup).
+    // In production this isn't needed as data is loaded for many different
+    // vBuckets; but to simplify here we just stick with a single VB.
+    engine->getEpStats().warmupNumReadCap = 2.0;
+
+    // Batons used to synchronise the various setup phases:
+    folly::Baton<true> syncWriteCommittedBaton;
+    folly::Baton<true> syncWritePersistedBaton;
+    folly::Baton<true> warmupDoneBaton;
+
+    // Setup for [1, 2, 4]: use the warmup transition hook to trigger
+    // commit of all resolved sync writes once they have been loaded from disk
+    // during warmup. (This would normally be done by DurabilityCompletionTask
+    // but we are running single-threaded here).
+    store->getWarmup()->stateTransitionHook =
+            [this,
+             &key,
+             &syncWriteCommittedBaton,
+             &syncWritePersistedBaton,
+             &warmupDoneBaton](const WarmupState::State& state) {
+                if (state == WarmupState::State::LoadingData ||
+                    state == WarmupState::State::LoadingKVPairs) {
+                    // Reached data load phase of warmup; prepares have already
+                    // been loaded. [2]: Have ActiveDM commit this prepare.
+                    auto vb = store->getVBucket(vbid);
+                    ASSERT_TRUE(vb);
+
+                    // Sanity check - the prepare should have been warmed up.
+                    const auto* sv = vb->ht.findForWrite(key).storedValue;
+                    ASSERT_TRUE(sv);
+                    ASSERT_TRUE(sv->isPending());
+                    vb->processResolvedSyncWrites();
+
+                    // After running ActiveDM; item should be committed and
+                    // dirty in HT.
+                    sv = vb->ht.findForRead(key).storedValue;
+                    ASSERT_TRUE(sv);
+                    EXPECT_TRUE(sv->isCommitted());
+                    EXPECT_TRUE(sv->isDirty());
+
+                    // Wake up flusher in separate thread.
+                    syncWriteCommittedBaton.post();
+
+                    // [4]: Block data load until flusher has written Commit to
+                    // disk.
+                    syncWritePersistedBaton.wait();
+                }
+                // [5]: Once data load has completed, allow persistence callback
+                // to run.
+                if (state == WarmupState::State::Done) {
+                    warmupDoneBaton.post();
+                }
+            };
+
+    // Setup for [3]: Wait for [2]; then run flusher in background thread to
+    // write commit to disk.
+    folly::Baton<true> flusherCompletedBaton;
+    std::thread flusherThread(
+            [this, &syncWriteCommittedBaton, &flusherCompletedBaton]() {
+                // Block thread until SyncWrite has been committed during
+                // warmup.
+                syncWriteCommittedBaton.wait();
+                // Run flusher so Commit can be written to disk before
+                // State::LoadingKVPairs / State::LoadingData. It will be inside
+                // this call the persistence callback throws with the bug.
+                flush_vbucket_to_disk(vbid, 1);
+
+                // Notify main thread persistence is completed.
+                flusherCompletedBaton.post();
+            });
+
+    // Setup for [5]: Use PostFlushHook to unblock warmup so it can run _before_
+    // PersistenceCallback.
+    store->getRWUnderlying(vbid)->setPostFlushHook(
+            [this, &key, &syncWritePersistedBaton, &warmupDoneBaton] {
+                // The hook is executed on background writer after we have
+                // flushed to disk but before we call back into the
+                // PersistenceCallback. Unblock warmup value load
+                syncWritePersistedBaton.post();
+
+                // Wait until warmup has completed; to ensure that
+                // PersistenceCallback executes once Committed item has been
+                // loaded from disk into HT.
+                warmupDoneBaton.wait();
+            });
+
+    // GO! Start running the Warmup tasks which are on Reader threads.
+    runReadersUntilWarmedUp();
+
+    // Block until persistence is complete; in original MB the bug would have
+    // thrown in persistence thread by now.
+    flusherCompletedBaton.wait();
+
+    // Postcondition: verify the Committed item is now marked as clean.
+    auto sv = store->getVBucket(vbid)->ht.findForRead(key).storedValue;
+    ASSERT_TRUE(sv);
+    EXPECT_TRUE(sv->isCommitted());
+    EXPECT_FALSE(sv->isDirty());
+
+    flusherThread.join();
 }
 
 void DurabilityWarmupTest::testCheckpointTypePersistedAndLoadedIntoVBState(
