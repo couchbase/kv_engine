@@ -1072,11 +1072,6 @@ void Warmup::createVBuckets(uint16_t shardId) {
                     vb->failovers->createEntry(vbs.lastSnapStart);
                 }
 
-                // MB-41942: Persist the latest VB state to ensure that the
-                // FailoverTable is correct if we write any new seqnos during
-                // warmup (e.g. due to expiration)
-                vb->checkpointManager->queueSetVBState(*vb);
-
                 auto entry = vb->failovers->getLatestEntry();
                 EP_LOG_INFO(
                         "Warmup::createVBuckets: {} created new failover entry "
@@ -1271,7 +1266,15 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
     for (const auto vbid : shardVbIds[shardId]) {
         auto itr = warmedUpVbuckets.find(vbid.get());
         if (itr != warmedUpVbuckets.end()) {
+            // Take the vBucket lock to stop the flusher from racing with our
+            // set vBucket state. It MUST go to disk in the first flush batch
+            // or we run the risk of not rolling back replicas that we should
+            auto lockedVb = store.getLockedVBucket(vbid);
+            Expects(lockedVb.owns_lock());
+            Expects(!lockedVb);
+
             store.vbMap.addBucket(itr->second);
+            itr->second->checkpointManager->queueSetVBState(*itr->second);
         }
     }
 
