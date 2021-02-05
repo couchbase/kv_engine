@@ -436,8 +436,15 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll,
         return;
     }
 
-    /* Iterator to the beginning of linked list */
-    currIt = list.seqList.begin();
+    // Iterator to the first non-stale item from beginning of the SeqList
+    for (currIt = list.seqList.begin(); currIt != list.seqList.end();
+         ++currIt) {
+        if (currIt->getReplacementIfStale(listWriteLg) == nullptr) {
+            // currIt points to a non stale item or to a stale item with no
+            // replacement.
+            break;
+        }
+    }
 
     /* Number of items that can be iterated over */
     numRemaining = list.seqList.size();

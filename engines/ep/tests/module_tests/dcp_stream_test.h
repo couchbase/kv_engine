@@ -137,6 +137,8 @@ protected:
     std::shared_ptr<MockActiveStream> stream;
 };
 
+class STActiveStreamEphemeralTest : public SingleThreadedActiveStreamTest {};
+
 /*
  * Test fixture for single-threaded PassiveStream tests
  *
