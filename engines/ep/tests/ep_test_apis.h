@@ -231,11 +231,11 @@ void get_replica(EngineIface* h, const char* key, Vbid vb);
 ENGINE_ERROR_CODE observe(EngineIface* h, std::map<std::string, Vbid> obskeys);
 ENGINE_ERROR_CODE observe_seqno(EngineIface* h, Vbid vb_id, uint64_t uuid);
 
-bool set_param(EngineIface* h,
-               cb::mcbp::request::SetParamPayload::Type paramtype,
-               const char* param,
-               const char* val,
-               Vbid vb = Vbid(0));
+cb::engine_errc set_param(EngineIface* h,
+                          EngineParamCategory paramtype,
+                          const char* param,
+                          const char* val,
+                          Vbid vb = Vbid(0));
 
 bool set_vbucket_state(EngineIface* h,
                        Vbid vb,
@@ -506,12 +506,11 @@ bool repeat_till_true(std::function<bool()> functor,
                               std::chrono::microseconds(1000 * 100));
 
 // VBucket operations
-ENGINE_ERROR_CODE vbucketDelete(EngineIface* h,
-                                Vbid vb,
-                                const char* args = nullptr);
+cb::engine_errc vbucketDelete(EngineIface* h,
+                              Vbid vb,
+                              const char* args = nullptr);
 
 void compact_db(EngineIface* h,
-                const Vbid vbid,
                 const Vbid db_file_id,
                 const uint64_t purge_before_ts,
                 const uint64_t purge_before_seq,

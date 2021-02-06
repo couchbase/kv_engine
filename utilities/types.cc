@@ -102,3 +102,25 @@ std::ostream& operator<<(std::ostream& os, const ItemIface& item) {
     //       this :D
     return os << cb::to_hex(uint64_t(&item));
 }
+
+std::string to_string(const EngineParamCategory epc) {
+    switch (epc) {
+    case EngineParamCategory::Flush:
+        return "Flush";
+    case EngineParamCategory::Replication:
+        return "Replication";
+    case EngineParamCategory::Checkpoint:
+        return "Checkpoint";
+    case EngineParamCategory::Dcp:
+        return "DCP";
+    case EngineParamCategory::Vbucket:
+        return "VBucket";
+    }
+    throw std::invalid_argument(
+            "to_string(EngineParamCategory): Invalid value: " +
+            std::to_string(int(epc)));
+}
+
+std::ostream& operator<<(std::ostream& os, const EngineParamCategory& epc) {
+    return os << to_string(epc);
+}

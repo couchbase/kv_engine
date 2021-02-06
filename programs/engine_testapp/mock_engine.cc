@@ -794,3 +794,66 @@ ENGINE_ERROR_CODE MockEngine::abort(gsl::not_null<const void*> cookie,
 void MockEngine::disconnect(gsl::not_null<const void*> cookie) {
     the_engine->disconnect(cookie);
 }
+
+cb::engine_errc MockEngine::setParameter(gsl::not_null<const void*> cookie,
+                                         EngineParamCategory category,
+                                         std::string_view key,
+                                         std::string_view value,
+                                         Vbid vbucket) {
+    auto* c = cookie_to_mock_cookie(cookie);
+    auto engine_fn =
+            [this, c = std::cref(cookie), category, key, value, vbucket]() {
+                return the_engine->setParameter(
+                        c, category, key, value, vbucket);
+            };
+
+    return call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
+}
+
+cb::engine_errc MockEngine::compactDatabase(gsl::not_null<const void*> cookie,
+                                            Vbid vbid,
+                                            uint64_t purge_before_ts,
+                                            uint64_t purge_before_seq,
+                                            bool drop_deletes) {
+    auto* c = cookie_to_mock_cookie(cookie);
+    auto engine_fn = [this,
+                      c = std::cref(cookie),
+                      vbid,
+                      purge_before_ts,
+                      purge_before_seq,
+                      drop_deletes]() {
+        return the_engine->compactDatabase(
+                c, vbid, purge_before_ts, purge_before_seq, drop_deletes);
+    };
+
+    return call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
+}
+
+std::pair<cb::engine_errc, vbucket_state_t> MockEngine::getVBucket(
+        gsl::not_null<const void*> cookie, Vbid vbid) {
+    return the_engine->getVBucket(cookie, vbid);
+}
+
+cb::engine_errc MockEngine::setVBucket(gsl::not_null<const void*> cookie,
+                                       Vbid vbid,
+                                       uint64_t cas,
+                                       vbucket_state_t state,
+                                       nlohmann::json* meta) {
+    auto* c = cookie_to_mock_cookie(cookie);
+    auto engine_fn = [this, c = std::cref(cookie), vbid, cas, state, meta]() {
+        return the_engine->setVBucket(c, vbid, cas, state, meta);
+    };
+
+    return call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
+}
+
+cb::engine_errc MockEngine::deleteVBucket(gsl::not_null<const void*> cookie,
+                                          Vbid vbid,
+                                          bool sync) {
+    auto* c = cookie_to_mock_cookie(cookie);
+    auto engine_fn = [this, c = std::cref(cookie), vbid, sync]() {
+        return the_engine->deleteVBucket(c, vbid, sync);
+    };
+
+    return call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
+}

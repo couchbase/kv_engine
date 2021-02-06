@@ -554,8 +554,24 @@ static void update_user_permissions_executor(Cookie& cookie) {
     cookie.sendResponse(status);
 }
 
-static void session_control_validated_executor(Cookie& cookie) {
-    cookie.obtainContext<SessionValidatedCommandContext>(cookie).drive();
+static void set_param_executor(Cookie& cookie) {
+    cookie.obtainContext<SetParameterCommandContext>(cookie).drive();
+}
+
+static void get_vbucket_executor(Cookie& cookie) {
+    cookie.obtainContext<GetVbucketCommandContext>(cookie).drive();
+}
+
+static void set_vbucket_executor(Cookie& cookie) {
+    cookie.obtainContext<SetVbucketCommandContext>(cookie).drive();
+}
+
+static void delete_vbucket_executor(Cookie& cookie) {
+    cookie.obtainContext<DeleteVbucketCommandContext>(cookie).drive();
+}
+
+static void compact_db_executor(Cookie& cookie) {
+    cookie.obtainContext<CompactDatabaseCommandContext>(cookie).drive();
 }
 
 static void rbac_refresh_executor(Cookie& cookie) {
@@ -825,14 +841,11 @@ void initialize_mbcp_lookup_map() {
     setup_handler(cb::mcbp::ClientOpcode::AdjustTimeofday,
                   adjust_timeofday_executor);
 
-    setup_handler(cb::mcbp::ClientOpcode::SetParam,
-                  session_control_validated_executor);
-    setup_handler(cb::mcbp::ClientOpcode::SetVbucket,
-                  session_control_validated_executor);
-    setup_handler(cb::mcbp::ClientOpcode::DelVbucket,
-                  session_control_validated_executor);
-    setup_handler(cb::mcbp::ClientOpcode::CompactDb,
-                  session_control_validated_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SetParam, set_param_executor);
+    setup_handler(cb::mcbp::ClientOpcode::GetVbucket, get_vbucket_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SetVbucket, set_vbucket_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DelVbucket, delete_vbucket_executor);
+    setup_handler(cb::mcbp::ClientOpcode::CompactDb, compact_db_executor);
 }
 
 static ENGINE_ERROR_CODE getEngineErrorCode(

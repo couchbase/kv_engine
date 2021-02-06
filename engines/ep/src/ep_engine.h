@@ -572,10 +572,6 @@ public:
 
     cb::mcbp::Status startFlusher(const char** msg, size_t* msg_size);
 
-    ENGINE_ERROR_CODE deleteVBucket(Vbid vbid,
-                                    bool waitForCompletion,
-                                    const void* cookie = nullptr);
-
     /// Schedule compaction (used by unit tests)
     ENGINE_ERROR_CODE scheduleCompaction(Vbid vbid,
                                          const CompactionConfig& c,
@@ -595,14 +591,24 @@ public:
 
     VBucketPtr getVBucket(Vbid vbucket) const;
 
-    ENGINE_ERROR_CODE setVBucketState(const void* cookie,
-                                      Vbid vbid,
-                                      vbucket_state_t to,
-                                      const nlohmann::json* meta,
-                                      TransferVB transfer,
-                                      uint64_t cas);
+    cb::engine_errc setVBucketState(const void* cookie,
+                                    Vbid vbid,
+                                    vbucket_state_t to,
+                                    const nlohmann::json* meta,
+                                    TransferVB transfer,
+                                    uint64_t cas);
 
-    cb::engine_errc setParam(const cb::mcbp::Request& req, std::string& msg);
+    cb::engine_errc setParameter(gsl::not_null<const void*> cookie,
+                                 EngineParamCategory category,
+                                 std::string_view key,
+                                 std::string_view value,
+                                 Vbid vbucket) override;
+
+    cb::engine_errc setParameterInner(gsl::not_null<const void*> cookie,
+                                      EngineParamCategory category,
+                                      std::string_view key,
+                                      std::string_view value,
+                                      Vbid vbucket);
 
     cb::engine_errc setFlushParam(const std::string& key,
                                   const std::string& val,
@@ -866,20 +872,42 @@ public:
 
     void setStorageThreadCallback(std::function<void(size_t)> cb);
 
+    cb::engine_errc compactDatabase(gsl::not_null<const void*> cookie,
+                                    Vbid vbid,
+                                    uint64_t purge_before_ts,
+                                    uint64_t purge_before_seq,
+                                    bool drop_deletes) override;
+
+    std::pair<cb::engine_errc, vbucket_state_t> getVBucket(
+            gsl::not_null<const void*> cookie, Vbid vbid) override;
+    cb::engine_errc setVBucket(gsl::not_null<const void*> cookie,
+                               Vbid vbid,
+                               uint64_t cas,
+                               vbucket_state_t state,
+                               nlohmann::json* meta) override;
+    cb::engine_errc deleteVBucket(gsl::not_null<const void*> cookie,
+                                  Vbid vbid,
+                                  bool sync) override;
+
 protected:
     friend class EpEngineValueChangeListener;
 
-    /**
-     * Function to implement the compaction request from the client:
-     *
-     * @param cookie cookie to identify the client
-     * @param req the request from the client
-     * @param response callback function to inject data to send back
-     *                 to the client
-     */
-    ENGINE_ERROR_CODE compactDB(const void* cookie,
-                                const cb::mcbp::Request& req,
-                                const AddResponseFn& response);
+    cb::engine_errc compactDatabaseInner(gsl::not_null<const void*> cookie,
+                                         Vbid vbid,
+                                         uint64_t purge_before_ts,
+                                         uint64_t purge_before_seq,
+                                         bool drop_deletes);
+
+    std::pair<cb::engine_errc, vbucket_state_t> getVBucketInner(
+            gsl::not_null<const void*> cookie, Vbid vbid);
+    cb::engine_errc setVBucketInner(gsl::not_null<const void*> cookie,
+                                    Vbid vbid,
+                                    uint64_t cas,
+                                    vbucket_state_t state,
+                                    nlohmann::json* meta);
+    cb::engine_errc deleteVBucketInner(gsl::not_null<const void*> cookie,
+                                       Vbid vbid,
+                                       bool sync);
 
     cb::engine_errc checkPrivilege(const void* cookie,
                                    cb::rbac::Privilege priv,

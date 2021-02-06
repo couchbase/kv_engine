@@ -294,8 +294,8 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
                   engine->get_stats(
                           statsCookie3, "vbucket-seqno", {}, dummyAddStats));
 
-        EXPECT_EQ(ENGINE_EWOULDBLOCK,
-                  engine->deleteVBucket(vbid, true, delVbCookie));
+        EXPECT_EQ(cb::engine_errc::would_block,
+                  engine->deleteVBucket(delVbCookie, vbid, true));
 
         executor.runCurrentTask();
     }
@@ -331,7 +331,8 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
               engine->get_stats(
                       statsCookie3, "vbucket-seqno", {}, dummyAddStats));
 
-    EXPECT_EQ(ENGINE_SUCCESS, engine->deleteVBucket(vbid, false, delVbCookie));
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->deleteVBucket(delVbCookie, vbid, false));
 
     // finish warmup so the test can exit
     while (engine->getKVBucket()->isWarmingUp()) {

@@ -354,11 +354,10 @@ static enum test_result test_shutdown_snapshot_range(EngineIface* h) {
           "Failed set vbucket 0 to replica state.");
 
     /* trigger persist vb state task */
-    check(set_param(h,
-                    cb::mcbp::request::SetParamPayload::Type::Flush,
-                    "vb_state_persist_run",
-                    "0"),
-          "Failed to trigger vb state persist");
+    checkeq(cb::engine_errc::success,
+            set_param(
+                    h, EngineParamCategory::Flush, "vb_state_persist_run", "0"),
+            "Failed to trigger vb state persist");
 
     /* restart the engine */
     testHarness->reload_engine(&h,
@@ -648,10 +647,7 @@ static enum test_result test_expiry_pager_settings(EngineIface* h) {
     checkeq(600,
             get_int_stat(h, "ep_exp_pager_stime"),
             "Expiry pager sleep time not expected");
-    set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Flush,
-              "exp_pager_stime",
-              "1");
+    set_param(h, EngineParamCategory::Flush, "exp_pager_stime", "1");
     checkeq(1,
             get_int_stat(h, "ep_exp_pager_stime"),
             "Expiry pager sleep time not updated");
@@ -661,10 +657,7 @@ static enum test_result test_expiry_pager_settings(EngineIface* h) {
             get_int_stat(h, "ep_num_expiry_pager_runs"),
             "Expiry pager run count is not zero");
 
-    set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Flush,
-              "exp_pager_enabled",
-              "true");
+    set_param(h, EngineParamCategory::Flush, "exp_pager_enabled", "true");
     checkeq(1,
             get_int_stat(h, "ep_exp_pager_stime"),
             "Expiry pager sleep time not updated");
@@ -681,10 +674,7 @@ static enum test_result test_expiry_pager_settings(EngineIface* h) {
     cb_assert(!get_bool_stat(h, "ep_exp_pager_enabled"));
 
     // Enable expiry pager again
-    set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Flush,
-              "exp_pager_enabled",
-              "true");
+    set_param(h, EngineParamCategory::Flush, "exp_pager_enabled", "true");
 
     checkeq(get_int_stat(h, "ep_exp_pager_initial_run_time"),
             -1,
@@ -692,10 +682,7 @@ static enum test_result test_expiry_pager_settings(EngineIface* h) {
 
     std::string err_msg;
     // Update exp_pager_initial_run_time and ensure the update is successful
-    set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Flush,
-              "exp_pager_initial_run_time",
-              "3");
+    set_param(h, EngineParamCategory::Flush, "exp_pager_initial_run_time", "3");
     std::string expected_time = "03:00";
     std::string str;
     // [MB-21806] - Need to repeat the fetch as the set_param for
@@ -714,7 +701,7 @@ static enum test_result test_expiry_pager_settings(EngineIface* h) {
                                                  update_by)};
 
     set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Flush,
+              EngineParamCategory::Flush,
               "exp_pager_stime",
               std::to_string(update_by.count() * 60).c_str());
     str = get_str_stat(h, "ep_expiry_pager_task_time");
@@ -941,10 +928,7 @@ static enum test_result test_expiry_loader(EngineIface* h) {
 
 static enum test_result test_expiration_on_compaction(EngineIface* h) {
     if (get_bool_stat(h, "ep_exp_pager_enabled")) {
-        set_param(h,
-                  cb::mcbp::request::SetParamPayload::Type::Flush,
-                  "exp_pager_enabled",
-                  "false");
+        set_param(h, EngineParamCategory::Flush, "exp_pager_enabled", "false");
     }
 
     checkeq(1,
@@ -1038,7 +1022,7 @@ static enum test_result test_expiration_on_compaction(EngineIface* h) {
     testHarness->time_travel(15);
 
     // Compaction on VBucket
-    compact_db(h, Vbid(0), Vbid(0), 0, 0, 0);
+    compact_db(h, Vbid(0), 0, 0, 0);
     wait_for_stat_to_be(h, "ep_pending_compactions", 0);
 
     checkeq(50,
@@ -1054,10 +1038,7 @@ static enum test_result test_expiration_on_warmup(EngineIface* h) {
     }
 
     auto* cookie = testHarness->create_cookie(h);
-    set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Flush,
-              "exp_pager_enabled",
-              "false");
+    set_param(h, EngineParamCategory::Flush, "exp_pager_enabled", "false");
     int pager_runs = get_int_stat(h, "ep_num_expiry_pager_runs");
 
     const char *key = "KEY";
@@ -1532,7 +1513,6 @@ static enum test_result test_vbucket_compact(EngineIface* h) {
     compact_db(
             h,
             Vbid(0) /* vbucket_id */,
-            Vbid(0) /* vbid */,
             2 /* purge_before_ts */,
             exp_purge_seqno - 1 /* purge_before_seq */,
             1 /* drop deletes (forces purge irrespective purge_before_seq) */);
@@ -1549,7 +1529,7 @@ static enum test_result test_compaction_config(EngineIface* h) {
             get_int_stat(h, "ep_compaction_write_queue_cap"),
             "Expected compaction queue cap to be 10000");
     set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Flush,
+              EngineParamCategory::Flush,
               "compaction_write_queue_cap",
               "100000");
     checkeq(100000,
@@ -1608,7 +1588,7 @@ static enum test_result test_MB_33919(EngineIface* h) {
             "purge_seqno not found to be zero before compaction");
 
     // Compaction on VBucket
-    compact_db(h, Vbid(0), Vbid(0), threeDaysAgo, 0, 0);
+    compact_db(h, Vbid(0), threeDaysAgo, 0, 0);
     wait_for_stat_to_be(h, "ep_pending_compactions", 0);
 
     // Purge-seqno should not of moved, without the fix it would
@@ -1621,7 +1601,6 @@ static enum test_result test_MB_33919(EngineIface* h) {
 
 struct comp_thread_ctx {
     EngineIface* h;
-    Vbid vbid;
     Vbid db_file_id;
 };
 
@@ -1629,7 +1608,7 @@ void makeCouchstoreFileInaccessible(const std::string& dbname);
 extern "C" {
     static void compaction_thread(void *arg) {
         auto *ctx = static_cast<comp_thread_ctx *>(arg);
-        compact_db(ctx->h, ctx->vbid, ctx->db_file_id, 0, 0, 0);
+        compact_db(ctx->h, ctx->db_file_id, 0, 0, 0);
     }
 }
 
@@ -1678,8 +1657,7 @@ static enum test_result test_multiple_vb_compactions(EngineIface* h) {
 
     for (int i = 0; i < n_threads; i++) {
         ctx[i].h = h;
-        ctx[i].vbid = static_cast<Vbid>(i);
-        ctx[i].db_file_id = Vbid(ctx[i].vbid.get() % num_shards);
+        ctx[i].db_file_id = Vbid(static_cast<Vbid>(i).get() % num_shards);
         int r = cb_create_thread(&threads[i], compaction_thread, &ctx[i], 0);
         cb_assert(r == 0);
     }
@@ -1750,7 +1728,7 @@ static enum test_result test_multi_vb_compactions_with_workload(
 
     for (int i = 0; i < n_threads; i++) {
         ctx[i].h = h;
-        ctx[i].vbid = static_cast<Vbid>(i);
+        ctx[i].db_file_id = static_cast<Vbid>(i);
         int r = cb_create_thread(&threads[i], compaction_thread, &ctx[i], 0);
         cb_assert(r == 0);
     }
@@ -1770,17 +1748,15 @@ static enum test_result vbucket_destroy(EngineIface* h,
     check(set_vbucket_state(h, Vbid(1), vbucket_state_active),
           "Failed to set vbucket state.");
 
-    checkeq(ENGINE_NOT_MY_VBUCKET,
+    checkeq(cb::engine_errc::not_my_vbucket,
             vbucketDelete(h, Vbid(2), value),
             "Expected NMVB");
 
     check(set_vbucket_state(h, Vbid(1), vbucket_state_dead),
           "Failed set set vbucket 1 state.");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             vbucketDelete(h, Vbid(1), value),
-            "Expected success");
-    checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Expected failure deleting non-existent bucket.");
 
     check(verify_vbucket_missing(h, Vbid(1)),
@@ -1827,9 +1803,8 @@ static enum test_result test_vbucket_destroy_stats(EngineIface* h) {
           "Failed set set vbucket 1 state.");
 
     int vbucketDel = get_int_stat(h, "ep_vbucket_del");
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, Vbid(1)), "Expected success");
-    checkeq(cb::mcbp::Status::Success,
-            last_status.load(),
+    checkeq(cb::engine_errc::success,
+            vbucketDelete(h, Vbid(1)),
             "Expected failure deleting non-existent bucket.");
 
     check(verify_vbucket_missing(h, Vbid(1)),
@@ -1884,10 +1859,8 @@ static enum test_result vbucket_destroy_restart(EngineIface* h,
     check(set_vbucket_state(h, Vbid(1), vbucket_state_dead),
           "Failed set set vbucket 1 state.");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             vbucketDelete(h, Vbid(1), value),
-            "Expected success");
-    checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Expected failure deleting non-existent bucket.");
 
     check(verify_vbucket_missing(h, Vbid(1)),
@@ -2638,27 +2611,31 @@ static enum test_result test_warmup_conf(EngineIface* h) {
             get_int_stat(h, "ep_warmup_min_memory_threshold"),
             "Incorrect initial warmup min memory threshold.");
 
-    check(!set_param(h,
-                     cb::mcbp::request::SetParamPayload::Type::Flush,
-                     "warmup_min_items_threshold",
-                     "a"),
-          "Set warmup_min_items_threshold should have failed");
-    check(!set_param(h,
-                     cb::mcbp::request::SetParamPayload::Type::Flush,
-                     "warmup_min_items_threshold",
-                     "a"),
-          "Set warmup_min_memory_threshold should have failed");
+    checkeq(cb::engine_errc::invalid_arguments,
+            set_param(h,
+                      EngineParamCategory::Flush,
+                      "warmup_min_items_threshold",
+                      "a"),
+            "Set warmup_min_items_threshold should have failed");
+    checkeq(cb::engine_errc::invalid_arguments,
+            set_param(h,
+                      EngineParamCategory::Flush,
+                      "warmup_min_items_threshold",
+                      "a"),
+            "Set warmup_min_memory_threshold should have failed");
 
-    check(set_param(h,
-                    cb::mcbp::request::SetParamPayload::Type::Flush,
-                    "warmup_min_items_threshold",
-                    "80"),
-          "Set warmup_min_items_threshold should have worked");
-    check(set_param(h,
-                    cb::mcbp::request::SetParamPayload::Type::Flush,
-                    "warmup_min_memory_threshold",
-                    "80"),
-          "Set warmup_min_memory_threshold should have worked");
+    checkeq(cb::engine_errc::success,
+            set_param(h,
+                      EngineParamCategory::Flush,
+                      "warmup_min_items_threshold",
+                      "80"),
+            "Set warmup_min_items_threshold should have worked");
+    checkeq(cb::engine_errc::success,
+            set_param(h,
+                      EngineParamCategory::Flush,
+                      "warmup_min_memory_threshold",
+                      "80"),
+            "Set warmup_min_memory_threshold should have worked");
 
     checkeq(80,
             get_int_stat(h, "ep_warmup_min_items_threshold"),
@@ -2708,59 +2685,65 @@ static enum test_result test_warmup_conf(EngineIface* h) {
 // Test that all the configuration parameters associated with the ItemPager,
 // can be set.
 static enum test_result test_itempager_conf(EngineIface* h) {
-    check(set_param(h,
-                    cb::mcbp::request::SetParamPayload::Type::Flush,
-                    "pager_active_vb_pcnt",
-                    "50"),
-          "Setting pager_active_vb_pcnt should have worked");
+    checkeq(cb::engine_errc::success,
+            set_param(h,
+                      EngineParamCategory::Flush,
+                      "pager_active_vb_pcnt",
+                      "50"),
+            "Setting pager_active_vb_pcnt should have worked");
     checkeq(50,
             get_int_stat(h, "ep_pager_active_vb_pcnt"),
             "pager_active_vb_pcnt did not get set to the correct value");
 
-    check(set_param(h,
-                    cb::mcbp::request::SetParamPayload::Type::Flush,
-                    "pager_sleep_time_ms",
-                    "1000"),
-          "Setting pager_sleep_time_ms should have worked");
+    checkeq(cb::engine_errc::success,
+            set_param(h,
+                      EngineParamCategory::Flush,
+                      "pager_sleep_time_ms",
+                      "1000"),
+            "Setting pager_sleep_time_ms should have worked");
     checkeq(1000,
             get_int_stat(h, "ep_pager_sleep_time_ms"),
             "pager_sleep_time_ms did not get set to the correct value");
 
-    check(set_param(h,
-                    cb::mcbp::request::SetParamPayload::Type::Flush,
-                    "item_eviction_age_percentage",
-                    "100"),
-          "Set item_eviction_age_percentage should have worked");
+    checkeq(cb::engine_errc::success,
+            set_param(h,
+                      EngineParamCategory::Flush,
+                      "item_eviction_age_percentage",
+                      "100"),
+            "Set item_eviction_age_percentage should have worked");
     checkeq(100,
             get_int_stat(h, "ep_item_eviction_age_percentage"),
             "item_eviction_age_percentage did not get set to the correct "
             "value");
 
-    check(set_param(h,
-                    cb::mcbp::request::SetParamPayload::Type::Flush,
-                    "item_eviction_freq_counter_age_threshold",
-                    "10"),
-          "Set item_eviction_freq_counter_age_threshold should have worked");
+    checkeq(cb::engine_errc::success,
+            set_param(h,
+                      EngineParamCategory::Flush,
+                      "item_eviction_freq_counter_age_threshold",
+                      "10"),
+            "Set item_eviction_freq_counter_age_threshold should have worked");
     checkeq(10,
             get_int_stat(h, "ep_item_eviction_freq_counter_age_threshold"),
             "item_eviction_freq_counter_age_threshold did not get set to the "
             "correct value");
 
-    check(set_param(h,
-                    cb::mcbp::request::SetParamPayload::Type::Flush,
-                    "item_freq_decayer_chunk_duration",
-                    "1000"),
-          "Set item_freq_decayer_chunk_duration should have worked");
+    checkeq(cb::engine_errc::success,
+            set_param(h,
+                      EngineParamCategory::Flush,
+                      "item_freq_decayer_chunk_duration",
+                      "1000"),
+            "Set item_freq_decayer_chunk_duration should have worked");
     checkeq(1000,
             get_int_stat(h, "ep_item_freq_decayer_chunk_duration"),
             "item_freq_decayer_chunk_duration did not get set to the correct "
             "value");
 
-    check(set_param(h,
-                    cb::mcbp::request::SetParamPayload::Type::Flush,
-                    "item_freq_decayer_percent",
-                    "100"),
-          "Set item_freq_decayer_percent should have worked");
+    checkeq(cb::engine_errc::success,
+            set_param(h,
+                      EngineParamCategory::Flush,
+                      "item_freq_decayer_percent",
+                      "100"),
+            "Set item_freq_decayer_percent should have worked");
     checkeq(100,
             get_int_stat(h, "ep_item_freq_decayer_percent"),
             "item_freq_decayer_percent did not get set to the correct value");
@@ -2773,46 +2756,45 @@ static enum test_result test_pitr_conf(EngineIface* h) {
     checkeq(86400,
             get_int_stat(h, "ep_pitr_max_history_age"),
             "Incorrect default value for pitr_max_history_age");
-    check(set_param(h,
-                    cb::mcbp::request::SetParamPayload::Type::Flush,
-                    "pitr_max_history_age",
-                    "1"),
-          "Setting pitr_max_history_age should have worked");
+    checkeq(cb::engine_errc::success,
+            set_param(
+                    h, EngineParamCategory::Flush, "pitr_max_history_age", "1"),
+            "Setting pitr_max_history_age should have worked");
     checkeq(1,
             get_int_stat(h, "ep_pitr_max_history_age"),
             "pitr_max_history_age did not get set to the correct value");
-    check(set_param(h,
-                    cb::mcbp::request::SetParamPayload::Type::Flush,
-                    "pitr_max_history_age",
-                    "172800"),
-          "Setting pitr_max_history_age should have worked");
+    checkeq(cb::engine_errc::success,
+            set_param(h,
+                      EngineParamCategory::Flush,
+                      "pitr_max_history_age",
+                      "172800"),
+            "Setting pitr_max_history_age should have worked");
     checkeq(172800,
             get_int_stat(h, "ep_pitr_max_history_age"),
             "pitr_max_history_age did not get set to the correct value");
 
-    check(!set_param(h,
-                     cb::mcbp::request::SetParamPayload::Type::Flush,
-                     "pitr_max_history_age",
-                     "0"),
-          "Setting pitr_max_history_age outside the legal range should not "
-          "work");
-    check(!set_param(h,
-                     cb::mcbp::request::SetParamPayload::Type::Flush,
-                     "pitr_max_history_age",
-                     "172801"),
-          "Setting pitr_max_history_age outside the legal range should not "
-          "work");
+    checkeq(cb::engine_errc::invalid_arguments,
+            set_param(
+                    h, EngineParamCategory::Flush, "pitr_max_history_age", "0"),
+            "Setting pitr_max_history_age outside the legal range should not "
+            "work");
+    checkeq(cb::engine_errc::invalid_arguments,
+            set_param(h,
+                      EngineParamCategory::Flush,
+                      "pitr_max_history_age",
+                      "172801"),
+            "Setting pitr_max_history_age outside the legal range should not "
+            "work");
     checkeq(172800,
             get_int_stat(h, "ep_pitr_max_history_age"),
             "pitr_max_history_age was changed when setting "
             "pitr_max_history_age to invalid value");
 
-    check(!set_param(h,
-                     cb::mcbp::request::SetParamPayload::Type::Flush,
-                     "pitr_max_history_age",
-                     "0"),
-          "Setting pitr_max_history_age outside the legal range should not "
-          "work");
+    checkeq(cb::engine_errc::invalid_arguments,
+            set_param(
+                    h, EngineParamCategory::Flush, "pitr_max_history_age", "0"),
+            "Setting pitr_max_history_age outside the legal range should not "
+            "work");
     checkeq(172800,
             get_int_stat(h, "ep_pitr_max_history_age"),
             "pitr_max_history_age was changed when setting "
@@ -2823,41 +2805,33 @@ static enum test_result test_pitr_conf(EngineIface* h) {
             get_int_stat(h, "ep_pitr_granularity"),
             "Incorrect default value for ep_pitr_granularity");
 
-    check(set_param(h,
-                    cb::mcbp::request::SetParamPayload::Type::Flush,
-                    "pitr_granularity",
-                    "1"),
-          "Setting pitr_granularity should have worked");
+    checkeq(cb::engine_errc::success,
+            set_param(h, EngineParamCategory::Flush, "pitr_granularity", "1"),
+            "Setting pitr_granularity should have worked");
     checkeq(1,
             get_int_stat(h, "ep_pitr_granularity"),
             "ep_pitr_granularity did not get set to the correct value");
-    check(set_param(h,
-                    cb::mcbp::request::SetParamPayload::Type::Flush,
-                    "pitr_granularity",
-                    "18000"),
-          "Setting pitr_granularity should have worked");
+    checkeq(cb::engine_errc::success,
+            set_param(
+                    h, EngineParamCategory::Flush, "pitr_granularity", "18000"),
+            "Setting pitr_granularity should have worked");
     checkeq(18000,
             get_int_stat(h, "ep_pitr_granularity"),
             "ep_pitr_granularity did not get set to the correct value");
-    check(!set_param(h,
-                     cb::mcbp::request::SetParamPayload::Type::Flush,
-                     "pitr_granularity",
-                     "0"),
-          "Setting pitr_granularity outside the legal range should not work");
-    check(!set_param(h,
-                     cb::mcbp::request::SetParamPayload::Type::Flush,
-                     "pitr_granularity",
-                     "18001"),
-          "Setting pitr_granularity outside the legal range should not work");
+    checkeq(cb::engine_errc::invalid_arguments,
+            set_param(h, EngineParamCategory::Flush, "pitr_granularity", "0"),
+            "Setting pitr_granularity outside the legal range should not work");
+    checkeq(cb::engine_errc::invalid_arguments,
+            set_param(
+                    h, EngineParamCategory::Flush, "pitr_granularity", "18001"),
+            "Setting pitr_granularity outside the legal range should not work");
     checkeq(18000,
             get_int_stat(h, "ep_pitr_granularity"),
             "pitr_max_history_age was changed when setting pitr_granularity to "
             "invalid value");
-    check(!set_param(h,
-                     cb::mcbp::request::SetParamPayload::Type::Flush,
-                     "pitr_granularity",
-                     "0"),
-          "Setting pitr_granularity outside the legal range should not work");
+    checkeq(cb::engine_errc::invalid_arguments,
+            set_param(h, EngineParamCategory::Flush, "pitr_granularity", "0"),
+            "Setting pitr_granularity outside the legal range should not work");
     checkeq(18000,
             get_int_stat(h, "ep_pitr_granularity"),
             "pitr_max_history_age was changed when setting pitr_granularity to "
@@ -2867,20 +2841,16 @@ static enum test_result test_pitr_conf(EngineIface* h) {
     check(!get_bool_stat(h, "ep_pitr_enabled"),
           "Incorrect default value for ep_pitr_enabled");
 
-    check(set_param(h,
-                    cb::mcbp::request::SetParamPayload::Type::Flush,
-                    "pitr_enabled",
-                    "true"),
-          "Set pitr_enabled should have worked");
+    checkeq(cb::engine_errc::success,
+            set_param(h, EngineParamCategory::Flush, "pitr_enabled", "true"),
+            "Set pitr_enabled should have worked");
     checkeq(true,
             get_bool_stat(h, "ep_pitr_enabled"),
             "ep_pitr_enabled did not get set to the correct value");
 
-    check(set_param(h,
-                    cb::mcbp::request::SetParamPayload::Type::Flush,
-                    "pitr_enabled",
-                    "false"),
-          "Set pitr_enabled should have worked");
+    checkeq(cb::engine_errc::success,
+            set_param(h, EngineParamCategory::Flush, "pitr_enabled", "false"),
+            "Set pitr_enabled should have worked");
     checkeq(false,
             get_bool_stat(h, "ep_pitr_enabled"),
             "ep_pitr_enabled did not get set to the correct value");
@@ -2890,11 +2860,12 @@ static enum test_result test_pitr_conf(EngineIface* h) {
 
 static enum test_result test_bloomfilter_conf(EngineIface* h) {
     if (get_bool_stat(h, "ep_bfilter_enabled") == false) {
-        check(set_param(h,
-                        cb::mcbp::request::SetParamPayload::Type::Flush,
-                        "bfilter_enabled",
-                        "true"),
-              "Set bloomfilter_enabled should have worked");
+        checkeq(cb::engine_errc::success,
+                set_param(h,
+                          EngineParamCategory::Flush,
+                          "bfilter_enabled",
+                          "true"),
+                "Set bloomfilter_enabled should have worked");
     }
     check(get_bool_stat(h, "ep_bfilter_enabled"),
           "Bloom filter wasn't enabled");
@@ -2903,16 +2874,16 @@ static enum test_result test_bloomfilter_conf(EngineIface* h) {
             get_float_stat(h, "ep_bfilter_residency_threshold"),
             "Incorrect initial bfilter_residency_threshold.");
 
-    check(set_param(h,
-                    cb::mcbp::request::SetParamPayload::Type::Flush,
-                    "bfilter_enabled",
-                    "false"),
-          "Set bloomfilter_enabled should have worked.");
-    check(set_param(h,
-                    cb::mcbp::request::SetParamPayload::Type::Flush,
-                    "bfilter_residency_threshold",
-                    "0.15"),
-          "Set bfilter_residency_threshold should have worked.");
+    checkeq(cb::engine_errc::success,
+            set_param(
+                    h, EngineParamCategory::Flush, "bfilter_enabled", "false"),
+            "Set bloomfilter_enabled should have worked.");
+    checkeq(cb::engine_errc::success,
+            set_param(h,
+                      EngineParamCategory::Flush,
+                      "bfilter_residency_threshold",
+                      "0.15"),
+            "Set bfilter_residency_threshold should have worked.");
 
     checkeq(false, get_bool_stat(h, "ep_bfilter_enabled"),
             "Bloom filter should have been disabled.");
@@ -2925,11 +2896,12 @@ static enum test_result test_bloomfilter_conf(EngineIface* h) {
 
 static enum test_result test_bloomfilters(EngineIface* h) {
     if (get_bool_stat(h, "ep_bfilter_enabled") == false) {
-        check(set_param(h,
-                        cb::mcbp::request::SetParamPayload::Type::Flush,
-                        "bfilter_enabled",
-                        "true"),
-              "Set bloomfilter_enabled should have worked");
+        checkeq(cb::engine_errc::success,
+                set_param(h,
+                          EngineParamCategory::Flush,
+                          "bfilter_enabled",
+                          "true"),
+                "Set bloomfilter_enabled should have worked");
     }
     check(get_bool_stat(h, "ep_bfilter_enabled"),
           "Bloom filter wasn't enabled");
@@ -3014,7 +2986,7 @@ static enum test_result test_bloomfilters(EngineIface* h) {
                 "Expected bgFetch attempts to increase by five");
 
         // Run compaction, with drop_deletes
-        compact_db(h, Vbid(0), Vbid(0), 15, 15, 1);
+        compact_db(h, Vbid(0), 15, 15, 1);
         while (get_int_stat(h, "ep_pending_compactions") != 0) {
             decayingSleep(&sleepTime);
         }
@@ -3042,7 +3014,7 @@ static enum test_result test_bloomfilters(EngineIface* h) {
 
         // Run compaction, with drop_deletes, to exclude deleted items
         // from bloomfilter.
-        compact_db(h, Vbid(0), Vbid(0), 15, 15, 1);
+        compact_db(h, Vbid(0), 15, 15, 1);
         while (get_int_stat(h, "ep_pending_compactions") != 0) {
             decayingSleep(&sleepTime);
         }
@@ -3065,11 +3037,12 @@ static enum test_result test_bloomfilters(EngineIface* h) {
 
 static enum test_result test_bloomfilters_with_store_apis(EngineIface* h) {
     if (get_bool_stat(h, "ep_bfilter_enabled") == false) {
-        check(set_param(h,
-                        cb::mcbp::request::SetParamPayload::Type::Flush,
-                        "bfilter_enabled",
-                        "true"),
-              "Set bloomfilter_enabled should have worked");
+        checkeq(cb::engine_errc::success,
+                set_param(h,
+                          EngineParamCategory::Flush,
+                          "bfilter_enabled",
+                          "true"),
+                "Set bloomfilter_enabled should have worked");
     }
     check(get_bool_stat(h, "ep_bfilter_enabled"),
           "Bloom filter wasn't enabled");
@@ -3162,11 +3135,12 @@ static enum test_result test_bloomfilters_with_store_apis(EngineIface* h) {
 static enum test_result test_bloomfilter_delete_plus_set_scenario(
         EngineIface* h) {
     if (get_bool_stat(h, "ep_bfilter_enabled") == false) {
-        check(set_param(h,
-                        cb::mcbp::request::SetParamPayload::Type::Flush,
-                        "bfilter_enabled",
-                        "true"),
-              "Set bloomfilter_enabled should have worked");
+        checkeq(cb::engine_errc::success,
+                set_param(h,
+                          EngineParamCategory::Flush,
+                          "bfilter_enabled",
+                          "true"),
+                "Set bloomfilter_enabled should have worked");
     }
     check(get_bool_stat(h, "ep_bfilter_enabled"),
           "Bloom filter wasn't enabled");
@@ -3386,10 +3360,7 @@ static enum test_result test_access_scanner_settings(EngineIface* h) {
     // [MB-24422] we need to set this multiple times as the change listeners
     //  may not have been initialized at the time of call
     repeat_till_true([&]() {
-        set_param(h,
-                  cb::mcbp::request::SetParamPayload::Type::Flush,
-                  "alog_task_time",
-                  "5");
+        set_param(h, EngineParamCategory::Flush, "alog_task_time", "5");
         str = get_str_stat(h, "ep_access_scanner_task_time");
         return (0 == str.substr(11, 5).compare(expected_time));
     });
@@ -3404,7 +3375,7 @@ static enum test_result test_access_scanner_settings(EngineIface* h) {
                                                  update_by)};
 
     set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Flush,
+              EngineParamCategory::Flush,
               "alog_sleep_time",
               std::to_string(update_by.count()).c_str());
     str = get_str_stat(h, "ep_access_scanner_task_time");
@@ -3532,11 +3503,12 @@ static enum test_result test_access_scanner(EngineIface* h) {
             "Expected num_non_resident to be at least 6% of total items");
 
     /* Run access scanner task once and expect it to generate access log */
-    check(set_param(h,
-                    cb::mcbp::request::SetParamPayload::Type::Flush,
-                    "access_scanner_run",
-                    "true"),
-          "Failed to trigger access scanner");
+    checkeq(cb::engine_errc::success,
+            set_param(h,
+                      EngineParamCategory::Flush,
+                      "access_scanner_run",
+                      "true"),
+            "Failed to trigger access scanner");
 
     // Wait for the number of runs to equal the number of shards.
     wait_for_stat_to_be(h, "ep_num_access_scanner_runs", num_shards);
@@ -3548,18 +3520,21 @@ static enum test_result test_access_scanner(EngineIface* h) {
                   .c_str());
 
     /* Increase resident ratio by deleting items */
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, Vbid(0)), "Expected success");
+    checkeq(cb::engine_errc::success,
+            vbucketDelete(h, Vbid(0)),
+            "Expected success");
     check(set_vbucket_state(h, Vbid(0), vbucket_state_active),
           "Failed to set VB0 state.");
 
     /* Run access scanner task once */
     const int access_scanner_skips =
             get_int_stat(h, "ep_num_access_scanner_skips");
-    check(set_param(h,
-                    cb::mcbp::request::SetParamPayload::Type::Flush,
-                    "access_scanner_run",
-                    "true"),
-          "Failed to trigger access scanner");
+    checkeq(cb::engine_errc::success,
+            set_param(h,
+                      EngineParamCategory::Flush,
+                      "access_scanner_run",
+                      "true"),
+            "Failed to trigger access scanner");
     wait_for_stat_to_be(h,
                         "ep_num_access_scanner_skips",
                         access_scanner_skips + num_shards);
@@ -3572,15 +3547,13 @@ static enum test_result test_access_scanner(EngineIface* h) {
 }
 
 static enum test_result test_set_param_message(EngineIface* h) {
-    set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Flush,
-              "alog_task_time",
-              "50");
-
-    checkeq(cb::mcbp::Status::Einval, last_status.load(),
-        "Expected an invalid value error for an out of bounds alog_task_time");
-    check(std::string("Validation Error").compare(last_body), "Expected a "
-            "validation error in the response body");
+    checkeq(cb::engine_errc::invalid_arguments,
+            set_param(h, EngineParamCategory::Flush, "alog_task_time", "50"),
+            "Expected an invalid value error for an out of bounds "
+            "alog_task_time");
+    check(std::string("Validation Error").compare(last_body),
+          "Expected a "
+          "validation error in the response body");
     return SUCCESS;
 }
 
@@ -4085,7 +4058,9 @@ static enum test_result test_curr_items_dead(EngineIface* h) {
             get_stat<uint64_t>(h, "ep_queue_size"),
             "ep_queue_size is not zero after setting to dead (2)");
 
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, Vbid(0)), "Expected success");
+    checkeq(cb::engine_errc::success,
+            vbucketDelete(h, Vbid(0)),
+            "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Expected success deleting vbucket.");
     verify_curr_items(h, 0, "del vbucket");
@@ -4223,8 +4198,8 @@ static enum test_result test_duplicate_items_disk(EngineIface* h) {
     // don't need to explicitly set the vbucket state to dead as this is
     // done as part of the vbucketDelete. See KVBucket::deleteVBucket
     int vb_del_num = get_int_stat(h, "ep_vbucket_del");
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, Vbid(1)), "Expected success");
-    checkeq(cb::mcbp::Status::Success, last_status.load(),
+    checkeq(cb::engine_errc::success,
+            vbucketDelete(h, Vbid(1)),
             "Failure deleting dead bucket.");
     check(verify_vbucket_missing(h, Vbid(1)),
           "vbucket 1 was not missing after deleting it.");
@@ -5444,14 +5419,18 @@ static enum test_result test_set_ret_meta_error(EngineIface* h) {
     checkeq(ENGINE_NOT_MY_VBUCKET,
             set_ret_meta(h, "key", 3, "value", 5, Vbid(1)),
             "Expected NMVB");
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, Vbid(1)), "Expected success");
+    checkeq(cb::engine_errc::success,
+            vbucketDelete(h, Vbid(1)),
+            "Expected success");
 
     check(set_vbucket_state(h, Vbid(1), vbucket_state_dead),
           "Failed to set vbucket state.");
     checkeq(ENGINE_NOT_MY_VBUCKET,
             set_ret_meta(h, "key", 3, "value", 5, Vbid(1)),
             "Expected NMVB");
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, Vbid(1)), "Expected success");
+    checkeq(cb::engine_errc::success,
+            vbucketDelete(h, Vbid(1)),
+            "Expected success");
 
     return SUCCESS;
 }
@@ -5520,14 +5499,18 @@ static enum test_result test_add_ret_meta_error(EngineIface* h) {
     checkeq(ENGINE_NOT_MY_VBUCKET,
             add_ret_meta(h, "key", 3, "value", 5, Vbid(1)),
             "Expected NMVB");
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, Vbid(1)), "Expected success");
+    checkeq(cb::engine_errc::success,
+            vbucketDelete(h, Vbid(1)),
+            "Expected success");
 
     check(set_vbucket_state(h, Vbid(1), vbucket_state_dead),
           "Failed to add vbucket state.");
     checkeq(ENGINE_NOT_MY_VBUCKET,
             add_ret_meta(h, "key", 3, "value", 5, Vbid(1)),
             "Expected NMVB");
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, Vbid(1)), "Expected success");
+    checkeq(cb::engine_errc::success,
+            vbucketDelete(h, Vbid(1)),
+            "Expected success");
 
     return SUCCESS;
 }
@@ -5639,14 +5622,18 @@ static enum test_result test_del_ret_meta_error(EngineIface* h) {
     checkeq(ENGINE_NOT_MY_VBUCKET,
             del_ret_meta(h, "key", 3, Vbid(1), 0, nullptr),
             "Expected NMVB");
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, Vbid(1)), "Expected success");
+    checkeq(cb::engine_errc::success,
+            vbucketDelete(h, Vbid(1)),
+            "Expected success");
 
     check(set_vbucket_state(h, Vbid(1), vbucket_state_dead),
           "Failed to add vbucket state.");
     checkeq(ENGINE_NOT_MY_VBUCKET,
             del_ret_meta(h, "key", 3, Vbid(1), 0, nullptr),
             "Expected NMVB");
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, Vbid(1)), "Expected success");
+    checkeq(cb::engine_errc::success,
+            vbucketDelete(h, Vbid(1)),
+            "Expected success");
 
     return SUCCESS;
 }
@@ -6077,7 +6064,7 @@ static enum test_result test_expired_item_with_item_eviction(EngineIface* h) {
     testHarness->time_travel(11);
 
     // Compaction on VBucket 0
-    compact_db(h, Vbid(0), Vbid(0), 10, 10, 0);
+    compact_db(h, Vbid(0), 10, 10, 0);
 
     std::chrono::microseconds sleepTime{128};
     while (get_int_stat(h, "ep_pending_compactions") != 0) {
@@ -8008,7 +7995,9 @@ static enum test_result test_mb20943_complete_pending_ops_on_vbucket_delete(
     // Wait until spawned thread has locked the cookie.
     cv.wait(lk, [&ready]{return ready;});
     lk.unlock();
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, Vbid(1)), "Expected success");
+    checkeq(cb::engine_errc::success,
+            vbucketDelete(h, Vbid(1)),
+            "Expected success");
     // Wait for the thread to finish, which will occur when the thread has been
     // notified.
     notify_waiter.join();
@@ -8051,7 +8040,6 @@ static enum test_result test_vbucket_compact_no_purge(EngineIface* h) {
             get_int_stat(h, "vb_0:high_seqno", "vbucket-seqno") - 1;
     compact_db(h,
                Vbid(0),
-               Vbid(2),
                get_int_stat(h, "vb_0:high_seqno", "vbucket-seqno"),
                1,
                1);
@@ -8063,7 +8051,6 @@ static enum test_result test_vbucket_compact_no_purge(EngineIface* h) {
     /* Compact again, this time we don't expect to purge any items */
     compact_db(h,
                Vbid(0),
-               Vbid(2),
                get_int_stat(h, "vb_0:high_seqno", "vbucket-seqno"),
                1,
                1);
@@ -8075,7 +8062,6 @@ static enum test_result test_vbucket_compact_no_purge(EngineIface* h) {
     if (isWarmupEnabled(h)) {
         /* Reload the engine */
         testHarness->reload_engine(&h,
-
                                    testHarness->get_current_testcase()->cfg,
                                    true,
                                    false);

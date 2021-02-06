@@ -733,40 +733,6 @@ static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
    return ret;
 }
 
-static ENGINE_ERROR_CODE set_vbucket(struct default_engine* e,
-                                     const cb::mcbp::Request& request) {
-    vbucket_state_t state;
-    auto extras = request.getExtdata();
-    std::copy(extras.begin(), extras.end(), reinterpret_cast<uint8_t*>(&state));
-    state = vbucket_state_t(ntohl(state));
-
-    set_vbucket_state(e, request.getVBucket(), state);
-    return ENGINE_SUCCESS;
-}
-
-static bool get_vbucket(struct default_engine* e,
-                        const void* cookie,
-                        const cb::mcbp::Request& request,
-                        const AddResponseFn& response) {
-    vbucket_state_t state;
-    state = get_vbucket_state(e, request.getVBucket());
-    state = vbucket_state_t(ntohl(state));
-
-    return response({},
-                    {},
-                    {reinterpret_cast<const char*>(&state), sizeof(state)},
-                    PROTOCOL_BINARY_RAW_BYTES,
-                    cb::mcbp::Status::Success,
-                    0,
-                    cookie);
-}
-
-static ENGINE_ERROR_CODE rm_vbucket(struct default_engine* e,
-                                    const cb::mcbp::Request& request) {
-    set_vbucket_state(e, request.getVBucket(), vbucket_state_dead);
-    return ENGINE_SUCCESS;
-}
-
 static bool scrub_cmd(struct default_engine* e,
                       const void* cookie,
                       const AddResponseFn& response) {
@@ -778,53 +744,46 @@ static bool scrub_cmd(struct default_engine* e,
     return response({}, {}, {}, PROTOCOL_BINARY_RAW_BYTES, res, 0, cookie);
 }
 
-/**
- * set_param only added to allow per bucket xattr on/off
- * and toggle between compression modes for testing purposes
- */
-static ENGINE_ERROR_CODE set_param(struct default_engine* e,
-                                   const cb::mcbp::Request& request) {
-    using cb::mcbp::request::SetParamPayload;
-    auto extras = request.getExtdata();
-    auto* payload = reinterpret_cast<const SetParamPayload*>(extras.data());
-
-    // Only support protocol_binary_engine_param_flush with xattr_enabled
-    if (payload->getParamType() == SetParamPayload::Type::Flush) {
-        auto k = request.getKey();
-        auto v = request.getValue();
-
-        std::string_view key{reinterpret_cast<const char*>(k.data()), k.size()};
-        std::string_view value{reinterpret_cast<const char*>(v.data()),
-                               v.size()};
-
+cb::engine_errc default_engine::setParameter(gsl::not_null<const void*> cookie,
+                                             EngineParamCategory category,
+                                             std::string_view key,
+                                             std::string_view value,
+                                             Vbid) {
+    switch (category) {
+    case EngineParamCategory::Flush:
         if (key == "xattr_enabled") {
             if (value == "true") {
-                e->config.xattr_enabled = true;
+                config.xattr_enabled = true;
             } else if (value == "false") {
-                e->config.xattr_enabled = false;
+                config.xattr_enabled = false;
             } else {
-                return ENGINE_EINVAL;
+                return cb::engine_errc::invalid_arguments;
             }
         } else if (key == "compression_mode") {
             try {
-                e->config.compression_mode = parseCompressionMode(
-                        std::string(value.data(), value.size()));
+                config.compression_mode = parseCompressionMode(
+                        std::string{value.data(), value.size()});
             } catch (std::invalid_argument&) {
-                return ENGINE_EINVAL;
+                return cb::engine_errc::invalid_arguments;
             }
         } else if (key == "min_compression_ratio") {
-            std::string value_str{value.data(), value.size()};
+            std::string value_str{value};
             float min_comp_ratio;
             if (!safe_strtof(value_str.c_str(), min_comp_ratio)) {
-                return ENGINE_EINVAL;
+                return cb::engine_errc::invalid_arguments;
             }
-
-            e->config.min_compression_ratio = min_comp_ratio;
+            config.min_compression_ratio = min_comp_ratio;
         }
 
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
+    case EngineParamCategory::Replication:
+    case EngineParamCategory::Checkpoint:
+    case EngineParamCategory::Dcp:
+    case EngineParamCategory::Vbucket:
+        break;
     }
-    return ENGINE_KEY_ENOENT;
+
+    return cb::engine_errc::no_such_key;
 }
 
 ENGINE_ERROR_CODE default_engine::unknown_command(
@@ -837,17 +796,6 @@ ENGINE_ERROR_CODE default_engine::unknown_command(
     case cb::mcbp::ClientOpcode::Scrub:
         sent = scrub_cmd(this, cookie, response);
         break;
-    case cb::mcbp::ClientOpcode::DelVbucket:
-        return rm_vbucket(this, request);
-    case cb::mcbp::ClientOpcode::SetVbucket:
-        return set_vbucket(this, request);
-    case cb::mcbp::ClientOpcode::GetVbucket:
-        sent = get_vbucket(this, cookie, request, response);
-        break;
-    case cb::mcbp::ClientOpcode::SetParam:
-        return set_param(this, request);
-    case cb::mcbp::ClientOpcode::CompactDb:
-        return ENGINE_FAILED;
     default:
         sent = response({},
                         {},
@@ -1061,4 +1009,25 @@ void default_engine::generate_unknown_collection_response(
     // reporting 'unknown collection' against the epoch manifest (uid 0)
     server.cookie->set_unknown_collection_error_context(
             const_cast<void*>(cookie), 0);
+}
+
+std::pair<cb::engine_errc, vbucket_state_t> default_engine::getVBucket(
+        gsl::not_null<const void*>, Vbid vbid) {
+    return {cb::engine_errc::success, get_vbucket_state(this, vbid)};
+}
+
+cb::engine_errc default_engine::setVBucket(gsl::not_null<const void*>,
+                                           Vbid vbid,
+                                           uint64_t,
+                                           vbucket_state_t state,
+                                           nlohmann::json*) {
+    set_vbucket_state(this, vbid, state);
+    return cb::engine_errc::success;
+}
+
+cb::engine_errc default_engine::deleteVBucket(gsl::not_null<const void*>,
+                                              Vbid vbid,
+                                              bool) {
+    set_vbucket_state(this, vbid, vbucket_state_dead);
+    return cb::engine_errc::success;
 }

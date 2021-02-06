@@ -61,43 +61,33 @@ static enum test_result test_create_new_checkpoint(EngineIface* h) {
 }
 
 static enum test_result test_validate_checkpoint_params(EngineIface* h) {
-    set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Checkpoint,
-              "chk_max_items",
-              "1000");
-    checkeq(cb::mcbp::Status::Success, last_status.load(),
+    checkeq(cb::engine_errc::success,
+            set_param(h,
+                      EngineParamCategory::Checkpoint,
+                      "chk_max_items",
+                      "1000"),
             "Failed to set checkpoint_max_item param");
-    set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Checkpoint,
-              "chk_period",
-              "100");
-    checkeq(cb::mcbp::Status::Success, last_status.load(),
+    checkeq(cb::engine_errc::success,
+            set_param(h, EngineParamCategory::Checkpoint, "chk_period", "100"),
             "Failed to set checkpoint_period param");
-    set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Checkpoint,
-              "max_checkpoints",
-              "2");
-    checkeq(cb::mcbp::Status::Success, last_status.load(),
+    checkeq(cb::engine_errc::success,
+            set_param(
+                    h, EngineParamCategory::Checkpoint, "max_checkpoints", "2"),
             "Failed to set max_checkpoints param");
 
-    set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Checkpoint,
-              "chk_max_items",
-              "5");
-    checkeq(cb::mcbp::Status::Einval, last_status.load(),
-            "Expected to have an invalid value error for checkpoint_max_items param");
-    set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Checkpoint,
-              "chk_period",
-              "0");
-    checkeq(cb::mcbp::Status::Einval, last_status.load(),
-            "Expected to have an invalid value error for checkpoint_period param");
-    set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Checkpoint,
-              "max_checkpoints",
-              "6");
-    checkeq(cb::mcbp::Status::Einval, last_status.load(),
-            "Expected to have an invalid value error for max_checkpoints param");
+    checkeq(cb::engine_errc::invalid_arguments,
+            set_param(h, EngineParamCategory::Checkpoint, "chk_max_items", "5"),
+            "Expected to have an invalid value error for checkpoint_max_items "
+            "param");
+    checkeq(cb::engine_errc::invalid_arguments,
+            set_param(h, EngineParamCategory::Checkpoint, "chk_period", "0"),
+            "Expected to have an invalid value error for checkpoint_period "
+            "param");
+    checkeq(cb::engine_errc::invalid_arguments,
+            set_param(
+                    h, EngineParamCategory::Checkpoint, "max_checkpoints", "6"),
+            "Expected to have an invalid value error for max_checkpoints "
+            "param");
 
     return SUCCESS;
 }
@@ -226,8 +216,8 @@ static enum test_result test_wait_for_persist_vb_del(EngineIface* h) {
 
     wait_for_stat_to_be(h, "ep_chk_persistence_remains", 1);
 
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, Vbid(1)), "Expected success");
-    checkeq(cb::mcbp::Status::Success, last_status.load(),
+    checkeq(cb::engine_errc::success,
+            vbucketDelete(h, Vbid(1)),
             "Failure deleting dead bucket.");
     check(verify_vbucket_missing(h, Vbid(1)),
           "vbucket 1 was not missing after deleting it.");

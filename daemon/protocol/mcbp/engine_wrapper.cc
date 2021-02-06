@@ -853,3 +853,94 @@ ENGINE_ERROR_CODE dcpAbort(Cookie& cookie,
     }
     return ret;
 }
+
+cb::engine_errc bucket_set_parameter(Cookie& cookie,
+                                     EngineParamCategory category,
+                                     std::string_view key,
+                                     std::string_view value,
+                                     Vbid vbucket) {
+    auto& connection = cookie.getConnection();
+    auto ret = connection.getBucket().getEngine().setParameter(
+            &cookie, category, key, value, vbucket);
+    if (ret == cb::engine_errc::disconnect) {
+        LOG_WARNING("{}: {} setParameter() returned ENGINE_DISCONNECT",
+                    connection.getId(),
+                    connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
+    }
+    return ret;
+}
+
+cb::engine_errc bucket_compact_database(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+
+    const auto& req = cookie.getRequest();
+    auto extras = req.getExtdata();
+    const auto* payload =
+            reinterpret_cast<const cb::mcbp::request::CompactDbPayload*>(
+                    extras.data());
+
+    auto ret = connection.getBucket().getEngine().compactDatabase(
+            &cookie,
+            req.getVBucket(),
+            payload->getPurgeBeforeTs(),
+            payload->getPurgeBeforeSeq(),
+            payload->getDropDeletes() != 0);
+    if (ret == cb::engine_errc::disconnect) {
+        LOG_WARNING("{}: {} compactDatabase() returned ENGINE_DISCONNECT",
+                    connection.getId(),
+                    connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
+    }
+    return ret;
+}
+
+std::pair<cb::engine_errc, vbucket_state_t> bucket_get_vbucket(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    const auto& req = cookie.getRequest();
+    auto ret = connection.getBucket().getEngine().getVBucket(&cookie,
+                                                             req.getVBucket());
+    if (ret.first == cb::engine_errc::disconnect) {
+        LOG_WARNING("{}: {} getVBucket() returned ENGINE_DISCONNECT",
+                    connection.getId(),
+                    connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
+    }
+
+    return ret;
+}
+
+cb::engine_errc bucket_set_vbucket(Cookie& cookie,
+                                   vbucket_state_t state,
+                                   nlohmann::json& meta) {
+    const auto& req = cookie.getRequest();
+    auto& connection = cookie.getConnection();
+    auto ret = connection.getBucket().getEngine().setVBucket(
+            &cookie,
+            req.getVBucket(),
+            req.getCas(),
+            state,
+            meta.empty() ? nullptr : &meta);
+    if (ret == cb::engine_errc::disconnect) {
+        LOG_WARNING("{}: {} setVBucket() returned ENGINE_DISCONNECT",
+                    connection.getId(),
+                    connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
+    }
+
+    return ret;
+}
+
+cb::engine_errc bucket_delete_vbucket(Cookie& cookie, Vbid vbid, bool sync) {
+    auto& connection = cookie.getConnection();
+    auto ret = connection.getBucket().getEngine().deleteVBucket(
+            &cookie, vbid, sync);
+    if (ret == cb::engine_errc::disconnect) {
+        LOG_WARNING("{}: {} deleteVBucket() returned ENGINE_DISCONNECT",
+                    connection.getId(),
+                    connection.getDescription());
+        connection.setTerminationReason("Engine forced disconnect");
+    }
+
+    return ret;
+}

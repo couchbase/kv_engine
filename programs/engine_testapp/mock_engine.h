@@ -318,6 +318,26 @@ struct MockEngine : public EngineIface, public DcpIface {
                             uint64_t prepared_seqno,
                             uint64_t abort_seqno) override;
 
+    cb::engine_errc setParameter(gsl::not_null<const void*> cookie,
+                                 EngineParamCategory category,
+                                 std::string_view key,
+                                 std::string_view value,
+                                 Vbid vbucket) override;
+    cb::engine_errc compactDatabase(gsl::not_null<const void*> cookie,
+                                    Vbid vbid,
+                                    uint64_t purge_before_ts,
+                                    uint64_t purge_before_seq,
+                                    bool drop_deletes) override;
+    std::pair<cb::engine_errc, vbucket_state_t> getVBucket(
+            gsl::not_null<const void*> cookie, Vbid vbid) override;
+    cb::engine_errc setVBucket(gsl::not_null<const void*> cookie,
+                               Vbid vbid,
+                               uint64_t cas,
+                               vbucket_state_t state,
+                               nlohmann::json* meta) override;
+    cb::engine_errc deleteVBucket(gsl::not_null<const void*> cookie,
+                                  Vbid vbid,
+                                  bool sync) override;
     unique_engine_ptr the_engine;
 
     // Pointer to DcpIface for the underlying engine we are proxying; or

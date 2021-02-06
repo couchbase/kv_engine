@@ -28,6 +28,7 @@
 #include "mock/mock_dcp.h"
 #include "programs/engine_testapp/mock_server.h"
 
+#include <nlohmann/json.hpp>
 #include <platform/cb_malloc.h>
 #include <platform/cbassert.h>
 #include <platform/compress.h>
@@ -1216,7 +1217,7 @@ extern "C" {
         std::unique_lock<std::mutex> lk(ctx->mutex);
         ctx->compactor_waiting = true;
         ctx->cv.wait(lk, [ctx]{return ctx->compaction_start;});
-        compact_db(ctx->h, Vbid(0), Vbid(0), 99, ctx->items, 1);
+        compact_db(ctx->h, Vbid(0), 99, ctx->items, 1);
     }
 
     static void writer_thread(void *args) {
@@ -1462,10 +1463,7 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(EngineIface* h) {
     const uint32_t seqno = 0;
     const uint32_t flags = 0;
     /* Check the min limit */
-    set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Flush,
-              "max_size",
-              "500000000");
+    set_param(h, EngineParamCategory::Flush, "max_size", "500000000");
     checkeq(500000000, get_int_stat(h, "ep_max_size"), "Incorrect new size.");
 
     auto dcp = requireDcpIface(h);
@@ -1486,10 +1484,7 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(EngineIface* h) {
 
     /* Check the size as percentage of the bucket memory */
     auto* cookie2 = testHarness->create_cookie(h);
-    set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Flush,
-              "max_size",
-              "2000000000");
+    set_param(h, EngineParamCategory::Flush, "max_size", "2000000000");
     checkeq(2000000000, get_int_stat(h, "ep_max_size"), "Incorrect new size.");
 
     checkeq(ENGINE_SUCCESS,
@@ -1539,10 +1534,7 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(EngineIface* h) {
 
     /* Check the max limit */
     auto* cookie4 = testHarness->create_cookie(h);
-    set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Flush,
-              "max_size",
-              "7000000000");
+    set_param(h, EngineParamCategory::Flush, "max_size", "7000000000");
     checkeq(static_cast<uint64_t>(7000000000),
             get_ull_stat(h, "ep_max_size"),
             "Incorrect new size.");
@@ -1573,7 +1565,7 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
     const auto ep_max_size = 1200000000;
     const auto bucketMemQuotaFraction = 0.05;
     set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Flush,
+              EngineParamCategory::Flush,
               "max_size",
               std::to_string(ep_max_size).c_str());
     checkeq(ep_max_size, get_int_stat(h, "ep_max_size"), "Incorrect new size.");
@@ -1913,7 +1905,7 @@ static void test_dcp_noop_mandatory_combo(EngineIface* h,
 
     // Configure manditory noop as requested.
     set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Flush,
+              EngineParamCategory::Flush,
               "dcp_noop_mandatory_for_v5_features",
               noopManditory ? "true" : "false");
     checkeq(noopManditory,
@@ -2451,10 +2443,7 @@ static enum test_result test_dcp_producer_stream_req_dgm(EngineIface* h) {
             "Expected at least 50% of items to be non-resident");
 
     // Reduce max_size from 6291456 to 6000000
-    set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Flush,
-              "max_size",
-              "6000000");
+    set_param(h, EngineParamCategory::Flush, "max_size", "6000000");
     checkgt(50,
             get_int_stat(h, "vb_active_perc_mem_resident"),
             "Too high percentage of memory resident");
@@ -4011,7 +4000,7 @@ static enum test_result test_dcp_add_stream(EngineIface* h) {
 
 static enum test_result test_consumer_backoff_stat(EngineIface* h) {
     set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Replication,
+              EngineParamCategory::Replication,
               "replication_throttle_queue_cap",
               "10");
     checkeq(10,
@@ -6318,7 +6307,7 @@ static enum test_result test_dcp_last_items_purged(EngineIface* h) {
     wait_for_flusher_to_settle(h);
 
     /* Run compaction */
-    compact_db(h, Vbid(0), Vbid(0), 2, high_seqno, 1);
+    compact_db(h, Vbid(0), 2, high_seqno, 1);
     wait_for_stat_to_be(h, "ep_pending_compactions", 0);
     checkeq(static_cast<int>(high_seqno - 1),
             get_int_stat(h, "vb_0:purge_seqno", "vbucket-seqno"),
@@ -6399,7 +6388,7 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h) {
     wait_for_flusher_to_settle(h);
 
     /* Run compaction */
-    compact_db(h, Vbid(0), Vbid(0), 2, high_seqno, 1);
+    compact_db(h, Vbid(0), 2, high_seqno, 1);
     wait_for_stat_to_be(h, "ep_pending_compactions", 0);
     checkeq(static_cast<int>(high_seqno - 1),
             get_int_stat(h, "vb_0:purge_seqno", "vbucket-seqno"),
@@ -7726,10 +7715,7 @@ static enum test_result test_mb19153(EngineIface* h) {
 
     // Set max num AUX IO to 0, so no backfill would start
     // immediately
-    set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Flush,
-              "num_auxio_threads",
-              "0");
+    set_param(h, EngineParamCategory::Flush, "num_auxio_threads", "0");
 
     int num_items = 10000;
 
@@ -7790,10 +7776,7 @@ static enum test_result test_mb19153(EngineIface* h) {
 
     // Set auxIO threads to 1, so the backfill for the closed producer
     // is picked up, and begins to run.
-    set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Flush,
-              "num_auxio_threads",
-              "1");
+    set_param(h, EngineParamCategory::Flush, "num_auxio_threads", "1");
 
     // Terminate engine
     return SUCCESS;
@@ -7899,30 +7882,40 @@ static enum test_result test_mb19982(EngineIface* h) {
 }
 
 static enum test_result test_set_dcp_param(EngineIface* h) {
-    auto func = [h](std::string key, size_t newValue, bool expectedSetParam) {
+    auto func = [h](std::string key,
+                    size_t newValue,
+                    cb::engine_errc expectedSetParam) {
         std::string statKey = "ep_" + key;
         size_t param = get_int_stat(h, statKey.c_str());
         std::string value = std::to_string(newValue);
         checkeq(expectedSetParam,
                 set_param(h,
-                          cb::mcbp::request::SetParamPayload::Type::Dcp,
+                          EngineParamCategory::Dcp,
                           key.c_str(),
                           value.c_str()),
                 "Set param not expected");
         checkne(newValue, param,
                 "Forcing failure as nothing will change");
 
-        if (expectedSetParam) {
+        if (expectedSetParam == cb::engine_errc::success) {
             checkeq(newValue,
                     size_t(get_int_stat(h, statKey.c_str())),
                     "Incorrect dcp param value after calling set_param");
         }
     };
 
-    func("dcp_consumer_process_buffered_messages_yield_limit", 1000, true);
-    func("dcp_consumer_process_buffered_messages_batch_size", 1000, true);
-    func("dcp_consumer_process_buffered_messages_yield_limit", 0, false);
-    func("dcp_consumer_process_buffered_messages_batch_size", 0, false);
+    func("dcp_consumer_process_buffered_messages_yield_limit",
+         1000,
+         cb::engine_errc::success);
+    func("dcp_consumer_process_buffered_messages_batch_size",
+         1000,
+         cb::engine_errc::success);
+    func("dcp_consumer_process_buffered_messages_yield_limit",
+         0,
+         cb::engine_errc::invalid_arguments);
+    func("dcp_consumer_process_buffered_messages_batch_size",
+         0,
+         cb::engine_errc::invalid_arguments);
     return SUCCESS;
 }
 
@@ -8027,18 +8020,14 @@ static enum test_result test_MB_34634(EngineIface* h) {
 
     // 5) Set the topology
     {
-        char vbState = static_cast<char>(vbucket_state_active);
-        const char* topology = R"({"topology":[["active"]]})";
-        auto request = createPacket(cb::mcbp::ClientOpcode::SetVbucket,
-                                    vb,
-                                    0,
-                                    {&vbState, 1},
-                                    {/*no key*/},
-                                    {topology, strlen(topology)});
-
-        std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-        checkeq(ENGINE_SUCCESS,
-                h->unknown_command(cookie.get(), *request, add_response),
+        MockCookie mc;
+        auto meta = R"({"topology":[["active"]]})"_json;
+        checkeq(cb::engine_errc::success,
+                h->setVBucket(&mc,
+                              vb,
+                              mcbp::cas::Wildcard,
+                              vbucket_state_active,
+                              &meta),
                 "Calling set vb state failed");
     }
 

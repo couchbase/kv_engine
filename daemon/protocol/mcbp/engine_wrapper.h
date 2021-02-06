@@ -496,3 +496,18 @@ ENGINE_ERROR_CODE dcpAbort(Cookie& cookie,
                            const DocKey& key,
                            uint64_t prepared_seqno,
                            uint64_t abort_seqno);
+
+cb::engine_errc bucket_set_parameter(Cookie& cookie,
+                                     EngineParamCategory category,
+                                     std::string_view key,
+                                     std::string_view value,
+                                     Vbid vbucket);
+
+cb::engine_errc bucket_compact_database(Cookie& cookie);
+
+std::pair<cb::engine_errc, vbucket_state_t> bucket_get_vbucket(Cookie& cookie);
+
+cb::engine_errc bucket_set_vbucket(Cookie& cookie,
+                                   vbucket_state_t state,
+                                   nlohmann::json& meta);
+cb::engine_errc bucket_delete_vbucket(Cookie& cookie, Vbid vbid, bool sync);

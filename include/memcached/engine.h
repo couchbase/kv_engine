@@ -644,6 +644,91 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
     virtual float getMinCompressionRatio() {
         return default_min_compression_ratio;
     }
+
+    /**
+     * Set a configuration parameter in the engine
+     *
+     * @param cookie The cookie identifying the request
+     * @param category The parameter category
+     * @param key The name of the parameter
+     * @param value The value for the parameter
+     * @param vbucket The vbucket specified in the request (only used for
+     *                the vbucket sub group)
+     * @return The standard engine codes
+     */
+    virtual cb::engine_errc setParameter(gsl::not_null<const void*> cookie,
+                                         EngineParamCategory category,
+                                         std::string_view key,
+                                         std::string_view value,
+                                         Vbid vbucket) {
+        return cb::engine_errc::not_supported;
+    }
+
+    /**
+     * Compact a database
+     *
+     * @param cookie The cookie identifying the request
+     * @param vbid The vbucket to compact
+     * @param purge_before_ts The timestamp to purge items before
+     * @param purge_before_seq The sequence number to purge items before
+     * @param drop_deletes Set to true if deletes should be dropped
+     * @return The standard engine codes
+     */
+    virtual cb::engine_errc compactDatabase(gsl::not_null<const void*> cookie,
+                                            Vbid vbid,
+                                            uint64_t purge_before_ts,
+                                            uint64_t purge_before_seq,
+                                            bool drop_deletes) {
+        return cb::engine_errc::not_supported;
+    }
+
+    /**
+     * Get the state of a vbucket
+     *
+     * @param cookie The cookie identifying the request
+     * @param vbid The vbucket to look up
+     * @return A pair where the first entry is one of the standard engine codes
+     *         and the second is the state when the status is success.
+     */
+    virtual std::pair<cb::engine_errc, vbucket_state_t> getVBucket(
+            gsl::not_null<const void*> cookie, Vbid vbid) {
+        return {cb::engine_errc::not_supported, vbucket_state_dead};
+    }
+
+    /**
+     * Set the state of a vbucket
+     *
+     * @param cookie The cookie identifying the request
+     * @param vbid The vbucket to update
+     * @param cas The current value used for CAS swap
+     * @param state The new vbucket state
+     * @param meta The optional meta information for the state (nullptr if
+     *             none is provided)
+     * @return The standard engine codes
+     */
+    virtual cb::engine_errc setVBucket(gsl::not_null<const void*> cookie,
+                                       Vbid vbid,
+                                       uint64_t cas,
+                                       vbucket_state_t state,
+                                       nlohmann::json* meta) {
+        return cb::engine_errc::not_supported;
+    }
+
+    /**
+     * Delete a vbucket
+     *
+     * @param cookie The cookie identifying the request
+     * @param vbid The vbucket to delete
+     * @param sync If the operation should block (return EWB and be signalled
+     *             when the operation is done) or delete in "fire and forget"
+     *             mode.
+     * @return The standard engine codes
+     */
+    virtual cb::engine_errc deleteVBucket(gsl::not_null<const void*> cookie,
+                                          Vbid vbid,
+                                          bool sync) {
+        return cb::engine_errc::not_supported;
+    }
 };
 
 namespace cb {

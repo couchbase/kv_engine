@@ -25,6 +25,7 @@
 #include <folly/portability/SysStat.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <memcached/util.h>
+#include <nlohmann/json.hpp>
 #include <platform/cbassert.h>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
@@ -713,74 +714,29 @@ unique_request_ptr prepare_get_replica(EngineIface* h,
     return request;
 }
 
-bool set_param(EngineIface* h,
-               cb::mcbp::request::SetParamPayload::Type paramtype,
-               const char* param,
-               const char* val,
-               Vbid vb) {
-    cb::mcbp::request::SetParamPayload payload;
-    payload.setParamType(paramtype);
-    auto buffer = payload.getBuffer();
-    auto request = createPacket(
-            cb::mcbp::ClientOpcode::SetParam,
-            vb,
-            0,
-            {reinterpret_cast<const char*>(buffer.data()), buffer.size()},
-            {param, strlen(param)},
-            {val, strlen(val)});
-
-    std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    auto err = h->unknown_command(cookie.get(), *request, add_response);
-
-    if (err == ENGINE_SUCCESS) {
-        last_status = cb::mcbp::Status::Success;
-        return true;
-    }
-
-    // remap the error codes being used
-    if (err == ENGINE_EINVAL) {
-        last_status = cb::mcbp::Status::Einval;
-    } else if (err == ENGINE_NOT_MY_VBUCKET) {
-        last_status = cb::mcbp::Status::NotMyVbucket;
-    } else if (err == ENGINE_KEY_ENOENT) {
-        last_status = cb::mcbp::Status::Einval;
-    } else {
-        std::cerr << "Unknown error code returned!" << std::endl;
-        std::abort();
-    }
-    return false;
+cb::engine_errc set_param(EngineIface* h,
+                          EngineParamCategory paramtype,
+                          const char* param,
+                          const char* val,
+                          Vbid vb) {
+    MockCookie cookie;
+    return h->setParameter(&cookie, paramtype, param, val, vb);
 }
 
 bool set_vbucket_state(EngineIface* h,
                        Vbid vb,
                        vbucket_state_t state,
                        std::string_view meta) {
-    uint8_t datatype = 0x0;
-    std::unique_ptr<char[]> extras;
-    uint8_t extSize = 0;
-    if (!meta.empty()) {
-        // mad-hatter encoding
-        datatype = 0x1;
-        extSize = 1;
-        extras = std::make_unique<char[]>(extSize);
-        *extras.get() = static_cast<char>(state);
+    MockCookie cookie;
+    cb::engine_errc ret;
+    if (meta.empty()) {
+        ret = h->setVBucket(&cookie, vb, mcbp::cas::Wildcard, state, nullptr);
     } else {
-        // pre mad-hatter encoding
-        extSize = 4;
-        extras = std::make_unique<char[]>(extSize);
-        encodeExt(extras.get(), static_cast<int32_t>(state));
+        auto json = nlohmann::json::parse(meta);
+        ret = h->setVBucket(&cookie, vb, mcbp::cas::Wildcard, state, &json);
     }
 
-    auto request = createPacket(cb::mcbp::ClientOpcode::SetVbucket,
-                                vb,
-                                0 /*cas*/,
-                                {extras.get(), extSize},
-                                {} /*key*/,
-                                meta /*value*/,
-                                datatype);
-    std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    return h->unknown_command(cookie.get(), *request, add_response) ==
-           ENGINE_SUCCESS;
+    return ret == cb::engine_errc::success;
 }
 
 bool get_all_vb_seqnos(EngineIface* h,
@@ -1337,50 +1293,38 @@ ENGINE_ERROR_CODE unl(EngineIface* h,
 }
 
 void compact_db(EngineIface* h,
-                const Vbid vbucket_id,
                 const Vbid db_file_id,
                 const uint64_t purge_before_ts,
                 const uint64_t purge_before_seq,
                 const uint8_t drop_deletes) {
-    cb::mcbp::request::CompactDbPayload payload;
-    payload.setPurgeBeforeTs(purge_before_ts);
-    payload.setPurgeBeforeSeq(purge_before_seq);
-    payload.setDropDeletes(drop_deletes);
-    payload.setDbFileId(db_file_id);
-
-    std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    auto pkt = createPacket(
-            cb::mcbp::ClientOpcode::CompactDb,
-            vbucket_id,
-            0,
-            {reinterpret_cast<const char*>(&payload), sizeof(payload)});
-    auto ret = h->unknown_command(cookie.get(), *pkt, add_response);
-
+    MockCookie cookie;
+    auto ret = h->compactDatabase(&cookie,
+                                  db_file_id,
+                                  purge_before_ts,
+                                  purge_before_seq,
+                                  drop_deletes);
     const auto backend = get_str_stat(h, "ep_backend");
-
     if (backend == "couchdb" || backend == "magma") {
-        if (ret == ENGINE_ENOTSUP) {
+        if (ret == cb::engine_errc::not_supported) {
             // Ephemeral, couchdb and magma (but not rocksdb) buckets can
             // return ENGINE_ENOTSUP.  This method is called from a lot
             // of test cases we run. Lets remap the error code to success.
             // Note: Ephemeral buckets use couchdb as backend.
-            ret = ENGINE_SUCCESS;
+            ret = cb::engine_errc::success;
         }
-        checkeq(ENGINE_SUCCESS, ret, "Failed to request compact vbucket");
+        checkeq(cb::engine_errc::success,
+                ret,
+                "Failed to request compact vbucket");
     } else {
-        checkeq(ENGINE_FAILED,
+        checkeq(cb::engine_errc::failed,
                 ret,
                 "checkForDBExistence returns ENGINE_FAILED for !couchdb");
     }
 }
 
-ENGINE_ERROR_CODE vbucketDelete(EngineIface* h, Vbid vb, const char* args) {
-    std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    uint32_t argslen = args ? strlen(args) : 0;
-    auto pkt = createPacket(
-            cb::mcbp::ClientOpcode::DelVbucket, vb, 0, {}, {}, {args, argslen});
-
-    return h->unknown_command(cookie.get(), *pkt, add_response);
+cb::engine_errc vbucketDelete(EngineIface* h, Vbid vb, const char* args) {
+    MockCookie cookie;
+    return h->deleteVBucket(&cookie, vb, args && strcmp(args, "async=0") == 0);
 }
 
 ENGINE_ERROR_CODE verify_key(EngineIface* h, const char* key, Vbid vbucket) {
@@ -1439,30 +1383,17 @@ bool verify_vbucket_state(EngineIface* h,
                           Vbid vb,
                           vbucket_state_t expected,
                           bool mute) {
-    std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    auto pkt = createPacket(cb::mcbp::ClientOpcode::GetVbucket, vb, 0);
-
-    ENGINE_ERROR_CODE errcode =
-            h->unknown_command(cookie.get(), *pkt, add_response);
-    if (errcode != ENGINE_SUCCESS) {
+    MockCookie cookie;
+    const auto [status, state] = h->getVBucket(&cookie, vb);
+    if (status != cb::engine_errc::success) {
         if (!mute) {
-            fprintf(stderr, "Error code when getting vbucket %d\n", errcode);
+            fprintf(stderr,
+                    "Error code when getting vbucket %s\n",
+                    cb::to_string(status).c_str());
         }
         return false;
     }
 
-    if (last_status != cb::mcbp::Status::Success) {
-        if (!mute) {
-            fprintf(stderr, "Last protocol status was %s (%s)\n",
-                    to_string(last_status.load()).c_str(),
-                    !last_body.empty() ? last_body.c_str() : "unknown");
-        }
-        return false;
-    }
-
-    vbucket_state_t state;
-    memcpy(&state, last_body.data(), sizeof(state));
-    state = static_cast<vbucket_state_t>(ntohl(state));
     return state == expected;
 }
 

@@ -31,6 +31,11 @@ enum class ConnectionPriority : uint8_t { High, Medium, Low };
 std::string to_string(const ConnectionPriority cp);
 std::ostream& operator<<(std::ostream& os, const ConnectionPriority& cp);
 
+enum class EngineParamCategory { Flush, Replication, Checkpoint, Dcp, Vbucket };
+
+std::string to_string(const EngineParamCategory epc);
+std::ostream& operator<<(std::ostream& os, const EngineParamCategory& epc);
+
 /**
  * Data common to any item stored in memcached.
  */

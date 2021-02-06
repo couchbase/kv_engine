@@ -465,7 +465,7 @@ static enum test_result test_get_meta_mb23905(EngineIface* h) {
 
         // Run compaction to start using the bloomfilter
         std::chrono::microseconds sleepTime{128};
-        compact_db(h, Vbid(0), Vbid(0), 1, 1, 0);
+        compact_db(h, Vbid(0), 1, 1, 0);
         while (get_int_stat(h, "ep_pending_compactions") != 0) {
             decayingSleep(&sleepTime);
         }
@@ -762,7 +762,7 @@ static enum test_result test_delete_with_meta_nonexistent_no_temp(
 
     // Run compaction to start using the bloomfilter
     std::chrono::microseconds sleepTime{128};
-    compact_db(h, Vbid(0), Vbid(0), 1, 1, 0);
+    compact_db(h, Vbid(0), 1, 1, 0);
     while (get_int_stat(h, "ep_pending_compactions") != 0) {
         decayingSleep(&sleepTime);
     }
@@ -1814,16 +1814,10 @@ static enum test_result test_temp_item_deletion(EngineIface* h) {
     // We need to temporarily disable the reader threads as to prevent the
     // BGfetch from immediately running and removing our temp_item before
     // we've had chance to validate its existence.
-    set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Flush,
-              "num_reader_threads",
-              "0");
+    set_param(h, EngineParamCategory::Flush, "num_reader_threads", "0");
 
     // Disable nonio so that we have better control of the expirypager
-    set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Flush,
-              "num_nonio_threads",
-              "0");
+    set_param(h, EngineParamCategory::Flush, "num_nonio_threads", "0");
 
     // Tell the harness not to handle EWOULDBLOCK for us - we want it to
     // be outstanding while we check the below stats.
@@ -1845,10 +1839,7 @@ static enum test_result test_temp_item_deletion(EngineIface* h) {
 
     // Re-enable EWOULDBLOCK handling (and reader threads), and re-issue.
     testHarness->set_ewouldblock_handling(cookie, true);
-    set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Flush,
-              "num_reader_threads",
-              "1");
+    set_param(h, EngineParamCategory::Flush, "num_reader_threads", "1");
 
     check(get_meta(h, k1, errorMetaPair, cookie),
           "Expected get_meta to succeed");
@@ -1878,10 +1869,7 @@ static enum test_result test_temp_item_deletion(EngineIface* h) {
             "Num get meta ops not as expected");
 
     // Trigger the expiry pager and verify that two temp items are deleted
-    set_param(h,
-              cb::mcbp::request::SetParamPayload::Type::Flush,
-              "num_nonio_threads",
-              "1");
+    set_param(h, EngineParamCategory::Flush, "num_nonio_threads", "1");
 
     // When bloom filters are on, it skips 1 of the expired items.
     int ep_expired_pager = get_bool_stat(h, "ep_bfilter_enabled") ? 1 : 2;
@@ -2595,11 +2583,12 @@ static enum test_result test_setting_drift_threshold(EngineIface* h) {
 
     for (auto data : values) {
         for (auto conf : configData) {
-            check(set_param(h,
-                            cb::mcbp::request::SetParamPayload::Type::Vbucket,
-                            std::get<1>(conf).c_str(),
-                            data.first.data()),
-                  "Expected set_param success");
+            checkeq(cb::engine_errc::success,
+                    set_param(h,
+                              EngineParamCategory::Vbucket,
+                              std::get<1>(conf).c_str(),
+                              data.first.data()),
+                    "Expected set_param success");
 
             checkeq(int64_t(data.second.count()),
                     int64_t(get_ull_stat(

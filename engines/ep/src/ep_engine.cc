@@ -937,113 +937,73 @@ cb::mcbp::Status EventuallyPersistentEngine::evictKey(
     return rv;
 }
 
-cb::engine_errc EventuallyPersistentEngine::setParam(
-        const cb::mcbp::Request& req, std::string& msg) {
-    using cb::mcbp::request::SetParamPayload;
-    auto extras = req.getExtdata();
-    auto* payload = reinterpret_cast<const SetParamPayload*>(extras.data());
-
-    auto key = req.getKey();
-    auto val = req.getValue();
-
-    const std::string keyz(reinterpret_cast<const char*>(key.data()),
-                           key.size());
-    const std::string valz(reinterpret_cast<const char*>(val.data()),
-                           val.size());
-
-    switch (payload->getParamType()) {
-    case SetParamPayload::Type::Flush:
-        return setFlushParam(keyz, valz, msg);
-    case SetParamPayload::Type::Replication:
-        return setReplicationParam(keyz, valz, msg);
-    case SetParamPayload::Type::Checkpoint:
-        return setCheckpointParam(keyz, valz, msg);
-    case SetParamPayload::Type::Dcp:
-        return setDcpParam(keyz, valz, msg);
-    case SetParamPayload::Type::Vbucket:
-        return setVbucketParam(req.getVBucket(), keyz, valz, msg);
-    }
-
-    return cb::engine_errc::no_such_key;
+cb::engine_errc EventuallyPersistentEngine::setParameter(
+        gsl::not_null<const void*> cookie,
+        EngineParamCategory category,
+        std::string_view key,
+        std::string_view value,
+        Vbid vbid) {
+    return acquireEngine(this)->setParameterInner(
+            cookie, category, key, value, vbid);
 }
 
-static ENGINE_ERROR_CODE getVBucket(EventuallyPersistentEngine& e,
-                                    const void* cookie,
-                                    const cb::mcbp::Request& request,
-                                    const AddResponseFn& response) {
-    Vbid vbucket = request.getVBucket();
-    VBucketPtr vb = e.getVBucket(vbucket);
+cb::engine_errc EventuallyPersistentEngine::setParameterInner(
+        gsl::not_null<const void*> cookie,
+        EngineParamCategory category,
+        std::string_view key,
+        std::string_view value,
+        Vbid vbid) {
+    const std::string keyz(key);
+    const std::string valz(value);
+
+    std::string msg;
+    cb::engine_errc ret = cb::engine_errc::no_such_key;
+    switch (category) {
+    case EngineParamCategory::Flush:
+        ret = setFlushParam(keyz, valz, msg);
+        break;
+    case EngineParamCategory::Replication:
+        ret = setReplicationParam(keyz, valz, msg);
+        break;
+    case EngineParamCategory::Checkpoint:
+        ret = setCheckpointParam(keyz, valz, msg);
+        break;
+    case EngineParamCategory::Dcp:
+        ret = setDcpParam(keyz, valz, msg);
+        break;
+    case EngineParamCategory::Vbucket:
+        ret = setVbucketParam(vbid, keyz, valz, msg);
+        break;
+    }
+
+    if (ret != cb::engine_errc::success && !msg.empty()) {
+        setErrorContext(cookie, msg);
+    }
+
+    return ret;
+}
+
+std::pair<cb::engine_errc, vbucket_state_t>
+EventuallyPersistentEngine::getVBucketInner(gsl::not_null<const void*> cookie,
+                                            Vbid vbucket) {
+    HdrMicroSecBlockTimer timer(&stats.getVbucketCmdHisto);
+
+    auto vb = getVBucket(vbucket);
     if (!vb) {
-        return ENGINE_NOT_MY_VBUCKET;
-    } else {
-        const auto state = static_cast<vbucket_state_t>(ntohl(vb->getState()));
-        return sendResponse(
-                response,
-                {}, // key
-                {}, // extra
-                {reinterpret_cast<const char*>(&state), sizeof(state)}, // body
-                PROTOCOL_BINARY_RAW_BYTES,
-                cb::mcbp::Status::Success,
-                0,
-                cookie);
+        return {cb::engine_errc::not_my_vbucket, vbucket_state_dead};
     }
+    return {cb::engine_errc::success, vb->getState()};
 }
 
-static ENGINE_ERROR_CODE setVBucket(EventuallyPersistentEngine& e,
-                                    const void* cookie,
-                                    const cb::mcbp::Request& request) {
-    nlohmann::json meta;
-    vbucket_state_t state;
-    auto extras = request.getExtdata();
-
-    if (extras.size() == 1) {
-        // This is the new encoding for the SetVBucket state.
-        state = vbucket_state_t(extras.front());
-        auto val = request.getValue();
-        if (!val.empty()) {
-            if (state != vbucket_state_active) {
-                e.setErrorContext(
-                        cookie,
-                        "vbucket meta may only be set on active vbuckets");
-                return ENGINE_EINVAL;
-            }
-
-            try {
-                meta = nlohmann::json::parse(val);
-            } catch (const std::exception&) {
-                e.setErrorContext(cookie, "Invalid JSON provided");
-                return ENGINE_EINVAL;
-            }
-        }
-    } else {
-        // This is the pre-mad-hatter encoding for the SetVBucketState
-        if (extras.size() != sizeof(vbucket_state_t)) {
-            // MB-31867: ns_server encodes this in the value field. Fall back
-            //           and check if it contains the value
-            extras = request.getValue();
-        }
-
-        state = static_cast<vbucket_state_t>(
-                ntohl(*reinterpret_cast<const uint32_t*>(extras.data())));
-    }
-
-    return e.setVBucketState(cookie,
-                             request.getVBucket(),
-                             state,
-                             meta.empty() ? nullptr : &meta,
-                             TransferVB::No,
-                             request.getCas());
-}
-
-static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine& e,
-                                    const void* cookie,
-                                    const cb::mcbp::Request& req,
-                                    const AddResponseFn& response) {
-    Vbid vbucket = req.getVBucket();
-    auto value = req.getValue();
-    bool sync = value.size() == 7 && memcmp(value.data(), "async=0", 7) == 0;
-
-    return e.deleteVBucket(vbucket, sync, cookie);
+cb::engine_errc EventuallyPersistentEngine::setVBucketInner(
+        gsl::not_null<const void*> cookie,
+        Vbid vbid,
+        uint64_t cas,
+        vbucket_state_t state,
+        nlohmann::json* meta) {
+    HdrMicroSecBlockTimer timer(&stats.setVbucketCmdHisto);
+    return setVBucketState(
+            cookie.get(), vbid, state, meta, TransferVB::No, cas);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getReplicaCmd(
@@ -1084,45 +1044,38 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getReplicaCmd(
     return error_code;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::compactDB(
-        const void* cookie,
-        const cb::mcbp::Request& req,
-        const AddResponseFn& response) {
+cb::engine_errc EventuallyPersistentEngine::compactDatabaseInner(
+        gsl::not_null<const void*> cookie,
+        Vbid vbid,
+        uint64_t purge_before_ts,
+        uint64_t purge_before_seq,
+        bool drop_deletes) {
     if (getEngineSpecific(cookie)) {
         // This is a completion of a compaction. Clear the engine-specific
         // part
         storeEngineSpecific(cookie, nullptr);
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
-    auto extras = req.getExtdata();
-    const auto* payload =
-            reinterpret_cast<const cb::mcbp::request::CompactDbPayload*>(
-                    extras.data());
-
-    CompactionConfig compactionConfig;
-    compactionConfig.purge_before_ts = payload->getPurgeBeforeTs();
-    compactionConfig.purge_before_seq = payload->getPurgeBeforeSeq();
-    compactionConfig.drop_deletes = payload->getDropDeletes();
-    const auto vbid = req.getVBucket();
+    CompactionConfig compactionConfig{
+            purge_before_ts, purge_before_seq, drop_deletes, false};
 
     ++stats.pendingCompactions;
     storeEngineSpecific(cookie, this);
-    const auto err = scheduleCompaction(vbid, compactionConfig, cookie);
+    const auto err =
+            cb::engine_errc(scheduleCompaction(vbid, compactionConfig, cookie));
 
     switch (err) {
-    case ENGINE_SUCCESS:
+    case cb::engine_errc::success:
         break;
-    case ENGINE_EWOULDBLOCK:
+    case cb::engine_errc::would_block:
         // We don't use the value stored in the engine-specific code, just
         // that it is non-null...
         storeEngineSpecific(cookie, this);
         break;
     default:
         --stats.pendingCompactions;
-        EP_LOG_WARN("Compaction of {} failed: {}",
-                    vbid,
-                    cb::to_string(cb::engine_errc(err)));
+        EP_LOG_WARN("Compaction of {} failed: {}", vbid, cb::to_string(err));
         break;
     }
 
@@ -1141,36 +1094,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::processUnknownCommandInner(
     switch (request.getClientOpcode()) {
     case cb::mcbp::ClientOpcode::GetAllVbSeqnos:
         return getAllVBucketSequenceNumbers(cookie, request, response);
-
-    case cb::mcbp::ClientOpcode::GetVbucket: {
-        HdrMicroSecBlockTimer timer(&stats.getVbucketCmdHisto);
-        return ::getVBucket(*this, cookie, request, response);
-    }
-    case cb::mcbp::ClientOpcode::DelVbucket: {
-        HdrMicroSecBlockTimer timer(&stats.delVbucketCmdHisto);
-        const auto rv = ::delVBucket(*this, cookie, request, response);
-        if (rv != ENGINE_EWOULDBLOCK) {
-            storeEngineSpecific(cookie, nullptr);
-        }
-        return rv;
-    }
-    case cb::mcbp::ClientOpcode::SetVbucket: {
-        HdrMicroSecBlockTimer timer(&stats.setVbucketCmdHisto);
-        return ::setVBucket(*this, cookie, request);
-    }
     case cb::mcbp::ClientOpcode::StopPersistence:
         res = stopFlusher(&msg, &msg_size);
         break;
     case cb::mcbp::ClientOpcode::StartPersistence:
         res = startFlusher(&msg, &msg_size);
         break;
-    case cb::mcbp::ClientOpcode::SetParam: {
-        auto rv = setParam(request, dynamic_msg);
-        if (!dynamic_msg.empty()) {
-            setErrorContext(cookie, dynamic_msg);
-        }
-        return ENGINE_ERROR_CODE(rv);
-    }
     case cb::mcbp::ClientOpcode::EvictKey:
         res = evictKey(cookie, request, &msg);
         break;
@@ -1201,13 +1130,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::processUnknownCommandInner(
     case cb::mcbp::ClientOpcode::EnableTraffic:
     case cb::mcbp::ClientOpcode::DisableTraffic:
         return handleTrafficControlCmd(cookie, request, response);
-    case cb::mcbp::ClientOpcode::CompactDb: {
-        const auto rv = compactDB(cookie, request, response);
-        if (rv != ENGINE_EWOULDBLOCK) {
-            storeEngineSpecific(cookie, nullptr);
-        }
-        return rv;
-    }
     case cb::mcbp::ClientOpcode::GetRandomKey:
         return getRandomKey(cookie, request, response);
     case cb::mcbp::ClientOpcode::GetKeys:
@@ -6377,59 +6299,59 @@ cb::mcbp::Status EventuallyPersistentEngine::startFlusher(const char** msg,
     return rv;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteVBucket(
-        Vbid vbucket, bool waitForCompletion, const void* cookie) {
-    ENGINE_ERROR_CODE status = ENGINE_SUCCESS;
+cb::engine_errc EventuallyPersistentEngine::deleteVBucketInner(
+        gsl::not_null<const void*> cookie, Vbid vbid, bool sync) {
+    HdrMicroSecBlockTimer timer(&stats.delVbucketCmdHisto);
+    auto status = cb::engine_errc::success;
     if (getKVBucket()->maybeWaitForVBucketWarmup(cookie)) {
-        return ENGINE_EWOULDBLOCK;
+        return cb::engine_errc::would_block;
     }
 
     void* es = getEngineSpecific(cookie);
-    if (waitForCompletion) {
-        if (es == nullptr) {
-            status = kvBucket->deleteVBucket(vbucket, cookie);
-        } else {
-            storeEngineSpecific(cookie, nullptr);
-            EP_LOG_DEBUG("Completed sync deletion of {}", vbucket);
-            status = ENGINE_SUCCESS;
+    storeEngineSpecific(cookie, nullptr);
+
+    if (sync) {
+        if (es) {
+            EP_LOG_DEBUG("Completed sync deletion of {}", vbid);
+            return cb::engine_errc::success;
         }
+        status = cb::engine_errc(kvBucket->deleteVBucket(vbid, cookie));
     } else {
-        status = kvBucket->deleteVBucket(vbucket);
+        status = cb::engine_errc(kvBucket->deleteVBucket(vbid));
     }
 
     switch (status) {
-    case ENGINE_SUCCESS:
-        EP_LOG_INFO("Deletion of {} was completed.", vbucket);
+    case cb::engine_errc::success:
+        EP_LOG_INFO("Deletion of {} was completed.", vbid);
         break;
 
-    case ENGINE_NOT_MY_VBUCKET:
+    case cb::engine_errc::not_my_vbucket:
         EP_LOG_WARN(
                 "Deletion of {} failed because the vbucket doesn't exist!!!",
-                vbucket);
+                vbid);
         break;
-    case ENGINE_EINVAL:
+    case cb::engine_errc::invalid_arguments:
         EP_LOG_WARN(
-                "Deletion of {} failed "
-                "because the vbucket is not in a dead state",
-                vbucket);
+                "Deletion of {} failed because the vbucket is not in a dead "
+                "state",
+                vbid);
         setErrorContext(
                 cookie,
                 "Failed to delete vbucket.  Must be in the dead state.");
         break;
-    case ENGINE_EWOULDBLOCK:
+    case cb::engine_errc::would_block:
         EP_LOG_INFO(
-                "Request for {} deletion is in"
-                " EWOULDBLOCK until the database file is removed from disk",
-                vbucket);
+                "Request for {} deletion is in EWOULDBLOCK until the database "
+                "file is removed from disk",
+                vbid);
         // We don't use the actual value in ewouldblock, just the existence
         // of something there.
         storeEngineSpecific(cookie, static_cast<void*>(this));
         break;
     default:
-        EP_LOG_WARN("Deletion of {} failed because of unknown reasons",
-                    vbucket);
+        EP_LOG_WARN("Deletion of {} failed because of unknown reasons", vbid);
         setErrorContext(cookie, "Failed to delete vbucket.  Unknown reason.");
-        status = ENGINE_FAILED;
+        status = cb::engine_errc::failed;
         break;
     }
     return status;
@@ -6649,7 +6571,7 @@ std::unique_ptr<KVBucket> EventuallyPersistentEngine::makeBucket(
                                 "type");
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::setVBucketState(
+cb::engine_errc EventuallyPersistentEngine::setVBucketState(
         const void* cookie,
         Vbid vbid,
         vbucket_state_t to,
@@ -6661,7 +6583,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setVBucketState(
         setErrorContext(cookie, "VBucket number too big");
     }
 
-    return status;
+    return cb::engine_errc(status);
 }
 
 EventuallyPersistentEngine::~EventuallyPersistentEngine() {
@@ -6838,4 +6760,34 @@ void EventuallyPersistentEngine::disconnect(gsl::not_null<const void*> cookie) {
 void EventuallyPersistentEngine::setStorageThreadCallback(
         std::function<void(size_t)> cb) {
     getServerApi()->core->setStorageThreadCallback(cb);
+}
+
+cb::engine_errc EventuallyPersistentEngine::compactDatabase(
+        gsl::not_null<const void*> cookie,
+        Vbid vbid,
+        uint64_t purge_before_ts,
+        uint64_t purge_before_seq,
+        bool drop_deletes) {
+    return acquireEngine(this)->compactDatabaseInner(
+            cookie, vbid, purge_before_ts, purge_before_seq, drop_deletes);
+}
+
+std::pair<cb::engine_errc, vbucket_state_t>
+EventuallyPersistentEngine::getVBucket(gsl::not_null<const void*> cookie,
+                                       Vbid vbid) {
+    return acquireEngine(this)->getVBucketInner(cookie, vbid);
+}
+
+cb::engine_errc EventuallyPersistentEngine::setVBucket(
+        gsl::not_null<const void*> cookie,
+        Vbid vbid,
+        uint64_t cas,
+        vbucket_state_t state,
+        nlohmann::json* meta) {
+    return acquireEngine(this)->setVBucketInner(cookie, vbid, cas, state, meta);
+}
+
+cb::engine_errc EventuallyPersistentEngine::deleteVBucket(
+        gsl::not_null<const void*> cookie, Vbid vbid, bool sync) {
+    return acquireEngine(this)->deleteVBucketInner(cookie, vbid, sync);
 }
