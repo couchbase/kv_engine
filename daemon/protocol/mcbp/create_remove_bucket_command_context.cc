@@ -53,17 +53,17 @@ public:
     Cookie& cookie;
 };
 
-ENGINE_ERROR_CODE CreateRemoveBucketCommandContext::initial() {
+cb::engine_errc CreateRemoveBucketCommandContext::initial() {
     if (request.getClientOpcode() == cb::mcbp::ClientOpcode::CreateBucket) {
         state = State::Create;
     } else {
         state = State::Remove;
     }
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE CreateRemoveBucketCommandContext::create() {
+cb::engine_errc CreateRemoveBucketCommandContext::create() {
     auto k = request.getKey();
     auto v = request.getValue();
 
@@ -86,10 +86,10 @@ ENGINE_ERROR_CODE CreateRemoveBucketCommandContext::create() {
     executorPool->schedule(task, false);
 
     state = State::Done;
-    return ENGINE_EWOULDBLOCK;
+    return cb::engine_errc::would_block;
 }
 
-ENGINE_ERROR_CODE CreateRemoveBucketCommandContext::remove() {
+cb::engine_errc CreateRemoveBucketCommandContext::remove() {
     auto k = request.getKey();
     auto v = request.getValue();
 
@@ -104,7 +104,7 @@ ENGINE_ERROR_CODE CreateRemoveBucketCommandContext::remove() {
     items[1].key = nullptr;
 
     if (parse_config(config.c_str(), items.data(), stderr) != 0) {
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 
     task = std::make_shared<McbpDestroyBucketTask>(name, force, &cookie);
@@ -113,12 +113,12 @@ ENGINE_ERROR_CODE CreateRemoveBucketCommandContext::remove() {
     executorPool->schedule(task, false);
 
     state = State::Done;
-    return ENGINE_EWOULDBLOCK;
+    return cb::engine_errc::would_block;
 }
 
-ENGINE_ERROR_CODE CreateRemoveBucketCommandContext::step() {
+cb::engine_errc CreateRemoveBucketCommandContext::step() {
     try {
-        auto ret = ENGINE_SUCCESS;
+        auto ret = cb::engine_errc::success;
         do {
             switch (state) {
             case State::Initial:
@@ -132,12 +132,12 @@ ENGINE_ERROR_CODE CreateRemoveBucketCommandContext::step() {
                 break;
             case State::Done:
                 cookie.sendResponse(cb::mcbp::Status::Success);
-                return ENGINE_SUCCESS;
+                return cb::engine_errc::success;
             }
-        } while (ret == ENGINE_SUCCESS);
+        } while (ret == cb::engine_errc::success);
 
         return ret;
     } catch (const std::bad_alloc&) {
-        return ENGINE_ENOMEM;
+        return cb::engine_errc::no_memory;
     }
 }

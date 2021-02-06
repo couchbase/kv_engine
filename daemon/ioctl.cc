@@ -35,41 +35,41 @@
  * Function interface for ioctl_get callbacks
  */
 using GetCallbackFunc =
-        std::function<ENGINE_ERROR_CODE(Cookie& cookie,
-                                        const StrToStrMap& arguments,
-                                        std::string& value,
-                                        cb::mcbp::Datatype& datatype)>;
+        std::function<cb::engine_errc(Cookie& cookie,
+                                      const StrToStrMap& arguments,
+                                      std::string& value,
+                                      cb::mcbp::Datatype& datatype)>;
 
 /**
  * Function interface for ioctl_set callbacks
  */
 using SetCallbackFunc =
-        std::function<ENGINE_ERROR_CODE(Cookie& cookie,
-                                        const StrToStrMap& arguments,
-                                        const std::string& value)>;
+        std::function<cb::engine_errc(Cookie& cookie,
+                                      const StrToStrMap& arguments,
+                                      const std::string& value)>;
 
 /**
  * Callback for calling allocator specific memory release
  */
-static ENGINE_ERROR_CODE setReleaseFreeMemory(Cookie& cookie,
-                                              const StrToStrMap&,
-                                              const std::string& value) {
+static cb::engine_errc setReleaseFreeMemory(Cookie& cookie,
+                                            const StrToStrMap&,
+                                            const std::string& value) {
     cb::ArenaMalloc::releaseMemory();
     auto& c = cookie.getConnection();
     LOG_INFO("{}: IOCTL_SET: release_free_memory called", c.getId());
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-static ENGINE_ERROR_CODE setJemallocProfActive(Cookie& cookie,
-                                               const StrToStrMap&,
-                                               const std::string& value) {
+static cb::engine_errc setJemallocProfActive(Cookie& cookie,
+                                             const StrToStrMap&,
+                                             const std::string& value) {
     bool enable;
     if (value == "true") {
         enable = true;
     } else if (value == "false") {
         enable = false;
     } else {
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 
     int res = cb::ArenaMalloc::setProperty(
@@ -81,12 +81,13 @@ static ENGINE_ERROR_CODE setJemallocProfActive(Cookie& cookie,
              value,
              (res == 0) ? "success" : "failure");
 
-    return (res == 0) ? ENGINE_SUCCESS : ENGINE_EINVAL;
+    return (res == 0) ? cb::engine_errc::success
+                      : cb::engine_errc::invalid_arguments;
 }
 
-static ENGINE_ERROR_CODE setJemallocProfDump(Cookie& cookie,
-                                             const StrToStrMap&,
-                                             const std::string&) {
+static cb::engine_errc setJemallocProfDump(Cookie& cookie,
+                                           const StrToStrMap&,
+                                           const std::string&) {
     int res = cb::ArenaMalloc::setProperty("prof.dump", nullptr, 0);
     auto& c = cookie.getConnection();
     LOG_INFO("{}: {} IOCTL_SET: setJemallocProfDump called, result:{}",
@@ -94,33 +95,34 @@ static ENGINE_ERROR_CODE setJemallocProfDump(Cookie& cookie,
              c.getDescription(),
              (res == 0) ? "success" : "failure");
 
-    return (res == 0) ? ENGINE_SUCCESS : ENGINE_EINVAL;
+    return (res == 0) ? cb::engine_errc::success
+                      : cb::engine_errc::invalid_arguments;
 }
 
-ENGINE_ERROR_CODE ioctlGetMcbpSla(Cookie& cookie,
-                                  const StrToStrMap& arguments,
-                                  std::string& value,
-                                  cb::mcbp::Datatype& datatype) {
+cb::engine_errc ioctlGetMcbpSla(Cookie& cookie,
+                                const StrToStrMap& arguments,
+                                std::string& value,
+                                cb::mcbp::Datatype& datatype) {
     if (!arguments.empty() || !value.empty()) {
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 
     value = cb::mcbp::sla::to_json().dump();
     datatype = cb::mcbp::Datatype::JSON;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE ioctlRbacDbDump(Cookie& cookie,
-                                  const StrToStrMap& arguments,
-                                  std::string& value,
-                                  cb::mcbp::Datatype& datatype) {
+cb::engine_errc ioctlRbacDbDump(Cookie& cookie,
+                                const StrToStrMap& arguments,
+                                std::string& value,
+                                cb::mcbp::Datatype& datatype) {
     if (cookie.checkPrivilege(cb::rbac::Privilege::SecurityManagement)
                 .failed()) {
-        return ENGINE_EACCESS;
+        return cb::engine_errc::no_access;
     }
 
     if (!value.empty()) {
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 
     cb::sasl::Domain domain = cb::sasl::Domain::Local;
@@ -130,17 +132,17 @@ ENGINE_ERROR_CODE ioctlRbacDbDump(Cookie& cookie,
                 try {
                     domain = cb::sasl::to_domain(arg.second);
                 } catch (const std::exception&) {
-                    return ENGINE_EINVAL;
+                    return cb::engine_errc::invalid_arguments;
                 }
             } else {
-                return ENGINE_EINVAL;
+                return cb::engine_errc::invalid_arguments;
             }
         }
     }
 
     value = cb::rbac::to_json(domain).dump();
     datatype = cb::mcbp::Datatype::JSON;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 static const std::unordered_map<std::string, GetCallbackFunc> ioctl_get_map{
@@ -152,29 +154,29 @@ static const std::unordered_map<std::string, GetCallbackFunc> ioctl_get_map{
         {"sla", ioctlGetMcbpSla},
         {"rbac.db.dump", ioctlRbacDbDump}};
 
-ENGINE_ERROR_CODE ioctl_get_property(Cookie& cookie,
-                                     const std::string& key,
-                                     std::string& value,
-                                     cb::mcbp::Datatype& datatype) {
+cb::engine_errc ioctl_get_property(Cookie& cookie,
+                                   const std::string& key,
+                                   std::string& value,
+                                   cb::mcbp::Datatype& datatype) {
     datatype = cb::mcbp::Datatype::Raw;
     std::pair<std::string, StrToStrMap> request;
 
     try {
         request = decode_query(key);
     } catch (const std::invalid_argument&) {
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 
     auto entry = ioctl_get_map.find(request.first);
     if (entry != ioctl_get_map.end()) {
         return entry->second(cookie, request.second, value, datatype);
     }
-    return ENGINE_EINVAL;
+    return cb::engine_errc::invalid_arguments;
 }
 
-static ENGINE_ERROR_CODE ioctlSetMcbpSla(Cookie& cookie,
-                                         const StrToStrMap&,
-                                         const std::string& value) {
+static cb::engine_errc ioctlSetMcbpSla(Cookie& cookie,
+                                       const StrToStrMap&,
+                                       const std::string& value) {
     try {
         cb::mcbp::sla::reconfigure(nlohmann::json::parse(value));
         LOG_INFO("SLA configuration changed to: {}",
@@ -186,10 +188,10 @@ static ENGINE_ERROR_CODE ioctlSetMcbpSla(Cookie& cookie,
                  c.getId(),
                  cookie.getEventId(),
                  e.what());
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 static const std::unordered_map<std::string, SetCallbackFunc> ioctl_set_map{
@@ -202,20 +204,20 @@ static const std::unordered_map<std::string, SetCallbackFunc> ioctl_set_map{
         {"trace.dump.clear", ioctlSetTracingClearDump},
         {"sla", ioctlSetMcbpSla}};
 
-ENGINE_ERROR_CODE ioctl_set_property(Cookie& cookie,
-                                     const std::string& key,
-                                     const std::string& value) {
+cb::engine_errc ioctl_set_property(Cookie& cookie,
+                                   const std::string& key,
+                                   const std::string& value) {
     std::pair<std::string, StrToStrMap> request;
 
     try {
         request = decode_query(key);
     } catch (const std::invalid_argument&) {
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 
     auto entry = ioctl_set_map.find(request.first);
     if (entry != ioctl_set_map.end()) {
         return entry->second(cookie, request.second, value);
     }
-    return ENGINE_EINVAL;
+    return cb::engine_errc::invalid_arguments;
 }

@@ -263,13 +263,13 @@ public:
         // NOTE vmx 2016-10-29: Intentionally left empty;
     }
 
-    ENGINE_ERROR_CODE getAllKeys(
+    cb::engine_errc getAllKeys(
             Vbid vbid,
             const DiskDocKey& start_key,
             uint32_t count,
             std::shared_ptr<StatusCallback<const DiskDocKey&>> cb) override {
         // TODO vmx 2016-10-29: implement
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     std::unique_ptr<BySeqnoScanContext> initBySeqnoScanContext(

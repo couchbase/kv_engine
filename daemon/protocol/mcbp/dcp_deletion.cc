@@ -23,7 +23,7 @@
 #include <memcached/limits.h>
 #include <memcached/protocol_binary.h>
 
-static ENGINE_ERROR_CODE dcp_deletion_v1_executor(Cookie& cookie) {
+static cb::engine_errc dcp_deletion_v1_executor(Cookie& cookie) {
     auto& request = cookie.getHeader().getRequest();
     const auto key = cookie.getConnection().makeDocKey(request.getKey());
     const auto opaque = request.getOpaque();
@@ -35,7 +35,7 @@ static ENGINE_ERROR_CODE dcp_deletion_v1_executor(Cookie& cookie) {
     using cb::mcbp::request::DcpDeletionV1Payload;
 
     if (extras.size() != sizeof(DcpDeletionV1Payload)) {
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
     auto* payload =
             reinterpret_cast<const DcpDeletionV1Payload*>(extras.data());
@@ -65,12 +65,12 @@ static ENGINE_ERROR_CODE dcp_deletion_v1_executor(Cookie& cookie) {
                            rev_seqno,
                            meta);
     }
-    return ENGINE_E2BIG;
+    return cb::engine_errc::too_big;
 }
 
 // The updated deletion sends no extended meta, but does send a deletion time
 // and the collection_len
-static ENGINE_ERROR_CODE dcp_deletion_v2_executor(Cookie& cookie) {
+static cb::engine_errc dcp_deletion_v2_executor(Cookie& cookie) {
     auto& request = cookie.getHeader().getRequest();
 
     auto& connection = cookie.getConnection();
@@ -85,7 +85,7 @@ static ENGINE_ERROR_CODE dcp_deletion_v2_executor(Cookie& cookie) {
     using cb::mcbp::request::DcpDeletionV2Payload;
 
     if (extras.size() != sizeof(DcpDeletionV2Payload)) {
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
     auto* payload =
             reinterpret_cast<const DcpDeletionV2Payload*>(extras.data());
@@ -113,15 +113,15 @@ static ENGINE_ERROR_CODE dcp_deletion_v2_executor(Cookie& cookie) {
                              rev_seqno,
                              delete_time);
     }
-    return ENGINE_E2BIG;
+    return cb::engine_errc::too_big;
 }
 
 void dcp_deletion_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
 
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    auto ret = cookie.swapAiostat(cb::engine_errc::success);
 
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         if (connection.isDcpDeleteV2()) {
             ret = dcp_deletion_v2_executor(cookie);
         } else {
@@ -129,7 +129,7 @@ void dcp_deletion_executor(Cookie& cookie) {
         }
     }
 
-    if (ret != ENGINE_SUCCESS) {
+    if (ret != cb::engine_errc::success) {
         handle_executor_status(cookie, ret);
     }
 }

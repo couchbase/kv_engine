@@ -26,7 +26,7 @@
 /*
  * DCP callback method to push SystemEvents on to the consumer
  */
-ENGINE_ERROR_CODE CollectionsDcpTestProducers::system_event(
+cb::engine_errc CollectionsDcpTestProducers::system_event(
         uint32_t opaque,
         Vbid vbucket,
         mcbp::systemevent::id event,
@@ -124,14 +124,14 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::system_event(
     if (consumer) {
         auto rv = consumer->systemEvent(
                 opaque, replicaVB, event, bySeqno, version, key, eventData);
-        EXPECT_EQ(ENGINE_SUCCESS, rv)
+        EXPECT_EQ(cb::engine_errc::success, rv)
                 << "Failure to push system-event onto the consumer";
         return rv;
     }
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE CollectionsDcpTestProducers::marker(
+cb::engine_errc CollectionsDcpTestProducers::marker(
         uint32_t opaque,
         Vbid vbucket,
         uint64_t start_seqno,
@@ -141,7 +141,7 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::marker(
         std::optional<uint64_t> maxVisibleSeqno,
         std::optional<uint64_t> timestamp,
         cb::mcbp::DcpStreamId sid) {
-    auto ret = ENGINE_SUCCESS;
+    auto ret = cb::engine_errc::success;
     if (consumer) {
         ret = consumer->snapshotMarker(opaque,
                                        replicaVB,
@@ -150,7 +150,7 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::marker(
                                        flags,
                                        high_completed_seqno,
                                        maxVisibleSeqno);
-        EXPECT_EQ(ENGINE_SUCCESS, ret);
+        EXPECT_EQ(cb::engine_errc::success, ret);
     }
 
     MockDcpMessageProducers::marker(opaque,
@@ -166,7 +166,7 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::marker(
     return ret;
 }
 
-ENGINE_ERROR_CODE CollectionsDcpTestProducers::mutation(
+cb::engine_errc CollectionsDcpTestProducers::mutation(
         uint32_t opaque,
         cb::unique_item_ptr itm,
         Vbid vbucket,
@@ -175,7 +175,7 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::mutation(
         uint32_t lock_time,
         uint8_t nru,
         cb::mcbp::DcpStreamId sid) {
-    auto ret = ENGINE_SUCCESS;
+    auto ret = cb::engine_errc::success;
     if (consumer) {
         auto& item = *static_cast<Item*>(itm.get());
 
@@ -208,7 +208,7 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::mutation(
     return ret;
 }
 
-ENGINE_ERROR_CODE CollectionsDcpTestProducers::prepare(
+cb::engine_errc CollectionsDcpTestProducers::prepare(
         uint32_t opaque,
         cb::unique_item_ptr itm,
         Vbid vbucket,
@@ -218,7 +218,7 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::prepare(
         uint8_t nru,
         DocumentState document_state,
         cb::durability::Level level) {
-    auto ret = ENGINE_SUCCESS;
+    auto ret = cb::engine_errc::success;
     if (consumer) {
         auto& item = *static_cast<Item*>(itm.get());
 
@@ -252,12 +252,12 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::prepare(
     return ret;
 }
 
-ENGINE_ERROR_CODE CollectionsDcpTestProducers::commit(uint32_t opaque,
-                                                      Vbid vbucket,
-                                                      const DocKey& key,
-                                                      uint64_t prepare_seqno,
-                                                      uint64_t commit_seqno) {
-    auto ret = ENGINE_SUCCESS;
+cb::engine_errc CollectionsDcpTestProducers::commit(uint32_t opaque,
+                                                    Vbid vbucket,
+                                                    const DocKey& key,
+                                                    uint64_t prepare_seqno,
+                                                    uint64_t commit_seqno) {
+    auto ret = cb::engine_errc::success;
     if (consumer) {
         ret = consumer->commit(
                 opaque, replicaVB, key, prepare_seqno, commit_seqno);

@@ -98,8 +98,8 @@ void StreamTest::TearDown() {
  */
 TEST_P(StreamTest, test_streamIsKeyOnlyTrue) {
     setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
-    ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status)
-            << "stream request did not return ENGINE_SUCCESS";
+    ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status)
+            << "stream request did not return cb::engine_errc::success";
 
     auto activeStream = std::dynamic_pointer_cast<ActiveStream>(
             producer->findStream(Vbid(0)));
@@ -116,7 +116,7 @@ TEST_P(StreamTest, validate_compression_control_message_denied) {
     EXPECT_FALSE(producer->isCompressionEnabled());
 
     // Sending a control message without actually enabling SNAPPY must fail
-    EXPECT_EQ(ENGINE_EINVAL,
+    EXPECT_EQ(cb::engine_errc::invalid_arguments,
               producer->control(0, compressCtrlMsg, compressCtrlValue));
     destroy_dcp_stream();
 }
@@ -140,7 +140,7 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
     mock_set_datatype_support(producer->getCookie(),
                               PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               producer->control(0, compressCtrlMsg, compressCtrlValue));
     ASSERT_TRUE(producer->isForceValueCompressionEnabled());
 
@@ -150,12 +150,12 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
 
     MockDcpMessageProducers producers;
 
-    ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+    ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
 
     prepareCheckpointItemsForStep(producers, *producer, *vb);
 
     /* Stream the snapshot marker first */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(0, producer->getItemsSent());
 
     uint64_t totalBytesSent = producer->getTotalBytesSent();
@@ -170,7 +170,7 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
      * sent should be incremented by a lesser value than the
      * total data size.
      */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(1, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytesSent);
     EXPECT_GT(producer->getTotalUncompressedDataSize(),
@@ -188,7 +188,7 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
      * the total data size should be incremented by exactly the
      * same amount as the total bytes sent
      */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(2, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytesSent);
     EXPECT_GT(producer->getTotalUncompressedDataSize(),
@@ -208,12 +208,12 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
      * by exactly the same amount
      */
     compressCtrlValue.assign("false");
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               producer->control(0, compressCtrlMsg, compressCtrlValue));
     mock_set_datatype_support(producer->getCookie(), PROTOCOL_BINARY_RAW_BYTES);
 
     ASSERT_FALSE(producer->isCompressionEnabled());
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(3, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytesSent);
     EXPECT_GT(producer->getTotalUncompressedDataSize(),
@@ -245,7 +245,7 @@ TEST_P(StreamTest, test_verifyProducerStats) {
     auto reqs = Requirements{Level::Majority, Timeout()};
     auto prepareToCommit = store_pending_item(vbid, "pending1", "value3", reqs);
 
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               vb->commit(prepareToCommit->getKey(),
                          prepareToCommit->getBySeqno(),
                          {},
@@ -258,7 +258,7 @@ TEST_P(StreamTest, test_verifyProducerStats) {
     engine->storeEngineSpecific(cookie, nullptr);
 
     auto prepareToAbort = store_pending_item(vbid, "pending2", "value4", reqs);
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               vb->abort(prepareToAbort->getKey(),
                         prepareToAbort->getBySeqno(),
                         {},
@@ -266,12 +266,12 @@ TEST_P(StreamTest, test_verifyProducerStats) {
 
     MockDcpMessageProducers producers;
 
-    EXPECT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+    EXPECT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
 
     prepareCheckpointItemsForStep(producers, *producer, *vb);
 
     /* Stream the snapshot marker first */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(0, producer->getItemsSent());
 
     uint64_t totalBytes = producer->getTotalBytesSent();
@@ -280,7 +280,7 @@ TEST_P(StreamTest, test_verifyProducerStats) {
     /* Stream the first mutation. This should increment the
      * number of items and the total bytes sent.
      */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(1, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
     totalBytes = producer->getTotalBytesSent();
@@ -288,9 +288,9 @@ TEST_P(StreamTest, test_verifyProducerStats) {
     /* Now simulate a failure while trying to stream the next
      * mutation.
      */
-    producers.setMutationStatus(ENGINE_E2BIG);
+    producers.setMutationStatus(cb::engine_errc::too_big);
 
-    EXPECT_EQ(ENGINE_E2BIG, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::too_big, producer->step(producers));
 
     /* The number of items total bytes sent should remain the same */
     EXPECT_EQ(1, producer->getItemsSent());
@@ -298,39 +298,39 @@ TEST_P(StreamTest, test_verifyProducerStats) {
     totalBytes = producer->getTotalBytesSent();
 
     /* Now stream the mutation again and the stats should have incremented */
-    producers.setMutationStatus(ENGINE_SUCCESS);
+    producers.setMutationStatus(cb::engine_errc::success);
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(2, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
     totalBytes = producer->getTotalBytesSent();
 
     // Prepare
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(3, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
     totalBytes = producer->getTotalBytesSent();
 
     // Commit
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(4, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
     totalBytes = producer->getTotalBytesSent();
 
     // Prepare
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(5, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
     totalBytes = producer->getTotalBytesSent();
 
     // SnapshotMarker - doesn't bump items sent
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(5, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
     totalBytes = producer->getTotalBytesSent();
 
     // Abort
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(6, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
 
@@ -344,8 +344,8 @@ TEST_P(StreamTest, test_verifyProducerStats) {
  */
 TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeValue) {
     setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::No);
-    ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status)
-            << "stream request did not return ENGINE_SUCCESS";
+    ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status)
+            << "stream request did not return cb::engine_errc::success";
 
     auto activeStream = std::dynamic_pointer_cast<ActiveStream>(
             producer->findStream(Vbid(0)));
@@ -361,8 +361,8 @@ TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeValue) {
  */
 TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeXattrs) {
     setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::Yes);
-    ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status)
-            << "stream request did not return ENGINE_SUCCESS";
+    ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status)
+            << "stream request did not return cb::engine_errc::success";
 
     auto activeStream = std::dynamic_pointer_cast<ActiveStream>(
             producer->findStream(Vbid(0)));
@@ -1104,8 +1104,8 @@ TEST_P(StreamTest, RollbackDueToPurge) {
                                   numItems - 2,
                                   numItems - 2,
                                   vbUuid);
-    EXPECT_EQ(ENGINE_SUCCESS, result.status);
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success, result.status);
+    EXPECT_EQ(cb::engine_errc::success,
               producer->closeStream(/*opaque*/ 0, vb0->getId()));
 
     /* Set a start_seqno > purge_seqno > snap_start_seqno */
@@ -1114,8 +1114,8 @@ TEST_P(StreamTest, RollbackDueToPurge) {
     /* We don't expect a rollback for this */
     result = doStreamRequest(
             *producer, numItems - 2, numItems, 0, numItems - 2, vbUuid);
-    EXPECT_EQ(ENGINE_SUCCESS, result.status);
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success, result.status);
+    EXPECT_EQ(cb::engine_errc::success,
               producer->closeStream(/*opaque*/ 0, vb0->getId()));
 
     /* Set a purge_seqno > start_seqno */
@@ -1124,7 +1124,7 @@ TEST_P(StreamTest, RollbackDueToPurge) {
     /* Now we expect a rollback to 0 */
     result = doStreamRequest(
             *producer, numItems - 2, numItems, 0, numItems - 2, vbUuid);
-    EXPECT_EQ(ENGINE_ROLLBACK, result.status);
+    EXPECT_EQ(cb::engine_errc::rollback, result.status);
     EXPECT_EQ(0, result.rollbackSeqno);
     destroy_dcp_stream();
 }
@@ -1134,18 +1134,19 @@ TEST_P(StreamTest, RollbackDueToPurge) {
  * (1) return not my vbucket.
  * (2) do not invoke the callback function (which is passed as parameter).
  * The reason we don't want to invoke the callback function is that it will
- * invoke mcbp_response_handler and so generate a response (ENGINE_SUCCESS) and
- * then when we continue the execution of the streamRequest function we generate
- * a second response (ENGINE_NOT_MY_VBUCKET).
+ * invoke mcbp_response_handler and so generate a response
+ * (cb::engine_errc::success) and then when we continue the execution of the
+ * streamRequest function we generate a second response
+ * (cb::engine_errc::not_my_vbucket).
  */
 TEST_P(StreamTest, MB_25820_callback_not_invoked_on_dead_vb_stream_request) {
     setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               engine->getKVBucket()->setVBucketState(
                       vbid, vbucket_state_dead, {}, TransferVB::Yes));
     uint64_t vbUuid = vb0->failovers->getLatestUUID();
     // Given the vbucket state is dead we should return not my vbucket.
-    EXPECT_EQ(ENGINE_NOT_MY_VBUCKET,
+    EXPECT_EQ(cb::engine_errc::not_my_vbucket,
               doStreamRequest(*producer, 0, 0, 0, 0, vbUuid).status);
     // The callback function past to streamRequest should not be invoked.
     ASSERT_EQ(0, callbackCount);
@@ -1161,7 +1162,7 @@ TEST_P(StreamTest, validate_compression_control_message_allowed) {
     EXPECT_TRUE(producer->isCompressionEnabled());
 
     // Sending a control message after enabling SNAPPY should succeed
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->control(0, compressCtrlMsg, compressCtrlValue));
     destroy_dcp_stream();
 }
@@ -1296,10 +1297,11 @@ TEST_P(StreamTest, ProducerReceivesSeqnoAckForErasedStream) {
                          {"consumer_name", "replica1"}});
 
     // Need to do a stream request to put the stream in the producers map
-    ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+    ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
 
     // Close the stream to start the removal process
-    EXPECT_EQ(ENGINE_SUCCESS, producer->closeStream(0 /*opaque*/, vbid));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->closeStream(0 /*opaque*/, vbid));
 
     // Stream should still exist, but should be dead
     auto stream = producer->findStream(vbid);
@@ -1309,13 +1311,13 @@ TEST_P(StreamTest, ProducerReceivesSeqnoAckForErasedStream) {
     // Step the stream on, this should remove the stream from the producer's
     // StreamsMap
     MockDcpMessageProducers producers;
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
 
     // Stream should no longer exist in the map
     EXPECT_FALSE(producer->findStream(vbid));
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->seqno_acknowledged(
                       0 /*opaque*/, vbid, 1 /*prepareSeqno*/));
 }
@@ -1332,10 +1334,11 @@ MATCHER_P(HasOperation, op, "") {
  */
 TEST_P(StreamTest, MB38356_DuplicateStreamRequest) {
     setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
-    ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+    ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
 
     // Second request to same vbid should fail.
-    EXPECT_EQ(ENGINE_KEY_EEXISTS, doStreamRequest(*producer).status);
+    EXPECT_EQ(cb::engine_errc::key_already_exists,
+              doStreamRequest(*producer).status);
 
     // Original stream should still be established and allow items to be
     // streamed.
@@ -1401,7 +1404,7 @@ protected:
 /*
  * Tests the callback member function of the CacheCallback class.  This
  * particular test should result in the CacheCallback having a status of
- * ENGINE_KEY_EEXISTS.
+ * cb::engine_errc::key_already_exists.
  */
 TEST_P(CacheCallbackTest, CacheCallback_key_eexists) {
     CacheCallback callback(*engine->getKVBucket(), stream);
@@ -1412,9 +1415,10 @@ TEST_P(CacheCallbackTest, CacheCallback_key_eexists) {
 
     /* Invoking callback should result in backfillReceived being called on
      * activeStream, which should return true and hence set the callback status
-     * to ENGINE_KEY_EEXISTS.
+     * to cb::engine_errc::key_already_exists.
      */
-    EXPECT_EQ(ENGINE_KEY_EEXISTS, callback.getStatus());
+    EXPECT_EQ(cb::engine_errc::key_already_exists,
+              cb::engine_errc{callback.getStatus()});
 
     /* Verify that the item is read in the backfill */
     EXPECT_EQ(numItems, stream->getNumBackfillItems());
@@ -1426,7 +1430,7 @@ TEST_P(CacheCallbackTest, CacheCallback_key_eexists) {
 /*
  * Tests the callback member function of the CacheCallback class.  This
  * particular test should result in the CacheCallback having a status of
- * ENGINE_SUCCESS.
+ * cb::engine_errc::success.
  */
 TEST_P(CacheCallbackTest, CacheCallback_engine_success) {
     CacheCallback callback(*engine->getKVBucket(), stream);
@@ -1438,9 +1442,9 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_success) {
 
     /* Invoking callback should result in backfillReceived NOT being called on
      * activeStream, and hence the callback status should be set to
-     * ENGINE_SUCCESS.
+     * cb::engine_errc::success.
      */
-    EXPECT_EQ(ENGINE_SUCCESS, callback.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, cb::engine_errc{callback.getStatus()});
 
     /* Verify that the item is not read in the backfill */
     EXPECT_EQ(0, stream->getNumBackfillItems());
@@ -1452,7 +1456,7 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_success) {
 /*
  * Tests the callback member function of the CacheCallback class.  Due to the
  * key being evicted the test should result in the CacheCallback having a status
- * of ENGINE_SUCCESS.
+ * of cb::engine_errc::success.
  */
 TEST_P(CacheCallbackTest, CacheCallback_engine_success_not_resident) {
     if (bucketType == "ephemeral") {
@@ -1472,9 +1476,9 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_success_not_resident) {
 
     /* With the key evicted, invoking callback should result in backfillReceived
      * NOT being called on activeStream, and hence the callback status should be
-     * set to ENGINE_SUCCESS
+     * set to cb::engine_errc::success
      */
-    EXPECT_EQ(ENGINE_SUCCESS, callback.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, cb::engine_errc{callback.getStatus()});
 
     /* Verify that the item is not read in the backfill */
     EXPECT_EQ(0, stream->getNumBackfillItems());
@@ -1486,7 +1490,7 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_success_not_resident) {
 /*
  * Tests the callback member function of the CacheCallback class.  This
  * particular test should result in the CacheCallback having a status of
- * ENGINE_ENOMEM.
+ * cb::engine_errc::no_memory.
  */
 TEST_P(CacheCallbackTest, CacheCallback_engine_enomem) {
     /*
@@ -1506,9 +1510,10 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_enomem) {
     /* Invoking callback should result in backfillReceived being called on
      * activeStream, which should return false (due to
      * DcpProducer::recordBackfillManagerBytesRead returning false), and hence
-     * set the callback status to ENGINE_ENOMEM.
+     * set the callback status to cb::engine_errc::no_memory.
      */
-    EXPECT_EQ(ENGINE_ENOMEM, callback.getStatus());
+    EXPECT_EQ(cb::engine_errc::no_memory,
+              cb::engine_errc{callback.getStatus()});
 
     /* Verify that the item is not read in the backfill */
     EXPECT_EQ(0, stream->getNumBackfillItems());
@@ -1579,7 +1584,7 @@ void SingleThreadedActiveStreamTest::setupProducer(
     }
 
     for (const auto& c : controls) {
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   producer->control(0 /*opaque*/, c.first, c.second));
     }
 
@@ -1654,7 +1659,8 @@ void SingleThreadedPassiveStreamTest::SetUp() {
 }
 
 void SingleThreadedPassiveStreamTest::TearDown() {
-    ASSERT_NE(ENGINE_DISCONNECT, consumer->closeStream(0 /*opaque*/, vbid));
+    ASSERT_NE(cb::engine_errc::disconnect,
+              consumer->closeStream(0 /*opaque*/, vbid));
     consumer.reset();
     STParameterizedBucketTest::TearDown();
 }
@@ -1668,7 +1674,7 @@ void SingleThreadedPassiveStreamTest::setupConsumerAndPassiveStream() {
     // accurately reflect how these classes are used in the real flow.
     consumer =
             std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               consumer->addStream(0 /*opaque*/, vbid, 0 /*flags*/));
     stream = static_cast<MockPassiveStream*>(
             (consumer->getVbucketStream(vbid)).get());
@@ -2015,7 +2021,8 @@ TEST_P(SingleThreadedActiveStreamTest, MB36146) {
 
     {
         auto cHandle = vb->lockCollections(item.getKey());
-        EXPECT_EQ(ENGINE_SUCCESS, vb->set(item, cookie, *engine, {}, cHandle));
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb->set(item, cookie, *engine, {}, cHandle));
     }
     EXPECT_EQ(3, ckptMgr.createNewCheckpoint());
 
@@ -2048,7 +2055,8 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSkipsScanIfStreamInWrongState) {
 
     {
         auto cHandle = vb->lockCollections(item.getKey());
-        EXPECT_EQ(ENGINE_SUCCESS, vb->set(item, cookie, *engine, {}, cHandle));
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb->set(item, cookie, *engine, {}, cHandle));
     }
     EXPECT_EQ(3, ckptMgr.createNewCheckpoint());
 
@@ -2139,10 +2147,10 @@ TEST_P(SingleThreadedPassiveStreamTest, MB31410) {
         auto ret = stream->messageReceived(
                 makeMutationConsumerMessage(seqno, vbid, value, opaque));
 
-        // We get ENGINE_TMPFAIL when we hit the replication threshold.
-        // When it happens, we buffer the mutation for deferred processing
-        // in the DcpConsumerTask.
-        if (ret == ENGINE_TMPFAIL) {
+        // We get cb::engine_errc::temporary_failure when we hit the replication
+        // threshold. When it happens, we buffer the mutation for deferred
+        // processing in the DcpConsumerTask.
+        if (ret == cb::engine_errc::temporary_failure) {
             auto& epStats = engine->getEpStats();
 
             ASSERT_GT(epStats.getEstimatedTotalMemoryUsed(),
@@ -2164,7 +2172,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB31410) {
 
             break;
         } else {
-            ASSERT_EQ(ENGINE_SUCCESS, ret);
+            ASSERT_EQ(cb::engine_errc::success, ret);
         }
     }
 
@@ -2190,7 +2198,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB31410) {
                 // test has failed. But, I use EXPECT rather than ASSERT
                 // because, in the case of failure, I want to trigger also the
                 // ASSERT_NO_THROW below.
-                EXPECT_EQ(ENGINE_TMPFAIL,
+                EXPECT_EQ(cb::engine_errc::temporary_failure,
                           stream->messageReceived(makeMutationConsumerMessage(
                                   nextFrontEndSeqno, vbid, value, opaque)));
                 // I cannot check the status of the buffer here because we have
@@ -2218,16 +2226,17 @@ TEST_P(SingleThreadedPassiveStreamTest, MB31410) {
     // and the new incoming message in frontEndThread is 'seqno + 1') it means
     // that we are trying to break the seqno-invariant.
     // When this_thread resumes its execution, it will process the mutations
-    // previously buffered. So, if frontEndThread has got ENGINE_SUCCESS above,
-    // then this_thread will throw an exception (Monotonic<x> invariant failed).
+    // previously buffered. So, if frontEndThread has got
+    // cb::engine_errc::success above, then this_thread will throw an exception
+    // (Monotonic<x> invariant failed).
     std::set<int64_t> processedBufferSeqnos;
     bool isFirstRun = true;
     std::function<void()> hook =
             [this, &tg, &isFirstRun, seqno, nextFrontEndSeqno, &sync]() {
                 // If the test succeeds (i.e., the frontEndTask above sees
-                // ENGINE_TMPFAIL) we will have 2 buffered messages, so we will
-                // execute here twice. Calling tg.threadUp again would lead to
-                // deadlock.
+                // cb::engine_errc::temporary_failure) we will have 2 buffered
+                // messages, so we will execute here twice. Calling tg.threadUp
+                // again would lead to deadlock.
                 if (!tg.isComplete()) {
                     tg.threadUp();
                 }
@@ -2345,7 +2354,7 @@ void SingleThreadedPassiveStreamTest::mb_33773(
     // Push mutations
     EXPECT_EQ(0, stream->getNumBufferItems());
     for (size_t seqno = snapStart; seqno < snapEnd; seqno++) {
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   consumer->mutation(
                           opaque,
                           makeStoredDocKey("k" + std::to_string(seqno)),
@@ -2466,13 +2475,13 @@ TEST_P(SingleThreadedPassiveStreamTest,
     ASSERT_TRUE(connMap.doesVbConnExist(vbid, streamName));
 
     // close stream
-    EXPECT_EQ(ENGINE_SUCCESS, consumer->closeStream(0, vbid));
+    EXPECT_EQ(cb::engine_errc::success, consumer->closeStream(0, vbid));
 
     EXPECT_TRUE(connMap.doesVbConnExist(vbid, streamName));
 
     // add new stream
     uint32_t opaque = 999;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               consumer->addStream(opaque /*opaque*/, vbid, 0 /*flags*/));
     stream = static_cast<MockPassiveStream*>(
             (consumer->getVbucketStream(vbid)).get());
@@ -2481,7 +2490,7 @@ TEST_P(SingleThreadedPassiveStreamTest,
     EXPECT_TRUE(connMap.doesVbConnExist(vbid, streamName));
 
     // end the second stream
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->streamEnd(stream->getOpaque(),
                                   vbid,
                                   cb::mcbp::DcpStreamEndStatus::Ok));
@@ -2490,7 +2499,7 @@ TEST_P(SingleThreadedPassiveStreamTest,
     EXPECT_FALSE(connMap.doesVbConnExist(vbid, streamName));
 
     // re-add stream for teardown to close
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               consumer->addStream(opaque /*opaque*/, vbid, 0 /*flags*/));
 }
 
@@ -2606,7 +2615,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
         auto item = makeCommittedItem(makeStoredDocKey("key"), "value");
         item->setBySeqno(snapStart);
 
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   stream->messageReceived(
                           std::make_unique<MutationConsumerMessage>(
                                   std::move(item),
@@ -2702,7 +2711,7 @@ void SingleThreadedPassiveStreamTest::testConsumerRejectsBodyInDeletion(
     consumer->public_setIncludeDeletedUserXattrs(IncludeDeletedUserXattrs::Yes);
 
     // Send deletion in a single seqno snapshot
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(1 /*opaque*/,
                                        vbid,
                                        1 /*startSeqno*/,
@@ -2717,7 +2726,7 @@ void SingleThreadedPassiveStreamTest::testConsumerRejectsBodyInDeletion(
         const uint32_t opaque = 1;
         int64_t bySeqno = 1;
         if (durReqs) {
-            EXPECT_EQ(ENGINE_EINVAL,
+            EXPECT_EQ(cb::engine_errc::invalid_arguments,
                       consumer->prepare(opaque,
                                         {"key", DocKeyEncodesCollectionId::No},
                                         value,
@@ -2734,7 +2743,7 @@ void SingleThreadedPassiveStreamTest::testConsumerRejectsBodyInDeletion(
                                         DocumentState::Deleted,
                                         durReqs->getLevel()));
         } else {
-            EXPECT_EQ(ENGINE_EINVAL,
+            EXPECT_EQ(cb::engine_errc::invalid_arguments,
                       consumer->deletion(opaque,
                                          {"key", DocKeyEncodesCollectionId::No},
                                          value,
@@ -2788,7 +2797,7 @@ void SingleThreadedPassiveStreamTest::testConsumerSanitizesBodyInDeletion(
     ASSERT_EQ(0, vb.getHighSeqno());
 
     const uint64_t initialEndSeqno = 10;
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(1 /*opaque*/,
                                        vbid,
                                        1 /*startSeqno*/,
@@ -2804,7 +2813,7 @@ void SingleThreadedPassiveStreamTest::testConsumerSanitizesBodyInDeletion(
                                           int64_t bySeqno) -> void {
         const uint32_t opaque = 1;
         if (durReqs) {
-            EXPECT_EQ(ENGINE_SUCCESS,
+            EXPECT_EQ(cb::engine_errc::success,
                       consumer->prepare(opaque,
                                         key,
                                         value,
@@ -2821,7 +2830,7 @@ void SingleThreadedPassiveStreamTest::testConsumerSanitizesBodyInDeletion(
                                         DocumentState::Deleted,
                                         durReqs->getLevel()));
         } else {
-            EXPECT_EQ(ENGINE_SUCCESS,
+            EXPECT_EQ(cb::engine_errc::success,
                       consumer->deletion(opaque,
                                          key,
                                          value,
@@ -2863,12 +2872,12 @@ void SingleThreadedPassiveStreamTest::testConsumerSanitizesBodyInDeletion(
     if (durReqs) {
         // Need to commit the first prepare for queuing a new one in the next
         // steps.
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   vb.commit(key, 1, {}, vb.lockCollections(key)));
         // Replica doesn't like 2 prepares for the same key into the same
         // checkpoint.
         const int64_t newStartSeqno = initialEndSeqno + 1;
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   consumer->snapshotMarker(1 /*opaque*/,
                                            vbid,
                                            newStartSeqno,
@@ -2935,7 +2944,7 @@ void SingleThreadedPassiveStreamTest::testConsumerReceivesUserXattrsInDelete(
     // Send deletion in a single seqno snapshot
     const uint32_t opaque = 1;
     int64_t bySeqno = 1;
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(opaque,
                                        vbid,
                                        bySeqno,
@@ -2957,7 +2966,7 @@ void SingleThreadedPassiveStreamTest::testConsumerReceivesUserXattrsInDelete(
     }
 
     if (durReqs) {
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   consumer->prepare(opaque,
                                     {"key", DocKeyEncodesCollectionId::No},
                                     valueBuf,
@@ -2974,7 +2983,7 @@ void SingleThreadedPassiveStreamTest::testConsumerReceivesUserXattrsInDelete(
                                     DocumentState::Deleted,
                                     durReqs->getLevel()));
     } else {
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   consumer->deletion(opaque,
                                      {"key", DocKeyEncodesCollectionId::No},
                                      valueBuf,
@@ -2996,7 +3005,7 @@ void SingleThreadedPassiveStreamTest::testConsumerReceivesUserXattrsInDelete(
     auto& kvstore = *store->getRWUnderlying(vbid);
     const auto isPrepare = durReqs.has_value();
     auto doc = kvstore.get(makeDiskDocKey("key", isPrepare), vbid);
-    EXPECT_EQ(ENGINE_SUCCESS, doc.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, doc.getStatus());
     ASSERT_TRUE(doc.item);
     EXPECT_TRUE(doc.item->isDeleted());
 
@@ -3210,7 +3219,7 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
     MockDcpMessageProducers producers;
 
     // Step to schedule our backfill
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
     EXPECT_EQ(0, stream->public_readyQ().size());
 
     auto& bfm = producer->getBFM();
@@ -3233,11 +3242,11 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
         EXPECT_EQ(2, stream->public_readyQ().size());
 
         // Step snapshot marker
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+        EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
 
         // Step mutation
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+        EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
 
         stream->setNextHook([&tg1, &tg2]() {
@@ -3254,7 +3263,7 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
         // Run the step in a different thread
         t1 = std::thread{[this, &producers]() {
             // This step should produce the stream end
-            EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+            EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
             EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
         }};
 
@@ -3277,7 +3286,7 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
     EXPECT_FALSE(producer->getReadyQueue().empty());
 
     // Step to remove stream from queue
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
     EXPECT_FALSE(producer->findStream(vbid)->isActive());
     EXPECT_TRUE(producer->getReadyQueue().empty());
 }
@@ -3318,7 +3327,8 @@ void SingleThreadedActiveStreamTest::testProducerIncludesUserXattrsInDelete(
     auto item = makeCommittedItem(makeStoredDocKey("keyD"), value);
     item->setDataType(dtJsonXattr);
     uint64_t cas = 0;
-    const auto expectedStoreRes = durReqs ? ENGINE_EWOULDBLOCK : ENGINE_SUCCESS;
+    const auto expectedStoreRes =
+            durReqs ? cb::engine_errc::would_block : cb::engine_errc::success;
     ASSERT_EQ(expectedStoreRes,
               engine->store(cookie,
                             item.get(),
@@ -3334,7 +3344,7 @@ void SingleThreadedActiveStreamTest::testProducerIncludesUserXattrsInDelete(
         auto kvstore = store->getRWUnderlying(vbid);
         const auto isPrepare = durReqs.has_value();
         const auto doc = kvstore->get(makeDiskDocKey("keyD", isPrepare), vbid);
-        EXPECT_EQ(ENGINE_SUCCESS, doc.getStatus());
+        EXPECT_EQ(cb::engine_errc::success, doc.getStatus());
         EXPECT_TRUE(doc.item->isDeleted());
         EXPECT_EQ(isPrepare, doc.item->isPending());
         // Check that we have persisted the expected value to disk
@@ -3482,7 +3492,8 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
 
     // Store the item as deleted
     uint64_t cas = 0;
-    const auto expectedStoreRes = durReqs ? ENGINE_EWOULDBLOCK : ENGINE_SUCCESS;
+    const auto expectedStoreRes =
+            durReqs ? cb::engine_errc::would_block : cb::engine_errc::success;
     ASSERT_EQ(expectedStoreRes,
               engine->store(cookie,
                             item.get(),
@@ -3567,7 +3578,7 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
         auto kvstore = store->getRWUnderlying(vbid);
         const auto isPrepare = durReqs.has_value();
         const auto doc = kvstore->get(makeDiskDocKey("keyD", isPrepare), vbid);
-        EXPECT_EQ(ENGINE_SUCCESS, doc.getStatus());
+        EXPECT_EQ(cb::engine_errc::success, doc.getStatus());
         EXPECT_TRUE(doc.item->isDeleted());
         // Check that we have persisted the expected value to disk
         ASSERT_TRUE(doc.item);
@@ -3743,7 +3754,7 @@ void SingleThreadedActiveStreamTest::testExpirationRemovesBody(uint32_t flags,
 
     // Just need to access key for expiring
     GetValue gv = store->get(docKey, vbid, nullptr, get_options_t::NONE);
-    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
 
     // MB-41989: Expiration removes UserXattrs (if any), but it must do that on
     // a copy of the payload that is then enqueued in the new expired item. So,
@@ -3903,9 +3914,9 @@ protected:
 
         // Step the snapshot marker and first mutation
         MockDcpMessageProducers producers;
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+        EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+        EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
 
         // Second item
@@ -3913,7 +3924,7 @@ protected:
         EXPECT_EQ(2, stream->getNumBackfillItems());
 
         // Step the second mutation
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+        EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
 
         // Third item
@@ -3921,7 +3932,7 @@ protected:
         EXPECT_EQ(3, stream->getNumBackfillItems());
 
         // Step the third mutation
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+        EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
 
         // Ephemeral backfill scan goes straight to complete but persistent
@@ -3934,7 +3945,7 @@ protected:
         EXPECT_EQ(backfill_status_t::backfill_finished, bfm.backfill());
 
         // Nothing more to step in the producer
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
+        EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
     }
 };
 
@@ -3993,7 +4004,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     const uint32_t opaque = 1;
     const uint64_t snapStart = 1;
     const uint64_t snapEnd = 2;
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(opaque,
                                        vbid,
                                        snapStart,
@@ -4009,7 +4020,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     ASSERT_EQ(0, manager.getHighSeqno());
 
     const auto keyA = makeStoredDocKey("keyA");
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->mutation(opaque,
                                  keyA,
                                  {},
@@ -4025,7 +4036,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
                                  {},
                                  0));
     const auto keyB = makeStoredDocKey("keyB");
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->mutation(opaque,
                                  keyB,
                                  {},
@@ -4056,7 +4067,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
 
     // Simulate a possible behaviour in pre-6.5: Producer may send a SnapMarker
     // and miss to set the MARKER_FLAG_CHK, eg MB-32862
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(opaque,
                                        vbid,
                                        3 /*snapStart*/,
@@ -4092,7 +4103,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     //  That is a precondition for executing the deduplication path that throws
     //  in Checkpoint::queueDirty before the fix.
     const auto keyC = makeStoredDocKey("keyC");
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->mutation(opaque,
                                  keyC,
                                  {},
@@ -4121,7 +4132,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     //  7.x. The active may generate multiple Memory snapshots from the same
     //  physical checkpoint. Those snapshots may contain duplicates of the same
     //  key.
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(opaque,
                                        vbid,
                                        4 /*snapStart*/,
@@ -4160,7 +4171,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     // At fix, the Memory snapshot is in its own checkpoint. The persistence
     // cursor is in the old (closed) checkpoint, so we don't even try to access
     // the KeyIndex for that cursor.
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->mutation(opaque,
                                  keyC,
                                  {},
@@ -4440,7 +4451,7 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_SyncWrite) {
     EXPECT_EQ(1, vb.getHighSeqno());
     EXPECT_EQ(1, vb.getSeqListNumItems());
     EXPECT_EQ(0, vb.getSeqListNumStaleItems());
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               vb.commit(key, 1 /*prepareSeqno*/, {}, vb.lockCollections(key)));
     EXPECT_EQ(2, vb.getHighSeqno());
     EXPECT_EQ(2, vb.getSeqListNumItems());
@@ -4569,7 +4580,7 @@ TEST_P(STPassiveStreamCouchstoreTest, VBStateNotLostAfterFlushFailure) {
     // PRE:1
     const std::string value("value");
     using namespace cb::durability;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(makeMutationConsumerMessage(
                       1 /*seqno*/,
                       vbid,
@@ -4579,12 +4590,12 @@ TEST_P(STPassiveStreamCouchstoreTest, VBStateNotLostAfterFlushFailure) {
 
     // M:2 - Logic Commit for PRE:1
     // Note: implicit revSeqno=1
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(makeMutationConsumerMessage(
                       2 /*seqno*/, vbid, value, opaque)));
 
     // D:3
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(
                       makeMutationConsumerMessage(3 /*seqno*/,
                                                   vbid,
@@ -4674,7 +4685,7 @@ TEST_P(STPassiveStreamPersistentTest, MB_37948) {
 
     // VBucket state changes to replica.
     // Note: The new state is not persisted yet.
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_replica));
 
     // Replica receives a partial Snap{1, 3, Memory}
@@ -4691,11 +4702,11 @@ TEST_P(STPassiveStreamPersistentTest, MB_37948) {
     stream->processMarker(&snapshotMarker);
     // M:1
     const std::string value("value");
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(makeMutationConsumerMessage(
                       1 /*seqno*/, vbid, value, opaque)));
     // M:2
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(makeMutationConsumerMessage(
                       2 /*seqno*/, vbid, value, opaque)));
     // Note: snap is partial, seqno:3 not received yet
@@ -4727,7 +4738,7 @@ TEST_P(STPassiveStreamPersistentTest, MB_37948) {
     // everything behaves as expected when the full snapshot is persisted.
 
     // M:3 (snap-end mutation)
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(makeMutationConsumerMessage(
                       3 /*seqno*/, vbid, value, opaque)));
 
@@ -4740,12 +4751,13 @@ TEST_P(STPassiveStreamPersistentTest, MB_37948) {
 // Check stream-id and sync-repl cannot be enabled
 TEST_P(StreamTest, multi_stream_control_denied) {
     setup_dcp_stream();
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->control(0, "enable_sync_writes", "true"));
     EXPECT_TRUE(producer->isSyncWritesEnabled());
     EXPECT_FALSE(producer->isMultipleStreamEnabled());
 
-    EXPECT_EQ(ENGINE_ENOTSUP, producer->control(0, "enable_stream_id", "true"));
+    EXPECT_EQ(cb::engine_errc::not_supported,
+              producer->control(0, "enable_stream_id", "true"));
     EXPECT_TRUE(producer->isSyncWritesEnabled());
     EXPECT_FALSE(producer->isMultipleStreamEnabled());
     destroy_dcp_stream();
@@ -4753,11 +4765,12 @@ TEST_P(StreamTest, multi_stream_control_denied) {
 
 TEST_P(StreamTest, sync_writes_denied) {
     setup_dcp_stream();
-    EXPECT_EQ(ENGINE_SUCCESS, producer->control(0, "enable_stream_id", "true"));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->control(0, "enable_stream_id", "true"));
     EXPECT_FALSE(producer->isSyncWritesEnabled());
     EXPECT_TRUE(producer->isMultipleStreamEnabled());
 
-    EXPECT_EQ(ENGINE_ENOTSUP,
+    EXPECT_EQ(cb::engine_errc::not_supported,
               producer->control(0, "enable_sync_writes", "true"));
     EXPECT_FALSE(producer->isSyncWritesEnabled());
     EXPECT_TRUE(producer->isMultipleStreamEnabled());
@@ -4775,12 +4788,12 @@ TEST_P(STPassiveStreamPersistentTest, enusre_extended_dcp_status_work) {
 
     // check error code when stream isn't present for vbucket 99
     EXPECT_EQ(
-            ENGINE_KEY_ENOENT,
+            cb::engine_errc::no_such_key,
             consumer->mutation(
                     opaque, key, {}, 0, 0, 0, Vbid(99), 0, 1, 0, 0, 0, {}, 0));
     // check error code when using a non matching opaque
     opaque = 99999;
-    EXPECT_EQ(ENGINE_KEY_EEXISTS,
+    EXPECT_EQ(cb::engine_errc::key_already_exists,
               consumer->mutation(
                       opaque, key, {}, 0, 0, 0, vbid, 0, 1, 0, 0, 0, {}, 0));
 
@@ -4789,12 +4802,12 @@ TEST_P(STPassiveStreamPersistentTest, enusre_extended_dcp_status_work) {
     // check error code when stream isn't present for vbucket 99
     opaque = 0;
     EXPECT_EQ(
-            ENGINE_STREAM_NOT_FOUND,
+            cb::engine_errc::stream_not_found,
             consumer->mutation(
                     opaque, key, {}, 0, 0, 0, Vbid(99), 0, 1, 0, 0, 0, {}, 0));
     // check error code when using a non matching opaque
     opaque = 99999;
-    EXPECT_EQ(ENGINE_OPAQUE_NO_MATCH,
+    EXPECT_EQ(cb::engine_errc::opaque_no_match,
               consumer->mutation(
                       opaque, key, {}, 0, 0, 0, vbid, 0, 1, 0, 0, 0, {}, 0));
 }

@@ -58,7 +58,7 @@ public:
         // I want to simulate DGM scenarios where we have a HT-miss most times.
         // So, here I return what KVStore understands as "Item not in the
         // HashTable, go to the Storage".
-        setStatus(ENGINE_SUCCESS);
+        setStatus(cb::engine_errc::success);
     };
 };
 

@@ -19,9 +19,9 @@
 
 #include <daemon/memcached.h>
 
-ENGINE_ERROR_CODE UnlockCommandContext::unlock() {
+cb::engine_errc UnlockCommandContext::unlock() {
     auto ret = bucket_unlock(cookie, cookie.getRequestKey(), vbucket, cas);
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         update_topkeys(cookie);
         cookie.sendResponse(cb::mcbp::Status::Success);
         state = State::Done;
@@ -30,17 +30,17 @@ ENGINE_ERROR_CODE UnlockCommandContext::unlock() {
     return ret;
 }
 
-ENGINE_ERROR_CODE UnlockCommandContext::step() {
-    auto ret = ENGINE_SUCCESS;
+cb::engine_errc UnlockCommandContext::step() {
+    auto ret = cb::engine_errc::success;
     do {
         switch (state) {
         case State::Unlock:
             ret = unlock();
             break;
         case State::Done:
-            return ENGINE_SUCCESS;
+            return cb::engine_errc::success;
         }
-    } while (ret == ENGINE_SUCCESS);
+    } while (ret == cb::engine_errc::success);
 
     return ret;
 }

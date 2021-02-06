@@ -231,7 +231,7 @@ TEST_P(RegressionTest, MB_32078) {
     connection.store("MB-32078-testkey", Vbid(0), "value");
 
     connection.configureEwouldBlockEngine(
-            EWBEngineMode::CasMismatch, ENGINE_KEY_EEXISTS, 1);
+            EWBEngineMode::CasMismatch, cb::engine_errc::key_already_exists, 1);
 
     BinprotGenericCommand cmd(
             cb::mcbp::ClientOpcode::Append, "MB-32078-testkey", "+");

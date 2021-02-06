@@ -227,7 +227,7 @@ void EphemeralVBucket::dump() const {
     std::cerr << "  " << ht << std::endl;
 }
 
-ENGINE_ERROR_CODE EphemeralVBucket::completeBGFetchForSingleItem(
+cb::engine_errc EphemeralVBucket::completeBGFetchForSingleItem(
         const DiskDocKey& key,
         const FrontEndBGFetchItem& fetched_item,
         const std::chrono::steady_clock::time_point startTime) {
@@ -844,12 +844,12 @@ void EphemeralVBucket::bgFetch(const DocKey& key,
             std::string(reinterpret_cast<const char*>(key.data()), key.size()));
 }
 
-ENGINE_ERROR_CODE
-EphemeralVBucket::addTempItemAndBGFetch(HashTable::HashBucketLock& hbl,
-                                        const DocKey& key,
-                                        const void* cookie,
-                                        EventuallyPersistentEngine& engine,
-                                        bool metadataOnly) {
+cb::engine_errc EphemeralVBucket::addTempItemAndBGFetch(
+        HashTable::HashBucketLock& hbl,
+        const DocKey& key,
+        const void* cookie,
+        EventuallyPersistentEngine& engine,
+        bool metadataOnly) {
     /* [EPHE TODO]: Just return error code and make all the callers handle it */
     throw std::logic_error(
             "EphemeralVBucket::addTempItemAndBGFetch() is not valid. "

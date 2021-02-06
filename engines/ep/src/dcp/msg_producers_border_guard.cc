@@ -26,12 +26,12 @@ DcpMsgProducersBorderGuard::DcpMsgProducersBorderGuard(
     : guarded(guarded) {
 }
 
-ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::get_failover_log(uint32_t opaque,
-                                                               Vbid vbucket) {
+cb::engine_errc DcpMsgProducersBorderGuard::get_failover_log(uint32_t opaque,
+                                                             Vbid vbucket) {
     NonBucketAllocationGuard guard;
     return guarded.get_failover_log(opaque, vbucket);
 }
-ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::stream_req(
+cb::engine_errc DcpMsgProducersBorderGuard::stream_req(
         uint32_t opaque,
         Vbid vbucket,
         uint32_t flags,
@@ -53,22 +53,22 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::stream_req(
                               request_value);
 }
 
-ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::add_stream_rsp(
+cb::engine_errc DcpMsgProducersBorderGuard::add_stream_rsp(
         uint32_t opaque, uint32_t stream_opaque, cb::mcbp::Status status) {
     NonBucketAllocationGuard guard;
     return guarded.add_stream_rsp(opaque, stream_opaque, status);
 }
-ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::marker_rsp(
+cb::engine_errc DcpMsgProducersBorderGuard::marker_rsp(
         uint32_t opaque, cb::mcbp::Status status) {
     NonBucketAllocationGuard guard;
     return guarded.marker_rsp(opaque, status);
 }
-ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::set_vbucket_state_rsp(
+cb::engine_errc DcpMsgProducersBorderGuard::set_vbucket_state_rsp(
         uint32_t opaque, cb::mcbp::Status status) {
     NonBucketAllocationGuard guard;
     return guarded.set_vbucket_state_rsp(opaque, status);
 }
-ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::stream_end(
+cb::engine_errc DcpMsgProducersBorderGuard::stream_end(
         uint32_t opaque,
         Vbid vbucket,
         cb::mcbp::DcpStreamEndStatus status,
@@ -76,7 +76,7 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::stream_end(
     NonBucketAllocationGuard guard;
     return guarded.stream_end(opaque, vbucket, status, sid);
 }
-ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::marker(
+cb::engine_errc DcpMsgProducersBorderGuard::marker(
         uint32_t opaque,
         Vbid vbucket,
         uint64_t start_seqno,
@@ -97,7 +97,7 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::marker(
                           timestamp,
                           sid);
 }
-ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::mutation(
+cb::engine_errc DcpMsgProducersBorderGuard::mutation(
         uint32_t opaque,
         cb::unique_item_ptr itm,
         Vbid vbucket,
@@ -116,7 +116,7 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::mutation(
                             nru,
                             sid);
 }
-ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::deletion(
+cb::engine_errc DcpMsgProducersBorderGuard::deletion(
         uint32_t opaque,
         cb::unique_item_ptr itm,
         Vbid vbucket,
@@ -131,7 +131,7 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::deletion(
                             rev_seqno,
                             sid);
 }
-ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::deletion_v2(
+cb::engine_errc DcpMsgProducersBorderGuard::deletion_v2(
         uint32_t opaque,
         cb::unique_item_ptr itm,
         Vbid vbucket,
@@ -148,7 +148,7 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::deletion_v2(
                                delete_time,
                                sid);
 }
-ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::expiration(
+cb::engine_errc DcpMsgProducersBorderGuard::expiration(
         uint32_t opaque,
         cb::unique_item_ptr itm,
         Vbid vbucket,
@@ -165,27 +165,27 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::expiration(
                               delete_time,
                               sid);
 }
-ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::set_vbucket_state(
+cb::engine_errc DcpMsgProducersBorderGuard::set_vbucket_state(
         uint32_t opaque, Vbid vbucket, vbucket_state_t state) {
     NonBucketAllocationGuard guard;
     return guarded.set_vbucket_state(opaque, vbucket, state);
 }
-ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::noop(uint32_t opaque) {
+cb::engine_errc DcpMsgProducersBorderGuard::noop(uint32_t opaque) {
     NonBucketAllocationGuard guard;
     return guarded.noop(opaque);
 }
-ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::buffer_acknowledgement(
+cb::engine_errc DcpMsgProducersBorderGuard::buffer_acknowledgement(
         uint32_t opaque, Vbid vbucket, uint32_t buffer_bytes) {
     NonBucketAllocationGuard guard;
     return guarded.buffer_acknowledgement(opaque, vbucket, buffer_bytes);
 }
-ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::control(uint32_t opaque,
-                                                      std::string_view key,
-                                                      std::string_view value) {
+cb::engine_errc DcpMsgProducersBorderGuard::control(uint32_t opaque,
+                                                    std::string_view key,
+                                                    std::string_view value) {
     NonBucketAllocationGuard guard;
     return guarded.control(opaque, key, value);
 }
-ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::system_event(
+cb::engine_errc DcpMsgProducersBorderGuard::system_event(
         uint32_t opaque,
         Vbid vbucket,
         mcbp::systemevent::id event,
@@ -198,12 +198,12 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::system_event(
     return guarded.system_event(
             opaque, vbucket, event, bySeqno, version, key, eventData, sid);
 }
-ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::get_error_map(uint32_t opaque,
-                                                            uint16_t version) {
+cb::engine_errc DcpMsgProducersBorderGuard::get_error_map(uint32_t opaque,
+                                                          uint16_t version) {
     NonBucketAllocationGuard guard;
     return guarded.get_error_map(opaque, version);
 }
-ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::prepare(
+cb::engine_errc DcpMsgProducersBorderGuard::prepare(
         uint32_t opaque,
         cb::unique_item_ptr itm,
         Vbid vbucket,
@@ -224,29 +224,29 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::prepare(
                            document_state,
                            level);
 }
-ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::seqno_acknowledged(
+cb::engine_errc DcpMsgProducersBorderGuard::seqno_acknowledged(
         uint32_t opaque, Vbid vbucket, uint64_t prepared_seqno) {
     NonBucketAllocationGuard guard;
     return guarded.seqno_acknowledged(opaque, vbucket, prepared_seqno);
 }
-ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::commit(uint32_t opaque,
-                                                     Vbid vbucket,
-                                                     const DocKey& key,
-                                                     uint64_t prepare_seqno,
-                                                     uint64_t commit_seqno) {
+cb::engine_errc DcpMsgProducersBorderGuard::commit(uint32_t opaque,
+                                                   Vbid vbucket,
+                                                   const DocKey& key,
+                                                   uint64_t prepare_seqno,
+                                                   uint64_t commit_seqno) {
     NonBucketAllocationGuard guard;
     return guarded.commit(opaque, vbucket, key, prepare_seqno, commit_seqno);
 }
-ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::abort(uint32_t opaque,
-                                                    Vbid vbucket,
-                                                    const DocKey& key,
-                                                    uint64_t prepared_seqno,
-                                                    uint64_t abort_seqno) {
+cb::engine_errc DcpMsgProducersBorderGuard::abort(uint32_t opaque,
+                                                  Vbid vbucket,
+                                                  const DocKey& key,
+                                                  uint64_t prepared_seqno,
+                                                  uint64_t abort_seqno) {
     NonBucketAllocationGuard guard;
     return guarded.abort(opaque, vbucket, key, prepared_seqno, abort_seqno);
 }
 
-ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::oso_snapshot(
+cb::engine_errc DcpMsgProducersBorderGuard::oso_snapshot(
         uint32_t opaque,
         Vbid vbucket,
         uint32_t flags,
@@ -255,11 +255,11 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::oso_snapshot(
     return guarded.oso_snapshot(opaque, vbucket, flags, sid);
 }
 
-ENGINE_ERROR_CODE
-DcpMsgProducersBorderGuard::seqno_advanced(uint32_t opaque,
-                                           Vbid vbucket,
-                                           uint64_t seqno,
-                                           cb::mcbp::DcpStreamId sid) {
+cb::engine_errc DcpMsgProducersBorderGuard::seqno_advanced(
+        uint32_t opaque,
+        Vbid vbucket,
+        uint64_t seqno,
+        cb::mcbp::DcpStreamId sid) {
     NonBucketAllocationGuard guard;
     return guarded.seqno_advanced(opaque, vbucket, seqno, sid);
 }

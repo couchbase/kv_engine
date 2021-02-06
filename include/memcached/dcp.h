@@ -55,28 +55,27 @@ public:
 struct DcpMessageProducersIface {
     virtual ~DcpMessageProducersIface() = default;
 
-    virtual ENGINE_ERROR_CODE get_failover_log(uint32_t opaque,
-                                               Vbid vbucket) = 0;
+    virtual cb::engine_errc get_failover_log(uint32_t opaque, Vbid vbucket) = 0;
 
-    virtual ENGINE_ERROR_CODE stream_req(uint32_t opaque,
-                                         Vbid vbucket,
-                                         uint32_t flags,
-                                         uint64_t start_seqno,
-                                         uint64_t end_seqno,
-                                         uint64_t vbucket_uuid,
-                                         uint64_t snap_start_seqno,
-                                         uint64_t snap_end_seqno,
-                                         const std::string& request_value) = 0;
+    virtual cb::engine_errc stream_req(uint32_t opaque,
+                                       Vbid vbucket,
+                                       uint32_t flags,
+                                       uint64_t start_seqno,
+                                       uint64_t end_seqno,
+                                       uint64_t vbucket_uuid,
+                                       uint64_t snap_start_seqno,
+                                       uint64_t snap_end_seqno,
+                                       const std::string& request_value) = 0;
 
-    virtual ENGINE_ERROR_CODE add_stream_rsp(uint32_t opaque,
-                                             uint32_t stream_opaque,
-                                             cb::mcbp::Status status) = 0;
+    virtual cb::engine_errc add_stream_rsp(uint32_t opaque,
+                                           uint32_t stream_opaque,
+                                           cb::mcbp::Status status) = 0;
 
-    virtual ENGINE_ERROR_CODE marker_rsp(uint32_t opaque,
-                                         cb::mcbp::Status status) = 0;
+    virtual cb::engine_errc marker_rsp(uint32_t opaque,
+                                       cb::mcbp::Status status) = 0;
 
-    virtual ENGINE_ERROR_CODE set_vbucket_state_rsp(
-            uint32_t opaque, cb::mcbp::Status status) = 0;
+    virtual cb::engine_errc set_vbucket_state_rsp(uint32_t opaque,
+                                                  cb::mcbp::Status status) = 0;
 
     /**
      * Send a Stream End message
@@ -90,14 +89,14 @@ struct DcpMessageProducersIface {
      *                   us to abort it.
      * @param sid The stream-ID the end applies to (can be 0 for none)
      *
-     * @return ENGINE_SUCCESS upon success
-     *         ENGINE_EWOULDBLOCK if no data is available
+     * @return cb::engine_errc::success upon success
+     *         cb::engine_errc::would_block if no data is available
      *         ENGINE_* for errors
      */
-    virtual ENGINE_ERROR_CODE stream_end(uint32_t opaque,
-                                         Vbid vbucket,
-                                         cb::mcbp::DcpStreamEndStatus status,
-                                         cb::mcbp::DcpStreamId sid) = 0;
+    virtual cb::engine_errc stream_end(uint32_t opaque,
+                                       Vbid vbucket,
+                                       cb::mcbp::DcpStreamEndStatus status,
+                                       cb::mcbp::DcpStreamId sid) = 0;
 
     /**
      * Send a marker
@@ -114,17 +113,17 @@ struct DcpMessageProducersIface {
      *                  disk type and represents the disk commit time)
      * @param sid The stream-ID the marker applies to (can be 0 for none)
      *
-     * @return ENGINE_SUCCESS upon success
+     * @return cb::engine_errc::success upon success
      */
-    virtual ENGINE_ERROR_CODE marker(uint32_t opaque,
-                                     Vbid vbucket,
-                                     uint64_t start_seqno,
-                                     uint64_t end_seqno,
-                                     uint32_t flags,
-                                     std::optional<uint64_t> highCompletedSeqno,
-                                     std::optional<uint64_t> maxVisibleSeqno,
-                                     std::optional<uint64_t> timestamp,
-                                     cb::mcbp::DcpStreamId sid) = 0;
+    virtual cb::engine_errc marker(uint32_t opaque,
+                                   Vbid vbucket,
+                                   uint64_t start_seqno,
+                                   uint64_t end_seqno,
+                                   uint32_t flags,
+                                   std::optional<uint64_t> highCompletedSeqno,
+                                   std::optional<uint64_t> maxVisibleSeqno,
+                                   std::optional<uint64_t> timestamp,
+                                   cb::mcbp::DcpStreamId sid) = 0;
 
     /**
      * Send a Mutation
@@ -139,16 +138,16 @@ struct DcpMessageProducersIface {
      * @param nru the nru field used by ep-engine (may safely be ignored)
      * @param sid The stream-ID the mutation applies to (can be 0 for none)
      *
-     * @return ENGINE_SUCCESS upon success
+     * @return cb::engine_errc::success upon success
      */
-    virtual ENGINE_ERROR_CODE mutation(uint32_t opaque,
-                                       cb::unique_item_ptr itm,
-                                       Vbid vbucket,
-                                       uint64_t by_seqno,
-                                       uint64_t rev_seqno,
-                                       uint32_t lock_time,
-                                       uint8_t nru,
-                                       cb::mcbp::DcpStreamId sid) = 0;
+    virtual cb::engine_errc mutation(uint32_t opaque,
+                                     cb::unique_item_ptr itm,
+                                     Vbid vbucket,
+                                     uint64_t by_seqno,
+                                     uint64_t rev_seqno,
+                                     uint32_t lock_time,
+                                     uint8_t nru,
+                                     cb::mcbp::DcpStreamId sid) = 0;
 
     /**
      * Send a deletion
@@ -160,14 +159,14 @@ struct DcpMessageProducersIface {
      * @param rev_seqno
      * @param sid The stream-ID the deletion applies to (can be 0 for none)
      *
-     * @return ENGINE_SUCCESS upon success
+     * @return cb::engine_errc::success upon success
      */
-    virtual ENGINE_ERROR_CODE deletion(uint32_t opaque,
-                                       cb::unique_item_ptr itm,
-                                       Vbid vbucket,
-                                       uint64_t by_seqno,
-                                       uint64_t rev_seqno,
-                                       cb::mcbp::DcpStreamId sid) = 0;
+    virtual cb::engine_errc deletion(uint32_t opaque,
+                                     cb::unique_item_ptr itm,
+                                     Vbid vbucket,
+                                     uint64_t by_seqno,
+                                     uint64_t rev_seqno,
+                                     cb::mcbp::DcpStreamId sid) = 0;
 
     /**
      * Send a deletion with delete_time or collections (or both)
@@ -181,15 +180,15 @@ struct DcpMessageProducersIface {
      * @param delete_time the time of the deletion (tombstone creation time)
      * @param sid The stream-ID the deletion applies to (can be 0 for none)
      *
-     * @return ENGINE_SUCCESS upon success
+     * @return cb::engine_errc::success upon success
      */
-    virtual ENGINE_ERROR_CODE deletion_v2(uint32_t opaque,
-                                          cb::unique_item_ptr itm,
-                                          Vbid vbucket,
-                                          uint64_t by_seqno,
-                                          uint64_t rev_seqno,
-                                          uint32_t delete_time,
-                                          cb::mcbp::DcpStreamId sid) = 0;
+    virtual cb::engine_errc deletion_v2(uint32_t opaque,
+                                        cb::unique_item_ptr itm,
+                                        Vbid vbucket,
+                                        uint64_t by_seqno,
+                                        uint64_t rev_seqno,
+                                        uint32_t delete_time,
+                                        cb::mcbp::DcpStreamId sid) = 0;
 
     /**
      * Send an expiration
@@ -202,15 +201,15 @@ struct DcpMessageProducersIface {
      * @param delete_time the time of the deletion (tombstone creation time)
      * @param sid The stream-ID the expiration applies to (can be 0 for none)
      *
-     * @return ENGINE_SUCCESS upon success
+     * @return cb::engine_errc::success upon success
      */
-    virtual ENGINE_ERROR_CODE expiration(uint32_t opaque,
-                                         cb::unique_item_ptr itm,
-                                         Vbid vbucket,
-                                         uint64_t by_seqno,
-                                         uint64_t rev_seqno,
-                                         uint32_t delete_time,
-                                         cb::mcbp::DcpStreamId sid) = 0;
+    virtual cb::engine_errc expiration(uint32_t opaque,
+                                       cb::unique_item_ptr itm,
+                                       Vbid vbucket,
+                                       uint64_t by_seqno,
+                                       uint64_t rev_seqno,
+                                       uint32_t delete_time,
+                                       cb::mcbp::DcpStreamId sid) = 0;
 
     /**
      * Send a state transition for a vbucket
@@ -220,20 +219,20 @@ struct DcpMessageProducersIface {
      * @param vbucket the vbucket id the message belong to
      * @param state the new state
      *
-     * @return ENGINE_SUCCESS upon success
+     * @return cb::engine_errc::success upon success
      */
-    virtual ENGINE_ERROR_CODE set_vbucket_state(uint32_t opaque,
-                                                Vbid vbucket,
-                                                vbucket_state_t state) = 0;
+    virtual cb::engine_errc set_vbucket_state(uint32_t opaque,
+                                              Vbid vbucket,
+                                              vbucket_state_t state) = 0;
 
     /**
      * Send a noop
      *
      * @param opaque what to use as the opaque in the buffer
      *
-     * @return ENGINE_SUCCESS upon success
+     * @return cb::engine_errc::success upon success
      */
-    virtual ENGINE_ERROR_CODE noop(uint32_t opaque) = 0;
+    virtual cb::engine_errc noop(uint32_t opaque) = 0;
 
     /**
      * Send a buffer acknowledgment
@@ -243,11 +242,11 @@ struct DcpMessageProducersIface {
      * @param vbucket the vbucket id the message belong to
      * @param buffer_bytes the amount of bytes processed
      *
-     * @return ENGINE_SUCCESS upon success
+     * @return cb::engine_errc::success upon success
      */
-    virtual ENGINE_ERROR_CODE buffer_acknowledgement(uint32_t opaque,
-                                                     Vbid vbucket,
-                                                     uint32_t buffer_bytes) = 0;
+    virtual cb::engine_errc buffer_acknowledgement(uint32_t opaque,
+                                                   Vbid vbucket,
+                                                   uint32_t buffer_bytes) = 0;
 
     /**
      * Send a control message to the other end
@@ -257,11 +256,11 @@ struct DcpMessageProducersIface {
      * @param value The value for the property (the layout of the
      *              value is defined for the key)
      *
-     * @return ENGINE_SUCCESS upon success
+     * @return cb::engine_errc::success upon success
      */
-    virtual ENGINE_ERROR_CODE control(uint32_t opaque,
-                                      std::string_view key,
-                                      std::string_view value) = 0;
+    virtual cb::engine_errc control(uint32_t opaque,
+                                    std::string_view key,
+                                    std::string_view value) = 0;
 
     /**
      * Send a system event message to the other end
@@ -275,16 +274,16 @@ struct DcpMessageProducersIface {
      * @param eventData the system event's specific data
      * @param sid The stream-ID the event applies to (can be 0 for none)
      *
-     * @return ENGINE_SUCCESS upon success
+     * @return cb::engine_errc::success upon success
      */
-    virtual ENGINE_ERROR_CODE system_event(uint32_t opaque,
-                                           Vbid vbucket,
-                                           mcbp::systemevent::id event,
-                                           uint64_t bySeqno,
-                                           mcbp::systemevent::version version,
-                                           cb::const_byte_buffer key,
-                                           cb::const_byte_buffer eventData,
-                                           cb::mcbp::DcpStreamId sid) = 0;
+    virtual cb::engine_errc system_event(uint32_t opaque,
+                                         Vbid vbucket,
+                                         mcbp::systemevent::id event,
+                                         uint64_t bySeqno,
+                                         mcbp::systemevent::version version,
+                                         cb::const_byte_buffer key,
+                                         cb::const_byte_buffer eventData,
+                                         cb::mcbp::DcpStreamId sid) = 0;
 
     /*
      * Send a GetErrorMap message to the other end
@@ -292,10 +291,10 @@ struct DcpMessageProducersIface {
      * @param opaque The opaque to send over
      * @param version The version of the error map
      *
-     * @return ENGINE_SUCCESS upon success
+     * @return cb::engine_errc::success upon success
      */
-    virtual ENGINE_ERROR_CODE get_error_map(uint32_t opaque,
-                                            uint16_t version) = 0;
+    virtual cb::engine_errc get_error_map(uint32_t opaque,
+                                          uint16_t version) = 0;
 
     /**
      * See mutation for a description of the parameters except for:
@@ -303,15 +302,15 @@ struct DcpMessageProducersIface {
      * @param deleted Are we storing a deletion operation?
      * @param durability the durability specification for this item
      */
-    virtual ENGINE_ERROR_CODE prepare(uint32_t opaque,
-                                      cb::unique_item_ptr itm,
-                                      Vbid vbucket,
-                                      uint64_t by_seqno,
-                                      uint64_t rev_seqno,
-                                      uint32_t lock_time,
-                                      uint8_t nru,
-                                      DocumentState document_state,
-                                      cb::durability::Level level) = 0;
+    virtual cb::engine_errc prepare(uint32_t opaque,
+                                    cb::unique_item_ptr itm,
+                                    Vbid vbucket,
+                                    uint64_t by_seqno,
+                                    uint64_t rev_seqno,
+                                    uint32_t lock_time,
+                                    uint8_t nru,
+                                    DocumentState document_state,
+                                    cb::durability::Level level) = 0;
 
     /**
      * Send a seqno ack message
@@ -324,9 +323,9 @@ struct DcpMessageProducersIface {
      * @param vbucket the vbucket the seqno ack is for
      * @param prepared_seqno The seqno the replica has prepared up to.
      */
-    virtual ENGINE_ERROR_CODE seqno_acknowledged(uint32_t opaque,
-                                                 Vbid vbucket,
-                                                 uint64_t prepared_seqno) = 0;
+    virtual cb::engine_errc seqno_acknowledged(uint32_t opaque,
+                                               Vbid vbucket,
+                                               uint64_t prepared_seqno) = 0;
 
     /**
      * Send a commit message:
@@ -342,37 +341,37 @@ struct DcpMessageProducersIface {
      * @param commit_seqno The sequence number to commit this mutation at.
      * @return
      */
-    virtual ENGINE_ERROR_CODE commit(uint32_t opaque,
-                                     Vbid vbucket,
-                                     const DocKey& key,
-                                     uint64_t prepare_seqno,
-                                     uint64_t commit_seqno) = 0;
+    virtual cb::engine_errc commit(uint32_t opaque,
+                                   Vbid vbucket,
+                                   const DocKey& key,
+                                   uint64_t prepare_seqno,
+                                   uint64_t commit_seqno) = 0;
     /**
      * Send an abort message:
      *
      * This is sent from the DCP Producer to the DCP Consumer.
      */
-    virtual ENGINE_ERROR_CODE abort(uint32_t opaque,
-                                    Vbid vbucket,
-                                    const DocKey& key,
-                                    uint64_t prepared_seqno,
-                                    uint64_t abort_seqno) = 0;
+    virtual cb::engine_errc abort(uint32_t opaque,
+                                  Vbid vbucket,
+                                  const DocKey& key,
+                                  uint64_t prepared_seqno,
+                                  uint64_t abort_seqno) = 0;
     /**
      * Send an OSO snapshot marker to from server to client
      */
-    virtual ENGINE_ERROR_CODE oso_snapshot(uint32_t opaque,
-                                           Vbid vbucket,
-                                           uint32_t flags,
-                                           cb::mcbp::DcpStreamId sid) = 0;
+    virtual cb::engine_errc oso_snapshot(uint32_t opaque,
+                                         Vbid vbucket,
+                                         uint32_t flags,
+                                         cb::mcbp::DcpStreamId sid) = 0;
 
-    virtual ENGINE_ERROR_CODE seqno_advanced(uint32_t opaque,
-                                             Vbid vbucket,
-                                             uint64_t seqno,
-                                             cb::mcbp::DcpStreamId sid) = 0;
+    virtual cb::engine_errc seqno_advanced(uint32_t opaque,
+                                           Vbid vbucket,
+                                           uint64_t seqno,
+                                           cb::mcbp::DcpStreamId sid) = 0;
 };
 
-using dcp_add_failover_log = std::function<ENGINE_ERROR_CODE(
-        const std::vector<vbucket_failover_t>&)>;
+using dcp_add_failover_log =
+        std::function<cb::engine_errc(const std::vector<vbucket_failover_t>&)>;
 
 struct MEMCACHED_PUBLIC_CLASS DcpIface {
     /**
@@ -386,11 +385,11 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      *
      * @return The appropriate error code returned from the message
      *         producerif it failed, or:
-     *         ENGINE_SUCCESS if the engine don't have more messages
+     *         cb::engine_errc::success if the engine don't have more messages
      *                        to send at this moment
      */
-    virtual ENGINE_ERROR_CODE step(gsl::not_null<const void*> cookie,
-                                   DcpMessageProducersIface& producers) = 0;
+    virtual cb::engine_errc step(gsl::not_null<const void*> cookie,
+                                 DcpMessageProducersIface& producers) = 0;
 
     /**
      * Called from the memcached core to open a new DCP connection.
@@ -406,15 +405,15 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      *             will disconnect the existing connection.
      * @param value An optional JSON value specifying extra information about
      *              the connection to be opened.
-     * @return ENGINE_SUCCESS if the DCP connection was successfully opened,
-     *         otherwise error code indicating reason for the failure.
+     * @return cb::engine_errc::success if the DCP connection was successfully
+     * opened, otherwise error code indicating reason for the failure.
      */
-    virtual ENGINE_ERROR_CODE open(gsl::not_null<const void*> cookie,
-                                   uint32_t opaque,
-                                   uint32_t seqno,
-                                   uint32_t flags,
-                                   std::string_view name,
-                                   std::string_view value = {}) = 0;
+    virtual cb::engine_errc open(gsl::not_null<const void*> cookie,
+                                 uint32_t opaque,
+                                 uint32_t seqno,
+                                 uint32_t flags,
+                                 std::string_view name,
+                                 std::string_view value = {}) = 0;
 
     /**
      * Called from the memcached core to add a vBucket stream to the set of
@@ -427,13 +426,13 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param vbucket The vBucket to stream.
      * @param flags bitfield of flags to specify what to open. See
      *              DCP_ADD_STREAM_FLAG_XXX
-     * @return ENGINE_SUCCESS if the DCP stream was successfully opened,
-     *         otherwise error code indicating reason for the failure.
+     * @return cb::engine_errc::success if the DCP stream was successfully
+     * opened, otherwise error code indicating reason for the failure.
      */
-    virtual ENGINE_ERROR_CODE add_stream(gsl::not_null<const void*> cookie,
-                                         uint32_t opaque,
-                                         Vbid vbucket,
-                                         uint32_t flags) = 0;
+    virtual cb::engine_errc add_stream(gsl::not_null<const void*> cookie,
+                                       uint32_t opaque,
+                                       Vbid vbucket,
+                                       uint32_t flags) = 0;
 
     /**
      * Called from the memcached core to close a vBucket stream to the set of
@@ -447,15 +446,15 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param sid The id of the stream to close (can be 0/none)
      * @return
      */
-    virtual ENGINE_ERROR_CODE close_stream(gsl::not_null<const void*> cookie,
-                                           uint32_t opaque,
-                                           Vbid vbucket,
-                                           cb::mcbp::DcpStreamId sid) = 0;
+    virtual cb::engine_errc close_stream(gsl::not_null<const void*> cookie,
+                                         uint32_t opaque,
+                                         Vbid vbucket,
+                                         cb::mcbp::DcpStreamId sid) = 0;
 
     /**
      * Callback to the engine that a Stream Request message was received
      */
-    virtual ENGINE_ERROR_CODE stream_req(
+    virtual cb::engine_errc stream_req(
             gsl::not_null<const void*> cookie,
             uint32_t flags,
             uint32_t opaque,
@@ -472,25 +471,23 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
     /**
      * Callback to the engine that a get failover log message was received
      */
-    virtual ENGINE_ERROR_CODE get_failover_log(
-            gsl::not_null<const void*> cookie,
-            uint32_t opaque,
-            Vbid vbucket,
-            dcp_add_failover_log callback) = 0;
+    virtual cb::engine_errc get_failover_log(gsl::not_null<const void*> cookie,
+                                             uint32_t opaque,
+                                             Vbid vbucket,
+                                             dcp_add_failover_log callback) = 0;
 
     /**
      * Callback to the engine that a stream end message was received
      */
-    virtual ENGINE_ERROR_CODE stream_end(
-            gsl::not_null<const void*> cookie,
-            uint32_t opaque,
-            Vbid vbucket,
-            cb::mcbp::DcpStreamEndStatus status) = 0;
+    virtual cb::engine_errc stream_end(gsl::not_null<const void*> cookie,
+                                       uint32_t opaque,
+                                       Vbid vbucket,
+                                       cb::mcbp::DcpStreamEndStatus status) = 0;
 
     /**
      * Callback to the engine that a snapshot marker message was received
      */
-    virtual ENGINE_ERROR_CODE snapshot_marker(
+    virtual cb::engine_errc snapshot_marker(
             gsl::not_null<const void*> cookie,
             uint32_t opaque,
             Vbid vbucket,
@@ -521,21 +518,21 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param nru The engine's NRU value
      * @return Standard engine error code.
      */
-    virtual ENGINE_ERROR_CODE mutation(gsl::not_null<const void*> cookie,
-                                       uint32_t opaque,
-                                       const DocKey& key,
-                                       cb::const_byte_buffer value,
-                                       size_t priv_bytes,
-                                       uint8_t datatype,
-                                       uint64_t cas,
-                                       Vbid vbucket,
-                                       uint32_t flags,
-                                       uint64_t by_seqno,
-                                       uint64_t rev_seqno,
-                                       uint32_t expiration,
-                                       uint32_t lock_time,
-                                       cb::const_byte_buffer meta,
-                                       uint8_t nru) = 0;
+    virtual cb::engine_errc mutation(gsl::not_null<const void*> cookie,
+                                     uint32_t opaque,
+                                     const DocKey& key,
+                                     cb::const_byte_buffer value,
+                                     size_t priv_bytes,
+                                     uint8_t datatype,
+                                     uint64_t cas,
+                                     Vbid vbucket,
+                                     uint32_t flags,
+                                     uint64_t by_seqno,
+                                     uint64_t rev_seqno,
+                                     uint32_t expiration,
+                                     uint32_t lock_time,
+                                     cb::const_byte_buffer meta,
+                                     uint8_t nru) = 0;
 
     /**
      * Callback to the engine that a deletion message was received
@@ -554,17 +551,17 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param meta The documents meta
      * @return Standard engine error code.
      */
-    virtual ENGINE_ERROR_CODE deletion(gsl::not_null<const void*> cookie,
-                                       uint32_t opaque,
-                                       const DocKey& key,
-                                       cb::const_byte_buffer value,
-                                       size_t priv_bytes,
-                                       uint8_t datatype,
-                                       uint64_t cas,
-                                       Vbid vbucket,
-                                       uint64_t by_seqno,
-                                       uint64_t rev_seqno,
-                                       cb::const_byte_buffer meta) = 0;
+    virtual cb::engine_errc deletion(gsl::not_null<const void*> cookie,
+                                     uint32_t opaque,
+                                     const DocKey& key,
+                                     cb::const_byte_buffer value,
+                                     size_t priv_bytes,
+                                     uint8_t datatype,
+                                     uint64_t cas,
+                                     Vbid vbucket,
+                                     uint64_t by_seqno,
+                                     uint64_t rev_seqno,
+                                     cb::const_byte_buffer meta) = 0;
 
     /**
      * Callback to the engine that a deletion_v2 message was received
@@ -583,18 +580,18 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param delete_time The time of the delete
      * @return Standard engine error code.
      */
-    virtual ENGINE_ERROR_CODE deletion_v2(gsl::not_null<const void*> cookie,
-                                          uint32_t opaque,
-                                          const DocKey& key,
-                                          cb::const_byte_buffer value,
-                                          size_t priv_bytes,
-                                          uint8_t datatype,
-                                          uint64_t cas,
-                                          Vbid vbucket,
-                                          uint64_t by_seqno,
-                                          uint64_t rev_seqno,
-                                          uint32_t delete_time) {
-        return ENGINE_ENOTSUP;
+    virtual cb::engine_errc deletion_v2(gsl::not_null<const void*> cookie,
+                                        uint32_t opaque,
+                                        const DocKey& key,
+                                        cb::const_byte_buffer value,
+                                        size_t priv_bytes,
+                                        uint8_t datatype,
+                                        uint64_t cas,
+                                        Vbid vbucket,
+                                        uint64_t by_seqno,
+                                        uint64_t rev_seqno,
+                                        uint32_t delete_time) {
+        return cb::engine_errc::not_supported;
     }
 
     /**
@@ -614,37 +611,36 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param meta The documents meta
      * @return Standard engine error code.
      */
-    virtual ENGINE_ERROR_CODE expiration(gsl::not_null<const void*> cookie,
-                                         uint32_t opaque,
-                                         const DocKey& key,
-                                         cb::const_byte_buffer value,
-                                         size_t priv_bytes,
-                                         uint8_t datatype,
-                                         uint64_t cas,
-                                         Vbid vbucket,
-                                         uint64_t by_seqno,
-                                         uint64_t rev_seqno,
-                                         uint32_t deleteTime) = 0;
+    virtual cb::engine_errc expiration(gsl::not_null<const void*> cookie,
+                                       uint32_t opaque,
+                                       const DocKey& key,
+                                       cb::const_byte_buffer value,
+                                       size_t priv_bytes,
+                                       uint8_t datatype,
+                                       uint64_t cas,
+                                       Vbid vbucket,
+                                       uint64_t by_seqno,
+                                       uint64_t rev_seqno,
+                                       uint32_t deleteTime) = 0;
 
     /**
      * Callback to the engine that a set vbucket state message was received
      */
-    virtual ENGINE_ERROR_CODE set_vbucket_state(
-            gsl::not_null<const void*> cookie,
-            uint32_t opaque,
-            Vbid vbucket,
-            vbucket_state_t state) = 0;
+    virtual cb::engine_errc set_vbucket_state(gsl::not_null<const void*> cookie,
+                                              uint32_t opaque,
+                                              Vbid vbucket,
+                                              vbucket_state_t state) = 0;
 
     /**
      * Callback to the engine that a NOOP message was received
      */
-    virtual ENGINE_ERROR_CODE noop(gsl::not_null<const void*> cookie,
-                                   uint32_t opaque) = 0;
+    virtual cb::engine_errc noop(gsl::not_null<const void*> cookie,
+                                 uint32_t opaque) = 0;
 
     /**
      * Callback to the engine that a buffer_ack message was received
      */
-    virtual ENGINE_ERROR_CODE buffer_acknowledgement(
+    virtual cb::engine_errc buffer_acknowledgement(
             gsl::not_null<const void*> cookie,
             uint32_t opaque,
             Vbid vbucket,
@@ -659,10 +655,10 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param value The control message value
      * @return Standard engine error code.
      */
-    virtual ENGINE_ERROR_CODE control(gsl::not_null<const void*> cookie,
-                                      uint32_t opaque,
-                                      std::string_view key,
-                                      std::string_view value) = 0;
+    virtual cb::engine_errc control(gsl::not_null<const void*> cookie,
+                                    uint32_t opaque,
+                                    std::string_view key,
+                                    std::string_view value) = 0;
 
     /**
      * Callback to the engine that a response message has been received.
@@ -670,7 +666,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param response The response which the server received.
      * @return Standard engine error code.
      */
-    virtual ENGINE_ERROR_CODE response_handler(
+    virtual cb::engine_errc response_handler(
             gsl::not_null<const void*> cookie,
             const cb::mcbp::Response& response) = 0;
 
@@ -687,14 +683,14 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param eventData The event value.
      * @return Standard engine error code.
      */
-    virtual ENGINE_ERROR_CODE system_event(gsl::not_null<const void*> cookie,
-                                           uint32_t opaque,
-                                           Vbid vbucket,
-                                           mcbp::systemevent::id event,
-                                           uint64_t bySeqno,
-                                           mcbp::systemevent::version version,
-                                           cb::const_byte_buffer key,
-                                           cb::const_byte_buffer eventData) = 0;
+    virtual cb::engine_errc system_event(gsl::not_null<const void*> cookie,
+                                         uint32_t opaque,
+                                         Vbid vbucket,
+                                         mcbp::systemevent::id event,
+                                         uint64_t bySeqno,
+                                         mcbp::systemevent::version version,
+                                         cb::const_byte_buffer key,
+                                         cb::const_byte_buffer eventData) = 0;
 
     /**
      * Called by the core when it receives a DCP PREPARE message over the
@@ -705,22 +701,22 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param deleted Are we storing a deletion operation?
      * @param durability the durability specification for this item
      */
-    virtual ENGINE_ERROR_CODE prepare(gsl::not_null<const void*> cookie,
-                                      uint32_t opaque,
-                                      const DocKey& key,
-                                      cb::const_byte_buffer value,
-                                      size_t priv_bytes,
-                                      uint8_t datatype,
-                                      uint64_t cas,
-                                      Vbid vbucket,
-                                      uint32_t flags,
-                                      uint64_t by_seqno,
-                                      uint64_t rev_seqno,
-                                      uint32_t expiration,
-                                      uint32_t lock_time,
-                                      uint8_t nru,
-                                      DocumentState document_state,
-                                      cb::durability::Level level) = 0;
+    virtual cb::engine_errc prepare(gsl::not_null<const void*> cookie,
+                                    uint32_t opaque,
+                                    const DocKey& key,
+                                    cb::const_byte_buffer value,
+                                    size_t priv_bytes,
+                                    uint8_t datatype,
+                                    uint64_t cas,
+                                    Vbid vbucket,
+                                    uint32_t flags,
+                                    uint64_t by_seqno,
+                                    uint64_t rev_seqno,
+                                    uint32_t expiration,
+                                    uint32_t lock_time,
+                                    uint8_t nru,
+                                    DocumentState document_state,
+                                    cb::durability::Level level) = 0;
 
     /**
      * Called by the core when it receives a DCP SEQNO ACK message over the
@@ -735,7 +731,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param vbucket The vbucket which is being acknowledged.
      * @param prepared_seqno The seqno the replica has prepared up to.
      */
-    virtual ENGINE_ERROR_CODE seqno_acknowledged(
+    virtual cb::engine_errc seqno_acknowledged(
             gsl::not_null<const void*> cookie,
             uint32_t opaque,
             Vbid vbucket,
@@ -749,22 +745,22 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * It is only sent to DCP replicas, not GSI, FTS etc. It serves to inform
      * KV-Engine replicas of a committed Sync Write
      */
-    virtual ENGINE_ERROR_CODE commit(gsl::not_null<const void*> cookie,
-                                     uint32_t opaque,
-                                     Vbid vbucket,
-                                     const DocKey& key,
-                                     uint64_t prepared_seqno,
-                                     uint64_t commit_seqno) = 0;
+    virtual cb::engine_errc commit(gsl::not_null<const void*> cookie,
+                                   uint32_t opaque,
+                                   Vbid vbucket,
+                                   const DocKey& key,
+                                   uint64_t prepared_seqno,
+                                   uint64_t commit_seqno) = 0;
     /**
      * Called by the core when it receives a DCP ABORT message over the
      * wire.
      *
      * This is sent from the DCP Producer to the DCP Consumer.
      */
-    virtual ENGINE_ERROR_CODE abort(gsl::not_null<const void*> cookie,
-                                    uint32_t opaque,
-                                    Vbid vbucket,
-                                    const DocKey& key,
-                                    uint64_t prepared_seqno,
-                                    uint64_t abort_seqno) = 0;
+    virtual cb::engine_errc abort(gsl::not_null<const void*> cookie,
+                                  uint32_t opaque,
+                                  Vbid vbucket,
+                                  const DocKey& key,
+                                  uint64_t prepared_seqno,
+                                  uint64_t abort_seqno) = 0;
 };

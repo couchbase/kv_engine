@@ -142,7 +142,7 @@ TEST_F(FlusherTest, GetToLowPrioWhenSomeHighPriIsPending) {
     item.setCas();
     uint64_t seqno;
     // Simulate PassiveStream::processMessage
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               kvBucket->setWithMeta(item,
                                     0 /*cas*/,
                                     &seqno,

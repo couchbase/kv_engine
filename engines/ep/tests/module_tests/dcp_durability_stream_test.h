@@ -58,8 +58,8 @@ protected:
      * - processes any SyncWrites which are now resolved (which would normally
      *   be done by the DurabilityCompletion background task.
      */
-    ENGINE_ERROR_CODE simulateStreamSeqnoAck(const std::string& consumerName,
-                                             uint64_t preparedSeqno);
+    cb::engine_errc simulateStreamSeqnoAck(const std::string& consumerName,
+                                           uint64_t preparedSeqno);
 
     /**
      * Test that backfill for a stream which has not negotiated sync write

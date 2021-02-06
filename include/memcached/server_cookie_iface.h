@@ -136,7 +136,7 @@ struct ServerCookieIface {
      * @param status the status for the io operation
      */
     virtual void notify_io_complete(gsl::not_null<const void*> cookie,
-                                    ENGINE_ERROR_CODE status) = 0;
+                                    cb::engine_errc status) = 0;
 
     /**
      * Request the core to schedule a new call to dcp_step() as soon as
@@ -230,12 +230,12 @@ struct ServerCookieIface {
      * @param code the engine error code to get the mcbp response code.
      * @return the mcbp response status to use
      * @throws std::engine_error if the error code results in being
-     *                           ENGINE_DISCONNECT after remapping
+     *                           cb::engine_errc::disconnect after remapping
      *         std::logic_error if the error code doesn't make sense
      *         std::invalid_argument if the code doesn't exist
      */
     virtual cb::mcbp::Status engine_error2mcbp(
-            gsl::not_null<const void*> cookie, ENGINE_ERROR_CODE code) = 0;
+            gsl::not_null<const void*> cookie, cb::engine_errc code) = 0;
 
     /**
      * Get the log information to be used for a log entry.

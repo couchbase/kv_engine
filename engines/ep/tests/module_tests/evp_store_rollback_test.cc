@@ -91,9 +91,9 @@ protected:
     /*
      * Fake callback emulating dcp_add_failover_log
      */
-    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(
+    static cb::engine_errc fakeDcpAddFailoverLog(
             const std::vector<vbucket_failover_t>&) {
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     /**
@@ -149,7 +149,7 @@ public:
         auto htState = getHtState();
         uint64_t cas = item_v1.getCas();
         mutation_descr_t mutation_descr;
-        ASSERT_EQ(ENGINE_SUCCESS,
+        ASSERT_EQ(cb::engine_errc::success,
                   store->deleteItem(a,
                                     cas,
                                     vbid,
@@ -173,14 +173,14 @@ public:
         // If we're in value_only or have not flushed in full_eviction then
         // we don't need to do a bg fetch
         if (getEvictionMode() == "value_only" || !flush_before_rollback) {
-            EXPECT_EQ(ENGINE_KEY_ENOENT,
+            EXPECT_EQ(cb::engine_errc::no_such_key,
                       store->get(a, vbid, nullptr, {}).getStatus());
         } else {
-            EXPECT_EQ(ENGINE_EWOULDBLOCK,
+            EXPECT_EQ(cb::engine_errc::would_block,
                       store->get(a, vbid, nullptr, QUEUE_BG_FETCH).getStatus());
             // Manually run the bgfetch task.
             runBGFetcherTask();
-            EXPECT_EQ(ENGINE_KEY_ENOENT,
+            EXPECT_EQ(cb::engine_errc::no_such_key,
                       store->get(a, vbid, nullptr, QUEUE_BG_FETCH).getStatus());
         }
 
@@ -195,7 +195,7 @@ public:
                         : ForGetReplicaOp::No;
         auto result =
                 getInternal(a, vbid, /*cookie*/ nullptr, getReplicaItem, {});
-        ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
+        ASSERT_EQ(cb::engine_errc::success, result.getStatus());
 
         EXPECT_EQ(htState.dump(0), getHtState().dump(0));
         EXPECT_EQ(item_v1, *result.item)
@@ -248,7 +248,7 @@ public:
         // a should have the value of 'old'
         {
             auto result = store->get(a, vbid, nullptr, {});
-            ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
+            ASSERT_EQ(cb::engine_errc::success, result.getStatus());
             EXPECT_EQ(item_v1, *result.item)
                     << "Fetched item after rollback should match item_v1";
         }
@@ -260,7 +260,7 @@ public:
                 runBGFetcherTask();
                 result = store->get(key, vbid, nullptr, {});
             }
-            EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus())
+            EXPECT_EQ(cb::engine_errc::no_such_key, result.getStatus())
                     << "A key set after the rollback point was found";
         }
 
@@ -331,7 +331,7 @@ protected:
         EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 
         if (getEvictionMode() == "value_only") {
-            EXPECT_EQ(ENGINE_KEY_ENOENT,
+            EXPECT_EQ(cb::engine_errc::no_such_key,
                       store->get(a, vbid, nullptr, {}).getStatus());
         } else {
             auto gcb = store->get(a, vbid, nullptr, QUEUE_BG_FETCH);
@@ -341,14 +341,14 @@ protected:
                     runBGFetcherTask();
                     gcb = store->get(a, vbid, nullptr, {});
                 }
-                EXPECT_EQ(ENGINE_KEY_ENOENT, gcb.getStatus());
+                EXPECT_EQ(cb::engine_errc::no_such_key, gcb.getStatus());
             } else {
                 // We only need to bg fetch the document if we deduplicate a
                 // create + delete + create which is flushed in one go
-                EXPECT_EQ(ENGINE_EWOULDBLOCK, gcb.getStatus());
+                EXPECT_EQ(cb::engine_errc::would_block, gcb.getStatus());
                 // Manually run the bgfetch task.
                 runBGFetcherTask();
-                EXPECT_EQ(ENGINE_KEY_ENOENT,
+                EXPECT_EQ(cb::engine_errc::no_such_key,
                           store->get(a, vbid, nullptr, QUEUE_BG_FETCH)
                                   .getStatus());
             }
@@ -503,7 +503,7 @@ protected:
                 result = store->get(key, vbid, cookie, {});
             }
 
-            EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus())
+            EXPECT_EQ(cb::engine_errc::no_such_key, result.getStatus())
                     << "A key set after the rollback point was found";
         }
 
@@ -516,7 +516,7 @@ protected:
                 result = store->get(key, vbid, cookie, {});
             }
 
-            EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus())
+            EXPECT_EQ(cb::engine_errc::no_such_key, result.getStatus())
                     << "A key set after the rollback point was found";
         }
 
@@ -527,7 +527,7 @@ protected:
                                vbid,
                                cookie,
                                {});
-            EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, result.getStatus());
+            EXPECT_EQ(cb::engine_errc::unknown_collection, result.getStatus());
             // Rolled back to the previous checkpoint before dairy
             EXPECT_EQ(seqno1, store->getVBucket(vbid)->getHighSeqno());
             EXPECT_EQ(itemCount, store->getVBucket(vbid)->getNumItems());
@@ -539,7 +539,7 @@ protected:
                                vbid,
                                cookie,
                                {});
-            EXPECT_EQ(ENGINE_SUCCESS, result.getStatus())
+            EXPECT_EQ(cb::engine_errc::success, result.getStatus())
                     << "Failed to find key7"; // Yes you can!
             // Rolled back to the previous checkpoint
             EXPECT_EQ(rollback_item.getBySeqno(),
@@ -748,7 +748,7 @@ TEST_P(RollbackTest, RollbackToMiddleOfAnUnPersistedSnapshot) {
             runBGFetcherTask();
             result = store->get(key, vbid, nullptr, {});
         }
-        EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus())
+        EXPECT_EQ(cb::engine_errc::no_such_key, result.getStatus())
                 << "A key set after the rollback point was found";
     }
     // numItems + dummy + key11
@@ -798,10 +798,11 @@ TEST_P(RollbackTest, MB21784) {
                                        &rollbackSeqno,
                                        RollbackTest::fakeDcpAddFailoverLog,
                                        {});
-    EXPECT_EQ(ENGINE_SUCCESS, err)
-        << "stream request did not return ENGINE_SUCCESS";
+    EXPECT_EQ(cb::engine_errc::success, err)
+            << "stream request did not return cb::engine_errc::success";
     // Close stream
-    ASSERT_EQ(ENGINE_SUCCESS, producer->closeStream(/*opaque*/0, vbid));
+    ASSERT_EQ(cb::engine_errc::success,
+              producer->closeStream(/*opaque*/ 0, vbid));
     engine->handleDisconnect(cookie);
 }
 
@@ -999,7 +1000,7 @@ public:
 
     class DcpProducers : public MockDcpMessageProducers {
     public:
-        ENGINE_ERROR_CODE stream_req(
+        cb::engine_errc stream_req(
                 uint32_t opaque,
                 Vbid vbucket,
                 uint32_t flags,
@@ -1019,12 +1020,12 @@ public:
                                  snap_start_seqno,
                                  snap_end_seqno};
 
-            return ENGINE_SUCCESS;
+            return cb::engine_errc::success;
         }
     };
 
     void stepForStreamRequest(uint64_t startSeqno, uint64_t vbUUID) {
-        while (consumer->step(producers) == ENGINE_SUCCESS) {
+        while (consumer->step(producers) == cb::engine_errc::success) {
             handleProducerResponseIfStepBlocked(*consumer, producers);
         }
         EXPECT_TRUE(streamRequestData.called);
@@ -1210,7 +1211,8 @@ TEST_P(RollbackDcpTest, test_rollback_zero) {
         std::string key = "anykey_0_" + std::to_string(ii);
         auto result = store->get(
                 {key, DocKeyEncodesCollectionId::No}, vbid, nullptr, {});
-        EXPECT_EQ(ENGINE_SUCCESS, result.getStatus()) << "Problem with " << key;
+        EXPECT_EQ(cb::engine_errc::success, result.getStatus())
+                << "Problem with " << key;
     }
 
     responseRollback(rollbackPoint);
@@ -1222,8 +1224,8 @@ TEST_P(RollbackDcpTest, test_rollback_zero) {
         std::string key = "anykey_0_" + std::to_string(ii);
         auto result = store->get(
                 {key, DocKeyEncodesCollectionId::No}, vbid, nullptr, {});
-        EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus()) << "Problem with "
-                                                         << key;
+        EXPECT_EQ(cb::engine_errc::no_such_key, result.getStatus())
+                << "Problem with " << key;
     }
 
     // Expected a rollback to 0 which is a VB reset, so discard the now dead
@@ -1276,8 +1278,8 @@ TEST_P(RollbackDcpTest, test_rollback_nonzero) {
                     "anykey_" + std::to_string(ff) + "_" + std::to_string(ii);
             auto result = store->get(
                     {key, DocKeyEncodesCollectionId::No}, vbid, nullptr, {});
-            EXPECT_EQ(ENGINE_SUCCESS, result.getStatus()) << "Expected to find "
-                                                          << key;
+            EXPECT_EQ(cb::engine_errc::success, result.getStatus())
+                    << "Expected to find " << key;
         }
     }
 
@@ -1292,8 +1294,8 @@ TEST_P(RollbackDcpTest, test_rollback_nonzero) {
                     "anykey_" + std::to_string(ff) + "_" + std::to_string(ii);
             auto result = store->get(
                     {key, DocKeyEncodesCollectionId::No}, vbid, nullptr, {});
-            EXPECT_EQ(ENGINE_SUCCESS, result.getStatus()) << "Expected to find "
-                                                          << key;
+            EXPECT_EQ(cb::engine_errc::success, result.getStatus())
+                    << "Expected to find " << key;
         }
     }
 
@@ -1302,8 +1304,8 @@ TEST_P(RollbackDcpTest, test_rollback_nonzero) {
         std::string key = "anykey_3_" + std::to_string(ii);
         auto result = store->get(
                 {key, DocKeyEncodesCollectionId::No}, vbid, nullptr, {});
-        EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus()) << "Problem with "
-                                                         << key;
+        EXPECT_EQ(cb::engine_errc::no_such_key, result.getStatus())
+                << "Problem with " << key;
     }
 
     // Rollback complete and will have posted a new StreamRequest
@@ -1361,7 +1363,7 @@ void RollbackDcpTest::doPrepare(StoredDocKey key,
         prepare->setDeleted();
     }
 
-    ASSERT_EQ(ENGINE_SUCCESS, store->prepare(*prepare, cookie));
+    ASSERT_EQ(cb::engine_errc::success, store->prepare(*prepare, cookie));
     if (flush) {
         flush_vbucket_to_disk(vbid, 1);
     }
@@ -1385,7 +1387,7 @@ void RollbackDcpTest::doCommit(StoredDocKey key) {
             {} /*streamId*/);
     stream->processMarker(&marker);
 
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               vb->commit(key,
                          prepareSeqno,
                          {commitSeqno},
@@ -1431,7 +1433,7 @@ void RollbackDcpTest::doAbort(StoredDocKey key, bool flush) {
     stream->processMarker(&marker);
 
     ASSERT_EQ(
-            ENGINE_SUCCESS,
+            cb::engine_errc::success,
             vb->abort(
                     key, prepareSeqno, {abortSeqno}, vb->lockCollections(key)));
     if (flush) {
@@ -1469,7 +1471,7 @@ void RollbackDcpTest::doDelete(StoredDocKey key, bool flush) {
     ItemMetaData meta;
     uint64_t cas = 0;
     meta.cas = 99;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               vb->deleteWithMeta(cas,
                                  nullptr,
                                  cookie,
@@ -2378,7 +2380,7 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
     mockConnMap.addConn(cookie, producer);
 
     uint64_t rollbackSeqno;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               producer->streamRequest(
                       /*flags*/ 0,
                       /*opaque*/ 0,
@@ -2390,7 +2392,7 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
                       /*snap_end*/ ~0,
                       &rollbackSeqno,
                       [](const std::vector<vbucket_failover_t>&) {
-                          return ENGINE_SUCCESS;
+                          return cb::engine_errc::success;
                       },
                       {}));
 
@@ -2401,17 +2403,17 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
             vb->getId(), vb->getHighSeqno(), SyncWriteOperation::No);
 
     // Step which will notify the snapshot task
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(*producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
     EXPECT_EQ(1, producer->getCheckpointSnapshotTask()->queueSize());
 
     // Now call run on the snapshot task to move checkpoint into DCP stream
     producer->getCheckpointSnapshotTask()->run();
 
     // snapshot marker
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers->last_op);
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
 
     auto kvb = engine->getKVBucket();
@@ -2422,7 +2424,7 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
     // The stream should now be dead
     EXPECT_FALSE(stream->isActive()) << "Stream should be dead";
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers->last_op)
             << "stream should have received a STREAM_END";
 

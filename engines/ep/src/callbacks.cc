@@ -19,13 +19,14 @@
 
 #include "item.h"
 
-GetValue::GetValue() : id(-1), status(ENGINE_KEY_ENOENT), partial(false) {
+GetValue::GetValue()
+    : id(-1), status(cb::engine_errc::no_such_key), partial(false) {
 }
 GetValue::GetValue(GetValue&& other) = default;
 GetValue& GetValue::operator=(GetValue&& other) = default;
 
 GetValue::GetValue(std::unique_ptr<Item> v,
-                   ENGINE_ERROR_CODE s,
+                   cb::engine_errc s,
                    uint64_t i,
                    bool incomplete)
     : item(std::move(v)), id(i), status(s), partial(incomplete) {

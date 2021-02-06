@@ -22,7 +22,7 @@
 ExtendedMetaData::ExtendedMetaData(const void *meta, uint16_t nmeta) {
     len = nmeta;
     data = static_cast<const char*>(meta);
-    ret = ENGINE_SUCCESS;
+    ret = cb::engine_errc::success;
     decodeMeta();
 }
 
@@ -40,12 +40,13 @@ void ExtendedMetaData::decodeMeta() {
         if (version == META_EXT_VERSION_ONE) {
             bytes_left -= sizeof(version);
             offset += sizeof(version);
-            while (bytes_left != 0 && ret != ENGINE_EINVAL) {
+            while (bytes_left != 0 &&
+                   ret != cb::engine_errc::invalid_arguments) {
                 uint8_t type;
                 uint16_t length;
 
                 if (bytes_left < sizeof(type) + sizeof(length)) {
-                    ret = ENGINE_EINVAL;
+                    ret = cb::engine_errc::invalid_arguments;
                     break;
                 }
                 memcpy(&type, data + offset, sizeof(type));
@@ -56,7 +57,7 @@ void ExtendedMetaData::decodeMeta() {
                 bytes_left -= sizeof(length);
                 offset += sizeof(length);
                 if (bytes_left < length) {
-                    ret = ENGINE_EINVAL;
+                    ret = cb::engine_errc::invalid_arguments;
                     break;
                 }
                 switch (type) {
@@ -68,16 +69,16 @@ void ExtendedMetaData::decodeMeta() {
                         // may send it to us.
                         break;
                     default:
-                        ret = ENGINE_EINVAL;
+                        ret = cb::engine_errc::invalid_arguments;
                         break;
                 }
                 bytes_left -= length;
                 offset += length;
             }
         } else {
-            ret = ENGINE_EINVAL;
+            ret = cb::engine_errc::invalid_arguments;
         }
     } else {
-        ret = ENGINE_EINVAL;
+        ret = cb::engine_errc::invalid_arguments;
     }
 }

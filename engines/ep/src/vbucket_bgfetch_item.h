@@ -61,8 +61,8 @@ public:
      */
     virtual void abort(
             EventuallyPersistentEngine& engine,
-            ENGINE_ERROR_CODE status,
-            std::map<const void*, ENGINE_ERROR_CODE>& toNotify) const = 0;
+            cb::engine_errc status,
+            std::map<const void*, cb::engine_errc>& toNotify) const = 0;
 
     /// @returns The ValueFilter for this request.
     virtual ValueFilter getValueFilter() const = 0;
@@ -95,10 +95,9 @@ public:
                   std::chrono::steady_clock::time_point startTime,
                   const DiskDocKey& key) const override;
 
-    void abort(
-            EventuallyPersistentEngine& engine,
-            ENGINE_ERROR_CODE status,
-            std::map<const void*, ENGINE_ERROR_CODE>& toNotify) const override;
+    void abort(EventuallyPersistentEngine& engine,
+               cb::engine_errc status,
+               std::map<const void*, cb::engine_errc>& toNotify) const override;
 
     ValueFilter getValueFilter() const override {
         return filter;
@@ -124,10 +123,9 @@ public:
                   std::chrono::steady_clock::time_point startTime,
                   const DiskDocKey& key) const override;
 
-    void abort(
-            EventuallyPersistentEngine& engine,
-            ENGINE_ERROR_CODE status,
-            std::map<const void*, ENGINE_ERROR_CODE>& toNotify) const override;
+    void abort(EventuallyPersistentEngine& engine,
+               cb::engine_errc status,
+               std::map<const void*, cb::engine_errc>& toNotify) const override;
 
     ValueFilter getValueFilter() const override;
 

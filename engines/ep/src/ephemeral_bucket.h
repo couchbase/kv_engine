@@ -36,13 +36,13 @@ public:
 
     bool initialize() override;
 
-    ENGINE_ERROR_CODE scheduleCompaction(
+    cb::engine_errc scheduleCompaction(
             Vbid vbid,
             const CompactionConfig& c,
             const void* ck,
             std::chrono::milliseconds delay) override;
 
-    ENGINE_ERROR_CODE cancelCompaction(Vbid vbid) override;
+    cb::engine_errc cancelCompaction(Vbid vbid) override;
 
     /// Eviction not supported for Ephemeral buckets - without some backing
     /// storage, there is nowhere to evict /to/.
@@ -53,15 +53,15 @@ public:
     }
 
     /// File stats not supported for Ephemeral buckets.
-    ENGINE_ERROR_CODE getFileStats(
+    cb::engine_errc getFileStats(
             const BucketStatCollector& collector) override {
-        return ENGINE_KEY_ENOENT;
+        return cb::engine_errc::no_such_key;
     }
 
     /// Disk stats not supported for Ephemeral buckets.
-    ENGINE_ERROR_CODE getPerVBucketDiskStats(
-            const void* cookie, const AddStatFn& add_stat) override {
-        return ENGINE_KEY_ENOENT;
+    cb::engine_errc getPerVBucketDiskStats(const void* cookie,
+                                           const AddStatFn& add_stat) override {
+        return cb::engine_errc::no_such_key;
     }
 
     size_t getPageableMemCurrent() const override;
@@ -94,10 +94,10 @@ public:
     void notifyFlusher(const Vbid vbid) override {
     }
 
-    ENGINE_ERROR_CODE statsVKey(const DocKey& key,
-                                Vbid vbucket,
-                                const void* cookie) override {
-        return ENGINE_ENOTSUP;
+    cb::engine_errc statsVKey(const DocKey& key,
+                              Vbid vbucket,
+                              const void* cookie) override {
+        return cb::engine_errc::not_supported;
     }
 
     void completeStatsVKey(const void* cookie,
@@ -199,11 +199,11 @@ private:
          *
          * @param notifies Map of connections to be notified
          */
-        void wakeup(std::map<const void*, ENGINE_ERROR_CODE> notifies);
+        void wakeup(std::map<const void*, cb::engine_errc> notifies);
 
     private:
         /* All the notifications to be called by the task */
-        std::map<const void*, ENGINE_ERROR_CODE> toNotify;
+        std::map<const void*, cb::engine_errc> toNotify;
 
         /* Serialize access to write/read of toNotify */
         std::mutex toNotifyLock;

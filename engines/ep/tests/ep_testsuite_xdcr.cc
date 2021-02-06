@@ -66,7 +66,7 @@ static std::vector<char> createXattrValue(const std::string& body) {
 static enum test_result test_get_meta(EngineIface* h) {
     char const *key = "test_get_meta";
     ItemIface* i = nullptr;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key, "somevalue", &i),
             "Failed set.");
     Item *it = reinterpret_cast<Item*>(i);
@@ -92,7 +92,7 @@ static enum test_result test_get_meta(EngineIface* h) {
 static enum test_result test_get_meta_with_extras(EngineIface* h) {
     const char *key1 = "test_getm_one";
     ItemIface* i = nullptr;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key1, "somevalue", &i),
             "Failed set.");
 
@@ -135,17 +135,17 @@ static enum test_result test_get_meta_deleted(EngineIface* h) {
     char const *key = "k1";
     ItemIface* i = nullptr;
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key, "somevalue"),
             "Failed set.");
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key, "somevalue", &i),
             "Failed set.");
 
     Item *it = reinterpret_cast<Item*>(i);
     wait_for_flusher_to_settle(h);
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del(h, key, it->getCas(), Vbid(0)),
             "Delete failed");
     wait_for_flusher_to_settle(h);
@@ -200,7 +200,7 @@ static enum test_result test_get_meta_with_get(EngineIface* h) {
     char const *key2 = "key2";
 
     // test get_meta followed by get for an existing key. should pass.
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key1, "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
@@ -220,33 +220,33 @@ static enum test_result test_get_meta_with_get(EngineIface* h) {
    checkeq(1, temp, "Expect one getMeta op");
 
     // test get_meta followed by get for a deleted key. should fail.
-    checkeq(ENGINE_SUCCESS, del(h, key1, 0, Vbid(0)), "Delete failed");
-    wait_for_flusher_to_settle(h);
-    check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
-    checkeq(DocumentState::Deleted,
-            errorMetaPair.second.document_state,
-            "Expected deleted flag to be set");
-    checkeq(cb::engine_errc::no_such_key,
-            get(h, nullptr, key1, Vbid(0)).first,
-            "Expected enoent");
-    // check the stat again
-    temp = get_int_stat(h, "ep_num_ops_get_meta");
-    checkeq(2, temp, "Expect more getMeta ops");
+   checkeq(cb::engine_errc::success, del(h, key1, 0, Vbid(0)), "Delete failed");
+   wait_for_flusher_to_settle(h);
+   check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
+   checkeq(DocumentState::Deleted,
+           errorMetaPair.second.document_state,
+           "Expected deleted flag to be set");
+   checkeq(cb::engine_errc::no_such_key,
+           get(h, nullptr, key1, Vbid(0)).first,
+           "Expected enoent");
+   // check the stat again
+   temp = get_int_stat(h, "ep_num_ops_get_meta");
+   checkeq(2, temp, "Expect more getMeta ops");
 
-    // test get_meta followed by get for a nonexistent key. should fail.
-    check(!get_meta(h, key2, errorMetaPair),
-          "Expected get meta to return false");
-    checkeq(cb::engine_errc::no_such_key,
-            errorMetaPair.first,
-            "Expected no_such_key");
-    checkeq(cb::engine_errc::no_such_key,
-            get(h, nullptr, key2, Vbid(0)).first,
-            "Expected enoent");
-    // check the stat again
-    temp = get_int_stat(h, "ep_num_ops_get_meta");
-    checkeq(3, temp, "Expected one extra getMeta ops");
+   // test get_meta followed by get for a nonexistent key. should fail.
+   check(!get_meta(h, key2, errorMetaPair),
+         "Expected get meta to return false");
+   checkeq(cb::engine_errc::no_such_key,
+           errorMetaPair.first,
+           "Expected no_such_key");
+   checkeq(cb::engine_errc::no_such_key,
+           get(h, nullptr, key2, Vbid(0)).first,
+           "Expected enoent");
+   // check the stat again
+   temp = get_int_stat(h, "ep_num_ops_get_meta");
+   checkeq(3, temp, "Expected one extra getMeta ops");
 
-    return SUCCESS;
+   return SUCCESS;
 }
 
 static enum test_result test_get_meta_with_set(EngineIface* h) {
@@ -256,7 +256,7 @@ static enum test_result test_get_meta_with_set(EngineIface* h) {
     ItemMetaData itm_meta;
 
     // test get_meta followed by set for an existing key. should pass.
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key1, "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
@@ -270,7 +270,7 @@ static enum test_result test_get_meta_with_set(EngineIface* h) {
     cb::EngineErrorMetadataPair errorMetaPair;
 
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key1, "someothervalue"),
             "Failed set.");
     // check the stat
@@ -283,7 +283,9 @@ static enum test_result test_get_meta_with_set(EngineIface* h) {
     checkeq(0, get_int_stat(h, "curr_temp_items"), "Expected zero temp_items");
 
     // test get_meta followed by set for a deleted key. should pass.
-    checkeq(ENGINE_SUCCESS, del(h, key1, 0, Vbid(0)), "Delete failed");
+    checkeq(cb::engine_errc::success,
+            del(h, key1, 0, Vbid(0)),
+            "Delete failed");
     wait_for_flusher_to_settle(h);
 
     wait_for_stat_to_be(h, "curr_items", 0);
@@ -294,7 +296,7 @@ static enum test_result test_get_meta_with_set(EngineIface* h) {
     checkeq(DocumentState::Deleted,
             errorMetaPair.second.document_state,
             "Expected deleted flag to be set");
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key1, "someothervalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
@@ -313,7 +315,7 @@ static enum test_result test_get_meta_with_set(EngineIface* h) {
     checkeq(cb::engine_errc::no_such_key,
             errorMetaPair.first,
             "Expected no_such_key");
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key2, "someothervalue"),
             "Failed set.");
     // check the stat again
@@ -329,7 +331,7 @@ static enum test_result test_get_meta_with_delete(EngineIface* h) {
     char const *key2 = "key2";
 
     // test get_meta followed by delete for an existing key. should pass.
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key1, "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
@@ -340,7 +342,9 @@ static enum test_result test_get_meta_with_delete(EngineIface* h) {
     cb::EngineErrorMetadataPair errorMetaPair;
 
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
-    checkeq(ENGINE_SUCCESS, del(h, key1, 0, Vbid(0)), "Delete failed");
+    checkeq(cb::engine_errc::success,
+            del(h, key1, 0, Vbid(0)),
+            "Delete failed");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_get_meta");
    checkeq(1, temp, "Expect one getMeta op");
@@ -351,7 +355,9 @@ static enum test_result test_get_meta_with_delete(EngineIface* h) {
     checkeq(DocumentState::Deleted,
             errorMetaPair.second.document_state,
             "Expected deleted flag to be set");
-    checkeq(ENGINE_KEY_ENOENT, del(h, key1, 0, Vbid(0)), "Expected enoent");
+    checkeq(cb::engine_errc::no_such_key,
+            del(h, key1, 0, Vbid(0)),
+            "Expected enoent");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_get_meta");
     checkeq(2, temp, "Expect more getMeta op");
@@ -362,7 +368,9 @@ static enum test_result test_get_meta_with_delete(EngineIface* h) {
     checkeq(cb::engine_errc::no_such_key,
             errorMetaPair.first,
             "Expected no_such_key");
-    checkeq(ENGINE_KEY_ENOENT, del(h, key2, 0, Vbid(0)), "Expected enoent");
+    checkeq(cb::engine_errc::no_such_key,
+            del(h, key2, 0, Vbid(0)),
+            "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, "ep_num_ops_get_meta");
     checkeq(3, temp, "Expected one extra getMeta ops");
@@ -454,7 +462,7 @@ static enum test_result test_get_meta_mb23905(EngineIface* h) {
         systemXattrBlob.set("_sync", R"({"cas":"0xdeadbeefcafefeed"})");
         auto deletedValue = systemXattrBlob.finalize();
 
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 delete_with_value(h,
                                   cookie,
                                   0,
@@ -502,13 +510,13 @@ static enum test_result test_add_with_meta(EngineIface* h) {
     checkeq(0, temp, "Expect zero setMeta ops");
 
     // store an item with meta data
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             add_with_meta(h, key, keylen, nullptr, 0, Vbid(0), &itemMeta),
             "Expected to add item");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     // store the item again, expect key exists
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             add_with_meta(h, key, keylen, nullptr, 0, Vbid(0), &itemMeta, true),
             "Expected add to fail when the item exists already");
     // check the stat
@@ -537,15 +545,15 @@ static enum test_result test_delete_with_meta(EngineIface* h) {
     itemMeta.flags = 0xdeadbeef;
 
     // store an item
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key1, "somevalue"),
             "Failed set.");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key2, "somevalue2"),
             "Failed set.");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key3, "somevalue3"),
             "Failed set.");
 
@@ -555,7 +563,7 @@ static enum test_result test_delete_with_meta(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
 
     // delete an item with meta data
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del_with_meta(h,
                           key1,
                           keylen,
@@ -578,7 +586,7 @@ static enum test_result test_delete_with_meta(EngineIface* h) {
     testHarness->set_mutation_extras_handling(cookie, false);
 
     // delete an item with meta data
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del_with_meta(h,
                           key2,
                           keylen,
@@ -596,7 +604,7 @@ static enum test_result test_delete_with_meta(EngineIface* h) {
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     // delete an item with meta data
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del_with_meta(h, key3, keylen, Vbid(0), &itemMeta),
             "Expected delete OK");
 
@@ -620,13 +628,13 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h) {
             "Expect zero setMeta ops");
 
     // add a key
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key, "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
 
     // delete the key
-    checkeq(ENGINE_SUCCESS, del(h, key, 0, Vbid(0)), "Delete failed");
+    checkeq(cb::engine_errc::success, del(h, key, 0, Vbid(0)), "Delete failed");
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 
@@ -648,7 +656,7 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h) {
             0xdeadbeef, 10, 0xdeadbeef, 1735689600); // expires in 2025
 
     // do delete with meta with an incorrect cas value. should fail.
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             del_with_meta(h, key, keylen, Vbid(0), &itm_meta, invalid_cas),
             "Expected invalid cas error");
     checkeq(0,
@@ -658,7 +666,7 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h) {
     checkPersistentBucketTempItems(h, 1);
 
     // do delete with meta with the correct cas value. should pass.
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del_with_meta(h, key, keylen, Vbid(0), &itm_meta, valid_cas),
             "Expected delete oK");
     wait_for_flusher_to_settle(h);
@@ -714,7 +722,7 @@ static enum test_result test_delete_with_meta_nonexistent(EngineIface* h) {
             0xdeadbeef, 10, 0xdeadbeef, 1735689600); // expires in 2025
 
     // do delete with meta with an incorrect cas value. should fail.
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             del_with_meta(h, key, keylen, Vbid(0), &itm_meta, invalid_cas),
             "Expected invalid cas error");
     // check the stat
@@ -725,7 +733,7 @@ static enum test_result test_delete_with_meta_nonexistent(EngineIface* h) {
     checkPersistentBucketTempItems(h, 1);
 
     // do delete with meta with the correct cas value. should pass.
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del_with_meta(h, key, keylen, Vbid(0), &itm_meta, valid_cas),
             "Expected delete OK");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
@@ -775,7 +783,7 @@ static enum test_result test_delete_with_meta_nonexistent_no_temp(
 
     // do delete with meta with the correct cas value.
     // skipConflictResolution false
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del_with_meta(h, key1, keylen1, Vbid(0), &itm_meta1, 0, false),
             "Expected delete OK");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
@@ -797,7 +805,7 @@ static enum test_result test_delete_with_meta_nonexistent_no_temp(
     itm_meta2.exptime = 1735689600; // expires in 2025
     itm_meta2.flags = 0xdeadbeef;
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del_with_meta(h, key2, keylen2, Vbid(0), &itm_meta2, 0, true),
             "Expected delete OK");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
@@ -828,7 +836,7 @@ static enum test_result test_delete_with_meta_race_with_set(EngineIface* h) {
     //
 
     // create a new key and do get_meta
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key1, "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
@@ -838,12 +846,12 @@ static enum test_result test_delete_with_meta_race_with_set(EngineIface* h) {
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
 
     // do a concurrent set that changes the cas
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key1, "someothervalue"),
             "Failed set.");
 
     // attempt delete_with_meta. should fail since cas is no longer valid.
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             del_with_meta(h,
                           key1,
                           keylen1,
@@ -860,7 +868,9 @@ static enum test_result test_delete_with_meta_race_with_set(EngineIface* h) {
     //
 
     // do get_meta for the deleted key
-    checkeq(ENGINE_SUCCESS, del(h, key1, 0, Vbid(0)), "Delete failed");
+    checkeq(cb::engine_errc::success,
+            del(h, key1, 0, Vbid(0)),
+            "Delete failed");
     wait_for_flusher_to_settle(h);
 
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
@@ -869,11 +879,11 @@ static enum test_result test_delete_with_meta_race_with_set(EngineIface* h) {
             "Expected deleted flag to be set");
 
     // do a concurrent set that changes the cas
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key1, "someothervalue"),
             "Failed set.");
 
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             del_with_meta(h,
                           key1,
                           keylen1,
@@ -903,7 +913,7 @@ static enum test_result test_delete_with_meta_race_with_delete(EngineIface* h) {
     //
 
     // create a new key and do get_meta
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key1, "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
@@ -916,7 +926,9 @@ static enum test_result test_delete_with_meta_race_with_delete(EngineIface* h) {
     uint64_t cas_from_store = errorMetaPair.second.cas;
 
     //Do a concurrent delete. This should modify the CAS
-    checkeq(ENGINE_SUCCESS, del(h, key1, 0, Vbid(0)), "Delete failed");
+    checkeq(cb::engine_errc::success,
+            del(h, key1, 0, Vbid(0)),
+            "Delete failed");
 
     //Get the latest meta data
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
@@ -929,7 +941,7 @@ static enum test_result test_delete_with_meta_race_with_delete(EngineIface* h) {
                           errorMetaPair.second.exptime);
 
     // attempt delete_with_meta. should fail since cas is no longer valid.
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             del_with_meta(h, key1, keylen1, Vbid(0), &itm_meta, cas_from_store),
             "Expected invalid cas error");
     // check the stat
@@ -949,10 +961,12 @@ static enum test_result test_delete_with_meta_race_with_delete(EngineIface* h) {
             "Expected deleted flag to be set");
 
     // do a concurrent delete
-    checkeq(ENGINE_KEY_ENOENT, del(h, key1, 0, Vbid(0)), "Delete failed");
+    checkeq(cb::engine_errc::no_such_key,
+            del(h, key1, 0, Vbid(0)),
+            "Delete failed");
 
     // attempt delete_with_meta. should pass.
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del_with_meta(h, key1, keylen1, Vbid(0), &itm_meta, last_cas),
             "Expected delete OK");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
@@ -974,10 +988,12 @@ static enum test_result test_delete_with_meta_race_with_delete(EngineIface* h) {
             "Expected no_such_key");
 
     // do a concurrent delete
-    checkeq(ENGINE_KEY_ENOENT, del(h, key1, 0, Vbid(0)), "Delete failed");
+    checkeq(cb::engine_errc::no_such_key,
+            del(h, key1, 0, Vbid(0)),
+            "Delete failed");
 
     // attempt delete_with_meta. should pass.
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del_with_meta(h,
                           key2,
                           keylen2,
@@ -1012,7 +1028,7 @@ static enum test_result test_set_with_meta(EngineIface* h) {
     checkeq(0, get_int_stat(h, "curr_temp_items"), "Expect zero temp items");
 
     // create a new key
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key, val),
             "Failed set.");
     wait_for_flusher_to_settle(h);
@@ -1030,7 +1046,7 @@ static enum test_result test_set_with_meta(EngineIface* h) {
 
     char *bigValue = new char[32*1024*1024];
     // do set with meta with the value size bigger than the max size allowed.
-    checkeq(ENGINE_E2BIG,
+    checkeq(cb::engine_errc::too_big,
             set_with_meta(h,
                           key,
                           keylen,
@@ -1043,7 +1059,7 @@ static enum test_result test_set_with_meta(EngineIface* h) {
     delete []bigValue;
 
     // do set with meta with an incorrect cas value. should fail.
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             set_with_meta(h,
                           key,
                           keylen,
@@ -1066,7 +1082,7 @@ static enum test_result test_set_with_meta(EngineIface* h) {
     testHarness->set_datatype_support(cookie, false);
 
     // do set with meta with the correct cas value. should pass.
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(h,
                           key,
                           keylen,
@@ -1112,7 +1128,7 @@ static enum test_result test_set_with_meta(EngineIface* h) {
     testHarness->set_mutation_extras_handling(cookie, false);
     itm_meta.revSeqno++;
     cas_for_set = errorMetaPair.second.cas;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(h,
                           key,
                           keylen,
@@ -1133,7 +1149,7 @@ static enum test_result test_set_with_meta(EngineIface* h) {
 
     itm_meta.revSeqno++;
     cas_for_set = last_meta.cas;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(h,
                           key,
                           keylen,
@@ -1167,7 +1183,7 @@ static enum test_result test_set_with_meta_by_force(EngineIface* h) {
     ItemMetaData itm_meta(0xdeadbeef, 10, 0xdeadbeef, time(nullptr) + 300);
 
     // Pass true to force SetWithMeta.
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(h,
                           key,
                           keylen,
@@ -1213,7 +1229,7 @@ static enum test_result test_set_with_meta_deleted(EngineIface* h) {
             "Expect zero ops");
 
     // create a new key
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key, val),
             "Failed set.");
     wait_for_flusher_to_settle(h);
@@ -1221,7 +1237,7 @@ static enum test_result test_set_with_meta_deleted(EngineIface* h) {
     checkeq(0, get_int_stat(h, "curr_temp_items"), "Expected zero temp_items");
 
     // delete the key
-    checkeq(ENGINE_SUCCESS, del(h, key, 0, Vbid(0)), "Delete failed");
+    checkeq(cb::engine_errc::success, del(h, key, 0, Vbid(0)), "Delete failed");
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 
@@ -1242,7 +1258,7 @@ static enum test_result test_set_with_meta_deleted(EngineIface* h) {
             0xdeadbeef, 10, 0xdeadbeef, 1735689600); // expires in 2025
 
     // do set_with_meta with an incorrect cas for a deleted item. should fail.
-    checkeq(ENGINE_KEY_ENOENT,
+    checkeq(cb::engine_errc::no_such_key,
             set_with_meta(h,
                           key,
                           keylen,
@@ -1260,7 +1276,7 @@ static enum test_result test_set_with_meta_deleted(EngineIface* h) {
     checkPersistentBucketTempItems(h, 1);
 
     // do set with meta with the correct cas value. should pass.
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(h,
                           key,
                           keylen,
@@ -1317,7 +1333,7 @@ static enum test_result test_set_with_meta_nonexistent(EngineIface* h) {
             0xdeadbeef, 10, 0xdeadbeef, 1735689600); // expires in 2025
 
     // do set_with_meta with an incorrect cas for a non-existent item. should fail.
-    checkeq(ENGINE_KEY_ENOENT,
+    checkeq(cb::engine_errc::no_such_key,
             set_with_meta(
                     h, key, keylen, val, valLen, Vbid(0), &itm_meta, 1229),
             "Expected key_not_found error");
@@ -1328,7 +1344,7 @@ static enum test_result test_set_with_meta_nonexistent(EngineIface* h) {
     checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
 
     // do set with meta with the correct cas value. should pass.
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(h,
                           key,
                           keylen,
@@ -1368,7 +1384,7 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h) {
     //
 
     // create a new key and do get_meta
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key1, "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
@@ -1376,7 +1392,7 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h) {
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
 
     // do a concurrent set that changes the cas
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key1, "someothervalue"),
             "Failed set.");
 
@@ -1385,7 +1401,7 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h) {
                       errorMetaPair.second.seqno + 2,
                       errorMetaPair.second.flags,
                       errorMetaPair.second.exptime);
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             set_with_meta(h,
                           key1,
                           keylen1,
@@ -1404,7 +1420,9 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h) {
     //
 
     // do get_meta for the deleted key
-    checkeq(ENGINE_SUCCESS, del(h, key1, 0, Vbid(0)), "Delete failed");
+    checkeq(cb::engine_errc::success,
+            del(h, key1, 0, Vbid(0)),
+            "Delete failed");
     wait_for_flusher_to_settle(h);
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
     checkeq(DocumentState::Deleted,
@@ -1412,7 +1430,7 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h) {
             "Expected deleted flag to be set");
 
     // do a concurrent set that changes the cas
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key1, "someothervalue"),
             "Failed set.");
 
@@ -1421,7 +1439,7 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h) {
                         errorMetaPair.second.seqno + 2,
                         errorMetaPair.second.flags,
                         errorMetaPair.second.exptime);
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             set_with_meta(h,
                           key1,
                           keylen1,
@@ -1452,7 +1470,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h) {
     //
 
     // create a new key and do get_meta
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key1, "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
@@ -1460,14 +1478,16 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h) {
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
 
     // do a concurrent delete that changes the cas
-    checkeq(ENGINE_SUCCESS, del(h, key1, 0, Vbid(0)), "Delete failed");
+    checkeq(cb::engine_errc::success,
+            del(h, key1, 0, Vbid(0)),
+            "Delete failed");
 
     // attempt set_with_meta. should fail since cas is no longer valid.
     ItemMetaData meta(errorMetaPair.second.cas,
                       errorMetaPair.second.seqno,
                       errorMetaPair.second.flags,
                       errorMetaPair.second.exptime);
-    checkeq(ENGINE_KEY_ENOENT,
+    checkeq(cb::engine_errc::no_such_key,
             set_with_meta(h,
                           key1,
                           keylen1,
@@ -1499,14 +1519,16 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h) {
             "Expected deleted flag to be set");
 
     // do a concurrent delete. should fail.
-    checkeq(ENGINE_KEY_ENOENT, del(h, key1, 0, Vbid(0)), "Delete failed");
+    checkeq(cb::engine_errc::no_such_key,
+            del(h, key1, 0, Vbid(0)),
+            "Delete failed");
 
     // attempt set_with_meta. should pass since cas is still valid.
     meta = ItemMetaData(errorMetaPair.second.cas,
                         errorMetaPair.second.seqno,
                         errorMetaPair.second.flags,
                         errorMetaPair.second.exptime);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(h,
                           key1,
                           keylen1,
@@ -1535,12 +1557,15 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h) {
             "Expected no_such_key");
 
     // do a concurrent delete. should fail.
-    checkeq(ENGINE_KEY_ENOENT, del(h, key2, 0, Vbid(0)), "Delete failed");
+    checkeq(cb::engine_errc::no_such_key,
+            del(h, key2, 0, Vbid(0)),
+            "Delete failed");
 
     // Attempt set_with_meta. This should pass as we set a new key passing 0 as
     // command CAS.
-    checkeq(ENGINE_SUCCESS,
-            set_with_meta(h, key2, keylen2, nullptr, 0, Vbid(0), &meta, 0, true),
+    checkeq(cb::engine_errc::success,
+            set_with_meta(
+                    h, key2, keylen2, nullptr, 0, Vbid(0), &meta, 0, true),
             "Expected item to be stored");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     // check the stat
@@ -1560,7 +1585,7 @@ static enum test_result test_set_with_meta_xattr(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
 
     // store a value (so we can get its metadata)
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key, value_data.c_str()),
             "Failed set.");
 
@@ -1584,7 +1609,7 @@ static enum test_result test_set_with_meta_xattr(EngineIface* h) {
     testHarness->set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_XATTR);
 
     // Set with the same meta data but now with the xattr/json value
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(h,
                           key,
                           strlen(key),
@@ -1615,7 +1640,7 @@ static enum test_result test_set_with_meta_xattr(EngineIface* h) {
 
         //set with the same meta data but now as RAW BYTES.
         //This should result in a bg fetch
-        checkeq(ENGINE_KEY_EEXISTS,
+        checkeq(cb::engine_errc::key_already_exists,
                 set_with_meta(h,
                               key,
                               strlen(key),
@@ -1649,7 +1674,7 @@ static enum test_result test_delete_with_meta_xattr(EngineIface* h) {
     xattr.prune_user_keys();
     data.resize(xattr.finalize().size());
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key1, body.data()),
             "Failed to store key1.");
 
@@ -1678,7 +1703,7 @@ static enum test_result test_delete_with_meta_xattr(EngineIface* h) {
     testHarness->set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_XATTR);
 
     // Now delete with a value (marked with XATTR)
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del_with_meta(h,
                           key1,
                           strlen(key1),
@@ -1698,7 +1723,7 @@ static enum test_result test_delete_with_meta_xattr(EngineIface* h) {
     A delete with no body would of dropped it from the hash-table and the
     SET_CAS would return enoent, delete_with_meta /should/ I think have the same
     effect.
-    checkeq(ENGINE_KEY_ENOENT,
+    checkeq(cb::engine_errc::no_such_key,
             store(h,
                   h1,
                   nullptr,
@@ -1747,7 +1772,7 @@ static enum test_result test_exp_persisted_set_del(EngineIface* h) {
     check(!get_meta(h, "key3", errorMetaPair), "Expected get_meta() to fail");
 
     ItemMetaData itm_meta(1, 1, 0, 0);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(h,
                           "key3",
                           4,
@@ -1760,7 +1785,7 @@ static enum test_result test_exp_persisted_set_del(EngineIface* h) {
 
     itm_meta.revSeqno = 2;
     itm_meta.cas = 2;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(
                     h, "key3", 4, "val1", 4, Vbid(0), &itm_meta, last_meta.cas),
             "Expected item to be stored");
@@ -1771,7 +1796,7 @@ static enum test_result test_exp_persisted_set_del(EngineIface* h) {
     itm_meta.revSeqno = 3;
     itm_meta.cas = 3;
     itm_meta.exptime = 1735689600; // expires in 2025
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(
                     h, "key3", 4, "val1", 4, Vbid(0), &itm_meta, last_meta.cas),
             "Expected item to be stored");
@@ -1799,12 +1824,12 @@ static enum test_result test_temp_item_deletion(EngineIface* h) {
     // Do get_meta for an existing key
     char const *k1 = "k1";
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, k1, "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
 
-    checkeq(ENGINE_SUCCESS, del(h, k1, 0, Vbid(0)), "Delete failed");
+    checkeq(cb::engine_errc::success, del(h, k1, 0, Vbid(0)), "Delete failed");
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 
@@ -1891,7 +1916,7 @@ static enum test_result test_add_meta_conflict_resolution(EngineIface* h) {
     itemMeta.exptime = 0;
     itemMeta.flags = 0xdeadbeef;
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             add_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta),
             "Expected to add item");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
@@ -1902,14 +1927,16 @@ static enum test_result test_add_meta_conflict_resolution(EngineIface* h) {
             get_int_stat(h, "ep_bg_meta_fetched"),
             "ep_bg_meta_fetched");
 
-    checkeq(ENGINE_SUCCESS, del(h, "key", 0, Vbid(0)), "Delete failed");
+    checkeq(cb::engine_errc::success,
+            del(h, "key", 0, Vbid(0)),
+            "Delete failed");
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 
     // Check all meta data is the same
     itemMeta.revSeqno++;
     itemMeta.cas++;
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             add_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta),
             "Expected exists");
     expected_bg_meta_fetched = 0;
@@ -1927,7 +1954,7 @@ static enum test_result test_add_meta_conflict_resolution(EngineIface* h) {
 
     // Check has older flags fails
     itemMeta.flags = 0xdeadbeee;
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             add_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta),
             "Expected exists");
     checkeq(2,
@@ -1936,7 +1963,7 @@ static enum test_result test_add_meta_conflict_resolution(EngineIface* h) {
 
     // Check testing with old seqno
     itemMeta.revSeqno--;
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             add_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta),
             "Expected exists");
     checkeq(3,
@@ -1944,7 +1971,7 @@ static enum test_result test_add_meta_conflict_resolution(EngineIface* h) {
             "Expected set meta conflict resolution failure");
 
     itemMeta.revSeqno += 10;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             add_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta),
             "Expected to add item");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
@@ -1967,7 +1994,7 @@ static enum test_result test_set_meta_conflict_resolution(EngineIface* h) {
             get_int_stat(h, "ep_num_ops_set_meta"),
             "Expect zero setMeta ops");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta, 0),
             "Expected item to be stored");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
@@ -1982,7 +2009,7 @@ static enum test_result test_set_meta_conflict_resolution(EngineIface* h) {
             "ep_bg_meta_fetched");
 
     // Check all meta data is the same
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             set_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta, 0),
             "Expected exists");
     checkeq(1,
@@ -1991,7 +2018,7 @@ static enum test_result test_set_meta_conflict_resolution(EngineIface* h) {
 
     // Check has older flags fails
     itemMeta.flags = 0xdeadbeee;
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             set_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta, 0),
             "Expected exists");
     checkeq(2,
@@ -2000,21 +2027,21 @@ static enum test_result test_set_meta_conflict_resolution(EngineIface* h) {
 
     // Check has newer flags passes
     itemMeta.flags = 0xdeadbeff;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta, 0),
             "Expected item to be stored");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     // Check that newer exptime wins
     itemMeta.exptime = time(nullptr) + 10;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta, 0),
             "Expected item to be stored");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     // Check that smaller exptime loses
     itemMeta.exptime = 0;
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             set_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta, 0),
             "Expected exists");
     checkeq(3,
@@ -2023,7 +2050,7 @@ static enum test_result test_set_meta_conflict_resolution(EngineIface* h) {
 
     // Check testing with old seqno
     itemMeta.revSeqno--;
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             set_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta, 0),
             "Expected exists");
     checkeq(4,
@@ -2031,7 +2058,7 @@ static enum test_result test_set_meta_conflict_resolution(EngineIface* h) {
             "Expected set meta conflict resolution failure");
 
     itemMeta.revSeqno += 10;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta, 0),
             "Expected item to be stored");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
@@ -2062,7 +2089,7 @@ static enum test_result test_set_meta_lww_conflict_resolution(EngineIface* h) {
             get_int_stat(h, "ep_num_ops_set_meta"),
             "Expect zero setMeta ops");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(h,
                           "key",
                           3,
@@ -2084,7 +2111,7 @@ static enum test_result test_set_meta_lww_conflict_resolution(EngineIface* h) {
             "ep_bg_meta_fetched");
 
     // Check all meta data is the same
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             set_with_meta(h,
                           "key",
                           3,
@@ -2101,7 +2128,7 @@ static enum test_result test_set_meta_lww_conflict_resolution(EngineIface* h) {
 
     // Check that an older cas fails
     itemMeta.cas = 0xdeadbeee;
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             set_with_meta(h,
                           "key",
                           3,
@@ -2118,7 +2145,7 @@ static enum test_result test_set_meta_lww_conflict_resolution(EngineIface* h) {
 
     // Check that a higher cas passes
     itemMeta.cas = 0xdeadbeff;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(h,
                           "key",
                           3,
@@ -2133,16 +2160,23 @@ static enum test_result test_set_meta_lww_conflict_resolution(EngineIface* h) {
 
     // Check that we fail requests if the force flag is not set
     itemMeta.cas = 0xdeadbeff + 1;
-    checkeq(ENGINE_EINVAL,
-            set_with_meta(
-                    h, "key", 3, nullptr, 0, Vbid(0), &itemMeta, 0, 0 /*options*/),
+    checkeq(cb::engine_errc::invalid_arguments,
+            set_with_meta(h,
+                          "key",
+                          3,
+                          nullptr,
+                          0,
+                          Vbid(0),
+                          &itemMeta,
+                          0,
+                          0 /*options*/),
             "Expected EINVAL");
 
     return SUCCESS;
 }
 
 static enum test_result test_del_meta_conflict_resolution(EngineIface* h) {
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "key", "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
@@ -2154,7 +2188,7 @@ static enum test_result test_del_meta_conflict_resolution(EngineIface* h) {
     itemMeta.exptime = 0;
     itemMeta.flags = 0xdeadbeef;
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del_with_meta(h, "key", 3, Vbid(0), &itemMeta),
             "Expected delete ok");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
@@ -2162,7 +2196,7 @@ static enum test_result test_del_meta_conflict_resolution(EngineIface* h) {
     wait_for_stat_to_be(h, "curr_items", 0);
 
     // Check all meta data is the same
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             del_with_meta(h, "key", 3, Vbid(0), &itemMeta),
             "Expected exists");
     checkeq(1,
@@ -2171,7 +2205,7 @@ static enum test_result test_del_meta_conflict_resolution(EngineIface* h) {
 
     // Check has older flags fails
     itemMeta.flags = 0xdeadbeee;
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             del_with_meta(h, "key", 3, Vbid(0), &itemMeta),
             "Expected exists");
     checkeq(2,
@@ -2180,7 +2214,7 @@ static enum test_result test_del_meta_conflict_resolution(EngineIface* h) {
 
     // Check that smaller exptime loses
     itemMeta.exptime = 0;
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             del_with_meta(h, "key", 3, Vbid(0), &itemMeta),
             "Expected exists");
     checkeq(3,
@@ -2189,14 +2223,14 @@ static enum test_result test_del_meta_conflict_resolution(EngineIface* h) {
 
     // Check testing with old seqno
     itemMeta.revSeqno--;
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             del_with_meta(h, "key", 3, Vbid(0), &itemMeta),
             "Expected exists");
     checkeq(4, get_int_stat(h, "ep_num_ops_del_meta_res_fail"),
           "Expected delete meta conflict resolution failure");
 
     itemMeta.revSeqno += 10;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del_with_meta(h, "key", 3, Vbid(0), &itemMeta),
             "Expected delete OK");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
@@ -2210,7 +2244,7 @@ static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h) {
     ItemIface* i = nullptr;
     item_info info;
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "key", "somevalue", &i),
             "Failed set.");
 
@@ -2226,11 +2260,11 @@ static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h) {
     itemMeta.flags = 0xdeadbeef;
 
     // first check the command fails if no force is set
-    checkeq(ENGINE_EINVAL,
+    checkeq(cb::engine_errc::invalid_arguments,
             del_with_meta(h, "key", 3, Vbid(0), &itemMeta, 0, 0 /*options*/),
             "Expected EINVAL");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del_with_meta(h,
                           "key",
                           3,
@@ -2244,7 +2278,7 @@ static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h) {
     wait_for_stat_to_be(h, "curr_items", 0);
 
     // Check all meta data is the same
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             del_with_meta(h,
                           "key",
                           3,
@@ -2260,7 +2294,7 @@ static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h) {
     // Check that higher rev seqno but lower cas fails
     itemMeta.cas = info.cas;
     itemMeta.revSeqno = 11;
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             del_with_meta(h,
                           "key",
                           3,
@@ -2276,7 +2310,7 @@ static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h) {
     // Check that a higher cas and lower rev seqno passes
     itemMeta.cas = info.cas + 2;
     itemMeta.revSeqno = 9;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del_with_meta(h,
                           "key",
                           3,
@@ -2293,7 +2327,7 @@ static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h) {
 static enum test_result test_getMeta_with_item_eviction(EngineIface* h) {
     char const *key = "test_get_meta";
     ItemIface* i = nullptr;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key, "somevalue", &i),
             "Failed set.");
     wait_for_flusher_to_settle(h);
@@ -2350,7 +2384,7 @@ static enum test_result test_set_with_meta_and_check_drift_stats(
                 // set to be way way behind...
                 itm_meta.cas = 1;
             }
-            checkeq(ENGINE_SUCCESS,
+            checkeq(cb::engine_errc::success,
                     set_with_meta(h,
                                   key.data(),
                                   key.size(),
@@ -2453,7 +2487,7 @@ static enum test_result test_del_with_meta_and_check_drift_stats(
             // account for these later
             ItemMetaData itm_meta;
             itm_meta.cas = 1; // set to 1
-            checkeq(ENGINE_SUCCESS,
+            checkeq(cb::engine_errc::success,
                     set_with_meta(h,
                                   key.data(),
                                   key.size(),
@@ -2492,7 +2526,7 @@ static enum test_result test_del_with_meta_and_check_drift_stats(
                 // set to be way way behind, but ahead of the documents we have set
                 itm_meta.cas = 2;
             }
-            checkeq(ENGINE_SUCCESS,
+            checkeq(cb::engine_errc::success,
                     del_with_meta(h,
                                   key.data(),
                                   key.size(),
@@ -2623,7 +2657,7 @@ static enum test_result test_cas_regeneration(EngineIface* h) {
     }
 
     // Set the key with a low CAS value
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(
                     h, "key", 3, nullptr, 0, Vbid(0), &itemMeta, 0, force),
             "Expected item to be stored");
@@ -2641,7 +2675,7 @@ static enum test_result test_cas_regeneration(EngineIface* h) {
     itemMeta.cas++;
 
     // Check that the code requires skip
-    checkeq(ENGINE_EINVAL,
+    checkeq(cb::engine_errc::invalid_arguments,
             set_with_meta(h,
                           "key",
                           3,
@@ -2653,7 +2687,7 @@ static enum test_result test_cas_regeneration(EngineIface* h) {
                           REGENERATE_CAS /*but no skip*/),
             "Expected EINVAL");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(h,
                           "key",
                           3,
@@ -2676,7 +2710,7 @@ static enum test_result test_cas_regeneration(EngineIface* h) {
 
     itemMeta.cas++;
     // All flags set should still regen the cas (lww and seqno)
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(
                     h,
                     "key",
@@ -2718,7 +2752,7 @@ static enum test_result test_cas_regeneration_del_with_meta(EngineIface* h) {
     }
 
     // Set the key with a low CAS value
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(h,
                           key.c_str(),
                           key.length(),
@@ -2743,7 +2777,7 @@ static enum test_result test_cas_regeneration_del_with_meta(EngineIface* h) {
     itemMeta.cas++;
 
     // Check that the code requires skip
-    checkeq(ENGINE_EINVAL,
+    checkeq(cb::engine_errc::invalid_arguments,
             del_with_meta(h,
                           key.c_str(),
                           key.length(),
@@ -2753,7 +2787,7 @@ static enum test_result test_cas_regeneration_del_with_meta(EngineIface* h) {
                           REGENERATE_CAS /*but no skip*/),
             "Expected EINVAL");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del_with_meta(h,
                           key.c_str(),
                           key.length(),
@@ -2773,7 +2807,7 @@ static enum test_result test_cas_regeneration_del_with_meta(EngineIface* h) {
 
     itemMeta.cas++;
     // All flags set should still regen the cas (lww and seqno)
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del_with_meta(
                     h,
                     key.c_str(),
@@ -2817,7 +2851,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
     }
 
     // Set the key and junk nmeta
-    checkeq(ENGINE_EINVAL,
+    checkeq(cb::engine_errc::invalid_arguments,
             set_with_meta(h,
                           "key",
                           3,
@@ -2834,7 +2868,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
 
     // Set the key and junk nmeta that's quite large
     junkMeta.resize(std::numeric_limits<uint16_t>::max());
-    checkeq(ENGINE_EINVAL,
+    checkeq(cb::engine_errc::invalid_arguments,
             set_with_meta(h,
                           "key",
                           3,
@@ -2892,7 +2926,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                                           sizeof(validMetaData));
 
         // Set the key with a low CAS value and real nmeta
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 set_with_meta(h,
                               "key1",
                               4,
@@ -2910,7 +2944,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                 "Expected success");
 
         itemMeta.cas++;
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 del_with_meta(h,
                               "key1",
                               4,
@@ -2934,7 +2968,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                                           sizeof(validMetaData));
 
         // Set the key with a low CAS value and real nmeta
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 set_with_meta(h,
                               "key2",
                               4,
@@ -2952,7 +2986,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                 "Expected success");
 
         itemMeta.cas++;
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 del_with_meta(h,
                               "key2",
                               4,
@@ -2978,7 +3012,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                                           sizeof(validMetaData));
 
         // Set the key with a low CAS value and real nmeta
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 set_with_meta(h,
                               "key3",
                               4,
@@ -2996,7 +3030,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                 "Expected success");
 
         itemMeta.cas++;
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 del_with_meta(h,
                               "key3",
                               4,
@@ -3022,7 +3056,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                                           sizeof(validMetaData));
 
         // Set the key with a low CAS value and real nmeta
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 set_with_meta(h,
                               "key4",
                               4,
@@ -3040,7 +3074,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                 "Expected success");
 
         itemMeta.cas++;
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 del_with_meta(h,
                               "key4",
                               4,
@@ -3074,7 +3108,7 @@ static enum test_result test_MB29119(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
 
     // delete an item with meta data
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del_with_meta(h,
                           key1,
                           keylen,
@@ -3094,7 +3128,7 @@ static enum test_result test_MB29119(EngineIface* h) {
     evict_key(h, key1);
 
     // Same key
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             del_with_meta(h,
                           key1,
                           keylen,
@@ -3122,7 +3156,7 @@ static enum test_result test_expiration_options(EngineIface* h) {
     itemMeta.flags = 0xdeadbeef;
 
     // store an item
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h,
                   nullptr,
                   StoreSemantics::Set,
@@ -3136,7 +3170,7 @@ static enum test_result test_expiration_options(EngineIface* h) {
     wait_for_flusher_to_settle(h);
 
     // delete an item with meta data indicating expiration
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del_with_meta(h, key, keylen, Vbid(0), &itemMeta, 0, IS_EXPIRATION),
             "Expected delete success");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");

@@ -272,10 +272,10 @@ void PassiveStream::reconnectStream(VBucketPtr& vb,
     notifyStreamReady();
 }
 
-ENGINE_ERROR_CODE PassiveStream::messageReceived(
+cb::engine_errc PassiveStream::messageReceived(
         std::unique_ptr<DcpResponse> dcpResponse) {
     if (!dcpResponse) {
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 
     if (!isActive()) {
@@ -284,7 +284,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
         // registered in the streams map and hence we should ignore any
         // messages (until STREAM_END is received and the stream is removed form
         // the map).
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     auto seqno = dcpResponse->getBySeqno();
@@ -300,7 +300,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
                 opaque_,
                 *seqno,
                 last_seqno.load());
-            return ENGINE_ERANGE;
+            return cb::engine_errc::out_of_range;
         }
     } else if (dcpResponse->getEvent() == DcpResponse::Event::SnapshotMarker) {
         auto s = static_cast<SnapshotMarker*>(dcpResponse.get());
@@ -317,7 +317,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
                 snapStart,
                 snapEnd,
                 last_seqno.load());
-            return ENGINE_ERANGE;
+            return cb::engine_errc::out_of_range;
         }
     }
 
@@ -327,11 +327,11 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
             "{} Disconnecting the connection as there is "
             "no memory to complete replication",
             vb_);
-        return ENGINE_DISCONNECT;
+        return cb::engine_errc::disconnect;
     case ReplicationThrottle::Status::Process:
         if (buffer.empty()) {
             /* Process the response here itself rather than buffering it */
-            ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+            cb::engine_errc ret = cb::engine_errc::success;
             switch (dcpResponse->getEvent()) {
             case DcpResponse::Event::Mutation:
                 ret = processMutation(static_cast<MutationConsumerMessage*>(
@@ -384,20 +384,21 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
                         std::string(dcpResponse->to_string()));
             }
 
-            if (ret == ENGINE_ENOMEM) {
+            if (ret == cb::engine_errc::no_memory) {
                 if (engine->getReplicationThrottle().doDisconnectOnNoMem()) {
                     log(spdlog::level::level_enum::warn,
                         "{} Disconnecting the connection as there is no "
                         "memory to complete replication; process dcp "
                         "event returned no memory",
                         vb_);
-                    return ENGINE_DISCONNECT;
+                    return cb::engine_errc::disconnect;
                 }
             }
-            if (ret == ENGINE_SUCCESS && seqno) {
+            if (ret == cb::engine_errc::success && seqno) {
                 last_seqno.store(*seqno);
             }
-            if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
+            if (ret != cb::engine_errc::temporary_failure &&
+                ret != cb::engine_errc::no_memory) {
                 return ret;
             }
         }
@@ -412,7 +413,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
     if (isActive()) {
         buffer.push(std::move(dcpResponse));
     }
-    return ENGINE_TMPFAIL;
+    return cb::engine_errc::temporary_failure;
 }
 
 process_items_error_t PassiveStream::processBufferedMessages(
@@ -424,7 +425,7 @@ process_items_error_t PassiveStream::processBufferedMessages(
     bool failed = false, noMem = false;
 
     while (count < batchSize && !buffer.messages.empty()) {
-        ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+        cb::engine_errc ret = cb::engine_errc::success;
         /* If the stream is in dead state we should not process any remaining
            items in the buffer, we should rather clear them */
         if (!isActive()) {
@@ -506,9 +507,10 @@ process_items_error_t PassiveStream::processBufferedMessages(
                     std::string(response->to_string()));
         }
 
-        if (ret == ENGINE_TMPFAIL || ret == ENGINE_ENOMEM) {
+        if (ret == cb::engine_errc::temporary_failure ||
+            ret == cb::engine_errc::no_memory) {
             failed = true;
-            if (ret == ENGINE_ENOMEM) {
+            if (ret == cb::engine_errc::no_memory) {
                 noMem = true;
             }
         }
@@ -539,10 +541,10 @@ process_items_error_t PassiveStream::processBufferedMessages(
         buffer.pop_front(lh, message_bytes);
 
         count++;
-        if (ret != ENGINE_ERANGE) {
+        if (ret != cb::engine_errc::out_of_range) {
             total_bytes_processed += message_bytes;
         }
-        if (ret == ENGINE_SUCCESS && seqno) {
+        if (ret == cb::engine_errc::success && seqno) {
             last_seqno.store(*seqno);
         }
     }
@@ -564,18 +566,18 @@ process_items_error_t PassiveStream::processBufferedMessages(
     return all_processed;
 }
 
-ENGINE_ERROR_CODE PassiveStream::processMessage(
-        MutationConsumerMessage* message, MessageType messageType) {
+cb::engine_errc PassiveStream::processMessage(MutationConsumerMessage* message,
+                                              MessageType messageType) {
     std::array<std::string, 4> taskToString{
             {"mutation", "deletion", "expiration", "prepare"}};
     VBucketPtr vb = engine->getVBucket(vb_);
     if (!vb) {
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     auto consumer = consumerPtr.lock();
     if (!consumer) {
-        return ENGINE_DISCONNECT;
+        return cb::engine_errc::disconnect;
     }
 
     if (uint64_t(*message->getBySeqno()) < cur_snapshot_start.load() ||
@@ -591,7 +593,7 @@ ENGINE_ERROR_CODE PassiveStream::processMessage(
             *message->getBySeqno(),
             cur_snapshot_end.load(),
             taskToString[messageType]);
-        return ENGINE_ERANGE;
+        return cb::engine_errc::out_of_range;
     }
 
     switch (messageType) {
@@ -626,7 +628,7 @@ ENGINE_ERROR_CODE PassiveStream::processMessage(
         message->getItem()->setCas();
     }
 
-    ENGINE_ERROR_CODE ret;
+    cb::engine_errc ret;
     DeleteSource deleteSource = DeleteSource::Explicit;
     bool switchComplete = false;
     switch (messageType) {
@@ -654,7 +656,7 @@ ENGINE_ERROR_CODE PassiveStream::processMessage(
         // SyncWrite, then we have to flag that the Replica must notify the
         // DurabilityMonitor at snapshot-end received for the DM to move the
         // HighPreparedSeqno.
-        if (ret == ENGINE_SUCCESS) {
+        if (ret == cb::engine_errc::success) {
             cur_snapshot_prepare.store(true);
         }
 
@@ -682,8 +684,8 @@ ENGINE_ERROR_CODE PassiveStream::processMessage(
                 *message->getBySeqno(),
                 message->getExtMetaData(),
                 deleteSource);
-        if (ret == ENGINE_KEY_ENOENT) {
-            ret = ENGINE_SUCCESS;
+        if (ret == cb::engine_errc::no_such_key) {
+            ret = cb::engine_errc::success;
         }
         switchComplete = true;
         break;
@@ -694,14 +696,14 @@ ENGINE_ERROR_CODE PassiveStream::processMessage(
                             "Message type not supported"));
     }
 
-    if (ret != ENGINE_SUCCESS) {
+    if (ret != cb::engine_errc::success) {
         // ENOMEM logging is handled by maybeLogMemoryState
-        if (ret != ENGINE_ENOMEM) {
+        if (ret != cb::engine_errc::no_memory) {
             log(spdlog::level::level_enum::warn,
                 "{} Got error '{}' while trying to process "
                 "{} with seqno:{} cid:{}",
                 vb_,
-                cb::to_string(cb::to_engine_errc(ret)),
+                cb::to_string(ret),
                 taskToString[messageType],
                 message->getItem()->getBySeqno(),
                 message->getItem()->getKey().getCollectionID());
@@ -710,32 +712,31 @@ ENGINE_ERROR_CODE PassiveStream::processMessage(
         handleSnapshotEnd(vb, *message->getBySeqno());
     }
 
-    maybeLogMemoryState(cb::to_engine_errc(ret),
-                        taskToString[messageType],
-                        message->getItem()->getBySeqno());
+    maybeLogMemoryState(
+            ret, taskToString[messageType], message->getItem()->getBySeqno());
 
     return ret;
 }
 
-ENGINE_ERROR_CODE PassiveStream::processMutation(
+cb::engine_errc PassiveStream::processMutation(
         MutationConsumerMessage* mutation) {
     return processMessage(mutation, MessageType::Mutation);
 }
 
-ENGINE_ERROR_CODE PassiveStream::processDeletion(
+cb::engine_errc PassiveStream::processDeletion(
         MutationConsumerMessage* deletion) {
     return processMessage(deletion, MessageType::Deletion);
 }
 
-ENGINE_ERROR_CODE PassiveStream::processExpiration(
+cb::engine_errc PassiveStream::processExpiration(
         MutationConsumerMessage* expiration) {
     return processMessage(expiration, MessageType::Expiration);
 }
 
-ENGINE_ERROR_CODE PassiveStream::processPrepare(
+cb::engine_errc PassiveStream::processPrepare(
         MutationConsumerMessage* prepare) {
     auto result = processMessage(prepare, MessageType::Prepare);
-    if (result == ENGINE_SUCCESS) {
+    if (result == cb::engine_errc::success) {
         Expects(prepare->getItem()->getBySeqno() ==
                 engine->getVBucket(vb_)->getHighSeqno())
     }
@@ -781,23 +782,23 @@ std::string PassiveStream::to_string(StreamState st) {
                                 std::to_string(int(st)));
 }
 
-ENGINE_ERROR_CODE PassiveStream::processCommit(const CommitSyncWrite& commit) {
+cb::engine_errc PassiveStream::processCommit(const CommitSyncWrite& commit) {
     VBucketPtr vb = engine->getVBucket(vb_);
 
     if (!vb) {
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     auto rv = vb->commit(commit.getKey(),
                          commit.getPreparedSeqno(),
                          *commit.getBySeqno(),
                          vb->lockCollections(commit.getKey()));
-    if (rv != ENGINE_SUCCESS) {
+    if (rv != cb::engine_errc::success) {
         log(spdlog::level::level_enum::warn,
             "PassiveStream::processCommit: {} Got error '{}' while trying to "
             "process commit",
             vb_,
-            cb::to_string(cb::to_engine_errc(rv)));
+            cb::to_string(rv));
     } else {
         handleSnapshotEnd(vb, *commit.getBySeqno());
     }
@@ -805,11 +806,11 @@ ENGINE_ERROR_CODE PassiveStream::processCommit(const CommitSyncWrite& commit) {
     return rv;
 }
 
-ENGINE_ERROR_CODE PassiveStream::processAbort(const AbortSyncWrite& abort) {
+cb::engine_errc PassiveStream::processAbort(const AbortSyncWrite& abort) {
     VBucketPtr vb = engine->getVBucket(vb_);
 
     if (!vb) {
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     auto rv = vb->abort(abort.getKey(),
@@ -817,12 +818,12 @@ ENGINE_ERROR_CODE PassiveStream::processAbort(const AbortSyncWrite& abort) {
                         abort.getAbortSeqno(),
                         vb->lockCollections(abort.getKey()));
 
-    if (rv != ENGINE_SUCCESS) {
+    if (rv != cb::engine_errc::success) {
         log(spdlog::level::level_enum::warn,
             "PassiveStream::processAbort: {} Got error '{}' while trying to "
             "process abort",
             vb_,
-            cb::to_string(cb::to_engine_errc(rv)));
+            cb::to_string(rv));
     } else {
         handleSnapshotEnd(vb, *abort.getBySeqno());
     }
@@ -830,15 +831,15 @@ ENGINE_ERROR_CODE PassiveStream::processAbort(const AbortSyncWrite& abort) {
     return rv;
 }
 
-ENGINE_ERROR_CODE PassiveStream::processSystemEvent(
+cb::engine_errc PassiveStream::processSystemEvent(
         const SystemEventMessage& event) {
     VBucketPtr vb = engine->getVBucket(vb_);
 
     if (!vb) {
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
-    ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
+    cb::engine_errc rv = cb::engine_errc::success;
     // Depending on the event, extras is different and key may even be empty
     // The specific handler will know how to interpret.
     switch (event.getSystemEvent()) {
@@ -859,17 +860,17 @@ ENGINE_ERROR_CODE PassiveStream::processSystemEvent(
         break;
     }
     default: {
-        rv = ENGINE_EINVAL;
+        rv = cb::engine_errc::invalid_arguments;
         break;
     }
     }
 
-    if (rv != ENGINE_SUCCESS) {
+    if (rv != cb::engine_errc::success) {
         log(spdlog::level::level_enum::warn,
             "{} Got error '{}' while trying to process "
             "system event",
             vb_,
-            cb::to_string(cb::to_engine_errc(rv)));
+            cb::to_string(rv));
     } else {
         handleSnapshotEnd(vb, *event.getBySeqno());
     }
@@ -877,7 +878,7 @@ ENGINE_ERROR_CODE PassiveStream::processSystemEvent(
     return rv;
 }
 
-ENGINE_ERROR_CODE PassiveStream::processCreateCollection(
+cb::engine_errc PassiveStream::processCreateCollection(
         VBucket& vb, const CreateCollectionEvent& event) {
     try {
         vb.replicaCreateCollection(
@@ -891,12 +892,12 @@ ENGINE_ERROR_CODE PassiveStream::processCreateCollection(
             "PassiveStream::processCreateCollection {} exception {}",
             vb.getId(),
             e.what());
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE PassiveStream::processDropCollection(
+cb::engine_errc PassiveStream::processDropCollection(
         VBucket& vb, const DropCollectionEvent& event) {
     try {
         vb.replicaDropCollection(event.getManifestUid(),
@@ -907,12 +908,12 @@ ENGINE_ERROR_CODE PassiveStream::processDropCollection(
             "PassiveStream::processDropCollection {} exception {}",
             vb.getId(),
             e.what());
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE PassiveStream::processCreateScope(
+cb::engine_errc PassiveStream::processCreateScope(
         VBucket& vb, const CreateScopeEvent& event) {
     try {
         vb.replicaCreateScope(event.getManifestUid(),
@@ -924,13 +925,13 @@ ENGINE_ERROR_CODE PassiveStream::processCreateScope(
             "PassiveStream::processCreateScope {} exception {}",
             vb.getId(),
             e.what());
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE PassiveStream::processDropScope(VBucket& vb,
-                                                  const DropScopeEvent& event) {
+cb::engine_errc PassiveStream::processDropScope(VBucket& vb,
+                                                const DropScopeEvent& event) {
     try {
         vb.replicaDropScope(
                 event.getManifestUid(), event.getScopeID(), event.getBySeqno());
@@ -939,9 +940,9 @@ ENGINE_ERROR_CODE PassiveStream::processDropScope(VBucket& vb,
             "PassiveStream::processDropScope {} exception {}",
             vb.getId(),
             e.what());
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 void PassiveStream::processMarker(SnapshotMarker* marker) {

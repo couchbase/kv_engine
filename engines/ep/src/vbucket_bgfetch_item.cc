@@ -41,15 +41,15 @@ void FrontEndBGFetchItem::complete(
         VBucketPtr& vb,
         std::chrono::steady_clock::time_point startTime,
         const DiskDocKey& key) const {
-    ENGINE_ERROR_CODE status =
+    cb::engine_errc status =
             vb->completeBGFetchForSingleItem(key, *this, startTime);
     engine.notifyIOComplete(cookie, status);
 }
 
 void FrontEndBGFetchItem::abort(
         EventuallyPersistentEngine& engine,
-        ENGINE_ERROR_CODE status,
-        std::map<const void*, ENGINE_ERROR_CODE>& toNotify) const {
+        cb::engine_errc status,
+        std::map<const void*, cb::engine_errc>& toNotify) const {
     toNotify[cookie] = status;
     engine.storeEngineSpecific(cookie, nullptr);
 }
@@ -66,8 +66,8 @@ void CompactionBGFetchItem::complete(
 
 void CompactionBGFetchItem::abort(
         EventuallyPersistentEngine& engine,
-        ENGINE_ERROR_CODE status,
-        std::map<const void*, ENGINE_ERROR_CODE>& toNotify) const {
+        cb::engine_errc status,
+        std::map<const void*, cb::engine_errc>& toNotify) const {
     // Do nothing. If we abort a CompactionBGFetch then an item that we may have
     // expire simply won't be expired. The next op/compaction can expire the
     // item if still required.

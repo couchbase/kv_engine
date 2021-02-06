@@ -35,8 +35,8 @@
 #include <memcached/engine.h>
 #include <memcached/engine_error.h>
 
-ENGINE_ERROR_CODE bucket_unknown_command(Cookie& cookie,
-                                         const AddResponseFn& response);
+cb::engine_errc bucket_unknown_command(Cookie& cookie,
+                                       const AddResponseFn& response);
 
 void bucket_item_set_cas(Connection& c,
                          gsl::not_null<ItemIface*> it,
@@ -56,7 +56,7 @@ cb::EngineErrorMetadataPair bucket_get_meta(Cookie& cookie,
                                             const DocKey& key,
                                             Vbid vbucket);
 
-ENGINE_ERROR_CODE bucket_store(
+cb::engine_errc bucket_store(
         Cookie& cookie,
         gsl::not_null<ItemIface*> item_,
         uint64_t& cas,
@@ -75,7 +75,7 @@ cb::EngineErrorCasPair bucket_store_if(
         DocumentState document_state,
         bool preserveTtl);
 
-ENGINE_ERROR_CODE bucket_remove(
+cb::engine_errc bucket_remove(
         Cookie& cookie,
         const DocKey& key,
         uint64_t& cas,
@@ -113,10 +113,10 @@ cb::EngineErrorItemPair bucket_get_locked(Cookie& cookie,
                                           Vbid vbucket,
                                           uint32_t lock_timeout);
 
-ENGINE_ERROR_CODE bucket_unlock(Cookie& cookie,
-                                const DocKey& key,
-                                Vbid vbucket,
-                                uint64_t cas);
+cb::engine_errc bucket_unlock(Cookie& cookie,
+                              const DocKey& key,
+                              Vbid vbucket,
+                              uint64_t cas);
 
 std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(Cookie& cookie,
                                                              const DocKey& key,
@@ -127,12 +127,12 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(Cookie& cookie,
                                                              uint8_t datatype,
                                                              Vbid vbucket);
 
-ENGINE_ERROR_CODE bucket_flush(Cookie& cookie);
+cb::engine_errc bucket_flush(Cookie& cookie);
 
-ENGINE_ERROR_CODE bucket_get_stats(Cookie& cookie,
-                                   std::string_view key,
-                                   cb::const_byte_buffer value,
-                                   const AddStatFn& add_stat);
+cb::engine_errc bucket_get_stats(Cookie& cookie,
+                                 std::string_view key,
+                                 cb::const_byte_buffer value,
+                                 const AddStatFn& add_stat);
 
 /**
  * Calls the underlying engine DCP add-stream
@@ -141,12 +141,12 @@ ENGINE_ERROR_CODE bucket_get_stats(Cookie& cookie,
  * @param opaque The opaque field in the received message
  * @param vbid The vbucket id
  * @param flags
- * @return ENGINE_ERROR_CODE
+ * @return cb::engine_errc
  */
-ENGINE_ERROR_CODE dcpAddStream(Cookie& cookie,
-                               uint32_t opaque,
-                               Vbid vbid,
-                               uint32_t flags);
+cb::engine_errc dcpAddStream(Cookie& cookie,
+                             uint32_t opaque,
+                             Vbid vbid,
+                             uint32_t flags);
 
 /**
  * Calls the underlying engine DCP buffer-acknowledgement
@@ -155,12 +155,12 @@ ENGINE_ERROR_CODE dcpAddStream(Cookie& cookie,
  * @param opaque The opaque field in the received message
  * @param vbid The vbucket id
  * @param ackSize The number of acknowledged bytes
- * @return ENGINE_ERROR_CODE
+ * @return cb::engine_errc
  */
-ENGINE_ERROR_CODE dcpBufferAcknowledgement(Cookie& cookie,
-                                           uint32_t opaque,
-                                           Vbid vbid,
-                                           uint32_t ackSize);
+cb::engine_errc dcpBufferAcknowledgement(Cookie& cookie,
+                                         uint32_t opaque,
+                                         Vbid vbid,
+                                         uint32_t ackSize);
 
 /**
  * Calls the underlying engine DCP close-stream
@@ -169,12 +169,12 @@ ENGINE_ERROR_CODE dcpBufferAcknowledgement(Cookie& cookie,
  * @param opaque The opaque field in the received message
  * @param vbid The vbucket id
  * @param sid The ID of the stream
- * @return ENGINE_ERROR_CODE
+ * @return cb::engine_errc
  */
-ENGINE_ERROR_CODE dcpCloseStream(Cookie& cookie,
-                                 uint32_t opaque,
-                                 Vbid vbid,
-                                 cb::mcbp::DcpStreamId sid);
+cb::engine_errc dcpCloseStream(Cookie& cookie,
+                               uint32_t opaque,
+                               Vbid vbid,
+                               cb::mcbp::DcpStreamId sid);
 
 /**
  * Calls the underlying engine DCP control
@@ -183,12 +183,12 @@ ENGINE_ERROR_CODE dcpCloseStream(Cookie& cookie,
  * @param opaque The opaque field in the received message
  * @param key The parameter to set
  * @param value The value to set
- * @return ENGINE_ERROR_CODE
+ * @return cb::engine_errc
  */
-ENGINE_ERROR_CODE dcpControl(Cookie& cookie,
-                             uint32_t opaque,
-                             std::string_view key,
-                             std::string_view val);
+cb::engine_errc dcpControl(Cookie& cookie,
+                           uint32_t opaque,
+                           std::string_view key,
+                           std::string_view val);
 
 /**
  * Calls the underlying engine DCP deletion
@@ -205,19 +205,19 @@ ENGINE_ERROR_CODE dcpControl(Cookie& cookie,
  * @param bySeqno The db sequence number
  * @param revSeqno The revision sequence number
  * @param meta The document meta
- * @return ENGINE_ERROR_CODE
+ * @return cb::engine_errc
  */
-ENGINE_ERROR_CODE dcpDeletion(Cookie& cookie,
-                              uint32_t opaque,
-                              const DocKey& key,
-                              cb::const_byte_buffer value,
-                              size_t privilegedPoolSize,
-                              uint8_t datatype,
-                              uint64_t cas,
-                              Vbid vbid,
-                              uint64_t bySeqno,
-                              uint64_t revSeqno,
-                              cb::const_byte_buffer meta);
+cb::engine_errc dcpDeletion(Cookie& cookie,
+                            uint32_t opaque,
+                            const DocKey& key,
+                            cb::const_byte_buffer value,
+                            size_t privilegedPoolSize,
+                            uint8_t datatype,
+                            uint64_t cas,
+                            Vbid vbid,
+                            uint64_t bySeqno,
+                            uint64_t revSeqno,
+                            cb::const_byte_buffer meta);
 
 /**
  * Calls the underlying engine DCP deletion v2
@@ -234,19 +234,19 @@ ENGINE_ERROR_CODE dcpDeletion(Cookie& cookie,
  * @param bySeqno The db sequence number
  * @param revSeqno The revision sequence number
  * @param deleteTime The time of the deletion
- * @return ENGINE_ERROR_CODE
+ * @return cb::engine_errc
  */
-ENGINE_ERROR_CODE dcpDeletionV2(Cookie& cookie,
-                                uint32_t opaque,
-                                const DocKey& key,
-                                cb::const_byte_buffer value,
-                                size_t priv_bytes,
-                                uint8_t datatype,
-                                uint64_t cas,
-                                Vbid vbid,
-                                uint64_t bySeqno,
-                                uint64_t revSeqno,
-                                uint32_t deleteTime);
+cb::engine_errc dcpDeletionV2(Cookie& cookie,
+                              uint32_t opaque,
+                              const DocKey& key,
+                              cb::const_byte_buffer value,
+                              size_t priv_bytes,
+                              uint8_t datatype,
+                              uint64_t cas,
+                              Vbid vbid,
+                              uint64_t bySeqno,
+                              uint64_t revSeqno,
+                              uint32_t deleteTime);
 
 /**
  * Calls the underlying engine DCP expiration
@@ -263,19 +263,19 @@ ENGINE_ERROR_CODE dcpDeletionV2(Cookie& cookie,
  * @param bySeqno The db sequence number
  * @param revSeqno The revision sequence number
  * @param deleteTime The time of the deletion
- * @return ENGINE_ERROR_CODE
+ * @return cb::engine_errc
  */
-ENGINE_ERROR_CODE dcpExpiration(Cookie& cookie,
-                                uint32_t opaque,
-                                const DocKey& key,
-                                cb::const_byte_buffer value,
-                                size_t privilegedPoolSize,
-                                uint8_t datatype,
-                                uint64_t cas,
-                                Vbid vbid,
-                                uint64_t bySeqno,
-                                uint64_t revSeqno,
-                                uint32_t deleteTime);
+cb::engine_errc dcpExpiration(Cookie& cookie,
+                              uint32_t opaque,
+                              const DocKey& key,
+                              cb::const_byte_buffer value,
+                              size_t privilegedPoolSize,
+                              uint8_t datatype,
+                              uint64_t cas,
+                              Vbid vbid,
+                              uint64_t bySeqno,
+                              uint64_t revSeqno,
+                              uint32_t deleteTime);
 
 /**
  * Calls the underlying engine DCP get-failover-log
@@ -284,12 +284,12 @@ ENGINE_ERROR_CODE dcpExpiration(Cookie& cookie,
  * @param opaque The opaque field in the received message
  * @param vbid The vbucket id
  * @param callback The callback to be used by the engine to add the response
- * @return ENGINE_ERROR_CODE
+ * @return cb::engine_errc
  */
-ENGINE_ERROR_CODE dcpGetFailoverLog(Cookie& cookie,
-                                    uint32_t opaque,
-                                    Vbid vbid,
-                                    dcp_add_failover_log callback);
+cb::engine_errc dcpGetFailoverLog(Cookie& cookie,
+                                  uint32_t opaque,
+                                  Vbid vbid,
+                                  dcp_add_failover_log callback);
 
 /**
  * Calls the underlying engine DCP mutation
@@ -310,32 +310,32 @@ ENGINE_ERROR_CODE dcpGetFailoverLog(Cookie& cookie,
  * @param lockTime The document lock time
  * @param meta The document meta
  * @param nru The document NRU
- * @return ENGINE_ERROR_CODE
+ * @return cb::engine_errc
  */
-ENGINE_ERROR_CODE dcpMutation(Cookie& cookie,
-                              uint32_t opaque,
-                              const DocKey& key,
-                              cb::const_byte_buffer value,
-                              size_t privilegedPoolSize,
-                              uint8_t datatype,
-                              uint64_t cas,
-                              Vbid vbid,
-                              uint32_t flags,
-                              uint64_t bySeqno,
-                              uint64_t revSeqno,
-                              uint32_t expiration,
-                              uint32_t lockTime,
-                              cb::const_byte_buffer meta,
-                              uint8_t nru);
+cb::engine_errc dcpMutation(Cookie& cookie,
+                            uint32_t opaque,
+                            const DocKey& key,
+                            cb::const_byte_buffer value,
+                            size_t privilegedPoolSize,
+                            uint8_t datatype,
+                            uint64_t cas,
+                            Vbid vbid,
+                            uint32_t flags,
+                            uint64_t bySeqno,
+                            uint64_t revSeqno,
+                            uint32_t expiration,
+                            uint32_t lockTime,
+                            cb::const_byte_buffer meta,
+                            uint8_t nru);
 
 /**
  * Calls the underlying engine DCP noop
  *
  * @param cookie The cookie representing the connection
  * @param opaque The opaque field in the received message
- * @return ENGINE_ERROR_CODE
+ * @return cb::engine_errc
  */
-ENGINE_ERROR_CODE dcpNoop(Cookie& cookie, uint32_t opaque);
+cb::engine_errc dcpNoop(Cookie& cookie, uint32_t opaque);
 
 /**
  * Calls the underlying engine DCP open
@@ -345,14 +345,14 @@ ENGINE_ERROR_CODE dcpNoop(Cookie& cookie, uint32_t opaque);
  * @param seqno
  * @param flags The DCP open flags
  * @param name The DCP connection name
- * @return ENGINE_ERROR_CODE
+ * @return cb::engine_errc
  */
-ENGINE_ERROR_CODE dcpOpen(Cookie& cookie,
-                          uint32_t opaque,
-                          uint32_t seqno,
-                          uint32_t flags,
-                          std::string_view name,
-                          std::string_view value);
+cb::engine_errc dcpOpen(Cookie& cookie,
+                        uint32_t opaque,
+                        uint32_t seqno,
+                        uint32_t flags,
+                        std::string_view name,
+                        std::string_view value);
 
 /**
  * Calls the underlying engine DCP set-vbucket-state
@@ -361,12 +361,12 @@ ENGINE_ERROR_CODE dcpOpen(Cookie& cookie,
  * @param opaque The opaque field in the received message
  * @param vbid The vbucket id
  * @param state The new vbucket state
- * @return ENGINE_ERROR_CODE
+ * @return cb::engine_errc
  */
-ENGINE_ERROR_CODE dcpSetVbucketState(Cookie& cookie,
-                                     uint32_t opaque,
-                                     Vbid vbid,
-                                     vbucket_state_t state);
+cb::engine_errc dcpSetVbucketState(Cookie& cookie,
+                                   uint32_t opaque,
+                                   Vbid vbid,
+                                   vbucket_state_t state);
 
 /**
  * Calls the underlying engine DCP snapshot-marker
@@ -380,16 +380,16 @@ ENGINE_ERROR_CODE dcpSetVbucketState(Cookie& cookie,
  * @param highCompletedSeqno The SyncRepl high completed seqno
  * @param maxVisibleSeqno The snapshot's maximum visible seqno
  *
- * @return ENGINE_ERROR_CODE
+ * @return cb::engine_errc
  */
-ENGINE_ERROR_CODE dcpSnapshotMarker(Cookie& cookie,
-                                    uint32_t opaque,
-                                    Vbid vbid,
-                                    uint64_t startSeqno,
-                                    uint64_t endSeqno,
-                                    uint32_t flags,
-                                    std::optional<uint64_t> highCompletedSeqno,
-                                    std::optional<uint64_t> maxVisibleSeqno);
+cb::engine_errc dcpSnapshotMarker(Cookie& cookie,
+                                  uint32_t opaque,
+                                  Vbid vbid,
+                                  uint64_t startSeqno,
+                                  uint64_t endSeqno,
+                                  uint32_t flags,
+                                  std::optional<uint64_t> highCompletedSeqno,
+                                  std::optional<uint64_t> maxVisibleSeqno);
 
 /**
  * Calls the underlying engine DCP stream-end
@@ -398,12 +398,12 @@ ENGINE_ERROR_CODE dcpSnapshotMarker(Cookie& cookie,
  * @param opaque The opaque field in the received message
  * @param vbid The vbucket id
  * @param status The stream end status code
- * @return ENGINE_ERROR_CODE
+ * @return cb::engine_errc
  */
-ENGINE_ERROR_CODE dcpStreamEnd(Cookie& cookie,
-                               uint32_t opaque,
-                               Vbid vbid,
-                               cb::mcbp::DcpStreamEndStatus status);
+cb::engine_errc dcpStreamEnd(Cookie& cookie,
+                             uint32_t opaque,
+                             Vbid vbid,
+                             cb::mcbp::DcpStreamEndStatus status);
 
 /**
  * Calls the underlying engine DCP stream-req
@@ -424,20 +424,20 @@ ENGINE_ERROR_CODE dcpStreamEnd(Cookie& cookie,
  * @param json Optional JSON string; which if non-empty can be used
  *                   to further control how data is requested - for example
  *                   to filter collections.
- * @return ENGINE_ERROR_CODE
+ * @return cb::engine_errc
  */
-ENGINE_ERROR_CODE dcpStreamReq(Cookie& cookie,
-                               uint32_t flags,
-                               uint32_t opaque,
-                               Vbid vbid,
-                               uint64_t startSeqno,
-                               uint64_t endSeqno,
-                               uint64_t vbucketUuid,
-                               uint64_t snapStartSeqno,
-                               uint64_t snapEndSeqno,
-                               uint64_t* rollbackSeqno,
-                               dcp_add_failover_log callback,
-                               std::optional<std::string_view> json);
+cb::engine_errc dcpStreamReq(Cookie& cookie,
+                             uint32_t flags,
+                             uint32_t opaque,
+                             Vbid vbid,
+                             uint64_t startSeqno,
+                             uint64_t endSeqno,
+                             uint64_t vbucketUuid,
+                             uint64_t snapStartSeqno,
+                             uint64_t snapEndSeqno,
+                             uint64_t* rollbackSeqno,
+                             dcp_add_failover_log callback,
+                             std::optional<std::string_view> json);
 
 /**
  * Calls the underlying engine DCP system-event
@@ -450,52 +450,52 @@ ENGINE_ERROR_CODE dcpStreamReq(Cookie& cookie,
  * @param version A version value which defines the key and data of the event
  * @param eventKey The event key
  * @param eventData The event data
- * @return ENGINE_ERROR_CODE
+ * @return cb::engine_errc
  */
-ENGINE_ERROR_CODE dcpSystemEvent(Cookie& cookie,
-                                 uint32_t opaque,
-                                 Vbid vbucket,
-                                 mcbp::systemevent::id eventId,
-                                 uint64_t bySeqno,
-                                 mcbp::systemevent::version version,
-                                 cb::const_byte_buffer eventKey,
-                                 cb::const_byte_buffer eventData);
+cb::engine_errc dcpSystemEvent(Cookie& cookie,
+                               uint32_t opaque,
+                               Vbid vbucket,
+                               mcbp::systemevent::id eventId,
+                               uint64_t bySeqno,
+                               mcbp::systemevent::version version,
+                               cb::const_byte_buffer eventKey,
+                               cb::const_byte_buffer eventData);
 
-ENGINE_ERROR_CODE dcpPrepare(Cookie& cookie,
-                             uint32_t opaque,
-                             const DocKey& key,
-                             cb::const_byte_buffer value,
-                             size_t priv_bytes,
-                             uint8_t datatype,
-                             uint64_t cas,
-                             Vbid vbucket,
-                             uint32_t flags,
-                             uint64_t by_seqno,
-                             uint64_t rev_seqno,
-                             uint32_t expiration,
-                             uint32_t lock_time,
-                             uint8_t nru,
-                             DocumentState document_state,
-                             cb::durability::Level level);
-
-ENGINE_ERROR_CODE dcpSeqnoAcknowledged(Cookie& cookie,
-                                       uint32_t opaque,
-                                       Vbid vbucket,
-                                       uint64_t prepared_seqno);
-
-ENGINE_ERROR_CODE dcpCommit(Cookie& cookie,
-                            uint32_t opaque,
-                            Vbid vbucket,
-                            const DocKey& key,
-                            uint64_t prepared_seqno,
-                            uint64_t commit_seqno);
-
-ENGINE_ERROR_CODE dcpAbort(Cookie& cookie,
+cb::engine_errc dcpPrepare(Cookie& cookie,
                            uint32_t opaque,
-                           Vbid vbucket,
                            const DocKey& key,
-                           uint64_t prepared_seqno,
-                           uint64_t abort_seqno);
+                           cb::const_byte_buffer value,
+                           size_t priv_bytes,
+                           uint8_t datatype,
+                           uint64_t cas,
+                           Vbid vbucket,
+                           uint32_t flags,
+                           uint64_t by_seqno,
+                           uint64_t rev_seqno,
+                           uint32_t expiration,
+                           uint32_t lock_time,
+                           uint8_t nru,
+                           DocumentState document_state,
+                           cb::durability::Level level);
+
+cb::engine_errc dcpSeqnoAcknowledged(Cookie& cookie,
+                                     uint32_t opaque,
+                                     Vbid vbucket,
+                                     uint64_t prepared_seqno);
+
+cb::engine_errc dcpCommit(Cookie& cookie,
+                          uint32_t opaque,
+                          Vbid vbucket,
+                          const DocKey& key,
+                          uint64_t prepared_seqno,
+                          uint64_t commit_seqno);
+
+cb::engine_errc dcpAbort(Cookie& cookie,
+                         uint32_t opaque,
+                         Vbid vbucket,
+                         const DocKey& key,
+                         uint64_t prepared_seqno,
+                         uint64_t abort_seqno);
 
 cb::engine_errc bucket_set_parameter(Cookie& cookie,
                                      EngineParamCategory category,

@@ -23,9 +23,9 @@
 #include <mcbp/codec/dcp_snapshot_marker.h>
 
 void dcp_snapshot_marker_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    auto ret = cookie.swapAiostat(cb::engine_errc::success);
 
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         auto& req = cookie.getRequest();
         const auto snapshot = cb::mcbp::DcpSnapshotMarker::decode(req);
         ret = dcpSnapshotMarker(cookie,
@@ -38,7 +38,7 @@ void dcp_snapshot_marker_executor(Cookie& cookie) {
                                 snapshot.getMaxVisibleSeqno());
     }
 
-    if (ret != ENGINE_SUCCESS) {
+    if (ret != cb::engine_errc::success) {
         handle_executor_status(cookie, ret);
     }
 }

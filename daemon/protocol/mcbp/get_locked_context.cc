@@ -26,7 +26,7 @@
 #include <xattr/utils.h>
 #include <gsl/gsl>
 
-ENGINE_ERROR_CODE GetLockedCommandContext::getAndLockItem() {
+cb::engine_errc GetLockedCommandContext::getAndLockItem() {
     auto ret = bucket_get_locked(
             cookie, cookie.getRequestKey(), vbucket, lock_timeout);
     if (ret.first == cb::engine_errc::success) {
@@ -36,7 +36,7 @@ ENGINE_ERROR_CODE GetLockedCommandContext::getAndLockItem() {
                     "{}: GetLockedCommandContext::"
                     "getAndLockItem Failed to get item info",
                     connection.getId());
-            return ENGINE_FAILED;
+            return cb::engine_errc::failed;
         }
 
         payload = {static_cast<const char*>(info.value[0].iov_base),
@@ -56,31 +56,31 @@ ENGINE_ERROR_CODE GetLockedCommandContext::getAndLockItem() {
     } else if (ret.first == cb::engine_errc::locked) {
         // In order to be backward compatible we should return TMPFAIL
         // instead of the more correct EEXISTS
-        return ENGINE_LOCKED_TMPFAIL;
+        return cb::engine_errc::locked_tmpfail;
     }
 
-    return ENGINE_ERROR_CODE(ret.first);
+    return cb::engine_errc(ret.first);
 }
 
-ENGINE_ERROR_CODE GetLockedCommandContext::inflateItem() {
+cb::engine_errc GetLockedCommandContext::inflateItem() {
     try {
         if (!cookie.inflateSnappy(payload, buffer)) {
             LOG_WARNING(
                     "{}: GetLockedCommandContext::inflateItem:"
                     " Failed to inflate item",
                     connection.getId());
-            return ENGINE_FAILED;
+            return cb::engine_errc::failed;
         }
         payload = buffer;
     } catch (const std::bad_alloc&) {
-        return ENGINE_ENOMEM;
+        return cb::engine_errc::no_memory;
     }
 
     state = State::SendResponse;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE GetLockedCommandContext::sendResponse() {
+cb::engine_errc GetLockedCommandContext::sendResponse() {
     protocol_binary_datatype_t datatype = info.datatype;
 
     if (mcbp::datatype::is_xattr(datatype)) {
@@ -118,11 +118,11 @@ ENGINE_ERROR_CODE GetLockedCommandContext::sendResponse() {
     update_topkeys(cookie);
 
     state = State::Done;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE GetLockedCommandContext::step() {
-    auto ret = ENGINE_SUCCESS;
+cb::engine_errc GetLockedCommandContext::step() {
+    auto ret = cb::engine_errc::success;
     do {
         switch (state) {
         case State::GetAndLockItem:
@@ -135,9 +135,9 @@ ENGINE_ERROR_CODE GetLockedCommandContext::step() {
             ret = sendResponse();
             break;
         case State::Done:
-            return ENGINE_SUCCESS;
+            return cb::engine_errc::success;
         }
-    } while (ret == ENGINE_SUCCESS);
+    } while (ret == cb::engine_errc::success);
 
     return ret;
 }

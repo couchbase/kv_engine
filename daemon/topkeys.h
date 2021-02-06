@@ -69,9 +69,9 @@ public:
 
     void updateKey(const void* key, size_t nkey, rel_time_t operation_time);
 
-    ENGINE_ERROR_CODE stats(const void* cookie,
-                            rel_time_t current_time,
-                            const AddStatFn& add_stat);
+    cb::engine_errc stats(const void* cookie,
+                          rel_time_t current_time,
+                          const AddStatFn& add_stat);
 
     /**
      * Passing a set of topkeys, and relevant context data will
@@ -87,19 +87,19 @@ public:
      *    ]
      * }
      */
-    ENGINE_ERROR_CODE json_stats(nlohmann::json& object,
-                                 rel_time_t current_time);
+    cb::engine_errc json_stats(nlohmann::json& object, rel_time_t current_time);
 
 protected:
     void doUpdateKey(const void* key, size_t nkey, rel_time_t operation_time);
 
     void doStatsInner(const tk_context& stat_context);
-    ENGINE_ERROR_CODE doStats(const void* cookie,
-                              rel_time_t current_time,
-                              const AddStatFn& add_stat);
+    cb::engine_errc doStats(const void* cookie,
+                            rel_time_t current_time,
+                            const AddStatFn& add_stat);
 
-    ENGINE_ERROR_CODE do_json_stats(nlohmann::json& object,
-                                    rel_time_t current_time);
+    cb::engine_errc do_json_stats(nlohmann::json& object,
+                                  rel_time_t current_time);
+
 private:
     /**
      * Topkeys previously worked by storing 8 shards with variable size. As we

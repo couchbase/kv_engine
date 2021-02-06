@@ -384,16 +384,16 @@ void shutdown_audit() {
     getAuditHandle().wlock()->reset();
 }
 
-ENGINE_ERROR_CODE reconfigure_audit(Cookie& cookie) {
+cb::engine_errc reconfigure_audit(Cookie& cookie) {
     return getAuditHandle().withRLock([&cookie](auto& handle) {
         if (!handle) {
-            return ENGINE_FAILED;
+            return cb::engine_errc::failed;
         }
         if (handle->configure_auditdaemon(Settings::instance().getAuditFile(),
                                           static_cast<void*>(&cookie))) {
-            return ENGINE_EWOULDBLOCK;
+            return cb::engine_errc::would_block;
         }
-        return ENGINE_FAILED;
+        return cb::engine_errc::failed;
     });
 }
 

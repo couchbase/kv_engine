@@ -27,14 +27,14 @@
 #include <xattr/utils.h>
 #include <gsl/gsl>
 
-ENGINE_ERROR_CODE GetCommandContext::getItem() {
+cb::engine_errc GetCommandContext::getItem() {
     const auto key = cookie.getRequestKey();
     auto ret = bucket_get(cookie, key, vbucket);
     if (ret.first == cb::engine_errc::success) {
         it = std::move(ret.second);
         if (!bucket_get_item_info(connection, it.get(), &info)) {
             LOG_WARNING("{}: Failed to get item info", connection.getId());
-            return ENGINE_FAILED;
+            return cb::engine_errc::failed;
         }
 
         payload = {static_cast<const char*>(info.value[0].iov_base),
@@ -56,26 +56,26 @@ ENGINE_ERROR_CODE GetCommandContext::getItem() {
         ret.first = cb::engine_errc::success;
     }
 
-    return ENGINE_ERROR_CODE(ret.first);
+    return cb::engine_errc(ret.first);
 }
 
-ENGINE_ERROR_CODE GetCommandContext::inflateItem() {
+cb::engine_errc GetCommandContext::inflateItem() {
     try {
         if (!cookie.inflateSnappy(payload, buffer)) {
             LOG_WARNING("{}: Failed to inflate item", connection.getId());
-            return ENGINE_FAILED;
+            return cb::engine_errc::failed;
         }
         payload = buffer;
         info.datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
     } catch (const std::bad_alloc&) {
-        return ENGINE_ENOMEM;
+        return cb::engine_errc::no_memory;
     }
 
     state = State::SendResponse;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
+cb::engine_errc GetCommandContext::sendResponse() {
     if (mcbp::datatype::is_xattr(info.datatype)) {
         payload = cb::xattr::get_body(payload);
         info.datatype &= ~PROTOCOL_BINARY_DATATYPE_XATTR;
@@ -124,10 +124,10 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
     update_topkeys(cookie);
 
     state = State::Done;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE GetCommandContext::noSuchItem() {
+cb::engine_errc GetCommandContext::noSuchItem() {
     STATS_MISS(&connection, get);
 
     const auto key = cookie.getRequestKey();
@@ -150,11 +150,11 @@ ENGINE_ERROR_CODE GetCommandContext::noSuchItem() {
     }
 
     state = State::Done;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE GetCommandContext::step() {
-    auto ret = ENGINE_SUCCESS;
+cb::engine_errc GetCommandContext::step() {
+    auto ret = cb::engine_errc::success;
     do {
         switch (state) {
         case State::GetItem:
@@ -170,9 +170,9 @@ ENGINE_ERROR_CODE GetCommandContext::step() {
             ret = sendResponse();
             break;
         case State::Done:
-            return ENGINE_SUCCESS;
+            return cb::engine_errc::success;
         }
-    } while (ret == ENGINE_SUCCESS);
+    } while (ret == cb::engine_errc::success);
 
     return ret;
 }

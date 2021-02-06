@@ -44,11 +44,11 @@ public:
     }
 
 protected:
-    ENGINE_ERROR_CODE step() override;
+    cb::engine_errc step() override;
 
-    ENGINE_ERROR_CODE initial();
-    ENGINE_ERROR_CODE remove();
-    ENGINE_ERROR_CODE create();
+    cb::engine_errc initial();
+    cb::engine_errc remove();
+    cb::engine_errc create();
 
 private:
     const cb::mcbp::Request& request;

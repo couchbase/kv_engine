@@ -393,7 +393,7 @@ void AuditImpl::notify_event_state_changed(uint32_t id, bool enabled) const {
 }
 
 void AuditImpl::notify_io_complete(gsl::not_null<const void*> cookie,
-                                   ENGINE_ERROR_CODE status) {
+                                   cb::engine_errc status) {
     cookie_api->notify_io_complete(cookie, status);
 }
 

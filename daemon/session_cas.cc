@@ -19,19 +19,20 @@
 
 SessionCas session_cas;
 
-ENGINE_ERROR_CODE SessionCas::cas(uint64_t newValue, uint64_t casval,
-                                  uint64_t& currentValue) {
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+cb::engine_errc SessionCas::cas(uint64_t newValue,
+                                uint64_t casval,
+                                uint64_t& currentValue) {
+    cb::engine_errc ret = cb::engine_errc::success;
     {
         std::lock_guard<std::mutex> lock(mutex);
 
         if (session_cas.counter > 0) {
-            ret = ENGINE_EBUSY;
+            ret = cb::engine_errc::too_busy;
         } else {
             if (casval == 0 || casval == value) {
                 value = newValue;
             } else {
-                ret = ENGINE_KEY_EEXISTS;
+                ret = cb::engine_errc::key_already_exists;
             }
         }
         currentValue = value;

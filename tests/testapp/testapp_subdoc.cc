@@ -1524,9 +1524,10 @@ TEST_P(SubdocTestappTest, SubdocCASAutoRetry) {
 
     // 1. Setup ewouldblock_engine - make the first three store commands return
     // EXISTS.
-    ewouldblock_engine_configure(ENGINE_SUCCESS, // not used for this mode
-                                 EWBEngineMode::CasMismatch,
-                                 3);
+    ewouldblock_engine_configure(
+            cb::engine_errc::success, // not used for this mode
+            EWBEngineMode::CasMismatch,
+            3);
 
     // Issue a DICT_ADD without an explicit CAS. We should have an auto-retry
     // occur (and the command succeed).
@@ -1535,15 +1536,18 @@ TEST_P(SubdocTestappTest, SubdocCASAutoRetry) {
 
     // 2. Now retry with MAXIMUM_ATTEMPTS-1 CAS mismatches - this should still
     // succeed.
-    ewouldblock_engine_configure(ENGINE_SUCCESS, // not used for this mode
-                                 EWBEngineMode::CasMismatch, 99);
+    ewouldblock_engine_configure(
+            cb::engine_errc::success, // not used for this mode
+            EWBEngineMode::CasMismatch,
+            99);
     EXPECT_SD_OK(BinprotSubdocCommand(
             cb::mcbp::ClientOpcode::SubdocDictAdd, "a", "key2", "2"));
 
     // 3. Now with MAXIMUM_ATTEMPTS CAS mismatches - this should return TMPFAIL.
-    ewouldblock_engine_configure(ENGINE_SUCCESS, // not used for this mode
-                                 EWBEngineMode::CasMismatch,
-                                 100);
+    ewouldblock_engine_configure(
+            cb::engine_errc::success, // not used for this mode
+            EWBEngineMode::CasMismatch,
+            100);
     EXPECT_SUBDOC_CMD(
             BinprotSubdocCommand(
                     cb::mcbp::ClientOpcode::SubdocDictAdd, "a", "key3", "3"),
@@ -1729,8 +1733,8 @@ TEST_P(SubdocTestappTest, SubdocGet_NotMyVbucket) {
     store_document("array", "[0]");
 
     // Make the next engine operation (get) return NOT_MY_VBUCKET.
-    ewouldblock_engine_configure(ENGINE_NOT_MY_VBUCKET, EWBEngineMode::Next_N,
-                                 1);
+    ewouldblock_engine_configure(
+            cb::engine_errc::not_my_vbucket, EWBEngineMode::Next_N, 1);
 
     // Should fail with NOT-MY-VBUCKET, and a non-zero length body including the
     // cluster config.

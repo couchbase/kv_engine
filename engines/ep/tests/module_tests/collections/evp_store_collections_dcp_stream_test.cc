@@ -122,7 +122,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackSeqnoAdvanced) {
     ensureDcpWillBackfill();
 
     uint64_t rollbackSeqno{0};
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->streamRequest(0,
                                       1, // opaque
                                       vbid,
@@ -142,7 +142,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackSeqnoAdvanced) {
                   cb::engine_errc::success);
     EXPECT_EQ(vb->getHighSeqno(), producers->last_byseqno);
     // should be no more ops
-    EXPECT_EQ(ENGINE_ERROR_CODE(cb::engine_errc::would_block),
+    EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
               producer->step(*producers));
 }
 
@@ -179,7 +179,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackNoSeqnoAdvanced) {
     // flushVBucketToDiskIfPersistent(vbid, 1);
 
     uint64_t rollbackSeqno{0};
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->streamRequest(0,
                                       1, // opaque
                                       vbid,
@@ -214,7 +214,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackNoSeqnoAdvanced) {
     EXPECT_EQ("Apple2", producers->last_key);
 
     // should be no more ops
-    EXPECT_EQ(ENGINE_ERROR_CODE(cb::engine_errc::would_block),
+    EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
               producer->step(*producers));
 }
 
@@ -247,7 +247,7 @@ TEST_F(CollectionsDcpStreamsTest,
     ensureDcpWillBackfill();
 
     uint64_t rollbackSeqno{0};
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->streamRequest(0,
                                       1, // opaque
                                       vbid,
@@ -274,7 +274,7 @@ TEST_F(CollectionsDcpStreamsTest,
     EXPECT_EQ(vb->getHighSeqno(), producers->last_byseqno);
 
     // should be no more ops
-    EXPECT_EQ(ENGINE_ERROR_CODE(cb::engine_errc::would_block),
+    EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
               producer->step(*producers));
 }
 
@@ -313,7 +313,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackMultiCollection) {
     ensureDcpWillBackfill();
 
     uint64_t rollbackSeqno{0};
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->streamRequest(0,
                                       1, // opaque
                                       vbid,
@@ -347,7 +347,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackMultiCollection) {
     EXPECT_EQ("Apple", producers->last_key);
 
     // should be no more ops
-    EXPECT_EQ(ENGINE_ERROR_CODE(cb::engine_errc::would_block),
+    EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
               producer->step(*producers));
 }
 
@@ -385,7 +385,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestRollbackMultiCollection) {
     ensureDcpWillBackfill();
 
     uint64_t rollbackSeqno{0};
-    EXPECT_EQ(ENGINE_ROLLBACK,
+    EXPECT_EQ(cb::engine_errc::rollback,
               producer->streamRequest(0,
                                       1, // opaque
                                       vbid,
@@ -400,7 +400,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestRollbackMultiCollection) {
     EXPECT_EQ(0, rollbackSeqno);
 
     streamSeqno = rollbackSeqno;
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->streamRequest(0,
                                       1, // opaque
                                       vbid,
@@ -463,7 +463,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestRollbackMultiCollection) {
     EXPECT_EQ("Lamb", producers->last_key);
 
     // should be no more ops
-    EXPECT_EQ(ENGINE_ERROR_CODE(cb::engine_errc::would_block),
+    EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
               producer->step(*producers));
 }
 
@@ -475,7 +475,8 @@ TEST_F(CollectionsDcpStreamsTest, close_stream_validation1) {
     producer->enableMultipleStreamRequests();
     createDcpStream({{R"({"collections":["9"], "sid":99})"}}, vbid);
 
-    EXPECT_EQ(ENGINE_DCP_STREAMID_INVALID, producer->closeStream(0, vbid, {}));
+    EXPECT_EQ(cb::engine_errc::dcp_streamid_invalid,
+              producer->closeStream(0, vbid, {}));
 }
 
 TEST_F(CollectionsDcpStreamsTest, close_stream_validation2) {
@@ -486,7 +487,7 @@ TEST_F(CollectionsDcpStreamsTest, close_stream_validation2) {
 
     createDcpStream({{R"({"collections":["9"]})"}}, vbid);
 
-    EXPECT_EQ(ENGINE_DCP_STREAMID_INVALID,
+    EXPECT_EQ(cb::engine_errc::dcp_streamid_invalid,
               producer->closeStream(0, vbid, cb::mcbp::DcpStreamId(99)));
 }
 
@@ -537,7 +538,7 @@ void CollectionsDcpStreamsTest::close_stream_by_id_test(bool enableStreamEnd,
         createDcpStream({{R"({"collections":["0"], "sid":555})"}}, vbid);
     }
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->closeStream(0, vbid, cb::mcbp::DcpStreamId(99)));
     {
         auto rv = producer->findStream(vbid, cb::mcbp::DcpStreamId(99));
@@ -549,7 +550,7 @@ void CollectionsDcpStreamsTest::close_stream_by_id_test(bool enableStreamEnd,
     }
 
     if (enableStreamEnd) {
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   producer->stepAndExpect(
                           *producers, cb::mcbp::ClientOpcode::DcpStreamEnd));
         EXPECT_EQ(cb::mcbp::DcpStreamId(99), producers->last_stream_id);
@@ -592,7 +593,7 @@ TEST_F(CollectionsDcpStreamsTest,
     close_stream_by_id_test(false, true);
 
     // Close another of the streams
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->closeStream(0, vbid, cb::mcbp::DcpStreamId(101)));
 
     // Still got 1 alive stream so the vbConn should still exist
@@ -600,7 +601,7 @@ TEST_F(CollectionsDcpStreamsTest,
     EXPECT_TRUE(connmap.vbConnectionExists(producer.get(), vbid));
 
     // Close last stream
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->closeStream(0, vbid, cb::mcbp::DcpStreamId(555)));
 
     // Should no longer have the ConnHandler in vbToConns
@@ -633,7 +634,7 @@ TEST_F(CollectionsDcpStreamsTest, two_streams) {
     EXPECT_EQ(outstanding, producer->getBytesOutstanding());
 
     // Step and get the second snapshot marker (for second stream)
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(
                       *producers, cb::mcbp::ClientOpcode::DcpSnapshotMarker));
     EXPECT_EQ(cb::mcbp::DcpStreamId(88), producers->last_stream_id);
@@ -643,7 +644,7 @@ TEST_F(CollectionsDcpStreamsTest, two_streams) {
 
     // The producer will send the create fruit event twice, once per stream!
     // SystemEvent createCollection
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
@@ -661,7 +662,7 @@ TEST_F(CollectionsDcpStreamsTest, two_streams) {
     EXPECT_EQ(outstanding, producer->getBytesOutstanding());
 
     producers->clear_dcp_data();
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
@@ -678,14 +679,14 @@ TEST_F(CollectionsDcpStreamsTest, two_streams) {
                      sizeof(cb::mcbp::DcpStreamIdFrameInfo) +
                      (sizeof("orange") - 1) + (sizeof("nice") - 1) +
                      1 /*collection-id*/;
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpMutation));
     EXPECT_EQ(cb::mcbp::DcpStreamId(32), producers->last_stream_id);
     outstanding += mutSize;
     EXPECT_EQ(outstanding, producer->getBytesOutstanding());
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpMutation));
     EXPECT_EQ(cb::mcbp::DcpStreamId(88), producers->last_stream_id);
@@ -709,14 +710,14 @@ TEST_F(CollectionsDcpStreamsTest, two_streams_different) {
     notifyAndStepToCheckpoint();
 
     // Step and get the second snapshot marker (for second stream)
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(
                       *producers, cb::mcbp::ClientOpcode::DcpSnapshotMarker));
     EXPECT_EQ(cb::mcbp::DcpStreamId(101), producers->last_stream_id);
 
     // The producer will send the create fruit event twice, once per stream!
     // SystemEvent createCollection
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(CollectionEntry::dairy.getId(), producers->last_collection_id);
@@ -726,7 +727,7 @@ TEST_F(CollectionsDcpStreamsTest, two_streams_different) {
     EXPECT_EQ(cb::mcbp::DcpStreamId(2018), producers->last_stream_id);
 
     producers->clear_dcp_data();
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
@@ -770,7 +771,7 @@ TEST_F(CollectionsDcpStreamsTest,
     // set flags for disk snapshot and checkpoint range
     uint32_t flags = dcp_marker_flag_t::MARKER_FLAG_DISK |
                      dcp_marker_flag_t::MARKER_FLAG_CHK;
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(
                       opaque, replicaVB, snapStart, snapEnd, flags, {}, {}));
     // double check no items on disk
@@ -785,7 +786,7 @@ TEST_F(CollectionsDcpStreamsTest,
               CollectionEntry::dairy.getId(),
               CollectionEntry::dairy.name,
               {}}}};
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->systemEvent(
                       opaque,
                       replicaVB,
@@ -800,7 +801,7 @@ TEST_F(CollectionsDcpStreamsTest,
     EXPECT_EQ(0, vbucketPtr->getNumTotalItems());
 
     // Store a document in the collection
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->mutation(
                       opaque,
                       StoredDocKey("key", CollectionEntry::dairy.getId()),
@@ -826,7 +827,7 @@ TEST_F(CollectionsDcpStreamsTest,
     // set flags for memory snapshot and checkpoint range
     flags = dcp_marker_flag_t::MARKER_FLAG_MEMORY |
             dcp_marker_flag_t::MARKER_FLAG_CHK;
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(
                       opaque, replicaVB, snapStart, snapEnd, flags, {}, {}));
 
@@ -835,7 +836,7 @@ TEST_F(CollectionsDcpStreamsTest,
             {Collections::ManifestUid{manifestUid++},
              ScopeEntry::defaultS.getId(),
              CollectionEntry::dairy.getId()}};
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->systemEvent(
                       opaque,
                       replicaVB,

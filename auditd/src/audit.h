@@ -66,7 +66,7 @@ public:
     bool configure();
 
     void notify_io_complete(gsl::not_null<const void*> cookie,
-                            ENGINE_ERROR_CODE status);
+                            cb::engine_errc status);
 
     /**
      * The entry point for the thread used to drain the generated audit events

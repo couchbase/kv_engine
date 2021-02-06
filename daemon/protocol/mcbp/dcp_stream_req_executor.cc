@@ -27,10 +27,10 @@
 void dcp_stream_req_executor(Cookie& cookie) {
     uint64_t rollback_seqno = 0;
 
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    auto ret = cookie.swapAiostat(cb::engine_errc::success);
 
     auto& connection = cookie.getConnection();
-    if (ret == ENGINE_ROLLBACK) {
+    if (ret == cb::engine_errc::rollback) {
         LOG_WARNING(
                 "{}: dcp_stream_req_executor: Unexpected AIO stat"
                 " result ROLLBACK. Shutting down DCP connection",
@@ -39,7 +39,7 @@ void dcp_stream_req_executor(Cookie& cookie) {
         return;
     }
 
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         const auto& request = cookie.getRequest();
         auto extras = request.getExtdata();
         using cb::mcbp::request::DcpStreamReqPayload;
@@ -81,7 +81,7 @@ void dcp_stream_req_executor(Cookie& cookie) {
                 collections);
     }
 
-    if (ret == ENGINE_ROLLBACK) {
+    if (ret == cb::engine_errc::rollback) {
         rollback_seqno = htonll(rollback_seqno);
         cookie.sendResponse(cb::mcbp::Status::Rollback,
                             {},
@@ -90,7 +90,7 @@ void dcp_stream_req_executor(Cookie& cookie) {
                              sizeof(rollback_seqno)},
                             cb::mcbp::Datatype::Raw,
                             0);
-    } else if (ret != ENGINE_SUCCESS) {
+    } else if (ret != cb::engine_errc::success) {
         handle_executor_status(cookie, ret);
     }
 }

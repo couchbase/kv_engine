@@ -90,8 +90,8 @@ struct ServerLogApi : public ServerLogIface {
 };
 
 struct ServerDocumentApi : public ServerDocumentIface {
-    ENGINE_ERROR_CODE pre_link(gsl::not_null<const void*> void_cookie,
-                               item_info& info) override {
+    cb::engine_errc pre_link(gsl::not_null<const void*> void_cookie,
+                             item_info& info) override {
         // Sanity check that people aren't calling the method with a bogus
         // cookie
         auto* cookie =
@@ -102,7 +102,7 @@ struct ServerDocumentApi : public ServerDocumentIface {
             return context->pre_link_document(info);
         }
 
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     std::string pre_expiry(const item_info& itm_info) override {
@@ -175,7 +175,7 @@ struct ServerCookieApi : public ServerCookieIface {
     }
 
     void notify_io_complete(gsl::not_null<const void*> cookie,
-                            ENGINE_ERROR_CODE status) override {
+                            cb::engine_errc status) override {
         notifyIoComplete(getCookie(cookie), status);
     }
 
@@ -247,12 +247,12 @@ struct ServerCookieApi : public ServerCookieIface {
         return getCookie(cookie).getPrivilegeContext().getGeneration();
     }
     cb::mcbp::Status engine_error2mcbp(gsl::not_null<const void*> void_cookie,
-                                       ENGINE_ERROR_CODE code) override {
+                                       cb::engine_errc code) override {
         const auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
         auto& connection = cookie->getConnection();
 
         code = connection.remapErrorCode(code);
-        if (code == ENGINE_DISCONNECT) {
+        if (code == cb::engine_errc::disconnect) {
             throw cb::engine_error(
                     cb::engine_errc::disconnect,
                     "engine_error2mcbp: " + std::to_string(connection.getId()) +

@@ -205,8 +205,8 @@ struct thread_stats* get_thread_stats(Connection* c);
 class BucketStatCollector;
 class StatCollector;
 class Bucket;
-ENGINE_ERROR_CODE server_stats(const StatCollector& collector,
-                               const Bucket& bucket);
+cb::engine_errc server_stats(const StatCollector& collector,
+                             const Bucket& bucket);
 
 /**
  * Add stats needed for Prometheus to the given collector.
@@ -215,7 +215,7 @@ ENGINE_ERROR_CODE server_stats(const StatCollector& collector,
  * The cardinality indicates if the incoming request was to the high
  * or low cardinality endpoint.
  */
-ENGINE_ERROR_CODE server_prometheus_stats(
+cb::engine_errc server_prometheus_stats(
         const StatCollector& collector,
         cb::prometheus::Cardinality cardinality);
 

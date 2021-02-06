@@ -49,70 +49,70 @@ void deinitializeTracing();
  * IOCTL Get callback to get the tracing status
  * @param[out] value Either "enabled" or "disabled" depending on status
  */
-ENGINE_ERROR_CODE ioctlGetTracingStatus(Cookie& cookie,
-                                        const StrToStrMap& arguments,
-                                        std::string& value,
-                                        cb::mcbp::Datatype& datatype);
-
-/**
- * IOCTL Get callback to get the last used tracing config
- * @param[out] value The last Phoshor config used (re-encoded as a string)
- */
-ENGINE_ERROR_CODE ioctlGetTracingConfig(Cookie& cookie,
-                                        const StrToStrMap& arguments,
-                                        std::string& value,
-                                        cb::mcbp::Datatype& datatype);
-
-/// IOCT Get callback to get a list of all of the registered dumps
-ENGINE_ERROR_CODE ioctlGetTracingList(Cookie& cookie,
+cb::engine_errc ioctlGetTracingStatus(Cookie& cookie,
                                       const StrToStrMap& arguments,
                                       std::string& value,
                                       cb::mcbp::Datatype& datatype);
 
 /**
+ * IOCTL Get callback to get the last used tracing config
+ * @param[out] value The last Phoshor config used (re-encoded as a string)
+ */
+cb::engine_errc ioctlGetTracingConfig(Cookie& cookie,
+                                      const StrToStrMap& arguments,
+                                      std::string& value,
+                                      cb::mcbp::Datatype& datatype);
+
+/// IOCT Get callback to get a list of all of the registered dumps
+cb::engine_errc ioctlGetTracingList(Cookie& cookie,
+                                    const StrToStrMap& arguments,
+                                    std::string& value,
+                                    cb::mcbp::Datatype& datatype);
+
+/**
  * IOCTL Get callback to create a new dump from the last trace
  * @param[out] value The uuid of the newly created dump
  */
-ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Cookie& cookie,
-                                           const StrToStrMap&,
-                                           std::string& value,
-                                           cb::mcbp::Datatype& datatype);
+cb::engine_errc ioctlGetTracingBeginDump(Cookie& cookie,
+                                         const StrToStrMap&,
+                                         std::string& value,
+                                         cb::mcbp::Datatype& datatype);
 
 /**
  * IOCTL Get callback to fetch an entire trace dump
  * @param[out] value The uuid of the newly created dump
  */
-ENGINE_ERROR_CODE ioctlGetTraceDump(Cookie& cookie,
-                                    const StrToStrMap&,
-                                    std::string& value,
-                                    cb::mcbp::Datatype& datatype);
+cb::engine_errc ioctlGetTraceDump(Cookie& cookie,
+                                  const StrToStrMap&,
+                                  std::string& value,
+                                  cb::mcbp::Datatype& datatype);
 
 /**
  * IOCTL Set callback to clear a tracing dump
  * @param value The uuid of the dump to clear
  */
-ENGINE_ERROR_CODE ioctlSetTracingClearDump(Cookie& cookie,
-                                           const StrToStrMap& arguments,
-                                           const std::string& value);
+cb::engine_errc ioctlSetTracingClearDump(Cookie& cookie,
+                                         const StrToStrMap& arguments,
+                                         const std::string& value);
 
 /**
  * IOCTL Set callback to set the tracing config to use when it starts
  * @param value The Phosphor trace config string to start tracing with
  */
-ENGINE_ERROR_CODE ioctlSetTracingConfig(Cookie& cookie,
-                                        const StrToStrMap& arguments,
-                                        const std::string& value);
+cb::engine_errc ioctlSetTracingConfig(Cookie& cookie,
+                                      const StrToStrMap& arguments,
+                                      const std::string& value);
 
 /**
  * IOCTL Set callback to start tracing
  */
-ENGINE_ERROR_CODE ioctlSetTracingStart(Cookie& cookie,
-                                       const StrToStrMap& arguments,
-                                       const std::string& value);
+cb::engine_errc ioctlSetTracingStart(Cookie& cookie,
+                                     const StrToStrMap& arguments,
+                                     const std::string& value);
 
 /**
  * IOCTL Set callback to stop tracing
  */
-ENGINE_ERROR_CODE ioctlSetTracingStop(Cookie& cookie,
-                                      const StrToStrMap& arguments,
-                                      const std::string& value);
+cb::engine_errc ioctlSetTracingStop(Cookie& cookie,
+                                    const StrToStrMap& arguments,
+                                    const std::string& value);

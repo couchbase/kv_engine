@@ -184,7 +184,7 @@ protected:
 };
 
 void checkGetValue(GetValue& result,
-                   ENGINE_ERROR_CODE expectedErrorCode = ENGINE_SUCCESS,
+                   cb::engine_errc expectedErrorCode = cb::engine_errc::success,
                    bool expectCompressed = false);
 
 // Initializes a KVStore
@@ -229,12 +229,14 @@ private:
 
 class GetCallback : public StatusCallback<GetValue> {
 public:
-    explicit GetCallback(ENGINE_ERROR_CODE _expectedErrorCode = ENGINE_SUCCESS)
+    explicit GetCallback(
+            cb::engine_errc _expectedErrorCode = cb::engine_errc::success)
         : expectCompressed(false), expectedErrorCode(_expectedErrorCode) {
     }
 
-    explicit GetCallback(bool expect_compressed,
-                         ENGINE_ERROR_CODE _expectedErrorCode = ENGINE_SUCCESS)
+    explicit GetCallback(
+            bool expect_compressed,
+            cb::engine_errc _expectedErrorCode = cb::engine_errc::success)
         : expectCompressed(expect_compressed),
           expectedErrorCode(_expectedErrorCode) {
     }
@@ -243,7 +245,7 @@ public:
 
 private:
     bool expectCompressed;
-    ENGINE_ERROR_CODE expectedErrorCode;
+    cb::engine_errc expectedErrorCode;
 };
 
 class MockGetValueCallback : public StatusCallback<GetValue> {

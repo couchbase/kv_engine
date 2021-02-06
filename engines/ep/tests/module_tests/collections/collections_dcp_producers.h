@@ -25,51 +25,49 @@ class CollectionsDcpTestProducers : public MockDcpMessageProducers {
 public:
     ~CollectionsDcpTestProducers() override = default;
 
-    ENGINE_ERROR_CODE system_event(uint32_t opaque,
-                                   Vbid vbucket,
-                                   mcbp::systemevent::id event,
-                                   uint64_t bySeqno,
-                                   mcbp::systemevent::version version,
-                                   cb::const_byte_buffer key,
-                                   cb::const_byte_buffer eventData,
-                                   cb::mcbp::DcpStreamId sid) override;
+    cb::engine_errc system_event(uint32_t opaque,
+                                 Vbid vbucket,
+                                 mcbp::systemevent::id event,
+                                 uint64_t bySeqno,
+                                 mcbp::systemevent::version version,
+                                 cb::const_byte_buffer key,
+                                 cb::const_byte_buffer eventData,
+                                 cb::mcbp::DcpStreamId sid) override;
 
-    ENGINE_ERROR_CODE marker(uint32_t opaque,
+    cb::engine_errc marker(uint32_t opaque,
+                           Vbid vbucket,
+                           uint64_t start_seqno,
+                           uint64_t end_seqno,
+                           uint32_t flags,
+                           std::optional<uint64_t> high_completed_seqno,
+                           std::optional<uint64_t> maxVisibleSeqno,
+                           std::optional<uint64_t> timestamp,
+                           cb::mcbp::DcpStreamId sid) override;
+
+    cb::engine_errc mutation(uint32_t opaque,
+                             cb::unique_item_ptr itm,
                              Vbid vbucket,
-                             uint64_t start_seqno,
-                             uint64_t end_seqno,
-                             uint32_t flags,
-                             std::optional<uint64_t> high_completed_seqno,
-                             std::optional<uint64_t> maxVisibleSeqno,
-                             std::optional<uint64_t> timestamp,
+                             uint64_t by_seqno,
+                             uint64_t rev_seqno,
+                             uint32_t lock_time,
+                             uint8_t nru,
                              cb::mcbp::DcpStreamId sid) override;
 
+    cb::engine_errc prepare(uint32_t opaque,
+                            cb::unique_item_ptr itm,
+                            Vbid vbucket,
+                            uint64_t by_seqno,
+                            uint64_t rev_seqno,
+                            uint32_t lock_time,
+                            uint8_t nru,
+                            DocumentState document_state,
+                            cb::durability::Level level) override;
 
-
-    ENGINE_ERROR_CODE mutation(uint32_t opaque,
-                               cb::unique_item_ptr itm,
-                               Vbid vbucket,
-                               uint64_t by_seqno,
-                               uint64_t rev_seqno,
-                               uint32_t lock_time,
-                               uint8_t nru,
-                               cb::mcbp::DcpStreamId sid) override;
-
-    ENGINE_ERROR_CODE prepare(uint32_t opaque,
-                              cb::unique_item_ptr itm,
-                              Vbid vbucket,
-                              uint64_t by_seqno,
-                              uint64_t rev_seqno,
-                              uint32_t lock_time,
-                              uint8_t nru,
-                              DocumentState document_state,
-                              cb::durability::Level level) override;
-
-    ENGINE_ERROR_CODE commit(uint32_t opaque,
-                             Vbid vbucket,
-                             const DocKey& key,
-                             uint64_t prepare_seqno,
-                             uint64_t commit_seqno) override;
+    cb::engine_errc commit(uint32_t opaque,
+                           Vbid vbucket,
+                           const DocKey& key,
+                           uint64_t prepare_seqno,
+                           uint64_t commit_seqno) override;
 
     MockDcpConsumer* consumer = nullptr;
     Vbid replicaVB;

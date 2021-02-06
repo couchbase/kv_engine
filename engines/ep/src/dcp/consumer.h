@@ -114,34 +114,56 @@ public:
             uint64_t vb_high_seqno,
             const Collections::ManifestUid vb_manifest_uid);
 
-    ENGINE_ERROR_CODE addStream(uint32_t opaque,
+    cb::engine_errc addStream(uint32_t opaque,
+                              Vbid vbucket,
+                              uint32_t flags) override;
+
+    cb::engine_errc closeStream(uint32_t opaque,
                                 Vbid vbucket,
-                                uint32_t flags) override;
+                                cb::mcbp::DcpStreamId sid = {}) override;
 
-    ENGINE_ERROR_CODE closeStream(uint32_t opaque,
-                                  Vbid vbucket,
-                                  cb::mcbp::DcpStreamId sid = {}) override;
+    cb::engine_errc streamEnd(uint32_t opaque,
+                              Vbid vbucket,
+                              cb::mcbp::DcpStreamEndStatus status) override;
 
-    ENGINE_ERROR_CODE streamEnd(uint32_t opaque,
-                                Vbid vbucket,
-                                cb::mcbp::DcpStreamEndStatus status) override;
+    cb::engine_errc mutation(uint32_t opaque,
+                             const DocKey& key,
+                             cb::const_byte_buffer value,
+                             size_t priv_bytes,
+                             uint8_t datatype,
+                             uint64_t cas,
+                             Vbid vbucket,
+                             uint32_t flags,
+                             uint64_t by_seqno,
+                             uint64_t rev_seqno,
+                             uint32_t expiration,
+                             uint32_t lock_time,
+                             cb::const_byte_buffer meta,
+                             uint8_t nru) override;
 
-    ENGINE_ERROR_CODE mutation(uint32_t opaque,
+    cb::engine_errc deletion(uint32_t opaque,
+                             const DocKey& key,
+                             cb::const_byte_buffer value,
+                             size_t priv_bytes,
+                             uint8_t datatype,
+                             uint64_t cas,
+                             Vbid vbucket,
+                             uint64_t by_seqno,
+                             uint64_t rev_seqno,
+                             cb::const_byte_buffer meta) override;
+
+    cb::engine_errc deletionV2(uint32_t opaque,
                                const DocKey& key,
                                cb::const_byte_buffer value,
                                size_t priv_bytes,
                                uint8_t datatype,
                                uint64_t cas,
                                Vbid vbucket,
-                               uint32_t flags,
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
-                               uint32_t expiration,
-                               uint32_t lock_time,
-                               cb::const_byte_buffer meta,
-                               uint8_t nru) override;
+                               uint32_t delete_time) override;
 
-    ENGINE_ERROR_CODE deletion(uint32_t opaque,
+    cb::engine_errc expiration(uint32_t opaque,
                                const DocKey& key,
                                cb::const_byte_buffer value,
                                size_t priv_bytes,
@@ -150,31 +172,9 @@ public:
                                Vbid vbucket,
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
-                               cb::const_byte_buffer meta) override;
+                               uint32_t deleteTime) override;
 
-    ENGINE_ERROR_CODE deletionV2(uint32_t opaque,
-                                 const DocKey& key,
-                                 cb::const_byte_buffer value,
-                                 size_t priv_bytes,
-                                 uint8_t datatype,
-                                 uint64_t cas,
-                                 Vbid vbucket,
-                                 uint64_t by_seqno,
-                                 uint64_t rev_seqno,
-                                 uint32_t delete_time) override;
-
-    ENGINE_ERROR_CODE expiration(uint32_t opaque,
-                                 const DocKey& key,
-                                 cb::const_byte_buffer value,
-                                 size_t priv_bytes,
-                                 uint8_t datatype,
-                                 uint64_t cas,
-                                 Vbid vbucket,
-                                 uint64_t by_seqno,
-                                 uint64_t rev_seqno,
-                                 uint32_t deleteTime) override;
-
-    ENGINE_ERROR_CODE snapshotMarker(
+    cb::engine_errc snapshotMarker(
             uint32_t opaque,
             Vbid vbucket,
             uint64_t start_seqno,
@@ -183,13 +183,13 @@ public:
             std::optional<uint64_t> high_completed_seqno,
             std::optional<uint64_t> max_visible_seqno) override;
 
-    ENGINE_ERROR_CODE noop(uint32_t opaque) override;
+    cb::engine_errc noop(uint32_t opaque) override;
 
-    ENGINE_ERROR_CODE setVBucketState(uint32_t opaque,
-                                      Vbid vbucket,
-                                      vbucket_state_t state) override;
+    cb::engine_errc setVBucketState(uint32_t opaque,
+                                    Vbid vbucket,
+                                    vbucket_state_t state) override;
 
-    ENGINE_ERROR_CODE step(DcpMessageProducersIface& producers) override;
+    cb::engine_errc step(DcpMessageProducersIface& producers) override;
 
     /**
      * Sub-classes must implement a method that processes a response
@@ -211,41 +211,41 @@ public:
      * @param key The event's key.
      * @param eventData The event's specific data.
      */
-    ENGINE_ERROR_CODE systemEvent(uint32_t opaque,
-                                  Vbid vbucket,
-                                  mcbp::systemevent::id event,
-                                  uint64_t bySeqno,
-                                  mcbp::systemevent::version version,
-                                  cb::const_byte_buffer key,
-                                  cb::const_byte_buffer eventData) override;
+    cb::engine_errc systemEvent(uint32_t opaque,
+                                Vbid vbucket,
+                                mcbp::systemevent::id event,
+                                uint64_t bySeqno,
+                                mcbp::systemevent::version version,
+                                cb::const_byte_buffer key,
+                                cb::const_byte_buffer eventData) override;
 
-    ENGINE_ERROR_CODE prepare(uint32_t opaque,
-                              const DocKey& key,
-                              cb::const_byte_buffer value,
-                              size_t priv_bytes,
-                              uint8_t datatype,
-                              uint64_t cas,
-                              Vbid vbucket,
-                              uint32_t flags,
-                              uint64_t by_seqno,
-                              uint64_t rev_seqno,
-                              uint32_t expiration,
-                              uint32_t lock_time,
-                              uint8_t nru,
-                              DocumentState document_state,
-                              cb::durability::Level level) override;
-
-    ENGINE_ERROR_CODE commit(uint32_t opaque,
-                             Vbid vbucket,
-                             const DocKey& key,
-                             uint64_t prepare_seqno,
-                             uint64_t commit_seqno) override;
-
-    ENGINE_ERROR_CODE abort(uint32_t opaque,
-                            Vbid vbucket,
+    cb::engine_errc prepare(uint32_t opaque,
                             const DocKey& key,
-                            uint64_t prepareSeqno,
-                            uint64_t abortSeqno) override;
+                            cb::const_byte_buffer value,
+                            size_t priv_bytes,
+                            uint8_t datatype,
+                            uint64_t cas,
+                            Vbid vbucket,
+                            uint32_t flags,
+                            uint64_t by_seqno,
+                            uint64_t rev_seqno,
+                            uint32_t expiration,
+                            uint32_t lock_time,
+                            uint8_t nru,
+                            DocumentState document_state,
+                            cb::durability::Level level) override;
+
+    cb::engine_errc commit(uint32_t opaque,
+                           Vbid vbucket,
+                           const DocKey& key,
+                           uint64_t prepare_seqno,
+                           uint64_t commit_seqno) override;
+
+    cb::engine_errc abort(uint32_t opaque,
+                          Vbid vbucket,
+                          const DocKey& key,
+                          uint64_t prepareSeqno,
+                          uint64_t abortSeqno) override;
 
     bool doRollback(uint32_t opaque, Vbid vbid, uint64_t rollbackSeqno);
 
@@ -373,37 +373,37 @@ protected:
      *
      * @param producers Pointers to message producers
      *
-     * @return ENGINE_FAILED if the step has completed, ENGINE_SUCCESS otherwise
+     * @return cb::engine_errc::failed if the step has completed,
+     * cb::engine_errc::success otherwise
      */
-    ENGINE_ERROR_CODE handleGetErrorMap(DcpMessageProducersIface& producers);
+    cb::engine_errc handleGetErrorMap(DcpMessageProducersIface& producers);
 
-    ENGINE_ERROR_CODE handleNoop(DcpMessageProducersIface& producers);
+    cb::engine_errc handleNoop(DcpMessageProducersIface& producers);
 
-    ENGINE_ERROR_CODE handlePriority(DcpMessageProducersIface& producers);
+    cb::engine_errc handlePriority(DcpMessageProducersIface& producers);
 
-    ENGINE_ERROR_CODE handleExtMetaData(DcpMessageProducersIface& producers);
+    cb::engine_errc handleExtMetaData(DcpMessageProducersIface& producers);
 
-    ENGINE_ERROR_CODE supportCursorDropping(
+    cb::engine_errc supportCursorDropping(DcpMessageProducersIface& producers);
+
+    cb::engine_errc supportHifiMFU(DcpMessageProducersIface& producers);
+
+    cb::engine_errc sendStreamEndOnClientStreamClose(
             DcpMessageProducersIface& producers);
 
-    ENGINE_ERROR_CODE supportHifiMFU(DcpMessageProducersIface& producers);
+    cb::engine_errc enableExpiryOpcode(DcpMessageProducersIface& producers);
 
-    ENGINE_ERROR_CODE sendStreamEndOnClientStreamClose(
+    cb::engine_errc enableSynchronousReplication(
             DcpMessageProducersIface& producers);
 
-    ENGINE_ERROR_CODE enableExpiryOpcode(DcpMessageProducersIface& producers);
-
-    ENGINE_ERROR_CODE enableSynchronousReplication(
-            DcpMessageProducersIface& producers);
-
-    ENGINE_ERROR_CODE enableV7DcpStatus(DcpMessageProducersIface& producers);
+    cb::engine_errc enableV7DcpStatus(DcpMessageProducersIface& producers);
 
     /**
      * Handles the negotiation of IncludeDeletedUserXattrs.
      *
      * @param producers Pointers to message producers
      */
-    ENGINE_ERROR_CODE handleDeletedUserXattrs(
+    cb::engine_errc handleDeletedUserXattrs(
             DcpMessageProducersIface& producers);
 
     void notifyVbucketReady(Vbid vbucket);
@@ -442,29 +442,29 @@ protected:
      * The v2 and non v2 API are almost the same under the covers, so one
      * shared method handles both.
      */
-    ENGINE_ERROR_CODE deletion(uint32_t opaque,
-                               const DocKey& key,
-                               cb::const_byte_buffer value,
-                               uint8_t datatype,
-                               uint64_t cas,
-                               Vbid vbucket,
-                               uint64_t bySeqno,
-                               uint64_t revSeqno,
-                               cb::const_byte_buffer meta,
-                               uint32_t deleteTime,
-                               IncludeDeleteTime includeDeleteTime,
-                               DeleteSource deletionCause);
+    cb::engine_errc deletion(uint32_t opaque,
+                             const DocKey& key,
+                             cb::const_byte_buffer value,
+                             uint8_t datatype,
+                             uint64_t cas,
+                             Vbid vbucket,
+                             uint64_t bySeqno,
+                             uint64_t revSeqno,
+                             cb::const_byte_buffer meta,
+                             uint32_t deleteTime,
+                             IncludeDeleteTime includeDeleteTime,
+                             DeleteSource deletionCause);
 
     /**
      * Helper function for mutation() and prepare() messages as they are handled
      * in a similar way.
      */
-    ENGINE_ERROR_CODE processMutationOrPrepare(Vbid vbucket,
-                                               uint32_t opaque,
-                                               const DocKey& key,
-                                               queued_item item,
-                                               cb::const_byte_buffer meta,
-                                               size_t baseMsgBytes);
+    cb::engine_errc processMutationOrPrepare(Vbid vbucket,
+                                             uint32_t opaque,
+                                             const DocKey& key,
+                                             queued_item item,
+                                             cb::const_byte_buffer meta,
+                                             size_t baseMsgBytes);
 
     enum class DeleteType { Deletion, DeletionV2, Expiration };
     /**
@@ -476,17 +476,17 @@ protected:
      * @param isV2DeleteOrExpiry An enum to identify the source and determine
      *                           whether to use v2 parameters or not.
      */
-    ENGINE_ERROR_CODE toMainDeletion(DeleteType origin,
-                                     uint32_t opaque,
-                                     const DocKey& key,
-                                     cb::const_byte_buffer value,
-                                     uint8_t datatype,
-                                     uint64_t cas,
-                                     Vbid vbucket,
-                                     uint64_t bySeqno,
-                                     uint64_t revSeqno,
-                                     cb::const_byte_buffer meta,
-                                     uint32_t deleteTime);
+    cb::engine_errc toMainDeletion(DeleteType origin,
+                                   uint32_t opaque,
+                                   const DocKey& key,
+                                   cb::const_byte_buffer value,
+                                   uint8_t datatype,
+                                   uint64_t cas,
+                                   Vbid vbucket,
+                                   uint64_t bySeqno,
+                                   uint64_t revSeqno,
+                                   cb::const_byte_buffer meta,
+                                   uint32_t deleteTime);
 
     /**
      * Register a stream to this Consumer and add the VB-to-Consumer
@@ -547,7 +547,7 @@ protected:
      * Helper method to lookup the correct stream for the given
      * vbid / opaque pair, and then dispatch the message to that stream.
      */
-    ENGINE_ERROR_CODE lookupStreamAndDispatchMessage(
+    cb::engine_errc lookupStreamAndDispatchMessage(
             UpdateFlowControl& ufc,
             Vbid vbucket,
             uint32_t opaque,
@@ -555,16 +555,16 @@ protected:
 
     /**
      * Helper function to return the STREAM_NOT_FOUND if v7 status codes are
-     * enabled, otherwise ENGINE_KEY_ENOENT
+     * enabled, otherwise cb::engine_errc::no_such_key
      */
-    ENGINE_ERROR_CODE getNoStreamFoundErrorCode() const;
+    cb::engine_errc getNoStreamFoundErrorCode() const;
 
     /**
-     * Helper function to return the ENGINE_OPAQUE_NO_MATCH if v7 status codes
-     * are enabled, otherwise ENGINE_KEY_EEXISTS
+     * Helper function to return the cb::engine_errc::opaque_no_match if v7
+     * status codes are enabled, otherwise cb::engine_errc::key_already_exists
      * @return
      */
-    ENGINE_ERROR_CODE getOpaqueMissMatchErrorCode() const;
+    cb::engine_errc getOpaqueMissMatchErrorCode() const;
 
     uint64_t opaqueCounter;
     size_t processorTaskId;

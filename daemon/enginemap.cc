@@ -27,7 +27,7 @@
 unique_engine_ptr new_engine_instance(BucketType type,
                                       GET_SERVER_API get_server_api) {
     EngineIface* ret = nullptr;
-    ENGINE_ERROR_CODE status = ENGINE_KEY_ENOENT;
+    cb::engine_errc status = cb::engine_errc::no_such_key;
     try {
         switch (type) {
         case BucketType::NoBucket:
@@ -41,16 +41,16 @@ unique_engine_ptr new_engine_instance(BucketType type,
         case BucketType::EWouldBlock:
             return create_ewouldblock_instance(get_server_api);
         case BucketType::Unknown:
-            // fall through with status == ENGINE_KEY_ENOENT
+            // fall through with status == cb::engine_errc::no_such_key
             break;
         }
     } catch (const std::bad_alloc&) {
-        status = ENGINE_ENOMEM;
+        status = cb::engine_errc::no_memory;
     } catch (const std::exception&) {
-        status = ENGINE_FAILED;
+        status = cb::engine_errc::failed;
     }
 
-    if (status == ENGINE_SUCCESS) {
+    if (status == cb::engine_errc::success) {
         if (ret == nullptr) {
             throw cb::engine_error(
                     cb::engine_errc::failed,

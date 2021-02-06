@@ -23,7 +23,7 @@ ServerDocumentIfaceBorderGuard::ServerDocumentIfaceBorderGuard(
     : guarded(guarded) {
 }
 
-ENGINE_ERROR_CODE ServerDocumentIfaceBorderGuard::pre_link(
+cb::engine_errc ServerDocumentIfaceBorderGuard::pre_link(
         gsl::not_null<const void*> cookie, item_info& info) {
     NonBucketAllocationGuard guard;
     return guarded.pre_link(cookie, info);

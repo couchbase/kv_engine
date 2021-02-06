@@ -57,8 +57,8 @@ TEST_P(LoggingTest, ChangeVerbosity) {
     }
 
     // The configure function will check the response and fail the test if not
-    // ENGINE_SUCCESS.
-    ewouldblock_engine_configure(ENGINE_ERROR_CODE::ENGINE_SUCCESS,
+    // cb::engine_errc::success.
+    ewouldblock_engine_configure(cb::engine_errc::success,
                                  EWBEngineMode::CheckLogLevels,
                                  level,
                                  "key");

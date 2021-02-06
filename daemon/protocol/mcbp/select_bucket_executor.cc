@@ -24,7 +24,7 @@
 #include <mcbp/protocol/request.h>
 #include <utilities/engine_errc_2_mcbp.h>
 
-ENGINE_ERROR_CODE select_bucket(Cookie& cookie, const std::string& bucketname) {
+cb::engine_errc select_bucket(Cookie& cookie, const std::string& bucketname) {
     auto& connection = cookie.getConnection();
     if (!connection.isAuthenticated()) {
         cookie.setErrorContext("Not authenticated");
@@ -36,7 +36,7 @@ ENGINE_ERROR_CODE select_bucket(Cookie& cookie, const std::string& bucketname) {
                 ntohl(cookie.getRequest().getOpaque()),
                 connection.getDescription(),
                 bucketname);
-        return ENGINE_EACCESS;
+        return cb::engine_errc::no_access;
     }
 
     if (connection.isDCP()) {
@@ -49,7 +49,7 @@ ENGINE_ERROR_CODE select_bucket(Cookie& cookie, const std::string& bucketname) {
                 ntohl(cookie.getRequest().getOpaque()),
                 connection.getDescription(),
                 bucketname);
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     }
 
     auto oldIndex = connection.getBucketIndex();
@@ -69,17 +69,17 @@ ENGINE_ERROR_CODE select_bucket(Cookie& cookie, const std::string& bucketname) {
                 }
                 cookie.setErrorContext(
                         "Destination bucket does not support collections");
-                return ENGINE_ENOTSUP;
+                return cb::engine_errc::not_supported;
             }
 
-            return ENGINE_SUCCESS;
+            return cb::engine_errc::success;
         } else {
             if (oldIndex != connection.getBucketIndex()) {
                 // try to jump back to the bucket we used to be associated
                 // with..
                 associate_bucket(connection, all_buckets[oldIndex].name);
             }
-            return ENGINE_KEY_ENOENT;
+            return cb::engine_errc::no_such_key;
         }
     } catch (const cb::rbac::Exception&) {
         LOG_INFO(
@@ -90,7 +90,7 @@ ENGINE_ERROR_CODE select_bucket(Cookie& cookie, const std::string& bucketname) {
                 ntohl(cookie.getRequest().getOpaque()),
                 connection.getDescription(),
                 bucketname);
-        return ENGINE_EACCESS;
+        return cb::engine_errc::no_access;
     }
 }
 
@@ -104,7 +104,7 @@ void select_bucket_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     cookie.logCommand();
 
-    ENGINE_ERROR_CODE code = ENGINE_SUCCESS;
+    cb::engine_errc code = cb::engine_errc::success;
 
     // We can't switch bucket if we've got multiple commands in flight
     if (connection.getNumberOfCookies() > 1) {
@@ -116,7 +116,7 @@ void select_bucket_executor(Cookie& cookie) {
                 ntohl(cookie.getRequest().getOpaque()),
                 connection.getDescription(),
                 bucketname);
-        code = ENGINE_ENOTSUP;
+        code = cb::engine_errc::not_supported;
     } else if (bucketname == "@no bucket@") {
         // unselect bucket!
         associate_bucket(connection, "");

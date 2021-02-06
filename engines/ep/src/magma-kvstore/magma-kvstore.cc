@@ -616,7 +616,7 @@ bool MagmaKVStore::commit(VB::Commit& commitData) {
 
     // Flush all documents to disk
     auto errCode = saveDocs(commitData, kvctx);
-    if (errCode != ENGINE_SUCCESS) {
+    if (errCode != static_cast<int>(cb::engine_errc::success)) {
         logger->warn("MagmaKVStore::commit: saveDocs {} errCode:{}",
                      pendingReqs->front().getVbID(),
                      errCode);
@@ -802,7 +802,7 @@ GetValue MagmaKVStore::getWithHeader(const DiskDocKey& key,
         // Whilst this isn't strictly a failure if we're running full eviction
         // it could be considered one for value eviction.
         st.numGetFailure++;
-        return GetValue{NULL, ENGINE_KEY_ENOENT};
+        return GetValue{nullptr, cb::engine_errc::no_such_key};
     }
 
     // record stats
@@ -1117,7 +1117,7 @@ GetValue MagmaKVStore::makeGetValue(Vbid vb,
                                     const Slice& valueSlice,
                                     ValueFilter filter) {
     return GetValue(makeItem(vb, keySlice, metaSlice, valueSlice, filter),
-                    ENGINE_SUCCESS,
+                    cb::engine_errc::success,
                     -1,
                     false);
 }
@@ -1585,19 +1585,22 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) {
             CacheLookup lookup(diskKey, seqno, ctx.vbid);
 
             ctx.lookup->callback(lookup);
-            if (ctx.lookup->getStatus() == ENGINE_KEY_EEXISTS) {
+            if (ctx.lookup->getStatus() ==
+                static_cast<int>(cb::engine_errc::key_already_exists)) {
                 ctx.lastReadSeqno = seqno;
                 logger->TRACE(
-                        "MagmaKVStore::scan SKIPPED(ENGINE_KEY_EEXISTS) {} "
+                        "MagmaKVStore::scan "
+                        "SKIPPED(cb::engine_errc::key_already_exists) {} "
                         "key:{} seqno:{}",
                         ctx.vbid,
                         cb::UserData{diskKey.to_string()},
                         seqno);
                 continue;
-            } else if (ctx.lookup->getStatus() == ENGINE_ENOMEM) {
+            } else if (ctx.lookup->getStatus() ==
+                       static_cast<int>(cb::engine_errc::no_memory)) {
                 logger->warn(
                         "MagmaKVStore::scan lookup->callback {} "
-                        "key:{} returned ENGINE_ENOMEM",
+                        "key:{} returned cb::engine_errc::no_memory",
                         ctx.vbid,
                         cb::UserData{diskKey.to_string()});
                 return scan_again;
@@ -1633,13 +1636,13 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) {
             }
         }
 
-        GetValue rv(std::move(itm), ENGINE_SUCCESS, -1, onlyKeys);
+        GetValue rv(std::move(itm), cb::engine_errc::success, -1, onlyKeys);
         ctx.callback->callback(rv);
         auto callbackStatus = ctx.callback->getStatus();
-        if (callbackStatus == ENGINE_ENOMEM) {
+        if (callbackStatus == static_cast<int>(cb::engine_errc::no_memory)) {
             logger->TRACE(
                     "MagmaKVStore::scan callback {} "
-                    "key:{} returned ENGINE_ENOMEM",
+                    "key:{} returned cb::engine_errc::no_memory",
                     ctx.vbid,
                     cb::UserData{diskKey.to_string()});
             return scan_again;
@@ -1871,18 +1874,17 @@ std::string MagmaKVStore::encodeVBState(const vbucket_state& vbstate) const {
     return j.dump();
 }
 
-ENGINE_ERROR_CODE MagmaKVStore::magmaErr2EngineErr(Status::Code err,
-                                                   bool found) {
+cb::engine_errc MagmaKVStore::magmaErr2EngineErr(Status::Code err, bool found) {
     if (!found) {
-        return ENGINE_KEY_ENOENT;
+        return cb::engine_errc::no_such_key;
     }
     // This routine is intended to mimic couchErr2EngineErr.
     // Since magma doesn't have a memory allocation error, all magma errors
-    // get translated into ENGINE_TMPFAIL.
+    // get translated into cb::engine_errc::temporary_failure.
     if (err == Status::Code::Ok) {
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
-    return ENGINE_TMPFAIL;
+    return cb::engine_errc::temporary_failure;
 }
 
 MagmaDbStats MagmaKVStore::getMagmaDbStats(Vbid vbid) {
@@ -1912,7 +1914,7 @@ size_t MagmaKVStore::getItemCount(Vbid vbid) {
     return lockedStats->docCount;
 }
 
-ENGINE_ERROR_CODE MagmaKVStore::getAllKeys(
+cb::engine_errc MagmaKVStore::getAllKeys(
         Vbid vbid,
         const DiskDocKey& startKey,
         uint32_t count,
@@ -1967,7 +1969,7 @@ ENGINE_ERROR_CODE MagmaKVStore::getAllKeys(
         return magmaErr2EngineErr(status.ErrorCode(), true);
     }
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 bool MagmaKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,

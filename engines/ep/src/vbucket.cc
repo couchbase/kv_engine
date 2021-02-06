@@ -326,8 +326,8 @@ size_t VBucket::getSyncWriteAbortedCount() const {
     return durabilityMonitor->getNumAborted();
 }
 
-void VBucket::fireAllOps(EventuallyPersistentEngine &engine,
-                         ENGINE_ERROR_CODE code) {
+void VBucket::fireAllOps(EventuallyPersistentEngine& engine,
+                         cb::engine_errc code) {
     std::unique_lock<std::mutex> lh(pendingOpLock);
 
     if (pendingOpsStart > std::chrono::steady_clock::time_point()) {
@@ -365,11 +365,11 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine,
 void VBucket::fireAllOps(EventuallyPersistentEngine &engine) {
 
     if (state == vbucket_state_active) {
-        fireAllOps(engine, ENGINE_SUCCESS);
+        fireAllOps(engine, cb::engine_errc::success);
     } else if (state == vbucket_state_pending) {
         // Nothing
     } else {
-        fireAllOps(engine, ENGINE_NOT_MY_VBUCKET);
+        fireAllOps(engine, cb::engine_errc::not_my_vbucket);
     }
 }
 
@@ -820,7 +820,7 @@ void VBucket::handlePreExpiry(const HashTable::HashBucketLock& hbl,
     }
 }
 
-ENGINE_ERROR_CODE VBucket::commit(
+cb::engine_errc VBucket::commit(
         const DocKey& key,
         uint64_t prepareSeqno,
         std::optional<int64_t> commitSeqno,
@@ -837,7 +837,7 @@ ENGINE_ERROR_CODE VBucket::commit(
                 cb::UserDataView(key.to_string()),
                 prepareSeqno,
                 to_string_or_none(commitSeqno));
-        return ENGINE_KEY_ENOENT;
+        return cb::engine_errc::no_such_key;
     }
 
     Expects(prepareSeqno);
@@ -872,13 +872,13 @@ ENGINE_ERROR_CODE VBucket::commit(
 
     // Cookie representing the client connection, provided only at Active
     if (cookie) {
-        notifyClientOfSyncWriteComplete(cookie, ENGINE_SUCCESS);
+        notifyClientOfSyncWriteComplete(cookie, cb::engine_errc::success);
     }
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE VBucket::abort(
+cb::engine_errc VBucket::abort(
         const DocKey& key,
         uint64_t prepareSeqno,
         std::optional<int64_t> abortSeqno,
@@ -906,14 +906,14 @@ ENGINE_ERROR_CODE VBucket::abort(
                         "CommittedState::Pending - {}",
                         id,
                         cb::UserData(ss.str()));
-                return ENGINE_EINVAL;
+                return cb::engine_errc::invalid_arguments;
             } else {
                 EP_LOG_ERR(
                         "VBucket::abort ({}) - active failed as no HashTable"
                         "item found with key:{}",
                         id,
                         cb::UserDataView(key.to_string()));
-                return ENGINE_KEY_ENOENT;
+                return cb::engine_errc::no_such_key;
             }
         }
 
@@ -928,7 +928,7 @@ ENGINE_ERROR_CODE VBucket::abort(
                     id,
                     prepareSeqno,
                     to_string_or_none(abortSeqno));
-            return ENGINE_EINVAL;
+            return cb::engine_errc::invalid_arguments;
         }
 
         // If we did not find the corresponding prepare for this abort then the
@@ -943,7 +943,7 @@ ENGINE_ERROR_CODE VBucket::abort(
                     id,
                     prepareSeqno,
                     checkpointManager->getOpenSnapshotStartSeqno());
-            return ENGINE_EINVAL;
+            return cb::engine_errc::invalid_arguments;
         }
 
         // Replica is receiving a legal Abort but we do not have any in-flight
@@ -969,7 +969,7 @@ ENGINE_ERROR_CODE VBucket::abort(
         notifyNewSeqno(ctx);
         doCollectionsStats(cHandle, ctx);
 
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     // If prepare seqno is not the same as our stored seqno then we should be
@@ -993,10 +993,11 @@ ENGINE_ERROR_CODE VBucket::abort(
 
     // Cookie representing the client connection, provided only at Active
     if (cookie) {
-        notifyClientOfSyncWriteComplete(cookie, ENGINE_SYNC_WRITE_AMBIGUOUS);
+        notifyClientOfSyncWriteComplete(cookie,
+                                        cb::engine_errc::sync_write_ambiguous);
     }
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 void VBucket::notifyActiveDMOfLocalSyncWrite() {
@@ -1004,7 +1005,7 @@ void VBucket::notifyActiveDMOfLocalSyncWrite() {
 }
 
 void VBucket::notifyClientOfSyncWriteComplete(const void* cookie,
-                                              ENGINE_ERROR_CODE result) {
+                                              cb::engine_errc result) {
     EP_LOG_DEBUG(
             "VBucket::notifyClientOfSyncWriteComplete ({}) cookie:{} result:{}",
             id,
@@ -1533,14 +1534,14 @@ cb::StoreIfStatus VBucket::callPredicate(cb::StoreIfPredicate predicate,
     return storeIfStatus;
 }
 
-ENGINE_ERROR_CODE VBucket::set(
+cb::engine_errc VBucket::set(
         Item& itm,
         const void* cookie,
         EventuallyPersistentEngine& engine,
         cb::StoreIfPredicate predicate,
         const Collections::VB::CachingReadHandle& cHandle) {
     auto ret = checkDurabilityRequirements(itm);
-    if (ret != ENGINE_SUCCESS) {
+    if (ret != cb::engine_errc::success) {
         return ret;
     }
 
@@ -1554,7 +1555,7 @@ ENGINE_ERROR_CODE VBucket::set(
         cb::StoreIfStatus storeIfStatus = cb::StoreIfStatus::Continue;
         if (predicate && (storeIfStatus = callPredicate(predicate, v)) ==
                                  cb::StoreIfStatus::Fail) {
-            return ENGINE_PREDICATE_FAILED;
+            return cb::engine_errc::predicate_failed;
         }
 
         if (v && v->isLocked(ep_current_time()) &&
@@ -1596,24 +1597,26 @@ ENGINE_ERROR_CODE VBucket::set(
                                                  storeIfStatus,
                                                  maybeKeyExists);
 
-        // For pending SyncWrites we initially return ENGINE_SYNC_WRITE_PENDING;
-        // will notify client when request is committed / aborted later. This is
-        // effectively EWOULDBLOCK, but needs to be distinguishable by the
-        // ep-engine caller (storeIfInner) from EWOULDBLOCK for bg-fetch
-        ret = itm.isPending() ? ENGINE_SYNC_WRITE_PENDING : ENGINE_SUCCESS;
+        // For pending SyncWrites we initially return
+        // cb::engine_errc::sync_write_pending; will notify client when request
+        // is committed / aborted later. This is effectively EWOULDBLOCK, but
+        // needs to be distinguishable by the ep-engine caller (storeIfInner)
+        // from EWOULDBLOCK for bg-fetch
+        ret = itm.isPending() ? cb::engine_errc::sync_write_pending
+                              : cb::engine_errc::success;
         switch (status) {
         case MutationStatus::NoMem:
-            ret = ENGINE_ENOMEM;
+            ret = cb::engine_errc::no_memory;
             break;
         case MutationStatus::InvalidCas:
-            ret = ENGINE_KEY_EEXISTS;
+            ret = cb::engine_errc::key_already_exists;
             break;
         case MutationStatus::IsLocked:
-            ret = ENGINE_LOCKED;
+            ret = cb::engine_errc::locked;
             break;
         case MutationStatus::NotFound:
             if (cas_op) {
-                ret = ENGINE_KEY_ENOENT;
+                ret = cb::engine_errc::no_such_key;
                 break;
             }
             // FALLTHROUGH
@@ -1635,7 +1638,7 @@ ENGINE_ERROR_CODE VBucket::set(
                 // temp item is already created. Simply schedule a bg fetch job
                 hbl.getHTLock().unlock();
                 bgFetch(itm.getKey(), cookie, engine, true);
-                return ENGINE_EWOULDBLOCK;
+                return cb::engine_errc::would_block;
             }
             ret = addTempItemAndBGFetch(
                     hbl, itm.getKey(), cookie, engine, true);
@@ -1643,7 +1646,7 @@ ENGINE_ERROR_CODE VBucket::set(
         }
 
         case MutationStatus::IsPendingSyncWrite:
-            ret = ENGINE_SYNC_WRITE_IN_PROGRESS;
+            ret = cb::engine_errc::sync_write_in_progress;
             break;
         }
     }
@@ -1651,14 +1654,14 @@ ENGINE_ERROR_CODE VBucket::set(
     return ret;
 }
 
-ENGINE_ERROR_CODE VBucket::replace(
+cb::engine_errc VBucket::replace(
         Item& itm,
         const void* cookie,
         EventuallyPersistentEngine& engine,
         cb::StoreIfPredicate predicate,
         const Collections::VB::CachingReadHandle& cHandle) {
     auto ret = checkDurabilityRequirements(itm);
-    if (ret != ENGINE_SUCCESS) {
+    if (ret != cb::engine_errc::success) {
         return ret;
     }
 
@@ -1670,14 +1673,14 @@ ENGINE_ERROR_CODE VBucket::replace(
         if (predicate &&
             (storeIfStatus = callPredicate(predicate, htRes.committed)) ==
                     cb::StoreIfStatus::Fail) {
-            return ENGINE_PREDICATE_FAILED;
+            return cb::engine_errc::predicate_failed;
         }
 
         if (htRes.committed) {
             if (isLogicallyNonExistent(*htRes.committed, cHandle) ||
                 htRes.committed->isExpired(ep_real_time())) {
                 ht.cleanupIfTemporaryItem(hbl, *htRes.committed);
-                return ENGINE_KEY_ENOENT;
+                return cb::engine_errc::no_such_key;
             }
 
             auto* v = htRes.selectSVToModify(itm);
@@ -1696,7 +1699,7 @@ ENGINE_ERROR_CODE VBucket::replace(
                 //  which is also the right time to check for any pending SW
                 //  (and to reject the operation if a prepare is in-flight).
                 if (htRes.pending && !htRes.pending->isCompleted()) {
-                    return ENGINE_SYNC_WRITE_IN_PROGRESS;
+                    return cb::engine_errc::sync_write_in_progress;
                 }
 
                 PreLinkDocumentContext preLinkDocumentContext(
@@ -1718,21 +1721,22 @@ ENGINE_ERROR_CODE VBucket::replace(
             }
 
             // For pending SyncWrites we initially return
-            // ENGINE_SYNC_WRITE_PENDING; will notify client when request is
-            // committed / aborted later. This is effectively EWOULDBLOCK, but
-            // needs to be distinguishable by the ep-engine caller
-            // (storeIfInner) from EWOULDBLOCK for bg-fetch
-            ret = itm.isPending() ? ENGINE_SYNC_WRITE_PENDING : ENGINE_SUCCESS;
+            // cb::engine_errc::sync_write_pending; will notify client when
+            // request is committed / aborted later. This is effectively
+            // EWOULDBLOCK, but needs to be distinguishable by the ep-engine
+            // caller (storeIfInner) from EWOULDBLOCK for bg-fetch
+            ret = itm.isPending() ? cb::engine_errc::sync_write_pending
+                                  : cb::engine_errc::success;
             switch (mtype) {
             case MutationStatus::NoMem:
-                ret = ENGINE_ENOMEM;
+                ret = cb::engine_errc::no_memory;
                 break;
             case MutationStatus::IsLocked:
-                ret = ENGINE_LOCKED;
+                ret = cb::engine_errc::locked;
                 break;
             case MutationStatus::InvalidCas:
             case MutationStatus::NotFound:
-                ret = ENGINE_NOT_STORED;
+                ret = cb::engine_errc::not_stored;
                 break;
                 // FALLTHROUGH
             case MutationStatus::WasDirty:
@@ -1749,16 +1753,16 @@ ENGINE_ERROR_CODE VBucket::replace(
                 // temp item is already created. Simply schedule a bg fetch job
                 hbl.getHTLock().unlock();
                 bgFetch(itm.getKey(), cookie, engine, true);
-                ret = ENGINE_EWOULDBLOCK;
+                ret = cb::engine_errc::would_block;
                 break;
             }
             case MutationStatus::IsPendingSyncWrite:
-                ret = ENGINE_SYNC_WRITE_IN_PROGRESS;
+                ret = cb::engine_errc::sync_write_in_progress;
                 break;
             }
         } else {
             if (eviction == EvictionPolicy::Value) {
-                return ENGINE_KEY_ENOENT;
+                return cb::engine_errc::no_such_key;
             }
 
             if (maybeKeyExistsInFilter(itm.getKey())) {
@@ -1767,7 +1771,7 @@ ENGINE_ERROR_CODE VBucket::replace(
             } else {
                 // As bloomfilter predicted that item surely doesn't exist
                 // on disk, return ENOENT for replace().
-                return ENGINE_KEY_ENOENT;
+                return cb::engine_errc::no_such_key;
             }
         }
     }
@@ -1826,7 +1830,7 @@ void VBucket::replicaDropScope(Collections::ManifestUid uid,
     manifest->wlock().replicaDropScope(*this, uid, sid, bySeqno);
 }
 
-ENGINE_ERROR_CODE VBucket::prepare(
+cb::engine_errc VBucket::prepare(
         Item& itm,
         uint64_t cas,
         uint64_t* seqno,
@@ -1879,16 +1883,16 @@ ENGINE_ERROR_CODE VBucket::prepare(
                                                  maybeKeyExists);
     }
 
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    cb::engine_errc ret = cb::engine_errc::success;
     switch (status) {
     case MutationStatus::NoMem:
-        ret = ENGINE_ENOMEM;
+        ret = cb::engine_errc::no_memory;
         break;
     case MutationStatus::InvalidCas:
-        ret = ENGINE_KEY_EEXISTS;
+        ret = cb::engine_errc::key_already_exists;
         break;
     case MutationStatus::IsLocked:
-        ret = ENGINE_LOCKED;
+        ret = cb::engine_errc::locked;
         break;
     case MutationStatus::WasDirty:
     case MutationStatus::WasClean: {
@@ -1908,27 +1912,27 @@ ENGINE_ERROR_CODE VBucket::prepare(
         doCollectionsStats(cHandle, *notifyCtx);
     } break;
     case MutationStatus::NotFound:
-        ret = ENGINE_KEY_ENOENT;
+        ret = cb::engine_errc::no_such_key;
         break;
     case MutationStatus::NeedBgFetch: { // CAS operation with non-resident item
         // + full eviction.
         if (v) { // temp item is already created. Simply schedule a
             hbl.getHTLock().unlock(); // bg fetch job.
             bgFetch(itm.getKey(), cookie, engine, true);
-            return ENGINE_EWOULDBLOCK;
+            return cb::engine_errc::would_block;
         }
         ret = addTempItemAndBGFetch(hbl, itm.getKey(), cookie, engine, true);
         break;
     }
     case MutationStatus::IsPendingSyncWrite:
-        ret = ENGINE_SYNC_WRITE_IN_PROGRESS;
+        ret = cb::engine_errc::sync_write_in_progress;
         break;
     }
 
     return ret;
 }
 
-ENGINE_ERROR_CODE VBucket::setWithMeta(
+cb::engine_errc VBucket::setWithMeta(
         Item& itm,
         uint64_t cas,
         uint64_t* seqno,
@@ -1956,7 +1960,7 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
         if (v) {
             if (v->isTempInitialItem()) {
                 bgFetch(itm.getKey(), cookie, engine, true);
-                return ENGINE_EWOULDBLOCK;
+                return cb::engine_errc::would_block;
             }
 
             if (!(conflictResolver->resolve(*v,
@@ -1969,7 +1973,7 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
                 if (v->isTempItem()) {
                     deleteStoredValue(hbl, *v);
                 }
-                return ENGINE_KEY_EEXISTS;
+                return cb::engine_errc::key_already_exists;
             }
         } else {
             if (maybeKeyExistsInFilter(itm.getKey())) {
@@ -2018,16 +2022,16 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
                                              {/*no predicate*/},
                                              maybeKeyExists);
 
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    cb::engine_errc ret = cb::engine_errc::success;
     switch (status) {
     case MutationStatus::NoMem:
-        ret = ENGINE_ENOMEM;
+        ret = cb::engine_errc::no_memory;
         break;
     case MutationStatus::InvalidCas:
-        ret = ENGINE_KEY_EEXISTS;
+        ret = cb::engine_errc::key_already_exists;
         break;
     case MutationStatus::IsLocked:
-        ret = ENGINE_LOCKED;
+        ret = cb::engine_errc::locked;
         break;
     case MutationStatus::WasDirty:
     case MutationStatus::WasClean: {
@@ -2047,27 +2051,27 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
         doCollectionsStats(cHandle, *notifyCtx);
     } break;
     case MutationStatus::NotFound:
-        ret = ENGINE_KEY_ENOENT;
+        ret = cb::engine_errc::no_such_key;
         break;
     case MutationStatus::NeedBgFetch: { // CAS operation with non-resident item
         // + full eviction.
         if (v) { // temp item is already created. Simply schedule a
             hbl.getHTLock().unlock(); // bg fetch job.
             bgFetch(itm.getKey(), cookie, engine, true);
-            return ENGINE_EWOULDBLOCK;
+            return cb::engine_errc::would_block;
         }
         ret = addTempItemAndBGFetch(hbl, itm.getKey(), cookie, engine, true);
         break;
     }
     case MutationStatus::IsPendingSyncWrite:
-        ret = ENGINE_SYNC_WRITE_IN_PROGRESS;
+        ret = cb::engine_errc::sync_write_in_progress;
         break;
     }
 
     return ret;
 }
 
-ENGINE_ERROR_CODE VBucket::deleteItem(
+cb::engine_errc VBucket::deleteItem(
         uint64_t& cas,
         const void* cookie,
         EventuallyPersistentEngine& engine,
@@ -2077,16 +2081,18 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
         const Collections::VB::CachingReadHandle& cHandle) {
     if (durability && durability->isValid()) {
         auto ret = checkDurabilityRequirements(*durability);
-        if (ret != ENGINE_SUCCESS) {
+        if (ret != cb::engine_errc::success) {
             return ret;
         }
     }
 
-    // For pending SyncDeletes we initially return ENGINE_SYNC_WRITE_PENDING;
-    // will notify client when request is committed / aborted later. This is
-    // effectively EWOULDBLOCK, but needs to be distinguishable by the
-    // ep-engine caller (itemDelete) from EWOULDBLOCK for bg-fetch
-    auto ret = durability ? ENGINE_SYNC_WRITE_PENDING : ENGINE_SUCCESS;
+    // For pending SyncDeletes we initially return
+    // cb::engine_errc::sync_write_pending; will notify client when request is
+    // committed / aborted later. This is effectively EWOULDBLOCK, but needs to
+    // be distinguishable by the ep-engine caller (itemDelete) from EWOULDBLOCK
+    // for bg-fetch
+    auto ret = durability ? cb::engine_errc::sync_write_pending
+                          : cb::engine_errc::success;
 
     { // HashBucketLock scope
         auto htRes = ht.findForUpdate(cHandle.getKey());
@@ -2094,7 +2100,7 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
 
         if (htRes.pending && htRes.pending->isPending()) {
             // Existing item is an in-flight SyncWrite
-            return ENGINE_SYNC_WRITE_IN_PROGRESS;
+            return cb::engine_errc::sync_write_in_progress;
         }
 
         // When deleting an item, always use the StoredValue which is committed
@@ -2102,7 +2108,7 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
         if (!htRes.committed || htRes.committed->isTempInitialItem() ||
             isLogicallyNonExistent(*htRes.committed, cHandle)) {
             if (eviction == EvictionPolicy::Value) {
-                return ENGINE_KEY_ENOENT;
+                return cb::engine_errc::no_such_key;
             } else { // Full eviction.
                 if (!htRes.committed) { // Item might be evicted from cache.
                     if (maybeKeyExistsInFilter(cHandle.getKey())) {
@@ -2111,12 +2117,12 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
                     } else {
                         // As bloomfilter predicted that item surely doesn't
                         // exist on disk, return ENOENT for deleteItem().
-                        return ENGINE_KEY_ENOENT;
+                        return cb::engine_errc::no_such_key;
                     }
                 } else if (htRes.committed->isTempInitialItem()) {
                     hbl.getHTLock().unlock();
                     bgFetch(cHandle.getKey(), cookie, engine, true);
-                    return ENGINE_EWOULDBLOCK;
+                    return cb::engine_errc::would_block;
                 } else { // Non-existent or deleted key.
                     if (htRes.committed->isTempNonExistentItem() ||
                         htRes.committed->isTempDeletedItem()) {
@@ -2125,7 +2131,7 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
                         // exist, then we don't preserve a temp item.
                         deleteStoredValue(hbl, *htRes.committed);
                     }
-                    return ENGINE_KEY_ENOENT;
+                    return cb::engine_errc::no_such_key;
                 }
             }
         }
@@ -2171,16 +2177,16 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
 
         switch (delrv) {
         case MutationStatus::NoMem:
-            ret = ENGINE_ENOMEM;
+            ret = cb::engine_errc::no_memory;
             break;
         case MutationStatus::InvalidCas:
-            ret = ENGINE_KEY_EEXISTS;
+            ret = cb::engine_errc::key_already_exists;
             break;
         case MutationStatus::IsLocked:
-            ret = ENGINE_LOCKED_TMPFAIL;
+            ret = cb::engine_errc::locked_tmpfail;
             break;
         case MutationStatus::NotFound:
-            ret = ENGINE_KEY_ENOENT;
+            ret = cb::engine_errc::no_such_key;
             /* Fallthrough:
              * A NotFound return value at this point indicates that the
              * item has expired. But, a deletion still needs to be queued
@@ -2215,19 +2221,19 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
                     "Unexpected NEEDS_BG_FETCH from processSoftDelete");
 
         case MutationStatus::IsPendingSyncWrite:
-            ret = ENGINE_SYNC_WRITE_IN_PROGRESS;
+            ret = cb::engine_errc::sync_write_in_progress;
             break;
         }
     }
 
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         cHandle.incrementOpsDelete();
     }
 
     return ret;
 }
 
-ENGINE_ERROR_CODE VBucket::deleteWithMeta(
+cb::engine_errc VBucket::deleteWithMeta(
         uint64_t& cas,
         uint64_t* seqno,
         const void* cookie,
@@ -2245,7 +2251,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
     auto& hbl = htRes.pending.getHBL();
 
     if (v && cHandle.isLogicallyDeleted(v->getBySeqno())) {
-        return ENGINE_KEY_ENOENT;
+        return cb::engine_errc::no_such_key;
     }
 
     // Need conflict resolution?
@@ -2253,7 +2259,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
         if (v) {
             if (v->isTempInitialItem()) {
                 bgFetch(key, cookie, engine, true);
-                return ENGINE_EWOULDBLOCK;
+                return cb::engine_errc::would_block;
             }
 
             if (!(conflictResolver->resolve(*v,
@@ -2261,7 +2267,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
                                             PROTOCOL_BINARY_RAW_BYTES,
                                             true))) {
                 ++stats.numOpsDelMetaResolutionFailed;
-                return ENGINE_KEY_EEXISTS;
+                return cb::engine_errc::key_already_exists;
             }
         } else {
             // Item is 1) deleted or not existent in the value eviction case OR
@@ -2273,7 +2279,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
                 // on disk, we must put this delete on disk if the cas is valid.
                 auto rv = addTempStoredValue(hbl, key);
                 if (rv.status == TempAddStatus::NoMem) {
-                    return ENGINE_ENOMEM;
+                    return cb::engine_errc::no_memory;
                 }
                 v = rv.storedValue;
                 v->setTempDeleted();
@@ -2284,7 +2290,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
             // We should always try to persist a delete here.
             auto rv = addTempStoredValue(hbl, key);
             if (rv.status == TempAddStatus::NoMem) {
-                return ENGINE_ENOMEM;
+                return cb::engine_errc::no_memory;
             }
             v = rv.storedValue;
             v->setTempDeleted();
@@ -2360,13 +2366,13 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
 
     switch (delrv) {
     case MutationStatus::NoMem:
-        return ENGINE_ENOMEM;
+        return cb::engine_errc::no_memory;
     case MutationStatus::InvalidCas:
-        return ENGINE_KEY_EEXISTS;
+        return cb::engine_errc::key_already_exists;
     case MutationStatus::IsLocked:
-        return ENGINE_LOCKED_TMPFAIL;
+        return cb::engine_errc::locked_tmpfail;
     case MutationStatus::NotFound:
-        return ENGINE_KEY_ENOENT;
+        return cb::engine_errc::no_such_key;
     case MutationStatus::WasDirty:
     case MutationStatus::WasClean: {
         if (v == nullptr) {
@@ -2388,12 +2394,12 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
     case MutationStatus::NeedBgFetch:
         hbl.getHTLock().unlock();
         bgFetch(key, cookie, engine, metaBgFetch);
-        return ENGINE_EWOULDBLOCK;
+        return cb::engine_errc::would_block;
 
     case MutationStatus::IsPendingSyncWrite:
-        return ENGINE_SYNC_WRITE_IN_PROGRESS;
+        return cb::engine_errc::sync_write_in_progress;
     }
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 void VBucket::deleteExpiredItem(const Item& it,
@@ -2514,13 +2520,13 @@ void VBucket::deleteExpiredItem(const Item& it,
     }
 }
 
-ENGINE_ERROR_CODE VBucket::add(
+cb::engine_errc VBucket::add(
         Item& itm,
         const void* cookie,
         EventuallyPersistentEngine& engine,
         const Collections::VB::CachingReadHandle& cHandle) {
     auto ret = checkDurabilityRequirements(itm);
-    if (ret != ENGINE_SUCCESS) {
+    if (ret != cb::engine_errc::success) {
         return ret;
     }
 
@@ -2533,7 +2539,7 @@ ENGINE_ERROR_CODE VBucket::add(
             // If an existing item was found and it is prepared, then cannot
             // (yet) perform an Add (Add would only succeed if prepared
             // SyncWrite was subsequently aborted).
-            return ENGINE_SYNC_WRITE_IN_PROGRESS;
+            return cb::engine_errc::sync_write_in_progress;
         }
 
         bool maybeKeyExists = true;
@@ -2559,16 +2565,16 @@ ENGINE_ERROR_CODE VBucket::add(
 
         switch (status) {
         case AddStatus::NoMem:
-            return ENGINE_ENOMEM;
+            return cb::engine_errc::no_memory;
         case AddStatus::Exists:
-            return ENGINE_NOT_STORED;
+            return cb::engine_errc::not_stored;
         case AddStatus::AddTmpAndBgFetch:
             return addTempItemAndBGFetch(
                     hbl, itm.getKey(), cookie, engine, true);
         case AddStatus::BgFetch:
             hbl.getHTLock().unlock();
             bgFetch(itm.getKey(), cookie, engine, true);
-            return ENGINE_EWOULDBLOCK;
+            return cb::engine_errc::would_block;
         case AddStatus::Success:
         case AddStatus::UnDel:
             Expects(v &&
@@ -2582,11 +2588,13 @@ ENGINE_ERROR_CODE VBucket::add(
         }
     }
 
-    // For pending SyncWrites we initially return ENGINE_SYNC_WRITE_PENDING;
-    // will notify client when request is committed / aborted later. This is
-    // effectively EWOULDBLOCK, but needs to be distinguishable by the
-    // ep-engine caller (storeIfInner) from EWOULDBLOCK for bg-fetch
-    return itm.isPending() ? ENGINE_SYNC_WRITE_PENDING : ENGINE_SUCCESS;
+    // For pending SyncWrites we initially return
+    // cb::engine_errc::sync_write_pending; will notify client when request is
+    // committed / aborted later. This is effectively EWOULDBLOCK, but needs to
+    // be distinguishable by the ep-engine caller (storeIfInner) from
+    // EWOULDBLOCK for bg-fetch
+    return itm.isPending() ? cb::engine_errc::sync_write_pending
+                           : cb::engine_errc::success;
 }
 
 std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
@@ -2606,7 +2614,7 @@ std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
 
         if (v->isLocked(ep_current_time())) {
             return {MutationStatus::IsLocked,
-                    GetValue(nullptr, ENGINE_KEY_EEXISTS, 0)};
+                    GetValue(nullptr, cb::engine_errc::key_already_exists, 0)};
         }
 
         const bool exptime_mutated = exptime != v->getExptime();
@@ -2636,7 +2644,9 @@ std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
         const auto hideLockedCas = (v->isLocked(ep_current_time())
                                             ? StoredValue::HideLockedCas::Yes
                                             : StoredValue::HideLockedCas::No);
-        GetValue rv(v->toItem(getId(), hideLockedCas), ENGINE_SUCCESS, bySeqNo);
+        GetValue rv(v->toItem(getId(), hideLockedCas),
+                    cb::engine_errc::success,
+                    bySeqNo);
 
         if (exptime_mutated) {
             VBQueueItemCtx qItemCtx;
@@ -2687,10 +2697,10 @@ GetValue VBucket::getAndUpdateTtl(
             if (res.storedValue) {
                 bgFetch(cHandle.getKey(), cookie, engine);
                 return GetValue(nullptr,
-                                ENGINE_EWOULDBLOCK,
+                                cb::engine_errc::would_block,
                                 res.storedValue->getBySeqno());
             } else {
-                ENGINE_ERROR_CODE ec = addTempItemAndBGFetch(
+                cb::engine_errc ec = addTempItemAndBGFetch(
                         res.lock, cHandle.getKey(), cookie, engine, false);
                 return GetValue(nullptr, ec, -1, true);
             }
@@ -2698,7 +2708,7 @@ GetValue VBucket::getAndUpdateTtl(
         return gv;
     }
     case FetchForWriteResult::Status::ESyncWriteInProgress:
-        return GetValue(nullptr, ENGINE_SYNC_WRITE_IN_PROGRESS);
+        return GetValue(nullptr, cb::engine_errc::sync_write_in_progress);
     }
     folly::assume_unreachable();
 }
@@ -2728,7 +2738,8 @@ GetValue VBucket::getInternal(const void* cookie,
         // been made visible to clients, then we cannot yet report _any_
         // value for this key until the Prepare has bee re-committed.
         if (v->isPreparedMaybeVisible()) {
-            return GetValue(nullptr, ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS);
+            return GetValue(nullptr,
+                            cb::engine_errc::sync_write_re_commit_in_progress);
         }
 
         // 1 If SV is deleted or expired and user didn't request deleted items
@@ -2790,7 +2801,7 @@ GetValue VBucket::getInternal(const void* cookie,
         }
 
         return GetValue(std::move(item),
-                        ENGINE_SUCCESS,
+                        cb::engine_errc::success,
                         v->getBySeqno(),
                         !v->isResident());
     } else {
@@ -2799,7 +2810,7 @@ GetValue VBucket::getInternal(const void* cookie,
         }
 
         if (maybeKeyExistsInFilter(cHandle.getKey())) {
-            ENGINE_ERROR_CODE ec = ENGINE_EWOULDBLOCK;
+            cb::engine_errc ec = cb::engine_errc::would_block;
             if (bgFetchRequired) { // Full eviction and need a bg fetch.
                 ec = addTempItemAndBGFetch(res.lock,
                                            cHandle.getKey(),
@@ -2816,7 +2827,7 @@ GetValue VBucket::getInternal(const void* cookie,
     }
 }
 
-ENGINE_ERROR_CODE VBucket::getMetaData(
+cb::engine_errc VBucket::getMetaData(
         const void* cookie,
         EventuallyPersistentEngine& engine,
         const Collections::VB::CachingReadHandle& cHandle,
@@ -2831,18 +2842,18 @@ ENGINE_ERROR_CODE VBucket::getMetaData(
 
     if (v) {
         if (v->isPreparedMaybeVisible()) {
-            return ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS;
+            return cb::engine_errc::sync_write_re_commit_in_progress;
         }
         stats.numOpsGetMeta++;
         if (v->isTempInitialItem()) {
             // Need bg meta fetch.
             bgFetch(cHandle.getKey(), cookie, engine, true);
-            return ENGINE_EWOULDBLOCK;
+            return cb::engine_errc::would_block;
         } else if (v->isTempNonExistentItem()) {
             metadata.cas = v->getCas();
-            return ENGINE_KEY_ENOENT;
+            return cb::engine_errc::no_such_key;
         } else if (cHandle.isLogicallyDeleted(v->getBySeqno())) {
-            return ENGINE_KEY_ENOENT;
+            return cb::engine_errc::no_such_key;
         } else {
             if (v->isTempDeletedItem() || v->isDeleted() ||
                 v->isExpired(ep_real_time())) {
@@ -2859,7 +2870,7 @@ ENGINE_ERROR_CODE VBucket::getMetaData(
             metadata.revSeqno = v->getRevSeqno();
             datatype = v->getDatatype();
 
-            return ENGINE_SUCCESS;
+            return cb::engine_errc::success;
         }
     } else {
         // The key wasn't found. However, this may be because it was previously
@@ -2876,12 +2887,12 @@ ENGINE_ERROR_CODE VBucket::getMetaData(
                     hbl, cHandle.getKey(), cookie, engine, true);
         } else {
             stats.numOpsGetMeta++;
-            return ENGINE_KEY_ENOENT;
+            return cb::engine_errc::no_such_key;
         }
     }
 }
 
-ENGINE_ERROR_CODE VBucket::getKeyStats(
+cb::engine_errc VBucket::getKeyStats(
         const void* cookie,
         EventuallyPersistentEngine& engine,
         struct key_stats& kstats,
@@ -2893,21 +2904,21 @@ ENGINE_ERROR_CODE VBucket::getKeyStats(
 
     if (v) {
         if (v->isPreparedMaybeVisible()) {
-            return ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS;
+            return cb::engine_errc::sync_write_re_commit_in_progress;
         }
         if ((v->isDeleted() || cHandle.isLogicallyDeleted(v->getBySeqno())) &&
             wantsDeleted == WantsDeleted::No) {
-            return ENGINE_KEY_ENOENT;
+            return cb::engine_errc::no_such_key;
         }
 
         if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
             deleteStoredValue(res.lock, *v);
-            return ENGINE_KEY_ENOENT;
+            return cb::engine_errc::no_such_key;
         }
         if (eviction == EvictionPolicy::Full && v->isTempInitialItem()) {
             res.lock.getHTLock().unlock();
             bgFetch(cHandle.getKey(), cookie, engine, true);
-            return ENGINE_EWOULDBLOCK;
+            return cb::engine_errc::would_block;
         }
         kstats.logically_deleted =
                 v->isDeleted() || cHandle.isLogicallyDeleted(v->getBySeqno());
@@ -2918,10 +2929,10 @@ ENGINE_ERROR_CODE VBucket::getKeyStats(
         kstats.vb_state = getState();
         kstats.resident = v->isResident();
 
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     } else {
         if (eviction == EvictionPolicy::Value) {
-            return ENGINE_KEY_ENOENT;
+            return cb::engine_errc::no_such_key;
         } else {
             if (maybeKeyExistsInFilter(cHandle.getKey())) {
                 return addTempItemAndBGFetch(
@@ -2930,7 +2941,7 @@ ENGINE_ERROR_CODE VBucket::getKeyStats(
                 // If bgFetch were false, or bloomfilter predicted that
                 // item surely doesn't exist on disk, return ENOENT for
                 // getKeyStats().
-                return ENGINE_KEY_ENOENT;
+                return cb::engine_errc::no_such_key;
             }
         }
     }
@@ -2947,12 +2958,12 @@ GetValue VBucket::getLocked(rel_time_t currentTime,
         auto* v = res.storedValue;
         if (isLogicallyNonExistent(*v, cHandle)) {
             ht.cleanupIfTemporaryItem(res.lock, *v);
-            return GetValue(nullptr, ENGINE_KEY_ENOENT);
+            return GetValue(nullptr, cb::engine_errc::no_such_key);
         }
 
         // if v is locked return error
         if (v->isLocked(currentTime)) {
-            return GetValue(nullptr, ENGINE_LOCKED_TMPFAIL);
+            return GetValue(nullptr, cb::engine_errc::locked_tmpfail);
         }
 
         // If the value is not resident, wait for it...
@@ -2960,7 +2971,7 @@ GetValue VBucket::getLocked(rel_time_t currentTime,
             if (cookie) {
                 bgFetch(cHandle.getKey(), cookie, engine);
             }
-            return GetValue(nullptr, ENGINE_EWOULDBLOCK, -1, true);
+            return GetValue(nullptr, cb::engine_errc::would_block, -1, true);
         }
 
         // acquire lock and increment cas value
@@ -2976,22 +2987,22 @@ GetValue VBucket::getLocked(rel_time_t currentTime,
         // No value found in the hashtable.
         switch (eviction) {
         case EvictionPolicy::Value:
-            return GetValue(nullptr, ENGINE_KEY_ENOENT);
+            return GetValue(nullptr, cb::engine_errc::no_such_key);
 
         case EvictionPolicy::Full:
             if (maybeKeyExistsInFilter(cHandle.getKey())) {
-                ENGINE_ERROR_CODE ec = addTempItemAndBGFetch(
+                cb::engine_errc ec = addTempItemAndBGFetch(
                         res.lock, cHandle.getKey(), cookie, engine, false);
                 return GetValue(nullptr, ec, -1, true);
             } else {
                 // As bloomfilter predicted that item surely doesn't exist
                 // on disk, return ENOENT for getLocked().
-                return GetValue(nullptr, ENGINE_KEY_ENOENT);
+                return GetValue(nullptr, cb::engine_errc::no_such_key);
             }
         }
         folly::assume_unreachable();
     case FetchForWriteResult::Status::ESyncWriteInProgress:
-        return GetValue(nullptr, ENGINE_SYNC_WRITE_IN_PROGRESS);
+        return GetValue(nullptr, cb::engine_errc::sync_write_in_progress);
     }
     folly::assume_unreachable();
 }
@@ -3799,12 +3810,12 @@ void VBucket::addHighPriorityVBEntry(uint64_t seqnoOrChkId,
             cookie);
 }
 
-std::map<const void*, ENGINE_ERROR_CODE> VBucket::getHighPriorityNotifications(
+std::map<const void*, cb::engine_errc> VBucket::getHighPriorityNotifications(
         EventuallyPersistentEngine& engine,
         uint64_t idNum,
         HighPriorityVBNotify notifyType) {
     std::unique_lock<std::mutex> lh(hpVBReqsMutex);
-    std::map<const void*, ENGINE_ERROR_CODE> toNotify;
+    std::map<const void*, cb::engine_errc> toNotify;
 
     auto entry = hpVBReqs.begin();
 
@@ -3820,7 +3831,7 @@ std::map<const void*, ENGINE_ERROR_CODE> VBucket::getHighPriorityNotifications(
         auto spent =
                 std::chrono::duration_cast<std::chrono::seconds>(wall_time);
         if (entry->id <= idNum) {
-            toNotify[entry->cookie] = ENGINE_SUCCESS;
+            toNotify[entry->cookie] = cb::engine_errc::success;
             stats.chkPersistenceHisto.add(
                     std::chrono::duration_cast<std::chrono::microseconds>(
                             wall_time));
@@ -3837,7 +3848,7 @@ std::map<const void*, ENGINE_ERROR_CODE> VBucket::getHighPriorityNotifications(
         } else if (spent > getCheckpointFlushTimeout()) {
             adjustCheckpointFlushTimeout(spent);
             engine.storeEngineSpecific(entry->cookie, nullptr);
-            toNotify[entry->cookie] = ENGINE_TMPFAIL;
+            toNotify[entry->cookie] = cb::engine_errc::temporary_failure;
             EP_LOG_WARN(
                     "Notified the timeout on {} for {} Check for: {}, "
                     "Persisted upto: {}, cookie {}",
@@ -3855,14 +3866,14 @@ std::map<const void*, ENGINE_ERROR_CODE> VBucket::getHighPriorityNotifications(
     return toNotify;
 }
 
-std::map<const void*, ENGINE_ERROR_CODE> VBucket::tmpFailAndGetAllHpNotifies(
+std::map<const void*, cb::engine_errc> VBucket::tmpFailAndGetAllHpNotifies(
         EventuallyPersistentEngine& engine) {
-    std::map<const void*, ENGINE_ERROR_CODE> toNotify;
+    std::map<const void*, cb::engine_errc> toNotify;
 
     LockHolder lh(hpVBReqsMutex);
 
     for (auto& entry : hpVBReqs) {
-        toNotify[entry.cookie] = ENGINE_TMPFAIL;
+        toNotify[entry.cookie] = cb::engine_errc::temporary_failure;
         engine.storeEngineSpecific(entry.cookie, nullptr);
     }
     hpVBReqs.clear();
@@ -3930,14 +3941,14 @@ bool VBucket::isLogicallyNonExistent(
            cHandle.isLogicallyDeleted(v.getBySeqno());
 }
 
-ENGINE_ERROR_CODE VBucket::seqnoAcknowledged(
+cb::engine_errc VBucket::seqnoAcknowledged(
         const folly::SharedMutex::ReadHolder& vbStateLock,
         const std::string& replicaId,
         uint64_t preparedSeqno) {
     // We may receive an ack after we have set a vBucket to dead during a
     // takeover; just ignore it.
     if (getState() == vbucket_state_dead) {
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
     return getActiveDM().seqnoAckReceived(replicaId, preparedSeqno);
 }
@@ -3970,22 +3981,22 @@ void VBucket::setFreqSaturatedCallback(std::function<void()> callbackFunction) {
     ht.setFreqSaturatedCallback(callbackFunction);
 }
 
-ENGINE_ERROR_CODE VBucket::checkDurabilityRequirements(const Item& item) {
+cb::engine_errc VBucket::checkDurabilityRequirements(const Item& item) {
     if (item.isPending()) {
         return checkDurabilityRequirements(item.getDurabilityReqs());
     }
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE VBucket::checkDurabilityRequirements(
+cb::engine_errc VBucket::checkDurabilityRequirements(
         const cb::durability::Requirements& reqs) {
     if (!isValidDurabilityLevel(reqs.getLevel())) {
-        return ENGINE_DURABILITY_INVALID_LEVEL;
+        return cb::engine_errc::durability_invalid_level;
     }
     if (!getActiveDM().isDurabilityPossible()) {
-        return ENGINE_DURABILITY_IMPOSSIBLE;
+        return cb::engine_errc::durability_impossible;
     }
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 void VBucket::removeAcksFromADM(const std::string& node) {

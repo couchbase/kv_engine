@@ -235,16 +235,16 @@ void EphemeralBucket::attemptToFreeMemory() {
     }
 }
 
-ENGINE_ERROR_CODE EphemeralBucket::scheduleCompaction(
+cb::engine_errc EphemeralBucket::scheduleCompaction(
         Vbid vbid,
         const CompactionConfig& c,
         const void* ck,
         std::chrono::milliseconds delay) {
-    return ENGINE_ENOTSUP;
+    return cb::engine_errc::not_supported;
 }
 
-ENGINE_ERROR_CODE EphemeralBucket::cancelCompaction(Vbid vbid) {
-    return ENGINE_ENOTSUP;
+cb::engine_errc EphemeralBucket::cancelCompaction(Vbid vbid) {
+    return cb::engine_errc::not_supported;
 }
 
 VBucketPtr EphemeralBucket::makeVBucket(
@@ -435,7 +435,7 @@ EphemeralBucket::NotifyHighPriorityReqTask::NotifyHighPriorityReqTask(
 }
 
 bool EphemeralBucket::NotifyHighPriorityReqTask::run() {
-    std::map<const void*, ENGINE_ERROR_CODE> notifyQ;
+    std::map<const void*, cb::engine_errc> notifyQ;
     {
         /* It is necessary that the toNotifyLock is not held while
            actually notifying. */
@@ -486,7 +486,7 @@ EphemeralBucket::NotifyHighPriorityReqTask::maxExpectedDuration() {
 }
 
 void EphemeralBucket::NotifyHighPriorityReqTask::wakeup(
-        std::map<const void*, ENGINE_ERROR_CODE> notifies) {
+        std::map<const void*, cb::engine_errc> notifies) {
     {
         /* Add the connections to be notified */
         std::lock_guard<std::mutex> lg(toNotifyLock);

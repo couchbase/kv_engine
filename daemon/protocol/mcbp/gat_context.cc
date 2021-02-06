@@ -44,7 +44,7 @@ GatCommandContext::GatCommandContext(Cookie& cookie)
       state(State::GetAndTouchItem) {
 }
 
-ENGINE_ERROR_CODE GatCommandContext::getAndTouchItem() {
+cb::engine_errc GatCommandContext::getAndTouchItem() {
     auto ret = bucket_get_and_touch(
             cookie,
             cookie.getRequestKey(),
@@ -55,7 +55,7 @@ ENGINE_ERROR_CODE GatCommandContext::getAndTouchItem() {
         it = std::move(ret.second);
         if (!bucket_get_item_info(connection, it.get(), &info)) {
             LOG_WARNING("{}: Failed to get item info", connection.getId());
-            return ENGINE_FAILED;
+            return cb::engine_errc::failed;
         }
 
         // Set the cas value (will be copied to the response message)
@@ -81,25 +81,25 @@ ENGINE_ERROR_CODE GatCommandContext::getAndTouchItem() {
         ret.first = cb::engine_errc::success;
     }
 
-    return ENGINE_ERROR_CODE(ret.first);
+    return cb::engine_errc(ret.first);
 }
 
-ENGINE_ERROR_CODE GatCommandContext::inflateItem() {
+cb::engine_errc GatCommandContext::inflateItem() {
     try {
         if (!cookie.inflateSnappy(payload, buffer)) {
             LOG_WARNING("{}: Failed to inflate item", connection.getId());
-            return ENGINE_FAILED;
+            return cb::engine_errc::failed;
         }
         payload = buffer;
     } catch (const std::bad_alloc&) {
-        return ENGINE_ENOMEM;
+        return cb::engine_errc::no_memory;
     }
 
     state = State::SendResponse;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE GatCommandContext::sendResponse() {
+cb::engine_errc GatCommandContext::sendResponse() {
     STATS_HIT(&connection, get);
     update_topkeys(cookie);
 
@@ -110,7 +110,7 @@ ENGINE_ERROR_CODE GatCommandContext::sendResponse() {
         cb::mcbp::ClientOpcode::Touch) {
         cookie.sendResponse(cb::mcbp::Status::Success);
         state = State::Done;
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     // This is GAT[Q]
@@ -147,10 +147,10 @@ ENGINE_ERROR_CODE GatCommandContext::sendResponse() {
 
     cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
     state = State::Done;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE GatCommandContext::noSuchItem() {
+cb::engine_errc GatCommandContext::noSuchItem() {
     STATS_MISS(&connection, get);
     if (cookie.getRequest().isQuiet()) {
         ++connection.getBucket()
@@ -160,11 +160,11 @@ ENGINE_ERROR_CODE GatCommandContext::noSuchItem() {
     }
 
     state = State::Done;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE GatCommandContext::step() {
-    auto ret = ENGINE_SUCCESS;
+cb::engine_errc GatCommandContext::step() {
+    auto ret = cb::engine_errc::success;
     do {
         switch (state) {
         case State::GetAndTouchItem:
@@ -180,9 +180,9 @@ ENGINE_ERROR_CODE GatCommandContext::step() {
             ret = sendResponse();
             break;
         case State::Done:
-            return ENGINE_SUCCESS;
+            return cb::engine_errc::success;
         }
-    } while (ret == ENGINE_SUCCESS);
+    } while (ret == cb::engine_errc::success);
 
     return ret;
 }

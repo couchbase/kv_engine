@@ -139,8 +139,8 @@ static void server_bucket_stats(const BucketStatCollector& collector,
 }
 
 /// add global, aggregated and bucket specific stats
-ENGINE_ERROR_CODE server_stats(const StatCollector& collector,
-                               const Bucket& bucket) {
+cb::engine_errc server_stats(const StatCollector& collector,
+                             const Bucket& bucket) {
     std::lock_guard<std::mutex> guard(stats_mutex);
     try {
         server_global_stats(collector);
@@ -148,12 +148,12 @@ ENGINE_ERROR_CODE server_stats(const StatCollector& collector,
         auto bucketC = collector.forBucket(bucket.name);
         server_bucket_stats(bucketC, bucket);
     } catch (const std::bad_alloc&) {
-        return ENGINE_ENOMEM;
+        return cb::engine_errc::no_memory;
     }
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE server_prometheus_stats(
+cb::engine_errc server_prometheus_stats(
         const StatCollector& collector,
         cb::prometheus::Cardinality cardinality) {
     std::lock_guard<std::mutex> guard(stats_mutex);
@@ -186,7 +186,7 @@ ENGINE_ERROR_CODE server_prometheus_stats(
                 nullptr);
 
     } catch (const std::bad_alloc&) {
-        return ENGINE_ENOMEM;
+        return cb::engine_errc::no_memory;
     }
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }

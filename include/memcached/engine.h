@@ -161,7 +161,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @param handle the engine handle
      * @param config_str configuration this engine needs to initialize itself.
      */
-    virtual ENGINE_ERROR_CODE initialize(const char* config_str) = 0;
+    virtual cb::engine_errc initialize(const char* config_str) = 0;
 
     /**
      * Tear down this engine.
@@ -273,9 +273,9 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @param mut_info On a successful remove write the mutation details to
      *                 this address.
      *
-     * @return ENGINE_SUCCESS if all goes well
+     * @return cb::engine_errc::success if all goes well
      */
-    virtual ENGINE_ERROR_CODE remove(
+    virtual cb::engine_errc remove(
             gsl::not_null<const void*> cookie,
             const DocKey& key,
             uint64_t& cas,
@@ -303,7 +303,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      *                            KEY_ENOENT if the document in the engine
      *                            is in another state)
      *
-     * @return ENGINE_SUCCESS if all goes well
+     * @return cb::engine_errc::success if all goes well
      */
     virtual cb::EngineErrorItemPair get(gsl::not_null<const void*> cookie,
                                         const DocKey& key,
@@ -339,7 +339,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @param key the key to look up
      * @param vbucket the virtual bucket id
      *
-     * @return  Pair (ENGINE_SUCCESS, Metadata) if all goes well
+     * @return  Pair (cb::engine_errc::success, Metadata) if all goes well
      */
     virtual cb::EngineErrorMetadataPair get_meta(
             gsl::not_null<const void*> cookie,
@@ -371,12 +371,12 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @param vbucket the virtual bucket id
      * @param cas the cas value for the locked item
      *
-     * @return ENGINE_SUCCESS if all goes well
+     * @return cb::engine_errc::success if all goes well
      */
-    virtual ENGINE_ERROR_CODE unlock(gsl::not_null<const void*> cookie,
-                                     const DocKey& key,
-                                     Vbid vbucket,
-                                     uint64_t cas) = 0;
+    virtual cb::engine_errc unlock(gsl::not_null<const void*> cookie,
+                                   const DocKey& key,
+                                   Vbid vbucket,
+                                   uint64_t cas) = 0;
 
     /**
      * Get and update the expiry time for the document
@@ -412,9 +412,9 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @param preserveTtl if set to true the existing documents TTL should
      *                    be used.
      *
-     * @return ENGINE_SUCCESS if all goes well
+     * @return cb::engine_errc::success if all goes well
      */
-    virtual ENGINE_ERROR_CODE store(
+    virtual cb::engine_errc store(
             gsl::not_null<const void*> cookie,
             gsl::not_null<ItemIface*> item,
             uint64_t& cas,
@@ -474,10 +474,10 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * Optional interface; not supported by all engines.
      *
      * @param cookie The cookie provided by the frontend
-     * @return ENGINE_SUCCESS if all goes well
+     * @return cb::engine_errc::success if all goes well
      */
-    virtual ENGINE_ERROR_CODE flush(gsl::not_null<const void*> cookie) {
-        return ENGINE_ENOTSUP;
+    virtual cb::engine_errc flush(gsl::not_null<const void*> cookie) {
+        return cb::engine_errc::not_supported;
     }
 
     /*
@@ -492,12 +492,12 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @param value optional value for the given stat group
      * @param add_stat callback to feed results to the output
      *
-     * @return ENGINE_SUCCESS if all goes well
+     * @return cb::engine_errc::success if all goes well
      */
-    virtual ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
-                                        std::string_view key,
-                                        std::string_view value,
-                                        const AddStatFn& add_stat) = 0;
+    virtual cb::engine_errc get_stats(gsl::not_null<const void*> cookie,
+                                      std::string_view key,
+                                      std::string_view value,
+                                      const AddStatFn& add_stat) = 0;
 
     /**
      * Get statistics for Prometheus exposition from the engine.
@@ -505,12 +505,12 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      *
      * @param collector where the bucket may register stats
      *
-     * @return ENGINE_SUCCESS if all goes well
+     * @return cb::engine_errc::success if all goes well
      */
-    virtual ENGINE_ERROR_CODE get_prometheus_stats(
+    virtual cb::engine_errc get_prometheus_stats(
             const BucketStatCollector& collector,
             cb::prometheus::Cardinality cardinality) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     }
 
     /**
@@ -527,12 +527,12 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @param request The request from the client
      * @param response function to transmit data
      *
-     * @return ENGINE_SUCCESS if all goes well
+     * @return cb::engine_errc::success if all goes well
      */
-    virtual ENGINE_ERROR_CODE unknown_command(const void* cookie,
-                                              const cb::mcbp::Request& request,
-                                              const AddResponseFn& response) {
-        return ENGINE_ENOTSUP;
+    virtual cb::engine_errc unknown_command(const void* cookie,
+                                            const cb::mcbp::Request& request,
+                                            const AddResponseFn& response) {
+        return cb::engine_errc::not_supported;
     }
 
     /**

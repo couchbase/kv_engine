@@ -79,7 +79,7 @@ TEST_F(CheckpointRemoverEPTest, GetVBucketsTotalCheckpointMemoryUsage) {
             store_item(Vbid(i), makeStoredDocKey(doc_key), "value");
         }
         // Set to different vbucket states (active=1, replica=2 and pending=3).
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   store->setVBucketState(Vbid(i), vbucket_state_t(i + 1), {}));
     }
 
@@ -765,7 +765,7 @@ TEST_F(CheckpointRemoverEPTest, NewSyncWriteCreatesNewCheckpointIfCantDedupe) {
     // Queue a prepare
     auto prepareKey = makeStoredDocKey("key_1");
     auto prepare = makePendingItem(prepareKey, "value");
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+    EXPECT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*prepare, cookie, nullptr /*StoreIfPredicate*/));
 
     // Persist to move our cursor so that we can expel the prepare
@@ -774,7 +774,7 @@ TEST_F(CheckpointRemoverEPTest, NewSyncWriteCreatesNewCheckpointIfCantDedupe) {
     auto result = cm->expelUnreferencedCheckpointItems();
     EXPECT_EQ(3, result.expelCount);
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               vb->commit(prepareKey,
                          3,
                          {},
@@ -807,7 +807,7 @@ TEST_F(CheckpointRemoverEPTest, UseOpenCheckpointIfCanDedupeAfterExpel) {
     // Queue a prepare
     auto prepareKey = makeStoredDocKey("key_1");
     auto prepare = makePendingItem(prepareKey, "value");
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+    EXPECT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*prepare, cookie, nullptr /*StoreIfPredicate*/));
 
     // Persist to move our cursor so that we can expel the prepare
@@ -857,13 +857,13 @@ TEST_F(CheckpointRemoverEPTest,
 
     // Queue a prepare
     auto prepare = makePendingItem(prepareKey, "value");
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+    EXPECT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*prepare, cookie, nullptr /*StoreIfPredicate*/));
 
     // expelling will not remove items with seqno equal to the ckpt highSeqno
     // but the commit serves as padding, allowing the preceding prepare to be
     // expelled
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               vb->commit(prepareKey,
                          2,
                          {},
@@ -882,7 +882,7 @@ TEST_F(CheckpointRemoverEPTest,
 
     auto prepare2 = makePendingItem(prepareKey, "value");
 
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+    EXPECT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*prepare2, cookie, nullptr /*StoreIfPredicate*/));
 
     // queueing second prepare should fail as it would dedupe the existing

@@ -211,7 +211,7 @@ public:
             if (initialize) {
                 const auto error = me->the_engine->initialize(
                         cfg.empty() ? nullptr : cfg.c_str());
-                if (error != ENGINE_SUCCESS) {
+                if (error != cb::engine_errc::success) {
                     me->the_engine->destroy(false /*force*/);
                     throw cb::engine_error{cb::engine_errc(error),
                                            "Failed to initialize instance"};
@@ -251,7 +251,7 @@ public:
     }
 
     void notify_io_complete(const void* cookie,
-                            ENGINE_ERROR_CODE status) override {
+                            cb::engine_errc status) override {
         get_mock_server_api()->cookie->notify_io_complete(cookie, status);
     }
 

@@ -31,8 +31,8 @@
 class ServerDocumentIfaceBorderGuard : public ServerDocumentIface {
 public:
     explicit ServerDocumentIfaceBorderGuard(ServerDocumentIface& guarded);
-    ENGINE_ERROR_CODE pre_link(gsl::not_null<const void*> cookie,
-                               item_info& info) override;
+    cb::engine_errc pre_link(gsl::not_null<const void*> cookie,
+                             item_info& info) override;
     std::string pre_expiry(const item_info& itm_info) override;
     void audit_document_access(
             gsl::not_null<const void*> cookie,

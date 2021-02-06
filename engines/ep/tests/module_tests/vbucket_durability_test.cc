@@ -234,7 +234,7 @@ TEST_P(VBucketDurabilityTest, CommitSyncWriteThenWriteToSameKey) {
     ASSERT_EQ(MutationStatus::IsPendingSyncWrite,
               public_processSet(*item, 0 /*cas*/, ctx));
 
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               vbucket->commit(key,
                               lastSeqno + 1,
                               {},
@@ -277,7 +277,7 @@ TEST_P(VBucketDurabilityTest, CommitSyncWriteLoop) {
                   public_processSet(*item, 0 /*cas*/, ctx));
 
         // And commit
-        ASSERT_EQ(ENGINE_SUCCESS,
+        ASSERT_EQ(cb::engine_errc::success,
                   vbucket->commit(key,
                                   lastSeqno + i * 2 + 1,
                                   {},
@@ -311,7 +311,7 @@ TEST_P(VBucketDurabilityTest, AbortSyncWriteLoop) {
                   public_processSet(*item, 0 /*cas*/, ctx));
 
         // And commit
-        ASSERT_EQ(ENGINE_SUCCESS,
+        ASSERT_EQ(cb::engine_errc::success,
                   vbucket->abort(key,
                                  1 + (i * 2),
                                  {},
@@ -689,7 +689,8 @@ TEST_P(VBucketDurabilityTest, Active_PendingSkippedAtEjectionAndCommit) {
     ckptMgr->clear(*vbucket, ckptMgr->getHighSeqno());
 
     // Client never notified yet
-    ASSERT_EQ(SWCompleteTrace(0 /*count*/, nullptr, ENGINE_EINVAL),
+    ASSERT_EQ(SWCompleteTrace(
+                      0 /*count*/, nullptr, cb::engine_errc::invalid_arguments),
               swCompleteTrace);
 
     // Simulate replica and active seqno-ack
@@ -700,7 +701,7 @@ TEST_P(VBucketDurabilityTest, Active_PendingSkippedAtEjectionAndCommit) {
     simulateLocalAck(preparedSeqno);
 
     // Commit notified
-    EXPECT_EQ(SWCompleteTrace(1 /*count*/, cookie, ENGINE_SUCCESS),
+    EXPECT_EQ(SWCompleteTrace(1 /*count*/, cookie, cb::engine_errc::success),
               swCompleteTrace);
 
     // HashTable state:
@@ -735,7 +736,7 @@ TEST_P(VBucketDurabilityTest, Active_PendingSkippedAtEjectionAndCommit) {
 
 TEST_P(VBucketDurabilityTest, NonExistingKeyAtAbort) {
     auto noentKey = makeStoredDocKey("non-existing-key");
-    EXPECT_EQ(ENGINE_KEY_ENOENT,
+    EXPECT_EQ(cb::engine_errc::no_such_key,
               vbucket->abort(noentKey,
                              0 /*prepareSeqno*/,
                              {} /*abortSeqno*/,
@@ -753,7 +754,7 @@ TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbort) {
     ASSERT_TRUE(sv);
     const int64_t bySeqno = 1001;
     ASSERT_EQ(bySeqno, sv->getBySeqno());
-    EXPECT_EQ(ENGINE_EINVAL,
+    EXPECT_EQ(cb::engine_errc::invalid_arguments,
               vbucket->abort(nonPendingKey,
                              bySeqno /*prepareSeqno*/,
                              {} /*abortSeqno*/,
@@ -781,7 +782,7 @@ TEST_P(VBucketDurabilityTest, NonExistingKeyAtAbortReplica) {
     ASSERT_GT(abortSeqno, ckptMgr->getHighSeqno());
 
     // try abort without preceding prepare, should fail
-    EXPECT_EQ(ENGINE_EINVAL,
+    EXPECT_EQ(cb::engine_errc::invalid_arguments,
               vbucket->abort(key,
                              prepareSeqno /*prepareSeqno*/,
                              abortSeqno /*abortSeqno*/,
@@ -796,7 +797,7 @@ TEST_P(VBucketDurabilityTest, NonExistingKeyAtAbortReplica) {
 
     // now abort should be accepted because the prepare can have validly been
     // deduped.
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               vbucket->abort(key,
                              prepareSeqno /*prepareSeqno*/,
                              abortSeqno /*abortSeqno*/,
@@ -853,7 +854,7 @@ TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbortReplica) {
     ASSERT_GT(abortSeqno, ckptMgr->getHighSeqno());
 
     // try abort without preceding prepare, should fail
-    EXPECT_EQ(ENGINE_EINVAL,
+    EXPECT_EQ(cb::engine_errc::invalid_arguments,
               vbucket->abort(key,
                              prepareSeqno /*prepareSeqno*/,
                              abortSeqno /*abortSeqno*/,
@@ -870,7 +871,7 @@ TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbortReplica) {
 
     // now abort should be accepted because the prepare can have validly been
     // deduped.
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               vbucket->abort(key,
                              prepareSeqno /*prepareSeqno*/,
                              abortSeqno /*abortSeqno*/,
@@ -951,11 +952,12 @@ TEST_P(VBucketDurabilityTest, Active_AbortSyncWrite) {
     ckptMgr->clear(*vbucket, ckptMgr->getHighSeqno());
 
     // Client never notified yet
-    ASSERT_EQ(SWCompleteTrace(0 /*count*/, nullptr, ENGINE_EINVAL),
+    ASSERT_EQ(SWCompleteTrace(
+                      0 /*count*/, nullptr, cb::engine_errc::invalid_arguments),
               swCompleteTrace);
 
     // Note: abort-seqno must be provided only at Replica
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               vbucket->abort(key,
                              1 /*prepareSeqno*/,
                              {} /*abortSeqno*/,
@@ -963,8 +965,10 @@ TEST_P(VBucketDurabilityTest, Active_AbortSyncWrite) {
                              cookie));
 
     // Abort notified
-    EXPECT_EQ(SWCompleteTrace(1 /*count*/, cookie, ENGINE_SYNC_WRITE_AMBIGUOUS),
-              swCompleteTrace);
+    EXPECT_EQ(
+            SWCompleteTrace(
+                    1 /*count*/, cookie, cb::engine_errc::sync_write_ambiguous),
+            swCompleteTrace);
 
     // StoredValue has gone
     // Ephemeral keeps completed prepare in HashTable
@@ -1093,7 +1097,7 @@ TEST_P(VBucketDurabilityTest, Commit) {
     ASSERT_EQ(CommittedState::Pending, result->getCommitted());
 
     // Test
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               vbucket->commit(key,
                               result->getBySeqno(),
                               {},
@@ -1130,7 +1134,7 @@ void VBucketDurabilityTest::testHTCommitExisting() {
     ASSERT_EQ(CommittedState::Pending, result->getCommitted());
 
     // Test
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               vbucket->commit(key, 2, {}, vbucket->lockCollections(key)));
 
     // Check postconditions - should only have one item for that key.
@@ -1199,7 +1203,7 @@ TEST_P(EphemeralVBucketDurabilityTest, CommitExisting_RangeRead) {
     // prepare so that we can test commit under range read.
     {
         auto range = mockEphVb->registerFakeSharedRangeLock(0, 1000);
-        ASSERT_EQ(ENGINE_SUCCESS,
+        ASSERT_EQ(cb::engine_errc::success,
                   vbucket->commit(key, 4, {}, vbucket->lockCollections(key)));
 
         // Check that we have the expected items in the seqList.
@@ -1235,7 +1239,7 @@ TEST_P(EphemeralVBucketDurabilityTest, PrepareOnCommitted) {
     ASSERT_EQ(CommittedState::Pending, result->getCommitted());
 
     // Test
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               vbucket->commit(key,
                               result->getBySeqno(),
                               {},
@@ -1292,7 +1296,7 @@ void VBucketDurabilityTest::testHTSyncDeleteCommit() {
     EXPECT_TRUE(readView->getValue());
 
     ASSERT_EQ(CommittedState::Pending, writeView->getCommitted());
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               vbucket->commit(key,
                               writeView->getBySeqno(),
                               {},
@@ -1357,7 +1361,7 @@ TEST_P(EphemeralVBucketDurabilityTest, SyncDeleteCommit_RangeRead) {
     // Do the SyncDelete Commit in a range read
     {
         auto range = mockEphVb->registerFakeSharedRangeLock(0, 1000);
-        ASSERT_EQ(ENGINE_SUCCESS,
+        ASSERT_EQ(cb::engine_errc::success,
                   vbucket->commit(key,
                                   4 /*prepareSeqno*/,
                                   {},
@@ -1392,7 +1396,7 @@ TEST_P(VBucketDurabilityTest, CommitNonPendingFails) {
     ASSERT_EQ(CommittedState::CommittedViaMutation, result->getCommitted());
 
     // Test
-    EXPECT_EQ(ENGINE_KEY_ENOENT,
+    EXPECT_EQ(cb::engine_errc::no_such_key,
               vbucket->commit(key,
                               result->getBySeqno(),
                               {},
@@ -1411,7 +1415,7 @@ TEST_P(VBucketDurabilityTest, MutationAfterCommit) {
     auto result = ht->findForWrite(key).storedValue;
     ASSERT_TRUE(result);
     ASSERT_EQ(CommittedState::Pending, result->getCommitted());
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               vbucket->commit(key,
                               result->getBySeqno(),
                               {},
@@ -1445,7 +1449,7 @@ void VBucketDurabilityTest::doSyncWriteAndCommit() {
 
     auto result = ht->findForWrite(key).storedValue;
     ASSERT_TRUE(result);
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               vbucket->commit(
                       key, preparedSeqno, {}, vbucket->lockCollections(key)));
 }
@@ -1502,7 +1506,7 @@ void VBucketDurabilityTest::doSyncDelete() {
 
     auto result = ht->findForWrite(key).storedValue;
     ASSERT_TRUE(result);
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               vbucket->commit(
                       key, lastSeqno + 1, {}, vbucket->lockCollections(key)));
 }
@@ -1604,7 +1608,8 @@ void VBucketDurabilityTest::testConvertPassiveDMToActiveDM(
     EXPECT_EQ(std::unordered_set<int64_t>({1, 2, 3}), adm.getTrackedSeqnos());
 
     // Client never notified yet
-    ASSERT_EQ(SWCompleteTrace(0 /*count*/, nullptr, ENGINE_EINVAL),
+    ASSERT_EQ(SWCompleteTrace(
+                      0 /*count*/, nullptr, cb::engine_errc::invalid_arguments),
               swCompleteTrace);
 
     // Check that any attempts to read keys which are have Prepared SyncWrites
@@ -1629,7 +1634,9 @@ void VBucketDurabilityTest::testConvertPassiveDMToActiveDM(
         EXPECT_EQ(--expectedNumTracked, adm.getNumTracked());
         // Nothing to notify, we don't know anything about the oldADM->client
         // connection.
-        EXPECT_EQ(SWCompleteTrace(0 /*count*/, nullptr, ENGINE_EINVAL),
+        EXPECT_EQ(SWCompleteTrace(0 /*count*/,
+                                  nullptr,
+                                  cb::engine_errc::invalid_arguments),
                   swCompleteTrace);
     }
 
@@ -2394,7 +2401,8 @@ TEST_P(VBucketDurabilityTest, ActiveDM_DoubleSetVBState) {
     simulateSetVBState(vbucket_state_active, topology);
 
     // Validate: Client never notified yet (still awaiting replica1 ACK).
-    ASSERT_EQ(SWCompleteTrace(0 /*count*/, nullptr, ENGINE_EINVAL),
+    ASSERT_EQ(SWCompleteTrace(
+                      0 /*count*/, nullptr, cb::engine_errc::invalid_arguments),
               swCompleteTrace);
 
     // Validate: Check that the SyncWrite journey now proceeds to completion as
@@ -2408,7 +2416,7 @@ TEST_P(VBucketDurabilityTest, ActiveDM_DoubleSetVBState) {
         EXPECT_EQ(--expectedNumTracked, adm.getNumTracked());
     }
     // Client should be notified.
-    EXPECT_EQ(SWCompleteTrace(2 /*count*/, cookie, ENGINE_SUCCESS),
+    EXPECT_EQ(SWCompleteTrace(2 /*count*/, cookie, cb::engine_errc::success),
               swCompleteTrace);
 
     // After commit() check that the keys are now accessible and appear as
@@ -2474,7 +2482,7 @@ TEST_P(EPVBucketDurabilityTest,
 
     // Client should be notified once processed.
     adm.processCompletedSyncWriteQueue();
-    EXPECT_EQ(SWCompleteTrace(2 /*count*/, cookie, ENGINE_SUCCESS),
+    EXPECT_EQ(SWCompleteTrace(2 /*count*/, cookie, cb::engine_errc::success),
               swCompleteTrace);
 
     // After commit() check that the keys are now accessible and appear as
@@ -2501,7 +2509,7 @@ TEST_P(VBucketDurabilityTest, IgnoreAckAtTakeoverDead) {
     // VBState transitions from Replica to Active
     simulateSetVBState(vbucket_state_dead, nlohmann::json{});
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               vbucket->seqnoAcknowledged(
                       folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
                       "replica1",
@@ -2694,7 +2702,7 @@ void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
 
         switch (res) {
         case Resolution::Commit: {
-            EXPECT_EQ(ENGINE_SUCCESS,
+            EXPECT_EQ(cb::engine_errc::success,
                       vbucket->commit(key,
                                       prepare.seqno,
                                       prepare.seqno + 10 /*commitSeqno*/,
@@ -2708,7 +2716,7 @@ void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
             break;
         }
         case Resolution::Abort: {
-            EXPECT_EQ(ENGINE_SUCCESS,
+            EXPECT_EQ(cb::engine_errc::success,
                       vbucket->abort(key,
                                      prepare.seqno,
                                      prepare.seqno + 10 /*abortSeqno*/,
@@ -2958,7 +2966,7 @@ TEST_P(EPVBucketDurabilityTest,
 
     // (1.2) Commit the SyncWrite
     auto preparedSeqno = vbucket->getHighSeqno();
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               vbucket->commit(
                       key, preparedSeqno, {}, vbucket->lockCollections(key)));
 

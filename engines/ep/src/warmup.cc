@@ -576,7 +576,7 @@ static bool batchWarmupCallback(Vbid vbId,
         for (auto& items : items2fetch) {
             vb_bgfetch_item_ctx_t& bg_itm_ctx = items.second;
             if (applyItem) {
-                if (bg_itm_ctx.value.getStatus() == ENGINE_SUCCESS) {
+                if (bg_itm_ctx.value.getStatus() == cb::engine_errc::success) {
                     // NB: callback will delete the GetValue's Item
                     c->cb.callback(bg_itm_ctx.value);
                 } else {
@@ -589,7 +589,8 @@ static bool batchWarmupCallback(Vbid vbId,
                     c->error++;
                 }
 
-                if (c->cb.getStatus() == ENGINE_SUCCESS) {
+                if (cb::engine_errc{c->cb.getStatus()} ==
+                    cb::engine_errc::success) {
                     c->loaded++;
                 } else {
                     // Failed to apply an Item, so fail the rest
@@ -724,7 +725,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
     if (i && !epstore.getWarmup()->isComplete()) {
         VBucketPtr vb = vbuckets.getBucket(i->getVBucketId());
         if (!vb) {
-            setStatus(ENGINE_NOT_MY_VBUCKET);
+            setStatus(cb::engine_errc::not_my_vbucket);
             return;
         }
         bool succeeded(false);
@@ -740,7 +741,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
 
             auto* epVb = dynamic_cast<EPVBucket*>(vb.get());
             if (!epVb) {
-                setStatus(ENGINE_NOT_MY_VBUCKET);
+                setStatus(cb::engine_errc::not_my_vbucket);
                 return;
             }
 
@@ -816,7 +817,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
     }
 
     if (stopLoading) {
-        // warmup has completed, return ENGINE_ENOMEM to
+        // warmup has completed, return cb::engine_errc::no_memory to
         // cancel remaining data dumps from couchstore
         if (epstore.getWarmup()->setComplete()) {
             epstore.getWarmup()->setWarmupTime();
@@ -826,9 +827,9 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         EP_LOG_INFO(
                 "Engine warmup is complete, request to stop "
                 "loading remaining database");
-        setStatus(ENGINE_ENOMEM);
+        setStatus(cb::engine_errc::no_memory);
     } else {
-        setStatus(ENGINE_SUCCESS);
+        setStatus(cb::engine_errc::success);
     }
 }
 
@@ -880,15 +881,16 @@ void LoadValueCallback::callback(CacheLookup &lookup)
     // value already resident, given we assume nothing has been loaded for this
     // document yet.
     if (warmupState != WarmupState::State::LoadingData) {
-        setStatus(ENGINE_SUCCESS);
+        setStatus(cb::engine_errc::success);
         return;
     }
 
     // Prepared SyncWrites are ignored in the normal LoadValueCallback -
-    // they are handled in an earlier warmup phase so return ENGINE_KEY_EEXISTS
-    // to indicate this key should be skipped.
+    // they are handled in an earlier warmup phase so return
+    // cb::engine_errc::key_already_exists to indicate this key should be
+    // skipped.
     if (lookup.getKey().isPrepared()) {
-        setStatus(ENGINE_KEY_EEXISTS);
+        setStatus(cb::engine_errc::key_already_exists);
         return;
     }
 
@@ -901,12 +903,12 @@ void LoadValueCallback::callback(CacheLookup &lookup)
     auto res = vb->ht.findOnlyCommitted(lookup.getKey().getDocKey());
     if (res.storedValue && res.storedValue->isResident()) {
         // Already resident in memory - skip loading from disk.
-        setStatus(ENGINE_KEY_EEXISTS);
+        setStatus(cb::engine_errc::key_already_exists);
         return;
     }
 
     // Otherwise - item value not in hashTable - continue with disk load.
-    setStatus(ENGINE_SUCCESS);
+    setStatus(cb::engine_errc::success);
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1123,7 +1125,7 @@ void Warmup::processCreateVBucketsComplete() {
             pendingCookies.pop_front();
             // drop lock to avoid lock inversion
             lock.unlock();
-            store.getEPEngine().notifyIOComplete(c, ENGINE_SUCCESS);
+            store.getEPEngine().notifyIOComplete(c, cb::engine_errc::success);
             lock.lock();
         }
     }
@@ -1318,7 +1320,7 @@ void Warmup::keyDumpforShard(uint16_t shardId)
                 SnapshotSource::Head);
         if (ctx) {
             auto errorCode = kvstore->scan(*ctx);
-            if (errorCode == scan_again) { // ENGINE_ENOMEM
+            if (errorCode == scan_again) { // cb::engine_errc::no_memory
                 // skip loading remaining VBuckets as memory limit was reached
                 break;
             }
@@ -1522,7 +1524,7 @@ void Warmup::loadKVPairsforShard(uint16_t shardId)
                 SnapshotSource::Head);
         if (ctx) {
             errorCode = kvstore->scan(*ctx);
-            if (errorCode == scan_again) { // ENGINE_ENOMEM
+            if (errorCode == scan_again) { // cb::engine_errc::no_memory
                 // skip loading remaining VBuckets as memory limit was reached
                 break;
             }
@@ -1565,7 +1567,7 @@ void Warmup::loadDataforShard(uint16_t shardId)
                 SnapshotSource::Head);
         if (ctx) {
             errorCode = kvstore->scan(*ctx);
-            if (errorCode == scan_again) { // ENGINE_ENOMEM
+            if (errorCode == scan_again) { // cb::engine_errc::no_memory
                 // skip loading remaining VBuckets as memory limit was reached
                 break;
             }

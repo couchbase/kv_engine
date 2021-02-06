@@ -43,8 +43,8 @@ MutationCommandContext::MutationCommandContext(Cookie& cookie,
                                  : nullptr) {
 }
 
-ENGINE_ERROR_CODE MutationCommandContext::step() {
-    auto ret = ENGINE_SUCCESS;
+cb::engine_errc MutationCommandContext::step() {
+    auto ret = cb::engine_errc::success;
     do {
         switch (state) {
         case State::ValidateInput:
@@ -71,17 +71,17 @@ ENGINE_ERROR_CODE MutationCommandContext::step() {
             } else {
                 SLAB_INCR(&connection, cmd_set);
             }
-            return ENGINE_SUCCESS;
+            return cb::engine_errc::success;
         }
-    } while (ret == ENGINE_SUCCESS);
+    } while (ret == cb::engine_errc::success);
 
-    if (ret != ENGINE_EWOULDBLOCK) {
+    if (ret != cb::engine_errc::would_block) {
         if (operation == StoreSemantics::CAS) {
             switch (ret) {
-            case ENGINE_KEY_EEXISTS:
+            case cb::engine_errc::key_already_exists:
                 SLAB_INCR(&connection, cas_badval);
                 break;
-            case ENGINE_KEY_ENOENT:
+            case cb::engine_errc::no_such_key:
                 get_thread_stats(&connection)->cas_misses++;
                 break;
             default:;
@@ -108,11 +108,11 @@ static bool shouldStoreUncompressed(Cookie& cookie,
     return (comp_ratio < bucket_min_compression_ratio(cookie));
 }
 
-ENGINE_ERROR_CODE MutationCommandContext::validateInput() {
+cb::engine_errc MutationCommandContext::validateInput() {
     // Check that the client don't try to mark the document as something
     // it didn't enable
     if (!connection.isDatatypeEnabled(datatype)) {
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 
     // If snappy datatype is enabled and if the datatype is SNAPPY,
@@ -125,7 +125,7 @@ ENGINE_ERROR_CODE MutationCommandContext::validateInput() {
         // the maximum item size supported by the underlying engine
         const auto& bucket = connection.getBucket();
         if (inflated.size() > bucket.max_document_size) {
-            return ENGINE_E2BIG;
+            return cb::engine_errc::too_big;
         }
 
         const auto mode = bucket_get_compression_mode(cookie);
@@ -146,10 +146,10 @@ ENGINE_ERROR_CODE MutationCommandContext::validateInput() {
     // sent - instead we check for ourselves.
     setDatatypeJSONFromValue(raw_value, datatype);
     state = State::AllocateNewItem;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE MutationCommandContext::getExistingItemToPreserveXattr() {
+cb::engine_errc MutationCommandContext::getExistingItemToPreserveXattr() {
     // Try to fetch the previous version of the document _iff_ it contains
     // any xattrs so that we can preserve those by copying them over to
     // the new document. Documents without any xattrs can safely be
@@ -163,17 +163,17 @@ ENGINE_ERROR_CODE MutationCommandContext::getExistingItemToPreserveXattr() {
             });
     if (pair.first != cb::engine_errc::no_such_key &&
         pair.first != cb::engine_errc::success) {
-        return ENGINE_ERROR_CODE(pair.first);
+        return cb::engine_errc(pair.first);
     }
 
     existing = std::move(pair.second);
     if (!existing) {
         state = State::AllocateNewItem;
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     if (!bucket_get_item_info(connection, existing.get(), &existing_info)) {
-        return ENGINE_FAILED;
+        return cb::engine_errc::failed;
     }
 
     if (input_cas != 0) {
@@ -182,10 +182,10 @@ ENGINE_ERROR_CODE MutationCommandContext::getExistingItemToPreserveXattr() {
             // the cas provided by the user to override this
             existing_info.cas = input_cas;
         } else if (input_cas != existing_info.cas) {
-            return ENGINE_KEY_EEXISTS;
+            return cb::engine_errc::key_already_exists;
         }
     } else if (existing_info.cas == uint64_t(-1)) {
-        return ENGINE_LOCKED;
+        return cb::engine_errc::locked;
     }
 
     // Found the existing item (with it's XATTRs) - create a read-only
@@ -199,10 +199,10 @@ ENGINE_ERROR_CODE MutationCommandContext::getExistingItemToPreserveXattr() {
 
     state = State::AllocateNewItem;
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
+cb::engine_errc MutationCommandContext::allocateNewItem() {
     auto dtype = datatype;
 
     // We want to use the deflated version to avoid spending cycles compressing
@@ -247,13 +247,13 @@ ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
                                       dtype,
                                       vbucket);
         if (!ret.first) {
-            return ENGINE_ENOMEM;
+            return cb::engine_errc::no_memory;
         }
 
         newitem = std::move(ret.first);
         newitem_info = ret.second;
     } catch (const cb::engine_error &e) {
-        return ENGINE_ERROR_CODE(e.code().value());
+        return cb::engine_errc(e.code().value());
     }
 
     if (operation == StoreSemantics::Add || input_cas != 0) {
@@ -279,10 +279,10 @@ ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
     std::copy(value.begin(), value.end(), root);
     state = State::StoreItem;
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE MutationCommandContext::storeItem() {
+cb::engine_errc MutationCommandContext::storeItem() {
     const auto& request = cookie.getRequest();
     auto ret = bucket_store_if(cookie,
                                newitem.get(),
@@ -319,17 +319,17 @@ ENGINE_ERROR_CODE MutationCommandContext::storeItem() {
         ret.status = cb::engine_errc::success;
     }
 
-    return ENGINE_ERROR_CODE(ret.status);
+    return cb::engine_errc(ret.status);
 }
 
-ENGINE_ERROR_CODE MutationCommandContext::sendResponse() {
+cb::engine_errc MutationCommandContext::sendResponse() {
     update_topkeys(cookie);
     state = State::Done;
 
     if (cookie.getRequest().isQuiet()) {
         ++connection.getBucket()
                   .responseCounters[int(cb::mcbp::Status::Success)];
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     mutation_descr_t mutation_descr{};
@@ -338,7 +338,7 @@ ENGINE_ERROR_CODE MutationCommandContext::sendResponse() {
     if (connection.isSupportsMutationExtras()) {
         item_info newitem_info;
         if (!bucket_get_item_info(connection, newitem.get(), &newitem_info)) {
-            return ENGINE_FAILED;
+            return cb::engine_errc::failed;
         }
 
         // Response includes vbucket UUID and sequence number
@@ -356,15 +356,15 @@ ENGINE_ERROR_CODE MutationCommandContext::sendResponse() {
                         cb::mcbp::Datatype::Raw,
                         cookie.getCas());
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE MutationCommandContext::reset() {
+cb::engine_errc MutationCommandContext::reset() {
     newitem.reset();
     existing.reset();
     existingXattrs.assign({nullptr, 0}, false);
     state = State::GetExistingItemToPreserveXattr;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 // predicate so that we fail if any existing item has

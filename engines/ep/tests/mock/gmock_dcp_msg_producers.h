@@ -28,12 +28,12 @@ class Item;
  */
 class GMockDcpMsgProducers : public DcpMessageProducersIface {
 public:
-    MOCK_METHOD(ENGINE_ERROR_CODE,
+    MOCK_METHOD(cb::engine_errc,
                 get_failover_log,
                 (uint32_t opaque, Vbid vbucket),
                 (override));
 
-    MOCK_METHOD(ENGINE_ERROR_CODE,
+    MOCK_METHOD(cb::engine_errc,
                 stream_req,
                 (uint32_t opaque,
                  Vbid vbucket,
@@ -46,24 +46,24 @@ public:
                  const std::string& request_value),
                 (override));
 
-    MOCK_METHOD(ENGINE_ERROR_CODE,
+    MOCK_METHOD(cb::engine_errc,
                 add_stream_rsp,
                 (uint32_t opaque,
                  uint32_t stream_opaque,
                  cb::mcbp::Status status),
                 (override));
 
-    MOCK_METHOD(ENGINE_ERROR_CODE,
+    MOCK_METHOD(cb::engine_errc,
                 marker_rsp,
                 (uint32_t opaque, cb::mcbp::Status status),
                 (override));
 
-    MOCK_METHOD(ENGINE_ERROR_CODE,
+    MOCK_METHOD(cb::engine_errc,
                 set_vbucket_state_rsp,
                 (uint32_t opaque, cb::mcbp::Status status),
                 (override));
 
-    MOCK_METHOD(ENGINE_ERROR_CODE,
+    MOCK_METHOD(cb::engine_errc,
                 stream_end,
                 (uint32_t opaque,
                  Vbid vbucket,
@@ -71,7 +71,7 @@ public:
                  cb::mcbp::DcpStreamId sid),
                 (override));
 
-    MOCK_METHOD(ENGINE_ERROR_CODE,
+    MOCK_METHOD(cb::engine_errc,
                 marker,
                 (uint32_t opaque,
                  Vbid vbucket,
@@ -84,7 +84,7 @@ public:
                  cb::mcbp::DcpStreamId sid),
                 (override));
 
-    MOCK_METHOD(ENGINE_ERROR_CODE,
+    MOCK_METHOD(cb::engine_errc,
                 mutation,
                 (uint32_t opaque,
                  Item* itm,
@@ -95,7 +95,7 @@ public:
                  uint8_t nru,
                  cb::mcbp::DcpStreamId sid));
 
-    MOCK_METHOD(ENGINE_ERROR_CODE,
+    MOCK_METHOD(cb::engine_errc,
                 deletion,
                 (uint32_t opaque,
                  Item* itm,
@@ -104,7 +104,7 @@ public:
                  uint64_t rev_seqno,
                  cb::mcbp::DcpStreamId sid));
 
-    MOCK_METHOD(ENGINE_ERROR_CODE,
+    MOCK_METHOD(cb::engine_errc,
                 deletionV2,
                 (uint32_t opaque,
                  Item* itm,
@@ -114,7 +114,7 @@ public:
                  uint32_t delete_time,
                  cb::mcbp::DcpStreamId sid));
 
-    MOCK_METHOD(ENGINE_ERROR_CODE,
+    MOCK_METHOD(cb::engine_errc,
                 expiration,
                 (uint32_t opaque,
                  Item* itm,
@@ -124,24 +124,24 @@ public:
                  uint32_t delete_time,
                  cb::mcbp::DcpStreamId sid));
 
-    MOCK_METHOD(ENGINE_ERROR_CODE,
+    MOCK_METHOD(cb::engine_errc,
                 set_vbucket_state,
                 (uint32_t opaque, Vbid vbucket, vbucket_state_t state),
                 (override));
 
-    MOCK_METHOD(ENGINE_ERROR_CODE, noop, (uint32_t opaque), (override));
+    MOCK_METHOD(cb::engine_errc, noop, (uint32_t opaque), (override));
 
-    MOCK_METHOD(ENGINE_ERROR_CODE,
+    MOCK_METHOD(cb::engine_errc,
                 buffer_acknowledgement,
                 (uint32_t opaque, Vbid vbucket, uint32_t buffer_bytes),
                 (override));
 
-    MOCK_METHOD(ENGINE_ERROR_CODE,
+    MOCK_METHOD(cb::engine_errc,
                 control,
                 (uint32_t opaque, std::string_view key, std::string_view value),
                 (override));
 
-    MOCK_METHOD(ENGINE_ERROR_CODE,
+    MOCK_METHOD(cb::engine_errc,
                 system_event,
                 (uint32_t opaque,
                  Vbid vbucket,
@@ -153,12 +153,12 @@ public:
                  cb::mcbp::DcpStreamId sid),
                 (override));
 
-    MOCK_METHOD(ENGINE_ERROR_CODE,
+    MOCK_METHOD(cb::engine_errc,
                 get_error_map,
                 (uint32_t opaque, uint16_t version),
                 (override));
 
-    MOCK_METHOD(ENGINE_ERROR_CODE,
+    MOCK_METHOD(cb::engine_errc,
                 prepare,
                 (uint32_t opaque,
                  Item* itm,
@@ -170,12 +170,12 @@ public:
                  DocumentState document_state,
                  cb::durability::Level level));
 
-    MOCK_METHOD(ENGINE_ERROR_CODE,
+    MOCK_METHOD(cb::engine_errc,
                 seqno_acknowledged,
                 (uint32_t opaque, Vbid vbucket, uint64_t prepared_seqno),
                 (override));
 
-    MOCK_METHOD(ENGINE_ERROR_CODE,
+    MOCK_METHOD(cb::engine_errc,
                 commit,
                 (uint32_t opaque,
                  Vbid vbucket,
@@ -184,7 +184,7 @@ public:
                  uint64_t commit_seqno),
                 (override));
 
-    MOCK_METHOD(ENGINE_ERROR_CODE,
+    MOCK_METHOD(cb::engine_errc,
                 abort,
                 (uint32_t opaque,
                  Vbid vbucket,
@@ -193,7 +193,7 @@ public:
                  uint64_t abort_seqno),
                 (override));
 
-    MOCK_METHOD(ENGINE_ERROR_CODE,
+    MOCK_METHOD(cb::engine_errc,
                 oso_snapshot,
                 (uint32_t opaque,
                  Vbid vbucket,
@@ -201,7 +201,7 @@ public:
                  cb::mcbp::DcpStreamId sid),
                 (override));
 
-    MOCK_METHOD(ENGINE_ERROR_CODE,
+    MOCK_METHOD(cb::engine_errc,
                 seqno_advanced,
                 (uint32_t opaque,
                  Vbid vbucket,
@@ -213,14 +213,14 @@ public:
     // std::unique_ptr) for mocked function arguments. Workaround directly
     // implementing the affected methods (without GMock) and have them delegate
     // to a GMock method which takes a raw Item ptr.
-    ENGINE_ERROR_CODE mutation(uint32_t opaque,
-                               cb::unique_item_ptr itm,
-                               Vbid vbucket,
-                               uint64_t by_seqno,
-                               uint64_t rev_seqno,
-                               uint32_t lock_time,
-                               uint8_t nru,
-                               cb::mcbp::DcpStreamId sid) override {
+    cb::engine_errc mutation(uint32_t opaque,
+                             cb::unique_item_ptr itm,
+                             Vbid vbucket,
+                             uint64_t by_seqno,
+                             uint64_t rev_seqno,
+                             uint32_t lock_time,
+                             uint8_t nru,
+                             cb::mcbp::DcpStreamId sid) override {
         return mutation(opaque,
                         reinterpret_cast<Item*>(itm.get()),
                         vbucket,
@@ -231,12 +231,12 @@ public:
                         sid);
     }
 
-    ENGINE_ERROR_CODE deletion(uint32_t opaque,
-                               cb::unique_item_ptr itm,
-                               Vbid vbucket,
-                               uint64_t by_seqno,
-                               uint64_t rev_seqno,
-                               cb::mcbp::DcpStreamId sid) override {
+    cb::engine_errc deletion(uint32_t opaque,
+                             cb::unique_item_ptr itm,
+                             Vbid vbucket,
+                             uint64_t by_seqno,
+                             uint64_t rev_seqno,
+                             cb::mcbp::DcpStreamId sid) override {
         return deletion(opaque,
                         reinterpret_cast<Item*>(itm.get()),
                         vbucket,
@@ -245,13 +245,13 @@ public:
                         sid);
     }
 
-    ENGINE_ERROR_CODE deletion_v2(uint32_t opaque,
-                                  cb::unique_item_ptr itm,
-                                  Vbid vbucket,
-                                  uint64_t by_seqno,
-                                  uint64_t rev_seqno,
-                                  uint32_t delete_time,
-                                  cb::mcbp::DcpStreamId sid) override {
+    cb::engine_errc deletion_v2(uint32_t opaque,
+                                cb::unique_item_ptr itm,
+                                Vbid vbucket,
+                                uint64_t by_seqno,
+                                uint64_t rev_seqno,
+                                uint32_t delete_time,
+                                cb::mcbp::DcpStreamId sid) override {
         return deletionV2(opaque,
                           reinterpret_cast<Item*>(itm.get()),
                           vbucket,
@@ -261,13 +261,13 @@ public:
                           sid);
     }
 
-    ENGINE_ERROR_CODE expiration(uint32_t opaque,
-                                 cb::unique_item_ptr itm,
-                                 Vbid vbucket,
-                                 uint64_t by_seqno,
-                                 uint64_t rev_seqno,
-                                 uint32_t delete_time,
-                                 cb::mcbp::DcpStreamId sid) override {
+    cb::engine_errc expiration(uint32_t opaque,
+                               cb::unique_item_ptr itm,
+                               Vbid vbucket,
+                               uint64_t by_seqno,
+                               uint64_t rev_seqno,
+                               uint32_t delete_time,
+                               cb::mcbp::DcpStreamId sid) override {
         return expiration(opaque,
                           reinterpret_cast<Item*>(itm.get()),
                           vbucket,
@@ -277,15 +277,15 @@ public:
                           sid);
     }
 
-    ENGINE_ERROR_CODE prepare(uint32_t opaque,
-                              cb::unique_item_ptr itm,
-                              Vbid vbucket,
-                              uint64_t by_seqno,
-                              uint64_t rev_seqno,
-                              uint32_t lock_time,
-                              uint8_t nru,
-                              DocumentState document_state,
-                              cb::durability::Level level) override {
+    cb::engine_errc prepare(uint32_t opaque,
+                            cb::unique_item_ptr itm,
+                            Vbid vbucket,
+                            uint64_t by_seqno,
+                            uint64_t rev_seqno,
+                            uint32_t lock_time,
+                            uint8_t nru,
+                            DocumentState document_state,
+                            cb::durability::Level level) override {
         return prepare(opaque,
                        reinterpret_cast<Item*>(itm.get()),
                        vbucket,

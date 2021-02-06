@@ -78,7 +78,7 @@ public:
         throw std::runtime_error("Not implemented");
     }
     void notify_io_complete(gsl::not_null<const void*> cookie,
-                            ENGINE_ERROR_CODE status) override {
+                            cb::engine_errc status) override {
         std::lock_guard<std::mutex> lock(mutex);
         ready = true;
         cond.notify_one();
@@ -123,7 +123,7 @@ public:
         throw std::runtime_error("Not implemented");
     }
     cb::mcbp::Status engine_error2mcbp(gsl::not_null<const void*> cookie,
-                                       ENGINE_ERROR_CODE code) override {
+                                       cb::engine_errc code) override {
         throw std::runtime_error("Not implemented");
     }
     std::pair<uint32_t, std::string> get_log_info(

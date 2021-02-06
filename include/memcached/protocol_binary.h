@@ -677,14 +677,14 @@ protected:
  * Indicate the server to add stream only if the vbucket
  * is active.
  * If the vbucket is not active, the stream request fails with
- * error ENGINE_NOT_MY_VBUCKET
+ * error cb::engine_errc::not_my_vbucket
  */
 #define DCP_ADD_STREAM_ACTIVE_VB_ONLY 16
 /**
  * Indicate the server to check for vb_uuid match even at start_seqno 0 before
  * adding the stream successfully.
  * If the flag is set and there is a vb_uuid mismatch at start_seqno 0, then
- * the server returns ENGINE_ROLLBACK error.
+ * the server returns cb::engine_errc::rollback error.
  */
 #define DCP_ADD_STREAM_STRICT_VBUUID 32
     uint32_t flags = 0;
@@ -2033,7 +2033,7 @@ public:
 protected:
     uint32_t mode = 0; // See EWB_Engine_Mode
     uint32_t value = 0;
-    uint32_t inject_error = 0; // ENGINE_ERROR_CODE to inject.
+    uint32_t inject_error = 0; // cb::engine_errc to inject.
 };
 static_assert(sizeof(EWB_Payload) == 12, "Unepected struct size");
 

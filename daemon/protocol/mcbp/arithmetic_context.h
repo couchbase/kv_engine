@@ -74,8 +74,8 @@ public:
     }
 
 protected:
-    ENGINE_ERROR_CODE step() override {
-        auto ret = ENGINE_SUCCESS;
+    cb::engine_errc step() override {
+        auto ret = cb::engine_errc::success;
         do {
             switch (state) {
             case State::GetItem:
@@ -100,26 +100,26 @@ protected:
                 ret = reset();
                 break;
             case State::Done:
-                return ENGINE_SUCCESS;
+                return cb::engine_errc::success;
             }
-        } while (ret == ENGINE_SUCCESS);
+        } while (ret == cb::engine_errc::success);
 
         return ret;
     }
 
-    ENGINE_ERROR_CODE getItem();
+    cb::engine_errc getItem();
 
-    ENGINE_ERROR_CODE createNewItem();
+    cb::engine_errc createNewItem();
 
-    ENGINE_ERROR_CODE storeNewItem();
+    cb::engine_errc storeNewItem();
 
-    ENGINE_ERROR_CODE allocateNewItem();
+    cb::engine_errc allocateNewItem();
 
-    ENGINE_ERROR_CODE storeItem();
+    cb::engine_errc storeItem();
 
-    ENGINE_ERROR_CODE sendResult();
+    cb::engine_errc sendResult();
 
-    ENGINE_ERROR_CODE reset();
+    cb::engine_errc reset();
 
 private:
 

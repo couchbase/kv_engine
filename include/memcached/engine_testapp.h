@@ -60,7 +60,7 @@ struct test_harness {
      * @param status the status code to set for the cookie
      */
     virtual void notify_io_complete(const void* cookie,
-                                    ENGINE_ERROR_CODE status) = 0;
+                                    cb::engine_errc status) = 0;
 
     /**
      * Create a new cookie instance

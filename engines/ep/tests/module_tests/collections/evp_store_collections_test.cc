@@ -118,14 +118,14 @@ TEST_F(CollectionsTest, namespace_separation) {
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
     GetValue gv = store->get(key, vbid, cookie, options);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
 
     // Manually run the BGFetcher task; to fetch the two outstanding
     // requests (for the same key).
     runBGFetcherTask();
 
     gv = store->get(key, vbid, cookie, options);
-    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
     EXPECT_EQ(0, strncmp("value", gv.item->getData(), gv.item->getNBytes()));
 }
 
@@ -172,11 +172,12 @@ TEST_P(CollectionsParameterizedTest, collections_basic) {
                              vbid,
                              cookie,
                              options);
-    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
 
     // A key in meat that doesn't exist
     auto key1 = StoredDocKey{"meat:sausage", CollectionEntry::meat};
-    EXPECT_EQ(ENGINE_KEY_ENOENT, checkKeyExists(key1, vbid, options));
+    EXPECT_EQ(cb::engine_errc::no_such_key,
+              checkKeyExists(key1, vbid, options));
 
     // Begin the deletion
     vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::meat)));
@@ -189,7 +190,7 @@ TEST_P(CollectionsParameterizedTest, collections_basic) {
                     vbid,
                     cookie,
                     options);
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::unknown_collection, gv.getStatus());
 }
 
 // BY-ID update: This test was created for MB-25344 and is no longer relevant as
@@ -208,7 +209,7 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
                            "creamy",
                            0,
                            0);
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->add(item1, cookie));
     flush_vbucket_to_disk(vbid, 1);
 
     auto item2 = make_item(vbid,
@@ -216,7 +217,7 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
                            "creamy",
                            0,
                            0);
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item2, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->add(item2, cookie));
     flush_vbucket_to_disk(vbid, 1);
 
     // Delete the dairy collection (so all dairy keys become logically deleted)
@@ -230,15 +231,16 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
 
     // Expect that we cannot add item1 again, item1 has no collection
     item1.setCas(0);
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, store->add(item1, cookie));
+    EXPECT_EQ(cb::engine_errc::unknown_collection, store->add(item1, cookie));
 
     // Replace should fail, item2 has no collection
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, store->replace(item2, cookie));
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
+              store->replace(item2, cookie));
 
     // Delete should fail, item2 has no collection
     uint64_t cas = 0;
     mutation_descr_t mutation_descr;
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
               store->deleteItem(item2.getKey(),
                                 cas,
                                 vbid,
@@ -248,7 +250,7 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
                                 mutation_descr));
 
     // Unlock should fail 'unknown-col' rather than an unlock error
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
               store->unlockKey(
                       item2.getKey(), vbid, 0, ep_current_time(), cookie));
 
@@ -260,33 +262,33 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
     EXPECT_EQ("collection_unknown",
               store->validateKey(item2.getKey(), vbid, item2));
 
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
               store->statsVKey(
                       StoredDocKey{"meat:sausage", CollectionEntry::meat},
                       vbid,
                       cookie));
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
               store->statsVKey(item2.getKey(), vbid, cookie));
 
     // GetKeyStats
     struct key_stats ks;
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
               store->getKeyStats(
                       item2.getKey(), vbid, cookie, ks, WantsDeleted::No));
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
               store->getKeyStats(
                       item2.getKey(), vbid, cookie, ks, WantsDeleted::Yes));
 
     uint32_t deleted = 0;
     uint8_t dtype = 0;
     ItemMetaData meta;
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
               store->getMetaData(
                       item2.getKey(), vbid, cookie, meta, deleted, dtype));
 
     cas = 0;
     meta.cas = 1;
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
               store->deleteWithMeta(item2.getKey(),
                                     cas,
                                     nullptr,
@@ -301,7 +303,7 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
                                     nullptr,
                                     DeleteSource::Explicit));
 
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
               store->setWithMeta(item2,
                                  0,
                                  nullptr,
@@ -333,7 +335,7 @@ TEST_P(CollectionsParameterizedTest, GET_unknown_collection_errors) {
                            "creamy",
                            0,
                            0);
-    EXPECT_EQ(ENGINE_SUCCESS, addItem(item1, cookie));
+    EXPECT_EQ(cb::engine_errc::success, addItem(item1, cookie));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Delete the dairy collection (so all dairy keys become logically deleted)
@@ -355,7 +357,7 @@ TEST_P(CollectionsParameterizedTest, GET_unknown_collection_errors) {
                          vbid,
                          cookie,
                          options);
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::unknown_collection, gv.getStatus());
 
     options = static_cast<get_options_t>(QUEUE_BG_FETCH | HONOR_STATES |
                                          TRACK_REFERENCE | DELETE_TEMP |
@@ -366,7 +368,7 @@ TEST_P(CollectionsParameterizedTest, GET_unknown_collection_errors) {
                     vbid,
                     cookie,
                     options);
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::unknown_collection, gv.getStatus());
 
     // Same for getLocked
     gv = store->getLocked(StoredDocKey{"dairy:milk", CollectionEntry::dairy},
@@ -374,7 +376,7 @@ TEST_P(CollectionsParameterizedTest, GET_unknown_collection_errors) {
                           ep_current_time(),
                           10,
                           cookie);
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::unknown_collection, gv.getStatus());
 
     // Same for getAndUpdateTtl
     gv = store->getAndUpdateTtl(
@@ -382,7 +384,7 @@ TEST_P(CollectionsParameterizedTest, GET_unknown_collection_errors) {
             vbid,
             cookie,
             ep_current_time() + 20);
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::unknown_collection, gv.getStatus());
 }
 
 TEST_P(CollectionsParameterizedTest, get_collection_id) {
@@ -530,14 +532,14 @@ TEST_F(CollectionsTest, PersistedHighSeqno) {
                            "creamy",
                            0,
                            0);
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->add(item1, cookie));
     flush_vbucket_to_disk(vbid, 1);
     EXPECT_EQ(2,
               vb->getManifest().lock().getPersistedHighSeqno(
                       CollectionEntry::dairy.getId()));
 
     // Mock a change in this document incrementing the high seqno
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item1, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->set(item1, cookie));
     flush_vbucket_to_disk(vbid, 1);
     EXPECT_EQ(3,
               vb->getManifest().lock().getPersistedHighSeqno(
@@ -550,7 +552,7 @@ TEST_F(CollectionsTest, PersistedHighSeqno) {
                            "creamy",
                            0,
                            0);
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item2, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->add(item2, cookie));
     flush_vbucket_to_disk(vbid, 1);
     EXPECT_EQ(4,
               vb->getManifest().lock().getPersistedHighSeqno(
@@ -558,7 +560,7 @@ TEST_F(CollectionsTest, PersistedHighSeqno) {
 
     // Check a deletion
     item2.setDeleted();
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item2, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->set(item2, cookie));
     flush_vbucket_to_disk(vbid, 1);
     EXPECT_EQ(5,
               vb->getManifest().lock().getPersistedHighSeqno(
@@ -586,7 +588,7 @@ TEST_F(CollectionsTest, PersistedHighSeqnoMultipleCollections) {
                            "creamy",
                            0,
                            0);
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->add(item1, cookie));
     flush_vbucket_to_disk(vbid, 1);
     EXPECT_EQ(2,
               vb->getManifest().lock().getPersistedHighSeqno(
@@ -613,7 +615,7 @@ TEST_F(CollectionsTest, PersistedHighSeqnoMultipleCollections) {
                            "beefy",
                            0,
                            0);
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item2, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->add(item2, cookie));
     flush_vbucket_to_disk(vbid, 1);
     // Skip 1 seqno for creation of meat
     EXPECT_EQ(4,
@@ -626,8 +628,8 @@ TEST_F(CollectionsTest, PersistedHighSeqnoMultipleCollections) {
                       CollectionEntry::dairy.getId()));
 
     // Now, set a new high seqno in both collections in a single flush
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item1, cookie));
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item2, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->set(item1, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->set(item2, cookie));
     flush_vbucket_to_disk(vbid, 2);
     EXPECT_EQ(5,
               vb->getManifest().lock().getPersistedHighSeqno(
@@ -660,13 +662,13 @@ TEST_P(CollectionsParameterizedTest, HighSeqno) {
                            "creamy",
                            0,
                            0);
-    EXPECT_EQ(ENGINE_SUCCESS, addItem(item1, cookie));
+    EXPECT_EQ(cb::engine_errc::success, addItem(item1, cookie));
     EXPECT_EQ(2,
               vb->getManifest().lock().getHighSeqno(
                       CollectionEntry::dairy.getId()));
 
     // Mock a change in this document incrementing the high seqno
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item1, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->set(item1, cookie));
     EXPECT_EQ(3,
               vb->getManifest().lock().getHighSeqno(
                       CollectionEntry::dairy.getId()));
@@ -678,14 +680,14 @@ TEST_P(CollectionsParameterizedTest, HighSeqno) {
                            "creamy",
                            0,
                            0);
-    EXPECT_EQ(ENGINE_SUCCESS, addItem(item2, cookie));
+    EXPECT_EQ(cb::engine_errc::success, addItem(item2, cookie));
     EXPECT_EQ(4,
               vb->getManifest().lock().getHighSeqno(
                       CollectionEntry::dairy.getId()));
 
     // Check a deletion
     item2.setDeleted();
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item2, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->set(item2, cookie));
     EXPECT_EQ(5,
               vb->getManifest().lock().getHighSeqno(
                       CollectionEntry::dairy.getId()));
@@ -711,7 +713,7 @@ TEST_P(CollectionsParameterizedTest, HighSeqnoMultipleCollections) {
                            "creamy",
                            0,
                            0);
-    EXPECT_EQ(ENGINE_SUCCESS, addItem(item1, cookie));
+    EXPECT_EQ(cb::engine_errc::success, addItem(item1, cookie));
 
     EXPECT_EQ(2,
               vb->getManifest().lock().getHighSeqno(
@@ -736,7 +738,7 @@ TEST_P(CollectionsParameterizedTest, HighSeqnoMultipleCollections) {
                            "beefy",
                            0,
                            0);
-    EXPECT_EQ(ENGINE_SUCCESS, addItem(item2, cookie));
+    EXPECT_EQ(cb::engine_errc::success, addItem(item2, cookie));
 
     // Skip 1 seqno for creation of meat
     EXPECT_EQ(4,
@@ -749,8 +751,8 @@ TEST_P(CollectionsParameterizedTest, HighSeqnoMultipleCollections) {
                       CollectionEntry::dairy.getId()));
 
     // Now, set a new high seqno in both collections in a single flush
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item1, cookie));
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item2, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->set(item1, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->set(item2, cookie));
 
     EXPECT_EQ(5,
               vb->getManifest().lock().getHighSeqno(
@@ -772,7 +774,7 @@ TEST_P(CollectionsParameterizedTest, GetRandomKey) {
     store_item(vbid, StoredDocKey{"stuff", CollectionEntry::defaultC}, "2", 0);
     flushVBucketToDiskIfPersistent(vbid, 2);
     auto gv = store->getRandomKey(CollectionEntry::dairy.getId(), cookie);
-    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
     EXPECT_EQ(item, *gv.item);
 }
 
@@ -1069,7 +1071,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
                   sizeof("rare"));
         item.setVBucketId(vbid);
         uint64_t cas;
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   engine->storeInner(
                           cookie, item, cas, StoreSemantics::Set, false));
     }
@@ -1081,7 +1083,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
                   sizeof("skimmed"));
         item.setVBucketId(vbid);
         uint64_t cas;
-        EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+        EXPECT_EQ(cb::engine_errc::unknown_collection,
                   engine->storeInner(
                           cookie, item, cas, StoreSemantics::Set, false));
     }
@@ -1261,13 +1263,13 @@ TEST_F(CollectionsWarmupTest, MB_38125) {
     // Cannot set the manifest yet - command follows ewouldblock pattern
     auto status = engine->set_collection_manifest(cookie, std::string{cm});
     EXPECT_EQ(cb::engine_errc::would_block, status);
-    cookie_to_mock_cookie(cookie)->status = ENGINE_FAILED;
+    cookie_to_mock_cookie(cookie)->status = cb::engine_errc::failed;
 
     // Now get the engine warmed up
     runReadersUntilWarmedUp();
 
     // cookie now notified and setCollections can go ahead
-    EXPECT_EQ(ENGINE_SUCCESS, cookie_to_mock_cookie(cookie)->status);
+    EXPECT_EQ(cb::engine_errc::success, cookie_to_mock_cookie(cookie)->status);
     setCollections(cookie, cm);
 
     auto vb = store->getVBucket(vbid);
@@ -1290,7 +1292,7 @@ TEST_F(CollectionsWarmupTest, LockedVBStateDuringManifestUpdate) {
     // Cannot set the manifest yet - command follows ewouldblock pattern
     auto status = engine->set_collection_manifest(cookie, std::string{cm});
     EXPECT_EQ(cb::engine_errc::would_block, status);
-    cookie_to_mock_cookie(cookie)->status = ENGINE_FAILED;
+    cookie_to_mock_cookie(cookie)->status = cb::engine_errc::failed;
 
     auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
     mockEPBucket->setCollectionsManagerPreSetStateAtWarmupHook([this]() {
@@ -1305,7 +1307,7 @@ TEST_F(CollectionsWarmupTest, LockedVBStateDuringManifestUpdate) {
     runReadersUntilWarmedUp();
 
     // cookie now notified and setCollections can go ahead
-    EXPECT_EQ(ENGINE_SUCCESS, cookie_to_mock_cookie(cookie)->status);
+    EXPECT_EQ(cb::engine_errc::success, cookie_to_mock_cookie(cookie)->status);
     setCollections(cookie, cm);
 }
 
@@ -1453,7 +1455,8 @@ TEST_F(CollectionsTest, ConcCompactNewPrepare) {
     // collections that may change during compaction but not during the replay
     StoredDocKey dairyKey{"milk", CollectionEntry::dairy};
     auto dairyPending = makePendingItem(dairyKey, "value");
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*dairyPending, cookie));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending,
+              store->set(*dairyPending, cookie));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     vb->seqnoAcknowledged(
@@ -1493,7 +1496,8 @@ TEST_F(CollectionsTest, ConcCompactNewPrepare) {
 
         StoredDocKey meatKey{"beef", CollectionEntry::meat};
         auto meatPending = makePendingItem(meatKey, "value");
-        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*meatPending, cookie));
+        EXPECT_EQ(cb::engine_errc::sync_write_pending,
+                  store->set(*meatPending, cookie));
         flushVBucketToDiskIfPersistent(vbid, 1);
 
         {
@@ -1543,7 +1547,8 @@ TEST_F(CollectionsTest, ConcCompactPrepareAbort) {
     // collections that may change during compaction but not during the replay
     StoredDocKey dairyKey{"milk", CollectionEntry::dairy};
     auto dairyPending = makePendingItem(dairyKey, "value");
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*dairyPending, cookie));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending,
+              store->set(*dairyPending, cookie));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
@@ -1554,7 +1559,8 @@ TEST_F(CollectionsTest, ConcCompactPrepareAbort) {
 
     StoredDocKey meatKey{"beef", CollectionEntry::meat};
     auto meatPending = makePendingItem(meatKey, "value");
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*meatPending, cookie));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending,
+              store->set(*meatPending, cookie));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     auto postCommitDairySize = 0;
@@ -1636,7 +1642,8 @@ TEST_F(CollectionsTest, ConcCompactAbortPrepare) {
     // collections that may change during compaction but not during the replay
     StoredDocKey dairyKey{"milk", CollectionEntry::dairy};
     auto dairyPending = makePendingItem(dairyKey, "value");
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*dairyPending, cookie));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending,
+              store->set(*dairyPending, cookie));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
@@ -1647,7 +1654,8 @@ TEST_F(CollectionsTest, ConcCompactAbortPrepare) {
 
     StoredDocKey meatKey{"beef", CollectionEntry::meat};
     auto meatPending = makePendingItem(meatKey, "value");
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*meatPending, cookie));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending,
+              store->set(*meatPending, cookie));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     vb->processDurabilityTimeout(std::chrono::steady_clock::now() +
@@ -1685,7 +1693,8 @@ TEST_F(CollectionsTest, ConcCompactAbortPrepare) {
 
         StoredDocKey meatKey{"beef", CollectionEntry::meat};
         auto meatPending = makePendingItem(meatKey, "value");
-        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*meatPending, cookie));
+        EXPECT_EQ(cb::engine_errc::sync_write_pending,
+                  store->set(*meatPending, cookie));
 
         flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -1745,7 +1754,8 @@ TEST_F(CollectionsTest, ConcCompactDropCollection) {
         // Flush something to ensure that we try to update the size
         StoredDocKey meatKey{"beef", CollectionEntry::meat};
         auto meatPending = makePendingItem(meatKey, "value");
-        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*meatPending, cookie));
+        EXPECT_EQ(cb::engine_errc::sync_write_pending,
+                  store->set(*meatPending, cookie));
 
         flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -1902,7 +1912,7 @@ TEST_P(CollectionsExpiryLimitTest, set) {
     auto func = [this](Vbid vb, DocKey k, std::string v) {
         auto item = make_item(vb, k, v);
         EXPECT_EQ(0, item.getExptime());
-        EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
+        EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
     };
     operation_test(func, GetParam());
 }
@@ -1911,7 +1921,7 @@ TEST_P(CollectionsExpiryLimitTest, add) {
     auto func = [this](Vbid vb, DocKey k, std::string v) {
         auto item = make_item(vb, k, v);
         EXPECT_EQ(0, item.getExptime());
-        EXPECT_EQ(ENGINE_SUCCESS, store->add(item, cookie));
+        EXPECT_EQ(cb::engine_errc::success, store->add(item, cookie));
     };
     operation_test(func, GetParam());
 }
@@ -1920,8 +1930,8 @@ TEST_P(CollectionsExpiryLimitTest, replace) {
     auto func = [this](Vbid vb, DocKey k, std::string v) {
         auto item = make_item(vb, k, v);
         EXPECT_EQ(0, item.getExptime());
-        EXPECT_EQ(ENGINE_SUCCESS, store->add(item, cookie));
-        EXPECT_EQ(ENGINE_SUCCESS, store->replace(item, cookie));
+        EXPECT_EQ(cb::engine_errc::success, store->add(item, cookie));
+        EXPECT_EQ(cb::engine_errc::success, store->replace(item, cookie));
     };
     operation_test(func, GetParam());
 }
@@ -1933,7 +1943,7 @@ TEST_P(CollectionsExpiryLimitTest, set_with_meta) {
         EXPECT_EQ(0, item.getExptime());
         uint64_t cas = 0;
         uint64_t seqno = 0;
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   store->setWithMeta(item,
                                      cas,
                                      &seqno,
@@ -2345,7 +2355,7 @@ TEST_F(CollectionsTest, PerCollectionDiskSizeRollback) {
         }
 
         // force to replica to allow rollback
-        ASSERT_EQ(ENGINE_SUCCESS,
+        ASSERT_EQ(cb::engine_errc::success,
                   store->setVBucketState(vbid, vbucket_state_replica));
 
         // definitely will be rolling back an item
@@ -2505,7 +2515,7 @@ TEST_F(CollectionsTest, GetScopeIdForGivenKeyAndVbucket) {
     // Add the meat collection to vbid(1)
     Vbid meatVbid(1);
 
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               store->setVBucketState(meatVbid, vbucket_state_replica));
     auto replicaVb = store->getVBucket(meatVbid);
 
@@ -2600,9 +2610,9 @@ static std::string makeCollectionEncodedString(std::string key,
             storedDocKey.size()};
 }
 
-ENGINE_ERROR_CODE CollectionsTest::sendGetKeys(std::string startKey,
-                                               std::optional<uint32_t> maxCount,
-                                               const AddResponseFn& response) {
+cb::engine_errc CollectionsTest::sendGetKeys(std::string startKey,
+                                             std::optional<uint32_t> maxCount,
+                                             const AddResponseFn& response) {
     using namespace cb::mcbp;
     lastGetKeysResult.clear();
     std::string exts;
@@ -2649,7 +2659,7 @@ TEST_F(CollectionsTest, GetAllKeysNonCollectionConnection) {
     store_items(5, vbid, makeStoredDocKey("default"), "value");
     flushVBucketToDiskIfPersistent(vbid, 5);
 
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+    EXPECT_EQ(cb::engine_errc::would_block,
               sendGetKeys("default0", {}, getAllKeysResponseHandler));
     runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
                 "Running the ALL_DOCS api on vb:0");
@@ -2668,7 +2678,7 @@ TEST_F(CollectionsTest, GetAllKeysNonCollectionConnectionMaxCountTen) {
     store_items(20, vbid, makeStoredDocKey("default"), "value");
     flushVBucketToDiskIfPersistent(vbid, 20);
 
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+    EXPECT_EQ(cb::engine_errc::would_block,
               sendGetKeys("default0", {10}, getAllKeysResponseHandler));
     runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
                 "Running the ALL_DOCS api on vb:0");
@@ -2680,7 +2690,7 @@ TEST_F(CollectionsTest, GetAllKeysStartHalfWay) {
     flushVBucketToDiskIfPersistent(vbid, 4);
 
     // All keys default2 and after from default collection
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+    EXPECT_EQ(cb::engine_errc::would_block,
               sendGetKeys("default2", {}, getAllKeysResponseHandler));
     runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
                 "Running the ALL_DOCS api on vb:0");
@@ -2705,7 +2715,7 @@ TEST_F(CollectionsTest, GetAllKeysStartHalfWayForCollection) {
     flushVBucketToDiskIfPersistent(vbid, 4);
 
     // All keys meat2 and after from meat collection
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+    EXPECT_EQ(cb::engine_errc::would_block,
               sendGetKeys(makeCollectionEncodedString("meat2",
                                                       CollectionEntry::meat),
                           {},
@@ -2734,7 +2744,7 @@ TEST_F(CollectionsTest, GetAllKeysForCollectionEmptyKey) {
 
     // All keys meat2 and after from meat collection
     EXPECT_EQ(
-            ENGINE_EWOULDBLOCK,
+            cb::engine_errc::would_block,
             sendGetKeys(makeCollectionEncodedString("", CollectionEntry::meat),
                         {},
                         getAllKeysResponseHandler));
@@ -2751,7 +2761,7 @@ TEST_F(CollectionsTest, GetAllKeysNonCollectionConnectionCidEncodeKey) {
 
     // Ensure we treat any key as part of th default collection on a
     // no collection enabled connection.
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+    EXPECT_EQ(cb::engine_errc::would_block,
               sendGetKeys(makeCollectionEncodedString("default4",
                                                       CollectionEntry::meat),
                           {},
@@ -2786,29 +2796,31 @@ TEST_F(CollectionsTest, GetAllKeysCollectionConnection) {
     // keys
     std::string startKey =
             makeCollectionEncodedString("default0", CollectionEntry::defaultC);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+    EXPECT_EQ(cb::engine_errc::would_block,
               sendGetKeys(startKey, {}, getAllKeysResponseHandler));
-    // as we got ENGINE_EWOULDBLOCK we need to manually call the GetKeys task
+    // as we got cb::engine_errc::would_block we need to manually call the
+    // GetKeys task
     runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
                 "Running the ALL_DOCS api on vb:0");
     EXPECT_EQ(generateExpectedKeys("default", 5), lastGetKeysResult);
-    // Calling GetKeys again should return ENGINE_SUCCESS indicating all keys
-    // have been fetched
-    EXPECT_EQ(ENGINE_SUCCESS,
+    // Calling GetKeys again should return cb::engine_errc::success indicating
+    // all keys have been fetched
+    EXPECT_EQ(cb::engine_errc::success,
               sendGetKeys(startKey, {}, getAllKeysResponseHandler));
 
     startKey = makeCollectionEncodedString("beef0", CollectionEntry::meat);
     // Get the keys for meat collection, in this case we should get all 10 keys
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+    EXPECT_EQ(cb::engine_errc::would_block,
               sendGetKeys(startKey, {}, getAllKeysResponseHandler));
-    // as we got ENGINE_EWOULDBLOCK we need to manually call the GetKeys task
+    // as we got cb::engine_errc::would_block we need to manually call the
+    // GetKeys task
     runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
                 "Running the ALL_DOCS api on vb:0");
     EXPECT_EQ(generateExpectedKeys("beef", 10, CollectionEntry::meat),
               lastGetKeysResult);
-    // Calling GetKeys again should return ENGINE_SUCCESS indicating all keys
-    // have been fetched
-    EXPECT_EQ(ENGINE_SUCCESS,
+    // Calling GetKeys again should return cb::engine_errc::success indicating
+    // all keys have been fetched
+    EXPECT_EQ(cb::engine_errc::success,
               sendGetKeys(startKey, {}, getAllKeysResponseHandler));
 }
 
@@ -2828,22 +2840,22 @@ TEST_F(CollectionsTest, TestGetKeyStatsBadVbids) {
 
     wasKeyStatsResponseHandlerCalled = false;
     std::string key("key-byid defKey -1");
-    EXPECT_EQ(ENGINE_EINVAL,
+    EXPECT_EQ(cb::engine_errc::invalid_arguments,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 
     key = "key-byid defKey asd";
-    EXPECT_EQ(ENGINE_EINVAL,
+    EXPECT_EQ(cb::engine_errc::invalid_arguments,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 
     key = "key-byid defKey 1000000";
-    EXPECT_EQ(ENGINE_EINVAL,
+    EXPECT_EQ(cb::engine_errc::invalid_arguments,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 
     key = "key-byid defKey 1";
-    EXPECT_EQ(ENGINE_NOT_MY_VBUCKET,
+    EXPECT_EQ(cb::engine_errc::not_my_vbucket,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 }
@@ -2865,37 +2877,37 @@ TEST_F(CollectionsTest, TestGetKeyStats) {
     wasKeyStatsResponseHandlerCalled = false;
     // non collection style request with trailing whitespace
     std::string key("key-byid defKey 0   ");
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "key-byid beef 0 0x8";
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "key beef 0 _default.meat";
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "key beef 0 _default.fruit";
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "key-byid beef 0 0x9";
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "key beef2 0 _default._default";
-    EXPECT_EQ(ENGINE_KEY_ENOENT,
+    EXPECT_EQ(cb::engine_errc::no_such_key,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 }
@@ -2917,58 +2929,58 @@ TEST_F(CollectionsTest, TestGetVKeyStats) {
     wasKeyStatsResponseHandlerCalled = false;
     // non collection style request with trailing whitespace
     std::string key("vkey defKey 0   ");
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+    EXPECT_EQ(cb::engine_errc::would_block,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
-    // as we got ENGINE_EWOULDBLOCK we need to manually call the
+    // as we got cb::engine_errc::would_block we need to manually call the
     // VKeyStatBGFetchTask task
     runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
                 "Fetching item from disk for vkey stat: key{defKey} vb:0");
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "vkey-byid beef 0 0x8";
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+    EXPECT_EQ(cb::engine_errc::would_block,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
-    // as we got ENGINE_EWOULDBLOCK we need to manually call the
+    // as we got cb::engine_errc::would_block we need to manually call the
     // VKeyStatBGFetchTask task
     runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
                 "Fetching item from disk for vkey stat: key{beef} vb:0");
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "vkey beef 0 _default.meat";
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+    EXPECT_EQ(cb::engine_errc::would_block,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
-    // as we got ENGINE_EWOULDBLOCK we need to manually call the
+    // as we got cb::engine_errc::would_block we need to manually call the
     // VKeyStatBGFetchTask task
     runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
                 "Fetching item from disk for vkey stat: key{beef} vb:0");
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "vkey beef 0 _default.fruit";
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "vkey-byid beef 0 0x9";
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "vkey beef2 0 _default._default";
-    EXPECT_EQ(ENGINE_KEY_ENOENT,
+    EXPECT_EQ(cb::engine_errc::no_such_key,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 }
@@ -3034,22 +3046,23 @@ TEST_F(CollectionsRbacTest, GetAllKeysRbacCollectionConnection) {
     std::string startKey =
             makeCollectionEncodedString("default0", CollectionEntry::defaultC);
 
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
               sendGetKeys(startKey, {}, getAllKeysResponseHandler));
     EXPECT_EQ(std::set<std::string>(), lastGetKeysResult);
 
     // Get the keys for meat collection, in this case we should get all 10 keys
     startKey = makeCollectionEncodedString("beef0", CollectionEntry::meat);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+    EXPECT_EQ(cb::engine_errc::would_block,
               sendGetKeys(startKey, {}, getAllKeysResponseHandler));
-    // as we got ENGINE_EWOULDBLOCK we need to manually call the GetKeys task
+    // as we got cb::engine_errc::would_block we need to manually call the
+    // GetKeys task
     runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
                 "Running the ALL_DOCS api on vb:0");
     EXPECT_EQ(generateExpectedKeys("beef", 10, CollectionEntry::meat),
               lastGetKeysResult);
-    // Calling GetKeys again should return ENGINE_SUCCESS indicating all keys
-    // have been fetched
-    EXPECT_EQ(ENGINE_SUCCESS,
+    // Calling GetKeys again should return cb::engine_errc::success indicating
+    // all keys have been fetched
+    EXPECT_EQ(cb::engine_errc::success,
               sendGetKeys(startKey, {}, getAllKeysResponseHandler));
 
     // Add an item to the dairy so we would get a key if RBAC failed
@@ -3059,7 +3072,7 @@ TEST_F(CollectionsRbacTest, GetAllKeysRbacCollectionConnection) {
     // Try and access all keys from the dairy collection, in this case we
     // should be denied access
     startKey = makeCollectionEncodedString("cheese0", CollectionEntry::dairy);
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
               sendGetKeys(startKey, {}, getAllKeysResponseHandler));
     EXPECT_EQ(std::set<std::string>(), lastGetKeysResult);
 }
@@ -3082,31 +3095,31 @@ TEST_F(CollectionsRbacTest, TestKeyStats) {
 
     wasKeyStatsResponseHandlerCalled = false;
     std::string key("key-byid beef 0 0x8");
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "key beef 0 _default.meat";
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "key-byid defKey 0 0x0";
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "key defKey 0 _default._default";
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "key defKey 0 rubbish_scope._default";
-    EXPECT_EQ(ENGINE_UNKNOWN_SCOPE,
+    EXPECT_EQ(cb::engine_errc::unknown_scope,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 }
@@ -3129,43 +3142,43 @@ TEST_F(CollectionsRbacTest, TestVKeyStats) {
 
     wasKeyStatsResponseHandlerCalled = false;
     std::string key("vkey-byid beef 0 0x8");
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+    EXPECT_EQ(cb::engine_errc::would_block,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
-    // as we got ENGINE_EWOULDBLOCK we need to manually call the
+    // as we got cb::engine_errc::would_block we need to manually call the
     // VKeyStatBGFetchTask task
     runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
                 "Fetching item from disk for vkey stat: key{beef} vb:0");
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "vkey beef 0 _default.meat";
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+    EXPECT_EQ(cb::engine_errc::would_block,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
-    // as we got ENGINE_EWOULDBLOCK we need to manually call the
+    // as we got cb::engine_errc::would_block we need to manually call the
     // VKeyStatBGFetchTask task
     runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
                 "Fetching item from disk for vkey stat: key{beef} vb:0");
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "vkey-byid defKey 0 0x0";
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "vkey defKey 0 _default._default";
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "vkey defKey 0 rubbish_scope._default";
-    EXPECT_EQ(ENGINE_UNKNOWN_SCOPE,
+    EXPECT_EQ(cb::engine_errc::unknown_scope,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 }

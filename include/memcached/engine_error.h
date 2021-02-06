@@ -176,57 +176,10 @@ ENGINE_UTILITIES_PUBLIC_API
 std::ostream& operator<<(std::ostream& os, cb::engine_errc ec);
 } // namespace cb
 
-// For backwards compatibility with the old memcached source code we need
-// to keep the old constants around
-enum ENGINE_ERROR_CODE {
-    ENGINE_SUCCESS = int(cb::engine_errc::success),
-    ENGINE_KEY_ENOENT = int(cb::engine_errc::no_such_key),
-    ENGINE_KEY_EEXISTS = int(cb::engine_errc::key_already_exists),
-    ENGINE_ENOMEM = int(cb::engine_errc::no_memory),
-    ENGINE_NOT_STORED = int(cb::engine_errc::not_stored),
-    ENGINE_EINVAL = int(cb::engine_errc::invalid_arguments),
-    ENGINE_ENOTSUP = int(cb::engine_errc::not_supported),
-    ENGINE_EWOULDBLOCK = int(cb::engine_errc::would_block),
-    ENGINE_E2BIG = int(cb::engine_errc::too_big),
-    ENGINE_DISCONNECT = int(cb::engine_errc::disconnect),
-    ENGINE_EACCESS = int(cb::engine_errc::no_access),
-    ENGINE_NOT_MY_VBUCKET = int(cb::engine_errc::not_my_vbucket),
-    ENGINE_TMPFAIL = int(cb::engine_errc::temporary_failure),
-    ENGINE_ERANGE = int(cb::engine_errc::out_of_range),
-    ENGINE_ROLLBACK = int(cb::engine_errc::rollback),
-    ENGINE_NO_BUCKET = int(cb::engine_errc::no_bucket),
-    ENGINE_EBUSY = int(cb::engine_errc::too_busy),
-    ENGINE_AUTH_STALE = int(cb::engine_errc::authentication_stale),
-    ENGINE_DELTA_BADVAL = int(cb::engine_errc::delta_badval),
-    ENGINE_LOCKED = int(cb::engine_errc::locked),
-    ENGINE_LOCKED_TMPFAIL = int(cb::engine_errc::locked_tmpfail),
-    ENGINE_UNKNOWN_COLLECTION = int(cb::engine_errc::unknown_collection),
-    ENGINE_UNKNOWN_SCOPE = int(cb::engine_errc::unknown_scope),
-    ENGINE_FAILED = int(cb::engine_errc::failed),
-    ENGINE_PREDICATE_FAILED = int(cb::engine_errc::predicate_failed),
-    ENGINE_DURABILITY_INVALID_LEVEL =
-            int(cb::engine_errc::durability_invalid_level),
-    ENGINE_DURABILITY_IMPOSSIBLE = int(cb::engine_errc::durability_impossible),
-    ENGINE_SYNC_WRITE_IN_PROGRESS =
-            int(cb::engine_errc::sync_write_in_progress),
-    ENGINE_SYNC_WRITE_AMBIGUOUS = int(cb::engine_errc::sync_write_ambiguous),
-    ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS =
-            int(cb::engine_errc::sync_write_re_commit_in_progress),
-    ENGINE_DCP_STREAMID_INVALID = int(cb::engine_errc::dcp_streamid_invalid),
-    ENGINE_SYNC_WRITE_PENDING = int(cb::engine_errc::sync_write_pending),
-    ENGINE_STREAM_NOT_FOUND = int(cb::engine_errc::stream_not_found),
-    ENGINE_OPAQUE_NO_MATCH = int(cb::engine_errc::opaque_no_match)
-};
 
 namespace std {
 
 template <>
 struct is_error_condition_enum<cb::engine_errc> : public true_type { };
 
-}
-
-namespace cb {
-// Backward compatibility - convert ENGINE_ERROR_CODE to engine_errc.
-ENGINE_UTILITIES_PUBLIC_API
-cb::engine_errc to_engine_errc(ENGINE_ERROR_CODE eec);
 }

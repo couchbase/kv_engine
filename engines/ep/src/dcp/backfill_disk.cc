@@ -50,13 +50,13 @@ GetValue CacheCallback::get(VBucket& vb,
 void CacheCallback::callback(CacheLookup& lookup) {
     auto stream_ = streamPtr.lock();
     if (!stream_) {
-        setStatus(ENGINE_SUCCESS);
+        setStatus(cb::engine_errc::success);
         return;
     }
 
     VBucketPtr vb = bucket.getVBucket(lookup.getVBucketId());
     if (!vb) {
-        setStatus(ENGINE_SUCCESS);
+        setStatus(cb::engine_errc::success);
         return;
     }
 
@@ -64,37 +64,37 @@ void CacheCallback::callback(CacheLookup& lookup) {
     // sufficient - as it doesn't contain the durability requirements (level).
     // Must get from disk.
     if (lookup.getKey().isPrepared()) {
-        setStatus(ENGINE_SUCCESS);
+        setStatus(cb::engine_errc::success);
         return;
     }
 
     // Check if the stream will allow the key, this is here to avoid reading
     // the value when dropping keys
     if (!stream_->collectionAllowed(lookup.getKey().getDocKey())) {
-        setStatus(ENGINE_KEY_EEXISTS);
+        setStatus(cb::engine_errc::key_already_exists);
         return;
     }
 
     auto gv = get(*vb, lookup, *stream_);
-    if (gv.getStatus() == ENGINE_SUCCESS) {
+    if (gv.getStatus() == cb::engine_errc::success) {
         // If the value is a commit of a SyncWrite then the in-memory
         // StoredValue isn't sufficient - as it doesn't contain the prepareSeqno
         if (gv.item->isCommitSyncWrite()) {
-            setStatus(ENGINE_SUCCESS);
+            setStatus(cb::engine_errc::success);
             return;
         }
 
         if (gv.item->getBySeqno() == lookup.getBySeqno()) {
             if (stream_->backfillReceived(std::move(gv.item),
                                           BACKFILL_FROM_MEMORY)) {
-                setStatus(ENGINE_KEY_EEXISTS);
+                setStatus(cb::engine_errc::key_already_exists);
                 return;
             }
-            setStatus(ENGINE_ENOMEM); // Pause the backfill
+            setStatus(cb::engine_errc::no_memory); // Pause the backfill
             return;
         }
     }
-    setStatus(ENGINE_SUCCESS);
+    setStatus(cb::engine_errc::success);
 }
 
 DiskCallback::DiskCallback(std::shared_ptr<ActiveStream> s) : streamPtr(s) {
@@ -106,7 +106,7 @@ DiskCallback::DiskCallback(std::shared_ptr<ActiveStream> s) : streamPtr(s) {
 void DiskCallback::callback(GetValue& val) {
     auto stream_ = streamPtr.lock();
     if (!stream_) {
-        setStatus(ENGINE_SUCCESS);
+        setStatus(cb::engine_errc::success);
         return;
     }
 
@@ -119,9 +119,9 @@ void DiskCallback::callback(GetValue& val) {
     val.item->setFreqCounterValue(0);
 
     if (!stream_->backfillReceived(std::move(val.item), BACKFILL_FROM_DISK)) {
-        setStatus(ENGINE_ENOMEM); // Pause the backfill
+        setStatus(cb::engine_errc::no_memory); // Pause the backfill
     } else {
-        setStatus(ENGINE_SUCCESS);
+        setStatus(cb::engine_errc::success);
     }
 }
 

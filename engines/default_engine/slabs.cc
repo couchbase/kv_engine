@@ -85,10 +85,10 @@ static void *my_allocate(struct default_engine *e, size_t size) {
  * Determines the chunk sizes and initializes the slab class descriptors
  * accordingly.
  */
-ENGINE_ERROR_CODE slabs_init(struct default_engine *engine,
-                             const size_t limit,
-                             const double factor,
-                             const bool prealloc) {
+cb::engine_errc slabs_init(struct default_engine* engine,
+                           const size_t limit,
+                           const double factor,
+                           const bool prealloc) {
     int i = POWER_SMALLEST - 1;
     unsigned int size = sizeof(hash_item) + (unsigned int)engine->config.chunk_size;
 
@@ -101,7 +101,7 @@ ENGINE_ERROR_CODE slabs_init(struct default_engine *engine,
             engine->slabs.mem_current = engine->slabs.mem_base;
             engine->slabs.mem_avail = engine->slabs.mem_limit;
         } else {
-            return ENGINE_ENOMEM;
+            return cb::engine_errc::no_memory;
         }
     }
 
@@ -140,7 +140,7 @@ ENGINE_ERROR_CODE slabs_init(struct default_engine *engine,
     }
 #endif
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 #ifndef DONT_PREALLOC_SLABS

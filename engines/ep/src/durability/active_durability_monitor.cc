@@ -279,7 +279,7 @@ void ActiveDurabilityMonitor::addSyncWrite(const void* cookie,
     state.wlock()->addSyncWrite(cookie, std::move(item));
 }
 
-ENGINE_ERROR_CODE ActiveDurabilityMonitor::seqnoAckReceived(
+cb::engine_errc ActiveDurabilityMonitor::seqnoAckReceived(
         const std::string& replica, int64_t preparedSeqno) {
     // By logic the correct order of processing for every verified SyncWrite
     // would be:
@@ -319,7 +319,7 @@ ENGINE_ERROR_CODE ActiveDurabilityMonitor::seqnoAckReceived(
     // completed.
     checkForResolvedSyncWrites();
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 void ActiveDurabilityMonitor::processTimeout(
@@ -823,8 +823,8 @@ void ActiveDurabilityMonitor::commit(const ActiveSyncWrite& sw) {
     if (!cHandle.valid() || cHandle.isLogicallyDeleted(sw.getBySeqno())) {
         if (sw.getCookie() != nullptr) {
             // collection no longer exists, cannot commit
-            vb.notifyClientOfSyncWriteComplete(sw.getCookie(),
-                                               ENGINE_SYNC_WRITE_AMBIGUOUS);
+            vb.notifyClientOfSyncWriteComplete(
+                    sw.getCookie(), cb::engine_errc::sync_write_ambiguous);
         }
         return;
     }
@@ -847,9 +847,9 @@ void ActiveDurabilityMonitor::commit(const ActiveSyncWrite& sw) {
                             {} /*commitSeqno*/,
                             cHandle,
                             sw.getCookie());
-    if (result != ENGINE_SUCCESS) {
+    if (result != cb::engine_errc::success) {
         throwException<std::logic_error>(
-                __func__, "failed with status:" + std::to_string(result));
+                __func__, "failed with status: " + cb::to_string(result));
     }
 
     // Record the duration of the SyncWrite in histogram.
@@ -878,8 +878,8 @@ void ActiveDurabilityMonitor::abort(const ActiveSyncWrite& sw) {
     auto cHandle = vb.lockCollections(key);
     if (!cHandle.valid() || cHandle.isLogicallyDeleted(sw.getBySeqno())) {
         // collection no longer exists, don't generate an abort
-        vb.notifyClientOfSyncWriteComplete(sw.getCookie(),
-                                           ENGINE_SYNC_WRITE_AMBIGUOUS);
+        vb.notifyClientOfSyncWriteComplete(
+                sw.getCookie(), cb::engine_errc::sync_write_ambiguous);
         return;
     }
 
@@ -888,9 +888,9 @@ void ActiveDurabilityMonitor::abort(const ActiveSyncWrite& sw) {
                            {} /*abortSeqno*/,
                            cHandle,
                            sw.getCookie());
-    if (result != ENGINE_SUCCESS) {
+    if (result != cb::engine_errc::success) {
         throwException<std::logic_error>(
-                __func__, "failed with status:" + std::to_string(result));
+                __func__, "failed with status: " + cb::to_string(result));
     }
 
     auto s = state.wlock();

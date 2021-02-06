@@ -60,7 +60,7 @@ void KVStoreTestCacheCallback::callback(CacheLookup& lookup) {
 
 void GetCallback::callback(GetValue& result) {
     EXPECT_EQ(expectedErrorCode, result.getStatus());
-    if (result.getStatus() == ENGINE_SUCCESS) {
+    if (result.getStatus() == cb::engine_errc::success) {
         if (expectCompressed) {
             EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_SNAPPY,
                       result.item->getDataType());
@@ -83,10 +83,10 @@ public:
 };
 
 void checkGetValue(GetValue& result,
-                   ENGINE_ERROR_CODE expectedErrorCode,
+                   cb::engine_errc expectedErrorCode,
                    bool expectCompressed) {
     EXPECT_EQ(expectedErrorCode, result.getStatus());
-    if (result.getStatus() == ENGINE_SUCCESS) {
+    if (result.getStatus() == cb::engine_errc::success) {
         if (expectCompressed) {
             EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_SNAPPY,
                       result.item->getDataType());
@@ -211,7 +211,7 @@ TEST_P(KVStoreParamTestSkipRocks, ZeroSizeValueNotCompressed) {
     EXPECT_CALL(
             *mockGetCb,
             callback(AllOf(
-                    Property(&GetValue::getStatus, ENGINE_SUCCESS),
+                    Property(&GetValue::getStatus, cb::engine_errc::success),
                     Field(&GetValue::item, Pointee(Not(IsDatatypeSnappy()))),
                     Field(&GetValue::item, Pointee(IsValueValid())))));
 
@@ -342,7 +342,7 @@ TEST_P(KVStoreParamTest, BasicTest) {
     EXPECT_TRUE(kvstore->commit(flush));
 
     GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
-    checkGetValue(gv, ENGINE_SUCCESS);
+    checkGetValue(gv, cb::engine_errc::success);
 }
 
 // Test different modes of get()
@@ -360,10 +360,10 @@ TEST_P(KVStoreParamTest, GetModes) {
     // Only couchstore compresses documents individually, hence is the only
     // kvstore backend which will return compressed when requested.
     const auto expectCompressed = GetParam() == "couchdb" ? true : false;
-    checkGetValue(gv, ENGINE_SUCCESS, expectCompressed);
+    checkGetValue(gv, cb::engine_errc::success, expectCompressed);
 
     gv = kvstore->get(DiskDocKey{key}, Vbid(0), ValueFilter::KEYS_ONLY);
-    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
     EXPECT_EQ(key.to_string(), gv.item->getKey().to_string());
     EXPECT_EQ(1, gv.item->getBySeqno());
     EXPECT_EQ(0, gv.item->getValue()->valueSize());
@@ -373,7 +373,7 @@ TEST_P(KVStoreParamTest, GetModes) {
 // stats, fetching docs to expire, and rollback)
 TEST_P(KVStoreParamTest, GetMissNumGetFailure) {
     GetValue gv = kvstore->get(DiskDocKey{makeStoredDocKey("key")}, Vbid(0));
-    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
 
     auto stats = kvstore->getKVStoreStat();
     EXPECT_EQ(1, stats.numGetFailure);
@@ -390,7 +390,8 @@ TEST_P(KVStoreParamTest, GetMultiMissNumGetFailure) {
     kvstore->getMulti(vbid, q);
 
     for (auto& fetched : q) {
-        EXPECT_EQ(ENGINE_KEY_ENOENT, fetched.second.value.getStatus());
+        EXPECT_EQ(cb::engine_errc::no_such_key,
+                  fetched.second.value.getStatus());
     }
 
     auto stats = kvstore->getKVStoreStat();
@@ -409,7 +410,7 @@ TEST_P(KVStoreParamTest, GetRangeMissNumGetFailure) {
             [&results](GetValue&& cb) { results.push_back(std::move(cb)); });
 
     for (auto& fetched : results) {
-        EXPECT_EQ(ENGINE_KEY_ENOENT, fetched.getStatus());
+        EXPECT_EQ(cb::engine_errc::no_such_key, fetched.getStatus());
     }
 
     // It wouldn't make sense to report get failures if we don't return anything
@@ -529,7 +530,7 @@ void KVStoreParamTest::checkBGFetchResult(
         const ValueFilter& filter,
         const Item& testDoc,
         const vb_bgfetch_item_ctx_t& fetched) const {
-    EXPECT_EQ(ENGINE_SUCCESS, fetched.value.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, fetched.value.getStatus());
     const auto& fetchedItem = fetched.value.item;
     const auto& fetchedBlob = fetchedItem->getValue();
     switch (filter) {
@@ -751,9 +752,9 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
 
     // Check that an item is not found in a different VBucket
     GetValue gv = kvstore->get(makeDiskDocKey("key-0"), Vbid(1));
-    checkGetValue(gv, ENGINE_KEY_ENOENT);
+    checkGetValue(gv, cb::engine_errc::no_such_key);
     gv = kvstore->get(makeDiskDocKey("key-1"), Vbid(0));
-    checkGetValue(gv, ENGINE_KEY_ENOENT);
+    checkGetValue(gv, cb::engine_errc::no_such_key);
 }
 
 // Verify thread-safeness for 'delVBucket' concurrent operations.
@@ -1034,11 +1035,11 @@ TEST_P(KVStoreParamTest, Durability_PersistPrepare) {
     kvstore->commit(flush);
 
     GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
-    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
 
     DiskDocKey prefixedKey(key, true /*prepare*/);
     gv = kvstore->get(prefixedKey, Vbid(0));
-    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
     EXPECT_TRUE(gv.item->isPending());
     EXPECT_FALSE(gv.item->isDeleted());
 }
@@ -1055,12 +1056,12 @@ TEST_P(KVStoreParamTest, Durability_PersistAbort) {
     kvstore->commit(flush);
 
     GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
-    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
 
     // Note: Aborts are in the DurabilityPrepare namespace.
     DiskDocKey prefixedKey(key, true /*pending*/);
     gv = kvstore->get(prefixedKey, Vbid(0));
-    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
     EXPECT_TRUE(gv.item->isAbort());
     EXPECT_TRUE(gv.item->isDeleted());
     EXPECT_EQ(999, gv.item->getPrepareSeqno());
@@ -1115,12 +1116,12 @@ public:
         EXPECT_LE(startSeqno, result.item->getBySeqno());
         EXPECT_LE(result.item->getBySeqno(), endSeqno);
         if (!didEnomem && result.item->getBySeqno() == enomemSeqno) {
-            setStatus(ENGINE_ENOMEM);
+            setStatus(cb::engine_errc::no_memory);
             didEnomem = true;
             return;
         }
         nItems++;
-        setStatus(ENGINE_SUCCESS);
+        setStatus(cb::engine_errc::success);
         return;
     }
 

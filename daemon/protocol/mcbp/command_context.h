@@ -38,7 +38,7 @@ public:
      * method in the `SERVER_DOCUMENT_API` provided by the server for a
      * detailed description.
      */
-    virtual ENGINE_ERROR_CODE pre_link_document(item_info&) {
-        return ENGINE_SUCCESS;
+    virtual cb::engine_errc pre_link_document(item_info&) {
+        return cb::engine_errc::success;
     }
 };

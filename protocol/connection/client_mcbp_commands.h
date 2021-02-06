@@ -1107,7 +1107,7 @@ protected:
 class BinprotEWBCommand : public BinprotGenericCommand {
 public:
     BinprotEWBCommand(EWBEngineMode mode,
-                      ENGINE_ERROR_CODE err_code,
+                      cb::engine_errc err_code,
                       uint32_t value,
                       const std::string& key);
 

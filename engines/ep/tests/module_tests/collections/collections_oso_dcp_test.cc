@@ -89,7 +89,8 @@ TEST_F(CollectionsOSODcpTest, basic) {
     consumer->snapshotMarker(1, replicaVB, 0, 4, 0, 0, 4);
 
     // Manually step the producer and inspect all callbacks
-    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
     EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::Start),
               producers->last_oso_snapshot_flags);
@@ -100,14 +101,16 @@ TEST_F(CollectionsOSODcpTest, basic) {
     for (auto& k : keys) {
         // Now we get the mutations, they aren't guaranteed to be in seqno
         // order, but we know that for now they will be in key order.
-        EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+        EXPECT_EQ(cb::engine_errc::success,
+                  producer->stepWithBorderGuard(*producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
         EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
         EXPECT_EQ(k, producers->last_key);
     }
 
     // Now we get the end message
-    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
     EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::End),
               producers->last_oso_snapshot_flags);
@@ -136,23 +139,25 @@ void CollectionsOSODcpTest::testTwoCollections(bool backfillWillPause) {
         auto result = producer->stepWithBorderGuard(*producers);
         if (backfillWillPause) {
             // backfill paused, step does nothing
-            EXPECT_EQ(ENGINE_EWOULDBLOCK, result);
+            EXPECT_EQ(cb::engine_errc::would_block, result);
             auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
             runNextTask(lpAuxioQ);
-            EXPECT_EQ(ENGINE_SUCCESS,
+            EXPECT_EQ(cb::engine_errc::success,
                       producer->stepWithBorderGuard(*producers));
         } else {
-            EXPECT_EQ(ENGINE_SUCCESS, result);
+            EXPECT_EQ(cb::engine_errc::success, result);
         }
     };
 
     // Manually step the producer and inspect all callbacks
-    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
     EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::Start),
               producers->last_oso_snapshot_flags);
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ(CollectionUid::vegetable, producers->last_collection_id);
     EXPECT_EQ("vegetable", producers->last_key);
@@ -210,19 +215,22 @@ TEST_F(CollectionsOSODcpTest, dropped_collection) {
             1, replicaVB, 0, setup.second + 1, 0, 0, setup.second + 1);
 
     // Manually step the producer and inspect all callbacks
-    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
     EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::Start),
               producers->last_oso_snapshot_flags);
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ(CollectionUid::vegetable, producers->last_collection_id);
     EXPECT_EQ(mcbp::systemevent::id::DeleteCollection,
               producers->last_system_event);
 
     // ... end
-    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
     EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::End),
               producers->last_oso_snapshot_flags);
@@ -255,7 +263,8 @@ TEST_F(CollectionsOSODcpTest, transition_to_memory) {
     consumer->snapshotMarker(1, replicaVB, 0, 4, 0, 0, 4);
 
     // Manually step the producer and inspect all callbacks
-    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
     EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::Start),
               producers->last_oso_snapshot_flags);
@@ -263,7 +272,8 @@ TEST_F(CollectionsOSODcpTest, transition_to_memory) {
     std::array<std::pair<std::string, uint64_t>, 3> keys = {
             {{"a", 2}, {"b", 1}, {"c", 3}}};
     for (const auto& [k, s] : keys) {
-        EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+        EXPECT_EQ(cb::engine_errc::success,
+                  producer->stepWithBorderGuard(*producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
         EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
         EXPECT_EQ(k, producers->last_key);
@@ -271,23 +281,27 @@ TEST_F(CollectionsOSODcpTest, transition_to_memory) {
     }
 
     // Now we get the end message
-    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
     EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::End),
               producers->last_oso_snapshot_flags);
 
     notifyAndStepToCheckpoint();
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
     EXPECT_EQ("d", producers->last_key);
     EXPECT_EQ(4, producers->last_byseqno);
-    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
 
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
     EXPECT_EQ("e", producers->last_key);
     EXPECT_EQ(5, producers->last_byseqno);
-    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
 
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
     EXPECT_EQ("f", producers->last_key);
@@ -324,7 +338,8 @@ TEST_F(CollectionsOSODcpTest, transition_to_memory_MB_38999) {
     consumer->snapshotMarker(1, replicaVB, 0, 4, 0, 0, 4);
 
     // Manually step the producer and inspect all callbacks
-    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
     EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::Start),
               producers->last_oso_snapshot_flags);
@@ -332,7 +347,8 @@ TEST_F(CollectionsOSODcpTest, transition_to_memory_MB_38999) {
     std::array<std::pair<std::string, uint64_t>, 4> keys = {
             {{"a", 2}, {"b", 1}, {"c", 3}, {"d", 4}}};
     for (const auto& [k, s] : keys) {
-        EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+        EXPECT_EQ(cb::engine_errc::success,
+                  producer->stepWithBorderGuard(*producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
         EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
         EXPECT_EQ(k, producers->last_key);
@@ -340,14 +356,16 @@ TEST_F(CollectionsOSODcpTest, transition_to_memory_MB_38999) {
     }
 
     // Now we get the end message
-    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
     EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::End),
               producers->last_oso_snapshot_flags);
 
     notifyAndStepToCheckpoint();
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
     EXPECT_EQ("e", producers->last_key);
     EXPECT_EQ(5, producers->last_byseqno);
@@ -380,7 +398,8 @@ TEST_F(CollectionsOSODcpTest, basic_with_stream_id) {
     runBackfill();
 
     // Manually step the producer and inspect all callbacks
-    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
     EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::Start),
               producers->last_oso_snapshot_flags);
@@ -398,7 +417,8 @@ TEST_F(CollectionsOSODcpTest, basic_with_stream_id) {
     for (auto& k : keys) {
         // Now we get the mutations, they aren't guaranteed to be in seqno
         // order, but we know that for now they will be in key order.
-        EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+        EXPECT_EQ(cb::engine_errc::success,
+                  producer->stepWithBorderGuard(*producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
         EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
         EXPECT_EQ(k, producers->last_key);
@@ -412,7 +432,8 @@ TEST_F(CollectionsOSODcpTest, basic_with_stream_id) {
     }
 
     // Now we get the end message
-    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
     EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::End),
               producers->last_oso_snapshot_flags);
@@ -443,12 +464,14 @@ void CollectionsOSODcpTest::MB_43700(CollectionID cid) {
     runBackfill();
 
     // Manually step the producer and inspect all callbacks
-    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
     EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::Start),
               producers->last_oso_snapshot_flags);
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ(cid, producers->last_collection_id);
     EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
@@ -458,7 +481,8 @@ void CollectionsOSODcpTest::MB_43700(CollectionID cid) {
     for (auto& k : keys) {
         // Now we get the mutations, they aren't guaranteed to be in seqno
         // order, but we know that for now they will be in key order.
-        EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+        EXPECT_EQ(cb::engine_errc::success,
+                  producer->stepWithBorderGuard(*producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
         EXPECT_EQ(cid, producers->last_collection_id);
         EXPECT_EQ(k, producers->last_key);
@@ -466,7 +490,8 @@ void CollectionsOSODcpTest::MB_43700(CollectionID cid) {
     }
 
     // Now we get the end message
-    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
     EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::End),
               producers->last_oso_snapshot_flags);
@@ -513,13 +538,15 @@ TEST_P(CollectionsOSOEphemeralTest, basic) {
     consumer->snapshotMarker(1, replicaVB, 0, 4, 0, 0, 4);
 
     // Manually step the producer and inspect all callbacks
-    EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers->last_op);
 
     std::array<std::pair<std::string, uint64_t>, 4> keys = {
             {{"b", 1}, {"d", 2}, {"a", 3}, {"c", 4}}};
     for (const auto& [k, s] : keys) {
-        EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(*producers));
+        EXPECT_EQ(cb::engine_errc::success,
+                  producer->stepWithBorderGuard(*producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
         EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
         EXPECT_EQ(k, producers->last_key);

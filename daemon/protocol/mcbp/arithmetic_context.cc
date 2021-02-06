@@ -38,18 +38,18 @@ ArithmeticCommandContext::ArithmeticCommandContext(Cookie& cookie,
                 req.getClientOpcode() == cb::mcbp::ClientOpcode::Incrementq) {
 }
 
-ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
+cb::engine_errc ArithmeticCommandContext::getItem() {
     auto ret = bucket_get(cookie, cookie.getRequestKey(), vbucket);
     if (ret.first == cb::engine_errc::success) {
         olditem = std::move(ret.second);
 
         if (!bucket_get_item_info(connection, olditem.get(), &oldItemInfo)) {
-            return ENGINE_FAILED;
+            return cb::engine_errc::failed;
         }
 
         uint64_t oldcas = oldItemInfo.cas;
         if (cas != 0 && cas != oldcas) {
-            return ENGINE_KEY_EEXISTS;
+            return cb::engine_errc::key_already_exists;
         }
 
         if (mcbp::datatype::is_snappy(oldItemInfo.datatype)) {
@@ -58,10 +58,10 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
                         static_cast<const char*>(oldItemInfo.value[0].iov_base),
                         oldItemInfo.value[0].iov_len);
                 if (!cookie.inflateSnappy(payload, buffer)) {
-                    return ENGINE_FAILED;
+                    return cb::engine_errc::failed;
                 }
             } catch (const std::bad_alloc&) {
-                return ENGINE_ENOMEM;
+                return cb::engine_errc::no_memory;
             }
         }
 
@@ -80,10 +80,10 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
         }
     }
 
-    return ENGINE_ERROR_CODE(ret.first);
+    return cb::engine_errc(ret.first);
 }
 
-ENGINE_ERROR_CODE ArithmeticCommandContext::createNewItem() {
+cb::engine_errc ArithmeticCommandContext::createNewItem() {
     const std::string value{std::to_string(extras.getInitial())};
     result = extras.getInitial();
 
@@ -100,10 +100,10 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::createNewItem() {
     memcpy(pair.second.value[0].iov_base, value.data(), value.size());
     state = State::StoreNewItem;
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE ArithmeticCommandContext::storeNewItem() {
+cb::engine_errc ArithmeticCommandContext::storeNewItem() {
     uint64_t ncas = cas;
     auto ret = bucket_store(cookie,
                             newitem.get(),
@@ -113,25 +113,25 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::storeNewItem() {
                             DocumentState::Alive,
                             false);
 
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         cookie.setCas(ncas);
         state = State::SendResult;
-    } else if (ret == ENGINE_KEY_EEXISTS && cas == 0) {
+    } else if (ret == cb::engine_errc::key_already_exists && cas == 0) {
         state = State::Reset;
-        ret = ENGINE_SUCCESS;
-    } else if(ret == ENGINE_NOT_STORED) {
+        ret = cb::engine_errc::success;
+    } else if (ret == cb::engine_errc::not_stored) {
         // hit race condition, item with our key was created between our call
         // to bucket_store() and when we checked to see if it existed, by
         // calling bucket_get() so just re-try by resetting our state to the
         // start again.
         state = State::Reset;
-        ret = ENGINE_SUCCESS;
+        ret = cb::engine_errc::success;
     }
 
     return ret;
 }
 
-ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
+cb::engine_errc ArithmeticCommandContext::allocateNewItem() {
     // Set ptr to point to the beginning of the input buffer.
     size_t oldsize = oldItemInfo.nbytes;
     auto* ptr = static_cast<char*>(oldItemInfo.value[0].iov_base);
@@ -156,7 +156,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
 
     uint64_t oldval;
     if (!safe_strtoull(payload.c_str(), oldval)) {
-        return ENGINE_DELTA_BADVAL;
+        return cb::engine_errc::delta_badval;
     }
 
     auto delta = extras.getDelta();
@@ -206,10 +206,10 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
     bucket_item_set_cas(connection, newitem.get(), oldItemInfo.cas);
 
     state = State::StoreItem;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE ArithmeticCommandContext::storeItem() {
+cb::engine_errc ArithmeticCommandContext::storeItem() {
     uint64_t ncas = cas;
     auto ret = bucket_store(cookie,
                             newitem.get(),
@@ -219,18 +219,18 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::storeItem() {
                             DocumentState::Alive,
                             false);
 
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         cookie.setCas(ncas);
         state = State::SendResult;
-    } else if (ret == ENGINE_KEY_EEXISTS && cas == 0) {
+    } else if (ret == cb::engine_errc::key_already_exists && cas == 0) {
         state = State::Reset;
-        ret = ENGINE_SUCCESS;
+        ret = cb::engine_errc::success;
     }
 
     return ret;
 }
 
-ENGINE_ERROR_CODE ArithmeticCommandContext::sendResult() {
+cb::engine_errc ArithmeticCommandContext::sendResult() {
     update_topkeys(cookie);
     state = State::Done;
     const auto opcode = cookie.getHeader().getRequest().getClientOpcode();
@@ -244,7 +244,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::sendResult() {
     if (cookie.getRequest().isQuiet()) {
         ++connection.getBucket()
                   .responseCounters[int(cb::mcbp::Status::Success)];
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     mutation_descr_t mutation_descr{};
@@ -257,7 +257,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::sendResult() {
     if (connection.isSupportsMutationExtras()) {
         item_info newItemInfo;
         if (!bucket_get_item_info(connection, newitem.get(), &newItemInfo)) {
-            return ENGINE_FAILED;
+            return cb::engine_errc::failed;
         }
 
         // Response includes vbucket UUID and sequence number
@@ -275,13 +275,13 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::sendResult() {
                         cb::mcbp::Datatype::Raw,
                         cookie.getCas());
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE ArithmeticCommandContext::reset() {
+cb::engine_errc ArithmeticCommandContext::reset() {
     olditem.reset();
     newitem.reset();
     buffer.reset();
     state = State::GetItem;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }

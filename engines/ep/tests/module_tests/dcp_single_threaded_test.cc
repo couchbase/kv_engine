@@ -32,7 +32,7 @@
 class STDcpTest : public STParameterizedBucketTest {
 protected:
     struct StreamRequestResult {
-        ENGINE_ERROR_CODE status;
+        cb::engine_errc status;
         uint64_t rollbackSeqno;
     };
 
@@ -43,10 +43,10 @@ protected:
     /*
      * Fake callback emulating dcp_add_failover_log
      */
-    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(
+    static cb::engine_errc fakeDcpAddFailoverLog(
             const std::vector<vbucket_failover_t>&) {
         // callbackCount++;
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     StreamRequestResult doStreamRequest(DcpProducer& producer,
@@ -119,7 +119,7 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
     auto* consumer = connMap.newConsumer(cookie, "test_consumer");
 
     // Add passive stream
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               consumer->addStream(0 /*opaque*/, vbid, 0 /*flags*/));
 
     // Get the checkpointManager
@@ -167,14 +167,14 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
                                        fakeDcpAddFailoverLog,
                                        {});
 
-    EXPECT_EQ(ENGINE_TMPFAIL, err);
+    EXPECT_EQ(cb::engine_errc::temporary_failure, err);
 
     // Open checkpoint Id should not be effected.
     EXPECT_EQ(1, manager.getOpenCheckpointId());
 
     /* Send a mutation */
     const DocKey docKey{nullptr, 0, DocKeyEncodesCollectionId::No};
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->mutation(1 /*opaque*/,
                                  docKey,
                                  {}, // value
@@ -208,7 +208,8 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
     EXPECT_EQ(1, manager.getOpenCheckpointId());
 
     // Close stream
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(0 /*opaque*/, vbid));
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->closeStream(0 /*opaque*/, vbid));
 
     connMap.disconnect(cookie);
     EXPECT_FALSE(connMap.isDeadConnectionsEmpty());
@@ -232,7 +233,7 @@ TEST_P(STDcpTest, SnapshotsAndNoData) {
     auto* consumer = connMap.newConsumer(cookie, "test_consumer");
 
     // Add passive stream
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               consumer->addStream(0 /*opaque*/, vbid, 0 /*flags*/));
 
     // Get the checkpointManager
@@ -270,7 +271,8 @@ TEST_P(STDcpTest, SnapshotsAndNoData) {
     EXPECT_EQ(0, snapInfo.range.getEnd());
 
     // Close stream
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(/*opaque*/ 0, vbid));
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->closeStream(/*opaque*/ 0, vbid));
 
     connMap.disconnect(cookie);
     EXPECT_FALSE(connMap.isDeadConnectionsEmpty());
@@ -294,7 +296,7 @@ TEST_P(STDcpTest, AckCorrectPassiveStream) {
     consumer1->enableSyncReplication();
 
     // Add our stream and accept to mimic real scenario and ensure it is alive
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               consumer1->addStream(0 /*opaque*/, vbid, 0 /*flags*/));
     MockPassiveStream* stream1 = static_cast<MockPassiveStream*>(
             (consumer1->getVbucketStream(vbid)).get());
@@ -318,7 +320,7 @@ TEST_P(STDcpTest, AckCorrectPassiveStream) {
             std::make_shared<MockDcpConsumer>(*engine, cookie2, "consumer2");
     mockConnMap.addConn(cookie2, consumer2);
     consumer2->enableSyncReplication();
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               consumer2->addStream(1 /*opaque*/, vbid, 0 /*flags*/));
     MockPassiveStream* stream2 = static_cast<MockPassiveStream*>(
             (consumer2->getVbucketStream(vbid)).get());
@@ -337,7 +339,8 @@ TEST_P(STDcpTest, AckCorrectPassiveStream) {
     EXPECT_EQ(0, stream1->public_readyQ().size());
     EXPECT_EQ(1, stream2->public_readyQ().size());
 
-    ASSERT_EQ(ENGINE_SUCCESS, consumer2->closeStream(1 /*opaque*/, vbid));
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer2->closeStream(1 /*opaque*/, vbid));
 
     connMap.disconnect(cookie1);
     connMap.disconnect(cookie2);
@@ -351,17 +354,17 @@ void STDcpTest::testProducerNegotiatesIncludeDeletedUserXattrs(
     auto* cookie = create_mock_cookie();
 
     uint32_t dcpOpenFlags;
-    ENGINE_ERROR_CODE expectedControlResp;
+    cb::engine_errc expectedControlResp;
     switch (producerState) {
     case IncludeDeletedUserXattrs::Yes: {
         dcpOpenFlags =
                 cb::mcbp::request::DcpOpenPayload::IncludeDeletedUserXattrs;
-        expectedControlResp = ENGINE_SUCCESS;
+        expectedControlResp = cb::engine_errc::success;
         break;
     }
     case IncludeDeletedUserXattrs::No: {
         dcpOpenFlags = 0;
-        expectedControlResp = ENGINE_EINVAL;
+        expectedControlResp = cb::engine_errc::invalid_arguments;
         break;
     }
     }
@@ -407,7 +410,7 @@ void STDcpTest::testConsumerNegotiatesIncludeDeletedUserXattrs(
     // verifying that the negotiation of DeletedUserXattrs flows as exptected.
     consumer.setPendingAddStream(false);
     MockDcpMessageProducers producers;
-    ENGINE_ERROR_CODE result;
+    cb::engine_errc result;
     // Step and unblock (ie, simulate Producer response) up to completing the
     // SyncRepl negotiation, which is the last blocking step before the
     // DeletedUserXattrs negotiation
@@ -416,10 +419,10 @@ void STDcpTest::testConsumerNegotiatesIncludeDeletedUserXattrs(
         handleProducerResponseIfStepBlocked(consumer, producers);
         syncReplNeg = consumer.public_getSyncReplNegotiation();
     } while (syncReplNeg.state != State::Completed);
-    EXPECT_EQ(ENGINE_SUCCESS, result);
+    EXPECT_EQ(cb::engine_errc::success, result);
 
     // Skip over "send consumer name"
-    EXPECT_EQ(ENGINE_SUCCESS, consumer.step(producers));
+    EXPECT_EQ(cb::engine_errc::success, consumer.step(producers));
     ASSERT_FALSE(consumer.public_getPendingSendConsumerName());
 
     // Check pre-negotiation state
@@ -428,7 +431,7 @@ void STDcpTest::testConsumerNegotiatesIncludeDeletedUserXattrs(
     ASSERT_EQ(0, xattrNeg.opaque);
 
     // Start negotiation - consumer sends DcpControl
-    EXPECT_EQ(ENGINE_SUCCESS, consumer.step(producers));
+    EXPECT_EQ(cb::engine_errc::success, consumer.step(producers));
     xattrNeg = consumer.public_getDeletedUserXattrsNegotiation();
     EXPECT_EQ(State::PendingResponse, xattrNeg.state);
     EXPECT_EQ("include_deleted_user_xattrs", producers.last_key);
@@ -437,7 +440,7 @@ void STDcpTest::testConsumerNegotiatesIncludeDeletedUserXattrs(
     EXPECT_EQ(xattrNeg.opaque, producers.last_opaque);
 
     // Verify blocked - Consumer cannot proceed until negotiation completes
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, consumer.step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, consumer.step(producers));
     xattrNeg = consumer.public_getDeletedUserXattrsNegotiation();
     EXPECT_EQ(State::PendingResponse, xattrNeg.state);
 
@@ -488,7 +491,7 @@ void STDcpTest::processConsumerMutationsNearThreshold(bool beyondThreshold) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
     /* Passive stream */
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               consumer->addStream(/*opaque*/ 0,
                                   vbid,
                                   /*flags*/ 0));
@@ -497,7 +500,7 @@ void STDcpTest::processConsumerMutationsNearThreshold(bool beyondThreshold) {
     ASSERT_TRUE(stream->isActive());
 
     /* Send a snapshotMarker before sending items for replication */
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(opaque,
                                        vbid,
                                        snapStart,
@@ -513,7 +516,7 @@ void STDcpTest::processConsumerMutationsNearThreshold(bool beyondThreshold) {
 
     /* Send an item for replication and expect it to be buffered */
     const DocKey docKey{"mykey", DocKeyEncodesCollectionId::No};
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->mutation(opaque,
                                  docKey,
                                  {}, // value
@@ -560,7 +563,7 @@ void STDcpTest::processConsumerMutationsNearThreshold(bool beyondThreshold) {
         EXPECT_FALSE(consumer->isPaused());
 
         /* Expect disconnect signal in Ephemeral with "fail_new_data" policy */
-        EXPECT_EQ(ENGINE_DISCONNECT, consumer->step(producers));
+        EXPECT_EQ(cb::engine_errc::disconnect, consumer->step(producers));
     } else {
         uint32_t backfoffs = consumer->getNumBackoffs();
 
@@ -577,10 +580,11 @@ void STDcpTest::processConsumerMutationsNearThreshold(bool beyondThreshold) {
         /* In 'couchbase' buckets we buffer the replica items and indirectly
            throttle replication by not sending flow control acks to the
            producer. Hence we do not drop the connection here */
-        EXPECT_EQ(ENGINE_SUCCESS, consumer->step(producers));
+        EXPECT_EQ(cb::engine_errc::success, consumer->step(producers));
 
         /* Close stream before deleting the connection */
-        EXPECT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
+        EXPECT_EQ(cb::engine_errc::success,
+                  consumer->closeStream(opaque, vbid));
     }
 
     connMap.disconnect(cookie);
@@ -636,26 +640,26 @@ TEST_P(STDcpTest, test_producer_stream_end_on_client_close_stream) {
     const std::string sendStreamEndOnClientStreamCloseCtrlMsg(
             "send_stream_end_on_client_close_stream");
     const std::string sendStreamEndOnClientStreamCloseCtrlValue("true");
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->control(0,
                                 sendStreamEndOnClientStreamCloseCtrlMsg,
                                 sendStreamEndOnClientStreamCloseCtrlValue));
 
     /* Open stream */
-    EXPECT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+    EXPECT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
     EXPECT_TRUE(mockConnMap.doesVbConnExist(vbid, "test_producer"));
 
     /* Close stream */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->closeStream(0, vbid));
+    EXPECT_EQ(cb::engine_errc::success, producer->closeStream(0, vbid));
 
     /* Expect a stream end message */
     MockDcpMessageProducers producers;
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
     EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Closed, producers.last_end_status);
 
     /* Re-open stream for the same vbucket on the conn */
-    EXPECT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+    EXPECT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
 
     /* Check that the new stream is opened properly */
     auto stream = producer->findStream(vbid);
@@ -686,15 +690,15 @@ TEST_P(STDcpTest, test_producer_no_stream_end_on_client_close_stream) {
                                                 /*flags*/ 0);
 
     /* Open stream */
-    EXPECT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+    EXPECT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
 
     /* Close stream */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->closeStream(0, vbid));
+    EXPECT_EQ(cb::engine_errc::success, producer->closeStream(0, vbid));
 
     /* Don't expect a stream end message (or any other message as the stream is
        closed) */
     MockDcpMessageProducers producers;
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
 
     /* Check that the stream is not found in the producer's stream map */
     EXPECT_TRUE(producer->findStreams(vbid)->wlock().empty());
@@ -718,7 +722,7 @@ TEST_P(STDcpTest, test_consumer_add_stream) {
             std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
     connMap.addConn(cookie, consumer);
 
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               consumer->addStream(/*opaque*/ 0,
                                   vbid,
                                   /*flags*/ 0));
@@ -732,7 +736,7 @@ TEST_P(STDcpTest, test_consumer_add_stream) {
     stream->transitionStateToDead();
 
     /* Add a passive stream on the same vb */
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               consumer->addStream(/*opaque*/ 0,
                                   vbid,
                                   /*flags*/ 0));
@@ -743,7 +747,8 @@ TEST_P(STDcpTest, test_consumer_add_stream) {
     ASSERT_TRUE(stream->isActive());
 
     /* Close stream before deleting the connection */
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(/*opaque*/ 0, vbid));
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->closeStream(/*opaque*/ 0, vbid));
 
     connMap.disconnect(cookie);
     EXPECT_FALSE(connMap.isDeadConnectionsEmpty());
@@ -763,7 +768,7 @@ TEST_P(STDcpTest, test_mb24424_deleteResponse) {
             std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
     connMap.addConn(cookie, consumer);
 
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               consumer->addStream(/*opaque*/ 0,
                                   vbid,
                                   /*flags*/ 0));
@@ -797,7 +802,8 @@ TEST_P(STDcpTest, test_mb24424_deleteResponse) {
     EXPECT_EQ(messageSize, stream->responseMessageSize);
 
     /* Close stream before deleting the connection */
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(/*opaque*/ 0, vbid));
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->closeStream(/*opaque*/ 0, vbid));
 
     connMap.disconnect(cookie);
     EXPECT_FALSE(connMap.isDeadConnectionsEmpty());
@@ -817,7 +823,7 @@ TEST_P(STDcpTest, test_mb24424_mutationResponse) {
             std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
     connMap.addConn(cookie, consumer);
 
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               consumer->addStream(/*opaque*/ 0,
                                   vbid,
                                   /*flags*/ 0));
@@ -858,7 +864,8 @@ TEST_P(STDcpTest, test_mb24424_mutationResponse) {
     EXPECT_EQ(messageSize, stream->responseMessageSize);
 
     /* Close stream before deleting the connection */
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(/*opaque*/ 0, vbid));
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->closeStream(/*opaque*/ 0, vbid));
 
     connMap.disconnect(cookie);
     EXPECT_FALSE(connMap.isDeadConnectionsEmpty());
@@ -882,7 +889,7 @@ void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
     connMap.addConn(cookie, consumer);
 
     /* Passive stream */
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               consumer->addStream(/*opaque*/ 0,
                                   vbid,
                                   /*flags*/ 0));
@@ -891,7 +898,7 @@ void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
     ASSERT_TRUE(stream->isActive());
 
     /* Send a snapshotMarker before sending items for replication */
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(opaque,
                                        vbid,
                                        snapStart,
@@ -902,7 +909,7 @@ void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
 
     /* Send an item for replication */
     const DocKey docKey{nullptr, 0, DocKeyEncodesCollectionId::No};
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->mutation(opaque,
                                  docKey,
                                  {}, // value
@@ -940,7 +947,7 @@ void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
         while (true) {
             /* Keep sending items till the memory usage goes above the
                threshold and the connection is disconnected */
-            if (ENGINE_DISCONNECT ==
+            if (cb::engine_errc::disconnect ==
                 consumer->mutation(opaque,
                                    docKey,
                                    {}, // value
@@ -962,7 +969,7 @@ void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
         /* In 'couchbase' buckets we buffer the replica items and indirectly
            throttle replication by not sending flow control acks to the
            producer. Hence we do not drop the connection here */
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   consumer->mutation(opaque,
                                      docKey,
                                      {}, // value
@@ -980,7 +987,7 @@ void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
     }
 
     /* Close stream before deleting the connection */
-    EXPECT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
+    EXPECT_EQ(cb::engine_errc::success, consumer->closeStream(opaque, vbid));
 
     connMap.disconnect(cookie);
     EXPECT_FALSE(connMap.isDeadConnectionsEmpty());

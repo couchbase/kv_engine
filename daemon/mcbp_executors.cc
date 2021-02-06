@@ -127,22 +127,22 @@ std::array<HandlerFunction, 0x100> response_handlers;
 static void process_bin_unknown_packet(Cookie& cookie) {
     auto& connection = cookie.getConnection();
 
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    auto ret = cookie.swapAiostat(cb::engine_errc::success);
 
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         ret = bucket_unknown_command(cookie, mcbpResponseHandlerFn);
     }
 
     ret = cookie.getConnection().remapErrorCode(ret);
     switch (ret) {
-    case ENGINE_SUCCESS: {
+    case cb::engine_errc::success: {
         update_topkeys(cookie);
         break;
     }
-    case ENGINE_EWOULDBLOCK:
+    case cb::engine_errc::would_block:
         cookie.setEwouldblock(true);
         break;
-    case ENGINE_DISCONNECT:
+    case cb::engine_errc::disconnect:
         connection.shutdown();
         break;
     default:
@@ -339,10 +339,10 @@ static void get_ctrl_token_executor(Cookie& cookie) {
 
 static void ioctl_get_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    auto ret = cookie.swapAiostat(cb::engine_errc::success);
     cb::mcbp::Datatype datatype = cb::mcbp::Datatype::Raw;
     std::string value;
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         auto& req = cookie.getRequest();
         auto key_data = req.getKey();
         const std::string key(reinterpret_cast<const char*>(key_data.data()),
@@ -352,7 +352,7 @@ static void ioctl_get_executor(Cookie& cookie) {
 
     auto remapErr = connection.remapErrorCode(ret);
     switch (remapErr) {
-    case ENGINE_SUCCESS:
+    case cb::engine_errc::success:
         cookie.sendResponse(cb::mcbp::Status::Success,
                             {},
                             {},
@@ -360,14 +360,14 @@ static void ioctl_get_executor(Cookie& cookie) {
                             datatype,
                             0);
         break;
-    case ENGINE_EWOULDBLOCK:
+    case cb::engine_errc::would_block:
         cookie.setEwouldblock(true);
         break;
-    case ENGINE_DISCONNECT:
-        if (ret == ENGINE_DISCONNECT) {
+    case cb::engine_errc::disconnect:
+        if (ret == cb::engine_errc::disconnect) {
             LOG_WARNING(
                     "{}: ioctl_get_executor - ioctl_get_property returned "
-                    "ENGINE_DISCONNECT - closing connection {}",
+                    "cb::engine_errc::disconnect - closing connection {}",
                     connection.getId(),
                     connection.getDescription());
             connection.setTerminationReason(
@@ -381,10 +381,10 @@ static void ioctl_get_executor(Cookie& cookie) {
 }
 
 static void ioctl_set_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    auto ret = cookie.swapAiostat(cb::engine_errc::success);
 
     auto& connection = cookie.getConnection();
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         auto& req = cookie.getRequest();
         auto key_data = req.getKey();
         auto val_data = req.getValue();
@@ -398,14 +398,14 @@ static void ioctl_set_executor(Cookie& cookie) {
     auto remapErr = connection.remapErrorCode(ret);
 
     switch (remapErr) {
-    case ENGINE_EWOULDBLOCK:
+    case cb::engine_errc::would_block:
         cookie.setEwouldblock(true);
         break;
-    case ENGINE_DISCONNECT:
-        if (ret == ENGINE_DISCONNECT) {
+    case cb::engine_errc::disconnect:
+        if (ret == cb::engine_errc::disconnect) {
             LOG_WARNING(
                     "{}: ioctl_set_executor - ioctl_set_property returned "
-                    "ENGINE_DISCONNECT - closing connection {}",
+                    "cb::engine_errc::disconnect - closing connection {}",
                     connection.getId(),
                     connection.getDescription());
             connection.setTerminationReason(
@@ -619,11 +619,11 @@ static void process_bin_dcp_response(Cookie& cookie) {
     auto ret = dcp->response_handler(&cookie, cookie.getHeader().getResponse());
     auto remapErr = c.remapErrorCode(ret);
 
-    if (remapErr == ENGINE_DISCONNECT) {
-        if (ret == ENGINE_DISCONNECT) {
+    if (remapErr == cb::engine_errc::disconnect) {
+        if (ret == cb::engine_errc::disconnect) {
             LOG_WARNING(
                     "{}: process_bin_dcp_response - response_handler returned "
-                    "ENGINE_DISCONNECT - closing connection {}",
+                    "cb::engine_errc::disconnect - closing connection {}",
                     c.getId(),
                     c.getDescription());
             c.setTerminationReason(
@@ -848,17 +848,18 @@ void initialize_mbcp_lookup_map() {
     setup_handler(cb::mcbp::ClientOpcode::CompactDb, compact_db_executor);
 }
 
-static ENGINE_ERROR_CODE getEngineErrorCode(
+static cb::engine_errc getEngineErrorCode(
         const cb::rbac::PrivilegeAccess& access) {
     switch (access.getStatus()) {
     case cb::rbac::PrivilegeAccess::Status::Ok:
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     case cb::rbac::PrivilegeAccess::Status::Fail:
-        return ENGINE_EACCESS;
+        return cb::engine_errc::no_access;
     case cb::rbac::PrivilegeAccess::Status::FailNoPrivileges:
         // No scope specific commands are being checked here, privilege fail
-        // with no scope, collection privs is ENGINE_UNKNOWN_COLLECTION
-        return ENGINE_UNKNOWN_COLLECTION;
+        // with no scope, collection privs is
+        // cb::engine_errc::unknown_collection
+        return cb::engine_errc::unknown_collection;
     }
     throw std::invalid_argument(
             "getEngineErrorCode(PrivilegeAccess) unknown status:" +
@@ -901,7 +902,8 @@ void execute_client_request_packet(Cookie& cookie,
 
         audit_command_access_failed(cookie);
 
-        if (c->remapErrorCode(getEngineErrorCode(res)) == ENGINE_DISCONNECT) {
+        if (c->remapErrorCode(getEngineErrorCode(res)) ==
+            cb::engine_errc::disconnect) {
             c->shutdown();
         } else {
             auto status = getStatusCode(res);

@@ -38,7 +38,7 @@ public:
 
     void notifyExecutionComplete() override;
 
-    ENGINE_ERROR_CODE getCommandError() const {
+    cb::engine_errc getCommandError() const {
         return command_error;
     }
 
@@ -50,7 +50,7 @@ public:
 protected:
     Connection& connection;
     Cookie& cookie;
-    ENGINE_ERROR_CODE command_error;
+    cb::engine_errc command_error;
     std::vector<std::pair<std::string, std::string>> stats;
 };
 

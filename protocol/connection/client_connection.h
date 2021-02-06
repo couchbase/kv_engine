@@ -624,7 +624,7 @@ public:
      */
     void configureEwouldBlockEngine(
             const EWBEngineMode& mode,
-            ENGINE_ERROR_CODE err_code = ENGINE_EWOULDBLOCK,
+            cb::engine_errc err_code = cb::engine_errc::would_block,
             uint32_t value = 0,
             const std::string& key = "");
 
@@ -634,7 +634,8 @@ public:
     void disableEwouldBlockEngine() {
         // We disable the engine by telling it to inject the given error
         // the next 0 times
-        configureEwouldBlockEngine(EWBEngineMode::Next_N, ENGINE_SUCCESS, 0);
+        configureEwouldBlockEngine(
+                EWBEngineMode::Next_N, cb::engine_errc::success, 0);
     }
 
     /**

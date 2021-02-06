@@ -55,16 +55,16 @@ using namespace mcbp::subdoc;
  */
 static bool subdoc_fetch(Cookie& cookie,
                          SubdocCmdContext& ctx,
-                         ENGINE_ERROR_CODE& ret,
+                         cb::engine_errc& ret,
                          cb::const_byte_buffer key,
                          uint64_t cas);
 
 static bool subdoc_operate(SubdocCmdContext& context);
 
-static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
-                                       ENGINE_ERROR_CODE ret,
-                                       cb::const_byte_buffer key,
-                                       uint32_t expiration);
+static cb::engine_errc subdoc_update(SubdocCmdContext& context,
+                                     cb::engine_errc ret,
+                                     cb::const_byte_buffer key,
+                                     uint32_t expiration);
 static void subdoc_response(Cookie& cookie, SubdocCmdContext& context);
 
 static SubdocCmdContext* subdoc_create_context(Cookie& cookie,
@@ -124,7 +124,7 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
     // We potentially need to make multiple attempts at this as the engine may
     // return EWOULDBLOCK if not initially resident, hence initialise ret to
     // c->aiostat.
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    auto ret = cookie.swapAiostat(cb::engine_errc::success);
 
     // If client didn't specify a CAS, we still use CAS internally to check
     // that we are updating the same version of the document as was fetched.
@@ -187,11 +187,11 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
 
         // 3. Update the document in the engine (mutations only).
         ret = subdoc_update(*context, ret, key, expiration);
-        if (ret == ENGINE_KEY_EEXISTS) {
+        if (ret == cb::engine_errc::key_already_exists) {
             if (auto_retry) {
                 // Retry the operation. Reset the command context and related
                 // state, so start from the beginning again.
-                ret = ENGINE_SUCCESS;
+                ret = cb::engine_errc::success;
 
                 cookie.setCommandContext();
                 continue;
@@ -200,7 +200,7 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
                 cookie.sendResponse(cb::engine_errc(ret));
                 return;
             }
-        } else if (ret != ENGINE_SUCCESS) {
+        } else if (ret != cb::engine_errc::success) {
             return;
         }
 
@@ -250,11 +250,11 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
 // else false.
 static bool subdoc_fetch(Cookie& cookie,
                          SubdocCmdContext& ctx,
-                         ENGINE_ERROR_CODE& ret,
+                         cb::engine_errc& ret,
                          cb::const_byte_buffer key,
                          uint64_t cas) {
     if (!ctx.fetchedItem && !ctx.needs_new_doc) {
-        if (ret == ENGINE_SUCCESS) {
+        if (ret == cb::engine_errc::success) {
             auto get_key = cookie.getConnection().makeDocKey(key);
             DocStateFilter state = DocStateFilter::Alive;
             if (ctx.do_allow_deleted_docs) {
@@ -263,15 +263,15 @@ static bool subdoc_fetch(Cookie& cookie,
             auto r = bucket_get(cookie, get_key, ctx.vbucket, state);
             if (r.first == cb::engine_errc::success) {
                 ctx.fetchedItem = std::move(r.second);
-                ret = ENGINE_SUCCESS;
+                ret = cb::engine_errc::success;
             } else {
-                ret = ENGINE_ERROR_CODE(r.first);
+                ret = cb::engine_errc(r.first);
                 ret = ctx.connection.remapErrorCode(ret);
             }
         }
 
         switch (ret) {
-        case ENGINE_SUCCESS:
+        case cb::engine_errc::success:
             if (ctx.traits.is_mutator &&
                 ctx.mutationSemantics == MutationSemantics::Add) {
                 cookie.sendResponse(cb::mcbp::Status::KeyEexists);
@@ -280,7 +280,7 @@ static bool subdoc_fetch(Cookie& cookie,
             ctx.needs_new_doc = false;
             break;
 
-        case ENGINE_KEY_ENOENT:
+        case cb::engine_errc::no_such_key:
             if (!ctx.traits.is_mutator) {
                 // Lookup operation against a non-existent document is not
                 // possible.
@@ -319,14 +319,14 @@ static bool subdoc_fetch(Cookie& cookie,
             ctx.in_document_state = ctx.createState;
             // Change 'ret' back to success - conceptually the fetch did
             // "succeed" and execution should continue.
-            ret = ENGINE_SUCCESS;
+            ret = cb::engine_errc::success;
             return true;
 
-        case ENGINE_EWOULDBLOCK:
+        case cb::engine_errc::would_block:
             cookie.setEwouldblock(true);
             return false;
 
-        case ENGINE_DISCONNECT:
+        case cb::engine_errc::disconnect:
             cookie.getConnection().shutdown();
             return false;
 
@@ -665,8 +665,8 @@ static bool operate_single_doc(SubdocCmdContext& context,
     return true;
 }
 
-static ENGINE_ERROR_CODE validate_vattr_privilege(SubdocCmdContext& context,
-                                                  std::string_view key) {
+static cb::engine_errc validate_vattr_privilege(SubdocCmdContext& context,
+                                                std::string_view key) {
     // The $document vattr doesn't require any xattr permissions.
     if (key[1] == 'X') {
         // In the xtoc case we want to see which privileges the connection has
@@ -687,19 +687,19 @@ static ENGINE_ERROR_CODE validate_vattr_privilege(SubdocCmdContext& context,
         } else if (xattrSysRead) {
             context.xtocSemantics = XtocSemantics::System;
         } else {
-            return ENGINE_EACCESS;
+            return cb::engine_errc::no_access;
         }
     }
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-static ENGINE_ERROR_CODE validate_xattr_privilege(SubdocCmdContext& context) {
+static cb::engine_errc validate_xattr_privilege(SubdocCmdContext& context) {
     // Look at all of the operations we've got in there:
     for (const auto& op :
          context.getOperations(SubdocCmdContext::Phase::XATTR)) {
         if (cb::xattr::is_vattr(op.path)) {
             auto ret = validate_vattr_privilege(context, op.path);
-            if (ret != ENGINE_SUCCESS) {
+            if (ret != cb::engine_errc::success) {
                 return ret;
             }
         }
@@ -707,7 +707,7 @@ static ENGINE_ERROR_CODE validate_xattr_privilege(SubdocCmdContext& context) {
 
     auto key = context.get_xattr_key();
     if (key.empty()) {
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     cb::rbac::Privilege privilege;
@@ -726,8 +726,9 @@ static ENGINE_ERROR_CODE validate_xattr_privilege(SubdocCmdContext& context) {
         }
     }
 
-    return context.cookie.checkPrivilege(privilege).success() ? ENGINE_SUCCESS
-                                                              : ENGINE_EACCESS;
+    return context.cookie.checkPrivilege(privilege).success()
+                   ? cb::engine_errc::success
+                   : cb::engine_errc::no_access;
 }
 
 /**
@@ -812,9 +813,9 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
 
     // Does the user have the permission to perform XATTRs
     auto access = validate_xattr_privilege(context);
-    if (access != ENGINE_SUCCESS) {
+    if (access != cb::engine_errc::success) {
         access = context.connection.remapErrorCode(access);
-        if (access == ENGINE_DISCONNECT) {
+        if (access == cb::engine_errc::disconnect) {
             context.connection.shutdown();
             return false;
         }
@@ -1032,10 +1033,10 @@ static bool subdoc_operate(SubdocCmdContext& context) {
 // to the document.
 // Returns true if the update was successful (and execution should continue),
 // else false.
-static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
-                                       ENGINE_ERROR_CODE ret,
-                                       cb::const_byte_buffer key,
-                                       uint32_t expiration) {
+static cb::engine_errc subdoc_update(SubdocCmdContext& context,
+                                     cb::engine_errc ret,
+                                     cb::const_byte_buffer key,
+                                     uint32_t expiration) {
     auto& connection = context.connection;
     auto& cookie = context.cookie;
 
@@ -1043,14 +1044,14 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
         LOG_WARNING(
                 "Internal error: We should not reach subdoc_update in the "
                 "xattr phase");
-        return ENGINE_FAILED;
+        return cb::engine_errc::failed;
     }
 
     if (!context.traits.is_mutator) {
         // No update required - just make sure we have the correct cas to use
         // for response.
         cookie.setCas(context.in_cas);
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     // For multi-mutations, we only want to actually update the engine if /all/
@@ -1058,14 +1059,13 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
     // to subdoc_response() to send information back to the client on what
     // succeeded/failed.
     if (context.overall_status != cb::mcbp::Status::Success) {
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     // Allocate a new item of this size.
     if (context.out_doc == nullptr &&
         !(context.no_sys_xattrs && context.do_delete_doc)) {
-
-        if (ret == ENGINE_SUCCESS) {
+        if (ret == cb::engine_errc::success) {
             context.out_doc_len = context.in_doc.view.size();
             auto allocate_key = cookie.getConnection().makeDocKey(key);
             const size_t priv_bytes = cb::xattr::get_system_xattr_size(
@@ -1084,26 +1084,26 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                 if (r.first) {
                     // Save the allocated document in the cmd context.
                     context.out_doc = std::move(r.first);
-                    ret = ENGINE_SUCCESS;
+                    ret = cb::engine_errc::success;
                 } else {
-                    ret = ENGINE_ENOMEM;
+                    ret = cb::engine_errc::no_memory;
                 }
             } catch (const cb::engine_error& e) {
-                ret = ENGINE_ERROR_CODE(e.code().value());
+                ret = cb::engine_errc(e.code().value());
                 ret = context.connection.remapErrorCode(ret);
             }
         }
 
         switch (ret) {
-        case ENGINE_SUCCESS:
+        case cb::engine_errc::success:
             // Save the allocated document in the cmd context.
             break;
 
-        case ENGINE_EWOULDBLOCK:
+        case cb::engine_errc::would_block:
             cookie.setEwouldblock(true);
             return ret;
 
-        case ENGINE_DISCONNECT:
+        case cb::engine_errc::disconnect:
             connection.shutdown();
             return ret;
 
@@ -1122,7 +1122,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
             if (!bucket_get_item_info(
                         connection, context.out_doc.get(), &new_doc_info)) {
                 cookie.sendResponse(cb::mcbp::Status::Einternal);
-                return ENGINE_FAILED;
+                return cb::engine_errc::failed;
             }
 
             // Copy the new document into the item.
@@ -1139,7 +1139,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
     mutation_descr_t mdt;
     auto new_op =
             context.needs_new_doc ? StoreSemantics::Add : StoreSemantics::CAS;
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         if (context.do_delete_doc && context.no_sys_xattrs) {
             new_cas = context.in_cas;
             auto docKey = connection.makeDocKey(key);
@@ -1172,7 +1172,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                     cookie.sendResponse(
                             cb::mcbp::Status::
                                     SubdocDeletedDocumentCantHaveValue);
-                    return ENGINE_FAILED;
+                    return cb::engine_errc::failed;
                 }
             }
 
@@ -1189,7 +1189,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
         ret = connection.remapErrorCode(ret);
     }
     switch (ret) {
-    case ENGINE_SUCCESS:
+    case cb::engine_errc::success:
         // Record the UUID / Seqno if MUTATION_SEQNO feature is enabled so
         // we can include it in the response.
         if (connection.isSupportsMutationExtras()) {
@@ -1203,7 +1203,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                     LOG_WARNING("{}: Subdoc: Failed to get item info",
                                 connection.getId());
                     cookie.sendResponse(cb::mcbp::Status::Einternal);
-                    return ENGINE_FAILED;
+                    return cb::engine_errc::failed;
                 }
 
                 context.vbucket_uuid = info.vbucket_uuid;
@@ -1214,7 +1214,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
         cookie.setCas(new_cas);
         break;
 
-    case ENGINE_NOT_STORED:
+    case cb::engine_errc::not_stored:
         // If we tried an add for the item (because it didn't exists)
         // we might race with another thread which started to add
         // the document at the same time. (Note that for Set operations we
@@ -1227,23 +1227,24 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
         // retried.
         if (new_op == StoreSemantics::Add &&
             context.mutationSemantics == MutationSemantics::Set) {
-            ret = ENGINE_KEY_EEXISTS;
+            ret = cb::engine_errc::key_already_exists;
         } else {
-            // Otherwise ENGINE_NOT_STORED is terminal - return to client.
+            // Otherwise cb::engine_errc::not_stored is terminal - return to
+            // client.
             cookie.sendResponse(cb::engine_errc(ret));
         }
         break;
 
-    case ENGINE_KEY_EEXISTS:
+    case cb::engine_errc::key_already_exists:
         // CAS mismatch. Caller may choose to retry this (without necessarily
         // telling the client), so send so response here...
         break;
 
-    case ENGINE_EWOULDBLOCK:
+    case cb::engine_errc::would_block:
         cookie.setEwouldblock(true);
         break;
 
-    case ENGINE_DISCONNECT:
+    case cb::engine_errc::disconnect:
         connection.shutdown();
         break;
 

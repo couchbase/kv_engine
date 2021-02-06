@@ -20,8 +20,8 @@
 #include <memcached/protocol_binary.h>
 
 void dcp_abort_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
-    if (ret == ENGINE_SUCCESS) {
+    auto ret = cookie.swapAiostat(cb::engine_errc::success);
+    if (ret == cb::engine_errc::success) {
         const auto& req = cookie.getRequest();
         auto extdata = req.getExtdata();
         using cb::mcbp::request::DcpAbortPayload;
@@ -35,7 +35,7 @@ void dcp_abort_executor(Cookie& cookie) {
                        extras.getAbortSeqno());
     }
 
-    if (ret != ENGINE_SUCCESS) {
+    if (ret != cb::engine_errc::success) {
         handle_executor_status(cookie, ret);
     }
 }

@@ -213,11 +213,11 @@ public:
      * @param cookie The cookie for the user's request.
      * @param[out] Error code to return.
      */
-    bool should_inject_error(Cmd cmd, const void* cookie,
-                             ENGINE_ERROR_CODE& err) {
-
+    bool should_inject_error(Cmd cmd,
+                             const void* cookie,
+                             cb::engine_errc& err) {
         if (is_connection_suspended(cookie)) {
-            err = ENGINE_EWOULDBLOCK;
+            err = cb::engine_errc::would_block;
             return true;
         }
 
@@ -243,7 +243,7 @@ public:
                       err,
                       to_string(cmd));
 
-            if (err == ENGINE_EWOULDBLOCK) {
+            if (err == cb::engine_errc::would_block) {
                 const auto add_to_pending_io_ops =
                         iter->second.second->add_to_pending_io_ops();
                 if (add_to_pending_io_ops) {
@@ -262,7 +262,7 @@ public:
 
     /* Implementation of all the engine functions. ***************************/
 
-    ENGINE_ERROR_CODE initialize(const char* config_str) override {
+    cb::engine_errc initialize(const char* config_str) override {
         // Extract the name of the real engine we will be proxying; then
         // create and initialize it.
         std::string config(config_str);
@@ -304,7 +304,7 @@ public:
             rel_time_t exptime,
             uint8_t datatype,
             Vbid vbucket) override {
-        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+        cb::engine_errc err = cb::engine_errc::success;
         if (should_inject_error(Cmd::ALLOCATE, cookie, err)) {
             throw cb::engine_error(cb::engine_errc(err), "ewb: injecting error");
         } else {
@@ -319,14 +319,14 @@ public:
         }
     }
 
-    ENGINE_ERROR_CODE remove(
+    cb::engine_errc remove(
             gsl::not_null<const void*> cookie,
             const DocKey& key,
             uint64_t& cas,
             Vbid vbucket,
             const std::optional<cb::durability::Requirements>& durability,
             mutation_descr_t& mut_info) override {
-        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+        cb::engine_errc err = cb::engine_errc::success;
         if (should_inject_error(Cmd::REMOVE, cookie, err)) {
             return err;
         } else {
@@ -348,7 +348,7 @@ public:
                                 const DocKey& key,
                                 Vbid vbucket,
                                 DocStateFilter documentStateFilter) override {
-        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+        cb::engine_errc err = cb::engine_errc::success;
         if (should_inject_error(Cmd::GET, cookie, err)) {
             return std::make_pair(
                     cb::engine_errc(err),
@@ -363,7 +363,7 @@ public:
             const DocKey& key,
             Vbid vbucket,
             std::function<bool(const item_info&)> filter) override {
-        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+        cb::engine_errc err = cb::engine_errc::success;
         if (should_inject_error(Cmd::GET, cookie, err)) {
             return cb::makeEngineErrorItemPair(cb::engine_errc::would_block);
         } else {
@@ -378,7 +378,7 @@ public:
             uint32_t exptime,
             const std::optional<cb::durability::Requirements>& durability)
             override {
-        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+        cb::engine_errc err = cb::engine_errc::success;
         if (should_inject_error(Cmd::GET, cookie, err)) {
             return cb::makeEngineErrorItemPair(cb::engine_errc::would_block);
         } else {
@@ -391,7 +391,7 @@ public:
                                        const DocKey& key,
                                        Vbid vbucket,
                                        uint32_t lock_timeout) override {
-        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+        cb::engine_errc err = cb::engine_errc::success;
         if (should_inject_error(Cmd::LOCK, cookie, err)) {
             return cb::makeEngineErrorItemPair(cb::engine_errc(err));
         } else {
@@ -399,11 +399,11 @@ public:
         }
     }
 
-    ENGINE_ERROR_CODE unlock(gsl::not_null<const void*> cookie,
-                             const DocKey& key,
-                             Vbid vbucket,
-                             uint64_t cas) override {
-        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+    cb::engine_errc unlock(gsl::not_null<const void*> cookie,
+                           const DocKey& key,
+                           Vbid vbucket,
+                           uint64_t cas) override {
+        cb::engine_errc err = cb::engine_errc::success;
         if (should_inject_error(Cmd::UNLOCK, cookie, err)) {
             return err;
         } else {
@@ -414,7 +414,7 @@ public:
     cb::EngineErrorMetadataPair get_meta(gsl::not_null<const void*> cookie,
                                          const DocKey& key,
                                          Vbid vbucket) override {
-        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+        cb::engine_errc err = cb::engine_errc::success;
         if (should_inject_error(Cmd::GET_META, cookie, err)) {
             return std::make_pair(cb::engine_errc(err), item_info());
         } else {
@@ -422,7 +422,7 @@ public:
         }
     }
 
-    ENGINE_ERROR_CODE store(
+    cb::engine_errc store(
             gsl::not_null<const void*> cookie,
             gsl::not_null<ItemIface*> item,
             uint64_t& cas,
@@ -430,7 +430,7 @@ public:
             const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,
             bool preserveTtl) override {
-        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+        cb::engine_errc err = cb::engine_errc::success;
         Cmd opcode = (operation == StoreSemantics::CAS) ? Cmd::CAS : Cmd::STORE;
         if (should_inject_error(opcode, cookie, err)) {
             return err;
@@ -454,7 +454,7 @@ public:
             const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,
             bool preserveTtl) override {
-        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+        cb::engine_errc err = cb::engine_errc::success;
         Cmd opcode = (operation == StoreSemantics::CAS) ? Cmd::CAS : Cmd::STORE;
         if (should_inject_error(opcode, cookie, err)) {
             return {cb::engine_errc(err), 0};
@@ -470,7 +470,7 @@ public:
         }
     }
 
-    ENGINE_ERROR_CODE flush(gsl::not_null<const void*> cookie) override {
+    cb::engine_errc flush(gsl::not_null<const void*> cookie) override {
         // Flush is a little different - it often returns EWOULDBLOCK, and
         // notify_io_complete() just tells the server it can issue it's *next*
         // command (i.e. no need to re-flush). Therefore just pass Flush
@@ -478,11 +478,11 @@ public:
         return real_engine->flush(cookie);
     }
 
-    ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
-                                std::string_view key,
-                                std::string_view value,
-                                const AddStatFn& add_stat) override {
-        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+    cb::engine_errc get_stats(gsl::not_null<const void*> cookie,
+                              std::string_view key,
+                              std::string_view value,
+                              const AddStatFn& add_stat) override {
+        cb::engine_errc err = cb::engine_errc::success;
         if (should_inject_error(Cmd::GET_STATS, cookie, err)) {
             return err;
         } else {
@@ -498,9 +498,9 @@ public:
      * underlying real engine, this is also used to configure
      * ewouldblock_engine itself using he CMD_EWOULDBLOCK_CTL opcode.
      */
-    ENGINE_ERROR_CODE unknown_command(const void* cookie,
-                                      const cb::mcbp::Request& req,
-                                      const AddResponseFn& response) override {
+    cb::engine_errc unknown_command(const void* cookie,
+                                    const cb::mcbp::Request& req,
+                                    const AddResponseFn& response) override {
         const auto opcode = req.getClientOpcode();
         if (opcode == cb::mcbp::ClientOpcode::EwouldblockCtl) {
             using cb::mcbp::request::EWB_Payload;
@@ -510,7 +510,7 @@ public:
             const auto mode = static_cast<EWBEngineMode>(payload->getMode());
             const auto value = payload->getValue();
             const auto injected_error =
-                    static_cast<ENGINE_ERROR_CODE>(payload->getInjectError());
+                    static_cast<cb::engine_errc>(payload->getInjectError());
             auto k = req.getKey();
             const std::string key(reinterpret_cast<const char*>(k.data()),
                                   k.size());
@@ -561,7 +561,7 @@ public:
                              cb::mcbp::Status::Success,
                              0,
                              cookie);
-                    return ENGINE_SUCCESS;
+                    return cb::engine_errc::success;
 
                 case EWBEngineMode::BlockMonitorFile:
                     return handleBlockMonitorFile(cookie, value, key, response);
@@ -607,7 +607,7 @@ public:
                          cb::mcbp::Status::Einval,
                          /*cas*/ 0,
                          cookie);
-                return ENGINE_FAILED;
+                return cb::engine_errc::failed;
             } else {
                 try {
                     LOG_DEBUG(
@@ -633,13 +633,13 @@ public:
                              cb::mcbp::Status::Success,
                              /*cas*/ 0,
                              cookie);
-                    return ENGINE_SUCCESS;
+                    return cb::engine_errc::success;
                 } catch (std::bad_alloc&) {
-                    return ENGINE_ENOMEM;
+                    return cb::engine_errc::no_memory;
                 }
             }
         } else {
-            ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+            cb::engine_errc err = cb::engine_errc::success;
             if (should_inject_error(Cmd::UNKNOWN_COMMAND, cookie, err)) {
                 return err;
             } else {
@@ -768,50 +768,50 @@ public:
     // We don't support mocking with the DCP interface yet, so all access to //
     // the DCP interface will be proxied down to the underlying engine.      //
     ///////////////////////////////////////////////////////////////////////////
-    ENGINE_ERROR_CODE step(gsl::not_null<const void*> cookie,
-                           DcpMessageProducersIface& producers) override;
+    cb::engine_errc step(gsl::not_null<const void*> cookie,
+                         DcpMessageProducersIface& producers) override;
 
-    ENGINE_ERROR_CODE open(gsl::not_null<const void*> cookie,
-                           uint32_t opaque,
-                           uint32_t seqno,
-                           uint32_t flags,
-                           std::string_view name,
-                           std::string_view value) override;
+    cb::engine_errc open(gsl::not_null<const void*> cookie,
+                         uint32_t opaque,
+                         uint32_t seqno,
+                         uint32_t flags,
+                         std::string_view name,
+                         std::string_view value) override;
 
-    ENGINE_ERROR_CODE add_stream(gsl::not_null<const void*> cookie,
+    cb::engine_errc add_stream(gsl::not_null<const void*> cookie,
+                               uint32_t opaque,
+                               Vbid vbucket,
+                               uint32_t flags) override;
+
+    cb::engine_errc close_stream(gsl::not_null<const void*> cookie,
                                  uint32_t opaque,
                                  Vbid vbucket,
-                                 uint32_t flags) override;
+                                 cb::mcbp::DcpStreamId sid) override;
 
-    ENGINE_ERROR_CODE close_stream(gsl::not_null<const void*> cookie,
-                                   uint32_t opaque,
-                                   Vbid vbucket,
-                                   cb::mcbp::DcpStreamId sid) override;
+    cb::engine_errc stream_req(gsl::not_null<const void*> cookie,
+                               uint32_t flags,
+                               uint32_t opaque,
+                               Vbid vbucket,
+                               uint64_t start_seqno,
+                               uint64_t end_seqno,
+                               uint64_t vbucket_uuid,
+                               uint64_t snap_start_seqno,
+                               uint64_t snap_end_seqno,
+                               uint64_t* rollback_seqno,
+                               dcp_add_failover_log callback,
+                               std::optional<std::string_view> json) override;
 
-    ENGINE_ERROR_CODE stream_req(gsl::not_null<const void*> cookie,
-                                 uint32_t flags,
-                                 uint32_t opaque,
-                                 Vbid vbucket,
-                                 uint64_t start_seqno,
-                                 uint64_t end_seqno,
-                                 uint64_t vbucket_uuid,
-                                 uint64_t snap_start_seqno,
-                                 uint64_t snap_end_seqno,
-                                 uint64_t* rollback_seqno,
-                                 dcp_add_failover_log callback,
-                                 std::optional<std::string_view> json) override;
+    cb::engine_errc get_failover_log(gsl::not_null<const void*> cookie,
+                                     uint32_t opaque,
+                                     Vbid vbucket,
+                                     dcp_add_failover_log callback) override;
 
-    ENGINE_ERROR_CODE get_failover_log(gsl::not_null<const void*> cookie,
-                                       uint32_t opaque,
-                                       Vbid vbucket,
-                                       dcp_add_failover_log callback) override;
+    cb::engine_errc stream_end(gsl::not_null<const void*> cookie,
+                               uint32_t opaque,
+                               Vbid vbucket,
+                               cb::mcbp::DcpStreamEndStatus status) override;
 
-    ENGINE_ERROR_CODE stream_end(gsl::not_null<const void*> cookie,
-                                 uint32_t opaque,
-                                 Vbid vbucket,
-                                 cb::mcbp::DcpStreamEndStatus status) override;
-
-    ENGINE_ERROR_CODE snapshot_marker(
+    cb::engine_errc snapshot_marker(
             gsl::not_null<const void*> cookie,
             uint32_t opaque,
             Vbid vbucket,
@@ -821,7 +821,47 @@ public:
             std::optional<uint64_t> high_completed_seqno,
             std::optional<uint64_t> max_visible_seqno) override;
 
-    ENGINE_ERROR_CODE mutation(gsl::not_null<const void*> cookie,
+    cb::engine_errc mutation(gsl::not_null<const void*> cookie,
+                             uint32_t opaque,
+                             const DocKey& key,
+                             cb::const_byte_buffer value,
+                             size_t priv_bytes,
+                             uint8_t datatype,
+                             uint64_t cas,
+                             Vbid vbucket,
+                             uint32_t flags,
+                             uint64_t by_seqno,
+                             uint64_t rev_seqno,
+                             uint32_t expiration,
+                             uint32_t lock_time,
+                             cb::const_byte_buffer meta,
+                             uint8_t nru) override;
+
+    cb::engine_errc deletion(gsl::not_null<const void*> cookie,
+                             uint32_t opaque,
+                             const DocKey& key,
+                             cb::const_byte_buffer value,
+                             size_t priv_bytes,
+                             uint8_t datatype,
+                             uint64_t cas,
+                             Vbid vbucket,
+                             uint64_t by_seqno,
+                             uint64_t rev_seqno,
+                             cb::const_byte_buffer meta) override;
+
+    cb::engine_errc deletion_v2(gsl::not_null<const void*> cookie,
+                                uint32_t opaque,
+                                const DocKey& key,
+                                cb::const_byte_buffer value,
+                                size_t priv_bytes,
+                                uint8_t datatype,
+                                uint64_t cas,
+                                Vbid vbucket,
+                                uint64_t by_seqno,
+                                uint64_t rev_seqno,
+                                uint32_t delete_time) override;
+
+    cb::engine_errc expiration(gsl::not_null<const void*> cookie,
                                uint32_t opaque,
                                const DocKey& key,
                                cb::const_byte_buffer value,
@@ -829,113 +869,73 @@ public:
                                uint8_t datatype,
                                uint64_t cas,
                                Vbid vbucket,
-                               uint32_t flags,
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
-                               uint32_t expiration,
-                               uint32_t lock_time,
-                               cb::const_byte_buffer meta,
-                               uint8_t nru) override;
+                               uint32_t deleteTime) override;
 
-    ENGINE_ERROR_CODE deletion(gsl::not_null<const void*> cookie,
-                               uint32_t opaque,
-                               const DocKey& key,
-                               cb::const_byte_buffer value,
-                               size_t priv_bytes,
-                               uint8_t datatype,
-                               uint64_t cas,
-                               Vbid vbucket,
-                               uint64_t by_seqno,
-                               uint64_t rev_seqno,
-                               cb::const_byte_buffer meta) override;
+    cb::engine_errc set_vbucket_state(gsl::not_null<const void*> cookie,
+                                      uint32_t opaque,
+                                      Vbid vbucket,
+                                      vbucket_state_t state) override;
 
-    ENGINE_ERROR_CODE deletion_v2(gsl::not_null<const void*> cookie,
-                                  uint32_t opaque,
-                                  const DocKey& key,
-                                  cb::const_byte_buffer value,
-                                  size_t priv_bytes,
-                                  uint8_t datatype,
-                                  uint64_t cas,
-                                  Vbid vbucket,
-                                  uint64_t by_seqno,
-                                  uint64_t rev_seqno,
-                                  uint32_t delete_time) override;
+    cb::engine_errc noop(gsl::not_null<const void*> cookie,
+                         uint32_t opaque) override;
 
-    ENGINE_ERROR_CODE expiration(gsl::not_null<const void*> cookie,
-                                 uint32_t opaque,
-                                 const DocKey& key,
-                                 cb::const_byte_buffer value,
-                                 size_t priv_bytes,
-                                 uint8_t datatype,
-                                 uint64_t cas,
-                                 Vbid vbucket,
-                                 uint64_t by_seqno,
-                                 uint64_t rev_seqno,
-                                 uint32_t deleteTime) override;
+    cb::engine_errc buffer_acknowledgement(gsl::not_null<const void*> cookie,
+                                           uint32_t opaque,
+                                           Vbid vbucket,
+                                           uint32_t buffer_bytes) override;
 
-    ENGINE_ERROR_CODE set_vbucket_state(gsl::not_null<const void*> cookie,
-                                        uint32_t opaque,
-                                        Vbid vbucket,
-                                        vbucket_state_t state) override;
+    cb::engine_errc control(gsl::not_null<const void*> cookie,
+                            uint32_t opaque,
+                            std::string_view key,
+                            std::string_view value) override;
 
-    ENGINE_ERROR_CODE noop(gsl::not_null<const void*> cookie,
-                           uint32_t opaque) override;
-
-    ENGINE_ERROR_CODE buffer_acknowledgement(gsl::not_null<const void*> cookie,
-                                             uint32_t opaque,
-                                             Vbid vbucket,
-                                             uint32_t buffer_bytes) override;
-
-    ENGINE_ERROR_CODE control(gsl::not_null<const void*> cookie,
-                              uint32_t opaque,
-                              std::string_view key,
-                              std::string_view value) override;
-
-    ENGINE_ERROR_CODE response_handler(
+    cb::engine_errc response_handler(
             gsl::not_null<const void*> cookie,
             const cb::mcbp::Response& response) override;
 
-    ENGINE_ERROR_CODE system_event(gsl::not_null<const void*> cookie,
-                                   uint32_t opaque,
-                                   Vbid vbucket,
-                                   mcbp::systemevent::id event,
-                                   uint64_t bySeqno,
-                                   mcbp::systemevent::version version,
-                                   cb::const_byte_buffer key,
-                                   cb::const_byte_buffer eventData) override;
+    cb::engine_errc system_event(gsl::not_null<const void*> cookie,
+                                 uint32_t opaque,
+                                 Vbid vbucket,
+                                 mcbp::systemevent::id event,
+                                 uint64_t bySeqno,
+                                 mcbp::systemevent::version version,
+                                 cb::const_byte_buffer key,
+                                 cb::const_byte_buffer eventData) override;
 
-    ENGINE_ERROR_CODE prepare(gsl::not_null<const void*> cookie,
-                              uint32_t opaque,
-                              const DocKey& key,
-                              cb::const_byte_buffer value,
-                              size_t priv_bytes,
-                              uint8_t datatype,
-                              uint64_t cas,
-                              Vbid vbucket,
-                              uint32_t flags,
-                              uint64_t by_seqno,
-                              uint64_t rev_seqno,
-                              uint32_t expiration,
-                              uint32_t lock_time,
-                              uint8_t nru,
-                              DocumentState document_state,
-                              cb::durability::Level level) override;
-    ENGINE_ERROR_CODE seqno_acknowledged(gsl::not_null<const void*> cookie,
-                                         uint32_t opaque,
-                                         Vbid vbucket,
-                                         uint64_t prepared_seqno) override;
-    ENGINE_ERROR_CODE commit(gsl::not_null<const void*> cookie,
-                             uint32_t opaque,
-                             Vbid vbucket,
-                             const DocKey& key,
-                             uint64_t prepared_seqno,
-                             uint64_t commit_seqno) override;
-    ENGINE_ERROR_CODE abort(gsl::not_null<const void*> cookie,
+    cb::engine_errc prepare(gsl::not_null<const void*> cookie,
                             uint32_t opaque,
-                            Vbid vbucket,
                             const DocKey& key,
-                            uint64_t prepared_seqno,
-                            uint64_t abort_seqno) override;
+                            cb::const_byte_buffer value,
+                            size_t priv_bytes,
+                            uint8_t datatype,
+                            uint64_t cas,
+                            Vbid vbucket,
+                            uint32_t flags,
+                            uint64_t by_seqno,
+                            uint64_t rev_seqno,
+                            uint32_t expiration,
+                            uint32_t lock_time,
+                            uint8_t nru,
+                            DocumentState document_state,
+                            cb::durability::Level level) override;
+    cb::engine_errc seqno_acknowledged(gsl::not_null<const void*> cookie,
+                                       uint32_t opaque,
+                                       Vbid vbucket,
+                                       uint64_t prepared_seqno) override;
+    cb::engine_errc commit(gsl::not_null<const void*> cookie,
+                           uint32_t opaque,
+                           Vbid vbucket,
+                           const DocKey& key,
+                           uint64_t prepared_seqno,
+                           uint64_t commit_seqno) override;
+    cb::engine_errc abort(gsl::not_null<const void*> cookie,
+                          uint32_t opaque,
+                          Vbid vbucket,
+                          const DocKey& key,
+                          uint64_t prepared_seqno,
+                          uint64_t abort_seqno) override;
 
     GET_SERVER_API gsa;
     ServerApi* real_api;
@@ -967,10 +967,10 @@ protected:
      * @param response callback used to send a response to the client
      * @return The standard engine error codes
      */
-    ENGINE_ERROR_CODE handleBlockMonitorFile(const void* cookie,
-                                             uint32_t id,
-                                             const std::string& file,
-                                             const AddResponseFn& response);
+    cb::engine_errc handleBlockMonitorFile(const void* cookie,
+                                           uint32_t id,
+                                           const std::string& file,
+                                           const AddResponseFn& response);
 
     /**
      * Handle the control message for suspend
@@ -982,9 +982,9 @@ protected:
      * @param response callback used to send a response to the client
      * @return The standard engine error codes
      */
-    ENGINE_ERROR_CODE handleSuspend(const void* cookie,
-                                    uint32_t id,
-                                    const AddResponseFn& response);
+    cb::engine_errc handleSuspend(const void* cookie,
+                                  uint32_t id,
+                                  const AddResponseFn& response);
 
     /**
      * Handle the control message for resume
@@ -994,9 +994,9 @@ protected:
      * @param response callback used to send a response to the client
      * @return The standard engine error codes
      */
-    ENGINE_ERROR_CODE handleResume(const void* cookie,
-                                   uint32_t id,
-                                   const AddResponseFn& response);
+    cb::engine_errc handleResume(const void* cookie,
+                                 uint32_t id,
+                                 const AddResponseFn& response);
 
     /**
      * @param cookie the cookie executing the operation
@@ -1005,14 +1005,14 @@ protected:
      * @param response Response callback used to send a response to the client
      * @return Standard engine error codes
      */
-    ENGINE_ERROR_CODE setItemCas(const void* cookie,
-                                 const std::string& key,
-                                 uint32_t cas,
-                                 const AddResponseFn& response);
+    cb::engine_errc setItemCas(const void* cookie,
+                               const std::string& key,
+                               uint32_t cas,
+                               const AddResponseFn& response);
 
-    ENGINE_ERROR_CODE checkLogLevels(const void* cookie,
-                                     uint32_t value,
-                                     const AddResponseFn& response);
+    cb::engine_errc checkLogLevels(const void* cookie,
+                                   uint32_t value,
+                                   const AddResponseFn& response);
 
 private:
     // Shared state between the main thread of execution and the background
@@ -1021,7 +1021,7 @@ private:
     std::condition_variable condvar;
     struct PendingIO {
         const void* cookie;
-        ENGINE_ERROR_CODE status;
+        cb::engine_errc status;
     };
     std::queue<PendingIO> pending_io_ops;
 
@@ -1031,7 +1031,7 @@ private:
     struct FaultInjectMode {
         virtual ~FaultInjectMode() = default;
 
-        explicit FaultInjectMode(ENGINE_ERROR_CODE injected_error_)
+        explicit FaultInjectMode(cb::engine_errc injected_error_)
             : injected_error(injected_error_) {
         }
 
@@ -1039,27 +1039,27 @@ private:
         // be added to the pending_io_ops (and subsequently notified)?
         // @returns empty if shouldn't be added, otherwise contains the
         // status code to notify with.
-        virtual std::optional<ENGINE_ERROR_CODE> add_to_pending_io_ops() {
-            return ENGINE_SUCCESS;
+        virtual std::optional<cb::engine_errc> add_to_pending_io_ops() {
+            return cb::engine_errc::success;
         }
 
-        virtual bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) = 0;
+        virtual bool should_inject_error(Cmd cmd, cb::engine_errc& err) = 0;
 
         virtual std::string to_string() const = 0;
 
     protected:
-        ENGINE_ERROR_CODE injected_error;
+        cb::engine_errc injected_error;
     };
 
     // Subclasses for each fault inject mode: /////////////////////////////////
 
     class ErrOnFirst : public FaultInjectMode {
     public:
-        explicit ErrOnFirst(ENGINE_ERROR_CODE injected_error_)
+        explicit ErrOnFirst(cb::engine_errc injected_error_)
             : FaultInjectMode(injected_error_), prev_cmd(Cmd::NONE) {
         }
 
-        bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) override {
+        bool should_inject_error(Cmd cmd, cb::engine_errc& err) override {
             // Block unless the previous command from this cookie
             // was the same - i.e. all of a connections' commands
             // will EWOULDBLOCK the first time they are called.
@@ -1072,7 +1072,7 @@ private:
         }
 
         std::string to_string() const override {
-            return "ErrOnFirst inject_error=" + std::to_string(injected_error);
+            return "ErrOnFirst inject_error=" + cb::to_string(injected_error);
         }
 
     private:
@@ -1082,11 +1082,11 @@ private:
 
     class ErrOnNextN : public FaultInjectMode {
     public:
-        ErrOnNextN(ENGINE_ERROR_CODE injected_error_, uint32_t count_)
-          : FaultInjectMode(injected_error_),
-            count(count_) {}
+        ErrOnNextN(cb::engine_errc injected_error_, uint32_t count_)
+            : FaultInjectMode(injected_error_), count(count_) {
+        }
 
-        bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) override {
+        bool should_inject_error(Cmd cmd, cb::engine_errc& err) override {
             if (count > 0) {
                 --count;
                 err = injected_error;
@@ -1098,7 +1098,7 @@ private:
 
         std::string to_string() const override {
             return std::string("ErrOnNextN") +
-                   " inject_error=" + std::to_string(injected_error) +
+                   " inject_error=" + cb::to_string(injected_error) +
                    " count=" + std::to_string(count);
         }
 
@@ -1109,11 +1109,11 @@ private:
 
     class ErrRandom : public FaultInjectMode {
     public:
-        ErrRandom(ENGINE_ERROR_CODE injected_error_, uint32_t percentage_)
-          : FaultInjectMode(injected_error_),
-            percentage_to_err(percentage_) {}
+        ErrRandom(cb::engine_errc injected_error_, uint32_t percentage_)
+            : FaultInjectMode(injected_error_), percentage_to_err(percentage_) {
+        }
 
-        bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) override {
+        bool should_inject_error(Cmd cmd, cb::engine_errc& err) override {
             std::random_device rd;
             std::mt19937 gen(rd());
             std::uniform_int_distribution<uint32_t> dis(1, 100);
@@ -1127,7 +1127,7 @@ private:
 
         std::string to_string() const override {
             return std::string("ErrRandom") +
-                   " inject_error=" + std::to_string(injected_error) +
+                   " inject_error=" + cb::to_string(injected_error) +
                    " percentage=" + std::to_string(percentage_to_err);
         }
 
@@ -1150,7 +1150,7 @@ private:
          * Construct with a sequence of the specified error, or the 'normal'
          * status code.
          */
-        ErrSequence(ENGINE_ERROR_CODE injected_error_, uint32_t sequence_)
+        ErrSequence(cb::engine_errc injected_error_, uint32_t sequence_)
             : FaultInjectMode(injected_error_) {
             for (int ii = 0; ii < 32; ii++) {
                 if ((sequence_ & (1 << ii)) != 0) {
@@ -1168,12 +1168,12 @@ private:
          * request value.
          */
         explicit ErrSequence(std::vector<cb::engine_errc> sequence_)
-            : FaultInjectMode(ENGINE_SUCCESS),
+            : FaultInjectMode(cb::engine_errc::success),
               sequence(std::move(sequence_)),
               pos(sequence.begin()) {
         }
 
-        bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) override {
+        bool should_inject_error(Cmd cmd, cb::engine_errc& err) override {
             if (pos == sequence.end()) {
                 throw std::logic_error(
                         "ErrSequence::should_inject_error() Reached end of "
@@ -1182,13 +1182,13 @@ private:
             bool inject = false;
             if (*pos != cb::engine_errc(-1)) {
                 inject = true;
-                err = ENGINE_ERROR_CODE(*pos);
+                err = cb::engine_errc(*pos);
             }
             pos++;
             return inject;
         }
 
-        std::optional<ENGINE_ERROR_CODE> add_to_pending_io_ops() override {
+        std::optional<cb::engine_errc> add_to_pending_io_ops() override {
             // If this function has been called, should_inject_error() must
             // have returned true. Return the next status code in the sequnce
             // as the result of the pending IO.
@@ -1198,7 +1198,7 @@ private:
                         "sequence");
             }
 
-            return ENGINE_ERROR_CODE(*pos++);
+            return cb::engine_errc(*pos++);
         }
 
         std::string to_string() const override {
@@ -1222,16 +1222,15 @@ private:
 
     class ErrOnNoNotify : public FaultInjectMode {
         public:
-            explicit ErrOnNoNotify(ENGINE_ERROR_CODE injected_error_)
+            explicit ErrOnNoNotify(cb::engine_errc injected_error_)
                 : FaultInjectMode(injected_error_), issued_return_error(false) {
             }
 
-            std::optional<ENGINE_ERROR_CODE> add_to_pending_io_ops()
-                    override {
+            std::optional<cb::engine_errc> add_to_pending_io_ops() override {
                 return {};
             }
 
-            bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) override {
+            bool should_inject_error(Cmd cmd, cb::engine_errc& err) override {
                 if (!issued_return_error) {
                     issued_return_error = true;
                     err = injected_error;
@@ -1243,7 +1242,7 @@ private:
 
             std::string to_string() const override {
                 return std::string("ErrOnNoNotify") +
-                       " inject_error=" + std::to_string(injected_error) +
+                       " inject_error=" + cb::to_string(injected_error) +
                        " issued_return_error=" +
                        std::to_string(issued_return_error);
             }
@@ -1256,10 +1255,11 @@ private:
     class CASMismatch : public FaultInjectMode {
     public:
         explicit CASMismatch(uint32_t count_)
-            : FaultInjectMode(ENGINE_KEY_EEXISTS), count(count_) {
+            : FaultInjectMode(cb::engine_errc::key_already_exists),
+              count(count_) {
         }
 
-        bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) override {
+        bool should_inject_error(Cmd cmd, cb::engine_errc& err) override {
             if (cmd == Cmd::CAS && (count > 0)) {
                 --count;
                 err = injected_error;
@@ -1322,7 +1322,7 @@ private:
             suspended_map.erase(iter);
         }
 
-        schedule_notification(cookie, ENGINE_SUCCESS);
+        schedule_notification(cookie, cb::engine_errc::success);
         return true;
     }
 
@@ -1343,7 +1343,7 @@ private:
         return false;
     }
 
-    void schedule_notification(const void* cookie, ENGINE_ERROR_CODE status) {
+    void schedule_notification(const void* cookie, cb::engine_errc status) {
         {
             std::lock_guard<std::mutex> guard(mutex);
             pending_io_ops.push({cookie, status});
@@ -1375,8 +1375,8 @@ EWB_Engine::~EWB_Engine() {
     notify_io_thread->waitForState(Couchbase::ThreadState::Zombie);
 }
 
-ENGINE_ERROR_CODE EWB_Engine::step(gsl::not_null<const void*> cookie,
-                                   DcpMessageProducersIface& producers) {
+cb::engine_errc EWB_Engine::step(gsl::not_null<const void*> cookie,
+                                 DcpMessageProducersIface& producers) {
     auto stream = dcp_stream.find(cookie);
     if (stream != dcp_stream.end()) {
         auto& count = stream->second.second;
@@ -1397,20 +1397,20 @@ ENGINE_ERROR_CODE EWB_Engine::step(gsl::not_null<const void*> cookie,
             --count;
             return ret;
         }
-        return ENGINE_EWOULDBLOCK;
+        return cb::engine_errc::would_block;
     }
     if (!real_engine_dcp) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     }
     return real_engine_dcp->step(cookie, producers);
 }
 
-ENGINE_ERROR_CODE EWB_Engine::open(gsl::not_null<const void*> cookie,
-                                   uint32_t opaque,
-                                   uint32_t seqno,
-                                   uint32_t flags,
-                                   std::string_view name,
-                                   std::string_view value) {
+cb::engine_errc EWB_Engine::open(gsl::not_null<const void*> cookie,
+                                 uint32_t opaque,
+                                 uint32_t seqno,
+                                 uint32_t flags,
+                                 std::string_view name,
+                                 std::string_view value) {
     std::string nm{name};
     if (nm.find("ewb_internal") == 0) {
         // Yeah, this is a request for the internal "magic" DCP stream
@@ -1427,42 +1427,42 @@ ENGINE_ERROR_CODE EWB_Engine::open(gsl::not_null<const void*> cookie,
         }
 
         real_api->cookie->setDcpConnHandler(cookie, this);
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     if (!real_engine_dcp) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     } else {
         return real_engine_dcp->open(cookie, opaque, seqno, flags, name, value);
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::stream_req(gsl::not_null<const void*> cookie,
-                                         uint32_t flags,
-                                         uint32_t opaque,
-                                         Vbid vbucket,
-                                         uint64_t start_seqno,
-                                         uint64_t end_seqno,
-                                         uint64_t vbucket_uuid,
-                                         uint64_t snap_start_seqno,
-                                         uint64_t snap_end_seqno,
-                                         uint64_t* rollback_seqno,
-                                         dcp_add_failover_log callback,
-                                         std::optional<std::string_view> json) {
+cb::engine_errc EWB_Engine::stream_req(gsl::not_null<const void*> cookie,
+                                       uint32_t flags,
+                                       uint32_t opaque,
+                                       Vbid vbucket,
+                                       uint64_t start_seqno,
+                                       uint64_t end_seqno,
+                                       uint64_t vbucket_uuid,
+                                       uint64_t snap_start_seqno,
+                                       uint64_t snap_end_seqno,
+                                       uint64_t* rollback_seqno,
+                                       dcp_add_failover_log callback,
+                                       std::optional<std::string_view> json) {
     auto stream = dcp_stream.find(cookie.get());
     if (stream != dcp_stream.end()) {
         // This is a client of our internal streams.. just let it pass
         if (start_seqno == 1) {
             *rollback_seqno = 0;
-            return ENGINE_ROLLBACK;
+            return cb::engine_errc::rollback;
         }
         // Start the stream
         stream->second.first = true;
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     if (!real_engine_dcp) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     } else {
         return real_engine_dcp->stream_req(cookie,
                                            flags,
@@ -1479,53 +1479,52 @@ ENGINE_ERROR_CODE EWB_Engine::stream_req(gsl::not_null<const void*> cookie,
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::add_stream(gsl::not_null<const void*> cookie,
-                                         uint32_t opaque,
-                                         Vbid vbucket,
-                                         uint32_t flags) {
+cb::engine_errc EWB_Engine::add_stream(gsl::not_null<const void*> cookie,
+                                       uint32_t opaque,
+                                       Vbid vbucket,
+                                       uint32_t flags) {
     if (!real_engine_dcp) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     } else {
         return real_engine_dcp->add_stream(cookie, opaque, vbucket, flags);
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::close_stream(gsl::not_null<const void*> cookie,
-                                           uint32_t opaque,
-                                           Vbid vbucket,
-                                           cb::mcbp::DcpStreamId sid) {
+cb::engine_errc EWB_Engine::close_stream(gsl::not_null<const void*> cookie,
+                                         uint32_t opaque,
+                                         Vbid vbucket,
+                                         cb::mcbp::DcpStreamId sid) {
     if (!real_engine_dcp) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     } else {
         return real_engine_dcp->close_stream(cookie, opaque, vbucket, sid);
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::get_failover_log(
-        gsl::not_null<const void*> cookie,
-        uint32_t opaque,
-        Vbid vbucket,
-        dcp_add_failover_log callback) {
+cb::engine_errc EWB_Engine::get_failover_log(gsl::not_null<const void*> cookie,
+                                             uint32_t opaque,
+                                             Vbid vbucket,
+                                             dcp_add_failover_log callback) {
     if (!real_engine_dcp) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     } else {
         return real_engine_dcp->get_failover_log(
                 cookie, opaque, vbucket, callback);
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::stream_end(gsl::not_null<const void*> cookie,
-                                         uint32_t opaque,
-                                         Vbid vbucket,
-                                         cb::mcbp::DcpStreamEndStatus status) {
+cb::engine_errc EWB_Engine::stream_end(gsl::not_null<const void*> cookie,
+                                       uint32_t opaque,
+                                       Vbid vbucket,
+                                       cb::mcbp::DcpStreamEndStatus status) {
     if (!real_engine_dcp) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     } else {
         return real_engine_dcp->stream_end(cookie, opaque, vbucket, status);
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::snapshot_marker(
+cb::engine_errc EWB_Engine::snapshot_marker(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
         Vbid vbucket,
@@ -1535,7 +1534,7 @@ ENGINE_ERROR_CODE EWB_Engine::snapshot_marker(
         std::optional<uint64_t> high_completed_seqno,
         std::optional<uint64_t> max_visible_seqno) {
     if (!real_engine_dcp) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     } else {
         return real_engine_dcp->snapshot_marker(cookie,
                                                 opaque,
@@ -1548,23 +1547,23 @@ ENGINE_ERROR_CODE EWB_Engine::snapshot_marker(
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::mutation(gsl::not_null<const void*> cookie,
-                                       uint32_t opaque,
-                                       const DocKey& key,
-                                       cb::const_byte_buffer value,
-                                       size_t priv_bytes,
-                                       uint8_t datatype,
-                                       uint64_t cas,
-                                       Vbid vbucket,
-                                       uint32_t flags,
-                                       uint64_t by_seqno,
-                                       uint64_t rev_seqno,
-                                       uint32_t expiration,
-                                       uint32_t lock_time,
-                                       cb::const_byte_buffer meta,
-                                       uint8_t nru) {
+cb::engine_errc EWB_Engine::mutation(gsl::not_null<const void*> cookie,
+                                     uint32_t opaque,
+                                     const DocKey& key,
+                                     cb::const_byte_buffer value,
+                                     size_t priv_bytes,
+                                     uint8_t datatype,
+                                     uint64_t cas,
+                                     Vbid vbucket,
+                                     uint32_t flags,
+                                     uint64_t by_seqno,
+                                     uint64_t rev_seqno,
+                                     uint32_t expiration,
+                                     uint32_t lock_time,
+                                     cb::const_byte_buffer meta,
+                                     uint8_t nru) {
     if (!real_engine_dcp) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     } else {
         return real_engine_dcp->mutation(cookie,
                                          opaque,
@@ -1584,19 +1583,19 @@ ENGINE_ERROR_CODE EWB_Engine::mutation(gsl::not_null<const void*> cookie,
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::deletion(gsl::not_null<const void*> cookie,
-                                       uint32_t opaque,
-                                       const DocKey& key,
-                                       cb::const_byte_buffer value,
-                                       size_t priv_bytes,
-                                       uint8_t datatype,
-                                       uint64_t cas,
-                                       Vbid vbucket,
-                                       uint64_t by_seqno,
-                                       uint64_t rev_seqno,
-                                       cb::const_byte_buffer meta) {
+cb::engine_errc EWB_Engine::deletion(gsl::not_null<const void*> cookie,
+                                     uint32_t opaque,
+                                     const DocKey& key,
+                                     cb::const_byte_buffer value,
+                                     size_t priv_bytes,
+                                     uint8_t datatype,
+                                     uint64_t cas,
+                                     Vbid vbucket,
+                                     uint64_t by_seqno,
+                                     uint64_t rev_seqno,
+                                     cb::const_byte_buffer meta) {
     if (!real_engine_dcp) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     } else {
         return real_engine_dcp->deletion(cookie,
                                          opaque,
@@ -1612,19 +1611,19 @@ ENGINE_ERROR_CODE EWB_Engine::deletion(gsl::not_null<const void*> cookie,
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::deletion_v2(gsl::not_null<const void*> cookie,
-                                          uint32_t opaque,
-                                          const DocKey& key,
-                                          cb::const_byte_buffer value,
-                                          size_t priv_bytes,
-                                          uint8_t datatype,
-                                          uint64_t cas,
-                                          Vbid vbucket,
-                                          uint64_t by_seqno,
-                                          uint64_t rev_seqno,
-                                          uint32_t delete_time) {
+cb::engine_errc EWB_Engine::deletion_v2(gsl::not_null<const void*> cookie,
+                                        uint32_t opaque,
+                                        const DocKey& key,
+                                        cb::const_byte_buffer value,
+                                        size_t priv_bytes,
+                                        uint8_t datatype,
+                                        uint64_t cas,
+                                        Vbid vbucket,
+                                        uint64_t by_seqno,
+                                        uint64_t rev_seqno,
+                                        uint32_t delete_time) {
     if (!real_engine_dcp) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     } else {
         return real_engine_dcp->deletion_v2(cookie,
                                             opaque,
@@ -1640,19 +1639,19 @@ ENGINE_ERROR_CODE EWB_Engine::deletion_v2(gsl::not_null<const void*> cookie,
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::expiration(gsl::not_null<const void*> cookie,
-                                         uint32_t opaque,
-                                         const DocKey& key,
-                                         cb::const_byte_buffer value,
-                                         size_t priv_bytes,
-                                         uint8_t datatype,
-                                         uint64_t cas,
-                                         Vbid vbucket,
-                                         uint64_t by_seqno,
-                                         uint64_t rev_seqno,
-                                         uint32_t deleteTime) {
+cb::engine_errc EWB_Engine::expiration(gsl::not_null<const void*> cookie,
+                                       uint32_t opaque,
+                                       const DocKey& key,
+                                       cb::const_byte_buffer value,
+                                       size_t priv_bytes,
+                                       uint8_t datatype,
+                                       uint64_t cas,
+                                       Vbid vbucket,
+                                       uint64_t by_seqno,
+                                       uint64_t rev_seqno,
+                                       uint32_t deleteTime) {
     if (!real_engine_dcp) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     } else {
         return real_engine_dcp->expiration(cookie,
                                            opaque,
@@ -1668,71 +1667,70 @@ ENGINE_ERROR_CODE EWB_Engine::expiration(gsl::not_null<const void*> cookie,
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::set_vbucket_state(
-        gsl::not_null<const void*> cookie,
-        uint32_t opaque,
-        Vbid vbucket,
-        vbucket_state_t state) {
+cb::engine_errc EWB_Engine::set_vbucket_state(gsl::not_null<const void*> cookie,
+                                              uint32_t opaque,
+                                              Vbid vbucket,
+                                              vbucket_state_t state) {
     if (!real_engine_dcp) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     } else {
         return real_engine_dcp->set_vbucket_state(
                 cookie, opaque, vbucket, state);
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::noop(gsl::not_null<const void*> cookie,
-                                   uint32_t opaque) {
+cb::engine_errc EWB_Engine::noop(gsl::not_null<const void*> cookie,
+                                 uint32_t opaque) {
     if (!real_engine_dcp) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     } else {
         return real_engine_dcp->noop(cookie, opaque);
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::buffer_acknowledgement(
+cb::engine_errc EWB_Engine::buffer_acknowledgement(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
         Vbid vbucket,
         uint32_t buffer_bytes) {
     if (!real_engine_dcp) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     } else {
         return real_engine_dcp->buffer_acknowledgement(
                 cookie, opaque, vbucket, buffer_bytes);
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::control(gsl::not_null<const void*> cookie,
-                                      uint32_t opaque,
-                                      std::string_view key,
-                                      std::string_view value) {
+cb::engine_errc EWB_Engine::control(gsl::not_null<const void*> cookie,
+                                    uint32_t opaque,
+                                    std::string_view key,
+                                    std::string_view value) {
     if (!real_engine_dcp) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     } else {
         return real_engine_dcp->control(cookie, opaque, key, value);
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::response_handler(
+cb::engine_errc EWB_Engine::response_handler(
         gsl::not_null<const void*> cookie, const cb::mcbp::Response& response) {
     if (!real_engine_dcp) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     } else {
         return real_engine_dcp->response_handler(cookie, response);
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::system_event(gsl::not_null<const void*> cookie,
-                                           uint32_t opaque,
-                                           Vbid vbucket,
-                                           mcbp::systemevent::id event,
-                                           uint64_t bySeqno,
-                                           mcbp::systemevent::version version,
-                                           cb::const_byte_buffer key,
-                                           cb::const_byte_buffer eventData) {
+cb::engine_errc EWB_Engine::system_event(gsl::not_null<const void*> cookie,
+                                         uint32_t opaque,
+                                         Vbid vbucket,
+                                         mcbp::systemevent::id event,
+                                         uint64_t bySeqno,
+                                         mcbp::systemevent::version version,
+                                         cb::const_byte_buffer key,
+                                         cb::const_byte_buffer eventData) {
     if (!real_engine_dcp) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     } else {
         return real_engine_dcp->system_event(cookie,
                                              opaque,
@@ -1745,24 +1743,24 @@ ENGINE_ERROR_CODE EWB_Engine::system_event(gsl::not_null<const void*> cookie,
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::prepare(gsl::not_null<const void*> cookie,
-                                      uint32_t opaque,
-                                      const DocKey& key,
-                                      cb::const_byte_buffer value,
-                                      size_t priv_bytes,
-                                      uint8_t datatype,
-                                      uint64_t cas,
-                                      Vbid vbucket,
-                                      uint32_t flags,
-                                      uint64_t by_seqno,
-                                      uint64_t rev_seqno,
-                                      uint32_t expiration,
-                                      uint32_t lock_time,
-                                      uint8_t nru,
-                                      DocumentState document_state,
-                                      cb::durability::Level level) {
+cb::engine_errc EWB_Engine::prepare(gsl::not_null<const void*> cookie,
+                                    uint32_t opaque,
+                                    const DocKey& key,
+                                    cb::const_byte_buffer value,
+                                    size_t priv_bytes,
+                                    uint8_t datatype,
+                                    uint64_t cas,
+                                    Vbid vbucket,
+                                    uint32_t flags,
+                                    uint64_t by_seqno,
+                                    uint64_t rev_seqno,
+                                    uint32_t expiration,
+                                    uint32_t lock_time,
+                                    uint8_t nru,
+                                    DocumentState document_state,
+                                    cb::durability::Level level) {
     if (!real_engine_dcp) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     } else {
         return real_engine_dcp->prepare(cookie,
                                         opaque,
@@ -1782,40 +1780,40 @@ ENGINE_ERROR_CODE EWB_Engine::prepare(gsl::not_null<const void*> cookie,
                                         level);
     }
 }
-ENGINE_ERROR_CODE EWB_Engine::seqno_acknowledged(
+cb::engine_errc EWB_Engine::seqno_acknowledged(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
         Vbid vbucket,
         uint64_t prepared_seqno) {
     if (!real_engine_dcp) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     } else {
         return real_engine_dcp->seqno_acknowledged(
                 cookie, opaque, vbucket, prepared_seqno);
     }
 }
-ENGINE_ERROR_CODE EWB_Engine::commit(gsl::not_null<const void*> cookie,
-                                     uint32_t opaque,
-                                     Vbid vbucket,
-                                     const DocKey& key,
-                                     uint64_t prepared_seqno,
-                                     uint64_t commit_seqno) {
+cb::engine_errc EWB_Engine::commit(gsl::not_null<const void*> cookie,
+                                   uint32_t opaque,
+                                   Vbid vbucket,
+                                   const DocKey& key,
+                                   uint64_t prepared_seqno,
+                                   uint64_t commit_seqno) {
     if (!real_engine_dcp) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     } else {
         return real_engine_dcp->commit(
                 cookie, opaque, vbucket, key, prepared_seqno, commit_seqno);
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::abort(gsl::not_null<const void*> cookie,
-                                    uint32_t opaque,
-                                    Vbid vbucket,
-                                    const DocKey& key,
-                                    uint64_t prepared_seqno,
-                                    uint64_t abort_seqno) {
+cb::engine_errc EWB_Engine::abort(gsl::not_null<const void*> cookie,
+                                  uint32_t opaque,
+                                  Vbid vbucket,
+                                  const DocKey& key,
+                                  uint64_t prepared_seqno,
+                                  uint64_t abort_seqno) {
     if (!real_engine_dcp) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     } else {
         return real_engine_dcp->abort(
                 cookie, opaque, vbucket, key, prepared_seqno, abort_seqno);
@@ -1888,17 +1886,17 @@ void NotificationThread::run() {
     engine.process_notifications();
 }
 
-ENGINE_ERROR_CODE EWB_Engine::handleBlockMonitorFile(
+cb::engine_errc EWB_Engine::handleBlockMonitorFile(
         const void* cookie,
         uint32_t id,
         const std::string& file,
         const AddResponseFn& response) {
     if (file.empty()) {
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 
     if (!cb::io::isFile(file)) {
-        return ENGINE_KEY_ENOENT;
+        return cb::engine_errc::no_such_key;
     }
 
     if (!suspend(cookie, id)) {
@@ -1906,7 +1904,7 @@ ENGINE_ERROR_CODE EWB_Engine::handleBlockMonitorFile(
                 "EWB_Engine::handleBlockMonitorFile(): "
                 "Id {} already registered",
                 id);
-        return ENGINE_KEY_EEXISTS;
+        return cb::engine_errc::key_already_exists;
     }
 
     try {
@@ -1920,7 +1918,7 @@ ENGINE_ERROR_CODE EWB_Engine::handleBlockMonitorFile(
                 "EWB_Engine::handleBlockMonitorFile(): Failed to create "
                 "block monitor thread: {}",
                 e.what());
-        return ENGINE_FAILED;
+        return cb::engine_errc::failed;
     }
 
     LOG_DEBUG(
@@ -1938,12 +1936,12 @@ ENGINE_ERROR_CODE EWB_Engine::handleBlockMonitorFile(
              cb::mcbp::Status::Success,
              /*cas*/ 0,
              cookie);
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE EWB_Engine::handleSuspend(const void* cookie,
-                                            uint32_t id,
-                                            const AddResponseFn& response) {
+cb::engine_errc EWB_Engine::handleSuspend(const void* cookie,
+                                          uint32_t id,
+                                          const AddResponseFn& response) {
     if (suspend(cookie, id)) {
         LOG_DEBUG("Registered connection {} as {} to be suspended", cookie, id);
         response({},
@@ -1953,17 +1951,17 @@ ENGINE_ERROR_CODE EWB_Engine::handleSuspend(const void* cookie,
                  cb::mcbp::Status::Success,
                  /*cas*/ 0,
                  cookie);
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     } else {
         LOG_WARNING("EWB_Engine::handleSuspend(): Id {} already registered",
                     id);
-        return ENGINE_KEY_EEXISTS;
+        return cb::engine_errc::key_already_exists;
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::handleResume(const void* cookie,
-                                           uint32_t id,
-                                           const AddResponseFn& response) {
+cb::engine_errc EWB_Engine::handleResume(const void* cookie,
+                                         uint32_t id,
+                                         const AddResponseFn& response) {
     if (resume(id)) {
         LOG_DEBUG("Connection with id {} will be resumed", id);
         response({},
@@ -1973,20 +1971,20 @@ ENGINE_ERROR_CODE EWB_Engine::handleResume(const void* cookie,
                  cb::mcbp::Status::Success,
                  /*cas*/ 0,
                  cookie);
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     } else {
         LOG_WARNING(
                 "EWB_Engine::unknown_command(): No "
                 "connection registered with id {}",
                 id);
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::setItemCas(const void* cookie,
-                                         const std::string& key,
-                                         uint32_t cas,
-                                         const AddResponseFn& response) {
+cb::engine_errc EWB_Engine::setItemCas(const void* cookie,
+                                       const std::string& key,
+                                       uint32_t cas,
+                                       const AddResponseFn& response) {
     uint64_t cas64 = cas;
     if (cas == static_cast<uint32_t>(-1)) {
         cas64 = LOCKED_CAS;
@@ -1997,7 +1995,7 @@ ENGINE_ERROR_CODE EWB_Engine::setItemCas(const void* cookie,
                                Vbid(0),
                                DocStateFilter::Alive);
     if (rv.first != cb::engine_errc::success) {
-        return ENGINE_ERROR_CODE(rv.first);
+        return cb::engine_errc(rv.first);
     }
 
     // item_set_cas has no return value!
@@ -2009,12 +2007,12 @@ ENGINE_ERROR_CODE EWB_Engine::setItemCas(const void* cookie,
              cb::mcbp::Status::Success,
              0,
              cookie);
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE EWB_Engine::checkLogLevels(const void* cookie,
-                                             uint32_t value,
-                                             const AddResponseFn& response) {
+cb::engine_errc EWB_Engine::checkLogLevels(const void* cookie,
+                                           uint32_t value,
+                                           const AddResponseFn& response) {
     auto level = spdlog::level::level_enum(value);
     auto rsp = cb::logger::checkLogLevels(level);
 
@@ -2025,7 +2023,7 @@ ENGINE_ERROR_CODE EWB_Engine::checkLogLevels(const void* cookie,
              rsp ? cb::mcbp::Status::Success : cb::mcbp::Status::Einval,
              0,
              cookie);
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 cb::engine_errc EWB_Engine::set_collection_manifest(

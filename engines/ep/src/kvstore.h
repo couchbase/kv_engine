@@ -998,7 +998,7 @@ public:
      * @param cb shared pointer to a callback function
      * @return engine status code
      */
-    virtual ENGINE_ERROR_CODE getAllKeys(
+    virtual cb::engine_errc getAllKeys(
             Vbid vbid,
             const DiskDocKey& start_key,
             uint32_t count,
@@ -1023,22 +1023,21 @@ public:
      *
      * 1. GetValue callback is invoked for each object loaded from disk, for
      *    the caller to process that item.
-     *    If the callback has status ENGINE_SUCCESS then scanning continues.
-     *    If the callback has status ENGINE_ENOMEM then the scan is paused -
-     *    scan() returns early allowing caller to reduce memory pressure.
-     *    If scan() is called again it will resume at the _same_ item which
-     *    returned ENGINE_ENOMEM last time.
+     *    If the callback has status cb::engine_errc::success then scanning
+     * continues. If the callback has status cb::engine_errc::no_memory then the
+     * scan is paused - scan() returns early allowing caller to reduce memory
+     * pressure. If scan() is called again it will resume at the _same_ item
+     * which returned cb::engine_errc::no_memory last time.
      *
      * 2. CacheLookup callback an an optimization to avoid loading data from
      *    disk for already-resident items - it is invoked _before_ loading the
      *    item's value from disk, to give ep-engine's in-memory cache the
      *    opportunity to fulfill the item (assuming the item is in memory).
-     *    If this callback has status ENGINE_KEY_EEXISTS then the document is
-     *    considered to have been handled purely from memory and the GetValue
-     *    callback is skipped.
-     *    If this callback has status ENGINE_SUCCESS then it wasn't fulfilled
-     *    from memory, and will instead be loaded from disk and GetValue
-     *    callback invoked.
+     *    If this callback has status cb::engine_errc::key_already_exists then
+     * the document is considered to have been handled purely from memory and
+     * the GetValue callback is skipped. If this callback has status
+     * cb::engine_errc::success then it wasn't fulfilled from memory, and will
+     * instead be loaded from disk and GetValue callback invoked.
      *
      * @param cb GetValue callback - ownership passes to the returned object
      * @param cl Cache lookup callback - ownership passes to the returned object
@@ -1071,12 +1070,11 @@ public:
      *    disk for already-resident items - it is invoked _before_ loading the
      *    item's value from disk, to give ep-engine's in-memory cache the
      *    opportunity to fulfil the item (assuming the item is in memory).
-     *    If this callback has status ENGINE_KEY_EEXISTS then the document is
-     *    considered to have been handled purely from memory and the GetValue
-     *    callback is skipped.
-     *    If this callback has status ENGINE_SUCCESS then it wasn't fulfilled
-     *    from memory, and will instead be loaded from disk and GetValue
-     *    callback invoked.
+     *    If this callback has status cb::engine_errc::key_already_exists then
+     * the document is considered to have been handled purely from memory and
+     * the GetValue callback is skipped. If this callback has status
+     * cb::engine_errc::success then it wasn't fulfilled from memory, and will
+     * instead be loaded from disk and GetValue callback invoked.
      *
      * @param cb GetValue callback - ownership passes to the returned object
      * @param cl Cache lookup callback - ownership passes to the returned object

@@ -18,8 +18,8 @@
 /**
  * Publicly visible symbols for nobucket.so
  *
- * The "nobucket" is a bucket that just return "ENGINE_NO_BUCKET". This
- * bucket may be set as the "default" bucket for connections to avoid
+ * The "nobucket" is a bucket that just return "cb::engine_errc::no_bucket".
+ * This bucket may be set as the "default" bucket for connections to avoid
  * having to check if a bucket is selected or not.
  */
 #pragma once

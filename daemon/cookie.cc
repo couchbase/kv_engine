@@ -201,23 +201,23 @@ const cb::mcbp::Request& Cookie::getRequest() const {
     return packet->getRequest();
 }
 
-ENGINE_ERROR_CODE Cookie::swapAiostat(ENGINE_ERROR_CODE value) {
+cb::engine_errc Cookie::swapAiostat(cb::engine_errc value) {
     auto ret = getAiostat();
     setAiostat(value);
     return ret;
 }
 
-ENGINE_ERROR_CODE Cookie::getAiostat() const {
+cb::engine_errc Cookie::getAiostat() const {
     return aiostat;
 }
 
-void Cookie::setAiostat(ENGINE_ERROR_CODE value) {
+void Cookie::setAiostat(cb::engine_errc value) {
     aiostat = value;
 }
 
 void Cookie::setEwouldblock(bool value) {
     if (value && !connection.isDCP()) {
-        setAiostat(ENGINE_EWOULDBLOCK);
+        setAiostat(cb::engine_errc::would_block);
     }
 
     ewouldblock = value;
@@ -359,14 +359,14 @@ void Cookie::logResponse(const char* reason) const {
               reason);
 }
 
-void Cookie::logResponse(ENGINE_ERROR_CODE code) const {
+void Cookie::logResponse(cb::engine_errc code) const {
     if (Settings::instance().getVerbose() == 0) {
         // Info is not enabled.. we don't want to try to format
         // output
         return;
     }
 
-    if (code == ENGINE_EWOULDBLOCK) {
+    if (code == cb::engine_errc::would_block) {
         // This is a temporary state
         return;
     }

@@ -46,17 +46,17 @@ VBucketPtr VBucketMap::getBucket(Vbid id) const {
     }
 }
 
-ENGINE_ERROR_CODE VBucketMap::addBucket(VBucketPtr vb) {
+cb::engine_errc VBucketMap::addBucket(VBucketPtr vb) {
     if (vb->getId().get() < size) {
         getShardByVbId(vb->getId())->setBucket(vb);
         ++vbStateCount[vb->getState() - vbucket_state_active];
         EP_LOG_DEBUG("Mapped new {} in state {}",
                      vb->getId(),
                      VBucket::toString(vb->getState()));
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
     EP_LOG_WARN("Cannot create {}, max vbuckets is {}", vb->getId(), size);
-    return ENGINE_ERANGE;
+    return cb::engine_errc::out_of_range;
 }
 
 void VBucketMap::enablePersistence(EPBucket& ep) {

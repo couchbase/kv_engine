@@ -20,7 +20,7 @@
 #include <daemon/mcaudit.h>
 #include <logger/logger.h>
 
-ENGINE_ERROR_CODE FlushCommandContext::flushing() {
+cb::engine_errc FlushCommandContext::flushing() {
     state = State::Done;
     return bucket_flush(cookie);
 }

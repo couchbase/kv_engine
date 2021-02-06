@@ -66,10 +66,10 @@ struct slabs {
     3rd argument specifies if the slab allocator should allocate all memory
     up front (if true), or allocate memory in chunks as it is needed (if false)
 */
-ENGINE_ERROR_CODE slabs_init(struct default_engine *engine,
-                             const size_t limit,
-                             const double factor,
-                             const bool prealloc);
+cb::engine_errc slabs_init(struct default_engine* engine,
+                           const size_t limit,
+                           const double factor,
+                           const bool prealloc);
 
 void slabs_destroy(struct default_engine *engine);
 

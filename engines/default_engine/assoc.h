@@ -5,7 +5,7 @@
 #include "items.h"
 
 /* associative array */
-ENGINE_ERROR_CODE assoc_init(struct default_engine *engine);
+cb::engine_errc assoc_init(struct default_engine* engine);
 void assoc_destroy();
 hash_item *assoc_find(uint32_t hash, const hash_key* key);
 int assoc_insert(uint32_t hash, hash_item *item);

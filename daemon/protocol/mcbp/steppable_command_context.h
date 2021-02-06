@@ -52,7 +52,7 @@ protected:
      *         the connections state to one of the appropriate states (send
      *         data, or start processing the next command)
      */
-    virtual ENGINE_ERROR_CODE step() = 0;
+    virtual cb::engine_errc step() = 0;
 
     /**
      * Helper function to set/clear the JSON bit in datatype based on if the

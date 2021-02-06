@@ -140,18 +140,18 @@ static void check_observe_seqno(bool failover,
 }
 
 static enum test_result test_replace_with_eviction(EngineIface* h) {
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "key", "somevalue"),
             "Failed to set value.");
     wait_for_flusher_to_settle(h);
     evict_key(h, "key");
     int numBgFetched = get_int_stat(h, "ep_bg_fetched");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Replace, "key", "somevalue1"),
             "Failed to replace existing value.");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
@@ -175,7 +175,7 @@ static enum test_result test_wrong_vb_mutation(EngineIface* h,
         // Add operation with cas != 0 doesn't make sense
         cas = 0;
     }
-    checkeq(ENGINE_NOT_MY_VBUCKET,
+    checkeq(cb::engine_errc::not_my_vbucket,
             store(h, nullptr, op, "key", "somevalue", nullptr, cas, Vbid(1)),
             "Expected not_my_vbucket");
     wait_for_stat_change(h, "ep_num_not_my_vbuckets", numNotMyVBucket);
@@ -195,7 +195,7 @@ static enum test_result test_pending_vb_mutation(EngineIface* h,
         // Add operation with cas != 0 doesn't make sense..
         cas = 0;
     }
-    checkeq(ENGINE_EWOULDBLOCK,
+    checkeq(cb::engine_errc::would_block,
             store(h, cookie, op, "key", "somevalue", nullptr, cas, Vbid(1)),
             "Expected ewouldblock");
     testHarness->destroy_cookie(cookie);
@@ -215,7 +215,7 @@ static enum test_result test_replica_vb_mutation(EngineIface* h,
         // performing add with a CAS != 0 doesn't make sense...
         cas = 0;
     }
-    checkeq(ENGINE_NOT_MY_VBUCKET,
+    checkeq(cb::engine_errc::not_my_vbucket,
             store(h, nullptr, op, "key", "somevalue", nullptr, cas, Vbid(1)),
             "Expected not my vbucket");
     wait_for_stat_change(h, "ep_num_not_my_vbuckets", numNotMyVBucket);
@@ -252,7 +252,7 @@ static int checkCurrItemsAfterShutdown(EngineIface* h,
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     // stop flusher before loading new items
     auto pkt = createPacket(cb::mcbp::ClientOpcode::StopPersistence);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->unknown_command(cookie.get(), *pkt, add_response),
             "CMD_STOP_PERSISTENCE failed!");
     checkeq(cb::mcbp::Status::Success,
@@ -261,7 +261,7 @@ static int checkCurrItemsAfterShutdown(EngineIface* h,
 
     std::vector<std::string>::iterator itr;
     for (itr = keys.begin(); itr != keys.end(); ++itr) {
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h, nullptr, StoreSemantics::Set, itr->c_str(), "oracle"),
                 "Failed to store a value");
     }
@@ -281,7 +281,7 @@ static int checkCurrItemsAfterShutdown(EngineIface* h,
 
     // resume flusher before shutdown + warmup
     pkt = createPacket(cb::mcbp::ClientOpcode::StartPersistence);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->unknown_command(cookie.get(), *pkt, add_response),
             "CMD_START_PERSISTENCE failed!");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
@@ -336,7 +336,7 @@ static enum test_result test_shutdown_snapshot_range(EngineIface* h) {
     for (int j = 0; j < num_items; ++j) {
         std::stringstream ss;
         ss << "key" << j;
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
@@ -385,8 +385,8 @@ static enum test_result test_restart(EngineIface* h) {
     }
 
     static const char val[] = "somevalue";
-    ENGINE_ERROR_CODE ret = store(h, nullptr, StoreSemantics::Set, "key", val);
-    checkeq(ENGINE_SUCCESS, ret, "Failed set.");
+    cb::engine_errc ret = store(h, nullptr, StoreSemantics::Set, "key", val);
+    checkeq(cb::engine_errc::success, ret, "Failed set.");
 
     testHarness->reload_engine(&h,
 
@@ -400,12 +400,12 @@ static enum test_result test_restart(EngineIface* h) {
 }
 
 static enum test_result test_specialKeys(EngineIface* h) {
-    ENGINE_ERROR_CODE ret;
+    cb::engine_errc ret;
 
     // Simplified Chinese "Couchbase"
     static const char key0[] = "沙发数据库";
     static const char val0[] = "some Chinese value";
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             (ret = store(h, nullptr, StoreSemantics::Set, key0, val0)),
             "Failed set Chinese key");
     check_key_value(h, key0, val0, strlen(val0));
@@ -413,49 +413,49 @@ static enum test_result test_specialKeys(EngineIface* h) {
     // Traditional Chinese "Couchbase"
     static const char key1[] = "沙發數據庫";
     static const char val1[] = "some Traditional Chinese value";
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             (ret = store(h, nullptr, StoreSemantics::Set, key1, val1)),
             "Failed set Traditional Chinese key");
 
     // Korean "couch potato"
     static const char key2[] = "쇼파감자";
     static const char val2[] = "some Korean value";
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             (ret = store(h, nullptr, StoreSemantics::Set, key2, val2)),
             "Failed set Korean key");
 
     // Russian "couch potato"
     static const char key3[] = "лодырь, лентяй";
     static const char val3[] = "some Russian value";
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             (ret = store(h, nullptr, StoreSemantics::Set, key3, val3)),
             "Failed set Russian key");
 
     // Japanese "couch potato"
     static const char key4[] = "カウチポテト";
     static const char val4[] = "some Japanese value";
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             (ret = store(h, nullptr, StoreSemantics::Set, key4, val4)),
             "Failed set Japanese key");
 
     // Indian char key, and no idea what it is
     static const char key5[] = "हरियानवी";
     static const char val5[] = "some Indian value";
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             (ret = store(h, nullptr, StoreSemantics::Set, key5, val5)),
             "Failed set Indian key");
 
     // Portuguese translation "couch potato"
     static const char key6[] = "sedentário";
     static const char val6[] = "some Portuguese value";
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             (ret = store(h, nullptr, StoreSemantics::Set, key6, val6)),
             "Failed set Portuguese key");
 
     // Arabic translation "couch potato"
     static const char key7[] = "الحافلةالبطاطة";
     static const char val7[] = "some Arabic value";
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             (ret = store(h, nullptr, StoreSemantics::Set, key7, val7)),
             "Failed set Arabic key");
 
@@ -481,12 +481,12 @@ static enum test_result test_specialKeys(EngineIface* h) {
 }
 
 static enum test_result test_binKeys(EngineIface* h) {
-    ENGINE_ERROR_CODE ret;
+    cb::engine_errc ret;
 
     // binary key with char values beyond 0x7F
     static const char key0[] = "\xe0\xed\xf1\x6f\x7f\xf8\xfa";
     static const char val0[] = "some value val8";
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             (ret = store(h, nullptr, StoreSemantics::Set, key0, val0)),
             "Failed set binary key0");
     check_key_value(h, key0, val0, strlen(val0));
@@ -494,7 +494,7 @@ static enum test_result test_binKeys(EngineIface* h) {
     // binary keys with char values beyond 0x7F
     static const char key1[] = "\xf1\xfd\xfe\xff\xf0\xf8\xef";
     static const char val1[] = "some value val9";
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             (ret = store(h, nullptr, StoreSemantics::Set, key1, val1)),
             "Failed set binary key1");
     check_key_value(h, key1, val1, strlen(val1));
@@ -503,7 +503,7 @@ static enum test_result test_binKeys(EngineIface* h) {
     // 0xEF
     static const char key2[] = "\xff\xfe\xbb\xbf\xef";
     static const char val2[] = "some utf-8 bom value";
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             (ret = store(h, nullptr, StoreSemantics::Set, key2, val2)),
             "Failed set binary utf-8 bom key");
     check_key_value(h, key2, val2, strlen(val2));
@@ -511,7 +511,7 @@ static enum test_result test_binKeys(EngineIface* h) {
     // binary keys with special utf-16BE BOM values "U+FEFF"
     static const char key3[] = "U+\xfe\xff\xefU+\xff\xfe";
     static const char val3[] = "some utf-16 bom value";
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             (ret = store(h, nullptr, StoreSemantics::Set, key3, val3)),
             "Failed set binary utf-16 bom key");
     check_key_value(h, key3, val3, strlen(val3));
@@ -567,7 +567,7 @@ static enum test_result test_restart_bin_val(EngineIface* h) {
 
 static enum test_result test_wrong_vb_get(EngineIface* h) {
     int numNotMyVBucket = get_int_stat(h, "ep_num_not_my_vbuckets");
-    checkeq(ENGINE_NOT_MY_VBUCKET,
+    checkeq(cb::engine_errc::not_my_vbucket,
             verify_key(h, "key", Vbid(1)),
             "Expected wrong bucket.");
     wait_for_stat_change(h, "ep_num_not_my_vbuckets", numNotMyVBucket);
@@ -593,7 +593,7 @@ static enum test_result test_vb_get_replica(EngineIface* h) {
     check(set_vbucket_state(h, Vbid(1), vbucket_state_replica),
           "Failed to set vbucket state.");
     int numNotMyVBucket = get_int_stat(h, "ep_num_not_my_vbuckets");
-    checkeq(ENGINE_NOT_MY_VBUCKET,
+    checkeq(cb::engine_errc::not_my_vbucket,
             verify_key(h, "key", Vbid(1)),
             "Expected not my bucket.");
     wait_for_stat_change(h, "ep_num_not_my_vbuckets", numNotMyVBucket);
@@ -618,7 +618,7 @@ static enum test_result test_wrong_vb_replace(EngineIface* h) {
 
 static enum test_result test_wrong_vb_del(EngineIface* h) {
     int numNotMyVBucket = get_int_stat(h, "ep_num_not_my_vbuckets");
-    checkeq(ENGINE_NOT_MY_VBUCKET,
+    checkeq(cb::engine_errc::not_my_vbucket,
             del(h, "key", 0, Vbid(1)),
             "Expected wrong bucket.");
     wait_for_stat_change(h, "ep_num_not_my_vbuckets", numNotMyVBucket);
@@ -840,7 +840,7 @@ static enum test_result test_expiry(EngineIface* h) {
                        {},
                        DocumentState::Alive,
                        false);
-    checkeq(ENGINE_SUCCESS, rv, "Set failed.");
+    checkeq(cb::engine_errc::success, rv, "Set failed.");
     check_key_value(h, key, data, strlen(data));
 
     testHarness->time_travel(5);
@@ -854,7 +854,7 @@ static enum test_result test_expiry(EngineIface* h) {
     checkeq(0, expired_pager, "Expected zero expired item by pager");
     checkeq(1, expired_access, "Expected an expired item on access");
     checkeq(1, active_expired, "Expected an expired active item");
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, cookie, StoreSemantics::Set, key, data),
             "Failed set.");
 
@@ -904,7 +904,7 @@ static enum test_result test_expiry_loader(EngineIface* h) {
                        {},
                        DocumentState::Alive,
                        false);
-    checkeq(ENGINE_SUCCESS, rv, "Set failed.");
+    checkeq(cb::engine_errc::success, rv, "Set failed.");
     check_key_value(h, key, data, strlen(data));
 
     testHarness->time_travel(3);
@@ -938,7 +938,7 @@ static enum test_result test_expiration_on_compaction(EngineIface* h) {
     for (int i = 0; i < 25; i++) {
         std::stringstream ss;
         ss << "key" << i;
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
@@ -1068,7 +1068,7 @@ static enum test_result test_expiration_on_warmup(EngineIface* h) {
                        {},
                        DocumentState::Alive,
                        false);
-    checkeq(ENGINE_SUCCESS, rv, "Set failed.");
+    checkeq(cb::engine_errc::success, rv, "Set failed.");
     testHarness->destroy_cookie(cookie);
 
     check_key_value(h, key, data, strlen(data));
@@ -1149,7 +1149,7 @@ static enum test_result test_bug3454(EngineIface* h) {
                        {},
                        DocumentState::Alive,
                        false);
-    checkeq(ENGINE_SUCCESS, rv, "Set failed.");
+    checkeq(cb::engine_errc::success, rv, "Set failed.");
     check_key_value(h, key, data, strlen(data));
     wait_for_flusher_to_settle(h);
 
@@ -1182,7 +1182,7 @@ static enum test_result test_bug3454(EngineIface* h) {
                   {},
                   DocumentState::Alive,
                   false);
-    checkeq(ENGINE_SUCCESS, rv, "Add failed.");
+    checkeq(cb::engine_errc::success, rv, "Add failed.");
     check_key_value(h, key, data, strlen(data));
     ret.second.reset();
     wait_for_flusher_to_settle(h);
@@ -1239,7 +1239,7 @@ static enum test_result test_bug3522(EngineIface* h) {
                        {},
                        DocumentState::Alive,
                        false);
-    checkeq(ENGINE_SUCCESS, rv, "Set failed.");
+    checkeq(cb::engine_errc::success, rv, "Set failed.");
     check_key_value(h, key, data, strlen(data));
     wait_for_flusher_to_settle(h);
 
@@ -1269,7 +1269,7 @@ static enum test_result test_bug3522(EngineIface* h) {
                   {},
                   DocumentState::Alive,
                   false);
-    checkeq(ENGINE_SUCCESS, rv, "Set failed.");
+    checkeq(cb::engine_errc::success, rv, "Set failed.");
     testHarness->destroy_cookie(cookie);
 
     check_key_value(h, key, new_data, strlen(new_data));
@@ -1295,7 +1295,7 @@ static enum test_result test_bug3522(EngineIface* h) {
 static enum test_result test_get_replica_active_state(EngineIface* h) {
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     auto pkt = prepare_get_replica(h, vbucket_state_active);
-    checkeq(ENGINE_NOT_MY_VBUCKET,
+    checkeq(cb::engine_errc::not_my_vbucket,
             h->unknown_command(cookie.get(), *pkt, add_response),
             "Get Replica Failed");
 
@@ -1306,7 +1306,7 @@ static enum test_result test_get_replica_pending_state(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
     testHarness->set_ewouldblock_handling(cookie, false);
     auto pkt = prepare_get_replica(h, vbucket_state_pending);
-    checkeq(ENGINE_NOT_MY_VBUCKET,
+    checkeq(cb::engine_errc::not_my_vbucket,
             h->unknown_command(cookie, *pkt, add_response),
             "Should have returned NOT_MY_VBUCKET for pending state");
     checkeq(1, get_int_stat(h, "ep_num_not_my_vbuckets"), "Expected 1 get");
@@ -1317,7 +1317,7 @@ static enum test_result test_get_replica_pending_state(EngineIface* h) {
 static enum test_result test_get_replica_dead_state(EngineIface* h) {
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     auto pkt = prepare_get_replica(h, vbucket_state_dead);
-    checkeq(ENGINE_NOT_MY_VBUCKET,
+    checkeq(cb::engine_errc::not_my_vbucket,
             h->unknown_command(cookie.get(), *pkt, add_response),
             "Get Replica Failed");
     return SUCCESS;
@@ -1326,7 +1326,7 @@ static enum test_result test_get_replica_dead_state(EngineIface* h) {
 static enum test_result test_get_replica(EngineIface* h) {
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     auto pkt = prepare_get_replica(h, vbucket_state_replica);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->unknown_command(cookie.get(), *pkt, add_response),
             "Get Replica Failed");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
@@ -1338,7 +1338,7 @@ static enum test_result test_get_replica(EngineIface* h) {
 }
 
 static enum test_result test_get_replica_non_resident(EngineIface* h) {
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "key", "value"),
             "Store Failed");
     wait_for_flusher_to_settle(h);
@@ -1360,7 +1360,7 @@ static enum test_result test_get_replica_invalid_key(EngineIface* h) {
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     bool makeinvalidkey = true;
     auto pkt = prepare_get_replica(h, vbucket_state_replica, makeinvalidkey);
-    checkeq(ENGINE_NOT_MY_VBUCKET,
+    checkeq(cb::engine_errc::not_my_vbucket,
             h->unknown_command(cookie.get(), *pkt, add_response),
             "Get Replica Failed");
     return SUCCESS;
@@ -1371,7 +1371,7 @@ static enum test_result test_vb_del_pending(EngineIface* h) {
     testHarness->set_ewouldblock_handling(cookie, false);
     check(set_vbucket_state(h, Vbid(1), vbucket_state_pending),
           "Failed to set vbucket state.");
-    checkeq(ENGINE_EWOULDBLOCK,
+    checkeq(cb::engine_errc::would_block,
             del(h, "key", 0, Vbid(1), cookie),
             "Expected woodblock.");
     testHarness->destroy_cookie(cookie);
@@ -1382,7 +1382,7 @@ static enum test_result test_vb_del_replica(EngineIface* h) {
     check(set_vbucket_state(h, Vbid(1), vbucket_state_replica),
           "Failed to set vbucket state.");
     int numNotMyVBucket = get_int_stat(h, "ep_num_not_my_vbuckets");
-    checkeq(ENGINE_NOT_MY_VBUCKET,
+    checkeq(cb::engine_errc::not_my_vbucket,
             del(h, "key", 0, Vbid(1)),
             "Expected not my vbucket.");
     wait_for_stat_change(h, "ep_num_not_my_vbuckets", numNotMyVBucket);
@@ -1429,12 +1429,12 @@ static enum test_result test_takeover_stats_num_persisted_deletes(
         EngineIface* h) {
     /* set an item */
     std::string key("key");
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key.c_str(), "data"),
             "Failed to store an item");
 
     /* delete the item */
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del(h, key.c_str(), 0, Vbid(0)),
             "Failed to delete the item");
 
@@ -1457,20 +1457,20 @@ static enum test_result test_vbucket_compact(EngineIface* h) {
 
     // Set two keys - one to be expired and other to remain...
     // Set expiring key
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, exp_key, exp_value),
             "Failed to set expiring key");
     check_key_value(h, exp_key, exp_value, strlen(exp_value));
 
     // Set a non-expiring key...
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, non_exp_key, non_exp_value),
             "Failed to set non-expiring key");
     check_key_value(h, non_exp_key, non_exp_value, strlen(non_exp_value));
 
     // Touch expiring key with an expire time
     const int exp_time = 11;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             touch(h, exp_key, Vbid(0), exp_time),
             "Touch expiring key failed");
 
@@ -1492,15 +1492,15 @@ static enum test_result test_vbucket_compact(EngineIface* h) {
             get_int_stat(h, "vb_0:high_seqno", "vbucket-seqno");
 
     // non_exp_key and its value should be intact...
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             verify_key(h, non_exp_key),
             "key trees should be found.");
     // exp_key should have disappeared...
-    ENGINE_ERROR_CODE val = verify_key(h, exp_key);
-    checkeq(ENGINE_KEY_ENOENT, val, "Key Carss has not expired.");
+    cb::engine_errc val = verify_key(h, exp_key);
+    checkeq(cb::engine_errc::no_such_key, val, "Key Carss has not expired.");
 
     // Store a dummy item since we do not purge the item with highest seqno
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "dummykey", "dummyvalue"),
             "Error setting dummy key");
     wait_for_flusher_to_settle(h);
@@ -1557,7 +1557,7 @@ static enum test_result test_MB_33919(EngineIface* h) {
     testHarness->time_travel((86400 * 5));
 
     // Set expiring key, expiry 4 days ago
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h,
                   nullptr,
                   StoreSemantics::Set,
@@ -1570,11 +1570,11 @@ static enum test_result test_MB_33919(EngineIface* h) {
             "Failed to set expiring key");
 
     // Force it to expire
-    ENGINE_ERROR_CODE val = verify_key(h, expKey);
-    checkeq(ENGINE_KEY_ENOENT, val, "expiryKey has not expired.");
+    cb::engine_errc val = verify_key(h, expKey);
+    checkeq(cb::engine_errc::no_such_key, val, "expiryKey has not expired.");
 
     // And a second key (after expiry), compaction won't purge the high-seqno
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, otherKey, value),
             "Failed to set non-expiring key");
 
@@ -1634,7 +1634,7 @@ static enum test_result test_multiple_vb_compactions(EngineIface* h) {
     std::vector<std::string>::iterator it;
     for (it = keys.begin(); it != keys.end(); ++it) {
         Vbid vbid = Vbid(count % 4);
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
@@ -1695,7 +1695,7 @@ static enum test_result test_multi_vb_compactions_with_workload(
     std::vector<std::string>::iterator it;
     for (it = keys.begin(); it != keys.end(); ++it) {
         Vbid vbid = Vbid(count % 4);
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
@@ -1784,7 +1784,7 @@ static enum test_result test_vbucket_destroy_stats(EngineIface* h) {
     int itemsRemoved = get_int_stat(h, "ep_items_rm_from_checkpoints");
     std::vector<std::string>::iterator it;
     for (it = keys.begin(); it != keys.end(); ++it) {
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
@@ -1829,7 +1829,7 @@ static enum test_result vbucket_destroy_restart(EngineIface* h,
           "Failed to set vbucket state.");
 
     // Store a value so the restart will try to resurrect it.
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h,
                   nullptr,
                   StoreSemantics::Set,
@@ -1941,7 +1941,7 @@ static enum test_result test_stats_seqno(EngineIface* h) {
     for (int ii = 0; ii < num_keys; ++ii) {
         std::stringstream ss;
         ss << "key" << ii;
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
@@ -1982,17 +1982,17 @@ static enum test_result test_stats_seqno(EngineIface* h) {
             "Invalid uuid");
 
     // Check invalid vbucket
-    checkeq(ENGINE_NOT_MY_VBUCKET,
+    checkeq(cb::engine_errc::not_my_vbucket,
             get_stats(h, "vbucket-seqno 2"sv, {}, add_stats),
             "Expected not my vbucket");
 
     // Check bad vbucket parameter (not numeric)
-    checkeq(ENGINE_EINVAL,
+    checkeq(cb::engine_errc::invalid_arguments,
             get_stats(h, "vbucket-seqno tt2"sv, {}, add_stats),
             "Expected invalid");
 
     // Check extra spaces at the end
-    checkeq(ENGINE_EINVAL,
+    checkeq(cb::engine_errc::invalid_arguments,
             get_stats(h, "vbucket-seqno    "sv, {}, add_stats),
             "Expected invalid");
 
@@ -2007,7 +2007,7 @@ static enum test_result test_stats_diskinfo(EngineIface* h) {
     for (int ii = 0; ii < num_keys; ++ii) {
         std::stringstream ss;
         ss << "key" << ii;
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
@@ -2028,15 +2028,15 @@ static enum test_result test_stats_diskinfo(EngineIface* h) {
     checkgt(get_int_stat(h, "vb_1:data_size", "diskinfo detail"), 0,
           "VB 1 data size should be greater than 0");
 
-    checkeq(ENGINE_EINVAL,
+    checkeq(cb::engine_errc::invalid_arguments,
             get_stats(h, "diskinfo "sv, {}, add_stats),
             "Expected invalid");
 
-    checkeq(ENGINE_EINVAL,
+    checkeq(cb::engine_errc::invalid_arguments,
             get_stats(h, "diskinfo detai"sv, {}, add_stats),
             "Expected invalid");
 
-    checkeq(ENGINE_EINVAL,
+    checkeq(cb::engine_errc::invalid_arguments,
             get_stats(h, "diskinfo detaillll"sv, {}, add_stats),
             "Expected invalid");
 
@@ -2045,7 +2045,7 @@ static enum test_result test_stats_diskinfo(EngineIface* h) {
 
 static enum test_result test_uuid_stats(EngineIface* h) {
     vals.clear();
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             get_stats(h, "uuid"sv, {}, add_stats),
             "Failed to get stats.");
     checkeq(std::string_view("foobar"),
@@ -2055,15 +2055,15 @@ static enum test_result test_uuid_stats(EngineIface* h) {
 }
 
 static enum test_result test_item_stats(EngineIface* h) {
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "key", "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "key", "somevalueX"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "key1", "somevalueY"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
@@ -2071,12 +2071,12 @@ static enum test_result test_item_stats(EngineIface* h) {
     check_key_value(h, "key", "somevalueX", 10);
     check_key_value(h, "key1", "somevalueY", 10);
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del(h, "key1", 0, Vbid(0)),
             "Failed remove with value.");
     wait_for_flusher_to_settle(h);
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "key1", "someothervalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
@@ -2093,7 +2093,7 @@ static enum test_result test_item_stats(EngineIface* h) {
 
 static enum test_result test_stats(EngineIface* h) {
     vals.clear();
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
     checklt(size_t{10}, vals.size(), "Kind of expected more stats than that.");
@@ -2297,7 +2297,7 @@ static enum test_result test_vb_file_stats_after_warmup(EngineIface* h) {
     for (int i = 0; i < 100; ++i) {
         std::stringstream key;
         key << "key-" << i;
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
@@ -2373,7 +2373,7 @@ static enum test_result test_bg_meta_stats(EngineIface* h) {
     wait_for_persisted_value(h, "k2", "v2");
 
     evict_key(h, "k1", Vbid(0), "Ejected.");
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del(h, "k2", 0, Vbid(0)),
             "Failed remove with value.");
     wait_for_flusher_to_settle(h);
@@ -2405,7 +2405,7 @@ static enum test_result test_bg_meta_stats(EngineIface* h) {
     itemMeta.exptime = 0;
     itemMeta.flags = 0xdeadbeef;
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             add_with_meta(h, "k3", keylen, nullptr, 0, Vbid(0), &itemMeta),
             "Expected to add item");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Set meta failed");
@@ -2426,12 +2426,12 @@ static enum test_result test_key_stats(EngineIface* h) {
           "Failed set vbucket 1 state.");
 
     // set (k1,v1) in vbucket 0
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "k1", "v1"),
             "Failed to store an item.");
 
     // set (k2,v2) in vbucket 1
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h,
                   nullptr,
                   StoreSemantics::Set,
@@ -2446,7 +2446,7 @@ static enum test_result test_key_stats(EngineIface* h) {
 
     // stat for key "k1" and vbucket "0"
     const char *statkey1 = "key k1 0";
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->get_stats(cookie, {statkey1, strlen(statkey1)}, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
@@ -2457,7 +2457,7 @@ static enum test_result test_key_stats(EngineIface* h) {
 
     // stat for key "k2" and vbucket "1"
     const char *statkey2 = "key k2 1";
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->get_stats(cookie, {statkey2, strlen(statkey2)}, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
@@ -2475,12 +2475,12 @@ static enum test_result test_key_stats_eaccess(EngineIface* h) {
           "Failed set vbucket 1 state.");
 
     // set (k1,v1) in vbucket 0
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "k1", "v1"),
             "Failed to store an item.");
 
     // set (k2,v2) in vbucket 1
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h,
                   nullptr,
                   StoreSemantics::Set,
@@ -2504,7 +2504,9 @@ static enum test_result test_key_stats_eaccess(EngineIface* h) {
     const auto ret = h->get_stats(cookie, "key k1 0"sv, {}, add_stats);
     // Reset priv check function
     mock_set_check_privilege_function({});
-    checkeq(ENGINE_EACCESS, ret, "Expected stats key to return no access");
+    checkeq(cb::engine_errc::no_access,
+            ret,
+            "Expected stats key to return no access");
 
     testHarness->destroy_cookie(cookie);
     return SUCCESS;
@@ -2537,7 +2539,7 @@ static enum test_result test_vkey_stats(EngineIface* h) {
 
     // stat for key "k1" and vbucket "0"
     const char *statkey1 = "vkey k1 0";
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->get_stats(cookie, {statkey1, strlen(statkey1)}, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
@@ -2549,7 +2551,7 @@ static enum test_result test_vkey_stats(EngineIface* h) {
 
     // stat for key "k2" and vbucket "1"
     const char *statkey2 = "vkey k2 1";
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->get_stats(cookie, {statkey2, strlen(statkey2)}, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
@@ -2561,7 +2563,7 @@ static enum test_result test_vkey_stats(EngineIface* h) {
 
     // stat for key "k3" and vbucket "2"
     const char *statkey3 = "vkey k3 2";
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->get_stats(cookie, {statkey3, strlen(statkey3)}, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
@@ -2573,7 +2575,7 @@ static enum test_result test_vkey_stats(EngineIface* h) {
 
     // stat for key "k4" and vbucket "3"
     const char *statkey4 = "vkey k4 3";
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->get_stats(cookie, {statkey4, strlen(statkey4)}, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
@@ -2585,7 +2587,7 @@ static enum test_result test_vkey_stats(EngineIface* h) {
 
     // stat for key "k5" and vbucket "4"
     const char *statkey5 = "vkey k5 4";
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->get_stats(cookie, {statkey5, strlen(statkey5)}, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
@@ -2647,7 +2649,7 @@ static enum test_result test_warmup_conf(EngineIface* h) {
     for (int i = 0; i < 100; ++i) {
         std::stringstream key;
         key << "key-" << i;
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
@@ -2920,7 +2922,7 @@ static enum test_result test_bloomfilters(EngineIface* h) {
     for (i = 0; i < 10; ++i) {
         std::stringstream key;
         key << "key-" << i;
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
@@ -2945,7 +2947,7 @@ static enum test_result test_bloomfilters(EngineIface* h) {
     for (i = 0; i < 5; ++i) {
         std::stringstream key;
         key << "key-" << i;
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 del(h, key.str().c_str(), 0, Vbid(0)),
                 "Failed remove with value.");
     }
@@ -2955,7 +2957,7 @@ static enum test_result test_bloomfilters(EngineIface* h) {
     cb_assert(5 == get_int_stat(h, "ep_num_non_resident"));
     cb_assert(5 == get_int_stat(h, "curr_items"));
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
@@ -3064,7 +3066,7 @@ static enum test_result test_bloomfilters_with_store_apis(EngineIface* h) {
             get_int_stat_or_default(h, 0, "ep_bg_num_samples"),
             "Expected no bgFetch attempts");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
@@ -3081,7 +3083,7 @@ static enum test_result test_bloomfilters_with_store_apis(EngineIface* h) {
             itm_meta.flags = 0xdeadbeef;
 
             const std::string key = "swm-" + std::to_string(j);
-            checkeq(ENGINE_SUCCESS,
+            checkeq(cb::engine_errc::success,
                     set_with_meta(h,
                                   key.data(),
                                   key.size(),
@@ -3102,7 +3104,7 @@ static enum test_result test_bloomfilters_with_store_apis(EngineIface* h) {
             std::stringstream key;
             key << "add-" << j;
 
-            checkeq(ENGINE_SUCCESS,
+            checkeq(cb::engine_errc::success,
                     store(h,
                           nullptr,
                           StoreSemantics::Add,
@@ -3119,7 +3121,7 @@ static enum test_result test_bloomfilters_with_store_apis(EngineIface* h) {
         for (j = 0; j < 10; j++) {
             std::stringstream key;
             key << "del-" << j;
-            checkeq(ENGINE_KEY_ENOENT,
+            checkeq(cb::engine_errc::no_such_key,
                     del(h, key.str().c_str(), 0, Vbid(0)),
                     "Failed remove with value.");
         }
@@ -3150,7 +3152,7 @@ static enum test_result test_bloomfilter_delete_plus_set_scenario(
             get_str_stat(h, "vb_0:bloom_filter", "vbucket-details 0"),
             "Vbucket 0's bloom filter wasn't enabled upon setup!");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "k1", "v1"),
             "Failed to fail to store an item.");
 
@@ -3159,11 +3161,11 @@ static enum test_result test_bloomfilter_delete_plus_set_scenario(
     int num_persisted = get_int_stat(h, "ep_total_persisted");
     cb_assert(num_writes == 1 && num_persisted == 1);
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del(h, "k1", 0, Vbid(0)),
             "Failed remove with value.");
     stop_persistence(h);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h,
                   nullptr,
                   StoreSemantics::Set,
@@ -3210,7 +3212,7 @@ static enum test_result test_datatype(EngineIface* h) {
     const auto datatype = PROTOCOL_BINARY_DATATYPE_JSON;
     uint64_t cas = 0;
     std::string value("x");
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             storeCasOut(h, nullptr, Vbid(0), key, value, datatype, itm, cas),
             "Expected set to succeed");
 
@@ -3228,7 +3230,7 @@ static enum test_result test_datatype(EngineIface* h) {
     itm_meta.cas = info.cas;
     itm_meta.exptime = info.exptime;
     itm_meta.flags = info.flags;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(h,
                           key1,
                           strlen(key1),
@@ -3268,7 +3270,7 @@ static enum test_result test_datatype_with_unknown_command(EngineIface* h) {
     itm_meta.flags = 0;
 
     //SET_WITH_META
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(h,
                           key,
                           strlen(key),
@@ -3292,7 +3294,7 @@ static enum test_result test_datatype_with_unknown_command(EngineIface* h) {
             "Invalid datatype, when setWithMeta");
 
     //SET_RETURN_META
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_ret_meta(h,
                          "foo1",
                          4,
@@ -3322,7 +3324,7 @@ static enum test_result test_access_scanner_settings(EngineIface* h) {
     }
 
     // Create a unique access log path by combining with the db path.
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
     std::string dbname = vals.find("ep_dbname")->second;
@@ -3402,7 +3404,7 @@ static enum test_result test_access_scanner(EngineIface* h) {
     }
 
     // Create a unique access log path by combining with the db path.
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
     const auto dbname = vals.find("ep_dbname")->second;
@@ -3434,7 +3436,7 @@ static enum test_result test_access_scanner(EngineIface* h) {
             two_hours_hence,
             "Failed to set alog_task_time to 2 hours in the future");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
     std::string name = vals.find("ep_alog_path")->second;
@@ -3465,22 +3467,23 @@ static enum test_result test_access_scanner(EngineIface* h) {
         }
 
         std::string key("key" + std::to_string(num_items));
-        ENGINE_ERROR_CODE ret = store(
+        cb::engine_errc ret = store(
                 h, nullptr, StoreSemantics::Set, key.c_str(), value.c_str());
         switch (ret) {
-            case ENGINE_SUCCESS:
-                num_items++;
-                break;
+        case cb::engine_errc::success:
+            num_items++;
+            break;
 
-            case ENGINE_ENOMEM:
-            case ENGINE_TMPFAIL:
-                // Returned when at high watermark; simply retry the op.
-                break;
+        case cb::engine_errc::no_memory:
+        case cb::engine_errc::temporary_failure:
+            // Returned when at high watermark; simply retry the op.
+            break;
 
-            default:
-                fprintf(stderr, "test_access_scanner: Unexpected result from store(): %d\n",
-                        ret);
-                abort();
+        default:
+            fprintf(stderr,
+                    "test_access_scanner: Unexpected result from store(): %s\n",
+                    cb::to_string(ret).c_str());
+            abort();
         }
 
     }
@@ -3570,7 +3573,7 @@ static enum test_result test_warmup_stats(EngineIface* h) {
     for (int i = 0; i < 5000; ++i) {
         std::stringstream key;
         key << "key-" << i;
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
@@ -3643,7 +3646,7 @@ static enum test_result test_warmup_with_threshold(EngineIface* h) {
     for (int i = 0; i < 10000; ++i) {
         std::stringstream key;
         key << "key+" << i;
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
@@ -3716,7 +3719,7 @@ static enum test_result test_warmup_oom(EngineIface* h) {
 
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     auto pkt = createPacket(cb::mcbp::ClientOpcode::EnableTraffic);
-    checkeq(ENGINE_ENOMEM,
+    checkeq(cb::engine_errc::no_memory,
             h->unknown_command(cookie.get(), *pkt, add_response),
             "Data traffic command should have failed with enomem");
 
@@ -3729,10 +3732,10 @@ static enum test_result test_cbd_225(EngineIface* h) {
     checkne(time_t{0}, token1, "Expected non-zero startup token");
 
     // store some random data
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "k1", "v1"),
             "Failed to fail to store an item.");
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "k2", "v2"),
             "Failed to fail to store an item.");
     wait_for_flusher_to_settle(h);
@@ -3760,7 +3763,7 @@ static enum test_result test_cbd_225(EngineIface* h) {
 
 static enum test_result test_workload_stats(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->get_stats(cookie, "workload"sv, {}, add_stats),
             "Falied to get workload stats");
     testHarness->destroy_cookie(cookie);
@@ -3784,7 +3787,7 @@ static enum test_result test_workload_stats(EngineIface* h) {
 
 static enum test_result test_max_workload_stats(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->get_stats(cookie, "workload"sv, {}, add_stats),
             "Failed to get workload stats");
     testHarness->destroy_cookie(cookie);
@@ -3811,7 +3814,7 @@ static enum test_result test_worker_stats(EngineIface* h) {
         // FollyExecutorPool doesn't support 'worker' stats.
         return SKIPPED;
     }
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             get_stats(h, "dispatcher"sv, {}, add_stats),
             "Failed to get worker stats");
 
@@ -3877,7 +3880,7 @@ static enum test_result test_all_keys_api(EngineIface* h) {
     std::vector<std::string>::iterator it;
     for (it = keys.begin(); it != keys.end(); ++it) {
         ItemIface* itm;
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
@@ -3890,7 +3893,7 @@ static enum test_result test_all_keys_api(EngineIface* h) {
         h->release(itm);
     }
     std::string del_key("key_" + std::to_string(del_key_idx));
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del(h, del_key.c_str(), 0, Vbid(0)),
             "Failed to delete key");
     wait_for_flusher_to_settle(h);
@@ -3910,13 +3913,13 @@ static enum test_result test_all_keys_api(EngineIface* h) {
 
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     if (isPersistentBucket(h)) {
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 h->unknown_command(cookie.get(), *pkt1, add_response),
                 "Failed to get all_keys, sort: ascending");
     } else {
         /* We intend to support cb::mcbp::ClientOpcode::GetKeys in ephemeral
            buckets in the future */
-        checkeq(ENGINE_ENOTSUP,
+        checkeq(cb::engine_errc::not_supported,
                 h->unknown_command(cookie.get(), *pkt1, add_response),
                 "Should return not supported");
         return SUCCESS;
@@ -3960,13 +3963,13 @@ static enum test_result test_all_keys_api_during_bucket_creation(
 
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     if (isPersistentBucket(h)) {
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 h->unknown_command(cookie.get(), *pkt1, add_response),
                 "Unexpected return code from all_keys_api");
     } else {
         /* We intend to support cb::mcbp::ClientOpcode::GetKeys in ephemeral
            buckets in the future */
-        checkeq(ENGINE_ENOTSUP,
+        checkeq(cb::engine_errc::not_supported,
                 h->unknown_command(cookie.get(), *pkt1, add_response),
                 "Should return not supported");
         return SUCCESS;
@@ -3987,13 +3990,13 @@ static enum test_result test_curr_items_add_set(EngineIface* h) {
     const auto initial_enqueued = get_int_stat(h, "ep_total_enqueued");
 
     // Verify set and add case
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Add, "k1", "v1"),
             "Failed to fail to store an item.");
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "k2", "v2"),
             "Failed to fail to store an item.");
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "k3", "v3"),
             "Failed to fail to store an item.");
     if (isPersistentBucket(h) && is_full_eviction(h)) {
@@ -4017,7 +4020,7 @@ static enum test_result test_curr_items_delete(EngineIface* h) {
     wait_for_flusher_to_settle(h);
 
     // Verify delete case.
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del(h, "key1", 0, Vbid(0)),
             "Failed remove with value.");
 
@@ -4088,14 +4091,14 @@ static enum test_result test_value_eviction(EngineIface* h) {
             "Expected all active vbucket items to be resident");
 
     stop_persistence(h);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "k1", "v1"),
             "Failed to fail to store an item.");
     evict_key(h, "k1", Vbid(0), "Can't eject: Dirty object.", true);
     start_persistence(h);
     wait_for_flusher_to_settle(h);
     stop_persistence(h);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h,
                   nullptr,
                   StoreSemantics::Set,
@@ -4126,11 +4129,11 @@ static enum test_result test_value_eviction(EngineIface* h) {
                             {"missing-key", 11});
 
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->unknown_command(cookie.get(), *pkt, add_response),
             "Failed to evict key.");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
@@ -4182,7 +4185,7 @@ static enum test_result test_duplicate_items_disk(EngineIface* h) {
     }
     std::vector<std::string>::iterator it;
     for (it = keys.begin(); it != keys.end(); ++it) {
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
@@ -4212,7 +4215,7 @@ static enum test_result test_duplicate_items_disk(EngineIface* h) {
 
     for (it = keys.begin(); it != keys.end(); ++it) {
         ItemIface* i;
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
@@ -4292,7 +4295,7 @@ static enum test_result test_disk_gt_ram_golden(EngineIface* h) {
     itemsRemoved = get_int_stat(h, "ep_items_rm_from_checkpoints");
     // Delete the value and make sure things return correctly.
     int numStored = get_int_stat(h, "ep_total_persisted");
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del(h, "k1", 0, Vbid(0)),
             "Failed remove with value.");
     wait_for_stat_change(h, "ep_total_persisted", numStored);
@@ -4325,7 +4328,7 @@ static enum test_result test_disk_gt_ram_paged_rm(EngineIface* h) {
     // Delete the value and make sure things return correctly.
     int itemsRemoved = get_int_stat(h, "ep_items_rm_from_checkpoints");
     int numStored = get_int_stat(h, "ep_total_persisted");
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del(h, "k1", 0, Vbid(0)),
             "Failed remove with value.");
     wait_for_stat_change(h, "ep_total_persisted", numStored);
@@ -4340,7 +4343,7 @@ static enum test_result test_disk_gt_ram_update_paged_out(EngineIface* h) {
 
     evict_key(h, "k1");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "k1", "new value"),
             "Failed to update an item.");
 
@@ -4356,9 +4359,13 @@ static enum test_result test_disk_gt_ram_delete_paged_out(EngineIface* h) {
 
     evict_key(h, "k1");
 
-    checkeq(ENGINE_SUCCESS, del(h, "k1", 0, Vbid(0)), "Failed to delete.");
+    checkeq(cb::engine_errc::success,
+            del(h, "k1", 0, Vbid(0)),
+            "Failed to delete.");
 
-    checkeq(ENGINE_KEY_ENOENT, verify_key(h, "k1"), "Expected miss.");
+    checkeq(cb::engine_errc::no_such_key,
+            verify_key(h, "k1"),
+            "Expected miss.");
 
     checkeq(0,
             get_int_stat(h, "ep_bg_fetched"),
@@ -4374,7 +4381,7 @@ extern "C" {
         std::this_thread::sleep_for(
                 std::chrono::microseconds(2600)); // Exacerbate race condition.
 
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(td->h, nullptr, StoreSemantics::Set, "k1", "new value"),
                 "Failed to update an item.");
 
@@ -4387,7 +4394,7 @@ extern "C" {
         std::this_thread::sleep_for(
                 std::chrono::microseconds(2600)); // Exacerbate race condition.
 
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 del(td->h, "k1", 0, Vbid(0)),
                 "Failed to delete.");
 
@@ -4425,7 +4432,9 @@ static enum test_result test_disk_gt_ram_rm_race(EngineIface* h) {
         abort();
     }
 
-    checkeq(ENGINE_KEY_ENOENT, verify_key(h, "k1"), "Expected miss.");
+    checkeq(cb::engine_errc::no_such_key,
+            verify_key(h, "k1"),
+            "Expected miss.");
 
     // Should have bg_fetched, but discarded the old value.
     cb_assert(1 == get_int_stat(h, "ep_bg_fetched"));
@@ -4449,7 +4458,7 @@ static enum test_result test_kill9_bucket(EngineIface* h) {
     }
     std::vector<std::string>::iterator it;
     for (it = keys.begin(); it != keys.end(); ++it) {
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
@@ -4476,7 +4485,7 @@ static enum test_result test_kill9_bucket(EngineIface* h) {
     }
     for (it = keys.begin(); it != keys.end(); ++it) {
         ItemIface* i;
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
@@ -4498,7 +4507,7 @@ static enum test_result test_kill9_bucket(EngineIface* h) {
 static enum test_result test_revid(EngineIface* h) {
     ItemMetaData meta;
     for (uint64_t ii = 1; ii < 10; ++ii) {
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h, nullptr, StoreSemantics::Set, "test_revid", "foo"),
                 "Failed to store a value");
 
@@ -4516,7 +4525,7 @@ static enum test_result test_regression_mb4314(EngineIface* h) {
           "Expected get_meta() to fail");
 
     ItemMetaData itm_meta(0xdeadbeef, 10, 0xdeadbeef, 0);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(h,
                           "test_regression_mb4314",
                           22,
@@ -4537,7 +4546,7 @@ static enum test_result test_regression_mb4314(EngineIface* h) {
 }
 
 static enum test_result test_mb3466(EngineIface* h) {
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
 
@@ -4555,7 +4564,7 @@ static enum test_result test_mb3466(EngineIface* h) {
 
 static enum test_result test_observe_no_data(EngineIface* h) {
     std::map<std::string, Vbid> obskeys;
-    checkeq(ENGINE_SUCCESS, observe(h, obskeys), "expected success");
+    checkeq(cb::engine_errc::success, observe(h, obskeys), "expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     return SUCCESS;
 }
@@ -4568,7 +4577,7 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h) {
     //Check the output when there is no data in the vbucket
     uint64_t vb_uuid = get_ull_stat(h, "vb_1:0:id", "failovers");
     uint64_t high_seqno = get_int_stat(h, "vb_1:high_seqno", "vbucket-seqno");
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             observe_seqno(h, Vbid(1), vb_uuid),
             "Expected success");
 
@@ -4588,16 +4597,16 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h) {
         ItemIface* it = nullptr;
         uint64_t cas1;
         std::string value('x', 100);
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 storeCasOut(h,
-                          nullptr,
-                          Vbid(1),
-                          "key" + std::to_string(j),
-                          value,
-                          PROTOCOL_BINARY_RAW_BYTES,
-                          it,
-                          cas1),
-              "Expected set to succeed");
+                            nullptr,
+                            Vbid(1),
+                            "key" + std::to_string(j),
+                            value,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            it,
+                            cas1),
+                "Expected set to succeed");
     }
 
     wait_for_flusher_to_settle(h);
@@ -4614,7 +4623,7 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h) {
         total_persisted = high_seqno;
     }
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             observe_seqno(h, Vbid(1), vb_uuid),
             "Expected success");
 
@@ -4634,20 +4643,20 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h) {
         ItemIface* it = nullptr;
         uint64_t cas1;
         std::string value('x', 100);
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 storeCasOut(h,
-                          nullptr,
-                          Vbid(1),
-                          "key" + std::to_string(j),
-                          value,
-                          PROTOCOL_BINARY_RAW_BYTES,
-                          it,
-                          cas1),
-              "Expected set to succeed");
+                            nullptr,
+                            Vbid(1),
+                            "key" + std::to_string(j),
+                            value,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            it,
+                            cas1),
+                "Expected set to succeed");
     }
 
     high_seqno = get_int_stat(h, "vb_1:high_seqno", "vbucket-seqno");
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             observe_seqno(h, Vbid(1), vb_uuid),
             "Expected success");
 
@@ -4671,7 +4680,7 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h) {
         total_persisted = high_seqno;
     }
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             observe_seqno(h, Vbid(1), vb_uuid),
             "Expected success");
 
@@ -4696,16 +4705,16 @@ static enum test_result test_observe_seqno_failover(EngineIface* h) {
         ItemIface* it = nullptr;
         uint64_t cas1;
         std::string value('x', 100);
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 storeCasOut(h,
-                          nullptr,
-                          Vbid(0),
-                          "key" + std::to_string(j),
-                          value,
-                          PROTOCOL_BINARY_RAW_BYTES,
-                          it,
-                          cas1),
-              "Expected set to succeed");
+                            nullptr,
+                            Vbid(0),
+                            "key" + std::to_string(j),
+                            value,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            it,
+                            cas1),
+                "Expected set to succeed");
     }
 
     wait_for_flusher_to_settle(h);
@@ -4724,7 +4733,7 @@ static enum test_result test_observe_seqno_failover(EngineIface* h) {
 
     uint64_t new_vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             observe_seqno(h, Vbid(0), vb_uuid),
             "Expected success");
 
@@ -4746,7 +4755,7 @@ static enum test_result test_observe_seqno_failover(EngineIface* h) {
 static enum test_result test_observe_seqno_error(EngineIface* h) {
     //not my vbucket test
     uint64_t vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
-    checkeq(ENGINE_NOT_MY_VBUCKET,
+    checkeq(cb::engine_errc::not_my_vbucket,
             observe_seqno(h, Vbid(10), vb_uuid),
             "Expected NMVB");
 
@@ -4762,7 +4771,7 @@ static enum test_result test_observe_seqno_error(EngineIface* h) {
                                 {},
                                 invalid_data.str());
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    checkeq(ENGINE_KEY_ENOENT,
+    checkeq(cb::engine_errc::no_such_key,
             h->unknown_command(cookie.get(), *request, add_response),
             "Expected vb uuid not found");
 
@@ -4776,21 +4785,21 @@ static enum test_result test_observe_single_key(EngineIface* h) {
     std::string value('x', 100);
     ItemIface* it = nullptr;
     uint64_t cas1;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             storeCasOut(h,
-                      nullptr,
-                      Vbid(0),
-                      "key",
-                      value,
-                      PROTOCOL_BINARY_RAW_BYTES,
-                      it,
-                      cas1),
-          "Set should work");
+                        nullptr,
+                        Vbid(0),
+                        "key",
+                        value,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        it,
+                        cas1),
+            "Set should work");
 
     // Do an observe
     std::map<std::string, Vbid> obskeys;
     obskeys["key"] = Vbid(0);
-    checkeq(ENGINE_SUCCESS, observe(h, obskeys), "Expected success");
+    checkeq(cb::engine_errc::success, observe(h, obskeys), "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     // Check that the key is not persisted
@@ -4821,12 +4830,12 @@ static enum test_result test_observe_single_key(EngineIface* h) {
 static enum test_result test_observe_temp_item(EngineIface* h) {
     char const *k1 = "key";
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, k1, "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
 
-    checkeq(ENGINE_SUCCESS, del(h, k1, 0, Vbid(0)), "Delete failed");
+    checkeq(cb::engine_errc::success, del(h, k1, 0, Vbid(0)), "Delete failed");
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 
@@ -4849,7 +4858,7 @@ static enum test_result test_observe_temp_item(EngineIface* h) {
     // Do an observe
     std::map<std::string, Vbid> obskeys;
     obskeys["key"] = Vbid(0);
-    checkeq(ENGINE_SUCCESS, observe(h, obskeys), "Expected success");
+    checkeq(cb::engine_errc::success, observe(h, obskeys), "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     // Check that the key is not found
@@ -4896,38 +4905,38 @@ static enum test_result test_observe_multi_key(EngineIface* h) {
     ItemIface* it = nullptr;
     uint64_t cas1, cas2, cas3;
     std::string value('x', 100);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             storeCasOut(h,
-                      nullptr,
-                      Vbid(0),
-                      "key1",
-                      value,
-                      PROTOCOL_BINARY_RAW_BYTES,
-                      it,
-                      cas1),
-          "Set should work");
+                        nullptr,
+                        Vbid(0),
+                        "key1",
+                        value,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        it,
+                        cas1),
+            "Set should work");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             storeCasOut(h,
-                      nullptr,
-                      Vbid(1),
-                      "key2",
-                      value,
-                      PROTOCOL_BINARY_RAW_BYTES,
-                      it,
-                      cas2),
-          "Set should work");
+                        nullptr,
+                        Vbid(1),
+                        "key2",
+                        value,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        it,
+                        cas2),
+            "Set should work");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             storeCasOut(h,
-                      nullptr,
-                      Vbid(1),
-                      "key3",
-                      value,
-                      PROTOCOL_BINARY_RAW_BYTES,
-                      it,
-                      cas3),
-          "Set should work");
+                        nullptr,
+                        Vbid(1),
+                        "key3",
+                        value,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        it,
+                        cas3),
+            "Set should work");
 
     if (isPersistentBucket(h)) {
         wait_for_stat_to_be(h, "ep_total_persisted", 3);
@@ -4938,7 +4947,7 @@ static enum test_result test_observe_multi_key(EngineIface* h) {
     obskeys["key1"] = Vbid(0);
     obskeys["key2"] = Vbid(1);
     obskeys["key3"] = Vbid(1);
-    checkeq(ENGINE_SUCCESS, observe(h, obskeys), "Expected success");
+    checkeq(cb::engine_errc::success, observe(h, obskeys), "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     // Check the result
@@ -5006,27 +5015,27 @@ static enum test_result test_multiple_observes(EngineIface* h) {
     ItemIface* it = nullptr;
     uint64_t cas1, cas2;
     std::string value('x', 100);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             storeCasOut(h,
-                      nullptr,
-                      Vbid(0),
-                      "key1",
-                      value,
-                      PROTOCOL_BINARY_RAW_BYTES,
-                      it,
-                      cas1),
-          "Set should work");
+                        nullptr,
+                        Vbid(0),
+                        "key1",
+                        value,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        it,
+                        cas1),
+            "Set should work");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             storeCasOut(h,
-                      nullptr,
-                      Vbid(0),
-                      "key2",
-                      value,
-                      PROTOCOL_BINARY_RAW_BYTES,
-                      it,
-                      cas2),
-          "Set should work");
+                        nullptr,
+                        Vbid(0),
+                        "key2",
+                        value,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        it,
+                        cas2),
+            "Set should work");
 
     if (isPersistentBucket(h)) {
         wait_for_stat_to_be(h, "ep_total_persisted", 2);
@@ -5035,7 +5044,7 @@ static enum test_result test_multiple_observes(EngineIface* h) {
     // Do observe
     std::map<std::string, Vbid> obskeys;
     obskeys["key1"] = Vbid(0);
-    checkeq(ENGINE_SUCCESS, observe(h, obskeys), "Expected success");
+    checkeq(cb::engine_errc::success, observe(h, obskeys), "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     const int expected_persisted = isPersistentBucket(h)
@@ -5059,7 +5068,7 @@ static enum test_result test_multiple_observes(EngineIface* h) {
     // Do another observe
     obskeys.clear();
     obskeys["key2"] = Vbid(0);
-    checkeq(ENGINE_SUCCESS, observe(h, obskeys), "Expected success");
+    checkeq(cb::engine_errc::success, observe(h, obskeys), "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     memcpy(&vb, last_body.data(), sizeof(Vbid));
@@ -5088,34 +5097,34 @@ static enum test_result test_observe_with_not_found(EngineIface* h) {
     ItemIface* it = nullptr;
     uint64_t cas1, cas3;
     std::string value('x', 100);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             storeCasOut(h,
-                      nullptr,
-                      Vbid(0),
-                      "key1",
-                      value,
-                      PROTOCOL_BINARY_RAW_BYTES,
-                      it,
-                      cas1),
-          "Set should work");
+                        nullptr,
+                        Vbid(0),
+                        "key1",
+                        value,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        it,
+                        cas1),
+            "Set should work");
 
     if (isPersistentBucket(h)) {
         wait_for_stat_to_be(h, "ep_total_persisted", 1);
         stop_persistence(h);
     }
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             storeCasOut(h,
-                      nullptr,
-                      Vbid(1),
-                      "key3",
-                      value,
-                      PROTOCOL_BINARY_RAW_BYTES,
-                      it,
-                      cas3),
-          "Set should work");
+                        nullptr,
+                        Vbid(1),
+                        "key3",
+                        value,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        it,
+                        cas3),
+            "Set should work");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del(h, "key3", 0, Vbid(1)),
             "Failed to remove a key");
 
@@ -5124,7 +5133,7 @@ static enum test_result test_observe_with_not_found(EngineIface* h) {
     obskeys["key1"] = Vbid(0);
     obskeys["key2"] = Vbid(0);
     obskeys["key3"] = Vbid(1);
-    checkeq(ENGINE_SUCCESS, observe(h, obskeys), "Expected success");
+    checkeq(cb::engine_errc::success, observe(h, obskeys), "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     // Check the result
@@ -5182,7 +5191,7 @@ static enum test_result test_observe_errors(EngineIface* h) {
     // Check not my vbucket error
     obskeys["key"] = Vbid(1);
 
-    checkeq(ENGINE_NOT_MY_VBUCKET,
+    checkeq(cb::engine_errc::not_my_vbucket,
             observe(h, obskeys),
             "Expected not my vbucket");
 
@@ -5190,13 +5199,13 @@ static enum test_result test_observe_errors(EngineIface* h) {
     auto pkt = createPacket(
             cb::mcbp::ClientOpcode::Observe, Vbid(0), 0, {}, {}, {"0", 1});
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    checkeq(ENGINE_EINVAL,
+    checkeq(cb::engine_errc::invalid_arguments,
             h->unknown_command(cookie.get(), *pkt, add_response),
             "Observe failed.");
 
     pkt = createPacket(
             cb::mcbp::ClientOpcode::Observe, Vbid(0), 0, {}, {}, {"0000", 4});
-    checkeq(ENGINE_EINVAL,
+    checkeq(cb::engine_errc::invalid_arguments,
             h->unknown_command(cookie.get(), *pkt, add_response),
             "Observe failed.");
 
@@ -5204,30 +5213,30 @@ static enum test_result test_observe_errors(EngineIface* h) {
 }
 
 static enum test_result test_control_data_traffic(EngineIface* h) {
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "key", "value1"),
             "Failed to set key");
 
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     auto pkt = createPacket(cb::mcbp::ClientOpcode::DisableTraffic);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->unknown_command(cookie.get(), *pkt, add_response),
             "Failed to send data traffic command to the server");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Faile to disable data traffic");
 
-    checkeq(ENGINE_TMPFAIL,
+    checkeq(cb::engine_errc::temporary_failure,
             store(h, nullptr, StoreSemantics::Set, "key", "value2"),
             "Expected to receive temporary failure");
 
     pkt = createPacket(cb::mcbp::ClientOpcode::EnableTraffic);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->unknown_command(cookie.get(), *pkt, add_response),
             "Failed to send data traffic command to the server");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Faile to enable data traffic");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "key", "value2"),
             "Failed to set key");
     return SUCCESS;
@@ -5243,16 +5252,18 @@ static enum test_result test_memory_condition(EngineIface* h) {
         std::string key("key-");
         key += std::to_string(j);
 
-        ENGINE_ERROR_CODE err =
+        cb::engine_errc err =
                 store(h, nullptr, StoreSemantics::Set, key.c_str(), data);
 
         std::string checkMsg("Failed for reason ");
-        checkMsg += to_string(cb::to_engine_errc(err));
-        check(err == ENGINE_SUCCESS || err == ENGINE_TMPFAIL ||
-                      err == ENGINE_ENOMEM,
+        checkMsg += to_string(err);
+        check(err == cb::engine_errc::success ||
+                      err == cb::engine_errc::temporary_failure ||
+                      err == cb::engine_errc::no_memory,
               checkMsg.c_str());
 
-        if (err == ENGINE_TMPFAIL || err == ENGINE_ENOMEM) {
+        if (err == cb::engine_errc::temporary_failure ||
+            err == cb::engine_errc::no_memory) {
             break;
         }
     }
@@ -5266,18 +5277,18 @@ static enum test_result test_stats_vkey_valid_field(EngineIface* h) {
 
     // Check vkey when a key doesn't exist
     const char* stats_key = "vkey key 0";
-    checkeq(ENGINE_KEY_ENOENT,
+    checkeq(cb::engine_errc::no_such_key,
             h->get_stats(cookie, {stats_key, strlen(stats_key)}, {}, add_stats),
             "Expected not found.");
 
     stop_persistence(h);
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "key", "value"),
             "Failed to set key");
 
     // Check to make sure a non-persisted item is 'dirty'
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->get_stats(cookie, {stats_key, strlen(stats_key)}, {}, add_stats),
             "Failed to get stats.");
     checkeq("dirty"s, vals.find("key_valid")->second, "Expected 'dirty'");
@@ -5285,14 +5296,14 @@ static enum test_result test_stats_vkey_valid_field(EngineIface* h) {
     // Check that a key that is resident and persisted returns valid
     start_persistence(h);
     wait_for_stat_to_be(h, "ep_total_persisted", 1);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->get_stats(cookie, {stats_key, strlen(stats_key)}, {}, add_stats),
             "Failed to get stats.");
     checkeq("valid"s, vals.find("key_valid")->second, "Expected 'valid'");
 
     // Check that an evicted key still returns valid
     evict_key(h, "key", Vbid(0), "Ejected.");
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->get_stats(cookie, "vkey key 0"sv, {}, add_stats),
             "Failed to get stats.");
     checkeq("valid"s, vals.find("key_valid")->second, "Expected 'valid'");
@@ -5307,7 +5318,7 @@ static enum test_result test_multiple_transactions(EngineIface* h) {
     for (int j = 0; j < 1000; ++j) {
         std::stringstream s1;
         s1 << "key-0-" << j;
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
@@ -5316,7 +5327,7 @@ static enum test_result test_multiple_transactions(EngineIface* h) {
                 "Failed to store a value");
         std::stringstream s2;
         s2 << "key-1-" << j;
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
@@ -5335,7 +5346,7 @@ static enum test_result test_multiple_transactions(EngineIface* h) {
 
 static enum test_result test_set_ret_meta(EngineIface* h) {
     // Check that set without cas succeeds
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_ret_meta(h, "key", 3, "value", 5, Vbid(0), 0, 0, 0),
             "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
@@ -5350,7 +5361,7 @@ static enum test_result test_set_ret_meta(EngineIface* h) {
     checkeq(cb::uint48_t{1ull}, last_meta.revSeqno, "Invalid result for seqno");
 
     // Check that set with correct cas succeeds
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_ret_meta(h,
                          "key",
                          3,
@@ -5375,7 +5386,7 @@ static enum test_result test_set_ret_meta(EngineIface* h) {
     checkeq(cb::uint48_t{2ull}, last_meta.revSeqno, "Invalid result for seqno");
 
     // Check that updating an item with no cas succeeds
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_ret_meta(h, "key", 3, "value", 5, Vbid(0), 0, 5, 0),
             "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
@@ -5390,7 +5401,7 @@ static enum test_result test_set_ret_meta(EngineIface* h) {
     checkeq(cb::uint48_t{3ull}, last_meta.revSeqno, "Invalid result for seqno");
 
     // Check that updating an item with the wrong cas fails
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             set_ret_meta(
                     h, "key", 3, "value", 5, Vbid(0), last_meta.cas + 1, 5, 0),
             "Expected success");
@@ -5404,19 +5415,19 @@ static enum test_result test_set_ret_meta(EngineIface* h) {
 static enum test_result test_set_ret_meta_error(EngineIface* h) {
     // Check tmp fail errors
     disable_traffic(h);
-    checkeq(ENGINE_TMPFAIL,
+    checkeq(cb::engine_errc::temporary_failure,
             set_ret_meta(h, "key", 3, "value", 5, Vbid(0)),
             "Expected success");
     enable_traffic(h);
 
     // Check not my vbucket errors
-    checkeq(ENGINE_NOT_MY_VBUCKET,
+    checkeq(cb::engine_errc::not_my_vbucket,
             set_ret_meta(h, "key", 3, "value", 5, Vbid(1)),
             "Expected NMVB");
 
     check(set_vbucket_state(h, Vbid(1), vbucket_state_replica),
           "Failed to set vbucket state.");
-    checkeq(ENGINE_NOT_MY_VBUCKET,
+    checkeq(cb::engine_errc::not_my_vbucket,
             set_ret_meta(h, "key", 3, "value", 5, Vbid(1)),
             "Expected NMVB");
     checkeq(cb::engine_errc::success,
@@ -5425,7 +5436,7 @@ static enum test_result test_set_ret_meta_error(EngineIface* h) {
 
     check(set_vbucket_state(h, Vbid(1), vbucket_state_dead),
           "Failed to set vbucket state.");
-    checkeq(ENGINE_NOT_MY_VBUCKET,
+    checkeq(cb::engine_errc::not_my_vbucket,
             set_ret_meta(h, "key", 3, "value", 5, Vbid(1)),
             "Expected NMVB");
     checkeq(cb::engine_errc::success,
@@ -5437,12 +5448,12 @@ static enum test_result test_set_ret_meta_error(EngineIface* h) {
 
 static enum test_result test_add_ret_meta(EngineIface* h) {
     // Check that add with cas fails
-    checkeq(ENGINE_NOT_STORED,
+    checkeq(cb::engine_errc::not_stored,
             add_ret_meta(h, "key", 3, "value", 5, Vbid(0), 10, 0, 0),
             "Expected success");
 
     // Check that add without cas succeeds.
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             add_ret_meta(h, "key", 3, "value", 5, Vbid(0), 0, 0, 0),
             "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
@@ -5457,12 +5468,12 @@ static enum test_result test_add_ret_meta(EngineIface* h) {
     checkeq(cb::uint48_t{1}, last_meta.revSeqno, "Invalid result for seqno");
 
     // Check that re-adding a key fails
-    checkeq(ENGINE_NOT_STORED,
+    checkeq(cb::engine_errc::not_stored,
             add_ret_meta(h, "key", 3, "value", 5, Vbid(0), 0, 0, 0),
             "Expected success");
 
     // Check that adding a key with flags and exptime returns the correct values
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             add_ret_meta(h, "key2", 4, "value", 5, Vbid(0), 0, 10, 1735689600),
             "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
@@ -5484,19 +5495,19 @@ static enum test_result test_add_ret_meta(EngineIface* h) {
 static enum test_result test_add_ret_meta_error(EngineIface* h) {
     // Check tmp fail errors
     disable_traffic(h);
-    checkeq(ENGINE_TMPFAIL,
+    checkeq(cb::engine_errc::temporary_failure,
             add_ret_meta(h, "key", 3, "value", 5, Vbid(0)),
             "Expected success");
     enable_traffic(h);
 
     // Check not my vbucket errors
-    checkeq(ENGINE_NOT_MY_VBUCKET,
+    checkeq(cb::engine_errc::not_my_vbucket,
             add_ret_meta(h, "key", 3, "value", 5, Vbid(1)),
             "Expected NMVB");
 
     check(set_vbucket_state(h, Vbid(1), vbucket_state_replica),
           "Failed to set vbucket state.");
-    checkeq(ENGINE_NOT_MY_VBUCKET,
+    checkeq(cb::engine_errc::not_my_vbucket,
             add_ret_meta(h, "key", 3, "value", 5, Vbid(1)),
             "Expected NMVB");
     checkeq(cb::engine_errc::success,
@@ -5505,7 +5516,7 @@ static enum test_result test_add_ret_meta_error(EngineIface* h) {
 
     check(set_vbucket_state(h, Vbid(1), vbucket_state_dead),
           "Failed to add vbucket state.");
-    checkeq(ENGINE_NOT_MY_VBUCKET,
+    checkeq(cb::engine_errc::not_my_vbucket,
             add_ret_meta(h, "key", 3, "value", 5, Vbid(1)),
             "Expected NMVB");
     checkeq(cb::engine_errc::success,
@@ -5517,17 +5528,17 @@ static enum test_result test_add_ret_meta_error(EngineIface* h) {
 
 static enum test_result test_del_ret_meta(EngineIface* h) {
     // Check that deleting a non-existent key fails
-    checkeq(ENGINE_KEY_ENOENT,
+    checkeq(cb::engine_errc::no_such_key,
             del_ret_meta(h, "key", 3, Vbid(0), 0),
             "Expected success");
 
     // Check that deleting a non-existent key with a cas fails
-    checkeq(ENGINE_KEY_ENOENT,
+    checkeq(cb::engine_errc::no_such_key,
             del_ret_meta(h, "key", 3, Vbid(0), 10),
             "Expeced success");
 
     // Check that deleting a key with no cas succeeds
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             add_ret_meta(h, "key", 3, "value", 5, Vbid(0), 0, 0, 0),
             "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
@@ -5538,7 +5549,7 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
     checkne(uint64_t{0}, last_meta.cas, "Invalid result for cas");
     checkeq(cb::uint48_t{1}, last_meta.revSeqno, "Invalid result for seqno");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del_ret_meta(h, "key", 3, Vbid(0), 0),
             "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
@@ -5553,7 +5564,7 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
     checkeq(cb::uint48_t{2}, last_meta.revSeqno, "Invalid result for seqno");
 
     // Check that deleting a key with a cas succeeds.
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             add_ret_meta(h, "key", 3, "value", 5, Vbid(0), 0, 10, 1735689600),
             "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
@@ -5566,7 +5577,7 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
     checkne(uint64_t{0}, last_meta.cas, "Invalid result for cas");
     checkeq(cb::uint48_t{3}, last_meta.revSeqno, "Invalid result for seqno");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del_ret_meta(h, "key", 3, Vbid(0), last_meta.cas),
             "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
@@ -5583,7 +5594,7 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
     checkeq(cb::uint48_t{4}, last_meta.revSeqno, "Invalid result for seqno");
 
     // Check that deleting a key with the wrong cas fails
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             add_ret_meta(h, "key", 3, "value", 5, Vbid(0), 0, 0, 0),
             "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
@@ -5594,7 +5605,7 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
     checkne(uint64_t{0}, last_meta.cas, "Invalid result for cas");
     checkeq(cb::uint48_t{5}, last_meta.revSeqno, "Invalid result for seqno");
 
-    checkeq(ENGINE_KEY_EEXISTS,
+    checkeq(cb::engine_errc::key_already_exists,
             del_ret_meta(h, "key", 3, Vbid(0), last_meta.cas + 1),
             "Expected success");
     checkeq(2,
@@ -5607,19 +5618,19 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
 static enum test_result test_del_ret_meta_error(EngineIface* h) {
     // Check tmp fail errors
     disable_traffic(h);
-    checkeq(ENGINE_TMPFAIL,
+    checkeq(cb::engine_errc::temporary_failure,
             del_ret_meta(h, "key", 3, Vbid(0)),
             "Expected success");
     enable_traffic(h);
 
     // Check not my vbucket errors
-    checkeq(ENGINE_NOT_MY_VBUCKET,
+    checkeq(cb::engine_errc::not_my_vbucket,
             del_ret_meta(h, "key", 3, Vbid(1), 0, nullptr),
             "Expected NMVB");
 
     check(set_vbucket_state(h, Vbid(1), vbucket_state_replica),
           "Failed to set vbucket state.");
-    checkeq(ENGINE_NOT_MY_VBUCKET,
+    checkeq(cb::engine_errc::not_my_vbucket,
             del_ret_meta(h, "key", 3, Vbid(1), 0, nullptr),
             "Expected NMVB");
     checkeq(cb::engine_errc::success,
@@ -5628,7 +5639,7 @@ static enum test_result test_del_ret_meta_error(EngineIface* h) {
 
     check(set_vbucket_state(h, Vbid(1), vbucket_state_dead),
           "Failed to add vbucket state.");
-    checkeq(ENGINE_NOT_MY_VBUCKET,
+    checkeq(cb::engine_errc::not_my_vbucket,
             del_ret_meta(h, "key", 3, Vbid(1), 0, nullptr),
             "Expected NMVB");
     checkeq(cb::engine_errc::success,
@@ -5639,12 +5650,12 @@ static enum test_result test_del_ret_meta_error(EngineIface* h) {
 }
 
 static enum test_result test_set_with_item_eviction(EngineIface* h) {
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "key", "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
     evict_key(h, "key", Vbid(0), "Ejected.");
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "key", "newvalue"),
             "Failed set.");
     check_key_value(h, "key", "newvalue", 8);
@@ -5659,7 +5670,7 @@ static enum test_result test_setWithMeta_with_item_eviction(EngineIface* h) {
     size_t newValLen = strlen(newVal);
 
     // create a new key
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key, val),
             "Failed set.");
     wait_for_flusher_to_settle(h);
@@ -5675,7 +5686,7 @@ static enum test_result test_setWithMeta_with_item_eviction(EngineIface* h) {
     itm_meta.flags = 0xdeadbeef;
 
     // set with meta for a non-resident item should pass.
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             set_with_meta(h,
                           key,
                           keylen,
@@ -5692,7 +5703,7 @@ static enum test_result test_setWithMeta_with_item_eviction(EngineIface* h) {
 
 static enum test_result test_multiple_set_delete_with_metas_full_eviction(
         EngineIface* h) {
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             get_stats(h, {}, {}, add_stats),
             "Failed to get stats");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
@@ -5709,7 +5720,7 @@ static enum test_result test_multiple_set_delete_with_metas_full_eviction(
 
     for (int ii = 0; ii < 1000; ++ii) {
         std::string key = "key" + std::to_string(ii);
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 set_with_meta(h,
                               key.data(),
                               key.size(),
@@ -5738,7 +5749,7 @@ static enum test_result test_multiple_set_delete_with_metas_full_eviction(
     std::thread thread1{[&h, &itm_meta]() {
         for (int ii = 0; ii < 100; ii++) {
             std::string key = "key" + std::to_string(ii);
-            checkeq(ENGINE_SUCCESS,
+            checkeq(cb::engine_errc::success,
                     set_with_meta(h,
                                   key.data(),
                                   key.size(),
@@ -5757,7 +5768,7 @@ static enum test_result test_multiple_set_delete_with_metas_full_eviction(
     std::thread thread2{[&h, &curr_vb_items, &itm_meta]() {
         for (int ii = curr_vb_items - 100; ii < curr_vb_items; ii++) {
             std::string key = "key" + std::to_string(ii);
-            checkeq(ENGINE_SUCCESS,
+            checkeq(cb::engine_errc::success,
                     del_with_meta(
                             h, key.data(), key.size(), Vbid(0), &itm_meta, 0),
                     "Expected to delete the item");
@@ -5799,20 +5810,20 @@ static enum test_result test_multiple_set_delete_with_metas_full_eviction(
 }
 
 static enum test_result test_add_with_item_eviction(EngineIface* h) {
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Add, "key", "somevalue"),
             "Failed to add value.");
     wait_for_flusher_to_settle(h);
     evict_key(h, "key", Vbid(0), "Ejected.");
 
-    checkeq(ENGINE_NOT_STORED,
+    checkeq(cb::engine_errc::not_stored,
             store(h, nullptr, StoreSemantics::Add, "key", "somevalue"),
             "Failed to fail to re-add value.");
 
     // Expiration above was an hour, so let's go to The Future
     testHarness->time_travel(3800);
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Add, "key", "newvalue"),
             "Failed to add value again.");
     check_key_value(h, "key", "newvalue", 8);
@@ -5821,7 +5832,7 @@ static enum test_result test_add_with_item_eviction(EngineIface* h) {
 
 static enum test_result test_gat_with_item_eviction(EngineIface* h) {
     // Store the item!
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "mykey", "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
@@ -5849,7 +5860,7 @@ static enum test_result test_gat_with_item_eviction(EngineIface* h) {
 
 static enum test_result test_keyStats_with_item_eviction(EngineIface* h) {
     // set (k1,v1) in vbucket 0
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "k1", "v1"),
             "Failed to store an item.");
     wait_for_flusher_to_settle(h);
@@ -5858,7 +5869,7 @@ static enum test_result test_keyStats_with_item_eviction(EngineIface* h) {
 
     // stat for key "k1" and vbucket "0"
     const char *statkey1 = "key k1 0";
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->get_stats(cookie, {statkey1, strlen(statkey1)}, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
@@ -5882,14 +5893,14 @@ static enum test_result test_delWithMeta_with_item_eviction(EngineIface* h) {
     itemMeta.flags = 0xdeadbeef;
 
     // store an item
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key, "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
     evict_key(h, key, Vbid(0), "Ejected.");
 
     // delete an item with meta data
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del_with_meta(h, key, keylen, Vbid(0), &itemMeta),
             "Expected delete success");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
@@ -5899,7 +5910,7 @@ static enum test_result test_delWithMeta_with_item_eviction(EngineIface* h) {
 
 static enum test_result test_del_with_item_eviction(EngineIface* h) {
     ItemIface* i = nullptr;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "key", "somevalue", &i),
             "Failed set.");
     wait_for_flusher_to_settle(h);
@@ -5915,11 +5926,13 @@ static enum test_result test_del_with_item_eviction(EngineIface* h) {
 
     vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     auto high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del(h, "key", &cas, Vbid(0), nullptr, &mut_info),
             "Failed remove with value.");
     checkne(orig_cas, cas, "Expected CAS to be different on delete");
-    checkeq(ENGINE_KEY_ENOENT, verify_key(h, "key"), "Expected missing key");
+    checkeq(cb::engine_errc::no_such_key,
+            verify_key(h, "key"),
+            "Expected missing key");
     checkeq(vb_uuid, mut_info.vbucket_uuid, "Expected valid vbucket uuid");
     checkeq((high_seqno + 1), mut_info.seqno, "Expected valid sequence number");
 
@@ -5936,36 +5949,36 @@ static enum test_result test_observe_with_item_eviction(EngineIface* h) {
     uint64_t cas1, cas2, cas3;
 
     std::string value('x', 100);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             storeCasOut(h,
-                      nullptr,
-                      Vbid(0),
-                      "key1",
-                      value,
-                      PROTOCOL_BINARY_RAW_BYTES,
-                      it,
-                      cas1),
-          "Set should work.");
-    checkeq(ENGINE_SUCCESS,
+                        nullptr,
+                        Vbid(0),
+                        "key1",
+                        value,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        it,
+                        cas1),
+            "Set should work.");
+    checkeq(cb::engine_errc::success,
             storeCasOut(h,
-                      nullptr,
-                      Vbid(1),
-                      "key2",
-                      value,
-                      PROTOCOL_BINARY_RAW_BYTES,
-                      it,
-                      cas2),
-          "Set should work.");
-    checkeq(ENGINE_SUCCESS,
+                        nullptr,
+                        Vbid(1),
+                        "key2",
+                        value,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        it,
+                        cas2),
+            "Set should work.");
+    checkeq(cb::engine_errc::success,
             storeCasOut(h,
-                      nullptr,
-                      Vbid(1),
-                      "key3",
-                      value,
-                      PROTOCOL_BINARY_RAW_BYTES,
-                      it,
-                      cas3),
-          "Set should work.");
+                        nullptr,
+                        Vbid(1),
+                        "key3",
+                        value,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        it,
+                        cas3),
+            "Set should work.");
 
     wait_for_stat_to_be(h, "ep_total_persisted", 3);
 
@@ -5977,7 +5990,7 @@ static enum test_result test_observe_with_item_eviction(EngineIface* h) {
     obskeys["key1"] = Vbid(0);
     obskeys["key2"] = Vbid(1);
     obskeys["key3"] = Vbid(1);
-    checkeq(ENGINE_SUCCESS, observe(h, obskeys), "Expected success");
+    checkeq(cb::engine_errc::success, observe(h, obskeys), "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     // Check the result
@@ -6037,7 +6050,7 @@ static enum test_result test_observe_with_item_eviction(EngineIface* h) {
 
 static enum test_result test_expired_item_with_item_eviction(EngineIface* h) {
     // Store the item!
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "mykey", "somevalue"),
             "Failed set.");
     gat(h, "mykey", Vbid(0), 10); // 10 sec as expiration time
@@ -6045,7 +6058,7 @@ static enum test_result test_expired_item_with_item_eviction(EngineIface* h) {
     checkeq("somevalue"s, last_body, "Invalid data returned");
 
     // Store a dummy item since we do not purge the item with highest seqno
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h,
                   nullptr,
                   StoreSemantics::Set,
@@ -6089,7 +6102,7 @@ static enum test_result test_non_existent_get_and_delete(EngineIface* h) {
             get(h, nullptr, "key1", Vbid(0)).first,
             "Unexpected return status");
     checkeq(0, get_int_stat(h, "curr_temp_items"), "Unexpected temp item");
-    checkeq(ENGINE_KEY_ENOENT,
+    checkeq(cb::engine_errc::no_such_key,
             del(h, "key3", 0, Vbid(0)),
             "Unexpected return status");
     checkeq(0, get_int_stat(h, "curr_temp_items"), "Unexpected temp item");
@@ -6098,7 +6111,7 @@ static enum test_result test_non_existent_get_and_delete(EngineIface* h) {
 
 static enum test_result test_mb16421(EngineIface* h) {
     // Store the item!
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "mykey", "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
@@ -6167,14 +6180,14 @@ static enum test_result test_get_random_key(EngineIface* h) {
     // An empty database should return no key
     auto pkt = createPacket(cb::mcbp::ClientOpcode::GetRandomKey);
 
-    checkeq(ENGINE_KEY_ENOENT,
+    checkeq(cb::engine_errc::no_such_key,
             h->unknown_command(cookie, *pkt, add_response),
             "Database should be empty");
 
     StoredDocKey key("key", CollectionID::Default);
 
     // Store a key
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h,
                   nullptr,
                   StoreSemantics::Set,
@@ -6194,7 +6207,7 @@ static enum test_result test_get_random_key(EngineIface* h) {
     wait_for_flusher_to_settle(h);
 
     // We should be able to get one if there is something in there
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->unknown_command(cookie, *pkt, add_response),
             "get random should work");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
@@ -6244,7 +6257,7 @@ static enum test_result test_failover_log_behavior(EngineIface* h) {
     for (int j = 0; j < num_items; ++j) {
         std::stringstream ss;
         ss << "key" << j;
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
@@ -6280,7 +6293,7 @@ static enum test_result test_hlc_cas(EngineIface* h) {
     item_info info;
     uint64_t curr_cas = 0, prev_cas = 0;
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Add, key, "data1"),
             "Failed to store an item");
 
@@ -6289,7 +6302,7 @@ static enum test_result test_hlc_cas(EngineIface* h) {
     checklt(prev_cas, curr_cas, "CAS is not monotonically increasing");
     prev_cas = curr_cas;
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, key, "data2"),
             "Failed to store an item");
 
@@ -6298,7 +6311,7 @@ static enum test_result test_hlc_cas(EngineIface* h) {
     checklt(prev_cas, curr_cas, "CAS is not monotonically increasing");
     prev_cas = curr_cas;
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Replace, key, "data3"),
             "Failed to store an item");
 
@@ -6339,7 +6352,7 @@ static enum test_result test_multi_bucket_set_get(engine_test_t* test) {
     for (auto bucket : buckets) {
         std::stringstream val;
         val << "value_" << ii++;
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(bucket.h,
                       nullptr,
                       StoreSemantics::Set,
@@ -6436,7 +6449,7 @@ static enum test_result test_mb19635_upgrade_from_25x(EngineIface* h) {
     for (int j = 0; j < num_items; ++j) {
         std::stringstream ss;
         ss << "key" << j;
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
@@ -6490,7 +6503,7 @@ static enum test_result test_mb38031_upgrade_from_4x_via_5x_hop(
         for (int j = 0; j < num_items; ++j) {
             std::stringstream ss;
             ss << "key_" << j;
-            checkeq(ENGINE_SUCCESS,
+            checkeq(cb::engine_errc::success,
                     store(h,
                           nullptr,
                           StoreSemantics::Set,
@@ -6540,7 +6553,7 @@ static enum test_result test_mb38031_illegal_json_throws(EngineIface* h) {
         return SKIPPED;
     }
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h,
                   nullptr,
                   StoreSemantics::Set,
@@ -7742,7 +7755,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
     for (auto& entry : statsKeys) {
         // Fetch the statistics for each group.
         vals.clear();
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 get_stats(h,
                           {entry.first.empty() ? nullptr : entry.first.data(),
                            entry.first.size()},
@@ -7868,14 +7881,14 @@ static enum test_result test_mb19687_variable(EngineIface* h) {
 
     item_info info;
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Add, "mykey", "data1"),
             "Failed to store an item");
 
     bool error = false;
     for (const auto& entry : statsKeys) {
         vals.clear();
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 get_stats(h,
                           {entry.first.data(), entry.first.size()},
                           {},
@@ -7902,7 +7915,7 @@ static enum test_result test_mb19687_variable(EngineIface* h) {
 }
 
 static enum test_result test_mb20697(EngineIface* h) {
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
 
@@ -7911,7 +7924,7 @@ static enum test_result test_mb20697(EngineIface* h) {
     // Make the couchstore files in the db directory unwritable.
     CouchstoreFileAccessGuard makeCouchstoreFileReadOnly(dbname);
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "key", "somevalue"),
             "store should have succeeded");
 
@@ -7942,7 +7955,7 @@ static enum test_result test_mb20744_check_incr_reject_ops(EngineIface* h) {
 
     checkeq(size_t{2048}, numBytes, "Bytes written should be equal to 2048");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "key", "somevalue"),
             "store should have succeeded");
 
@@ -8019,18 +8032,18 @@ static enum test_result test_vbucket_compact_no_purge(EngineIface* h) {
 
     /* Write 2 keys */
     for (const auto& count : key) {
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h, nullptr, StoreSemantics::Set, count, value),
                 "Error setting.");
     }
 
     /* Delete one key */
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             del(h, key[0], 0, Vbid(0)),
             "Failed remove with value.");
 
     /* Store a dummy item since we do not purge the item with highest seqno */
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "dummy_key", value),
             "Error setting.");
     wait_for_flusher_to_settle(h);
@@ -8183,7 +8196,7 @@ static enum test_result test_replace_at_pending_insert(EngineIface* h) {
     // infinite timeout, so the write will never abort either.
     using namespace cb::durability;
     const char key[] = "key";
-    checkeq(ENGINE_EWOULDBLOCK,
+    checkeq(cb::engine_errc::would_block,
             store(h,
                   cookie1,
                   StoreSemantics::Add,
@@ -8202,7 +8215,7 @@ static enum test_result test_replace_at_pending_insert(EngineIface* h) {
     checkHPSAndHighSeqno(1, 1);
 
     // Simulate replace on a second connection
-    checkeq(ENGINE_KEY_ENOENT,
+    checkeq(cb::engine_errc::no_such_key,
             replace(h, cookie2, key, "replace-value", 0 /*flags*/, vbid),
             "replace failed");
 
@@ -8499,7 +8512,7 @@ BaseTestCase testsuite_testcases[] = {
                  // on the configuration, RocksDB pre-allocates default-size
                  // blocks of memory in the internal Arena.
                  // For this specific test, the problem is that we cannot store
-                 // all the item we need (ENGINE_ENOMEM), and the
+                 // all the item we need (cb::engine_errc::no_memory), and the
                  // 'vb_active_perc_mem_resident' stat never goes below the
                  // threshold we expect. Needs to resize 'max_size' to consider
                  // RocksDB pre-allocations.

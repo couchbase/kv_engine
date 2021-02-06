@@ -35,8 +35,8 @@ AppendPrependCommandContext::AppendPrependCommandContext(
       state(State::GetItem) {
 }
 
-ENGINE_ERROR_CODE AppendPrependCommandContext::step() {
-    auto ret = ENGINE_SUCCESS;
+cb::engine_errc AppendPrependCommandContext::step() {
+    auto ret = cb::engine_errc::success;
     do {
         switch (state) {
         case State::GetItem:
@@ -53,29 +53,29 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::step() {
             break;
         case State::Done:
 	    SLAB_INCR(&connection, cmd_set);
-            return ENGINE_SUCCESS;
+            return cb::engine_errc::success;
         }
-    } while (ret == ENGINE_SUCCESS);
+    } while (ret == cb::engine_errc::success);
 
-    if (ret == ENGINE_KEY_ENOENT) {
+    if (ret == cb::engine_errc::no_such_key) {
         // for some reason the return code for no key is not stored so we need
         // to remap that error code..
-        ret = ENGINE_NOT_STORED;
+        ret = cb::engine_errc::not_stored;
     }
 
-    if (ret != ENGINE_EWOULDBLOCK) {
+    if (ret != cb::engine_errc::would_block) {
         SLAB_INCR(&connection, cmd_set);
     }
 
     return ret;
 }
 
-ENGINE_ERROR_CODE AppendPrependCommandContext::getItem() {
+cb::engine_errc AppendPrependCommandContext::getItem() {
     auto ret = bucket_get(cookie, cookie.getRequestKey(), vbucket);
     if (ret.first == cb::engine_errc::success) {
         olditem = std::move(ret.second);
         if (!bucket_get_item_info(connection, olditem.get(), &oldItemInfo)) {
-            return ENGINE_FAILED;
+            return cb::engine_errc::failed;
         }
 
         if (cas != 0) {
@@ -84,10 +84,10 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::getItem() {
                 // the cas provided by the user to override this
                 oldItemInfo.cas = cas;
             } else if (cas != oldItemInfo.cas) {
-                return ENGINE_KEY_EEXISTS;
+                return cb::engine_errc::key_already_exists;
             }
         } else if (oldItemInfo.cas == uint64_t(-1)) {
-            return ENGINE_LOCKED;
+            return cb::engine_errc::locked;
         }
 
         if (mcbp::datatype::is_snappy(oldItemInfo.datatype)) {
@@ -96,10 +96,10 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::getItem() {
                         static_cast<const char*>(oldItemInfo.value[0].iov_base),
                         oldItemInfo.value[0].iov_len);
                 if (!cookie.inflateSnappy(payload, buffer)) {
-                    return ENGINE_FAILED;
+                    return cb::engine_errc::failed;
                 }
             } catch (const std::bad_alloc&) {
-                return ENGINE_ENOMEM;
+                return cb::engine_errc::no_memory;
             }
         }
 
@@ -107,10 +107,10 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::getItem() {
         state = State::AllocateNewItem;
     }
 
-    return ENGINE_ERROR_CODE(ret.first);
+    return cb::engine_errc(ret.first);
 }
 
-ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
+cb::engine_errc AppendPrependCommandContext::allocateNewItem() {
     cb::char_buffer old{static_cast<char*>(oldItemInfo.value[0].iov_base),
                         oldItemInfo.nbytes};
 
@@ -180,10 +180,10 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
 
     state = State::StoreItem;
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
+cb::engine_errc AppendPrependCommandContext::storeItem() {
     uint64_t ncas = cas;
     auto ret = bucket_store(cookie,
                             newitem.get(),
@@ -193,14 +193,14 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
                             DocumentState::Alive,
                             false);
 
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         update_topkeys(cookie);
         cookie.setCas(ncas);
         if (connection.isSupportsMutationExtras()) {
             item_info newItemInfo;
             if (!bucket_get_item_info(
                         connection, newitem.get(), &newItemInfo)) {
-                return ENGINE_FAILED;
+                return cb::engine_errc::failed;
             }
             mutation_descr_t extras = {};
             extras.vbucket_uuid = htonll(newItemInfo.vbucket_uuid);
@@ -216,20 +216,21 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
             cookie.sendResponse(cb::mcbp::Status::Success);
         }
         state = State::Done;
-    } else if (ret == ENGINE_KEY_EEXISTS && cas == 0) {
+    } else if (ret == cb::engine_errc::key_already_exists && cas == 0) {
         state = State::Reset;
-        // We need to return ENGINE_SUCCESS in order to continue processing
-        ret = ENGINE_SUCCESS;
+        // We need to return cb::engine_errc::success in order to continue
+        // processing
+        ret = cb::engine_errc::success;
     }
 
     return ret;
 }
 
-ENGINE_ERROR_CODE AppendPrependCommandContext::reset() {
+cb::engine_errc AppendPrependCommandContext::reset() {
     olditem.reset();
     newitem.reset();
     buffer.reset();
 
     state = State::GetItem;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }

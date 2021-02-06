@@ -26,8 +26,8 @@
 #include <string>
 
 /**
- * The NoBucket is a bucket that just returns "ENGINE_NO_BUCKET" for "all"
- * operations. The main purpose for having this bucket is to reduce the
+ * The NoBucket is a bucket that just returns "cb::engine_errc::no_bucket" for
+ * "all" operations. The main purpose for having this bucket is to reduce the
  * code complexity so we don't have to had checks all over the place to
  * see if a client is connected to a bucket or not (we may just associate
  * the connection to this bucket and it'll handle the appropriate
@@ -35,8 +35,8 @@
  */
 class NoBucket : public EngineIface, public DcpIface {
 public:
-    ENGINE_ERROR_CODE initialize(const char* config_str) override {
-        return ENGINE_SUCCESS;
+    cb::engine_errc initialize(const char* config_str) override {
+        return cb::engine_errc::success;
     }
 
     void destroy(bool) override {
@@ -55,14 +55,14 @@ public:
         throw cb::engine_error(cb::engine_errc::no_bucket, "no bucket");
     }
 
-    ENGINE_ERROR_CODE remove(
+    cb::engine_errc remove(
             gsl::not_null<const void*>,
             const DocKey&,
             uint64_t&,
             Vbid,
             const std::optional<cb::durability::Requirements>& durability,
             mutation_descr_t&) override {
-        return ENGINE_NO_BUCKET;
+        return cb::engine_errc::no_bucket;
     }
 
     void release(gsl::not_null<ItemIface*>) override {
@@ -99,11 +99,11 @@ public:
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
-    ENGINE_ERROR_CODE unlock(gsl::not_null<const void*>,
-                             const DocKey&,
-                             Vbid,
-                             uint64_t) override {
-        return ENGINE_NO_BUCKET;
+    cb::engine_errc unlock(gsl::not_null<const void*>,
+                           const DocKey&,
+                           Vbid,
+                           uint64_t) override {
+        return cb::engine_errc::no_bucket;
     }
 
     cb::EngineErrorItemPair get_and_touch(
@@ -115,14 +115,14 @@ public:
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
-    ENGINE_ERROR_CODE store(gsl::not_null<const void*>,
-                            gsl::not_null<ItemIface*>,
-                            uint64_t&,
-                            StoreSemantics,
-                            const std::optional<cb::durability::Requirements>&,
-                            DocumentState,
-                            bool) override {
-        return ENGINE_NO_BUCKET;
+    cb::engine_errc store(gsl::not_null<const void*>,
+                          gsl::not_null<ItemIface*>,
+                          uint64_t&,
+                          StoreSemantics,
+                          const std::optional<cb::durability::Requirements>&,
+                          DocumentState,
+                          bool) override {
+        return cb::engine_errc::no_bucket;
     }
 
     cb::EngineErrorCasPair store_if(
@@ -137,24 +137,24 @@ public:
         return {cb::engine_errc::no_bucket, 0};
     }
 
-    ENGINE_ERROR_CODE flush(gsl::not_null<const void*>) override {
-        return ENGINE_NO_BUCKET;
+    cb::engine_errc flush(gsl::not_null<const void*>) override {
+        return cb::engine_errc::no_bucket;
     }
 
-    ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*>,
-                                std::string_view,
-                                std::string_view,
-                                const AddStatFn&) override {
-        return ENGINE_NO_BUCKET;
+    cb::engine_errc get_stats(gsl::not_null<const void*>,
+                              std::string_view,
+                              std::string_view,
+                              const AddStatFn&) override {
+        return cb::engine_errc::no_bucket;
     }
 
     void reset_stats(gsl::not_null<const void*> cookie) override {
     }
 
-    ENGINE_ERROR_CODE unknown_command(const void*,
-                                      const cb::mcbp::Request& request,
-                                      const AddResponseFn&) override {
-        return ENGINE_NO_BUCKET;
+    cb::engine_errc unknown_command(const void*,
+                                    const cb::mcbp::Request& request,
+                                    const AddResponseFn&) override {
+        return cb::engine_errc::no_bucket;
     }
 
     void item_set_cas(gsl::not_null<ItemIface*>, uint64_t) override {
@@ -179,215 +179,215 @@ public:
 
     // DcpIface implementation ////////////////////////////////////////////////
 
-    ENGINE_ERROR_CODE step(gsl::not_null<const void*>,
-                           DcpMessageProducersIface&) override {
-        return ENGINE_NO_BUCKET;
+    cb::engine_errc step(gsl::not_null<const void*>,
+                         DcpMessageProducersIface&) override {
+        return cb::engine_errc::no_bucket;
     }
 
-    ENGINE_ERROR_CODE open(gsl::not_null<const void*>,
-                           uint32_t,
-                           uint32_t,
-                           uint32_t,
-                           std::string_view,
-                           std::string_view) override {
-        return ENGINE_NO_BUCKET;
+    cb::engine_errc open(gsl::not_null<const void*>,
+                         uint32_t,
+                         uint32_t,
+                         uint32_t,
+                         std::string_view,
+                         std::string_view) override {
+        return cb::engine_errc::no_bucket;
     }
 
-    ENGINE_ERROR_CODE add_stream(gsl::not_null<const void*>,
+    cb::engine_errc add_stream(gsl::not_null<const void*>,
+                               uint32_t,
+                               Vbid,
+                               uint32_t) override {
+        return cb::engine_errc::no_bucket;
+    }
+
+    cb::engine_errc close_stream(gsl::not_null<const void*>,
                                  uint32_t,
                                  Vbid,
-                                 uint32_t) override {
-        return ENGINE_NO_BUCKET;
+                                 cb::mcbp::DcpStreamId) override {
+        return cb::engine_errc::no_bucket;
     }
 
-    ENGINE_ERROR_CODE close_stream(gsl::not_null<const void*>,
-                                   uint32_t,
-                                   Vbid,
-                                   cb::mcbp::DcpStreamId) override {
-        return ENGINE_NO_BUCKET;
+    cb::engine_errc stream_req(gsl::not_null<const void*>,
+                               uint32_t,
+                               uint32_t,
+                               Vbid,
+                               uint64_t,
+                               uint64_t,
+                               uint64_t,
+                               uint64_t,
+                               uint64_t,
+                               uint64_t*,
+                               dcp_add_failover_log,
+                               std::optional<std::string_view>) override {
+        return cb::engine_errc::no_bucket;
     }
 
-    ENGINE_ERROR_CODE stream_req(gsl::not_null<const void*>,
-                                 uint32_t,
-                                 uint32_t,
-                                 Vbid,
-                                 uint64_t,
-                                 uint64_t,
-                                 uint64_t,
-                                 uint64_t,
-                                 uint64_t,
-                                 uint64_t*,
-                                 dcp_add_failover_log,
-                                 std::optional<std::string_view>) override {
-        return ENGINE_NO_BUCKET;
+    cb::engine_errc get_failover_log(gsl::not_null<const void*>,
+                                     uint32_t,
+                                     Vbid,
+                                     dcp_add_failover_log) override {
+        return cb::engine_errc::no_bucket;
     }
 
-    ENGINE_ERROR_CODE get_failover_log(gsl::not_null<const void*>,
-                                       uint32_t,
-                                       Vbid,
-                                       dcp_add_failover_log) override {
-        return ENGINE_NO_BUCKET;
+    cb::engine_errc stream_end(gsl::not_null<const void*>,
+                               uint32_t,
+                               Vbid,
+                               cb::mcbp::DcpStreamEndStatus) override {
+        return cb::engine_errc::no_bucket;
     }
 
-    ENGINE_ERROR_CODE stream_end(gsl::not_null<const void*>,
-                                 uint32_t,
-                                 Vbid,
-                                 cb::mcbp::DcpStreamEndStatus) override {
-        return ENGINE_NO_BUCKET;
+    cb::engine_errc snapshot_marker(gsl::not_null<const void*>,
+                                    uint32_t,
+                                    Vbid,
+                                    uint64_t,
+                                    uint64_t,
+                                    uint32_t,
+                                    std::optional<uint64_t>,
+                                    std::optional<uint64_t>) override {
+        return cb::engine_errc::no_bucket;
     }
 
-    ENGINE_ERROR_CODE snapshot_marker(gsl::not_null<const void*>,
+    cb::engine_errc mutation(gsl::not_null<const void*>,
+                             uint32_t,
+                             const DocKey&,
+                             cb::const_byte_buffer,
+                             size_t,
+                             uint8_t,
+                             uint64_t,
+                             Vbid,
+                             uint32_t,
+                             uint64_t,
+                             uint64_t,
+                             uint32_t,
+                             uint32_t,
+                             cb::const_byte_buffer,
+                             uint8_t) override {
+        return cb::engine_errc::no_bucket;
+    }
+
+    cb::engine_errc deletion(gsl::not_null<const void*>,
+                             uint32_t,
+                             const DocKey&,
+                             cb::const_byte_buffer,
+                             size_t,
+                             uint8_t,
+                             uint64_t,
+                             Vbid,
+                             uint64_t,
+                             uint64_t,
+                             cb::const_byte_buffer) override {
+        return cb::engine_errc::no_bucket;
+    }
+
+    cb::engine_errc deletion_v2(gsl::not_null<const void*>,
+                                uint32_t,
+                                const DocKey&,
+                                cb::const_byte_buffer,
+                                size_t,
+                                uint8_t,
+                                uint64_t,
+                                Vbid,
+                                uint64_t,
+                                uint64_t,
+                                uint32_t) override {
+        return cb::engine_errc::no_bucket;
+    }
+
+    cb::engine_errc expiration(gsl::not_null<const void*>,
+                               uint32_t,
+                               const DocKey&,
+                               cb::const_byte_buffer,
+                               size_t,
+                               uint8_t,
+                               uint64_t,
+                               Vbid,
+                               uint64_t,
+                               uint64_t,
+                               uint32_t) override {
+        return cb::engine_errc::no_bucket;
+    }
+
+    cb::engine_errc set_vbucket_state(gsl::not_null<const void*>,
                                       uint32_t,
                                       Vbid,
-                                      uint64_t,
-                                      uint64_t,
-                                      uint32_t,
-                                      std::optional<uint64_t>,
-                                      std::optional<uint64_t>) override {
-        return ENGINE_NO_BUCKET;
+                                      vbucket_state_t) override {
+        return cb::engine_errc::no_bucket;
     }
 
-    ENGINE_ERROR_CODE mutation(gsl::not_null<const void*>,
-                               uint32_t,
-                               const DocKey&,
-                               cb::const_byte_buffer,
-                               size_t,
-                               uint8_t,
-                               uint64_t,
-                               Vbid,
-                               uint32_t,
-                               uint64_t,
-                               uint64_t,
-                               uint32_t,
-                               uint32_t,
-                               cb::const_byte_buffer,
-                               uint8_t) override {
-        return ENGINE_NO_BUCKET;
+    cb::engine_errc noop(gsl::not_null<const void*> cookie,
+                         uint32_t opaque) override {
+        return cb::engine_errc::no_bucket;
     }
 
-    ENGINE_ERROR_CODE deletion(gsl::not_null<const void*>,
-                               uint32_t,
-                               const DocKey&,
-                               cb::const_byte_buffer,
-                               size_t,
-                               uint8_t,
-                               uint64_t,
-                               Vbid,
-                               uint64_t,
-                               uint64_t,
-                               cb::const_byte_buffer) override {
-        return ENGINE_NO_BUCKET;
+    cb::engine_errc buffer_acknowledgement(gsl::not_null<const void*>,
+                                           uint32_t,
+                                           Vbid,
+                                           uint32_t) override {
+        return cb::engine_errc::no_bucket;
     }
 
-    ENGINE_ERROR_CODE deletion_v2(gsl::not_null<const void*>,
-                                  uint32_t,
-                                  const DocKey&,
-                                  cb::const_byte_buffer,
-                                  size_t,
-                                  uint8_t,
-                                  uint64_t,
-                                  Vbid,
-                                  uint64_t,
-                                  uint64_t,
-                                  uint32_t) override {
-        return ENGINE_NO_BUCKET;
+    cb::engine_errc control(gsl::not_null<const void*>,
+                            uint32_t,
+                            std::string_view,
+                            std::string_view) override {
+        return cb::engine_errc::no_bucket;
     }
 
-    ENGINE_ERROR_CODE expiration(gsl::not_null<const void*>,
-                                 uint32_t,
-                                 const DocKey&,
-                                 cb::const_byte_buffer,
-                                 size_t,
-                                 uint8_t,
-                                 uint64_t,
-                                 Vbid,
-                                 uint64_t,
-                                 uint64_t,
-                                 uint32_t) override {
-        return ENGINE_NO_BUCKET;
+    cb::engine_errc response_handler(gsl::not_null<const void*>,
+                                     const cb::mcbp::Response&) override {
+        return cb::engine_errc::no_bucket;
     }
 
-    ENGINE_ERROR_CODE set_vbucket_state(gsl::not_null<const void*>,
-                                        uint32_t,
-                                        Vbid,
-                                        vbucket_state_t) override {
-        return ENGINE_NO_BUCKET;
+    cb::engine_errc system_event(gsl::not_null<const void*> cookie,
+                                 uint32_t opaque,
+                                 Vbid vbucket,
+                                 mcbp::systemevent::id event,
+                                 uint64_t bySeqno,
+                                 mcbp::systemevent::version version,
+                                 cb::const_byte_buffer key,
+                                 cb::const_byte_buffer eventData) override {
+        return cb::engine_errc::no_bucket;
     }
 
-    ENGINE_ERROR_CODE noop(gsl::not_null<const void*> cookie,
-                           uint32_t opaque) override {
-        return ENGINE_NO_BUCKET;
-    }
-
-    ENGINE_ERROR_CODE buffer_acknowledgement(gsl::not_null<const void*>,
-                                             uint32_t,
-                                             Vbid,
-                                             uint32_t) override {
-        return ENGINE_NO_BUCKET;
-    }
-
-    ENGINE_ERROR_CODE control(gsl::not_null<const void*>,
-                              uint32_t,
-                              std::string_view,
-                              std::string_view) override {
-        return ENGINE_NO_BUCKET;
-    }
-
-    ENGINE_ERROR_CODE response_handler(gsl::not_null<const void*>,
-                                       const cb::mcbp::Response&) override {
-        return ENGINE_NO_BUCKET;
-    }
-
-    ENGINE_ERROR_CODE system_event(gsl::not_null<const void*> cookie,
-                                   uint32_t opaque,
-                                   Vbid vbucket,
-                                   mcbp::systemevent::id event,
-                                   uint64_t bySeqno,
-                                   mcbp::systemevent::version version,
-                                   cb::const_byte_buffer key,
-                                   cb::const_byte_buffer eventData) override {
-        return ENGINE_NO_BUCKET;
-    }
-
-    ENGINE_ERROR_CODE prepare(gsl::not_null<const void*> cookie,
-                              uint32_t opaque,
-                              const DocKey& key,
-                              cb::const_byte_buffer value,
-                              size_t priv_bytes,
-                              uint8_t datatype,
-                              uint64_t cas,
-                              Vbid vbucket,
-                              uint32_t flags,
-                              uint64_t by_seqno,
-                              uint64_t rev_seqno,
-                              uint32_t expiration,
-                              uint32_t lock_time,
-                              uint8_t nru,
-                              DocumentState document_state,
-                              cb::durability::Level level) override {
-        return ENGINE_NO_BUCKET;
-    }
-    ENGINE_ERROR_CODE seqno_acknowledged(gsl::not_null<const void*> cookie,
-                                         uint32_t opaque,
-                                         Vbid vbucket,
-                                         uint64_t prepared_seqno) override {
-        return ENGINE_NO_BUCKET;
-    }
-    ENGINE_ERROR_CODE commit(gsl::not_null<const void*> cookie,
-                             uint32_t opaque,
-                             Vbid vbucket,
-                             const DocKey& key,
-                             uint64_t prepared_seqno,
-                             uint64_t commit_seqno) override {
-        return ENGINE_NO_BUCKET;
-    }
-    ENGINE_ERROR_CODE abort(gsl::not_null<const void*> cookie,
+    cb::engine_errc prepare(gsl::not_null<const void*> cookie,
                             uint32_t opaque,
-                            Vbid vbucket,
                             const DocKey& key,
-                            uint64_t prepared_seqno,
-                            uint64_t abort_seqno) override {
-        return ENGINE_NO_BUCKET;
+                            cb::const_byte_buffer value,
+                            size_t priv_bytes,
+                            uint8_t datatype,
+                            uint64_t cas,
+                            Vbid vbucket,
+                            uint32_t flags,
+                            uint64_t by_seqno,
+                            uint64_t rev_seqno,
+                            uint32_t expiration,
+                            uint32_t lock_time,
+                            uint8_t nru,
+                            DocumentState document_state,
+                            cb::durability::Level level) override {
+        return cb::engine_errc::no_bucket;
+    }
+    cb::engine_errc seqno_acknowledged(gsl::not_null<const void*> cookie,
+                                       uint32_t opaque,
+                                       Vbid vbucket,
+                                       uint64_t prepared_seqno) override {
+        return cb::engine_errc::no_bucket;
+    }
+    cb::engine_errc commit(gsl::not_null<const void*> cookie,
+                           uint32_t opaque,
+                           Vbid vbucket,
+                           const DocKey& key,
+                           uint64_t prepared_seqno,
+                           uint64_t commit_seqno) override {
+        return cb::engine_errc::no_bucket;
+    }
+    cb::engine_errc abort(gsl::not_null<const void*> cookie,
+                          uint32_t opaque,
+                          Vbid vbucket,
+                          const DocKey& key,
+                          uint64_t prepared_seqno,
+                          uint64_t abort_seqno) override {
+        return cb::engine_errc::no_bucket;
     }
 
     cb::engine::FeatureSet getFeatures() override {

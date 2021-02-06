@@ -151,7 +151,7 @@ void DcpStreamSyncReplTest::testNoPendingWithoutSyncReplica(
     // stream to it.
     storePending(docState, "key", "value");
     setup_dcp_stream();
-    ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+    ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
 
     // For a non- sync replication stream we should not see any responses
     // if the only item is pending.
@@ -159,7 +159,7 @@ void DcpStreamSyncReplTest::testNoPendingWithoutSyncReplica(
 
     prepareCheckpointItemsForStep(producers, *producer, *vb0);
 
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
 
     destroy_dcp_stream();
 }
@@ -176,7 +176,7 @@ TEST_P(DcpStreamSyncReplTest, NoPendingNotificationWithoutSyncReplication) {
     // Put the Producer in the ConnMap so that we attempt to notify it
     auto& connMap = engine->getDcpConnMap();
     auto producerCookie = create_mock_cookie(engine);
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               engine->dcpOpen(producerCookie,
                               0 /*opaque*/,
                               0 /*seqno*/,
@@ -188,10 +188,10 @@ TEST_P(DcpStreamSyncReplTest, NoPendingNotificationWithoutSyncReplication) {
             engine->tryGetConnHandler(producerCookie));
 
     GMockDcpMsgProducers producers; // no expectations set.
-    ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+    ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
 
     // Step to empty the ready queue of the Producer
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
 
     // Verify number of io notification calls for the producer
     connMap.processPendingNotifications();
@@ -213,7 +213,7 @@ TEST_P(DcpStreamSyncReplTest, PendingNotificationWithSyncReplication) {
     // Put the Producer in the ConnMap so that we attempt to notify it
     auto& connMap = engine->getDcpConnMap();
     auto producerCookie = create_mock_cookie(engine);
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               engine->dcpOpen(producerCookie,
                               0 /*opaque*/,
                               0 /*seqno*/,
@@ -223,14 +223,14 @@ TEST_P(DcpStreamSyncReplTest, PendingNotificationWithSyncReplication) {
 
     auto* producer = dynamic_cast<DcpProducer*>(
             engine->tryGetConnHandler(producerCookie));
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->control(0, "enable_sync_writes", "true"));
 
     GMockDcpMsgProducers producers; // no expectations set.
-    ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+    ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
 
     // Step to empty the ready queue of the Producer
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
 
     // Verify number of io notification calls for the producer
     connMap.processPendingNotifications();
@@ -255,7 +255,7 @@ void DcpStreamSyncReplTest::testPendingAndMutationWithoutSyncReplica(
     auto item = store_item(vbid, "normal", "XXX");
     storePending(docState, "pending", "YYY");
     setup_dcp_stream();
-    ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+    ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
 
     // For a non- sync replication stream we should see just one mutation.
     GMockDcpMsgProducers producers;
@@ -265,7 +265,7 @@ void DcpStreamSyncReplTest::testPendingAndMutationWithoutSyncReplica(
         using ::testing::Return;
 
         EXPECT_CALL(producers, marker(_, Vbid(0), 0, 1, _, _, _, _, _))
-                .WillOnce(Return(ENGINE_SUCCESS));
+                .WillOnce(Return(cb::engine_errc::success));
 
         EXPECT_CALL(producers,
                     mutation(_,
@@ -276,14 +276,14 @@ void DcpStreamSyncReplTest::testPendingAndMutationWithoutSyncReplica(
                              _,
                              _,
                              _))
-                .WillOnce(Return(ENGINE_SUCCESS));
+                .WillOnce(Return(cb::engine_errc::success));
     }
 
     prepareCheckpointItemsForStep(producers, *producer, *vb0);
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
 
     destroy_dcp_stream();
 }
@@ -305,7 +305,7 @@ void DcpStreamSyncReplTest::testMutationAndPendingWithoutSyncReplica(
     vb0->checkpointManager->createNewCheckpoint();
     storePending(docState, "key", "YYY");
     setup_dcp_stream();
-    ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+    ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
 
     // For a non- sync replication stream we should see just one mutation.
     GMockDcpMsgProducers producers;
@@ -315,7 +315,7 @@ void DcpStreamSyncReplTest::testMutationAndPendingWithoutSyncReplica(
         using ::testing::Return;
 
         EXPECT_CALL(producers, marker(_, Vbid(0), 0, 1, _, _, _, _, _))
-                .WillOnce(Return(ENGINE_SUCCESS));
+                .WillOnce(Return(cb::engine_errc::success));
 
         EXPECT_CALL(producers,
                     mutation(_,
@@ -326,14 +326,14 @@ void DcpStreamSyncReplTest::testMutationAndPendingWithoutSyncReplica(
                              _,
                              _,
                              _))
-                .WillOnce(Return(ENGINE_SUCCESS));
+                .WillOnce(Return(cb::engine_errc::success));
     }
 
     prepareCheckpointItemsForStep(producers, *producer, *vb0);
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
 
     destroy_dcp_stream();
 }
@@ -356,7 +356,7 @@ void DcpStreamSyncReplTest::testPendingItemWithSyncReplica(
                      IncludeXattrs::Yes,
                      {{"enable_sync_writes", "true"},
                       {"consumer_name", "test_consumer"}});
-    ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+    ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
 
     // For a sync replication stream we should see a snapshot marker
     // followed by one DcpPrepare.
@@ -367,7 +367,7 @@ void DcpStreamSyncReplTest::testPendingItemWithSyncReplica(
         using ::testing::Return;
 
         EXPECT_CALL(producers, marker(_, Vbid(0), 0, 1, _, _, _, _, _))
-                .WillOnce(Return(ENGINE_SUCCESS));
+                .WillOnce(Return(cb::engine_errc::success));
 
         EXPECT_CALL(producers,
                     prepare(_,
@@ -379,14 +379,14 @@ void DcpStreamSyncReplTest::testPendingItemWithSyncReplica(
                             _,
                             docState,
                             _))
-                .WillOnce(Return(ENGINE_SUCCESS));
+                .WillOnce(Return(cb::engine_errc::success));
     }
 
     // Drive the DcpMessageProducers
     prepareCheckpointItemsForStep(producers, *producer, *vb0);
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
 
     destroy_dcp_stream();
 }
@@ -408,7 +408,7 @@ void DcpStreamSyncReplTest::testPendingAndMutationWithSyncReplica(
                      IncludeXattrs::Yes,
                      {{"enable_sync_writes", "true"},
                       {"consumer_name", "test_consumer"}});
-    ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+    ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
 
     // For a sync replication stream we should see one mutation and one prepare.
     GMockDcpMsgProducers producers;
@@ -418,7 +418,7 @@ void DcpStreamSyncReplTest::testPendingAndMutationWithSyncReplica(
         using ::testing::Return;
 
         EXPECT_CALL(producers, marker(_, Vbid(0), 0, 2, _, _, _, _, _))
-                .WillOnce(Return(ENGINE_SUCCESS));
+                .WillOnce(Return(cb::engine_errc::success));
 
         EXPECT_CALL(producers,
                     mutation(_,
@@ -429,7 +429,7 @@ void DcpStreamSyncReplTest::testPendingAndMutationWithSyncReplica(
                              _,
                              _,
                              _))
-                .WillOnce(Return(ENGINE_SUCCESS));
+                .WillOnce(Return(cb::engine_errc::success));
 
         EXPECT_CALL(producers,
                     prepare(_,
@@ -441,15 +441,15 @@ void DcpStreamSyncReplTest::testPendingAndMutationWithSyncReplica(
                             _,
                             docState,
                             _))
-                .WillOnce(Return(ENGINE_SUCCESS));
+                .WillOnce(Return(cb::engine_errc::success));
     }
 
     prepareCheckpointItemsForStep(producers, *producer, *vb0);
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
 
     destroy_dcp_stream();
 }
@@ -475,7 +475,7 @@ void DcpStreamSyncReplTest::testMutationAndPending2SnapshotsWithSyncReplica(
                      IncludeXattrs::Yes,
                      {{"enable_sync_writes", "true"},
                       {"consumer_name", "test_consumer"}});
-    ASSERT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+    ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
 
     // For a sync replication stream we should see one mutation and one prepare
     // each in their own snapshot.
@@ -486,7 +486,7 @@ void DcpStreamSyncReplTest::testMutationAndPending2SnapshotsWithSyncReplica(
         using ::testing::Return;
 
         EXPECT_CALL(producers, marker(_, Vbid(0), 0, 1, _, _, _, _, _))
-                .WillOnce(Return(ENGINE_SUCCESS));
+                .WillOnce(Return(cb::engine_errc::success));
 
         EXPECT_CALL(producers,
                     mutation(_,
@@ -497,10 +497,10 @@ void DcpStreamSyncReplTest::testMutationAndPending2SnapshotsWithSyncReplica(
                              _,
                              _,
                              _))
-                .WillOnce(Return(ENGINE_SUCCESS));
+                .WillOnce(Return(cb::engine_errc::success));
 
         EXPECT_CALL(producers, marker(_, Vbid(0), 2, 2, _, _, _, _, _))
-                .WillOnce(Return(ENGINE_SUCCESS));
+                .WillOnce(Return(cb::engine_errc::success));
 
         EXPECT_CALL(producers,
                     prepare(_,
@@ -512,16 +512,16 @@ void DcpStreamSyncReplTest::testMutationAndPending2SnapshotsWithSyncReplica(
                             _,
                             docState,
                             _))
-                .WillOnce(Return(ENGINE_SUCCESS));
+                .WillOnce(Return(cb::engine_errc::success));
     }
 
     prepareCheckpointItemsForStep(producers, *producer, *vb0);
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
 
     destroy_dcp_stream();
 }
@@ -614,7 +614,7 @@ void DcpStreamSyncReplTest::testBackfillPrepareCommit(
     // backfill.
     using cb::durability::Level;
     auto prepared = storePending(docState, "1", "X", {level, {}});
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               vb0->commit(prepared->getKey(),
                           prepared->getBySeqno(),
                           {},
@@ -709,7 +709,7 @@ void DcpStreamSyncReplTest::testBackfillPrepareAbort(
     // backfill.
     using cb::durability::Level;
     auto prepared = storePending(docState, "1", "X", {level, {}});
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               vb0->abort(prepared->getKey(),
                          prepared->getBySeqno(),
                          {},

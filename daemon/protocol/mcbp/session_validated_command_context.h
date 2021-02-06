@@ -32,10 +32,11 @@ protected:
     /// method. The step method will return an error if the requested CAS was
     /// illegal, otherwise it'll call the "sessionLockedStep()" method
     /// (implemented by the various subclasses) and send a response message
-    /// back to the client iff sessionLockedStep returns ENGINE_SUCCESS
-    /// (which indicates that the operation is done). SteppableCommandContext
-    /// will send the appropriate error message and handle EWOULDBLOCK for us)
-    ENGINE_ERROR_CODE step() override;
+    /// back to the client iff sessionLockedStep returns
+    /// cb::engine_errc::success (which indicates that the operation is done).
+    /// SteppableCommandContext will send the appropriate error message and
+    /// handle EWOULDBLOCK for us)
+    cb::engine_errc step() override;
 
     /// Subclass of the SessionValidatedCommandContext must override this
     /// method to perform the action they're supposed to do
@@ -107,5 +108,5 @@ public:
     }
 
 protected:
-    ENGINE_ERROR_CODE step() override;
+    cb::engine_errc step() override;
 };

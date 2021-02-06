@@ -293,14 +293,14 @@ public:
         transitionState(StreamState::Dead);
     }
 
-    ENGINE_ERROR_CODE messageReceived(
+    cb::engine_errc messageReceived(
             std::unique_ptr<DcpResponse> dcpResponse) override;
 
     void processMarker(SnapshotMarker* marker) override {
         PassiveStream::processMarker(marker);
     }
 
-    ENGINE_ERROR_CODE processMutation(
+    cb::engine_errc processMutation(
             MutationConsumerMessage* mutation) override {
         return PassiveStream::processMutation(mutation);
     }

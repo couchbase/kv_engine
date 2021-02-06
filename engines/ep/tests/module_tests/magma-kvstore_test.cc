@@ -86,22 +86,22 @@ TEST_F(MagmaKVStoreRollbackTest, Rollback) {
     }
 
     auto rv = kvstore->get(makeDiskDocKey("key5"), Vbid(0));
-    EXPECT_EQ(rv.getStatus(), ENGINE_SUCCESS);
+    EXPECT_EQ(rv.getStatus(), cb::engine_errc::success);
     rv = kvstore->get(makeDiskDocKey("key6"), Vbid(0));
-    EXPECT_EQ(rv.getStatus(), ENGINE_SUCCESS);
+    EXPECT_EQ(rv.getStatus(), cb::engine_errc::success);
 
     auto rollbackResult =
             kvstore->rollback(Vbid(0), 5, std::make_unique<CustomRBCallback>());
     ASSERT_TRUE(rollbackResult.success);
 
     rv = kvstore->get(makeDiskDocKey("key1"), Vbid(0));
-    EXPECT_EQ(rv.getStatus(), ENGINE_SUCCESS);
+    EXPECT_EQ(rv.getStatus(), cb::engine_errc::success);
     rv = kvstore->get(makeDiskDocKey("key5"), Vbid(0));
-    EXPECT_EQ(rv.getStatus(), ENGINE_SUCCESS);
+    EXPECT_EQ(rv.getStatus(), cb::engine_errc::success);
     rv = kvstore->get(makeDiskDocKey("key6"), Vbid(0));
-    EXPECT_EQ(rv.getStatus(), ENGINE_KEY_ENOENT);
+    EXPECT_EQ(rv.getStatus(), cb::engine_errc::no_such_key);
     rv = kvstore->get(makeDiskDocKey("key10"), Vbid(0));
-    EXPECT_EQ(rv.getStatus(), ENGINE_KEY_ENOENT);
+    EXPECT_EQ(rv.getStatus(), cb::engine_errc::no_such_key);
 
     auto vbs = kvstore->getCachedVBucketState(Vbid(0));
     ASSERT_EQ(uint64_t(5), vbs->highSeqno);

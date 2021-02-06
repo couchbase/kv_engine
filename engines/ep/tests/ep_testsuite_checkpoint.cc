@@ -96,7 +96,7 @@ static enum test_result test_checkpoint_create(EngineIface* h) {
     for (int i = 0; i < 5001; i++) {
         char key[8];
         sprintf(key, "key%d", i);
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h, nullptr, StoreSemantics::Set, key, "value"),
                 "Failed to store an item.");
     }
@@ -110,7 +110,7 @@ static enum test_result test_checkpoint_create(EngineIface* h) {
 }
 
 static enum test_result test_checkpoint_timeout(EngineIface* h) {
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "key", "value"),
             "Failed to store an item.");
     testHarness->time_travel(600);
@@ -123,7 +123,7 @@ static enum test_result test_checkpoint_deduplication(EngineIface* h) {
         for (int j = 0; j < 4500; j++) {
             char key[8];
             sprintf(key, "key%d", j);
-            checkeq(ENGINE_SUCCESS,
+            checkeq(cb::engine_errc::success,
                     store(h, nullptr, StoreSemantics::Set, key, "value"),
                     "Failed to store an item.");
         }
@@ -139,8 +139,9 @@ extern "C" {
 
         // Issue a request with the unexpected large checkpoint id 100, which
         // will cause timeout.
-        checkeq(ENGINE_TMPFAIL, checkpointPersistence(h, 100, Vbid(0)),
-              "Expected temp failure for checkpoint persistence request");
+        checkeq(cb::engine_errc::temporary_failure,
+                checkpointPersistence(h, 100, Vbid(0)),
+                "Expected temp failure for checkpoint persistence request");
         checklt(10,
                 get_int_stat(h, "ep_chk_persistence_timeout"),
                 "Expected CHECKPOINT_PERSISTENCE_TIMEOUT was adjusted to be "
@@ -150,7 +151,7 @@ extern "C" {
         for (int j = 0; j < 10; ++j) {
             std::stringstream ss;
             ss << "key" << j;
-            checkeq(ENGINE_SUCCESS,
+            checkeq(cb::engine_errc::success,
                     store(h,
                           nullptr,
                           StoreSemantics::Set,
@@ -165,7 +166,7 @@ extern "C" {
 
 static enum test_result test_checkpoint_persistence(EngineIface* h) {
     if (!isPersistentBucket(h)) {
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 checkpointPersistence(h, 0, Vbid(0)),
                 "Failed to request checkpoint persistence");
         checkeq(last_status.load(),
@@ -191,8 +192,9 @@ static enum test_result test_checkpoint_persistence(EngineIface* h) {
     int closed_chk_id =
             get_int_stat(h, "vb_0:last_closed_checkpoint_id", "checkpoint 0");
     // Request to prioritize persisting vbucket 0.
-    checkeq(ENGINE_SUCCESS, checkpointPersistence(h, closed_chk_id, Vbid(0)),
-          "Failed to request checkpoint persistence");
+    checkeq(cb::engine_errc::success,
+            checkpointPersistence(h, closed_chk_id, Vbid(0)),
+            "Failed to request checkpoint persistence");
 
     return SUCCESS;
 }
@@ -201,7 +203,8 @@ extern "C" {
     static void wait_for_persistence_thread(void *arg) {
         auto* h = static_cast<EngineIface*>(arg);
 
-        checkeq(ENGINE_TMPFAIL, checkpointPersistence(h, 100, Vbid(1)),
+        checkeq(cb::engine_errc::temporary_failure,
+                checkpointPersistence(h, 100, Vbid(1)),
                 "Expected temp failure for checkpoint persistence request");
     }
 }

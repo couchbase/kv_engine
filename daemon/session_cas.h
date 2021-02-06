@@ -40,14 +40,15 @@ public:
      *               any value)
      * @param currentValue the current value (the new value if succeeded, the
      *                     previous value if failure)
-     * @return ENGINE_SUCCESS upon success,
+     * @return cb::engine_errc::success upon success,
      *         ENGINE_BUSY if an operation is currently being performed
      *                     so the cas value can't be modified
-     *         ENGINE_KEY_EEXISTS if the provided cas value is incorrect
+     *         cb::engine_errc::key_already_exists if the provided cas value is
+     * incorrect
      */
-    ENGINE_ERROR_CODE cas(uint64_t newValue,
-                          uint64_t casval,
-                          uint64_t& currentValue);
+    cb::engine_errc cas(uint64_t newValue,
+                        uint64_t casval,
+                        uint64_t& currentValue);
 
     /**
      * Get the current CAS value

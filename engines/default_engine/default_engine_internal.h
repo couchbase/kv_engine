@@ -95,7 +95,7 @@ class StatCollector;
  * This is currently "work in progress" so it is not as clean as it should be.
  */
 struct default_engine : public EngineIface {
-    ENGINE_ERROR_CODE initialize(const char* config_str) override;
+    cb::engine_errc initialize(const char* config_str) override;
     void destroy(bool force) override;
 
     std::pair<cb::unique_item_ptr, item_info> allocateItem(
@@ -108,7 +108,7 @@ struct default_engine : public EngineIface {
             uint8_t datatype,
             Vbid vbucket) override;
 
-    ENGINE_ERROR_CODE remove(
+    cb::engine_errc remove(
             gsl::not_null<const void*> cookie,
             const DocKey& key,
             uint64_t& cas,
@@ -137,10 +137,10 @@ struct default_engine : public EngineIface {
                                        Vbid vbucket,
                                        uint32_t lock_timeout) override;
 
-    ENGINE_ERROR_CODE unlock(gsl::not_null<const void*> cookie,
-                             const DocKey& key,
-                             Vbid vbucket,
-                             uint64_t cas) override;
+    cb::engine_errc unlock(gsl::not_null<const void*> cookie,
+                           const DocKey& key,
+                           Vbid vbucket,
+                           uint64_t cas) override;
 
     cb::EngineErrorItemPair get_and_touch(
             gsl::not_null<const void*> cookie,
@@ -150,7 +150,7 @@ struct default_engine : public EngineIface {
             const std::optional<cb::durability::Requirements>& durability)
             override;
 
-    ENGINE_ERROR_CODE store(
+    cb::engine_errc store(
             gsl::not_null<const void*> cookie,
             gsl::not_null<ItemIface*> item,
             uint64_t& cas,
@@ -169,22 +169,22 @@ struct default_engine : public EngineIface {
             DocumentState document_state,
             bool preserveTtl) override;
 
-    ENGINE_ERROR_CODE flush(gsl::not_null<const void*> cookie) override;
+    cb::engine_errc flush(gsl::not_null<const void*> cookie) override;
 
-    ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
-                                std::string_view key,
-                                std::string_view value,
-                                const AddStatFn& add_stat) override;
+    cb::engine_errc get_stats(gsl::not_null<const void*> cookie,
+                              std::string_view key,
+                              std::string_view value,
+                              const AddStatFn& add_stat) override;
 
-    ENGINE_ERROR_CODE get_prometheus_stats(
+    cb::engine_errc get_prometheus_stats(
             const BucketStatCollector& collector,
             cb::prometheus::Cardinality cardinality) override;
 
     void reset_stats(gsl::not_null<const void*> cookie) override;
 
-    ENGINE_ERROR_CODE unknown_command(const void* cookie,
-                                      const cb::mcbp::Request& request,
-                                      const AddResponseFn& response) override;
+    cb::engine_errc unknown_command(const void* cookie,
+                                    const cb::mcbp::Request& request,
+                                    const AddResponseFn& response) override;
 
     void item_set_cas(hash_item* item, uint64_t cas);
     void item_set_cas(gsl::not_null<ItemIface*> item,

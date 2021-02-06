@@ -117,7 +117,7 @@ public:
     /**
      * Schedule compaction with a config -override of KVBucket method
      */
-    ENGINE_ERROR_CODE scheduleCompaction(
+    cb::engine_errc scheduleCompaction(
             Vbid vbid,
             const CompactionConfig& c,
             const void* ck,
@@ -129,11 +129,11 @@ public:
      * already has. If a task is already scheduled, the given delay parameter
      * takes effect.
      */
-    ENGINE_ERROR_CODE scheduleCompaction(Vbid vbid,
-                                         const void* cookie,
-                                         std::chrono::milliseconds delay);
+    cb::engine_errc scheduleCompaction(Vbid vbid,
+                                       const void* cookie,
+                                       std::chrono::milliseconds delay);
 
-    ENGINE_ERROR_CODE cancelCompaction(Vbid vbid) override;
+    cb::engine_errc cancelCompaction(Vbid vbid) override;
 
     /**
      * Compaction of a database file
@@ -162,11 +162,10 @@ public:
 
     std::pair<uint64_t, bool> getLastPersistedCheckpointId(Vbid vb) override;
 
-    ENGINE_ERROR_CODE getFileStats(
-            const BucketStatCollector& collector) override;
+    cb::engine_errc getFileStats(const BucketStatCollector& collector) override;
 
-    ENGINE_ERROR_CODE getPerVBucketDiskStats(
-            const void* cookie, const AddStatFn& add_stat) override;
+    cb::engine_errc getPerVBucketDiskStats(const void* cookie,
+                                           const AddStatFn& add_stat) override;
 
     size_t getPageableMemCurrent() const override;
     size_t getPageableMemHighWatermark() const override;
@@ -192,9 +191,9 @@ public:
                            const nlohmann::json* replicationTopology,
                            uint64_t maxVisibleSeqno) override;
 
-    ENGINE_ERROR_CODE statsVKey(const DocKey& key,
-                                Vbid vbucket,
-                                const void* cookie) override;
+    cb::engine_errc statsVKey(const DocKey& key,
+                              Vbid vbucket,
+                              const void* cookie) override;
 
     void completeStatsVKey(const void* cookie,
                            const DocKey& key,
@@ -350,10 +349,10 @@ protected:
      */
     void initializeShards();
 
-    ENGINE_ERROR_CODE scheduleCompaction(Vbid vbid,
-                                         std::optional<CompactionConfig> config,
-                                         const void* cookie,
-                                         std::chrono::milliseconds delay);
+    cb::engine_errc scheduleCompaction(Vbid vbid,
+                                       std::optional<CompactionConfig> config,
+                                       const void* cookie,
+                                       std::chrono::milliseconds delay);
 
     /**
      * Max number of backill items in a single flusher batch before we split

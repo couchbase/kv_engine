@@ -189,8 +189,8 @@ TEST_P(EPBucketTest, GetKeyStatsEjected) {
     };
 
     if (!fullEviction()) {
-        EXPECT_EQ(ENGINE_SUCCESS, do_getKeyStats())
-            << "Expected to get key stats on evicted item";
+        EXPECT_EQ(cb::engine_errc::success, do_getKeyStats())
+                << "Expected to get key stats on evicted item";
 
     } else {
         // Try to get key stats. This should return EWOULDBLOCK (as the whole
@@ -198,20 +198,23 @@ TEST_P(EPBucketTest, GetKeyStatsEjected) {
         // task system, then no BGFetch task will be automatically run, we'll
         // manually run it.
 
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, do_getKeyStats())
-            << "Expected to need to go to disk to get key stats on fully evicted item";
+        EXPECT_EQ(cb::engine_errc::would_block, do_getKeyStats())
+                << "Expected to need to go to disk to get key stats on fully "
+                   "evicted item";
 
         // Try a second time - this should detect the already-created temp
         // item, and re-schedule the bgfetch.
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, do_getKeyStats())
-            << "Expected to need to go to disk to get key stats on fully evicted item (try 2)";
+        EXPECT_EQ(cb::engine_errc::would_block, do_getKeyStats())
+                << "Expected to need to go to disk to get key stats on fully "
+                   "evicted item (try 2)";
 
         // Manually run the BGFetcher task; to fetch the two outstanding
         // requests (for the same key).
         runBGFetcherTask();
 
-        ASSERT_EQ(ENGINE_SUCCESS, do_getKeyStats())
-            << "Expected to get key stats on evicted item after notify_IO_complete";
+        ASSERT_EQ(cb::engine_errc::success, do_getKeyStats())
+                << "Expected to get key stats on evicted item after "
+                   "notify_IO_complete";
     }
 }
 
@@ -233,22 +236,23 @@ TEST_P(EPBucketTest, ReplaceEExists) {
 
     if (!fullEviction()) {
         // Should be able to replace as still have metadata resident.
-        EXPECT_EQ(ENGINE_SUCCESS, do_replace());
+        EXPECT_EQ(cb::engine_errc::success, do_replace());
 
     } else {
         // Should get EWOULDBLOCK as need to go to disk to get metadata.
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, do_replace());
+        EXPECT_EQ(cb::engine_errc::would_block, do_replace());
 
         // A second request should also get EWOULDBLOCK and add to the
         // existing pending BGFetch
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, do_replace());
+        EXPECT_EQ(cb::engine_errc::would_block, do_replace());
 
         // Manually run the BGFetcher task; to fetch the two outstanding
         // requests (for the same key).
         runBGFetcherTask();
 
-        EXPECT_EQ(ENGINE_SUCCESS, do_replace())
-            << "Expected to replace on evicted item after notify_IO_complete";
+        EXPECT_EQ(cb::engine_errc::success, do_replace())
+                << "Expected to replace on evicted item after "
+                   "notify_IO_complete";
     }
 }
 
@@ -258,7 +262,7 @@ TEST_P(EPBucketTest, ReplaceEExists) {
 TEST_P(EPBucketTest, SetEExists) {
     // Store an item, then eject it.
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
     flush_vbucket_to_disk(vbid);
     evict_key(item.getVBucketId(), item.getKey());
 
@@ -266,22 +270,22 @@ TEST_P(EPBucketTest, SetEExists) {
         // Should be able to set (with same cas as previously)
         // as still have metadata resident.
         ASSERT_NE(0, item.getCas());
-        EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
+        EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
 
     } else {
         // Should get EWOULDBLOCK as need to go to disk to get metadata.
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(item, cookie));
+        EXPECT_EQ(cb::engine_errc::would_block, store->set(item, cookie));
 
         // A second request should also get EWOULDBLOCK and add to the
         // existing pending BGFetch
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(item, cookie));
+        EXPECT_EQ(cb::engine_errc::would_block, store->set(item, cookie));
 
         // Manually run the BGFetcher task; to fetch the two outstanding
         // requests (for the same key).
         runBGFetcherTask();
 
-        EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie))
-            << "Expected to set on evicted item after notify_IO_complete";
+        EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie))
+                << "Expected to set on evicted item after notify_IO_complete";
     }
 }
 
@@ -352,7 +356,7 @@ TEST_P(EPBucketTest, FreqCountOnlyMutationsTest) {
 TEST_P(EPBucketTest, AddEExists) {
     // Store an item, then eject it.
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
     flush_vbucket_to_disk(vbid);
     evict_key(item.getVBucketId(), item.getKey());
 
@@ -365,22 +369,23 @@ TEST_P(EPBucketTest, AddEExists) {
 
     if (!fullEviction()) {
         // Should immediately return NOT_STORED (as metadata is still resident).
-        EXPECT_EQ(ENGINE_NOT_STORED, do_add());
+        EXPECT_EQ(cb::engine_errc::not_stored, do_add());
 
     } else {
         // Should get EWOULDBLOCK as need to go to disk to get metadata.
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, do_add());
+        EXPECT_EQ(cb::engine_errc::would_block, do_add());
 
         // A second request should also get EWOULDBLOCK and add to the
         // existing pending BGFetch
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, do_add());
+        EXPECT_EQ(cb::engine_errc::would_block, do_add());
 
         // Manually run the BGFetcher task; to fetch the two outstanding
         // requests (for the same key).
         runBGFetcherTask();
 
-        EXPECT_EQ(ENGINE_NOT_STORED, do_add())
-            << "Expected to fail to add on evicted item after notify_IO_complete";
+        EXPECT_EQ(cb::engine_errc::not_stored, do_add())
+                << "Expected to fail to add on evicted item after "
+                   "notify_IO_complete";
     }
 }
 
@@ -390,7 +395,7 @@ TEST_P(EPBucketTest, AddEExists) {
 TEST_P(EPBucketTest, SetWithMeta_ReplaceNonResident) {
     // Store an item, then evict it.
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
     flush_vbucket_to_disk(vbid);
     evict_key(item.getVBucketId(), item.getKey());
 
@@ -412,22 +417,23 @@ TEST_P(EPBucketTest, SetWithMeta_ReplaceNonResident) {
 
     if (!fullEviction()) {
         // Should succeed as the metadata is still resident.
-        EXPECT_EQ(ENGINE_SUCCESS, do_setWithMeta());
+        EXPECT_EQ(cb::engine_errc::success, do_setWithMeta());
 
     } else {
         // Should get EWOULDBLOCK as need to go to disk to get metadata.
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, do_setWithMeta());
+        EXPECT_EQ(cb::engine_errc::would_block, do_setWithMeta());
 
         // A second request should also get EWOULDBLOCK and add to the
         // existing pending BGFetch
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, do_setWithMeta());
+        EXPECT_EQ(cb::engine_errc::would_block, do_setWithMeta());
 
         // Manually run the BGFetcher task; to fetch the two outstanding
         // requests (for the same key).
         runBGFetcherTask();
 
-        ASSERT_EQ(ENGINE_SUCCESS, do_setWithMeta())
-            << "Expected to setWithMeta on evicted item after notify_IO_complete";
+        ASSERT_EQ(cb::engine_errc::success, do_setWithMeta())
+                << "Expected to setWithMeta on evicted item after "
+                   "notify_IO_complete";
     }
 }
 
@@ -438,7 +444,7 @@ TEST_P(EPBucketTest, DeletedValue) {
     auto key = makeStoredDocKey("key");
     auto item = make_item(vbid, key, "deleted value");
     item.setDeleted();
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
 
     // The act of flushing will remove the item from the HashTable.
     flush_vbucket_to_disk(vbid);
@@ -453,12 +459,12 @@ TEST_P(EPBucketTest, DeletedValue) {
 
     // Try to get the Deleted-with-value key. This should return EWOULDBLOCK
     // (as the Deleted value is not resident).
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, do_get().getStatus())
+    EXPECT_EQ(cb::engine_errc::would_block, do_get().getStatus())
             << "Expected to need to go to disk to get Deleted-with-value key";
 
     // Try a second time - this should detect the already-created temp
     // item, and re-schedule the bgfetch.
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, do_get().getStatus())
+    EXPECT_EQ(cb::engine_errc::would_block, do_get().getStatus())
             << "Expected to need to go to disk to get Deleted-with-value key "
                "(try 2)";
 
@@ -467,7 +473,7 @@ TEST_P(EPBucketTest, DeletedValue) {
     runBGFetcherTask();
 
     auto result = do_get();
-    EXPECT_EQ(ENGINE_SUCCESS, result.getStatus())
+    EXPECT_EQ(cb::engine_errc::success, result.getStatus())
             << "Expected to get Deleted-with-value for evicted key after "
                "notify_IO_complete";
     EXPECT_EQ("deleted value", result.item->getValue()->to_s());
@@ -478,7 +484,7 @@ TEST_P(EPBucketTest, DeletedValue) {
 TEST_P(EPBucketTest, MB_21976) {
     // Store an item, then eject it.
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
     flush_vbucket_to_disk(vbid);
     evict_key(item.getVBucketId(), item.getKey());
 
@@ -490,26 +496,27 @@ TEST_P(EPBucketTest, MB_21976) {
                                                        HIDE_LOCKED_CAS |
                                                        TRACK_STATISTICS);
     GetValue gv = store->get(makeStoredDocKey("key"), vbid, cookie, options);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
 
     // Mark the status of the cookie so that we can see if notify is called
     lock_mock_cookie(cookie);
     auto* c = (MockCookie*)cookie;
-    c->status = ENGINE_E2BIG;
+    c->status = cb::engine_errc::too_big;
     unlock_mock_cookie(cookie);
 
     auto* deleteCookie = create_mock_cookie(engine.get());
 
     // lock the cookie, waitfor will release and enter the internal cond-var
     // lock_mock_cookie(deleteCookie);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, store->deleteVBucket(vbid, deleteCookie));
+    EXPECT_EQ(cb::engine_errc::would_block,
+              store->deleteVBucket(vbid, deleteCookie));
 
     auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
     runNextTask(lpAuxioQ, "Removing (dead) vb:0 from memory and disk");
 
     // Check the status of the cookie to see if the cookie status has changed
-    // to ENGINE_NOT_MY_VBUCKET, which means the notify was sent
-    EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, c->status);
+    // to cb::engine_errc::not_my_vbucket, which means the notify was sent
+    EXPECT_EQ(cb::engine_errc::not_my_vbucket, c->status);
 
     destroy_mock_cookie(deleteCookie);
 }
@@ -532,7 +539,7 @@ TEST_P(EPBucketTest, TouchCmdDuringBgFetch) {
     for (int i = 0; i < numTouchCmds; ++i) {
         GetValue gv = store->getAndUpdateTtl(dockey, vbid, cookie,
                                              (i + 1) * expiryTime);
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+        EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
     }
 
     // Manually run the BGFetcher task; to fetch the two outstanding
@@ -543,7 +550,7 @@ TEST_P(EPBucketTest, TouchCmdDuringBgFetch) {
     for (int i = 0; i < numTouchCmds; ++i) {
         GetValue gv = store->getAndUpdateTtl(dockey, vbid, cookie,
                                              (i + 1) * (expiryTime));
-        EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+        EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
     }
     EXPECT_EQ(numTouchCmds + 1 /* Initial item store */,
               store->getVBucket(vbid)->getHighSeqno());
@@ -561,7 +568,7 @@ TEST_P(EPBucketTest, checkIfResidentAfterBgFetch) {
     //Now, delete the item
     uint64_t cas = 0;
     mutation_descr_t mutation_descr;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               store->deleteItem(dockey,
                                 cas,
                                 vbid,
@@ -581,13 +588,13 @@ TEST_P(EPBucketTest, checkIfResidentAfterBgFetch) {
                                                        GET_DELETED_VALUE);
 
     GetValue gv = store->get(makeStoredDocKey("key"), vbid, cookie, options);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
 
     runBGFetcherTask();
 
     // The Get should succeed in this case
     gv = store->get(makeStoredDocKey("key"), vbid, cookie, options);
-    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
 
     VBucketPtr vb = store->getVBucket(vbid);
 
@@ -615,7 +622,7 @@ TEST_P(EPBucketFullEvictionTest, xattrExpiryOnFullyEvictedItem) {
 
     GetValue gv = store->getAndUpdateTtl(makeStoredDocKey("key"), vbid, cookie,
                                          time(NULL) + 120);
-    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
     std::unique_ptr<Item> get_itm(std::move(gv.item));
 
     flush_vbucket_to_disk(vbid);
@@ -641,7 +648,7 @@ TEST_P(EPBucketFullEvictionTest, xattrExpiryOnFullyEvictedItem) {
     }
 
     gv = store->get(makeStoredDocKey("key"), vbid, cookie, options);
-    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
 
     get_itm = std::move(gv.item);
     auto get_data = const_cast<char*>(get_itm->getData());
@@ -660,7 +667,7 @@ TEST_P(EPBucketFullEvictionTest, xattrExpiryOnFullyEvictedItem) {
 }
 
 TEST_P(EPBucketFullEvictionTest, ExpiryFindNonResidentItem) {
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_active, {}));
 
     // 1) Store item
@@ -676,7 +683,7 @@ TEST_P(EPBucketFullEvictionTest, ExpiryFindNonResidentItem) {
     auto diskDocKey = makeDiskDocKey("a");
     q[diskDocKey] = std::move(ctx);
     store->getRWUnderlying(vbid)->getMulti(vbid, q);
-    EXPECT_EQ(ENGINE_SUCCESS, q[diskDocKey].value.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, q[diskDocKey].value.getStatus());
     EXPECT_EQ("v1", q[diskDocKey].value.item->getValue()->to_s());
 
     // 3) Evict item
@@ -694,7 +701,7 @@ TEST_P(EPBucketFullEvictionTest, ExpiryFindNonResidentItem) {
 
 void EPBucketFullEvictionTest::compactionFindsNonResidentItem(
         bool dropCollection) {
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_active, {}));
 
     // 1) Store Av1 and persist
@@ -710,7 +717,7 @@ void EPBucketFullEvictionTest::compactionFindsNonResidentItem(
     auto diskDocKey = makeDiskDocKey("a");
     q[diskDocKey] = std::move(ctx);
     store->getRWUnderlying(vbid)->getMulti(vbid, q);
-    EXPECT_EQ(ENGINE_SUCCESS, q[diskDocKey].value.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, q[diskDocKey].value.getStatus());
     EXPECT_EQ("v1", q[diskDocKey].value.item->getValue()->to_s());
 
     // 3) Evict Av1
@@ -793,7 +800,7 @@ TEST_P(EPBucketFullEvictionTest, MB_42295_dropCollectionBeforeExpiry) {
  * should not be possible for them.
  */
 TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentSupersededItem) {
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_active, {}));
 
     // 1) Store Av1 and persist
@@ -812,7 +819,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentSupersededItem) {
     auto diskDocKey = makeDiskDocKey("a");
     q[diskDocKey] = std::move(ctx);
     store->getRWUnderlying(vbid)->getMulti(vbid, q);
-    EXPECT_EQ(ENGINE_SUCCESS, q[diskDocKey].value.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, q[diskDocKey].value.getStatus());
     EXPECT_EQ("v1", q[diskDocKey].value.item->getValue()->to_s());
 
     // 4) Flush and evict Av2
@@ -862,7 +869,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentSupersededItem) {
 }
 
 TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryFindsTempItem) {
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_active, {}));
 
     // 1) Store Av1 and persist
@@ -878,7 +885,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryFindsTempItem) {
     auto diskDocKey = makeDiskDocKey("a");
     q[diskDocKey] = std::move(ctx);
     store->getRWUnderlying(vbid)->getMulti(vbid, q);
-    EXPECT_EQ(ENGINE_SUCCESS, q[diskDocKey].value.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, q[diskDocKey].value.getStatus());
     EXPECT_EQ("v1", q[diskDocKey].value.item->getValue()->to_s());
 
     // 3) Evict Av1
@@ -915,7 +922,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryFindsTempItem) {
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
     auto gv = store->get(key, vbid, cookie, options);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
 
     runBGFetcherTask();
     EXPECT_FALSE(vb->hasPendingBGFetchItems());
@@ -935,7 +942,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryFindsTempItem) {
     }
     EXPECT_EQ(expectedItems, vb->getNumItems());
 
-    EXPECT_EQ(ENGINE_SUCCESS, cookie_to_mock_cookie(cookie)->status);
+    EXPECT_EQ(cb::engine_errc::success, cookie_to_mock_cookie(cookie)->status);
 }
 
 TEST_P(EPBucketFullEvictionTest, ExpiryFindsPrepareWithSameCas) {
@@ -950,7 +957,7 @@ TEST_P(EPBucketFullEvictionTest, ExpiryFindsPrepareWithSameCas) {
     auto pre = makePendingItem(key, "value", Requirements{Level::Majority, {}});
     pre->setVBucketId(vbid);
     pre->setExpTime(1);
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, setItem(*pre, cookie));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, setItem(*pre, cookie));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     auto vb = store->getVBucket(vbid);
@@ -987,7 +994,7 @@ TEST_P(EPBucketFullEvictionTest, ExpiryFindsPrepareWithSameCas) {
     auto diskDocKey = makeDiskDocKey("a");
     q[diskDocKey] = std::move(ctx);
     store->getRWUnderlying(vbid)->getMulti(vbid, q);
-    EXPECT_EQ(ENGINE_SUCCESS, q[diskDocKey].value.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, q[diskDocKey].value.getStatus());
 
     // 6) Callback from the "compactor" with the item to try and expire it. We
     //    could also pretend to be the pager here.
@@ -1040,11 +1047,11 @@ TEST_P(EPBucketFullEvictionTest, UnDelWithPrepare) {
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
     auto gv = getInternal(key, vbid, cookie, ForGetReplicaOp::No, options);
-    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
 
     // 4) Add prepare
     auto prepare = makePendingItem(key, "value");
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, addItem(*prepare, cookie));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, addItem(*prepare, cookie));
 
     // 1 because we haven't persisted the delete yet
     EXPECT_EQ(1, vb->getNumItems());
@@ -1073,7 +1080,7 @@ TEST_P(EPBucketFullEvictionTest, UnDelWithPrepare) {
 TEST_P(EPBucketTest, getIfOnlyFetchesMetaForFilterNegative) {
     // Store an item, then eject it.
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
     flush_vbucket_to_disk(vbid);
     evict_key(item.getVBucketId(), item.getKey());
 
@@ -1124,7 +1131,7 @@ TEST_P(EPBucketTest, getIfOnlyFetchesMetaForFilterNegative) {
 TEST_P(EPBucketTest, getIfOnlyFetchesMetaForFilterPositive) {
     // Store an item, then eject it.
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
     flush_vbucket_to_disk(vbid);
     evict_key(item.getVBucketId(), item.getKey());
 
@@ -1206,7 +1213,7 @@ TEST_P(EPBucketTest, getDeletedItemWithNoValue) {
 
     uint64_t cas = 0;
     mutation_descr_t mutation_descr;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               store->deleteItem(dockey,
                                 cas,
                                 vbid,
@@ -1227,13 +1234,13 @@ TEST_P(EPBucketTest, getDeletedItemWithNoValue) {
                                                        GET_DELETED_VALUE);
 
     GetValue gv = store->get(makeStoredDocKey("key"), vbid, cookie, options);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
 
     runBGFetcherTask();
 
     // The Get should succeed in this case
     gv = store->get(makeStoredDocKey("key"), vbid, cookie, options);
-    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
 
     // Ensure that the item is deleted and the value length is zero
     Item* itm = gv.item.get();
@@ -1257,7 +1264,7 @@ TEST_P(EPBucketTest, getDeletedItemWithValue) {
 
     auto item = make_item(vbid, dockey, "deletedvalue");
     item.setDeleted();
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
     flush_vbucket_to_disk(vbid);
 
     //Perform a get
@@ -1270,13 +1277,13 @@ TEST_P(EPBucketTest, getDeletedItemWithValue) {
                                                        GET_DELETED_VALUE);
 
     GetValue gv = store->get(dockey, vbid, cookie, options);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
 
     runBGFetcherTask();
 
     // The Get should succeed in this case
     gv = store->get(dockey, vbid, cookie, options);
-    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
 
     // Ensure that the item is deleted and the value matches
     Item* itm = gv.item.get();
@@ -1306,12 +1313,12 @@ TEST_P(EPBucketTest, GetNonResidentCompressed) {
                 QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
                 HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
         GetValue gv = store->get(dockey, vbid, cookie, options);
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+        EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
         runBGFetcherTask();
 
         // The Get should succeed in this case
         gv = store->get(dockey, vbid, cookie, options);
-        EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+        EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
         return std::move(gv.item);
     };
 
@@ -1350,12 +1357,13 @@ TEST_P(EPBucketTest, memOverheadMemoryCondition) {
 
     // Fill bucket until we hit ENOMEM - note storing via external
     // API (epstore) so we trigger the memoryCondition() code in the event of
-    // ENGINE_ENOMEM.
+    // cb::engine_errc::no_memory.
     size_t count = 0;
     const std::string value(512, 'x'); // 512B value to use for documents.
-    ENGINE_ERROR_CODE result;
+    cb::engine_errc result;
     auto dummyCookie = std::make_unique<MockCookie>(engine.get());
-    for (result = ENGINE_SUCCESS; result == ENGINE_SUCCESS; count++) {
+    for (result = cb::engine_errc::success; result == cb::engine_errc::success;
+         count++) {
         auto item = make_item(vbid,
                               makeStoredDocKey("key_" + std::to_string(count)),
                               value);
@@ -1364,7 +1372,7 @@ TEST_P(EPBucketTest, memOverheadMemoryCondition) {
                 dummyCookie.get(), item, cas, StoreSemantics::Set, false);
     }
 
-    ASSERT_EQ(ENGINE_ENOMEM, result);
+    ASSERT_EQ(cb::engine_errc::no_memory, result);
 }
 
 // MB-26907: Test that the item count is properly updated upon an expiry for
@@ -1374,7 +1382,7 @@ TEST_P(EPBucketTest, expiredItemCount) {
     auto expiryTime = time(nullptr) + 290;
     auto key = makeStoredDocKey("key");
     auto item = make_item(vbid, key, "expire value", expiryTime);
-    ASSERT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
+    ASSERT_EQ(cb::engine_errc::success, store->set(item, cookie));
 
     flush_vbucket_to_disk(vbid);
     ASSERT_EQ(1, store->getVBucket(vbid)->getNumItems());
@@ -1384,7 +1392,7 @@ TEST_P(EPBucketTest, expiredItemCount) {
 
     // Trigger expiry on a GET
     auto gv = store->get(key, vbid, cookie, NONE);
-    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
 
     flush_vbucket_to_disk(vbid);
 
@@ -1608,18 +1616,19 @@ TEST_P(EPBucketFullEvictionNoBloomFilterTest, MB_29816) {
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
     auto gv = store->get(key, vbid, cookie, options);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
     gv = store->get(key2, vbid, cookie, options);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
 
     runBGFetcherTask();
 
     // Get the keys again
     gv = store->get(key, vbid, cookie, options);
-    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus()) << "key:005 should have been found";
+    ASSERT_EQ(cb::engine_errc::success, gv.getStatus())
+            << "key:005 should have been found";
 
     gv = store->get(key2, vbid, cookie, options);
-    ASSERT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    ASSERT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
 }
 
 class EPBucketTestNoRocksDb : public EPBucketTest {
@@ -1639,7 +1648,7 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionWithNewConfig) {
     EXPECT_FALSE(task);
 
     CompactionConfig c;
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+    EXPECT_EQ(cb::engine_errc::would_block,
               mockEPBucket->scheduleCompaction(
                       vbid, c, nullptr, std::chrono::seconds(0)));
     task = mockEPBucket->getCompactionTask(vbid);
@@ -1647,18 +1656,18 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionWithNewConfig) {
     EXPECT_EQ(c, task->getCurrentConfig());
 
     c.purge_before_ts = 100;
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+    EXPECT_EQ(cb::engine_errc::would_block,
               mockEPBucket->scheduleCompaction(
                       vbid, c, nullptr, std::chrono::seconds(0)));
     EXPECT_EQ(c, task->getCurrentConfig());
 
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+    EXPECT_EQ(cb::engine_errc::would_block,
               mockEPBucket->scheduleCompaction(
                       vbid, c, nullptr, std::chrono::seconds(0)));
 
     // Now schedule via the 'no config' method, the task's config should still
     // be the last one we set.
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+    EXPECT_EQ(cb::engine_errc::would_block,
               mockEPBucket->scheduleCompaction(
                       vbid, nullptr, std::chrono::seconds(0)));
     EXPECT_EQ(c, task->getCurrentConfig());
@@ -1683,7 +1692,7 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionAndMergeNewConfig) {
                                                 {9, 900, true, false}}};
 
     for (const auto& config : configs) {
-        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+        EXPECT_EQ(cb::engine_errc::would_block,
                   mockEPBucket->scheduleCompaction(
                           vbid, config, nullptr, std::chrono::seconds(0)));
     }
@@ -1712,7 +1721,7 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
     EXPECT_FALSE(task);
 
     CompactionConfig config1{100, 1, 1, true};
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+    EXPECT_EQ(cb::engine_errc::would_block,
               mockEPBucket->scheduleCompaction(
                       vbid, config1, nullptr, std::chrono::seconds(0)));
     task = mockEPBucket->getCompactionTask(vbid);
@@ -1725,7 +1734,7 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
 
     // Schedule again
     CompactionConfig config2{200, 2, 0, true};
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+    EXPECT_EQ(cb::engine_errc::would_block,
               mockEPBucket->scheduleCompaction(
                       vbid, config2, nullptr, std::chrono::seconds(0)));
     task = mockEPBucket->getCompactionTask(vbid);
@@ -1736,8 +1745,8 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
     // the task has copied the config and logically compaction is running.
     CompactionConfig config3{300, 3, 0, false};
     task->setRunningCallback([this, &config3, mockEPBucket]() {
-        cookie_to_mock_cookie(cookie)->status = ENGINE_FAILED;
-        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+        cookie_to_mock_cookie(cookie)->status = cb::engine_errc::failed;
+        EXPECT_EQ(cb::engine_errc::would_block,
                   mockEPBucket->scheduleCompaction(
                           vbid, config3, cookie, std::chrono::seconds(0)));
     });
@@ -1746,7 +1755,7 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
     EXPECT_TRUE(task->run());
 
     // Compaction for the cookie not yet executed
-    EXPECT_EQ(ENGINE_FAILED, cookie_to_mock_cookie(cookie)->status);
+    EXPECT_EQ(cb::engine_errc::failed, cookie_to_mock_cookie(cookie)->status);
 
     // config3 is now the current config
     EXPECT_EQ(config3, task->getCurrentConfig());
@@ -1756,7 +1765,7 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
     // task is now done
     EXPECT_FALSE(task->run());
     EXPECT_FALSE(mockEPBucket->getCompactionTask(vbid));
-    EXPECT_EQ(ENGINE_SUCCESS, cookie_to_mock_cookie(cookie)->status);
+    EXPECT_EQ(cb::engine_errc::success, cookie_to_mock_cookie(cookie)->status);
 }
 
 class EPBucketTestCouchstore : public EPBucketTest {

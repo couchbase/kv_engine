@@ -70,7 +70,7 @@ public:
      * 'initializes' this engine - given this is the crash_engine that
      * means crashing it.
      */
-    ENGINE_ERROR_CODE initialize(const char*) override {
+    cb::engine_errc initialize(const char*) override {
         std::string mode_string(getenv("MEMCACHED_CRASH_TEST"));
         CrashMode mode;
         if (mode_string == "segfault") {
@@ -86,7 +86,7 @@ public:
                     mode_string.c_str());
             exit(1);
         }
-        return ENGINE_ERROR_CODE(recursive_crash_function(25, mode));
+        return cb::engine_errc(recursive_crash_function(25, mode));
     }
 
     void destroy(bool) override {
@@ -105,13 +105,13 @@ public:
         throw cb::engine_error{cb::engine_errc::failed, "crash_engine"};
     }
 
-    ENGINE_ERROR_CODE remove(gsl::not_null<const void*>,
-                             const DocKey&,
-                             uint64_t&,
-                             Vbid,
-                             const std::optional<cb::durability::Requirements>&,
-                             mutation_descr_t&) override {
-        return ENGINE_FAILED;
+    cb::engine_errc remove(gsl::not_null<const void*>,
+                           const DocKey&,
+                           uint64_t&,
+                           Vbid,
+                           const std::optional<cb::durability::Requirements>&,
+                           mutation_descr_t&) override {
+        return cb::engine_errc::failed;
     }
 
     void release(gsl::not_null<ItemIface*> item) override {
@@ -145,11 +145,11 @@ public:
         return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
     }
 
-    ENGINE_ERROR_CODE unlock(gsl::not_null<const void*>,
-                             const DocKey&,
-                             Vbid,
-                             uint64_t) override {
-        return ENGINE_FAILED;
+    cb::engine_errc unlock(gsl::not_null<const void*>,
+                           const DocKey&,
+                           Vbid,
+                           uint64_t) override {
+        return cb::engine_errc::failed;
     }
 
     cb::EngineErrorItemPair get_and_touch(
@@ -161,21 +161,21 @@ public:
         return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
     }
 
-    ENGINE_ERROR_CODE store(gsl::not_null<const void*>,
-                            gsl::not_null<ItemIface*>,
-                            uint64_t&,
-                            StoreSemantics,
-                            const std::optional<cb::durability::Requirements>&,
-                            DocumentState,
-                            bool) override {
-        return ENGINE_FAILED;
+    cb::engine_errc store(gsl::not_null<const void*>,
+                          gsl::not_null<ItemIface*>,
+                          uint64_t&,
+                          StoreSemantics,
+                          const std::optional<cb::durability::Requirements>&,
+                          DocumentState,
+                          bool) override {
+        return cb::engine_errc::failed;
     }
 
-    ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*>,
-                                std::string_view,
-                                std::string_view,
-                                const AddStatFn&) override {
-        return ENGINE_FAILED;
+    cb::engine_errc get_stats(gsl::not_null<const void*>,
+                              std::string_view,
+                              std::string_view,
+                              const AddStatFn&) override {
+        return cb::engine_errc::failed;
     }
 
     void reset_stats(gsl::not_null<const void*>) override {

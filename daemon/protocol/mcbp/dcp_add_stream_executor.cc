@@ -23,8 +23,8 @@
 #include <memcached/protocol_binary.h>
 
 void dcp_add_stream_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
-    if (ret == ENGINE_SUCCESS) {
+    auto ret = cookie.swapAiostat(cb::engine_errc::success);
+    if (ret == cb::engine_errc::success) {
         auto& req = cookie.getRequest();
 
         using cb::mcbp::request::DcpAddStreamPayload;
@@ -35,7 +35,7 @@ void dcp_add_stream_executor(Cookie& cookie) {
                 cookie, req.getOpaque(), req.getVBucket(), payload->getFlags());
     }
 
-    if (ret != ENGINE_SUCCESS) {
+    if (ret != cb::engine_errc::success) {
         handle_executor_status(cookie, ret);
     }
 }

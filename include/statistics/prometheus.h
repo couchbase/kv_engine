@@ -38,7 +38,7 @@ using AuthCallback =
         std::function<bool(const std::string&, const std::string&)>;
 
 using GetStatsCallback =
-        std::function<ENGINE_ERROR_CODE(const StatCollector&, Cardinality)>;
+        std::function<cb::engine_errc(const StatCollector&, Cardinality)>;
 
 /**
  * Initialize the prometheus exporter

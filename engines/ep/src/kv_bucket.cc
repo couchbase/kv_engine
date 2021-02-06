@@ -183,10 +183,10 @@ public:
         if (key == "durability_min_level") {
             const auto res = store.setMinDurabilityLevel(
                     cb::durability::to_level(value));
-            if (res != ENGINE_SUCCESS) {
+            if (res != cb::engine_errc::success) {
                 throw std::invalid_argument(
                         "Failed to set durability_min_level: " +
-                        to_string(cb::to_engine_errc(res)));
+                        to_string(res));
             }
         }
     }
@@ -271,7 +271,7 @@ public:
 
         for (const auto* cookie : cookies) {
             vbucket->notifyClientOfSyncWriteComplete(
-                    cookie, ENGINE_SYNC_WRITE_AMBIGUOUS);
+                    cookie, cb::engine_errc::sync_write_ambiguous);
         }
 
         return false;
@@ -546,7 +546,7 @@ void KVBucket::getValue(Item& it) {
     auto gv = getROUnderlying(it.getVBucketId())
                       ->get(DiskDocKey{it}, it.getVBucketId());
 
-    if (gv.getStatus() != ENGINE_SUCCESS) {
+    if (gv.getStatus() != cb::engine_errc::success) {
         // Cannot continue to pre_expiry, log this failed get and return
         EP_LOG_WARN(
                 "KVBucket::getValue failed get for item {}, it.seqno:{}, "
@@ -646,13 +646,13 @@ void KVBucket::logRunTime(TaskId taskType,
     stats.taskRuntimeHisto[static_cast<int>(taskType)].add(ms);
 }
 
-ENGINE_ERROR_CODE KVBucket::set(Item& itm,
-                                const void* cookie,
-                                cb::StoreIfPredicate predicate) {
+cb::engine_errc KVBucket::set(Item& itm,
+                              const void* cookie,
+                              cb::StoreIfPredicate predicate) {
     VBucketPtr vb = getVBucket(itm.getVBucketId());
     if (!vb) {
         ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     // Obtain read-lock on VB state to ensure VB state changes are interlocked
@@ -660,36 +660,36 @@ ENGINE_ERROR_CODE KVBucket::set(Item& itm,
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     } else if (vb->getState() == vbucket_state_replica) {
         ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     } else if (vb->getState() == vbucket_state_pending) {
         if (vb->addPendingOp(cookie)) {
-            return ENGINE_EWOULDBLOCK;
+            return cb::engine_errc::would_block;
         }
     } else if (vb->isTakeoverBackedUp()) {
         EP_LOG_DEBUG(
                 "({}) Returned TMPFAIL to a set op, because "
                 "takeover is lagging",
                 vb->getId());
-        return ENGINE_TMPFAIL;
+        return cb::engine_errc::temporary_failure;
     }
 
-    ENGINE_ERROR_CODE result;
+    cb::engine_errc result;
     { // collections read-lock scope
         auto cHandle = vb->lockCollections(itm.getKey());
         if (!cHandle.valid()) {
             engine.setUnknownCollectionErrorContext(cookie,
                                                     cHandle.getManifestUid());
-            return ENGINE_UNKNOWN_COLLECTION;
+            return cb::engine_errc::unknown_collection;
         } // now hold collections read access for the duration of the set
 
         // maybe need to adjust expiry of item
         cHandle.processExpiryTime(itm, getMaxTtl());
 
         result = vb->set(itm, cookie, engine, predicate, cHandle);
-        if (result == ENGINE_SUCCESS) {
+        if (result == cb::engine_errc::success) {
             cHandle.incrementOpsStore();
         }
     }
@@ -701,12 +701,11 @@ ENGINE_ERROR_CODE KVBucket::set(Item& itm,
     return result;
 }
 
-ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
-{
+cb::engine_errc KVBucket::add(Item& itm, const void* cookie) {
     VBucketPtr vb = getVBucket(itm.getVBucketId());
     if (!vb) {
         ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     // Obtain read-lock on VB state to ensure VB state changes are interlocked
@@ -715,37 +714,37 @@ ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
     if (vb->getState() == vbucket_state_dead ||
         vb->getState() == vbucket_state_replica) {
         ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     } else if (vb->getState() == vbucket_state_pending) {
         if (vb->addPendingOp(cookie)) {
-            return ENGINE_EWOULDBLOCK;
+            return cb::engine_errc::would_block;
         }
     } else if (vb->isTakeoverBackedUp()) {
         EP_LOG_DEBUG(
                 "({}) Returned TMPFAIL to a add op"
                 ", becuase takeover is lagging",
                 vb->getId());
-        return ENGINE_TMPFAIL;
+        return cb::engine_errc::temporary_failure;
     }
 
     if (itm.getCas() != 0) {
         // Adding with a cas value doesn't make sense..
-        return ENGINE_NOT_STORED;
+        return cb::engine_errc::not_stored;
     }
 
-    ENGINE_ERROR_CODE result;
+    cb::engine_errc result;
     { // collections read-lock scope
         auto cHandle = vb->lockCollections(itm.getKey());
         if (!cHandle.valid()) {
             engine.setUnknownCollectionErrorContext(cookie,
                                                     cHandle.getManifestUid());
-            return ENGINE_UNKNOWN_COLLECTION;
+            return cb::engine_errc::unknown_collection;
         } // now hold collections read access for the duration of the add
 
         // maybe need to adjust expiry of item
         cHandle.processExpiryTime(itm, getMaxTtl());
         result = vb->add(itm, cookie, engine, cHandle);
-        if (result == ENGINE_SUCCESS) {
+        if (result == cb::engine_errc::success) {
             cHandle.incrementOpsStore();
         }
     }
@@ -757,13 +756,13 @@ ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
     return result;
 }
 
-ENGINE_ERROR_CODE KVBucket::replace(Item& itm,
-                                    const void* cookie,
-                                    cb::StoreIfPredicate predicate) {
+cb::engine_errc KVBucket::replace(Item& itm,
+                                  const void* cookie,
+                                  cb::StoreIfPredicate predicate) {
     VBucketPtr vb = getVBucket(itm.getVBucketId());
     if (!vb) {
         ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     // Obtain read-lock on VB state to ensure VB state changes are interlocked
@@ -772,26 +771,26 @@ ENGINE_ERROR_CODE KVBucket::replace(Item& itm,
     if (vb->getState() == vbucket_state_dead ||
         vb->getState() == vbucket_state_replica) {
         ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     } else if (vb->getState() == vbucket_state_pending) {
         if (vb->addPendingOp(cookie)) {
-            return ENGINE_EWOULDBLOCK;
+            return cb::engine_errc::would_block;
         }
     }
 
-    ENGINE_ERROR_CODE result;
+    cb::engine_errc result;
     { // collections read-lock scope
         auto cHandle = vb->lockCollections(itm.getKey());
         if (!cHandle.valid()) {
             engine.setUnknownCollectionErrorContext(cookie,
                                                     cHandle.getManifestUid());
-            return ENGINE_UNKNOWN_COLLECTION;
+            return cb::engine_errc::unknown_collection;
         } // now hold collections read access for the duration of the set
 
         // maybe need to adjust expiry of item
         cHandle.processExpiryTime(itm, getMaxTtl());
         result = vb->replace(itm, cookie, engine, predicate, cHandle);
-        if (result == ENGINE_SUCCESS) {
+        if (result == cb::engine_errc::success) {
             cHandle.incrementOpsStore();
         }
     }
@@ -840,11 +839,11 @@ void KVBucket::releaseRegisteredSyncWrites() {
     }
 }
 
-ENGINE_ERROR_CODE KVBucket::setVBucketState(Vbid vbid,
-                                            vbucket_state_t to,
-                                            const nlohmann::json* meta,
-                                            TransferVB transfer,
-                                            const void* cookie) {
+cb::engine_errc KVBucket::setVBucketState(Vbid vbid,
+                                          vbucket_state_t to,
+                                          const nlohmann::json* meta,
+                                          TransferVB transfer,
+                                          const void* cookie) {
     // MB-25197: we shouldn't process setVBState if warmup hasn't yet loaded
     // the vbucket state data.
     if (cookie && maybeWaitForVBucketWarmup(cookie)) {
@@ -855,7 +854,7 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState(Vbid vbid,
                 VBucket::toString(to),
                 transfer,
                 cookie);
-        return ENGINE_EWOULDBLOCK;
+        return cb::engine_errc::would_block;
     }
 
     // Lock to prevent a race condition between a failed update and add.
@@ -868,9 +867,9 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState(Vbid vbid,
     } else if (vbid.get() < vbMap.getSize()) {
         return createVBucket_UNLOCKED(vbid, to, meta, lh);
     } else {
-        return ENGINE_ERANGE;
+        return cb::engine_errc::out_of_range;
     }
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 void KVBucket::setVBucketState_UNLOCKED(
@@ -895,8 +894,8 @@ void KVBucket::setVBucketState_UNLOCKED(
     // SyncWrites after sending these notifications.
     if (vb->getState() == vbucket_state_active && to != vb->getState()) {
         // At state change to !active we should return
-        // ENGINE_SYNC_WRITE_AMBIGUOUS to any clients waiting for the result
-        // of a SyncWrite as they will timeout anyway.
+        // cb::engine_errc::sync_write_ambiguous to any clients waiting for the
+        // result of a SyncWrite as they will timeout anyway.
 
         // Get a list of cookies that we should respond to
         auto connectionsToRespondTo = vb->prepareTransitionAwayFromActive();
@@ -976,7 +975,7 @@ void KVBucket::setVBucketState_UNLOCKED(
     scheduleVBStatePersist(vb->getId());
 }
 
-ENGINE_ERROR_CODE KVBucket::createVBucket_UNLOCKED(
+cb::engine_errc KVBucket::createVBucket_UNLOCKED(
         Vbid vbid,
         vbucket_state_t to,
         const nlohmann::json* meta,
@@ -1018,8 +1017,8 @@ ENGINE_ERROR_CODE KVBucket::createVBucket_UNLOCKED(
         collectionsManager->update(*newvb);
     }
 
-    if (vbMap.addBucket(newvb) == ENGINE_ERANGE) {
-        return ENGINE_ERANGE;
+    if (vbMap.addBucket(newvb) == cb::engine_errc::out_of_range) {
+        return cb::engine_errc::out_of_range;
     }
 
     // @todo-durability: Can the following happen?
@@ -1036,7 +1035,7 @@ ENGINE_ERROR_CODE KVBucket::createVBucket_UNLOCKED(
     // persistenceSeqno(0) && persistenceCheckpointId(0)
     newvb->setBucketCreation(true);
     scheduleVBStatePersist(vbid);
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 void KVBucket::scheduleVBStatePersist() {
@@ -1059,12 +1058,12 @@ void KVBucket::scheduleVBStatePersist(Vbid vbid) {
     vb->checkpointManager->queueSetVBState(*vb);
 }
 
-ENGINE_ERROR_CODE KVBucket::deleteVBucket(Vbid vbid, const void* c) {
+cb::engine_errc KVBucket::deleteVBucket(Vbid vbid, const void* c) {
     // Lock to prevent a race condition between a failed update and add
     // (and delete).
     VBucketPtr vb = vbMap.getBucket(vbid);
     if (!vb) {
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     {
@@ -1085,25 +1084,25 @@ ENGINE_ERROR_CODE KVBucket::deleteVBucket(Vbid vbid, const void* c) {
     }
 
     if (c) {
-        return ENGINE_EWOULDBLOCK;
+        return cb::engine_errc::would_block;
     }
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE KVBucket::checkForDBExistence(Vbid db_file_id) {
+cb::engine_errc KVBucket::checkForDBExistence(Vbid db_file_id) {
     std::string backend = engine.getConfiguration().getBackend();
     if (backend.compare("couchdb") == 0 || backend.compare("magma") == 0) {
         VBucketPtr vb = vbMap.getBucket(db_file_id);
         if (!vb) {
-            return ENGINE_NOT_MY_VBUCKET;
+            return cb::engine_errc::not_my_vbucket;
         }
     } else {
         EP_LOG_WARN("Unknown backend specified for db file id: {}",
                     db_file_id.get());
-        return ENGINE_FAILED;
+        return cb::engine_errc::failed;
     }
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 bool KVBucket::resetVBucket(Vbid vbid) {
@@ -1161,9 +1160,9 @@ static void snapshot_add_stat(std::string_view key,
 void KVBucket::snapshotStats() {
     snapshot_add_stat_cookie snap;
     bool rv = engine.getStats(&snap, {}, {}, snapshot_add_stat) ==
-                      ENGINE_SUCCESS &&
+                      cb::engine_errc::success &&
               engine.getStats(&snap, "dcp", {}, snapshot_add_stat) ==
-                      ENGINE_SUCCESS;
+                      cb::engine_errc::success;
 
     if (rv && stats.isShutdown) {
         snap.smap["ep_force_shutdown"] = stats.forceShutdown ? "true" : "false";
@@ -1479,9 +1478,10 @@ void KVBucket::completeBGFetchMulti(
                         std::chrono::steady_clock::now().time_since_epoch())
                         .count());
     } else {
-        std::map<const void*, ENGINE_ERROR_CODE> toNotify;
+        std::map<const void*, cb::engine_errc> toNotify;
         for (const auto& item : fetchedItems) {
-            item.second->abort(engine, ENGINE_NOT_MY_VBUCKET, toNotify);
+            item.second->abort(
+                    engine, cb::engine_errc::not_my_vbucket, toNotify);
         }
         for (auto& notify : toNotify) {
             engine.notifyIOComplete(notify.first, notify.second);
@@ -1503,7 +1503,7 @@ GetValue KVBucket::getInternal(const DocKey& key,
 
     if (!vb) {
         ++stats.numNotMyVBuckets;
-        return GetValue(nullptr, ENGINE_NOT_MY_VBUCKET);
+        return GetValue(nullptr, cb::engine_errc::not_my_vbucket);
     }
 
     const bool honorStates = (options & HONOR_STATES);
@@ -1517,25 +1517,26 @@ GetValue KVBucket::getInternal(const DocKey& key,
         vbucket_state_t vbState = vb->getState();
         if (vbState == vbucket_state_dead) {
             ++stats.numNotMyVBuckets;
-            return GetValue(nullptr, ENGINE_NOT_MY_VBUCKET);
+            return GetValue(nullptr, cb::engine_errc::not_my_vbucket);
         } else if (vbState == disallowedState) {
             ++stats.numNotMyVBuckets;
-            return GetValue(nullptr, ENGINE_NOT_MY_VBUCKET);
+            return GetValue(nullptr, cb::engine_errc::not_my_vbucket);
         } else if (vbState == vbucket_state_pending) {
             /*
              * If the vbucket is in a pending state and
              * we are performing a getReplica then instead of adding the
-             * operation to the pendingOps list return ENGINE_NOT_MY_VBUCKET.
+             * operation to the pendingOps list return
+             * cb::engine_errc::not_my_vbucket.
              */
             if (getReplicaItem == ForGetReplicaOp::Yes) {
                 ++stats.numNotMyVBuckets;
-                return GetValue(nullptr, ENGINE_NOT_MY_VBUCKET);
+                return GetValue(nullptr, cb::engine_errc::not_my_vbucket);
             }
             if (vb->addPendingOp(cookie)) {
                 if (options & TRACK_STATISTICS) {
                     vb->opsGet++;
                 }
-                return GetValue(nullptr, ENGINE_EWOULDBLOCK);
+                return GetValue(nullptr, cb::engine_errc::would_block);
             }
         }
     }
@@ -1545,7 +1546,7 @@ GetValue KVBucket::getInternal(const DocKey& key,
         if (!cHandle.valid()) {
             engine.setUnknownCollectionErrorContext(cookie,
                                                     cHandle.getManifestUid());
-            return GetValue(nullptr, ENGINE_UNKNOWN_COLLECTION);
+            return GetValue(nullptr, cb::engine_errc::unknown_collection);
         }
 
         auto result = vb->getInternal(cookie,
@@ -1555,7 +1556,7 @@ GetValue KVBucket::getInternal(const DocKey& key,
                                       cHandle,
                                       getReplicaItem);
 
-        if (result.getStatus() != ENGINE_EWOULDBLOCK) {
+        if (result.getStatus() != cb::engine_errc::would_block) {
             cHandle.incrementOpsGet();
         }
         return result;
@@ -1577,12 +1578,14 @@ GetValue KVBucket::getRandomKey(CollectionID cid, const void* cookie) {
                 if (!cHandle.exists(cid)) {
                     engine.setUnknownCollectionErrorContext(
                             cookie, cHandle.getManifestUid());
-                    return GetValue(nullptr, ENGINE_UNKNOWN_COLLECTION);
+                    return GetValue(nullptr,
+                                    cb::engine_errc::unknown_collection);
                 }
                 if (cHandle.getItemCount(cid) != 0) {
                     if (auto retItm = vb->ht.getRandomKey(cid, getRandom());
                         retItm) {
-                        return GetValue(std::move(retItm), ENGINE_SUCCESS);
+                        return GetValue(std::move(retItm),
+                                        cb::engine_errc::success);
                     }
                 }
             }
@@ -1597,27 +1600,27 @@ GetValue KVBucket::getRandomKey(CollectionID cid, const void* cookie) {
         // Search next vbucket
     }
 
-    return GetValue(nullptr, ENGINE_KEY_ENOENT);
+    return GetValue(nullptr, cb::engine_errc::no_such_key);
 }
 
-ENGINE_ERROR_CODE KVBucket::getMetaData(const DocKey& key,
-                                        Vbid vbucket,
-                                        const void* cookie,
-                                        ItemMetaData& metadata,
-                                        uint32_t& deleted,
-                                        uint8_t& datatype) {
+cb::engine_errc KVBucket::getMetaData(const DocKey& key,
+                                      Vbid vbucket,
+                                      const void* cookie,
+                                      ItemMetaData& metadata,
+                                      uint32_t& deleted,
+                                      uint8_t& datatype) {
     VBucketPtr vb = getVBucket(vbucket);
 
     if (!vb) {
         ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (vb->getState() == vbucket_state_dead ||
         vb->getState() == vbucket_state_replica) {
         ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     { // collections read scope
@@ -1625,7 +1628,7 @@ ENGINE_ERROR_CODE KVBucket::getMetaData(const DocKey& key,
         if (!cHandle.valid()) {
             engine.setUnknownCollectionErrorContext(cookie,
                                                     cHandle.getManifestUid());
-            return ENGINE_UNKNOWN_COLLECTION;
+            return cb::engine_errc::unknown_collection;
         }
 
         return vb->getMetaData(
@@ -1633,53 +1636,53 @@ ENGINE_ERROR_CODE KVBucket::getMetaData(const DocKey& key,
     }
 }
 
-ENGINE_ERROR_CODE KVBucket::setWithMeta(Item& itm,
-                                        uint64_t cas,
-                                        uint64_t* seqno,
-                                        const void* cookie,
-                                        PermittedVBStates permittedVBStates,
-                                        CheckConflicts checkConflicts,
-                                        bool allowExisting,
-                                        GenerateBySeqno genBySeqno,
-                                        GenerateCas genCas,
-                                        ExtendedMetaData* emd) {
+cb::engine_errc KVBucket::setWithMeta(Item& itm,
+                                      uint64_t cas,
+                                      uint64_t* seqno,
+                                      const void* cookie,
+                                      PermittedVBStates permittedVBStates,
+                                      CheckConflicts checkConflicts,
+                                      bool allowExisting,
+                                      GenerateBySeqno genBySeqno,
+                                      GenerateCas genCas,
+                                      ExtendedMetaData* emd) {
     VBucketPtr vb = getVBucket(itm.getVBucketId());
     if (!vb) {
         ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (!permittedVBStates.test(vb->getState())) {
         if (vb->getState() == vbucket_state_pending) {
             if (vb->addPendingOp(cookie)) {
-                return ENGINE_EWOULDBLOCK;
+                return cb::engine_errc::would_block;
             }
         } else {
             ++stats.numNotMyVBuckets;
-            return ENGINE_NOT_MY_VBUCKET;
+            return cb::engine_errc::not_my_vbucket;
         }
     } else if (vb->isTakeoverBackedUp()) {
         EP_LOG_DEBUG(
                 "({}) Returned TMPFAIL to a setWithMeta op"
                 ", becuase takeover is lagging",
                 vb->getId());
-        return ENGINE_TMPFAIL;
+        return cb::engine_errc::temporary_failure;
     }
 
     //check for the incoming item's CAS validity
     if (!Item::isValidCas(itm.getCas())) {
-        return ENGINE_KEY_EEXISTS;
+        return cb::engine_errc::key_already_exists;
     }
 
-    ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
+    cb::engine_errc rv = cb::engine_errc::success;
     { // hold collections read lock for duration of set
 
         auto cHandle = vb->lockCollections(itm.getKey());
         if (!cHandle.valid()) {
             engine.setUnknownCollectionErrorContext(cookie,
                                                     cHandle.getManifestUid());
-            rv = ENGINE_UNKNOWN_COLLECTION;
+            rv = cb::engine_errc::unknown_collection;
         } else {
             cHandle.processExpiryTime(itm, getMaxTtl());
             rv = vb->setWithMeta(itm,
@@ -1695,17 +1698,17 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item& itm,
         }
     }
 
-    if (rv == ENGINE_SUCCESS) {
+    if (rv == cb::engine_errc::success) {
         checkAndMaybeFreeMemory();
     }
     return rv;
 }
 
-ENGINE_ERROR_CODE KVBucket::prepare(Item& itm, const void* cookie) {
+cb::engine_errc KVBucket::prepare(Item& itm, const void* cookie) {
     VBucketPtr vb = getVBucket(itm.getVBucketId());
     if (!vb) {
         ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
@@ -1713,22 +1716,22 @@ ENGINE_ERROR_CODE KVBucket::prepare(Item& itm, const void* cookie) {
                                            vbucket_state_pending};
     if (!permittedVBStates.test(vb->getState())) {
         ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     // check for the incoming item's CAS validity
     if (!Item::isValidCas(itm.getCas())) {
-        return ENGINE_KEY_EEXISTS;
+        return cb::engine_errc::key_already_exists;
     }
 
-    ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
+    cb::engine_errc rv = cb::engine_errc::success;
     { // hold collections read lock for duration of prepare
 
         auto cHandle = vb->lockCollections(itm.getKey());
         if (!cHandle.valid()) {
             engine.setUnknownCollectionErrorContext(cookie,
                                                     cHandle.getManifestUid());
-            rv = ENGINE_UNKNOWN_COLLECTION;
+            rv = cb::engine_errc::unknown_collection;
         } else {
             cHandle.processExpiryTime(itm, getMaxTtl());
             rv = vb->prepare(itm,
@@ -1744,7 +1747,7 @@ ENGINE_ERROR_CODE KVBucket::prepare(Item& itm, const void* cookie) {
         }
     }
 
-    if (rv == ENGINE_SUCCESS) {
+    if (rv == cb::engine_errc::success) {
         checkAndMaybeFreeMemory();
     }
     return rv;
@@ -1757,19 +1760,19 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb) {
         ++stats.numNotMyVBuckets;
-        return GetValue(nullptr, ENGINE_NOT_MY_VBUCKET);
+        return GetValue(nullptr, cb::engine_errc::not_my_vbucket);
     }
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
-        return GetValue(nullptr, ENGINE_NOT_MY_VBUCKET);
+        return GetValue(nullptr, cb::engine_errc::not_my_vbucket);
     } else if (vb->getState() == vbucket_state_replica) {
         ++stats.numNotMyVBuckets;
-        return GetValue(nullptr, ENGINE_NOT_MY_VBUCKET);
+        return GetValue(nullptr, cb::engine_errc::not_my_vbucket);
     } else if (vb->getState() == vbucket_state_pending) {
         if (vb->addPendingOp(cookie)) {
-            return GetValue(nullptr, ENGINE_EWOULDBLOCK);
+            return GetValue(nullptr, cb::engine_errc::would_block);
         }
     }
 
@@ -1778,7 +1781,7 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
         if (!cHandle.valid()) {
             engine.setUnknownCollectionErrorContext(cookie,
                                                     cHandle.getManifestUid());
-            return GetValue(nullptr, ENGINE_UNKNOWN_COLLECTION);
+            return GetValue(nullptr, cb::engine_errc::unknown_collection);
         }
 
         auto result = vb->getAndUpdateTtl(
@@ -1787,7 +1790,7 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
                 cHandle.processExpiryTime(exptime, getMaxTtl()),
                 cHandle);
 
-        if (result.getStatus() == ENGINE_SUCCESS) {
+        if (result.getStatus() == cb::engine_errc::success) {
             cHandle.incrementOpsStore();
             cHandle.incrementOpsGet();
         }
@@ -1803,52 +1806,52 @@ GetValue KVBucket::getLocked(const DocKey& key,
     auto vb = getVBucket(vbucket);
     if (!vb) {
         ++stats.numNotMyVBuckets;
-        return GetValue(nullptr, ENGINE_NOT_MY_VBUCKET);
+        return GetValue(nullptr, cb::engine_errc::not_my_vbucket);
     }
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (vb->getState() != vbucket_state_active) {
         ++stats.numNotMyVBuckets;
-        return GetValue(nullptr, ENGINE_NOT_MY_VBUCKET);
+        return GetValue(nullptr, cb::engine_errc::not_my_vbucket);
     }
 
     auto cHandle = vb->lockCollections(key);
     if (!cHandle.valid()) {
         engine.setUnknownCollectionErrorContext(cookie,
                                                 cHandle.getManifestUid());
-        return GetValue(nullptr, ENGINE_UNKNOWN_COLLECTION);
+        return GetValue(nullptr, cb::engine_errc::unknown_collection);
     }
 
     auto result =
             vb->getLocked(currentTime, lockTimeout, cookie, engine, cHandle);
-    if (result.getStatus() == ENGINE_SUCCESS) {
+    if (result.getStatus() == cb::engine_errc::success) {
         cHandle.incrementOpsGet();
     }
     return result;
 }
 
-ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
-                                      Vbid vbucket,
-                                      uint64_t cas,
-                                      rel_time_t currentTime,
-                                      const void* cookie) {
+cb::engine_errc KVBucket::unlockKey(const DocKey& key,
+                                    Vbid vbucket,
+                                    uint64_t cas,
+                                    rel_time_t currentTime,
+                                    const void* cookie) {
     auto vb = getVBucket(vbucket);
     if (!vb) {
         ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (vb->getState() != vbucket_state_active) {
         ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     auto cHandle = vb->lockCollections(key);
     if (!cHandle.valid()) {
         engine.setUnknownCollectionErrorContext(cookie,
                                                 cHandle.getManifestUid());
-        return ENGINE_UNKNOWN_COLLECTION;
+        return cb::engine_errc::unknown_collection;
     }
 
     auto res = vb->fetchValueForWrite(cHandle, QueueExpired::Yes);
@@ -1857,45 +1860,45 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
         auto* v = res.storedValue;
         if (VBucket::isLogicallyNonExistent(*v, cHandle)) {
             vb->ht.cleanupIfTemporaryItem(res.lock, *v);
-            return ENGINE_KEY_ENOENT;
+            return cb::engine_errc::no_such_key;
         }
         if (v->isLocked(currentTime)) {
             if (v->getCas() == cas) {
                 v->unlock();
-                return ENGINE_SUCCESS;
+                return cb::engine_errc::success;
             }
-            return ENGINE_LOCKED_TMPFAIL;
+            return cb::engine_errc::locked_tmpfail;
         }
-        return ENGINE_TMPFAIL;
+        return cb::engine_errc::temporary_failure;
     }
     case VBucket::FetchForWriteResult::Status::OkVacant:
         if (eviction_policy == EvictionPolicy::Value) {
-            return ENGINE_KEY_ENOENT;
+            return cb::engine_errc::no_such_key;
         } else {
             // With the full eviction, an item's lock is automatically
             // released when the item is evicted from memory. Therefore,
-            // we simply return ENGINE_TMPFAIL when we receive unlockKey
-            // for an item that is not in memocy cache. Note that we don't
-            // spawn any bg fetch job to figure out if an item actually
-            // exists in disk or not.
-            return ENGINE_TMPFAIL;
+            // we simply return cb::engine_errc::temporary_failure when we
+            // receive unlockKey for an item that is not in memocy cache. Note
+            // that we don't spawn any bg fetch job to figure out if an item
+            // actually exists in disk or not.
+            return cb::engine_errc::temporary_failure;
         }
 
     case VBucket::FetchForWriteResult::Status::ESyncWriteInProgress:
-        return ENGINE_SYNC_WRITE_IN_PROGRESS;
+        return cb::engine_errc::sync_write_in_progress;
     }
     folly::assume_unreachable();
 }
 
-ENGINE_ERROR_CODE KVBucket::getKeyStats(const DocKey& key,
-                                        Vbid vbucket,
-                                        const void* cookie,
-                                        struct key_stats& kstats,
-                                        WantsDeleted wantsDeleted) {
+cb::engine_errc KVBucket::getKeyStats(const DocKey& key,
+                                      Vbid vbucket,
+                                      const void* cookie,
+                                      struct key_stats& kstats,
+                                      WantsDeleted wantsDeleted) {
     auto vb = getVBucket(vbucket);
     if (!vb) {
         ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
@@ -1903,7 +1906,7 @@ ENGINE_ERROR_CODE KVBucket::getKeyStats(const DocKey& key,
     if (!cHandle.valid()) {
         engine.setUnknownCollectionErrorContext(cookie,
                                                 cHandle.getManifestUid());
-        return ENGINE_UNKNOWN_COLLECTION;
+        return cb::engine_errc::unknown_collection;
     }
 
     return vb->getKeyStats(cookie, engine, kstats, wantsDeleted, cHandle);
@@ -1942,7 +1945,7 @@ std::string KVBucket::validateKey(const DocKey& key,
     }
 }
 
-ENGINE_ERROR_CODE KVBucket::deleteItem(
+cb::engine_errc KVBucket::deleteItem(
         const DocKey& key,
         uint64_t& cas,
         Vbid vbucket,
@@ -1953,35 +1956,35 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(
     auto vb = getVBucket(vbucket);
     if (!vb) {
         ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     } else if (vb->getState() == vbucket_state_replica) {
         ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     } else if (vb->getState() == vbucket_state_pending) {
         if (vb->addPendingOp(cookie)) {
-            return ENGINE_EWOULDBLOCK;
+            return cb::engine_errc::would_block;
         }
     } else if (vb->isTakeoverBackedUp()) {
         EP_LOG_DEBUG(
                 "({}) Returned TMPFAIL to a delete op"
                 ", becuase takeover is lagging",
                 vb->getId());
-        return ENGINE_TMPFAIL;
+        return cb::engine_errc::temporary_failure;
     }
 
-    ENGINE_ERROR_CODE result;
+    cb::engine_errc result;
     { // collections read scope
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
             engine.setUnknownCollectionErrorContext(cookie,
                                                     cHandle.getManifestUid());
-            return ENGINE_UNKNOWN_COLLECTION;
+            return cb::engine_errc::unknown_collection;
         }
 
         result = vb->deleteItem(
@@ -1995,47 +1998,47 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(
     return result;
 }
 
-ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
-                                           uint64_t& cas,
-                                           uint64_t* seqno,
-                                           Vbid vbucket,
-                                           const void* cookie,
-                                           PermittedVBStates permittedVBStates,
-                                           CheckConflicts checkConflicts,
-                                           const ItemMetaData& itemMeta,
-                                           GenerateBySeqno genBySeqno,
-                                           GenerateCas generateCas,
-                                           uint64_t bySeqno,
-                                           ExtendedMetaData* emd,
-                                           DeleteSource deleteSource) {
+cb::engine_errc KVBucket::deleteWithMeta(const DocKey& key,
+                                         uint64_t& cas,
+                                         uint64_t* seqno,
+                                         Vbid vbucket,
+                                         const void* cookie,
+                                         PermittedVBStates permittedVBStates,
+                                         CheckConflicts checkConflicts,
+                                         const ItemMetaData& itemMeta,
+                                         GenerateBySeqno genBySeqno,
+                                         GenerateCas generateCas,
+                                         uint64_t bySeqno,
+                                         ExtendedMetaData* emd,
+                                         DeleteSource deleteSource) {
     VBucketPtr vb = getVBucket(vbucket);
 
     if (!vb) {
         ++stats.numNotMyVBuckets;
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (!permittedVBStates.test(vb->getState())) {
         if (vb->getState() == vbucket_state_pending) {
             if (vb->addPendingOp(cookie)) {
-                return ENGINE_EWOULDBLOCK;
+                return cb::engine_errc::would_block;
             }
         } else {
             ++stats.numNotMyVBuckets;
-            return ENGINE_NOT_MY_VBUCKET;
+            return cb::engine_errc::not_my_vbucket;
         }
     } else if (vb->isTakeoverBackedUp()) {
         EP_LOG_DEBUG(
                 "({}) Returned TMPFAIL to a deleteWithMeta op"
                 ", becuase takeover is lagging",
                 vb->getId());
-        return ENGINE_TMPFAIL;
+        return cb::engine_errc::temporary_failure;
     }
 
     //check for the incoming item's CAS validity
     if (!Item::isValidCas(itemMeta.cas)) {
-        return ENGINE_KEY_EEXISTS;
+        return cb::engine_errc::key_already_exists;
     }
 
     { // hold collections read lock for duration of delete
@@ -2043,7 +2046,7 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
         if (!cHandle.valid()) {
             engine.setUnknownCollectionErrorContext(cookie,
                                                     cHandle.getManifestUid());
-            return ENGINE_UNKNOWN_COLLECTION;
+            return cb::engine_errc::unknown_collection;
         }
 
         return vb->deleteWithMeta(cas,
@@ -2600,13 +2603,13 @@ size_t KVBucket::getReplicaResidentRatio() const {
     return cachedResidentRatio.replicaRatio.load();
 }
 
-ENGINE_ERROR_CODE KVBucket::forceMaxCas(Vbid vbucket, uint64_t cas) {
+cb::engine_errc KVBucket::forceMaxCas(Vbid vbucket, uint64_t cas) {
     VBucketPtr vb = vbMap.getBucket(vbucket);
     if (vb) {
         vb->forceMaxCas(cas);
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
-    return ENGINE_NOT_MY_VBUCKET;
+    return cb::engine_errc::not_my_vbucket;
 }
 
 std::ostream& operator<<(std::ostream& os, const KVBucket::Position& pos) {
@@ -2757,8 +2760,8 @@ SyncWriteResolvedCallback KVBucket::makeSyncWriteResolvedCB() {
 
 SyncWriteCompleteCallback KVBucket::makeSyncWriteCompleteCB() {
     return [&engine = this->engine](const void* cookie,
-                                    ENGINE_ERROR_CODE status) {
-        if (status != ENGINE_SUCCESS) {
+                                    cb::engine_errc status) {
+        if (status != cb::engine_errc::success) {
             // For non-success status codes clear the cookie's engine_specific;
             // as the operation is now complete. This ensures that any
             // subsequent call by the same cookie to store() is treated as a new
@@ -2786,14 +2789,14 @@ void KVBucket::setRWRO(size_t shardId,
     vbMap.shards[shardId]->setRWUnderlying(std::move(rw));
 }
 
-ENGINE_ERROR_CODE KVBucket::setMinDurabilityLevel(cb::durability::Level level) {
+cb::engine_errc KVBucket::setMinDurabilityLevel(cb::durability::Level level) {
     if (!isValidBucketDurabilityLevel(level)) {
-        return ENGINE_DURABILITY_INVALID_LEVEL;
+        return cb::engine_errc::durability_invalid_level;
     }
 
     minDurabilityLevel = level;
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 cb::durability::Level KVBucket::getMinDurabilityLevel() const {

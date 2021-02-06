@@ -1109,7 +1109,7 @@ std::map<std::string, std::string> MemcachedConnection::statsMap(
 }
 
 void MemcachedConnection::configureEwouldBlockEngine(const EWBEngineMode& mode,
-                                                     ENGINE_ERROR_CODE err_code,
+                                                     cb::engine_errc err_code,
                                                      uint32_t value,
                                                      const std::string& key) {
     cb::mcbp::request::EWB_Payload payload;

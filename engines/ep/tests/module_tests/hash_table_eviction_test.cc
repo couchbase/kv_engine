@@ -153,7 +153,7 @@ protected:
         noOfAccesses = std::get<5>(GetParam());
     }
 
-    ENGINE_ERROR_CODE storeItem(Item& item) {
+    cb::engine_errc storeItem(Item& item) {
         uint64_t cas = 0;
         return engine->storeInner(
                 cookie, item, cas, StoreSemantics::Set, false);
@@ -162,14 +162,14 @@ protected:
     /**
      * Write documents to the bucket until they fail with TMP_FAIL.
      * Note this stores via external API (epstore) so we trigger the
-     * memoryCondition() code in the event of ENGINE_ENOMEM.
+     * memoryCondition() code in the event of cb::engine_errc::no_memory.
      */
     void populateUntilTmpFail() {
         const std::string value(512, 'x'); // 512B value to use for documents.
-        ENGINE_ERROR_CODE result = ENGINE_SUCCESS;
+        cb::engine_errc result = cb::engine_errc::success;
         uint16_t vbid = 0;
 
-        while (result == ENGINE_SUCCESS) {
+        while (result == cb::engine_errc::success) {
             noOfDocs++;
             //
             if (noOfDocs % int(500 / noOfVBs) == 0) {
@@ -184,7 +184,7 @@ protected:
             vbucketLookup.insert(std::pair<size_t, Vbid>(noOfDocs, Vbid(vbid)));
         }
 
-        EXPECT_EQ(ENGINE_TMPFAIL, result);
+        EXPECT_EQ(cb::engine_errc::temporary_failure, result);
         // Fixup noOfDocs for last loop iteration.
         --noOfDocs;
 
@@ -301,7 +301,7 @@ protected:
         uint32_t evicted = 0;
         while (kk <= noOfDocs) {
             std::string key = "DOC_" + std::to_string(kk);
-            auto result = ENGINE_KEY_ENOENT;
+            auto result = cb::engine_errc::no_such_key;
             key_stats kstats;
             kstats.resident = false;
 
@@ -317,7 +317,7 @@ protected:
                                         kstats,
                                         WantsDeleted::No);
 
-            if (result == ENGINE_SUCCESS && kstats.resident) {
+            if (result == cb::engine_errc::success && kstats.resident) {
                 std::cerr << key << " " << vbucket << " RESIDENT" << std::endl;
             } else {
                 std::cerr << key << " " << vbucket << " EVICT" << std::endl;

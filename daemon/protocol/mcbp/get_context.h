@@ -55,7 +55,7 @@ protected:
      *         the connections state to one of the appropriate states (send
      *         data, or start processing the next command)
      */
-    ENGINE_ERROR_CODE step() override;
+    cb::engine_errc step() override;
 
     /**
      * We've got 4 different permutations of the retrieval commands where
@@ -71,8 +71,8 @@ protected:
 
     /**
      * Try to lookup the named item in the underlying engine. Given that
-     * the engine may block we would return ENGINE_EWOULDBLOCK in these cases
-     * (that could in theory happen multiple times etc).
+     * the engine may block we would return cb::engine_errc::would_block in
+     * these cases (that could in theory happen multiple times etc).
      *
      * If the document is found we may move to the State::InflateItem if we
      * have to inflate the item before we can send it to the client (that
@@ -83,11 +83,11 @@ protected:
      * the client won't freak out if we send compressed data) we'll progress
      * into the State::SendResponse state.
      *
-     * @return ENGINE_EWOULDBLOCK if the underlying engine needs to block
-     *         ENGINE_SUCCESS if we want to continue to run the state diagram
-     *         a standard engine error code if something goes wrong
+     * @return cb::engine_errc::would_block if the underlying engine needs to
+     * block cb::engine_errc::success if we want to continue to run the state
+     * diagram a standard engine error code if something goes wrong
      */
-    ENGINE_ERROR_CODE getItem();
+    cb::engine_errc getItem();
 
     /**
      * Handle the case where the item isn't found. If the client don't want
@@ -96,19 +96,19 @@ protected:
      *
      * The next state would be State::Done :-)
      *
-     * @return ENGINE_SUCCESS if we want to continue to run the state diagram
-     *         a standard engine error code if something goes wrong
+     * @return cb::engine_errc::success if we want to continue to run the state
+     * diagram a standard engine error code if something goes wrong
      */
-    ENGINE_ERROR_CODE noSuchItem();
+    cb::engine_errc noSuchItem();
 
     /**
      * Inflate the document before progressing to State::SendResponse
      *
-     * @return ENGINE_FAILED if inflate failed
-     *         ENGINE_ENOMEM if we're out of memory
-     *         ENGINE_SUCCESS to go to the next state
+     * @return cb::engine_errc::failed if inflate failed
+     *         cb::engine_errc::no_memory if we're out of memory
+     *         cb::engine_errc::success to go to the next state
      */
-    ENGINE_ERROR_CODE inflateItem();
+    cb::engine_errc inflateItem();
 
     /**
      * Craft up the response message and send it to the client. Given that
@@ -117,9 +117,9 @@ protected:
      * directly into the actual item (or the temporary allocated inflated
      * buffer).
      *
-     * @return ENGINE_DISCONNECT or ENGINE_SUCCESS
+     * @return cb::engine_errc::disconnect or cb::engine_errc::success
      */
-    ENGINE_ERROR_CODE sendResponse();
+    cb::engine_errc sendResponse();
 
 private:
     const Vbid vbucket;

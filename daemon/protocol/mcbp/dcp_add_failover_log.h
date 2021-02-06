@@ -23,5 +23,5 @@
 
 class Cookie;
 /** Callback from the engine adding the response */
-ENGINE_ERROR_CODE add_failover_log(std::vector<vbucket_failover_t> entries,
-                                   Cookie& cookie);
+cb::engine_errc add_failover_log(std::vector<vbucket_failover_t> entries,
+                                 Cookie& cookie);

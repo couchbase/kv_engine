@@ -181,13 +181,13 @@ struct MockServerLogApi : public ServerLogIface {
 };
 
 struct MockServerDocumentApi : public ServerDocumentIface {
-    ENGINE_ERROR_CODE pre_link(gsl::not_null<const void*> cookie,
-                               item_info& info) override {
+    cb::engine_errc pre_link(gsl::not_null<const void*> cookie,
+                             item_info& info) override {
         if (pre_link_function) {
             pre_link_function(info);
         }
 
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     std::string pre_expiry(const item_info& itm_info) override {
@@ -327,8 +327,8 @@ struct MockServerCookieApi : public ServerCookieIface {
     }
 
     cb::mcbp::Status engine_error2mcbp(gsl::not_null<const void*> cookie,
-                                       ENGINE_ERROR_CODE code) override {
-        if (code == ENGINE_DISCONNECT) {
+                                       cb::engine_errc code) override {
+        if (code == cb::engine_errc::disconnect) {
             return cb::mcbp::Status(cb::engine_errc(-1));
         }
 
@@ -387,7 +387,7 @@ struct MockServerCookieApi : public ServerCookieIface {
     }
 
     void notify_io_complete(gsl::not_null<const void*> cookie,
-                            ENGINE_ERROR_CODE status) override {
+                            cb::engine_errc status) override {
         auto* c = cookie_to_mock_cookie(cookie.get());
         std::lock_guard<std::mutex> guard(c->mutex);
         c->status = status;
@@ -396,7 +396,7 @@ struct MockServerCookieApi : public ServerCookieIface {
     }
 
     void scheduleDcpStep(gsl::not_null<const void*> cookie) override {
-        notify_io_complete(cookie, ENGINE_SUCCESS);
+        notify_io_complete(cookie, cb::engine_errc::success);
     }
 };
 

@@ -22,11 +22,11 @@
 
 bool ConfigureEvent::process(AuditImpl& audit) {
     if (audit.reconfigure(file)) {
-        audit.notify_io_complete(cookie, ENGINE_SUCCESS);
+        audit.notify_io_complete(cookie, cb::engine_errc::success);
         return true;
     }
 
     LOG_WARNING("Audit: error performing configuration");
-    audit.notify_io_complete(cookie, ENGINE_FAILED);
+    audit.notify_io_complete(cookie, cb::engine_errc::failed);
     return false;
 }

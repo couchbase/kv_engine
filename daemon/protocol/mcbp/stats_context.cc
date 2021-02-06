@@ -155,20 +155,20 @@ static void process_bucket_details(Cookie& cookie) {
  * @param arg - should be empty
  * @param cookie the command context
  */
-static ENGINE_ERROR_CODE stat_reset_executor(const std::string& arg,
-                                             Cookie& cookie) {
+static cb::engine_errc stat_reset_executor(const std::string& arg,
+                                           Cookie& cookie) {
     if (arg.empty()) {
         stats_reset(cookie);
         bucket_reset_stats(cookie);
         all_buckets[0].timings.reset();
         all_buckets[cookie.getConnection().getBucketIndex()].timings.reset();
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     } else if (arg == "timings") {
         // Nuke the command timings section for the connected bucket
         all_buckets[cookie.getConnection().getBucketIndex()].timings.reset();
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     } else {
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 }
 
@@ -179,8 +179,8 @@ static ENGINE_ERROR_CODE stat_reset_executor(const std::string& arg,
  * @param arg - should be empty
  * @param cookie the command context
  */
-static ENGINE_ERROR_CODE stat_sched_executor(const std::string& arg,
-                                             Cookie& cookie) {
+static cb::engine_errc stat_sched_executor(const std::string& arg,
+                                           Cookie& cookie) {
     if (arg.empty()) {
         for (size_t ii = 0; ii < Settings::instance().getNumWorkerThreads();
              ++ii) {
@@ -188,7 +188,7 @@ static ENGINE_ERROR_CODE stat_sched_executor(const std::string& arg,
             std::string key = std::to_string(ii);
             append_stats(key, hist, &cookie);
         }
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     if (arg == "aggregate") {
@@ -200,10 +200,10 @@ static ENGINE_ERROR_CODE stat_sched_executor(const std::string& arg,
         // Add the stat
         auto hist = histogram.to_string();
         append_stats(key, hist, &cookie);
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
-    return ENGINE_EINVAL;
+    return cb::engine_errc::invalid_arguments;
 }
 
 /**
@@ -213,14 +213,14 @@ static ENGINE_ERROR_CODE stat_sched_executor(const std::string& arg,
  * @param arg - should be empty
  * @param cookie the command context
  */
-static ENGINE_ERROR_CODE stat_audit_executor(const std::string& arg,
-                                             Cookie& cookie) {
+static cb::engine_errc stat_audit_executor(const std::string& arg,
+                                           Cookie& cookie) {
     if (arg.empty()) {
         CBStatCollector collector(appendStatsFn, &cookie, get_server_api());
         stats_audit(collector);
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     } else {
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 }
 
@@ -231,13 +231,13 @@ static ENGINE_ERROR_CODE stat_audit_executor(const std::string& arg,
  * @param arg - should be empty
  * @param cookie the command context
  */
-static ENGINE_ERROR_CODE stat_bucket_details_executor(const std::string& arg,
-                                                      Cookie& cookie) {
+static cb::engine_errc stat_bucket_details_executor(const std::string& arg,
+                                                    Cookie& cookie) {
     if (arg.empty()) {
         process_bucket_details(cookie);
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     } else {
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 }
 
@@ -248,13 +248,13 @@ static ENGINE_ERROR_CODE stat_bucket_details_executor(const std::string& arg,
  * @param arg - should be empty
  * @param cookie the command context
  */
-static ENGINE_ERROR_CODE stat_aggregate_executor(const std::string& arg,
-                                                 Cookie& cookie) {
+static cb::engine_errc stat_aggregate_executor(const std::string& arg,
+                                               Cookie& cookie) {
     if (arg.empty()) {
         CBStatCollector collector(appendStatsFn, &cookie, get_server_api());
         return server_stats(collector, cookie.getConnection().getBucket());
     } else {
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 }
 
@@ -267,8 +267,8 @@ static ENGINE_ERROR_CODE stat_aggregate_executor(const std::string& arg,
  *            object to retrieve information about. If empty dump all.
  * @param cookie the command context
  */
-static ENGINE_ERROR_CODE stat_connections_executor(const std::string& arg,
-                                                   Cookie& cookie) {
+static cb::engine_errc stat_connections_executor(const std::string& arg,
+                                                 Cookie& cookie) {
     int64_t fd = -1;
 
     if (!arg.empty()) {
@@ -278,7 +278,7 @@ static ENGINE_ERROR_CODE stat_connections_executor(const std::string& arg,
             try {
                 fd = std::stoll(arg);
             } catch (...) {
-                return ENGINE_EINVAL;
+                return cb::engine_errc::invalid_arguments;
             }
         }
     }
@@ -287,7 +287,7 @@ static ENGINE_ERROR_CODE stat_connections_executor(const std::string& arg,
         if (cookie.checkPrivilege(cb::rbac::Privilege::Stats).failed()) {
             if (fd != -1) {
                 // The client asked for a given file descriptor.
-                return ENGINE_EACCESS;
+                return cb::engine_errc::no_access;
             }
             // The client didn't specify a connection, so return "self"
             fd = int64_t(cookie.getConnection().getId());
@@ -300,14 +300,14 @@ static ENGINE_ERROR_CODE stat_connections_executor(const std::string& arg,
     std::lock_guard<std::mutex> guard(task->getMutex());
     executorPool->schedule(task, true);
 
-    return ENGINE_EWOULDBLOCK;
+    return cb::engine_errc::would_block;
 }
 
 /**
  * Helper function to append JSON-formatted histogram statistics for the
  * specified Bucket histogram data member.
  */
-static ENGINE_ERROR_CODE stat_histogram_executor(
+static cb::engine_errc stat_histogram_executor(
         const std::string& arg,
         Cookie& cookie,
         Hdr1sfMicroSecHistogram Bucket::*histogram) {
@@ -327,9 +327,9 @@ static ENGINE_ERROR_CODE stat_histogram_executor(
             json_str = (bucket.*histogram).to_string();
         }
         append_stats({}, json_str, &cookie);
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     } else {
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 }
 
@@ -340,8 +340,8 @@ static ENGINE_ERROR_CODE stat_histogram_executor(
  * @param arg - should be empty
  * @param cookie the command context
  */
-static ENGINE_ERROR_CODE stat_json_validate_executor(const std::string& arg,
-                                                     Cookie& cookie) {
+static cb::engine_errc stat_json_validate_executor(const std::string& arg,
+                                                   Cookie& cookie) {
     return stat_histogram_executor(arg, cookie, &Bucket::jsonValidateTimes);
 }
 
@@ -352,17 +352,17 @@ static ENGINE_ERROR_CODE stat_json_validate_executor(const std::string& arg,
  * @param arg - should be empty
  * @param cookie the command context
  */
-static ENGINE_ERROR_CODE stat_topkeys_executor(const std::string& arg,
-                                               Cookie& cookie) {
+static cb::engine_errc stat_topkeys_executor(const std::string& arg,
+                                             Cookie& cookie) {
     if (arg.empty()) {
         auto& bucket = all_buckets[cookie.getConnection().getBucketIndex()];
         if (bucket.topkeys == nullptr) {
-            return ENGINE_NO_BUCKET;
+            return cb::engine_errc::no_bucket;
         }
         return bucket.topkeys->stats(
                 &cookie, mc_time_get_current_time(), appendStatsFn);
     } else {
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 }
 
@@ -373,26 +373,26 @@ static ENGINE_ERROR_CODE stat_topkeys_executor(const std::string& arg,
  * @param arg - should be empty
  * @param cookie the command context
  */
-static ENGINE_ERROR_CODE stat_topkeys_json_executor(const std::string& arg,
-                                                    Cookie& cookie) {
+static cb::engine_errc stat_topkeys_json_executor(const std::string& arg,
+                                                  Cookie& cookie) {
     if (arg.empty()) {
-        ENGINE_ERROR_CODE ret;
+        cb::engine_errc ret;
 
         nlohmann::json topkeys_doc;
 
         auto& bucket = all_buckets[cookie.getConnection().getBucketIndex()];
         if (bucket.topkeys == nullptr) {
-            return ENGINE_NO_BUCKET;
+            return cb::engine_errc::no_bucket;
         }
         ret = bucket.topkeys->json_stats(topkeys_doc,
                                          mc_time_get_current_time());
 
-        if (ret == ENGINE_SUCCESS) {
+        if (ret == cb::engine_errc::success) {
             append_stats("topkeys_json"sv, topkeys_doc.dump(), &cookie);
         }
         return ret;
     } else {
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 }
 
@@ -403,8 +403,8 @@ static ENGINE_ERROR_CODE stat_topkeys_json_executor(const std::string& arg,
  * @param arg - should be empty
  * @param cookie the command context
  */
-static ENGINE_ERROR_CODE stat_snappy_decompress_executor(const std::string& arg,
-                                                         Cookie& cookie) {
+static cb::engine_errc stat_snappy_decompress_executor(const std::string& arg,
+                                                       Cookie& cookie) {
     return stat_histogram_executor(
             arg, cookie, &Bucket::snappyDecompressionTimes);
 }
@@ -416,14 +416,14 @@ static ENGINE_ERROR_CODE stat_snappy_decompress_executor(const std::string& arg,
  * @param arg - should be empty
  * @param cookie the command context
  */
-static ENGINE_ERROR_CODE stat_subdoc_execute_executor(const std::string& arg,
-                                                      Cookie& cookie) {
+static cb::engine_errc stat_subdoc_execute_executor(const std::string& arg,
+                                                    Cookie& cookie) {
     return stat_histogram_executor(
             arg, cookie, &Bucket::subjson_operation_times);
 }
 
-static ENGINE_ERROR_CODE stat_responses_json_executor(const std::string& arg,
-                                                      Cookie& cookie) {
+static cb::engine_errc stat_responses_json_executor(const std::string& arg,
+                                                    Cookie& cookie) {
     try {
         auto& respCounters =
                 cookie.getConnection().getBucket().responseCounters;
@@ -439,14 +439,14 @@ static ENGINE_ERROR_CODE stat_responses_json_executor(const std::string& arg,
         }
 
         append_stats("responses"sv, json.dump(), &cookie);
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     } catch (const std::bad_alloc&) {
-        return ENGINE_ENOMEM;
+        return cb::engine_errc::no_memory;
     }
 }
 
-static ENGINE_ERROR_CODE stat_tracing_executor(const std::string& arg,
-                                               Cookie& cookie) {
+static cb::engine_errc stat_tracing_executor(const std::string& arg,
+                                             Cookie& cookie) {
     class MemcachedCallback : public phosphor::StatsCallback {
     public:
         explicit MemcachedCallback(Cookie& cookie) : c(cookie) {
@@ -483,17 +483,16 @@ static ENGINE_ERROR_CODE stat_tracing_executor(const std::string& arg,
     if (arg.empty()) {
         MemcachedCallback cb{cookie};
         phosphor::TraceLog::getInstance().getStats(cb);
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     } else {
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 }
 
-static ENGINE_ERROR_CODE stat_all_stats(const std::string& arg,
-                                        Cookie& cookie) {
+static cb::engine_errc stat_all_stats(const std::string& arg, Cookie& cookie) {
     auto value = cookie.getRequest().getValue();
     auto ret = bucket_get_stats(cookie, arg, value, appendStatsFn);
-    if (ret != ENGINE_SUCCESS) {
+    if (ret != cb::engine_errc::success) {
         return ret;
     }
 
@@ -501,15 +500,15 @@ static ENGINE_ERROR_CODE stat_all_stats(const std::string& arg,
     return server_stats(collector, cookie.getConnection().getBucket());
 }
 
-static ENGINE_ERROR_CODE stat_bucket_stats(const std::string& arg,
-                                           Cookie& cookie) {
+static cb::engine_errc stat_bucket_stats(const std::string& arg,
+                                         Cookie& cookie) {
     auto value = cookie.getRequest().getValue();
     return bucket_get_stats(cookie, arg, value, appendStatsFn);
 }
 
 // handler for scopes/collections - engine needs the key for processing
-static ENGINE_ERROR_CODE stat_bucket_collections_stats(const std::string&,
-                                                       Cookie& cookie) {
+static cb::engine_errc stat_bucket_collections_stats(const std::string&,
+                                                     Cookie& cookie) {
     auto value = cookie.getRequest().getValue();
     const auto key = cookie.getRequest().getKey();
     return bucket_get_stats(
@@ -520,8 +519,8 @@ static ENGINE_ERROR_CODE stat_bucket_collections_stats(const std::string&,
             appendStatsFn);
 }
 
-static ENGINE_ERROR_CODE stat_allocator_executor(const std::string&,
-                                                 Cookie& cookie) {
+static cb::engine_errc stat_allocator_executor(const std::string&,
+                                               Cookie& cookie) {
     std::vector<char> lineBuffer;
     lineBuffer.reserve(256);
     struct CallbackData {
@@ -558,7 +557,7 @@ static ENGINE_ERROR_CODE stat_allocator_executor(const std::string&,
         }
     };
     cb::ArenaMalloc::getDetailedStats(callback, &callbackData);
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 /***************************** STAT HANDLERS *****************************/
@@ -576,7 +575,7 @@ struct command_stat_handler {
     /**
      * The callback function to handle the stat request
      */
-    ENGINE_ERROR_CODE (*handler)(const std::string& arg, Cookie& cookie);
+    cb::engine_errc (*handler)(const std::string& arg, Cookie& cookie);
 };
 
 /**
@@ -640,8 +639,8 @@ StatsCommandContext::StatsCommandContext(Cookie& cookie)
 
 /************************* STATE MACHINE EXECUTION *************************/
 
-ENGINE_ERROR_CODE StatsCommandContext::step() {
-    auto ret = ENGINE_SUCCESS;
+cb::engine_errc StatsCommandContext::step() {
+    auto ret = cb::engine_errc::success;
     do {
         switch (state) {
         case State::ParseCommandKey:
@@ -662,12 +661,12 @@ ENGINE_ERROR_CODE StatsCommandContext::step() {
         case State::Done:
             return command_exit_code;
         }
-    } while (ret == ENGINE_SUCCESS);
+    } while (ret == cb::engine_errc::success);
 
     return ret;
 }
 
-ENGINE_ERROR_CODE StatsCommandContext::parseCommandKey() {
+cb::engine_errc StatsCommandContext::parseCommandKey() {
     const auto key = cookie.getRequest().getKey();
     if (key.empty()) {
         command = "";
@@ -688,11 +687,11 @@ ENGINE_ERROR_CODE StatsCommandContext::parseCommandKey() {
     }
 
     state = State::CheckPrivilege;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE StatsCommandContext::checkPrivilege() {
-    auto ret = ENGINE_SUCCESS;
+cb::engine_errc StatsCommandContext::checkPrivilege() {
+    auto ret = cb::engine_errc::success;
 
     auto handler = getStatHandler(command).first;
 
@@ -701,14 +700,14 @@ ENGINE_ERROR_CODE StatsCommandContext::checkPrivilege() {
             ret = mcbp::checkPrivilege(cookie, cb::rbac::Privilege::Stats);
         }
 
-        if (ret == ENGINE_SUCCESS && handler.bucket) {
+        if (ret == cb::engine_errc::success && handler.bucket) {
             ret = mcbp::checkPrivilege(cookie,
                                        cb::rbac::Privilege::SimpleStats);
         }
     }
 
     switch (ret) {
-    case ENGINE_SUCCESS:
+    case cb::engine_errc::success:
         state = State::DoStats;
         break;
     default:
@@ -717,10 +716,10 @@ ENGINE_ERROR_CODE StatsCommandContext::checkPrivilege() {
         break;
     }
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE StatsCommandContext::doStats() {
+cb::engine_errc StatsCommandContext::doStats() {
     auto handler_pair = getStatHandler(command);
 
     if (!handler_pair.second) {
@@ -732,46 +731,46 @@ ENGINE_ERROR_CODE StatsCommandContext::doStats() {
         command_exit_code = handler_pair.first.handler(argument, cookie);
     }
 
-    // If stats command call returns ENGINE_EWOULDBLOCK and the task is not a
-    // nullptr (ie we have created a background task), then change the state to
-    // be GetTaskResult and return ENGINE_EWOULDBLOCK
-    if (command_exit_code == ENGINE_EWOULDBLOCK && task) {
+    // If stats command call returns cb::engine_errc::would_block and the task
+    // is not a nullptr (ie we have created a background task), then change the
+    // state to be GetTaskResult and return cb::engine_errc::would_block
+    if (command_exit_code == cb::engine_errc::would_block && task) {
         state = State::GetTaskResult;
-        return ENGINE_EWOULDBLOCK;
+        return cb::engine_errc::would_block;
     }
 
     state = State::CommandComplete;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE StatsCommandContext::getTaskResult() {
+cb::engine_errc StatsCommandContext::getTaskResult() {
     auto& stats_task = dynamic_cast<StatsTask&>(*task);
 
     state = State::CommandComplete;
     command_exit_code = stats_task.getCommandError();
-    if (command_exit_code == ENGINE_SUCCESS) {
+    if (command_exit_code == cb::engine_errc::success) {
         for (const auto& s : stats_task.getStats()) {
             append_stats(s.first, s.second, static_cast<const void*>(&cookie));
         }
     }
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE StatsCommandContext::commandComplete() {
+cb::engine_errc StatsCommandContext::commandComplete() {
     switch (command_exit_code) {
-    case ENGINE_SUCCESS:
+    case cb::engine_errc::success:
         append_stats({}, {}, static_cast<void*>(&cookie));
 
         // We just want to record this once rather than for each packet sent
         ++connection.getBucket()
                   .responseCounters[int(cb::mcbp::Status::Success)];
         break;
-    case ENGINE_EWOULDBLOCK:
-        /* If the stats call returns ENGINE_EWOULDBLOCK then set the
+    case cb::engine_errc::would_block:
+        /* If the stats call returns cb::engine_errc::would_block then set the
          * state to DoStats again and return this error code */
         state = State::DoStats;
         return command_exit_code;
-    case ENGINE_DISCONNECT:
+    case cb::engine_errc::disconnect:
         // We don't send these responses back so we will not store
         // stats for these.
         break;
@@ -781,5 +780,5 @@ ENGINE_ERROR_CODE StatsCommandContext::commandComplete() {
         break;
     }
     state = State::Done;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }

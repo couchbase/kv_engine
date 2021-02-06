@@ -92,7 +92,7 @@ public:
 
     void runEraser();
 
-    static ENGINE_ERROR_CODE dcpAddFailoverLog(
+    static cb::engine_errc dcpAddFailoverLog(
             const std::vector<vbucket_failover_t>&);
 
     cb::tracing::Traceable* cookieC;

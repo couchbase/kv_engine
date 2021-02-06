@@ -122,9 +122,9 @@ public:
      *        existing item.
      * @return the result of the store operation
      */
-    virtual ENGINE_ERROR_CODE set(Item& item,
-                                  const void* cookie,
-                                  cb::StoreIfPredicate predicate = {}) = 0;
+    virtual cb::engine_errc set(Item& item,
+                                const void* cookie,
+                                cb::StoreIfPredicate predicate = {}) = 0;
 
     /**
      * Add an item in the store.
@@ -132,7 +132,7 @@ public:
      * @param cookie the cookie representing the client to store the item
      * @return the result of the operation
      */
-    virtual ENGINE_ERROR_CODE add(Item &item, const void *cookie) = 0;
+    virtual cb::engine_errc add(Item& item, const void* cookie) = 0;
 
     /**
      * Replace an item in the store.
@@ -143,9 +143,9 @@ public:
      *        existing item.
      * @return the result of the operation
      */
-    virtual ENGINE_ERROR_CODE replace(Item& item,
-                                      const void* cookie,
-                                      cb::StoreIfPredicate predicate = {}) = 0;
+    virtual cb::engine_errc replace(Item& item,
+                                    const void* cookie,
+                                    cb::StoreIfPredicate predicate = {}) = 0;
 
     /**
      * Retrieve a value.
@@ -199,12 +199,12 @@ public:
      * @param[out] deleted specifies whether or not the key is deleted
      * @param[out] datatype specifies the datatype of the item
      */
-    virtual ENGINE_ERROR_CODE getMetaData(const DocKey& key,
-                                          Vbid vbucket,
-                                          const void* cookie,
-                                          ItemMetaData& metadata,
-                                          uint32_t& deleted,
-                                          uint8_t& datatype) = 0;
+    virtual cb::engine_errc getMetaData(const DocKey& key,
+                                        Vbid vbucket,
+                                        const void* cookie,
+                                        ItemMetaData& metadata,
+                                        uint32_t& deleted,
+                                        uint8_t& datatype) = 0;
 
     /**
      * Set an item in the store.
@@ -221,7 +221,7 @@ public:
      *
      * @return the result of the store operation
      */
-    virtual ENGINE_ERROR_CODE setWithMeta(
+    virtual cb::engine_errc setWithMeta(
             Item& item,
             uint64_t cas,
             uint64_t* seqno,
@@ -240,7 +240,7 @@ public:
      *
      * @return the result of the store operation
      */
-    virtual ENGINE_ERROR_CODE prepare(Item& item, const void* cookie) = 0;
+    virtual cb::engine_errc prepare(Item& item, const void* cookie) = 0;
 
     /**
      * Retrieve a value, but update its TTL first
@@ -267,9 +267,9 @@ public:
      *
      * @return a status resulting form executing the method
      */
-    virtual ENGINE_ERROR_CODE statsVKey(const DocKey& key,
-                                        Vbid vbucket,
-                                        const void* cookie) = 0;
+    virtual cb::engine_errc statsVKey(const DocKey& key,
+                                      Vbid vbucket,
+                                      const void* cookie) = 0;
 
     virtual void completeStatsVKey(const void* cookie,
                                    const DocKey& key,
@@ -293,7 +293,7 @@ public:
      *
      * @return the result of the operation
      */
-    virtual ENGINE_ERROR_CODE deleteItem(
+    virtual cb::engine_errc deleteItem(
             const DocKey& key,
             uint64_t& cas,
             Vbid vbucket,
@@ -325,20 +325,19 @@ public:
      *
      * @return the result of the delete operation
      */
-    virtual ENGINE_ERROR_CODE deleteWithMeta(
-            const DocKey& key,
-            uint64_t& cas,
-            uint64_t* seqno,
-            Vbid vbucket,
-            const void* cookie,
-            PermittedVBStates permittedVBStates,
-            CheckConflicts checkConflicts,
-            const ItemMetaData& itemMeta,
-            GenerateBySeqno genBySeqno,
-            GenerateCas generateCas,
-            uint64_t bySeqno,
-            ExtendedMetaData* emd,
-            DeleteSource deleteSource) = 0;
+    virtual cb::engine_errc deleteWithMeta(const DocKey& key,
+                                           uint64_t& cas,
+                                           uint64_t* seqno,
+                                           Vbid vbucket,
+                                           const void* cookie,
+                                           PermittedVBStates permittedVBStates,
+                                           CheckConflicts checkConflicts,
+                                           const ItemMetaData& itemMeta,
+                                           GenerateBySeqno genBySeqno,
+                                           GenerateCas generateCas,
+                                           uint64_t bySeqno,
+                                           ExtendedMetaData* emd,
+                                           DeleteSource deleteSource) = 0;
 
     /**
      * Resets the Bucket. Removes all elements from each VBucket's &
@@ -380,11 +379,11 @@ public:
      *
      * @param cookie Cookie associated with ADD_STAT
      * @param add_stat Callback to use to add stats to the caller.
-     * @return ENGINE_SUCCESS if stats were successfully retrieved, or
-     *         ENGINE_KEY_ENOENT if file stats are not available
+     * @return cb::engine_errc::success if stats were successfully retrieved, or
+     *         cb::engine_errc::no_such_key if file stats are not available
      *         from the store.
      */
-    virtual ENGINE_ERROR_CODE getFileStats(
+    virtual cb::engine_errc getFileStats(
             const BucketStatCollector& collector) = 0;
 
     /**
@@ -392,11 +391,11 @@ public:
      *
      * @param cookie Cookie associated with ADD_STAT
      * @param add_stat Callback to use to add stats to the caller.
-     * @return ENGINE_SUCCESS if stats were successfully retrieved, or
-     *         ENGINE_KEY_ENOENT if per-vbucket disk stats are not available
-     *         from the store.
+     * @return cb::engine_errc::success if stats were successfully retrieved, or
+     *         cb::engine_errc::no_such_key if per-vbucket disk stats are not
+     * available from the store.
      */
-    virtual ENGINE_ERROR_CODE getPerVBucketDiskStats(
+    virtual cb::engine_errc getPerVBucketDiskStats(
             const void* cookie, const AddStatFn& add_stat) = 0;
 
     /**
@@ -434,15 +433,15 @@ public:
      *          Used in synchronous bucket deletes
      *          to notify the connection of operation completion.
      */
-    virtual ENGINE_ERROR_CODE deleteVBucket(Vbid vbid,
-                                            const void* c = nullptr) = 0;
+    virtual cb::engine_errc deleteVBucket(Vbid vbid,
+                                          const void* c = nullptr) = 0;
 
     /**
      * Check for the existence of a vbucket in the case of couchstore.
      *
      * @param db_file_id vbucketid for couchstore
      */
-    virtual ENGINE_ERROR_CODE checkForDBExistence(Vbid db_file_id) = 0;
+    virtual cb::engine_errc checkForDBExistence(Vbid db_file_id) = 0;
 
     /**
      * Triggers compaction of a database file
@@ -452,7 +451,7 @@ public:
      * @param ck cookie used to notify connection of operation completion
      * @param delay millisecond delay for the task to execute, 0 is run 'now'
      */
-    virtual ENGINE_ERROR_CODE scheduleCompaction(
+    virtual cb::engine_errc scheduleCompaction(
             Vbid vbid,
             const CompactionConfig& c,
             const void* ck,
@@ -463,7 +462,7 @@ public:
      *
      * @param vbid The vbucket being compacted
      */
-    virtual ENGINE_ERROR_CODE cancelCompaction(Vbid vbid) = 0;
+    virtual cb::engine_errc cancelCompaction(Vbid vbid) = 0;
 
     /**
      * Reset a given vbucket from memory and disk. This differs from vbucket
@@ -556,13 +555,13 @@ public:
      * @param[out] kstats On success the keystats for this item.
      * @param wantsDeleted If yes then return keystats even if the item is
      *                     marked as deleted. If no then will return
-     *                     ENGINE_KEY_ENOENT for deleted items.
+     *                     cb::engine_errc::no_such_key for deleted items.
      */
-    virtual ENGINE_ERROR_CODE getKeyStats(const DocKey& key,
-                                          Vbid vbucket,
-                                          const void* cookie,
-                                          key_stats& kstats,
-                                          WantsDeleted wantsDeleted) = 0;
+    virtual cb::engine_errc getKeyStats(const DocKey& key,
+                                        Vbid vbucket,
+                                        const void* cookie,
+                                        key_stats& kstats,
+                                        WantsDeleted wantsDeleted) = 0;
 
     virtual std::string validateKey(const DocKey& key,
                                     Vbid vbucket,
@@ -574,11 +573,11 @@ public:
                                uint32_t lockTimeout,
                                const void* cookie) = 0;
 
-    virtual ENGINE_ERROR_CODE unlockKey(const DocKey& key,
-                                        Vbid vbucket,
-                                        uint64_t cas,
-                                        rel_time_t currentTime,
-                                        const void* cookie) = 0;
+    virtual cb::engine_errc unlockKey(const DocKey& key,
+                                      Vbid vbucket,
+                                      uint64_t cas,
+                                      rel_time_t currentTime,
+                                      const void* cookie) = 0;
 
     virtual KVStore* getRWUnderlying(Vbid vbId) = 0;
 
@@ -793,7 +792,7 @@ public:
      * Change the max_cas of the specified vbucket to cas without any
      * care for the data or ongoing operations...
      */
-    virtual ENGINE_ERROR_CODE forceMaxCas(Vbid vbucket, uint64_t cas) = 0;
+    virtual cb::engine_errc forceMaxCas(Vbid vbucket, uint64_t cas) = 0;
 
     /**
      * Create a VBucket object appropriate for this Bucket class.

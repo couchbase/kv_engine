@@ -282,22 +282,22 @@ public:
      *
      * @param code The execution result
      */
-    void logResponse(ENGINE_ERROR_CODE code) const;
+    void logResponse(cb::engine_errc code) const;
 
     /**
      * Set the aiostat and return the previous value
      */
-    ENGINE_ERROR_CODE swapAiostat(ENGINE_ERROR_CODE value);
+    cb::engine_errc swapAiostat(cb::engine_errc value);
 
     /**
      * Get the current status of the asynchrous IO
      */
-    ENGINE_ERROR_CODE getAiostat() const;
+    cb::engine_errc getAiostat() const;
 
     /**
      * Set the status code for the async IO
      */
-    void setAiostat(ENGINE_ERROR_CODE aiostat);
+    void setAiostat(cb::engine_errc aiostat);
 
     /**
      * Is the current cookie blocked?
@@ -685,7 +685,7 @@ protected:
     /**
      * The status for the async io operation
      */
-    ENGINE_ERROR_CODE aiostat = ENGINE_SUCCESS;
+    cb::engine_errc aiostat = cb::engine_errc::success;
 
     bool ewouldblock = false;
 

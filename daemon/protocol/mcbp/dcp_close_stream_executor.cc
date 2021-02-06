@@ -23,9 +23,9 @@
 #include <mcbp/protocol/request.h>
 
 void dcp_close_stream_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    auto ret = cookie.swapAiostat(cb::engine_errc::success);
 
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         const auto& header = cookie.getHeader().getRequest();
         cb::mcbp::DcpStreamId dcpStreamId; // Initialises to 'none'
         header.parseFrameExtras([&dcpStreamId](

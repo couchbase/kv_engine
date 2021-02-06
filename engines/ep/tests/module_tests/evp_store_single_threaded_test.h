@@ -153,8 +153,9 @@ public:
         return engine->getConfiguration().getBucketType() == "persistent";
     }
 
-    bool needsBGFetch(ENGINE_ERROR_CODE ec) const {
-        if (ec == ENGINE_EWOULDBLOCK && isPersistent() && isFullEviction()) {
+    bool needsBGFetch(cb::engine_errc ec) const {
+        if (ec == cb::engine_errc::would_block && isPersistent() &&
+            isFullEviction()) {
             return true;
         }
         return false;
@@ -248,9 +249,9 @@ protected:
     /*
      * Fake callback emulating dcp_add_failover_log
      */
-    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(
+    static cb::engine_errc fakeDcpAddFailoverLog(
             const std::vector<vbucket_failover_t>&) {
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     SingleThreadedExecutorPool* task_executor;
@@ -475,11 +476,12 @@ public:
      * error so we trigger a BGFetch. This can happen when bloom
      * filters are turned off, for instance for magma.
      *
-     * @param rc ENGINE_ERROR_CODE returned from attempted op
+     * @param rc cb::engine_errc returned from attempted op
      * @return true if did BGFetch
      */
-    bool needBGFetch(ENGINE_ERROR_CODE rc) {
-        if (rc == ENGINE_EWOULDBLOCK && persistent() && fullEviction()) {
+    bool needBGFetch(cb::engine_errc rc) {
+        if (rc == cb::engine_errc::would_block && persistent() &&
+            fullEviction()) {
             runBGFetcherTask();
             return true;
         }
@@ -488,36 +490,36 @@ public:
 
     /**
      * Check to see if Key Exists.
-     * Handles case when we get ENGINE_EWOULDBLOCK.
+     * Handles case when we get cb::engine_errc::would_block.
      *
      * @param key doc key
      * @param vbid vbucket id
      * @param options fetch options
-     * @return ENGINE_ERROR_CODE return status of get call
+     * @return cb::engine_errc return status of get call
      */
-    ENGINE_ERROR_CODE checkKeyExists(StoredDocKey& key,
-                                     Vbid vbid,
-                                     get_options_t options);
+    cb::engine_errc checkKeyExists(StoredDocKey& key,
+                                   Vbid vbid,
+                                   get_options_t options);
 
     /**
      * Call kvstore SET.
-     * Handles case when we get ENGINE_EWOULDBLOCK.
+     * Handles case when we get cb::engine_errc::would_block.
      *
      * @param item item to be SET
      * @param cookie mock cookie
-     * @return ENGINE_ERROR_CODE return status of SET call
+     * @return cb::engine_errc return status of SET call
      */
-    ENGINE_ERROR_CODE setItem(Item& itm, const void* cookie);
+    cb::engine_errc setItem(Item& itm, const void* cookie);
 
     /**
      * Call kvstore ADD.
-     * Handles case when we get ENGINE_EWOULDBLOCK.
+     * Handles case when we get cb::engine_errc::would_block.
      *
      * @param item item to be ADD
      * @param cookie mock cookie
-     * @return ENGINE_ERROR_CODE return status of ADD call
+     * @return cb::engine_errc return status of ADD call
      */
-    ENGINE_ERROR_CODE addItem(Item& itm, const void* cookie);
+    cb::engine_errc addItem(Item& itm, const void* cookie);
 
     /**
      * When persistent + full eviction + no bloom filters, don't

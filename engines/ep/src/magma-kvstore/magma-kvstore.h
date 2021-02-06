@@ -347,7 +347,7 @@ public:
 
     void pendingTasks() override;
 
-    ENGINE_ERROR_CODE getAllKeys(
+    cb::engine_errc getAllKeys(
             Vbid vbid,
             const DiskDocKey& start_key,
             uint32_t count,
@@ -680,8 +680,8 @@ protected:
 
     void commitCallback(int status, kvstats_ctx& kvctx);
 
-    static ENGINE_ERROR_CODE magmaErr2EngineErr(magma::Status::Code err,
-                                                bool found = true);
+    static cb::engine_errc magmaErr2EngineErr(magma::Status::Code err,
+                                              bool found = true);
 
     /// private getWithHeader shared with public get and getWithHeader
     GetValue getWithHeader(const DiskDocKey& key,

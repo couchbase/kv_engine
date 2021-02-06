@@ -955,13 +955,13 @@ HashTable::FindResult HashTable::findForSyncReplace(const DocKey& key) {
     auto result = findInner(key);
 
     if (result.pendingSV) {
-        // For the replace case, we should return ENGINE_KEY_ENOENT if no
-        // document exists for the given key. For the case where we abort a
-        // SyncWrite then attempt to do another we would find the AbortedPrepare
-        // (in the Ephemeral case) which we would then use to do another
-        // SyncWrite if we called the findForSyncWrite function. So, if we find
-        // a completed SyncWrite but the committed StoredValue does not exist,
-        // then return nullptr as logically a replace is not possible.
+        // For the replace case, we should return cb::engine_errc::no_such_key
+        // if no document exists for the given key. For the case where we abort
+        // a SyncWrite then attempt to do another we would find the
+        // AbortedPrepare (in the Ephemeral case) which we would then use to do
+        // another SyncWrite if we called the findForSyncWrite function. So, if
+        // we find a completed SyncWrite but the committed StoredValue does not
+        // exist, then return nullptr as logically a replace is not possible.
         if (result.pendingSV->isCompleted() && !result.committedSV) {
             return {nullptr, std::move(result.lock)};
         }

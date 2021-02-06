@@ -51,7 +51,7 @@ public:
                      bool mightContainXattrs = false,
                      const nlohmann::json* replicationTopology = {});
 
-    ENGINE_ERROR_CODE completeBGFetchForSingleItem(
+    cb::engine_errc completeBGFetchForSingleItem(
             const DiskDocKey& key,
             const FrontEndBGFetchItem& fetched_item,
             const std::chrono::steady_clock::time_point startTime) override;
@@ -81,10 +81,10 @@ public:
 
     size_t getNumSystemItems() const override;
 
-    ENGINE_ERROR_CODE statsVKey(const DocKey& key,
-                                const void* cookie,
-                                EventuallyPersistentEngine& engine) override {
-        return ENGINE_ENOTSUP;
+    cb::engine_errc statsVKey(const DocKey& key,
+                              const void* cookie,
+                              EventuallyPersistentEngine& engine) override {
+        return cb::engine_errc::not_supported;
     }
 
     void completeStatsVKey(const DocKey& key, const GetValue& gcb) override;
@@ -333,12 +333,11 @@ private:
                  EventuallyPersistentEngine& engine,
                  bool isMeta = false) override;
 
-    ENGINE_ERROR_CODE
-    addTempItemAndBGFetch(HashTable::HashBucketLock& hbl,
-                          const DocKey& key,
-                          const void* cookie,
-                          EventuallyPersistentEngine& engine,
-                          bool metadataOnly) override;
+    cb::engine_errc addTempItemAndBGFetch(HashTable::HashBucketLock& hbl,
+                                          const DocKey& key,
+                                          const void* cookie,
+                                          EventuallyPersistentEngine& engine,
+                                          bool metadataOnly) override;
 
     void bgFetchForCompactionExpiry(const DocKey& key,
                                     const Item& item) override;

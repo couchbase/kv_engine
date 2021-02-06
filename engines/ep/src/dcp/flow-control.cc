@@ -43,10 +43,10 @@ FlowControl::~FlowControl()
     engine_.getDcpFlowControlManager().handleDisconnect(consumerConn);
 }
 
-ENGINE_ERROR_CODE FlowControl::handleFlowCtl(
+cb::engine_errc FlowControl::handleFlowCtl(
         DcpMessageProducersIface& producers) {
     if (enabled) {
-        ENGINE_ERROR_CODE ret;
+        cb::engine_errc ret;
         uint32_t ackable_bytes = freedBytes.load();
         std::unique_lock<std::mutex> lh(bufferSizeLock);
         if (pendingControl) {
@@ -83,7 +83,7 @@ ENGINE_ERROR_CODE FlowControl::handleFlowCtl(
             lh.unlock();
         }
     }
-    return ENGINE_FAILED;
+    return cb::engine_errc::failed;
 }
 
 void FlowControl::incrFreedBytes(uint32_t bytes)

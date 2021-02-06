@@ -59,7 +59,7 @@ public:
     GetValue();
 
     explicit GetValue(std::unique_ptr<Item> v,
-                      ENGINE_ERROR_CODE s = ENGINE_SUCCESS,
+                      cb::engine_errc s = cb::engine_errc::success,
                       uint64_t i = -1,
                       bool incomplete = false);
 
@@ -76,12 +76,16 @@ public:
     /**
      * Engine code describing what happened.
      */
-    ENGINE_ERROR_CODE getStatus() const { return status; }
+    cb::engine_errc getStatus() const {
+        return status;
+    }
 
     /**
      * Set the status code
      */
-    void setStatus(ENGINE_ERROR_CODE s) { status = s; }
+    void setStatus(cb::engine_errc s) {
+        status = s;
+    }
 
     /**
      * Get the item's underlying ID (if applicable).
@@ -101,7 +105,7 @@ public:
 
 private:
     uint64_t id;
-    ENGINE_ERROR_CODE status;
+    cb::engine_errc status;
     bool partial;
 };
 
@@ -130,6 +134,10 @@ public:
 
     virtual void setStatus(int status) {
         myStatus = status;
+    }
+
+    virtual void setStatus(cb::engine_errc status) {
+        myStatus = static_cast<int>(status);
     }
 
     virtual int getStatus() const {

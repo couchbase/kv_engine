@@ -77,7 +77,7 @@ void VBucketMemoryDeletionTask::notifyAllPendingConnsFailed(
 
     if (notifyIfCookieSet && vbucket->getDeferredDeletionCookie()) {
         engine->notifyIOComplete(vbucket->getDeferredDeletionCookie(),
-                                 ENGINE_SUCCESS);
+                                 cb::engine_errc::success);
     }
 }
 
@@ -113,7 +113,7 @@ bool VBucketMemoryAndDiskDeletionTask::run() {
 
     if (vbucket->getDeferredDeletionCookie()) {
         engine->notifyIOComplete(vbucket->getDeferredDeletionCookie(),
-                                 ENGINE_SUCCESS);
+                                 cb::engine_errc::success);
     }
 
     return false;

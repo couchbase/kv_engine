@@ -108,13 +108,13 @@ TEST_F(WarmupTest, hlcEpoch) {
 
     // key1 stored before we established the epoch should have cas_is_hlc==false
     auto item1 = store->get(makeStoredDocKey("key1"), vbid, nullptr, {});
-    ASSERT_EQ(ENGINE_SUCCESS, item1.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, item1.getStatus());
     auto info1 = engine->getItemInfo(*item1.item);
     EXPECT_FALSE(info1.cas_is_hlc);
 
     // key2 should have a CAS generated from the HLC
     auto item2 = store->get(makeStoredDocKey("key2"), vbid, nullptr, {});
-    ASSERT_EQ(ENGINE_SUCCESS, item2.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, item2.getStatus());
     auto info2 = engine->getItemInfo(*item2.item);
     EXPECT_TRUE(info2.cas_is_hlc);
 }
@@ -133,20 +133,20 @@ TEST_F(WarmupTest, fetchDocInDifferentCompressionModes) {
 
     resetEngineAndWarmup("compression_mode=off");
     auto item1 = store->get(makeStoredDocKey("key1"), vbid, nullptr, {});
-    ASSERT_EQ(ENGINE_SUCCESS, item1.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, item1.getStatus());
     auto info1 = engine->getItemInfo(*item1.item);
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, info1.datatype);
 
     resetEngineAndWarmup("compression_mode=passive");
     item1 = store->get(makeStoredDocKey("key1"), vbid, nullptr, {});
-    ASSERT_EQ(ENGINE_SUCCESS, item1.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, item1.getStatus());
     info1 = engine->getItemInfo(*item1.item);
     EXPECT_EQ((PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY),
               info1.datatype);
 
     resetEngineAndWarmup("compression_mode=active");
     item1 = store->get(makeStoredDocKey("key1"), vbid, nullptr, {});
-    ASSERT_EQ(ENGINE_SUCCESS, item1.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, item1.getStatus());
     info1 = engine->getItemInfo(*item1.item);
     EXPECT_EQ((PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY),
               info1.datatype);
@@ -218,7 +218,7 @@ TEST_F(WarmupTest, MB_27162) {
     };
     auto engineResult = doGetMetaData();
 
-    ASSERT_EQ(ENGINE_SUCCESS, engineResult);
+    ASSERT_EQ(cb::engine_errc::success, engineResult);
     EXPECT_EQ(3, itemMeta.revSeqno);
 }
 
@@ -269,28 +269,28 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
         CheckedExecutor executor(task_executor, readerQueue);
         // Do a setVBState but don't flush it through. This call should be
         // failed ewouldblock whilst warmup has yet to attempt to create VBs.
-        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+        EXPECT_EQ(cb::engine_errc::would_block,
                   store->setVBucketState(vbid,
                                          vbucket_state_active,
                                          {},
                                          TransferVB::No,
                                          setVBStateCookie));
 
-        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+        EXPECT_EQ(cb::engine_errc::would_block,
                   engine->get_failover_log(getFailoverCookie,
                                            1 /*opaque*/,
                                            vbid,
                                            fakeDcpAddFailoverLog));
 
         EXPECT_EQ(
-                ENGINE_EWOULDBLOCK,
+                cb::engine_errc::would_block,
                 engine->get_stats(statsCookie1, "vbucket", {}, dummyAddStats));
 
-        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+        EXPECT_EQ(cb::engine_errc::would_block,
                   engine->get_stats(
                           statsCookie2, "vbucket-details", {}, dummyAddStats));
 
-        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+        EXPECT_EQ(cb::engine_errc::would_block,
                   engine->get_stats(
                           statsCookie3, "vbucket-seqno", {}, dummyAddStats));
 
@@ -307,27 +307,27 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
 
     EXPECT_NE(nullptr, store->getVBuckets().getBucket(vbid));
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid,
                                      vbucket_state_active,
                                      {},
                                      TransferVB::No,
                                      setVBStateCookie));
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               engine->get_failover_log(getFailoverCookie,
                                        1 /*opaque*/,
                                        vbid,
                                        fakeDcpAddFailoverLog));
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               engine->get_stats(statsCookie1, "vbucket", {}, dummyAddStats));
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               engine->get_stats(
                       statsCookie2, "vbucket-details", {}, dummyAddStats));
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               engine->get_stats(
                       statsCookie3, "vbucket-seqno", {}, dummyAddStats));
 
@@ -358,14 +358,14 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
  * 2. Warm up to till the point WarmupState::State::LoadingCollectionCounts
  *    at this point stop warmup and continue (we should be part warmed up)
  * 3. Open a DCP connection to the replica vbucket (this should fail with
- *    ENGINE_TMPFAIL as the vbucket is not warmed up)
+ *    cb::engine_errc::temporary_failure as the vbucket is not warmed up)
  * 4. Send a DCP deletion for the document to the vbucket (this should fail with
- *    ENGINE_DISCONNECT as there shouldn't be a DCP connection open)
+ *    cb::engine_errc::disconnect as there shouldn't be a DCP connection open)
  * 5. Try and flush the vbucket, nothing should be flushed as the deletion
  *    should have failed
  * 6. Finish warming up the vbucket
- * 7. repeat steps 3, 4 and 5 which should now return ENGINE_SUCCESS and
- *    the item should be deleted from disk as we are know fully warmed up.
+ * 7. repeat steps 3, 4 and 5 which should now return cb::engine_errc::success
+ * and the item should be deleted from disk as we are know fully warmed up.
  */
 TEST_F(WarmupTest, MB_32577) {
     std::string keyName("key");
@@ -416,10 +416,10 @@ TEST_F(WarmupTest, MB_32577) {
         runNextTask(readerQueue);
     }
 
-    // Try and set a DCP connection, this should return ENGINE_TMPFAIL
-    // as were in warm up but without the fix for MB-32577 this will return
-    // ENGINE_SUCCESS
-    EXPECT_EQ(ENGINE_TMPFAIL,
+    // Try and set a DCP connection, this should return
+    // cb::engine_errc::temporary_failure as were in warm up but without the fix
+    // for MB-32577 this will return cb::engine_errc::success
+    EXPECT_EQ(cb::engine_errc::temporary_failure,
               engine->open(cookie, 0, 0 /*seqno*/, zeroFlags, "test_consumer"));
 
     // The core will block all DCP commands for non-DCP connections
@@ -434,17 +434,17 @@ TEST_F(WarmupTest, MB_32577) {
               store->getVBucket(vbid)->lockCollections().getItemCount(
                       CollectionID::Default));
 
-    // Try and set a DCP connection, this should return ENGINE_SUCCESS
+    // Try and set a DCP connection, this should return cb::engine_errc::success
     // as we have now warmed up.
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               engine->open(cookie, 0, 0 /*seqno*/, zeroFlags, "test_consumer"));
 
     // create a stream to send the delete request so we can send vbucket on the
     // consumer
-    EXPECT_EQ(ENGINE_SUCCESS, engine->add_stream(cookie, 0, vbid, 0));
+    EXPECT_EQ(cb::engine_errc::success, engine->add_stream(cookie, 0, vbid, 0));
 
     // create snapshot so we can delete the document
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               engine->snapshot_marker(cookie,
                                       /*opaque*/ 1,
                                       vbid,
@@ -460,7 +460,7 @@ TEST_F(WarmupTest, MB_32577) {
                         DocKeyEncodesCollectionId::No};
 
     // Try and delete the doc
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               engine->deletion(cookie,
                                /*opaque*/ 1,
                                /*key*/ docKey,
@@ -504,7 +504,7 @@ TEST_F(WarmupTest, MB_35599) {
 
     auto gv = store->getReplica(makeStoredDocKey("key"), vbid, cookie, {});
 
-    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
     EXPECT_EQ(0, memcmp("value", gv.item->getData(), 5));
 }
 
@@ -513,10 +513,10 @@ TEST_F(WarmupTest, MB_35599) {
 // where the flusher re-ordered the flush batch, allowing the older set-vbstate
 // to be flushed after the newer state (losing the replica state)
 TEST_F(WarmupTest, SetVBState) {
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_active));
     store_item(vbid, makeStoredDocKey("key"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_replica));
     flush_vbucket_to_disk(vbid, 1);
 
@@ -527,7 +527,7 @@ TEST_F(WarmupTest, SetVBState) {
 
 TEST_F(WarmupTest, TwoStateChangesAtSameSeqno) {
     // 1) Do a normal state change to replica
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_replica));
 
     // 2) Make a change to the failover table as we would if we had just created
@@ -579,7 +579,7 @@ void WarmupTest::MB_31450(bool newCheckpoint) {
     item1.setCas(1);
     item1.setRevSeqno(3);
     uint64_t seqno;
-    EXPECT_EQ(ENGINE_KEY_EEXISTS,
+    EXPECT_EQ(cb::engine_errc::key_already_exists,
               store->setWithMeta(std::ref(item1),
                                  0,
                                  &seqno,
@@ -598,7 +598,7 @@ void WarmupTest::MB_31450(bool newCheckpoint) {
 
     // This expects would fail without the fix, the ADD of key2 previously
     // resulted in a rev of 1 (delrev + 1) and the setWithMeta would succeed.
-    EXPECT_EQ(ENGINE_KEY_EEXISTS,
+    EXPECT_EQ(cb::engine_errc::key_already_exists,
               store->setWithMeta(std::ref(item2),
                                  0,
                                  &seqno,
@@ -750,7 +750,7 @@ void DurabilityWarmupTest::storePrepare(const std::string& key,
     prepare->setVBucketId(vbid);
     prepare->setBySeqno(seqno);
     prepare->setCas(cas);
-    EXPECT_EQ(ENGINE_SUCCESS, store->prepare(*prepare, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->prepare(*prepare, cookie));
 
     EXPECT_EQ(tracked + 1, vb->getDurabilityMonitor().getNumTracked());
 }
@@ -764,7 +764,7 @@ void DurabilityWarmupTest::storeMutation(const std::string& key,
     mutation->setBySeqno(mutationSeqno);
     mutation->setCas(cas);
     uint64_t* seqno = nullptr;
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->setWithMeta(*mutation,
                                  0,
                                  seqno,
@@ -785,7 +785,7 @@ GetValue DurabilityWarmupTest::getItemFetchFromDiskIfNeeded(
     auto gv = engine->getKVBucket()->get(key, vbid, cookie, options);
     if (docState == DocumentState::Deleted) {
         // Need an extra bgFetch to get a deleted item.
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+        EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
         runBGFetcherTask();
         gv = engine->getKVBucket()->get(key, vbid, cookie, options);
     }
@@ -814,7 +814,8 @@ void DurabilityWarmupTest::testPendingSyncWrite(
         if (docState == DocumentState::Deleted) {
             item->setDeleted(DeleteSource::Explicit);
         }
-        ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+        ASSERT_EQ(cb::engine_errc::sync_write_pending,
+                  store->set(*item, cookie));
         flush_vbucket_to_disk(vbid);
 
         // Set the state that we want to test
@@ -829,7 +830,8 @@ void DurabilityWarmupTest::testPendingSyncWrite(
 
         // Check that attempts to read this key via frontend are blocked.
         auto gv = store->get(key, vbid, cookie, {});
-        EXPECT_EQ(ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS, gv.getStatus());
+        EXPECT_EQ(cb::engine_errc::sync_write_re_commit_in_progress,
+                  gv.getStatus());
 
         // Check that the item is still pending with the correct CAS.
         auto handle = vb->lockCollections(item->getKey());
@@ -900,7 +902,7 @@ void DurabilityWarmupTest::testCommittedSyncWrite(
         if (vbState == vbucket_state_active) {
             // Commit on active is driven by the ADM so we need to drive our
             // commit via seqno ack
-            EXPECT_EQ(ENGINE_SUCCESS,
+            EXPECT_EQ(cb::engine_errc::success,
                       vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(
                                                     vb->getStateLock()),
                                             "replica",
@@ -918,7 +920,7 @@ void DurabilityWarmupTest::testCommittedSyncWrite(
         }
 
         const auto expectedItem = getItemFetchFromDiskIfNeeded(key, docState);
-        ASSERT_EQ(ENGINE_SUCCESS, expectedItem.getStatus());
+        ASSERT_EQ(cb::engine_errc::success, expectedItem.getStatus());
 
         // About to destroy engine; reset vb shared_ptr.
         vb.reset();
@@ -927,7 +929,7 @@ void DurabilityWarmupTest::testCommittedSyncWrite(
 
         // Check that the item is CommittedviaPrepare.
         GetValue gv = getItemFetchFromDiskIfNeeded(key, docState);
-        EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+        EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
         EXPECT_EQ(CommittedState::CommittedViaPrepare, gv.item->getCommitted());
         EXPECT_EQ(*expectedItem.item, *gv.item);
 
@@ -977,7 +979,7 @@ void DurabilityWarmupTest::testCommittedAndPendingSyncWrite(
     if (docState == DocumentState::Deleted) {
         item->setDeleted(DeleteSource::Explicit);
     }
-    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+    ASSERT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
 
     flush_vbucket_to_disk(vbid, 2);
 
@@ -1004,7 +1006,8 @@ void DurabilityWarmupTest::testCommittedAndPendingSyncWrite(
     EXPECT_EQ(1, vb->ht.getNumPreparedSyncWrites());
 
     auto gv = store->get(key, vbid, cookie, {});
-    ASSERT_EQ(ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS, gv.getStatus());
+    ASSERT_EQ(cb::engine_errc::sync_write_re_commit_in_progress,
+              gv.getStatus());
 
     // Check that the item is still pending.
     {
@@ -1023,11 +1026,11 @@ void DurabilityWarmupTest::testCommittedAndPendingSyncWrite(
     // is present, readable and the same it was before warmup.
     {
         auto handle = vb->lockCollections(item->getKey());
-        ASSERT_EQ(ENGINE_SUCCESS,
+        ASSERT_EQ(cb::engine_errc::success,
                   vb->abort(key, item->getBySeqno(), {}, handle));
     }
     gv = store->get(key, vbid, cookie, {});
-    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
     EXPECT_EQ(committedItem, *gv.item);
 }
 
@@ -1059,7 +1062,7 @@ TEST_P(DurabilityWarmupTest, AbortedSyncWritePrepareIsNotLoaded) {
     auto key = makeStoredDocKey("key");
     store_item(vbid, key, "A");
     auto item = makePendingItem(key, "B");
-    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+    ASSERT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
     flush_vbucket_to_disk(vbid, 2);
 
     { // scoping vb - is invalid once resetEngineAndWarmup() is called.
@@ -1090,7 +1093,7 @@ TEST_P(DurabilityWarmupTest, AbortedSyncWritePrepareIsNotLoaded) {
     }
     EXPECT_EQ(0, vb->ht.getNumPreparedSyncWrites());
     auto gv = store->get(key, vbid, cookie, {});
-    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
     EXPECT_EQ("A", gv.item->getValue()->to_s());
 
     // Check there's no pending item
@@ -1155,7 +1158,7 @@ void DurabilityWarmupTest::setupForPrepareWarmup(VBucket& vb,
         EXPECT_TRUE(cHandle.valid());
         // Use vb level set so that the commit doesn't yet happen, we want to
         // simulate the prepare, but not commit landing on disk
-        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+        EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   vb.set(*item, cookie, *engine, {}, cHandle));
     }
 
@@ -1336,7 +1339,7 @@ void DurabilityWarmupTest::testCheckpointTypePersistedAndLoadedIntoVBState(
         EXPECT_TRUE(cHandle.valid());
         // Use vb level set so that the commit doesn't yet happen, we want to
         // simulate the prepare, but not commit landing on disk
-        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+        EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   vb->set(*item, cookie, *engine, {}, cHandle));
     }
 
@@ -1526,7 +1529,8 @@ void DurabilityWarmupTest::testHCSPersistedAndLoadedIntoVBState() {
     // Queue a Prepare
     auto key = makeStoredDocKey("key");
     auto prepare = makePendingItem(key, "value");
-    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*prepare, cookie));
+    ASSERT_EQ(cb::engine_errc::sync_write_pending,
+              store->set(*prepare, cookie));
 
     // Check the Prepared
     const int64_t preparedSeqno = 1;
@@ -1559,7 +1563,7 @@ void DurabilityWarmupTest::testHCSPersistedAndLoadedIntoVBState() {
     // Complete the Prepare
     vb = store->getVBucket(vbid);
     ASSERT_TRUE(vb);
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               vb->seqnoAcknowledged(
                       folly::SharedMutex::ReadHolder(vb->getStateLock()),
                       "replica",
@@ -1594,7 +1598,8 @@ TEST_P(DurabilityWarmupTest, testHPSPersistedAndLoadedIntoVBState) {
     // Queue a Prepare
     auto key = makeStoredDocKey("key");
     auto prepare = makePendingItem(key, "value");
-    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*prepare, cookie));
+    ASSERT_EQ(cb::engine_errc::sync_write_pending,
+              store->set(*prepare, cookie));
 
     // Not flushed yet
     auto* kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
@@ -1652,18 +1657,20 @@ TEST_P(DurabilityWarmupTest, SetStateDeadWithWarmedUpPrepare) {
     // restart.
     auto key = makeStoredDocKey("key");
     auto item = makePendingItem(key, "pending_value");
-    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+    ASSERT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
     flush_vbucket_to_disk(vbid);
     resetEngineAndWarmup();
 
     // Sanity check - should have the SyncWrite after warmup and not committed.
     auto vb = engine->getVBucket(vbid);
     auto gv = store->get(key, vbid, cookie, {});
-    ASSERT_EQ(ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS, gv.getStatus());
+    ASSERT_EQ(cb::engine_errc::sync_write_re_commit_in_progress,
+              gv.getStatus());
 
     // Test: Set state to dead. Should skip notification for the warmed-up
     // Prepare (as it has no cookie) when task is run.
-    EXPECT_EQ(ENGINE_SUCCESS, store->setVBucketState(vbid, vbucket_state_dead));
+    EXPECT_EQ(cb::engine_errc::success,
+              store->setVBucketState(vbid, vbucket_state_dead));
 
     // No task scheduled because no prepare has a cookie (so cannot be notified)
     EXPECT_EQ(0,
@@ -1678,7 +1685,7 @@ TEST_P(DurabilityWarmupTest, SetStateDeadWithWarmedUpPrepare) {
 TEST_P(DurabilityWarmupTest, CommittedWithAckAfterWarmup) {
     auto key = makeStoredDocKey("okey");
     auto item = makePendingItem(key, "dokey");
-    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+    ASSERT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
     flush_vbucket_to_disk(vbid);
     {
         auto vb = engine->getVBucket(vbid);
@@ -1711,8 +1718,8 @@ TEST_P(DurabilityWarmupTest, WarmUpHPSAndHCSWithNonSeqnoSortedItems) {
     // ordering them a -> b, the opposite order to their seqnos.
     auto itemB = makePendingItem(makeStoredDocKey("b"), "value");
     auto itemA = makePendingItem(makeStoredDocKey("a"), "value");
-    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*itemB, cookie));
-    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*itemA, cookie));
+    ASSERT_EQ(cb::engine_errc::sync_write_pending, store->set(*itemB, cookie));
+    ASSERT_EQ(cb::engine_errc::sync_write_pending, store->set(*itemA, cookie));
     SCOPED_TRACE("A");
     flush_vbucket_to_disk(vbid, 2);
     {
@@ -1755,14 +1762,15 @@ TEST_P(DurabilityWarmupTest, ReplicaVBucket) {
     // snap 1
     vb->checkpointManager->createSnapshot(
             1, 1, {} /*HCS*/, CheckpointType::Memory, 0);
-    ASSERT_EQ(ENGINE_SUCCESS, store->prepare(*item, cookie));
+    ASSERT_EQ(cb::engine_errc::success, store->prepare(*item, cookie));
     flush_vbucket_to_disk(vbid);
     vb->notifyPassiveDMOfSnapEndReceived(1);
 
     // snap 2
     vb->checkpointManager->createSnapshot(
             2, 2, {} /*HCS*/, CheckpointType::Memory, 0);
-    EXPECT_EQ(ENGINE_SUCCESS, vb->commit(key, 1, 2, vb->lockCollections(key)));
+    EXPECT_EQ(cb::engine_errc::success,
+              vb->commit(key, 1, 2, vb->lockCollections(key)));
     flush_vbucket_to_disk(vbid, 1);
     vb->notifyPassiveDMOfSnapEndReceived(2);
 
@@ -1809,7 +1817,7 @@ TEST_P(DurabilityWarmupTest, AbortDoesNotMovePCSInDiskSnapshot) {
         prepare->setVBucketId(vbid);
         prepare->setCas(1);
         prepare->setBySeqno(1);
-        EXPECT_EQ(ENGINE_SUCCESS, store->prepare(*prepare, cookie));
+        EXPECT_EQ(cb::engine_errc::success, store->prepare(*prepare, cookie));
 
         // 2) Receive the abort
         auto abortKey = makeStoredDocKey("abort");
@@ -1850,7 +1858,7 @@ TEST_P(DurabilityWarmupTest, ImpossibleTopology) {
     // Store a prepared SyncWrite.
     auto key = makeStoredDocKey("key");
     auto item = makePendingItem(key, "value");
-    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+    ASSERT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
     flush_vbucket_to_disk(vbid);
 
     // Change topology to one with a missing replica (e.g. simulating a node
@@ -1904,7 +1912,7 @@ TEST_P(DurabilityWarmupTest, IncompleteDiskSnapshotWarmsUpToHighSeqno) {
         prepare->setVBucketId(vbid);
         prepare->setCas(1);
         prepare->setBySeqno(1);
-        EXPECT_EQ(ENGINE_SUCCESS, store->prepare(*prepare, cookie));
+        EXPECT_EQ(cb::engine_errc::success, store->prepare(*prepare, cookie));
 
         EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
 
@@ -1914,7 +1922,7 @@ TEST_P(DurabilityWarmupTest, IncompleteDiskSnapshotWarmsUpToHighSeqno) {
         completion->setBySeqno(2);
         completion->setCas(prepare->getCas());
         uint64_t* seqno = nullptr;
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   store->setWithMeta(*completion,
                                      0,
                                      seqno,
@@ -1983,7 +1991,7 @@ TEST_P(DurabilityWarmupTest, CompleteDiskSnapshotWarmsUpPCStoPPS) {
         prepare->setVBucketId(vbid);
         prepare->setCas(3);
         prepare->setBySeqno(3);
-        EXPECT_EQ(ENGINE_SUCCESS, store->prepare(*prepare, cookie));
+        EXPECT_EQ(cb::engine_errc::success, store->prepare(*prepare, cookie));
 
         EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
 
@@ -1993,7 +2001,7 @@ TEST_P(DurabilityWarmupTest, CompleteDiskSnapshotWarmsUpPCStoPPS) {
         mutation->setBySeqno(4);
         mutation->setCas(4);
         uint64_t* seqno = nullptr;
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   store->setWithMeta(*mutation,
                                      0,
                                      seqno,
@@ -2132,7 +2140,7 @@ TEST_P(MB_34718_WarmupTest, getTest) {
                                  TaskId::WarmupPopulateVBucketMap;
 
         auto gv = store->get(key, vbid, cookie, options);
-        ASSERT_EQ(ENGINE_NOT_MY_VBUCKET, gv.getStatus());
+        ASSERT_EQ(cb::engine_errc::not_my_vbucket, gv.getStatus());
 
         executor.runCurrentTask();
         executor.completeCurrentTask();
@@ -2150,12 +2158,12 @@ TEST_P(MB_34718_WarmupTest, getTest) {
         EXPECT_EQ(1, vb->getNumItems());
         TimeTraveller rick(4800);
         auto gv = store->get(key, vbid, cookie, options);
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+        EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
         runBGFetcherTask();
 
         // Expect expired (key_noent)
         gv = store->get(key, vbid, cookie, options);
-        EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+        EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
 
         // Prior to the MB being resolved, this would trigger a negative counter
         // exception as we tried to decrement the collection counter which is
@@ -2167,7 +2175,7 @@ TEST_P(MB_34718_WarmupTest, getTest) {
     } else {
         // Value eviction, expect no key whilst warming up
         auto gv = store->get(key, vbid, cookie, options);
-        EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+        EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
 
         runReadersUntilWarmedUp();
 
@@ -2176,12 +2184,12 @@ TEST_P(MB_34718_WarmupTest, getTest) {
 
         gv = store->get(key, vbid, cookie, options);
 
-        EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+        EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
         TimeTraveller morty(4800);
 
         // And expired
         gv = store->get(key, vbid, cookie, options);
-        EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+        EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
 
         flush_vbucket_to_disk(vbid);
     }

@@ -45,12 +45,13 @@ public:
 struct SWCompleteTrace {
     SWCompleteTrace() {
     }
-    SWCompleteTrace(uint8_t count, const void* cookie, ENGINE_ERROR_CODE status)
+    SWCompleteTrace(uint8_t count, const void* cookie, cb::engine_errc status)
         : count(count), cookie(cookie), status(status) {
     }
     uint8_t count{0};
     const void* cookie{nullptr};
-    ENGINE_ERROR_CODE status{ENGINE_EINVAL}; // just a placeholder
+    cb::engine_errc status{
+            cb::engine_errc::invalid_arguments}; // just a placeholder
 
     friend bool operator==(const SWCompleteTrace& lhs,
                            const SWCompleteTrace& rhs);
@@ -132,7 +133,7 @@ protected:
     // Mock SyncWriteCompleteCallback that helps in testing client-notify for
     // Commit/Abort
     const SyncWriteCompleteCallback TracedSyncWriteCompleteCb =
-            [this](const void* cookie, ENGINE_ERROR_CODE status) {
+            [this](const void* cookie, cb::engine_errc status) {
                 swCompleteTrace.count++;
                 swCompleteTrace.cookie = cookie;
                 swCompleteTrace.status = status;

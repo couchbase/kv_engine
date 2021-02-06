@@ -64,15 +64,15 @@ public:
     }
 
 protected:
-    ENGINE_ERROR_CODE step() override;
+    cb::engine_errc step() override;
 
     /**
      * Fetch the existing item from the underlying engine. This must exist
      * for the operation to success.
      *
-     * @return ENGINE_SUCCESS if we want to continue the state machine
+     * @return cb::engine_errc::success if we want to continue the state machine
      */
-    ENGINE_ERROR_CODE getItem();
+    cb::engine_errc getItem();
 
     /**
      * Rebuild the XATTR segment to keep with the deleted document
@@ -82,7 +82,7 @@ protected:
      *
      * @return
      */
-    ENGINE_ERROR_CODE rebuildXattr();
+    cb::engine_errc rebuildXattr();
 
     /**
      * Allocate the item used to represent the deleted object. (note that
@@ -92,39 +92,39 @@ protected:
      * In the future we'll extend this code to preserve the XATTRs from
      * the original document
      *
-     * @return ENGINE_SUCCESS if we want to continue the state machine
+     * @return cb::engine_errc::success if we want to continue the state machine
      */
-    ENGINE_ERROR_CODE allocateDeletedItem();
+    cb::engine_errc allocateDeletedItem();
 
     /**
      * Store the deleted document in the underlying engine.
      *
-     * @return ENGINE_SUCCESS if we want to continue the state machine
+     * @return cb::engine_errc::success if we want to continue the state machine
      */
-    ENGINE_ERROR_CODE storeItem();
+    cb::engine_errc storeItem();
 
     /**
      * Try to remove the document with the "old style" remove (the
      * document didn't have any xattrs we wanted to preserve)
      *
-     * @return ENGINE_SUCCESS if we want to continue the state machine
+     * @return cb::engine_errc::success if we want to continue the state machine
      */
-    ENGINE_ERROR_CODE removeItem();
+    cb::engine_errc removeItem();
 
     /**
      * Create and send the response packet back to the client (include
      * sequence number and vbucket uuid if the client asked for it)
      *
-     * @return ENGINE_SUCCESS if we want to continue the state machine
+     * @return cb::engine_errc::success if we want to continue the state machine
      */
-    ENGINE_ERROR_CODE sendResponse();
+    cb::engine_errc sendResponse();
 
     /**
      * Release all allocated resources
      *
-     * @return ENGINE_SUCCESS if we want to continue the state machine
+     * @return cb::engine_errc::success if we want to continue the state machine
      */
-    ENGINE_ERROR_CODE reset();
+    cb::engine_errc reset();
 
 private:
     const Vbid vbucket;

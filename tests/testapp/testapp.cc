@@ -193,7 +193,7 @@ void TestappTest::SetUp() {
     ASSERT_NE(INVALID_SOCKET, sock);
 
     // Set ewouldblock_engine test harness to default mode.
-    ewouldblock_engine_configure(ENGINE_EWOULDBLOCK,
+    ewouldblock_engine_configure(cb::engine_errc::would_block,
                                  EWBEngineMode::First,
                                  /*unused*/ 0);
 
@@ -226,7 +226,7 @@ void McdTestappTest::SetUp() {
     set_json_feature(hasJSONSupport() == ClientJSONSupport::Yes);
 
     // Set ewouldblock_engine test harness to default mode.
-    ewouldblock_engine_configure(ENGINE_EWOULDBLOCK,
+    ewouldblock_engine_configure(cb::engine_errc::would_block,
                                  EWBEngineMode::First,
                                  /*unused*/ 0);
 
@@ -1047,7 +1047,7 @@ bool safe_recv_packet(std::vector<char>& buf) {
 
 // Configues the ewouldblock_engine to use the given mode; value
 // is a mode-specific parameter.
-void TestappTest::ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
+void TestappTest::ewouldblock_engine_configure(cb::engine_errc err_code,
                                                const EWBEngineMode& mode,
                                                uint32_t value,
                                                const std::string& key) {
@@ -1078,7 +1078,7 @@ void TestappTest::ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
 
 void TestappTest::ewouldblock_engine_configure(
         const std::vector<cb::engine_errc>& sequence) {
-    ewouldblock_engine_configure(ENGINE_SUCCESS,
+    ewouldblock_engine_configure(cb::engine_errc::success,
                                  EWBEngineMode::Sequence,
                                  0,
                                  ewb::encodeSequence(sequence));
@@ -1086,7 +1086,8 @@ void TestappTest::ewouldblock_engine_configure(
 
 void TestappTest::ewouldblock_engine_disable() {
     // Value for err_code doesn't matter...
-    ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode::Next_N, 0);
+    ewouldblock_engine_configure(
+            cb::engine_errc::would_block, EWBEngineMode::Next_N, 0);
 }
 
 void TestappTest::reconfigure() {

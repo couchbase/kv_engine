@@ -24,9 +24,9 @@
 #include <xattr/blob.h>
 
 void dcp_prepare_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    auto ret = cookie.swapAiostat(cb::engine_errc::success);
 
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         const auto& req = cookie.getRequest();
         const auto extdata = req.getExtdata();
         const auto& extras =
@@ -42,11 +42,11 @@ void dcp_prepare_executor(Cookie& cookie) {
                                  mcbp::datatype::is_snappy(datatype));
             priv_bytes = uint32_t(blob.get_system_size());
             if (priv_bytes > cb::limits::PrivilegedBytes) {
-                ret = ENGINE_E2BIG;
+                ret = cb::engine_errc::too_big;
             }
         }
 
-        if (ret == ENGINE_SUCCESS) {
+        if (ret == cb::engine_errc::success) {
             ret = dcpPrepare(cookie,
                              req.getOpaque(),
                              cookie.getConnection().makeDocKey(req.getKey()),
@@ -67,7 +67,7 @@ void dcp_prepare_executor(Cookie& cookie) {
         }
     }
 
-    if (ret != ENGINE_SUCCESS) {
+    if (ret != cb::engine_errc::success) {
         handle_executor_status(cookie, ret);
     }
 }

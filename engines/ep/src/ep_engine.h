@@ -94,7 +94,7 @@ private:
 class EventuallyPersistentEngine : public EngineIface, public DcpIface {
     friend class LookupCallback;
 public:
-    ENGINE_ERROR_CODE initialize(const char* config) override;
+    cb::engine_errc initialize(const char* config) override;
     void destroy(bool force) override;
     void disconnect(gsl::not_null<const void*> cookie) override;
 
@@ -111,7 +111,7 @@ public:
             uint8_t datatype,
             Vbid vbucket) override;
 
-    ENGINE_ERROR_CODE remove(
+    cb::engine_errc remove(
             gsl::not_null<const void*> cookie,
             const DocKey& key,
             uint64_t& cas,
@@ -140,10 +140,10 @@ public:
                                        Vbid vbucket,
                                        uint32_t lock_timeout) override;
 
-    ENGINE_ERROR_CODE unlock(gsl::not_null<const void*> cookie,
-                             const DocKey& key,
-                             Vbid vbucket,
-                             uint64_t cas) override;
+    cb::engine_errc unlock(gsl::not_null<const void*> cookie,
+                           const DocKey& key,
+                           Vbid vbucket,
+                           uint64_t cas) override;
 
     cb::EngineErrorItemPair get_and_touch(
             gsl::not_null<const void*> cookie,
@@ -153,7 +153,7 @@ public:
             const std::optional<cb::durability::Requirements>& durability)
             override;
 
-    ENGINE_ERROR_CODE store(
+    cb::engine_errc store(
             gsl::not_null<const void*> cookie,
             gsl::not_null<ItemIface*> item,
             uint64_t& cas,
@@ -175,20 +175,20 @@ public:
     // DCPIface::flush hiding it.
     using EngineIface::flush;
 
-    ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
-                                std::string_view key,
-                                std::string_view value,
-                                const AddStatFn& add_stat) override;
+    cb::engine_errc get_stats(gsl::not_null<const void*> cookie,
+                              std::string_view key,
+                              std::string_view value,
+                              const AddStatFn& add_stat) override;
 
-    ENGINE_ERROR_CODE get_prometheus_stats(
+    cb::engine_errc get_prometheus_stats(
             const BucketStatCollector& collector,
             cb::prometheus::Cardinality cardinality) override;
 
     void reset_stats(gsl::not_null<const void*> cookie) override;
 
-    ENGINE_ERROR_CODE unknown_command(const void* cookie,
-                                      const cb::mcbp::Request& request,
-                                      const AddResponseFn& response) override;
+    cb::engine_errc unknown_command(const void* cookie,
+                                    const cb::mcbp::Request& request,
+                                    const AddResponseFn& response) override;
 
     void item_set_cas(gsl::not_null<ItemIface*> item,
                       uint64_t cas) override;
@@ -233,50 +233,50 @@ public:
 
     // DcpIface implementation ////////////////////////////////////////////////
 
-    ENGINE_ERROR_CODE step(gsl::not_null<const void*> cookie,
-                           DcpMessageProducersIface& producers) override;
+    cb::engine_errc step(gsl::not_null<const void*> cookie,
+                         DcpMessageProducersIface& producers) override;
 
-    ENGINE_ERROR_CODE open(gsl::not_null<const void*> cookie,
-                           uint32_t opaque,
-                           uint32_t seqno,
-                           uint32_t flags,
-                           std::string_view name,
-                           std::string_view value = {}) override;
+    cb::engine_errc open(gsl::not_null<const void*> cookie,
+                         uint32_t opaque,
+                         uint32_t seqno,
+                         uint32_t flags,
+                         std::string_view name,
+                         std::string_view value = {}) override;
 
-    ENGINE_ERROR_CODE add_stream(gsl::not_null<const void*> cookie,
+    cb::engine_errc add_stream(gsl::not_null<const void*> cookie,
+                               uint32_t opaque,
+                               Vbid vbucket,
+                               uint32_t flags) override;
+
+    cb::engine_errc close_stream(gsl::not_null<const void*> cookie,
                                  uint32_t opaque,
                                  Vbid vbucket,
-                                 uint32_t flags) override;
+                                 cb::mcbp::DcpStreamId sid) override;
 
-    ENGINE_ERROR_CODE close_stream(gsl::not_null<const void*> cookie,
-                                   uint32_t opaque,
-                                   Vbid vbucket,
-                                   cb::mcbp::DcpStreamId sid) override;
+    cb::engine_errc stream_req(gsl::not_null<const void*> cookie,
+                               uint32_t flags,
+                               uint32_t opaque,
+                               Vbid vbucket,
+                               uint64_t start_seqno,
+                               uint64_t end_seqno,
+                               uint64_t vbucket_uuid,
+                               uint64_t snap_start_seqno,
+                               uint64_t snap_end_seqno,
+                               uint64_t* rollback_seqno,
+                               dcp_add_failover_log callback,
+                               std::optional<std::string_view> json) override;
 
-    ENGINE_ERROR_CODE stream_req(gsl::not_null<const void*> cookie,
-                                 uint32_t flags,
-                                 uint32_t opaque,
-                                 Vbid vbucket,
-                                 uint64_t start_seqno,
-                                 uint64_t end_seqno,
-                                 uint64_t vbucket_uuid,
-                                 uint64_t snap_start_seqno,
-                                 uint64_t snap_end_seqno,
-                                 uint64_t* rollback_seqno,
-                                 dcp_add_failover_log callback,
-                                 std::optional<std::string_view> json) override;
+    cb::engine_errc get_failover_log(gsl::not_null<const void*> cookie,
+                                     uint32_t opaque,
+                                     Vbid vbucket,
+                                     dcp_add_failover_log callback) override;
 
-    ENGINE_ERROR_CODE get_failover_log(gsl::not_null<const void*> cookie,
-                                       uint32_t opaque,
-                                       Vbid vbucket,
-                                       dcp_add_failover_log callback) override;
+    cb::engine_errc stream_end(gsl::not_null<const void*> cookie,
+                               uint32_t opaque,
+                               Vbid vbucket,
+                               cb::mcbp::DcpStreamEndStatus status) override;
 
-    ENGINE_ERROR_CODE stream_end(gsl::not_null<const void*> cookie,
-                                 uint32_t opaque,
-                                 Vbid vbucket,
-                                 cb::mcbp::DcpStreamEndStatus status) override;
-
-    ENGINE_ERROR_CODE snapshot_marker(
+    cb::engine_errc snapshot_marker(
             gsl::not_null<const void*> cookie,
             uint32_t opaque,
             Vbid vbucket,
@@ -286,7 +286,47 @@ public:
             std::optional<uint64_t> high_completed_seqno,
             std::optional<uint64_t> max_visible_seqno) override;
 
-    ENGINE_ERROR_CODE mutation(gsl::not_null<const void*> cookie,
+    cb::engine_errc mutation(gsl::not_null<const void*> cookie,
+                             uint32_t opaque,
+                             const DocKey& key,
+                             cb::const_byte_buffer value,
+                             size_t priv_bytes,
+                             uint8_t datatype,
+                             uint64_t cas,
+                             Vbid vbucket,
+                             uint32_t flags,
+                             uint64_t by_seqno,
+                             uint64_t rev_seqno,
+                             uint32_t expiration,
+                             uint32_t lock_time,
+                             cb::const_byte_buffer meta,
+                             uint8_t nru) override;
+
+    cb::engine_errc deletion(gsl::not_null<const void*> cookie,
+                             uint32_t opaque,
+                             const DocKey& key,
+                             cb::const_byte_buffer value,
+                             size_t priv_bytes,
+                             uint8_t datatype,
+                             uint64_t cas,
+                             Vbid vbucket,
+                             uint64_t by_seqno,
+                             uint64_t rev_seqno,
+                             cb::const_byte_buffer meta) override;
+
+    cb::engine_errc deletion_v2(gsl::not_null<const void*> cookie,
+                                uint32_t opaque,
+                                const DocKey& key,
+                                cb::const_byte_buffer value,
+                                size_t priv_bytes,
+                                uint8_t datatype,
+                                uint64_t cas,
+                                Vbid vbucket,
+                                uint64_t by_seqno,
+                                uint64_t rev_seqno,
+                                uint32_t delete_time) override;
+
+    cb::engine_errc expiration(gsl::not_null<const void*> cookie,
                                uint32_t opaque,
                                const DocKey& key,
                                cb::const_byte_buffer value,
@@ -294,112 +334,72 @@ public:
                                uint8_t datatype,
                                uint64_t cas,
                                Vbid vbucket,
-                               uint32_t flags,
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
-                               uint32_t expiration,
-                               uint32_t lock_time,
-                               cb::const_byte_buffer meta,
-                               uint8_t nru) override;
+                               uint32_t deleteTime) override;
 
-    ENGINE_ERROR_CODE deletion(gsl::not_null<const void*> cookie,
-                               uint32_t opaque,
-                               const DocKey& key,
-                               cb::const_byte_buffer value,
-                               size_t priv_bytes,
-                               uint8_t datatype,
-                               uint64_t cas,
-                               Vbid vbucket,
-                               uint64_t by_seqno,
-                               uint64_t rev_seqno,
-                               cb::const_byte_buffer meta) override;
+    cb::engine_errc set_vbucket_state(gsl::not_null<const void*> cookie,
+                                      uint32_t opaque,
+                                      Vbid vbucket,
+                                      vbucket_state_t state) override;
 
-    ENGINE_ERROR_CODE deletion_v2(gsl::not_null<const void*> cookie,
-                                  uint32_t opaque,
-                                  const DocKey& key,
-                                  cb::const_byte_buffer value,
-                                  size_t priv_bytes,
-                                  uint8_t datatype,
-                                  uint64_t cas,
-                                  Vbid vbucket,
-                                  uint64_t by_seqno,
-                                  uint64_t rev_seqno,
-                                  uint32_t delete_time) override;
+    cb::engine_errc noop(gsl::not_null<const void*> cookie,
+                         uint32_t opaque) override;
 
-    ENGINE_ERROR_CODE expiration(gsl::not_null<const void*> cookie,
-                                 uint32_t opaque,
-                                 const DocKey& key,
-                                 cb::const_byte_buffer value,
-                                 size_t priv_bytes,
-                                 uint8_t datatype,
-                                 uint64_t cas,
-                                 Vbid vbucket,
-                                 uint64_t by_seqno,
-                                 uint64_t rev_seqno,
-                                 uint32_t deleteTime) override;
+    cb::engine_errc buffer_acknowledgement(gsl::not_null<const void*> cookie,
+                                           uint32_t opaque,
+                                           Vbid vbucket,
+                                           uint32_t buffer_bytes) override;
 
-    ENGINE_ERROR_CODE set_vbucket_state(gsl::not_null<const void*> cookie,
-                                        uint32_t opaque,
-                                        Vbid vbucket,
-                                        vbucket_state_t state) override;
+    cb::engine_errc control(gsl::not_null<const void*> cookie,
+                            uint32_t opaque,
+                            std::string_view key,
+                            std::string_view value) override;
 
-    ENGINE_ERROR_CODE noop(gsl::not_null<const void*> cookie,
-                           uint32_t opaque) override;
-
-    ENGINE_ERROR_CODE buffer_acknowledgement(gsl::not_null<const void*> cookie,
-                                             uint32_t opaque,
-                                             Vbid vbucket,
-                                             uint32_t buffer_bytes) override;
-
-    ENGINE_ERROR_CODE control(gsl::not_null<const void*> cookie,
-                              uint32_t opaque,
-                              std::string_view key,
-                              std::string_view value) override;
-
-    ENGINE_ERROR_CODE response_handler(
+    cb::engine_errc response_handler(
             gsl::not_null<const void*> cookie,
             const cb::mcbp::Response& response) override;
 
-    ENGINE_ERROR_CODE system_event(gsl::not_null<const void*> cookie,
-                                   uint32_t opaque,
-                                   Vbid vbucket,
-                                   mcbp::systemevent::id event,
-                                   uint64_t bySeqno,
-                                   mcbp::systemevent::version version,
-                                   cb::const_byte_buffer key,
-                                   cb::const_byte_buffer eventData) override;
-    ENGINE_ERROR_CODE prepare(gsl::not_null<const void*> cookie,
-                              uint32_t opaque,
-                              const DocKey& key,
-                              cb::const_byte_buffer value,
-                              size_t priv_bytes,
-                              uint8_t datatype,
-                              uint64_t cas,
-                              Vbid vbucket,
-                              uint32_t flags,
-                              uint64_t by_seqno,
-                              uint64_t rev_seqno,
-                              uint32_t expiration,
-                              uint32_t lock_time,
-                              uint8_t nru,
-                              DocumentState document_state,
-                              cb::durability::Level level) override;
-    ENGINE_ERROR_CODE seqno_acknowledged(gsl::not_null<const void*> cookie,
-                                         uint32_t opaque,
-                                         Vbid vbucket,
-                                         uint64_t prepared_seqno) override;
-    ENGINE_ERROR_CODE commit(gsl::not_null<const void*> cookie,
-                             uint32_t opaque,
-                             Vbid vbucket,
-                             const DocKey& key,
-                             uint64_t prepared_seqno,
-                             uint64_t commit_seqno) override;
-    ENGINE_ERROR_CODE abort(gsl::not_null<const void*> cookie,
+    cb::engine_errc system_event(gsl::not_null<const void*> cookie,
+                                 uint32_t opaque,
+                                 Vbid vbucket,
+                                 mcbp::systemevent::id event,
+                                 uint64_t bySeqno,
+                                 mcbp::systemevent::version version,
+                                 cb::const_byte_buffer key,
+                                 cb::const_byte_buffer eventData) override;
+    cb::engine_errc prepare(gsl::not_null<const void*> cookie,
                             uint32_t opaque,
-                            Vbid vbucket,
                             const DocKey& key,
-                            uint64_t prepared_seqno,
-                            uint64_t abort_seqno) override;
+                            cb::const_byte_buffer value,
+                            size_t priv_bytes,
+                            uint8_t datatype,
+                            uint64_t cas,
+                            Vbid vbucket,
+                            uint32_t flags,
+                            uint64_t by_seqno,
+                            uint64_t rev_seqno,
+                            uint32_t expiration,
+                            uint32_t lock_time,
+                            uint8_t nru,
+                            DocumentState document_state,
+                            cb::durability::Level level) override;
+    cb::engine_errc seqno_acknowledged(gsl::not_null<const void*> cookie,
+                                       uint32_t opaque,
+                                       Vbid vbucket,
+                                       uint64_t prepared_seqno) override;
+    cb::engine_errc commit(gsl::not_null<const void*> cookie,
+                           uint32_t opaque,
+                           Vbid vbucket,
+                           const DocKey& key,
+                           uint64_t prepared_seqno,
+                           uint64_t commit_seqno) override;
+    cb::engine_errc abort(gsl::not_null<const void*> cookie,
+                          uint32_t opaque,
+                          Vbid vbucket,
+                          const DocKey& key,
+                          uint64_t prepared_seqno,
+                          uint64_t abort_seqno) override;
 
     // End DcpIface ///////////////////////////////////////////////////////////
 
@@ -415,10 +415,10 @@ public:
      * @param mut_info pointer to the mutation info that resulted from
      *                 the delete.
      *
-     * @returns ENGINE_SUCCESS if the delete was successful or
+     * @returns cb::engine_errc::success if the delete was successful or
      *          an error code indicating the error
      */
-    ENGINE_ERROR_CODE itemDelete(
+    cb::engine_errc itemDelete(
             const void* cookie,
             const DocKey& key,
             uint64_t& cas,
@@ -464,27 +464,27 @@ public:
                                            Vbid vbucket,
                                            uint32_t lock_timeout);
 
-    ENGINE_ERROR_CODE unlockInner(const void* cookie,
-                                  const DocKey& key,
-                                  Vbid vbucket,
-                                  uint64_t cas);
+    cb::engine_errc unlockInner(const void* cookie,
+                                const DocKey& key,
+                                Vbid vbucket,
+                                uint64_t cas);
 
     const std::string& getName() const {
         return name;
     }
 
-    ENGINE_ERROR_CODE getStats(const void* cookie,
-                               std::string_view key,
-                               std::string_view value,
-                               const AddStatFn& add_stat);
+    cb::engine_errc getStats(const void* cookie,
+                             std::string_view key,
+                             std::string_view value,
+                             const AddStatFn& add_stat);
 
     void resetStats();
 
-    ENGINE_ERROR_CODE storeInner(const void* cookie,
-                                 Item& itm,
-                                 uint64_t& cas,
-                                 StoreSemantics operation,
-                                 bool preserveTtl);
+    cb::engine_errc storeInner(const void* cookie,
+                               Item& itm,
+                               uint64_t& cas,
+                               StoreSemantics operation,
+                               bool preserveTtl);
 
     cb::EngineErrorCasPair storeIfInner(const void* cookie,
                                         Item& itm,
@@ -493,43 +493,43 @@ public:
                                         const cb::StoreIfPredicate& predicate,
                                         bool preserveTtl);
 
-    ENGINE_ERROR_CODE dcpOpen(const void* cookie,
-                              uint32_t opaque,
-                              uint32_t seqno,
-                              uint32_t flags,
-                              std::string_view stream_name,
-                              std::string_view value);
+    cb::engine_errc dcpOpen(const void* cookie,
+                            uint32_t opaque,
+                            uint32_t seqno,
+                            uint32_t flags,
+                            std::string_view stream_name,
+                            std::string_view value);
 
-    ENGINE_ERROR_CODE dcpAddStream(const void* cookie,
-                                   uint32_t opaque,
-                                   Vbid vbucket,
-                                   uint32_t flags);
+    cb::engine_errc dcpAddStream(const void* cookie,
+                                 uint32_t opaque,
+                                 Vbid vbucket,
+                                 uint32_t flags);
 
     cb::EngineErrorMetadataPair getMetaInner(const void* cookie,
                                              const DocKey& key,
                                              Vbid vbucket);
 
-    ENGINE_ERROR_CODE setWithMeta(const void* cookie,
-                                  const cb::mcbp::Request& request,
-                                  const AddResponseFn& response);
+    cb::engine_errc setWithMeta(const void* cookie,
+                                const cb::mcbp::Request& request,
+                                const AddResponseFn& response);
 
-    ENGINE_ERROR_CODE deleteWithMeta(const void* cookie,
-                                     const cb::mcbp::Request& request,
-                                     const AddResponseFn& response);
+    cb::engine_errc deleteWithMeta(const void* cookie,
+                                   const cb::mcbp::Request& request,
+                                   const AddResponseFn& response);
 
-    ENGINE_ERROR_CODE returnMeta(const void* cookie,
-                                 const cb::mcbp::Request& req,
-                                 const AddResponseFn& response);
+    cb::engine_errc returnMeta(const void* cookie,
+                               const cb::mcbp::Request& req,
+                               const AddResponseFn& response);
 
-    ENGINE_ERROR_CODE getAllKeys(const void* cookie,
-                                 const cb::mcbp::Request& request,
-                                 const AddResponseFn& response);
+    cb::engine_errc getAllKeys(const void* cookie,
+                               const cb::mcbp::Request& request,
+                               const AddResponseFn& response);
 
     ConnectionPriority getDCPPriority(const void* cookie);
 
     void setDCPPriority(const void* cookie, ConnectionPriority priority);
 
-    void notifyIOComplete(const void* cookie, ENGINE_ERROR_CODE status);
+    void notifyIOComplete(const void* cookie, cb::engine_errc status);
     void scheduleDcpStep(gsl::not_null<const void*> cookie);
 
     void reserveCookie(const void* cookie);
@@ -562,7 +562,7 @@ public:
                                           uint64_t manifestUid) const;
 
     template <typename T>
-    void notifyIOComplete(T cookies, ENGINE_ERROR_CODE status);
+    void notifyIOComplete(T cookies, cb::engine_errc status);
 
     void handleDisconnect(const void *cookie);
     void initiate_shutdown() override;
@@ -573,21 +573,21 @@ public:
     cb::mcbp::Status startFlusher(const char** msg, size_t* msg_size);
 
     /// Schedule compaction (used by unit tests)
-    ENGINE_ERROR_CODE scheduleCompaction(Vbid vbid,
-                                         const CompactionConfig& c,
-                                         const void* cookie);
+    cb::engine_errc scheduleCompaction(Vbid vbid,
+                                       const CompactionConfig& c,
+                                       const void* cookie);
 
     cb::mcbp::Status evictKey(const void* cookie,
                               const cb::mcbp::Request& request,
                               const char** msg);
 
-    ENGINE_ERROR_CODE observe(const void* cookie,
-                              const cb::mcbp::Request& request,
-                              const AddResponseFn& response);
+    cb::engine_errc observe(const void* cookie,
+                            const cb::mcbp::Request& request,
+                            const AddResponseFn& response);
 
-    ENGINE_ERROR_CODE observe_seqno(const void* cookie,
-                                    const cb::mcbp::Request& request,
-                                    const AddResponseFn& response);
+    cb::engine_errc observe_seqno(const void* cookie,
+                                  const cb::mcbp::Request& request,
+                                  const AddResponseFn& response);
 
     VBucketPtr getVBucket(Vbid vbucket) const;
 
@@ -631,9 +631,9 @@ public:
                                     const std::string& val,
                                     std::string& msg);
 
-    ENGINE_ERROR_CODE getReplicaCmd(const cb::mcbp::Request& request,
-                                    const AddResponseFn& response,
-                                    const void* cookie);
+    cb::engine_errc getReplicaCmd(const cb::mcbp::Request& request,
+                                  const AddResponseFn& response,
+                                  const void* cookie);
 
     ~EventuallyPersistentEngine() override;
 
@@ -676,26 +676,25 @@ public:
         return configuration;
     }
 
-    ENGINE_ERROR_CODE handleLastClosedCheckpoint(
+    cb::engine_errc handleLastClosedCheckpoint(const void* cookie,
+                                               const cb::mcbp::Request& request,
+                                               const AddResponseFn& response);
+    cb::engine_errc handleCreateCheckpoint(const void* cookie,
+                                           const cb::mcbp::Request& request,
+                                           const AddResponseFn& response);
+
+    cb::engine_errc handleCheckpointPersistence(
             const void* cookie,
             const cb::mcbp::Request& request,
             const AddResponseFn& response);
-    ENGINE_ERROR_CODE handleCreateCheckpoint(const void* cookie,
-                                             const cb::mcbp::Request& request,
-                                             const AddResponseFn& response);
 
-    ENGINE_ERROR_CODE handleCheckpointPersistence(
-            const void* cookie,
-            const cb::mcbp::Request& request,
-            const AddResponseFn& response);
+    cb::engine_errc handleSeqnoPersistence(const void* cookie,
+                                           const cb::mcbp::Request& req,
+                                           const AddResponseFn& response);
 
-    ENGINE_ERROR_CODE handleSeqnoPersistence(const void* cookie,
-                                             const cb::mcbp::Request& req,
-                                             const AddResponseFn& response);
-
-    ENGINE_ERROR_CODE handleTrafficControlCmd(const void* cookie,
-                                              const cb::mcbp::Request& request,
-                                              const AddResponseFn& response);
+    cb::engine_errc handleTrafficControlCmd(const void* cookie,
+                                            const cb::mcbp::Request& request,
+                                            const AddResponseFn& response);
 
     size_t getGetlDefaultTimeout() const {
         return getlDefaultTimeout;
@@ -723,9 +722,9 @@ public:
         workloadPriority = p;
     }
 
-    ENGINE_ERROR_CODE getRandomKey(const void* cookie,
-                                   const cb::mcbp::Request& request,
-                                   const AddResponseFn& response);
+    cb::engine_errc getRandomKey(const void* cookie,
+                                 const cb::mcbp::Request& request,
+                                 const AddResponseFn& response);
 
     void setCompressionMode(const std::string& compressModeStr);
 
@@ -765,7 +764,7 @@ public:
      * @param cookie the cookie that the getAllKeys() was processed for
      * @param err Engine error code of the result of getAllKeys()
      */
-    void addLookupAllKeys(const void* cookie, ENGINE_ERROR_CODE err);
+    void addLookupAllKeys(const void* cookie, cb::engine_errc err);
 
     /*
      * Explicitly trigger the defragmenter task. Provided to facilitate
@@ -799,9 +798,9 @@ public:
      * @param cookie The cookie representing the connection to requesting
      *               list
      * @param add_response The method used to format the output buffer
-     * @return ENGINE_SUCCESS upon success
+     * @return cb::engine_errc::success upon success
      */
-    ENGINE_ERROR_CODE getAllVBucketSequenceNumbers(
+    cb::engine_errc getAllVBucketSequenceNumbers(
             const void* cookie,
             const cb::mcbp::Request& request,
             const AddResponseFn& response);
@@ -916,9 +915,9 @@ protected:
     /**
      * Check the access for the given privilege for the given key
      */
-    ENGINE_ERROR_CODE checkPrivilege(const void* cookie,
-                                     cb::rbac::Privilege priv,
-                                     DocKey key) const;
+    cb::engine_errc checkPrivilege(const void* cookie,
+                                   cb::rbac::Privilege priv,
+                                   DocKey key) const;
 
     void setMaxItemSize(size_t value) {
         maxItemSize = value;
@@ -938,7 +937,7 @@ protected:
 
     EventuallyPersistentEngine(GET_SERVER_API get_server_api,
                                cb::ArenaMallocClient arena);
-    friend ENGINE_ERROR_CODE create_ep_engine_instance(
+    friend cb::engine_errc create_ep_engine_instance(
             GET_SERVER_API get_server_api, EngineIface** handle);
     /**
      * Report the state of a memory condition when out of memory.
@@ -946,7 +945,7 @@ protected:
      * @return ETMPFAIL if we think we can recover without interaction,
      *         else ENOMEM
      */
-    ENGINE_ERROR_CODE memoryCondition();
+    cb::engine_errc memoryCondition();
 
     /**
      * Check if there is memory available to allocate an Item
@@ -963,107 +962,105 @@ protected:
 
     bool enableTraffic(bool enable);
 
-    ENGINE_ERROR_CODE doEngineStats(const BucketStatCollector& collector);
-    ENGINE_ERROR_CODE doMemoryStats(const void* cookie,
-                                    const AddStatFn& add_stat);
-    ENGINE_ERROR_CODE doVBucketStats(const void* cookie,
-                                     const AddStatFn& add_stat,
-                                     const char* stat_key,
-                                     int nkey,
-                                     VBucketStatsDetailLevel detail);
-    ENGINE_ERROR_CODE doHashStats(const void* cookie,
+    cb::engine_errc doEngineStats(const BucketStatCollector& collector);
+    cb::engine_errc doMemoryStats(const void* cookie,
                                   const AddStatFn& add_stat);
-    ENGINE_ERROR_CODE doHashDump(const void* cookie,
-                                 const AddStatFn& addStat,
-                                 std::string_view keyArgs);
-    ENGINE_ERROR_CODE doCheckpointStats(const void* cookie,
-                                        const AddStatFn& add_stat,
-                                        const char* stat_key,
-                                        int nkey);
-    ENGINE_ERROR_CODE doCheckpointDump(const void* cookie,
-                                       const AddStatFn& addStat,
-                                       std::string_view keyArgs);
-    ENGINE_ERROR_CODE doDurabilityMonitorStats(const void* cookie,
-                                               const AddStatFn& add_stat,
-                                               const char* stat_key,
-                                               int nkey);
-    ENGINE_ERROR_CODE doDurabilityMonitorDump(const void* cookie,
-                                              const AddStatFn& addStat,
-                                              std::string_view keyArgs);
-    ENGINE_ERROR_CODE doDcpStats(const void* cookie,
-                                 const AddStatFn& add_stat,
-                                 std::string_view value);
-    ENGINE_ERROR_CODE doEvictionStats(const void* cookie,
-                                      const AddStatFn& add_stat);
-    ENGINE_ERROR_CODE doConnAggStats(const BucketStatCollector& collector,
-                                     std::string_view sep);
-    void doTimingStats(const BucketStatCollector& collector);
-    ENGINE_ERROR_CODE doSchedulerStats(const void* cookie,
-                                       const AddStatFn& add_stat);
-    ENGINE_ERROR_CODE doRunTimeStats(const void* cookie,
-                                     const AddStatFn& add_stat);
-    ENGINE_ERROR_CODE doDispatcherStats(const void* cookie,
-                                        const AddStatFn& add_stat);
-    ENGINE_ERROR_CODE doTasksStats(const void* cookie,
-                                   const AddStatFn& add_stat);
-    ENGINE_ERROR_CODE doKeyStats(const void* cookie,
-                                 const AddStatFn& add_stat,
-                                 Vbid vbid,
-                                 const DocKey& key,
-                                 bool validate = false);
-
-    ENGINE_ERROR_CODE doDcpVbTakeoverStats(const void* cookie,
-                                           const AddStatFn& add_stat,
-                                           std::string& key,
-                                           Vbid vbid);
-    ENGINE_ERROR_CODE doVbIdFailoverLogStats(const void* cookie,
-                                             const AddStatFn& add_stat,
-                                             Vbid vbid);
-    ENGINE_ERROR_CODE doAllFailoverLogStats(const void* cookie,
-                                            const AddStatFn& add_stat);
-    ENGINE_ERROR_CODE doWorkloadStats(const void* cookie,
-                                      const AddStatFn& add_stat);
-    ENGINE_ERROR_CODE doSeqnoStats(const void* cookie,
+    cb::engine_errc doVBucketStats(const void* cookie,
                                    const AddStatFn& add_stat,
                                    const char* stat_key,
-                                   int nkey);
+                                   int nkey,
+                                   VBucketStatsDetailLevel detail);
+    cb::engine_errc doHashStats(const void* cookie, const AddStatFn& add_stat);
+    cb::engine_errc doHashDump(const void* cookie,
+                               const AddStatFn& addStat,
+                               std::string_view keyArgs);
+    cb::engine_errc doCheckpointStats(const void* cookie,
+                                      const AddStatFn& add_stat,
+                                      const char* stat_key,
+                                      int nkey);
+    cb::engine_errc doCheckpointDump(const void* cookie,
+                                     const AddStatFn& addStat,
+                                     std::string_view keyArgs);
+    cb::engine_errc doDurabilityMonitorStats(const void* cookie,
+                                             const AddStatFn& add_stat,
+                                             const char* stat_key,
+                                             int nkey);
+    cb::engine_errc doDurabilityMonitorDump(const void* cookie,
+                                            const AddStatFn& addStat,
+                                            std::string_view keyArgs);
+    cb::engine_errc doDcpStats(const void* cookie,
+                               const AddStatFn& add_stat,
+                               std::string_view value);
+    cb::engine_errc doEvictionStats(const void* cookie,
+                                    const AddStatFn& add_stat);
+    cb::engine_errc doConnAggStats(const BucketStatCollector& collector,
+                                   std::string_view sep);
+    void doTimingStats(const BucketStatCollector& collector);
+    cb::engine_errc doSchedulerStats(const void* cookie,
+                                     const AddStatFn& add_stat);
+    cb::engine_errc doRunTimeStats(const void* cookie,
+                                   const AddStatFn& add_stat);
+    cb::engine_errc doDispatcherStats(const void* cookie,
+                                      const AddStatFn& add_stat);
+    cb::engine_errc doTasksStats(const void* cookie, const AddStatFn& add_stat);
+    cb::engine_errc doKeyStats(const void* cookie,
+                               const AddStatFn& add_stat,
+                               Vbid vbid,
+                               const DocKey& key,
+                               bool validate = false);
+
+    cb::engine_errc doDcpVbTakeoverStats(const void* cookie,
+                                         const AddStatFn& add_stat,
+                                         std::string& key,
+                                         Vbid vbid);
+    cb::engine_errc doVbIdFailoverLogStats(const void* cookie,
+                                           const AddStatFn& add_stat,
+                                           Vbid vbid);
+    cb::engine_errc doAllFailoverLogStats(const void* cookie,
+                                          const AddStatFn& add_stat);
+    cb::engine_errc doWorkloadStats(const void* cookie,
+                                    const AddStatFn& add_stat);
+    cb::engine_errc doSeqnoStats(const void* cookie,
+                                 const AddStatFn& add_stat,
+                                 const char* stat_key,
+                                 int nkey);
     void addSeqnoVbStats(const void* cookie,
                          const AddStatFn& add_stat,
                          const VBucketPtr& vb);
 
-    ENGINE_ERROR_CODE doCollectionStats(const void* cookie,
-                                        const AddStatFn& add_stat,
-                                        const std::string& statKey);
-
-    ENGINE_ERROR_CODE doScopeStats(const void* cookie,
-                                   const AddStatFn& add_stat,
-                                   const std::string& statKey);
-
-    ENGINE_ERROR_CODE doKeyStats(const void* cookie,
-                                 const AddStatFn& add_stat,
-                                 std::string_view statKey);
-
-    ENGINE_ERROR_CODE doVKeyStats(const void* cookie,
-                                  const AddStatFn& add_stat,
-                                  std::string_view statKey);
-
-    ENGINE_ERROR_CODE doDcpVbTakeoverStats(const void* cookie,
-                                           const AddStatFn& add_stat,
-                                           std::string_view statKey);
-
-    ENGINE_ERROR_CODE doFailoversStats(const void* cookie,
-                                       const AddStatFn& add_stat,
-                                       std::string_view statKey);
-
-    ENGINE_ERROR_CODE doDiskinfoStats(const void* cookie,
+    cb::engine_errc doCollectionStats(const void* cookie,
                                       const AddStatFn& add_stat,
-                                      std::string_view statKey);
+                                      const std::string& statKey);
+
+    cb::engine_errc doScopeStats(const void* cookie,
+                                 const AddStatFn& add_stat,
+                                 const std::string& statKey);
+
+    cb::engine_errc doKeyStats(const void* cookie,
+                               const AddStatFn& add_stat,
+                               std::string_view statKey);
+
+    cb::engine_errc doVKeyStats(const void* cookie,
+                                const AddStatFn& add_stat,
+                                std::string_view statKey);
+
+    cb::engine_errc doDcpVbTakeoverStats(const void* cookie,
+                                         const AddStatFn& add_stat,
+                                         std::string_view statKey);
+
+    cb::engine_errc doFailoversStats(const void* cookie,
+                                     const AddStatFn& add_stat,
+                                     std::string_view statKey);
+
+    cb::engine_errc doDiskinfoStats(const void* cookie,
+                                    const AddStatFn& add_stat,
+                                    std::string_view statKey);
 
     void doDiskFailureStats(const BucketStatCollector& collector);
 
-    ENGINE_ERROR_CODE doPrivilegedStats(const void* cookie,
-                                        const AddStatFn& add_stat,
-                                        std::string_view statKey);
+    cb::engine_errc doPrivilegedStats(const void* cookie,
+                                      const AddStatFn& add_stat,
+                                      std::string_view statKey);
 
     void addLookupResult(const void* cookie, std::unique_ptr<Item> result);
 
@@ -1071,7 +1068,7 @@ protected:
 
     /// Result of getValidVBucketFromString()
     struct StatusAndVBPtr {
-        ENGINE_ERROR_CODE status;
+        cb::engine_errc status;
         VBucketPtr vb;
     };
     /**
@@ -1123,10 +1120,10 @@ protected:
      *
      * @return status of sending response
      */
-    ENGINE_ERROR_CODE sendErrorResponse(const AddResponseFn& response,
-                                        cb::mcbp::Status status,
-                                        uint64_t cas,
-                                        const void* cookie);
+    cb::engine_errc sendErrorResponse(const AddResponseFn& response,
+                                      cb::mcbp::Status status,
+                                      uint64_t cas,
+                                      const void* cookie);
 
     /**
      * Sends a response that includes the mutation extras, the VB uuid and
@@ -1140,12 +1137,12 @@ protected:
      * @param cookie conn cookie
      * @returns NMVB if VB can't be located, or the ADD_RESPONSE return code.
      */
-    ENGINE_ERROR_CODE sendMutationExtras(const AddResponseFn& response,
-                                         Vbid vbucket,
-                                         uint64_t bySeqno,
-                                         cb::mcbp::Status status,
-                                         uint64_t cas,
-                                         const void* cookie);
+    cb::engine_errc sendMutationExtras(const AddResponseFn& response,
+                                       Vbid vbucket,
+                                       uint64_t bySeqno,
+                                       cb::mcbp::Status status,
+                                       uint64_t cas,
+                                       const void* cookie);
 
     /**
      * Factory method for constructing the correct bucket type given the
@@ -1188,23 +1185,23 @@ protected:
      * @param genBySeqno generate a new seqno? (yes/no)
      * @param genCas generate a new CAS? (yes/no)
      * @param emd buffer referencing ExtendedMetaData
-     * @returns state of the operation as an ENGINE_ERROR_CODE
+     * @returns state of the operation as an cb::engine_errc
      */
-    ENGINE_ERROR_CODE setWithMeta(Vbid vbucket,
-                                  DocKey key,
-                                  cb::const_byte_buffer value,
-                                  ItemMetaData itemMeta,
-                                  bool isDeleted,
-                                  protocol_binary_datatype_t datatype,
-                                  uint64_t& cas,
-                                  uint64_t* seqno,
-                                  const void* cookie,
-                                  PermittedVBStates permittedVBStates,
-                                  CheckConflicts checkConflicts,
-                                  bool allowExisting,
-                                  GenerateBySeqno genBySeqno,
-                                  GenerateCas genCas,
-                                  cb::const_byte_buffer emd);
+    cb::engine_errc setWithMeta(Vbid vbucket,
+                                DocKey key,
+                                cb::const_byte_buffer value,
+                                ItemMetaData itemMeta,
+                                bool isDeleted,
+                                protocol_binary_datatype_t datatype,
+                                uint64_t& cas,
+                                uint64_t* seqno,
+                                const void* cookie,
+                                PermittedVBStates permittedVBStates,
+                                CheckConflicts checkConflicts,
+                                bool allowExisting,
+                                GenerateBySeqno genBySeqno,
+                                GenerateCas genCas,
+                                cb::const_byte_buffer emd);
 
     /**
      * Process the del_with_meta with the given buffers/values.
@@ -1221,20 +1218,20 @@ protected:
      * @param genCas generate a new CAS? (yes/no)
      * @param emd buffer referencing ExtendedMetaData
      * @param deleteSource whether it should delete or expire
-     * @returns state of the operation as an ENGINE_ERROR_CODE
+     * @returns state of the operation as an cb::engine_errc
      */
-    ENGINE_ERROR_CODE deleteWithMeta(Vbid vbucket,
-                                     DocKey key,
-                                     ItemMetaData itemMeta,
-                                     uint64_t& cas,
-                                     uint64_t* seqno,
-                                     const void* cookie,
-                                     PermittedVBStates permittedVBStates,
-                                     CheckConflicts checkConflicts,
-                                     GenerateBySeqno genBySeqno,
-                                     GenerateCas genCas,
-                                     cb::const_byte_buffer emd,
-                                     DeleteSource deleteSource);
+    cb::engine_errc deleteWithMeta(Vbid vbucket,
+                                   DocKey key,
+                                   ItemMetaData itemMeta,
+                                   uint64_t& cas,
+                                   uint64_t* seqno,
+                                   const void* cookie,
+                                   PermittedVBStates permittedVBStates,
+                                   CheckConflicts checkConflicts,
+                                   GenerateBySeqno genBySeqno,
+                                   GenerateCas genCas,
+                                   cb::const_byte_buffer emd,
+                                   DeleteSource deleteSource);
 
     /**
      * Make a DocKey from the key buffer
@@ -1248,10 +1245,9 @@ protected:
      */
     static void waitForTasks(std::vector<ExTask>& tasks);
 
-    ENGINE_ERROR_CODE processUnknownCommandInner(
-            const void* cookie,
-            const cb::mcbp::Request& request,
-            const AddResponseFn& response);
+    cb::engine_errc processUnknownCommandInner(const void* cookie,
+                                               const cb::mcbp::Request& request,
+                                               const AddResponseFn& response);
 
 private:
     void doEngineStatsCouchDB(const BucketStatCollector& collector, const EPStats& epstats);
@@ -1263,7 +1259,7 @@ private:
             std::string_view statKeyArg,
             std::string_view collectionStr);
 
-    std::tuple<ENGINE_ERROR_CODE,
+    std::tuple<cb::engine_errc,
                std::optional<Vbid>,
                std::optional<std::string>,
                std::optional<CollectionID>>
@@ -1292,7 +1288,7 @@ protected:
     ConflictResolutionMode conflictResolutionMode;
 
     std::map<const void*, std::unique_ptr<Item>> lookups;
-    std::unordered_map<const void*, ENGINE_ERROR_CODE> allKeysLookups;
+    std::unordered_map<const void*, cb::engine_errc> allKeysLookups;
     std::mutex lookupMutex;
     GET_SERVER_API getServerApiFunc;
 

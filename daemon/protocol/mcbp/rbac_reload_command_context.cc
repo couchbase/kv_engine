@@ -31,7 +31,7 @@
 class RbacConfigReloadTask : public Task {
 public:
     explicit RbacConfigReloadTask(Cookie& cookie_)
-        : cookie(cookie_), status(ENGINE_SUCCESS) {
+        : cookie(cookie_), status(cb::engine_errc::success) {
         // Empty
     }
 
@@ -54,7 +54,7 @@ public:
                     Settings::instance().getRbacFile(),
                     connection.getDescription(),
                     error.what());
-            status = ENGINE_FAILED;
+            status = cb::engine_errc::failed;
         }
 
         return Status::Finished;
@@ -66,15 +66,15 @@ public:
 
 private:
     Cookie& cookie;
-    ENGINE_ERROR_CODE status;
+    cb::engine_errc status;
 };
 
-ENGINE_ERROR_CODE RbacReloadCommandContext::reload() {
+cb::engine_errc RbacReloadCommandContext::reload() {
     state = State::Done;
     task = std::make_shared<RbacConfigReloadTask>(cookie);
     std::lock_guard<std::mutex> guard(task->getMutex());
     executorPool->schedule(task);
-    return ENGINE_EWOULDBLOCK;
+    return cb::engine_errc::would_block;
 }
 
 void RbacReloadCommandContext::done() {

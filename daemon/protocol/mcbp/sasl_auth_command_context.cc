@@ -27,9 +27,9 @@
 #include <daemon/step_sasl_auth_task.h>
 #include <logger/logger.h>
 
-ENGINE_ERROR_CODE SaslAuthCommandContext::initial() {
+cb::engine_errc SaslAuthCommandContext::initial() {
     if (!connection.isSaslAuthEnabled()) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     }
 
     // Uppercase the requested mechanism so that we don't have to remember
@@ -64,24 +64,24 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::initial() {
     executorPool->schedule(task, true);
 
     state = State::ParseAuthTaskResult;
-    return ENGINE_EWOULDBLOCK;
+    return cb::engine_errc::would_block;
 }
 
-ENGINE_ERROR_CODE SaslAuthCommandContext::parseAuthTaskResult() {
+cb::engine_errc SaslAuthCommandContext::parseAuthTaskResult() {
     auto auth_task = reinterpret_cast<SaslAuthTask*>(task.get());
 
     switch (auth_task->getError()) {
     case cb::sasl::Error::OK:
         state = State::AuthOk;
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
 
     case cb::sasl::Error::CONTINUE:
         state = State::AuthContinue;
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
 
     case cb::sasl::Error::BAD_PARAM:
         state = State::AuthBadParameters;
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
 
     case cb::sasl::Error::FAIL:
     case cb::sasl::Error::NO_MEM:
@@ -91,14 +91,14 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::parseAuthTaskResult() {
     case cb::sasl::Error::NO_RBAC_PROFILE:
     case cb::sasl::Error::AUTH_PROVIDER_DIED:
         state = State::AuthFailure;
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
     throw std::logic_error(
             "SaslAuthCommandContext::parseAuthTaskResult: Unknown sasl error");
 }
 
-ENGINE_ERROR_CODE SaslAuthCommandContext::step() {
-    auto ret = ENGINE_SUCCESS;
+cb::engine_errc SaslAuthCommandContext::step() {
+    auto ret = cb::engine_errc::success;
     do {
         switch (state) {
         case State::Initial:
@@ -121,15 +121,14 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::step() {
             break;
 
         case State::Done:
-            return ENGINE_SUCCESS;
-
+            return cb::engine_errc::success;
         }
-    } while (ret == ENGINE_SUCCESS);
+    } while (ret == cb::engine_errc::success);
 
     return ret;
 }
 
-ENGINE_ERROR_CODE SaslAuthCommandContext::authOk() {
+cb::engine_errc SaslAuthCommandContext::authOk() {
     auto auth_task = reinterpret_cast<SaslAuthTask*>(task.get());
     auto payload = auth_task->getResponse();
     cookie.sendResponse(cb::mcbp::Status::Success,
@@ -140,10 +139,10 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::authOk() {
                         0);
     get_thread_stats(&connection)->auth_cmds++;
     state = State::Done;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE SaslAuthCommandContext::authContinue() {
+cb::engine_errc SaslAuthCommandContext::authContinue() {
     auto auth_task = reinterpret_cast<SaslAuthTask*>(task.get());
     auto payload = auth_task->getResponse();
     cookie.sendResponse(cb::mcbp::Status::AuthContinue,
@@ -153,17 +152,17 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::authContinue() {
                         cb::mcbp::Datatype::Raw,
                         0);
     state = State::Done;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE SaslAuthCommandContext::authBadParameters() {
+cb::engine_errc SaslAuthCommandContext::authBadParameters() {
     auto* ts = get_thread_stats(&connection);
     ts->auth_cmds++;
     ts->auth_errors++;
-    return ENGINE_EINVAL;
+    return cb::engine_errc::invalid_arguments;
 }
 
-ENGINE_ERROR_CODE SaslAuthCommandContext::authFailure() {
+cb::engine_errc SaslAuthCommandContext::authFailure() {
     state = State::Done;
 
     auto auth_task = reinterpret_cast<SaslAuthTask*>(task.get());
@@ -192,5 +191,5 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::authFailure() {
     ts->auth_cmds++;
     ts->auth_errors++;
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }

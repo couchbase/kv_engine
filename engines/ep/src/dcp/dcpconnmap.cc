@@ -130,10 +130,10 @@ bool DcpConnMap::isPassiveStreamConnected_UNLOCKED(Vbid vbucket) {
     return false;
 }
 
-ENGINE_ERROR_CODE DcpConnMap::addPassiveStream(ConnHandler& conn,
-                                               uint32_t opaque,
-                                               Vbid vbucket,
-                                               uint32_t flags) {
+cb::engine_errc DcpConnMap::addPassiveStream(ConnHandler& conn,
+                                             uint32_t opaque,
+                                             Vbid vbucket,
+                                             uint32_t flags) {
     LockHolder lh(connsLock);
     /* Check if a stream (passive) for the vbucket is already present */
     if (isPassiveStreamConnected_UNLOCKED(vbucket)) {
@@ -142,7 +142,7 @@ ENGINE_ERROR_CODE DcpConnMap::addPassiveStream(ConnHandler& conn,
                 "as one already exists for the vbucket!",
                 conn.logHeader(),
                 vbucket);
-        return ENGINE_KEY_EEXISTS;
+        return cb::engine_errc::key_already_exists;
     }
 
     return conn.addStream(opaque, vbucket, flags);

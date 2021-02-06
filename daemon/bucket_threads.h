@@ -53,7 +53,7 @@ public:
           type(type_),
           connection(connection_),
           task(task_),
-          result(ENGINE_DISCONNECT) {
+          result(cb::engine_errc::disconnect) {
         // Empty
     }
 
@@ -65,7 +65,7 @@ public:
         return connection;
     }
 
-    ENGINE_ERROR_CODE getResult() const {
+    cb::engine_errc getResult() const {
         return result;
     }
 
@@ -87,7 +87,7 @@ private:
     BucketType type;
     Connection& connection;
     Task* task;
-    ENGINE_ERROR_CODE result;
+    cb::engine_errc result;
     std::string error;
 };
 
@@ -116,14 +116,14 @@ public:
           force(force_),
           cookie(cookie_),
           task(task_),
-          result(ENGINE_DISCONNECT) {
+          result(cb::engine_errc::disconnect) {
     }
 
     ~DestroyBucketThread() override {
         waitForState(Couchbase::ThreadState::Zombie);
     }
 
-    ENGINE_ERROR_CODE getResult() const {
+    cb::engine_errc getResult() const {
         return result;
     }
 
@@ -144,5 +144,5 @@ private:
     const bool force;
     Cookie* cookie;
     Task* task;
-    ENGINE_ERROR_CODE result;
+    cb::engine_errc result;
 };

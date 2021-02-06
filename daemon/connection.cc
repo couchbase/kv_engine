@@ -267,63 +267,63 @@ EngineIface& Connection::getBucketEngine() const {
     return getBucket().getEngine();
 }
 
-ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) {
+cb::engine_errc Connection::remapErrorCode(cb::engine_errc code) {
     if (xerror_support) {
         return code;
     }
 
     // Check our whitelist
     switch (code) {
-    case ENGINE_SUCCESS: // FALLTHROUGH
-    case ENGINE_KEY_ENOENT: // FALLTHROUGH
-    case ENGINE_KEY_EEXISTS: // FALLTHROUGH
-    case ENGINE_ENOMEM: // FALLTHROUGH
-    case ENGINE_NOT_STORED: // FALLTHROUGH
-    case ENGINE_EINVAL: // FALLTHROUGH
-    case ENGINE_ENOTSUP: // FALLTHROUGH
-    case ENGINE_EWOULDBLOCK: // FALLTHROUGH
-    case ENGINE_E2BIG: // FALLTHROUGH
-    case ENGINE_DISCONNECT: // FALLTHROUGH
-    case ENGINE_NOT_MY_VBUCKET: // FALLTHROUGH
-    case ENGINE_TMPFAIL: // FALLTHROUGH
-    case ENGINE_ERANGE: // FALLTHROUGH
-    case ENGINE_ROLLBACK: // FALLTHROUGH
-    case ENGINE_EBUSY: // FALLTHROUGH
-    case ENGINE_DELTA_BADVAL: // FALLTHROUGH
-    case ENGINE_PREDICATE_FAILED:
-    case ENGINE_FAILED:
+    case cb::engine_errc::success: // FALLTHROUGH
+    case cb::engine_errc::no_such_key: // FALLTHROUGH
+    case cb::engine_errc::key_already_exists: // FALLTHROUGH
+    case cb::engine_errc::no_memory: // FALLTHROUGH
+    case cb::engine_errc::not_stored: // FALLTHROUGH
+    case cb::engine_errc::invalid_arguments: // FALLTHROUGH
+    case cb::engine_errc::not_supported: // FALLTHROUGH
+    case cb::engine_errc::would_block: // FALLTHROUGH
+    case cb::engine_errc::too_big: // FALLTHROUGH
+    case cb::engine_errc::disconnect: // FALLTHROUGH
+    case cb::engine_errc::not_my_vbucket: // FALLTHROUGH
+    case cb::engine_errc::temporary_failure: // FALLTHROUGH
+    case cb::engine_errc::out_of_range: // FALLTHROUGH
+    case cb::engine_errc::rollback: // FALLTHROUGH
+    case cb::engine_errc::too_busy: // FALLTHROUGH
+    case cb::engine_errc::delta_badval: // FALLTHROUGH
+    case cb::engine_errc::predicate_failed:
+    case cb::engine_errc::failed:
         /**
-         * For ENGINE_STREAM_NOT_FOUND and ENGINE_OPAQUE_NO_MATCH, fallthrough
-         * as these will only ever be used if the DcpConsumer has successfully
-         * enabled them using the DcpControl msg with key=v7_dcp_status_codes
-         * value=true
+         * For cb::engine_errc::stream_not_found and
+         * cb::engine_errc::opaque_no_match, fallthrough as these will only ever
+         * be used if the DcpConsumer has successfully enabled them using the
+         * DcpControl msg with key=v7_dcp_status_codes value=true
          */
-    case ENGINE_STREAM_NOT_FOUND:
-    case ENGINE_OPAQUE_NO_MATCH:
+    case cb::engine_errc::stream_not_found:
+    case cb::engine_errc::opaque_no_match:
         return code;
 
-    case ENGINE_LOCKED:
-        return ENGINE_KEY_EEXISTS;
-    case ENGINE_LOCKED_TMPFAIL:
-        return ENGINE_TMPFAIL;
-    case ENGINE_UNKNOWN_COLLECTION:
-    case ENGINE_UNKNOWN_SCOPE:
-        return isCollectionsSupported() ? code : ENGINE_EINVAL;
-
-    case ENGINE_EACCESS:break;
-    case ENGINE_NO_BUCKET:break;
-    case ENGINE_AUTH_STALE:break;
-    case ENGINE_DURABILITY_INVALID_LEVEL:
-    case ENGINE_DURABILITY_IMPOSSIBLE:
-    case ENGINE_SYNC_WRITE_PENDING:
-        break;
-    case ENGINE_SYNC_WRITE_IN_PROGRESS:
-    case ENGINE_SYNC_WRITE_RECOMMIT_IN_PROGRESS:
+    case cb::engine_errc::locked:
+        return cb::engine_errc::key_already_exists;
+    case cb::engine_errc::locked_tmpfail:
+        return cb::engine_errc::temporary_failure;
+    case cb::engine_errc::unknown_collection:
+    case cb::engine_errc::unknown_scope:
+        return isCollectionsSupported() ? code
+                                        : cb::engine_errc::invalid_arguments;
+    case cb::engine_errc::sync_write_in_progress:
+    case cb::engine_errc::sync_write_re_commit_in_progress:
         // we can return tmpfail to old clients and have them retry the
         // operation
-        return ENGINE_TMPFAIL;
-    case ENGINE_SYNC_WRITE_AMBIGUOUS:
-    case ENGINE_DCP_STREAMID_INVALID:
+        return cb::engine_errc::temporary_failure;
+    case cb::engine_errc::no_access:
+    case cb::engine_errc::no_bucket:
+    case cb::engine_errc::authentication_stale:
+    case cb::engine_errc::durability_invalid_level:
+    case cb::engine_errc::durability_impossible:
+    case cb::engine_errc::sync_write_pending:
+    case cb::engine_errc::sync_write_ambiguous:
+    case cb::engine_errc::dcp_streamid_invalid:
+    case cb::engine_errc::cannot_apply_collections_manifest:
         break;
     }
 
@@ -339,7 +339,7 @@ ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) {
             errc.message().c_str());
     setTerminationReason("XError not enabled on client");
 
-    return ENGINE_DISCONNECT;
+    return cb::engine_errc::disconnect;
 }
 
 void Connection::resetUsernameCache() {
@@ -673,19 +673,19 @@ bool Connection::executeCommandsCallback() {
                 const auto ret = getBucket().getDcpIface()->step(
                         static_cast<const void*>(cookies.front().get()), *this);
                 switch (remapErrorCode(ret)) {
-                case ENGINE_SUCCESS:
+                case cb::engine_errc::success:
                     more = (getSendQueueSize() < maxSendQueueSize);
                     break;
-                case ENGINE_EWOULDBLOCK:
+                case cb::engine_errc::would_block:
                     more = false;
                     break;
                 default:
                     LOG_WARNING(
                             R"({}: step returned {} - closing connection {})",
                             getId(),
-                            cb::to_string(cb::to_engine_errc(ret)),
+                            cb::to_string(ret),
                             getDescription());
-                    if (ret == ENGINE_DISCONNECT) {
+                    if (ret == cb::engine_errc::disconnect) {
                         setTerminationReason("Engine forced disconnect");
                     }
                     shutdown();
@@ -1520,15 +1520,15 @@ void Connection::sendResponse(Cookie& cookie,
     }
 }
 
-ENGINE_ERROR_CODE Connection::add_packet_to_send_pipe(
+cb::engine_errc Connection::add_packet_to_send_pipe(
         cb::const_byte_buffer packet) {
     try {
         copyToOutputStream(packet);
     } catch (const std::bad_alloc&) {
-        return ENGINE_E2BIG;
+        return cb::engine_errc::too_big;
     }
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -1537,7 +1537,7 @@ ENGINE_ERROR_CODE Connection::add_packet_to_send_pipe(
 //                                                                        //
 ////////////////////////////////////////////////////////////////////////////
 
-ENGINE_ERROR_CODE Connection::get_failover_log(uint32_t opaque, Vbid vbucket) {
+cb::engine_errc Connection::get_failover_log(uint32_t opaque, Vbid vbucket) {
     cb::mcbp::Request req = {};
     req.setMagic(cb::mcbp::Magic::ClientRequest);
     req.setOpcode(cb::mcbp::ClientOpcode::DcpGetFailoverLog);
@@ -1547,15 +1547,15 @@ ENGINE_ERROR_CODE Connection::get_failover_log(uint32_t opaque, Vbid vbucket) {
     return add_packet_to_send_pipe(req.getFrame());
 }
 
-ENGINE_ERROR_CODE Connection::stream_req(uint32_t opaque,
-                                         Vbid vbucket,
-                                         uint32_t flags,
-                                         uint64_t start_seqno,
-                                         uint64_t end_seqno,
-                                         uint64_t vbucket_uuid,
-                                         uint64_t snap_start_seqno,
-                                         uint64_t snap_end_seqno,
-                                         const std::string& request_value) {
+cb::engine_errc Connection::stream_req(uint32_t opaque,
+                                       Vbid vbucket,
+                                       uint32_t flags,
+                                       uint64_t start_seqno,
+                                       uint64_t end_seqno,
+                                       uint64_t vbucket_uuid,
+                                       uint64_t snap_start_seqno,
+                                       uint64_t snap_end_seqno,
+                                       const std::string& request_value) {
     using Framebuilder = cb::mcbp::FrameBuilder<cb::mcbp::Request>;
     using cb::mcbp::Request;
     using cb::mcbp::request::DcpStreamReqPayload;
@@ -1589,9 +1589,9 @@ ENGINE_ERROR_CODE Connection::stream_req(uint32_t opaque,
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
-ENGINE_ERROR_CODE Connection::add_stream_rsp(uint32_t opaque,
-                                             uint32_t dialogopaque,
-                                             cb::mcbp::Status status) {
+cb::engine_errc Connection::add_stream_rsp(uint32_t opaque,
+                                           uint32_t dialogopaque,
+                                           cb::mcbp::Status status) {
     cb::mcbp::response::DcpAddStreamPayload extras;
     extras.setOpaque(dialogopaque);
     cb::mcbp::ResponseBuilder builder(thread.getScratchBuffer());
@@ -1604,8 +1604,8 @@ ENGINE_ERROR_CODE Connection::add_stream_rsp(uint32_t opaque,
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
-ENGINE_ERROR_CODE Connection::marker_rsp(uint32_t opaque,
-                                         cb::mcbp::Status status) {
+cb::engine_errc Connection::marker_rsp(uint32_t opaque,
+                                       cb::mcbp::Status status) {
     cb::mcbp::Response response{};
     response.setMagic(cb::mcbp::Magic::ClientResponse);
     response.setOpcode(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
@@ -1618,8 +1618,8 @@ ENGINE_ERROR_CODE Connection::marker_rsp(uint32_t opaque,
             {reinterpret_cast<const uint8_t*>(&response), sizeof(response)});
 }
 
-ENGINE_ERROR_CODE Connection::set_vbucket_state_rsp(uint32_t opaque,
-                                                    cb::mcbp::Status status) {
+cb::engine_errc Connection::set_vbucket_state_rsp(uint32_t opaque,
+                                                  cb::mcbp::Status status) {
     cb::mcbp::ResponseBuilder builder(thread.getScratchBuffer());
     builder.setMagic(cb::mcbp::Magic::ClientResponse);
     builder.setOpcode(cb::mcbp::ClientOpcode::DcpSetVbucketState);
@@ -1629,10 +1629,10 @@ ENGINE_ERROR_CODE Connection::set_vbucket_state_rsp(uint32_t opaque,
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
-ENGINE_ERROR_CODE Connection::stream_end(uint32_t opaque,
-                                         Vbid vbucket,
-                                         cb::mcbp::DcpStreamEndStatus status,
-                                         cb::mcbp::DcpStreamId sid) {
+cb::engine_errc Connection::stream_end(uint32_t opaque,
+                                       Vbid vbucket,
+                                       cb::mcbp::DcpStreamEndStatus status,
+                                       cb::mcbp::DcpStreamId sid) {
     using Framebuilder = cb::mcbp::FrameBuilder<cb::mcbp::Request>;
     Framebuilder builder(thread.getScratchBuffer());
     builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
@@ -1655,15 +1655,15 @@ ENGINE_ERROR_CODE Connection::stream_end(uint32_t opaque,
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
-ENGINE_ERROR_CODE Connection::marker(uint32_t opaque,
-                                     Vbid vbucket,
-                                     uint64_t start_seqno,
-                                     uint64_t end_seqno,
-                                     uint32_t flags,
-                                     std::optional<uint64_t> hcs,
-                                     std::optional<uint64_t> mvs,
-                                     std::optional<uint64_t> timestamp,
-                                     cb::mcbp::DcpStreamId sid) {
+cb::engine_errc Connection::marker(uint32_t opaque,
+                                   Vbid vbucket,
+                                   uint64_t start_seqno,
+                                   uint64_t end_seqno,
+                                   uint32_t flags,
+                                   std::optional<uint64_t> hcs,
+                                   std::optional<uint64_t> mvs,
+                                   std::optional<uint64_t> timestamp,
+                                   cb::mcbp::DcpStreamId sid) {
     using Framebuilder = cb::mcbp::FrameBuilder<cb::mcbp::Request>;
     using cb::mcbp::Request;
     using cb::mcbp::request::DcpSnapshotMarkerV1Payload;
@@ -1696,18 +1696,18 @@ ENGINE_ERROR_CODE Connection::marker(uint32_t opaque,
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
-ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
-                                       cb::unique_item_ptr it,
-                                       Vbid vbucket,
-                                       uint64_t by_seqno,
-                                       uint64_t rev_seqno,
-                                       uint32_t lock_time,
-                                       uint8_t nru,
-                                       cb::mcbp::DcpStreamId sid) {
+cb::engine_errc Connection::mutation(uint32_t opaque,
+                                     cb::unique_item_ptr it,
+                                     Vbid vbucket,
+                                     uint64_t by_seqno,
+                                     uint64_t rev_seqno,
+                                     uint32_t lock_time,
+                                     uint8_t nru,
+                                     cb::mcbp::DcpStreamId sid) {
     item_info info;
     if (!bucket_get_item_info(*this, it.get(), &info)) {
         LOG_WARNING("{}: Failed to get item info", getId());
-        return ENGINE_FAILED;
+        return cb::engine_errc::failed;
     }
 
     char* root = reinterpret_cast<char*>(info.value[0].iov_base);
@@ -1749,7 +1749,7 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
         builder.setDatatype(cb::mcbp::Datatype(info.datatype));
 
         copyToOutputStream(builder.getFrame()->getFrame());
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     cb::mcbp::Request req = {};
@@ -1795,15 +1795,15 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
     } catch (const std::bad_alloc&) {
         /// We might have written a partial message into the buffer so
         /// we need to disconnect the client
-        return ENGINE_DISCONNECT;
+        return cb::engine_errc::disconnect;
     }
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE Connection::deletionInner(const item_info& info,
-                                            cb::const_byte_buffer packet,
-                                            const DocKey& key) {
+cb::engine_errc Connection::deletionInner(const item_info& info,
+                                          cb::const_byte_buffer packet,
+                                          const DocKey& key) {
     try {
         copyToOutputStream(packet);
         copyToOutputStream({key.data(), key.size()});
@@ -1813,23 +1813,23 @@ ENGINE_ERROR_CODE Connection::deletionInner(const item_info& info,
     } catch (const std::bad_alloc&) {
         // We might have written a partial message into the buffer so
         // we need to disconnect the client
-        return ENGINE_DISCONNECT;
+        return cb::engine_errc::disconnect;
     }
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
-                                       cb::unique_item_ptr it,
-                                       Vbid vbucket,
-                                       uint64_t by_seqno,
-                                       uint64_t rev_seqno,
-                                       cb::mcbp::DcpStreamId sid) {
+cb::engine_errc Connection::deletion(uint32_t opaque,
+                                     cb::unique_item_ptr it,
+                                     Vbid vbucket,
+                                     uint64_t by_seqno,
+                                     uint64_t rev_seqno,
+                                     cb::mcbp::DcpStreamId sid) {
     item_info info;
     if (!bucket_get_item_info(*this, it.get(), &info)) {
         LOG_WARNING("{}: Connection::deletion: Failed to get item info",
                     getId());
-        return ENGINE_FAILED;
+        return cb::engine_errc::failed;
     }
 
     auto key = info.key;
@@ -1864,7 +1864,7 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
         builder.setDatatype(cb::mcbp::Datatype(info.datatype));
 
         copyToOutputStream(builder.getFrame()->getFrame());
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     using cb::mcbp::Request;
@@ -1904,18 +1904,18 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
     return deletionInner(info, packetBuffer, key);
 }
 
-ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
-                                          cb::unique_item_ptr it,
-                                          Vbid vbucket,
-                                          uint64_t by_seqno,
-                                          uint64_t rev_seqno,
-                                          uint32_t delete_time,
-                                          cb::mcbp::DcpStreamId sid) {
+cb::engine_errc Connection::deletion_v2(uint32_t opaque,
+                                        cb::unique_item_ptr it,
+                                        Vbid vbucket,
+                                        uint64_t by_seqno,
+                                        uint64_t rev_seqno,
+                                        uint32_t delete_time,
+                                        cb::mcbp::DcpStreamId sid) {
     item_info info;
     if (!bucket_get_item_info(*this, it.get(), &info)) {
         LOG_WARNING("{}: Connection::deletion_v2: Failed to get item info",
                     getId());
-        return ENGINE_FAILED;
+        return cb::engine_errc::failed;
     }
 
     auto key = info.key;
@@ -1949,7 +1949,7 @@ ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
         builder.setCas(info.cas);
         builder.setDatatype(cb::mcbp::Datatype(info.datatype));
         copyToOutputStream(builder.getFrame()->getFrame());
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     // Make blob big enough for either delete or expiry
@@ -1989,18 +1989,18 @@ ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
     return deletionInner(info, {blob.data(), size}, key);
 }
 
-ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
-                                         cb::unique_item_ptr it,
-                                         Vbid vbucket,
-                                         uint64_t by_seqno,
-                                         uint64_t rev_seqno,
-                                         uint32_t delete_time,
-                                         cb::mcbp::DcpStreamId sid) {
+cb::engine_errc Connection::expiration(uint32_t opaque,
+                                       cb::unique_item_ptr it,
+                                       Vbid vbucket,
+                                       uint64_t by_seqno,
+                                       uint64_t rev_seqno,
+                                       uint32_t delete_time,
+                                       cb::mcbp::DcpStreamId sid) {
     item_info info;
     if (!bucket_get_item_info(*this, it.get(), &info)) {
         LOG_WARNING("{}: Connection::expiration: Failed to get item info",
                     getId());
-        return ENGINE_FAILED;
+        return cb::engine_errc::failed;
     }
 
     auto key = info.key;
@@ -2034,7 +2034,7 @@ ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
         builder.setCas(info.cas);
         builder.setDatatype(cb::mcbp::Datatype(info.datatype));
         copyToOutputStream(builder.getFrame()->getFrame());
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     // Make blob big enough for either delete or expiry
@@ -2074,11 +2074,11 @@ ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
     return deletionInner(info, {blob.data(), size}, key);
 }
 
-ENGINE_ERROR_CODE Connection::set_vbucket_state(uint32_t opaque,
-                                                Vbid vbucket,
-                                                vbucket_state_t st) {
+cb::engine_errc Connection::set_vbucket_state(uint32_t opaque,
+                                              Vbid vbucket,
+                                              vbucket_state_t st) {
     if (!is_valid_vbucket_state_t(st)) {
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 
     cb::mcbp::request::DcpSetVBucketState extras;
@@ -2093,7 +2093,7 @@ ENGINE_ERROR_CODE Connection::set_vbucket_state(uint32_t opaque,
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
-ENGINE_ERROR_CODE Connection::noop(uint32_t opaque) {
+cb::engine_errc Connection::noop(uint32_t opaque) {
     cb::mcbp::RequestBuilder builder(thread.getScratchBuffer());
     builder.setMagic(cb::mcbp::Magic::ClientRequest);
     builder.setOpcode(cb::mcbp::ClientOpcode::DcpNoop);
@@ -2102,9 +2102,9 @@ ENGINE_ERROR_CODE Connection::noop(uint32_t opaque) {
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
-ENGINE_ERROR_CODE Connection::buffer_acknowledgement(uint32_t opaque,
-                                                     Vbid vbucket,
-                                                     uint32_t buffer_bytes) {
+cb::engine_errc Connection::buffer_acknowledgement(uint32_t opaque,
+                                                   Vbid vbucket,
+                                                   uint32_t buffer_bytes) {
     cb::mcbp::request::DcpBufferAckPayload extras;
     extras.setBufferBytes(buffer_bytes);
     cb::mcbp::RequestBuilder builder(thread.getScratchBuffer());
@@ -2117,9 +2117,9 @@ ENGINE_ERROR_CODE Connection::buffer_acknowledgement(uint32_t opaque,
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
-ENGINE_ERROR_CODE Connection::control(uint32_t opaque,
-                                      std::string_view key,
-                                      std::string_view value) {
+cb::engine_errc Connection::control(uint32_t opaque,
+                                    std::string_view key,
+                                    std::string_view value) {
     std::vector<uint8_t> buffer;
     buffer.resize(sizeof(cb::mcbp::Request) + key.size() + value.size());
     cb::mcbp::RequestBuilder builder({buffer.data(), buffer.size()});
@@ -2133,14 +2133,14 @@ ENGINE_ERROR_CODE Connection::control(uint32_t opaque,
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
-ENGINE_ERROR_CODE Connection::system_event(uint32_t opaque,
-                                           Vbid vbucket,
-                                           mcbp::systemevent::id event,
-                                           uint64_t bySeqno,
-                                           mcbp::systemevent::version version,
-                                           cb::const_byte_buffer key,
-                                           cb::const_byte_buffer eventData,
-                                           cb::mcbp::DcpStreamId sid) {
+cb::engine_errc Connection::system_event(uint32_t opaque,
+                                         Vbid vbucket,
+                                         mcbp::systemevent::id event,
+                                         uint64_t bySeqno,
+                                         mcbp::systemevent::version version,
+                                         cb::const_byte_buffer key,
+                                         cb::const_byte_buffer eventData,
+                                         cb::mcbp::DcpStreamId sid) {
     cb::mcbp::request::DcpSystemEventPayload extras(bySeqno, event, version);
     std::vector<uint8_t> buffer;
     buffer.resize(sizeof(cb::mcbp::Request) + sizeof(extras) + key.size() +
@@ -2164,7 +2164,7 @@ ENGINE_ERROR_CODE Connection::system_event(uint32_t opaque,
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
-ENGINE_ERROR_CODE Connection::get_error_map(uint32_t opaque, uint16_t version) {
+cb::engine_errc Connection::get_error_map(uint32_t opaque, uint16_t version) {
     cb::mcbp::request::GetErrmapPayload body;
     body.setVersion(version);
     cb::mcbp::RequestBuilder builder(thread.getScratchBuffer());
@@ -2176,20 +2176,20 @@ ENGINE_ERROR_CODE Connection::get_error_map(uint32_t opaque, uint16_t version) {
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
-ENGINE_ERROR_CODE Connection::prepare(uint32_t opaque,
-                                      cb::unique_item_ptr it,
-                                      Vbid vbucket,
-                                      uint64_t by_seqno,
-                                      uint64_t rev_seqno,
-                                      uint32_t lock_time,
-                                      uint8_t nru,
-                                      DocumentState document_state,
-                                      cb::durability::Level level) {
+cb::engine_errc Connection::prepare(uint32_t opaque,
+                                    cb::unique_item_ptr it,
+                                    Vbid vbucket,
+                                    uint64_t by_seqno,
+                                    uint64_t rev_seqno,
+                                    uint32_t lock_time,
+                                    uint8_t nru,
+                                    DocumentState document_state,
+                                    cb::durability::Level level) {
     item_info info;
     if (!bucket_get_item_info(*this, it.get(), &info)) {
         LOG_WARNING("{}: Connection::prepare: Failed to get item info",
                     getId());
-        return ENGINE_FAILED;
+        return cb::engine_errc::failed;
     }
 
     char* root = reinterpret_cast<char*>(info.value[0].iov_base);
@@ -2229,7 +2229,7 @@ ENGINE_ERROR_CODE Connection::prepare(uint32_t opaque,
         builder.setDatatype(cb::mcbp::Datatype(info.datatype));
         builder.setValue(buffer);
         copyToOutputStream(builder.getFrame()->getFrame());
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     cb::mcbp::Request req = {};
@@ -2267,15 +2267,15 @@ ENGINE_ERROR_CODE Connection::prepare(uint32_t opaque,
     } catch (const std::bad_alloc&) {
         /// We might have written a partial message into the buffer so
         /// we need to disconnect the client
-        return ENGINE_DISCONNECT;
+        return cb::engine_errc::disconnect;
     }
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE Connection::seqno_acknowledged(uint32_t opaque,
-                                                 Vbid vbucket,
-                                                 uint64_t prepared_seqno) {
+cb::engine_errc Connection::seqno_acknowledged(uint32_t opaque,
+                                               Vbid vbucket,
+                                               uint64_t prepared_seqno) {
     cb::mcbp::request::DcpSeqnoAcknowledgedPayload extras(prepared_seqno);
     cb::mcbp::RequestBuilder builder(thread.getScratchBuffer());
     builder.setMagic(cb::mcbp::Magic::ClientRequest);
@@ -2286,11 +2286,11 @@ ENGINE_ERROR_CODE Connection::seqno_acknowledged(uint32_t opaque,
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
-ENGINE_ERROR_CODE Connection::commit(uint32_t opaque,
-                                     Vbid vbucket,
-                                     const DocKey& key_,
-                                     uint64_t prepare_seqno,
-                                     uint64_t commit_seqno) {
+cb::engine_errc Connection::commit(uint32_t opaque,
+                                   Vbid vbucket,
+                                   const DocKey& key_,
+                                   uint64_t prepare_seqno,
+                                   uint64_t commit_seqno) {
     cb::mcbp::request::DcpCommitPayload extras(prepare_seqno, commit_seqno);
     auto key = key_;
     if (!isCollectionsSupported()) {
@@ -2310,11 +2310,11 @@ ENGINE_ERROR_CODE Connection::commit(uint32_t opaque,
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
-ENGINE_ERROR_CODE Connection::abort(uint32_t opaque,
-                                    Vbid vbucket,
-                                    const DocKey& key_,
-                                    uint64_t prepared_seqno,
-                                    uint64_t abort_seqno) {
+cb::engine_errc Connection::abort(uint32_t opaque,
+                                  Vbid vbucket,
+                                  const DocKey& key_,
+                                  uint64_t prepared_seqno,
+                                  uint64_t abort_seqno) {
     cb::mcbp::request::DcpAbortPayload extras(prepared_seqno, abort_seqno);
     auto key = key_;
     if (!isCollectionsSupported()) {
@@ -2334,10 +2334,10 @@ ENGINE_ERROR_CODE Connection::abort(uint32_t opaque,
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
-ENGINE_ERROR_CODE Connection::oso_snapshot(uint32_t opaque,
-                                           Vbid vbucket,
-                                           uint32_t flags,
-                                           cb::mcbp::DcpStreamId sid) {
+cb::engine_errc Connection::oso_snapshot(uint32_t opaque,
+                                         Vbid vbucket,
+                                         uint32_t flags,
+                                         cb::mcbp::DcpStreamId sid) {
     cb::mcbp::request::DcpOsoSnapshotPayload extras(flags);
     const size_t totalBytes = sizeof(cb::mcbp::Request) + sizeof(extras) +
                               sizeof(cb::mcbp::DcpStreamIdFrameInfo);
@@ -2356,10 +2356,10 @@ ENGINE_ERROR_CODE Connection::oso_snapshot(uint32_t opaque,
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
-ENGINE_ERROR_CODE Connection::seqno_advanced(uint32_t opaque,
-                                             Vbid vbucket,
-                                             uint64_t seqno,
-                                             cb::mcbp::DcpStreamId sid) {
+cb::engine_errc Connection::seqno_advanced(uint32_t opaque,
+                                           Vbid vbucket,
+                                           uint64_t seqno,
+                                           cb::mcbp::DcpStreamId sid) {
     cb::mcbp::request::DcpSeqnoAdvancedPayload extras(seqno);
     const size_t totalBytes = sizeof(cb::mcbp::Request) + sizeof(extras) +
                               sizeof(cb::mcbp::DcpStreamIdFrameInfo);

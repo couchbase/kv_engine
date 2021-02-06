@@ -97,7 +97,7 @@ void processMutations(MockPassiveStream& stream,
         //             vbHighSeqno = 0
         //     2) calls PassiveStream::handleSnapshotEnd (which must close the
         //         open checkpoint if the current mutation is the snapshot-end)
-        ASSERT_EQ(ENGINE_SUCCESS, stream.processMutation(&mutation));
+        ASSERT_EQ(cb::engine_errc::success, stream.processMutation(&mutation));
     }
 }
 

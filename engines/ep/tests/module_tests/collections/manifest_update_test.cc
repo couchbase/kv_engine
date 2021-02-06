@@ -77,7 +77,7 @@ TEST_P(CollectionsManifestUpdate, update_add1_warmup) {
 
     if (isPersistent()) {
         resetEngineAndWarmup();
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   store->setVBucketState(vbid, vbucket_state_active));
 
         // Check the current manifest is still not a forced update
@@ -106,7 +106,7 @@ TEST_P(CollectionsManifestUpdate, update_add1_warmup) {
 
     if (isPersistent()) {
         resetEngineAndWarmup();
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   store->setVBucketState(vbid, vbucket_state_active));
     }
 
@@ -131,7 +131,7 @@ TEST_P(CollectionsManifestUpdate, update_add1_move1_warmup) {
 
     if (isPersistent()) {
         resetEngineAndWarmup();
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   store->setVBucketState(vbid, vbucket_state_active));
 
         // Check the current manifest is still not a forced update

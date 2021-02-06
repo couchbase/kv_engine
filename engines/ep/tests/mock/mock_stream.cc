@@ -89,7 +89,7 @@ void MockActiveStream::consumeAllBackfillItems() {
     }
 }
 
-ENGINE_ERROR_CODE MockPassiveStream::messageReceived(
+cb::engine_errc MockPassiveStream::messageReceived(
         std::unique_ptr<DcpResponse> dcpResponse) {
     responseMessageSize = dcpResponse->getMessageSize();
     return PassiveStream::messageReceived(std::move(dcpResponse));

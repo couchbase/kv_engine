@@ -40,22 +40,22 @@ protected:
      *         the connections state to one of the appropriate states (send
      *         data, or start processing the next command)
      */
-    ENGINE_ERROR_CODE step() override;
+    cb::engine_errc step() override;
 
     /**
      * Try to lookup the named item metadata in the underlying engine. Given
      * that the engine may block (in case Full Eviction is enabled) we would
-     * return ENGINE_EWOULDBLOCK in these cases (that could in theory happen
-     * multiple times etc).
+     * return cb::engine_errc::would_block in these cases (that could in theory
+     * happen multiple times etc).
      *
      * If the item is found we move to the State::SendResponse state. We move
      * to the State::NoSuchItem otherwise.
      *
-     * @return ENGINE_EWOULDBLOCK if the underlying engine needs to block
-     *         ENGINE_SUCCESS if we want to continue to run the state diagram
-     *         a standard engine error code if something goes wrong
+     * @return cb::engine_errc::would_block if the underlying engine needs to
+     * block cb::engine_errc::success if we want to continue to run the state
+     * diagram a standard engine error code if something goes wrong
      */
-    ENGINE_ERROR_CODE getItemMeta();
+    cb::engine_errc getItemMeta();
 
     /**
      * Handle the case where the item isn't found. If the client don't want
@@ -64,17 +64,17 @@ protected:
      *
      * The next state would be State::Done :-)
      *
-     * @return ENGINE_SUCCESS if we want to continue to run the state diagram
-     *         a standard engine error code if something goes wrong
+     * @return cb::engine_errc::success if we want to continue to run the state
+     * diagram a standard engine error code if something goes wrong
      */
-    ENGINE_ERROR_CODE noSuchItem();
+    cb::engine_errc noSuchItem();
 
     /**
      * Make the response message and send it to the client.
      *
-     * @return ENGINE_SUCCESS
+     * @return cb::engine_errc::success
      */
-    ENGINE_ERROR_CODE sendResponse();
+    cb::engine_errc sendResponse();
 
 private:
     const Vbid vbucket;

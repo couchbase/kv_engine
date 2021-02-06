@@ -20,8 +20,8 @@
 #include <mcbp/protocol/datatype.h>
 
 /** Callback from the engine adding the response */
-ENGINE_ERROR_CODE add_failover_log(std::vector<vbucket_failover_t> entries,
-                                   Cookie& cookie) {
+cb::engine_errc add_failover_log(std::vector<vbucket_failover_t> entries,
+                                 Cookie& cookie) {
     for (auto& entry : entries) {
         entry.uuid = htonll(entry.uuid);
         entry.seqno = htonll(entry.seqno);
@@ -34,5 +34,5 @@ ENGINE_ERROR_CODE add_failover_log(std::vector<vbucket_failover_t> entries,
              (uint32_t)(entries.size() * sizeof(vbucket_failover_t))},
             cb::mcbp::Datatype::Raw,
             0);
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }

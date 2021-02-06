@@ -32,9 +32,9 @@ SessionValidatedCommandContext::~SessionValidatedCommandContext() {
         session_cas.decrement_session_counter();
     }
 }
-ENGINE_ERROR_CODE SessionValidatedCommandContext::step() {
+cb::engine_errc SessionValidatedCommandContext::step() {
     if (!valid) {
-        return ENGINE_KEY_EEXISTS;
+        return cb::engine_errc::key_already_exists;
     }
 
     const auto ret = sessionLockedStep();
@@ -43,7 +43,7 @@ ENGINE_ERROR_CODE SessionValidatedCommandContext::step() {
         cookie.setCas(cookie.getRequest().getCas());
         cookie.sendResponse(cb::engine_errc::success);
     }
-    return ENGINE_ERROR_CODE(ret);
+    return cb::engine_errc(ret);
 }
 
 static EngineParamCategory getParamCategory(Cookie& cookie) {
@@ -90,7 +90,7 @@ cb::engine_errc CompactDatabaseCommandContext::sessionLockedStep() {
     return bucket_compact_database(cookie);
 }
 
-ENGINE_ERROR_CODE GetVbucketCommandContext::step() {
+cb::engine_errc GetVbucketCommandContext::step() {
     const auto [status, state] = bucket_get_vbucket(cookie);
     if (status == cb::engine_errc::success) {
         uint32_t st = ntohl(uint32_t(state));
@@ -101,7 +101,7 @@ ENGINE_ERROR_CODE GetVbucketCommandContext::step() {
                             cb::mcbp::Datatype::Raw,
                             mcbp::cas::Wildcard);
     }
-    return ENGINE_ERROR_CODE(status);
+    return cb::engine_errc(status);
 }
 
 SetVbucketCommandContext::SetVbucketCommandContext(Cookie& cookie)

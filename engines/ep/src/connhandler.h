@@ -94,34 +94,56 @@ public:
 
     ~ConnHandler() override;
 
-    virtual ENGINE_ERROR_CODE addStream(uint32_t opaque,
+    virtual cb::engine_errc addStream(uint32_t opaque,
+                                      Vbid vbucket,
+                                      uint32_t flags);
+
+    virtual cb::engine_errc closeStream(uint32_t opaque,
                                         Vbid vbucket,
-                                        uint32_t flags);
+                                        cb::mcbp::DcpStreamId sid);
 
-    virtual ENGINE_ERROR_CODE closeStream(uint32_t opaque,
-                                          Vbid vbucket,
-                                          cb::mcbp::DcpStreamId sid);
+    virtual cb::engine_errc streamEnd(uint32_t opaque,
+                                      Vbid vbucket,
+                                      cb::mcbp::DcpStreamEndStatus status);
 
-    virtual ENGINE_ERROR_CODE streamEnd(uint32_t opaque,
-                                        Vbid vbucket,
-                                        cb::mcbp::DcpStreamEndStatus status);
+    virtual cb::engine_errc mutation(uint32_t opaque,
+                                     const DocKey& key,
+                                     cb::const_byte_buffer value,
+                                     size_t priv_bytes,
+                                     uint8_t datatype,
+                                     uint64_t cas,
+                                     Vbid vbucket,
+                                     uint32_t flags,
+                                     uint64_t by_seqno,
+                                     uint64_t rev_seqno,
+                                     uint32_t expiration,
+                                     uint32_t lock_time,
+                                     cb::const_byte_buffer meta,
+                                     uint8_t nru);
 
-    virtual ENGINE_ERROR_CODE mutation(uint32_t opaque,
+    virtual cb::engine_errc deletion(uint32_t opaque,
+                                     const DocKey& key,
+                                     cb::const_byte_buffer value,
+                                     size_t priv_bytes,
+                                     uint8_t datatype,
+                                     uint64_t cas,
+                                     Vbid vbucket,
+                                     uint64_t by_seqno,
+                                     uint64_t rev_seqno,
+                                     cb::const_byte_buffer meta);
+
+    virtual cb::engine_errc deletionV2(uint32_t opaque,
                                        const DocKey& key,
                                        cb::const_byte_buffer value,
                                        size_t priv_bytes,
                                        uint8_t datatype,
                                        uint64_t cas,
                                        Vbid vbucket,
-                                       uint32_t flags,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
-                                       uint32_t expiration,
-                                       uint32_t lock_time,
-                                       cb::const_byte_buffer meta,
-                                       uint8_t nru);
+                                       uint32_t delete_time);
 
-    virtual ENGINE_ERROR_CODE deletion(uint32_t opaque,
+    virtual cb::engine_errc expiration(uint32_t opaque,
                                        const DocKey& key,
                                        cb::const_byte_buffer value,
                                        size_t priv_bytes,
@@ -130,31 +152,9 @@ public:
                                        Vbid vbucket,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
-                                       cb::const_byte_buffer meta);
+                                       uint32_t deleteTime);
 
-    virtual ENGINE_ERROR_CODE deletionV2(uint32_t opaque,
-                                         const DocKey& key,
-                                         cb::const_byte_buffer value,
-                                         size_t priv_bytes,
-                                         uint8_t datatype,
-                                         uint64_t cas,
-                                         Vbid vbucket,
-                                         uint64_t by_seqno,
-                                         uint64_t rev_seqno,
-                                         uint32_t delete_time);
-
-    virtual ENGINE_ERROR_CODE expiration(uint32_t opaque,
-                                         const DocKey& key,
-                                         cb::const_byte_buffer value,
-                                         size_t priv_bytes,
-                                         uint8_t datatype,
-                                         uint64_t cas,
-                                         Vbid vbucket,
-                                         uint64_t by_seqno,
-                                         uint64_t rev_seqno,
-                                         uint32_t deleteTime);
-
-    virtual ENGINE_ERROR_CODE snapshotMarker(
+    virtual cb::engine_errc snapshotMarker(
             uint32_t opaque,
             Vbid vbucket,
             uint64_t start_seqno,
@@ -163,34 +163,33 @@ public:
             std::optional<uint64_t> high_completed_seqno,
             std::optional<uint64_t> max_visible_seqno);
 
-    virtual ENGINE_ERROR_CODE setVBucketState(uint32_t opaque,
-                                              Vbid vbucket,
-                                              vbucket_state_t state);
+    virtual cb::engine_errc setVBucketState(uint32_t opaque,
+                                            Vbid vbucket,
+                                            vbucket_state_t state);
 
-    virtual ENGINE_ERROR_CODE streamRequest(
-            uint32_t flags,
-            uint32_t opaque,
-            Vbid vbucket,
-            uint64_t start_seqno,
-            uint64_t end_seqno,
-            uint64_t vbucket_uuid,
-            uint64_t snapStartSeqno,
-            uint64_t snapEndSeqno,
-            uint64_t* rollback_seqno,
-            dcp_add_failover_log callback,
-            std::optional<std::string_view> json);
+    virtual cb::engine_errc streamRequest(uint32_t flags,
+                                          uint32_t opaque,
+                                          Vbid vbucket,
+                                          uint64_t start_seqno,
+                                          uint64_t end_seqno,
+                                          uint64_t vbucket_uuid,
+                                          uint64_t snapStartSeqno,
+                                          uint64_t snapEndSeqno,
+                                          uint64_t* rollback_seqno,
+                                          dcp_add_failover_log callback,
+                                          std::optional<std::string_view> json);
 
-    virtual ENGINE_ERROR_CODE noop(uint32_t opaque);
+    virtual cb::engine_errc noop(uint32_t opaque);
 
-    virtual ENGINE_ERROR_CODE bufferAcknowledgement(uint32_t opaque,
-                                                    Vbid vbucket,
-                                                    uint32_t buffer_bytes);
+    virtual cb::engine_errc bufferAcknowledgement(uint32_t opaque,
+                                                  Vbid vbucket,
+                                                  uint32_t buffer_bytes);
 
-    virtual ENGINE_ERROR_CODE control(uint32_t opaque,
-                                      std::string_view key,
-                                      std::string_view value);
+    virtual cb::engine_errc control(uint32_t opaque,
+                                    std::string_view key,
+                                    std::string_view value);
 
-    virtual ENGINE_ERROR_CODE step(DcpMessageProducersIface& producers);
+    virtual cb::engine_errc step(DcpMessageProducersIface& producers);
 
     /**
      * Sub-classes must implement a method that processes a response
@@ -202,49 +201,49 @@ public:
      */
     virtual bool handleResponse(const cb::mcbp::Response& resp);
 
-    virtual ENGINE_ERROR_CODE systemEvent(uint32_t opaque,
-                                          Vbid vbucket,
-                                          mcbp::systemevent::id event,
-                                          uint64_t bySeqno,
-                                          mcbp::systemevent::version version,
-                                          cb::const_byte_buffer key,
-                                          cb::const_byte_buffer eventData);
+    virtual cb::engine_errc systemEvent(uint32_t opaque,
+                                        Vbid vbucket,
+                                        mcbp::systemevent::id event,
+                                        uint64_t bySeqno,
+                                        mcbp::systemevent::version version,
+                                        cb::const_byte_buffer key,
+                                        cb::const_byte_buffer eventData);
 
     /// Receive a prepare message.
-    virtual ENGINE_ERROR_CODE prepare(uint32_t opaque,
-                                      const DocKey& key,
-                                      cb::const_byte_buffer value,
-                                      size_t priv_bytes,
-                                      uint8_t datatype,
-                                      uint64_t cas,
-                                      Vbid vbucket,
-                                      uint32_t flags,
-                                      uint64_t by_seqno,
-                                      uint64_t rev_seqno,
-                                      uint32_t expiration,
-                                      uint32_t lock_time,
-                                      uint8_t nru,
-                                      DocumentState document_state,
-                                      cb::durability::Level level);
+    virtual cb::engine_errc prepare(uint32_t opaque,
+                                    const DocKey& key,
+                                    cb::const_byte_buffer value,
+                                    size_t priv_bytes,
+                                    uint8_t datatype,
+                                    uint64_t cas,
+                                    Vbid vbucket,
+                                    uint32_t flags,
+                                    uint64_t by_seqno,
+                                    uint64_t rev_seqno,
+                                    uint32_t expiration,
+                                    uint32_t lock_time,
+                                    uint8_t nru,
+                                    DocumentState document_state,
+                                    cb::durability::Level level);
 
     /// Receive a commit message.
-    virtual ENGINE_ERROR_CODE commit(uint32_t opaque,
-                                     Vbid vbucket,
-                                     const DocKey& key,
-                                     uint64_t prepare_seqno,
-                                     uint64_t commit_seqno);
+    virtual cb::engine_errc commit(uint32_t opaque,
+                                   Vbid vbucket,
+                                   const DocKey& key,
+                                   uint64_t prepare_seqno,
+                                   uint64_t commit_seqno);
 
     /// Receive an abort message.
-    virtual ENGINE_ERROR_CODE abort(uint32_t opaque,
-                                    Vbid vbucket,
-                                    const DocKey& key,
-                                    uint64_t prepareSeqno,
-                                    uint64_t abortSeqno);
+    virtual cb::engine_errc abort(uint32_t opaque,
+                                  Vbid vbucket,
+                                  const DocKey& key,
+                                  uint64_t prepareSeqno,
+                                  uint64_t abortSeqno);
 
     /// Receive a seqno_acknowledged message.
-    virtual ENGINE_ERROR_CODE seqno_acknowledged(uint32_t opaque,
-                                                 Vbid vbucket,
-                                                 uint64_t prepared_seqno);
+    virtual cb::engine_errc seqno_acknowledged(uint32_t opaque,
+                                               Vbid vbucket,
+                                               uint64_t prepared_seqno);
 
     const char* logHeader();
 

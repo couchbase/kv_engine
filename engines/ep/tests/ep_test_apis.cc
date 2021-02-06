@@ -357,26 +357,26 @@ void encodeWithMetaExt(char* buffer, ItemMetaData* meta) {
 void createCheckpoint(EngineIface* h) {
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     auto request = createPacket(cb::mcbp::ClientOpcode::CreateCheckpoint);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->unknown_command(cookie.get(), *request, add_response),
             "Failed to create a new checkpoint.");
 }
 
-ENGINE_ERROR_CODE del(EngineIface* h,
-                      const char* key,
-                      uint64_t cas,
-                      Vbid vbucket,
-                      cb::tracing::Traceable* cookie) {
+cb::engine_errc del(EngineIface* h,
+                    const char* key,
+                    uint64_t cas,
+                    Vbid vbucket,
+                    cb::tracing::Traceable* cookie) {
     mutation_descr_t mut_info{};
     return del(h, key, &cas, vbucket, cookie, &mut_info);
 }
 
-ENGINE_ERROR_CODE del(EngineIface* h,
-                      const char* key,
-                      uint64_t* cas,
-                      Vbid vbucket,
-                      cb::tracing::Traceable* cookie,
-                      mutation_descr_t* mut_info) {
+cb::engine_errc del(EngineIface* h,
+                    const char* key,
+                    uint64_t* cas,
+                    Vbid vbucket,
+                    cb::tracing::Traceable* cookie,
+                    mutation_descr_t* mut_info) {
     bool create_cookie = false;
     if (cookie == nullptr) {
         cookie = testHarness->create_cookie(h);
@@ -399,12 +399,12 @@ ENGINE_ERROR_CODE del(EngineIface* h,
 /** Simplified version of store for handling the common case of performing
  * a delete with a value.
  */
-ENGINE_ERROR_CODE delete_with_value(EngineIface* h,
-                                    cb::tracing::Traceable* cookie,
-                                    uint64_t cas,
-                                    const char* key,
-                                    std::string_view value,
-                                    cb::mcbp::Datatype datatype) {
+cb::engine_errc delete_with_value(EngineIface* h,
+                                  cb::tracing::Traceable* cookie,
+                                  uint64_t cas,
+                                  const char* key,
+                                  std::string_view value,
+                                  cb::mcbp::Datatype datatype) {
     auto ret = storeCasVb11(h,
                             cookie,
                             StoreSemantics::Set,
@@ -419,20 +419,20 @@ ENGINE_ERROR_CODE delete_with_value(EngineIface* h,
                             DocumentState::Deleted);
     wait_for_flusher_to_settle(h);
 
-    return ENGINE_ERROR_CODE(ret.first);
+    return cb::engine_errc(ret.first);
 }
 
-ENGINE_ERROR_CODE del_with_meta(EngineIface* h,
-                                const char* key,
-                                const size_t keylen,
-                                const Vbid vb,
-                                ItemMetaData* itemMeta,
-                                uint64_t cas_for_delete,
-                                uint32_t options,
-                                cb::tracing::Traceable* cookie,
-                                const std::vector<char>& nmeta,
-                                protocol_binary_datatype_t datatype,
-                                const std::vector<char>& value) {
+cb::engine_errc del_with_meta(EngineIface* h,
+                              const char* key,
+                              const size_t keylen,
+                              const Vbid vb,
+                              ItemMetaData* itemMeta,
+                              uint64_t cas_for_delete,
+                              uint32_t options,
+                              cb::tracing::Traceable* cookie,
+                              const std::vector<char>& nmeta,
+                              protocol_binary_datatype_t datatype,
+                              const std::vector<char>& value) {
     RawItemMetaData meta{itemMeta->cas,
                          itemMeta->revSeqno,
                          itemMeta->flags,
@@ -450,17 +450,17 @@ ENGINE_ERROR_CODE del_with_meta(EngineIface* h,
                          value);
 }
 
-ENGINE_ERROR_CODE del_with_meta(EngineIface* h,
-                                const char* key,
-                                const size_t keylen,
-                                const Vbid vb,
-                                RawItemMetaData* itemMeta,
-                                uint64_t cas_for_delete,
-                                uint32_t options,
-                                cb::tracing::Traceable* cookie,
-                                const std::vector<char>& nmeta,
-                                protocol_binary_datatype_t datatype,
-                                const std::vector<char>& value) {
+cb::engine_errc del_with_meta(EngineIface* h,
+                              const char* key,
+                              const size_t keylen,
+                              const Vbid vb,
+                              RawItemMetaData* itemMeta,
+                              uint64_t cas_for_delete,
+                              uint32_t options,
+                              cb::tracing::Traceable* cookie,
+                              const std::vector<char>& nmeta,
+                              protocol_binary_datatype_t datatype,
+                              const std::vector<char>& value) {
     size_t blen = 24;
     std::unique_ptr<char[]> ext(new char[30]);
     std::unique_ptr<ExtendedMetaData> emd;
@@ -510,7 +510,7 @@ void evict_key(EngineIface* h,
                             {},
                             {key, strlen(key)});
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->unknown_command(cookie.get(), *pkt, add_response),
             "Failed to perform CMD_EVICT_KEY.");
 
@@ -540,9 +540,9 @@ void evict_key(EngineIface* h,
     }
 }
 
-ENGINE_ERROR_CODE checkpointPersistence(EngineIface* h,
-                                        uint64_t checkpoint_id,
-                                        Vbid vb) {
+cb::engine_errc checkpointPersistence(EngineIface* h,
+                                      uint64_t checkpoint_id,
+                                      Vbid vb) {
     checkpoint_id = htonll(checkpoint_id);
     auto request =
             createPacket(cb::mcbp::ClientOpcode::CheckpointPersistence,
@@ -555,10 +555,10 @@ ENGINE_ERROR_CODE checkpointPersistence(EngineIface* h,
     return h->unknown_command(cookie.get(), *request, add_response);
 }
 
-ENGINE_ERROR_CODE seqnoPersistence(EngineIface* h,
-                                   cb::tracing::Traceable* cookie,
-                                   Vbid vbucket,
-                                   uint64_t seqno) {
+cb::engine_errc seqnoPersistence(EngineIface* h,
+                                 cb::tracing::Traceable* cookie,
+                                 Vbid vbucket,
+                                 uint64_t seqno) {
     seqno = htonll(seqno);
     char buffer[8];
     memcpy(buffer, &seqno, sizeof(uint64_t));
@@ -647,7 +647,7 @@ bool get_meta(EngineIface* h,
     return out.first == cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE observe(EngineIface* h, std::map<std::string, Vbid> obskeys) {
+cb::engine_errc observe(EngineIface* h, std::map<std::string, Vbid> obskeys) {
     std::stringstream value;
     std::map<std::string, Vbid>::iterator it;
     for (it = obskeys.begin(); it != obskeys.end(); ++it) {
@@ -664,7 +664,7 @@ ENGINE_ERROR_CODE observe(EngineIface* h, std::map<std::string, Vbid> obskeys) {
     return h->unknown_command(cookie.get(), *request, add_response);
 }
 
-ENGINE_ERROR_CODE observe_seqno(EngineIface* h, Vbid vb_id, uint64_t uuid) {
+cb::engine_errc observe_seqno(EngineIface* h, Vbid vb_id, uint64_t uuid) {
     uint64_t vb_uuid = htonll(uuid);
     std::stringstream data;
     data.write((char *) &vb_uuid, sizeof(uint64_t));
@@ -682,7 +682,7 @@ void get_replica(EngineIface* h, const char* key, Vbid vbid) {
                                 {},
                                 {key, strlen(key)});
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->unknown_command(cookie.get(), *request, add_response),
             "Get Replica Failed");
 }
@@ -696,7 +696,7 @@ unique_request_ptr prepare_get_replica(EngineIface* h,
             cb::mcbp::ClientOpcode::GetReplica, id, 0, {}, {key, strlen(key)});
 
     if (!makeinvalidkey) {
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
@@ -774,7 +774,7 @@ bool get_all_vb_seqnos(EngineIface* h,
         pkt = createPacket(cb::mcbp::ClientOpcode::GetAllVbSeqnos);
     }
 
-    checkeq(ENGINE_ERROR_CODE(expectedStatus),
+    checkeq(cb::engine_errc(expectedStatus),
             h->unknown_command(cookie, *pkt, add_response),
             "Error in getting all vb info");
 
@@ -824,19 +824,19 @@ void verify_all_vb_seqnos(EngineIface* h,
     }
 }
 
-static ENGINE_ERROR_CODE store_with_meta(EngineIface* h,
-                                         cb::mcbp::ClientOpcode cmd,
-                                         const char* key,
-                                         const size_t keylen,
-                                         const char* val,
-                                         const size_t vallen,
-                                         const Vbid vb,
-                                         ItemMetaData* itemMeta,
-                                         uint64_t cas_for_store,
-                                         uint32_t options,
-                                         uint8_t datatype,
-                                         cb::tracing::Traceable* cookie,
-                                         const std::vector<char>& nmeta) {
+static cb::engine_errc store_with_meta(EngineIface* h,
+                                       cb::mcbp::ClientOpcode cmd,
+                                       const char* key,
+                                       const size_t keylen,
+                                       const char* val,
+                                       const size_t vallen,
+                                       const Vbid vb,
+                                       ItemMetaData* itemMeta,
+                                       uint64_t cas_for_store,
+                                       uint32_t options,
+                                       uint8_t datatype,
+                                       cb::tracing::Traceable* cookie,
+                                       const std::vector<char>& nmeta) {
     size_t blen = 24;
     std::unique_ptr<char[]> ext(new char[30]);
     std::unique_ptr<ExtendedMetaData> emd;
@@ -873,18 +873,18 @@ static ENGINE_ERROR_CODE store_with_meta(EngineIface* h,
     return h->unknown_command(cookie, *request, add_response_set_del_meta);
 }
 
-ENGINE_ERROR_CODE set_with_meta(EngineIface* h,
-                                const char* key,
-                                const size_t keylen,
-                                const char* val,
-                                const size_t vallen,
-                                const Vbid vb,
-                                ItemMetaData* itemMeta,
-                                uint64_t cas_for_set,
-                                uint32_t options,
-                                uint8_t datatype,
-                                cb::tracing::Traceable* cookie,
-                                const std::vector<char>& nmeta) {
+cb::engine_errc set_with_meta(EngineIface* h,
+                              const char* key,
+                              const size_t keylen,
+                              const char* val,
+                              const size_t vallen,
+                              const Vbid vb,
+                              ItemMetaData* itemMeta,
+                              uint64_t cas_for_set,
+                              uint32_t options,
+                              uint8_t datatype,
+                              cb::tracing::Traceable* cookie,
+                              const std::vector<char>& nmeta) {
     return store_with_meta(h,
                            cb::mcbp::ClientOpcode::SetWithMeta,
                            key,
@@ -900,18 +900,18 @@ ENGINE_ERROR_CODE set_with_meta(EngineIface* h,
                            nmeta);
 }
 
-ENGINE_ERROR_CODE add_with_meta(EngineIface* h,
-                                const char* key,
-                                const size_t keylen,
-                                const char* val,
-                                const size_t vallen,
-                                const Vbid vb,
-                                ItemMetaData* itemMeta,
-                                uint64_t cas_for_add,
-                                uint32_t options,
-                                uint8_t datatype,
-                                cb::tracing::Traceable* cookie,
-                                const std::vector<char>& nmeta) {
+cb::engine_errc add_with_meta(EngineIface* h,
+                              const char* key,
+                              const size_t keylen,
+                              const char* val,
+                              const size_t vallen,
+                              const Vbid vb,
+                              ItemMetaData* itemMeta,
+                              uint64_t cas_for_add,
+                              uint32_t options,
+                              uint8_t datatype,
+                              cb::tracing::Traceable* cookie,
+                              const std::vector<char>& nmeta) {
     return store_with_meta(h,
                            cb::mcbp::ClientOpcode::AddWithMeta,
                            key,
@@ -927,18 +927,18 @@ ENGINE_ERROR_CODE add_with_meta(EngineIface* h,
                            nmeta);
 }
 
-static ENGINE_ERROR_CODE return_meta(EngineIface* h,
-                                     const char* key,
-                                     const size_t keylen,
-                                     const char* val,
-                                     const size_t vallen,
-                                     const Vbid vb,
-                                     const uint64_t cas,
-                                     const uint32_t flags,
-                                     const uint32_t exp,
-                                     cb::mcbp::request::ReturnMetaType type,
-                                     uint8_t datatype,
-                                     cb::tracing::Traceable* cookie) {
+static cb::engine_errc return_meta(EngineIface* h,
+                                   const char* key,
+                                   const size_t keylen,
+                                   const char* val,
+                                   const size_t vallen,
+                                   const Vbid vb,
+                                   const uint64_t cas,
+                                   const uint32_t flags,
+                                   const uint32_t exp,
+                                   cb::mcbp::request::ReturnMetaType type,
+                                   uint8_t datatype,
+                                   cb::tracing::Traceable* cookie) {
     cb::mcbp::request::ReturnMetaPayload meta;
     meta.setMutationType(type);
     meta.setFlags(flags);
@@ -961,17 +961,17 @@ static ENGINE_ERROR_CODE return_meta(EngineIface* h,
     return h->unknown_command(cookie, *pkt, add_response_ret_meta);
 }
 
-ENGINE_ERROR_CODE set_ret_meta(EngineIface* h,
-                               const char* key,
-                               const size_t keylen,
-                               const char* val,
-                               const size_t vallen,
-                               const Vbid vb,
-                               const uint64_t cas,
-                               const uint32_t flags,
-                               const uint32_t exp,
-                               uint8_t datatype,
-                               cb::tracing::Traceable* cookie) {
+cb::engine_errc set_ret_meta(EngineIface* h,
+                             const char* key,
+                             const size_t keylen,
+                             const char* val,
+                             const size_t vallen,
+                             const Vbid vb,
+                             const uint64_t cas,
+                             const uint32_t flags,
+                             const uint32_t exp,
+                             uint8_t datatype,
+                             cb::tracing::Traceable* cookie) {
     return return_meta(h,
                        key,
                        keylen,
@@ -986,17 +986,17 @@ ENGINE_ERROR_CODE set_ret_meta(EngineIface* h,
                        cookie);
 }
 
-ENGINE_ERROR_CODE add_ret_meta(EngineIface* h,
-                               const char* key,
-                               const size_t keylen,
-                               const char* val,
-                               const size_t vallen,
-                               const Vbid vb,
-                               const uint64_t cas,
-                               const uint32_t flags,
-                               const uint32_t exp,
-                               uint8_t datatype,
-                               cb::tracing::Traceable* cookie) {
+cb::engine_errc add_ret_meta(EngineIface* h,
+                             const char* key,
+                             const size_t keylen,
+                             const char* val,
+                             const size_t vallen,
+                             const Vbid vb,
+                             const uint64_t cas,
+                             const uint32_t flags,
+                             const uint32_t exp,
+                             uint8_t datatype,
+                             cb::tracing::Traceable* cookie) {
     return return_meta(h,
                        key,
                        keylen,
@@ -1011,12 +1011,12 @@ ENGINE_ERROR_CODE add_ret_meta(EngineIface* h,
                        cookie);
 }
 
-ENGINE_ERROR_CODE del_ret_meta(EngineIface* h,
-                               const char* key,
-                               const size_t keylen,
-                               const Vbid vb,
-                               const uint64_t cas,
-                               cb::tracing::Traceable* cookie) {
+cb::engine_errc del_ret_meta(EngineIface* h,
+                             const char* key,
+                             const size_t keylen,
+                             const Vbid vb,
+                             const uint64_t cas,
+                             cb::tracing::Traceable* cookie) {
     return return_meta(h,
                        key,
                        keylen,
@@ -1034,7 +1034,7 @@ ENGINE_ERROR_CODE del_ret_meta(EngineIface* h,
 void disable_traffic(EngineIface* h) {
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     auto pkt = createPacket(cb::mcbp::ClientOpcode::DisableTraffic);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->unknown_command(cookie.get(), *pkt, add_response),
             "Failed to send data traffic command to the server");
     checkeq(cb::mcbp::Status::Success,
@@ -1045,7 +1045,7 @@ void disable_traffic(EngineIface* h) {
 void enable_traffic(EngineIface* h) {
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     auto pkt = createPacket(cb::mcbp::ClientOpcode::EnableTraffic);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->unknown_command(cookie.get(), *pkt, add_response),
             "Failed to send data traffic command to the server");
     checkeq(cb::mcbp::Status::Success,
@@ -1061,7 +1061,7 @@ void start_persistence(EngineIface* h) {
 
     auto pkt = createPacket(cb::mcbp::ClientOpcode::StartPersistence);
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->unknown_command(cookie.get(), *pkt, add_response),
             "Failed to stop persistence.");
     checkeq(cb::mcbp::Status::Success,
@@ -1084,7 +1084,7 @@ void stop_persistence(EngineIface* h) {
     }
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     auto pkt = createPacket(cb::mcbp::ClientOpcode::StopPersistence);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->unknown_command(cookie.get(), *pkt, add_response),
             "Failed to stop persistence.");
     checkeq(cb::mcbp::Status::Success,
@@ -1092,7 +1092,7 @@ void stop_persistence(EngineIface* h) {
             "Error stopping persistence.");
 }
 
-ENGINE_ERROR_CODE store(
+cb::engine_errc store(
         EngineIface* h,
         cb::tracing::Traceable* cookie,
         StoreSemantics op,
@@ -1121,18 +1121,18 @@ ENGINE_ERROR_CODE store(
     if (outitem) {
         *outitem = ret.second.release();
     }
-    return ENGINE_ERROR_CODE(ret.first);
+    return cb::engine_errc(ret.first);
 }
 
-ENGINE_ERROR_CODE storeCasOut(EngineIface* h,
-                              cb::tracing::Traceable* cookie,
-                              Vbid vb,
-                              const std::string& key,
-                              const std::string& value,
-                              protocol_binary_datatype_t datatype,
-                              ItemIface*& out_item,
-                              uint64_t& out_cas,
-                              DocumentState docState) {
+cb::engine_errc storeCasOut(EngineIface* h,
+                            cb::tracing::Traceable* cookie,
+                            Vbid vb,
+                            const std::string& key,
+                            const std::string& value,
+                            protocol_binary_datatype_t datatype,
+                            ItemIface*& out_item,
+                            uint64_t& out_cas,
+                            DocumentState docState) {
     bool create_cookie = false;
     if (cookie == nullptr) {
         cookie = testHarness->create_cookie(h);
@@ -1144,13 +1144,13 @@ ENGINE_ERROR_CODE storeCasOut(EngineIface* h,
     item_info info;
     check(h->get_item_info(ret.second.get(), &info), "Unable to get item_info");
     memcpy(info.value[0].iov_base, value.data(), value.size());
-    ENGINE_ERROR_CODE res = h->store(cookie,
-                                     ret.second.get(),
-                                     out_cas,
-                                     StoreSemantics::Set,
-                                     {},
-                                     docState,
-                                     false);
+    cb::engine_errc res = h->store(cookie,
+                                   ret.second.get(),
+                                   out_cas,
+                                   StoreSemantics::Set,
+                                   {},
+                                   docState,
+                                   false);
 
     if (create_cookie) {
         testHarness->destroy_cookie(cookie);
@@ -1204,12 +1204,12 @@ cb::EngineErrorItemPair storeCasVb11(
     return {cb::engine_errc(storeRet), std::move(rv.second)};
 }
 
-ENGINE_ERROR_CODE replace(EngineIface* h,
-                          cb::tracing::Traceable* cookie,
-                          const char* key,
-                          const char* value,
-                          uint32_t flags,
-                          Vbid vb) {
+cb::engine_errc replace(EngineIface* h,
+                        cb::tracing::Traceable* cookie,
+                        const char* key,
+                        const char* value,
+                        uint32_t flags,
+                        Vbid vb) {
     Expects(cookie);
 
     const auto allocRes = allocate(h,
@@ -1221,7 +1221,7 @@ ENGINE_ERROR_CODE replace(EngineIface* h,
                                    0 /*datatype*/,
                                    vb);
     if (allocRes.first != cb::engine_errc::success) {
-        return ENGINE_ERROR_CODE(allocRes.first);
+        return cb::engine_errc(allocRes.first);
     }
 
     const auto& item = allocRes.second;
@@ -1250,13 +1250,10 @@ ENGINE_ERROR_CODE replace(EngineIface* h,
                            DocumentState::Alive,
                            false);
 
-    return ENGINE_ERROR_CODE(res.status);
+    return cb::engine_errc(res.status);
 }
 
-ENGINE_ERROR_CODE touch(EngineIface* h,
-                        const char* key,
-                        Vbid vb,
-                        uint32_t exp) {
+cb::engine_errc touch(EngineIface* h, const char* key, Vbid vb, uint32_t exp) {
     auto* cookie = testHarness->create_cookie(h);
     auto result = h->get_and_touch(
             cookie, DocKey(key, DocKeyEncodesCollectionId::No), vb, exp, {});
@@ -1270,14 +1267,14 @@ ENGINE_ERROR_CODE touch(EngineIface* h,
         last_cas.store(info.cas);
     }
 
-    return ENGINE_ERROR_CODE(result.first);
+    return cb::engine_errc(result.first);
 }
 
-ENGINE_ERROR_CODE unl(EngineIface* h,
-                      cb::tracing::Traceable* cookie,
-                      const char* key,
-                      Vbid vb,
-                      uint64_t cas) {
+cb::engine_errc unl(EngineIface* h,
+                    cb::tracing::Traceable* cookie,
+                    const char* key,
+                    Vbid vb,
+                    uint64_t cas) {
     bool create_cookie = false;
     if (cookie == nullptr) {
         cookie = testHarness->create_cookie(h);
@@ -1307,9 +1304,9 @@ void compact_db(EngineIface* h,
     if (backend == "couchdb" || backend == "magma") {
         if (ret == cb::engine_errc::not_supported) {
             // Ephemeral, couchdb and magma (but not rocksdb) buckets can
-            // return ENGINE_ENOTSUP.  This method is called from a lot
-            // of test cases we run. Lets remap the error code to success.
-            // Note: Ephemeral buckets use couchdb as backend.
+            // return cb::engine_errc::not_supported.  This method is called
+            // from a lot of test cases we run. Lets remap the error code to
+            // success. Note: Ephemeral buckets use couchdb as backend.
             ret = cb::engine_errc::success;
         }
         checkeq(cb::engine_errc::success,
@@ -1318,7 +1315,8 @@ void compact_db(EngineIface* h,
     } else {
         checkeq(cb::engine_errc::failed,
                 ret,
-                "checkForDBExistence returns ENGINE_FAILED for !couchdb");
+                "checkForDBExistence returns cb::engine_errc::failed for "
+                "!couchdb");
     }
 }
 
@@ -1327,12 +1325,12 @@ cb::engine_errc vbucketDelete(EngineIface* h, Vbid vb, const char* args) {
     return h->deleteVBucket(&cookie, vb, args && strcmp(args, "async=0") == 0);
 }
 
-ENGINE_ERROR_CODE verify_key(EngineIface* h, const char* key, Vbid vbucket) {
+cb::engine_errc verify_key(EngineIface* h, const char* key, Vbid vbucket) {
     auto rv = get(h, nullptr, key, vbucket);
-    return ENGINE_ERROR_CODE(rv.first);
+    return cb::engine_errc(rv.first);
 }
 
-std::pair<ENGINE_ERROR_CODE, std::string> get_value(
+std::pair<cb::engine_errc, std::string> get_value(
         EngineIface* h,
         cb::tracing::Traceable* cookie,
         const char* key,
@@ -1340,15 +1338,15 @@ std::pair<ENGINE_ERROR_CODE, std::string> get_value(
         DocStateFilter state) {
     auto rv = get(h, cookie, key, vbucket, state);
     if (rv.first != cb::engine_errc::success) {
-        return {ENGINE_ERROR_CODE(rv.first), ""};
+        return {cb::engine_errc(rv.first), ""};
     }
     item_info info;
     if (!h->get_item_info(rv.second.get(), &info)) {
-        return {ENGINE_FAILED, ""};
+        return {cb::engine_errc::failed, ""};
     }
     auto value = std::string(reinterpret_cast<char*>(info.value[0].iov_base),
                              info.value[0].iov_len);
-    return make_pair(ENGINE_ERROR_CODE(rv.first), value);
+    return make_pair(cb::engine_errc(rv.first), value);
 }
 
 bool verify_vbucket_missing(EngineIface* h, Vbid vb) {
@@ -1362,7 +1360,7 @@ bool verify_vbucket_missing(EngineIface* h, Vbid vb) {
     }
 
     auto* cookie = testHarness->create_cookie(h);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->get_stats(cookie, {}, {}, add_stats),
             "Failed to get stats.");
     testHarness->destroy_cookie(cookie);
@@ -1409,21 +1407,21 @@ void sendDcpAck(EngineIface* h,
     pkt.setOpaque(opaque);
 
     auto& dcp = dynamic_cast<DcpIface&>(*h);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             dcp.response_handler(cookie, pkt),
             "Expected success");
 }
 
 class engine_error : public std::exception {
 public:
-    explicit engine_error(ENGINE_ERROR_CODE code_) : code(code_) {
+    explicit engine_error(cb::engine_errc code_) : code(code_) {
     }
 
     const char* what() const NOEXCEPT override {
         return "engine_error";
     }
 
-    ENGINE_ERROR_CODE code;
+    cb::engine_errc code;
 };
 
 /* The following set of functions get a given stat as the specified type
@@ -1467,14 +1465,14 @@ std::string get_stat(EngineIface* h,
     get_stat_context.actual_stat_value.clear();
 
     auto* cookie = testHarness->create_cookie(h);
-    ENGINE_ERROR_CODE err =
+    cb::engine_errc err =
             h->get_stats(cookie,
                          {statkey, statkey == nullptr ? 0 : strlen(statkey)},
                          {},
                          add_individual_stat);
     testHarness->destroy_cookie(cookie);
 
-    if (err != ENGINE_SUCCESS) {
+    if (err != cb::engine_errc::success) {
         throw engine_error(err);
     }
 
@@ -1591,7 +1589,7 @@ static void get_histo_stat(EngineIface* h,
                             add_individual_histo_stat);
     testHarness->destroy_cookie(cookie);
 
-    if (err != ENGINE_SUCCESS) {
+    if (err != cb::engine_errc::success) {
         throw engine_error(err);
     }
 }
@@ -1608,7 +1606,7 @@ statistic_map get_all_stats(EngineIface* h, const char* statset) {
                             add_stats);
     testHarness->destroy_cookie(cookie);
 
-    if (err != ENGINE_SUCCESS) {
+    if (err != cb::engine_errc::success) {
         throw engine_error(err);
     }
 
@@ -1742,7 +1740,7 @@ void wait_for_persisted_value(EngineIface* h,
     if (isPersistentBucket(h)) {
         commitNum = get_int_stat(h, "ep_commit_num");
     }
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             store(h,
                   nullptr,
                   StoreSemantics::Set,
@@ -1767,20 +1765,21 @@ void abort_msg(const char* expr, const char* msg, const char* file, int line) {
 }
 
 /* Helper function to validate the return from store() */
-void validate_store_resp(ENGINE_ERROR_CODE ret, int& num_items)
-{
+void validate_store_resp(cb::engine_errc ret, int& num_items) {
     switch (ret) {
-        case ENGINE_SUCCESS:
-            num_items++;
-            break;
-        case ENGINE_TMPFAIL:
-            /* TMPFAIL means we are hitting high memory usage; retry */
-            break;
-        default:
-            check(false,
-                  ("write_items_upto_mem_perc: Unexpected response from "
-                   "store(): " + std::to_string(ret)).c_str());
-            break;
+    case cb::engine_errc::success:
+        num_items++;
+        break;
+    case cb::engine_errc::temporary_failure:
+        /* TMPFAIL means we are hitting high memory usage; retry */
+        break;
+    default:
+        check(false,
+              ("write_items_upto_mem_perc: Unexpected response from "
+               "store(): " +
+               cb::to_string(ret))
+                      .c_str());
+        break;
     }
 }
 
@@ -1798,17 +1797,17 @@ void write_items(EngineIface* h,
             break;
         }
         std::string key(key_prefix + std::to_string(j + start_seqno));
-        ENGINE_ERROR_CODE ret = store(h,
-                                      nullptr,
-                                      StoreSemantics::Set,
-                                      key.c_str(),
-                                      value,
-                                      nullptr,
-                                      /*cas*/ 0,
-                                      vb,
-                                      expiry,
-                                      0,
-                                      docState);
+        cb::engine_errc ret = store(h,
+                                    nullptr,
+                                    StoreSemantics::Set,
+                                    key.c_str(),
+                                    value,
+                                    nullptr,
+                                    /*cas*/ 0,
+                                    vb,
+                                    expiry,
+                                    0,
+                                    docState);
         validate_store_resp(ret, j);
     }
 }
@@ -1836,7 +1835,7 @@ int write_items_upto_mem_perc(EngineIface* h,
             }
         }
         std::string key("key" + std::to_string(num_items + start_seqno));
-        ENGINE_ERROR_CODE ret = store(
+        cb::engine_errc ret = store(
                 h, nullptr, StoreSemantics::Set, key.c_str(), "somevalue");
         validate_store_resp(ret, num_items);
     }
@@ -1933,10 +1932,10 @@ void reset_stats(gsl::not_null<EngineIface*> h) {
     testHarness->destroy_cookie(cookie);
 }
 
-ENGINE_ERROR_CODE get_stats(gsl::not_null<EngineIface*> h,
-                            std::string_view key,
-                            std::string_view value,
-                            const AddStatFn& callback) {
+cb::engine_errc get_stats(gsl::not_null<EngineIface*> h,
+                          std::string_view key,
+                          std::string_view value,
+                          const AddStatFn& callback) {
     auto* cookie = testHarness->create_cookie(h);
     auto ret = h->get_stats(cookie, key, value, callback);
     testHarness->destroy_cookie(cookie);

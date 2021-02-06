@@ -327,7 +327,7 @@ void FrontEndThread::libevent_callback() {
     }
 }
 
-void notifyIoComplete(Cookie& cookie, ENGINE_ERROR_CODE status) {
+void notifyIoComplete(Cookie& cookie, cb::engine_errc status) {
     auto& thr = cookie.getConnection().getThread();
     LOG_DEBUG("notifyIoComplete: Got notify from {}, status {}",
               cookie.getConnection().getId(),
@@ -474,7 +474,7 @@ void notify_thread(FrontEndThread& thread) {
 
 int add_conn_to_pending_io_list(Connection& c,
                                 Cookie& cookie,
-                                ENGINE_ERROR_CODE status) {
+                                cb::engine_errc status) {
     auto& thread = c.getThread();
 
     std::lock_guard<std::mutex> lock(thread.pending_io.mutex);
@@ -482,7 +482,7 @@ int add_conn_to_pending_io_list(Connection& c,
     if (iter == thread.pending_io.map.end()) {
         thread.pending_io.map.emplace(
                 &c,
-                std::vector<std::pair<Cookie*, ENGINE_ERROR_CODE>>{
+                std::vector<std::pair<Cookie*, cb::engine_errc>>{
                         {&cookie, status}});
         return 1;
     }

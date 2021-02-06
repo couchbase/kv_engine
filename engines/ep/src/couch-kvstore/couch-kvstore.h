@@ -325,9 +325,9 @@ public:
                                 GetValue& docValue,
                                 Vbid vbId,
                                 ValueFilter filter);
-    ENGINE_ERROR_CODE couchErr2EngineErr(couchstore_error_t errCode);
+    cb::engine_errc couchErr2EngineErr(couchstore_error_t errCode);
 
-    ENGINE_ERROR_CODE getAllKeys(
+    cb::engine_errc getAllKeys(
             Vbid vbid,
             const DiskDocKey& start_key,
             uint32_t count,

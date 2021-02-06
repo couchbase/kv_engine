@@ -39,8 +39,8 @@ protected:
     void SetUp() override {
         McdTestappTest::SetUp();
         // Performance test - disable ewouldblock_engine.
-        ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode::Next_N,
-                                     0);
+        ewouldblock_engine_configure(
+                cb::engine_errc::would_block, EWBEngineMode::Next_N, 0);
 
         if (folly::kIsSanitize || RUNNING_ON_VALGRIND ||
             (folly::kIsWindows && folly::kIsDebug)) {

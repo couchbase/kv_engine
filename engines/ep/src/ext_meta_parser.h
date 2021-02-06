@@ -49,14 +49,12 @@ enum cmd_meta_extras_type {
  */
 class ExtendedMetaData {
 public:
-    ExtendedMetaData()
-          : data(nullptr),
-            ret(ENGINE_SUCCESS),
-            len(0) {}
+    ExtendedMetaData() : data(nullptr), ret(cb::engine_errc::success), len(0) {
+    }
 
     ExtendedMetaData(const void *meta, uint16_t nmeta);
 
-    ENGINE_ERROR_CODE getStatus() {
+    cb::engine_errc getStatus() {
         return ret;
     }
 
@@ -72,6 +70,6 @@ private:
     void decodeMeta();
 
     const char* data;
-    ENGINE_ERROR_CODE ret;
+    cb::engine_errc ret;
     uint16_t len;
 };

@@ -50,7 +50,7 @@ std::unique_ptr<EngineIface> EngineTestsuite::createBucket(
     auto me = std::make_unique<MockEngine>(std::move(handle));
     const auto error =
             me->the_engine->initialize(cfg.empty() ? nullptr : cfg.c_str());
-    if (error != ENGINE_SUCCESS) {
+    if (error != cb::engine_errc::success) {
         me->the_engine->destroy(false /*force*/);
         throw cb::engine_error{cb::engine_errc(error),
                                "Failed to initialize instance"};

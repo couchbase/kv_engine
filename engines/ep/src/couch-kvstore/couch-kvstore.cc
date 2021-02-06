@@ -616,7 +616,7 @@ void CouchKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) {
                 numItems);
         st.numGetFailure += numItems;
         for (auto& item : itms) {
-            item.second.value.setStatus(ENGINE_NOT_MY_VBUCKET);
+            item.second.value.setStatus(cb::engine_errc::not_my_vbucket);
         }
         return;
     }
@@ -2593,10 +2593,12 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
         CacheLookup lookup(diskKey, byseqno, vbucketId);
 
         cl.callback(lookup);
-        if (cl.getStatus() == ENGINE_KEY_EEXISTS) {
+        if (cb::engine_errc{cl.getStatus()} ==
+            cb::engine_errc::key_already_exists) {
             sctx->lastReadSeqno = byseqno;
             return COUCHSTORE_SUCCESS;
-        } else if (cl.getStatus() == ENGINE_ENOMEM) {
+        } else if (cb::engine_errc{cl.getStatus()} ==
+                   cb::engine_errc::no_memory) {
             return COUCHSTORE_ERROR_CANCEL;
         }
     }
@@ -2637,12 +2639,12 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
 
     auto it = makeItemFromDocInfo(
             vbucketId, *docinfo, *metadata, value, fetchCompressed);
-    GetValue rv(std::move(it), ENGINE_SUCCESS, -1, keysOnly);
+    GetValue rv(std::move(it), cb::engine_errc::success, -1, keysOnly);
     cb.callback(rv);
 
     couchstore_free_document(doc);
 
-    if (cb.getStatus() == ENGINE_ENOMEM) {
+    if (cb::engine_errc{cb.getStatus()} == cb::engine_errc::no_memory) {
         return COUCHSTORE_ERROR_CANCEL;
     }
 
@@ -3311,20 +3313,20 @@ void CouchKVStore::closeDatabaseHandle(Db *db) {
     st.numClose++;
 }
 
-ENGINE_ERROR_CODE CouchKVStore::couchErr2EngineErr(couchstore_error_t errCode) {
+cb::engine_errc CouchKVStore::couchErr2EngineErr(couchstore_error_t errCode) {
     switch (errCode) {
     case COUCHSTORE_SUCCESS:
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     case COUCHSTORE_ERROR_ALLOC_FAIL:
-        return ENGINE_ENOMEM;
+        return cb::engine_errc::no_memory;
     case COUCHSTORE_ERROR_DOC_NOT_FOUND:
-        return ENGINE_KEY_ENOENT;
+        return cb::engine_errc::no_such_key;
     case COUCHSTORE_ERROR_NO_SUCH_FILE:
     case COUCHSTORE_ERROR_NO_HEADER:
     default:
         // same as the general error return code of
         // EPBucket::getInternal
-        return ENGINE_TMPFAIL;
+        return cb::engine_errc::temporary_failure;
     }
 }
 
@@ -3541,8 +3543,7 @@ int populateAllKeys(Db* db, DocInfo* docinfo, void* ctx) {
                                        : COUCHSTORE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE
-CouchKVStore::getAllKeys(
+cb::engine_errc CouchKVStore::getAllKeys(
         Vbid vbid,
         const DiskDocKey& start_key,
         uint32_t count,
@@ -3560,7 +3561,7 @@ CouchKVStore::getAllKeys(
                                       static_cast<void*>(&ctx));
         if (errCode == COUCHSTORE_SUCCESS ||
             errCode == COUCHSTORE_ERROR_CANCEL) {
-            return ENGINE_SUCCESS;
+            return cb::engine_errc::success;
         } else {
             logger.warn(
                     "CouchKVStore::getAllKeys: couchstore_all_docs "
@@ -3576,7 +3577,7 @@ CouchKVStore::getAllKeys(
                     vbid,
                     db.getFileRev());
     }
-    return ENGINE_FAILED;
+    return cb::engine_errc::failed;
 }
 
 void CouchKVStore::unlinkCouchFile(Vbid vbucket, uint64_t fRev) {

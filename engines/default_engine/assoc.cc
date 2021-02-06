@@ -73,14 +73,15 @@ static struct Assoc* assoc_consruct(int hashpower) {
     }
 }
 
-ENGINE_ERROR_CODE assoc_init(struct default_engine *engine) {
+cb::engine_errc assoc_init(struct default_engine* engine) {
     /*
         construct and save away one assoc for use by all buckets.
     */
     if (global_assoc == nullptr) {
         global_assoc = assoc_consruct(16);
     }
-    return (global_assoc != nullptr) ? ENGINE_SUCCESS : ENGINE_ENOMEM;
+    return (global_assoc != nullptr) ? cb::engine_errc::success
+                                     : cb::engine_errc::no_memory;
 }
 
 void assoc_destroy() {

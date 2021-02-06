@@ -45,7 +45,7 @@ void CollectionsSyncWriteParamTest::SetUp() {
     producer->setSyncReplication(SyncReplication::SyncReplication);
 
     uint64_t rollbackSeqno;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               producer->streamRequest(0, // flags
                                       1, // opaque
                                       vbid,
@@ -56,7 +56,7 @@ void CollectionsSyncWriteParamTest::SetUp() {
                                       0, // snap_end_seqno,
                                       &rollbackSeqno,
                                       [](const std::vector<vbucket_failover_t>&) {
-                                        return ENGINE_SUCCESS;
+                                        return cb::engine_errc::success;
                                       },
                                       std::make_optional(
                                               std::string_view{})
@@ -120,26 +120,26 @@ TEST_P(CollectionsSyncWriteParamTest, drop_collection_with_pending_write) {
 
     auto item = makePendingItem(
             StoredDocKey{"cream", CollectionEntry::defaultC}, "value");
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
 
     item = makePendingItem(StoredDocKey{"cream", CollectionEntry::dairy},
                            "value");
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
 
     // 1 collections + 1 mutation + 2 pending
     flushVBucketToDiskIfPersistent(vbid, 4);
 
     notifyAndStepToCheckpoint();
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpMutation));
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpPrepare));
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpPrepare));
     if (persistent()) {
@@ -148,7 +148,7 @@ TEST_P(CollectionsSyncWriteParamTest, drop_collection_with_pending_write) {
 
     setCollections(cookie, cm.remove(CollectionEntry::dairy));
     notifyAndStepToCheckpoint();
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
 
@@ -190,22 +190,22 @@ failover_entry_t CollectionsSyncWriteParamTest::
 
     auto item = makePendingItem(StoredDocKey{"cream", CollectionEntry::dairy},
                                 "value");
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
 
     item = makePendingItem(makeStoredDocKey("keyToCommit"), "value");
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
 
     // 1 collections + 2 pending
     flushVBucketToDiskIfPersistent(vbid, 3);
 
     notifyAndStepToCheckpoint();
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpPrepare));
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpPrepare));
     flushVBucketToDiskIfPersistent(replicaVB, 3);
@@ -243,7 +243,7 @@ failover_entry_t CollectionsSyncWriteParamTest::
     EXPECT_EQ(0, pdm.getHighCompletedSeqno());
 
     // Commit on the active and add an extra prepare
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               vb->seqnoAcknowledged(
                       folly::SharedMutex::ReadHolder(vb->getStateLock()),
                       "replica",
@@ -252,7 +252,7 @@ failover_entry_t CollectionsSyncWriteParamTest::
     vb->processResolvedSyncWrites();
 
     item = makePendingItem(makeStoredDocKey("prepareToMoveHPS"), "value");
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
 
     flushVBucketToDiskIfPersistent(vbid, 2);
 
@@ -265,7 +265,7 @@ failover_entry_t CollectionsSyncWriteParamTest::
     EXPECT_EQ(0, pdm.getHighCompletedSeqno());
 
     // Now transfer the drop event to the replica
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     flushVBucketToDiskIfPersistent(replicaVB, 1);
@@ -289,7 +289,7 @@ TEST_P(CollectionsSyncWriteParamTest,
     // prepares (the one for the dropped collection and the prepare for the
     // commit).
     notifyAndStepToCheckpoint();
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpCommit));
 
@@ -300,7 +300,7 @@ TEST_P(CollectionsSyncWriteParamTest,
     EXPECT_EQ(3, pdm.getHighCompletedSeqno());
     EXPECT_EQ(0, pdm.getNumDroppedCollections());
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpPrepare));
 
@@ -369,7 +369,7 @@ TEST_P(CollectionsSyncWriteParamTest,
     producer->setSyncReplication(SyncReplication::SyncReplication);
 
     uint64_t rollbackSeqno;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               producer->streamRequest(0, // flags
                                       1, // opaque
                                       vbid,
@@ -380,7 +380,7 @@ TEST_P(CollectionsSyncWriteParamTest,
                                       7, // snap_end_seqno,
                                       &rollbackSeqno,
                                       [](const std::vector<vbucket_failover_t>&) {
-                                        return ENGINE_SUCCESS;
+                                        return cb::engine_errc::success;
                                       },
 
                                       std::make_optional(
@@ -397,7 +397,7 @@ TEST_P(CollectionsSyncWriteParamTest,
     // are sending it as a Disk snapshot so it is turned into a mutation
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
                               false /*disk*/);
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpMutation));
 
@@ -408,7 +408,7 @@ TEST_P(CollectionsSyncWriteParamTest,
     EXPECT_EQ(0, pdm.getNumDroppedCollections());
 
     // Next prepare streams normally
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpPrepare));
 

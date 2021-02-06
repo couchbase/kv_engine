@@ -32,9 +32,9 @@
  * @param opcode The opcode to get the timing histogram for
  * @return A std::pair with the first being the error code for the operation
  *         and the second being the histogram (only valid if the first
- *         parameter is ENGINE_SUCCESS)
+ *         parameter is cb::engine_errc::success)
  */
-static std::pair<ENGINE_ERROR_CODE, Hdr1sfMicroSecHistogram> get_timings(
+static std::pair<cb::engine_errc, Hdr1sfMicroSecHistogram> get_timings(
         Cookie& cookie, const Bucket& bucket, uint8_t opcode) {
     // Don't creata a new privilege context if the one we've got is for the
     // connected bucket:
@@ -42,8 +42,8 @@ static std::pair<ENGINE_ERROR_CODE, Hdr1sfMicroSecHistogram> get_timings(
     if (bucket.name == connection.getBucket().name) {
         auto ret = mcbp::checkPrivilege(cookie,
                                         cb::rbac::Privilege::SimpleStats);
-        if (ret != ENGINE_SUCCESS) {
-            return {ENGINE_EACCESS, {}};
+        if (ret != cb::engine_errc::success) {
+            return {cb::engine_errc::no_access, {}};
         }
     } else {
         // Check to see if we've got access to the bucket
@@ -60,17 +60,17 @@ static std::pair<ENGINE_ERROR_CODE, Hdr1sfMicroSecHistogram> get_timings(
         }
 
         if (!access) {
-            return {ENGINE_EACCESS, {}};
+            return {cb::engine_errc::no_access, {}};
         }
     }
 
     auto* histo = bucket.timings.get_timing_histogram(opcode);
     if (histo) {
-        return {ENGINE_SUCCESS, *histo};
+        return {cb::engine_errc::success, *histo};
     } else {
         // histogram for this opcode hasn't been created yet so just
         // return an histogram with no data in it
-        return {ENGINE_SUCCESS, {}};
+        return {cb::engine_errc::success, {}};
     }
 }
 
@@ -85,7 +85,7 @@ static std::pair<ENGINE_ERROR_CODE, Hdr1sfMicroSecHistogram> get_timings(
  * @param opcode The opcode we're interested in
  * @param bucketname The name of the bucket we want
  */
-static std::pair<ENGINE_ERROR_CODE, Hdr1sfMicroSecHistogram> maybe_get_timings(
+static std::pair<cb::engine_errc, Hdr1sfMicroSecHistogram> maybe_get_timings(
         Cookie& cookie,
         const Bucket& bucket,
         uint8_t opcode,
@@ -95,7 +95,7 @@ static std::pair<ENGINE_ERROR_CODE, Hdr1sfMicroSecHistogram> maybe_get_timings(
         bucket.state == Bucket::State::Ready && bucketname == bucket.name) {
         return get_timings(cookie, bucket, opcode);
     } else {
-        return {ENGINE_KEY_ENOENT, {}};
+        return {cb::engine_errc::no_such_key, {}};
     }
 }
 
@@ -103,28 +103,28 @@ static std::pair<ENGINE_ERROR_CODE, Hdr1sfMicroSecHistogram> maybe_get_timings(
  * Get the aggregated timings across "all" buckets that the connected
  * client has access to.
  */
-static std::pair<ENGINE_ERROR_CODE, std::string> get_aggregated_timings(
+static std::pair<cb::engine_errc, std::string> get_aggregated_timings(
         Cookie& cookie, uint8_t opcode) {
     Hdr1sfMicroSecHistogram timings;
     bool found = false;
 
     for (auto& bucket : all_buckets) {
         auto bt = maybe_get_timings(cookie, bucket, opcode, bucket.name);
-        if (bt.first == ENGINE_SUCCESS) {
+        if (bt.first == cb::engine_errc::success) {
             timings += bt.second;
             found = true;
         }
     }
 
     if (found) {
-        return std::make_pair(ENGINE_SUCCESS, timings.to_string());
+        return std::make_pair(cb::engine_errc::success, timings.to_string());
     }
 
     // We didn't have access to any buckets!
-    return std::make_pair(ENGINE_EACCESS, std::string{});
+    return std::make_pair(cb::engine_errc::no_access, std::string{});
 }
 
-std::pair<ENGINE_ERROR_CODE, std::string> get_cmd_timer(Cookie& cookie) {
+std::pair<cb::engine_errc, std::string> get_cmd_timer(Cookie& cookie) {
     const auto& request = cookie.getRequest();
     const auto key = request.getKey();
     const std::string bucket(reinterpret_cast<const char*>(key.data()),
@@ -145,30 +145,32 @@ std::pair<ENGINE_ERROR_CODE, std::string> get_cmd_timer(Cookie& cookie) {
         // The current selected bucket
         auto& connection = cookie.getConnection();
         auto bt = get_timings(cookie, connection.getBucket(), opcode);
-        if (bt.first == ENGINE_SUCCESS) {
-            return std::make_pair(ENGINE_SUCCESS, bt.second.to_string());
+        if (bt.first == cb::engine_errc::success) {
+            return std::make_pair(cb::engine_errc::success,
+                                  bt.second.to_string());
         }
 
         return std::make_pair(bt.first, std::string{});
     }
 
     // The user specified a bucket... let's locate the bucket
-    std::pair<ENGINE_ERROR_CODE, Hdr1sfMicroSecHistogram> ret;
+    std::pair<cb::engine_errc, Hdr1sfMicroSecHistogram> ret;
 
     for (auto& b : all_buckets) {
         ret = maybe_get_timings(cookie, b, opcode, bucket);
-        if (ret.first != ENGINE_KEY_ENOENT && ret.first != ENGINE_SUCCESS) {
+        if (ret.first != cb::engine_errc::no_such_key &&
+            ret.first != cb::engine_errc::success) {
             break;
         }
     }
 
-    if (ret.first == ENGINE_SUCCESS) {
-        return std::make_pair(ENGINE_SUCCESS, ret.second.to_string());
+    if (ret.first == cb::engine_errc::success) {
+        return std::make_pair(cb::engine_errc::success, ret.second.to_string());
     }
 
-    if (ret.first == ENGINE_KEY_ENOENT) {
+    if (ret.first == cb::engine_errc::no_such_key) {
         // Don't tell the user that the bucket doesn't exist
-        ret.first = ENGINE_EACCESS;
+        ret.first = cb::engine_errc::no_access;
     }
 
     return std::make_pair(ret.first, std::string{});
@@ -176,15 +178,15 @@ std::pair<ENGINE_ERROR_CODE, std::string> get_cmd_timer(Cookie& cookie) {
 
 void get_cmd_timer_executor(Cookie& cookie) {
     cookie.logCommand();
-    std::pair<ENGINE_ERROR_CODE, std::string> ret;
+    std::pair<cb::engine_errc, std::string> ret;
     try {
         ret = get_cmd_timer(cookie);
     } catch (const std::bad_alloc&) {
-        ret.first = ENGINE_ENOMEM;
+        ret.first = cb::engine_errc::no_memory;
     }
     cookie.logResponse(ret.first);
 
-    if (ret.first == ENGINE_SUCCESS) {
+    if (ret.first == cb::engine_errc::success) {
         cookie.sendResponse(cb::mcbp::Status::Success,
                             {},
                             {},

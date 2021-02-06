@@ -94,7 +94,7 @@ void DurabilityMonitorTest::addSyncWrite(int64_t seqno,
     // Note: need to go through VBucket::set make sure we call
     // ADM::checkForCommit
     item.setPendingSyncWrite(req);
-    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING, set(item));
+    ASSERT_EQ(cb::engine_errc::sync_write_pending, set(item));
 
     vb->processResolvedSyncWrites();
 }
@@ -130,7 +130,7 @@ void DurabilityMonitorTest::addSyncDelete(int64_t seqno,
                      PROTOCOL_BINARY_RAW_BYTES,
                      0 /*cas*/,
                      current + 1);
-    ASSERT_EQ(ENGINE_SUCCESS, set(item));
+    ASSERT_EQ(cb::engine_errc::success, set(item));
     uint64_t cas = item.getCas();
     current = vb->getHighSeqno();
 
@@ -144,7 +144,7 @@ void DurabilityMonitorTest::addSyncDelete(int64_t seqno,
 
     mutation_descr_t mutation_descr;
     auto cHandle = vb->lockCollections(item.getKey());
-    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING,
+    ASSERT_EQ(cb::engine_errc::sync_write_pending,
               vb->deleteItem(cas,
                              cookie,
                              *engine,
@@ -199,7 +199,7 @@ MutationStatus DurabilityMonitorTest::processSet(Item& item) {
             .first;
 }
 
-ENGINE_ERROR_CODE DurabilityMonitorTest::set(Item& item) {
+cb::engine_errc DurabilityMonitorTest::set(Item& item) {
     auto result = vb->set(
             item, cookie, *engine, {}, vb->lockCollections(item.getKey()));
     vb->notifyActiveDMOfLocalSyncWrite();
@@ -3846,7 +3846,7 @@ TEST_P(ActiveDurabilityMonitorTest, MB_41235_commit) {
     vb->setState(vbucket_state_active);
     ASSERT_EQ(vbucket_state_active, vb->getState());
     adm.setReplicationTopology(nlohmann::json::array({{"active", "replica1"}}));
-    ASSERT_EQ(ENGINE_SUCCESS, adm.seqnoAckReceived("replica1", 1));
+    ASSERT_EQ(cb::engine_errc::success, adm.seqnoAckReceived("replica1", 1));
 
     adm.checkForCommit();
     EXPECT_NO_THROW(adm.processCompletedSyncWriteQueue());

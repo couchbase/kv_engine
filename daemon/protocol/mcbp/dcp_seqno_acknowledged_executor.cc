@@ -21,9 +21,9 @@
 #include <memcached/protocol_binary.h>
 
 void dcp_seqno_acknowledged_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    auto ret = cookie.swapAiostat(cb::engine_errc::success);
 
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         const auto& req = cookie.getRequest();
         auto extdata = req.getExtdata();
         using cb::mcbp::request::DcpSeqnoAcknowledgedPayload;
@@ -36,7 +36,7 @@ void dcp_seqno_acknowledged_executor(Cookie& cookie) {
                                    extras.getPreparedSeqno());
     }
 
-    if (ret != ENGINE_SUCCESS) {
+    if (ret != cb::engine_errc::success) {
         handle_executor_status(cookie, ret);
     }
 }

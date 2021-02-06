@@ -23,8 +23,8 @@
 
 void collections_set_manifest_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
-    if (ret == ENGINE_SUCCESS) {
+    auto ret = cookie.swapAiostat(cb::engine_errc::success);
+    if (ret == cb::engine_errc::success) {
         auto& req = cookie.getRequest();
         auto val = req.getValue();
         std::string_view jsonBuffer{reinterpret_cast<const char*>(val.data()),

@@ -69,7 +69,7 @@ public:
      */
     void cancelCheckpointCreatorTask();
 
-    ENGINE_ERROR_CODE streamRequest(
+    cb::engine_errc streamRequest(
             uint32_t flags,
             uint32_t opaque,
             Vbid vbucket,
@@ -82,19 +82,19 @@ public:
             dcp_add_failover_log callback,
             std::optional<std::string_view> json) override;
 
-    ENGINE_ERROR_CODE step(DcpMessageProducersIface& producers) override;
+    cb::engine_errc step(DcpMessageProducersIface& producers) override;
 
-    ENGINE_ERROR_CODE bufferAcknowledgement(uint32_t opaque,
-                                            Vbid vbucket,
-                                            uint32_t buffer_bytes) override;
+    cb::engine_errc bufferAcknowledgement(uint32_t opaque,
+                                          Vbid vbucket,
+                                          uint32_t buffer_bytes) override;
 
-    ENGINE_ERROR_CODE control(uint32_t opaque,
-                              std::string_view key,
-                              std::string_view value) override;
+    cb::engine_errc control(uint32_t opaque,
+                            std::string_view key,
+                            std::string_view value) override;
 
-    ENGINE_ERROR_CODE seqno_acknowledged(uint32_t opaque,
-                                         Vbid vbucket,
-                                         uint64_t prepared_seqno) override;
+    cb::engine_errc seqno_acknowledged(uint32_t opaque,
+                                       Vbid vbucket,
+                                       uint64_t prepared_seqno) override;
 
     /**
      * Sub-classes must implement a method that processes a response
@@ -170,12 +170,12 @@ public:
      * Close the stream for given vbucket stream
      *
      * @param vbucket the if for the vbucket to close
-     * @return ENGINE_SUCCESS upon a successful close
-     *         ENGINE_NOT_MY_VBUCKET the vbucket stream doesn't exist
+     * @return cb::engine_errc::success upon a successful close
+     *         cb::engine_errc::not_my_vbucket the vbucket stream doesn't exist
      */
-    ENGINE_ERROR_CODE closeStream(uint32_t opaque,
-                                  Vbid vbucket,
-                                  cb::mcbp::DcpStreamId sid = {}) override;
+    cb::engine_errc closeStream(uint32_t opaque,
+                                Vbid vbucket,
+                                cb::mcbp::DcpStreamId sid = {}) override;
 
     void notifyStreamReady(Vbid vbucket);
 
@@ -385,22 +385,22 @@ protected:
 
     /** We may disconnect if noop messages are enabled and the last time we
      *  received any message (including a noop) exceeds the dcpTimeout.
-     *  Returns ENGINE_DISCONNECT if noop messages are enabled and the timeout
-     *  is exceeded.
-     *  Returns ENGINE_FAILED if noop messages are disabled, or if the timeout
-     *  is not exceeded.  In this case continue without disconnecting.
+     *  Returns cb::engine_errc::disconnect if noop messages are enabled and the
+     * timeout is exceeded. Returns cb::engine_errc::failed if noop messages are
+     * disabled, or if the timeout is not exceeded.  In this case continue
+     * without disconnecting.
      */
-    ENGINE_ERROR_CODE maybeDisconnect();
+    cb::engine_errc maybeDisconnect();
 
     /** We may send a noop if a noop acknowledgement is not pending and
      *  we have exceeded the dcpNoopTxInterval since we last sent a noop.
-     *  Returns ENGINE_SUCCESS if a noop was sent.
-     *  Returns ENGINE_FAILED if a noop is not required to be sent.
+     *  Returns cb::engine_errc::success if a noop was sent.
+     *  Returns cb::engine_errc::failed if a noop is not required to be sent.
      *  This occurs if noop messages are disabled, or because we have already
      *  sent a noop and we are awaiting a receive, or because the time interval
      *  has not passed.
      */
-    ENGINE_ERROR_CODE maybeSendNoop(DcpMessageProducersIface& producers);
+    cb::engine_errc maybeSendNoop(DcpMessageProducersIface& producers);
 
     /**
      * Create the ActiveStreamCheckpointProcessorTask and assign to
@@ -451,12 +451,12 @@ protected:
      * deletionV1OrV2 unifies the code where a choice is made between triggering
      * a deletion using version 1 or version 2.
      */
-    ENGINE_ERROR_CODE deletionV1OrV2(IncludeDeleteTime includeDeleteTime,
-                                     MutationResponse& mutationResponse,
-                                     DcpMessageProducersIface& producers,
-                                     std::unique_ptr<Item> itmCpy,
-                                     ENGINE_ERROR_CODE ret,
-                                     cb::mcbp::DcpStreamId sid);
+    cb::engine_errc deletionV1OrV2(IncludeDeleteTime includeDeleteTime,
+                                   MutationResponse& mutationResponse,
+                                   DcpMessageProducersIface& producers,
+                                   std::unique_ptr<Item> itmCpy,
+                                   cb::engine_errc ret,
+                                   cb::mcbp::DcpStreamId sid);
 
     /**
      * Set the dead-status of the specified stream associated with the specified

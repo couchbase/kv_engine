@@ -27,20 +27,20 @@ enum class Datatype : uint8_t;
 
 /**
  * Attempts to read the given property.
- * If the property could be read, return ENGINE_SUCCESS and writes
+ * If the property could be read, return cb::engine_errc::success and writes
  * the value into `value`
  * Otherwise returns a status code indicating why the read failed.
  */
-ENGINE_ERROR_CODE ioctl_get_property(Cookie& cookie,
-                                     const std::string& key,
-                                     std::string& value,
-                                     cb::mcbp::Datatype& datatype);
+cb::engine_errc ioctl_get_property(Cookie& cookie,
+                                   const std::string& key,
+                                   std::string& value,
+                                   cb::mcbp::Datatype& datatype);
 
 /**
  * Attempts to set property `key` to the value `value`.
- * If the property could be written, return ENGINE_SUCCESS.
+ * If the property could be written, return cb::engine_errc::success.
  * Otherwise returns a status code indicating why the write failed.
  */
-ENGINE_ERROR_CODE ioctl_set_property(Cookie& cookie,
-                                     const std::string& key,
-                                     const std::string& value);
+cb::engine_errc ioctl_set_property(Cookie& cookie,
+                                   const std::string& key,
+                                   const std::string& value);

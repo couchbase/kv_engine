@@ -81,7 +81,7 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
             DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
     {
         auto cHandle = vb->lockCollections(item->getKey());
-        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+        EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   vb->set(*item, cookie, *engine, {}, cHandle));
     }
     vb->notifyActiveDMOfLocalSyncWrite();
@@ -360,10 +360,10 @@ void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
     EXPECT_FALSE(resp);
 }
 
-ENGINE_ERROR_CODE DurabilityActiveStreamTest::simulateStreamSeqnoAck(
+cb::engine_errc DurabilityActiveStreamTest::simulateStreamSeqnoAck(
         const std::string& consumerName, uint64_t preparedSeqno) {
     auto result = stream->seqnoAck(consumerName, preparedSeqno);
-    if (result == ENGINE_SUCCESS) {
+    if (result == cb::engine_errc::success) {
         engine->getVBucket(vbid)->processResolvedSyncWrites();
     }
     return result;
@@ -473,7 +473,7 @@ TEST_P(DurabilityActiveStreamTest, AbortWithBackfillPrepare) {
     EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
     auto prepareSeqno = vb->getHighSeqno();
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               vb->abort(key,
                         prepareSeqno,
                         {} /*abortSeqno*/,
@@ -554,7 +554,7 @@ TEST_P(DurabilityActiveStreamTest, BackfillAbort) {
     ctx.durability =
             DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
     EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               vb->abort(key,
                         vb->getHighSeqno(),
                         {} /*abortSeqno*/,
@@ -665,7 +665,7 @@ TEST_P(DurabilityActiveStreamTest, RemoveUnknownSeqnoAckAtDestruction) {
     // connections. We verify that the seqno ack does not exist in the map
     // by performing the topology change that would commit the prepare if it
     // did.
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               simulateStreamSeqnoAck(producer->getConsumerName(), 1));
 
     // If the seqno ack still existed in the queuedSeqnoAcks map then it would
@@ -919,7 +919,7 @@ TEST_P(DurabilityActiveStreamTest,
         ctx.durability = DurabilityItemCtx{item->getDurabilityReqs(),
                                            nullptr /*cookie*/};
         auto cHandle = vb->lockCollections(item->getKey());
-        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+        EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   vb->set(*item, cookie, *engine, {}, cHandle));
     }
     vb->notifyActiveDMOfLocalSyncWrite();
@@ -929,7 +929,7 @@ TEST_P(DurabilityActiveStreamTest,
     stream->consumeBackfillItems(1);
     stream->public_nextQueuedItem();
 
-    EXPECT_EQ(ENGINE_SUCCESS, simulateStreamSeqnoAck(replica, 1));
+    EXPECT_EQ(cb::engine_errc::success, simulateStreamSeqnoAck(replica, 1));
     EXPECT_EQ(1, vb->getHighPreparedSeqno());
     EXPECT_EQ(1, vb->getHighCompletedSeqno());
 
@@ -943,7 +943,7 @@ TEST_P(DurabilityActiveStreamTest,
         ctx.durability = DurabilityItemCtx{item->getDurabilityReqs(),
                                            nullptr /*cookie*/};
         auto cHandle = vb->lockCollections(item->getKey());
-        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+        EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   vb->set(*item, cookie, *engine, {}, cHandle));
     }
     vb->notifyActiveDMOfLocalSyncWrite();
@@ -953,7 +953,7 @@ TEST_P(DurabilityActiveStreamTest,
     stream->consumeBackfillItems(3);
     stream->public_nextQueuedItem();
 
-    EXPECT_EQ(ENGINE_SUCCESS, simulateStreamSeqnoAck(replica, 3));
+    EXPECT_EQ(cb::engine_errc::success, simulateStreamSeqnoAck(replica, 3));
     EXPECT_EQ(3, vb->getHighPreparedSeqno());
     EXPECT_EQ(3, vb->getHighCompletedSeqno());
 
@@ -987,7 +987,7 @@ TEST_P(DurabilityActiveStreamTest,
 
     stream->consumeBackfillItems(2);
 
-    EXPECT_EQ(ENGINE_SUCCESS, simulateStreamSeqnoAck(replica, 1));
+    EXPECT_EQ(cb::engine_errc::success, simulateStreamSeqnoAck(replica, 1));
 
     producer->cancelCheckpointCreatorTask();
 }
@@ -1206,7 +1206,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     prepare->setCas(999);
 
     // Receive prepare at seqno 1
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       prepare,
                       stream->getOpaque(),
@@ -1230,7 +1230,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     mutation->setBySeqno(2);
     mutation->setCas(999);
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       mutation,
                       stream->getOpaque(),
@@ -1248,7 +1248,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     EXPECT_EQ(0, getPersistedHCS());
 
     // receive an abort (seqno 4) for a deduped prepare (seqno 3)
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<AbortSyncWrite>(
                       stream->getOpaque(),
                       vbid,
@@ -1263,7 +1263,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     unrelated->setCas(999);
 
     // Receive unrelated committed item at seqno 5
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       unrelated,
                       stream->getOpaque(),
@@ -1302,7 +1302,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     item->setBySeqno(7);
 
     // Send the logical commit
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       std::move(item),
                       0 /*opaque*/,
@@ -1340,7 +1340,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DiskSnapshotHCSZeroAccepted) {
     item->setBySeqno(1);
 
     // Send the mutation
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       std::move(item),
                       0 /*opaque*/,
@@ -1414,7 +1414,7 @@ void DurabilityPassiveStreamTest::
     item->setCas(999);
 
     // Send the prepare
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       item,
                       opaque,
@@ -1435,7 +1435,7 @@ void DurabilityPassiveStreamTest::
     }
 
     // Send the logical commit
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       std::move(item),
                       opaque,
@@ -1515,7 +1515,7 @@ void DurabilityPassiveStreamTest::
     auto item = makeCommittedItem(key, "mutation");
     item->setBySeqno(1);
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       std::move(item),
                       opaque,
@@ -1582,7 +1582,7 @@ void DurabilityPassiveStreamTest::
         item->replaceValue({});
     }
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       std::move(item),
                       opaque,
@@ -1641,7 +1641,7 @@ void DurabilityPassiveStreamTest::
             {}, // timestamp
             {} /*streamId*/);
     stream->processMarker(&marker);
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               vb->commit(key, prepareSeqno, {}, vb->lockCollections(key)));
     EXPECT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
 }
@@ -1671,7 +1671,7 @@ TEST_P(DurabilityPassiveStreamTest,
     const std::string value = "overwritingValue";
     auto item = makeCommittedItem(key, value);
     item->setBySeqno(1);
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       std::move(item),
                       opaque,
@@ -1695,7 +1695,7 @@ TEST_P(DurabilityPassiveStreamTest,
     stream->processMarker(&marker);
 
     EXPECT_EQ(
-            ENGINE_SUCCESS,
+            cb::engine_errc::success,
             stream->messageReceived(std::make_unique<AbortSyncWrite>(
                     opaque, vbid, key, 3 /*prepareSeqno*/, 4 /*abortSeqno*/)));
 }
@@ -1723,14 +1723,14 @@ TEST_P(DurabilityPassiveStreamTest, SeqnoAckAtSnapshotEndReceived) {
 
     const std::string value("value");
 
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(makeMutationConsumerMessage(
                       1 /*seqno*/, vbid, value, opaque)));
     EXPECT_EQ(0, readyQ.size());
 
     using namespace cb::durability;
     const uint64_t swSeqno = 2;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(makeMutationConsumerMessage(
                       swSeqno,
                       vbid,
@@ -1741,7 +1741,7 @@ TEST_P(DurabilityPassiveStreamTest, SeqnoAckAtSnapshotEndReceived) {
     EXPECT_EQ(0, readyQ.size());
 
     // snapshot-end
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(makeMutationConsumerMessage(
                       snapEnd, vbid, value, opaque)));
     // Verify that we have the expected SeqnoAck in readyQ now
@@ -1777,14 +1777,14 @@ TEST_P(DurabilityPassiveStreamPersistentTest, SeqnoAckAtPersistedSnapEnd) {
 
     const std::string value("value");
 
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(makeMutationConsumerMessage(
                       1 /*seqno*/, vbid, value, opaque)));
     EXPECT_EQ(0, readyQ.size());
 
     const int64_t swSeqno = 2;
     using namespace cb::durability;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(makeMutationConsumerMessage(
                       swSeqno,
                       vbid,
@@ -1804,14 +1804,14 @@ TEST_P(DurabilityPassiveStreamPersistentTest, SeqnoAckAtPersistedSnapEnd) {
     EXPECT_EQ(0, readyQ.size());
 
     // Non-durable s:3 received
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(makeMutationConsumerMessage(
                       3 /*seqno*/, vbid, value, opaque)));
     // No ack yet, we have not yet received the complete snapshot
     EXPECT_EQ(0, readyQ.size());
 
     // Non-durable s:4 (snapshot-end) received
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(makeMutationConsumerMessage(
                       4 /*seqno*/, vbid, value, opaque)));
     // No ack yet, we have received the snap-end mutation but we have not yet
@@ -1881,14 +1881,14 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
 
     // s:1 non-durable -> no ack
     const std::string value("value");
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(makeMutationConsumerMessage(
                       1 /*seqno*/, vbid, value, opaque)));
     EXPECT_EQ(0, readyQ.size());
 
     // s:2 Level:Majority -> no ack
     using namespace cb::durability;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(makeMutationConsumerMessage(
                       2 /*seqno*/,
                       vbid,
@@ -1898,13 +1898,13 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
     EXPECT_EQ(0, readyQ.size());
 
     // s:3 non-durable -> no ack
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(makeMutationConsumerMessage(
                       3 /*seqno*/, vbid, value, opaque)));
     EXPECT_EQ(0, readyQ.size());
 
     // s:4 Level:MajorityAndPersistOnMaster -> no ack
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(makeMutationConsumerMessage(
                       4 /*seqno*/,
                       vbid,
@@ -1915,13 +1915,13 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
     EXPECT_EQ(0, readyQ.size());
 
     // s:5 non-durable -> no ack
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(makeMutationConsumerMessage(
                       5 /*seqno*/, vbid, value, opaque)));
     EXPECT_EQ(0, readyQ.size());
 
     // s:6 Level:PersistToMajority -> no ack (durability-fence)
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(makeMutationConsumerMessage(
                       6 /*seqno*/,
                       vbid,
@@ -1932,7 +1932,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
     EXPECT_EQ(0, readyQ.size());
 
     // s:7 Level-Majority -> no ack
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(makeMutationConsumerMessage(
                       7 /*seqno*/,
                       vbid,
@@ -1942,7 +1942,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
     EXPECT_EQ(0, readyQ.size());
 
     // s:8 Level:MajorityAndPersistOnMaster -> no ack
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(makeMutationConsumerMessage(
                       8 /*seqno*/,
                       vbid,
@@ -1953,13 +1953,13 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
     EXPECT_EQ(0, readyQ.size());
 
     // s:9 non-durable -> no ack
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(makeMutationConsumerMessage(
                       9 /*seqno*/, vbid, value, opaque)));
     EXPECT_EQ(0, readyQ.size());
 
     // s:10 non-durable (snapshot-end) -> ack (HPS=4, durability-fence at 6)
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(
                       makeMutationConsumerMessage(10, vbid, value, opaque)));
     checkSeqnoAckInReadyQ(4 /*HPS*/);
@@ -1987,7 +1987,7 @@ queued_item DurabilityPassiveStreamTest::makeAndReceiveDcpPrepare(
     qi->setBySeqno(seqno);
     qi->setCas(cas);
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       qi,
                       opaque,
@@ -2119,7 +2119,7 @@ void DurabilityPassiveStreamTest::testReceiveDuplicateDcpPrepare(
                             vbid));
     qi->setPendingSyncWrite(Requirements(Level::Majority, Timeout::Infinity()));
 
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       std::move(qi),
                       opaque,
@@ -2144,7 +2144,7 @@ void DurabilityPassiveStreamTest::testReceiveDuplicateDcpPrepare(
             {} /*streamId*/);
     stream->processMarker(&marker);
 
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<CommitSyncWrite>(
                       opaque, vbid, prepareSeqno, commitSeqno, key)));
 }
@@ -2260,7 +2260,7 @@ void DurabilityPassiveStreamTest::testReceiveMultipleDuplicateDcpPrepares() {
     uint64_t prepareSeqno = 7;
     seqno = 10;
     for (const auto& key : keys) {
-        ASSERT_EQ(ENGINE_SUCCESS,
+        ASSERT_EQ(cb::engine_errc::success,
                   stream->messageReceived(std::make_unique<CommitSyncWrite>(
                           opaque, vbid, prepareSeqno++, seqno++, key)));
     }
@@ -2293,7 +2293,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDuplicateDcpPrepareRemoveFromSet) {
     qi->setPendingSyncWrite(Requirements(Level::Majority, Timeout::Infinity()));
 
     uint32_t opaque = 0;
-    ASSERT_EQ(ENGINE_ERANGE,
+    ASSERT_EQ(cb::engine_errc::out_of_range,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       std::move(qi),
                       opaque,
@@ -2451,7 +2451,7 @@ void DurabilityPassiveStreamPersistentTest::
         item->setBySeqno(snapStart);
 
         // Replica receives PRE
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   stream->messageReceived(
                           std::make_unique<MutationConsumerMessage>(
                                   item,
@@ -2487,7 +2487,8 @@ void DurabilityPassiveStreamPersistentTest::
                     nullptr /*ext-metadata*/,
                     cb::mcbp::DcpStreamId{});
         }
-        EXPECT_EQ(ENGINE_SUCCESS, stream->messageReceived(std::move(cmtMsg)));
+        EXPECT_EQ(cb::engine_errc::success,
+                  stream->messageReceived(std::move(cmtMsg)));
 
         // Check HT
         {
@@ -2625,7 +2626,7 @@ TEST_P(DurabilityPassiveStreamTest, DeDupedPrepareWindowDoubleDisconnect) {
                             vbid));
     qi->setPendingSyncWrite(Requirements(Level::Majority, Timeout::Infinity()));
 
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       std::move(qi),
                       opaque,
@@ -2650,7 +2651,7 @@ TEST_P(DurabilityPassiveStreamTest, DeDupedPrepareWindowDoubleDisconnect) {
                               vbid));
     qi->setPendingSyncWrite(Requirements(Level::Majority, Timeout::Infinity()));
 
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       std::move(qi),
                       opaque,
@@ -2714,7 +2715,7 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepareCommit() {
     ASSERT_EQ(0, ckpt->getNumItems());
 
     // Now simulate the Consumer receiving Commit for that Prepare
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<CommitSyncWrite>(
                       opaque, vbid, prepareSeqno, commitSeqno, key)));
 
@@ -2812,7 +2813,7 @@ void DurabilityPassiveStreamTest::testReceiveDcpAbort() {
     uint32_t opaque = 0;
     auto abortReceived = [this, opaque, &key](
                                  uint64_t prepareSeqno,
-                                 uint64_t abortSeqno) -> ENGINE_ERROR_CODE {
+                                 uint64_t abortSeqno) -> cb::engine_errc {
         return stream->messageReceived(std::make_unique<AbortSyncWrite>(
                 opaque, vbid, key, prepareSeqno, abortSeqno));
     };
@@ -2863,10 +2864,11 @@ void DurabilityPassiveStreamTest::testReceiveDcpAbort() {
     // The consumer receives an Abort for the previous Prepare.
     // Note: The call to abortReceived() above throws /after/
     //     PassiveStream::last_seqno has been incremented, so we need to
-    //     abortSeqno to bypass ENGINE_ERANGE checks.
+    //     abortSeqno to bypass cb::engine_errc::out_of_range checks.
     abortSeqno++;
     prepareSeqno++;
-    ASSERT_EQ(ENGINE_SUCCESS, abortReceived(prepareSeqno, abortSeqno));
+    ASSERT_EQ(cb::engine_errc::success,
+              abortReceived(prepareSeqno, abortSeqno));
 
     EXPECT_EQ(0, vb->getNumItems());
     // Ephemeral keeps the completed prepare in the HashTable
@@ -2924,7 +2926,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveAbortWithoutPrepare) {
     auto key = makeStoredDocKey("key1");
     auto prepareSeqno = 1;
     auto abortSeqno = 2;
-    EXPECT_EQ(ENGINE_EINVAL,
+    EXPECT_EQ(cb::engine_errc::invalid_arguments,
               stream->messageReceived(std::make_unique<AbortSyncWrite>(
                       opaque, vbid, key, prepareSeqno, abortSeqno)));
 }
@@ -2951,7 +2953,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveAbortWithoutPrepareFromDisk) {
     stream->processMarker(&marker);
 
     auto key = makeStoredDocKey("key1");
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<AbortSyncWrite>(
                       opaque, vbid, key, prepareSeqno, abortSeqno)));
 }
@@ -2979,7 +2981,7 @@ TEST_P(DurabilityPassiveStreamTest,
     stream->processMarker(&marker);
 
     auto key = makeStoredDocKey("key1");
-    EXPECT_EQ(ENGINE_EINVAL,
+    EXPECT_EQ(cb::engine_errc::invalid_arguments,
               stream->messageReceived(std::make_unique<AbortSyncWrite>(
                       opaque, vbid, key, prepareSeqno, abortSeqno)));
 }
@@ -3010,7 +3012,7 @@ void DurabilityPassiveStreamTest::setUpHandleSnapshotEndTest() {
     pending->setCas(1);
     pending->setBySeqno(2);
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       pending,
                       opaque,
@@ -3034,7 +3036,7 @@ TEST_P(DurabilityPassiveStreamTest, HandleSnapshotEndOnCommit) {
     // bump our seqno by 2).
     auto prepareSeqno = 1;
     auto commitSeqno = prepareSeqno + 2;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<CommitSyncWrite>(
                       opaque, vbid, prepareSeqno, commitSeqno, key)));
 
@@ -3050,7 +3052,7 @@ TEST_P(DurabilityPassiveStreamTest, HandleSnapshotEndOnAbort) {
 
     // Abort the original prepare
     auto abortSeqno = 3;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<AbortSyncWrite>(
                       opaque, vbid, key, 1 /*prepareSeqno*/, abortSeqno)));
 
@@ -3083,7 +3085,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveBackfilledDcpCommit) {
     prepare->setBySeqno(prepareSeqno);
     prepare->setCas(999);
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       prepare,
                       opaque,
@@ -3097,7 +3099,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveBackfilledDcpCommit) {
 
     // Hit the consumer level function (not the stream level) for additional
     // error checking.
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->commit(opaque, vbid, key, prepare->getBySeqno(), 2));
 }
 
@@ -3125,7 +3127,7 @@ TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
     pending->setBySeqno(prepareSeqno);
     pending->setCas(1);
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       pending,
                       opaque,
@@ -3142,7 +3144,7 @@ TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
 
     // 3) Send commit - should not throw
     auto commitSeqno = pending->getBySeqno() + 1;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<CommitSyncWrite>(
                       opaque, vbid, pending->getBySeqno(), commitSeqno, key)));
     flushVBucketToDiskIfPersistent(vbid, 2);
@@ -3163,7 +3165,7 @@ TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
 
     // 6) Send prepare
     pending->setBySeqno(commitSeqno + 1);
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       pending,
                       opaque,
@@ -3179,7 +3181,7 @@ TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
     // 7) Send commit - allowed to exist in same checkpoint
     commitSeqno = pending->getBySeqno() + 1;
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<CommitSyncWrite>(
                       opaque, vbid, pending->getBySeqno(), commitSeqno, key)));
     EXPECT_EQ(0, pdm.getNumTracked());
@@ -3240,7 +3242,7 @@ TEST_P(DurabilityPassiveStreamTest, MismatchingPreInHTAndPdm) {
     qi->setBySeqno(1);
     qi->setCas(cas);
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       qi,
                       opaque,
@@ -3289,7 +3291,7 @@ TEST_P(DurabilityPassiveStreamTest, MismatchingPreInHTAndPdm) {
                               preSeqno,
                               vbid));
     qi->setPendingSyncWrite(Requirements(Level::Majority, Timeout::Infinity()));
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       std::move(qi),
                       opaque,
@@ -3310,7 +3312,7 @@ TEST_P(DurabilityPassiveStreamTest, MismatchingPreInHTAndPdm) {
     value = "value5";
     auto item = makeCommittedItem(key, value);
     item->setBySeqno(5);
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       std::move(item),
                       opaque,
@@ -3360,7 +3362,7 @@ TEST_P(DurabilityPassiveStreamTest, BackfillPrepareDelete) {
             key, "value", Requirements(Level::Majority, Timeout::Infinity()));
     pending->setBySeqno(preSeqno);
     pending->setCas(1);
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       pending,
                       opaque,
@@ -3377,7 +3379,7 @@ TEST_P(DurabilityPassiveStreamTest, BackfillPrepareDelete) {
     deleted->setDeleted(DeleteSource::Explicit);
     deleted->setBySeqno(3);
     queued_item qi{deleted};
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       deleted,
                       opaque,
@@ -3422,7 +3424,7 @@ TEST_P(DurabilityPassiveStreamTest,
             keyA, "value", Requirements(Level::Majority, Timeout::Infinity()));
     pending->setBySeqno(1);
     pending->setCas(1);
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       pending,
                       opaque,
@@ -3455,7 +3457,7 @@ TEST_P(DurabilityPassiveStreamTest,
             key, "value", Requirements(Level::Majority, Timeout::Infinity()));
     pending->setBySeqno(keyBPrepareSeqno);
     pending->setCas(3);
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       pending,
                       opaque,
@@ -3470,7 +3472,7 @@ TEST_P(DurabilityPassiveStreamTest,
     auto committed = makeCommittedItem(key, {});
     committed->setBySeqno(4);
     auto qi = queued_item{committed};
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       committed,
                       opaque,
@@ -3490,7 +3492,7 @@ TEST_P(DurabilityPassiveStreamTest,
     committed = makeCommittedItem(keyA, {});
     committed->setBySeqno(5);
     qi = queued_item{committed};
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       committed,
                       opaque,
@@ -3534,7 +3536,7 @@ TEST_P(DurabilityPassiveStreamTest, CompletedDiskPreIsIgnoredBySanityChecks) {
             key, "value", Requirements(Level::Majority, Timeout::Infinity()));
     pending->setBySeqno(preSeqno);
     pending->setCas(1);
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       pending,
                       opaque,
@@ -3551,7 +3553,7 @@ TEST_P(DurabilityPassiveStreamTest, CompletedDiskPreIsIgnoredBySanityChecks) {
     auto item = makeCommittedItem(key, value);
     item->setBySeqno(2);
     item->setCas(1);
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       std::move(item),
                       opaque,
@@ -3581,7 +3583,7 @@ TEST_P(DurabilityPassiveStreamTest, CompletedDiskPreIsIgnoredBySanityChecks) {
             key, "value", Requirements(Level::Majority, Timeout::Infinity()));
     pending->setBySeqno(3);
     pending->setCas(2);
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       pending,
                       opaque,
@@ -3620,7 +3622,7 @@ TEST_P(DurabilityPassiveStreamTest,
             Requirements(Level::PersistToMajority, Timeout::Infinity()));
     pending->setBySeqno(1);
     pending->setCas(1);
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       pending,
                       opaque,
@@ -3634,7 +3636,7 @@ TEST_P(DurabilityPassiveStreamTest,
 
     // 3) Receive commit
     ASSERT_EQ(
-            ENGINE_SUCCESS,
+            cb::engine_errc::success,
             stream->messageReceived(std::make_unique<CommitSyncWrite>(
                     opaque, vbid, 1 /*prepareSeqno*/, 2 /*commitSeqno*/, key)));
 
@@ -3656,7 +3658,7 @@ TEST_P(DurabilityPassiveStreamTest,
             key, "value", Requirements(Level::Majority, Timeout::Infinity()));
     pending->setBySeqno(3);
     pending->setCas(2);
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       pending,
                       opaque,
@@ -3718,7 +3720,7 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
     const auto prepare =
             makePendingItem(key, "value", {level, Timeout::Infinity()});
     prepare->setBySeqno(prepareSeqno);
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       prepare,
                       opaque,
@@ -3792,7 +3794,8 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
         break;
     }
     }
-    ASSERT_EQ(ENGINE_SUCCESS, stream->messageReceived(std::move(msg)));
+    ASSERT_EQ(cb::engine_errc::success,
+              stream->messageReceived(std::move(msg)));
 
     {
         const auto htRes = ht.findForUpdate(key);
@@ -3861,7 +3864,7 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
     // a memory snapshot.
     // Note: This throws before the fix for MB-36735 if !flush, read comment
     // above.
-    ASSERT_EQ(ENGINE_EINVAL,
+    ASSERT_EQ(cb::engine_errc::invalid_arguments,
               stream->messageReceived(
                       std::make_unique<AbortSyncWrite>(opaque,
                                                        vbid,
@@ -3883,7 +3886,7 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
 
     // This tests the failure path triggered by that prepareSeqno is less than
     // snapStart.
-    ASSERT_EQ(ENGINE_EINVAL,
+    ASSERT_EQ(cb::engine_errc::invalid_arguments,
               stream->messageReceived(
                       std::make_unique<AbortSyncWrite>(opaque,
                                                        vbid,
@@ -3894,7 +3897,7 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
     // This time the unprepared abort is legal, the related Prepare could have
     // been deduplicated at Active.
     auto abortSeqno = 16;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<AbortSyncWrite>(
                       opaque, vbid, key, 15 /*prepareSeqno*/, abortSeqno)));
 
@@ -4053,7 +4056,7 @@ TEST_P(DurabilityPassiveStreamTest, AllowedDuplicatePreparesSetOnDiskSnap) {
     qi->setBySeqno(3);
     qi->setCas(3);
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       qi,
                       opaque,
@@ -4125,7 +4128,7 @@ void DurabilityPassiveStreamTest::testPrepareDeduplicationCorrectlyResetsHPS(
     // PassiveStream::handleSnapshotEnd().
     // The PDM throws as we break the monotonicity invariant on HPS (set to
     // seqno:2) by trying to reset it to PDM::trackedWrites::begin (ie, seqno:1)
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       qi,
                       opaque,
@@ -4217,7 +4220,7 @@ TEST_P(DurabilityPassiveStreamTest,
 
     // Message received by stream. Too large for current mem_used so should
     // be buffered and return TMPFAIL
-    EXPECT_EQ(ENGINE_TMPFAIL,
+    EXPECT_EQ(cb::engine_errc::temporary_failure,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       prepare,
                       opaque,
@@ -4259,7 +4262,8 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     // Remove the Consumer and PassiveStream
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(0 /*opaque*/, vbid));
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->closeStream(0 /*opaque*/, vbid));
     consumer.reset();
 
     auto vb = engine->getVBucket(vbid);
@@ -4303,12 +4307,13 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
             key, value, Requirements(Level::Majority, Timeout::Infinity()));
     {
         auto cHandle = vb->lockCollections(item->getKey());
-        EXPECT_EQ(ENGINE_SUCCESS, vb->set(*item, cookie, *engine, {}, cHandle));
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb->set(*item, cookie, *engine, {}, cHandle));
         ASSERT_EQ(5, vb->getHighSeqno());
-        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+        EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   vb->set(*prepare, cookie, *engine, {}, cHandle));
         ASSERT_EQ(6, vb->getHighSeqno());
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   vb->commit(key,
                              6 /*prepare-seqno*/,
                              {} /*commit-seqno*/,
@@ -4485,7 +4490,7 @@ void DurabilityPromotionStreamTest::
     auto item = makeCommittedItem(makeStoredDocKey("key1"), value);
     item->setBySeqno(seqno);
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               passiveStream->messageReceived(
                       std::make_unique<MutationConsumerMessage>(
                               std::move(item),
@@ -4521,7 +4526,8 @@ void DurabilityPromotionStreamTest::
     ASSERT_EQ(diskSnapEnd, currSnap.range.getEnd());
 
     // Remove PassiveStream and Consumer
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(0 /*opaque*/, vbid));
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->closeStream(0 /*opaque*/, vbid));
     consumer.reset();
 
     // Note: step necessary only because the next set-vbstate expect an empty
@@ -4548,7 +4554,8 @@ void DurabilityPromotionStreamTest::
     item = makeCommittedItem(makeStoredDocKey("key2"), value);
     {
         auto cHandle = vb->lockCollections(item->getKey());
-        EXPECT_EQ(ENGINE_SUCCESS, vb->set(*item, cookie, *engine, {}, cHandle));
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb->set(*item, cookie, *engine, {}, cHandle));
         ASSERT_EQ(4, vb->getHighSeqno());
     }
 
@@ -4763,7 +4770,8 @@ void DurabilityPromotionStreamTest::
     }
 
     // Remove PassiveStream and Consumer
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(0 /*opaque*/, vbid));
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->closeStream(0 /*opaque*/, vbid));
     consumer.reset();
 
     // Note: step necessary only because the next set-vbstate expect an empty
@@ -4946,7 +4954,7 @@ void DurabilityActiveStreamTest::testBackfillNoSyncWriteSupport(
 
     {
         auto cHandle = vb->lockCollections(mutation->getKey());
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   vb->set(*mutation, cookie, *engine, {}, cHandle));
     }
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -4956,12 +4964,12 @@ void DurabilityActiveStreamTest::testBackfillNoSyncWriteSupport(
 
     {
         auto cHandle = vb->lockCollections(prepare->getKey());
-        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+        EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   vb->set(*prepare, cookie, *engine, {}, cHandle));
     }
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               vb->abort(prepare->getKey(),
                         prepare->getBySeqno(),
                         {},
@@ -5071,12 +5079,12 @@ void DurabilityActiveStreamTest::testEmptyBackfillNoSyncWriteSupport(
     auto vb = engine->getVBucket(vbid);
     {
         auto cHandle = vb->lockCollections(prepare->getKey());
-        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+        EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   vb->set(*prepare, cookie, *engine, {}, cHandle));
     }
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               vb->abort(key,
                         prepare->getBySeqno(),
                         {},
@@ -5242,12 +5250,12 @@ void DurabilityActiveStreamTest::
     const auto prepare = makePendingItem(key, "value", {level, {}});
     {
         auto cHandle = vb->lockCollections(prepare->getKey());
-        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+        EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   vb->set(*prepare, cookie, *engine, {}, cHandle));
     }
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               vb->abort(key,
                         prepare->getBySeqno(),
                         {},
@@ -5362,7 +5370,7 @@ TEST_P(DurabilityActiveStreamTest, inMemoryMultipleMarkers) {
                                          cb::durability::Timeout(1)));
     {
         auto cHandle = vb->lockCollections(prepare->getKey());
-        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+        EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   vb->set(*prepare, cookie, *engine, {}, cHandle));
     }
 
@@ -5371,7 +5379,8 @@ TEST_P(DurabilityActiveStreamTest, inMemoryMultipleMarkers) {
     auto item = makeCommittedItem(makeStoredDocKey("mut1"), "value");
     {
         auto cHandle = vb->lockCollections(item->getKey());
-        EXPECT_EQ(ENGINE_SUCCESS, vb->set(*item, cookie, *engine, {}, cHandle));
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb->set(*item, cookie, *engine, {}, cHandle));
     }
 
     prepare = makePendingItem(
@@ -5381,7 +5390,7 @@ TEST_P(DurabilityActiveStreamTest, inMemoryMultipleMarkers) {
                                          cb::durability::Timeout(1)));
     {
         auto cHandle = vb->lockCollections(prepare->getKey());
-        EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+        EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   vb->set(*prepare, cookie, *engine, {}, cHandle));
     }
 

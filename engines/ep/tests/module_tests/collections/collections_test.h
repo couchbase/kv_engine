@@ -47,9 +47,9 @@ protected:
                 ->getCollectionsManifest(vbid);
     }
 
-    ENGINE_ERROR_CODE sendGetKeys(std::string startKey,
-                                  std::optional<uint32_t> maxCount,
-                                  const AddResponseFn& response);
+    cb::engine_errc sendGetKeys(std::string startKey,
+                                std::optional<uint32_t> maxCount,
+                                const AddResponseFn& response);
 
     std::set<std::string> generateExpectedKeys(
             std::string_view keyPrefix,

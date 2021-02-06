@@ -114,11 +114,11 @@ using SyncWriteResolvedCallback = std::function<void(Vbid vbid)>;
  * completed (has been committed / aborted / times out).
  */
 using SyncWriteCompleteCallback =
-        std::function<void(const void* cookie, ENGINE_ERROR_CODE status)>;
+        std::function<void(const void* cookie, cb::engine_errc status)>;
 
 /// Instance of SyncWriteCompleteCallback which does nothing.
 const SyncWriteCompleteCallback NoopSyncWriteCompleteCb =
-        [](const void* cookie, ENGINE_ERROR_CODE status) {};
+        [](const void* cookie, cb::engine_errc status) {};
 
 /**
  * Callback function invoked at Replica for sending a SeqnoAck message to the
@@ -657,7 +657,7 @@ public:
      * @return map of notifications with conn cookie as the key and notify
      *         status as the value
      */
-    std::map<const void*, ENGINE_ERROR_CODE> getHighPriorityNotifications(
+    std::map<const void*, cb::engine_errc> getHighPriorityNotifications(
             EventuallyPersistentEngine& engine,
             uint64_t idNum,
             HighPriorityVBNotify notifyType);
@@ -954,9 +954,9 @@ public:
      * @param fetched_item The item which has been fetched.
      * @param startTime The time processing of the batch of items started.
      *
-     * @return ENGINE_ERROR_CODE status notified to be to the front end
+     * @return cb::engine_errc status notified to be to the front end
      */
-    virtual ENGINE_ERROR_CODE completeBGFetchForSingleItem(
+    virtual cb::engine_errc completeBGFetchForSingleItem(
             const DiskDocKey& key,
             const FrontEndBGFetchItem& fetched_item,
             const std::chrono::steady_clock::time_point startTime) = 0;
@@ -971,9 +971,9 @@ public:
      *
      * @return VBReturnCtx indicates notifyCtx and operation result
      */
-    virtual ENGINE_ERROR_CODE statsVKey(const DocKey& key,
-                                        const void* cookie,
-                                        EventuallyPersistentEngine& engine) = 0;
+    virtual cb::engine_errc statsVKey(const DocKey& key,
+                                      const void* cookie,
+                                      EventuallyPersistentEngine& engine) = 0;
 
     /**
      * Complete the vkey stats for an item background fetched from disk.
@@ -1009,13 +1009,13 @@ public:
      *        succeed. The function is called against any existing item.
      * @param readHandle Collections readhandle (caching mode) for this key
      *
-     * @return ENGINE_ERROR_CODE status notified to be to the front end
+     * @return cb::engine_errc status notified to be to the front end
      */
-    ENGINE_ERROR_CODE set(Item& itm,
-                          const void* cookie,
-                          EventuallyPersistentEngine& engine,
-                          cb::StoreIfPredicate predicate,
-                          const Collections::VB::CachingReadHandle& cHandle);
+    cb::engine_errc set(Item& itm,
+                        const void* cookie,
+                        EventuallyPersistentEngine& engine,
+                        cb::StoreIfPredicate predicate,
+                        const Collections::VB::CachingReadHandle& cHandle);
 
     /**
      * Replace (overwrite existing) an item in the vbucket.
@@ -1028,14 +1028,13 @@ public:
      *        will succeed. The function is called against any existing item.
      * @param cHandle Collections readhandle (caching mode) for this key
      *
-     * @return ENGINE_ERROR_CODE status notified to be to the front end
+     * @return cb::engine_errc status notified to be to the front end
      */
-    ENGINE_ERROR_CODE replace(
-            Item& itm,
-            const void* cookie,
-            EventuallyPersistentEngine& engine,
-            cb::StoreIfPredicate predicate,
-            const Collections::VB::CachingReadHandle& cHandle);
+    cb::engine_errc replace(Item& itm,
+                            const void* cookie,
+                            EventuallyPersistentEngine& engine,
+                            cb::StoreIfPredicate predicate,
+                            const Collections::VB::CachingReadHandle& cHandle);
 
     /**
      * Set an item in the store from a non-front end operation (DCP, XDCR)
@@ -1054,7 +1053,7 @@ public:
      *
      * @return the result of the store operation
      */
-    ENGINE_ERROR_CODE setWithMeta(
+    cb::engine_errc setWithMeta(
             Item& itm,
             uint64_t cas,
             uint64_t* seqno,
@@ -1066,17 +1065,16 @@ public:
             GenerateCas genCas,
             const Collections::VB::CachingReadHandle& cHandle);
 
-    ENGINE_ERROR_CODE prepare(
-            Item& itm,
-            uint64_t cas,
-            uint64_t* seqno,
-            const void* cookie,
-            EventuallyPersistentEngine& engine,
-            CheckConflicts checkConflicts,
-            bool allowExisting,
-            GenerateBySeqno genBySeqno,
-            GenerateCas genCas,
-            const Collections::VB::CachingReadHandle& cHandle);
+    cb::engine_errc prepare(Item& itm,
+                            uint64_t cas,
+                            uint64_t* seqno,
+                            const void* cookie,
+                            EventuallyPersistentEngine& engine,
+                            CheckConflicts checkConflicts,
+                            bool allowExisting,
+                            GenerateBySeqno genBySeqno,
+                            GenerateCas genCas,
+                            const Collections::VB::CachingReadHandle& cHandle);
 
     /**
      * Delete an item in the vbucket
@@ -1095,7 +1093,7 @@ public:
      *
      * @return the result of the operation
      */
-    ENGINE_ERROR_CODE deleteItem(
+    cb::engine_errc deleteItem(
             uint64_t& cas,
             const void* cookie,
             EventuallyPersistentEngine& engine,
@@ -1123,7 +1121,7 @@ public:
      *
      * @return the result of the operation
      */
-    ENGINE_ERROR_CODE deleteWithMeta(
+    cb::engine_errc deleteWithMeta(
             uint64_t& cas,
             uint64_t* seqno,
             const void* cookie,
@@ -1216,10 +1214,10 @@ public:
      *
      * @return the result of the operation
      */
-    ENGINE_ERROR_CODE add(Item& itm,
-                          const void* cookie,
-                          EventuallyPersistentEngine& engine,
-                          const Collections::VB::CachingReadHandle& cHandle);
+    cb::engine_errc add(Item& itm,
+                        const void* cookie,
+                        EventuallyPersistentEngine& engine,
+                        const Collections::VB::CachingReadHandle& cHandle);
 
     /**
      * Retrieve a value, but update its TTL first
@@ -1299,7 +1297,7 @@ public:
      *
      * @return the result of the operation
      */
-    ENGINE_ERROR_CODE getMetaData(
+    cb::engine_errc getMetaData(
             const void* cookie,
             EventuallyPersistentEngine& engine,
             const Collections::VB::CachingReadHandle& cHandle,
@@ -1315,12 +1313,12 @@ public:
      * @param[out] kstats On success the keystats for this item.
      * @param wantsDeleted If yes then return keystats even if the item is
      *                     marked as deleted. If no then will return
-     *                     ENGINE_KEY_ENOENT for deleted items.
+     *                     cb::engine_errc::no_such_key for deleted items.
      * @param cHandle Collections readhandle (caching mode) for this key
      *
      * @return the result of the operation
      */
-    ENGINE_ERROR_CODE getKeyStats(
+    cb::engine_errc getKeyStats(
             const void* cookie,
             EventuallyPersistentEngine& engine,
             struct key_stats& kstats,
@@ -1357,11 +1355,11 @@ public:
      * @param cookie (Optional) The cookie representing the client connection,
      *     must be provided if the operation needs to be notified to a client
      */
-    ENGINE_ERROR_CODE commit(const DocKey& key,
-                             uint64_t prepareSeqno,
-                             std::optional<int64_t> commitSeqno,
-                             const Collections::VB::CachingReadHandle& cHandle,
-                             const void* cookie = nullptr);
+    cb::engine_errc commit(const DocKey& key,
+                           uint64_t prepareSeqno,
+                           std::optional<int64_t> commitSeqno,
+                           const Collections::VB::CachingReadHandle& cHandle,
+                           const void* cookie = nullptr);
 
     /**
      * Perform an abort against the given pending Sync Write.
@@ -1376,11 +1374,11 @@ public:
      * @param cookie (Optional) The cookie representing the client connection,
      *     must be provided if the operation needs to be notified to a client
      */
-    ENGINE_ERROR_CODE abort(const DocKey& key,
-                            uint64_t prepareSeqno,
-                            std::optional<int64_t> abortSeqno,
-                            const Collections::VB::CachingReadHandle& cHandle,
-                            const void* cookie = nullptr);
+    cb::engine_errc abort(const DocKey& key,
+                          uint64_t prepareSeqno,
+                          std::optional<int64_t> abortSeqno,
+                          const Collections::VB::CachingReadHandle& cHandle,
+                          const void* cookie = nullptr);
 
     /**
      * Notify the ActiveDurabilityMonitor that a SyncWrite has been locally
@@ -1413,7 +1411,7 @@ public:
      * @param result The result of the SyncWrite processing
      */
     void notifyClientOfSyncWriteComplete(const void* cookie,
-                                         ENGINE_ERROR_CODE result);
+                                         cb::engine_errc result);
 
     /**
      * Notify the PassiveDM that the snapshot-end mutation for the currently
@@ -1606,7 +1604,7 @@ public:
      * @param replicaId The replica node which has acknowledged.
      * @param preparedSeqno The sequence number the replica has prepared up to.
      */
-    ENGINE_ERROR_CODE seqnoAcknowledged(
+    cb::engine_errc seqnoAcknowledged(
             const folly::SharedMutex::ReadHolder& vbStateLock,
             const std::string& replicaId,
             uint64_t preparedSeqno);
@@ -1995,7 +1993,7 @@ protected:
      * @return map of notifies with conn cookie as the key and notify status as
      *         the value
      */
-    std::map<const void*, ENGINE_ERROR_CODE> tmpFailAndGetAllHpNotifies(
+    std::map<const void*, cb::engine_errc> tmpFailAndGetAllHpNotifies(
             EventuallyPersistentEngine& engine);
 
     /**
@@ -2116,7 +2114,7 @@ protected:
     std::unique_ptr<Collections::VB::Manifest> manifest;
 
 private:
-    void fireAllOps(EventuallyPersistentEngine& engine, ENGINE_ERROR_CODE code);
+    void fireAllOps(EventuallyPersistentEngine& engine, cb::engine_errc code);
 
     void decrDirtyQueueMem(size_t decrementBy);
 
@@ -2259,9 +2257,9 @@ private:
      * @param metadataOnly whether the fetch is for a non-resident value or
      *                     metadata of a (possibly) deleted item
      *
-     * @return ENGINE_ERROR_CODE status notified to be to the front end
+     * @return cb::engine_errc status notified to be to the front end
      */
-    virtual ENGINE_ERROR_CODE addTempItemAndBGFetch(
+    virtual cb::engine_errc addTempItemAndBGFetch(
             HashTable::HashBucketLock& hbl,
             const DocKey& key,
             const void* cookie,
@@ -2358,20 +2356,20 @@ private:
      * by this vBucket.
      *
      * @param item The durable write
-     * @return ENGINE_SUCCESS if durability is possible, appropriate error code
-     *         to return if not
+     * @return cb::engine_errc::success if durability is possible, appropriate
+     * error code to return if not
      */
-    ENGINE_ERROR_CODE checkDurabilityRequirements(const Item& item);
+    cb::engine_errc checkDurabilityRequirements(const Item& item);
 
     /**
      * Check if the given durability requirements can be satisfied by this
      * vBucket.
      *
      * @param reqs The durability requirements
-     * @return ENGINE_SUCCESS if durability is possible, appropriate error code
-     *         to return if not
+     * @return cb::engine_errc::success if durability is possible, appropriate
+     * error code to return if not
      */
-    ENGINE_ERROR_CODE checkDurabilityRequirements(
+    cb::engine_errc checkDurabilityRequirements(
             const cb::durability::Requirements& reqs);
 
     /**

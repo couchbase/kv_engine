@@ -800,7 +800,7 @@ void CreateBucketThread::create() {
         LOG_WARNING("{} Create bucket [{}] failed - Invalid bucket name",
                     connection.getId(),
                     name);
-        result = ENGINE_EINVAL;
+        result = cb::engine_errc::invalid_arguments;
         return;
     }
 
@@ -808,7 +808,7 @@ void CreateBucketThread::create() {
         LOG_WARNING("{} Create bucket [{}] failed - Invalid bucket type",
                     connection.getId(),
                     name);
-        result = ENGINE_EINVAL;
+        result = cb::engine_errc::invalid_arguments;
         return;
     }
 
@@ -829,17 +829,17 @@ void CreateBucketThread::create() {
     }
 
     if (found) {
-        result = ENGINE_KEY_EEXISTS;
+        result = cb::engine_errc::key_already_exists;
         LOG_WARNING("{} Create bucket [{}] failed - Already exists",
                     connection.getId(),
                     name);
     } else if (first_free == all_buckets.size()) {
-        result = ENGINE_E2BIG;
+        result = cb::engine_errc::too_big;
         LOG_WARNING("{} Create bucket [{}] failed - Too many buckets",
                     connection.getId(),
                     name);
     } else {
-        result = ENGINE_SUCCESS;
+        result = cb::engine_errc::success;
         ii = first_free;
         /*
          * split the creation of the bucket in two... so
@@ -853,7 +853,7 @@ void CreateBucketThread::create() {
             all_buckets[ii].topkeys = std::make_unique<TopKeys>(
                     Settings::instance().getTopkeysSize());
         } catch (const std::bad_alloc &) {
-            result = ENGINE_ENOMEM;
+            result = cb::engine_errc::no_memory;
             LOG_WARNING("{} Create bucket [{}] failed - out of memory",
                         connection.getId(),
                         name);
@@ -861,7 +861,7 @@ void CreateBucketThread::create() {
     }
     all_bucket_lock.unlock();
 
-    if (result != ENGINE_SUCCESS) {
+    if (result != cb::engine_errc::success) {
         return;
     }
 
@@ -877,7 +877,7 @@ void CreateBucketThread::create() {
                     connection.getId(),
                     name,
                     exception.what());
-        result = ENGINE_ERROR_CODE(exception.code().value());
+        result = cb::engine_errc(exception.code().value());
         return;
     }
 
@@ -894,16 +894,16 @@ void CreateBucketThread::create() {
                     connection.getId(),
                     name,
                     e.what());
-        result = ENGINE_FAILED;
+        result = cb::engine_errc::failed;
     } catch (const std::bad_alloc& e) {
         LOG_WARNING("{} - Failed to create bucket [{}]: {}",
                     connection.getId(),
                     name,
                     e.what());
-        result = ENGINE_ENOMEM;
+        result = cb::engine_errc::no_memory;
     }
 
-    if (result == ENGINE_SUCCESS) {
+    if (result == cb::engine_errc::success) {
         // We don't pass the storage threads down in the config like we do for
         // readers and writers because that evolved over time to be duplicated
         // in both configs. Instead, just invoke the callback that the engine
@@ -933,7 +933,7 @@ void CreateBucketThread::create() {
 
         bucket.reset();
 
-        result = ENGINE_NOT_STORED;
+        result = cb::engine_errc::not_stored;
     }
 }
 
@@ -949,7 +949,7 @@ void CreateBucketThread::run()
 }
 
 void DestroyBucketThread::destroy() {
-    ENGINE_ERROR_CODE ret = ENGINE_KEY_ENOENT;
+    cb::engine_errc ret = cb::engine_errc::no_such_key;
     std::unique_lock<std::mutex> all_bucket_lock(buckets_lock);
 
     Connection* connection = nullptr;
@@ -974,19 +974,19 @@ void DestroyBucketThread::destroy() {
         if (name == all_buckets[ii].name) {
             idx = ii;
             if (all_buckets[ii].state == Bucket::State::Ready) {
-                ret = ENGINE_SUCCESS;
+                ret = cb::engine_errc::success;
                 all_buckets[ii].state = Bucket::State::Destroying;
             } else {
-                ret = ENGINE_KEY_EEXISTS;
+                ret = cb::engine_errc::key_already_exists;
             }
         }
-        if (ret != ENGINE_KEY_ENOENT) {
+        if (ret != cb::engine_errc::no_such_key) {
             break;
         }
     }
     all_bucket_lock.unlock();
 
-    if (ret != ENGINE_SUCCESS) {
+    if (ret != cb::engine_errc::success) {
         auto code = cb::mcbp::to_status(cb::engine_errc(ret));
         LOG_INFO("{}: Delete bucket [{}]: {}",
                  connection_id,
@@ -1138,7 +1138,7 @@ void DestroyBucketThread::destroy() {
     bucket.reset();
 
     LOG_INFO("{}: Delete bucket [{}] complete", connection_id, name);
-    result = ENGINE_SUCCESS;
+    result = cb::engine_errc::success;
 }
 
 void DestroyBucketThread::run() {

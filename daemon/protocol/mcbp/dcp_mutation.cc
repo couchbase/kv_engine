@@ -25,7 +25,7 @@
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
-static inline ENGINE_ERROR_CODE do_dcp_mutation(Cookie& cookie) {
+static inline cb::engine_errc do_dcp_mutation(Cookie& cookie) {
     const auto& req = cookie.getRequest();
     const auto extdata = req.getExtdata();
     const auto& extras =
@@ -45,7 +45,7 @@ static inline ENGINE_ERROR_CODE do_dcp_mutation(Cookie& cookie) {
                              mcbp::datatype::is_snappy(datatype));
         priv_bytes = uint32_t(blob.get_system_size());
         if (priv_bytes > cb::limits::PrivilegedBytes) {
-            return ENGINE_E2BIG;
+            return cb::engine_errc::too_big;
         }
     }
 
@@ -67,13 +67,13 @@ static inline ENGINE_ERROR_CODE do_dcp_mutation(Cookie& cookie) {
 }
 
 void dcp_mutation_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    auto ret = cookie.swapAiostat(cb::engine_errc::success);
 
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         ret = do_dcp_mutation(cookie);
     }
 
-    if (ret != ENGINE_SUCCESS) {
+    if (ret != cb::engine_errc::success) {
         handle_executor_status(cookie, ret);
     }
 }

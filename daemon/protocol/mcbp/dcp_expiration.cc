@@ -22,10 +22,10 @@
 #include <memcached/protocol_binary.h>
 
 void dcp_expiration_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    auto ret = cookie.swapAiostat(cb::engine_errc::success);
 
     auto& connection = cookie.getConnection();
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         const auto& req = cookie.getRequest();
         const auto datatype = uint8_t(req.getDatatype());
         const auto extdata = req.getExtdata();
@@ -41,7 +41,7 @@ void dcp_expiration_executor(Cookie& cookie) {
         }
 
         if (priv_bytes > cb::limits::PrivilegedBytes) {
-            ret = ENGINE_E2BIG;
+            ret = cb::engine_errc::too_big;
         } else {
             ret = dcpExpiration(cookie,
                                 req.getOpaque(),
@@ -57,7 +57,7 @@ void dcp_expiration_executor(Cookie& cookie) {
         }
     }
 
-    if (ret != ENGINE_SUCCESS) {
+    if (ret != cb::engine_errc::success) {
         handle_executor_status(cookie, ret);
     }
 }

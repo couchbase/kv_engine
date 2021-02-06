@@ -58,15 +58,15 @@ public:
     AppendPrependCommandContext(Cookie& cookie, const cb::mcbp::Request& req);
 
 protected:
-    ENGINE_ERROR_CODE step() override;
+    cb::engine_errc step() override;
 
-    ENGINE_ERROR_CODE getItem();
+    cb::engine_errc getItem();
 
-    ENGINE_ERROR_CODE allocateNewItem();
+    cb::engine_errc allocateNewItem();
 
-    ENGINE_ERROR_CODE storeItem();
+    cb::engine_errc storeItem();
 
-    ENGINE_ERROR_CODE reset();
+    cb::engine_errc reset();
 
 private:
     const Mode mode;

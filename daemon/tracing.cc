@@ -39,21 +39,21 @@ static void setTraceConfig(const std::string& config) {
     lastConfig = phosphor::TraceConfig::fromString(config);
 }
 
-ENGINE_ERROR_CODE ioctlGetTracingStatus(Cookie& cookie,
-                                        const StrToStrMap&,
-                                        std::string& value,
-                                        cb::mcbp::Datatype& datatype) {
+cb::engine_errc ioctlGetTracingStatus(Cookie& cookie,
+                                      const StrToStrMap&,
+                                      std::string& value,
+                                      cb::mcbp::Datatype& datatype) {
     value = PHOSPHOR_INSTANCE.isEnabled() ? "enabled" : "disabled";
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE ioctlGetTracingConfig(Cookie& cookie,
-                                        const StrToStrMap&,
-                                        std::string& value,
-                                        cb::mcbp::Datatype& datatype) {
+cb::engine_errc ioctlGetTracingConfig(Cookie& cookie,
+                                      const StrToStrMap&,
+                                      std::string& value,
+                                      cb::mcbp::Datatype& datatype) {
     std::lock_guard<std::mutex> lh(configMutex);
     value = *lastConfig.toString();
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 template <typename ContainerT, typename PredicateT>
@@ -134,7 +134,7 @@ public:
     }
 
     void notifyExecutionComplete() override {
-        notifyIoComplete(cookie, ENGINE_SUCCESS);
+        notifyIoComplete(cookie, cb::engine_errc::success);
     }
 
     Cookie& cookie;
@@ -160,17 +160,17 @@ phosphor::TraceContext getTraceContext() {
     return PHOSPHOR_INSTANCE.getTraceContext(lh);
 }
 
-ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Cookie& cookie,
-                                           const StrToStrMap&,
-                                           std::string& value,
-                                           cb::mcbp::Datatype& datatype) {
+cb::engine_errc ioctlGetTracingBeginDump(Cookie& cookie,
+                                         const StrToStrMap&,
+                                         std::string& value,
+                                         cb::mcbp::Datatype& datatype) {
     auto* cctx = cookie.getCommandContext();
     if (!cctx) {
         auto context = getTraceContext();
         if (!context.getBuffer()) {
             cookie.setErrorContext(
                     "Cannot begin a dump when there is no existing trace");
-            return ENGINE_EINVAL;
+            return cb::engine_errc::invalid_arguments;
         }
 
         // Create a task to format the dump
@@ -183,7 +183,7 @@ ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Cookie& cookie,
         std::shared_ptr<Task> basicTask = task;
         executorPool->schedule(basicTask, true);
 
-        return ENGINE_EWOULDBLOCK;
+        return cb::engine_errc::would_block;
     }
 
     auto* ctx = dynamic_cast<TraceFormatterContext*>(cctx);
@@ -200,17 +200,17 @@ ENGINE_ERROR_CODE ioctlGetTracingBeginDump(Cookie& cookie,
 
     value = to_string(uuid);
     cookie.setCommandContext();
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE ioctlGetTraceDump(Cookie& cookie,
-                                    const StrToStrMap& arguments,
-                                    std::string& value,
-                                    cb::mcbp::Datatype& datatype) {
+cb::engine_errc ioctlGetTraceDump(Cookie& cookie,
+                                  const StrToStrMap& arguments,
+                                  std::string& value,
+                                  cb::mcbp::Datatype& datatype) {
     auto id = arguments.find("id");
     if (id == arguments.end()) {
         cookie.setErrorContext("Dump ID must be specified as a key argument");
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 
     cb::uuid::uuid_t uuid;
@@ -218,7 +218,7 @@ ENGINE_ERROR_CODE ioctlGetTraceDump(Cookie& cookie,
         uuid = cb::uuid::from_string(id->second);
     } catch (const std::invalid_argument&) {
         cookie.setErrorContext("Dump ID must be a valid UUID");
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 
     {
@@ -227,24 +227,24 @@ ENGINE_ERROR_CODE ioctlGetTraceDump(Cookie& cookie,
         if (iter == traceDumps.dumps.end()) {
             cookie.setErrorContext(
                     "Dump ID must correspond to an existing dump");
-            return ENGINE_KEY_ENOENT;
+            return cb::engine_errc::no_such_key;
         }
 
         value.assign(iter->second.content);
     }
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE ioctlSetTracingClearDump(Cookie& cookie,
-                                           const StrToStrMap& arguments,
-                                           const std::string& value) {
+cb::engine_errc ioctlSetTracingClearDump(Cookie& cookie,
+                                         const StrToStrMap& arguments,
+                                         const std::string& value) {
     cb::uuid::uuid_t uuid;
     try {
         uuid = cb::uuid::from_string(value);
     } catch (const std::invalid_argument&) {
         cookie.setErrorContext("Dump ID must be a valid UUID");
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 
     {
@@ -253,21 +253,21 @@ ENGINE_ERROR_CODE ioctlSetTracingClearDump(Cookie& cookie,
         if (dump == traceDumps.dumps.end()) {
             cookie.setErrorContext(
                     "Dump ID must correspond to an existing dump");
-            return ENGINE_EINVAL;
+            return cb::engine_errc::invalid_arguments;
         }
 
         traceDumps.dumps.erase(dump);
     }
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE ioctlSetTracingConfig(Cookie& cookie,
-                                        const StrToStrMap&,
-                                        const std::string& value) {
+cb::engine_errc ioctlSetTracingConfig(Cookie& cookie,
+                                      const StrToStrMap&,
+                                      const std::string& value) {
     if (value.empty()) {
         cookie.setErrorContext("Trace config cannot be empty");
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
     try {
         std::lock_guard<std::mutex> lh(configMutex);
@@ -275,30 +275,30 @@ ENGINE_ERROR_CODE ioctlSetTracingConfig(Cookie& cookie,
     } catch (const std::invalid_argument& e) {
         cookie.setErrorContext(std::string("Trace config is illformed: ") +
                                e.what());
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE ioctlSetTracingStart(Cookie& cookie,
-                                       const StrToStrMap&,
-                                       const std::string& value) {
+cb::engine_errc ioctlSetTracingStart(Cookie& cookie,
+                                     const StrToStrMap&,
+                                     const std::string& value) {
     std::lock_guard<std::mutex> lh(configMutex);
     PHOSPHOR_INSTANCE.start(lastConfig);
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE ioctlSetTracingStop(Cookie& cookie,
-                                      const StrToStrMap&,
-                                      const std::string& value) {
+cb::engine_errc ioctlSetTracingStop(Cookie& cookie,
+                                    const StrToStrMap&,
+                                    const std::string& value) {
     PHOSPHOR_INSTANCE.stop();
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE ioctlGetTracingList(Cookie& cookie,
-                                      const StrToStrMap& arguments,
-                                      std::string& value,
-                                      cb::mcbp::Datatype& datatype) {
+cb::engine_errc ioctlGetTracingList(Cookie& cookie,
+                                    const StrToStrMap& arguments,
+                                    std::string& value,
+                                    cb::mcbp::Datatype& datatype) {
     std::lock_guard<std::mutex> lh(traceDumps.mutex);
     std::vector<std::string> uuids;
     for (const auto& dump : traceDumps.dumps) {
@@ -307,5 +307,5 @@ ENGINE_ERROR_CODE ioctlGetTracingList(Cookie& cookie,
     nlohmann::json json(uuids);
     value = json.dump();
     datatype = cb::mcbp::Datatype::JSON;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }

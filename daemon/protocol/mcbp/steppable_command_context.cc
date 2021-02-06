@@ -34,10 +34,10 @@ SteppableCommandContext::SteppableCommandContext(Cookie& cookie_)
 }
 
 void SteppableCommandContext::drive() {
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    auto ret = cookie.swapAiostat(cb::engine_errc::success);
     cookie.setEwouldblock(false);
 
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         try {
             ret = step();
         } catch (const cb::engine_error& error) {
@@ -47,16 +47,17 @@ void SteppableCommandContext::drive() {
                             connection.getDescription(),
                             error.what());
             }
-            ret = ENGINE_ERROR_CODE(error.code().value());
+            ret = cb::engine_errc(error.code().value());
         }
 
-        if (ret == ENGINE_LOCKED || ret == ENGINE_LOCKED_TMPFAIL) {
+        if (ret == cb::engine_errc::locked ||
+            ret == cb::engine_errc::locked_tmpfail) {
             STATS_INCR(&connection, lock_errors);
         }
     }
 
     cookie.logResponse(ret);
-    if (ret != ENGINE_SUCCESS) {
+    if (ret != cb::engine_errc::success) {
         handle_executor_status(cookie, ret);
     }
 }

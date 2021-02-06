@@ -26,21 +26,21 @@
 
 static void cbsasl_refresh_main(void* void_cookie) {
     auto& cookie = *reinterpret_cast<Cookie*>(void_cookie);
-    ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
+    cb::engine_errc rv = cb::engine_errc::success;
     std::string error;
     try {
         using namespace cb::sasl;
         switch (server::refresh()) {
         case Error::OK:
-            rv = ENGINE_SUCCESS;
+            rv = cb::engine_errc::success;
             set_default_bucket_enabled(
                     mechanism::plain::authenticate("default", "") == Error::OK);
             break;
         case Error::NO_MEM:
-            rv = ENGINE_ENOMEM;
+            rv = cb::engine_errc::no_memory;
             break;
         case Error::FAIL:
-            rv = ENGINE_FAILED;
+            rv = cb::engine_errc::failed;
             break;
 
         case Error::CONTINUE:
@@ -56,17 +56,17 @@ static void cbsasl_refresh_main(void* void_cookie) {
                     "cb::sasl::server::refresh()",
                     cookie.getConnection().getId(),
                     cookie.getEventId());
-            rv = ENGINE_FAILED;
+            rv = cb::engine_errc::failed;
         }
     } catch (const std::exception& e) {
-        rv = ENGINE_FAILED;
+        rv = cb::engine_errc::failed;
         error = e.what();
         cookie.setErrorContext(error);
         LOG_WARNING("{}: Failed to refresh password database: {}",
                     cookie.getConnection().getId(),
                     error);
     } catch (...) {
-        rv = ENGINE_FAILED;
+        rv = cb::engine_errc::failed;
         error = "Unknown error";
         cookie.setErrorContext(error);
         LOG_WARNING("{}: Failed to refresh password database: {}",
@@ -77,7 +77,7 @@ static void cbsasl_refresh_main(void* void_cookie) {
     ::notifyIoComplete(cookie, rv);
 }
 
-ENGINE_ERROR_CODE SaslRefreshCommandContext::refresh() {
+cb::engine_errc SaslRefreshCommandContext::refresh() {
     state = State::Done;
 
     cb_thread_t tid;
@@ -92,10 +92,10 @@ ENGINE_ERROR_CODE SaslRefreshCommandContext::refresh() {
                     connection.getId(),
                     cookie.getErrorContext(),
                     strerror(status));
-        return ENGINE_TMPFAIL;
+        return cb::engine_errc::temporary_failure;
     }
 
-    return ENGINE_EWOULDBLOCK;
+    return cb::engine_errc::would_block;
 }
 
 void SaslRefreshCommandContext::done() {

@@ -53,14 +53,14 @@ public:
     }
 
 protected:
-    ENGINE_ERROR_CODE step() override;
+    cb::engine_errc step() override;
 
-    ENGINE_ERROR_CODE initial();
-    ENGINE_ERROR_CODE parseAuthTaskResult();
-    ENGINE_ERROR_CODE authOk();
-    ENGINE_ERROR_CODE authContinue();
-    ENGINE_ERROR_CODE authBadParameters();
-    ENGINE_ERROR_CODE authFailure();
+    cb::engine_errc initial();
+    cb::engine_errc parseAuthTaskResult();
+    cb::engine_errc authOk();
+    cb::engine_errc authContinue();
+    cb::engine_errc authBadParameters();
+    cb::engine_errc authFailure();
 
 private:
     const cb::mcbp::Request& request;

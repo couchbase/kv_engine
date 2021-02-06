@@ -152,13 +152,13 @@ public:
      *
      * @result engine error code signifying result of the operation
      */
-    ENGINE_ERROR_CODE getMeta(Vbid vbid,
-                              const DocKey key,
-                              const void* cookie,
-                              ItemMetaData& itemMeta,
-                              uint32_t& deleted,
-                              uint8_t& datatype,
-                              bool retryOnEWouldBlock = true);
+    cb::engine_errc getMeta(Vbid vbid,
+                            const DocKey key,
+                            const void* cookie,
+                            ItemMetaData& itemMeta,
+                            uint32_t& deleted,
+                            uint8_t& datatype,
+                            bool retryOnEWouldBlock = true);
 
     /**
      * Schedules the ItemPager according to the current config. Allows testing

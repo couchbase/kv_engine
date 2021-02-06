@@ -211,13 +211,13 @@ hash_item* item_get(struct default_engine* engine,
  * @param where to return the item (if found)
  * @param key the DocKey for the item to get
  * @param locktime when the item expire
- * @return ENGINE_SUCCESS for success
+ * @return cb::engine_errc::success for success
  */
-ENGINE_ERROR_CODE item_get_locked(struct default_engine* engine,
-                                  const void* cookie,
-                                  hash_item** it,
-                                  const DocKey& key,
-                                  rel_time_t locktime);
+cb::engine_errc item_get_locked(struct default_engine* engine,
+                                const void* cookie,
+                                hash_item** it,
+                                const DocKey& key,
+                                rel_time_t locktime);
 
 /**
  * Get and touch an item
@@ -227,13 +227,13 @@ ENGINE_ERROR_CODE item_get_locked(struct default_engine* engine,
  * @param where to return the item (if found)
  * @param key the DocKey for the item to get
  * @param exptime The new expiry time
- * @return ENGINE_SUCCESS for success
+ * @return cb::engine_errc::success for success
  */
-ENGINE_ERROR_CODE item_get_and_touch(struct default_engine* engine,
-                                     const void* cookie,
-                                     hash_item** it,
-                                     const DocKey& key,
-                                     rel_time_t exptime);
+cb::engine_errc item_get_and_touch(struct default_engine* engine,
+                                   const void* cookie,
+                                   hash_item** it,
+                                   const DocKey& key,
+                                   rel_time_t exptime);
 
 /**
  * Unlock an item in the cache
@@ -242,12 +242,12 @@ ENGINE_ERROR_CODE item_get_and_touch(struct default_engine* engine,
  * @param cookie connection cookie
  * @param key the DocKey for the item to unlock
  * @param cas value for the locked value
- * @return ENGINE_SUCCESS for success
+ * @return cb::engine_errc::success for success
  */
-ENGINE_ERROR_CODE item_unlock(struct default_engine* engine,
-                              const void* cookie,
-                              const DocKey& key,
-                              uint64_t cas);
+cb::engine_errc item_unlock(struct default_engine* engine,
+                            const void* cookie,
+                            const DocKey& key,
+                            uint64_t cas);
 
 /**
  * Reset the item statistics
@@ -309,8 +309,7 @@ void item_unlink(struct default_engine *engine, hash_item *it);
  * @param engine handle to the storage engine
  * @param it the item to unlink
  */
-ENGINE_ERROR_CODE safe_item_unlink(struct default_engine *engine,
-                                   hash_item *it);
+cb::engine_errc safe_item_unlink(struct default_engine* engine, hash_item* it);
 
 /**
  * Store an item in the cache
@@ -319,18 +318,18 @@ ENGINE_ERROR_CODE safe_item_unlink(struct default_engine *engine,
  * @param cas the cas value (OUT)
  * @param operation what kind of store operation is this (ADD/SET etc)
  * @param document_state the state of the document to store
- * @return ENGINE_SUCCESS on success
+ * @return cb::engine_errc::success on success
  *
  * @todo should we refactor this into hash_item ** and remove the cas
  *       there so that we can get it from the item instead?
  */
-ENGINE_ERROR_CODE store_item(struct default_engine* engine,
-                             hash_item* item,
-                             uint64_t* cas,
-                             StoreSemantics operation,
-                             const void* cookie,
-                             const DocumentState document_state,
-                             bool preserveTtl);
+cb::engine_errc store_item(struct default_engine* engine,
+                           hash_item* item,
+                           uint64_t* cas,
+                           StoreSemantics operation,
+                           const void* cookie,
+                           const DocumentState document_state,
+                           bool preserveTtl);
 
 /**
  * Run a single scrub loop for the engine.

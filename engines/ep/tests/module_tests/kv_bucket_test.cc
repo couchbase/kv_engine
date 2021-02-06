@@ -160,7 +160,7 @@ Item KVBucketTest::store_item(Vbid vbid,
     auto expectedCount = std::count(
             expected.begin(), expected.end(), cb::engine_errc(returnCode));
     EXPECT_NE(0, expectedCount)
-            << "unexpected error:" << cb::to_engine_errc(returnCode)
+            << "unexpected error:" << cb::to_string(returnCode)
             << " for key:" << key.to_string();
     return item;
 }
@@ -181,7 +181,7 @@ Item KVBucketTest::store_item(Vbid vbid,
                 key.getCollectionID());
         auto item = make_item(vbid, keyii, value, exptime, datatype);
         auto err = store->set(item, cookie);
-        if (ENGINE_SUCCESS != err) {
+        if (cb::engine_errc::success != err) {
             return ::testing::AssertionFailure()
                    << "Failed to store " << keyii.data() << " error:" << err;
         }
@@ -266,7 +266,7 @@ void KVBucketTest::flushAndRemoveCheckpoints(Vbid vbid) {
 void KVBucketTest::delete_item(Vbid vbid, const DocKey& key) {
     uint64_t cas = 0;
     mutation_descr_t mutation_descr;
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->deleteItem(key,
                                 cas,
                                 vbid,
@@ -536,7 +536,7 @@ TEST_P(KVBucketParamTest, GetKeyStatsResident) {
     key_stats kstats;
 
     // Should start with key not existing.
-    auto getKeyStats = [&]() -> ENGINE_ERROR_CODE {
+    auto getKeyStats = [&]() -> cb::engine_errc {
         return store->getKeyStats(makeStoredDocKey("key"),
                                   Vbid(0),
                                   cookie,
@@ -549,10 +549,10 @@ TEST_P(KVBucketParamTest, GetKeyStatsResident) {
         runBGFetcherTask();
         rv = getKeyStats();
     }
-    EXPECT_EQ(ENGINE_KEY_ENOENT, rv);
+    EXPECT_EQ(cb::engine_errc::no_such_key, rv);
 
     store_item(Vbid(0), makeStoredDocKey("key"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS, getKeyStats())
+    EXPECT_EQ(cb::engine_errc::success, getKeyStats())
             << "Expected to get key stats on existing item";
     EXPECT_EQ(vbucket_state_active, kstats.vb_state);
     EXPECT_FALSE(kstats.logically_deleted);
@@ -568,7 +568,7 @@ TEST_P(KVBucketParamTest, GetKeyStatsDeleted) {
     delete_item(vbid, makeStoredDocKey("key"));
 
     // Should get ENOENT if we don't ask for deleted items.
-    EXPECT_EQ(ENGINE_KEY_ENOENT,
+    EXPECT_EQ(cb::engine_errc::no_such_key,
               kvbucket.getKeyStats(makeStoredDocKey("key"),
                                    Vbid(0),
                                    cookie,
@@ -577,7 +577,7 @@ TEST_P(KVBucketParamTest, GetKeyStatsDeleted) {
 
     // Should get success (and item flagged as deleted) if we ask for deleted
     // items.
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               kvbucket.getKeyStats(makeStoredDocKey("key"),
                                    Vbid(0),
                                    cookie,
@@ -592,7 +592,7 @@ TEST_P(KVBucketParamTest, GetKeyStatsNMVB) {
     auto& kvbucket = *engine->getKVBucket();
     key_stats kstats;
 
-    EXPECT_EQ(ENGINE_NOT_MY_VBUCKET,
+    EXPECT_EQ(cb::engine_errc::not_my_vbucket,
               kvbucket.getKeyStats(makeStoredDocKey("key"),
                                    Vbid(1),
                                    cookie,
@@ -611,7 +611,7 @@ TEST_P(KVBucketParamTest, ReplaceENOENT) {
         runBGFetcherTask();
         rv = store->replace(item, cookie);
     }
-    EXPECT_EQ(ENGINE_KEY_ENOENT, rv);
+    EXPECT_EQ(cb::engine_errc::no_such_key, rv);
 }
 
 // Create then delete an item, checking replace reports ENOENT.
@@ -621,21 +621,21 @@ TEST_P(KVBucketParamTest, ReplaceDeleted) {
 
     // Replace should fail.
     auto item = make_item(vbid, makeStoredDocKey("key"), "value2");
-    EXPECT_EQ(ENGINE_KEY_ENOENT, store->replace(item, cookie));
+    EXPECT_EQ(cb::engine_errc::no_such_key, store->replace(item, cookie));
 }
 
 // Check incorrect vbucket returns not-my-vbucket.
 TEST_P(KVBucketParamTest, ReplaceNMVB) {
     auto item =
             make_item(Vbid(vbid.get() + 1), makeStoredDocKey("key"), "value2");
-    EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, store->replace(item, cookie));
+    EXPECT_EQ(cb::engine_errc::not_my_vbucket, store->replace(item, cookie));
 }
 
 // Check pending vbucket returns EWOULDBLOCK.
 TEST_P(KVBucketParamTest, ReplacePendingVB) {
     store->setVBucketState(vbid, vbucket_state_pending);
     auto item = make_item(vbid, makeStoredDocKey("key"), "value2");
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, store->replace(item, cookie));
+    EXPECT_EQ(cb::engine_errc::would_block, store->replace(item, cookie));
 }
 
 // Set tests //////////////////////////////////////////////////////////////////
@@ -655,7 +655,7 @@ TEST_P(KVBucketParamTest, SetCASNonExistent) {
         runBGFetcherTask();
         rv = store->set(item, cookie);
     }
-    EXPECT_EQ(ENGINE_KEY_ENOENT, rv);
+    EXPECT_EQ(cb::engine_errc::no_such_key, rv);
 }
 
 // Test CAS set against a deleted item
@@ -664,12 +664,12 @@ TEST_P(KVBucketParamTest, SetCASDeleted) {
     auto item = make_item(vbid, key, "value");
 
     // Store item
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
 
     // Delete item
     uint64_t cas = 0;
     mutation_descr_t mutation_descr;
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->deleteItem(key,
                                 cas,
                                 vbid,
@@ -692,11 +692,11 @@ TEST_P(KVBucketParamTest, SetCASDeleted) {
     // Store item
     if (engine->getConfiguration().getItemEvictionPolicy() ==
                "full_eviction") {
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(item2, cookie));
+        EXPECT_EQ(cb::engine_errc::would_block, store->set(item2, cookie));
         runBGFetcherTask();
     }
 
-    EXPECT_EQ(ENGINE_KEY_ENOENT, store->set(item2, cookie));
+    EXPECT_EQ(cb::engine_errc::no_such_key, store->set(item2, cookie));
 }
 
 /**
@@ -713,7 +713,7 @@ TEST_P(KVBucketParamTest, MB_25398_SetCASDeletedItem) {
     auto item = make_item(vbid, key, "deletedvalue");
     item.setDeleted();
     const auto inCAS = item.getCas();
-    ASSERT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
+    ASSERT_EQ(cb::engine_errc::success, store->set(item, cookie));
     ASSERT_NE(inCAS, item.getCas());
 
     // Flush, ensuring that the persistence callback runs and item is removed
@@ -728,17 +728,17 @@ TEST_P(KVBucketParamTest, MB_25398_SetCASDeletedItem) {
     if (engine->getConfiguration().getBucketType() == "persistent") {
         // Deleted item won't be resident (after a flush), so expect to need to
         // bgfetch.
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(item2, cookie));
+        EXPECT_EQ(cb::engine_errc::would_block, store->set(item2, cookie));
 
         runBGFetcherTask();
     }
 
     // Try with incorrect CAS.
-    EXPECT_EQ(ENGINE_KEY_EEXISTS, store->set(item2, cookie));
+    EXPECT_EQ(cb::engine_errc::key_already_exists, store->set(item2, cookie));
 
     // Try again, this time with correct CAS.
     item2.setCas(item.getCas());
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item2, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->set(item2, cookie));
 }
 
 /**
@@ -758,16 +758,16 @@ TEST_P(KVBucketParamTest, MB_25398_SetCASDeletedItemNegative) {
     if (engine->getConfiguration().getBucketType() == "persistent") {
         // Deleted item won't be resident (after a flush), so expect to need to
         // bgfetch.
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(item2, cookie));
+        EXPECT_EQ(cb::engine_errc::would_block, store->set(item2, cookie));
         runBGFetcherTask();
     }
 
     // Try with a specific CAS.
-    EXPECT_EQ(ENGINE_KEY_ENOENT, store->set(item2, cookie));
+    EXPECT_EQ(cb::engine_errc::no_such_key, store->set(item2, cookie));
 
     // Try with no CAS (wildcard) - should be possible to store.
     item2.setCas(0);
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item2, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->set(item2, cookie));
 }
 
 // Add tests //////////////////////////////////////////////////////////////////
@@ -780,14 +780,14 @@ TEST_P(KVBucketParamTest, Add) {
         runBGFetcherTask();
         rv = store->add(item, cookie);
     }
-    EXPECT_EQ(ENGINE_SUCCESS, rv);
+    EXPECT_EQ(cb::engine_errc::success, rv);
 }
 
 // Check incorrect vbucket returns not-my-vbucket.
 TEST_P(KVBucketParamTest, AddNMVB) {
     auto item =
             make_item(Vbid(vbid.get() + 1), makeStoredDocKey("key"), "value2");
-    EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, store->add(item, cookie));
+    EXPECT_EQ(cb::engine_errc::not_my_vbucket, store->add(item, cookie));
 }
 
 // SetWithMeta tests //////////////////////////////////////////////////////////
@@ -797,7 +797,7 @@ TEST_P(KVBucketParamTest, SetWithMeta) {
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
     item.setCas();
     uint64_t seqno;
-    auto setWithMeta = [&]() -> ENGINE_ERROR_CODE {
+    auto setWithMeta = [&]() -> cb::engine_errc {
         return store->setWithMeta(item,
                                   0,
                                   &seqno,
@@ -815,17 +815,17 @@ TEST_P(KVBucketParamTest, SetWithMeta) {
         runBGFetcherTask();
         rv = setWithMeta();
     }
-    EXPECT_EQ(ENGINE_SUCCESS, rv);
+    EXPECT_EQ(cb::engine_errc::success, rv);
 }
 
 // Test setWithMeta with a conflict with an existing item.
 TEST_P(KVBucketParamTest, SetWithMeta_Conflicted) {
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
 
     uint64_t seqno;
     // Attempt to set with the same rev Seqno - should get EEXISTS.
-    EXPECT_EQ(ENGINE_KEY_EEXISTS,
+    EXPECT_EQ(cb::engine_errc::key_already_exists,
               store->setWithMeta(item,
                                  item.getCas(),
                                  &seqno,
@@ -838,13 +838,13 @@ TEST_P(KVBucketParamTest, SetWithMeta_Conflicted) {
 // Test setWithMeta replacing existing item
 TEST_P(KVBucketParamTest, SetWithMeta_Replace) {
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
 
     // Increase revSeqno so conflict resolution doesn't fail.
     item.setRevSeqno(item.getRevSeqno() + 1);
     uint64_t seqno;
     // Should get EEXISTS if we don't force (and use wrong CAS).
-    EXPECT_EQ(ENGINE_KEY_EEXISTS,
+    EXPECT_EQ(cb::engine_errc::key_already_exists,
               store->setWithMeta(item,
                                  item.getCas() + 1,
                                  &seqno,
@@ -854,7 +854,7 @@ TEST_P(KVBucketParamTest, SetWithMeta_Replace) {
                                  /*allowExisting*/ true));
 
     // Should succeed with correct CAS, and different RevSeqno.
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->setWithMeta(item,
                                  item.getCas(),
                                  &seqno,
@@ -880,7 +880,7 @@ TEST_P(KVBucketParamTest, MB_28078_SetWithMeta_tempDeleted) {
     item.setExpTime(1);
     item.setCas();
     uint64_t seqno;
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->setWithMeta(item,
                                  0,
                                  &seqno,
@@ -909,12 +909,12 @@ TEST_P(KVBucketParamTest, MB_28078_SetWithMeta_tempDeleted) {
     };
 
     if (engine->getConfiguration().getBucketType() == "persistent") {
-        ASSERT_EQ(ENGINE_EWOULDBLOCK, doSetWithMeta());
+        ASSERT_EQ(cb::engine_errc::would_block, doSetWithMeta());
     }
 
     if (engine->getConfiguration().getBucketType() == "persistent") {
         runBGFetcherTask();
-        ASSERT_EQ(ENGINE_KEY_EEXISTS, doSetWithMeta());
+        ASSERT_EQ(cb::engine_errc::key_already_exists, doSetWithMeta());
     }
 
     EXPECT_EQ(0, store->getVBucket(vbid)->getNumItems());
@@ -926,7 +926,7 @@ TEST_P(KVBucketParamTest, SetWithMeta_Forced) {
     auto item = make_item(vbid, makeStoredDocKey("key"), "value");
     item.setCas();
     uint64_t seqno;
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->setWithMeta(item,
                                  0,
                                  &seqno,
@@ -951,14 +951,14 @@ TEST_P(KVBucketParamTest, mb22824) {
     uint32_t deleted = false;
     ItemMetaData itemMeta1;
     auto datatype = PROTOCOL_BINARY_RAW_BYTES;
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->getMetaData(
                       key, vbid, cookie, itemMeta1, deleted, datatype));
 
     uint64_t cas = 0;
     ItemMetaData itemMeta2;
     mutation_descr_t mutation_descr;
-    EXPECT_EQ(ENGINE_KEY_ENOENT,
+    EXPECT_EQ(cb::engine_errc::no_such_key,
               store->deleteItem(
                       key, cas, vbid, cookie, {}, &itemMeta2, mutation_descr));
 
@@ -988,7 +988,7 @@ TEST_P(KVBucketParamTest, test_hlcEpochSeqno) {
         runBGFetcherTask();
         rv = store->add(item, cookie);
     }
-    EXPECT_EQ(ENGINE_SUCCESS, rv);
+    EXPECT_EQ(cb::engine_errc::success, rv);
 
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -1002,7 +1002,7 @@ TEST_P(KVBucketParamTest, test_hlcEpochSeqno) {
         runBGFetcherTask();
         rv = store->add(item2, cookie);
     }
-    EXPECT_EQ(ENGINE_SUCCESS, rv);
+    EXPECT_EQ(cb::engine_errc::success, rv);
 
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -1074,13 +1074,13 @@ void KVBucketTest::storeAndDeleteItem(Vbid vbid,
     flushVBucketToDiskIfPersistent(vbid, 1);
 }
 
-ENGINE_ERROR_CODE KVBucketTest::getMeta(Vbid vbid,
-                                        const DocKey key,
-                                        const void* cookie,
-                                        ItemMetaData& itemMeta,
-                                        uint32_t& deleted,
-                                        uint8_t& datatype,
-                                        bool retryOnEWouldBlock) {
+cb::engine_errc KVBucketTest::getMeta(Vbid vbid,
+                                      const DocKey key,
+                                      const void* cookie,
+                                      ItemMetaData& itemMeta,
+                                      uint32_t& deleted,
+                                      uint8_t& datatype,
+                                      bool retryOnEWouldBlock) {
     auto doGetMetaData = [&]() {
         return store->getMetaData(
                 key, vbid, cookie, itemMeta, deleted, datatype);
@@ -1089,7 +1089,7 @@ ENGINE_ERROR_CODE KVBucketTest::getMeta(Vbid vbid,
     auto engineResult = doGetMetaData();
     if (engine->getConfiguration().getBucketType() == "persistent" &&
         retryOnEWouldBlock) {
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, engineResult);
+        EXPECT_EQ(cb::engine_errc::would_block, engineResult);
         // Manually run the bgfetch task, and re-attempt getMetaData
         runBGFetcherTask();
 
@@ -1111,7 +1111,7 @@ TEST_P(KVBucketParamTest, lockKeyTempDeletedTest) {
     auto engineResult = getMeta(vbid, key, cookie, itemMeta, deleted, datatype);
 
     // Verify that GetMeta succeeded; and metadata is correct.
-    ASSERT_EQ(ENGINE_SUCCESS, engineResult);
+    ASSERT_EQ(cb::engine_errc::success, engineResult);
     ASSERT_TRUE(deleted);
 
     int expTempItems = 0;
@@ -1122,7 +1122,7 @@ TEST_P(KVBucketParamTest, lockKeyTempDeletedTest) {
     //Check that the temp item is removed for getLocked
     EXPECT_EQ(expTempItems, store->getVBucket(vbid)->getNumTempItems());
     GetValue gv = store->getLocked(key, vbid, ep_current_time(), 10, cookie);
-    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
     EXPECT_EQ(0, store->getVBucket(vbid)->getNumTempItems());
 }
 
@@ -1140,10 +1140,10 @@ TEST_P(KVBucketParamTest, unlockKeyTempDeletedTest) {
                           PROTOCOL_BINARY_RAW_BYTES);
 
     GetValue gv = store->getAndUpdateTtl(key, vbid, cookie, ep_real_time());
-    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
 
     gv = store->getLocked(key, vbid, ep_current_time(), 10, cookie);
-    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
 
     itm.setCas(gv.item->getCas());
     store->deleteExpiredItem(itm, ep_real_time() + 10, ExpireBy::Pager);
@@ -1156,7 +1156,7 @@ TEST_P(KVBucketParamTest, unlockKeyTempDeletedTest) {
     auto engineResult = getMeta(vbid, key, cookie, itemMeta, deleted, datatype);
 
     // Verify that GetMeta succeeded; and metadata is correct.
-    ASSERT_EQ(ENGINE_SUCCESS, engineResult);
+    ASSERT_EQ(cb::engine_errc::success, engineResult);
     ASSERT_TRUE(deleted);
 
     int expTempItems = 0;
@@ -1166,7 +1166,7 @@ TEST_P(KVBucketParamTest, unlockKeyTempDeletedTest) {
 
     //Check that the temp item is removed for unlockKey
     EXPECT_EQ(expTempItems, store->getVBucket(vbid)->getNumTempItems());
-    EXPECT_EQ(ENGINE_KEY_ENOENT,
+    EXPECT_EQ(cb::engine_errc::no_such_key,
               store->unlockKey(key, vbid, 0, ep_current_time(), cookie));
     EXPECT_EQ(0, store->getVBucket(vbid)->getNumTempItems());
 }
@@ -1178,19 +1178,19 @@ TEST_P(KVBucketParamTest, GetLockedWithPreparedSyncWrite) {
     // to auto-commit so create a topology with 2 nodes.
     auto meta =
             nlohmann::json{{"topology", nlohmann::json::array({{"a", "b"}})}};
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_active, &meta));
 
     // Store both a committed and prepared SV.
     auto key = makeStoredDocKey("key");
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               store->set(*makeCommittedItem(key, "value1"), cookie));
-    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING,
+    ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*makePendingItem(key, "value2"), cookie));
 
     // Test
     auto gv = store->getLocked(key, vbid, ep_current_time(), 10, cookie);
-    EXPECT_EQ(ENGINE_SYNC_WRITE_IN_PROGRESS, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::sync_write_in_progress, gv.getStatus());
 }
 
 // Test that unlock correctly returns ESyncWriteInProgress if targetted at
@@ -1200,19 +1200,19 @@ TEST_P(KVBucketParamTest, UnlockWithPreparedSyncWrite) {
     // to auto-commit so create a topology with 2 nodes.
     auto meta =
             nlohmann::json{{"topology", nlohmann::json::array({{"a", "b"}})}};
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_active, &meta));
 
     // Store both a committed and prepared SV.
     auto key = makeStoredDocKey("key");
     auto committed = makeCommittedItem(key, "value1");
-    ASSERT_EQ(ENGINE_SUCCESS, store->set(*committed, cookie));
-    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING,
+    ASSERT_EQ(cb::engine_errc::success, store->set(*committed, cookie));
+    ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*makePendingItem(key, "value2"), cookie));
 
     // Test
     EXPECT_EQ(
-            ENGINE_SYNC_WRITE_IN_PROGRESS,
+            cb::engine_errc::sync_write_in_progress,
             store->unlockKey(
                     key, vbid, committed->getCas(), ep_current_time(), cookie));
 }
@@ -1224,19 +1224,19 @@ TEST_P(KVBucketParamTest, GetAndUpdateTtlWithPreparedSyncWrite) {
     // to auto-commit so create a topology with 2 nodes.
     auto meta =
             nlohmann::json{{"topology", nlohmann::json::array({{"a", "b"}})}};
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_active, &meta));
 
     // Store both a committed and prepared SV.
     auto key = makeStoredDocKey("key");
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               store->set(*makeCommittedItem(key, "value1"), cookie));
-    ASSERT_EQ(ENGINE_SYNC_WRITE_PENDING,
+    ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*makePendingItem(key, "value2"), cookie));
 
     // Test
     auto gv = store->getAndUpdateTtl(key, vbid, cookie, 10);
-    EXPECT_EQ(ENGINE_SYNC_WRITE_IN_PROGRESS, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::sync_write_in_progress, gv.getStatus());
 }
 
 TEST_P(KVBucketParamTest, replaceTempDeletedTest) {
@@ -1249,7 +1249,7 @@ TEST_P(KVBucketParamTest, replaceTempDeletedTest) {
     uint32_t deleted = 0;
     uint8_t datatype = 0;
     auto engineResult = getMeta(vbid, key, cookie, itemMeta, deleted, datatype);
-    ASSERT_EQ(ENGINE_SUCCESS, engineResult);
+    ASSERT_EQ(cb::engine_errc::success, engineResult);
     ASSERT_TRUE(deleted);
 
     int expTempItems = 0;
@@ -1260,7 +1260,8 @@ TEST_P(KVBucketParamTest, replaceTempDeletedTest) {
     //Check that the temp item is removed for replace
     EXPECT_EQ(expTempItems, store->getVBucket(vbid)->getNumTempItems());
     auto replace_item = make_item(vbid, makeStoredDocKey("key"), "value2");
-    EXPECT_EQ(ENGINE_KEY_ENOENT, store->replace(replace_item, cookie));
+    EXPECT_EQ(cb::engine_errc::no_such_key,
+              store->replace(replace_item, cookie));
     EXPECT_EQ(0, store->getVBucket(vbid)->getNumTempItems());
 }
 
@@ -1276,14 +1277,14 @@ TEST_P(KVBucketParamTest, statsVKeyTempDeletedTest) {
     auto engineResult = getMeta(vbid, key, cookie, itemMeta, deleted, datatype);
 
     // Verify that GetMeta succeeded; and metadata is correct.
-    ASSERT_EQ(ENGINE_SUCCESS, engineResult);
+    ASSERT_EQ(cb::engine_errc::success, engineResult);
     ASSERT_TRUE(deleted);
 
     int expTempItems = 0;
-    ENGINE_ERROR_CODE expRetCode = ENGINE_ENOTSUP;
+    cb::engine_errc expRetCode = cb::engine_errc::not_supported;
     if (engine->getConfiguration().getBucketType() == "persistent") {
         expTempItems = 1;
-        expRetCode = ENGINE_KEY_ENOENT;
+        expRetCode = cb::engine_errc::no_such_key;
     }
 
     //Check that the temp item is removed for statsVKey
@@ -1303,7 +1304,7 @@ TEST_P(KVBucketParamTest, getAndUpdateTtlTempDeletedItemTest) {
     uint8_t datatype = 0;
     auto engineResult = getMeta(vbid, key, cookie, itemMeta, deleted, datatype);
     // Verify that GetMeta succeeded; and metadata is correct.
-    ASSERT_EQ(ENGINE_SUCCESS, engineResult);
+    ASSERT_EQ(cb::engine_errc::success, engineResult);
     ASSERT_TRUE(deleted);
 
     int expTempItems = 0;
@@ -1315,7 +1316,7 @@ TEST_P(KVBucketParamTest, getAndUpdateTtlTempDeletedItemTest) {
     EXPECT_EQ(expTempItems, store->getVBucket(vbid)->getNumTempItems());
     GetValue gv = store->getAndUpdateTtl(makeStoredDocKey("key"), vbid,
                                          cookie, time(NULL));
-    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
     EXPECT_EQ(0, store->getVBucket(vbid)->getNumTempItems());
 }
 
@@ -1331,7 +1332,7 @@ TEST_P(KVBucketParamTest, validateKeyTempDeletedItemTest) {
     auto engineResult = getMeta(vbid, key, cookie, itemMeta, deleted, datatype);
 
     // Verify that GetMeta succeeded; and metadata is correct.
-    ASSERT_EQ(ENGINE_SUCCESS, engineResult);
+    ASSERT_EQ(cb::engine_errc::success, engineResult);
     ASSERT_TRUE(deleted);
 
     int expTempItems = 0;
@@ -1390,14 +1391,14 @@ TEST_P(KVBucketParamTest, MB_25948) {
     auto engineResult = doGetMetaData();
 
     if (engine->getConfiguration().getBucketType() == "persistent") {
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, engineResult);
+        EXPECT_EQ(cb::engine_errc::would_block, engineResult);
         // Manually run the bgfetch task, and re-attempt getMetaData
         runBGFetcherTask();
 
         engineResult = doGetMetaData();
     }
     // Verify that GetMeta succeeded; and metadata is correct.
-    ASSERT_EQ(ENGINE_SUCCESS, engineResult);
+    ASSERT_EQ(cb::engine_errc::success, engineResult);
     ASSERT_TRUE(deleted);
     ASSERT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, datatype);
     ASSERT_EQ(item.getFlags(), itemMeta.flags);
@@ -1408,11 +1409,11 @@ TEST_P(KVBucketParamTest, MB_25948) {
 
     // Manually run the bgfetch task and retry the get()
     if (engine->getConfiguration().getBucketType() == "persistent") {
-        ASSERT_EQ(ENGINE_EWOULDBLOCK, result.getStatus());
+        ASSERT_EQ(cb::engine_errc::would_block, result.getStatus());
         runBGFetcherTask();
         result = doGet();
     }
-    ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, result.getStatus());
 
     cb::xattr::Blob blob({const_cast<char*>(result.item->getData()),
                           result.item->getNBytes()},
@@ -1467,14 +1468,14 @@ TEST_P(KVBucketParamTest, MB_27162) {
      auto engineResult = doGetMetaData();
 
      if (isPersistent() && isFullEviction()) {
-         ASSERT_EQ(ENGINE_EWOULDBLOCK, engineResult);
+         ASSERT_EQ(cb::engine_errc::would_block, engineResult);
          // Manually run the bgfetch task, and re-attempt getMetaData
          runBGFetcherTask();
 
          engineResult = doGetMetaData();
      }
      // Verify that GetMeta succeeded; and metadata is correct.
-     ASSERT_EQ(ENGINE_SUCCESS, engineResult);
+     ASSERT_EQ(cb::engine_errc::success, engineResult);
      EXPECT_EQ(3, itemMeta.revSeqno);
 }
 
@@ -1501,12 +1502,12 @@ TEST_P(KVBucketParamTest, testGetPendingOpsStat) {
 
    auto doGet = [&]() { return store->get(key, vbid, cookie, options); };
    GetValue result = doGet();
-   ASSERT_EQ(ENGINE_EWOULDBLOCK, result.getStatus());
+   ASSERT_EQ(cb::engine_errc::would_block, result.getStatus());
    EXPECT_EQ(1, store->getVBucket(vbid)->opsGet);
 
    auto doGetReplica = [&]() { return store->getReplica(key, vbid, cookie, options); };
    result = doGetReplica();
-   ASSERT_EQ(ENGINE_NOT_MY_VBUCKET, result.getStatus());
+   ASSERT_EQ(cb::engine_errc::not_my_vbucket, result.getStatus());
    EXPECT_EQ(1, store->getVBucket(vbid)->opsGet);
    EXPECT_EQ(1, engine->getEpStats().numNotMyVBuckets);
 }
@@ -1540,12 +1541,12 @@ TEST_P(KVBucketParamTest, ReplicaExpiredItem) {
     // Test: Attempt to read expired item.
     if (engine->getConfiguration().getItemEvictionPolicy() == "full_eviction") {
         auto result = store->getReplica(key, vbid, nullptr, options);
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, result.getStatus());
+        EXPECT_EQ(cb::engine_errc::would_block, result.getStatus());
         runBGFetcherTask();
     }
 
     auto result = store->getReplica(key, vbid, nullptr, options);
-    EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus());
+    EXPECT_EQ(cb::engine_errc::no_such_key, result.getStatus());
 }
 
 /***
@@ -1605,7 +1606,7 @@ TEST_P(KVBucketParamTest, MB31495_GetRandomKey) {
 
     // Try with am empty hash table
     auto gv = store->getRandomKey(CollectionID::Default, cookie);
-    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
 
     Item item = store_item(
             vbid, {"key", DocKeyEncodesCollectionId::No}, "value", 0);
@@ -1613,7 +1614,7 @@ TEST_P(KVBucketParamTest, MB31495_GetRandomKey) {
 
     // Try with a non-empty hash table
     gv = store->getRandomKey(CollectionID::Default, cookie);
-    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
 }
 
 // MB-33702: Test that SetVBucket state creates a new failover table entry when
@@ -1625,7 +1626,7 @@ TEST_P(KVBucketParamTest, FailoverEntryAddedNonActiveToActive) {
     ASSERT_EQ(1, vb->failovers->getNumEntries());
 
     // Test
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_active));
     EXPECT_EQ(2, vb->failovers->getNumEntries());
 }
@@ -1642,7 +1643,7 @@ TEST_P(KVBucketParamTest, FailoverEntryNotAddedActiveToActive) {
     // Test - with a topology specified, we shouldn't get a new failover entry.
     auto meta =
             nlohmann::json{{"topology", nlohmann::json::array({{"a", "b"}})}};
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_active, &meta));
     EXPECT_EQ(1, vb->failovers->getNumEntries());
 }
@@ -1709,7 +1710,8 @@ TEST_P(KVBucketParamTest, VBucketDiskStatsENOENT) {
                          std::string_view value,
                          gsl::not_null<const void*> cookie) { ADD_FAILURE(); };
 
-    auto expected = (isPersistent()) ? ENGINE_SUCCESS : ENGINE_KEY_ENOENT;
+    auto expected = (isPersistent()) ? cb::engine_errc::success
+                                     : cb::engine_errc::no_such_key;
     EXPECT_EQ(expected, store->getPerVBucketDiskStats({}, mockStatFn));
 }
 
@@ -1790,8 +1792,8 @@ TEST_F(RelativeExpiryLimitTest, add_set_replace) {
     ASSERT_EQ(0, item2.getExptime());
 
     // add a key and set a key
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, cookie));
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(item2, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->add(item1, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->set(item2, cookie));
 
     std::vector<cb::EngineErrorItemPair> results;
 
@@ -1800,7 +1802,7 @@ TEST_F(RelativeExpiryLimitTest, add_set_replace) {
     results.push_back(engine->getIfInner(cookie, item2.getKey(), vbid, f));
 
     // finally replace key2
-    EXPECT_EQ(ENGINE_SUCCESS, store->replace(item3, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->replace(item3, cookie));
     results.push_back(engine->getIfInner(cookie, item2.getKey(), vbid, f));
 
     for (const auto& rval : results) {

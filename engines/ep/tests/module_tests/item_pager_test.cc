@@ -110,7 +110,7 @@ protected:
         engine->getConfiguration().setMemHighWat(quota * 0.85);
     }
 
-    ENGINE_ERROR_CODE storeItem(Item& item) {
+    cb::engine_errc storeItem(Item& item) {
         uint64_t cas = 0;
         return engine->storeInner(
                 cookie, item, cas, StoreSemantics::Set, false);
@@ -119,7 +119,7 @@ protected:
     /**
      * Write documents to the bucket until they fail with TMP_FAIL.
      * Note this stores via external API (epstore) so we trigger the
-     * memoryCondition() code in the event of ENGINE_ENOMEM.
+     * memoryCondition() code in the event of cb::engine_errc::no_memory.
      *
      * @param vbid vBucket to write items to.
      * @param expiry value for items. 0 == no TTL.
@@ -128,10 +128,12 @@ protected:
     size_t populateUntilTmpFail(Vbid vbid, rel_time_t ttl = 0) {
         size_t count = 0;
         const std::string value(1024, 'x'); // 1024B value to use for documents.
-        ENGINE_ERROR_CODE result;
+        cb::engine_errc result;
         const auto expiry =
                 (ttl != 0) ? ep_abs_time(ep_reltime(ttl)) : time_t(0);
-        for (result = ENGINE_SUCCESS; result == ENGINE_SUCCESS; count++) {
+        for (result = cb::engine_errc::success;
+             result == cb::engine_errc::success;
+             count++) {
             auto key = makeStoredDocKey("xxx_" + std::to_string(count));
             auto item = make_item(vbid, key, value, expiry);
             // Set freqCount to 0 so will be a candidate for paging out straight
@@ -139,7 +141,7 @@ protected:
             item.setFreqCounterValue(0);
             result = storeItem(item);
         }
-        EXPECT_EQ(ENGINE_TMPFAIL, result);
+        EXPECT_EQ(cb::engine_errc::temporary_failure, result);
         // Fixup count for last loop iteration.
         --count;
 
@@ -186,7 +188,7 @@ protected:
             // Set freqCount to 0 so will be a candidate for paging out straight
             // away.
             item.setFreqCounterValue(0);
-            EXPECT_EQ(ENGINE_SUCCESS, storeItem(item));
+            EXPECT_EQ(cb::engine_errc::success, storeItem(item));
             populate = stats.getEstimatedTotalMemoryUsed() <=
                        stats.mem_high_wat.load();
         }
@@ -227,7 +229,7 @@ protected:
                     }
                     item.setFreqCounterValue(mfu);
                     auto result = storeItem(item);
-                    if (result != ENGINE_SUCCESS) {
+                    if (result != cb::engine_errc::success) {
                         ADD_FAILURE() << "Failed storing an item before the "
                                          "predicate returned true";
                         return count;
@@ -437,9 +439,9 @@ TEST_P(STItemPagerTest, PagerEvictsSomething) {
                                   ForGetReplicaOp::No,
                                   get_options_t::QUEUE_BG_FETCH);
             switch (gv.getStatus()) {
-            case ENGINE_SUCCESS:
+            case cb::engine_errc::success:
                 break;
-            case ENGINE_EWOULDBLOCK: {
+            case cb::engine_errc::would_block: {
                 ASSERT_TRUE(vb->hasPendingBGFetchItems());
                 runBGFetcherTask();
                 gv = getInternal(key,
@@ -447,7 +449,7 @@ TEST_P(STItemPagerTest, PagerEvictsSomething) {
                                  cookie,
                                  ForGetReplicaOp::No,
                                  get_options_t::NONE);
-                EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+                EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
                 break;
             }
             default:
@@ -486,8 +488,8 @@ TEST_P(STItemPagerTest, ReplicaItemsVisitedFirst) {
         auto key = makeStoredDocKey("key_" + std::to_string(ii));
         auto activeItem = make_item(activeVB, key, value);
         auto pendingItem = make_item(pendingVB, key, value);
-        ASSERT_EQ(ENGINE_SUCCESS, storeItem(activeItem));
-        ASSERT_EQ(ENGINE_SUCCESS, storeItem(pendingItem));
+        ASSERT_EQ(cb::engine_errc::success, storeItem(activeItem));
+        ASSERT_EQ(cb::engine_errc::success, storeItem(pendingItem));
     }
 
     store->setVBucketState(pendingVB, vbucket_state_pending);
@@ -535,7 +537,7 @@ TEST_P(STItemPagerTest, ExpiredItemsDeletedFirst) {
     do {
         auto key = makeStoredDocKey("key_" + std::to_string(countA));
         auto item = make_item(vbid, key, value);
-        ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
+        ASSERT_EQ(cb::engine_errc::success, storeItem(item));
         countA++;
     } while (stats.getEstimatedTotalMemoryUsed() < stats.mem_low_wat.load());
 
@@ -568,7 +570,8 @@ TEST_P(STItemPagerTest, ExpiredItemsDeletedFirst) {
     for (size_t ii = 0; ii < countA; ii++) {
         auto key = makeStoredDocKey("key_" + std::to_string(ii));
         auto result = store->get(key, vbid, cookie, get_options_t());
-        EXPECT_EQ(ENGINE_SUCCESS, result.getStatus()) << "For key:" << key;
+        EXPECT_EQ(cb::engine_errc::success, result.getStatus())
+                << "For key:" << key;
     }
 
     // Documents which had a TTL should be deleted. Note it's hard to check
@@ -605,7 +608,7 @@ TEST_P(STItemPagerTest, test_memory_limit) {
         // Set freqCount to 0 so will be a candidate for paging out straight
         // away.
         item.setFreqCounterValue(0);
-        ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
+        ASSERT_EQ(cb::engine_errc::success, storeItem(item));
     }
 
     if (std::get<0>(GetParam()) == "persistent") {
@@ -842,7 +845,7 @@ TEST_P(STItemPagerTest, EvictBGFetchedDeletedItem) {
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
     auto res = store->get(key, vbid, cookie, options);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, res.getStatus());
+    EXPECT_EQ(cb::engine_errc::would_block, res.getStatus());
 
     EXPECT_EQ(0, vb->getNumItems());
     EXPECT_EQ(1, vb->getNumTempItems());
@@ -876,7 +879,7 @@ TEST_P(STItemPagerTest, EvictBGFetchedDeletedItem) {
     // 5) Re-run our get after BG Fetch (proving that it does not affect the
     // item). Returns success as we requested deleted values.
     res = store->get(key, vbid, cookie, options);
-    EXPECT_EQ(ENGINE_SUCCESS, res.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, res.getStatus());
 
     EXPECT_EQ(0, vb->getNumItems());
     EXPECT_EQ(0, vb->getNumTempItems());
@@ -1169,7 +1172,7 @@ TEST_P(STItemPagerTest, ItemPagerEvictionOrder) {
         for (int i = 0; i < itemCount; ++i) {
             auto key = makeStoredDocKey("key-" + std::to_string(i));
             auto item = make_item(vbid, key, std::string(100, 'x'));
-            ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
+            ASSERT_EQ(cb::engine_errc::success, storeItem(item));
         }
     }
 
@@ -1367,7 +1370,7 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
         // Set freqCount to 0 so will be a candidate for paging out straight
         // away.
         item.setFreqCounterValue(0);
-        ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
+        ASSERT_EQ(cb::engine_errc::success, storeItem(item));
         active_count++;
     } while (stats.getEstimatedTotalMemoryUsed() < stats.mem_low_wat.load());
 
@@ -1457,7 +1460,7 @@ void STExpiryPagerTest::expiredItemsDeleted() {
                 value,
                 expiry,
                 PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR);
-        ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
+        ASSERT_EQ(cb::engine_errc::success, storeItem(item));
     }
 
     flushDirectlyIfPersistent(vbid,
@@ -1487,21 +1490,21 @@ void STExpiryPagerTest::expiredItemsDeleted() {
     auto getKeyFn = [this](const StoredDocKey& key) {
         return store->get(key, vbid, cookie, QUEUE_BG_FETCH).getStatus();
     };
-    EXPECT_EQ(ENGINE_SUCCESS, getKeyFn(key_0))
+    EXPECT_EQ(cb::engine_errc::success, getKeyFn(key_0))
             << "Key without TTL should still exist.";
 
     auto key_1 = makeStoredDocKey("key_1");
 
     if (::testing::get<1>(GetParam()) == "full_eviction") {
         // Need an extra get() to trigger EWOULDBLOCK / bgfetch.
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, getKeyFn(key_1));
+        EXPECT_EQ(cb::engine_errc::would_block, getKeyFn(key_1));
         runBGFetcherTask();
     }
-    EXPECT_EQ(ENGINE_KEY_ENOENT, getKeyFn(key_1))
+    EXPECT_EQ(cb::engine_errc::no_such_key, getKeyFn(key_1))
             << "Key with TTL:10 should be removed.";
 
     auto key_2 = makeStoredDocKey("key_2");
-    EXPECT_EQ(ENGINE_SUCCESS, getKeyFn(key_2))
+    EXPECT_EQ(cb::engine_errc::success, getKeyFn(key_2))
             << "Key with TTL:20 should still exist.";
 
     // Move time forward by +10s, so key_2 should also be expired.
@@ -1519,18 +1522,18 @@ void STExpiryPagerTest::expiredItemsDeleted() {
     EXPECT_EQ(1, engine->getVBucket(vbid)->getNumItems());
 
     // Check our items.
-    EXPECT_EQ(ENGINE_SUCCESS, getKeyFn(key_0))
+    EXPECT_EQ(cb::engine_errc::success, getKeyFn(key_0))
             << "Key without TTL should still exist.";
 
-    EXPECT_EQ(ENGINE_KEY_ENOENT, getKeyFn(key_1))
+    EXPECT_EQ(cb::engine_errc::no_such_key, getKeyFn(key_1))
             << "Key with TTL:10 should be removed.";
 
     if (::testing::get<1>(GetParam()) == "full_eviction") {
         // Need an extra get() to trigger EWOULDBLOCK / bgfetch.
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, getKeyFn(key_2));
+        EXPECT_EQ(cb::engine_errc::would_block, getKeyFn(key_2));
         runBGFetcherTask();
     }
-    EXPECT_EQ(ENGINE_KEY_ENOENT, getKeyFn(key_2))
+    EXPECT_EQ(cb::engine_errc::no_such_key, getKeyFn(key_2))
             << "Key with TTL:20 should be removed.";
 }
 
@@ -1559,10 +1562,10 @@ TEST_P(STExpiryPagerTest, MB_25650) {
     // Ephemeral doesn't bgfetch, persistent full-eviction already had to
     // perform a bgfetch to check key_1 no longer exists in the above
     // expiredItemsDeleted().
-    const ENGINE_ERROR_CODE err =
+    const cb::engine_errc err =
             persistent() && std::get<1>(GetParam()) == "value_only"
-                    ? ENGINE_EWOULDBLOCK
-                    : ENGINE_SUCCESS;
+                    ? cb::engine_errc::would_block
+                    : cb::engine_errc::success;
 
     // Bring document meta back into memory and run expiry on it
     EXPECT_EQ(err,
@@ -1570,7 +1573,7 @@ TEST_P(STExpiryPagerTest, MB_25650) {
                       key_1, vbid, cookie, metadata, deleted, datatype));
     if (persistent()) {
         runBGFetcherTask();
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   store->getMetaData(
                           key_1, vbid, cookie, metadata, deleted, datatype));
     }
@@ -1589,7 +1592,7 @@ TEST_P(STExpiryPagerTest, MB_25650) {
     }
     auto item = store->get(key_1, vbid, cookie, GET_DELETED_VALUE);
 
-    ASSERT_EQ(ENGINE_SUCCESS, item.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, item.getStatus());
     EXPECT_TRUE(mcbp::datatype::is_xattr(item.item->getDataType()));
     ASSERT_NE(0, item.item->getNBytes());
     cb::xattr::Blob blob(
@@ -1622,10 +1625,10 @@ TEST_P(STExpiryPagerTest, MB_25671) {
     // Ephemeral doesn't bgfetch, persistent full-eviction already had to
     // perform a bgfetch to check key_1 no longer exists in the above
     // expiredItemsDeleted().
-    const ENGINE_ERROR_CODE err =
+    const cb::engine_errc err =
             persistent() && std::get<1>(GetParam()) == "value_only"
-                    ? ENGINE_EWOULDBLOCK
-                    : ENGINE_SUCCESS;
+                    ? cb::engine_errc::would_block
+                    : cb::engine_errc::success;
 
     // Bring the deleted key back with a getMeta call
     EXPECT_EQ(err,
@@ -1633,7 +1636,7 @@ TEST_P(STExpiryPagerTest, MB_25671) {
                       key_1, vbid, cookie, metadata, deleted, datatype));
     if (persistent()) {
         runBGFetcherTask();
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   store->getMetaData(
                           key_1, vbid, cookie, metadata, deleted, datatype));
     }
@@ -1645,7 +1648,7 @@ TEST_P(STExpiryPagerTest, MB_25671) {
     metadata.exptime = 0xfeedface;
     PermittedVBStates vbstates(vbucket_state_active);
     auto deleteWithMeta =
-            [this, key_1, &cas, vbstates, metadata]() -> ENGINE_ERROR_CODE {
+            [this, key_1, &cas, vbstates, metadata]() -> cb::engine_errc {
         return store->deleteWithMeta(key_1,
                                      cas,
                                      nullptr,
@@ -1667,11 +1670,11 @@ TEST_P(STExpiryPagerTest, MB_25671) {
             static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
     if (persistent()) {
         runBGFetcherTask();
-        EXPECT_EQ(ENGINE_SUCCESS, deleteWithMeta());
+        EXPECT_EQ(cb::engine_errc::success, deleteWithMeta());
     }
 
     auto item = store->get(key_1, vbid, cookie, options);
-    ASSERT_EQ(ENGINE_SUCCESS, item.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, item.getStatus());
     EXPECT_TRUE(item.item->isDeleted()) << "Not deleted " << *item.item;
     ASSERT_NE(0, item.item->getNBytes()) << "No value " << *item.item;
 
@@ -1753,7 +1756,7 @@ TEST_P(STItemPagerTest, ItemPagerEvictionOrderIsSafe) {
         // checking the state each time, this can cause a crash in std::sort
         for (const auto& vbid : {a, b}) {
             auto state = store->getVBucket(vbid)->getState();
-            EXPECT_EQ(ENGINE_SUCCESS,
+            EXPECT_EQ(cb::engine_errc::success,
                       store->setVBucketState(vbid,
                                              state == vbucket_state_replica
                                                      ? vbucket_state_active
@@ -1832,7 +1835,7 @@ TEST_P(STItemPagerTest, MB43055_MemUsedDropDoesNotBreakEviction) {
         auto key = makeStoredDocKey("key_" + std::to_string(i));
         uint64_t cas = 0;
         mutation_descr_t mutation_descr;
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   store->deleteItem(key,
                                     cas,
                                     vbid,
@@ -1905,7 +1908,7 @@ TEST_P(STValueEvictionExpiryPagerTest, MB_25931) {
             value,
             ep_abs_time(ep_current_time() + 10),
             PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR);
-    ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
+    ASSERT_EQ(cb::engine_errc::success, storeItem(item));
 
     flushDirectlyIfPersistent(vbid,
                               {MoreAvailable::No, 1, WakeCkptRemover::No});
@@ -1933,7 +1936,7 @@ TEST_P(STValueEvictionExpiryPagerTest, MB_25991_ExpiryNonResident) {
     auto key = makeStoredDocKey("key");
     auto expiry = ep_abs_time(ep_current_time() + 5);
     auto item = make_item(vbid, key, "value", expiry);
-    ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
+    ASSERT_EQ(cb::engine_errc::success, storeItem(item));
 
     flushDirectlyIfPersistent(vbid,
                               {MoreAvailable::No, 1, WakeCkptRemover::No});
@@ -1966,7 +1969,7 @@ TEST_P(STValueEvictionExpiryPagerTest, MB_25991_ExpiryNonResident) {
 
     // Check our item - should not exist.
     auto result = store->get(key, vbid, cookie, get_options_t());
-    EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus());
+    EXPECT_EQ(cb::engine_errc::no_such_key, result.getStatus());
 }
 
 class MB_32669 : public STValueEvictionExpiryPagerTest {
@@ -1993,7 +1996,7 @@ TEST_P(MB_32669, expire_a_compressed_and_evicted_xattr_document) {
     auto value = createXattrValue(std::string(100, 'a'), true /*sys xattrs*/);
     auto item =
             make_item(vbid, key, value, expiry, PROTOCOL_BINARY_DATATYPE_XATTR);
-    ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
+    ASSERT_EQ(cb::engine_errc::success, storeItem(item));
 
     flushDirectlyIfPersistent(vbid,
                               {MoreAvailable::No, 1, WakeCkptRemover::No});
@@ -2013,7 +2016,7 @@ TEST_P(MB_32669, expire_a_compressed_and_evicted_xattr_document) {
     uint8_t datatype;
 
     EXPECT_EQ(
-            ENGINE_SUCCESS,
+            cb::engine_errc::success,
             store->getMetaData(key, vbid, cookie, metadata, deleted, datatype));
     ASSERT_EQ(PROTOCOL_BINARY_DATATYPE_SNAPPY,
               datatype & PROTOCOL_BINARY_DATATYPE_SNAPPY);
@@ -2044,11 +2047,11 @@ TEST_P(MB_32669, expire_a_compressed_and_evicted_xattr_document) {
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
     GetValue gv = store->get(key, vbid, cookie, options);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
 
     runBGFetcherTask();
     gv = store->get(key, vbid, cookie, options);
-    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
 
     EXPECT_TRUE(gv.item->isDeleted());
     auto get_itm = gv.item.get();
@@ -2090,7 +2093,7 @@ TEST_P(MB_36087, DelWithMeta_EvictedKey) {
             PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR);
     uint64_t cas = 0;
     ASSERT_EQ(
-            ENGINE_SUCCESS,
+            cb::engine_errc::success,
             engine->storeInner(cookie, item, cas, StoreSemantics::Set, false));
 
     auto& bucket = dynamic_cast<EPBucket&>(*store);
@@ -2113,7 +2116,7 @@ TEST_P(MB_36087, DelWithMeta_EvictedKey) {
     PermittedVBStates vbstates(vbucket_state_active);
 
     auto deleteWithMeta =
-            [this, key, &cas, vbstates, metadata]() -> ENGINE_ERROR_CODE {
+            [this, key, &cas, vbstates, metadata]() -> cb::engine_errc {
         return store->deleteWithMeta(key,
                                      cas,
                                      nullptr,
@@ -2130,23 +2133,24 @@ TEST_P(MB_36087, DelWithMeta_EvictedKey) {
     };
     // A bgfetch is required for full or value eviction because we need the
     // xattr value
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, deleteWithMeta());
+    EXPECT_EQ(cb::engine_errc::would_block, deleteWithMeta());
     runBGFetcherTask();
 
     // Full eviction first did a meta-fetch, now has todo a full fetch
-    auto err = std::get<1>(GetParam()) == "full_eviction" ? ENGINE_EWOULDBLOCK
-                                                          : ENGINE_SUCCESS;
+    auto err = std::get<1>(GetParam()) == "full_eviction"
+                       ? cb::engine_errc::would_block
+                       : cb::engine_errc::success;
     EXPECT_EQ(err, deleteWithMeta());
 
     if (std::get<1>(GetParam()) == "full_eviction") {
         runBGFetcherTask();
-        EXPECT_EQ(ENGINE_SUCCESS, deleteWithMeta());
+        EXPECT_EQ(cb::engine_errc::success, deleteWithMeta());
     }
 
     auto options =
             static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
     auto gv = store->get(key, vbid, cookie, options);
-    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
     EXPECT_TRUE(gv.item->isDeleted()) << "Not deleted " << *gv.item;
     ASSERT_NE(0, gv.item->getNBytes()) << "No value " << *gv.item;
 

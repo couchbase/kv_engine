@@ -43,8 +43,8 @@ public:
     explicit FlushCommandContext(Cookie& cookie);
 
 protected:
-    ENGINE_ERROR_CODE step() override {
-        auto ret = ENGINE_SUCCESS;
+    cb::engine_errc step() override {
+        auto ret = cb::engine_errc::success;
         do {
             switch (state) {
             case State::Flushing:
@@ -52,14 +52,14 @@ protected:
                 break;
             case State::Done:
                 done();
-                return ENGINE_SUCCESS;
+                return cb::engine_errc::success;
             }
-        } while (ret == ENGINE_SUCCESS);
+        } while (ret == cb::engine_errc::success);
 
         return ret;
     }
 
-    ENGINE_ERROR_CODE flushing();
+    cb::engine_errc flushing();
     void done();
 
 private:

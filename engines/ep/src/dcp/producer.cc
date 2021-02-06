@@ -263,7 +263,7 @@ void DcpProducer::cancelCheckpointCreatorTask() {
     }
 }
 
-ENGINE_ERROR_CODE DcpProducer::streamRequest(
+cb::engine_errc DcpProducer::streamRequest(
         uint32_t flags,
         uint32_t opaque,
         Vbid vbucket,
@@ -277,7 +277,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
         std::optional<std::string_view> json) {
     lastReceiveTime = ep_current_time();
     if (doDisconnect()) {
-        return ENGINE_DISCONNECT;
+        return cb::engine_errc::disconnect;
     }
 
     VBucketPtr vb = engine_.getVBucket(vbucket);
@@ -286,7 +286,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
                 "({}) Stream request failed because "
                 "this vbucket doesn't exist",
                 vbucket);
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     // check for mandatory noop
@@ -297,7 +297,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
                     "({}) noop is mandatory for v5 features like "
                     "xattrs and collections",
                     vbucket);
-            return ENGINE_ENOTSUP;
+            return cb::engine_errc::not_supported;
         }
     }
 
@@ -309,7 +309,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
                 "requested",
                 vbucket,
                 vb->toString(vb->getState()));
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     if (start_seqno > end_seqno) {
@@ -321,7 +321,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
                 vbucket,
                 start_seqno,
                 end_seqno);
-        return ENGINE_ERANGE;
+        return cb::engine_errc::out_of_range;
     }
 
     if (!(snap_start_seqno <= start_seqno && start_seqno <= snap_end_seqno)) {
@@ -333,7 +333,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
                 snap_start_seqno,
                 start_seqno,
                 snap_end_seqno);
-        return ENGINE_ERANGE;
+        return cb::engine_errc::out_of_range;
     }
 
     // Construct the filter before rollback checks so we ensure the client view
@@ -347,7 +347,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
                 "Stream request for {} failed because a valid stream-ID is "
                 "required.",
                 vbucket);
-        return ENGINE_DCP_STREAMID_INVALID;
+        return cb::engine_errc::dcp_streamid_invalid;
     } else if (filter.getStreamId() &&
                multipleStreamRequests == MultipleStreamRequests::No) {
         logger->warn(
@@ -356,7 +356,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
                 "but not required.",
                 vbucket,
                 filter.getStreamId());
-        return ENGINE_DCP_STREAMID_INVALID;
+        return cb::engine_errc::dcp_streamid_invalid;
     }
 
     // Check if this vbid can be added to this producer connection, and if
@@ -378,7 +378,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
                                 "vbucket",
                                 vbucket,
                                 filter.getStreamId().to_string());
-                        return ENGINE_KEY_EEXISTS;
+                        return cb::engine_errc::key_already_exists;
                     } else {
                         // Found a 'dead' stream which can be replaced.
                         handle.erase();
@@ -417,7 +417,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
                 snap_start_seqno,
                 snap_end_seqno,
                 vbucket_uuid);
-        return ENGINE_ROLLBACK;
+        return cb::engine_errc::rollback;
     }
 
     std::vector<vbucket_failover_t> failoverEntries =
@@ -431,7 +431,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
         end_seqno = engine_.getKVBucket()->getLastPersistedSeqno(vbucket);
     } else if (isPointInTimeEnabled() == PointInTimeEnabled::Yes) {
         logger->warn("DCP connections with PiTR enabled must enable DISKONLY");
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 
     if (start_seqno > end_seqno) {
@@ -448,7 +448,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
                 vbucket_uuid,
                 snap_start_seqno,
                 snap_end_seqno);
-        return ENGINE_ERANGE;
+        return cb::engine_errc::out_of_range;
     }
 
     if (start_seqno > static_cast<uint64_t>(vb->getHighSeqno())) {
@@ -465,7 +465,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
                 vbucket_uuid,
                 snap_start_seqno,
                 snap_end_seqno);
-        return ENGINE_ERANGE;
+        return cb::engine_errc::out_of_range;
     }
 
     // Take copy of Filter's streamID, given it will be moved-from when
@@ -496,7 +496,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
                 "the filter cannot be constructed, returning:{}",
                 Vbid(vbucket),
                 e.code().value());
-        return ENGINE_ERROR_CODE(e.code().value());
+        return cb::engine_errc(e.code().value());
     }
     /* We want to create the 'createCheckpointProcessorTask' here even if
        the stream creation fails later on in the func. The goal is to
@@ -514,7 +514,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
                     "({}) Stream request failed because "
                     "this vbucket is in dead state",
                     vbucket);
-            return ENGINE_NOT_MY_VBUCKET;
+            return cb::engine_errc::not_my_vbucket;
         }
 
         if (vb->isReceivingInitialDiskSnapshot()) {
@@ -522,7 +522,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
                     "({}) Stream request failed because this vbucket"
                     "is currently receiving its initial disk snapshot",
                     vbucket);
-            return ENGINE_TMPFAIL;
+            return cb::engine_errc::temporary_failure;
         }
 
         // MB-19428: Only activate the stream if we are adding it to the
@@ -537,9 +537,9 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
     // generate two responses for a single streamRequest.
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(nullptr,
                                                                      true);
-    ENGINE_ERROR_CODE rv = callback(failoverEntries);
+    cb::engine_errc rv = callback(failoverEntries);
     ObjectRegistry::onSwitchThread(epe);
-    if (rv != ENGINE_SUCCESS) {
+    if (rv != cb::engine_errc::success) {
         logger->warn(
                 "({}) Couldn't add failover log to "
                 "stream request due to error {}",
@@ -574,17 +574,17 @@ cb::unique_item_ptr DcpProducer::toUniqueItemPtr(
     return {item.release(), cb::ItemDeleter(&engine_)};
 }
 
-ENGINE_ERROR_CODE DcpProducer::step(DcpMessageProducersIface& producers) {
+cb::engine_errc DcpProducer::step(DcpMessageProducersIface& producers) {
     if (doDisconnect()) {
-        return ENGINE_DISCONNECT;
+        return cb::engine_errc::disconnect;
     }
 
-    ENGINE_ERROR_CODE ret;
-    if ((ret = maybeDisconnect()) != ENGINE_FAILED) {
-          return ret;
+    cb::engine_errc ret;
+    if ((ret = maybeDisconnect()) != cb::engine_errc::failed) {
+        return ret;
     }
 
-    if ((ret = maybeSendNoop(producers)) != ENGINE_FAILED) {
+    if ((ret = maybeSendNoop(producers)) != cb::engine_errc::failed) {
         return ret;
     }
 
@@ -594,7 +594,7 @@ ENGINE_ERROR_CODE DcpProducer::step(DcpMessageProducersIface& producers) {
     } else {
         resp = getNextItem();
         if (!resp) {
-            return ENGINE_EWOULDBLOCK;
+            return cb::engine_errc::would_block;
         }
     }
 
@@ -820,17 +820,17 @@ ENGINE_ERROR_CODE DcpProducer::step(DcpMessageProducersIface& producers) {
                     "Unexpected dcp event ({}), "
                     "disconnecting",
                     resp->to_string());
-            ret = ENGINE_DISCONNECT;
+            ret = cb::engine_errc::disconnect;
             break;
         }
     }
 
     const auto event = resp->getEvent();
-    if (ret == ENGINE_E2BIG) {
+    if (ret == cb::engine_errc::too_big) {
         rejectResp = std::move(resp);
     }
 
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         switch (event) {
         case DcpResponse::Event::Abort:
         case DcpResponse::Event::Commit:
@@ -859,21 +859,20 @@ ENGINE_ERROR_CODE DcpProducer::step(DcpMessageProducersIface& producers) {
     return ret;
 }
 
-ENGINE_ERROR_CODE DcpProducer::bufferAcknowledgement(uint32_t opaque,
-                                                     Vbid vbucket,
-                                                     uint32_t buffer_bytes) {
+cb::engine_errc DcpProducer::bufferAcknowledgement(uint32_t opaque,
+                                                   Vbid vbucket,
+                                                   uint32_t buffer_bytes) {
     lastReceiveTime = ep_current_time();
     log.acknowledge(buffer_bytes);
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE DcpProducer::deletionV1OrV2(
-        IncludeDeleteTime includeDeleteTime,
-        MutationResponse& mutationResponse,
-        DcpMessageProducersIface& producers,
-        std::unique_ptr<Item> itmCpy,
-        ENGINE_ERROR_CODE ret,
-        cb::mcbp::DcpStreamId sid) {
+cb::engine_errc DcpProducer::deletionV1OrV2(IncludeDeleteTime includeDeleteTime,
+                                            MutationResponse& mutationResponse,
+                                            DcpMessageProducersIface& producers,
+                                            std::unique_ptr<Item> itmCpy,
+                                            cb::engine_errc ret,
+                                            cb::mcbp::DcpStreamId sid) {
     if (includeDeleteTime == IncludeDeleteTime::Yes) {
         ret = producers.deletion_v2(mutationResponse.getOpaque(),
                                     toUniqueItemPtr(std::move(itmCpy)),
@@ -893,9 +892,9 @@ ENGINE_ERROR_CODE DcpProducer::deletionV1OrV2(
     return ret;
 }
 
-ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
-                                       std::string_view key,
-                                       std::string_view value) {
+cb::engine_errc DcpProducer::control(uint32_t opaque,
+                                     std::string_view key,
+                                     std::string_view value) {
     lastReceiveTime = ep_current_time();
     const char* param = key.data();
     std::string keyStr(key.data(), key.size());
@@ -912,9 +911,9 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
                     getCookie(),
                     "Unsupported value '" + keyStr +
                             "' for ctrl parameter 'backfill_order'");
-            return ENGINE_EINVAL;
+            return cb::engine_errc::invalid_arguments;
         }
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
 
     } else if (strncmp(param, "connection_buffer_size", key.size()) == 0) {
         uint32_t size;
@@ -922,41 +921,41 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
             /* Size 0 implies the client (DCP consumer) does not support
                flow control */
             log.setBufferSize(size);
-            return ENGINE_SUCCESS;
+            return cb::engine_errc::success;
         }
     } else if (strncmp(param, "stream_buffer_size", key.size()) == 0) {
         logger->warn(
                 "The ctrl parameter stream_buffer_size is"
                 "not supported by this engine");
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     } else if (strncmp(param, "enable_noop", key.size()) == 0) {
         if (valueStr == "true") {
             noopCtx.enabled = true;
         } else {
             noopCtx.enabled = false;
         }
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     } else if (strncmp(param, "enable_ext_metadata", key.size()) == 0) {
         if (valueStr == "true") {
             enableExtMetaData = true;
         } else {
             enableExtMetaData = false;
         }
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     } else if (strncmp(param, "force_value_compression", key.size()) == 0) {
         if (!engine_.isDatatypeSupported(getCookie(),
                                PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
             engine_.setErrorContext(getCookie(), "The ctrl parameter "
                   "force_value_compression is only supported if datatype "
                   "snappy is enabled on the connection");
-            return ENGINE_EINVAL;
+            return cb::engine_errc::invalid_arguments;
         }
         if (valueStr == "true") {
             forceValueCompression = true;
         } else {
             forceValueCompression = false;
         }
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
         // vulcan onwards we accept two cursor_dropping control keys.
     } else if (keyStr == "supports_cursor_dropping_vulcan" ||
                keyStr == "supports_cursor_dropping") {
@@ -965,10 +964,10 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
         } else {
             supportsCursorDropping = false;
         }
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     } else if (strncmp(param, "supports_hifi_MFU", key.size()) == 0) {
         consumerSupportsHifiMfu = (valueStr == "true");
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     } else if (strncmp(param, "set_noop_interval", key.size()) == 0) {
         uint32_t noopInterval;
         if (parseUint32(valueStr.c_str(), &noopInterval)) {
@@ -981,7 +980,7 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
             if (noopInterval % engine_.getConfiguration().
                     getConnectionManagerInterval() == 0) {
                 noopCtx.dcpNoopTxInterval = std::chrono::seconds(noopInterval);
-                return ENGINE_SUCCESS;
+                return cb::engine_errc::success;
             } else {
                 logger->warn(
                         "The ctrl parameter "
@@ -992,19 +991,19 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
                         noopInterval,
                         engine_.getConfiguration()
                                 .getConnectionManagerInterval());
-                return ENGINE_EINVAL;
+                return cb::engine_errc::invalid_arguments;
             }
         }
     } else if (strncmp(param, "set_priority", key.size()) == 0) {
         if (valueStr == "high") {
             engine_.setDCPPriority(getCookie(), ConnectionPriority::High);
-            return ENGINE_SUCCESS;
+            return cb::engine_errc::success;
         } else if (valueStr == "medium") {
             engine_.setDCPPriority(getCookie(), ConnectionPriority::Medium);
-            return ENGINE_SUCCESS;
+            return cb::engine_errc::success;
         } else if (valueStr == "low") {
             engine_.setDCPPriority(getCookie(), ConnectionPriority::Low);
-            return ENGINE_SUCCESS;
+            return cb::engine_errc::success;
         }
     } else if (keyStr == "send_stream_end_on_client_close_stream") {
         if (valueStr == "true") {
@@ -1014,7 +1013,7 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
            Default is disabled, client has only a choice to enable.
            This is a one time setting and there is no point giving the client an
            option to toggle it back mid way during the connection */
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     } else if (strncmp(param, "enable_expiry_opcode", key.size()) == 0) {
         // Expiry opcode uses the same encoding as deleteV2 (includes
         // delete time); therefore a client can only enable expiry_opcode
@@ -1022,82 +1021,82 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
         enableExpiryOpcode = valueStr == "true" &&
                              includeDeleteTime == IncludeDeleteTime::Yes;
 
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     } else if (keyStr == "enable_stream_id") {
         // For simplicity, user cannot turn this off, it is by default off
         // and can only be enabled one-way per Producer.
         if (valueStr == "true") {
             if (supportsSyncReplication != SyncReplication::No) {
                 // MB-32318: stream-id and sync-replication denied
-                return ENGINE_ENOTSUP;
+                return cb::engine_errc::not_supported;
             }
             multipleStreamRequests = MultipleStreamRequests::Yes;
-            return ENGINE_SUCCESS;
+            return cb::engine_errc::success;
         }
     } else if (key == "enable_sync_writes") {
         if (valueStr == "true") {
             if (multipleStreamRequests != MultipleStreamRequests::No) {
                 // MB-32318: stream-id and sync-replication denied
-                return ENGINE_ENOTSUP;
+                return cb::engine_errc::not_supported;
             }
             supportsSyncReplication = SyncReplication::SyncWrites;
             if (!consumerName.empty()) {
                 supportsSyncReplication = SyncReplication::SyncReplication;
             }
-            return ENGINE_SUCCESS;
+            return cb::engine_errc::success;
         }
     } else if (key == "consumer_name" && !valueStr.empty()) {
         consumerName = valueStr;
         if (supportsSyncReplication == SyncReplication::SyncWrites) {
             supportsSyncReplication = SyncReplication::SyncReplication;
         }
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     } else if (key == "enable_out_of_order_snapshots") {
         // For simplicity, only enabling is allowed (it is off by default)
         if (valueStr == "true") {
             outOfOrderSnapshots = OutOfOrderSnapshots::Yes;
-            return ENGINE_SUCCESS;
+            return cb::engine_errc::success;
         }
     } else if (key == "include_deleted_user_xattrs") {
         if (valueStr == "true") {
             if (includeDeletedUserXattrs == IncludeDeletedUserXattrs::Yes) {
-                return ENGINE_SUCCESS;
+                return cb::engine_errc::success;
             } else {
                 // Note: Return here as there is no invalid param, we just want
                 // to inform the DCP client that this Producer does not enable
                 // IncludeDeletedUserXattrs, so we do not want to log as below
-                return ENGINE_EINVAL;
+                return cb::engine_errc::invalid_arguments;
             }
         }
     } else if (key == "v7_dcp_status_codes") {
         if (valueStr == "true") {
             enabledV7DcpStatus = true;
-            return ENGINE_SUCCESS;
+            return cb::engine_errc::success;
         } else {
-            return ENGINE_EINVAL;
+            return cb::engine_errc::invalid_arguments;
         }
     }
 
     logger->warn("Invalid ctrl parameter '{}' for {}", valueStr, keyStr);
 
-    return ENGINE_EINVAL;
+    return cb::engine_errc::invalid_arguments;
 }
 
-ENGINE_ERROR_CODE DcpProducer::seqno_acknowledged(uint32_t opaque,
-                                                  Vbid vbucket,
-                                                  uint64_t prepared_seqno) {
+cb::engine_errc DcpProducer::seqno_acknowledged(uint32_t opaque,
+                                                Vbid vbucket,
+                                                uint64_t prepared_seqno) {
     if (!isSyncReplicationEnabled()) {
         logger->warn(
                 "({}) seqno_acknowledge failed because SyncReplication is"
                 " not enabled on this Producer");
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 
     if (consumerName.empty()) {
         logger->warn(
                 "({}) seqno_acknowledge failed because this producer does"
                 " not have an associated consumer name");
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 
     VBucketPtr vb = engine_.getVBucket(vbucket);
@@ -1106,7 +1105,7 @@ ENGINE_ERROR_CODE DcpProducer::seqno_acknowledged(uint32_t opaque,
                 "({}) seqno_acknowledge failed because this vbucket doesn't "
                 "exist",
                 vbucket);
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     logger->debug("({}) seqno_acknowledged: prepared_seqno:{}",
@@ -1136,7 +1135,7 @@ ENGINE_ERROR_CODE DcpProducer::seqno_acknowledged(uint32_t opaque,
         // stream and removed the stream from our map but the consumer is
         // not yet aware and we have received a seqno ack. Just return
         // success and ignore the ack.
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     if (seqnoAckHook) {
@@ -1308,12 +1307,12 @@ std::pair<std::shared_ptr<Stream>, bool> DcpProducer::closeStreamInner(
     return {stream, vbFound};
 }
 
-ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque,
-                                           Vbid vbucket,
-                                           cb::mcbp::DcpStreamId sid) {
+cb::engine_errc DcpProducer::closeStream(uint32_t opaque,
+                                         Vbid vbucket,
+                                         cb::mcbp::DcpStreamId sid) {
     lastReceiveTime = ep_current_time();
     if (doDisconnect()) {
-        return ENGINE_DISCONNECT;
+        return cb::engine_errc::disconnect;
     }
 
     if (!sid && multipleStreamRequests == MultipleStreamRequests::Yes) {
@@ -1321,7 +1320,7 @@ ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque,
                 "({}) closeStream request failed because a valid "
                 "stream-ID is required.",
                 vbucket);
-        return ENGINE_DCP_STREAMID_INVALID;
+        return cb::engine_errc::dcp_streamid_invalid;
     } else if (sid && multipleStreamRequests == MultipleStreamRequests::No) {
         logger->warn(
                 "({}) closeStream request failed because a "
@@ -1329,7 +1328,7 @@ ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque,
                 "but not required.",
                 vbucket,
                 sid);
-        return ENGINE_DCP_STREAMID_INVALID;
+        return cb::engine_errc::dcp_streamid_invalid;
     }
 
     /* We should not remove the stream from the streams map if we have to
@@ -1338,15 +1337,15 @@ ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque,
        stream should be removed if found*/
     auto rv = closeStreamInner(vbucket, sid, !sendStreamEndOnClientStreamClose);
 
-    ENGINE_ERROR_CODE ret;
+    cb::engine_errc ret;
     if (!rv.first) {
         logger->warn(
                 "({}) Cannot close stream because no "
                 "stream exists for this vbucket {}",
                 vbucket,
                 sid);
-        return sid && rv.second ? ENGINE_DCP_STREAMID_INVALID
-                                : ENGINE_KEY_ENOENT;
+        return sid && rv.second ? cb::engine_errc::dcp_streamid_invalid
+                                : cb::engine_errc::no_such_key;
     } else {
         if (!rv.first->isActive()) {
             logger->warn(
@@ -1354,10 +1353,10 @@ ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque,
                     "stream is already marked as dead {}",
                     vbucket,
                     sid);
-            ret = ENGINE_KEY_ENOENT;
+            ret = cb::engine_errc::no_such_key;
         } else {
             rv.first->setDead(cb::mcbp::DcpStreamEndStatus::Closed);
-            ret = ENGINE_SUCCESS;
+            ret = cb::engine_errc::success;
         }
         if (!sendStreamEndOnClientStreamClose) {
             /* Remove the conn from 'vb_conns map' only when we have removed the
@@ -1806,7 +1805,7 @@ void DcpProducer::scheduleNotify() {
     engine_.getDcpConnMap().addConnectionToPending(shared_from_this());
 }
 
-ENGINE_ERROR_CODE DcpProducer::maybeDisconnect() {
+cb::engine_errc DcpProducer::maybeDisconnect() {
     const auto now = ep_current_time();
     auto elapsedTime = now - lastReceiveTime;
     auto dcpIdleTimeout = getIdleTimeout();
@@ -1826,19 +1825,19 @@ ENGINE_ERROR_CODE DcpProducer::maybeDisconnect() {
                 noopCtx.dcpNoopTxInterval.count(),
                 noopCtx.opaque,
                 noopCtx.pendingRecv ? "true" : "false");
-        return ENGINE_DISCONNECT;
+        return cb::engine_errc::disconnect;
     }
-    // Returning ENGINE_FAILED means ignore and continue
+    // Returning cb::engine_errc::failed means ignore and continue
     // without disconnecting
-    return ENGINE_FAILED;
+    return cb::engine_errc::failed;
 }
 
-ENGINE_ERROR_CODE DcpProducer::maybeSendNoop(
+cb::engine_errc DcpProducer::maybeSendNoop(
         DcpMessageProducersIface& producers) {
     if (!noopCtx.enabled) {
-        // Returning ENGINE_FAILED means ignore and continue
+        // Returning cb::engine_errc::failed means ignore and continue
         // without sending a noop
-        return ENGINE_FAILED;
+        return cb::engine_errc::failed;
     }
     std::chrono::seconds elapsedTime(ep_current_time() - noopCtx.sendTime);
 
@@ -1847,7 +1846,7 @@ ENGINE_ERROR_CODE DcpProducer::maybeSendNoop(
     if (!noopCtx.pendingRecv && elapsedTime >= noopCtx.dcpNoopTxInterval) {
         const auto ret = producers.noop(++noopCtx.opaque);
 
-        if (ret == ENGINE_SUCCESS) {
+        if (ret == cb::engine_errc::success) {
             noopCtx.pendingRecv = true;
             noopCtx.sendTime = ep_current_time();
             lastSendTime = noopCtx.sendTime;
@@ -1858,7 +1857,7 @@ ENGINE_ERROR_CODE DcpProducer::maybeSendNoop(
     // We have already sent a noop and are awaiting a receive or
     // the time interval has not passed.  In either case continue
     // without sending a noop.
-    return ENGINE_FAILED;
+    return cb::engine_errc::failed;
 }
 
 void DcpProducer::clearQueues() {

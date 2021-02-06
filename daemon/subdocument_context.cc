@@ -328,7 +328,7 @@ std::string SubdocCmdContext::macroToString(cb::xattr::macros::macro macro,
     return ss.str();
 }
 
-ENGINE_ERROR_CODE SubdocCmdContext::pre_link_document(item_info& info) {
+cb::engine_errc SubdocCmdContext::pre_link_document(item_info& info) {
     if (do_macro_expansion) {
         cb::char_buffer blob_buffer{static_cast<char*>(info.value[0].iov_base),
                                     info.value[0].iov_len};
@@ -340,7 +340,7 @@ ENGINE_ERROR_CODE SubdocCmdContext::pre_link_document(item_info& info) {
             // The segment is no longer there (we may have had another
             // subdoc command which rewrote the segment where we injected
             // the macro.
-            return ENGINE_SUCCESS;
+            return cb::engine_errc::success;
         }
 
         // Replace the CAS
@@ -367,7 +367,7 @@ ENGINE_ERROR_CODE SubdocCmdContext::pre_link_document(item_info& info) {
         }
     }
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 bool SubdocCmdContext::containsMacro(cb::xattr::macros::macro macro) {
@@ -686,8 +686,8 @@ cb::mcbp::Status SubdocCmdContext::get_document_for_searching(
     if (info.cas == LOCKED_CAS) {
         // Check that item is not locked:
         if (client_cas == 0 || client_cas == LOCKED_CAS) {
-            if (c.remapErrorCode(ENGINE_LOCKED_TMPFAIL) ==
-                ENGINE_LOCKED_TMPFAIL) {
+            if (c.remapErrorCode(cb::engine_errc::locked_tmpfail) ==
+                cb::engine_errc::locked_tmpfail) {
                 return cb::mcbp::Status::Locked;
             } else {
                 return cb::mcbp::Status::Etmpfail;

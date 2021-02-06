@@ -120,15 +120,15 @@ public:
 
     std::vector<ExTask> deinitialize() override;
 
-    ENGINE_ERROR_CODE set(Item& item,
-                          const void* cookie,
-                          cb::StoreIfPredicate predicate = {}) override;
+    cb::engine_errc set(Item& item,
+                        const void* cookie,
+                        cb::StoreIfPredicate predicate = {}) override;
 
-    ENGINE_ERROR_CODE add(Item &item, const void *cookie) override;
+    cb::engine_errc add(Item& item, const void* cookie) override;
 
-    ENGINE_ERROR_CODE replace(Item& item,
-                              const void* cookie,
-                              cb::StoreIfPredicate predicate = {}) override;
+    cb::engine_errc replace(Item& item,
+                            const void* cookie,
+                            cb::StoreIfPredicate predicate = {}) override;
 
     GetValue get(const DocKey& key,
                  Vbid vbucket,
@@ -142,14 +142,14 @@ public:
                         const void* cookie,
                         get_options_t options) override;
 
-    ENGINE_ERROR_CODE getMetaData(const DocKey& key,
-                                  Vbid vbucket,
-                                  const void* cookie,
-                                  ItemMetaData& metadata,
-                                  uint32_t& deleted,
-                                  uint8_t& datatype) override;
+    cb::engine_errc getMetaData(const DocKey& key,
+                                Vbid vbucket,
+                                const void* cookie,
+                                ItemMetaData& metadata,
+                                uint32_t& deleted,
+                                uint8_t& datatype) override;
 
-    ENGINE_ERROR_CODE setWithMeta(
+    cb::engine_errc setWithMeta(
             Item& item,
             uint64_t cas,
             uint64_t* seqno,
@@ -161,14 +161,14 @@ public:
             GenerateCas genCas = GenerateCas::No,
             ExtendedMetaData* emd = nullptr) override;
 
-    ENGINE_ERROR_CODE prepare(Item& item, const void* cookie) override;
+    cb::engine_errc prepare(Item& item, const void* cookie) override;
 
     GetValue getAndUpdateTtl(const DocKey& key,
                              Vbid vbucket,
                              const void* cookie,
                              time_t exptime) override;
 
-    ENGINE_ERROR_CODE deleteItem(
+    cb::engine_errc deleteItem(
             const DocKey& key,
             uint64_t& cas,
             Vbid vbucket,
@@ -177,19 +177,19 @@ public:
             ItemMetaData* itemMeta,
             mutation_descr_t& mutInfo) override;
 
-    ENGINE_ERROR_CODE deleteWithMeta(const DocKey& key,
-                                     uint64_t& cas,
-                                     uint64_t* seqno,
-                                     Vbid vbucket,
-                                     const void* cookie,
-                                     PermittedVBStates permittedVBStates,
-                                     CheckConflicts checkConflicts,
-                                     const ItemMetaData& itemMeta,
-                                     GenerateBySeqno genBySeqno,
-                                     GenerateCas generateCas,
-                                     uint64_t bySeqno,
-                                     ExtendedMetaData* emd,
-                                     DeleteSource deleteSource) override;
+    cb::engine_errc deleteWithMeta(const DocKey& key,
+                                   uint64_t& cas,
+                                   uint64_t* seqno,
+                                   Vbid vbucket,
+                                   const void* cookie,
+                                   PermittedVBStates permittedVBStates,
+                                   CheckConflicts checkConflicts,
+                                   const ItemMetaData& itemMeta,
+                                   GenerateBySeqno genBySeqno,
+                                   GenerateCas generateCas,
+                                   uint64_t bySeqno,
+                                   ExtendedMetaData* emd,
+                                   DeleteSource deleteSource) override;
 
     void reset() override;
 
@@ -299,11 +299,11 @@ public:
      *
      * @return status of the operation
      */
-    ENGINE_ERROR_CODE setVBucketState(Vbid vbid,
-                                      vbucket_state_t state,
-                                      const nlohmann::json* meta = {},
-                                      TransferVB transfer = TransferVB::No,
-                                      const void* cookie = nullptr);
+    cb::engine_errc setVBucketState(Vbid vbid,
+                                    vbucket_state_t state,
+                                    const nlohmann::json* meta = {},
+                                    TransferVB transfer = TransferVB::No,
+                                    const void* cookie = nullptr);
 
     /**
      * Sets the vbucket to the desired state
@@ -339,11 +339,10 @@ public:
      *
      * @return status of the operation
      */
-    ENGINE_ERROR_CODE createVBucket_UNLOCKED(
-            Vbid vbid,
-            vbucket_state_t state,
-            const nlohmann::json* meta,
-            std::unique_lock<std::mutex>& vbset);
+    cb::engine_errc createVBucket_UNLOCKED(Vbid vbid,
+                                           vbucket_state_t state,
+                                           const nlohmann::json* meta,
+                                           std::unique_lock<std::mutex>& vbset);
     /**
      * Returns the 'vbsetMutex'
      */
@@ -351,9 +350,9 @@ public:
         return vbsetMutex;
     }
 
-    ENGINE_ERROR_CODE deleteVBucket(Vbid vbid, const void* c = nullptr) override;
+    cb::engine_errc deleteVBucket(Vbid vbid, const void* c = nullptr) override;
 
-    ENGINE_ERROR_CODE checkForDBExistence(Vbid db_file_id) override;
+    cb::engine_errc checkForDBExistence(Vbid db_file_id) override;
 
     bool resetVBucket(Vbid vbid) override;
 
@@ -375,11 +374,11 @@ public:
 
     Warmup* getWarmup() const override;
 
-    ENGINE_ERROR_CODE getKeyStats(const DocKey& key,
-                                  Vbid vbucket,
-                                  const void* cookie,
-                                  key_stats& kstats,
-                                  WantsDeleted wantsDeleted) override;
+    cb::engine_errc getKeyStats(const DocKey& key,
+                                Vbid vbucket,
+                                const void* cookie,
+                                key_stats& kstats,
+                                WantsDeleted wantsDeleted) override;
 
     std::string validateKey(const DocKey& key, Vbid vbucket, Item& diskItem) override;
 
@@ -389,11 +388,11 @@ public:
                        uint32_t lockTimeout,
                        const void* cookie) override ;
 
-    ENGINE_ERROR_CODE unlockKey(const DocKey& key,
-                                Vbid vbucket,
-                                uint64_t cas,
-                                rel_time_t currentTime,
-                                const void* cookie) override;
+    cb::engine_errc unlockKey(const DocKey& key,
+                              Vbid vbucket,
+                              uint64_t cas,
+                              rel_time_t currentTime,
+                              const void* cookie) override;
 
     KVStore* getRWUnderlying(Vbid vbId) override {
         return vbMap.getShardByVbId(vbId)->getRWUnderlying();
@@ -639,7 +638,7 @@ public:
 
     size_t getReplicaResidentRatio() const override;
 
-    ENGINE_ERROR_CODE forceMaxCas(Vbid vbucket, uint64_t cas) override;
+    cb::engine_errc forceMaxCas(Vbid vbucket, uint64_t cas) override;
 
     VBucketPtr makeVBucket(Vbid id,
                            vbucket_state_t state,
@@ -739,7 +738,7 @@ public:
      * @param level
      * @return success if the operation succeeds, an error code otherwise
      */
-    ENGINE_ERROR_CODE setMinDurabilityLevel(cb::durability::Level level);
+    cb::engine_errc setMinDurabilityLevel(cb::durability::Level level);
 
     cb::durability::Level getMinDurabilityLevel() const;
 

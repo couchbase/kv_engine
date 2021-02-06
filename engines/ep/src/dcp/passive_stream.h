@@ -97,7 +97,7 @@ public:
      * @params response The dcp message that needs to be processed.
      * @returns the error code from processing the message.
      */
-    virtual ENGINE_ERROR_CODE messageReceived(
+    virtual cb::engine_errc messageReceived(
             std::unique_ptr<DcpResponse> response);
 
     void addStats(const AddStatFn& add_stat, const void* c) override;
@@ -135,41 +135,40 @@ protected:
      * @param message The message sent to the DcpConsumer/PassiveStream
      * @param messageType The type of message to process (see MessageType enum)
      */
-    ENGINE_ERROR_CODE processMessage(MutationConsumerMessage* message,
-                                     MessageType messageType);
+    cb::engine_errc processMessage(MutationConsumerMessage* message,
+                                   MessageType messageType);
     /**
      * Deal with incoming mutation sent to the DcpConsumer/PassiveStream by
      * passing to processMessage with MessageType::Mutation
      */
-    virtual ENGINE_ERROR_CODE processMutation(
-            MutationConsumerMessage* mutation);
+    virtual cb::engine_errc processMutation(MutationConsumerMessage* mutation);
     /**
      * Deal with incoming deletion sent to the DcpConsumer/PassiveStream by
      * passing to processMessage with MessageType::Deletion
      */
-    ENGINE_ERROR_CODE processDeletion(MutationConsumerMessage* deletion);
+    cb::engine_errc processDeletion(MutationConsumerMessage* deletion);
 
     /**
      * Deal with incoming expiration sent to the DcpConsumer/PassiveStream by
      * passing to processMessage with MessageType::Expiration
      */
-    ENGINE_ERROR_CODE processExpiration(MutationConsumerMessage* expiration);
+    cb::engine_errc processExpiration(MutationConsumerMessage* expiration);
 
     /// Process an incoming prepare.
-    ENGINE_ERROR_CODE processPrepare(MutationConsumerMessage* expiration);
+    cb::engine_errc processPrepare(MutationConsumerMessage* expiration);
 
     /// Process an incoming commit of a SyncWrite.
-    ENGINE_ERROR_CODE processCommit(const CommitSyncWrite& commit);
+    cb::engine_errc processCommit(const CommitSyncWrite& commit);
 
     /// Process an incoming abort of a SyncWrite.
-    ENGINE_ERROR_CODE processAbort(const AbortSyncWrite& abort);
+    cb::engine_errc processAbort(const AbortSyncWrite& abort);
 
     /**
      * Handle DCP system events against this stream.
      *
      * @param event The system-event to process against the stream.
      */
-    ENGINE_ERROR_CODE processSystemEvent(const SystemEventMessage& event);
+    cb::engine_errc processSystemEvent(const SystemEventMessage& event);
 
     /**
      * Process a create collection event, creating the collection on vb
@@ -177,8 +176,8 @@ protected:
      * @param vb Vbucket onto which the collection is created.
      * @param event The collection system event creating the collection.
      */
-    ENGINE_ERROR_CODE processCreateCollection(
-            VBucket& vb, const CreateCollectionEvent& event);
+    cb::engine_errc processCreateCollection(VBucket& vb,
+                                            const CreateCollectionEvent& event);
 
     /**
      * Process a begin delete collection event.
@@ -186,8 +185,8 @@ protected:
      * @param vb Vbucket which we apply the delete on.
      * @param event The collection system event deleting the collection.
      */
-    ENGINE_ERROR_CODE processDropCollection(VBucket& vb,
-                                            const DropCollectionEvent& event);
+    cb::engine_errc processDropCollection(VBucket& vb,
+                                          const DropCollectionEvent& event);
 
     /**
      * Process a create scope event, creating the collection on vb
@@ -195,8 +194,8 @@ protected:
      * @param vb Vbucket onto which the collection is created.
      * @param event The event data for the create
      */
-    ENGINE_ERROR_CODE processCreateScope(VBucket& vb,
-                                         const CreateScopeEvent& event);
+    cb::engine_errc processCreateScope(VBucket& vb,
+                                       const CreateScopeEvent& event);
 
     /**
      * Process a drop scope event
@@ -204,8 +203,7 @@ protected:
      * @param vb Vbucket which we apply the drop to
      * @param event The event data for the drop
      */
-    ENGINE_ERROR_CODE processDropScope(VBucket& vb,
-                                       const DropScopeEvent& event);
+    cb::engine_errc processDropScope(VBucket& vb, const DropScopeEvent& event);
 
     void handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno);
 

@@ -22,9 +22,9 @@
 #include <daemon/memcached.h>
 #include <utilities/engine_errc_2_mcbp.h>
 
-std::pair<ENGINE_ERROR_CODE, std::string> list_bucket(Connection& connection) {
+std::pair<cb::engine_errc, std::string> list_bucket(Connection& connection) {
     if (!connection.isAuthenticated()) {
-        return std::make_pair(ENGINE_EACCESS, "");
+        return std::make_pair(cb::engine_errc::no_access, "");
     }
 
     // The list bucket command is a bit racy (as it other threads may
@@ -67,15 +67,15 @@ std::pair<ENGINE_ERROR_CODE, std::string> list_bucket(Connection& connection) {
         blob.pop_back();
     }
 
-    return std::make_pair(ENGINE_SUCCESS, blob);
+    return std::make_pair(cb::engine_errc::success, blob);
 }
 
 void list_bucket_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
-    std::pair<ENGINE_ERROR_CODE, std::string> ret;
+    std::pair<cb::engine_errc, std::string> ret;
     try {
         ret = list_bucket(connection);
-        if (ret.first == ENGINE_SUCCESS) {
+        if (ret.first == cb::engine_errc::success) {
             cookie.sendResponse(cb::mcbp::Status::Success,
                                 {},
                                 {},
@@ -85,7 +85,7 @@ void list_bucket_executor(Cookie& cookie) {
             return;
         }
     } catch (const std::bad_alloc&) {
-        ret.first = ENGINE_ENOMEM;
+        ret.first = cb::engine_errc::no_memory;
     }
 
     handle_executor_status(cookie, ret.first);

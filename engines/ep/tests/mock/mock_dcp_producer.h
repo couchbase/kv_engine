@@ -41,11 +41,11 @@ public:
 
     using DcpProducer::updateStreamsMap;
 
-    ENGINE_ERROR_CODE maybeDisconnect() {
+    cb::engine_errc maybeDisconnect() {
         return DcpProducer::maybeDisconnect();
     }
 
-    ENGINE_ERROR_CODE maybeSendNoop(DcpMessageProducersIface& producers) {
+    cb::engine_errc maybeSendNoop(DcpMessageProducersIface& producers) {
         return DcpProducer::maybeSendNoop(producers);
     }
 
@@ -175,8 +175,8 @@ public:
     /**
      * Step the producer and expect the opcode to be returned
      */
-    ENGINE_ERROR_CODE stepAndExpect(MockDcpMessageProducers& producers,
-                                    cb::mcbp::ClientOpcode expectedOpcode);
+    cb::engine_errc stepAndExpect(MockDcpMessageProducers& producers,
+                                  cb::mcbp::ClientOpcode expectedOpcode);
 
     /**
      * Call step(), but wrap the producers with a DcpMsgProducersBorderGuard (
@@ -185,7 +185,7 @@ public:
      * Useful when operating directly on a (Mock)DcpProducer object without
      * ep_engine, but need to ensure currentEngine switching is still correct.
      */
-    ENGINE_ERROR_CODE stepWithBorderGuard(DcpMessageProducersIface& producers);
+    cb::engine_errc stepWithBorderGuard(DcpMessageProducersIface& producers);
 
     void enableMultipleStreamRequests() {
         multipleStreamRequests = MultipleStreamRequests::Yes;

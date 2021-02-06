@@ -212,7 +212,7 @@ protected:
     static TestBucketImpl& GetTestBucket();
 
     /* Configure the ewouldblock error-injecting engine */
-    static void ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
+    static void ewouldblock_engine_configure(cb::engine_errc err_code,
                                              const EWBEngineMode& mode,
                                              uint32_t value,
                                              const std::string& key = "");

@@ -60,7 +60,7 @@ public:
         if (!persistent()) {
             // Persistent will recreate the VB from the disk metadata so for
             // ephemeral do an explicit set state.
-            EXPECT_EQ(ENGINE_SUCCESS,
+            EXPECT_EQ(cb::engine_errc::success,
                       store->setVBucketState(vbid, vbucket_state_active));
         }
     }
@@ -349,7 +349,8 @@ TEST_P(CollectionsEraserTest, default_Destroy) {
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
 
-    EXPECT_EQ(ENGINE_KEY_ENOENT, checkKeyExists(key1, vbid, options));
+    EXPECT_EQ(cb::engine_errc::no_such_key,
+              checkKeyExists(key1, vbid, options));
 }
 
 // Test that following a full drop (compaction completes the deletion), warmup
@@ -688,11 +689,11 @@ TEST_P(CollectionsEraserTest, EraserFindsPrepares) {
     // Do our SyncWrite
     auto key = makeStoredDocKey("syncwrite");
     auto item = makePendingItem(key, "value");
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // And commit it
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               vb->commit(key,
                          2 /*prepareSeqno*/,
                          {} /*commitSeqno*/,
@@ -738,7 +739,7 @@ TEST_P(CollectionsEraserTest, PrepareCountCorrectAfterErase) {
     // Do our SyncWrite
     auto key = StoredDocKey{"milk", CollectionEntry::dairy};
     auto item = makePendingItem(key, "value");
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     if (isMagma()) {
@@ -749,7 +750,7 @@ TEST_P(CollectionsEraserTest, PrepareCountCorrectAfterErase) {
     }
 
     // And commit it
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               vb->commit(key,
                          2 /*prepareSeqno*/,
                          {} /*commitSeqno*/,
@@ -765,7 +766,7 @@ TEST_P(CollectionsEraserTest, PrepareCountCorrectAfterErase) {
 
     // Do our SyncWrite
     item = makePendingItem(key, "value2");
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     if (isMagma()) {
@@ -775,7 +776,7 @@ TEST_P(CollectionsEraserTest, PrepareCountCorrectAfterErase) {
     }
 
     // And commit it
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               vb->commit(key,
                          4 /*prepareSeqno*/,
                          {} /*commitSeqno*/,
@@ -1034,7 +1035,7 @@ TEST_P(CollectionsEraserTest, DeleteExpiryResurrectionTest) {
     // collection and it should NOT try to expire it.
     uint64_t cas = item.getCas();
     mutation_descr_t mutation_descr;
-    ASSERT_EQ(ENGINE_KEY_ENOENT,
+    ASSERT_EQ(cb::engine_errc::no_such_key,
               store->deleteItem(key,
                                 cas,
                                 vbid,
@@ -1134,7 +1135,7 @@ protected:
 
         if (deleted) {
             auto item = makeCommittedItem(key, "value");
-            EXPECT_EQ(ENGINE_SUCCESS, store->set(*item, cookie));
+            EXPECT_EQ(cb::engine_errc::success, store->set(*item, cookie));
             flushVBucketToDiskIfPersistent(vbid, 1);
             // Delete changed the stats
             persistedHighSeqno = vb->lockCollections().getPersistedHighSeqno(
@@ -1143,7 +1144,7 @@ protected:
             mutation_descr_t delInfo;
             uint64_t cas = item->getCas();
             using namespace cb::durability;
-            EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING,
+            EXPECT_EQ(cb::engine_errc::sync_write_pending,
                       store->deleteItem(key,
                                         cas,
                                         vbid,
@@ -1153,7 +1154,8 @@ protected:
                                         delInfo));
         } else {
             auto item = makePendingItem(key, "value");
-            EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+            EXPECT_EQ(cb::engine_errc::sync_write_pending,
+                      store->set(*item, cookie));
         }
         flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -1182,7 +1184,7 @@ protected:
     }
 
     void commit() {
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   vb->commit(key,
                              2 /*prepareSeqno*/,
                              {} /*commitSeqno*/,
@@ -1198,7 +1200,7 @@ protected:
     }
 
     void abort() {
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   vb->abort(key,
                             2 /*prepareSeqno*/,
                             {} /*commitSeqno*/,
@@ -1321,7 +1323,7 @@ TEST_P(CollectionsEraserSyncWriteTest,
     // Add new write
     auto newKey = makeStoredDocKey("defaultCKey");
     auto item = makePendingItem(newKey, "value");
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Seqno ack to start a commit
@@ -1505,10 +1507,10 @@ void CollectionsEraserPersistentOnly::testEmptyCollectionsWithPending(
 
     auto item = makePendingItem(StoredDocKey{"orange", CollectionEntry::fruit},
                                 "v");
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
     item = makePendingItem(StoredDocKey{"cheese", CollectionEntry::dairy},
                            "vv");
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, store->set(*item, cookie));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
 
     // 2x prepares
     waitingForFlush += 2;
@@ -1670,7 +1672,7 @@ TEST_P(CollectionsEraserPersistentOnly, DropManyCompactOnce) {
     std::vector<cb::tracing::Traceable*> cookies;
     for (int ii = 0; ii < nCookies; ii++) {
         cookies.push_back(create_mock_cookie());
-        cookie_to_mock_cookie(cookies.back())->status = ENGINE_FAILED;
+        cookie_to_mock_cookie(cookies.back())->status = cb::engine_errc::failed;
         // Now schedule as if a command had requested (i.e. set a cookie)
         store->scheduleCompaction(
                 vbid, {}, cookies.back(), std::chrono::seconds(0));
@@ -1682,7 +1684,8 @@ TEST_P(CollectionsEraserPersistentOnly, DropManyCompactOnce) {
                 "Compact DB file " + std::to_string(vbid.get()));
 
     for (auto* cookie : cookies) {
-        EXPECT_EQ(ENGINE_SUCCESS, cookie_to_mock_cookie(cookie)->status);
+        EXPECT_EQ(cb::engine_errc::success,
+                  cookie_to_mock_cookie(cookie)->status);
         destroy_mock_cookie(cookie);
     }
 }

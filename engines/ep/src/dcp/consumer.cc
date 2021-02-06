@@ -255,15 +255,15 @@ std::shared_ptr<PassiveStream> DcpConsumer::makePassiveStream(
                                            vb_manifest_uid);
 }
 
-ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque,
-                                         Vbid vbucket,
-                                         uint32_t flags) {
+cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
+                                       Vbid vbucket,
+                                       uint32_t flags) {
     TRACE_EVENT2(
             "DcpConsumer", "addStream", "vbid", vbucket.get(), "flags", flags);
 
     lastMessageTime = ep_current_time();
     if (doDisconnect()) {
-        return ENGINE_DISCONNECT;
+        return cb::engine_errc::disconnect;
     }
 
     VBucketPtr vb = engine_.getVBucket(vbucket);
@@ -271,7 +271,7 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque,
         logger->warn(
                 "({}) Add stream failed because this vbucket doesn't exist",
                 vbucket);
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     if (vb->getState() == vbucket_state_active) {
@@ -279,7 +279,7 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque,
                 "({}) Add stream failed because this vbucket happens to "
                 "be in active state",
                 vbucket);
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     snapshot_info_t info = vb->checkpointManager->getSnapshotInfo();
@@ -303,7 +303,7 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque,
         if(stream->isActive()) {
             logger->warn("({}) Cannot add stream because one already exists",
                          vbucket);
-            return ENGINE_KEY_EEXISTS;
+            return cb::engine_errc::key_already_exists;
         } else {
             removeStream(vbucket);
         }
@@ -338,12 +338,12 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque,
     opaqueMap_[new_opaque] = std::make_pair(opaque, vbucket);
     pendingAddStream = false;
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque,
-                                           Vbid vbucket,
-                                           cb::mcbp::DcpStreamId sid) {
+cb::engine_errc DcpConsumer::closeStream(uint32_t opaque,
+                                         Vbid vbucket,
+                                         cb::mcbp::DcpStreamId sid) {
     TRACE_EVENT2("DcpConsumer",
                  "closeStream",
                  "opaque",
@@ -354,7 +354,7 @@ ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque,
     lastMessageTime = ep_current_time();
     if (doDisconnect()) {
         removeStream(vbucket);
-        return ENGINE_DISCONNECT;
+        return cb::engine_errc::disconnect;
     }
 
     auto oitr = opaqueMap_.find(opaque);
@@ -379,12 +379,12 @@ ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque,
     // STREAM_END is received.
     scheduleNotifyIfNecessary();
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque,
-                                         Vbid vbucket,
-                                         cb::mcbp::DcpStreamEndStatus status) {
+cb::engine_errc DcpConsumer::streamEnd(uint32_t opaque,
+                                       Vbid vbucket,
+                                       cb::mcbp::DcpStreamEndStatus status) {
     TRACE_EVENT2("DcpConsumer",
                  "streamEnd",
                  "vbid",
@@ -417,7 +417,7 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque,
                 vbucket,
                 opaque,
                 stream->getOpaque());
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     logger->info("({}) End stream received with reason {}",
@@ -429,7 +429,7 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque,
     auto res = lookupStreamAndDispatchMessage(
             ufc, vbucket, opaque, std::move(msg));
 
-    if (res == ENGINE_SUCCESS) {
+    if (res == cb::engine_errc::success) {
         // Stream End message successfully passed to stream. Can now remove
         // the stream from the streams map as it has completed its lifetime.
         removeStream(vbucket);
@@ -438,7 +438,7 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque,
     return res;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::processMutationOrPrepare(
+cb::engine_errc DcpConsumer::processMutationOrPrepare(
         Vbid vbucket,
         uint32_t opaque,
         const DocKey& key,
@@ -450,8 +450,8 @@ ENGINE_ERROR_CODE DcpConsumer::processMutationOrPrepare(
     std::unique_ptr<ExtendedMetaData> emd;
     if (!meta.empty()) {
         emd = std::make_unique<ExtendedMetaData>(meta.data(), meta.size());
-        if (emd->getStatus() == ENGINE_EINVAL) {
-            return ENGINE_EINVAL;
+        if (emd->getStatus() == cb::engine_errc::invalid_arguments) {
+            return cb::engine_errc::invalid_arguments;
         }
     }
 
@@ -468,25 +468,25 @@ ENGINE_ERROR_CODE DcpConsumer::processMutationOrPrepare(
     return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }
 
-ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
-                                        const DocKey& key,
-                                        cb::const_byte_buffer value,
-                                        size_t priv_bytes,
-                                        uint8_t datatype,
-                                        uint64_t cas,
-                                        Vbid vbucket,
-                                        uint32_t flags,
-                                        uint64_t bySeqno,
-                                        uint64_t revSeqno,
-                                        uint32_t exptime,
-                                        uint32_t lock_time,
-                                        cb::const_byte_buffer meta,
-                                        uint8_t nru) {
+cb::engine_errc DcpConsumer::mutation(uint32_t opaque,
+                                      const DocKey& key,
+                                      cb::const_byte_buffer value,
+                                      size_t priv_bytes,
+                                      uint8_t datatype,
+                                      uint64_t cas,
+                                      Vbid vbucket,
+                                      uint32_t flags,
+                                      uint64_t bySeqno,
+                                      uint64_t revSeqno,
+                                      uint32_t exptime,
+                                      uint32_t lock_time,
+                                      cb::const_byte_buffer meta,
+                                      uint8_t nru) {
     lastMessageTime = ep_current_time();
 
     if (bySeqno == 0) {
         logger->warn("({}) Invalid sequence number(0) for mutation!", vbucket);
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 
     queued_item item(new Item(key,
@@ -511,16 +511,16 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
                                             value.size());
 }
 
-ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
-                                        const DocKey& key,
-                                        cb::const_byte_buffer value,
-                                        size_t priv_bytes,
-                                        uint8_t datatype,
-                                        uint64_t cas,
-                                        Vbid vbucket,
-                                        uint64_t bySeqno,
-                                        uint64_t revSeqno,
-                                        cb::const_byte_buffer meta) {
+cb::engine_errc DcpConsumer::deletion(uint32_t opaque,
+                                      const DocKey& key,
+                                      cb::const_byte_buffer value,
+                                      size_t priv_bytes,
+                                      uint8_t datatype,
+                                      uint64_t cas,
+                                      Vbid vbucket,
+                                      uint64_t bySeqno,
+                                      uint64_t revSeqno,
+                                      cb::const_byte_buffer meta) {
     return toMainDeletion(DeleteType::Deletion,
                           opaque,
                           key,
@@ -534,16 +534,16 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
                           0);
 }
 
-ENGINE_ERROR_CODE DcpConsumer::deletionV2(uint32_t opaque,
-                                          const DocKey& key,
-                                          cb::const_byte_buffer value,
-                                          size_t priv_bytes,
-                                          uint8_t datatype,
-                                          uint64_t cas,
-                                          Vbid vbucket,
-                                          uint64_t bySeqno,
-                                          uint64_t revSeqno,
-                                          uint32_t deleteTime) {
+cb::engine_errc DcpConsumer::deletionV2(uint32_t opaque,
+                                        const DocKey& key,
+                                        cb::const_byte_buffer value,
+                                        size_t priv_bytes,
+                                        uint8_t datatype,
+                                        uint64_t cas,
+                                        Vbid vbucket,
+                                        uint64_t bySeqno,
+                                        uint64_t revSeqno,
+                                        uint32_t deleteTime) {
     return toMainDeletion(DeleteType::DeletionV2,
                           opaque,
                           key,
@@ -557,27 +557,27 @@ ENGINE_ERROR_CODE DcpConsumer::deletionV2(uint32_t opaque,
                           deleteTime);
 }
 
-ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
-                                        const DocKey& key,
-                                        cb::const_byte_buffer value,
-                                        uint8_t datatype,
-                                        uint64_t cas,
-                                        Vbid vbucket,
-                                        uint64_t bySeqno,
-                                        uint64_t revSeqno,
-                                        cb::const_byte_buffer meta,
-                                        uint32_t deleteTime,
-                                        IncludeDeleteTime includeDeleteTime,
-                                        DeleteSource deletionCause) {
+cb::engine_errc DcpConsumer::deletion(uint32_t opaque,
+                                      const DocKey& key,
+                                      cb::const_byte_buffer value,
+                                      uint8_t datatype,
+                                      uint64_t cas,
+                                      Vbid vbucket,
+                                      uint64_t bySeqno,
+                                      uint64_t revSeqno,
+                                      cb::const_byte_buffer meta,
+                                      uint32_t deleteTime,
+                                      IncludeDeleteTime includeDeleteTime,
+                                      DeleteSource deletionCause) {
     lastMessageTime = ep_current_time();
 
     if (doDisconnect()) {
-        return ENGINE_DISCONNECT;
+        return cb::engine_errc::disconnect;
     }
 
     if (bySeqno == 0) {
         logger->warn("({}) Invalid sequence number(0) for deletion!", vbucket);
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 
     auto stream = findStream(vbucket);
@@ -639,19 +639,19 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
                         "DcpConsumer::deletion: ({}) Value cannot contain a "
                         "body",
                         vbucket);
-                return ENGINE_EINVAL;
+                return cb::engine_errc::invalid_arguments;
             }
 
             item->removeBody();
         }
     }
 
-    ENGINE_ERROR_CODE err;
+    cb::engine_errc err;
     std::unique_ptr<ExtendedMetaData> emd;
     if (!meta.empty()) {
         emd = std::make_unique<ExtendedMetaData>(meta.data(), meta.size());
-        if (emd->getStatus() == ENGINE_EINVAL) {
-            err = ENGINE_EINVAL;
+        if (emd->getStatus() == cb::engine_errc::invalid_arguments) {
+            err = cb::engine_errc::invalid_arguments;
         }
     }
 
@@ -667,27 +667,27 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
                 emd.release(),
                 cb::mcbp::DcpStreamId{}));
     } catch (const std::bad_alloc&) {
-        err = ENGINE_ENOMEM;
+        err = cb::engine_errc::no_memory;
     }
 
     // The item was buffered and will be processed later
-    if (err == ENGINE_TMPFAIL) {
+    if (err == cb::engine_errc::temporary_failure) {
         notifyVbucketReady(vbucket);
     }
 
     return err;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::expiration(uint32_t opaque,
-                                          const DocKey& key,
-                                          cb::const_byte_buffer value,
-                                          size_t priv_bytes,
-                                          uint8_t datatype,
-                                          uint64_t cas,
-                                          Vbid vbucket,
-                                          uint64_t bySeqno,
-                                          uint64_t revSeqno,
-                                          uint32_t deleteTime) {
+cb::engine_errc DcpConsumer::expiration(uint32_t opaque,
+                                        const DocKey& key,
+                                        cb::const_byte_buffer value,
+                                        size_t priv_bytes,
+                                        uint8_t datatype,
+                                        uint64_t cas,
+                                        Vbid vbucket,
+                                        uint64_t bySeqno,
+                                        uint64_t revSeqno,
+                                        uint32_t deleteTime) {
     return toMainDeletion(DeleteType::Expiration,
                           opaque,
                           key,
@@ -701,17 +701,17 @@ ENGINE_ERROR_CODE DcpConsumer::expiration(uint32_t opaque,
                           deleteTime);
 }
 
-ENGINE_ERROR_CODE DcpConsumer::toMainDeletion(DeleteType origin,
-                                              uint32_t opaque,
-                                              const DocKey& key,
-                                              cb::const_byte_buffer value,
-                                              uint8_t datatype,
-                                              uint64_t cas,
-                                              Vbid vbucket,
-                                              uint64_t bySeqno,
-                                              uint64_t revSeqno,
-                                              cb::const_byte_buffer meta,
-                                              uint32_t deleteTime) {
+cb::engine_errc DcpConsumer::toMainDeletion(DeleteType origin,
+                                            uint32_t opaque,
+                                            const DocKey& key,
+                                            cb::const_byte_buffer value,
+                                            uint8_t datatype,
+                                            uint64_t cas,
+                                            Vbid vbucket,
+                                            uint64_t bySeqno,
+                                            uint64_t revSeqno,
+                                            cb::const_byte_buffer meta,
+                                            uint32_t deleteTime) {
     IncludeDeleteTime includeDeleteTime;
     uint32_t bytes = 0;
     DeleteSource deleteSource;
@@ -764,16 +764,16 @@ ENGINE_ERROR_CODE DcpConsumer::toMainDeletion(DeleteType origin,
 
     // TMPFAIL means the stream has buffered the message for later processing
     // so skip flowControl, success or any other error, we still need to ack
-    if (err == ENGINE_TMPFAIL) {
+    if (err == cb::engine_errc::temporary_failure) {
         ufc.release();
         // Mask the TMPFAIL
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     return err;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(
+cb::engine_errc DcpConsumer::snapshotMarker(
         uint32_t opaque,
         Vbid vbucket,
         uint64_t start_seqno,
@@ -798,7 +798,7 @@ ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(
                 vbucket,
                 start_seqno,
                 end_seqno);
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 
     auto msg = std::make_unique<SnapshotMarker>(
@@ -814,14 +814,14 @@ ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(
     return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }
 
-ENGINE_ERROR_CODE DcpConsumer::noop(uint32_t opaque) {
+cb::engine_errc DcpConsumer::noop(uint32_t opaque) {
     lastMessageTime = ep_current_time();
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::setVBucketState(uint32_t opaque,
-                                               Vbid vbucket,
-                                               vbucket_state_t state) {
+cb::engine_errc DcpConsumer::setVBucketState(uint32_t opaque,
+                                             Vbid vbucket,
+                                             vbucket_state_t state) {
     TRACE_EVENT2("DcpConsumer",
                  "setVBucketState",
                  "vbid",
@@ -836,17 +836,18 @@ ENGINE_ERROR_CODE DcpConsumer::setVBucketState(uint32_t opaque,
     return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }
 
-ENGINE_ERROR_CODE DcpConsumer::step(DcpMessageProducersIface& producers) {
+cb::engine_errc DcpConsumer::step(DcpMessageProducersIface& producers) {
     if (doDisconnect()) {
-        return ENGINE_DISCONNECT;
+        return cb::engine_errc::disconnect;
     }
 
     if (pendingAddStream) {
-        return ENGINE_EWOULDBLOCK;
+        return cb::engine_errc::would_block;
     }
 
-    ENGINE_ERROR_CODE ret;
-    if ((ret = flowControl.handleFlowCtl(producers)) != ENGINE_FAILED) {
+    cb::engine_errc ret;
+    if ((ret = flowControl.handleFlowCtl(producers)) !=
+        cb::engine_errc::failed) {
         return ret;
     }
 
@@ -854,53 +855,55 @@ ENGINE_ERROR_CODE DcpConsumer::step(DcpMessageProducersIface& producers) {
     // is a pre-5.0.0 node. The consumer will set the producer's noop-interval
     // accordingly in 'handleNoop()', so 'handleGetErrorMap()' *must* execute
     // before 'handleNoop()'.
-    if ((ret = handleGetErrorMap(producers)) != ENGINE_FAILED) {
+    if ((ret = handleGetErrorMap(producers)) != cb::engine_errc::failed) {
         return ret;
     }
 
-    if ((ret = handleNoop(producers)) != ENGINE_FAILED) {
+    if ((ret = handleNoop(producers)) != cb::engine_errc::failed) {
         return ret;
     }
 
-    if ((ret = handlePriority(producers)) != ENGINE_FAILED) {
+    if ((ret = handlePriority(producers)) != cb::engine_errc::failed) {
         return ret;
     }
 
-    if ((ret = handleExtMetaData(producers)) != ENGINE_FAILED) {
+    if ((ret = handleExtMetaData(producers)) != cb::engine_errc::failed) {
         return ret;
     }
 
-    if ((ret = supportCursorDropping(producers)) != ENGINE_FAILED) {
+    if ((ret = supportCursorDropping(producers)) != cb::engine_errc::failed) {
         return ret;
     }
 
-    if ((ret = supportHifiMFU(producers)) != ENGINE_FAILED) {
+    if ((ret = supportHifiMFU(producers)) != cb::engine_errc::failed) {
         return ret;
     }
 
-    if ((ret = sendStreamEndOnClientStreamClose(producers)) != ENGINE_FAILED) {
+    if ((ret = sendStreamEndOnClientStreamClose(producers)) !=
+        cb::engine_errc::failed) {
         return ret;
     }
 
-    if ((ret = enableExpiryOpcode(producers)) != ENGINE_FAILED) {
+    if ((ret = enableExpiryOpcode(producers)) != cb::engine_errc::failed) {
         return ret;
     }
 
-    if ((ret = enableSynchronousReplication(producers)) != ENGINE_FAILED) {
+    if ((ret = enableSynchronousReplication(producers)) !=
+        cb::engine_errc::failed) {
         return ret;
     }
 
-    if ((ret = handleDeletedUserXattrs(producers)) != ENGINE_FAILED) {
+    if ((ret = handleDeletedUserXattrs(producers)) != cb::engine_errc::failed) {
         return ret;
     }
 
-    if ((ret = enableV7DcpStatus(producers)) != ENGINE_FAILED) {
+    if ((ret = enableV7DcpStatus(producers)) != cb::engine_errc::failed) {
         return ret;
     }
 
     auto resp = getNextItem();
     if (resp == nullptr) {
-        return ENGINE_EWOULDBLOCK;
+        return cb::engine_errc::would_block;
     }
 
     switch (resp->getEvent()) {
@@ -949,7 +952,7 @@ ENGINE_ERROR_CODE DcpConsumer::step(DcpMessageProducersIface& producers) {
         default:
             logger->warn("Unknown consumer event ({}), disconnecting",
                          int(resp->getEvent()));
-            ret = ENGINE_DISCONNECT;
+            ret = cb::engine_errc::disconnect;
     }
 
     return ret;
@@ -1447,9 +1450,9 @@ void DcpConsumer::closeStreamDueToVbStateChange(Vbid vbucket,
     }
 }
 
-ENGINE_ERROR_CODE DcpConsumer::handleNoop(DcpMessageProducersIface& producers) {
+cb::engine_errc DcpConsumer::handleNoop(DcpMessageProducersIface& producers) {
     if (pendingEnableNoop) {
-        ENGINE_ERROR_CODE ret;
+        cb::engine_errc ret;
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
         ret = producers.control(opaque, noopCtrlMsg, val);
@@ -1465,7 +1468,7 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(DcpMessageProducersIface& producers) {
             producerIsVersion5orHigher ? dcpNoopTxInterval.count() : 180;
 
     if (pendingSendNoopInterval) {
-        ENGINE_ERROR_CODE ret;
+        cb::engine_errc ret;
         uint32_t opaque = ++opaqueCounter;
         std::string interval = std::to_string(intervalCount);
         ret = producers.control(opaque, noopIntervalCtrlMsg, interval);
@@ -1484,16 +1487,16 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(DcpMessageProducersIface& producers) {
                 dcpIdleTimeout.count(),
                 (now - lastMessageTime),
                 intervalCount);
-        return ENGINE_DISCONNECT;
+        return cb::engine_errc::disconnect;
     }
 
-    return ENGINE_FAILED;
+    return cb::engine_errc::failed;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::handleGetErrorMap(
+cb::engine_errc DcpConsumer::handleGetErrorMap(
         DcpMessageProducersIface& producers) {
     if (getErrorMapState == GetErrorMapState::PendingRequest) {
-        ENGINE_ERROR_CODE ret;
+        cb::engine_errc ret;
         uint32_t opaque = ++opaqueCounter;
         // Note: just send 0 as version to get the default error map loaded
         //     from file at startup. The error map returned is not used, we
@@ -1505,16 +1508,16 @@ ENGINE_ERROR_CODE DcpConsumer::handleGetErrorMap(
 
     // We have to wait for the GetErrorMap response before proceeding
     if (getErrorMapState == GetErrorMapState::PendingResponse) {
-        return ENGINE_EWOULDBLOCK;
+        return cb::engine_errc::would_block;
     }
 
-    return ENGINE_FAILED;
+    return cb::engine_errc::failed;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::handlePriority(
+cb::engine_errc DcpConsumer::handlePriority(
         DcpMessageProducersIface& producers) {
     if (pendingSetPriority) {
-        ENGINE_ERROR_CODE ret;
+        cb::engine_errc ret;
         uint32_t opaque = ++opaqueCounter;
         std::string val("high");
         ret = producers.control(opaque, priorityCtrlMsg, val);
@@ -1522,13 +1525,13 @@ ENGINE_ERROR_CODE DcpConsumer::handlePriority(
         return ret;
     }
 
-    return ENGINE_FAILED;
+    return cb::engine_errc::failed;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::handleExtMetaData(
+cb::engine_errc DcpConsumer::handleExtMetaData(
         DcpMessageProducersIface& producers) {
     if (pendingEnableExtMetaData) {
-        ENGINE_ERROR_CODE ret;
+        cb::engine_errc ret;
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
         ret = producers.control(opaque, extMetadataCtrlMsg, val);
@@ -1536,13 +1539,13 @@ ENGINE_ERROR_CODE DcpConsumer::handleExtMetaData(
         return ret;
     }
 
-    return ENGINE_FAILED;
+    return cb::engine_errc::failed;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::supportCursorDropping(
+cb::engine_errc DcpConsumer::supportCursorDropping(
         DcpMessageProducersIface& producers) {
     if (pendingSupportCursorDropping) {
-        ENGINE_ERROR_CODE ret;
+        cb::engine_errc ret;
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
         ret = producers.control(opaque, cursorDroppingCtrlMsg, val);
@@ -1550,13 +1553,13 @@ ENGINE_ERROR_CODE DcpConsumer::supportCursorDropping(
         return ret;
     }
 
-    return ENGINE_FAILED;
+    return cb::engine_errc::failed;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::supportHifiMFU(
+cb::engine_errc DcpConsumer::supportHifiMFU(
         DcpMessageProducersIface& producers) {
     if (pendingSupportHifiMFU) {
-        ENGINE_ERROR_CODE ret;
+        cb::engine_errc ret;
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
         ret = producers.control(opaque, hifiMFUCtrlMsg, val);
@@ -1564,38 +1567,38 @@ ENGINE_ERROR_CODE DcpConsumer::supportHifiMFU(
         return ret;
     }
 
-    return ENGINE_FAILED;
+    return cb::engine_errc::failed;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::sendStreamEndOnClientStreamClose(
+cb::engine_errc DcpConsumer::sendStreamEndOnClientStreamClose(
         DcpMessageProducersIface& producers) {
     /* Sending this ctrl message tells the DCP producer that the consumer is
        expecting a "STREAM_END" message when it initiates a stream close */
     if (pendingSendStreamEndOnClientStreamClose) {
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
-        ENGINE_ERROR_CODE ret = producers.control(
+        cb::engine_errc ret = producers.control(
                 opaque, sendStreamEndOnClientStreamCloseCtrlMsg, val);
         pendingSendStreamEndOnClientStreamClose = false;
         return ret;
     }
-    return ENGINE_FAILED;
+    return cb::engine_errc::failed;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::enableExpiryOpcode(
+cb::engine_errc DcpConsumer::enableExpiryOpcode(
         DcpMessageProducersIface& producers) {
     if (pendingEnableExpiryOpcode) {
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
-        ENGINE_ERROR_CODE ret =
+        cb::engine_errc ret =
                 producers.control(opaque, enableOpcodeExpiryCtrlMsg, val);
         pendingEnableExpiryOpcode = false;
         return ret;
     }
-    return ENGINE_FAILED;
+    return cb::engine_errc::failed;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::enableSynchronousReplication(
+cb::engine_errc DcpConsumer::enableSynchronousReplication(
         DcpMessageProducersIface& producers) {
     // enable_sync_writes and consumer_name are separated into two
     // different variables as in the future non-replication consumers may wish
@@ -1603,7 +1606,7 @@ ENGINE_ERROR_CODE DcpConsumer::enableSynchronousReplication(
     switch (syncReplNegotiation.state) {
     case BlockingDcpControlNegotiation::State::PendingRequest: {
         uint32_t opaque = ++opaqueCounter;
-        ENGINE_ERROR_CODE ret =
+        cb::engine_errc ret =
                 producers.control(opaque, "enable_sync_writes", "true");
         syncReplNegotiation.state =
                 BlockingDcpControlNegotiation::State::PendingResponse;
@@ -1612,7 +1615,7 @@ ENGINE_ERROR_CODE DcpConsumer::enableSynchronousReplication(
     }
     case BlockingDcpControlNegotiation::State::PendingResponse:
         // We have to wait for the response before proceeding
-        return ENGINE_EWOULDBLOCK;
+        return cb::engine_errc::would_block;
     case BlockingDcpControlNegotiation::State::Completed:
         break;
     }
@@ -1620,16 +1623,16 @@ ENGINE_ERROR_CODE DcpConsumer::enableSynchronousReplication(
     if (pendingSendConsumerName && isSyncReplicationEnabled()) {
         uint32_t opaque = ++opaqueCounter;
         NonBucketAllocationGuard guard;
-        ENGINE_ERROR_CODE ret = producers.control(
+        cb::engine_errc ret = producers.control(
                 opaque, "consumer_name", consumerName.c_str());
         pendingSendConsumerName = false;
         return ret;
     }
 
-    return ENGINE_FAILED;
+    return cb::engine_errc::failed;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::enableV7DcpStatus(
+cb::engine_errc DcpConsumer::enableV7DcpStatus(
         DcpMessageProducersIface& producers) {
     switch (v7DcpStatusCodesNegotiation.state) {
     case BlockingDcpControlNegotiation::State::PendingRequest: {
@@ -1641,21 +1644,21 @@ ENGINE_ERROR_CODE DcpConsumer::enableV7DcpStatus(
         return ret;
     }
     case BlockingDcpControlNegotiation::State::PendingResponse:
-        return ENGINE_EWOULDBLOCK;
+        return cb::engine_errc::would_block;
     case BlockingDcpControlNegotiation::State::Completed:
         break;
     }
-    return ENGINE_FAILED;
+    return cb::engine_errc::failed;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::handleDeletedUserXattrs(
+cb::engine_errc DcpConsumer::handleDeletedUserXattrs(
         DcpMessageProducersIface& producers) {
     switch (deletedUserXattrsNegotiation.state) {
     case BlockingDcpControlNegotiation::State::PendingRequest: {
         uint32_t opaque = ++opaqueCounter;
         NonBucketAllocationGuard guard;
         // Note: the protocol requires a value in the payload, make it happy
-        ENGINE_ERROR_CODE ret = producers.control(
+        cb::engine_errc ret = producers.control(
                 opaque, "include_deleted_user_xattrs", "true");
         deletedUserXattrsNegotiation.state =
                 BlockingDcpControlNegotiation::State::PendingResponse;
@@ -1663,9 +1666,9 @@ ENGINE_ERROR_CODE DcpConsumer::handleDeletedUserXattrs(
         return ret;
     }
     case BlockingDcpControlNegotiation::State::PendingResponse:
-        return ENGINE_EWOULDBLOCK;
+        return cb::engine_errc::would_block;
     case BlockingDcpControlNegotiation::State::Completed:
-        return ENGINE_FAILED;
+        return cb::engine_errc::failed;
     }
     folly::assume_unreachable();
 }
@@ -1730,13 +1733,13 @@ void DcpConsumer::scheduleNotify() {
     engine_.getDcpConnMap().addConnectionToPending(shared_from_this());
 }
 
-ENGINE_ERROR_CODE DcpConsumer::systemEvent(uint32_t opaque,
-                                           Vbid vbucket,
-                                           mcbp::systemevent::id event,
-                                           uint64_t bySeqno,
-                                           mcbp::systemevent::version version,
-                                           cb::const_byte_buffer key,
-                                           cb::const_byte_buffer eventData) {
+cb::engine_errc DcpConsumer::systemEvent(uint32_t opaque,
+                                         Vbid vbucket,
+                                         mcbp::systemevent::id event,
+                                         uint64_t bySeqno,
+                                         mcbp::systemevent::version version,
+                                         cb::const_byte_buffer key,
+                                         cb::const_byte_buffer eventData) {
     lastMessageTime = ep_current_time();
     UpdateFlowControl ufc(
             *this,
@@ -1747,26 +1750,26 @@ ENGINE_ERROR_CODE DcpConsumer::systemEvent(uint32_t opaque,
     return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }
 
-ENGINE_ERROR_CODE DcpConsumer::prepare(uint32_t opaque,
-                                       const DocKey& key,
-                                       cb::const_byte_buffer value,
-                                       size_t priv_bytes,
-                                       uint8_t datatype,
-                                       uint64_t cas,
-                                       Vbid vbucket,
-                                       uint32_t flags,
-                                       uint64_t by_seqno,
-                                       uint64_t rev_seqno,
-                                       uint32_t expiration,
-                                       uint32_t lock_time,
-                                       uint8_t nru,
-                                       DocumentState document_state,
-                                       cb::durability::Level level) {
+cb::engine_errc DcpConsumer::prepare(uint32_t opaque,
+                                     const DocKey& key,
+                                     cb::const_byte_buffer value,
+                                     size_t priv_bytes,
+                                     uint8_t datatype,
+                                     uint64_t cas,
+                                     Vbid vbucket,
+                                     uint32_t flags,
+                                     uint64_t by_seqno,
+                                     uint64_t rev_seqno,
+                                     uint32_t expiration,
+                                     uint32_t lock_time,
+                                     uint8_t nru,
+                                     DocumentState document_state,
+                                     cb::durability::Level level) {
     lastMessageTime = ep_current_time();
 
     if (by_seqno == 0) {
         logger->warn("({}) Invalid sequence number(0) for prepare!", vbucket);
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 
     queued_item item(new Item(key,
@@ -1805,7 +1808,7 @@ ENGINE_ERROR_CODE DcpConsumer::prepare(uint32_t opaque,
                         "body "
                         "for SyncDelete",
                         vbucket);
-                return ENGINE_EINVAL;
+                return cb::engine_errc::invalid_arguments;
             }
 
             item->removeBody();
@@ -1818,13 +1821,13 @@ ENGINE_ERROR_CODE DcpConsumer::prepare(uint32_t opaque,
             vbucket, opaque, key, std::move(item), {}, msgBytes);
 }
 
-ENGINE_ERROR_CODE DcpConsumer::lookupStreamAndDispatchMessage(
+cb::engine_errc DcpConsumer::lookupStreamAndDispatchMessage(
         UpdateFlowControl& ufc,
         Vbid vbucket,
         uint32_t opaque,
         std::unique_ptr<DcpResponse> msg) {
     if (doDisconnect()) {
-        return ENGINE_DISCONNECT;
+        return cb::engine_errc::disconnect;
     }
 
     auto stream = findStream(vbucket);
@@ -1835,35 +1838,35 @@ ENGINE_ERROR_CODE DcpConsumer::lookupStreamAndDispatchMessage(
     }
 
     // Pass the message to the associated stream.
-    ENGINE_ERROR_CODE err;
+    cb::engine_errc err;
     try {
         err = stream->messageReceived(std::move(msg));
     } catch (const std::bad_alloc&) {
-        return ENGINE_ENOMEM;
+        return cb::engine_errc::no_memory;
     }
 
     // The item was buffered and will be processed later
-    if (err == ENGINE_TMPFAIL) {
+    if (err == cb::engine_errc::temporary_failure) {
         notifyVbucketReady(vbucket);
         ufc.release();
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     return err;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::commit(uint32_t opaque,
-                                      Vbid vbucket,
-                                      const DocKey& key,
-                                      uint64_t prepare_seqno,
-                                      uint64_t commit_seqno) {
+cb::engine_errc DcpConsumer::commit(uint32_t opaque,
+                                    Vbid vbucket,
+                                    const DocKey& key,
+                                    uint64_t prepare_seqno,
+                                    uint64_t commit_seqno) {
     lastMessageTime = ep_current_time();
     const size_t msgBytes = CommitSyncWrite::commitBaseMsgBytes + key.size();
     UpdateFlowControl ufc(*this, msgBytes);
 
     if (commit_seqno == 0) {
         logger->warn("({}) Invalid sequence number(0) for commit!", vbucket);
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 
     auto msg = std::make_unique<CommitSyncWrite>(
@@ -1871,18 +1874,18 @@ ENGINE_ERROR_CODE DcpConsumer::commit(uint32_t opaque,
     return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }
 
-ENGINE_ERROR_CODE DcpConsumer::abort(uint32_t opaque,
-                                     Vbid vbucket,
-                                     const DocKey& key,
-                                     uint64_t prepareSeqno,
-                                     uint64_t abortSeqno) {
+cb::engine_errc DcpConsumer::abort(uint32_t opaque,
+                                   Vbid vbucket,
+                                   const DocKey& key,
+                                   uint64_t prepareSeqno,
+                                   uint64_t abortSeqno) {
     lastMessageTime = ep_current_time();
     UpdateFlowControl ufc(*this,
                           AbortSyncWrite::abortBaseMsgBytes + key.size());
 
     if (!abortSeqno) {
         logger->warn("({}) Invalid abort-seqno (0)", vbucket);
-        return ENGINE_EINVAL;
+        return cb::engine_errc::invalid_arguments;
     }
 
     auto msg = std::make_unique<AbortSyncWrite>(
@@ -1913,15 +1916,17 @@ std::shared_ptr<PassiveStream> DcpConsumer::removeStream(Vbid vbid) {
     engine_.getDcpConnMap().removeVBConnByVBId(getCookie(), vbid);
     return eraseResult;
 }
-ENGINE_ERROR_CODE DcpConsumer::getNoStreamFoundErrorCode() const {
+cb::engine_errc DcpConsumer::getNoStreamFoundErrorCode() const {
     // No stream for this vBucket / opaque - return ENOENT to indicate this.
-    // Or use V7 dcp code ENGINE_STREAM_NOT_FOUND if enabled
-    return isV7DcpStatusEnabled ? ENGINE_STREAM_NOT_FOUND : ENGINE_KEY_ENOENT;
+    // Or use V7 dcp code cb::engine_errc::stream_not_found if enabled
+    return isV7DcpStatusEnabled ? cb::engine_errc::stream_not_found
+                                : cb::engine_errc::no_such_key;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::getOpaqueMissMatchErrorCode() const {
+cb::engine_errc DcpConsumer::getOpaqueMissMatchErrorCode() const {
     // No such stream with the given opaque - return KEY_EEXISTS to indicate
     // that a stream exists but not for this opaque (similar to InvalidCas).
-    // Or use V7 dcp code ENGINE_OPAQUE_NO_MATCH if enabled
-    return isV7DcpStatusEnabled ? ENGINE_OPAQUE_NO_MATCH : ENGINE_KEY_EEXISTS;
+    // Or use V7 dcp code cb::engine_errc::opaque_no_match if enabled
+    return isV7DcpStatusEnabled ? cb::engine_errc::opaque_no_match
+                                : cb::engine_errc::key_already_exists;
 }

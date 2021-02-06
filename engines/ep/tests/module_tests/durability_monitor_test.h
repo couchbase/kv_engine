@@ -72,7 +72,7 @@ protected:
      *
      * @param item the item to be stored
      */
-    ENGINE_ERROR_CODE set(Item& item);
+    cb::engine_errc set(Item& item);
 
     /**
      * Add the given SyncWrites for tracking and check that High Prepared Seqno

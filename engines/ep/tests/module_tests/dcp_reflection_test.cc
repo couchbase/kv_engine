@@ -81,7 +81,7 @@ protected:
 
         auto meta = nlohmann::json{
                 {"topology", nlohmann::json::array({{"active", "replica"}})}};
-        ASSERT_EQ(ENGINE_SUCCESS,
+        ASSERT_EQ(cb::engine_errc::success,
                   engine->getKVBucket()->setVBucketState(
                           vbid, vbucket_state_active, &meta));
         // Always stash KVBucketTest::engine in engines as Node0
@@ -91,7 +91,7 @@ protected:
         createNode(Node1, vbucket_state_replica);
     }
 
-    ENGINE_ERROR_CODE getInternalHelper(const DocKey& key) {
+    cb::engine_errc getInternalHelper(const DocKey& key) {
         return getInternal(key,
                            vbid,
                            cookie,
@@ -113,7 +113,7 @@ protected:
         engines[node] = extraEngines.back().get();
 
         // Setup one vbucket in the requested state
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   engines[node]->getKVBucket()->setVBucketState(vbid, vbState));
         flushNodeIfPersistent(node);
     }
@@ -186,9 +186,9 @@ protected:
                 createDcpConsumer(producerNode, consumerNode)};
     }
 
-    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(
+    static cb::engine_errc fakeDcpAddFailoverLog(
             const std::vector<vbucket_failover_t>&) {
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     std::shared_ptr<MockDcpProducer> createDcpProducer(
@@ -239,31 +239,31 @@ protected:
         return mockConsumer;
     }
 
-    ENGINE_ERROR_CODE storePrepare(std::string key) {
+    cb::engine_errc storePrepare(std::string key) {
         auto docKey = makeStoredDocKey(key);
         using namespace cb::durability;
         auto reqs = Requirements(Level::Majority, Timeout::Infinity());
         return store->set(*makePendingItem(docKey, {}, reqs), cookie);
     }
 
-    ENGINE_ERROR_CODE storeCommit(std::string key) {
+    cb::engine_errc storeCommit(std::string key) {
         auto docKey = makeStoredDocKey(key);
         auto vb = engine->getVBucket(vbid);
         return vb->commit(docKey, 1, {}, vb->lockCollections(docKey));
     }
 
-    ENGINE_ERROR_CODE storeSet(std::string key) {
+    cb::engine_errc storeSet(std::string key) {
         auto docKey = makeStoredDocKey(key);
         return store->set(*makeCommittedItem(docKey, {}), cookie);
     }
 
-    ENGINE_ERROR_CODE storeSet(const DocKey& docKey, bool xattrBody = false) {
+    cb::engine_errc storeSet(const DocKey& docKey, bool xattrBody = false) {
         return store->set(
                 *makeCompressibleItem(vbid, docKey, {}, 0, false, xattrBody),
                 cookie);
     }
 
-    ENGINE_ERROR_CODE del(const DocKey& docKey) {
+    cb::engine_errc del(const DocKey& docKey) {
         uint64_t cas = 0;
         using namespace cb::durability;
         mutation_descr_t delInfo;
@@ -448,7 +448,8 @@ void DCPLoopbackStreamTest::DcpRoute::transferMessage() {
     auto streams = getStreams();
     auto msg = getNextProducerMsg(streams.first);
     ASSERT_TRUE(msg);
-    EXPECT_EQ(ENGINE_SUCCESS, streams.second->messageReceived(std::move(msg)));
+    EXPECT_EQ(cb::engine_errc::success,
+              streams.second->messageReceived(std::move(msg)));
 }
 
 void DCPLoopbackStreamTest::DcpRoute::transferMessage(
@@ -457,7 +458,8 @@ void DCPLoopbackStreamTest::DcpRoute::transferMessage(
     auto msg = getNextProducerMsg(streams.first);
     ASSERT_TRUE(msg);
     EXPECT_EQ(expectedEvent, msg->getEvent()) << *msg;
-    EXPECT_EQ(ENGINE_SUCCESS, streams.second->messageReceived(std::move(msg)));
+    EXPECT_EQ(cb::engine_errc::success,
+              streams.second->messageReceived(std::move(msg)));
 }
 
 void DCPLoopbackStreamTest::DcpRoute::transferMutation(
@@ -501,7 +503,8 @@ void DCPLoopbackStreamTest::DcpRoute::transferMutation(
     }
 
     EXPECT_EQ(expectedKey, mutation->getItem()->getKey());
-    EXPECT_EQ(ENGINE_SUCCESS, streams.second->messageReceived(std::move(msg)));
+    EXPECT_EQ(cb::engine_errc::success,
+              streams.second->messageReceived(std::move(msg)));
 }
 
 void DCPLoopbackStreamTest::DcpRoute::transferDeletion(
@@ -514,7 +517,8 @@ void DCPLoopbackStreamTest::DcpRoute::transferDeletion(
     EXPECT_EQ(expectedSeqno, msg->getBySeqno().value());
     auto* mutation = static_cast<MutationResponse*>(msg.get());
     EXPECT_EQ(expectedKey, mutation->getItem()->getKey());
-    EXPECT_EQ(ENGINE_SUCCESS, streams.second->messageReceived(std::move(msg)));
+    EXPECT_EQ(cb::engine_errc::success,
+              streams.second->messageReceived(std::move(msg)));
 }
 
 void DCPLoopbackStreamTest::DcpRoute::transferSnapshotMarker(
@@ -527,7 +531,8 @@ void DCPLoopbackStreamTest::DcpRoute::transferSnapshotMarker(
     EXPECT_EQ(expectedStart, marker->getStartSeqno());
     EXPECT_EQ(expectedEnd, marker->getEndSeqno());
     EXPECT_EQ(expectedFlags, marker->getFlags());
-    EXPECT_EQ(ENGINE_SUCCESS, streams.second->messageReceived(std::move(msg)));
+    EXPECT_EQ(cb::engine_errc::success,
+              streams.second->messageReceived(std::move(msg)));
 }
 
 void DCPLoopbackStreamTest::DcpRoute::transferResponseMessage() {
@@ -552,7 +557,8 @@ void DCPLoopbackStreamTest::DcpRoute::transferResponseMessage() {
 std::pair<cb::engine_errc, uint64_t>
 DCPLoopbackStreamTest::DcpRoute::doStreamRequest(int flags) {
     // Do the add_stream
-    EXPECT_EQ(ENGINE_SUCCESS, consumer->addStream(/*opaque*/ 0, vbid, flags));
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->addStream(/*opaque*/ 0, vbid, flags));
     auto streamRequest = consumer->getVbucketStream(vbid)->next();
     EXPECT_TRUE(streamRequest);
     EXPECT_EQ(DcpResponse::Event::StreamReq, streamRequest->getEvent());
@@ -570,7 +576,7 @@ DCPLoopbackStreamTest::DcpRoute::doStreamRequest(int flags) {
                                          &rollbackSeqno,
                                          fakeDcpAddFailoverLog,
                                          {});
-    if (error == ENGINE_SUCCESS) {
+    if (error == cb::engine_errc::success) {
         auto producerVb = producerNode->getVBucket(vbid);
         EXPECT_GE(static_cast<MockCheckpointManager*>(
                           producerVb->checkpointManager.get())
@@ -596,7 +602,7 @@ DCPLoopbackStreamTest::DcpRoute::doStreamRequest(int flags) {
         auto addStreamResp = consumer->getVbucketStream(vbid)->next();
         EXPECT_EQ(DcpResponse::Event::AddStream, addStreamResp->getEvent());
     }
-    return {cb::to_engine_errc(error), rollbackSeqno};
+    return {error, rollbackSeqno};
 }
 
 /**
@@ -627,9 +633,9 @@ void DCPLoopbackStreamTest::takeoverTest(
     }
 
     // Setup conditions for expirations
-    auto expectedGetOutcome = ENGINE_SUCCESS;
+    auto expectedGetOutcome = cb::engine_errc::success;
     if (enableExpiryOutput == EnableExpiryOutput::Yes) {
-        expectedGetOutcome = ENGINE_KEY_ENOENT;
+        expectedGetOutcome = cb::engine_errc::no_such_key;
     }
     TimeTraveller t(1080);
     // Trigger expiries on a get, or just check that the key exists
@@ -679,10 +685,10 @@ void DCPLoopbackStreamTest::takeoverTest(
 
     // Check final state of items
     auto num_left = 3, expired = 0;
-    auto expectedOutcome = ENGINE_SUCCESS;
+    auto expectedOutcome = cb::engine_errc::success;
     if (enableExpiryOutput == EnableExpiryOutput::Yes) {
         num_left = 0, expired = 3;
-        expectedOutcome = ENGINE_KEY_ENOENT;
+        expectedOutcome = cb::engine_errc::no_such_key;
     }
     EXPECT_EQ(num_left, sourceVb->getNumItems());
     EXPECT_EQ(num_left, destVb->getNumItems());
@@ -706,21 +712,21 @@ TEST_F(DCPLoopbackStreamTest, TakeoverWithExpiry) {
 void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
         uint32_t flags, bool completeFinalSnapshot) {
     // First checkpoint 1..2: PRE(a), CMT(a)
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, storePrepare("a"));
-    EXPECT_EQ(ENGINE_SUCCESS, storeCommit("a"));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, storePrepare("a"));
+    EXPECT_EQ(cb::engine_errc::success, storeCommit("a"));
 
     // Second checkpoint 3..5: SET(b), PRE(a), SET(c)
     auto vb = engine->getVBucket(vbid);
     vb->checkpointManager->createNewCheckpoint();
-    EXPECT_EQ(ENGINE_SUCCESS, storeSet("b"));
+    EXPECT_EQ(cb::engine_errc::success, storeSet("b"));
 
     // Flush up to seqno:3 to disk.
     flushVBucketToDiskIfPersistent(vbid, 3);
 
     // Add 4:PRE(a), 5:SET(c), 6:SET(d)
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, storePrepare("a"));
-    EXPECT_EQ(ENGINE_SUCCESS, storeSet("c"));
-    EXPECT_EQ(ENGINE_SUCCESS, storeSet("d"));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, storePrepare("a"));
+    EXPECT_EQ(cb::engine_errc::success, storeSet("c"));
+    EXPECT_EQ(cb::engine_errc::success, storeSet("d"));
 
     // Remove the first checkpoint (to force a DCP backfill).
     bool newCkpt = false;
@@ -839,7 +845,7 @@ TEST_F(DCPLoopbackStreamTest,
 TEST_F(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
     // First checkpoint 1..2:
     //     1:PRE(a)
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, storePrepare("a"));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, storePrepare("a"));
 
     // Setup: Create DCP connections; and stream the first 2 items (SNAP, 1:PRE)
     auto route0_1 = createDcpRoute(Node0, Node1);
@@ -848,21 +854,21 @@ TEST_F(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
     route0_1.transferMessage(DcpResponse::Event::Prepare);
 
     //     2:CMT(a)
-    EXPECT_EQ(ENGINE_SUCCESS, storeCommit("a"));
+    EXPECT_EQ(cb::engine_errc::success, storeCommit("a"));
 
     // Create second checkpoint 3..4: 3:SET(b)
     auto vb = engine->getVBucket(vbid);
     vb->checkpointManager->createNewCheckpoint();
     //     3:SET(b)
-    EXPECT_EQ(ENGINE_SUCCESS, storeSet("b"));
+    EXPECT_EQ(cb::engine_errc::success, storeSet("b"));
 
     // Flush up to seqno:3 to disk.
     flushVBucketToDiskIfPersistent(vbid, 3);
 
     //     4:PRE(a)
     //     5:SET(c)
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, storePrepare("a"));
-    EXPECT_EQ(ENGINE_SUCCESS, storeSet("c"));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, storePrepare("a"));
+    EXPECT_EQ(cb::engine_errc::success, storeSet("c"));
 
     // Trigger cursor dropping; then remove (now unreferenced) first checkpoint.
     auto* pStream = static_cast<ActiveStream*>(
@@ -941,8 +947,8 @@ TEST_F(DCPLoopbackStreamTest, MultiReplicaPartialSnapshot) {
 
     // Setup the active, first move the active away from seqno 0 with a couple
     // of keys, we don't really care about these in this test
-    EXPECT_EQ(ENGINE_SUCCESS, storeSet(k1));
-    EXPECT_EQ(ENGINE_SUCCESS, storeSet(k2));
+    EXPECT_EQ(cb::engine_errc::success, storeSet(k1));
+    EXPECT_EQ(cb::engine_errc::success, storeSet(k2));
     flushVBucketToDiskIfPersistent(vbid, 2);
     // These go everywhere...
     route0_1.transferSnapshotMarker(0, 2, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
@@ -953,8 +959,8 @@ TEST_F(DCPLoopbackStreamTest, MultiReplicaPartialSnapshot) {
     route0_2.transferMutation(k2, 2);
 
     // Now setup the interesting operations, and build the replicas as we go.
-    EXPECT_EQ(ENGINE_SUCCESS, storeSet(k3));
-    EXPECT_EQ(ENGINE_SUCCESS, storeSet(k4));
+    EXPECT_EQ(cb::engine_errc::success, storeSet(k3));
+    EXPECT_EQ(cb::engine_errc::success, storeSet(k4));
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     // And replicate the snapshot to replica on Node1
@@ -969,8 +975,8 @@ TEST_F(DCPLoopbackStreamTest, MultiReplicaPartialSnapshot) {
     auto vb = engines[Node0]->getVBucket(vbid);
     // Next snapshot, *important* k3 is set again and in a new checkpoint
     vb->checkpointManager->createNewCheckpoint();
-    EXPECT_EQ(ENGINE_SUCCESS, storeSet(k5));
-    EXPECT_EQ(ENGINE_SUCCESS, storeSet(k3));
+    EXPECT_EQ(cb::engine_errc::success, storeSet(k5));
+    EXPECT_EQ(cb::engine_errc::success, storeSet(k3));
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     // And replicate a partial snapshot to the replica on Node1
@@ -1007,7 +1013,7 @@ TEST_F(DCPLoopbackStreamTest, MultiReplicaPartialSnapshot) {
     route0_1.destroy();
     route0_2_new.destroy();
     // NODE1 promoted
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               engines[Node1]->getKVBucket()->setVBucketState(
                       vbid, vbucket_state_active));
 
@@ -1040,9 +1046,9 @@ TEST_F(DCPLoopbackStreamTest, MB_36948_SnapshotEndsOnPrepare) {
     auto k1 = makeStoredDocKey("k1");
     auto k2 = makeStoredDocKey("k2");
     auto k3 = makeStoredDocKey("k3");
-    EXPECT_EQ(ENGINE_SUCCESS, storeSet(k1));
-    EXPECT_EQ(ENGINE_SUCCESS, storeSet(k2));
-    EXPECT_EQ(ENGINE_SYNC_WRITE_PENDING, storePrepare("c"));
+    EXPECT_EQ(cb::engine_errc::success, storeSet(k1));
+    EXPECT_EQ(cb::engine_errc::success, storeSet(k2));
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, storePrepare("c"));
 
     auto route0_1 = createDcpRoute(Node0, Node1);
     EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);

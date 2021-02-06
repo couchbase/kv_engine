@@ -23,9 +23,9 @@
 #include <memcached/protocol_binary.h>
 
 void dcp_set_vbucket_state_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    auto ret = cookie.swapAiostat(cb::engine_errc::success);
 
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         using cb::mcbp::request::DcpSetVBucketState;
         auto& request = cookie.getRequest();
         auto extras = request.getExtdata();
@@ -37,7 +37,7 @@ void dcp_set_vbucket_state_executor(Cookie& cookie) {
                                  vbucket_state_t(payload->getState()));
     }
 
-    if (ret != ENGINE_SUCCESS) {
+    if (ret != cb::engine_errc::success) {
         handle_executor_status(cookie, ret);
     }
 }

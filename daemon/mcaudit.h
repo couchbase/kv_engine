@@ -122,7 +122,7 @@ void add(const Cookie& c, Operation operation);
  */
 void initialize_audit();
 void shutdown_audit();
-ENGINE_ERROR_CODE reconfigure_audit(Cookie& cookie);
+cb::engine_errc reconfigure_audit(Cookie& cookie);
 void stats_audit(const StatCollector& collector);
 
 bool mc_audit_event(uint32_t audit_eventid, cb::const_byte_buffer payload);

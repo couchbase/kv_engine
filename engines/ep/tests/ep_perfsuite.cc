@@ -436,7 +436,7 @@ static void perf_latency_core(EngineIface* h,
     // Delete
     for (auto& key : keys) {
         const auto start = std::chrono::steady_clock::now();
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 del(h, key.c_str(), 0, Vbid(0), cookie),
                 "Failed to delete a value");
         const auto end = std::chrono::steady_clock::now();
@@ -918,12 +918,12 @@ static void perf_dcp_client(EngineIface* h,
                      0,
                      cb::mcbp::request::DcpOpenPayload::Producer,
                      name),
-            ENGINE_SUCCESS,
+            cb::engine_errc::success,
             "Failed dcp producer open connection");
 
     checkeq(dcp.control(
                     cookie, ++streamOpaque, "connection_buffer_size", "1024"),
-            ENGINE_SUCCESS,
+            cb::engine_errc::success,
             "Failed to establish connection buffer");
 
     if (retrieveCompressed) {
@@ -934,7 +934,7 @@ static void perf_dcp_client(EngineIface* h,
                             ++streamOpaque,
                             "force_value_compression",
                             "true"),
-                ENGINE_SUCCESS,
+                cb::engine_errc::success,
                 "Failed to force value compression");
     }
 
@@ -953,7 +953,7 @@ static void perf_dcp_client(EngineIface* h,
                            &rollback,
                            mock_dcp_add_failover_log,
                            {}),
-            ENGINE_SUCCESS,
+            cb::engine_errc::success,
             "Failed to initiate stream request");
 
     MockDcpMessageProducers producers;
@@ -965,15 +965,15 @@ static void perf_dcp_client(EngineIface* h,
 
     do {
         if (bytes_read > 512) {
-            checkeq(ENGINE_SUCCESS,
+            checkeq(cb::engine_errc::success,
                     dcp.buffer_acknowledgement(
                             cookie, ++streamOpaque, vbid, bytes_read),
                     "Failed to acknowledge buffer");
             bytes_read = 0;
         }
-        ENGINE_ERROR_CODE err = dcp.step(cookie, producers);
+        cb::engine_errc err = dcp.step(cookie, producers);
         switch (err) {
-        case ENGINE_EWOULDBLOCK:
+        case cb::engine_errc::would_block:
             // No data currently available - wait to be notified when
             // more available.
             testHarness->lock_cookie(cookie);
@@ -981,7 +981,7 @@ static void perf_dcp_client(EngineIface* h,
             testHarness->unlock_cookie(cookie);
             break;
 
-        case ENGINE_SUCCESS:
+        case cb::engine_errc::success:
             switch (producers.last_op) {
             case cb::mcbp::ClientOpcode::DcpMutation:
             case cb::mcbp::ClientOpcode::DcpDeletion:
@@ -1030,7 +1030,9 @@ static void perf_dcp_client(EngineIface* h,
             break;
 
         default:
-            fprintf(stderr, "Unhandled dcp->step() result: %d\n", err);
+            fprintf(stderr,
+                    "Unhandled dcp->step() result: %s\n",
+                    cb::to_string(err).c_str());
             abort();
         }
     } while (!done);
@@ -1212,7 +1214,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
 
     // Create a DCP Producer connection and add an active stream on vbid
     auto* activeCookie = testHarness->create_cookie(h);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             dcp.open(activeCookie,
                      opaque,
                      0 /*seqno*/,
@@ -1221,7 +1223,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
             "dcp.open failed");
 
     uint64_t rollbackSeqno = 0;
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             dcp.stream_req(activeCookie,
                            0 /*flags*/,
                            opaque,
@@ -1241,14 +1243,14 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
 
     // Create a DCP Consumer connection and add a passive stream on vbid
     auto* passiveCookie = testHarness->create_cookie(h);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             dcp.open(passiveCookie,
                      opaque,
                      0 /*seqno*/,
                      0 /*flags*/,
                      "test_consumer"),
             "dcp.open failed");
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             dcp.add_stream(passiveCookie, opaque, vbid, 0 /*flags*/),
             "dcp.add_stream failed");
 
@@ -1261,7 +1263,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
     //     2) we send the seqno-mutation, which is the snapshot-end mutation
     for (size_t seqno = 1; seqno <= numItems; seqno++) {
         // 1) snapshot-marker
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 dcp.snapshot_marker(passiveCookie,
                                     opaque,
                                     vbid,
@@ -1275,7 +1277,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
         auto begin = std::chrono::steady_clock::now();
         std::string key = "key_" + std::to_string(seqno);
         // 2) snapshot-end mutation
-        checkeq(ENGINE_SUCCESS,
+        checkeq(cb::engine_errc::success,
                 dcp.mutation(
                         passiveCookie,
                         opaque,
@@ -1393,11 +1395,11 @@ static void perf_stat_latency_core(EngineIface* h,
             for (int ii = 0; ii < iterations; ii++) {
                 auto start = std::chrono::steady_clock::now();
                 if (stat.first.compare("engine") == 0) {
-                    checkeq(ENGINE_SUCCESS,
+                    checkeq(cb::engine_errc::success,
                             h->get_stats(cookie, {}, {}, add_stats),
                             "Failed to get engine stats");
                 } else {
-                    checkeq(ENGINE_SUCCESS,
+                    checkeq(cb::engine_errc::success,
                             h->get_stats(cookie,
                                          {stat.second.key.c_str(),
                                           stat.second.key.length()},

@@ -67,7 +67,7 @@ void CollectionsDcpTest::createDcpStream(
         cb::engine_errc expectedError,
         uint32_t flags) {
     uint64_t rollbackSeqno;
-    ASSERT_EQ(ENGINE_ERROR_CODE(expectedError),
+    ASSERT_EQ(cb::engine_errc(expectedError),
               producer->streamRequest(
                       flags,
                       1, // opaque
@@ -79,7 +79,7 @@ void CollectionsDcpTest::createDcpStream(
                       0, // snap_end_seqno,
                       &rollbackSeqno,
                       [](const std::vector<vbucket_failover_t>&) {
-                          return ENGINE_SUCCESS;
+                          return cb::engine_errc::success;
                       },
                       collections));
 }
@@ -99,7 +99,7 @@ void CollectionsDcpTest::createDcpConsumer() {
     mockConnMap.addConn(cookieC, consumer);
 
     store->setVBucketState(replicaVB, vbucket_state_replica);
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               consumer->addStream(/*opaque*/ 0,
                                   replicaVB,
                                   /*flags*/ 0));
@@ -126,9 +126,9 @@ void CollectionsDcpTest::createDcpObjects(
     }
 
     if (enableSyncRep) {
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   producer->control(1, "enable_sync_writes", "true"));
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   producer->control(1, "consumer_name", "mock_replication"));
     }
 
@@ -171,7 +171,7 @@ void CollectionsDcpTest::notifyAndStepToCheckpoint(
 
 void CollectionsDcpTest::stepAndExpect(cb::mcbp::ClientOpcode opcode,
                                        cb::engine_errc err) {
-    EXPECT_EQ(ENGINE_ERROR_CODE(err),
+    EXPECT_EQ(cb::engine_errc(err),
               producer->stepAndExpect(*producers, opcode));
 }
 
@@ -196,7 +196,7 @@ void CollectionsDcpTest::testDcpCreateDelete(
     auto scopeDropItr = expectedScopeDrops.begin();
 
     // step until done
-    while (producer->step(*producers) == ENGINE_SUCCESS) {
+    while (producer->step(*producers) == cb::engine_errc::success) {
         if (producers->last_op == cb::mcbp::ClientOpcode::DcpSystemEvent) {
             switch (producers->last_system_event) {
             case mcbp::systemevent::id::CreateCollection:
@@ -313,7 +313,7 @@ void CollectionsDcpTest::runEraser() {
     }
 }
 
-ENGINE_ERROR_CODE CollectionsDcpTest::dcpAddFailoverLog(
+cb::engine_errc CollectionsDcpTest::dcpAddFailoverLog(
         const std::vector<vbucket_failover_t>&) {
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }

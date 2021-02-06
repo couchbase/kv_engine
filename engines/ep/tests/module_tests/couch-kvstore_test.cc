@@ -184,7 +184,7 @@ public:
     }
 
     void callback(GetValue& result) override {
-        EXPECT_EQ(ENGINE_SUCCESS, result.getStatus());
+        EXPECT_EQ(cb::engine_errc::success, result.getStatus());
 
         if (result.item->isDeleted()) {
             DocKey dk = result.item->getKey();
@@ -360,7 +360,7 @@ TEST_F(CouchKVStoreTest, OpenHistoricalSnapshot) {
         }
 
         void callback(GetValue& result) override {
-            EXPECT_EQ(ENGINE_SUCCESS, result.getStatus());
+            EXPECT_EQ(cb::engine_errc::success, result.getStatus());
             ids.push_back(result.item->getBySeqno());
             const std::string val{result.item->getData(),
                                   result.item->getNBytes()};
@@ -714,7 +714,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, get_docinfo_by_id) {
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(3).RetiresOnSaturation();
         gv = kvstore->get(DiskDocKey{*items.front()}, Vbid(0));
     }
-    EXPECT_EQ(ENGINE_TMPFAIL, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::temporary_failure, gv.getStatus());
 }
 
 /**
@@ -739,7 +739,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, get_open_doc_with_docinfo) {
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(5).RetiresOnSaturation();
         gv = kvstore->get(DiskDocKey{*items.front()}, Vbid(0));
     }
-    EXPECT_EQ(ENGINE_TMPFAIL, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::temporary_failure, gv.getStatus());
 }
 
 /**
@@ -764,7 +764,8 @@ TEST_F(CouchKVStoreErrorInjectionTest, getMulti_docinfos_by_id) {
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(3).RetiresOnSaturation();
         kvstore->getMulti(Vbid(0), itms);
     }
-    EXPECT_EQ(ENGINE_TMPFAIL, itms[DiskDocKey{*items.at(0)}].value.getStatus());
+    EXPECT_EQ(cb::engine_errc::temporary_failure,
+              itms[DiskDocKey{*items.at(0)}].value.getStatus());
 }
 
 /**
@@ -786,7 +787,8 @@ TEST_F(CouchKVStoreErrorInjectionTest, getMulti_open_doc_with_docinfo) {
 
         EXPECT_EQ(1, kvstore->getKVStoreStat().numGetFailure);
     }
-    EXPECT_EQ(ENGINE_TMPFAIL, itms[DiskDocKey{*items.at(0)}].value.getStatus());
+    EXPECT_EQ(cb::engine_errc::temporary_failure,
+              itms[DiskDocKey{*items.at(0)}].value.getStatus());
 }
 
 /**
@@ -1261,7 +1263,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, corruption_get_open_doc_with_docinfo) {
         // Trigger the get().
         gv = kvstore->get(DiskDocKey{*items.front()}, Vbid(0));
     }
-    EXPECT_EQ(ENGINE_TMPFAIL, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::temporary_failure, gv.getStatus());
 }
 
 //
@@ -1378,7 +1380,7 @@ public:
 
     void callback(GetValue& value) override {
         status(value.getStatus());
-        if (value.getStatus() == ENGINE_SUCCESS) {
+        if (value.getStatus() == cb::engine_errc::success) {
             EXPECT_CALL(*this, value("value"));
             cas(value.item->getCas());
             expTime(value.item->getExptime());
@@ -1399,7 +1401,7 @@ public:
      * callback method. Functions can then setup expectations of the
      * value of each method e.g. expect cas to be -1
      */
-    MOCK_METHOD1_T(status, void(ENGINE_ERROR_CODE));
+    MOCK_METHOD1_T(status, void(cb::engine_errc));
     MOCK_METHOD1_T(cas, void(uint64_t));
     MOCK_METHOD1_T(expTime, void(uint32_t));
     MOCK_METHOD1_T(flags, void(uint32_t));
@@ -1436,7 +1438,7 @@ TEST_F(CouchstoreTest, noMeta) {
     kvstore->commit(flush);
 
     GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
-    checkGetValue(gv, ENGINE_TMPFAIL);
+    checkGetValue(gv, cb::engine_errc::temporary_failure);
 }
 
 TEST_F(CouchstoreTest, shortMeta) {
@@ -1451,7 +1453,7 @@ TEST_F(CouchstoreTest, shortMeta) {
     kvstore->commit(flush);
 
     GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
-    checkGetValue(gv, ENGINE_TMPFAIL);
+    checkGetValue(gv, cb::engine_errc::temporary_failure);
 }
 
 TEST_F(CouchstoreTest, testV0MetaThings) {
@@ -1472,7 +1474,7 @@ TEST_F(CouchstoreTest, testV0MetaThings) {
     kvstore->commit(flush);
 
     MockedGetCallback<GetValue> gc;
-    EXPECT_CALL(gc, status(ENGINE_SUCCESS));
+    EXPECT_CALL(gc, status(cb::engine_errc::success));
     EXPECT_CALL(gc, cas(0xf00fcafe11225566ull));
     EXPECT_CALL(gc, expTime(0xaa00bb11));
     EXPECT_CALL(gc, flags(0x01020304));
@@ -1500,7 +1502,7 @@ TEST_F(CouchstoreTest, testV1MetaThings) {
     kvstore->commit(flush);
 
     MockedGetCallback<GetValue> gc;
-    EXPECT_CALL(gc, status(ENGINE_SUCCESS));
+    EXPECT_CALL(gc, status(cb::engine_errc::success));
     EXPECT_CALL(gc, cas(0xf00fcafe11225566ull));
     EXPECT_CALL(gc, expTime(0xaa00bb11));
     EXPECT_CALL(gc, flags(0x01020304));
@@ -1527,7 +1529,7 @@ TEST_F(CouchstoreTest, fuzzV1) {
     kvstore->commit(flush);
     MockedGetCallback<GetValue> gc;
     uint8_t expectedDataType = 33;
-    EXPECT_CALL(gc, status(ENGINE_SUCCESS));
+    EXPECT_CALL(gc, status(cb::engine_errc::success));
     EXPECT_CALL(gc, cas(htonll(0xf00fcafe11225566ull)));
     EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc, flags(0x01020304));
@@ -1572,7 +1574,7 @@ TEST_F(CouchstoreTest, testV2WriteRead) {
 
     // Read back successful, the extra byte will of been dropped.
     MockedGetCallback<GetValue> gc;
-    EXPECT_CALL(gc, status(ENGINE_SUCCESS));
+    EXPECT_CALL(gc, status(cb::engine_errc::success));
     EXPECT_CALL(gc, cas(htonll(0xf00fcafe11225566ull)));
     EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc, flags(0x01020304));

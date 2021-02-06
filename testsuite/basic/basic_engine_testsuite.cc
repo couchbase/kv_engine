@@ -86,7 +86,7 @@ protected:
 
         // Verify that we can store it with CAS = 0 (override)
         uint64_t cas = 0;
-        ASSERT_EQ(ENGINE_SUCCESS,
+        ASSERT_EQ(cb::engine_errc::success,
                   engine->store(cookie.get(),
                                 ret.second.get(),
                                 cas,
@@ -98,7 +98,7 @@ protected:
         const auto prev_cas = cas;
 
         // Verify that CAS replace works
-        ASSERT_EQ(ENGINE_SUCCESS,
+        ASSERT_EQ(cb::engine_errc::success,
                   engine->store(cookie.get(),
                                 ret.second.get(),
                                 cas,
@@ -163,10 +163,10 @@ TEST_F(BasicEngineTestsuite, Add) {
                                 DocumentState::Alive,
                                 false);
         if (ii == 0) {
-            ASSERT_EQ(ENGINE_SUCCESS, rv);
+            ASSERT_EQ(cb::engine_errc::success, rv);
             ASSERT_NE(0, cas);
         } else {
-            ASSERT_EQ(ENGINE_NOT_STORED, rv);
+            ASSERT_EQ(cb::engine_errc::not_stored, rv);
         }
     }
 }
@@ -196,7 +196,7 @@ TEST_F(BasicEngineTestsuite, Replace) {
     for (int ii = 0; ii < 10; ++ii) {
         prev_cas = cas;
         *(int*)(item_info.value[0].iov_base) = ii;
-        ASSERT_EQ(ENGINE_SUCCESS,
+        ASSERT_EQ(cb::engine_errc::success,
                   engine->store(cookie.get(),
                                 ret.second.get(),
                                 cas,
@@ -230,7 +230,7 @@ TEST_F(BasicEngineTestsuite, Store) {
                             PROTOCOL_BINARY_RAW_BYTES,
                             Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               engine->store(cookie.get(),
                             ret.second.get(),
                             cas,
@@ -257,7 +257,7 @@ TEST_F(BasicEngineTestsuite, Get) {
                             PROTOCOL_BINARY_RAW_BYTES,
                             Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               engine->store(cookie.get(),
                             ret.second.get(),
                             cas,
@@ -285,7 +285,7 @@ TEST_F(BasicEngineTestsuite, GetDeleted) {
                             PROTOCOL_BINARY_RAW_BYTES,
                             Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               engine->store(cookie.get(),
                             ret.second.get(),
                             cas,
@@ -303,7 +303,7 @@ TEST_F(BasicEngineTestsuite, GetDeleted) {
 
     // remove it
     mutation_descr_t mut_info;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               engine->remove(cookie.get(), key, cas, Vbid(0), {}, mut_info));
     ret = engine->get(cookie.get(), key, Vbid(0), DocStateFilter::Alive);
     EXPECT_EQ(cb::engine_errc::no_such_key, ret.first);
@@ -327,7 +327,7 @@ TEST_F(BasicEngineTestsuite, Expiry) {
                             PROTOCOL_BINARY_RAW_BYTES,
                             Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               engine->store(cookie.get(),
                             ret.second.get(),
                             cas,
@@ -357,7 +357,7 @@ TEST_F(BasicEngineTestsuite, Release) {
                             PROTOCOL_BINARY_RAW_BYTES,
                             Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               engine->store(cookie.get(),
                             ret.second.get(),
                             cas,
@@ -385,7 +385,7 @@ TEST_F(BasicEngineTestsuite, Remove) {
                             PROTOCOL_BINARY_RAW_BYTES,
                             Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               engine->store(cookie.get(),
                             ret.second.get(),
                             cas,
@@ -393,7 +393,7 @@ TEST_F(BasicEngineTestsuite, Remove) {
                             {},
                             DocumentState::Alive,
                             false));
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               engine->remove(cookie.get(), key, cas, Vbid(0), {}, mut_info));
     ret = engine->get(cookie.get(), key, Vbid(0), DocStateFilter::Alive);
     ASSERT_EQ(cb::engine_errc::no_such_key, ret.first);
@@ -419,7 +419,7 @@ TEST_F(BasicEngineTestsuite, Flush) {
                             PROTOCOL_BINARY_RAW_BYTES,
                             Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               engine->store(cookie.get(),
                             ret.second.get(),
                             cas,
@@ -427,7 +427,7 @@ TEST_F(BasicEngineTestsuite, Flush) {
                             {},
                             DocumentState::Alive,
                             false));
-    ASSERT_EQ(ENGINE_SUCCESS, engine->flush(cookie.get()));
+    ASSERT_EQ(cb::engine_errc::success, engine->flush(cookie.get()));
     ret = engine->get(cookie.get(), key, Vbid(0), DocStateFilter::Alive);
     ASSERT_EQ(cb::engine_errc::no_such_key, ret.first);
     EXPECT_FALSE(ret.second);
@@ -452,7 +452,7 @@ TEST_F(BasicEngineTestsuite, GetItemInfo) {
                             PROTOCOL_BINARY_RAW_BYTES,
                             Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               engine->store(cookie.get(),
                             ret.second.get(),
                             cas,
@@ -490,7 +490,7 @@ TEST_F(BasicEngineTestsuite, ItemSetCas) {
                             PROTOCOL_BINARY_RAW_BYTES,
                             Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               engine->store(cookie.get(),
                             ret.second.get(),
                             cas,
@@ -530,7 +530,7 @@ TEST_F(BasicEngineTestsuite, LRU) {
                             PROTOCOL_BINARY_RAW_BYTES,
                             Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               engine->store(cookie.get(),
                             ret.second.get(),
                             cas,
@@ -560,7 +560,7 @@ TEST_F(BasicEngineTestsuite, LRU) {
                            PROTOCOL_BINARY_RAW_BYTES,
                            Vbid(0));
         ASSERT_EQ(cb::engine_errc::success, ret.first);
-        ASSERT_EQ(ENGINE_SUCCESS,
+        ASSERT_EQ(cb::engine_errc::success,
                   engine->store(cookie.get(),
                                 ret.second.get(),
                                 cas,
@@ -568,7 +568,7 @@ TEST_F(BasicEngineTestsuite, LRU) {
                                 {},
                                 DocumentState::Alive,
                                 false));
-        ASSERT_EQ(ENGINE_SUCCESS,
+        ASSERT_EQ(cb::engine_errc::success,
                   engine->get_stats(
                           cookie.get(), {}, {}, eviction_stats_handler));
         if (evictions == 2) {
@@ -606,7 +606,7 @@ TEST_F(BasicEngineTestsuite, Datatype) {
 
     auto ret = allocateItem(*engine, cookie.get(), key, 1, 0, 0, 1, Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               engine->store(cookie.get(),
                             ret.second.get(),
                             cas,
@@ -649,7 +649,7 @@ TEST_F(BasicEngineTestsuite, test_n_bucket_destroy) {
                                     PROTOCOL_BINARY_RAW_BYTES,
                                     Vbid(0));
             ASSERT_EQ(cb::engine_errc::success, ret.first);
-            ASSERT_EQ(ENGINE_SUCCESS,
+            ASSERT_EQ(cb::engine_errc::success,
                       bucket->store(cookie.get(),
                                     ret.second.get(),
                                     cas,
@@ -688,7 +688,7 @@ TEST_F(BasicEngineTestsuite, test_bucket_destroy_interleaved) {
                                     PROTOCOL_BINARY_RAW_BYTES,
                                     Vbid(0));
             ASSERT_EQ(cb::engine_errc::success, ret.first);
-            ASSERT_EQ(ENGINE_SUCCESS,
+            ASSERT_EQ(cb::engine_errc::success,
                       bucket->store(cookie.get(),
                                     ret.second.get(),
                                     cas,
@@ -777,7 +777,7 @@ void CollectionsTest::storeTest(const DocKey& keyA, const DocKey& keyB) {
     EXPECT_TRUE(ret.second);
 
     uint64_t cas = 0;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               engine->store(cookie.get(),
                             ret.second.get(),
                             cas,
@@ -829,7 +829,7 @@ void CollectionsTest::removeTest(const DocKey& keyA, const DocKey& keyB) {
     EXPECT_TRUE(allocRes.second);
 
     uint64_t cas = 0;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               engine->store(cookie.get(),
                             allocRes.second.get(),
                             cas,
@@ -841,7 +841,7 @@ void CollectionsTest::removeTest(const DocKey& keyA, const DocKey& keyB) {
     mutation_descr_t mut_info;
     cas = 0;
     auto ret = engine->remove(cookie.get(), keyB, cas, Vbid(0), {}, mut_info);
-    ASSERT_EQ(ENGINE_SUCCESS, ret);
+    ASSERT_EQ(cb::engine_errc::success, ret);
 
     // It's gone
     auto getResult =
@@ -868,7 +868,7 @@ TEST_F(CollectionsTest, RemoveError) {
     uint64_t cas = 0;
     mutation_descr_t mut_info;
     auto ret = engine->remove(cookie.get(), key3, cas, Vbid(0), {}, mut_info);
-    ASSERT_EQ(ENGINE_UNKNOWN_COLLECTION, ret);
+    ASSERT_EQ(cb::engine_errc::unknown_collection, ret);
 
     // Still here
     auto getResult =
@@ -885,7 +885,7 @@ TEST_F(CollectionsTest, GetFromUnknownCollection) {
     EXPECT_EQ(cb::engine_errc::unknown_collection, getVal.first);
     auto getMetaVal = engine->get_meta(cookie.get(), key3, Vbid(0));
     EXPECT_EQ(cb::engine_errc::unknown_collection, getMetaVal.first);
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
               engine->unlock(cookie.get(), key3, Vbid(0), 0));
 }
 

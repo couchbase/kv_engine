@@ -694,7 +694,7 @@ GetValue RocksDBKVStore::getWithHeader(const DiskDocKey& key,
             rocksdb::ReadOptions(), vbh->defaultCFH.get(), keySlice, &value);
     if (!s.ok()) {
         st.numGetFailure++;
-        return GetValue{NULL, ENGINE_KEY_ENOENT};
+        return GetValue{nullptr, cb::engine_errc::no_such_key};
     }
 
     ++st.io_bg_fetch_docs_read;
@@ -722,7 +722,7 @@ void RocksDBKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) {
             ++st.io_bg_fetch_docs_read;
             st.io_bgfetch_doc_bytes += keySlice.size() + value.size();
         } else {
-            it.second.value.setStatus(ENGINE_KEY_ENOENT);
+            it.second.value.setStatus(cb::engine_errc::no_such_key);
         }
     }
 }
@@ -1077,8 +1077,10 @@ GetValue RocksDBKVStore::makeGetValue(Vbid vb,
                                       const DiskDocKey& key,
                                       const rocksdb::Slice& value,
                                       bool includeValue) {
-    return GetValue(
-            makeItem(vb, key, value, includeValue), ENGINE_SUCCESS, -1, false);
+    return GetValue(makeItem(vb, key, value, includeValue),
+                    cb::engine_errc::success,
+                    -1,
+                    false);
 }
 
 RocksDBKVStore::DiskState RocksDBKVStore::readVBStateFromDisk(
@@ -1576,20 +1578,20 @@ scan_error_t RocksDBKVStore::scan(BySeqnoScanContext& ctx) {
 
             ctx.lookup->callback(lookup);
 
-            auto status = ctx.lookup->getStatus();
-            if (status == ENGINE_KEY_EEXISTS) {
+            auto status = cb::engine_errc{ctx.lookup->getStatus()};
+            if (status == cb::engine_errc::key_already_exists) {
                 ctx.lastReadSeqno = byseqno;
                 continue;
-            } else if (status == ENGINE_ENOMEM) {
+            } else if (status == cb::engine_errc::no_memory) {
                 return scan_again;
             }
         }
 
-        GetValue rv(std::move(itm), ENGINE_SUCCESS, -1, onlyKeys);
+        GetValue rv(std::move(itm), cb::engine_errc::success, -1, onlyKeys);
         ctx.callback->callback(rv);
-        auto status = ctx.callback->getStatus();
+        auto status = cb::engine_errc{ctx.callback->getStatus()};
 
-        if (status == ENGINE_ENOMEM) {
+        if (status == cb::engine_errc::no_memory) {
             return scan_again;
         }
 

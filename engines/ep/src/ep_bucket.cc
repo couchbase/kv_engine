@@ -993,20 +993,20 @@ void EPBucket::stopBgFetcher() {
     }
 }
 
-ENGINE_ERROR_CODE EPBucket::scheduleCompaction(
+cb::engine_errc EPBucket::scheduleCompaction(
         Vbid vbid,
         std::optional<CompactionConfig> config,
         const void* cookie,
         std::chrono::milliseconds delay) {
-    ENGINE_ERROR_CODE errCode = checkForDBExistence(vbid);
-    if (errCode != ENGINE_SUCCESS) {
+    cb::engine_errc errCode = checkForDBExistence(vbid);
+    if (errCode != cb::engine_errc::success) {
         return errCode;
     }
 
     /* Obtain the vbucket so we can get the previous purge seqno */
     VBucketPtr vb = vbMap.getBucket(vbid);
     if (!vb) {
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     auto handle = compactionTasks.wlock();
@@ -1048,32 +1048,31 @@ ENGINE_ERROR_CODE EPBucket::scheduleCompaction(
         ExecutorPool::get()->schedule(task);
     }
 
-    return ENGINE_EWOULDBLOCK;
+    return cb::engine_errc::would_block;
 }
 
-ENGINE_ERROR_CODE EPBucket::scheduleCompaction(
-        Vbid vbid,
-        const CompactionConfig& config,
-        const void* cookie,
-        std::chrono::milliseconds delay) {
+cb::engine_errc EPBucket::scheduleCompaction(Vbid vbid,
+                                             const CompactionConfig& config,
+                                             const void* cookie,
+                                             std::chrono::milliseconds delay) {
     return scheduleCompaction(
             vbid, std::optional<CompactionConfig>{config}, cookie, delay);
 }
 
-ENGINE_ERROR_CODE EPBucket::scheduleCompaction(
-        Vbid vbid, const void* cookie, std::chrono::milliseconds delay) {
+cb::engine_errc EPBucket::scheduleCompaction(Vbid vbid,
+                                             const void* cookie,
+                                             std::chrono::milliseconds delay) {
     return scheduleCompaction(
             vbid, std::optional<CompactionConfig>{}, cookie, delay);
 }
 
-ENGINE_ERROR_CODE EPBucket::cancelCompaction(Vbid vbid) {
+cb::engine_errc EPBucket::cancelCompaction(Vbid vbid) {
     auto handle = compactionTasks.wlock();
     for (const auto& task : *handle) {
         task.second->cancel();
     }
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
-
 
 void EPBucket::flushOneDelOrSet(const queued_item& qi, VBucketPtr& vb) {
     if (!vb) {
@@ -1235,7 +1234,7 @@ void EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {
 bool EPBucket::doCompact(Vbid vbid,
                          CompactionConfig& config,
                          std::vector<const void*>& cookies) {
-    ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+    cb::engine_errc err = cb::engine_errc::success;
 
     auto vb = getLockedVBucket(vbid, std::try_to_lock);
     if (!vb.owns_lock()) {
@@ -1249,7 +1248,7 @@ bool EPBucket::doCompact(Vbid vbid,
         // The memcached core won't call back into the engine if the error
         // code returned in notifyIOComplete is != success so we need to
         // do all of the cleanup for here.
-        err = ENGINE_NOT_MY_VBUCKET;
+        err = cb::engine_errc::not_my_vbucket;
         for (const auto& cookie : cookies) {
             engine.storeEngineSpecific(cookie, nullptr);
         }
@@ -1314,7 +1313,7 @@ std::pair<uint64_t, bool> EPBucket::getLastPersistedCheckpointId(Vbid vb) {
     }
 }
 
-ENGINE_ERROR_CODE EPBucket::getFileStats(const BucketStatCollector& collector) {
+cb::engine_errc EPBucket::getFileStats(const BucketStatCollector& collector) {
     const auto numShards = vbMap.getNumShards();
     DBFileInfo totalInfo;
 
@@ -1331,11 +1330,11 @@ ENGINE_ERROR_CODE EPBucket::getFileStats(const BucketStatCollector& collector) {
     collector.addStat(Key::ep_db_file_size, totalInfo.fileSize);
     collector.addStat(Key::ep_db_prepare_size, totalInfo.prepareBytes);
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE EPBucket::getPerVBucketDiskStats(const void* cookie,
-                                                   const AddStatFn& add_stat) {
+cb::engine_errc EPBucket::getPerVBucketDiskStats(const void* cookie,
+                                                 const AddStatFn& add_stat) {
     class DiskStatVisitor : public VBucketVisitor {
     public:
         DiskStatVisitor(const void* c, AddStatFn a)
@@ -1379,7 +1378,7 @@ ENGINE_ERROR_CODE EPBucket::getPerVBucketDiskStats(const void* cookie,
 
     DiskStatVisitor dsv(cookie, add_stat);
     visit(dsv);
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 size_t EPBucket::getPageableMemCurrent() const {
@@ -1446,12 +1445,12 @@ VBucketPtr EPBucket::makeVBucket(
                       VBucket::DeferredDeleter(engine));
 }
 
-ENGINE_ERROR_CODE EPBucket::statsVKey(const DocKey& key,
-                                      Vbid vbucket,
-                                      const void* cookie) {
+cb::engine_errc EPBucket::statsVKey(const DocKey& key,
+                                    Vbid vbucket,
+                                    const void* cookie) {
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb) {
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     return vb->statsVKey(key, cookie, engine);
@@ -1470,14 +1469,14 @@ void EPBucket::completeStatsVKey(const void* cookie,
         }
     }
 
-    if (gcb.getStatus() == ENGINE_SUCCESS) {
+    if (gcb.getStatus() == cb::engine_errc::success) {
         engine.addLookupResult(cookie, std::move(gcb.item));
     } else {
         engine.addLookupResult(cookie, nullptr);
     }
 
     --stats.numRemainingBgJobs;
-    engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
+    engine.notifyIOComplete(cookie, cb::engine_errc::success);
 }
 
 /**
@@ -1564,7 +1563,7 @@ public:
         // Item.
         UniqueItemPtr preRbSeqnoItem(std::move(preRbSeqnoGetValue.item));
 
-        if (preRbSeqnoGetValue.getStatus() == ENGINE_SUCCESS) {
+        if (preRbSeqnoGetValue.getStatus() == cb::engine_errc::success) {
             EP_LOG_DEBUG(
                     "EPDiskRollbackCB: Item existed pre-rollback; restoring to "
                     "pre-rollback state: {}",
@@ -1594,7 +1593,7 @@ public:
                     // been persisted to disk as of post-rollback seqno.
                     break;
                 case MutationStatus::NoMem:
-                    setStatus(ENGINE_ENOMEM);
+                    setStatus(cb::engine_errc::no_memory);
                     break;
                 case MutationStatus::InvalidCas:
                 case MutationStatus::IsLocked:
@@ -1607,7 +1606,8 @@ public:
                     throw std::logic_error(ss.str());
                 }
             }
-        } else if (preRbSeqnoGetValue.getStatus() == ENGINE_KEY_ENOENT) {
+        } else if (preRbSeqnoGetValue.getStatus() ==
+                   cb::engine_errc::no_such_key) {
             EP_LOG_DEBUG(
                     "EPDiskRollbackCB: Item did not exist pre-rollback; "
                     "removing from VB");
@@ -1624,11 +1624,11 @@ public:
     /// Remove a deleted-on-disk document from the VBucket's hashtable.
     void removeDeletedDoc(VBucket& vb, const Item& item) {
         if (vb.removeItemFromMemory(item)) {
-            setStatus(ENGINE_SUCCESS);
+            setStatus(cb::engine_errc::success);
         } else {
             // Document didn't exist in memory - may have been deleted in since
             // the checkpoint.
-            setStatus(ENGINE_KEY_ENOENT);
+            setStatus(cb::engine_errc::no_such_key);
         }
     }
 
@@ -1700,7 +1700,7 @@ void EPBucket::rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) {
             GetValue gcb = getROUnderlying(vb.getId())
                                    ->get(DiskDocKey{*item}, vb.getId());
 
-            if (gcb.getStatus() == ENGINE_SUCCESS) {
+            if (gcb.getStatus() == cb::engine_errc::success) {
                 vb.setFromInternal(*gcb.item.get());
             } else {
                 vb.removeItemFromMemory(*item);
@@ -1732,10 +1732,10 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
             if (val.item->getBySeqno() >
                 static_cast<int64_t>(highPreparedSeqno)) {
                 // ENOMEM may seem like an odd status code to abort the scan but
-                // disk backfill to a given seqno also returns ENGINE_ENOMEM
-                // when it has received all the seqnos that it cares about to
-                // abort the scan.
-                setStatus(ENGINE_ENOMEM);
+                // disk backfill to a given seqno also returns
+                // cb::engine_errc::no_memory when it has received all the
+                // seqnos that it cares about to abort the scan.
+                setStatus(cb::engine_errc::no_memory);
                 return;
             }
 
@@ -1878,7 +1878,7 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
 
     // If we abort our scan early due to reaching the HPS then the scan result
     // will be failure but we will have scanned correctly.
-    if (storageCB.getStatus() != ENGINE_ENOMEM) {
+    if (cb::engine_errc{storageCB.getStatus()} != cb::engine_errc::no_memory) {
         Expects(scanResult == scan_success);
     }
 

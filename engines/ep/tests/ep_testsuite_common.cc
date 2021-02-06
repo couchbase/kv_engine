@@ -155,7 +155,7 @@ bool test_setup(EngineIface* h) {
     // data traffic
     auto request = createPacket(cb::mcbp::ClientOpcode::EnableTraffic);
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(cb::engine_errc::success,
             h->unknown_command(cookie.get(), *request, add_response),
             "Failed to enable data traffic");
 

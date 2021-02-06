@@ -119,23 +119,23 @@ void TopKeys::updateKey(const void* key,
     }
 }
 
-ENGINE_ERROR_CODE TopKeys::stats(const void* cookie,
-                                 rel_time_t current_time,
-                                 const AddStatFn& add_stat) {
+cb::engine_errc TopKeys::stats(const void* cookie,
+                               rel_time_t current_time,
+                               const AddStatFn& add_stat) {
     if (Settings::instance().isTopkeysEnabled()) {
         return doStats(cookie, current_time, add_stat);
     }
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE TopKeys::json_stats(nlohmann::json& object,
-                                      rel_time_t current_time) {
+cb::engine_errc TopKeys::json_stats(nlohmann::json& object,
+                                    rel_time_t current_time) {
     if (Settings::instance().isTopkeysEnabled()) {
         return do_json_stats(object, current_time);
     }
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 TopKeys::Shard& TopKeys::getShard() {
@@ -315,14 +315,14 @@ static void tk_aggregate_func(const TopKeys::topkey_t& it, void* arg) {
     }
 }
 
-ENGINE_ERROR_CODE TopKeys::doStats(const void* cookie,
-                                   rel_time_t current_time,
-                                   const AddStatFn& add_stat) {
+cb::engine_errc TopKeys::doStats(const void* cookie,
+                                 rel_time_t current_time,
+                                 const AddStatFn& add_stat) {
     struct tk_context context(
             cookie, add_stat, current_time, nullptr, &tk_iterfunc);
     doStatsInner(context);
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 /**
@@ -335,8 +335,8 @@ ENGINE_ERROR_CODE TopKeys::doStats(const void* cookie,
  *    ]
  * }
  */
-ENGINE_ERROR_CODE TopKeys::do_json_stats(nlohmann::json& object,
-                                         rel_time_t current_time) {
+cb::engine_errc TopKeys::do_json_stats(nlohmann::json& object,
+                                       rel_time_t current_time) {
     nlohmann::json topkeys = nlohmann::json::array();
     struct tk_context context(
             nullptr, nullptr, current_time, &topkeys, &tk_jsonfunc);
@@ -345,7 +345,7 @@ ENGINE_ERROR_CODE TopKeys::do_json_stats(nlohmann::json& object,
     auto str = topkeys.dump();
     object["topkeys"] = topkeys;
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 void TopKeys::Shard::accept_visitor(iterfunc_t visitor_func,

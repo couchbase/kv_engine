@@ -22,12 +22,12 @@
 #include <memcached/protocol_binary.h>
 
 void dcp_buffer_acknowledgement_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    auto ret = cookie.swapAiostat(cb::engine_errc::success);
 
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         ret = mcbp::haveDcpPrivilege(cookie);
 
-        if (ret == ENGINE_SUCCESS) {
+        if (ret == cb::engine_errc::success) {
             auto& req = cookie.getRequest();
             auto extras = req.getExtdata();
             using Payload = cb::mcbp::request::DcpBufferAckPayload;
@@ -40,7 +40,7 @@ void dcp_buffer_acknowledgement_executor(Cookie& cookie) {
         }
     }
 
-    if (ret != ENGINE_SUCCESS) {
+    if (ret != cb::engine_errc::success) {
         handle_executor_status(cookie, ret);
     }
 }

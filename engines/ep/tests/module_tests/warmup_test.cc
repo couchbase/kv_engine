@@ -43,6 +43,6 @@ TEST_F(WarmupDisabledTest, Stats) {
     using ::testing::_;
     EXPECT_CALL(add_stat, callback("ep_warmup", _, _)).Times(0);
     EXPECT_EQ(
-            ENGINE_KEY_ENOENT,
+            cb::engine_errc::no_such_key,
             engine->getStats(&cookie, "warmup", {}, add_stat.asStdFunction()));
 }

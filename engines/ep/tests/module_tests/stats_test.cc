@@ -71,7 +71,7 @@ std::map<std::string, std::string> StatTest::get_stat(const char* statkey) {
     };
 
     EXPECT_EQ(
-            ENGINE_SUCCESS,
+            cb::engine_errc::success,
             engine->get_stats(&stats,
                               {statkey, statkey == NULL ? 0 : strlen(statkey)},
                               {},
@@ -157,7 +157,8 @@ TEST_F(StatTest, HashStatsMemUsed) {
         EXPECT_FALSE(ObjectRegistry::getCurrentEngine());
     };
 
-    ASSERT_EQ(ENGINE_SUCCESS, engine->get_stats(&state, key, {}, callback));
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->get_stats(&state, key, {}, callback));
 
     // Sanity check - should have had at least 1 call to ADD_STATS (otherwise
     // the test isn't valid).

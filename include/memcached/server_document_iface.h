@@ -48,13 +48,13 @@ struct ServerDocumentIface {
      * @param cookie The cookie provided to the engine for the storage
      *               command which may (which may hold more context)
      * @param info the items underlying data
-     * @return ENGINE_SUCCESS means that the underlying engine should
+     * @return cb::engine_errc::success means that the underlying engine should
      *                        proceed to link the item. All other
      *                        error codes means that the engine should
      *                        *NOT* link the item
      */
-    virtual ENGINE_ERROR_CODE pre_link(gsl::not_null<const void*> cookie,
-                                       item_info& info) = 0;
+    virtual cb::engine_errc pre_link(gsl::not_null<const void*> cookie,
+                                     item_info& info) = 0;
 
     /**
      * This callback is called from the underlying engine right before

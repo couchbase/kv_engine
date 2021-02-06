@@ -22,19 +22,19 @@
 #include <logger/logger.h>
 #include <memcached/audit_interface.h>
 
-ENGINE_ERROR_CODE AuditConfigureCommandContext::configuring() {
+cb::engine_errc AuditConfigureCommandContext::configuring() {
     // We always want to move into the next state after calling the
     // configure method.
     state = State::Done;
 
     if (Settings::instance().getAuditFile().empty()) {
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     auto ret = reconfigure_audit(cookie);
     switch (ret) {
-    case ENGINE_SUCCESS:
-    case ENGINE_EWOULDBLOCK:
+    case cb::engine_errc::success:
+    case cb::engine_errc::would_block:
         break;
     default:
         LOG_WARNING("configuration of audit daemon failed with config file: {}",

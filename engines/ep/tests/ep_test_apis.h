@@ -176,23 +176,23 @@ private:
 void decayingSleep(std::chrono::microseconds* sleepTime);
 
 // Basic Operations
-ENGINE_ERROR_CODE del(EngineIface* h,
-                      const char* key,
-                      uint64_t cas,
-                      Vbid vbucket,
-                      cb::tracing::Traceable* cookie = nullptr);
+cb::engine_errc del(EngineIface* h,
+                    const char* key,
+                    uint64_t cas,
+                    Vbid vbucket,
+                    cb::tracing::Traceable* cookie = nullptr);
 
-ENGINE_ERROR_CODE del(EngineIface* h,
-                      const char* key,
-                      uint64_t* cas,
-                      Vbid vbucket,
-                      cb::tracing::Traceable* cookie,
-                      mutation_descr_t* mut_info);
+cb::engine_errc del(EngineIface* h,
+                    const char* key,
+                    uint64_t* cas,
+                    Vbid vbucket,
+                    cb::tracing::Traceable* cookie,
+                    mutation_descr_t* mut_info);
 
 /** Simplified version of store for handling the common case of performing
  * a delete with a value.
  */
-ENGINE_ERROR_CODE delete_with_value(
+cb::engine_errc delete_with_value(
         EngineIface* h,
         cb::tracing::Traceable* cookie,
         uint64_t cas,
@@ -228,8 +228,8 @@ unique_request_ptr prepare_get_replica(EngineIface* h,
         CB_MUST_USE_RESULT;
 
 void get_replica(EngineIface* h, const char* key, Vbid vb);
-ENGINE_ERROR_CODE observe(EngineIface* h, std::map<std::string, Vbid> obskeys);
-ENGINE_ERROR_CODE observe_seqno(EngineIface* h, Vbid vb_id, uint64_t uuid);
+cb::engine_errc observe(EngineIface* h, std::map<std::string, Vbid> obskeys);
+cb::engine_errc observe_seqno(EngineIface* h, Vbid vb_id, uint64_t uuid);
 
 cb::engine_errc set_param(EngineIface* h,
                           EngineParamCategory paramtype,
@@ -261,7 +261,7 @@ void stop_persistence(EngineIface* h);
  * @param outitem If non-null, address of the stored item is saved here.
  * @return
  */
-ENGINE_ERROR_CODE store(
+cb::engine_errc store(
         EngineIface* h,
         cb::tracing::Traceable* cookie,
         StoreSemantics op,
@@ -294,15 +294,15 @@ cb::EngineErrorItemPair get(
 /* Stores the specified document; returning the new CAS value via
  * {out_cas}.
  */
-ENGINE_ERROR_CODE storeCasOut(EngineIface* h,
-                              cb::tracing::Traceable* cookie,
-                              Vbid vb,
-                              const std::string& key,
-                              const std::string& value,
-                              protocol_binary_datatype_t datatype,
-                              ItemIface*& out_item,
-                              uint64_t& out_cas,
-                              DocumentState docState = DocumentState::Alive);
+cb::engine_errc storeCasOut(EngineIface* h,
+                            cb::tracing::Traceable* cookie,
+                            Vbid vb,
+                            const std::string& key,
+                            const std::string& value,
+                            protocol_binary_datatype_t datatype,
+                            ItemIface*& out_item,
+                            uint64_t& out_cas,
+                            DocumentState docState = DocumentState::Alive);
 
 cb::EngineErrorItemPair storeCasVb11(
         EngineIface* h,
@@ -319,28 +319,28 @@ cb::EngineErrorItemPair storeCasVb11(
         DocumentState docState = DocumentState::Alive,
         const std::optional<cb::durability::Requirements>& durReqs = {});
 
-ENGINE_ERROR_CODE replace(EngineIface* h,
-                          cb::tracing::Traceable* cookie,
-                          const char* key,
-                          const char* value,
-                          uint32_t flags,
-                          Vbid vb);
+cb::engine_errc replace(EngineIface* h,
+                        cb::tracing::Traceable* cookie,
+                        const char* key,
+                        const char* value,
+                        uint32_t flags,
+                        Vbid vb);
 
-ENGINE_ERROR_CODE touch(EngineIface* h, const char* key, Vbid vb, uint32_t exp);
-ENGINE_ERROR_CODE unl(EngineIface* h,
-                      cb::tracing::Traceable* cookie,
-                      const char* key,
-                      Vbid vb,
-                      uint64_t cas = 0);
-ENGINE_ERROR_CODE verify_key(EngineIface* h,
-                             const char* key,
-                             Vbid vbucket = Vbid(0));
+cb::engine_errc touch(EngineIface* h, const char* key, Vbid vb, uint32_t exp);
+cb::engine_errc unl(EngineIface* h,
+                    cb::tracing::Traceable* cookie,
+                    const char* key,
+                    Vbid vb,
+                    uint64_t cas = 0);
+cb::engine_errc verify_key(EngineIface* h,
+                           const char* key,
+                           Vbid vbucket = Vbid(0));
 
 /**
- * Attempts to fetch the given key. On success returns ENGINE_SUCCESS and the
- * value, on failure returns the reason and an empty string.
+ * Attempts to fetch the given key. On success returns cb::engine_errc::success
+ * and the value, on failure returns the reason and an empty string.
  */
-std::pair<ENGINE_ERROR_CODE, std::string> get_value(
+std::pair<cb::engine_errc, std::string> get_value(
         EngineIface* h,
         cb::tracing::Traceable* cookie,
         const char* key,
@@ -361,13 +361,13 @@ void sendDcpAck(EngineIface* h,
 
 // Checkpoint Operations
 void createCheckpoint(EngineIface* h);
-ENGINE_ERROR_CODE checkpointPersistence(EngineIface* h,
-                                        uint64_t checkpoint_id,
-                                        Vbid vb);
-ENGINE_ERROR_CODE seqnoPersistence(EngineIface* h,
-                                   cb::tracing::Traceable* cookie,
-                                   Vbid vbucket,
-                                   uint64_t seqno);
+cb::engine_errc checkpointPersistence(EngineIface* h,
+                                      uint64_t checkpoint_id,
+                                      Vbid vb);
+cb::engine_errc seqnoPersistence(EngineIface* h,
+                                 cb::tracing::Traceable* cookie,
+                                 Vbid vbucket,
+                                 uint64_t seqno);
 
 // Stats Operations
 int get_int_stat(EngineIface* h,
@@ -389,10 +389,10 @@ bool get_bool_stat(EngineIface* h,
                    const char* statname,
                    const char* statkey = nullptr);
 
-ENGINE_ERROR_CODE get_stats(gsl::not_null<EngineIface*> h,
-                            std::string_view key,
-                            std::string_view value,
-                            const AddStatFn& callback);
+cb::engine_errc get_stats(gsl::not_null<EngineIface*> h,
+                          std::string_view key,
+                          std::string_view value,
+                          const AddStatFn& callback);
 
 /* This is used to get stat info specified by 'histo_info' from histogram of
  * "statname" which is got by running stats on "statkey"
@@ -525,33 +525,33 @@ bool get_meta(EngineIface* h,
               cb::EngineErrorMetadataPair& out,
               cb::tracing::Traceable* cookie = nullptr);
 
-ENGINE_ERROR_CODE set_with_meta(EngineIface* h,
-                                const char* key,
-                                const size_t keylen,
-                                const char* val,
-                                const size_t vallen,
-                                const Vbid vb,
-                                ItemMetaData* itemMeta,
-                                uint64_t cas_for_set,
-                                uint32_t options = 0,
-                                uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES,
-                                cb::tracing::Traceable* cookie = nullptr,
-                                const std::vector<char>& nmeta = {});
+cb::engine_errc set_with_meta(EngineIface* h,
+                              const char* key,
+                              const size_t keylen,
+                              const char* val,
+                              const size_t vallen,
+                              const Vbid vb,
+                              ItemMetaData* itemMeta,
+                              uint64_t cas_for_set,
+                              uint32_t options = 0,
+                              uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES,
+                              cb::tracing::Traceable* cookie = nullptr,
+                              const std::vector<char>& nmeta = {});
 
-ENGINE_ERROR_CODE add_with_meta(EngineIface* h,
-                                const char* key,
-                                const size_t keylen,
-                                const char* val,
-                                const size_t vallen,
-                                const Vbid vb,
-                                ItemMetaData* itemMeta,
-                                uint64_t cas_for_add = 0,
-                                uint32_t options = 0,
-                                uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES,
-                                cb::tracing::Traceable* cookie = nullptr,
-                                const std::vector<char>& nmeta = {});
+cb::engine_errc add_with_meta(EngineIface* h,
+                              const char* key,
+                              const size_t keylen,
+                              const char* val,
+                              const size_t vallen,
+                              const Vbid vb,
+                              ItemMetaData* itemMeta,
+                              uint64_t cas_for_add = 0,
+                              uint32_t options = 0,
+                              uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES,
+                              cb::tracing::Traceable* cookie = nullptr,
+                              const std::vector<char>& nmeta = {});
 
-ENGINE_ERROR_CODE del_with_meta(
+cb::engine_errc del_with_meta(
         EngineIface* h,
         const char* key,
         const size_t keylen,
@@ -565,7 +565,7 @@ ENGINE_ERROR_CODE del_with_meta(
         const std::vector<char>& value = {} /*optional value*/);
 
 // This version takes a RawItemMetaData allowing for 64-bit rev-seqno tests
-ENGINE_ERROR_CODE del_with_meta(
+cb::engine_errc del_with_meta(
         EngineIface* h,
         const char* key,
         const size_t keylen,
@@ -578,36 +578,36 @@ ENGINE_ERROR_CODE del_with_meta(
         protocol_binary_datatype_t datatype = 0,
         const std::vector<char>& value = {} /*optional value*/);
 
-ENGINE_ERROR_CODE set_ret_meta(EngineIface* h,
-                               const char* key,
-                               const size_t keylen,
-                               const char* val,
-                               const size_t vallen,
-                               const Vbid vb,
-                               const uint64_t cas = 0,
-                               const uint32_t flags = 0,
-                               const uint32_t exp = 0,
-                               uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES,
-                               cb::tracing::Traceable* cookie = nullptr);
+cb::engine_errc set_ret_meta(EngineIface* h,
+                             const char* key,
+                             const size_t keylen,
+                             const char* val,
+                             const size_t vallen,
+                             const Vbid vb,
+                             const uint64_t cas = 0,
+                             const uint32_t flags = 0,
+                             const uint32_t exp = 0,
+                             uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES,
+                             cb::tracing::Traceable* cookie = nullptr);
 
-ENGINE_ERROR_CODE add_ret_meta(EngineIface* h,
-                               const char* key,
-                               const size_t keylen,
-                               const char* val,
-                               const size_t vallen,
-                               const Vbid vb,
-                               const uint64_t cas = 0,
-                               const uint32_t flags = 0,
-                               const uint32_t exp = 0,
-                               uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES,
-                               cb::tracing::Traceable* cookie = nullptr);
+cb::engine_errc add_ret_meta(EngineIface* h,
+                             const char* key,
+                             const size_t keylen,
+                             const char* val,
+                             const size_t vallen,
+                             const Vbid vb,
+                             const uint64_t cas = 0,
+                             const uint32_t flags = 0,
+                             const uint32_t exp = 0,
+                             uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES,
+                             cb::tracing::Traceable* cookie = nullptr);
 
-ENGINE_ERROR_CODE del_ret_meta(EngineIface* h,
-                               const char* key,
-                               const size_t keylen,
-                               const Vbid vb,
-                               const uint64_t cas = 0,
-                               cb::tracing::Traceable* cookie = nullptr);
+cb::engine_errc del_ret_meta(EngineIface* h,
+                             const char* key,
+                             const size_t keylen,
+                             const Vbid vb,
+                             const uint64_t cas = 0,
+                             cb::tracing::Traceable* cookie = nullptr);
 
 // Fetches the CAS of the specified key.
 uint64_t get_CAS(EngineIface* h, const std::string& key);

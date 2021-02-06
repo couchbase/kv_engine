@@ -111,7 +111,7 @@ public:
         return wrapped->get_opcode_if_ewouldblock_set(cookie);
     }
     void notify_io_complete(gsl::not_null<const void*> cookie,
-                            ENGINE_ERROR_CODE status) override {
+                            cb::engine_errc status) override {
         return wrapped->notify_io_complete(cookie, status);
     }
     void scheduleDcpStep(gsl::not_null<const void*> cookie) override {
@@ -153,7 +153,7 @@ public:
         return wrapped->get_privilege_context_revision(cookie);
     }
     cb::mcbp::Status engine_error2mcbp(gsl::not_null<const void*> cookie,
-                                       ENGINE_ERROR_CODE code) override {
+                                       cb::engine_errc code) override {
         return wrapped->engine_error2mcbp(cookie, code);
     }
     std::pair<uint32_t, std::string> get_log_info(
@@ -248,7 +248,7 @@ void DCPTest::create_dcp_producer(
 
     // Now set any controls before creating any streams
     for (const auto& control : controls) {
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   producer->control(0, control.first, control.second));
     }
 }
@@ -312,7 +312,7 @@ void DCPTest::prepareCheckpointItemsForStep(
         VBucket& vb) {
     producer.notifySeqnoAvailable(
             vb.getId(), vb.getHighSeqno(), SyncWriteOperation::Yes);
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, producer.step(msgProducers));
+    ASSERT_EQ(cb::engine_errc::would_block, producer.step(msgProducers));
     ASSERT_EQ(1, producer.getCheckpointSnapshotTask()->queueSize());
     producer.getCheckpointSnapshotTask()->run();
 }
@@ -374,7 +374,7 @@ int DCPTest::callbackCount = 0;
 
 void DCPTest::runCheckpointProcessor(DcpMessageProducersIface& producers) {
     // Step which will notify the snapshot task
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
 
     EXPECT_EQ(1, producer->getCheckpointSnapshotTask()->queueSize());
 
@@ -587,8 +587,10 @@ TEST_P(CompressionStreamTest, compression_not_enabled) {
     MockDcpMessageProducers producers;
 
     // Now, add 2 items
-    EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item1, cookie));
-    EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item2, cookie));
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->getKVBucket()->set(*item1, cookie));
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->getKVBucket()->set(*item2, cookie));
 
     auto keyAndSnappyValueMessageSize = getItemSize(*item1);
 
@@ -611,19 +613,19 @@ TEST_P(CompressionStreamTest, compression_not_enabled) {
         EXPECT_LT(keyAndSnappyValueMessageSize, dcpResponse->getMessageSize());
     }
 
-    EXPECT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+    EXPECT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
 
     prepareCheckpointItemsForStep(producers, *producer, *vb);
 
     /* Stream the snapshot marker first */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(0, producer->getItemsSent());
 
     /* Stream the first mutation */
     protocol_binary_datatype_t expectedDataType =
             isXattr() ? PROTOCOL_BINARY_DATATYPE_XATTR
                       : PROTOCOL_BINARY_DATATYPE_JSON;
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     std::string value(qi->getValue()->getData(), qi->getValue()->valueSize());
     EXPECT_STREQ(producers.last_value.c_str(), decompressValue(value).c_str());
 
@@ -654,7 +656,7 @@ TEST_P(CompressionStreamTest, compression_not_enabled) {
     EXPECT_EQ(dcpResponse->getMessageSize(), keyAndValueMessageSize);
 
     /* Stream the second mutation */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
 
     value.assign(qi->getValue()->getData(), qi->getValue()->valueSize());
     EXPECT_STREQ(value.c_str(), producers.last_value.c_str());
@@ -692,20 +694,21 @@ TEST_P(CompressionStreamTest, connection_snappy_enabled) {
     auto includeValue = isXattr() ? IncludeValue::No : IncludeValue::Yes;
     setup_dcp_stream(0, includeValue, IncludeXattrs::Yes);
 
-    EXPECT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+    EXPECT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
     MockDcpMessageProducers producers;
     ASSERT_TRUE(producer->isCompressionEnabled());
 
     // Now, add the 3rd item. This item should be compressed
-    EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item, cookie));
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->getKVBucket()->set(*item, cookie));
 
     prepareCheckpointItemsForStep(producers, *producer, *vb);
 
     /* Stream the snapshot marker */
-    ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    ASSERT_EQ(cb::engine_errc::success, producer->step(producers));
 
     /* Stream the 3rd mutation */
-    ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    ASSERT_EQ(cb::engine_errc::success, producer->step(producers));
 
     /**
      * Create a DCP response and check that a new item is created and
@@ -766,13 +769,14 @@ TEST_P(CompressionStreamTest, force_value_compression_enabled) {
                      IncludeXattrs::Yes,
                      {{"force_value_compression", "true"}});
 
-    EXPECT_EQ(ENGINE_SUCCESS, doStreamRequest(*producer).status);
+    EXPECT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
     MockDcpMessageProducers producers;
 
     ASSERT_TRUE(producer->isForceValueCompressionEnabled());
 
     // Now, add the 4th item, which is not compressed
-    EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item, cookie));
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->getKVBucket()->set(*item, cookie));
     /**
      * Create a DCP response and check that a new item is created and
      * the message size is less than the size of the original item
@@ -788,10 +792,10 @@ TEST_P(CompressionStreamTest, force_value_compression_enabled) {
     prepareCheckpointItemsForStep(producers, *producer, *vb);
 
     /* Stream the snapshot marker */
-    ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    ASSERT_EQ(cb::engine_errc::success, producer->step(producers));
 
     /* Stream the mutation */
-    ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    ASSERT_EQ(cb::engine_errc::success, producer->step(producers));
     std::string value(qi->getValue()->getData(), qi->getValue()->valueSize());
     EXPECT_STREQ(decompressValue(producers.last_value).c_str(), value.c_str());
     EXPECT_LT(producers.last_packet_size, keyAndValueMessageSize);
@@ -1027,7 +1031,7 @@ protected:
         }
     }
 
-    ENGINE_ERROR_CODE set_vb_state(Vbid vbid, vbucket_state_t state) {
+    cb::engine_errc set_vb_state(Vbid vbid, vbucket_state_t state) {
         return engine->getKVBucket()->setVBucketState(
                 vbid, state, {}, TransferVB::Yes);
     }
@@ -1052,9 +1056,12 @@ TEST_P(ConnectionTest, test_mb19955) {
                                                       cookie,
                                                       "test_producer",
                                                       /*flags*/ 0);
-    // "1" is not a multiple of "2" and so we should return ENGINE_EINVAL
-    EXPECT_EQ(ENGINE_EINVAL, producer->control(0, "set_noop_interval", "1"))
-            << "Expected producer.control to return ENGINE_EINVAL";
+    // "1" is not a multiple of "2" and so we should return
+    // cb::engine_errc::invalid_arguments
+    EXPECT_EQ(cb::engine_errc::invalid_arguments,
+              producer->control(0, "set_noop_interval", "1"))
+            << "Expected producer.control to return "
+               "cb::engine_errc::invalid_arguments";
     destroy_mock_cookie(cookie);
 }
 
@@ -1068,8 +1075,8 @@ TEST_P(ConnectionTest, test_maybesendnoop_buffer_full) {
 
     class MockE2BigMessageProducers : public MockDcpMessageProducers {
     public:
-        ENGINE_ERROR_CODE noop(uint32_t) override {
-            return ENGINE_E2BIG;
+        cb::engine_errc noop(uint32_t) override {
+            return cb::engine_errc::too_big;
         }
 
     } producers;
@@ -1077,9 +1084,9 @@ TEST_P(ConnectionTest, test_maybesendnoop_buffer_full) {
     producer->setNoopEnabled(true);
     const auto send_time = ep_current_time() + 21;
     producer->setNoopSendTime(send_time);
-    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(producers);
-    EXPECT_EQ(ENGINE_E2BIG, ret)
-    << "maybeSendNoop not returning ENGINE_E2BIG";
+    cb::engine_errc ret = producer->maybeSendNoop(producers);
+    EXPECT_EQ(cb::engine_errc::too_big, ret)
+            << "maybeSendNoop not returning cb::engine_errc::too_big";
     EXPECT_FALSE(producer->getNoopPendingRecv())
             << "Waiting for noop acknowledgement";
     EXPECT_EQ(send_time, producer->getNoopSendTime())
@@ -1100,9 +1107,9 @@ TEST_P(ConnectionTest, test_maybesendnoop_send_noop) {
     producer->setNoopEnabled(true);
     const auto send_time = ep_current_time() + 21;
     producer->setNoopSendTime(send_time);
-    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(producers);
-    EXPECT_EQ(ENGINE_SUCCESS, ret)
-            << "maybeSendNoop not returning ENGINE_SUCCESS";
+    cb::engine_errc ret = producer->maybeSendNoop(producers);
+    EXPECT_EQ(cb::engine_errc::success, ret)
+            << "maybeSendNoop not returning cb::engine_errc::success";
     EXPECT_TRUE(producer->getNoopPendingRecv())
             << "Not waiting for noop acknowledgement";
     EXPECT_NE(send_time, producer->getNoopSendTime())
@@ -1124,29 +1131,31 @@ TEST_P(ConnectionTest, test_maybesendnoop_noop_already_pending) {
     TimeTraveller marty(engine->getConfiguration().getDcpIdleTimeout() + 1);
     producer->setNoopEnabled(true);
     producer->setNoopSendTime(send_time);
-    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(producers);
-    // Check to see if a noop was sent i.e. returned ENGINE_SUCCESS
-    EXPECT_EQ(ENGINE_SUCCESS, ret)
-            << "maybeSendNoop not returning ENGINE_SUCCESS";
+    cb::engine_errc ret = producer->maybeSendNoop(producers);
+    // Check to see if a noop was sent i.e. returned cb::engine_errc::success
+    EXPECT_EQ(cb::engine_errc::success, ret)
+            << "maybeSendNoop not returning cb::engine_errc::success";
     EXPECT_TRUE(producer->getNoopPendingRecv())
             << "Not awaiting noop acknowledgement";
     EXPECT_NE(send_time, producer->getNoopSendTime())
             << "SendTime has not been updated";
     ret = producer->maybeSendNoop(producers);
-    // Check to see if a noop was not sent i.e. returned ENGINE_FAILED
-    EXPECT_EQ(ENGINE_FAILED, ret)
-        << "maybeSendNoop not returning ENGINE_FAILED";
+    // Check to see if a noop was not sent i.e. returned cb::engine_errc::failed
+    EXPECT_EQ(cb::engine_errc::failed, ret)
+            << "maybeSendNoop not returning cb::engine_errc::failed";
     producer->setLastReceiveTime(send_time);
     ret = producer->maybeDisconnect();
-    // Check to see if we want to disconnect i.e. returned ENGINE_DISCONNECT
-    EXPECT_EQ(ENGINE_DISCONNECT, ret)
-        << "maybeDisconnect not returning ENGINE_DISCONNECT";
+    // Check to see if we want to disconnect i.e. returned
+    // cb::engine_errc::disconnect
+    EXPECT_EQ(cb::engine_errc::disconnect, ret)
+            << "maybeDisconnect not returning cb::engine_errc::disconnect";
     producer->setLastReceiveTime(
             send_time + engine->getConfiguration().getDcpIdleTimeout() + 1);
     ret = producer->maybeDisconnect();
-    // Check to see if we don't want to disconnect i.e. returned ENGINE_FAILED
-    EXPECT_EQ(ENGINE_FAILED, ret)
-        << "maybeDisconnect not returning ENGINE_FAILED";
+    // Check to see if we don't want to disconnect i.e. returned
+    // cb::engine_errc::failed
+    EXPECT_EQ(cb::engine_errc::failed, ret)
+            << "maybeDisconnect not returning cb::engine_errc::failed";
     EXPECT_TRUE(producer->getNoopPendingRecv())
             << "Not waiting for noop acknowledgement";
     producer->cancelCheckpointCreatorTask();
@@ -1165,9 +1174,9 @@ TEST_P(ConnectionTest, test_maybesendnoop_not_enabled) {
     producer->setNoopEnabled(false);
     const auto send_time = ep_current_time() + 21;
     producer->setNoopSendTime(send_time);
-    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(producers);
-    EXPECT_EQ(ENGINE_FAILED, ret)
-    << "maybeSendNoop not returning ENGINE_FAILED";
+    cb::engine_errc ret = producer->maybeSendNoop(producers);
+    EXPECT_EQ(cb::engine_errc::failed, ret)
+            << "maybeSendNoop not returning cb::engine_errc::failed";
     EXPECT_FALSE(producer->getNoopPendingRecv())
             << "Waiting for noop acknowledgement";
     EXPECT_EQ(send_time, producer->getNoopSendTime())
@@ -1188,9 +1197,9 @@ TEST_P(ConnectionTest, test_maybesendnoop_not_sufficient_time_passed) {
     producer->setNoopEnabled(true);
     rel_time_t current_time = ep_current_time();
     producer->setNoopSendTime(current_time);
-    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(producers);
-    EXPECT_EQ(ENGINE_FAILED, ret)
-    << "maybeSendNoop not returning ENGINE_FAILED";
+    cb::engine_errc ret = producer->maybeSendNoop(producers);
+    EXPECT_EQ(cb::engine_errc::failed, ret)
+            << "maybeSendNoop not returning cb::engine_errc::failed";
     EXPECT_FALSE(producer->getNoopPendingRecv())
             << "Waiting for noop acknowledgement";
     EXPECT_EQ(current_time, producer->getNoopSendTime())
@@ -1343,10 +1352,10 @@ TEST_P(ConnectionTest, test_producer_unknown_ctrl_msg) {
                                                       /*flags*/ 0);
 
     /* Send an unknown control message to the producer and expect an error code
-       of "ENGINE_EINVAL" */
+       of "cb::engine_errc::invalid_arguments" */
     const std::string unknownCtrlMsg("unknown");
     const std::string unknownCtrlValue("blah");
-    EXPECT_EQ(ENGINE_EINVAL,
+    EXPECT_EQ(cb::engine_errc::invalid_arguments,
               producer->control(0, unknownCtrlMsg, unknownCtrlValue));
     destroy_mock_cookie(cookie);
 }
@@ -1441,10 +1450,10 @@ TEST_P(ConnectionTest, consumer_waits_for_add_stream) {
     auto* cookie = create_mock_cookie(engine);
     MockDcpMessageProducers producers;
     MockDcpConsumer consumer(*engine, cookie, "test_consumer");
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, consumer.step(producers));
+    ASSERT_EQ(cb::engine_errc::would_block, consumer.step(producers));
     // fake that we received add stream
     consumer.setPendingAddStream(false);
-    ASSERT_EQ(ENGINE_SUCCESS, consumer.step(producers));
+    ASSERT_EQ(cb::engine_errc::success, consumer.step(producers));
 
     destroy_mock_cookie(cookie);
 }
@@ -1472,12 +1481,12 @@ TEST_P(ConnectionTest, consumer_get_error_map) {
         // here, so this is just to let the test to work with all EP
         // configurations.
         if (engine->getConfiguration().getDcpFlowControlPolicy() != "none") {
-            ASSERT_EQ(ENGINE_SUCCESS, consumer.step(producers));
+            ASSERT_EQ(cb::engine_errc::success, consumer.step(producers));
         }
 
         // The next call to step() is expected to start the GetErrorMap
         // negotiation
-        ASSERT_EQ(ENGINE_SUCCESS, consumer.step(producers));
+        ASSERT_EQ(cb::engine_errc::success, consumer.step(producers));
         ASSERT_EQ(2 /*PendingResponse*/,
                   static_cast<uint8_t>(consumer.getGetErrorMapState()));
 
@@ -1589,12 +1598,12 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
 
     // Move consumer into paused state (aka EWOULDBLOCK).
     MockDcpMessageProducers producers;
-    ENGINE_ERROR_CODE result;
+    cb::engine_errc result;
     do {
         result = consumer.step(producers);
         handleProducerResponseIfStepBlocked(consumer, producers);
-    } while (result == ENGINE_SUCCESS);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, result);
+    } while (result == cb::engine_errc::success);
+    EXPECT_EQ(cb::engine_errc::would_block, result);
 
     // Check preconditions.
     EXPECT_TRUE(consumer.isPaused());
@@ -1667,17 +1676,17 @@ TEST_P(ConnectionTest, ConsumerWithConsumerNameEnablesSyncRepl) {
     // Move consumer into paused state (aka EWOULDBLOCK) by stepping through the
     // DCP_CONTROL logic.
     MockDcpMessageProducers producers;
-    ENGINE_ERROR_CODE result;
+    cb::engine_errc result;
     do {
         result = consumer.step(producers);
         handleProducerResponseIfStepBlocked(consumer, producers);
         syncReplNeg = consumer.public_getSyncReplNegotiation();
     } while (syncReplNeg.state != State::Completed);
-    EXPECT_EQ(ENGINE_SUCCESS, result);
+    EXPECT_EQ(cb::engine_errc::success, result);
 
     // Last step - send the consumer name
     ASSERT_TRUE(consumer.public_getPendingSendConsumerName());
-    EXPECT_EQ(ENGINE_SUCCESS, consumer.step(producers));
+    EXPECT_EQ(cb::engine_errc::success, consumer.step(producers));
 
     // SyncReplication negotiation is now completed, SyncReplication is enabled
     // on this consumer, and we have sent the consumer name to the producer.
@@ -1706,9 +1715,9 @@ protected:
     /**
      * Fake callback emulating dcp_add_failover_log
      */
-    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(
+    static cb::engine_errc fakeDcpAddFailoverLog(
             const std::vector<vbucket_failover_t>&) {
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     enum class ConnExistsBy : uint8_t { Cookie, Name };
@@ -1797,7 +1806,7 @@ TEST_F(DcpConnMapTest, DeleteProducerOnUncleanDCPConnMapDelete) {
     /* Open stream */
     uint64_t rollbackSeqno = 0;
     uint32_t opaque = 0;
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->streamRequest(/*flags*/ 0,
                                       opaque,
                                       vbid,
@@ -1831,7 +1840,7 @@ TEST_F(DcpConnMapTest, DeleteConsumerConnOnUncleanDCPConnMapDelete) {
             dummyMockCookie, "test_consumer");
 
     /* Add passive stream */
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               consumer->addStream(/*opaque*/ 0,
                                   vbid,
                                   /*flags*/ 0));
@@ -1852,7 +1861,7 @@ TEST_F(DcpConnMapTest, TestCorrectConnHandlerRemoved) {
     auto* cookieA = create_mock_cookie(engine.get());
     auto* cookieB = create_mock_cookie(engine.get());
 
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               engine->getKVBucket()->setVBucketState(
                       vbid, vbucket_state_replica, {}, TransferVB::Yes));
 
@@ -1906,7 +1915,7 @@ TEST_F(DcpConnMapTest, TestCorrectRemovedOnStreamEnd) {
 
     uint64_t rollbackSeqno = 0;
 
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               producer->streamRequest(0, // flags
                                       0xdead,
                                       vbid,
@@ -1923,12 +1932,12 @@ TEST_F(DcpConnMapTest, TestCorrectRemovedOnStreamEnd) {
 
     // Close the stream. This will not remove the ConnHandler from
     // ConnMap.vbConns because we are waiting to send streamEnd.
-    ASSERT_EQ(ENGINE_SUCCESS, producer->closeStream(0xdead, vbid));
+    ASSERT_EQ(cb::engine_errc::success, producer->closeStream(0xdead, vbid));
     // Step to send the streamEnd, and remove the ConnHandler
-    ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    ASSERT_EQ(cb::engine_errc::success, producer->step(producers));
 
     // Move to replica
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               engine->getKVBucket()->setVBucketState(
                       vbid, vbucket_state_replica, {}, TransferVB::Yes));
 
@@ -1942,14 +1951,14 @@ TEST_F(DcpConnMapTest, TestCorrectRemovedOnStreamEnd) {
     EXPECT_FALSE(connMap.doesVbConnExist(vbid, "eq_dcpq:test_consumerA"));
 
     // add a stream for the same VB as before
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(0xbeef, vbid, 0));
+    ASSERT_EQ(cb::engine_errc::success, consumer->addStream(0xbeef, vbid, 0));
     EXPECT_TRUE(connMap.doesVbConnExist(vbid, "eq_dcpq:test_consumerA"));
 
     // End the stream. This should remove the Consumer ConnHandler from vbConns
     auto streamOpaque =
             static_cast<MockDcpConsumer*>(consumer)->getStreamOpaque(0xbeef);
     ASSERT_TRUE(streamOpaque);
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               consumer->streamEnd(
                       *streamOpaque, vbid, cb::mcbp::DcpStreamEndStatus::Ok));
 
@@ -1986,7 +1995,7 @@ TEST_F(DcpConnMapTest, AvoidDoubleLockToVBStateAtSetVBucketState) {
     producer->control(opaque, "consumer_name", "consumer");
 
     uint64_t rollbackSeqno = 0;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               producer->streamRequest(flags,
                                       opaque,
                                       vbid,
@@ -2035,7 +2044,7 @@ TEST_F(DcpConnMapTest,
     producer->control(opaque, "consumer_name", "consumer");
 
     uint64_t rollbackSeqno = 0;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               producer->streamRequest(flags,
                                       opaque,
                                       vbid,
@@ -2186,7 +2195,7 @@ void DcpConnMapTest::testLockInversionInSetVBucketStateAndNewProducer() {
     const auto streamRequest =
             [this, flags, opaque](DcpProducer& producer) -> void {
         uint64_t rollbackSeqno = 0;
-        ASSERT_EQ(ENGINE_SUCCESS,
+        ASSERT_EQ(cb::engine_errc::success,
                   producer.streamRequest(flags,
                                          opaque,
                                          vbid,
@@ -2280,7 +2289,7 @@ public:
     }
 
     static void dcp_test_notify_io_complete(gsl::not_null<const void*> cookie,
-                                            ENGINE_ERROR_CODE status) {
+                                            cb::engine_errc status) {
         const auto* notifyTest = reinterpret_cast<const ConnMapNotifyTest*>(
                 get_mock_server_api()->cookie->get_engine_specific(
                         cookie.get()));
@@ -2304,12 +2313,12 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify) {
     class MockServerCookieApi : public WrappedServerCookieIface {
     public:
         void notify_io_complete(gsl::not_null<const void*> cookie,
-                                ENGINE_ERROR_CODE status) override {
+                                cb::engine_errc status) override {
             ConnMapNotifyTest::dcp_test_notify_io_complete(cookie, status);
         }
         void scheduleDcpStep(gsl::not_null<const void*> cookie) override {
-            ConnMapNotifyTest::dcp_test_notify_io_complete(cookie,
-                                                           ENGINE_SUCCESS);
+            ConnMapNotifyTest::dcp_test_notify_io_complete(
+                    cookie, cb::engine_errc::success);
         }
     } scapi;
 
@@ -2348,12 +2357,12 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify_paused) {
     class MockServerCookieApi : public WrappedServerCookieIface {
     public:
         void notify_io_complete(gsl::not_null<const void*> cookie,
-                                ENGINE_ERROR_CODE status) override {
+                                cb::engine_errc status) override {
             ConnMapNotifyTest::dcp_test_notify_io_complete(cookie, status);
         }
         void scheduleDcpStep(gsl::not_null<const void*> cookie) override {
-            ConnMapNotifyTest::dcp_test_notify_io_complete(cookie,
-                                                           ENGINE_SUCCESS);
+            ConnMapNotifyTest::dcp_test_notify_io_complete(
+                    cookie, cb::engine_errc::success);
         }
     } scapi;
 
@@ -2456,9 +2465,9 @@ public:
     /*
      * Fake callback emulating dcp_add_failover_log
      */
-    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(
+    static cb::engine_errc fakeDcpAddFailoverLog(
             const std::vector<vbucket_failover_t>&) {
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     void notifyAndStepToCheckpoint() {
@@ -2475,7 +2484,7 @@ public:
 TEST_F(ActiveStreamChkptProcessorTaskTest, DeleteDeadStreamEntry) {
     uint64_t rollbackSeqno;
     uint32_t opaque = 1;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               producer->streamRequest(
                       0, // flags
                       opaque,
@@ -2494,7 +2503,7 @@ TEST_F(ActiveStreamChkptProcessorTaskTest, DeleteDeadStreamEntry) {
     /* Close and open the stream without clearing the checkpoint task processor
      Q */
     producer->closeStream(opaque, vbid);
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               producer->streamRequest(
                       0, // flags
                       opaque,
@@ -2770,9 +2779,10 @@ TEST_P(FlowControlTest, NotifyConsumerOnlyIfFlowControlEnabled) {
     }
 
     // Setup the stream
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque, vbid, 0 /*flags*/));
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->addStream(opaque, vbid, 0 /*flags*/));
     opaque += 1;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(opaque,
                                        vbid,
                                        1,
@@ -2785,7 +2795,7 @@ TEST_P(FlowControlTest, NotifyConsumerOnlyIfFlowControlEnabled) {
     // Receive a mutation
     // Note: Only paused connections are added to the pending notifications
     consumer->pause();
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               consumer->mutation(opaque,
                                  {"key", DocKeyEncodesCollectionId::No},
                                  {}, // value

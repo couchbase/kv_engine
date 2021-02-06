@@ -59,54 +59,53 @@ public:
             const std::optional<item_info>& existing, cb::vbucket_info vb);
 
 protected:
-    ENGINE_ERROR_CODE step() override;
+    cb::engine_errc step() override;
 
     /**
      * Validate the input data provided by the client, and update the
      * datatype for the document if the client isn't datatype aware.
      *
-     * @return ENGINE_SUCCESS if we want to proceed to the next state
+     * @return cb::engine_errc::success if we want to proceed to the next state
      */
-    ENGINE_ERROR_CODE validateInput();
+    cb::engine_errc validateInput();
 
     /**
      * Get the existing data from the underlying engine. It may be
      * needed to preserve potential XATTRs on the document
      *
-     * @return ENGINE_SUCCESS if we want to proceed to the next state
+     * @return cb::engine_errc::success if we want to proceed to the next state
      */
-    ENGINE_ERROR_CODE getExistingItemToPreserveXattr();
+    cb::engine_errc getExistingItemToPreserveXattr();
 
     /**
      * Allocate memory for the object and initialize it with the value
      * provided by the client
      *
-     * @return ENGINE_SUCCESS if we want to proceed to the next state
+     * @return cb::engine_errc::success if we want to proceed to the next state
      */
-    ENGINE_ERROR_CODE allocateNewItem();
+    cb::engine_errc allocateNewItem();
 
     /**
      * Store the newly created document in the engine
      *
-     * @return ENGINE_SUCCESS if we want to proceed to the next state
+     * @return cb::engine_errc::success if we want to proceed to the next state
      */
-    ENGINE_ERROR_CODE storeItem();
+    cb::engine_errc storeItem();
 
     /**
      * Send the response back to the client (or progress to the next
      * phase for quiet ops).
      *
-     * @return ENGINE_SUCCESS if we want to proceed to the next state
+     * @return cb::engine_errc::success if we want to proceed to the next state
      */
-    ENGINE_ERROR_CODE sendResponse();
+    cb::engine_errc sendResponse();
 
     /**
      * Release all allocated resources and prepare for a retry
      *
-     * @return ENGINE_SUCCESS if we want to proceed to the next state
+     * @return cb::engine_errc::success if we want to proceed to the next state
      */
-    ENGINE_ERROR_CODE reset();
-
+    cb::engine_errc reset();
 
 private:
     const StoreSemantics operation;

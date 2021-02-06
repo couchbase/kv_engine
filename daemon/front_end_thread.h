@@ -46,7 +46,7 @@ struct FrontEndThread {
      */
     using PendingIoMap = std::unordered_map<
             Connection*,
-            std::vector<std::pair<Cookie*, ENGINE_ERROR_CODE>>>;
+            std::vector<std::pair<Cookie*, cb::engine_errc>>>;
 
     /**
      * Destructor.

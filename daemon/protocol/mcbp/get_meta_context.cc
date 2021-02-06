@@ -38,7 +38,7 @@ GetMetaCommandContext::GetMetaCommandContext(Cookie& cookie)
     }
 }
 
-ENGINE_ERROR_CODE GetMetaCommandContext::getItemMeta() {
+cb::engine_errc GetMetaCommandContext::getItemMeta() {
     auto errorMetaPair =
             bucket_get_meta(cookie, cookie.getRequestKey(), vbucket);
     if (errorMetaPair.first == cb::engine_errc::success) {
@@ -49,10 +49,10 @@ ENGINE_ERROR_CODE GetMetaCommandContext::getItemMeta() {
         errorMetaPair.first = cb::engine_errc::success;
     }
 
-    return ENGINE_ERROR_CODE(errorMetaPair.first);
+    return cb::engine_errc(errorMetaPair.first);
 }
 
-ENGINE_ERROR_CODE GetMetaCommandContext::sendResponse() {
+cb::engine_errc GetMetaCommandContext::sendResponse() {
     // Prepare response
     uint32_t deleted =
             htonl(info.document_state == DocumentState::Deleted ? 1 : 0);
@@ -80,11 +80,10 @@ ENGINE_ERROR_CODE GetMetaCommandContext::sendResponse() {
     update_topkeys(cookie);
 
     state = State::Done;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE GetMetaCommandContext::noSuchItem() {
-
+cb::engine_errc GetMetaCommandContext::noSuchItem() {
     if (cookie.getRequest().isQuiet()) {
         auto& bucket = connection.getBucket();
         bucket.responseCounters[int(cb::mcbp::Status::KeyEnoent)]++;
@@ -96,11 +95,11 @@ ENGINE_ERROR_CODE GetMetaCommandContext::noSuchItem() {
     }
 
     state = State::Done;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE GetMetaCommandContext::step() {
-    auto ret = ENGINE_SUCCESS;
+cb::engine_errc GetMetaCommandContext::step() {
+    auto ret = cb::engine_errc::success;
     do {
         switch (state) {
         case State::GetItemMeta:
@@ -113,9 +112,9 @@ ENGINE_ERROR_CODE GetMetaCommandContext::step() {
             ret = sendResponse();
             break;
         case State::Done:
-            return ENGINE_SUCCESS;
+            return cb::engine_errc::success;
         }
-    } while (ret == ENGINE_SUCCESS);
+    } while (ret == cb::engine_errc::success);
 
     return ret;
 }

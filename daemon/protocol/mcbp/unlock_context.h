@@ -51,7 +51,7 @@ protected:
      *         the connections state to one of the appropriate states (send
      *         data, or start processing the next command)
      */
-    ENGINE_ERROR_CODE step() override;
+    cb::engine_errc step() override;
 
     /**
      * Unlock the document (this is the state the statemachine would
@@ -59,7 +59,7 @@ protected:
      *
      * @return The return value of the engine interface unlock method
      */
-     ENGINE_ERROR_CODE unlock();
+    cb::engine_errc unlock();
 
 private:
     const Vbid vbucket;

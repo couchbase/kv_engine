@@ -182,11 +182,12 @@ public:
      *
      * @param replica The replica that sent the ACK
      * @param diskSeqno The ack'ed prepared seqno.
-     * @return ENGINE_SUCCESS if the operation succeeds, an error code otherwise
+     * @return cb::engine_errc::success if the operation succeeds, an error code
+     * otherwise
      * @throw std::logic_error if the received seqno is unexpected
      */
-    ENGINE_ERROR_CODE seqnoAckReceived(const std::string& replica,
-                                       int64_t preparedSeqno);
+    cb::engine_errc seqnoAckReceived(const std::string& replica,
+                                     int64_t preparedSeqno);
 
     /**
      * Enforce timeout for the expired SyncWrites in the tracked list.

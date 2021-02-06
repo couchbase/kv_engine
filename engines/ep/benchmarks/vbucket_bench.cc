@@ -83,7 +83,7 @@ protected:
 
     void TearDown(const benchmark::State& state) override {
         if (state.thread_index == 0) {
-            ASSERT_EQ(ENGINE_SUCCESS,
+            ASSERT_EQ(cb::engine_errc::success,
                       engine->getKVBucket()->deleteVBucket(vbid, nullptr));
             executorPool->runNextTask(
                     AUXIO_TASK_IDX,
@@ -198,7 +198,8 @@ BENCHMARK_DEFINE_F(MemTrackingVBucketBench, QueueDirty)
             const auto key = makeKeyWithDuplicates(i);
             auto item = make_item(vbid, key, value);
             state.ResumeTiming();
-            ASSERT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(item, cookie));
+            ASSERT_EQ(cb::engine_errc::success,
+                      engine->getKVBucket()->set(item, cookie));
             ++itemsQueuedTotal;
         }
 
@@ -237,7 +238,8 @@ BENCHMARK_DEFINE_F(MemTrackingVBucketBench, FlushVBucket)
         for (int i = 0; i < itemCount; ++i) {
             auto item = make_item(
                     vbid, std::string("key") + std::to_string(i), value);
-            ASSERT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(item, cookie));
+            ASSERT_EQ(cb::engine_errc::success,
+                      engine->getKVBucket()->set(item, cookie));
         }
 
         // Make sure we have something in the vBucket the first time round
@@ -251,9 +253,9 @@ BENCHMARK_DEFINE_F(MemTrackingVBucketBench, FlushVBucket)
         if (mode == FlushMode::Insert) {
             // Delete the vBucket so that we can measure the Insert path
             auto result = engine->getKVBucket()->deleteVBucket(vbid, cookie);
-            if (result != ENGINE_SUCCESS) {
+            if (result != cb::engine_errc::success) {
                 // Deferred deletion is running, wait until complete
-                EXPECT_EQ(ENGINE_EWOULDBLOCK, result);
+                EXPECT_EQ(cb::engine_errc::would_block, result);
                 executorPool->runNextTask(
                         AUXIO_TASK_IDX,
                         "Removing (dead) vb:0 from memory and disk");
@@ -273,7 +275,8 @@ BENCHMARK_DEFINE_F(MemTrackingVBucketBench, FlushVBucket)
         for (int i = 0; i < itemCount; ++i) {
             auto item = make_item(
                     vbid, std::string("key") + std::to_string(i), value);
-            ASSERT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(item, cookie));
+            ASSERT_EQ(cb::engine_errc::success,
+                      engine->getKVBucket()->set(item, cookie));
         }
 
         baseBytes = memoryTracker->getCurrentAlloc();

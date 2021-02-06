@@ -33,8 +33,8 @@ static int do_item_link(struct default_engine *engine,
                         const void* cookie,
                         hash_item *it);
 static void do_item_unlink(struct default_engine *engine, hash_item *it);
-static ENGINE_ERROR_CODE do_safe_item_unlink(struct default_engine *engine,
-                                             hash_item *it);
+static cb::engine_errc do_safe_item_unlink(struct default_engine* engine,
+                                           hash_item* it);
 static void do_item_release(struct default_engine *engine, hash_item *it);
 static void do_item_update(struct default_engine *engine, hash_item *it);
 static int do_item_replace(struct default_engine* engine,
@@ -321,7 +321,8 @@ int do_item_link(struct default_engine *engine,
     info.value[0].iov_len = it->nbytes;
     info.datatype = it->datatype;
 
-    if (engine->server.document->pre_link(cookie, info) != ENGINE_SUCCESS) {
+    if (engine->server.document->pre_link(cookie, info) !=
+        cb::engine_errc::success) {
         return 0;
     }
 
@@ -345,17 +346,16 @@ void do_item_unlink(struct default_engine *engine, hash_item *it) {
     }
 }
 
-ENGINE_ERROR_CODE do_safe_item_unlink(struct default_engine* engine,
-                                      hash_item* it) {
-
+cb::engine_errc do_safe_item_unlink(struct default_engine* engine,
+                                    hash_item* it) {
     const hash_key* key = item_get_key(it);
     auto* stored =
             do_item_get(engine, key, DocStateFilter::AliveOrDeleted);
     if (stored == nullptr) {
-        return ENGINE_KEY_ENOENT;
+        return cb::engine_errc::no_such_key;
     }
 
-    auto ret = ENGINE_SUCCESS;
+    auto ret = cb::engine_errc::success;
 
     if (it->cas == stored->cas) {
         if ((stored->iflag & ITEM_LINKED) != 0) {
@@ -371,7 +371,7 @@ ENGINE_ERROR_CODE do_safe_item_unlink(struct default_engine* engine,
             }
         }
     } else {
-        ret = ENGINE_KEY_EEXISTS;
+        ret = cb::engine_errc::key_already_exists;
     }
 
     do_item_release(engine, it);
@@ -553,16 +553,16 @@ hash_item* do_item_get(struct default_engine* engine,
  *
  * Returns the state of storage.
  */
-static ENGINE_ERROR_CODE do_store_item(struct default_engine* engine,
-                                       hash_item* it,
-                                       StoreSemantics operation,
-                                       const void* cookie,
-                                       hash_item** stored_item,
-                                       bool preserveTtl) {
+static cb::engine_errc do_store_item(struct default_engine* engine,
+                                     hash_item* it,
+                                     StoreSemantics operation,
+                                     const void* cookie,
+                                     hash_item** stored_item,
+                                     bool preserveTtl) {
     const hash_key* key = item_get_key(it);
     hash_item* old_it =
             do_item_get(engine, key, DocStateFilter::AliveOrDeleted);
-    ENGINE_ERROR_CODE stored = ENGINE_NOT_STORED;
+    cb::engine_errc stored = cb::engine_errc::not_stored;
 
     bool locked = false;
     if (old_it != nullptr && old_it->locktime != 0) {
@@ -580,7 +580,7 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine* engine,
         /* validate cas operation */
         if (old_it == nullptr) {
             /* LRU expired */
-            stored = ENGINE_KEY_ENOENT;
+            stored = cb::engine_errc::no_such_key;
         } else if (it->cas == old_it->cas) {
             /* cas validates */
             /* it and old_it may belong to different classes. */
@@ -589,22 +589,22 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine* engine,
                 it->exptime = old_it->exptime;
             }
             do_item_replace(engine, cookie, old_it, it);
-            stored = ENGINE_SUCCESS;
+            stored = cb::engine_errc::success;
         } else {
             if (locked) {
-                stored = ENGINE_LOCKED;
+                stored = cb::engine_errc::locked;
             } else if (old_it->iflag & ITEM_ZOMBIE && !(it->iflag &ITEM_ZOMBIE)) {
                 // If you try to do replace on a deleted document
-                stored = ENGINE_KEY_ENOENT;
+                stored = cb::engine_errc::no_such_key;
             } else {
-                stored = ENGINE_KEY_EEXISTS;
+                stored = cb::engine_errc::key_already_exists;
             }
         }
     } else {
         if (locked) {
-            stored = ENGINE_LOCKED;
+            stored = cb::engine_errc::locked;
         } else {
-            stored = ENGINE_SUCCESS;
+            stored = cb::engine_errc::success;
             if (old_it != nullptr) {
                 if (preserveTtl) {
                     it->exptime = old_it->exptime;
@@ -612,7 +612,7 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine* engine,
                 do_item_replace(engine, cookie, old_it, it);
             } else {
                 if (do_item_link(engine, cookie, it) == 0) {
-                    stored = ENGINE_FAILED;
+                    stored = cb::engine_errc::failed;
                 }
             }
         }
@@ -622,7 +622,7 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine* engine,
         do_item_release(engine, old_it);         /* release our reference */
     }
 
-    if (stored == ENGINE_SUCCESS) {
+    if (stored == cb::engine_errc::success) {
         *stored_item = it;
     }
 
@@ -703,8 +703,7 @@ void item_unlink(struct default_engine *engine, hash_item *item) {
     do_item_unlink(engine, item);
 }
 
-ENGINE_ERROR_CODE safe_item_unlink(struct default_engine *engine,
-                                   hash_item *it) {
+cb::engine_errc safe_item_unlink(struct default_engine* engine, hash_item* it) {
     std::lock_guard<std::mutex> guard(engine->items.lock);
     return do_safe_item_unlink(engine, it);
 }
@@ -712,14 +711,14 @@ ENGINE_ERROR_CODE safe_item_unlink(struct default_engine *engine,
 /*
  * Stores an item in the cache (high level, obeys set/add/replace semantics)
  */
-ENGINE_ERROR_CODE store_item(struct default_engine* engine,
-                             hash_item* item,
-                             uint64_t* cas,
-                             StoreSemantics operation,
-                             const void* cookie,
-                             const DocumentState document_state,
-                             bool preserveTtl) {
-    ENGINE_ERROR_CODE ret;
+cb::engine_errc store_item(struct default_engine* engine,
+                           hash_item* item,
+                           uint64_t* cas,
+                           StoreSemantics operation,
+                           const void* cookie,
+                           const DocumentState document_state,
+                           bool preserveTtl) {
+    cb::engine_errc ret;
     hash_item* stored_item = nullptr;
 
     if (document_state == DocumentState::Deleted) {
@@ -729,27 +728,27 @@ ENGINE_ERROR_CODE store_item(struct default_engine* engine,
     std::lock_guard<std::mutex> guard(engine->items.lock);
     ret = do_store_item(
             engine, item, operation, cookie, &stored_item, preserveTtl);
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         *cas = stored_item->cas;
     }
 
     return ret;
 }
 
-ENGINE_ERROR_CODE do_item_get_locked(struct default_engine* engine,
-                                     const void* cookie,
-                                     hash_item** it,
-                                     const hash_key* hkey,
-                                     rel_time_t locktime) {
+cb::engine_errc do_item_get_locked(struct default_engine* engine,
+                                   const void* cookie,
+                                   hash_item** it,
+                                   const hash_key* hkey,
+                                   rel_time_t locktime) {
     hash_item* item = do_item_get(engine, hkey, DocStateFilter::Alive);
     if (item == nullptr) {
-        return ENGINE_KEY_ENOENT;
+        return cb::engine_errc::no_such_key;
     }
 
     if (item->locktime != 0 &&
         item->locktime > engine->server.core->get_current_time()) {
         do_item_release(engine, item);
-        return ENGINE_LOCKED;
+        return cb::engine_errc::locked;
     }
 
     /*
@@ -763,7 +762,8 @@ ENGINE_ERROR_CODE do_item_get_locked(struct default_engine* engine,
      * Instead I decided to create an extra clone of the item, and if the
      * item isn't linked we should revel the real CAS.
      *
-     * If I failed to create the temporary item I'm returning ENGINE_TMPFAIL.
+     * If I failed to create the temporary item I'm returning
+     * cb::engine_errc::temporary_failure.
      *
      * There is one minor optimization here.. If I'm the only one accessing
      * the object (refcount == 1) I can update the in-memory object and only
@@ -781,7 +781,7 @@ ENGINE_ERROR_CODE do_item_get_locked(struct default_engine* engine,
                                     item->nbytes, cookie, item->datatype);
         if (clone == nullptr) {
             do_item_release(engine, item);
-            return ENGINE_TMPFAIL;
+            return cb::engine_errc::temporary_failure;
         }
 
         // let's just do an in-place update of the metadata. and return the
@@ -802,7 +802,7 @@ ENGINE_ERROR_CODE do_item_get_locked(struct default_engine* engine,
                                      item->nbytes, cookie, item->datatype);
         if (clone1 == nullptr) {
             do_item_release(engine, item);
-            return ENGINE_TMPFAIL;
+            return cb::engine_errc::temporary_failure;
         }
 
         auto* clone2 = do_item_alloc(engine, hkey, item->flags, item->exptime,
@@ -810,7 +810,7 @@ ENGINE_ERROR_CODE do_item_get_locked(struct default_engine* engine,
         if (clone2 == nullptr) {
             do_item_release(engine, item);
             do_item_release(engine, clone1);
-            return ENGINE_TMPFAIL;
+            return cb::engine_errc::temporary_failure;
         }
 
         std::memcpy(item_get_data(clone1), item_get_data(item), item->nbytes);
@@ -828,21 +828,21 @@ ENGINE_ERROR_CODE do_item_get_locked(struct default_engine* engine,
         *it = clone2;
     }
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE item_get_locked(struct default_engine* engine,
-                                  const void* cookie,
-                                  hash_item** it,
-                                  const DocKey& key,
-                                  rel_time_t locktime) {
+cb::engine_errc item_get_locked(struct default_engine* engine,
+                                const void* cookie,
+                                hash_item** it,
+                                const DocKey& key,
+                                rel_time_t locktime) {
     hash_key hkey;
 
     if (!hash_key_create(&hkey, key, engine)) {
-        return ENGINE_TMPFAIL;
+        return cb::engine_errc::temporary_failure;
     }
 
-    ENGINE_ERROR_CODE ret;
+    cb::engine_errc ret;
     {
         std::lock_guard<std::mutex> guard(engine->items.lock);
         ret = do_item_get_locked(engine, cookie, it, &hkey, locktime);
@@ -852,24 +852,25 @@ ENGINE_ERROR_CODE item_get_locked(struct default_engine* engine,
     return ret;
 }
 
-static ENGINE_ERROR_CODE do_item_unlock(struct default_engine* engine,
-                                        const void* cookie,
-                                        const hash_key* hkey,
-                                        uint64_t cas) {
+static cb::engine_errc do_item_unlock(struct default_engine* engine,
+                                      const void* cookie,
+                                      const hash_key* hkey,
+                                      uint64_t cas) {
     hash_item* item = do_item_get(engine, hkey, DocStateFilter::Alive);
     if (item == nullptr) {
-        return ENGINE_KEY_ENOENT;
+        return cb::engine_errc::no_such_key;
     }
 
     if (item->cas != cas) {
         // Invalid CAS value
-        auto ret = ENGINE_KEY_EEXISTS;
+        auto ret = cb::engine_errc::key_already_exists;
 
         if (item->locktime != 0 &&
             item->locktime > engine->server.core->get_current_time()) {
-            // To be in line with ep-engine we should return ENGINE_LOCKED
-            // when trying to unlock a locked value with the wrong cas
-            ret = ENGINE_LOCKED;
+            // To be in line with ep-engine we should return
+            // cb::engine_errc::locked when trying to unlock a locked value with
+            // the wrong cas
+            ret = cb::engine_errc::locked;
         }
 
         do_item_release(engine, item);
@@ -887,7 +888,7 @@ static ENGINE_ERROR_CODE do_item_unlock(struct default_engine* engine,
                                     item->nbytes, cookie, item->datatype);
         if (clone == nullptr) {
             do_item_release(engine, item);
-            return ENGINE_TMPFAIL;
+            return cb::engine_errc::temporary_failure;
         }
 
         std::memcpy(item_get_data(clone), item_get_data(item), item->nbytes);
@@ -898,20 +899,20 @@ static ENGINE_ERROR_CODE do_item_unlock(struct default_engine* engine,
         do_item_release(engine, item);
     }
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE item_unlock(struct default_engine* engine,
-                              const void* cookie,
-                              const DocKey& key,
-                              uint64_t cas) {
+cb::engine_errc item_unlock(struct default_engine* engine,
+                            const void* cookie,
+                            const DocKey& key,
+                            uint64_t cas) {
     hash_key hkey;
 
     if (!hash_key_create(&hkey, key, engine)) {
-        return ENGINE_TMPFAIL;
+        return cb::engine_errc::temporary_failure;
     }
 
-    ENGINE_ERROR_CODE ret;
+    cb::engine_errc ret;
     {
         std::lock_guard<std::mutex> guard(engine->items.lock);
         ret = do_item_unlock(engine, cookie, &hkey, cas);
@@ -921,20 +922,20 @@ ENGINE_ERROR_CODE item_unlock(struct default_engine* engine,
     return ret;
 }
 
-ENGINE_ERROR_CODE do_item_get_and_touch(struct default_engine* engine,
-                                        const void* cookie,
-                                        hash_item** it,
-                                        const hash_key* hkey,
-                                        rel_time_t exptime) {
+cb::engine_errc do_item_get_and_touch(struct default_engine* engine,
+                                      const void* cookie,
+                                      hash_item** it,
+                                      const hash_key* hkey,
+                                      rel_time_t exptime) {
     hash_item* item = do_item_get(engine, hkey, DocStateFilter::Alive);
     if (item == nullptr) {
-        return ENGINE_KEY_ENOENT;
+        return cb::engine_errc::no_such_key;
     }
 
     if (item->locktime != 0 &&
         item->locktime > engine->server.core->get_current_time()) {
         do_item_release(engine, item);
-        return ENGINE_LOCKED;
+        return cb::engine_errc::locked;
     }
 
     /*
@@ -962,7 +963,7 @@ ENGINE_ERROR_CODE do_item_get_and_touch(struct default_engine* engine,
                                     item->nbytes, cookie, item->datatype);
         if (clone == nullptr) {
             do_item_release(engine, item);
-            return ENGINE_TMPFAIL;
+            return cb::engine_errc::temporary_failure;
         }
 
         std::memcpy(item_get_data(clone), item_get_data(item), item->nbytes);
@@ -974,21 +975,21 @@ ENGINE_ERROR_CODE do_item_get_and_touch(struct default_engine* engine,
         *it = clone;
     }
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE item_get_and_touch(struct default_engine* engine,
-                                     const void* cookie,
-                                     hash_item** it,
-                                     const DocKey& key,
-                                     rel_time_t exptime) {
+cb::engine_errc item_get_and_touch(struct default_engine* engine,
+                                   const void* cookie,
+                                   hash_item** it,
+                                   const DocKey& key,
+                                   rel_time_t exptime) {
     hash_key hkey;
 
     if (!hash_key_create(&hkey, key, engine)) {
-        return ENGINE_TMPFAIL;
+        return cb::engine_errc::temporary_failure;
     }
 
-    ENGINE_ERROR_CODE ret;
+    cb::engine_errc ret;
     {
         std::lock_guard<std::mutex> guard(engine->items.lock);
         ret = do_item_get_and_touch(engine, cookie, it, &hkey, exptime);
@@ -1057,18 +1058,16 @@ static void do_item_link_cursor(struct default_engine *engine,
     engine->items.sizes[ii]++;
 }
 
-typedef ENGINE_ERROR_CODE (*ITERFUNC)(struct default_engine *engine,
-                                      hash_item *item, void *cookie);
+using ITERFUNC = cb::engine_errc (*)(struct default_engine*, hash_item*, void*);
 
-static bool do_item_walk_cursor(struct default_engine *engine,
-                                hash_item *cursor,
+static bool do_item_walk_cursor(struct default_engine* engine,
+                                hash_item* cursor,
                                 int steplength,
                                 ITERFUNC itemfunc,
                                 void* itemdata,
-                                ENGINE_ERROR_CODE *error)
-{
+                                cb::engine_errc* error) {
     int ii = 0;
-    *error = ENGINE_SUCCESS;
+    *error = cb::engine_errc::success;
 
     while (cursor->prev != nullptr && ii < steplength) {
         /* Move cursor */
@@ -1093,7 +1092,7 @@ static bool do_item_walk_cursor(struct default_engine *engine,
             --ii;
         } else {
             *error = itemfunc(engine, ptr, itemdata);
-            if (*error != ENGINE_SUCCESS) {
+            if (*error != cb::engine_errc::success) {
                 return false;
             }
         }
@@ -1106,9 +1105,9 @@ static bool do_item_walk_cursor(struct default_engine *engine,
     return (cursor->prev != nullptr);
 }
 
-static ENGINE_ERROR_CODE item_scrub(struct default_engine *engine,
-                                    hash_item *item,
-                                    void *cookie) {
+static cb::engine_errc item_scrub(struct default_engine* engine,
+                                  hash_item* item,
+                                  void* cookie) {
     rel_time_t current_time = engine->server.core->get_current_time();
     (void)cookie;
     engine->scrubber.visited++;
@@ -1128,18 +1127,17 @@ static ENGINE_ERROR_CODE item_scrub(struct default_engine *engine,
         do_item_unlink(engine, item);
         engine->scrubber.cleaned++;
     }
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 static void item_scrub_class(struct default_engine *engine,
                              hash_item *cursor) {
-
-    ENGINE_ERROR_CODE ret;
+    cb::engine_errc ret;
     bool more;
     do {
         std::lock_guard<std::mutex> guard(engine->items.lock);
         more = do_item_walk_cursor(engine, cursor, 200, item_scrub, nullptr, &ret);
-        if (ret != ENGINE_SUCCESS) {
+        if (ret != cb::engine_errc::success) {
             break;
         }
     } while (more);

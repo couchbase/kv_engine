@@ -101,11 +101,11 @@ EPVBucket::~EPVBucket() {
     }
 }
 
-ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
+cb::engine_errc EPVBucket::completeBGFetchForSingleItem(
         const DiskDocKey& key,
         const FrontEndBGFetchItem& fetched_item,
         const std::chrono::steady_clock::time_point startTime) {
-    ENGINE_ERROR_CODE status = fetched_item.value->getStatus();
+    cb::engine_errc status = fetched_item.value->getStatus();
     Item* fetchedValue = fetched_item.value->item.get();
     { // locking scope
         auto docKey = key.getDocKey();
@@ -121,25 +121,25 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
         auto* v = res.storedValue;
         switch (fetched_item.filter) {
         case ValueFilter::KEYS_ONLY:
-            if (status == ENGINE_SUCCESS) {
+            if (status == cb::engine_errc::success) {
                 if (v && v->isTempInitialItem()) {
                     ht.unlocked_restoreMeta(
                             res.lock.getHTLock(), *fetchedValue, *v);
                 }
-            } else if (status == ENGINE_KEY_ENOENT) {
+            } else if (status == cb::engine_errc::no_such_key) {
                 if (v && v->isTempInitialItem()) {
                     v->setNonExistent();
                 }
-                /* If ENGINE_KEY_ENOENT is the status from storage and the temp
-                 key is removed from hash table by the time bgfetch returns
-                 (in case multiple bgfetch is scheduled for a key), we still
-                 need to return ENGINE_SUCCESS to the memcached worker thread,
-                 so that the worker thread can visit the ep-engine and figure
-                 out the correct flow */
-                status = ENGINE_SUCCESS;
+                /* If cb::engine_errc::no_such_key is the status from storage
+                 and the temp key is removed from hash table by the time bgfetch
+                 returns (in case multiple bgfetch is scheduled for a key), we
+                 still need to return cb::engine_errc::success to the memcached
+                 worker thread, so that the worker thread can visit the
+                 ep-engine and figure out the correct flow */
+                status = cb::engine_errc::success;
             } else {
                 if (v && !v->isTempInitialItem()) {
-                    status = ENGINE_SUCCESS;
+                    status = cb::engine_errc::success;
                 }
             }
             ++stats.bg_meta_fetched;
@@ -148,7 +148,7 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
         case ValueFilter::VALUES_COMPRESSED: {
             bool restore = false;
             if (v && v->isResident()) {
-                status = ENGINE_SUCCESS;
+                status = cb::engine_errc::success;
             } else {
                 switch (eviction) {
                 case EvictionPolicy::Value:
@@ -169,7 +169,7 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
             }
 
             if (restore) {
-                if (status == ENGINE_SUCCESS) {
+                if (status == cb::engine_errc::success) {
                     ht.unlocked_restoreValue(
                             res.lock.getHTLock(), *fetchedValue, *v);
                     if (!v->isResident()) {
@@ -180,15 +180,15 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
                                 ") should be resident after calling "
                                 "restoreValue()");
                     }
-                } else if (status == ENGINE_KEY_ENOENT) {
+                } else if (status == cb::engine_errc::no_such_key) {
                     v->setNonExistent();
                     if (eviction == EvictionPolicy::Full) {
                         // For the full eviction, we should notify
-                        // ENGINE_SUCCESS to the memcached worker thread,
-                        // so that the worker thread can visit the
+                        // cb::engine_errc::success to the memcached worker
+                        // thread, so that the worker thread can visit the
                         // ep-engine and figure out the correct error
                         // code.
-                        status = ENGINE_SUCCESS;
+                        status = cb::engine_errc::success;
                     }
                 } else {
                     // underlying kvstore couldn't fetch requested data
@@ -196,7 +196,7 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
                     EP_LOG_WARN("Failed background fetch for {}, seqno:{}",
                                 getId(),
                                 v->getBySeqno());
-                    status = ENGINE_TMPFAIL;
+                    status = cb::engine_errc::temporary_failure;
                 }
             }
             ++stats.bg_fetched;
@@ -224,7 +224,7 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
 
 void EPVBucket::completeCompactionExpiryBgFetch(
         const DiskDocKey& key, const CompactionBGFetchItem& fetchedItem) {
-    ENGINE_ERROR_CODE status = fetchedItem.value->getStatus();
+    cb::engine_errc status = fetchedItem.value->getStatus();
 
     // Status might be non-success if either:
     //     a) BGFetch failed for some reason
@@ -234,7 +234,7 @@ void EPVBucket::completeCompactionExpiryBgFetch(
     // compaction will try to expire the item on disk anyway.
     // In the case of b) we can simply skip trying to expire this item as it
     // has been superseded (by a deletion).
-    if (status != ENGINE_SUCCESS) {
+    if (status != cb::engine_errc::success) {
         return;
     }
 
@@ -348,7 +348,7 @@ void EPVBucket::notifyAllPendingConnsFailed(EventuallyPersistentEngine& e) {
         for (auto& bgf : pendingBGFetches) {
             vb_bgfetch_item_ctx_t& bg_itm_ctx = bgf.second;
             for (auto& bgitem : bg_itm_ctx.getRequests()) {
-                bgitem->abort(e, ENGINE_NOT_MY_VBUCKET, toNotify);
+                bgitem->abort(e, cb::engine_errc::not_my_vbucket, toNotify);
                 ++num_of_deleted_pending_fetches;
             }
         }
@@ -407,12 +407,12 @@ size_t EPVBucket::getNumSystemItems() const {
     return 0;
 }
 
-ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
-                                       const void* cookie,
-                                       EventuallyPersistentEngine& engine) {
+cb::engine_errc EPVBucket::statsVKey(const DocKey& key,
+                                     const void* cookie,
+                                     EventuallyPersistentEngine& engine) {
     auto readHandle = lockCollections(key);
     if (!readHandle.valid()) {
-        return ENGINE_UNKNOWN_COLLECTION;
+        return cb::engine_errc::unknown_collection;
     }
 
     auto res = fetchValidValue(WantsDeleted::Yes,
@@ -424,7 +424,7 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
     if (v) {
         if (VBucket::isLogicallyNonExistent(*v, readHandle)) {
             ht.cleanupIfTemporaryItem(res.lock, *v);
-            return ENGINE_KEY_ENOENT;
+            return cb::engine_errc::no_such_key;
         }
         ++stats.numRemainingBgJobs;
         ExecutorPool* iom = ExecutorPool::get();
@@ -435,22 +435,22 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
                                                             cookie,
                                                             false);
         iom->schedule(task);
-        return ENGINE_EWOULDBLOCK;
+        return cb::engine_errc::would_block;
     } else {
         if (eviction == EvictionPolicy::Value) {
-            return ENGINE_KEY_ENOENT;
+            return cb::engine_errc::no_such_key;
         } else {
             auto rv = addTempStoredValue(res.lock, key);
             switch (rv.status) {
             case TempAddStatus::NoMem:
-                return ENGINE_ENOMEM;
+                return cb::engine_errc::no_memory;
             case TempAddStatus::BgFetch: {
                 ++stats.numRemainingBgJobs;
                 ExecutorPool* iom = ExecutorPool::get();
                 ExTask task = std::make_shared<VKeyStatBGFetchTask>(
                         &engine, key, getId(), -1, cookie, false);
                 iom->schedule(task);
-                return ENGINE_EWOULDBLOCK;
+                return cb::engine_errc::would_block;
             }
             }
             folly::assume_unreachable();
@@ -468,7 +468,7 @@ void EPVBucket::completeStatsVKey(const DocKey& key, const GetValue& gcb) {
 
     auto* v = res.storedValue;
     if (v && v->isTempInitialItem()) {
-        if (gcb.getStatus() == ENGINE_SUCCESS) {
+        if (gcb.getStatus() == cb::engine_errc::success) {
             ht.unlocked_restoreValue(res.lock.getHTLock(), *gcb.item, *v);
             if (!v->isResident()) {
                 throw std::logic_error(
@@ -477,7 +477,7 @@ void EPVBucket::completeStatsVKey(const DocKey& key, const GetValue& gcb) {
                         std::to_string(v->getBySeqno()) +
                         ") should be resident after calling restoreValue()");
             }
-        } else if (gcb.getStatus() == ENGINE_KEY_ENOENT) {
+        } else if (gcb.getStatus() == cb::engine_errc::no_such_key) {
             v->setNonExistent();
         } else {
             // underlying kvstore couldn't fetch requested data
@@ -753,20 +753,20 @@ void EPVBucket::bgFetch(const DocKey& key,
 }
 
 /* [TBD]: Get rid of std::unique_lock<std::mutex> lock */
-ENGINE_ERROR_CODE
-EPVBucket::addTempItemAndBGFetch(HashTable::HashBucketLock& hbl,
-                                 const DocKey& key,
-                                 const void* cookie,
-                                 EventuallyPersistentEngine& engine,
-                                 bool metadataOnly) {
+cb::engine_errc EPVBucket::addTempItemAndBGFetch(
+        HashTable::HashBucketLock& hbl,
+        const DocKey& key,
+        const void* cookie,
+        EventuallyPersistentEngine& engine,
+        bool metadataOnly) {
     auto rv = addTempStoredValue(hbl, key);
     switch (rv.status) {
     case TempAddStatus::NoMem:
-        return ENGINE_ENOMEM;
+        return cb::engine_errc::no_memory;
     case TempAddStatus::BgFetch:
         hbl.getHTLock().unlock();
         bgFetch(key, cookie, engine, metadataOnly);
-        return ENGINE_EWOULDBLOCK;
+        return cb::engine_errc::would_block;
     }
     folly::assume_unreachable();
 }
@@ -819,7 +819,8 @@ GetValue EPVBucket::getInternalNonResident(const DocKey& key,
     if (queueBgFetch == QueueBgFetch::Yes) {
         bgFetch(key, cookie, engine);
     }
-    return GetValue(nullptr, ENGINE_EWOULDBLOCK, v.getBySeqno(), true);
+    return GetValue(
+            nullptr, cb::engine_errc::would_block, v.getBySeqno(), true);
 }
 
 void EPVBucket::setupDeferredDeletion(const void* cookie) {

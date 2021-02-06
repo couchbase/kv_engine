@@ -66,54 +66,68 @@ ConnHandler::ConnHandler(EventuallyPersistentEngine& e,
 
 ConnHandler::~ConnHandler() = default;
 
-ENGINE_ERROR_CODE ConnHandler::addStream(uint32_t opaque,
-                                         Vbid,
-                                         uint32_t flags) {
+cb::engine_errc ConnHandler::addStream(uint32_t opaque, Vbid, uint32_t flags) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the dcp add stream API");
-    return ENGINE_DISCONNECT;
+    return cb::engine_errc::disconnect;
 }
 
-ENGINE_ERROR_CODE ConnHandler::closeStream(uint32_t opaque,
-                                           Vbid vbucket,
-                                           cb::mcbp::DcpStreamId sid) {
+cb::engine_errc ConnHandler::closeStream(uint32_t opaque,
+                                         Vbid vbucket,
+                                         cb::mcbp::DcpStreamId sid) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the dcp close stream API");
-    return ENGINE_DISCONNECT;
+    return cb::engine_errc::disconnect;
 }
 
-ENGINE_ERROR_CODE ConnHandler::streamEnd(uint32_t opaque,
-                                         Vbid vbucket,
-                                         cb::mcbp::DcpStreamEndStatus status) {
+cb::engine_errc ConnHandler::streamEnd(uint32_t opaque,
+                                       Vbid vbucket,
+                                       cb::mcbp::DcpStreamEndStatus status) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the dcp stream end API");
-    return ENGINE_DISCONNECT;
+    return cb::engine_errc::disconnect;
 }
 
-ENGINE_ERROR_CODE ConnHandler::mutation(uint32_t opaque,
-                                        const DocKey& key,
-                                        cb::const_byte_buffer value,
-                                        size_t priv_bytes,
-                                        uint8_t datatype,
-                                        uint64_t cas,
-                                        Vbid vbucket,
-                                        uint32_t flags,
-                                        uint64_t by_seqno,
-                                        uint64_t rev_seqno,
-                                        uint32_t expiration,
-                                        uint32_t lock_time,
-                                        cb::const_byte_buffer meta,
-                                        uint8_t nru) {
+cb::engine_errc ConnHandler::mutation(uint32_t opaque,
+                                      const DocKey& key,
+                                      cb::const_byte_buffer value,
+                                      size_t priv_bytes,
+                                      uint8_t datatype,
+                                      uint64_t cas,
+                                      Vbid vbucket,
+                                      uint32_t flags,
+                                      uint64_t by_seqno,
+                                      uint64_t rev_seqno,
+                                      uint32_t expiration,
+                                      uint32_t lock_time,
+                                      cb::const_byte_buffer meta,
+                                      uint8_t nru) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the mutation API");
-    return ENGINE_DISCONNECT;
+    return cb::engine_errc::disconnect;
 }
 
-ENGINE_ERROR_CODE ConnHandler::deletion(uint32_t opaque,
+cb::engine_errc ConnHandler::deletion(uint32_t opaque,
+                                      const DocKey& key,
+                                      cb::const_byte_buffer value,
+                                      size_t priv_bytes,
+                                      uint8_t datatype,
+                                      uint64_t cas,
+                                      Vbid vbucket,
+                                      uint64_t by_seqno,
+                                      uint64_t rev_seqno,
+                                      cb::const_byte_buffer meta) {
+    logger->warn(
+            "Disconnecting - This connection doesn't "
+            "support the deletion API");
+    return cb::engine_errc::disconnect;
+}
+
+cb::engine_errc ConnHandler::deletionV2(uint32_t opaque,
                                         const DocKey& key,
                                         cb::const_byte_buffer value,
                                         size_t priv_bytes,
@@ -122,46 +136,30 @@ ENGINE_ERROR_CODE ConnHandler::deletion(uint32_t opaque,
                                         Vbid vbucket,
                                         uint64_t by_seqno,
                                         uint64_t rev_seqno,
-                                        cb::const_byte_buffer meta) {
-    logger->warn(
-            "Disconnecting - This connection doesn't "
-            "support the deletion API");
-    return ENGINE_DISCONNECT;
-}
-
-ENGINE_ERROR_CODE ConnHandler::deletionV2(uint32_t opaque,
-                                          const DocKey& key,
-                                          cb::const_byte_buffer value,
-                                          size_t priv_bytes,
-                                          uint8_t datatype,
-                                          uint64_t cas,
-                                          Vbid vbucket,
-                                          uint64_t by_seqno,
-                                          uint64_t rev_seqno,
-                                          uint32_t delete_time) {
+                                        uint32_t delete_time) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the deletionV2 API");
-    return ENGINE_DISCONNECT;
+    return cb::engine_errc::disconnect;
 }
 
-ENGINE_ERROR_CODE ConnHandler::expiration(uint32_t opaque,
-                                          const DocKey& key,
-                                          cb::const_byte_buffer value,
-                                          size_t priv_bytes,
-                                          uint8_t datatype,
-                                          uint64_t cas,
-                                          Vbid vbucket,
-                                          uint64_t by_seqno,
-                                          uint64_t rev_seqno,
-                                          uint32_t deleteTime) {
+cb::engine_errc ConnHandler::expiration(uint32_t opaque,
+                                        const DocKey& key,
+                                        cb::const_byte_buffer value,
+                                        size_t priv_bytes,
+                                        uint8_t datatype,
+                                        uint64_t cas,
+                                        Vbid vbucket,
+                                        uint64_t by_seqno,
+                                        uint64_t rev_seqno,
+                                        uint32_t deleteTime) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the expiration API");
-    return ENGINE_DISCONNECT;
+    return cb::engine_errc::disconnect;
 }
 
-ENGINE_ERROR_CODE ConnHandler::snapshotMarker(
+cb::engine_errc ConnHandler::snapshotMarker(
         uint32_t opaque,
         Vbid vbucket,
         uint64_t start_seqno,
@@ -172,19 +170,19 @@ ENGINE_ERROR_CODE ConnHandler::snapshotMarker(
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the dcp snapshot marker API");
-    return ENGINE_DISCONNECT;
+    return cb::engine_errc::disconnect;
 }
 
-ENGINE_ERROR_CODE ConnHandler::setVBucketState(uint32_t opaque,
-                                               Vbid vbucket,
-                                               vbucket_state_t state) {
+cb::engine_errc ConnHandler::setVBucketState(uint32_t opaque,
+                                             Vbid vbucket,
+                                             vbucket_state_t state) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the set vbucket state API");
-    return ENGINE_DISCONNECT;
+    return cb::engine_errc::disconnect;
 }
 
-ENGINE_ERROR_CODE ConnHandler::streamRequest(
+cb::engine_errc ConnHandler::streamRequest(
         uint32_t flags,
         uint32_t opaque,
         Vbid vbucket,
@@ -199,39 +197,39 @@ ENGINE_ERROR_CODE ConnHandler::streamRequest(
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the dcp stream request API");
-    return ENGINE_DISCONNECT;
+    return cb::engine_errc::disconnect;
 }
 
-ENGINE_ERROR_CODE ConnHandler::noop(uint32_t opaque) {
+cb::engine_errc ConnHandler::noop(uint32_t opaque) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the noop API");
-    return ENGINE_DISCONNECT;
+    return cb::engine_errc::disconnect;
 }
 
-ENGINE_ERROR_CODE ConnHandler::bufferAcknowledgement(uint32_t opaque,
-                                                     Vbid vbucket,
-                                                     uint32_t buffer_bytes) {
+cb::engine_errc ConnHandler::bufferAcknowledgement(uint32_t opaque,
+                                                   Vbid vbucket,
+                                                   uint32_t buffer_bytes) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the buffer acknowledgement API");
-    return ENGINE_DISCONNECT;
+    return cb::engine_errc::disconnect;
 }
 
-ENGINE_ERROR_CODE ConnHandler::control(uint32_t opaque,
-                                       std::string_view key,
-                                       std::string_view value) {
+cb::engine_errc ConnHandler::control(uint32_t opaque,
+                                     std::string_view key,
+                                     std::string_view value) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the control API");
-    return ENGINE_DISCONNECT;
+    return cb::engine_errc::disconnect;
 }
 
-ENGINE_ERROR_CODE ConnHandler::step(DcpMessageProducersIface&) {
+cb::engine_errc ConnHandler::step(DcpMessageProducersIface&) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the dcp step API");
-    return ENGINE_DISCONNECT;
+    return cb::engine_errc::disconnect;
 }
 
 bool ConnHandler::handleResponse(const cb::mcbp::Response& resp) {
@@ -241,69 +239,69 @@ bool ConnHandler::handleResponse(const cb::mcbp::Response& resp) {
     return false;
 }
 
-ENGINE_ERROR_CODE ConnHandler::systemEvent(uint32_t opaque,
-                                           Vbid vbucket,
-                                           mcbp::systemevent::id event,
-                                           uint64_t bySeqno,
-                                           mcbp::systemevent::version version,
-                                           cb::const_byte_buffer key,
-                                           cb::const_byte_buffer eventData) {
+cb::engine_errc ConnHandler::systemEvent(uint32_t opaque,
+                                         Vbid vbucket,
+                                         mcbp::systemevent::id event,
+                                         uint64_t bySeqno,
+                                         mcbp::systemevent::version version,
+                                         cb::const_byte_buffer key,
+                                         cb::const_byte_buffer eventData) {
     logger->warn(
             "Disconnecting - This connections doesn't "
             "support the dcp system_event API");
-    return ENGINE_DISCONNECT;
+    return cb::engine_errc::disconnect;
 }
 
-ENGINE_ERROR_CODE ConnHandler::prepare(uint32_t opaque,
-                                       const DocKey& key,
-                                       cb::const_byte_buffer value,
-                                       size_t priv_bytes,
-                                       uint8_t datatype,
-                                       uint64_t cas,
-                                       Vbid vbucket,
-                                       uint32_t flags,
-                                       uint64_t by_seqno,
-                                       uint64_t rev_seqno,
-                                       uint32_t expiration,
-                                       uint32_t lock_time,
-                                       uint8_t nru,
-                                       DocumentState document_state,
-                                       cb::durability::Level level) {
+cb::engine_errc ConnHandler::prepare(uint32_t opaque,
+                                     const DocKey& key,
+                                     cb::const_byte_buffer value,
+                                     size_t priv_bytes,
+                                     uint8_t datatype,
+                                     uint64_t cas,
+                                     Vbid vbucket,
+                                     uint32_t flags,
+                                     uint64_t by_seqno,
+                                     uint64_t rev_seqno,
+                                     uint32_t expiration,
+                                     uint32_t lock_time,
+                                     uint8_t nru,
+                                     DocumentState document_state,
+                                     cb::durability::Level level) {
     logger->warn(
             "Disconnecting - This connection doesn't support the dcp prepare "
             "API");
-    return ENGINE_DISCONNECT;
+    return cb::engine_errc::disconnect;
 }
 
-ENGINE_ERROR_CODE ConnHandler::commit(uint32_t opaque,
-                                      Vbid vbucket,
-                                      const DocKey& key,
-                                      uint64_t prepare_seqno,
-                                      uint64_t commit_seqno) {
+cb::engine_errc ConnHandler::commit(uint32_t opaque,
+                                    Vbid vbucket,
+                                    const DocKey& key,
+                                    uint64_t prepare_seqno,
+                                    uint64_t commit_seqno) {
     logger->warn(
             "Disconnecting - This connection doesn't support the dcp commit "
             "API");
-    return ENGINE_DISCONNECT;
+    return cb::engine_errc::disconnect;
 }
 
-ENGINE_ERROR_CODE ConnHandler::abort(uint32_t opaque,
-                                     Vbid vbucket,
-                                     const DocKey& key,
-                                     uint64_t prepareSeqno,
-                                     uint64_t abortSeqno) {
+cb::engine_errc ConnHandler::abort(uint32_t opaque,
+                                   Vbid vbucket,
+                                   const DocKey& key,
+                                   uint64_t prepareSeqno,
+                                   uint64_t abortSeqno) {
     logger->warn(
             "Disconnecting - This connection doesn't support the dcp abort "
             "API");
-    return ENGINE_DISCONNECT;
+    return cb::engine_errc::disconnect;
 }
 
-ENGINE_ERROR_CODE ConnHandler::seqno_acknowledged(uint32_t opaque,
-                                                  Vbid vbucket,
-                                                  uint64_t prepared_seqno) {
+cb::engine_errc ConnHandler::seqno_acknowledged(uint32_t opaque,
+                                                Vbid vbucket,
+                                                uint64_t prepared_seqno) {
     logger->warn(
             "Disconnecting - This connection doesn't support the dcp "
             "seqno_acknowledged API");
-    return ENGINE_DISCONNECT;
+    return cb::engine_errc::disconnect;
 }
 
 BucketLogger& ConnHandler::getLogger() {

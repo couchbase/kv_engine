@@ -1875,7 +1875,7 @@ BinprotObserveResponse::getResults() {
     return ret;
 }
 BinprotEWBCommand::BinprotEWBCommand(EWBEngineMode mode,
-                                     ENGINE_ERROR_CODE err_code,
+                                     cb::engine_errc err_code,
                                      uint32_t value,
                                      const std::string& key)
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::EwouldblockCtl, key) {

@@ -176,7 +176,7 @@ std::unique_ptr<KVBucket> SynchronousEPEngine::public_makeBucket(
     return makeBucket(config);
 }
 
-ENGINE_ERROR_CODE SynchronousEPEngine::public_setWithMeta(
+cb::engine_errc SynchronousEPEngine::public_setWithMeta(
         Vbid vbucket,
         DocKey key,
         cb::const_byte_buffer value,

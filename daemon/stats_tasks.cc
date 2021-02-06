@@ -52,7 +52,7 @@ Task::Status StatsTaskConnectionStats::execute() {
                 connection.getId(),
                 exception.what());
         cookie.setErrorContext("An exception occurred");
-        command_error = ENGINE_FAILED;
+        command_error = cb::engine_errc::failed;
     }
     getMutex().lock();
 
@@ -60,9 +60,11 @@ Task::Status StatsTaskConnectionStats::execute() {
 }
 
 StatsTask::StatsTask(Connection& connection_, Cookie& cookie_)
-    : connection(connection_), cookie(cookie_), command_error(ENGINE_SUCCESS) {
+    : connection(connection_),
+      cookie(cookie_),
+      command_error(cb::engine_errc::success) {
 }
 
 void StatsTask::notifyExecutionComplete() {
-    notifyIoComplete(cookie, ENGINE_SUCCESS);
+    notifyIoComplete(cookie, cb::engine_errc::success);
 }

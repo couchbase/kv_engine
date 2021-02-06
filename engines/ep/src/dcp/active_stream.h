@@ -303,8 +303,8 @@ public:
      * @param consumerName the name of the consumer acking
      * @param preparedSeqno the seqno that the consumer is acking
      */
-    ENGINE_ERROR_CODE seqnoAck(const std::string& consumerName,
-                               uint64_t preparedSeqno);
+    cb::engine_errc seqnoAck(const std::string& consumerName,
+                             uint64_t preparedSeqno);
 
     static std::string to_string(StreamState type);
 

@@ -31,7 +31,7 @@ void dcp_open_executor(Cookie& cookie) {
     const auto* payload = reinterpret_cast<const DcpOpenPayload*>(ext.data());
     const uint32_t flags = payload->getFlags();
 
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    auto ret = cookie.swapAiostat(cb::engine_errc::success);
 
     auto& connection = cookie.getConnection();
     connection.enableDatatype(cb::mcbp::Feature::JSON);
@@ -39,13 +39,13 @@ void dcp_open_executor(Cookie& cookie) {
     const bool dcpProducer =
             (flags & DcpOpenPayload::Producer) == DcpOpenPayload::Producer;
 
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         const auto privilege = dcpProducer ? cb::rbac::Privilege::DcpProducer
                                            : cb::rbac::Privilege::DcpConsumer;
 
         ret = mcbp::checkPrivilege(cookie, privilege);
 
-        if (ret == ENGINE_SUCCESS) {
+        if (ret == cb::engine_errc::success) {
             auto key = request.getKey();
             auto value = request.getValue();
 
@@ -82,13 +82,13 @@ void dcp_open_executor(Cookie& cookie) {
                         "disconnect client",
                         connection.getId(),
                         e.what());
-                ret = ENGINE_DISCONNECT;
+                ret = cb::engine_errc::disconnect;
             }
             cookie.decrementRefcount();
         }
     }
 
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         const bool dcpXattrAware =
                 (flags & DcpOpenPayload::IncludeXattrs) != 0 &&
                 connection.selectedBucketIsXattrEnabled();

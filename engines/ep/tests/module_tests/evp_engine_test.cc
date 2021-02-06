@@ -52,7 +52,7 @@ void EventuallyPersistentEngineTest::SetUp() {
     }
 
     // Setup an engine with a single active vBucket.
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               create_ep_engine_instance(get_mock_server_api, &handle))
             << "Failed to create ep engine instance";
     engine = reinterpret_cast<EventuallyPersistentEngine*>(handle);
@@ -72,8 +72,8 @@ void EventuallyPersistentEngineTest::SetUp() {
     config += ";max_vbuckets=" + std::to_string(numVbuckets) +
               ";max_num_shards=" + std::to_string(numShards);
 
-    EXPECT_EQ(ENGINE_SUCCESS, engine->initialize(config.c_str()))
-        << "Failed to initialize engine.";
+    EXPECT_EQ(cb::engine_errc::success, engine->initialize(config.c_str()))
+            << "Failed to initialize engine.";
 
     // Wait for warmup to complete.
     while (engine->getKVBucket()->isWarmingUp()) {
@@ -101,7 +101,7 @@ queued_item EventuallyPersistentEngineTest::store_item(
     auto item = makeCommittedItem(makeStoredDocKey(key), value);
     uint64_t cas;
     EXPECT_EQ(
-            ENGINE_SUCCESS,
+            cb::engine_errc::success,
             engine->storeInner(cookie, *item, cas, StoreSemantics::Set, false));
     return item;
 }
@@ -114,7 +114,7 @@ queued_item EventuallyPersistentEngineTest::store_pending_item(
     auto item = makePendingItem(makeStoredDocKey(key), value, reqs);
     uint64_t cas;
     EXPECT_EQ(
-            ENGINE_EWOULDBLOCK,
+            cb::engine_errc::would_block,
             engine->storeInner(cookie, *item, cas, StoreSemantics::Set, false))
             << "pending SyncWrite should initially block (until durability "
                "met).";
@@ -127,7 +127,7 @@ queued_item EventuallyPersistentEngineTest::store_pending_delete(
     item->setDeleted(DeleteSource::Explicit);
     uint64_t cas;
     EXPECT_EQ(
-            ENGINE_EWOULDBLOCK,
+            cb::engine_errc::would_block,
             engine->storeInner(cookie, *item, cas, StoreSemantics::Set, false))
             << "pending SyncDelete should initially block (until durability "
                "met).";
@@ -139,7 +139,7 @@ void EventuallyPersistentEngineTest::store_committed_item(
     auto item = makeCommittedviaPrepareItem(makeStoredDocKey(key), value);
     uint64_t cas;
     EXPECT_EQ(
-            ENGINE_SUCCESS,
+            cb::engine_errc::success,
             engine->storeInner(cookie, *item, cas, StoreSemantics::Set, false));
 }
 
@@ -336,7 +336,7 @@ TEST_P(DurabilityTest, DurabilityStateStats) {
     engine->getKVBucket()->setVBucketState(Vbid(2), vbucket_state_active);
 
     // get stats for all vbs
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               engine->get_stats(
                       cookie, "vbucket-durability-state", {}, dummyAddStats));
 
@@ -353,7 +353,7 @@ TEST_P(DurabilityTest, DurabilityStateStats) {
 
     // get stats for vb 1
     EXPECT_EQ(
-            ENGINE_SUCCESS,
+            cb::engine_errc::success,
             engine->get_stats(cookie,
                               "vbucket-durability-state " + std::to_string(vb),
                               {},

@@ -41,8 +41,8 @@ public:
     }
 
 protected:
-    ENGINE_ERROR_CODE step() override {
-        auto ret = ENGINE_SUCCESS;
+    cb::engine_errc step() override {
+        auto ret = cb::engine_errc::success;
         do {
             switch (state) {
             case State::Configuring:
@@ -50,14 +50,14 @@ protected:
                 break;
             case State::Done:
                 done();
-                return ENGINE_SUCCESS;
+                return cb::engine_errc::success;
             }
-        } while (ret == ENGINE_SUCCESS);
+        } while (ret == cb::engine_errc::success);
 
         return ret;
     }
 
-    ENGINE_ERROR_CODE configuring();
+    cb::engine_errc configuring();
     void done();
 
 private:

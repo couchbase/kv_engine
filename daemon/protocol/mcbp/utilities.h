@@ -23,15 +23,16 @@
 #include <stdexcept>
 
 namespace mcbp {
-static inline ENGINE_ERROR_CODE checkPrivilege(Cookie& cookie,
-                                               cb::rbac::Privilege privilege) {
-    return cookie.checkPrivilege(privilege).success() ? ENGINE_SUCCESS
-                                                      : ENGINE_EACCESS;
+static inline cb::engine_errc checkPrivilege(Cookie& cookie,
+                                             cb::rbac::Privilege privilege) {
+    return cookie.checkPrivilege(privilege).success()
+                   ? cb::engine_errc::success
+                   : cb::engine_errc::no_access;
 }
 
-static inline ENGINE_ERROR_CODE haveDcpPrivilege(Cookie& cookie) {
+static inline cb::engine_errc haveDcpPrivilege(Cookie& cookie) {
     auto ret = checkPrivilege(cookie, cb::rbac::Privilege::DcpProducer);
-    if (ret == ENGINE_EACCESS) {
+    if (ret == cb::engine_errc::no_access) {
         ret = checkPrivilege(cookie, cb::rbac::Privilege::DcpConsumer);
     }
     return ret;

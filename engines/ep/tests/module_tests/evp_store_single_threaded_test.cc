@@ -126,7 +126,7 @@ void SingleThreadedKVBucketTest::setVBucketStateAndRunPersistTask(
     // Change state - this should add 1 set_vbucket_state op to the
     //VBuckets' persistence queue.
     const auto* metaPtr = meta.empty() ? nullptr : &meta;
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, newState, metaPtr, transfer));
 
     if (isPersistent()) {
@@ -285,7 +285,8 @@ void SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
     // Next step which will process a snapshot marker and then the caller
     // should now be able to step through the checkpoint
     if (expectedOp != cb::mcbp::ClientOpcode::Invalid) {
-        EXPECT_EQ(ENGINE_SUCCESS, producer.stepWithBorderGuard(producers));
+        EXPECT_EQ(cb::engine_errc::success,
+                  producer.stepWithBorderGuard(producers));
         EXPECT_EQ(expectedOp, producers.last_op);
         if (expectedOp == cb::mcbp::ClientOpcode::DcpSnapshotMarker) {
             if (fromMemory) {
@@ -297,14 +298,15 @@ void SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
             }
         }
     } else {
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, producer.stepWithBorderGuard(producers));
+        EXPECT_EQ(cb::engine_errc::would_block,
+                  producer.stepWithBorderGuard(producers));
     }
 }
 
 void SingleThreadedKVBucketTest::runCheckpointProcessor(
         MockDcpProducer& producer, DcpMessageProducersIface& producers) {
     // Step which will notify the snapshot task
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer.step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer.step(producers));
 
     EXPECT_EQ(1, producer.getCheckpointSnapshotTask()->queueSize());
 
@@ -313,9 +315,9 @@ void SingleThreadedKVBucketTest::runCheckpointProcessor(
     producer.getCheckpointSnapshotTask()->run();
 }
 
-static ENGINE_ERROR_CODE dcpAddFailoverLog(
+static cb::engine_errc dcpAddFailoverLog(
         const std::vector<vbucket_failover_t>&) {
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 void SingleThreadedKVBucketTest::createDcpStream(MockDcpProducer& producer) {
     createDcpStream(producer, vbid);
@@ -324,7 +326,7 @@ void SingleThreadedKVBucketTest::createDcpStream(MockDcpProducer& producer) {
 void SingleThreadedKVBucketTest::createDcpStream(MockDcpProducer& producer,
                                                  Vbid vbid) {
     uint64_t rollbackSeqno;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               producer.streamRequest(0, // flags
                                      1, // opaque
                                      vbid,
@@ -429,12 +431,12 @@ cb::engine_errc SingleThreadedKVBucketTest::setCollections(
 
     auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
 
-    cookie_to_mock_cookie(c)->status = ENGINE_FAILED;
+    cookie_to_mock_cookie(c)->status = cb::engine_errc::failed;
 
     runNextTask(lpAuxioQ);
 
     // Cookie now success
-    EXPECT_EQ(ENGINE_SUCCESS, cookie_to_mock_cookie(c)->status);
+    EXPECT_EQ(cb::engine_errc::success, cookie_to_mock_cookie(c)->status);
 
     status = engine->set_collection_manifest(c, json);
     EXPECT_EQ(cb::engine_errc::success, status);
@@ -525,7 +527,7 @@ TEST_P(STParameterizedBucketTest, StreamReqAcceptedAfterBucketShutdown) {
     producer->setCloseAllStreamsHook([this, &producer]() {
         producer->createCheckpointProcessorTask();
         uint64_t rollbackSeqno;
-        EXPECT_EQ(ENGINE_DISCONNECT,
+        EXPECT_EQ(cb::engine_errc::disconnect,
                   producer->streamRequest(/*flags*/ 0,
                                           /*opaque*/ 0,
                                           vbid,
@@ -659,7 +661,7 @@ TEST_P(STParameterizedBucketTest, SeqnoAckAfterBucketShutdown) {
     producer->setSyncReplication(SyncReplication::SyncReplication);
 
     uint64_t rollbackSeqno;
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->streamRequest(/*flags*/ 0,
                                       /*opaque*/ 0,
                                       vbid,
@@ -678,7 +680,8 @@ TEST_P(STParameterizedBucketTest, SeqnoAckAfterBucketShutdown) {
 
     // 4) Seqno ack. Previously this would segfault due to the stream being
     // destroyed mid seqno ack.
-    EXPECT_EQ(ENGINE_SUCCESS, producer->seqno_acknowledged(0, vbid, 0));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->seqno_acknowledged(0, vbid, 0));
 
     mockConnMap.disconnect(cookie);
     mockConnMap.manageConnections();
@@ -689,7 +692,7 @@ TEST_P(STParameterizedBucketTest, SeqnoAckAfterBucketShutdown) {
     cookie = create_mock_cookie();
 }
 
-ENGINE_ERROR_CODE STParameterizedBucketTest::checkKeyExists(
+cb::engine_errc STParameterizedBucketTest::checkKeyExists(
         StoredDocKey& key, Vbid vbid, get_options_t options) {
     auto rc = store->get(key, vbid, cookie, options).getStatus();
     if (needBGFetch(rc)) {
@@ -698,8 +701,8 @@ ENGINE_ERROR_CODE STParameterizedBucketTest::checkKeyExists(
     return rc;
 }
 
-ENGINE_ERROR_CODE STParameterizedBucketTest::setItem(Item& itm,
-                                                     const void* cookie) {
+cb::engine_errc STParameterizedBucketTest::setItem(Item& itm,
+                                                   const void* cookie) {
     auto rc = store->set(itm, cookie);
     if (needBGFetch(rc)) {
         rc = store->set(itm, cookie);
@@ -707,8 +710,8 @@ ENGINE_ERROR_CODE STParameterizedBucketTest::setItem(Item& itm,
     return rc;
 }
 
-ENGINE_ERROR_CODE STParameterizedBucketTest::addItem(Item& itm,
-                                                     const void* cookie) {
+cb::engine_errc STParameterizedBucketTest::addItem(Item& itm,
+                                                   const void* cookie) {
     auto rc = store->add(itm, cookie);
     if (needBGFetch(rc)) {
         rc = store->add(itm, cookie);
@@ -1234,7 +1237,8 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
     EXPECT_EQ(1, producer->getCheckpointSnapshotTask()->queueSize());
 
     // Now close the stream
-    EXPECT_EQ(ENGINE_SUCCESS, producer->closeStream(0 /*opaque*/, vbid));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->closeStream(0 /*opaque*/, vbid));
 
     // Next we to ensure the recreated stream really does a backfill, so drop
     // in-memory items
@@ -1993,7 +1997,8 @@ TEST_P(STParamPersistentBucketTest, MB19428_no_streams_against_dead_vbucket) {
                 SingleThreadedEPBucketTest::fakeDcpAddFailoverLog,
                 {});
 
-        EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, err) << "Unexpected error code";
+        EXPECT_EQ(cb::engine_errc::not_my_vbucket, err)
+                << "Unexpected error code";
 
         // The streamRequest failed and should not of created anymore tasks than
         // ActiveStreamCheckpointProcessorTask.
@@ -2124,7 +2129,7 @@ TEST_P(STParamPersistentBucketTest, MB19892_BackfillNotDeleted) {
 
     // Create a DCP producer, and start a stream request.
     std::string name{"test_producer"};
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               engine->dcpOpen(cookie,
                               /*opaque:unused*/ {},
                               /*seqno:unused*/ {},
@@ -2136,7 +2141,7 @@ TEST_P(STParamPersistentBucketTest, MB19892_BackfillNotDeleted) {
 
     // Actual stream request method (EvpDcpStreamReq) is static, so access via
     // the engine_interface.
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               engine.get()->stream_req(
                       cookie,
                       /*flags*/ 0,
@@ -2149,7 +2154,7 @@ TEST_P(STParamPersistentBucketTest, MB19892_BackfillNotDeleted) {
                       /*snap_end*/ 0,
                       &rollbackSeqno,
                       [](const std::vector<vbucket_failover_t>&) {
-                          return ENGINE_SUCCESS;
+                          return cb::engine_errc::success;
                       },
                       {}));
 }
@@ -2167,8 +2172,8 @@ TEST_F(SingleThreadedEPBucketTest, MB18452_yield_dcp_processor) {
     auto consumer = std::make_shared<MockDcpConsumer>(*engine, cookie, "test");
 
     // Add the stream
-    EXPECT_EQ(ENGINE_SUCCESS,
-              consumer->addStream(/*opaque*/0, vbid, /*flags*/0));
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0));
 
     // The processBufferedItems should yield every "yield * batchSize"
     // So add '(n * (yield * batchSize)) + 1' messages and we should see
@@ -2245,7 +2250,7 @@ TEST_P(STParamPersistentBucketTest, MB_29861) {
     auto consumer = std::make_shared<MockDcpConsumer>(*engine, cookie, "test");
 
     // Add the stream
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0));
 
     // 1. Add the first message, a snapshot marker to ensure that the
@@ -2281,7 +2286,7 @@ TEST_P(STParamPersistentBucketTest, MB_29861) {
     ItemMetaData metadata;
     uint32_t deleted = 0;
     uint8_t datatype = 0;
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+    EXPECT_EQ(cb::engine_errc::would_block,
               store->getMetaData(makeStoredDocKey("key1"),
                                  vbid,
                                  cookie,
@@ -2290,7 +2295,7 @@ TEST_P(STParamPersistentBucketTest, MB_29861) {
                                  datatype));
 
     runBGFetcherTask();
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->getMetaData(makeStoredDocKey("key1"),
                                  vbid,
                                  cookie,
@@ -2341,7 +2346,7 @@ void STParameterizedBucketTest::test_replicateDeleteTime(time_t deleteTime) {
     TimeTraveller biff(3600);
 
     // Add the stream
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0));
 
     // 1. Add the first message, a snapshot marker.
@@ -2387,7 +2392,7 @@ void STParameterizedBucketTest::test_replicateDeleteTime(time_t deleteTime) {
     uint8_t datatype = 0;
     time_t tombstoneTime;
     if (persistent()) {
-        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+        EXPECT_EQ(cb::engine_errc::would_block,
                   store->getMetaData(makeStoredDocKey("key1"),
                                      vbid,
                                      cookie,
@@ -2395,7 +2400,7 @@ void STParameterizedBucketTest::test_replicateDeleteTime(time_t deleteTime) {
                                      deleted,
                                      datatype));
         runBGFetcherTask();
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   store->getMetaData(makeStoredDocKey("key1"),
                                      vbid,
                                      cookie,
@@ -2425,7 +2430,7 @@ void STParameterizedBucketTest::test_replicateDeleteTime(time_t deleteTime) {
     deleted = 0;
     datatype = 0;
     if (persistent()) {
-        EXPECT_EQ(ENGINE_EWOULDBLOCK,
+        EXPECT_EQ(cb::engine_errc::would_block,
                   store->getMetaData(makeStoredDocKey("key2"),
                                      vbid,
                                      cookie,
@@ -2433,7 +2438,7 @@ void STParameterizedBucketTest::test_replicateDeleteTime(time_t deleteTime) {
                                      deleted,
                                      datatype));
         runBGFetcherTask();
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   store->getMetaData(makeStoredDocKey("key2"),
                                      vbid,
                                      cookie,
@@ -2503,9 +2508,9 @@ static void MB20054_run_backfill_task(EventuallyPersistentEngine* engine,
     backfill.completeCurrentTask();
 }
 
-static ENGINE_ERROR_CODE dummy_dcp_add_failover_cb(
+static cb::engine_errc dummy_dcp_add_failover_cb(
         const std::vector<vbucket_failover_t>&) {
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 // Test performs engine deletion interleaved with tasks so redefine TearDown
@@ -2576,7 +2581,7 @@ TEST_P(MB20054_SingleThreadedEPStoreTest,
 
     // Create a DCP producer, and start a stream request.
     std::string name("test_producer");
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               engine->dcpOpen(cookie,
                               /*opaque:unused*/ {},
                               /*seqno:unused*/ {},
@@ -2592,7 +2597,7 @@ TEST_P(MB20054_SingleThreadedEPStoreTest,
     uint64_t rollbackSeqno;
     // Actual stream request method (EvpDcpStreamReq) is static, so access via
     // the engine_interface.
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               engine->stream_req(cookie,
                                  /*flags*/ 0,
                                  /*opaque*/ 0,
@@ -2798,10 +2803,11 @@ TEST_F(SingleThreadedEPBucketTest, stream_from_active_vbucket_only) {
                                            {});
 
         if (it.second) {
-            EXPECT_EQ(ENGINE_SUCCESS, err) << "Unexpected error code";
+            EXPECT_EQ(cb::engine_errc::success, err) << "Unexpected error code";
             producer->closeStream(/*opaque*/0, /*vbucket*/vbid);
         } else {
-            EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, err) << "Unexpected error code";
+            EXPECT_EQ(cb::engine_errc::not_my_vbucket, err)
+                    << "Unexpected error code";
         }
 
         // Stop Producer checkpoint processor task
@@ -2845,7 +2851,7 @@ TEST_P(XattrSystemUserTest, pre_expiry_xattrs) {
                                                        TRACK_STATISTICS |
                                                        GET_DELETED_VALUE);
     GetValue gv = kvbucket.get(makeStoredDocKey("key"), vbid, cookie, options);
-    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
 
     auto get_itm = gv.item.get();
     auto get_data = const_cast<char*>(get_itm->getData());
@@ -2882,7 +2888,8 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
     auto consumer =
             std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
     int opaque = 1;
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque, vbid, /*flags*/ 0));
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->addStream(opaque, vbid, /*flags*/ 0));
 
     std::string key = "key";
     std::string body = "body";
@@ -2906,7 +2913,7 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
 
     // Send mutation in a single seqno snapshot
     int64_t bySeqno = 1;
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(opaque,
                                        vbid,
                                        bySeqno,
@@ -2914,7 +2921,7 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
                                        MARKER_FLAG_CHK,
                                        {} /*HCS*/,
                                        {} /*maxVisibleSeqno*/));
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->mutation(opaque,
                                  docKey,
                                  value,
@@ -2940,7 +2947,7 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
     value = {reinterpret_cast<const uint8_t*>(finalizedXttr.data()),
              finalizedXttr.size()};
     EXPECT_NE(0, value.size());
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(opaque,
                                        vbid,
                                        bySeqno,
@@ -2948,7 +2955,7 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
                                        MARKER_FLAG_CHK,
                                        {} /*HCS*/,
                                        {} /*maxVisibleSeqno*/));
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->deletion(opaque,
                                  docKey,
                                  value,
@@ -2962,7 +2969,7 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::Yes),
               getEPBucket().flushVBucket(vbid));
     /* Close stream before deleting the connection */
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
+    ASSERT_EQ(cb::engine_errc::success, consumer->closeStream(opaque, vbid));
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
@@ -2970,11 +2977,11 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
     auto gv = store->get(docKey, vbid, cookie, options);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
 
     runBGFetcherTask();
     gv = store->get(docKey, vbid, cookie, GET_DELETED_VALUE);
-    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
 
     // check it's there and deleted with the expected value length
     EXPECT_TRUE(gv.item->isDeleted());
@@ -3032,12 +3039,12 @@ TEST_P(STParameterizedBucketTest, DeleteExpiredItem) {
     auto key = makeStoredDocKey("key");
     auto item = makeCommittedItem(key, "value");
     item->setExpTime(5);
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(*item, cookie));
+    EXPECT_EQ(cb::engine_errc::success, store->set(*item, cookie));
 
     mutation_descr_t delInfo;
     uint64_t cas = item->getCas();
     using namespace cb::durability;
-    EXPECT_EQ(ENGINE_KEY_ENOENT,
+    EXPECT_EQ(cb::engine_errc::no_such_key,
               store->deleteItem(key, cas, vbid, cookie, {}, nullptr, delInfo));
 
     auto vb = store->getVBucket(vbid);
@@ -3066,7 +3073,8 @@ TEST_P(STParameterizedBucketTest, enable_expiry_output) {
                                   inMemory);
 
         // Now step the producer to transfer the delete/tombstone
-        EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(producers));
+        EXPECT_EQ(cb::engine_errc::success,
+                  producer->stepWithBorderGuard(producers));
     };
 
     // Finally expire a key and check that the delete_time we receive is not the
@@ -3094,7 +3102,7 @@ TEST_P(STParameterizedBucketTest, enable_expiry_output) {
     // Trigger expiry on a GET
     auto gv = store->get(
             {"KEY3", DocKeyEncodesCollectionId::No}, vbid, cookie, NONE);
-    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
 
     // Trigger a flush to disk (ensure full-eviction numItems stat is
     // up-to-date).
@@ -3141,13 +3149,13 @@ TEST_P(XattrSystemUserTest, MB_29040) {
             HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
     GetValue gv = kvbucket.get(
             {"key", DocKeyEncodesCollectionId::No}, vbid, cookie, options);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
 
     runBGFetcherTask();
 
     gv = kvbucket.get(
             {"key", DocKeyEncodesCollectionId::No}, vbid, cookie, options);
-    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
 
     auto get_itm = gv.item.get();
     auto get_data = const_cast<char*>(get_itm->getData());
@@ -3207,7 +3215,7 @@ public:
         notifyAndStepToCheckpoint(*producer, *producers);
 
         for (int i = 0; i < 3; i++) { // 1, 2 and 3
-            EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
+            EXPECT_EQ(cb::engine_errc::success, producer->step(*producers));
             EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
         }
 
@@ -3220,7 +3228,7 @@ public:
         };
 
         // call next - get success (nothing ready, but task has been scheduled)
-        EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(*producers));
+        EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
 
         // Run the snapshot task and step (triggering
         // preGetOutstandingItemsCallback)
@@ -3266,12 +3274,12 @@ TEST_F(MB_29287, DISABLED_dataloss_end) {
     auto* as = static_cast<ActiveStream*>(stream.get());
 
     EXPECT_TRUE(as->isTakeoverSend());
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
     producers->last_op = cb::mcbp::ClientOpcode::Invalid;
     EXPECT_EQ("4", producers->last_key);
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
     producers->last_op = cb::mcbp::ClientOpcode::Invalid;
     EXPECT_EQ("5", producers->last_key);
@@ -3280,7 +3288,7 @@ TEST_F(MB_29287, DISABLED_dataloss_end) {
     as->snapshotMarkerAckReceived();
 
     // set-vb-state now underway
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, producers->last_op);
 
     // Move stream to pending and vb to dead
@@ -3293,7 +3301,7 @@ TEST_F(MB_29287, DISABLED_dataloss_end) {
                0,
                {cb::engine_errc::not_my_vbucket});
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, producers->last_op);
     as->setVBucketStateAckRecieved();
     EXPECT_TRUE(!stream->isActive());
@@ -3314,12 +3322,12 @@ TEST_F(MB_29287, DISABLED_dataloss_hole) {
     store_item(vbid, makeStoredDocKey("6"), "value6");
 
     EXPECT_TRUE(as->isTakeoverSend());
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
     producers->last_op = cb::mcbp::ClientOpcode::Invalid;
     EXPECT_EQ("4", producers->last_key);
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
     producers->last_op = cb::mcbp::ClientOpcode::Invalid;
     EXPECT_EQ("5", producers->last_key);
@@ -3330,12 +3338,12 @@ TEST_F(MB_29287, DISABLED_dataloss_hole) {
     // More data in the checkpoint (key 6)
 
     // call next - get success (nothing ready, but task has been scheduled)
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(*producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
 
     // Run the snapshot task and step
     notifyAndStepToCheckpoint(*producer, *producers);
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
     EXPECT_EQ("6", producers->last_key);
 
@@ -3346,7 +3354,7 @@ TEST_F(MB_29287, DISABLED_dataloss_hole) {
     EXPECT_TRUE(as->isTakeoverSend());
 
     // set-vb-state now underway
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, producers->last_op);
     producers->last_op = cb::mcbp::ClientOpcode::Invalid;
 
@@ -3360,7 +3368,7 @@ TEST_F(MB_29287, DISABLED_dataloss_hole) {
                0,
                {cb::engine_errc::not_my_vbucket});
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(*producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, producers->last_op);
     as->setVBucketStateAckRecieved();
     EXPECT_TRUE(!stream->isActive());
@@ -3395,7 +3403,8 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
     auto consumer = std::make_shared<MockDcpConsumer>(
             *engine, cookie, "MB_29040_sanitise_input");
     int opaque = 1;
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque, vbid, /*flags*/ 0));
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->addStream(opaque, vbid, /*flags*/ 0));
 
     // MB-37374: Since 6.6, the validation covered in this test is enforce only
     // for producers that don't enable IncludeDeletedUserXattrs. So we need to
@@ -3410,7 +3419,7 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
 
     // Send deletion in a single seqno snapshot
     int64_t bySeqno = 1;
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(opaque,
                                        vbid,
                                        bySeqno,
@@ -3422,7 +3431,7 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
     cb::const_byte_buffer valueBuf{
             reinterpret_cast<const uint8_t*>(value.data()), value.size()};
     EXPECT_EQ(
-            ENGINE_SUCCESS,
+            cb::engine_errc::success,
             consumer->deletion(
                     opaque,
                     {"key", DocKeyEncodesCollectionId::No},
@@ -3439,7 +3448,7 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
               getEPBucket().flushVBucket(vbid));
 
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
+    ASSERT_EQ(cb::engine_errc::success, consumer->closeStream(opaque, vbid));
 
     // Switch to active
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
@@ -3449,14 +3458,14 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
             HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
     auto gv = store->get(
             {"key", DocKeyEncodesCollectionId::No}, vbid, cookie, options);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
 
     runBGFetcherTask();
     gv = store->get({"key", DocKeyEncodesCollectionId::No},
                     vbid,
                     cookie,
                     GET_DELETED_VALUE);
-    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
 
     // This is the only system key test_helpers::createXattrValue gives us
     cb::xattr::Blob blob;
@@ -3480,13 +3489,14 @@ TEST_P(STParamPersistentBucketTest, MB_31141_sanitise_input) {
     auto consumer = std::make_shared<MockDcpConsumer>(
             *engine, cookie, "MB_31141_sanitise_input");
     int opaque = 1;
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque, vbid, /*flags*/ 0));
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->addStream(opaque, vbid, /*flags*/ 0));
 
     std::string body = "value";
 
     // Send deletion in a single seqno snapshot
     int64_t bySeqno = 1;
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(opaque,
                                        vbid,
                                        bySeqno,
@@ -3495,7 +3505,7 @@ TEST_P(STParamPersistentBucketTest, MB_31141_sanitise_input) {
                                        {} /*HCS*/,
                                        {} /*maxVisibleSeqno*/));
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->deletion(opaque,
                                  {"key", DocKeyEncodesCollectionId::No},
                                  {reinterpret_cast<const uint8_t*>(body.data()),
@@ -3512,7 +3522,7 @@ TEST_P(STParamPersistentBucketTest, MB_31141_sanitise_input) {
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
               getEPBucket().flushVBucket(vbid));
 
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
+    ASSERT_EQ(cb::engine_errc::success, consumer->closeStream(opaque, vbid));
 
     // Switch to active
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
@@ -3522,14 +3532,14 @@ TEST_P(STParamPersistentBucketTest, MB_31141_sanitise_input) {
             HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
     auto gv = store->get(
             {"key", DocKeyEncodesCollectionId::No}, vbid, cookie, options);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
 
     runBGFetcherTask();
     gv = store->get({"key", DocKeyEncodesCollectionId::No},
                     vbid,
                     cookie,
                     GET_DELETED_VALUE);
-    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
 
     EXPECT_TRUE(gv.item->isDeleted());
     EXPECT_EQ(0, gv.item->getFlags());
@@ -3574,7 +3584,7 @@ TEST_P(STParamPersistentBucketTest, MB_29480) {
     // 2) And receive them, client knows of k1,k2,k3,k4,k5
     notifyAndStepToCheckpoint(*producer, producers);
     for (const auto& key : initialKeys) {
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+        EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
         EXPECT_EQ(key, producers.last_key);
         producers.last_op = cb::mcbp::ClientOpcode::Invalid;
@@ -3612,7 +3622,7 @@ TEST_P(STParamPersistentBucketTest, MB_29480) {
     EXPECT_EQ(2, removed);
 
     // Kick the stream into backfill
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
 
     // 6) Store more items (don't flush these)
     std::array<std::string, 2> extraKeys = {{"k3", "k4"}};
@@ -3632,7 +3642,7 @@ TEST_P(STParamPersistentBucketTest, MB_29480) {
     // Stream is now dead
     EXPECT_FALSE(vb0Stream->isActive());
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
 
     // Stop Producer checkpoint processor task
@@ -3686,7 +3696,7 @@ TEST_P(STParamPersistentBucketTest, MB_29512) {
 
     // 4) Stream request picking up where we left off.
     uint64_t rollbackSeqno = 0;
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->streamRequest(0, // flags
                                       1, // opaque
                                       vb->getId(),
@@ -3718,7 +3728,7 @@ TEST_P(STParamPersistentBucketTest, MB_29512) {
 
     EXPECT_FALSE(vb0Stream->isActive());
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
 
     // Stop Producer checkpoint processor task
@@ -3752,7 +3762,7 @@ TEST_P(STParamPersistentBucketTest, MB_29541) {
     uint64_t rollbackSeqno = 0;
     auto vb = store->getVBuckets().getBucket(vbid);
     ASSERT_NE(nullptr, vb.get());
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->streamRequest(DCP_ADD_STREAM_FLAG_TAKEOVER, // flags
                                       1, // opaque
                                       vbid,
@@ -3780,10 +3790,10 @@ TEST_P(STParamPersistentBucketTest, MB_29541) {
     runNextTask(lpAuxioQ);
 
     // Now drain all items before we proceed to complete
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
     for (const auto& key : keys) {
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+        EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
         EXPECT_EQ(key, producers.last_key);
     }
@@ -3803,7 +3813,7 @@ TEST_P(STParamPersistentBucketTest, MB_29541) {
     // However without the fix from MB-29541 this would return success, meaning
     // the front-end thread should sleep until notified the stream is ready.
     // However no notify will ever come if MB-29541 is not applied
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, producers.last_op);
 
     auto* as0 = static_cast<ActiveStream*>(vb0Stream.get());
@@ -3817,7 +3827,7 @@ TEST_P(STParamPersistentBucketTest, MB_29541) {
     message.setOpaque(1);
     EXPECT_TRUE(producer->handleResponse(message));
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, producers.last_op);
 
     EXPECT_TRUE(producer->handleResponse(message));
@@ -3877,7 +3887,7 @@ TEST_P(STParamPersistentBucketTest, MB_31481) {
     uint64_t rollbackSeqno = 0;
     auto vb = store->getVBuckets().getBucket(vbid);
     ASSERT_NE(nullptr, vb.get());
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->streamRequest(0, // flags
                                       1, // opaque
                                       vbid,
@@ -3907,17 +3917,17 @@ TEST_P(STParamPersistentBucketTest, MB_31481) {
 
     // Now drain all items before we proceed to complete, which triggers disk
     // snapshot.
-    ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    ASSERT_EQ(cb::engine_errc::success, producer->step(producers));
     ASSERT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
     for (const auto& key : keys) {
-        ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers));
+        ASSERT_EQ(cb::engine_errc::success, producer->step(producers));
         ASSERT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
         ASSERT_EQ(key, producers.last_key);
     }
 
     // Another producer step should report EWOULDBLOCK (no more data) as all
     // items have been backfilled.
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
     // Also the readyQ should be empty
     EXPECT_TRUE(producer->getReadyQueue().empty());
 
@@ -3928,14 +3938,15 @@ TEST_P(STParamPersistentBucketTest, MB_31481) {
     EXPECT_TRUE(producer->getReadyQueue().exists(vbid));
 
     // Step should cause stream closed message, previously this would
-    // keep the "ENGINE_EWOULDBLOCK" response due to the itemsReady flag,
-    // which is not expected with that message already being in the readyQ.
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    // keep the "cb::engine_errc::would_block" response due to the itemsReady
+    // flag, which is not expected with that message already being in the
+    // readyQ.
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
 
     // Stepping forward should now show that stream end message has been
     // completed and no more messages are needed to send.
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
 
     // Similarly, the readyQ should be empty again
     EXPECT_TRUE(producer->getReadyQueue().empty());
@@ -3980,7 +3991,7 @@ void STParamPersistentBucketTest::backfillExpiryOutput(bool xattr) {
     // Trigger expiry on a GET
     auto gv = store->get(
             {"KEY3", DocKeyEncodesCollectionId::No}, vbid, cookie, NONE);
-    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
 
     // Now flush to disk and wipe memory to ensure that DCP will have to do
     // a backfill
@@ -4007,7 +4018,7 @@ void STParamPersistentBucketTest::backfillExpiryOutput(bool xattr) {
     uint64_t rollbackSeqno = 0;
     auto vb = store->getVBuckets().getBucket(vbid);
     ASSERT_NE(nullptr, vb.get());
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               producer->streamRequest(0, // flags
                                       1, // opaque
                                       vbid,
@@ -4026,7 +4037,7 @@ void STParamPersistentBucketTest::backfillExpiryOutput(bool xattr) {
                               false);
 
     // Now step the producer to transfer the delete/tombstone
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
 
     // The delete time should always be re-created by the server to
     // ensure old/future expiry times don't disrupt tombstone purging (MB-33919)
@@ -4064,7 +4075,7 @@ TEST_P(STParameterizedBucketTest, slow_stream_backfill_expiry) {
     // Trigger expiry on a GET
     auto gv = store->get(
             {"KEY3", DocKeyEncodesCollectionId::No}, vbid, cookie, NONE);
-    ASSERT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    ASSERT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
 
     // Now flush to disk
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -4089,7 +4100,7 @@ TEST_P(STParameterizedBucketTest, slow_stream_backfill_expiry) {
 
     uint64_t rollbackSeqno = 0;
     ASSERT_NE(nullptr, vb.get());
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               producer->streamRequest(0, // flags
                                       1, // opaque
                                       vbid,
@@ -4114,10 +4125,10 @@ TEST_P(STParameterizedBucketTest, slow_stream_backfill_expiry) {
     // Run a backfill
     runBackfill();
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
 
     // The delete time should always be re-created by the server to
     // ensure old/future expiry times don't disrupt tombstone purging (MB-33919)
@@ -4288,7 +4299,7 @@ TEST_P(STParamPersistentBucketTest, testRetainErroneousTombstones) {
     {
         GetValue gv = kvstore->get(DiskDocKey{key1}, Vbid(0));
         std::unique_ptr<Item> itm = std::move(gv.item);
-        ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+        ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
         ASSERT_TRUE(itm->isDeleted());
         itm->setExpTime(0);
         itm->setBySeqno(itm->getBySeqno() + 1);
@@ -4318,24 +4329,16 @@ TEST_P(STParamPersistentBucketTest, testRetainErroneousTombstones) {
     ItemMetaData metadata;
     uint32_t deleted = 0;
     uint8_t datatype = 0;
-    ASSERT_EQ(ENGINE_EWOULDBLOCK,
-              store->getMetaData(key1,
-                                 vbid,
-                                 cookie,
-                                 metadata,
-                                 deleted,
-                                 datatype));
+    ASSERT_EQ(cb::engine_errc::would_block,
+              store->getMetaData(
+                      key1, vbid, cookie, metadata, deleted, datatype));
 
     auto vb = store->getVBucket(vbid);
 
     runBGFetcherTask();
-    ASSERT_EQ(ENGINE_SUCCESS,
-              store->getMetaData(key1,
-                                 vbid,
-                                 cookie,
-                                 metadata,
-                                 deleted,
-                                 datatype));
+    ASSERT_EQ(cb::engine_errc::success,
+              store->getMetaData(
+                      key1, vbid, cookie, metadata, deleted, datatype));
     ASSERT_EQ(1, deleted);
     ASSERT_EQ(0, metadata.exptime);
 
@@ -4393,22 +4396,14 @@ TEST_P(STParamPersistentBucketTest,
     ItemMetaData metadata;
     uint32_t deleted = 0;
     uint8_t datatype = 0;
-    ASSERT_EQ(ENGINE_EWOULDBLOCK,
-              store->getMetaData(key1,
-                                 vbid,
-                                 cookie,
-                                 metadata,
-                                 deleted,
-                                 datatype));
+    ASSERT_EQ(cb::engine_errc::would_block,
+              store->getMetaData(
+                      key1, vbid, cookie, metadata, deleted, datatype));
 
     runBGFetcherTask();
-    ASSERT_EQ(ENGINE_SUCCESS,
-              store->getMetaData(key1,
-                                 vbid,
-                                 cookie,
-                                 metadata,
-                                 deleted,
-                                 datatype));
+    ASSERT_EQ(cb::engine_errc::success,
+              store->getMetaData(
+                      key1, vbid, cookie, metadata, deleted, datatype));
     ASSERT_EQ(1, deleted);
     ASSERT_NE(0, metadata.exptime); // A locally created deleteTime
 
@@ -4433,8 +4428,9 @@ TEST_F(SingleThreadedEPBucketTest,
     consumer->enableV7DcpStatus();
 
     int opaque = 1;
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque, vbid, /*flags*/ 0));
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->addStream(opaque, vbid, /*flags*/ 0));
+    ASSERT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(opaque,
                                        vbid,
                                        1,
@@ -4442,13 +4438,13 @@ TEST_F(SingleThreadedEPBucketTest,
                                        MARKER_FLAG_CHK,
                                        {} /*HCS*/,
                                        {} /*maxVisibleSeqno*/));
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
+    ASSERT_EQ(cb::engine_errc::success, consumer->closeStream(opaque, vbid));
 
     // Test: Have the producer send further messages on the stream (before the
     // final STREAM_END. These should all be accepted (but discarded) by the
     // replica.
     auto testAllStreamLevelMessages = [&consumer, this, opaque](
-                                              ENGINE_ERROR_CODE expected) {
+                                              cb::engine_errc expected) {
         auto key = makeStoredDocKey("key");
         auto dtype = PROTOCOL_BINARY_RAW_BYTES;
         EXPECT_EQ(expected,
@@ -4524,17 +4520,17 @@ TEST_F(SingleThreadedEPBucketTest,
                                            {} /*HCS*/,
                                            {} /*maxVisibleSeqno*/));
     };
-    testAllStreamLevelMessages(ENGINE_SUCCESS);
+    testAllStreamLevelMessages(cb::engine_errc::success);
 
     // Setup (phase 2): Receive a STREAM_END message - after which all of the
     // above stream-level messages should be rejected as ENOENT.
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               consumer->streamEnd(
                       opaque, vbid, cb::mcbp::DcpStreamEndStatus::Closed));
 
     // Test (phase 2): Have the producer send all the above stream-level
     // messages to the consumer. Should all be rejected this time.
-    testAllStreamLevelMessages(ENGINE_STREAM_NOT_FOUND);
+    testAllStreamLevelMessages(cb::engine_errc::stream_not_found);
 }
 
 // MB-34951: Check that a consumer correctly handles (and ignores) a StreamEnd
@@ -4547,13 +4543,13 @@ TEST_F(SingleThreadedEPBucketTest,
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
     auto consumer = std::make_shared<MockDcpConsumer>(*engine, cookie, "conn");
     const int opaque1 = 1;
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque1, vbid, {}));
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque1, vbid));
+    ASSERT_EQ(cb::engine_errc::success, consumer->addStream(opaque1, vbid, {}));
+    ASSERT_EQ(cb::engine_errc::success, consumer->closeStream(opaque1, vbid));
     const int opaque2 = 2;
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque2, vbid, {}));
+    ASSERT_EQ(cb::engine_errc::success, consumer->addStream(opaque2, vbid, {}));
 
     // Test: Have the producer send a StreamEnd with the "old" opaque.
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->streamEnd(
                       opaque1, vbid, cb::mcbp::DcpStreamEndStatus::Closed));
 }
@@ -4563,17 +4559,18 @@ TEST_F(SingleThreadedEPBucketTest, TestConsumerSendEEXISTSIfOpaqueWrong) {
     auto consumer = std::make_shared<MockDcpConsumer>(*engine, cookie, "conn");
 
     const int opaque1 = 1;
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque1, vbid, {}));
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque1, vbid));
+    ASSERT_EQ(cb::engine_errc::success, consumer->addStream(opaque1, vbid, {}));
+    ASSERT_EQ(cb::engine_errc::success, consumer->closeStream(opaque1, vbid));
 
     const int opaque2 = 2;
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque2, vbid, {}));
+    ASSERT_EQ(cb::engine_errc::success, consumer->addStream(opaque2, vbid, {}));
 
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque1, vbid, {}));
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->closeStream(opaque1, vbid, {}));
 
     auto key = makeStoredDocKey("key");
     auto dtype = PROTOCOL_BINARY_RAW_BYTES;
-    EXPECT_EQ(ENGINE_KEY_EEXISTS,
+    EXPECT_EQ(cb::engine_errc::key_already_exists,
               consumer->prepare(opaque1,
                                 key,
                                 {},
@@ -4617,7 +4614,8 @@ TEST_P(STParameterizedBucketTest, produce_delete_times) {
                                   inMemory);
 
         // Now step the producer to transfer the delete/tombstone.
-        EXPECT_EQ(ENGINE_SUCCESS, producer->stepWithBorderGuard(producers));
+        EXPECT_EQ(cb::engine_errc::success,
+                  producer->stepWithBorderGuard(producers));
     };
 
     step(false);
@@ -4669,7 +4667,7 @@ TEST_P(STParameterizedBucketTest, produce_delete_times) {
     // Trigger expiry on a GET
     auto gv = store->get(
             {"KEY3", DocKeyEncodesCollectionId::No}, vbid, cookie, NONE);
-    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
 
     step(true);
 
@@ -4699,7 +4697,7 @@ TEST_P(STParameterizedBucketTest, MB_34380) {
     }
     // 1) Create replica VB and simulate the replica connecting to it's active
     // and having the failover table replaced (via stream_request response)
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_replica, {}));
 
     // 1.1) force the failover to a specific value
@@ -4715,11 +4713,11 @@ TEST_P(STParameterizedBucketTest, MB_34380) {
         EXPECT_NO_THROW(vb->getShard()->getRWUnderlying()->getDbFileInfo(vbid));
     }
     // 3) Delete the vbucket, the cached vbstate will remain untouched
-    EXPECT_EQ(ENGINE_SUCCESS, store->deleteVBucket(vbid));
+    EXPECT_EQ(cb::engine_errc::success, store->deleteVBucket(vbid));
 
     // 4) Re-create the vbucket, and again simulate the connection to active,
     // forcing the failover table to the specific value.
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_replica, {}));
 
     auto vb = engine->getKVBucket()->getVBucket(vbid);
@@ -4745,7 +4743,7 @@ TEST_P(STParameterizedBucketTest, MB_41255_evicted_xattr) {
             std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
 
     // Add passive stream
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               consumer->addStream(/*opaque*/ 0,
                                   vbid,
                                   /*flags*/ 0));
@@ -4799,7 +4797,7 @@ TEST_P(STParameterizedBucketTest, MB_41255_evicted_xattr) {
                              {});
 
     // With MB-41255 this would error with 'would block' (for value eviction)
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               consumer->deletion(/*opaque*/ 1,
                                  /*key*/ key,
                                  /*value*/ {},
@@ -4811,7 +4809,8 @@ TEST_P(STParameterizedBucketTest, MB_41255_evicted_xattr) {
                                  /*revSeqno*/ 0,
                                  /*meta*/ {}));
     // Close stream
-    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(/*opaque*/ 0, vbid));
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->closeStream(/*opaque*/ 0, vbid));
     destroy_mock_cookie(cookie);
 }
 
@@ -4959,11 +4958,11 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistNonMetaItems(
     auto kvstore = store->getRWUnderlying(vbid);
     const auto keyA = makeDiskDocKey("keyA", true);
     auto docA = kvstore->get(keyA, vbid);
-    EXPECT_EQ(ENGINE_KEY_ENOENT, docA.getStatus());
+    EXPECT_EQ(cb::engine_errc::no_such_key, docA.getStatus());
     ASSERT_FALSE(docA.item);
     const auto keyB = makeDiskDocKey("keyB");
     auto docB = kvstore->get(keyB, vbid);
-    EXPECT_EQ(ENGINE_KEY_ENOENT, docB.getStatus());
+    EXPECT_EQ(cb::engine_errc::no_such_key, docB.getStatus());
     ASSERT_FALSE(docB.item);
 
     // This flush succeeds, we must write all the expected items and new vbstate
@@ -4998,14 +4997,14 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistNonMetaItems(
 
     // Check persisted docs
     docA = kvstore->get(keyA, vbid);
-    EXPECT_EQ(ENGINE_SUCCESS, docA.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, docA.getStatus());
     ASSERT_TRUE(docA.item);
     ASSERT_GT(docA.item->getNBytes(), 0);
     EXPECT_EQ(std::string_view(valueA.c_str(), valueA.size()),
               std::string_view(docA.item->getData(), docA.item->getNBytes()));
     EXPECT_FALSE(docA.item->isDeleted());
     docB = kvstore->get(keyB, vbid);
-    EXPECT_EQ(ENGINE_SUCCESS, docB.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, docB.getStatus());
     EXPECT_EQ(0, docB.item->getNBytes());
     EXPECT_TRUE(docB.item->isDeleted());
 }
@@ -5073,7 +5072,7 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistVBStateOnly(
         ASSERT_EQ(queue_op::set_vbucket_state, (*(pos++))->getOperation());
     };
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_replica));
     {
         SCOPED_TRACE("");
@@ -5203,7 +5202,7 @@ void STParamPersistentBucketTest::testFlushFailureStatsAtDedupedNonMetaItems(
     auto kvstore = store->getRWUnderlying(vbid);
     const auto diskKey = makeDiskDocKey("keyA");
     auto doc = kvstore->get(diskKey, vbid);
-    EXPECT_EQ(ENGINE_KEY_ENOENT, doc.getStatus());
+    EXPECT_EQ(cb::engine_errc::no_such_key, doc.getStatus());
     ASSERT_FALSE(doc.item);
 
     // This flush succeeds, we must write all the expected items and new vbstate
@@ -5222,7 +5221,7 @@ void STParamPersistentBucketTest::testFlushFailureStatsAtDedupedNonMetaItems(
     ASSERT_FALSE(res.committed->isDirty());
     // doc persisted
     doc = kvstore->get(diskKey, vbid);
-    EXPECT_EQ(ENGINE_SUCCESS, doc.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, doc.getStatus());
     ASSERT_TRUE(doc.item);
     ASSERT_GT(doc.item->getNBytes(), 0);
     EXPECT_EQ(std::string_view(value2.c_str(), value2.size()),
@@ -5269,7 +5268,7 @@ TEST_P(STParamCouchstoreBucketTest,
 
     auto meta = nlohmann::json{
             {"topology", nlohmann::json::array({{"active", "replica"}})}};
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_active, &meta));
 
     const auto vb = engine->getKVBucket()->getVBucket(vbid);
@@ -5311,7 +5310,7 @@ TEST_P(STParamCouchstoreBucketTest,
 
     auto meta = nlohmann::json{
             {"topology", nlohmann::json::array({{"active", "replica"}})}};
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_active, &meta));
 
     const auto vb = engine->getKVBucket()->getVBucket(vbid);
@@ -5375,7 +5374,7 @@ void STParamPersistentBucketTest::testAbortDoesNotIncrementOpsDelete(
 
     // ABORT:2
     ASSERT_EQ(1, manager.getHighSeqno());
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               vb.abort(key,
                        1 /*prepareSeqno*/,
                        {} /*abortSeqno*/,
@@ -5574,12 +5573,12 @@ void STParamPersistentBucketTest::testFailoverTableEntryPersistedAtWarmup(
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
     auto gv = store->get(key, vbid, cookie, options);
 
-    if (gv.getStatus() == ENGINE_EWOULDBLOCK) {
+    if (gv.getStatus() == cb::engine_errc::would_block) {
         runBGFetcherTask();
         gv = store->get(key, vbid, cookie, options);
     }
 
-    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
 
     // Get our new uuid now
     auto secondUuid = vb->failovers->getLatestUUID();
@@ -5615,7 +5614,7 @@ void STParamPersistentBucketTest::testFailoverTableEntryPersistedAtWarmup(
     EXPECT_EQ(2, vb->getHighSeqno());
     gv = store->get(key, vbid, cookie, options);
 
-    if (gv.getStatus() == ENGINE_EWOULDBLOCK) {
+    if (gv.getStatus() == cb::engine_errc::would_block) {
         runBGFetcherTask();
         gv = store->get(key, vbid, cookie, options);
     }
@@ -5642,7 +5641,7 @@ TEST_P(STParamPersistentBucketTest,
         auto key = makeStoredDocKey("key");
         auto gv = store->get(key, vbid, cookie, options);
 
-        if (gv.getStatus() == ENGINE_EWOULDBLOCK) {
+        if (gv.getStatus() == cb::engine_errc::would_block) {
             runBGFetcherTask();
             gv = store->get(key, vbid, cookie, options);
         }
@@ -5677,14 +5676,14 @@ TEST_P(STParamPersistentBucketTest, BgFetcherMaintainsVbOrdering) {
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
     auto gv = store->get(key, secondVbid, cookie, options);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
     EXPECT_TRUE(secondVb->hasPendingBGFetchItems());
 
     auto newCookie = create_mock_cookie();
     auto vb = store->getVBucket(vbid);
     ASSERT_TRUE(vb);
     gv = store->get(key, vbid, newCookie, options);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
     EXPECT_TRUE(vb->hasPendingBGFetchItems());
 
     dynamic_cast<MockEPBucket*>(store)->completeBGFetchMultiHook =
@@ -5772,7 +5771,7 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistDelete(
     auto kvstore = store->getRWUnderlying(vbid);
     const auto diskKey = makeDiskDocKey("keyA");
     auto doc = kvstore->get(diskKey, vbid);
-    EXPECT_EQ(ENGINE_KEY_ENOENT, doc.getStatus());
+    EXPECT_EQ(cb::engine_errc::no_such_key, doc.getStatus());
     ASSERT_FALSE(doc.item);
     EXPECT_EQ(1, vb.dirtyQueueSize);
     checkPreFlushHTState();
@@ -5784,7 +5783,7 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistDelete(
               epBucket.flushVBucket(vbid));
     // Doc on disk, flush stats updated and deletion removed from the HT
     doc = kvstore->get(diskKey, vbid);
-    EXPECT_EQ(ENGINE_SUCCESS, doc.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, doc.getStatus());
     EXPECT_EQ(0, doc.item->getNBytes());
     EXPECT_TRUE(doc.item->isDeleted());
     EXPECT_EQ(0, vb.dirtyQueueSize);
@@ -5883,7 +5882,8 @@ TEST_P(STParamCouchstoreBucketTest, ItemCountsAndCommitFailure_MB_41321) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto key = makeStoredDocKey("key");
     auto pending = makeCommittedItem(key, "value");
-    EXPECT_EQ(ENGINE_SUCCESS, store->set(*pending, cookie)); // items=1
+    EXPECT_EQ(cb::engine_errc::success,
+              store->set(*pending, cookie)); // items=1
     auto res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
     EXPECT_EQ(1, res.numFlushed);
 
@@ -5908,7 +5908,7 @@ TEST_P(STParamCouchstoreBucketTest, ItemCountsAndCommitFailure_MB_41321) {
     // Delete our key
     uint64_t cas = 0;
     mutation_descr_t delInfo;
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->deleteItem(key, cas, vbid, cookie, {}, nullptr, delInfo));
 
     // Expect the flush of our delete to fail twice. This would see an underflow
@@ -6119,13 +6119,13 @@ TEST_P(STParamMagmaBucketTest, implicitCompactionContext) {
 
     // Assert the state of the first key on disk
     auto gv = magmaKVStore->get(DiskDocKey(firstDeletedKey), Vbid(0));
-    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
     ASSERT_TRUE(gv.item);
     ASSERT_TRUE(gv.item->isDeleted());
 
     // Assert the second of the first key on disk
     gv = magmaKVStore->get(DiskDocKey(secondDeletedKey), Vbid(0));
-    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
     ASSERT_TRUE(gv.item);
     ASSERT_TRUE(gv.item->isDeleted());
 
@@ -6139,12 +6139,12 @@ TEST_P(STParamMagmaBucketTest, implicitCompactionContext) {
 
     // Check the first key on disk - should not exist
     gv = magmaKVStore->get(DiskDocKey(firstDeletedKey), Vbid(0));
-    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
     EXPECT_FALSE(gv.item);
 
     // Check the second key on disk - should be a tombstone
     gv = magmaKVStore->get(DiskDocKey(secondDeletedKey), Vbid(0));
-    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
+    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
     EXPECT_TRUE(gv.item);
     EXPECT_TRUE(gv.item->isDeleted());
 }
@@ -6245,7 +6245,7 @@ TEST_P(STParamCouchstoreBucketTest, FlusherMarksCleanBySeqno) {
                 GenerateBySeqno::Yes,
                 GenerateCas::No,
                 {} /*extendedMetaData*/);
-        ASSERT_EQ(ENGINE_SUCCESS, res);
+        ASSERT_EQ(cb::engine_errc::success, res);
         EXPECT_EQ(cas, opCas); // Note: CAS is not regenerated
         EXPECT_EQ(expectedSeqno, seqno);
     };

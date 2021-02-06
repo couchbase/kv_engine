@@ -95,7 +95,7 @@ public:
                      Vbid vbucket_,
                      mcbp::subdoc::doc_flag doc_flags);
 
-    ENGINE_ERROR_CODE pre_link_document(item_info& info) override;
+    cb::engine_errc pre_link_document(item_info& info) override;
 
     /**
      * Get the padded value we want to use for values with macro expansion.

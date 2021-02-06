@@ -51,8 +51,8 @@ struct ItemHolder : public ItemIface {
     hash_item* const item;
 };
 
-static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
-                                                 const char *cfg_str);
+static cb::engine_errc initalize_configuration(struct default_engine* se,
+                                               const char* cfg_str);
 union vbucket_info_adapter {
     char c;
     struct vbucket_info v;
@@ -79,7 +79,10 @@ static bool handled_vbucket(struct default_engine* e, Vbid vbid) {
 }
 
 /* mechanism for handling bad vbucket requests */
-#define VBUCKET_GUARD(e, v) if (!handled_vbucket(e, v)) { return ENGINE_NOT_MY_VBUCKET; }
+#define VBUCKET_GUARD(e, v)                     \
+    if (!handled_vbucket(e, v)) {               \
+        return cb::engine_errc::not_my_vbucket; \
+    }
 
 /**
  * Given that default_engine is implemented in C and not C++ we don't have
@@ -108,24 +111,24 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     engine->config.min_compression_ratio = default_min_compression_ratio;
 }
 
-ENGINE_ERROR_CODE create_memcache_instance(GET_SERVER_API get_server_api,
-                                           EngineIface** handle) {
+cb::engine_errc create_memcache_instance(GET_SERVER_API get_server_api,
+                                         EngineIface** handle) {
     ServerApi* api = get_server_api();
     struct default_engine* engine;
 
     if (api == nullptr) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     }
 
     if ((engine = engine_manager_create_engine()) == nullptr) {
-        return ENGINE_ENOMEM;
+        return cb::engine_errc::no_memory;
     }
 
     engine->server = *api;
     engine->get_server_api = get_server_api;
     engine->initialized = true;
     *handle = engine;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 void destroy_memcache_engine() {
@@ -146,23 +149,23 @@ static ItemHolder* get_real_item(ItemIface* item) {
     return it;
 }
 
-ENGINE_ERROR_CODE default_engine::initialize(const char* config_str) {
-    ENGINE_ERROR_CODE ret = initalize_configuration(this, config_str);
-    if (ret != ENGINE_SUCCESS) {
+cb::engine_errc default_engine::initialize(const char* config_str) {
+    cb::engine_errc ret = initalize_configuration(this, config_str);
+    if (ret != cb::engine_errc::success) {
         return ret;
     }
 
     ret = assoc_init(this);
-    if (ret != ENGINE_SUCCESS) {
+    if (ret != cb::engine_errc::success) {
         return ret;
     }
 
     ret = slabs_init(this, config.maxbytes, config.factor, config.preallocate);
-    if (ret != ENGINE_SUCCESS) {
+    if (ret != cb::engine_errc::success) {
         return ret;
     }
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 void default_engine::destroy(const bool force) {
@@ -239,7 +242,7 @@ std::pair<cb::unique_item_ptr, item_info> default_engine::allocateItem(
     }
 }
 
-ENGINE_ERROR_CODE default_engine::remove(
+cb::engine_errc default_engine::remove(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint64_t& cas,
@@ -247,28 +250,28 @@ ENGINE_ERROR_CODE default_engine::remove(
         const std::optional<cb::durability::Requirements>& durability,
         mutation_descr_t& mut_info) {
     if (durability) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     }
     // MB-35696: Only the default collection is permitted
     if (!key.getCollectionID().isDefaultCollection()) {
-        return ENGINE_UNKNOWN_COLLECTION;
+        return cb::engine_errc::unknown_collection;
     }
 
     uint64_t cas_in = cas;
     VBUCKET_GUARD(this, vbucket);
 
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    cb::engine_errc ret = cb::engine_errc::success;
     do {
         auto* const it = item_get(this, cookie, key, DocStateFilter::Alive);
         if (it == nullptr) {
-            return ENGINE_KEY_ENOENT;
+            return cb::engine_errc::no_such_key;
         }
 
         if (it->locktime != 0 &&
             it->locktime > server.core->get_current_time()) {
             if (cas_in != it->cas) {
                 item_release(this, it);
-                return ENGINE_LOCKED;
+                return cb::engine_errc::locked;
             }
         }
 
@@ -282,7 +285,7 @@ ENGINE_ERROR_CODE default_engine::remove(
 
         if (deleted == nullptr) {
             item_release(this, it);
-            return ENGINE_TMPFAIL;
+            return cb::engine_errc::temporary_failure;
         }
 
         if (cas_in == 0) {
@@ -309,7 +312,7 @@ ENGINE_ERROR_CODE default_engine::remove(
 
         // We should only retry for race conditions if the caller specified
         // cas wildcard
-    } while (ret == ENGINE_KEY_EEXISTS && cas_in == 0);
+    } while (ret == cb::engine_errc::key_already_exists && cas_in == 0);
 
     // vbucket UUID / seqno arn't supported by default engine, so just return
     // a hardcoded vbucket uuid, and zero for the sequence number.
@@ -471,23 +474,23 @@ cb::EngineErrorMetadataPair default_engine::get_meta(
     return std::make_pair(cb::engine_errc::success, info);
 }
 
-ENGINE_ERROR_CODE default_engine::unlock(gsl::not_null<const void*> cookie,
-                                         const DocKey& key,
-                                         Vbid vbucket,
-                                         uint64_t cas) {
+cb::engine_errc default_engine::unlock(gsl::not_null<const void*> cookie,
+                                       const DocKey& key,
+                                       Vbid vbucket,
+                                       uint64_t cas) {
     VBUCKET_GUARD(this, vbucket);
     // MB-35696: Only the default collection is permitted
     if (!key.getCollectionID().isDefaultCollection()) {
-        return ENGINE_UNKNOWN_COLLECTION;
+        return cb::engine_errc::unknown_collection;
     }
     return item_unlock(this, cookie, key, cas);
 }
 
-ENGINE_ERROR_CODE default_engine::get_stats(gsl::not_null<const void*> cookie,
-                                            std::string_view key,
-                                            std::string_view value,
-                                            const AddStatFn& add_stat) {
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+cb::engine_errc default_engine::get_stats(gsl::not_null<const void*> cookie,
+                                          std::string_view key,
+                                          std::string_view value,
+                                          const AddStatFn& add_stat) {
+    cb::engine_errc ret = cb::engine_errc::success;
 
     if (key.empty()) {
         do_engine_stats(CBStatCollector(add_stat, cookie, &server));
@@ -520,13 +523,13 @@ ENGINE_ERROR_CODE default_engine::get_stats(gsl::not_null<const void*> cookie,
                      cookie);
         }
     } else {
-        ret = ENGINE_KEY_ENOENT;
+        ret = cb::engine_errc::no_such_key;
     }
 
     return ret;
 }
 
-ENGINE_ERROR_CODE default_engine::get_prometheus_stats(
+cb::engine_errc default_engine::get_prometheus_stats(
         const BucketStatCollector& collector,
         cb::prometheus::Cardinality cardinality) {
     try {
@@ -534,9 +537,9 @@ ENGINE_ERROR_CODE default_engine::get_prometheus_stats(
             do_engine_stats(collector);
         }
     } catch (const std::bad_alloc&) {
-        return ENGINE_ENOMEM;
+        return cb::engine_errc::no_memory;
     }
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 void default_engine::do_engine_stats(const StatCollector& collector) const {
@@ -549,7 +552,7 @@ void default_engine::do_engine_stats(const StatCollector& collector) const {
     collector.addStat(Key::default_engine_maxbytes, config.maxbytes);
 }
 
-ENGINE_ERROR_CODE default_engine::store(
+cb::engine_errc default_engine::store(
         gsl::not_null<const void*> cookie,
         gsl::not_null<ItemIface*> item,
         uint64_t& cas,
@@ -558,7 +561,7 @@ ENGINE_ERROR_CODE default_engine::store(
         DocumentState document_state,
         bool preserveTtl) {
     if (durability) {
-        return ENGINE_ENOTSUP;
+        return cb::engine_errc::not_supported;
     }
 
     auto* it = get_real_item(item);
@@ -634,10 +637,10 @@ cb::EngineErrorCasPair default_engine::store_if(
     return {cb::engine_errc(status), cas};
 }
 
-ENGINE_ERROR_CODE default_engine::flush(gsl::not_null<const void*> cookie) {
+cb::engine_errc default_engine::flush(gsl::not_null<const void*> cookie) {
     item_flush_expired(get_handle(this));
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
 void default_engine::reset_stats(gsl::not_null<const void*> cookie) {
@@ -648,89 +651,88 @@ void default_engine::reset_stats(gsl::not_null<const void*> cookie) {
     stats.total_items.store(0);
 }
 
-static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
-                                                 const char *cfg_str) {
-   ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+static cb::engine_errc initalize_configuration(struct default_engine* se,
+                                               const char* cfg_str) {
+    cb::engine_errc ret = cb::engine_errc::success;
 
-   se->config.vb0 = true;
+    se->config.vb0 = true;
 
-   if (cfg_str != nullptr) {
-       struct config_item items[13];
-       int ii = 0;
+    if (cfg_str != nullptr) {
+        struct config_item items[13];
+        int ii = 0;
 
-       memset(&items, 0, sizeof(items));
-       items[ii].key = "verbose";
-       items[ii].datatype = DT_SIZE;
-       items[ii].value.dt_size = &se->config.verbose;
-       ++ii;
+        memset(&items, 0, sizeof(items));
+        items[ii].key = "verbose";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &se->config.verbose;
+        ++ii;
 
-       items[ii].key = "eviction";
-       items[ii].datatype = DT_BOOL;
-       items[ii].value.dt_bool = &se->config.evict_to_free;
-       ++ii;
+        items[ii].key = "eviction";
+        items[ii].datatype = DT_BOOL;
+        items[ii].value.dt_bool = &se->config.evict_to_free;
+        ++ii;
 
-       items[ii].key = "cache_size";
-       items[ii].datatype = DT_SIZE;
-       items[ii].value.dt_size = &se->config.maxbytes;
-       ++ii;
+        items[ii].key = "cache_size";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &se->config.maxbytes;
+        ++ii;
 
-       items[ii].key = "preallocate";
-       items[ii].datatype = DT_BOOL;
-       items[ii].value.dt_bool = &se->config.preallocate;
-       ++ii;
+        items[ii].key = "preallocate";
+        items[ii].datatype = DT_BOOL;
+        items[ii].value.dt_bool = &se->config.preallocate;
+        ++ii;
 
-       items[ii].key = "factor";
-       items[ii].datatype = DT_FLOAT;
-       items[ii].value.dt_float = &se->config.factor;
-       ++ii;
+        items[ii].key = "factor";
+        items[ii].datatype = DT_FLOAT;
+        items[ii].value.dt_float = &se->config.factor;
+        ++ii;
 
-       items[ii].key = "chunk_size";
-       items[ii].datatype = DT_SIZE;
-       items[ii].value.dt_size = &se->config.chunk_size;
-       ++ii;
+        items[ii].key = "chunk_size";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &se->config.chunk_size;
+        ++ii;
 
-       items[ii].key = "item_size_max";
-       items[ii].datatype = DT_SIZE;
-       items[ii].value.dt_size = &se->config.item_size_max;
-       ++ii;
+        items[ii].key = "item_size_max";
+        items[ii].datatype = DT_SIZE;
+        items[ii].value.dt_size = &se->config.item_size_max;
+        ++ii;
 
-       items[ii].key = "ignore_vbucket";
-       items[ii].datatype = DT_BOOL;
-       items[ii].value.dt_bool = &se->config.ignore_vbucket;
-       ++ii;
+        items[ii].key = "ignore_vbucket";
+        items[ii].datatype = DT_BOOL;
+        items[ii].value.dt_bool = &se->config.ignore_vbucket;
+        ++ii;
 
-       items[ii].key = "vb0";
-       items[ii].datatype = DT_BOOL;
-       items[ii].value.dt_bool = &se->config.vb0;
-       ++ii;
+        items[ii].key = "vb0";
+        items[ii].datatype = DT_BOOL;
+        items[ii].value.dt_bool = &se->config.vb0;
+        ++ii;
 
-       items[ii].key = "config_file";
-       items[ii].datatype = DT_CONFIGFILE;
-       ++ii;
+        items[ii].key = "config_file";
+        items[ii].datatype = DT_CONFIGFILE;
+        ++ii;
 
-       items[ii].key = "uuid";
-       items[ii].datatype = DT_STRING;
-       items[ii].value.dt_string = &se->config.uuid;
-       ++ii;
+        items[ii].key = "uuid";
+        items[ii].datatype = DT_STRING;
+        items[ii].value.dt_string = &se->config.uuid;
+        ++ii;
 
-       items[ii].key = "keep_deleted";
-       items[ii].datatype = DT_BOOL;
-       items[ii].value.dt_bool = &se->config.keep_deleted;
-       ++ii;
+        items[ii].key = "keep_deleted";
+        items[ii].datatype = DT_BOOL;
+        items[ii].value.dt_bool = &se->config.keep_deleted;
+        ++ii;
 
-       items[ii].key = nullptr;
-       ++ii;
-       cb_assert(ii == 13);
-       ret = ENGINE_ERROR_CODE(se->server.core->parse_config(cfg_str,
-                                                             items,
-                                                             stderr));
-   }
+        items[ii].key = nullptr;
+        ++ii;
+        cb_assert(ii == 13);
+        ret = cb::engine_errc(
+                se->server.core->parse_config(cfg_str, items, stderr));
+    }
 
-   if (se->config.vb0) {
-       set_vbucket_state(se, Vbid(0), vbucket_state_active);
-   }
+    if (se->config.vb0) {
+        set_vbucket_state(se, Vbid(0), vbucket_state_active);
+    }
 
-   return ret;
+    return ret;
 }
 
 static bool scrub_cmd(struct default_engine* e,
@@ -786,7 +788,7 @@ cb::engine_errc default_engine::setParameter(gsl::not_null<const void*> cookie,
     return cb::engine_errc::no_such_key;
 }
 
-ENGINE_ERROR_CODE default_engine::unknown_command(
+cb::engine_errc default_engine::unknown_command(
         const void* cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
@@ -808,9 +810,9 @@ ENGINE_ERROR_CODE default_engine::unknown_command(
     }
 
     if (sent) {
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     } else {
-        return ENGINE_FAILED;
+        return cb::engine_errc::failed;
     }
 }
 

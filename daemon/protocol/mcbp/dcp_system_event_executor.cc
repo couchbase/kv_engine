@@ -22,9 +22,9 @@
 #include <memcached/protocol_binary.h>
 
 void dcp_system_event_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    auto ret = cookie.swapAiostat(cb::engine_errc::success);
 
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         using cb::mcbp::request::DcpSystemEventPayload;
         const auto& request = cookie.getRequest();
         auto extras = request.getExtdata();
@@ -41,7 +41,7 @@ void dcp_system_event_executor(Cookie& cookie) {
                              request.getValue());
     }
 
-    if (ret != ENGINE_SUCCESS) {
+    if (ret != cb::engine_errc::success) {
         handle_executor_status(cookie, ret);
     }
 }

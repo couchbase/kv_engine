@@ -88,7 +88,7 @@ FetchAllKeysTask::FetchAllKeysTask(EventuallyPersistentEngine* e,
 
 bool FetchAllKeysTask::run() {
     TRACE_EVENT0("ep-engine/task", "FetchAllKeysTask");
-    ENGINE_ERROR_CODE err;
+    cb::engine_errc err;
     if (engine->getKVBucket()
                 ->getVBuckets()
                 .getBucket(vbid)
@@ -102,13 +102,13 @@ bool FetchAllKeysTask::run() {
                        cb::mcbp::Status::Success,
                        0,
                        cookie)
-                      ? ENGINE_SUCCESS
-                      : ENGINE_FAILED;
+                      ? cb::engine_errc::success
+                      : cb::engine_errc::failed;
     } else {
         auto cb = std::make_shared<AllKeysCallback>(collection, count);
         err = engine->getKVBucket()->getROUnderlying(vbid)->getAllKeys(
                 vbid, start_key, count, cb);
-        if (err == ENGINE_SUCCESS) {
+        if (err == cb::engine_errc::success) {
             err = response({}, // key
                            {}, // extra
                            {cb->getAllKeysPtr(), cb->getAllKeysLen()},
@@ -116,8 +116,8 @@ bool FetchAllKeysTask::run() {
                            cb::mcbp::Status::Success,
                            0,
                            cookie)
-                          ? ENGINE_SUCCESS
-                          : ENGINE_FAILED;
+                          ? cb::engine_errc::success
+                          : cb::engine_errc::failed;
         }
     }
     engine->addLookupAllKeys(cookie, err);

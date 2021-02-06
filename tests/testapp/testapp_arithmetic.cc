@@ -230,19 +230,19 @@ TEST_P(ArithmeticTest, TestIllegalDatatype) {
  * Instead ArithmeticCommandContext::storeNewItem() should reset the
  * ArithmeticCommandContext state machine and try again.
  *
- * To check that ENGINE_NOT_STORED/NOT_STORED is not returned we use
- * eWouldBlockEngine to return ENGINE_NOT_STORED on the 3rd engine request using
- * the binary sequence 0b100.
+ * To check that cb::engine_errc::not_stored/NOT_STORED is not returned we use
+ * eWouldBlockEngine to return cb::engine_errc::not_stored on the 3rd engine
+ * request using the binary sequence 0b100.
  *
  * This works as the process we expect to see by the ArithmeticCommandContext
  * state machine is as follows:
  *  start: GetItem
- *      calls bucket_get() should return ENGINE_SUCCESS
+ *      calls bucket_get() should return cb::engine_errc::success
  *  -> CreateNewItem
- *      calls bucket_allocate_ex should return ENGINE_SUCCESS
+ *      calls bucket_allocate_ex should return cb::engine_errc::success
  *  -> StoreNewItem
- *      calls bucket_store return ENGINE_NOT_STORED
- *      ENGINE_NOT_STORED returned so reset and try again.
+ *      calls bucket_store return cb::engine_errc::not_stored
+ *      cb::engine_errc::not_stored returned so reset and try again.
  *  -> Reset
  *  -> GetItem
  *  .... Do the work to increment the value again
@@ -252,9 +252,9 @@ TEST_P(ArithmeticTest, MB33813) {
     auto& connection = getConnection();
     std::string key(name + "_inc");
 
-    // Make the 3rd request send to the engine return ENGINE_NOT_STORED
-    // In this case this will be the store that happens as a result of
-    // a call to ArithmeticCommandContext::storeNewItem()
+    // Make the 3rd request send to the engine return
+    // cb::engine_errc::not_stored In this case this will be the store that
+    // happens as a result of a call to ArithmeticCommandContext::storeNewItem()
     auto sequence = ewb::encodeSequence({
             ewb::Passthrough,
             ewb::Passthrough,

@@ -132,7 +132,7 @@ TEST_F(EphemeralBucketStatTest, ReplicaMemoryTracking) {
     // Store an item in a replica VB and confirm replicaHTMemory increases
     item.setCas(1);
     uint64_t seqno;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               store->setWithMeta(std::ref(item),
                                  0,
                                  &seqno,
@@ -151,7 +151,7 @@ TEST_F(EphemeralBucketStatTest, ReplicaMemoryTracking) {
     std::string largerValue = "valuevaluevaluevaluevaluevalue";
     auto largerItem = make_item(replicaVB, key, largerValue);
     largerItem.setCas(1);
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               store->setWithMeta(std::ref(largerItem),
                                  0,
                                  &seqno,
@@ -168,7 +168,7 @@ TEST_F(EphemeralBucketStatTest, ReplicaMemoryTracking) {
     ItemMetaData meta;
     uint64_t cas = 1;
     meta.cas = cas;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               store->deleteWithMeta(
                       key,
                       cas,
@@ -276,7 +276,7 @@ TEST_F(EphemeralBucketStatTest, ReplicaCheckpointMemoryTracking) {
     // increases
     item1.setCas(1);
     uint64_t seqno;
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               store->setWithMeta(std::ref(item1),
                                  0,
                                  &seqno,
@@ -297,7 +297,7 @@ TEST_F(EphemeralBucketStatTest, ReplicaCheckpointMemoryTracking) {
     const std::string largerValue = "valuevaluevaluevaluevaluevaluevaluevalue";
     auto item2 = make_item(replicaVB, keyA, value);
     item2.setCas(1);
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               store->setWithMeta(std::ref(item2),
                                  0,
                                  &seqno,
@@ -311,7 +311,7 @@ TEST_F(EphemeralBucketStatTest, ReplicaCheckpointMemoryTracking) {
     // Store an item with a different key, confirm checkpoint mem increases
     auto item3 = make_item(replicaVB, keyB, value);
     item3.setCas(1);
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               store->setWithMeta(std::ref(item3),
                                  0,
                                  &seqno,
@@ -476,7 +476,8 @@ TEST_F(SingleThreadedEphemeralTest, Commit_RangeRead) {
         ASSERT_EQ(1, res.pending->getBySeqno());
         ASSERT_FALSE(res.committed);
     }
-    ASSERT_EQ(ENGINE_SUCCESS, vb.commit(key, 1, {}, vb.lockCollections(key)));
+    ASSERT_EQ(cb::engine_errc::success,
+              vb.commit(key, 1, {}, vb.lockCollections(key)));
     {
         auto res = ht.findForUpdate(key);
         ASSERT_TRUE(res.pending);
@@ -552,7 +553,8 @@ TEST_F(SingleThreadedEphemeralTest, Commit_RangeRead) {
     ASSERT_EQ(DcpResponse::Event::SnapshotMarker, readyQ.front()->getEvent());
 
     // Commit:4
-    ASSERT_EQ(ENGINE_SUCCESS, vb.commit(key, 3, {}, vb.lockCollections(key)));
+    ASSERT_EQ(cb::engine_errc::success,
+              vb.commit(key, 3, {}, vb.lockCollections(key)));
     {
         auto res = ht.findForUpdate(key);
         ASSERT_TRUE(res.pending);
@@ -710,7 +712,7 @@ TEST_F(SingleThreadedEphemeralPurgerTest, HTCleanerSkipsPrepares) {
 
     // Proceed with checking that everything behaves as expected at Prepare
     // completion.
-    ASSERT_EQ(ENGINE_SUCCESS,
+    ASSERT_EQ(cb::engine_errc::success,
               vb.commit(key, 1 /*prepareSeqno*/, {}, vb.lockCollections(key)));
 
     // Verify Prepare and Commit in the HT
@@ -779,7 +781,7 @@ TEST_F(SingleThreadedEphemeralPurgerTest, MB_42568) {
     EXPECT_EQ(1, vb.getSeqListNumItems());
     EXPECT_EQ(1, vb.getSeqListNumDeletedItems());
     EXPECT_EQ(
-            ENGINE_SUCCESS,
+            cb::engine_errc::success,
             vb.commit(keyA, 1 /*prepareSeqno*/, {}, vb.lockCollections(keyA)));
     EXPECT_EQ(2, vb.getHighSeqno());
     EXPECT_EQ(2, vb.getSeqListNumItems());

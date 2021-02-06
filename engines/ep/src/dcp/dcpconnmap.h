@@ -136,10 +136,10 @@ public:
         return backfills.maxActiveSnoozing;
     }
 
-    ENGINE_ERROR_CODE addPassiveStream(ConnHandler& conn,
-                                       uint32_t opaque,
-                                       Vbid vbucket,
-                                       uint32_t flags);
+    cb::engine_errc addPassiveStream(ConnHandler& conn,
+                                     uint32_t opaque,
+                                     Vbid vbucket,
+                                     uint32_t flags);
 
     /* Use this only for any quick direct stats from DcpConnMap. To collect
        individual conn stats from conn lists please use ConnStatBuilder */

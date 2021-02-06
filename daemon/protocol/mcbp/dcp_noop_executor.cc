@@ -21,12 +21,12 @@
 #include "utilities.h"
 
 void dcp_noop_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
+    auto ret = cookie.swapAiostat(cb::engine_errc::success);
 
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         // NOOP may be sent to a consumer or a producer...
         ret = mcbp::haveDcpPrivilege(cookie);
-        if (ret == ENGINE_SUCCESS) {
+        if (ret == cb::engine_errc::success) {
             const auto& header = cookie.getHeader();
             ret = dcpNoop(cookie, header.getOpaque());
         }

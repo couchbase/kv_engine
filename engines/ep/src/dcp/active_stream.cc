@@ -2083,11 +2083,11 @@ bool ActiveStream::removeCheckpointCursor() {
     return false;
 }
 
-ENGINE_ERROR_CODE ActiveStream::seqnoAck(const std::string& consumerName,
-                                         uint64_t preparedSeqno) {
+cb::engine_errc ActiveStream::seqnoAck(const std::string& consumerName,
+                                       uint64_t preparedSeqno) {
     VBucketPtr vb = engine->getVBucket(vb_);
     if (!vb) {
-        return ENGINE_NOT_MY_VBUCKET;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     // Take the vb state lock so that we don't change the state of
@@ -2103,7 +2103,7 @@ ENGINE_ERROR_CODE ActiveStream::seqnoAck(const std::string& consumerName,
 
             // We cannot ack something on a dead stream.
             if (!isActive()) {
-                return ENGINE_SUCCESS;
+                return cb::engine_errc::success;
             }
 
             if (preparedSeqno > getLastSentSeqno()) {

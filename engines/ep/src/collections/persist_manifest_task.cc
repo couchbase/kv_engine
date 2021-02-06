@@ -55,7 +55,7 @@ bool PersistManifestTask::run() {
     engine->getKVBucket()
             ->getCollectionsManager()
             .updatePersistManifestTaskDone(*engine, cookie, status);
-    engine->notifyIOComplete(cookie, ENGINE_ERROR_CODE(status));
+    engine->notifyIOComplete(cookie, cb::engine_errc(status));
     if (status == cb::engine_errc::success) {
         // Success, release the manifest back to set_collections
         manifest.release();

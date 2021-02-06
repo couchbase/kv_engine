@@ -20,7 +20,7 @@
 
 TEST(EngineError, test_get_category) {
     auto& category = cb::engine_error_category();
-    EXPECT_EQ("success", category.message(ENGINE_SUCCESS));
+    EXPECT_EQ("success", category.message(int(cb::engine_errc::success)));
 }
 
 TEST(EngineError, test_invalid_value) {

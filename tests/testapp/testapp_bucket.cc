@@ -271,13 +271,14 @@ TEST_P(BucketTest, DeleteWhileClientConnectedAndEWouldBlocked) {
             auto cwd = cb::io::getcwd();
             auto testfile = cwd + "/" + cb::io::mktemp("lockfile");
 
-            // Configure so that the engine will return ENGINE_EWOULDBLOCK and
-            // not process any operation given to it.  This means the connection
-            // will remain in a blocked state.
-            c->configureEwouldBlockEngine(EWBEngineMode::BlockMonitorFile,
-                                          ENGINE_EWOULDBLOCK /* unused */,
-                                          jj,
-                                          testfile);
+            // Configure so that the engine will return
+            // cb::engine_errc::would_block and not process any operation given
+            // to it.  This means the connection will remain in a blocked state.
+            c->configureEwouldBlockEngine(
+                    EWBEngineMode::BlockMonitorFile,
+                    cb::engine_errc::would_block /* unused */,
+                    jj,
+                    testfile);
             lockfiles.emplace_back(std::move(testfile));
             c->sendCommand(BinprotGenericCommand{cb::mcbp::ClientOpcode::Get,
                                                  "mykey"});

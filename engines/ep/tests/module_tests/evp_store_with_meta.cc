@@ -111,8 +111,8 @@ public:
     /**
      * Call the correct engine function for the op (set vs delete)
      */
-    ENGINE_ERROR_CODE callEngine(cb::mcbp::ClientOpcode op,
-                                 std::vector<char>& wm) {
+    cb::engine_errc callEngine(cb::mcbp::ClientOpcode op,
+                               std::vector<char>& wm) {
         auto* req = reinterpret_cast<cb::mcbp::Request*>(wm.data());
         if (op == cb::mcbp::ClientOpcode::DelWithMeta ||
             op == cb::mcbp::ClientOpcode::DelqWithMeta) {
@@ -130,7 +130,7 @@ public:
             const std::string& key,
             const std::string& expectedValue,
             ItemMetaData expectedMeta,
-            ENGINE_ERROR_CODE expectedGetReturnValue = ENGINE_SUCCESS) {
+            cb::engine_errc expectedGetReturnValue = cb::engine_errc::success) {
         auto result = store->get({key, DocKeyEncodesCollectionId::No},
                                  vbid,
                                  cookie,
@@ -138,7 +138,7 @@ public:
 
         ASSERT_EQ(expectedGetReturnValue, result.getStatus());
 
-        if (expectedGetReturnValue == ENGINE_SUCCESS) {
+        if (expectedGetReturnValue == cb::engine_errc::success) {
             EXPECT_EQ(0,
                       strncmp(expectedValue.data(),
                               result.item->getData(),
@@ -169,15 +169,15 @@ public:
                                        emd,
                                        options);
         if (expectedResponseStatus == cb::mcbp::Status::NotMyVbucket) {
-            EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, callEngine(op, swm));
+            EXPECT_EQ(cb::engine_errc::not_my_vbucket, callEngine(op, swm));
         } else if (expectedResponseStatus == cb::mcbp::Status::Etmpfail) {
-            EXPECT_EQ(ENGINE_TMPFAIL, callEngine(op, swm));
+            EXPECT_EQ(cb::engine_errc::temporary_failure, callEngine(op, swm));
         } else if (expectedResponseStatus == cb::mcbp::Status::Einval) {
-            EXPECT_EQ(ENGINE_EINVAL, callEngine(op, swm));
+            EXPECT_EQ(cb::engine_errc::invalid_arguments, callEngine(op, swm));
         } else if (expectedResponseStatus == cb::mcbp::Status::KeyEexists) {
-            EXPECT_EQ(ENGINE_KEY_EEXISTS, callEngine(op, swm));
+            EXPECT_EQ(cb::engine_errc::key_already_exists, callEngine(op, swm));
         } else {
-            EXPECT_EQ(ENGINE_SUCCESS, callEngine(op, swm));
+            EXPECT_EQ(cb::engine_errc::success, callEngine(op, swm));
             EXPECT_EQ(expectedResponseStatus, getAddResponseStatus());
         }
     }
@@ -190,7 +190,7 @@ public:
                        int options,
                        bool withValue,
                        cb::mcbp::Status expectedResponseStatus,
-                       ENGINE_ERROR_CODE expectedGetReturnValue,
+                       cb::engine_errc expectedGetReturnValue,
                        const std::vector<char>& emd = {}) {
         std::string key = "mykey";
         std::string value;
@@ -327,7 +327,7 @@ TEST_P(AddSetWithMetaTest, basic) {
                   0, // no-options
                   true /*set a value*/,
                   cb::mcbp::Status::Success,
-                  ENGINE_SUCCESS);
+                  cb::engine_errc::success);
 }
 
 TEST_F(WithMetaTest, basicAdd) {
@@ -337,14 +337,14 @@ TEST_F(WithMetaTest, basicAdd) {
                   0, // no-options
                   true /*set a value*/,
                   cb::mcbp::Status::Success,
-                  ENGINE_SUCCESS);
+                  cb::engine_errc::success);
 
     oneOpAndCheck(cb::mcbp::ClientOpcode::AddWithMeta,
                   itemMeta,
                   0, // no-options
                   true /*set a value*/,
                   cb::mcbp::Status::KeyEexists, // can't do a second add
-                  ENGINE_SUCCESS); // can still get the key
+                  cb::engine_errc::success); // can still get the key
 }
 
 TEST_P(DelWithMetaTest, basic) {
@@ -356,7 +356,8 @@ TEST_P(DelWithMetaTest, basic) {
                   0, // no-options
                   withValue,
                   cb::mcbp::Status::Success,
-                  withValue ? ENGINE_SUCCESS : ENGINE_EWOULDBLOCK);
+                  withValue ? cb::engine_errc::success
+                            : cb::engine_errc::would_block);
 }
 
 TEST_P(AllWithMetaTest, invalidCas) {
@@ -367,7 +368,7 @@ TEST_P(AllWithMetaTest, invalidCas) {
                   0, // no-options
                   true /*set a value*/,
                   cb::mcbp::Status::KeyEexists,
-                  ENGINE_KEY_ENOENT);
+                  cb::engine_errc::no_such_key);
 
     // -1 CAS in the item meta is invalid
     itemMeta.cas = ~0ull;
@@ -376,7 +377,7 @@ TEST_P(AllWithMetaTest, invalidCas) {
                   0, // no-options
                   true /*set a value*/,
                   cb::mcbp::Status::KeyEexists,
-                  ENGINE_KEY_ENOENT);
+                  cb::engine_errc::no_such_key);
 }
 
 TEST_P(DelWithMetaTest, invalidCas) {
@@ -387,7 +388,7 @@ TEST_P(DelWithMetaTest, invalidCas) {
                   0, // no-options
                   withValue /*set a value*/,
                   cb::mcbp::Status::KeyEexists,
-                  ENGINE_KEY_ENOENT);
+                  cb::engine_errc::no_such_key);
 
     // -1 CAS in the item meta is invalid
     itemMeta.cas = ~0ull;
@@ -396,7 +397,7 @@ TEST_P(DelWithMetaTest, invalidCas) {
                   0, // no-options
                   withValue /*set a value*/,
                   cb::mcbp::Status::KeyEexists,
-                  ENGINE_KEY_ENOENT);
+                  cb::engine_errc::no_such_key);
 }
 
 TEST_P(AllWithMetaTest, failForceAccept) {
@@ -407,7 +408,7 @@ TEST_P(AllWithMetaTest, failForceAccept) {
                   FORCE_ACCEPT_WITH_META_OPS,
                   true /*set a value*/,
                   cb::mcbp::Status::Einval,
-                  ENGINE_KEY_ENOENT);
+                  cb::engine_errc::no_such_key);
 }
 
 TEST_P(AddSetWithMetaLwwTest, allowForceAccept) {
@@ -418,7 +419,7 @@ TEST_P(AddSetWithMetaLwwTest, allowForceAccept) {
                   FORCE_ACCEPT_WITH_META_OPS,
                   true /*set a value*/,
                   cb::mcbp::Status::Success,
-                  ENGINE_SUCCESS);
+                  cb::engine_errc::success);
 }
 
 TEST_P(DelWithMetaLwwTest, allowForceAccept) {
@@ -429,7 +430,8 @@ TEST_P(DelWithMetaLwwTest, allowForceAccept) {
                   FORCE_ACCEPT_WITH_META_OPS,
                   withValue,
                   cb::mcbp::Status::Success,
-                  withValue ? ENGINE_SUCCESS : ENGINE_EWOULDBLOCK);
+                  withValue ? cb::engine_errc::success
+                            : cb::engine_errc::would_block);
 }
 
 TEST_P(AllWithMetaTest, regenerateCASInvalid) {
@@ -440,7 +442,7 @@ TEST_P(AllWithMetaTest, regenerateCASInvalid) {
                   REGENERATE_CAS,
                   true,
                   cb::mcbp::Status::Einval,
-                  ENGINE_KEY_ENOENT);
+                  cb::engine_errc::no_such_key);
 }
 
 TEST_P(AllWithMetaTest, forceFail) {
@@ -451,7 +453,7 @@ TEST_P(AllWithMetaTest, forceFail) {
                   0 /*no options*/,
                   true,
                   cb::mcbp::Status::NotMyVbucket,
-                  ENGINE_KEY_ENOENT);
+                  cb::engine_errc::no_such_key);
 }
 
 TEST_P(AllWithMetaTest, forceSuccessReplica) {
@@ -462,7 +464,7 @@ TEST_P(AllWithMetaTest, forceSuccessReplica) {
                   FORCE_WITH_META_OP,
                   true,
                   cb::mcbp::Status::Success,
-                  ENGINE_SUCCESS);
+                  cb::engine_errc::success);
 }
 
 TEST_P(AllWithMetaTest, forceSuccessPending) {
@@ -473,7 +475,7 @@ TEST_P(AllWithMetaTest, forceSuccessPending) {
                   FORCE_WITH_META_OP,
                   true,
                   cb::mcbp::Status::Success,
-                  ENGINE_SUCCESS);
+                  cb::engine_errc::success);
 }
 
 TEST_P(AllWithMetaTest, regenerateCAS) {
@@ -491,13 +493,13 @@ TEST_P(AllWithMetaTest, regenerateCAS) {
                                 {},
                                 SKIP_CONFLICT_RESOLUTION_FLAG | REGENERATE_CAS);
 
-    EXPECT_EQ(ENGINE_SUCCESS, callEngine(GetParam(), swm));
+    EXPECT_EQ(cb::engine_errc::success, callEngine(GetParam(), swm));
     EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
     auto result = store->get({"mykey", DocKeyEncodesCollectionId::No},
                              vbid,
                              cookie,
                              GET_DELETED_VALUE);
-    ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, result.getStatus());
     EXPECT_NE(cas, result.item->getCas()) << "CAS didn't change";
 }
 
@@ -539,7 +541,7 @@ TEST_F(WithMetaTest, storeUncompressedInOffMode) {
                                 std::string(item->getData(), item->getNBytes()),
                                 {},
                                 SKIP_CONFLICT_RESOLUTION_FLAG);
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               callEngine(cb::mcbp::ClientOpcode::SetWithMeta, swm));
 
     VBucketPtr vb = store->getVBucket(vbid);
@@ -560,27 +562,27 @@ TEST_P(AllWithMetaTest, nmvb) {
                                    {1, 0, 0, 0},
                                    key,
                                    value);
-    EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, callEngine(GetParam(), swm));
+    EXPECT_EQ(cb::engine_errc::not_my_vbucket, callEngine(GetParam(), swm));
 
     // Set a dead VB
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(Vbid(vbid.get() + 1), vbucket_state_dead));
-    EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, callEngine(GetParam(), swm));
+    EXPECT_EQ(cb::engine_errc::not_my_vbucket, callEngine(GetParam(), swm));
 
     // update the VB in the packet to the pending one
     auto packet = reinterpret_cast<protocol_binary_request_header*>(swm.data());
     packet->request.setVBucket(Vbid(vbid.get() + 2));
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(Vbid(vbid.get() + 2),
                                      vbucket_state_pending));
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, callEngine(GetParam(), swm));
+    EXPECT_EQ(cb::engine_errc::would_block, callEngine(GetParam(), swm));
     EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
 
     // Re-run the op now active, else we have a memory leak
     EXPECT_EQ(
-            ENGINE_SUCCESS,
+            cb::engine_errc::success,
             store->setVBucketState(Vbid(vbid.get() + 2), vbucket_state_active));
-    EXPECT_EQ(ENGINE_SUCCESS, callEngine(GetParam(), swm));
+    EXPECT_EQ(cb::engine_errc::success, callEngine(GetParam(), swm));
 }
 
 TEST_P(AllWithMetaTest, takeoverBackedup) {
@@ -600,7 +602,7 @@ TEST_P(AllWithMetaTest, takeoverBackedup) {
                   0,
                   true,
                   cb::mcbp::Status::Etmpfail,
-                  ENGINE_KEY_ENOENT);
+                  cb::engine_errc::no_such_key);
 }
 
 TEST_P(AllWithMetaTest, degraded) {
@@ -620,7 +622,7 @@ TEST_P(AllWithMetaTest, degraded) {
                   0,
                   true,
                   cb::mcbp::Status::Etmpfail,
-                  ENGINE_KEY_ENOENT);
+                  cb::engine_errc::no_such_key);
 }
 
 void WithMetaTest::conflict_lose(cb::mcbp::ClientOpcode op,
@@ -647,7 +649,7 @@ void WithMetaTest::conflict_lose(cb::mcbp::ClientOpcode op,
                                 {},
                                 options);
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               callEngine(cb::mcbp::ClientOpcode::AddWithMeta, swm));
     EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
 
@@ -689,7 +691,7 @@ void WithMetaTest::conflict_del_lose_xattr(cb::mcbp::ClientOpcode op,
                                    {},
                                    options);
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               callEngine(cb::mcbp::ClientOpcode::AddWithMeta, swm));
     EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
 
@@ -704,7 +706,7 @@ void WithMetaTest::conflict_del_lose_xattr(cb::mcbp::ClientOpcode op,
                               value,
                               {},
                               options);
-    EXPECT_EQ(ENGINE_KEY_EEXISTS, callEngine(op, swm));
+    EXPECT_EQ(cb::engine_errc::key_already_exists, callEngine(op, swm));
 }
 
 void WithMetaTest::conflict_lose_xattr(cb::mcbp::ClientOpcode op,
@@ -729,7 +731,7 @@ void WithMetaTest::conflict_lose_xattr(cb::mcbp::ClientOpcode op,
                                    {},
                                    options);
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               callEngine(cb::mcbp::ClientOpcode::AddWithMeta, swm));
     EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
 
@@ -744,7 +746,7 @@ void WithMetaTest::conflict_lose_xattr(cb::mcbp::ClientOpcode op,
                               value,
                               {},
                               options);
-    EXPECT_EQ(ENGINE_KEY_EEXISTS, callEngine(op, swm));
+    EXPECT_EQ(cb::engine_errc::key_already_exists, callEngine(op, swm));
 }
 
 TEST_P(DelWithMetaTest, conflict_lose) {
@@ -873,7 +875,7 @@ void WithMetaTest::conflict_win(cb::mcbp::ClientOpcode op,
                                        {},
                                        options);
 
-        EXPECT_EQ(ENGINE_SUCCESS,
+        EXPECT_EQ(cb::engine_errc::success,
                   callEngine(cb::mcbp::ClientOpcode::SetWithMeta, swm));
         EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus())
                 << "Failed to set the target key:" << key;
@@ -893,7 +895,7 @@ void WithMetaTest::conflict_win(cb::mcbp::ClientOpcode op,
         // Now set/del against the item using the test iteration metadata
         cb::mcbp::Status status;
         if (td.expectedStatus == cb::mcbp::Status::Success) {
-            EXPECT_EQ(ENGINE_SUCCESS, callEngine(op, wm));
+            EXPECT_EQ(cb::engine_errc::success, callEngine(op, wm));
             status = getAddResponseStatus();
         } else {
             auto error = callEngine(op, wm);
@@ -930,7 +932,7 @@ void WithMetaTest::conflict_win(cb::mcbp::ClientOpcode op,
                                    {},
                                    options);
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               callEngine(cb::mcbp::ClientOpcode::AddWithMeta, swm));
     EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
 
@@ -948,17 +950,17 @@ void WithMetaTest::conflict_win(cb::mcbp::ClientOpcode op,
                               options);
 
     if (isSet) {
-        EXPECT_EQ(ENGINE_SUCCESS, callEngine(op, swm));
+        EXPECT_EQ(cb::engine_errc::success, callEngine(op, swm));
         EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
         checkGetItem(key, xattrValue, itemMeta);
     } else {
         EXPECT_TRUE(isDelete);
         if ((options & SKIP_CONFLICT_RESOLUTION_FLAG) != 0) {
             // del fails as conflict resolution won't get to the XATTR test
-            EXPECT_EQ(ENGINE_SUCCESS, callEngine(op, swm));
+            EXPECT_EQ(cb::engine_errc::success, callEngine(op, swm));
             EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
         } else {
-            EXPECT_EQ(ENGINE_KEY_EEXISTS, callEngine(op, swm));
+            EXPECT_EQ(cb::engine_errc::key_already_exists, callEngine(op, swm));
         }
     }
 }
@@ -1175,14 +1177,14 @@ TEST_P(AllWithMetaTest, markJSON) {
                                    {100, 100, 100, expiry},
                                    "json",
                                    value);
-    EXPECT_EQ(ENGINE_SUCCESS, callEngine(GetParam(), swm));
+    EXPECT_EQ(cb::engine_errc::success, callEngine(GetParam(), swm));
     EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
 
     auto result = store->get({"json", DocKeyEncodesCollectionId::No},
                              vbid,
                              cookie,
                              GET_DELETED_VALUE);
-    ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, result.getStatus());
     EXPECT_EQ(0,
               strncmp(value.data(),
                       result.item->getData(),
@@ -1218,7 +1220,7 @@ TEST_P(SnappyWithMetaTest, xattrPruneUserKeysOnDelete1) {
 
     mock_set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               callEngine(cb::mcbp::ClientOpcode::SetWithMeta, swm));
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
               getEPBucket().flushVBucket(vbid));
@@ -1226,7 +1228,7 @@ TEST_P(SnappyWithMetaTest, xattrPruneUserKeysOnDelete1) {
     itemMeta.revSeqno++; // make delete succeed
     auto dwm = buildWithMeta(
             cb::mcbp::ClientOpcode::DelWithMeta, itemMeta, mykey, {});
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               callEngine(cb::mcbp::ClientOpcode::DelWithMeta, dwm));
 
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
@@ -1234,11 +1236,11 @@ TEST_P(SnappyWithMetaTest, xattrPruneUserKeysOnDelete1) {
 
     auto options = get_options_t(QUEUE_BG_FETCH | GET_DELETED_VALUE);
     auto result = store->get(key, vbid, cookie, options);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, result.getStatus());
+    EXPECT_EQ(cb::engine_errc::would_block, result.getStatus());
     runBGFetcherTask();
 
     result = store->get(key, vbid, cookie, options);
-    ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, result.getStatus());
 
     // Now reconstruct a XATTR Blob and validate the user keys are gone
     // These code relies on knowing what createXattrValue generates.
@@ -1284,7 +1286,7 @@ TEST_P(XattrWithMetaTest, xattrPruneUserKeysOnDelete2) {
 
     mock_set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               callEngine(cb::mcbp::ClientOpcode::SetWithMeta, swm));
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
               getEPBucket().flushVBucket(vbid));
@@ -1292,7 +1294,7 @@ TEST_P(XattrWithMetaTest, xattrPruneUserKeysOnDelete2) {
     itemMeta.revSeqno++; // make delete succeed
     auto dwm = buildWithMeta(
             cb::mcbp::ClientOpcode::DelWithMeta, itemMeta, mykey, {});
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               callEngine(cb::mcbp::ClientOpcode::DelWithMeta, dwm));
 
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
@@ -1300,7 +1302,7 @@ TEST_P(XattrWithMetaTest, xattrPruneUserKeysOnDelete2) {
 
     auto options = get_options_t(QUEUE_BG_FETCH | GET_DELETED_VALUE);
     auto result = store->get(key, vbid, cookie, options);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, result.getStatus());
+    EXPECT_EQ(cb::engine_errc::would_block, result.getStatus());
 
     runBGFetcherTask();
 
@@ -1308,7 +1310,7 @@ TEST_P(XattrWithMetaTest, xattrPruneUserKeysOnDelete2) {
 
     // K/V is gone
     result = store->get(key, vbid, cookie, options);
-    EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus());
+    EXPECT_EQ(cb::engine_errc::no_such_key, result.getStatus());
 }
 
 TEST_P(AllWithMetaTest, skipConflicts) {
@@ -1328,7 +1330,7 @@ TEST_P(AllWithMetaTest, skipConflicts) {
                   0,
                   true,
                   cb::mcbp::Status::Etmpfail,
-                  ENGINE_KEY_ENOENT);
+                  cb::engine_errc::no_such_key);
 }
 
 // Perform a DeleteWithMeta with a deleteTime of 1, verify that time comes back
@@ -1340,7 +1342,8 @@ TEST_P(DelWithMetaTest, setting_deleteTime) {
                   0, // no-options
                   withValue,
                   cb::mcbp::Status::Success,
-                  withValue ? ENGINE_SUCCESS : ENGINE_EWOULDBLOCK);
+                  withValue ? cb::engine_errc::success
+                            : cb::engine_errc::would_block);
 
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
               getEPBucket().flushVBucket(vbid));
@@ -1348,7 +1351,7 @@ TEST_P(DelWithMetaTest, setting_deleteTime) {
     ItemMetaData metadata;
     uint32_t deleted = 0;
     uint8_t datatype = 0;
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+    EXPECT_EQ(cb::engine_errc::would_block,
               store->getMetaData({"mykey", DocKeyEncodesCollectionId::No},
                                  vbid,
                                  cookie,
@@ -1356,7 +1359,7 @@ TEST_P(DelWithMetaTest, setting_deleteTime) {
                                  deleted,
                                  datatype));
     runBGFetcherTask();
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->getMetaData({"mykey", DocKeyEncodesCollectionId::No},
                                  vbid,
                                  cookie,
@@ -1375,7 +1378,8 @@ TEST_P(DelWithMetaTest, setting_zero_deleteTime) {
                   0, // no-options
                   withValue,
                   cb::mcbp::Status::Success,
-                  withValue ? ENGINE_SUCCESS : ENGINE_EWOULDBLOCK);
+                  withValue ? cb::engine_errc::success
+                            : cb::engine_errc::would_block);
 
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
               getEPBucket().flushVBucket(vbid));
@@ -1383,7 +1387,7 @@ TEST_P(DelWithMetaTest, setting_zero_deleteTime) {
     ItemMetaData metadata;
     uint32_t deleted = 0;
     uint8_t datatype = 0;
-    EXPECT_EQ(ENGINE_EWOULDBLOCK,
+    EXPECT_EQ(cb::engine_errc::would_block,
               store->getMetaData({"mykey", DocKeyEncodesCollectionId::No},
                                  vbid,
                                  cookie,
@@ -1391,7 +1395,7 @@ TEST_P(DelWithMetaTest, setting_zero_deleteTime) {
                                  deleted,
                                  datatype));
     runBGFetcherTask();
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(cb::engine_errc::success,
               store->getMetaData({"mykey", DocKeyEncodesCollectionId::No},
                                  vbid,
                                  cookie,
@@ -1405,13 +1409,14 @@ TEST_P(DelWithMetaTest, MB_31141) {
     ItemMetaData itemMeta{0xdeadbeef, 0xf00dcafe, 0xfacefeed, expiry};
     // Do a delete with valid extended meta
     // see - ep-engine/docs/protocol/del_with_meta.md
-    oneOpAndCheck(op,
-                  itemMeta,
-                  0, // no-options
-                  withValue,
-                  cb::mcbp::Status::Success,
-                  withValue ? ENGINE_SUCCESS : ENGINE_EWOULDBLOCK,
-                  {0x01, 0x01, 0x00, 0x01, 0x01});
+    oneOpAndCheck(
+            op,
+            itemMeta,
+            0, // no-options
+            withValue,
+            cb::mcbp::Status::Success,
+            withValue ? cb::engine_errc::success : cb::engine_errc::would_block,
+            {0x01, 0x01, 0x00, 0x01, 0x01});
 
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
               getEPBucket().flushVBucket(vbid));
@@ -1419,13 +1424,13 @@ TEST_P(DelWithMetaTest, MB_31141) {
     auto options = get_options_t(QUEUE_BG_FETCH | GET_DELETED_VALUE);
     auto result = store->get(
             {"mykey", DocKeyEncodesCollectionId::No}, vbid, cookie, options);
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, result.getStatus());
+    EXPECT_EQ(cb::engine_errc::would_block, result.getStatus());
 
     runBGFetcherTask();
 
     result = store->get(
             {"mykey", DocKeyEncodesCollectionId::No}, vbid, cookie, options);
-    ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, result.getStatus());
 
     // Before the fix 5.0+ could of left the value as 5, the size of the
     // extended metadata. With the fix, the expected size is the size of the
@@ -1446,7 +1451,7 @@ TEST_P(AddSetWithMetaTest, MB_31141) {
                   0, // no-options
                   true,
                   cb::mcbp::Status::Success,
-                  ENGINE_SUCCESS,
+                  cb::engine_errc::success,
                   {0x01, 0x01, 0x00, 0x01, 0x01});
 
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
@@ -1455,7 +1460,7 @@ TEST_P(AddSetWithMetaTest, MB_31141) {
     auto options = get_options_t(QUEUE_BG_FETCH);
     auto result = store->get(
             {"mykey", DocKeyEncodesCollectionId::No}, vbid, cookie, options);
-    ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
+    ASSERT_EQ(cb::engine_errc::success, result.getStatus());
     // Only the value should come back
     EXPECT_EQ(275, result.item->getNBytes());
 }
@@ -1470,7 +1475,8 @@ TEST_P(DelWithMetaTest, isExpirationOption) {
                   IS_EXPIRATION,
                   withValue,
                   cb::mcbp::Status::Success,
-                  withValue ? ENGINE_SUCCESS : ENGINE_EWOULDBLOCK);
+                  withValue ? cb::engine_errc::success
+                            : cb::engine_errc::would_block);
 }
 
 auto opcodeValues = ::testing::Values(cb::mcbp::ClientOpcode::SetWithMeta,

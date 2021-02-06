@@ -22,8 +22,8 @@
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
-ENGINE_ERROR_CODE RemoveCommandContext::step() {
-    auto ret = ENGINE_SUCCESS;
+cb::engine_errc RemoveCommandContext::step() {
+    auto ret = cb::engine_errc::success;
     do {
         switch (state) {
         case State::GetItem:
@@ -50,24 +50,23 @@ ENGINE_ERROR_CODE RemoveCommandContext::step() {
         case State::Done:
             SLAB_INCR(&connection, delete_hits);
             update_topkeys(cookie);
-            return ENGINE_SUCCESS;
+            return cb::engine_errc::success;
         }
-    } while (ret == ENGINE_SUCCESS);
+    } while (ret == cb::engine_errc::success);
 
-
-    if (ret == ENGINE_KEY_ENOENT) {
+    if (ret == cb::engine_errc::no_such_key) {
         STATS_INCR(&connection, delete_misses);
     }
 
     return ret;
 }
 
-ENGINE_ERROR_CODE RemoveCommandContext::getItem() {
+cb::engine_errc RemoveCommandContext::getItem() {
     auto ret = bucket_get(cookie, cookie.getRequestKey(), vbucket);
     if (ret.first == cb::engine_errc::success) {
         existing = std::move(ret.second);
         if (!bucket_get_item_info(connection, existing.get(), &existing_info)) {
-            return ENGINE_FAILED;
+            return cb::engine_errc::failed;
         }
 
         if (input_cas != 0) {
@@ -76,10 +75,10 @@ ENGINE_ERROR_CODE RemoveCommandContext::getItem() {
                 // the cas provided by the user to override this
                 existing_info.cas = input_cas;
             } else if (input_cas != existing_info.cas) {
-                return ENGINE_KEY_EEXISTS;
+                return cb::engine_errc::key_already_exists;
             }
         } else if (existing_info.cas == uint64_t(-1)) {
-            return ENGINE_LOCKED;
+            return cb::engine_errc::locked;
         }
 
         if (mcbp::datatype::is_xattr(existing_info.datatype)) {
@@ -88,10 +87,10 @@ ENGINE_ERROR_CODE RemoveCommandContext::getItem() {
             state = State::RemoveItem;
         }
     }
-    return ENGINE_ERROR_CODE(ret.first);
+    return cb::engine_errc(ret.first);
 }
 
-ENGINE_ERROR_CODE RemoveCommandContext::allocateDeletedItem() {
+cb::engine_errc RemoveCommandContext::allocateDeletedItem() {
     protocol_binary_datatype_t datatype;
     if (xattr.empty()) {
         datatype = PROTOCOL_BINARY_RAW_BYTES;
@@ -121,10 +120,10 @@ ENGINE_ERROR_CODE RemoveCommandContext::allocateDeletedItem() {
     }
 
     state = State::StoreItem;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE RemoveCommandContext::storeItem() {
+cb::engine_errc RemoveCommandContext::storeItem() {
     uint64_t new_cas;
     auto ret = bucket_store(cookie,
                             deleted.get(),
@@ -134,11 +133,10 @@ ENGINE_ERROR_CODE RemoveCommandContext::storeItem() {
                             DocumentState::Deleted,
                             false);
 
-    if (ret == ENGINE_SUCCESS) {
-
+    if (ret == cb::engine_errc::success) {
         item_info info;
         if (!bucket_get_item_info(connection, deleted.get(), &info)) {
-            return ENGINE_FAILED;
+            return cb::engine_errc::failed;
         }
 
         // Response includes vbucket UUID and sequence number
@@ -147,16 +145,16 @@ ENGINE_ERROR_CODE RemoveCommandContext::storeItem() {
         cookie.setCas(info.cas);
 
         state = State::SendResponse;
-    } else if (ret == ENGINE_KEY_EEXISTS && input_cas == 0) {
+    } else if (ret == cb::engine_errc::key_already_exists && input_cas == 0) {
         // Cas collision and the caller specified the CAS wildcard.. retry
         state = State::Reset;
-        ret = ENGINE_SUCCESS;
+        ret = cb::engine_errc::success;
     }
 
     return ret;
 }
 
-ENGINE_ERROR_CODE RemoveCommandContext::removeItem() {
+cb::engine_errc RemoveCommandContext::removeItem() {
     uint64_t new_cas = input_cas;
     const auto& request = cookie.getRequest();
     auto ret = bucket_remove(cookie,
@@ -166,35 +164,35 @@ ENGINE_ERROR_CODE RemoveCommandContext::removeItem() {
                              request.getDurabilityRequirements(),
                              mutation_descr);
 
-    if (ret == ENGINE_SUCCESS) {
+    if (ret == cb::engine_errc::success) {
         cookie.setCas(new_cas);
         state = State::SendResponse;
-    } else if (ret == ENGINE_KEY_EEXISTS && input_cas == 0) {
+    } else if (ret == cb::engine_errc::key_already_exists && input_cas == 0) {
         // Cas collision and the caller specified the CAS wildcard.. retry
         state = State::Reset;
-        ret = ENGINE_SUCCESS;
+        ret = cb::engine_errc::success;
     }
 
     return ret;
 }
 
-ENGINE_ERROR_CODE RemoveCommandContext::reset() {
+cb::engine_errc RemoveCommandContext::reset() {
     deleted.reset();
     existing.reset();
 
     xattr = {nullptr, 0};
 
     state = State::GetItem;
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE RemoveCommandContext::sendResponse() {
+cb::engine_errc RemoveCommandContext::sendResponse() {
     state = State::Done;
 
     if (cookie.getRequest().isQuiet()) {
         ++connection.getBucket()
                   .responseCounters[int(cb::mcbp::Status::Success)];
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     if (connection.isSupportsMutationExtras()) {
@@ -217,10 +215,10 @@ ENGINE_ERROR_CODE RemoveCommandContext::sendResponse() {
         cookie.sendResponse(cb::mcbp::Status::Success);
     }
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE RemoveCommandContext::rebuildXattr() {
+cb::engine_errc RemoveCommandContext::rebuildXattr() {
     if (mcbp::datatype::is_xattr(existing_info.datatype)) {
         // Create a const blob of the incoming data, which may decompress it
         // Note when writing back the xattrs (if any remain) the snappy bit is
@@ -260,5 +258,5 @@ ENGINE_ERROR_CODE RemoveCommandContext::rebuildXattr() {
         state = State::RemoveItem;
     }
 
-    return ENGINE_SUCCESS;
+    return cb::engine_errc::success;
 }

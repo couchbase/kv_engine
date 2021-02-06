@@ -144,5 +144,5 @@ void SaslAuthTask::notifyExecutionComplete() {
                     cookie.getEventId());
     }
 
-    notifyIoComplete(cookie, ENGINE_SUCCESS);
+    notifyIoComplete(cookie, cb::engine_errc::success);
 }

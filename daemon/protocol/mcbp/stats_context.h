@@ -53,22 +53,22 @@ public:
 
 protected:
     /**
-     * All of the internal states return ENGINE_SUCCESS as even if for some
-     * reason the stat command fails, there is still work to be done after the
-     * fact. All code paths lead to State::Done which returns command_exit_code
-     * which is the actual expected return value.
+     * All of the internal states return cb::engine_errc::success as even if for
+     * some reason the stat command fails, there is still work to be done after
+     * the fact. All code paths lead to State::Done which returns
+     * command_exit_code which is the actual expected return value.
      */
-    ENGINE_ERROR_CODE step() override;
+    cb::engine_errc step() override;
 
-    ENGINE_ERROR_CODE parseCommandKey();
+    cb::engine_errc parseCommandKey();
 
-    ENGINE_ERROR_CODE checkPrivilege();
+    cb::engine_errc checkPrivilege();
 
-    ENGINE_ERROR_CODE doStats();
+    cb::engine_errc doStats();
 
-    ENGINE_ERROR_CODE getTaskResult();
+    cb::engine_errc getTaskResult();
 
-    ENGINE_ERROR_CODE commandComplete();
+    cb::engine_errc commandComplete();
 
 private:
 
@@ -79,9 +79,9 @@ private:
     std::string argument;
     State state;
     /**
-     * The final ENGINE_ERROR_CODE returned from actually doing the stats call
+     * The final cb::engine_errc returned from actually doing the stats call
      */
-    ENGINE_ERROR_CODE command_exit_code;
+    cb::engine_errc command_exit_code;
 
     std::shared_ptr<Task> task;
 };

@@ -48,7 +48,7 @@ struct MockCookie : cb::tracing::Traceable {
     const uint64_t magic{MAGIC};
     void* engine_data{};
     int sfd{};
-    ENGINE_ERROR_CODE status{ENGINE_SUCCESS};
+    cb::engine_errc status{cb::engine_errc::success};
     int nblocks{0}; /* number of ewouldblocks */
     bool handle_ewouldblock{true};
     bool handle_mutation_extras{true};

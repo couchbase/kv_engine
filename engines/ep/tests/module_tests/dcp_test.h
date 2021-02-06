@@ -54,7 +54,7 @@ protected:
     void destroy_dcp_stream();
 
     struct StreamRequestResult {
-        ENGINE_ERROR_CODE status;
+        cb::engine_errc status;
         uint64_t rollbackSeqno;
     };
 
@@ -107,10 +107,10 @@ protected:
     /*
      * Fake callback emulating dcp_add_failover_log
      */
-    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(
+    static cb::engine_errc fakeDcpAddFailoverLog(
             const std::vector<vbucket_failover_t>&) {
         callbackCount++;
-        return ENGINE_SUCCESS;
+        return cb::engine_errc::success;
     }
 
     // callbackCount needs to be static as its used inside of the static

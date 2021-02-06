@@ -78,7 +78,7 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
     return stream;
 }
 
-ENGINE_ERROR_CODE MockDcpProducer::stepAndExpect(
+cb::engine_errc MockDcpProducer::stepAndExpect(
         MockDcpMessageProducers& producers,
         cb::mcbp::ClientOpcode expectedOpcode) {
     auto rv = step(producers);
@@ -86,7 +86,7 @@ ENGINE_ERROR_CODE MockDcpProducer::stepAndExpect(
     return rv;
 }
 
-ENGINE_ERROR_CODE MockDcpProducer::stepWithBorderGuard(
+cb::engine_errc MockDcpProducer::stepWithBorderGuard(
         DcpMessageProducersIface& producers) {
     DcpMsgProducersBorderGuard guardedProducers(producers);
     return step(guardedProducers);

@@ -58,7 +58,7 @@ public:
      * it is removed from the map via dropAndDeleteVBucket.
      * @param vb shared pointer to the VBucket we are storing.
      */
-    ENGINE_ERROR_CODE addBucket(VBucketPtr vb);
+    cb::engine_errc addBucket(VBucketPtr vb);
 
     void enablePersistence(EPBucket& ep);
 

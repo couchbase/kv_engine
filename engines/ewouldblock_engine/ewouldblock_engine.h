@@ -65,7 +65,8 @@ enum class EWBEngineMode : uint32_t {
     // notify_io_complete is never sent.
     No_Notify = 6,
 
-    // Suspend a cookie with the provided id and return ENGINE_EWOULDBLOCK.
+    // Suspend a cookie with the provided id and return
+    // cb::engine_errc::would_block.
     // The connection must be resumed with a call to Resume
     Suspend = 7,
 
