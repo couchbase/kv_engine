@@ -73,6 +73,9 @@ Options:
                                       {"collections" : ["0"], "sid":2},
                                       {"collections" : ["8"], "sid":5}]
                                  }
+  --stream-request-flags         Value to use for the 4-byte stream-request
+                                 flags field.
+                                 Default value is DCP_ADD_STREAM_FLAG_LATEST
   --help                         This help text
 )";
 
@@ -397,6 +400,7 @@ int main(int argc, char** argv) {
     bool enableOso{false};
     std::string streamRequestFileName;
     std::string streamIdFileName;
+    uint32_t streamRequestFlags = DCP_ADD_STREAM_FLAG_LATEST;
 
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
@@ -404,6 +408,8 @@ int main(int argc, char** argv) {
     const int valueOptionId = 1;
     const int streamIdOptionId = 2;
     const int enableOsoOptionId = 3;
+    const int streamRequestFlagsOptionId = 4;
+
     std::vector<option> long_options = {
             {"ipv4", no_argument, nullptr, '4'},
             {"ipv6", no_argument, nullptr, '6'},
@@ -422,6 +428,10 @@ int main(int argc, char** argv) {
             {"enable-oso", no_argument, nullptr, enableOsoOptionId},
             {"stream-request-value", required_argument, nullptr, valueOptionId},
             {"stream-id", required_argument, nullptr, streamIdOptionId},
+            {"stream-request-flags",
+             required_argument,
+             nullptr,
+             streamRequestFlagsOptionId},
             {nullptr, 0, nullptr, 0}};
 
     while ((cmd = getopt_long(argc,
@@ -477,6 +487,9 @@ int main(int argc, char** argv) {
             break;
         case streamIdOptionId:
             streamIdFileName = optarg;
+            break;
+        case streamRequestFlagsOptionId:
+            streamRequestFlags = strtoul(optarg);
             break;
         default:
             usage();
@@ -643,8 +656,7 @@ int main(int argc, char** argv) {
                 for (auto vb : vbuckets) {
                     totalStreams++;
                     BinprotDcpStreamRequestCommand streamRequestCommand;
-                    streamRequestCommand.setDcpFlags(
-                            DCP_ADD_STREAM_FLAG_LATEST);
+                    streamRequestCommand.setDcpFlags(streamRequestFlags);
                     streamRequestCommand.setDcpReserved(0);
                     streamRequestCommand.setDcpStartSeqno(0);
                     streamRequestCommand.setDcpEndSeqno(~0);

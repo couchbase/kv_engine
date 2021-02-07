@@ -74,46 +74,51 @@ TEST_F(CollectionsOSODcpTest, basic) {
     store_item(vbid, makeStoredDocKey("c"), "y");
     flush_vbucket_to_disk(vbid, 4);
 
-    // Reset so we have to stream from backfill
-    resetEngineAndWarmup();
+    std::array<uint32_t, 2> flags = {{0, DCP_ADD_STREAM_FLAG_DISKONLY}};
 
-    // Filter on default collection (this will request from seqno:0)
-    createDcpObjects({{R"({"collections":["0"]})"}}, true /* enable oso */);
+    for (auto flag : flags) {
+        // Reset so we have to stream from backfill
+        resetEngineAndWarmup();
 
-    // We have a single filter, expect the backfill to be OSO
-    runBackfill();
+        // Filter on default collection (this will request from seqno:0)
+        createDcpObjects(
+                {{R"({"collections":["0"]})"}}, true /* enable oso */, flag);
 
-    // OSO snapshots are never really used in KV to KV replication, but this
-    // test is using KV to KV test code, hence we need to set a snapshot so
-    // that any transferred items don't trigger a snapshot exception.
-    consumer->snapshotMarker(1, replicaVB, 0, 4, 0, 0, 4);
+        // We have a single filter, expect the backfill to be OSO
+        runBackfill();
 
-    // Manually step the producer and inspect all callbacks
-    EXPECT_EQ(cb::engine_errc::success,
-              producer->stepWithBorderGuard(*producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
-    EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::Start),
-              producers->last_oso_snapshot_flags);
+        // OSO snapshots are never really used in KV to KV replication, but this
+        // test is using KV to KV test code, hence we need to set a snapshot so
+        // that any transferred items don't trigger a snapshot exception.
+        consumer->snapshotMarker(1, replicaVB, 0, 4, 0, 0, 4);
 
-    // We don't expect a collection create, this is the default collection which
-    // clients assume exists unless deleted.
-    std::array<std::string, 4> keys = {{"a", "b", "c", "d"}};
-    for (auto& k : keys) {
-        // Now we get the mutations, they aren't guaranteed to be in seqno
-        // order, but we know that for now they will be in key order.
+        // Manually step the producer and inspect all callbacks
         EXPECT_EQ(cb::engine_errc::success,
                   producer->stepWithBorderGuard(*producers));
-        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
-        EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
-        EXPECT_EQ(k, producers->last_key);
-    }
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
+        EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::Start),
+                  producers->last_oso_snapshot_flags);
 
-    // Now we get the end message
-    EXPECT_EQ(cb::engine_errc::success,
-              producer->stepWithBorderGuard(*producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
-    EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::End),
-              producers->last_oso_snapshot_flags);
+        // We don't expect a collection create, this is the default collection
+        // which clients assume exists unless deleted.
+        std::array<std::string, 4> keys = {{"a", "b", "c", "d"}};
+        for (auto& k : keys) {
+            // Now we get the mutations, they aren't guaranteed to be in seqno
+            // order, but we know that for now they will be in key order.
+            EXPECT_EQ(cb::engine_errc::success,
+                      producer->stepWithBorderGuard(*producers));
+            EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers->last_op);
+            EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
+            EXPECT_EQ(k, producers->last_key);
+        }
+
+        // Now we get the end message
+        EXPECT_EQ(cb::engine_errc::success,
+                  producer->stepWithBorderGuard(*producers));
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
+        EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::End),
+                  producers->last_oso_snapshot_flags);
+    }
 }
 
 void CollectionsOSODcpTest::testTwoCollections(bool backfillWillPause) {

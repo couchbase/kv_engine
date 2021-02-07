@@ -1768,9 +1768,9 @@ bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
     // if the filter is set to a single collection.
     // if this is the initial backfill request
     // if the client has enabled OSO
-    if (filter.singleCollection() && lastReadSeqno.load() == 0 &&
-        curChkSeqno.load() > lastReadSeqno.load() + 1 &&
-        producer.isOutOfOrderSnapshotsEnabled()) {
+    if (producer.isOutOfOrderSnapshotsEnabled() && filter.singleCollection() &&
+        lastReadSeqno.load() == 0 &&
+        ((curChkSeqno.load() > lastReadSeqno.load() + 1) || (isDiskOnly()))) {
         CollectionID cid = filter.front();
 
         // OSO possible - engage.
@@ -1779,9 +1779,10 @@ bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
         // CheckpointManager
         log(spdlog::level::level_enum::info,
             "{} Scheduling OSO backfill "
-            "for cid:{} lastReadSeqno:{} curChkSeqno:{}",
+            "for cid:{} diskOnly:{} lastReadSeqno:{} curChkSeqno:{}",
             logPrefix,
             cid.to_string(),
+            isDiskOnly(),
             lastReadSeqno.load(),
             curChkSeqno.load());
 
