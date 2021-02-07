@@ -286,6 +286,12 @@ public:
         return state.getState();
     }
 
+    /**
+     * Testing hook which if set is called every time warmup transitions to
+     * a new state.
+     */
+    std::function<void(WarmupState::State)> stateTransitionHook;
+
 private:
     void addToTaskSet(size_t taskId);
     void removeFromTaskSet(size_t taskId);
