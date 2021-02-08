@@ -21,12 +21,9 @@
 
 #include "bucket_logger.h"
 #include "item.h"
-#include "rollback_result.h"
-#include "stored-value.h"
 #include "vbucket.h"
 #include "vbucket_state.h"
 
-#include <boost/range/adaptor/reversed.hpp>
 #include <gsl/gsl-lite.hpp>
 #include <statistics/cbstat_collector.h>
 #include <utilities/logtags.h>
@@ -124,19 +121,22 @@ PassiveDurabilityMonitor::~PassiveDurabilityMonitor() = default;
 
 void PassiveDurabilityMonitor::addStats(const AddStatFn& addStat,
                                         const void* cookie) const {
-    char buf[256];
+    std::array<char, 256> buf;
 
     try {
         const auto vbid = vb.getId().get();
 
-        checked_snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
-        add_casted_stat(buf, VBucket::toString(vb.getState()), addStat, cookie);
+        checked_snprintf(buf.data(), buf.size(), "vb_%d:state", vbid);
+        add_casted_stat(
+                buf.data(), VBucket::toString(vb.getState()), addStat, cookie);
 
-        checked_snprintf(buf, sizeof(buf), "vb_%d:high_prepared_seqno", vbid);
-        add_casted_stat(buf, getHighPreparedSeqno(), addStat, cookie);
+        checked_snprintf(
+                buf.data(), buf.size(), "vb_%d:high_prepared_seqno", vbid);
+        add_casted_stat(buf.data(), getHighPreparedSeqno(), addStat, cookie);
 
-        checked_snprintf(buf, sizeof(buf), "vb_%d:high_completed_seqno", vbid);
-        add_casted_stat(buf, getHighCompletedSeqno(), addStat, cookie);
+        checked_snprintf(
+                buf.data(), buf.size(), "vb_%d:high_completed_seqno", vbid);
+        add_casted_stat(buf.data(), getHighCompletedSeqno(), addStat, cookie);
 
     } catch (const std::exception& e) {
         EP_LOG_WARN(
@@ -604,7 +604,7 @@ void PassiveDurabilityMonitor::State::updateHighPreparedSeqno() {
 
         using namespace cb::durability;
 
-        Level maxLevelCanAdvanceOver{};
+        Level maxLevelCanAdvanceOver;
 
         if (snapshotFullyPersisted) {
             // we have received and persisted an entire snapshot
