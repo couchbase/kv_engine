@@ -520,9 +520,29 @@ flatbuffers::DetachedBuffer Flush::encodeManifestUid() {
 // flatbuffer openCollection data
 flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
         cb::const_byte_buffer currentCollections) {
+    // The 'array' of collections must be exclusive. Generating a collection
+    // vector with duplicates means the data will 'crash' decode. This set and
+    // function will prevent bad data being placed on disk.
+    std::unordered_set<CollectionID> outputIds;
+
     flatbuffers::FlatBufferBuilder builder;
     std::vector<flatbuffers::Offset<Collections::KVStore::Collection>>
             finalisedOpenCollection;
+
+    auto exclusiveInsertCollection =
+            [&outputIds, &finalisedOpenCollection](
+                    CollectionID cid,
+                    flatbuffers::Offset<Collections::KVStore::Collection>
+                            newEntry) {
+                auto result = outputIds.emplace(cid);
+                if (!result.second) {
+                    throw std::logic_error(
+                            "encodeOpenCollections: duplicate collection "
+                            "detected cid:" +
+                            cid.to_string());
+                }
+                finalisedOpenCollection.push_back(newEntry);
+            };
 
     // For each created collection ensure that we use the most recent (by-seqno)
     // meta-data for the output but only if there is no drop event following.
@@ -545,15 +565,18 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
 
         // generate
         const auto& meta = span.high.metaData;
-        auto newEntry = Collections::KVStore::CreateCollection(
-                builder,
-                span.high.startSeqno,
-                uint32_t{meta.sid},
-                uint32_t(meta.cid),
-                meta.maxTtl.has_value(),
-                meta.maxTtl.value_or(std::chrono::seconds::zero()).count(),
-                builder.CreateString(meta.name.data(), meta.name.size()));
-        finalisedOpenCollection.push_back(newEntry);
+        exclusiveInsertCollection(
+                meta.cid,
+                Collections::KVStore::CreateCollection(
+                        builder,
+                        span.high.startSeqno,
+                        uint32_t{meta.sid},
+                        uint32_t(meta.cid),
+                        meta.maxTtl.has_value(),
+                        meta.maxTtl.value_or(std::chrono::seconds::zero())
+                                .count(),
+                        builder.CreateString(meta.name.data(),
+                                             meta.name.size())));
     }
 
     // And 'merge' with the data we read
@@ -568,15 +591,16 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
 
             // If not found in dropped collections add to output
             if (result == droppedCollections.end()) {
-                auto newEntry = Collections::KVStore::CreateCollection(
-                        builder,
-                        entry->startSeqno(),
-                        entry->scopeId(),
+                exclusiveInsertCollection(
                         entry->collectionId(),
-                        entry->ttlValid(),
-                        entry->maxTtl(),
-                        builder.CreateString(entry->name()));
-                finalisedOpenCollection.push_back(newEntry);
+                        Collections::KVStore::CreateCollection(
+                                builder,
+                                entry->startSeqno(),
+                                entry->scopeId(),
+                                entry->collectionId(),
+                                entry->ttlValid(),
+                                entry->maxTtl(),
+                                builder.CreateString(entry->name())));
             } else {
                 // Here we maintain the startSeqno of the dropped collection
                 result->second.startSeqno = entry->startSeqno();
@@ -584,16 +608,18 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
         }
     } else if (droppedCollections.count(CollectionID::Default) == 0) {
         // Nothing on disk - and not dropped assume the default collection lives
-        auto newEntry = Collections::KVStore::CreateCollection(
-                builder,
-                0,
-                ScopeID::Default,
+        exclusiveInsertCollection(
                 CollectionID::Default,
-                false /* ttl invalid*/,
-                0,
-                builder.CreateString(
-                        Collections::DefaultCollectionIdentifier.data()));
-        finalisedOpenCollection.push_back(newEntry);
+                Collections::KVStore::CreateCollection(
+                        builder,
+                        0,
+                        ScopeID::Default,
+                        CollectionID::Default,
+                        false /* ttl invalid*/,
+                        0,
+                        builder.CreateString(
+                                Collections::DefaultCollectionIdentifier
+                                        .data())));
     }
 
     auto collectionsVector = builder.CreateVector(finalisedOpenCollection);
@@ -640,7 +666,6 @@ flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
     // Iterate through the set of collections dropped in the commit batch and
     // and create flatbuffer versions of each one
     for (const auto& [cid, dropped] : droppedCollections) {
-        (void)cid;
         if (skip.count(cid) > 0) {
             // This collection is already in output
             continue;
@@ -666,6 +691,24 @@ flatbuffers::DetachedBuffer Flush::encodeOpenScopes(
     flatbuffers::FlatBufferBuilder builder;
     std::vector<flatbuffers::Offset<Collections::KVStore::Scope>> openScopes;
 
+    // The 'array' of scops must be exclusive. Generating a scope
+    // vector with duplicates means the data will 'crash' decode. This set and
+    // function will prevent bad data being placed on disk.
+    std::unordered_set<ScopeID> outputIds;
+    auto exclusiveInsertScope =
+            [&outputIds, &openScopes](
+                    ScopeID sid,
+                    flatbuffers::Offset<Collections::KVStore::Scope> newEntry) {
+                // Must be exclusive
+                auto result = outputIds.emplace(sid);
+                if (!result.second) {
+                    throw std::logic_error(
+                            "encodeOpenScopes: duplicate scope detected sid:" +
+                            sid.to_string());
+                }
+                openScopes.push_back(newEntry);
+            };
+
     // For each scope from the kvstore list, copy them into the flatbuffer
     // output
     for (const auto& [sid, event] : scopes) {
@@ -678,12 +721,13 @@ flatbuffers::DetachedBuffer Flush::encodeOpenScopes(
         }
 
         const auto& meta = event.metaData;
-        auto newEntry = Collections::KVStore::CreateScope(
-                builder,
-                event.startSeqno,
-                uint32_t{meta.sid},
-                builder.CreateString(meta.name.data(), meta.name.size()));
-        openScopes.push_back(newEntry);
+        exclusiveInsertScope(meta.sid,
+                             Collections::KVStore::CreateScope(
+                                     builder,
+                                     event.startSeqno,
+                                     uint32_t{meta.sid},
+                                     builder.CreateString(meta.name.data(),
+                                                          meta.name.size())));
     }
 
     // And 'merge' with the scope flatbuffer data that was read.
@@ -698,23 +742,25 @@ flatbuffers::DetachedBuffer Flush::encodeOpenScopes(
 
             // If not found in dropped scopes add to output
             if (result == droppedScopes.end()) {
-                auto newEntry = Collections::KVStore::CreateScope(
-                        builder,
-                        entry->startSeqno(),
+                exclusiveInsertScope(
                         entry->scopeId(),
-                        builder.CreateString(entry->name()));
-                openScopes.push_back(newEntry);
+                        Collections::KVStore::CreateScope(
+                                builder,
+                                entry->startSeqno(),
+                                entry->scopeId(),
+                                builder.CreateString(entry->name())));
             }
         }
     } else {
         // Nothing on disk - assume the default scope lives (it always does)
-        auto newEntry = Collections::KVStore::CreateScope(
-                builder,
-                0, // start-seqno
+        exclusiveInsertScope(
                 ScopeID::Default,
-                builder.CreateString(
-                        Collections::DefaultScopeIdentifier.data()));
-        openScopes.push_back(newEntry);
+                Collections::KVStore::CreateScope(
+                        builder,
+                        0, // start-seqno
+                        ScopeID::Default,
+                        builder.CreateString(
+                                Collections::DefaultScopeIdentifier.data())));
     }
 
     auto vector = builder.CreateVector(openScopes);

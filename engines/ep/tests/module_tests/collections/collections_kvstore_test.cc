@@ -223,6 +223,7 @@ protected:
 class CollectionsKVStoreTest
     : public CollectionsKVStoreTestBase,
       public ::testing::WithParamInterface<std::string> {
+public:
     void SetUp() override {
         KVStoreTest::SetUp();
         KVStoreBackend::setup(data_dir, GetParam());
@@ -232,6 +233,8 @@ class CollectionsKVStoreTest
         KVStoreBackend::teardown();
         KVStoreTest::TearDown();
     }
+
+    void failForDuplicate();
 };
 
 // validate some ==operators work as expected
@@ -355,6 +358,47 @@ TEST_P(CollectionsKVStoreTest, updates_and_drops_between_commits) {
                    CollectionUid::meat,
                    CollectionUid::vegetable,
                    CollectionUid::defaultC});
+}
+
+// Related to MB-44098 test that we fail to generate 'corrupt' collection or
+// scope metadata (i.e duplicate entries). This is not the sequence of steps
+// that lead to warmup failure seen in the MB, but tests that we can detect
+// duplicates.
+void CollectionsKVStoreTest::failForDuplicate() {
+    std::vector<queued_item> events;
+    getEventsFromCheckpoint(events);
+    EXPECT_EQ(1, events.size());
+    auto event = events.front();
+
+    // Drive the KVStore so that we flush the same collection twice with no
+    // drop, this would attempt to create it twice in the metadata
+    kvstore->begin(std::make_unique<TransactionContext>(vbucket.getId()));
+    flush.collections.recordSystemEvent(*event);
+    EXPECT_FALSE(event->isDeleted());
+    kvstore->setSystemEvent(event);
+    kvstore->commit(flush);
+
+    kvstore->begin(std::make_unique<TransactionContext>(vbucket.getId()));
+    event->setBySeqno(event->getBySeqno() + 1);
+    flush.collections.recordSystemEvent(*event);
+    kvstore->setSystemEvent(event);
+
+    // The attempt to commit fails
+    EXPECT_THROW(kvstore->commit(flush), std::logic_error);
+}
+
+TEST_P(CollectionsKVStoreTest, failForDuplicateCollection) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    manifest.update(vbucket, makeManifest(cm));
+    failForDuplicate();
+}
+
+TEST_P(CollectionsKVStoreTest, failForDuplicateScope) {
+    CollectionsManifest cm;
+    cm.add(ScopeEntry::shop1);
+    manifest.update(vbucket, makeManifest(cm));
+    failForDuplicate();
 }
 
 // Test that KV can handle multiple system events in a single 'commit'
