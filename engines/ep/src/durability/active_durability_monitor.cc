@@ -141,7 +141,8 @@ private:
 
     friend std::ostream& operator<<(
             std::ostream& os, ActiveDurabilityMonitor::ResolvedQueue& rq) {
-        os << "ResolvedQueue[" << &rq << "] size:" << rq.queue.size();
+        os << "ResolvedQueue[" << &rq << "] size:" << rq.queue.size()
+           << ", highEnqueuedSeqno:" << rq.highEnqueuedSeqno;
         return os;
     }
 };
@@ -1531,7 +1532,7 @@ void ActiveDurabilityMonitor::State::updateHighCompletedSeqno() {
     } catch (const std::exception& e) {
         std::stringstream ss;
         ss << e.what() << std::endl;
-        ss << *this << std::endl;
+        ss << adm << std::endl;
         EP_LOG_ERR(
                 "({}) "
                 "ActiveDurabilityMonitor::State:::updateHighCompletedSeqno: {}",

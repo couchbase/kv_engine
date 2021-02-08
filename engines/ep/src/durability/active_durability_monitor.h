@@ -438,8 +438,6 @@ protected:
      * VBucket.
      *
      * Uses unique_ptr for pimpl.
-     * @todo-perf: Consider performing the processing of the queue in a
-     * background task, moving the work from the "frontend" DCP thread.
      */
     std::unique_ptr<ResolvedQueue> resolvedQueue;
 
