@@ -17,6 +17,7 @@
 
 #include <limits.h>
 
+#include "bucket_logger.h"
 #include "ep_engine.h"
 #include "globaltask.h"
 #include "objectregistry.h"
@@ -74,6 +75,11 @@ bool GlobalTask::execute() {
         BucketAllocationGuard guard(engine);
         return run();
     } catch (...) {
+        EP_LOG_CRITICAL(
+                "GlobalTask::execute(): Task '{}' id:{} threw an uncaught "
+                "exception",
+                getDescription(),
+                getId());
         // Our terminate handler will print details of the exception.
         std::terminate();
     }
