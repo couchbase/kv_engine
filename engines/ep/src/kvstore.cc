@@ -312,6 +312,40 @@ void KVStore::addStat(const std::string& prefix,
     add_casted_stat(fullstat.str().c_str(), val, add_stat, c);
 }
 
+void KVStore::getPersistedStats(std::map<std::string, std::string>& stats) {
+    std::string dbname = getConfig().getDBName();
+    const auto fname = cb::io::sanitizePath(dbname + "/stats.json");
+    if (!cb::io::isFile(fname)) {
+        return;
+    }
+
+    std::string buffer;
+    try {
+        buffer = cb::io::loadFile(fname);
+    } catch (const std::exception& exception) {
+        EP_LOG_WARN(
+                "KVStore::getPersistedStats: Failed to load the engine "
+                "session stats due to IO exception \"{}\"",
+                exception.what());
+        return;
+    }
+
+    nlohmann::json json;
+    try {
+        json = nlohmann::json::parse(buffer);
+    } catch (const nlohmann::json::exception& exception) {
+        EP_LOG_WARN(
+                "KVStore::getPersistedStats:"
+                " Failed to parse the session stats json doc!!!: \"{}\"",
+                exception.what());
+        return;
+    }
+
+    for (auto it = json.begin(); it != json.end(); ++it) {
+        stats[it.key()] = it.value().get<std::string>();
+    }
+}
+
 KVStore::KVStore(KVStoreConfig& config, bool read_only)
     : configuration(config), readOnly(read_only) {
 }

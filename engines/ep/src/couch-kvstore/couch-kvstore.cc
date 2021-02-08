@@ -748,39 +748,6 @@ std::vector<vbucket_state *> CouchKVStore::listPersistedVbuckets() {
     return result;
 }
 
-void CouchKVStore::getPersistedStats(std::map<std::string,
-                                     std::string> &stats) {
-    const auto fname = cb::io::sanitizePath(dbname + "/stats.json");
-    if (!cb::io::isFile(fname)) {
-        return;
-    }
-
-    std::string buffer;
-    try {
-        buffer = cb::io::loadFile(fname);
-    } catch (const std::exception& exception) {
-        logger.warn(
-                "CouchKVStore::getPersistedStats: Failed to load the engine "
-                "session stats due to IO exception \"{}\"",
-                exception.what());
-        return;
-    }
-
-    nlohmann::json json;
-    try {
-        json = nlohmann::json::parse(buffer);
-    } catch (const nlohmann::json::exception&) {
-        logger.warn(
-                "CouchKVStore::getPersistedStats:"
-                " Failed to parse the session stats json doc!!!");
-        return;
-    }
-
-    for (auto it = json.begin(); it != json.end(); ++it) {
-        stats[it.key()] = it.value().get<std::string>();
-    }
-}
-
 static std::string getDBFileName(const std::string& dbname,
                                  Vbid vbid,
                                  uint64_t rev) {
