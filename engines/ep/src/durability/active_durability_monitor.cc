@@ -190,6 +190,18 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(
 ActiveDurabilityMonitor::ActiveDurabilityMonitor(EPStats& stats,
                                                  PassiveDurabilityMonitor&& pdm)
     : ActiveDurabilityMonitor(stats, pdm.vb) {
+    // @todo: Temporarily added for the investigation on MB-44079.
+    // This path is execute only at vbstate change to active and dumping the
+    // PDM may be very useful at diagnostic, so I'll keep the essential
+    // logging once the bug is fixed.
+    std::stringstream ss;
+    ss << pdm << std::endl;
+    EP_LOG_INFO(
+            "({}) ActiveDurabilityMonitor::ctor(PDM&&): Transitioning from "
+            "PDM: {}",
+            vb.getId(),
+            ss.str());
+
     auto s = state.wlock();
     for (auto& write : pdm.state.wlock()->trackedWrites) {
         s->trackedWrites.emplace_back(std::move(write));
