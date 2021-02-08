@@ -196,12 +196,13 @@ void PassiveDurabilityMonitor::addSyncWrite(
                                        write.getKey() == item->getKey();
                             });
     if (itr != s->trackedWrites.end()) {
-        std::stringstream ss;
-        ss << "Found SyncWrite '" << *itr
-           << "', whilst attempting to add new SyncWrite for key "
-           << cb::tagUserData(item->getKey().to_string())
-           << " with prepare seqno " << item->getBySeqno();
-        throwException<std::logic_error>(__func__, "" + ss.str());
+        throwException<std::logic_error>(
+                __func__,
+                fmt::format("Found SyncWrite '{}', whilst attempting to add "
+                            "new SyncWrite for key {} with prepare seqno {}",
+                            *itr,
+                            cb::tagUserData(item->getKey().to_string()),
+                            item->getBySeqno()));
     }
 #endif
 
@@ -375,12 +376,14 @@ void PassiveDurabilityMonitor::completeSyncWrite(
     if ((next->getKey() != key) ||
         (prepareSeqno &&
          next->getBySeqno() != static_cast<int64_t>(*prepareSeqno))) {
-        std::stringstream ss;
-        ss << "Pending resolution for '" << *next
-           << "', but received unexpected " + to_string(res) + " for key "
-           << cb::tagUserData(key.to_string())
-           << " and prepare seqno: " << *prepareSeqno;
-        throwException<std::logic_error>(__func__, "" + ss.str());
+        throwException<std::logic_error>(
+                __func__,
+                fmt::format("Pending resolution for '{}', but received "
+                            "unexpected {} for key {} and prepare seqno: {}",
+                            *next,
+                            to_string(res),
+                            cb::tagUserData(key.to_string()),
+                            *prepareSeqno));
     }
 
     if (enforceOrderedCompletion ||
@@ -453,12 +456,14 @@ void PassiveDurabilityMonitor::eraseSyncWrite(const DocKey& key,
     }
 
     if (toErase->getBySeqno() != seqno) {
-        std::stringstream ss;
-        ss << "Attempting to drop prepare for '"
-           << cb::tagUserData(key.to_string())
-           << "' but seqno does not match. Seqno of prepare: "
-           << toErase->getBySeqno() << ", seqno given: " << seqno;
-        throwException<std::logic_error>(__func__, "" + ss.str());
+        throwException<std::logic_error>(
+                __func__,
+                fmt::format(
+                        "Attempting to drop prepare for '{}' but seqno does "
+                        "not match. Seqno of prepare: {}, seqno given: {}",
+                        cb::tagUserData(key.to_string()),
+                        toErase->getBySeqno(),
+                        seqno));
     }
 
     // Don't change HCS or HPS values, but we do need to ensure the iterators
