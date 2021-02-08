@@ -55,6 +55,7 @@
 #include <memcached/util.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
+#include <platform/backtrace.h>
 #include <platform/dirutils.h>
 #include <platform/interrupt.h>
 #include <platform/strerror.h>
@@ -1392,6 +1393,12 @@ int memcached_main(int argc, char** argv) {
 #ifdef THREAD_SANITIZER
     LOG_INFO("Thread sanitizer enabled");
 #endif
+
+    try {
+        cb::backtrace::initialize();
+    } catch (const std::exception& e) {
+        LOG_WARNING("Failed to initialize backtrace support: {}", e.what());
+    }
 
     // Call recalculate_max_connections to make sure we put log the number
     // of file descriptors in the logfile

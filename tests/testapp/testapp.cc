@@ -1375,6 +1375,13 @@ int main(int argc, char** argv) {
     ::testing::AddGlobalTestEnvironment(mcd_env);
 
     cb_initialize_sockets();
+    try {
+        cb::backtrace::initialize();
+    } catch (const std::exception& e) {
+        std::cerr << "Failed to setup bactrace support: " << e.what()
+                  << std::endl;
+        exit(EXIT_FAILURE);
+    }
 
 #if !defined(WIN32)
     /*
