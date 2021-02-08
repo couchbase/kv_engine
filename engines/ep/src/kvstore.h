@@ -848,9 +848,7 @@ public:
      * @param stats map instance where the engine stats from the previous
      * session is stored.
      */
-    virtual void getPersistedStats(std::map<std::string, std::string> &stats) {
-        (void) stats;
-    }
+    void getPersistedStats(std::map<std::string, std::string>& stats);
 
     /**
      * Persist a snapshot of a collection of stats.

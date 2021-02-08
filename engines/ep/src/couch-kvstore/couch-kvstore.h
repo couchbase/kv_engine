@@ -248,13 +248,6 @@ public:
     std::vector<vbucket_state*> listPersistedVbuckets() override;
 
     /**
-     * Retrieve ths list of persisted engine stats
-     *
-     * @param stats map instance where the persisted engine stats will be added
-     */
-    void getPersistedStats(std::map<std::string, std::string> &stats) override;
-
-    /**
      * Persist a snapshot of the vbucket states in the underlying storage system.
      *
      * @param vbucketId - vbucket id

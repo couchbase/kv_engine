@@ -5389,11 +5389,6 @@ void STParamPersistentBucketTest::testAbortDoesNotIncrementOpsDelete(
 }
 
 TEST_P(STParamPersistentBucketTest, CleanShutdown) {
-    // @TODO Enable for magma in MB-43946
-    if (isMagma()) {
-        GTEST_SKIP();
-    }
-
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto vb = engine->getKVBucket()->getVBucket(vbid);
 
@@ -5407,11 +5402,6 @@ TEST_P(STParamPersistentBucketTest, CleanShutdown) {
 }
 
 TEST_P(STParamPersistentBucketTest, UncleanShutdown) {
-    // @TODO Enable for magma in MB-43946
-    if (isMagma()) {
-        GTEST_SKIP();
-    }
-
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto vb = engine->getKVBucket()->getVBucket(vbid);
 
@@ -5441,11 +5431,6 @@ TEST_P(STParamPersistentBucketTest, UncleanShutdown) {
  */
 TEST_P(STParamPersistentBucketTest,
        TestUncleanShutdownVBStateNotLostAfterCleanShutdown) {
-    // @TODO Enable for magma in MB-43946
-    if (isMagma()) {
-        GTEST_SKIP();
-    }
-
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     // 1) Make sure we have something to warmup
