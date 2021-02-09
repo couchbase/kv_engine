@@ -1170,9 +1170,8 @@ static couchstore_error_t replayPreCopyHook(
             }
         }
 
+        auto diskDocKey = makeDiskDocKey(docInfo->id);
         if (metadata->isPrepare()) {
-            auto diskDocKey = makeDiskDocKey(docInfo->id);
-
             // We have a prepare, may have to increment onDiskPrepares if it
             // didn't exist before or was an abort (deleted)
             auto [st, di] = cb::couchstore::openDocInfo(
@@ -1206,6 +1205,41 @@ static couchstore_error_t replayPreCopyHook(
                             delta;
                 }
             }
+        }
+
+        if (metadata->isCommit()) {
+            // As we track prepares in the collection sizes and can't update
+            // the collection sizes with deltas during the replay (as we don't
+            // have the original db) we need to also update the sizes of any
+            // collections whose elements change during the replay. We need to
+            // track the size updates here
+
+            // Check if it existed before
+            auto [st, di] = cb::couchstore::openDocInfo(
+                    target,
+                    std::string_view{docInfo->id.buf, docInfo->id.size});
+
+            if (st == COUCHSTORE_ERROR_DOC_NOT_FOUND && !docInfo->deleted) {
+                // New item, count goes up
+                prepareStats.collectionSizes[diskDocKey.getDocKey()
+                                                     .getCollectionID()] +=
+                        docInfo->physical_size;
+            } else if (st == COUCHSTORE_SUCCESS) {
+                // Change in item, change in count
+                ssize_t oldSize = di->deleted ? 0 : di->physical_size;
+                ssize_t newSize = docInfo->deleted ? 0 : docInfo->physical_size;
+                prepareStats.collectionSizes[diskDocKey.getDocKey()
+                                                     .getCollectionID()] +=
+                        newSize - oldSize;
+            }
+        }
+
+        if (diskDocKey.getDocKey().isInSystemCollection() && docInfo->deleted) {
+            // Finally, we prune any entries that belong to collections that
+            // have now been dropped. We don't want to put a stat doc on disk
+            // for them.
+            prepareStats.collectionSizes.erase(
+                    diskDocKey.getDocKey().getCollectionID());
         }
     }
     return COUCHSTORE_SUCCESS;

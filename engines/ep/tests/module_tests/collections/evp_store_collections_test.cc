@@ -3294,6 +3294,189 @@ TEST_P(CollectionsPersistentParameterizedTest, FlushDropCreateDropCleansUp) {
                  std::logic_error);
 }
 
+/**
+ * Test that a new non-prepare namespace doc added during the replay phase of
+ * couchstore concurrent compaction updates the collection size.
+ */
+TEST_F(CollectionsTest, ConcCompactReplayNewNonPrepare) {
+    replaceCouchKVStoreWithMock();
+
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::meat);
+
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto& kvstore =
+            dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
+
+    bool runOnce = false;
+    kvstore.setConcurrentCompactionPreLockHook([&runOnce, &vb, &cm, this](
+                                                       auto& compactionKey) {
+        if (runOnce) {
+            return;
+        }
+        runOnce = true;
+
+        StoredDocKey meatKey{"beef", CollectionEntry::meat};
+        auto meatDoc = makeCommittedItem(meatKey, "value");
+        EXPECT_EQ(cb::engine_errc::success, store->set(*meatDoc, cookie));
+
+        auto d = DiskChecker(vb, CollectionEntry::meat, std::greater<>());
+        flushVBucketToDiskIfPersistent(vbid, 1);
+    });
+
+    auto d = DiskChecker(vb, CollectionEntry::meat, std::greater<>());
+    runCompaction(vbid, 0, false);
+}
+
+/**
+ * Test that a change to a non-prepare namespace doc added during the replay
+ * phase of couchstore concurrent compaction updates the collection size.
+ */
+TEST_F(CollectionsTest, ConcCompactReplayChangeNonPrepare) {
+    replaceCouchKVStoreWithMock();
+
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::meat);
+
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    StoredDocKey meatKey{"beef", CollectionEntry::meat};
+    auto meatDoc = makeCommittedItem(meatKey, "BigValueToTestSizeChange");
+    EXPECT_EQ(cb::engine_errc::success, store->set(*meatDoc, cookie));
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto& kvstore =
+            dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
+
+    bool runOnce = false;
+    kvstore.setConcurrentCompactionPreLockHook(
+            [&runOnce, &vb, &cm, &meatKey, this](auto& compactionKey) {
+                if (runOnce) {
+                    return;
+                }
+                runOnce = true;
+
+                auto meatDoc = makeCommittedItem(meatKey, "value");
+                EXPECT_EQ(cb::engine_errc::success,
+                          store->set(*meatDoc, cookie));
+
+                auto d = DiskChecker(vb, CollectionEntry::meat, std::less<>());
+                flushVBucketToDiskIfPersistent(vbid, 1);
+            });
+
+    auto d = DiskChecker(vb, CollectionEntry::meat, std::less<>());
+    runCompaction(vbid, 0, false);
+}
+
+/**
+ * Test that the delete of non-prepare namespace doc added during the repla
+ * phase of couchstore concurrent compaction updates the collection size.
+ */
+TEST_F(CollectionsTest, ConcCompactReplayDeleteNonPrepare) {
+    replaceCouchKVStoreWithMock();
+
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::meat);
+
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    StoredDocKey meatKey{"beef", CollectionEntry::meat};
+    auto meatDoc = makeCommittedItem(meatKey, "BigValueToTestSizeChange");
+    EXPECT_EQ(cb::engine_errc::success, store->set(*meatDoc, cookie));
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto& kvstore =
+            dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
+
+    bool runOnce = false;
+    kvstore.setConcurrentCompactionPreLockHook(
+            [&runOnce, &vb, &cm, &meatKey, this](auto& compactionKey) {
+                if (runOnce) {
+                    return;
+                }
+                runOnce = true;
+
+                uint64_t cas = 0;
+                mutation_descr_t mutation_descr;
+                EXPECT_EQ(cb::engine_errc::success,
+                          store->deleteItem(meatKey,
+                                            cas,
+                                            vbid,
+                                            cookie,
+                                            {},
+                                            nullptr,
+                                            mutation_descr));
+
+                auto d = DiskChecker(vb, CollectionEntry::meat, std::less<>());
+                flushVBucketToDiskIfPersistent(vbid, 1);
+            });
+
+    auto d = DiskChecker(vb, CollectionEntry::meat, std::less<>());
+    runCompaction(vbid, 0, false);
+}
+
+/**
+ * Test that the re-addition of a non-prepare namespace doc added during the
+ * replay phase of couchstore concurrent compaction updates the collection size.
+ */
+TEST_F(CollectionsTest, ConcCompactReplayUnDeleteNonPrepare) {
+    replaceCouchKVStoreWithMock();
+
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::meat);
+
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    StoredDocKey meatKey{"beef", CollectionEntry::meat};
+
+    auto meatDoc = makeCommittedItem(meatKey, "BigValueToTestSizeChange");
+    EXPECT_EQ(cb::engine_errc::success, store->set(*meatDoc, cookie));
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    uint64_t cas = 0;
+    mutation_descr_t mutation_descr;
+    EXPECT_EQ(cb::engine_errc::success,
+              store->deleteItem(
+                      meatKey, cas, vbid, cookie, {}, nullptr, mutation_descr));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto& kvstore =
+            dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
+
+    bool runOnce = false;
+    kvstore.setConcurrentCompactionPreLockHook(
+            [&runOnce, &vb, &cm, &meatKey, this](auto& compactionKey) {
+                if (runOnce) {
+                    return;
+                }
+                runOnce = true;
+
+                auto meatDoc =
+                        makeCommittedItem(meatKey, "BigValueToTestSizeChange");
+                EXPECT_EQ(cb::engine_errc::success,
+                          store->set(*meatDoc, cookie));
+
+                auto d = DiskChecker(
+                        vb, CollectionEntry::meat, std::greater<>());
+                flushVBucketToDiskIfPersistent(vbid, 1);
+            });
+
+    auto d = DiskChecker(vb, CollectionEntry::meat, std::greater<>());
+    runCompaction(vbid, 0, false);
+}
+
 INSTANTIATE_TEST_SUITE_P(CollectionsExpiryLimitTests,
                          CollectionsExpiryLimitTest,
                          ::testing::Bool(),
