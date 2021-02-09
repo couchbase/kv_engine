@@ -1591,11 +1591,28 @@ void ActiveStream::endStream(cb::mcbp::DcpStreamEndStatus reason) {
                     opaque_, reason, vb_, sid));
         }
 
-        // If we ended normally then print at info level to prevent views
-        // from spamming our logs
-        auto level = reason == cb::mcbp::DcpStreamEndStatus::Ok
-                             ? spdlog::level::level_enum::info
-                             : spdlog::level::level_enum::warn;
+        // If we ended normally then print at info level. Normally covers the
+        // expected reasons for ending a stream, such as vbucket state changed
+        // or a change in privileges, they are operationally quite normal.
+        auto level = spdlog::level::level_enum::info;
+
+        switch (reason) {
+        case cb::mcbp::DcpStreamEndStatus::Ok:
+        case cb::mcbp::DcpStreamEndStatus::Closed:
+        case cb::mcbp::DcpStreamEndStatus::StateChanged:
+        case cb::mcbp::DcpStreamEndStatus::LostPrivileges:
+        case cb::mcbp::DcpStreamEndStatus::FilterEmpty:
+            break;
+        // A disconnect is abnormal
+        case cb::mcbp::DcpStreamEndStatus::Disconnected:
+        // A slow client is abnormal (never sent)
+        case cb::mcbp::DcpStreamEndStatus::Slow:
+        // A failing backfill is not good
+        case cb::mcbp::DcpStreamEndStatus::BackfillFail:
+        // Rollback indicates a failure/failover may of occurred
+        case cb::mcbp::DcpStreamEndStatus::Rollback:
+            level = spdlog::level::level_enum::warn;
+        }
         log(level,
             "{} Stream closing, sent until seqno {} remaining items "
             "{}, reason: {}",
