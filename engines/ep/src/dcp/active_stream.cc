@@ -2161,14 +2161,21 @@ bool ActiveStream::collectionAllowed(DocKey key) const {
     return filter.check(key);
 }
 
-void ActiveStream::closeIfRequiredPrivilegesLost(const void* cookie) {
-    std::unique_lock lh(streamMutex);
+bool ActiveStream::endIfRequiredPrivilegesLost(const void* cookie) {
     // Does this stream still have the appropriate privileges to operate?
     if (filter.checkPrivileges(cookie, *engine) != cb::engine_errc::success) {
+        std::unique_lock lh(streamMutex);
         endStream(cb::mcbp::DcpStreamEndStatus::LostPrivileges);
         lh.unlock();
         notifyStreamReady();
+        return true;
     }
+    return false;
+}
+
+std::unique_ptr<DcpResponse> ActiveStream::makeEndStreamResponse(
+        cb::mcbp::DcpStreamEndStatus reason) {
+    return std::make_unique<StreamEndResponse>(opaque_, reason, vb_, sid);
 }
 
 void ActiveStream::queueSeqnoAdvanced() {

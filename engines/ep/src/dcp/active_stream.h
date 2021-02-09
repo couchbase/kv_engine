@@ -328,7 +328,10 @@ public:
      * reassess the streams required privileges and call endStream if required
      * @param cookie Producer's cookie
      */
-    void closeIfRequiredPrivilegesLost(const void* cookie) override;
+    bool endIfRequiredPrivilegesLost(const void* cookie) override;
+
+    std::unique_ptr<DcpResponse> makeEndStreamResponse(
+            cb::mcbp::DcpStreamEndStatus);
 
     bool isDiskOnly() const;
 

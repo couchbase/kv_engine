@@ -1731,8 +1731,15 @@ std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
                     if (response) {
                         // VB gave us something, validate it
                         switch (response->getEvent()) {
-                        case DcpResponse::Event::SnapshotMarker:
-                            stream->closeIfRequiredPrivilegesLost(getCookie());
+                        case DcpResponse::Event::SnapshotMarker: {
+                            if (stream->endIfRequiredPrivilegesLost(
+                                        getCookie())) {
+                                return static_cast<ActiveStream*>(stream.get())
+                                        ->makeEndStreamResponse(
+                                                cb::mcbp::DcpStreamEndStatus::
+                                                        LostPrivileges);
+                            }
+                        }
                         case DcpResponse::Event::Mutation:
                         case DcpResponse::Event::Deletion:
                         case DcpResponse::Event::Expiration:

@@ -2210,14 +2210,8 @@ TEST_P(CollectionsDcpCloseAfterLosingPrivs, collection_stream) {
 
     store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "green");
 
-    // final items drain out
-    notifyAndStepToCheckpoint();
-    EXPECT_EQ(cb::engine_errc::success,
-              producer->stepAndExpect(*producers,
-                                      cb::mcbp::ClientOpcode::DcpMutation));
-    EXPECT_EQ(cb::engine_errc::success,
-              producer->stepAndExpect(*producers,
-                                      cb::mcbp::ClientOpcode::DcpStreamEnd));
+    // Stream goes straight to end
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);
     EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::LostPrivileges,
               producers->last_end_status);
 
@@ -2244,13 +2238,8 @@ TEST_P(CollectionsDcpCloseAfterLosingPrivs, collection_stream_from_backfill) {
 
     setNoAccess(CollectionEntry::fruit.getId());
 
-    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd,
                               false /*in-memory = false*/);
-
-    // endStream clears the readyQueue when backfill so we won't see any items
-    EXPECT_EQ(cb::engine_errc::success,
-              producer->stepAndExpect(*producers,
-                                      cb::mcbp::ClientOpcode::DcpStreamEnd));
 
     EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::LostPrivileges,
               producers->last_end_status);
@@ -2275,14 +2264,7 @@ TEST_P(CollectionsDcpCloseAfterLosingPrivs, legacy_stream_closes) {
 
     setNoAccess(CollectionID::Default);
 
-    notifyAndStepToCheckpoint();
-    // Expect a stream end marker
-    EXPECT_EQ(cb::engine_errc::success,
-              producer->stepAndExpect(*producers,
-                                      cb::mcbp::ClientOpcode::DcpMutation));
-    EXPECT_EQ(cb::engine_errc::success,
-              producer->stepAndExpect(*producers,
-                                      cb::mcbp::ClientOpcode::DcpStreamEnd));
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);
     EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers->last_end_status);
 
     // Done... collection deletion of default has closed the stream

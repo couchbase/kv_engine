@@ -118,7 +118,7 @@ public:
         return id == cb::mcbp::DcpStreamId(0);
     }
 
-    virtual void closeIfRequiredPrivilegesLost(const void* cookie) = 0;
+    virtual bool endIfRequiredPrivilegesLost(const void* cookie) = 0;
 
 protected:
     void clear_UNLOCKED();

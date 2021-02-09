@@ -1272,9 +1272,9 @@ void PassiveStream::log(spdlog::level::level_enum severity,
     }
 }
 
-void PassiveStream::closeIfRequiredPrivilegesLost(const void* cookie) {
+bool PassiveStream::endIfRequiredPrivilegesLost(const void* cookie) {
     throw std::logic_error(
-            "Unexpected call to PassiveStream::closeIfRequiredPrivilegesLost");
+            "Unexpected call to PassiveStream::endIfRequiredPrivilegesLost");
 }
 
 void PassiveStream::maybeLogMemoryState(cb::engine_errc status,
