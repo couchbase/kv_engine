@@ -620,6 +620,59 @@ void Connection::executeCommandPipeline() {
     }
 }
 
+void Connection::logExecutionException(const std::string_view where,
+                                       const std::exception& e) {
+    setTerminationReason(std::string("Received exception: ") + e.what());
+    shutdown();
+
+    try {
+        auto array = nlohmann::json::array();
+        for (const auto& c : cookies) {
+            if (c && !c->empty()) {
+                array.push_back(c->toJSON());
+            }
+        }
+        auto callstack = nlohmann::json::array();
+        if (const auto* backtrace = cb::getBacktrace(e)) {
+            print_backtrace_frames(*backtrace, [&callstack](const char* frame) {
+                callstack.emplace_back(frame);
+            });
+            LOG_WARNING(
+                    "{}: Exception occurred during {}. Closing connection: "
+                    "{}. Cookies: {} Exception thrown from: {}",
+                    getId(),
+                    where,
+                    e.what(),
+                    array.dump(),
+                    callstack.dump());
+        } else {
+            LOG_WARNING(
+                    "{}: Exception occurred during {}. Closing connection: "
+                    "{}. Cookies: {}",
+                    getId(),
+                    where,
+                    e.what(),
+                    array.dump());
+        }
+    } catch (const std::bad_alloc&) {
+        try {
+            LOG_WARNING(
+                    "{}: Exception occurred during {}. Closing connection: {}",
+                    getId(),
+                    where,
+                    e.what());
+            if (const auto* backtrace = cb::getBacktrace(e)) {
+                LOG_WARNING("{}: Exception thrown from:", getId());
+                print_backtrace_frames(*backtrace, [this](const char* frame) {
+                    LOG_WARNING("{} -    {}", getId(), frame);
+                });
+            }
+        } catch (const std::bad_alloc&) {
+            // Logging failed.
+        }
+    }
+}
+
 bool Connection::executeCommandsCallback() {
     using std::chrono::duration_cast;
     using std::chrono::microseconds;
@@ -633,73 +686,50 @@ bool Connection::executeCommandsCallback() {
             // continue to run the state machine
             executeCommandPipeline();
         } catch (const std::exception& e) {
-            setTerminationReason(std::string("Received exception: ") + e.what());
-            shutdown();
-
-            try {
-                auto array = nlohmann::json::array();
-                for (const auto& c : cookies) {
-                    if (c && !c->empty()) {
-                        array.push_back(c->toJSON());
-                    }
-                }
-                LOG_WARNING(
-                        "{}: exception occurred in runloop during packet "
-                        "execution. Closing connection: {}. Cookies: {}",
-                        getId(),
-                        e.what(),
-                        array.dump());
-            } catch (const std::bad_alloc&) {
-                LOG_WARNING(
-                        "{}: exception occurred in runloop during packet "
-                        "execution. Closing connection: {}",
-                        getId(),
-                        e.what());
-            }
-            if (const auto* backtrace = cb::getBacktrace(e)) {
-                LOG_WARNING("{}: exception thrown from:");
-                print_backtrace_frames(*backtrace, [](const char* frame) {
-                    LOG_WARNING("    {}", frame);
-                });
-            }
+            logExecutionException("packet execution", e);
         }
     }
 
     if (isDCP() && state == State::running) {
-        if (cookies.empty()) {
-            throw std::runtime_error(
-                    "Connection::executeCommandsCallback(): no cookies "
-                    "available!");
-        }
-        if (cookies.front()->empty()) {
-            // make sure we reset the privilege context
-            cookies.front()->reset();
-            const auto maxSendQueueSize =
-                    Settings::instance().getMaxSendQueueSize();
-            bool more = (getSendQueueSize() < maxSendQueueSize);
-            while (more) {
-                const auto ret = getBucket().getDcpIface()->step(
-                        static_cast<const void*>(cookies.front().get()), *this);
-                switch (remapErrorCode(ret)) {
-                case cb::engine_errc::success:
-                    more = (getSendQueueSize() < maxSendQueueSize);
-                    break;
-                case cb::engine_errc::would_block:
-                    more = false;
-                    break;
-                default:
-                    LOG_WARNING(
-                            R"({}: step returned {} - closing connection {})",
-                            getId(),
-                            cb::to_string(ret),
-                            getDescription());
-                    if (ret == cb::engine_errc::disconnect) {
-                        setTerminationReason("Engine forced disconnect");
+        try {
+            if (cookies.empty()) {
+                throw std::runtime_error(
+                        "Connection::executeCommandsCallback(): no cookies "
+                        "available!");
+            }
+            if (cookies.front()->empty()) {
+                // make sure we reset the privilege context
+                cookies.front()->reset();
+                const auto maxSendQueueSize =
+                        Settings::instance().getMaxSendQueueSize();
+                bool more = (getSendQueueSize() < maxSendQueueSize);
+                while (more) {
+                    const auto ret = getBucket().getDcpIface()->step(
+                            static_cast<const void*>(cookies.front().get()),
+                            *this);
+                    switch (remapErrorCode(ret)) {
+                    case cb::engine_errc::success:
+                        more = (getSendQueueSize() < maxSendQueueSize);
+                        break;
+                    case cb::engine_errc::would_block:
+                        more = false;
+                        break;
+                    default:
+                        LOG_WARNING(
+                                R"({}: step returned {} - closing connection {})",
+                                getId(),
+                                cb::to_string(ret),
+                                getDescription());
+                        if (ret == cb::engine_errc::disconnect) {
+                            setTerminationReason("Engine forced disconnect");
+                        }
+                        shutdown();
+                        more = false;
                     }
-                    shutdown();
-                    more = false;
                 }
             }
+        } catch (const std::exception& e) {
+            logExecutionException("DCP step()", e);
         }
     }
 

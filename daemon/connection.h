@@ -1086,6 +1086,16 @@ protected:
     bool executeCommandsCallback();
 
     /**
+     * Log the exception thrown by either executing the input command or
+     * DCP step.
+     *
+     * @param where Where the exception was thrown (packet execution, DCP step)
+     * @param e The exception to log
+     */
+    void logExecutionException(const std::string_view where,
+                               const std::exception& e);
+
+    /**
      * The callback method called from bufferevent for read/write callbacks
      *
      * @param bev the bufferevent structure the event belongs to
