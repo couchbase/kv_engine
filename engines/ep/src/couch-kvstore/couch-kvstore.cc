@@ -1355,9 +1355,15 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                     }
                     hook_ctx->highCompletedSeqno =
                             state.persistedCompletedSeqno;
+                    auto [getDroppedStatus, droppedCollections] =
+                            getDroppedCollections(db);
+                    if (getDroppedStatus != COUCHSTORE_SUCCESS) {
+                        return COUCHSTORE_ERROR_CANCEL;
+                    }
+
                     hook_ctx->eraserContext =
                             std::make_unique<Collections::VB::EraserContext>(
-                                    getDroppedCollections(db));
+                                    droppedCollections);
                     return COUCHSTORE_SUCCESS;
                 },
                 [this, &vbid, &prepareStats, &purge_seqno](Db& db) {
@@ -1389,9 +1395,20 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                     vbid);
             hook_ctx->highCompletedSeqno = 0;
         }
+        auto [getDroppedStatus, droppedCollections] =
+                getDroppedCollections(*sourceDb);
+        if (getDroppedStatus != COUCHSTORE_SUCCESS) {
+            logger.warn(
+                    "CouchKVStore::compactDBInternal {} failed to get "
+                    "dropped collections - status:{}",
+                    vbid,
+                    couchstore_strerror(getDroppedStatus));
+            return false;
+        }
+
         hook_ctx->eraserContext =
                 std::make_unique<Collections::VB::EraserContext>(
-                        getDroppedCollections(*sourceDb));
+                        droppedCollections);
         errCode = cb::couchstore::compact(
                 *sourceDb,
                 compact_file.c_str(),
@@ -2090,7 +2107,15 @@ std::unique_ptr<BySeqnoScanContext> CouchKVStore::initBySeqnoScanContext(
         return nullptr;
     }
 
-    auto collectionsManifest = getDroppedCollections(*db);
+    auto [getDroppedStatus, droppedCollections] = getDroppedCollections(*db);
+    if (getDroppedStatus != COUCHSTORE_SUCCESS) {
+        EP_LOG_WARN(
+                "CouchKVStore::initBySeqnoScanContext: {} Failed to get "
+                "dropped collections. Status - {}",
+                vbid,
+                couchstore_strerror(getDroppedStatus));
+        return nullptr;
+    }
 
     auto sctx = std::make_unique<BySeqnoScanContext>(std::move(cb),
                                                      std::move(cl),
@@ -2103,7 +2128,7 @@ std::unique_ptr<BySeqnoScanContext> CouchKVStore::initBySeqnoScanContext(
                                                      valOptions,
                                                      count,
                                                      readVbStateResult.state,
-                                                     collectionsManifest,
+                                                     droppedCollections,
                                                      std::move(timestamp));
     sctx->logger = &logger;
     return sctx;
@@ -2139,7 +2164,16 @@ std::unique_ptr<ByIdScanContext> CouchKVStore::initByIdScanContext(
     }
 
     const auto info = cb::couchstore::getHeader(*db.getDb());
-    auto collectionsManifest = getDroppedCollections(*db);
+
+    auto [getDroppedStatus, droppedCollections] = getDroppedCollections(*db);
+    if (getDroppedStatus != COUCHSTORE_SUCCESS) {
+        EP_LOG_WARN(
+                "CouchKVStore::initByIdScanContext: {} Failed to get "
+                "dropped collections. Status - {}",
+                vbid,
+                couchstore_strerror(getDroppedStatus));
+        return nullptr;
+    }
 
     auto sctx = std::make_unique<ByIdScanContext>(std::move(cb),
                                                   std::move(cl),
@@ -2148,7 +2182,7 @@ std::unique_ptr<ByIdScanContext> CouchKVStore::initByIdScanContext(
                                                   ranges,
                                                   options,
                                                   valOptions,
-                                                  collectionsManifest,
+                                                  droppedCollections,
                                                   info.updateSeqNum);
     sctx->logger = &logger;
     return sctx;
@@ -2893,8 +2927,19 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
             docsLogicalBytes += calcLogicalDataSize(docs[idx], *docinfos[idx]);
         }
 
+        auto [getDroppedStatus, droppedCollections] =
+                getDroppedCollections(*db);
+        if (getDroppedStatus != COUCHSTORE_SUCCESS) {
+            logger.warn(
+                    "CouchKVStore::saveDocs: getDroppedConnections"
+                    "error:{}, {}",
+                    couchstore_strerror(getDroppedStatus),
+                    vbid);
+            return getDroppedStatus;
+        }
+
         kvctx.commitData.collections.setDroppedCollectionsForStore(
-                getDroppedCollections(*db));
+                droppedCollections);
 
         auto cs_begin = std::chrono::steady_clock::now();
 
@@ -3820,24 +3865,35 @@ CouchKVStore::getDroppedCollections(Vbid vbid) {
         return {};
     }
 
-    return getDroppedCollections(*db.getDb());
+    auto [getDroppedStatus, droppedCollections] =
+            getDroppedCollections(*db.getDb());
+    if (getDroppedStatus != COUCHSTORE_SUCCESS) {
+        // @TODO deal with the error
+    }
+
+    return droppedCollections;
 }
 
-std::vector<Collections::KVStore::DroppedCollection>
+std::pair<couchstore_error_t,
+          std::vector<Collections::KVStore::DroppedCollection>>
 CouchKVStore::getDroppedCollections(Db& db) {
     auto droppedRes = readLocalDoc(db, Collections::droppedCollectionsName);
 
-    if (droppedRes.status != COUCHSTORE_SUCCESS &&
-        droppedRes.status != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
-        // @TODO handle the error
+    if (droppedRes.status == COUCHSTORE_ERROR_DOC_NOT_FOUND) {
+        // Doc not found case, remap to success as that means there are no
+        // dropped collections
+        return {COUCHSTORE_SUCCESS, {}};
     }
 
-    if (!droppedRes.doc.getLocalDoc()) {
-        return {};
+    if (droppedRes.status != COUCHSTORE_SUCCESS) {
+        // Error case, return status up
+        return {droppedRes.status, {}};
     }
 
-    return Collections::KVStore::decodeDroppedCollections(
-            droppedRes.doc.getBuffer());
+    // Decode will throw if the passed in data is invalid
+    return {COUCHSTORE_SUCCESS,
+            Collections::KVStore::decodeDroppedCollections(
+                    droppedRes.doc.getBuffer())};
 }
 
 void CouchKVStore::updateCollectionsMeta(
@@ -3888,7 +3944,11 @@ void CouchKVStore::updateDroppedCollections(
     collectionsFlush.forEachDroppedCollection(
             [this](CollectionID id) { this->deleteCollectionStats(id); });
 
-    auto dropped = getDroppedCollections(db);
+    auto [getDroppedStatus, dropped] = getDroppedCollections(db);
+    if (getDroppedStatus != COUCHSTORE_SUCCESS) {
+        // @TODO handle this error
+    }
+
     auto encodedDroppedCollections =
             collectionsFlush.encodeDroppedCollections(dropped);
     if (encodedDroppedCollections.data()) {

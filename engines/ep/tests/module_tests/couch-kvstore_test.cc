@@ -1058,11 +1058,9 @@ TEST_F(CouchKVStoreErrorInjectionTest, readVBState_open_local_document) {
                 .RetiresOnSaturation();
 
         /* Establish FileOps expectation */
-        // Called twice, once when we read the vbstate from disk in
-        // initBySeqnoScanContext, and again when we read the vbstate as part of
-        // rollback.
+        // Called once, when we read the vbstate in initBySeqnoScanContext.
         EXPECT_CALL(ops, pread(_, _, _, _, _))
-                .Times(2)
+                .Times(1)
                 .WillRepeatedly(Return(COUCHSTORE_ERROR_READ))
                 .RetiresOnSaturation();
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(20).RetiresOnSaturation();

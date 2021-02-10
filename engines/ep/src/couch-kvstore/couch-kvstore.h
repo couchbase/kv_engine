@@ -661,13 +661,15 @@ protected:
     void updateScopes(Db& db, Collections::VB::Flush& collectionsFlush);
 
     /**
-     * read local document to get the vector of dropped collections from an
+     * Read local document to get the vector of dropped collections from an
      * already open db handle
+     *
      * @param db The database handle to read from
-     * @return a vector of dropped collections (can be empty)
+     * @return a pair of status and vector of dropped collections (can be empty)
      */
-    std::vector<Collections::KVStore::DroppedCollection> getDroppedCollections(
-            Db& db);
+    std::pair<couchstore_error_t,
+              std::vector<Collections::KVStore::DroppedCollection>>
+    getDroppedCollections(Db& db);
 
     /**
      * Unlink selected couch file, which will be removed by the OS,
