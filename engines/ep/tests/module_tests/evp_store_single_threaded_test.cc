@@ -3944,6 +3944,9 @@ TEST_P(STParamPersistentBucketTest, MB_31481) {
     EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
 
+    // Stream object was removed when it transitioned to dead
+    EXPECT_FALSE(producer->findStream(vbid));
+
     // Stepping forward should now show that stream end message has been
     // completed and no more messages are needed to send.
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
@@ -3953,9 +3956,6 @@ TEST_P(STParamPersistentBucketTest, MB_31481) {
 
     // backfill:finished() - just to cleanup.
     runNextTask(lpAuxioQ);
-
-    // vb0Stream should be closed
-    EXPECT_FALSE(vb0Stream->isActive());
 
     // Stop Producer checkpoint processor task
     producer->cancelCheckpointCreatorTask();

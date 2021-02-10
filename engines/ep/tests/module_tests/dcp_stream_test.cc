@@ -3281,13 +3281,13 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
 
     t1.join();
 
-    // Should have sent StreamEnd but stream still in queue
-    EXPECT_FALSE(producer->findStream(vbid)->isActive());
+    // Should have sent StreamEnd but vbucket still in queue
+    EXPECT_FALSE(producer->findStream(vbid));
     EXPECT_FALSE(producer->getReadyQueue().empty());
 
     // Step to remove stream from queue
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
-    EXPECT_FALSE(producer->findStream(vbid)->isActive());
+    EXPECT_FALSE(producer->findStream(vbid));
     EXPECT_TRUE(producer->getReadyQueue().empty());
 }
 

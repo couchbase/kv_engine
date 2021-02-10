@@ -631,7 +631,18 @@ cb::engine_errc DcpProducer::step(DcpMessageProducersIface& producers) {
                     mapEndStreamStatus(getCookie(), se->getFlags()),
                     resp->getStreamId());
 
-            if (sendStreamEndOnClientStreamClose) {
+            // Stream has come to the end and is expected to be dead.
+            // We must attempt to remove the stream, allowing it to free
+            // resources. We do this here for all streams ending for any reason
+            // other than close, e.g. stream ending because of a state-change.
+            // For streams ending because of an client initiated 'close' we
+            // may or may not need to remove the stream depending on the
+            // control sendStreamEndOnClientStreamClose.
+            // If sendStreamEndOnClientStreamClose is false and the stream was
+            // closed by the client, the stream was released at the point of
+            // handling the close-stream.
+            if (sendStreamEndOnClientStreamClose ||
+                se->getFlags() != cb::mcbp::DcpStreamEndStatus::Closed) {
                 // We did not remove the ConnHandler earlier so we could wait to
                 // send the streamEnd We have done that now, remove it.
                 engine_.getDcpConnMap().removeVBConnByVBId(getCookie(),
@@ -647,6 +658,8 @@ cb::engine_errc DcpProducer::step(DcpMessageProducersIface& producers) {
                             "for " +
                             se->getVbucket().to_string() + " " +
                             resp->getStreamId().to_string());
+                } else {
+                    Expects(!stream->isActive());
                 }
             }
             break;

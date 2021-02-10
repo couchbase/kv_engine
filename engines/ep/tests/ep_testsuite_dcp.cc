@@ -398,7 +398,6 @@ void TestDcpConsumer::run(bool openConn) {
     /* Open streams in the above open connection */
     openStreams();
 
-    bool exp_all_items_streamed = true;
     size_t num_stream_ends_received = 0;
     uint32_t bytes_read = 0;
     uint64_t all_bytes = 0;
@@ -541,7 +540,6 @@ void TestDcpConsumer::run(bool openConn) {
                        sending items correctly when there are no acks while
                        flow control is enabled */
                     done = true;
-                    exp_all_items_streamed = false;
                 } else {
                     /* No messages were ready on the last step call, so we
                      * wait till the conn is notified of new item.
@@ -658,27 +656,6 @@ void TestDcpConsumer::run(bool openConn) {
                         "Didn't receive active set state");
             }
 
-            /* Check if the readyQ size goes to zero after all items are streamed */
-            if (exp_all_items_streamed) {
-                std::stringstream stats_ready_queue_memory;
-                stats_ready_queue_memory << "eq_dcpq:" << name.c_str()
-                                         << ":stream_" << ctx.vbucket.get()
-                                         << "_ready_queue_memory";
-                checkeq(uint64_t{0},
-                        get_ull_stat(h,
-                                     stats_ready_queue_memory.str().c_str(),
-                                     "dcp"),
-                        "readyQ size did not go to zero");
-
-                std::string stats_backfill_buffer_items(
-                        "eq_dcpq:" + name + ":stream_" +
-                        std::to_string(ctx.vbucket.get()) +
-                        "_backfill_buffer_items");
-                checkeq(uint64_t{0},
-                        get_ull_stat(
-                                h, stats_backfill_buffer_items.c_str(), "dcp"),
-                        "backfill buffer items did not go to zero");
-            }
             if (ctx.expected_values) {
                 checkeq(ctx.expected_values,
                         stats.num_values,
