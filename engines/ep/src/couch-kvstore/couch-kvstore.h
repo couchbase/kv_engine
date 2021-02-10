@@ -615,9 +615,10 @@ protected:
      * Sync the KVStore::collectionsMeta structures to the database.
      *
      * @param db The database handle used to read state
+     * @return error code if the update fails
      */
-    void updateCollectionsMeta(Db& db,
-                               Collections::VB::Flush& collectionsFlush);
+    couchstore_error_t updateCollectionsMeta(
+            Db& db, Collections::VB::Flush& collectionsFlush);
 
     /**
      * Called from updateCollectionsMeta this function maintains the current
@@ -636,9 +637,10 @@ protected:
      *
      * @param db The database handle to update
      * @param collectionsFlush flush object for a single 'flush/commit'
+     * @return error code if the update fails
      */
-    void updateOpenCollections(Db& db,
-                               Collections::VB::Flush& collectionsFlush);
+    couchstore_error_t updateOpenCollections(
+            Db& db, Collections::VB::Flush& collectionsFlush);
 
     /**
      * Called from updateCollectionsMeta this function maintains the set of
@@ -646,9 +648,10 @@ protected:
      *
      * @param db The database handle to update
      * @param collectionsFlush flush object for a single 'flush/commit'
+     * @return error code if the update fails
      */
-    void updateDroppedCollections(Db& db,
-                                  Collections::VB::Flush& collectionsFlush);
+    couchstore_error_t updateDroppedCollections(
+            Db& db, Collections::VB::Flush& collectionsFlush);
 
     /**
      * Called from updateCollectionsMeta this function maintains the set of
@@ -656,9 +659,10 @@ protected:
      *
      * @param db The database handle to update
      * @param collectionsFlush flush object for a single 'flush/commit'
-     * @return error code success or other (non-success is logged)
+     * @return error code if the update fails
      */
-    void updateScopes(Db& db, Collections::VB::Flush& collectionsFlush);
+    couchstore_error_t updateScopes(Db& db,
+                                    Collections::VB::Flush& collectionsFlush);
 
     /**
      * Read local document to get the vector of dropped collections from an

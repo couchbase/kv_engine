@@ -2981,7 +2981,15 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
             });
 
     if (kvctx.commitData.collections.isReadyForCommit()) {
-        updateCollectionsMeta(*db, kvctx.commitData.collections);
+        errCode = updateCollectionsMeta(*db, kvctx.commitData.collections);
+        if (errCode) {
+            logger.warn(
+                    "CouchKVStore::saveDocs: {} updateCollections meta "
+                    "failed with status {}",
+                    vbid,
+                    couchstore_strerror(errCode));
+            return errCode;
+        }
     }
 
     /// Update the local documents before we commit
@@ -3896,21 +3904,32 @@ CouchKVStore::getDroppedCollections(Db& db) {
                     droppedRes.doc.getBuffer())};
 }
 
-void CouchKVStore::updateCollectionsMeta(
+couchstore_error_t CouchKVStore::updateCollectionsMeta(
         Db& db, Collections::VB::Flush& collectionsFlush) {
     updateManifestUid(collectionsFlush);
 
     if (collectionsFlush.isOpenCollectionsChanged()) {
-        updateOpenCollections(db, collectionsFlush);
+        auto status = updateOpenCollections(db, collectionsFlush);
+        if (status != COUCHSTORE_SUCCESS) {
+            return status;
+        }
     }
 
     if (collectionsFlush.isDroppedCollectionsChanged()) {
-        updateDroppedCollections(db, collectionsFlush);
+        auto status = updateDroppedCollections(db, collectionsFlush);
+        if (status != COUCHSTORE_SUCCESS) {
+            return status;
+        }
     }
 
     if (collectionsFlush.isScopesChanged()) {
-        updateScopes(db, collectionsFlush);
+        auto status = updateScopes(db, collectionsFlush);
+        if (status != COUCHSTORE_SUCCESS) {
+            return status;
+        }
     }
+
+    return COUCHSTORE_SUCCESS;
 }
 
 void CouchKVStore::updateManifestUid(Collections::VB::Flush& collectionsFlush) {
@@ -3919,14 +3938,14 @@ void CouchKVStore::updateManifestUid(Collections::VB::Flush& collectionsFlush) {
                                    collectionsFlush.encodeManifestUid());
 }
 
-void CouchKVStore::updateOpenCollections(
+couchstore_error_t CouchKVStore::updateOpenCollections(
         Db& db, Collections::VB::Flush& collectionsFlush) {
     auto [getCollectionsStatus, collections] =
             readLocalDoc(db, Collections::openCollectionsName);
 
     if (getCollectionsStatus != COUCHSTORE_SUCCESS &&
         getCollectionsStatus != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
-        // @TODO handle the error
+        return getCollectionsStatus;
     }
 
     cb::const_byte_buffer empty;
@@ -3936,9 +3955,10 @@ void CouchKVStore::updateOpenCollections(
             collectionsFlush.encodeOpenCollections(
                     collections.getLocalDoc() ? collections.getBuffer()
                                               : empty));
+    return COUCHSTORE_SUCCESS;
 }
 
-void CouchKVStore::updateDroppedCollections(
+couchstore_error_t CouchKVStore::updateDroppedCollections(
         Db& db, Collections::VB::Flush& collectionsFlush) {
     // Delete the stats doc for dropped collections
     collectionsFlush.forEachDroppedCollection(
@@ -3946,7 +3966,7 @@ void CouchKVStore::updateDroppedCollections(
 
     auto [getDroppedStatus, dropped] = getDroppedCollections(db);
     if (getDroppedStatus != COUCHSTORE_SUCCESS) {
-        // @TODO handle this error
+        return getDroppedStatus;
     }
 
     auto encodedDroppedCollections =
@@ -3955,15 +3975,17 @@ void CouchKVStore::updateDroppedCollections(
         pendingLocalReqsQ.emplace_back(Collections::droppedCollectionsName,
                                        encodedDroppedCollections);
     }
+
+    return COUCHSTORE_SUCCESS;
 }
 
-void CouchKVStore::updateScopes(Db& db,
-                                Collections::VB::Flush& collectionsFlush) {
+couchstore_error_t CouchKVStore::updateScopes(
+        Db& db, Collections::VB::Flush& collectionsFlush) {
     auto [getScopesStatus, scopes] = readLocalDoc(db, Collections::scopesName);
 
     if (getScopesStatus != COUCHSTORE_SUCCESS &&
         getScopesStatus != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
-        // @TODO handle the error
+        return getScopesStatus;
     }
 
     cb::const_byte_buffer empty;
@@ -3971,6 +3993,8 @@ void CouchKVStore::updateScopes(Db& db,
             Collections::scopesName,
             collectionsFlush.encodeOpenScopes(
                     scopes.getLocalDoc() ? scopes.getBuffer() : empty));
+
+    return COUCHSTORE_SUCCESS;
 }
 
 const KVStoreConfig& CouchKVStore::getConfig() const {
