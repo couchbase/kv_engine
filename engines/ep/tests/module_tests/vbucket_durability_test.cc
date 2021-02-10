@@ -810,7 +810,7 @@ TEST_P(VBucketDurabilityTest, NonExistingKeyAtAbortReplica) {
     if (std::get<0>(GetParam()) == VBucketTestBase::VBType::Ephemeral) {
         // completed sv is correctly stored in the hashtable
         EXPECT_TRUE(abortedSv);
-        EXPECT_TRUE(abortedSv->isCompleted());
+        EXPECT_TRUE(abortedSv->isPrepareCompleted());
         EXPECT_EQ(abortSeqno, abortedSv->getBySeqno());
     }
 
@@ -885,7 +885,7 @@ TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbortReplica) {
     if (std::get<0>(GetParam()) == VBucketTestBase::VBType::Ephemeral) {
         // completed sv is correctly stored in the hashtable
         EXPECT_TRUE(abortedSv);
-        EXPECT_TRUE(abortedSv->isCompleted());
+        EXPECT_TRUE(abortedSv->isPrepareCompleted());
         EXPECT_EQ(abortSeqno, abortedSv->getBySeqno());
     }
 
@@ -1160,7 +1160,7 @@ TEST_P(EphemeralVBucketDurabilityTest, CommitExisting) {
     EXPECT_EQ(2, ht->getNumItems());
     auto key = makeStoredDocKey("key");
     auto res = ht->findForUpdate(key);
-    EXPECT_TRUE(res.pending->isCompleted());
+    EXPECT_TRUE(res.pending->isPrepareCompleted());
 
     // Check that we have the expected items in the seqList.
     // 2 items total (prepare + commit)

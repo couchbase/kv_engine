@@ -599,7 +599,7 @@ void VBucket::setupSyncReplication(const nlohmann::json* topology) {
             auto htRes = ht.findOnlyPrepared(write->getKey());
             Expects(htRes.storedValue);
             Expects(htRes.storedValue->isPending() ||
-                    htRes.storedValue->isCompleted());
+                    htRes.storedValue->isPrepareCompleted());
             htRes.storedValue->setCommitted(
                     CommittedState::PreparedMaybeVisible);
             write->setPreparedMaybeVisible();
@@ -894,7 +894,8 @@ cb::engine_errc VBucket::abort(
     // Note that, while for EP we just expect no-pending in the HT, for
     // Ephemeral we may have no-pending or a pre-existing completed (Committed
     // or Aborted) Prepare in the HT.
-    if (!htRes.pending || (htRes.pending && htRes.pending->isCompleted())) {
+    if (!htRes.pending ||
+        (htRes.pending && htRes.pending->isPrepareCompleted())) {
         // Active should always find the pending item.
         if (getState() == vbucket_state_active) {
             if (htRes.committed) {
@@ -959,7 +960,7 @@ cb::engine_errc VBucket::abort(
                     htRes.pending.getHBL(), key, prepareSeqno, *abortSeqno);
         } else {
             // This code path can be reached only at Ephemeral
-            Expects(htRes.pending->isCompleted());
+            Expects(htRes.pending->isPrepareCompleted());
             ctx = abortStoredValue(htRes.pending.getHBL(),
                                    *htRes.pending.release(),
                                    prepareSeqno,
@@ -1698,7 +1699,7 @@ cb::engine_errc VBucket::replace(
                 //  the set only /after/ having verified that the doc exists,
                 //  which is also the right time to check for any pending SW
                 //  (and to reject the operation if a prepare is in-flight).
-                if (htRes.pending && !htRes.pending->isCompleted()) {
+                if (htRes.pending && !htRes.pending->isPrepareCompleted()) {
                     return cb::engine_errc::sync_write_in_progress;
                 }
 
@@ -3377,7 +3378,7 @@ std::pair<MutationStatus, std::optional<VBNotifyCtx>> VBucket::processSetInner(
         // This is a new SyncWrite, we just want to add a new prepare unless we
         // still have a completed prepare (Ephemeral) which we should replace
         // instead.
-        if (v->isCommitted() && !v->isCompleted() && itm.isPending()) {
+        if (v->isCommitted() && !v->isPrepareCompleted() && itm.isPending()) {
             std::tie(v, notifyCtx) = addNewStoredValue(
                     htRes.getHBL(), itm, queueItmCtx, GenerateRevSeqno::No);
             // Add should always be clean
@@ -3589,7 +3590,7 @@ VBucket::processSoftDeleteInner(const HashTable::HashBucketLock& hbl,
         // update/add cases. Could rework ht.unlocked_softDeleteStoredValue
         // to only mark CommittedViaPrepares as CommittedViaMutation and use
         // softDeletedStoredValue instead.
-        if (v.isCompleted()) {
+        if (v.isPrepareCompleted()) {
             auto itm = v.toItem(getId(),
                                 StoredValue::HideLockedCas::No,
                                 StoredValue::IncludeValue::No,
@@ -3653,7 +3654,7 @@ VBucket::processExpiredItem(HashTable::FindUpdateResult& htRes,
                 cHandle.getKey().getCollectionID().to_string());
     }
 
-    if (htRes.pending && !htRes.pending->isCompleted()) {
+    if (htRes.pending && !htRes.pending->isPrepareCompleted()) {
         return std::make_tuple(MutationStatus::IsPendingSyncWrite,
                                htRes.committed,
                                VBNotifyCtx{});

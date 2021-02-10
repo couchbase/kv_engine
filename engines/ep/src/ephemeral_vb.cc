@@ -714,7 +714,7 @@ VBNotifyCtx EphemeralVBucket::abortStoredValue(
     // From MB-36650 this function is enabled to accept also Completed Prepares
     // (Committed/Aborted) for converting/updating the SV in input to
     // PrepareAborted.
-    if (!(prepared.isPending() || prepared.isCompleted())) {
+    if (!(prepared.isPending() || prepared.isPrepareCompleted())) {
         throw std::invalid_argument(
                 "EphemeralVBucket::abortStoredValue: Cannot call on a "
                 "non-Pending and non-Completed StoredValue");

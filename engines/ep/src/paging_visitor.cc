@@ -73,7 +73,7 @@ PagingVisitor::PagingVisitor(KVBucket& s,
 bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
     // The ItemPager should never touch a prepare. Prepares will be eventually
     // purged, but should not expire, whether completed or pending.
-    if (v.isPending() || v.isCompleted()) {
+    if (v.isPending() || v.isPrepareCompleted()) {
         return true;
     }
 

@@ -3813,7 +3813,7 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
                 // Keeping the Prepare SV in HT for Ephemeral.
                 EXPECT_EQ(2, ht.getNumItems());
                 ASSERT_TRUE(htRes.pending);
-                EXPECT_TRUE(htRes.pending->isCompleted());
+                EXPECT_TRUE(htRes.pending->isPrepareCompleted());
                 // SV is turned into a PrepareCommitted, seqno is still
                 // prepareSeqno.
                 EXPECT_EQ(CommittedState::PrepareCommitted,
@@ -3831,7 +3831,7 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
                 // Keeping the Prepare SV in HT for Ephemeral.
                 EXPECT_EQ(1, ht.getNumItems());
                 ASSERT_TRUE(htRes.pending);
-                EXPECT_TRUE(htRes.pending->isCompleted());
+                EXPECT_TRUE(htRes.pending->isPrepareCompleted());
                 // SV is turned into a PrepareAborted, seqno is set to
                 // abortSeqno.
                 EXPECT_EQ(CommittedState::PrepareAborted,
@@ -3935,7 +3935,7 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
             // The old PrepareCommitted SV is turned into a PrepareAborted,
             // seqno is set to abortSeqno.
             ASSERT_TRUE(htRes.pending);
-            EXPECT_TRUE(htRes.pending->isCompleted());
+            EXPECT_TRUE(htRes.pending->isPrepareCompleted());
             EXPECT_EQ(CommittedState::PrepareAborted,
                       htRes.pending->getCommitted());
             EXPECT_EQ(abortSeqno, htRes.pending->getBySeqno());

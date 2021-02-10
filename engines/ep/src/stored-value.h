@@ -532,7 +532,7 @@ public:
      * @return true if the item is locked
      */
     bool isLocked(rel_time_t curtime) const {
-        if (isDeleted() || isCompleted()) {
+        if (isDeleted() || isPrepareCompleted()) {
             // Deleted items cannot be locked.
             return false;
         }
@@ -805,9 +805,10 @@ public:
     }
 
     /**
-     * Returns true if the stored value is Completed (by Abort or Commit).
+     * Returns true if the stored value is Completed Prepare (by Abort or
+     * Commit).
      */
-    bool isCompleted() const {
+    bool isPrepareCompleted() const {
         return (getCommitted() == CommittedState::PrepareAborted) ||
                (getCommitted() == CommittedState::PrepareCommitted);
     }

@@ -129,7 +129,7 @@ StoredValue* HashTable::FindUpdateResult::selectSVToModify(bool durability) {
             return committed;
         }
     } else {
-        if (pending && !pending->isCompleted()) {
+        if (pending && !pending->isPrepareCompleted()) {
             return pending.getSV();
         } else {
             return committed;
@@ -339,7 +339,7 @@ HashTable::FindInnerResult HashTable::findInner(const DocKey& key) {
     for (StoredValue* v = values[hbl.getBucketNum()].get().get(); v;
          v = v->getNext().get().get()) {
         if (v->hasKey(key)) {
-            if (v->isPending() || v->isCompleted()) {
+            if (v->isPending() || v->isPrepareCompleted()) {
                 Expects(!foundPend);
                 foundPend = v;
             } else {
@@ -489,7 +489,7 @@ HashTable::Statistics::StoredValueProperties::StoredValueProperties(
     isDeleted = sv->isDeleted();
     isTempItem = sv->isTempItem();
     isSystemItem = sv->getKey().isInSystemCollection();
-    isPreparedSyncWrite = sv->isPending() || sv->isCompleted();
+    isPreparedSyncWrite = sv->isPending() || sv->isPrepareCompleted();
     cid = sv->getKey().getCollectionID();
 }
 
@@ -904,7 +904,7 @@ HashTable::FindResult HashTable::findForWrite(const DocKey& key,
 
     // We found a prepare. It may have been completed (Ephemeral) though. If it
     // has been completed we will return the committed StoredValue.
-    if (result.pendingSV && !result.pendingSV->isCompleted()) {
+    if (result.pendingSV && !result.pendingSV->isPrepareCompleted()) {
         // Early return if we found a prepare. We should always return prepares
         // regardless of whether or not they are deleted or the caller has asked
         // for deleted SVs. For example, consider searching for a SyncDelete, we
@@ -962,7 +962,7 @@ HashTable::FindResult HashTable::findForSyncReplace(const DocKey& key) {
         // another SyncWrite if we called the findForSyncWrite function. So, if
         // we find a completed SyncWrite but the committed StoredValue does not
         // exist, then return nullptr as logically a replace is not possible.
-        if (result.pendingSV->isCompleted() && !result.committedSV) {
+        if (result.pendingSV->isPrepareCompleted() && !result.committedSV) {
             return {nullptr, std::move(result.lock)};
         }
         // Otherwise, return the prepare so that we can re-use it.

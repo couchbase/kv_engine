@@ -55,7 +55,7 @@ bool EphemeralVBucket::HTTombstonePurger::visit(
     // that we do not get a -ve value when we check if the time difference
     // is >= purgeAge. This is preferable to updating the task start time for
     // every visit and has little impact as this task runs frequently.
-    if ((osv->isDeleted() || osv->isCompleted()) &&
+    if ((osv->isDeleted() || osv->isPrepareCompleted()) &&
         (now >= osv->getCompletedOrDeletedTime()) &&
         (now - osv->getCompletedOrDeletedTime() >= purgeAge)) {
         // This item should be purged. Remove from the HashTable and move over

@@ -615,7 +615,7 @@ size_t OrderedStoredValue::getRequiredStorage(const DocKey& key) {
  * items.
  */
 time_t OrderedStoredValue::getCompletedOrDeletedTime() const {
-    if (isDeleted() || isCompleted()) {
+    if (isDeleted() || isPrepareCompleted()) {
         return lock_expiry_or_delete_or_complete_time.delete_or_complete_time;
     } else {
         throw std::logic_error(
@@ -644,7 +644,7 @@ void OrderedStoredValue::setValueImpl(const Item& itm) {
 }
 
 void OrderedStoredValue::setCompletedOrDeletedTime(time_t time) {
-    if (!(isDeleted() || isCompleted())) {
+    if (!(isDeleted() || isPrepareCompleted())) {
         throw std::logic_error(
                 "OrderedStoredValue::setCompletedOrDeletedTime: Called on "
                 "Alive item");

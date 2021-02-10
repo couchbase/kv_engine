@@ -3249,7 +3249,7 @@ TEST_P(DurabilityEphemeralBucketTest, CompletedPreparesNotExpired) {
     {
         auto pending = vb->ht.findForUpdate(key).pending;
         ASSERT_TRUE(pending);
-        ASSERT_TRUE(pending->isCompleted());
+        ASSERT_TRUE(pending->isPrepareCompleted());
         ASSERT_EQ(pending->getCommitted(), CommittedState::PrepareCommitted);
     }
 
@@ -3263,7 +3263,7 @@ TEST_P(DurabilityEphemeralBucketTest, CompletedPreparesNotExpired) {
     {
         auto pending = vb->ht.findForUpdate(key).pending;
         EXPECT_TRUE(pending);
-        EXPECT_TRUE(pending->isCompleted());
+        EXPECT_TRUE(pending->isPrepareCompleted());
     }
 }
 
@@ -3386,7 +3386,7 @@ TEST_P(DurabilityBucketTest, CompletedPreparesDoNotPreventDelWithMetaReplica) {
     if (!persistent()) {
         auto pending = vbucket->ht.findForUpdate(key).pending;
         ASSERT_TRUE(pending);
-        ASSERT_TRUE(pending->isCompleted());
+        ASSERT_TRUE(pending->isPrepareCompleted());
         ASSERT_EQ(pending->getCommitted(), CommittedState::PrepareCommitted);
     }
 
