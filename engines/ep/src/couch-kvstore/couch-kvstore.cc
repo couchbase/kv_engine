@@ -3738,8 +3738,8 @@ uint64_t CouchKVStore::prepareToDeleteImpl(Vbid vbid) {
     return getDbRevision(vbid);
 }
 
-CouchKVStore::LocalDocHolder CouchKVStore::readLocalDoc(Db& db,
-                                                        std::string_view name) {
+CouchKVStore::ReadLocalDocResult CouchKVStore::readLocalDoc(
+        Db& db, std::string_view name) {
     sized_buf id;
     id.buf = const_cast<char*>(name.data());
     id.size = name.size();
@@ -3758,10 +3758,10 @@ CouchKVStore::LocalDocHolder CouchKVStore::readLocalDoc(Db& db,
                     couchstore_strerror(errCode));
         }
 
-        return {};
+        return {errCode, LocalDocHolder()};
     }
 
-    return lDoc;
+    return {COUCHSTORE_SUCCESS, std::move(lDoc)};
 }
 
 Collections::KVStore::Manifest CouchKVStore::getCollectionsManifest(Vbid vbid) {
@@ -3778,17 +3778,37 @@ Collections::KVStore::Manifest CouchKVStore::getCollectionsManifest(Vbid vbid) {
 }
 
 Collections::KVStore::Manifest CouchKVStore::getCollectionsManifest(Db& db) {
-    auto manifest = readLocalDoc(db, Collections::manifestName);
-    auto collections = readLocalDoc(db, Collections::openCollectionsName);
-    auto scopes = readLocalDoc(db, Collections::scopesName);
-    auto dropped = readLocalDoc(db, Collections::droppedCollectionsName);
+    auto manifestRes = readLocalDoc(db, Collections::manifestName);
+    if (manifestRes.status != COUCHSTORE_SUCCESS &&
+        manifestRes.status != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
+        // @TODO handle the error
+    }
+
+    auto collectionsRes = readLocalDoc(db, Collections::openCollectionsName);
+    if (collectionsRes.status != COUCHSTORE_SUCCESS &&
+        collectionsRes.status != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
+        // @TODO handle the error
+    }
+
+    auto scopesRes = readLocalDoc(db, Collections::scopesName);
+    if (scopesRes.status != COUCHSTORE_SUCCESS &&
+        scopesRes.status != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
+        // @TODO handle the error
+    }
+
+    auto droppedRes = readLocalDoc(db, Collections::droppedCollectionsName);
+    if (droppedRes.status != COUCHSTORE_SUCCESS &&
+        droppedRes.status != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
+        // @TODO handle the error
+    }
 
     cb::const_byte_buffer empty;
     return Collections::KVStore::decodeManifest(
-            manifest.getLocalDoc() ? manifest.getBuffer() : empty,
-            collections.getLocalDoc() ? collections.getBuffer() : empty,
-            scopes.getLocalDoc() ? scopes.getBuffer() : empty,
-            dropped.getLocalDoc() ? dropped.getBuffer() : empty);
+            manifestRes.doc.getLocalDoc() ? manifestRes.doc.getBuffer() : empty,
+            collectionsRes.doc.getLocalDoc() ? collectionsRes.doc.getBuffer()
+                                             : empty,
+            scopesRes.doc.getLocalDoc() ? scopesRes.doc.getBuffer() : empty,
+            droppedRes.doc.getLocalDoc() ? droppedRes.doc.getBuffer() : empty);
 }
 
 std::vector<Collections::KVStore::DroppedCollection>
@@ -3805,13 +3825,19 @@ CouchKVStore::getDroppedCollections(Vbid vbid) {
 
 std::vector<Collections::KVStore::DroppedCollection>
 CouchKVStore::getDroppedCollections(Db& db) {
-    auto dropped = readLocalDoc(db, Collections::droppedCollectionsName);
+    auto droppedRes = readLocalDoc(db, Collections::droppedCollectionsName);
 
-    if (!dropped.getLocalDoc()) {
+    if (droppedRes.status != COUCHSTORE_SUCCESS &&
+        droppedRes.status != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
+        // @TODO handle the error
+    }
+
+    if (!droppedRes.doc.getLocalDoc()) {
         return {};
     }
 
-    return Collections::KVStore::decodeDroppedCollections(dropped.getBuffer());
+    return Collections::KVStore::decodeDroppedCollections(
+            droppedRes.doc.getBuffer());
 }
 
 void CouchKVStore::updateCollectionsMeta(
@@ -3839,7 +3865,14 @@ void CouchKVStore::updateManifestUid(Collections::VB::Flush& collectionsFlush) {
 
 void CouchKVStore::updateOpenCollections(
         Db& db, Collections::VB::Flush& collectionsFlush) {
-    auto collections = readLocalDoc(db, Collections::openCollectionsName);
+    auto [getCollectionsStatus, collections] =
+            readLocalDoc(db, Collections::openCollectionsName);
+
+    if (getCollectionsStatus != COUCHSTORE_SUCCESS &&
+        getCollectionsStatus != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
+        // @TODO handle the error
+    }
+
     cb::const_byte_buffer empty;
 
     pendingLocalReqsQ.emplace_back(
@@ -3866,7 +3899,13 @@ void CouchKVStore::updateDroppedCollections(
 
 void CouchKVStore::updateScopes(Db& db,
                                 Collections::VB::Flush& collectionsFlush) {
-    auto scopes = readLocalDoc(db, Collections::scopesName);
+    auto [getScopesStatus, scopes] = readLocalDoc(db, Collections::scopesName);
+
+    if (getScopesStatus != COUCHSTORE_SUCCESS &&
+        getScopesStatus != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
+        // @TODO handle the error
+    }
+
     cb::const_byte_buffer empty;
     pendingLocalReqsQ.emplace_back(
             Collections::scopesName,

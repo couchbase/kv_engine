@@ -593,15 +593,23 @@ protected:
             Db& db, const std::string& statDocName);
 
     /**
+     * Return value of readLocalDoc. Status indicates if doc is valid or not
+     */
+    struct ReadLocalDocResult {
+        couchstore_error_t status;
+        LocalDocHolder doc;
+    };
+
+    /**
      * Read a document from the local docs index
      *
      * Internally logs errors from couchstore
      *
      * @param db The database handle to read from
      * @param name The name of the document to read
-     * @return LocalDocHolder storing null if name does not exist
+     * @return ReadLocalDocResult
      */
-    LocalDocHolder readLocalDoc(Db& db, std::string_view name);
+    ReadLocalDocResult readLocalDoc(Db& db, std::string_view name);
 
     /**
      * Sync the KVStore::collectionsMeta structures to the database.
