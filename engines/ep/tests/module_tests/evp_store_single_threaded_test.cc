@@ -413,6 +413,16 @@ void SingleThreadedKVBucketTest::replaceCouchKVStoreWithMock() {
     store->setRWRO(0, std::move(rw), std::move(rwro.ro));
 }
 
+void SingleThreadedKVBucketTest::runEphemeralHTCleaner() {
+    auto& bucket = dynamic_cast<EphemeralBucket&>(*store);
+    bucket.enableTombstonePurgerTask();
+    auto& queue = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    bucket.attemptToFreeMemory(); // This wakes up the HTCleaner
+    runNextTask(queue, "Eph tombstone hashtable cleaner");
+    // Scheduled by HTCleaner
+    runNextTask(queue, "Eph tombstone stale item deleter");
+}
+
 cb::engine_errc SingleThreadedKVBucketTest::setCollections(
         const void* c,
         const CollectionsManifest& manifest,

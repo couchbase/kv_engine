@@ -254,6 +254,13 @@ protected:
         return cb::engine_errc::success;
     }
 
+    /**
+     * Run the HTCleaner for Ephemeral bucket.
+     *
+     * @throws std::bad_cast If the underlying bucket is not Ephemeral.
+     */
+    void runEphemeralHTCleaner();
+
     SingleThreadedExecutorPool* task_executor;
 };
 

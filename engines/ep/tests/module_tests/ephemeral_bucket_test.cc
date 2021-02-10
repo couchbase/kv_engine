@@ -756,16 +756,6 @@ TEST_F(SingleThreadedEphemeralPurgerTest, MB_42568) {
     ASSERT_EQ(0, vb.getSeqListNumItems());
     ASSERT_EQ(0, vb.getSeqListNumDeletedItems());
 
-    const auto runHTCleaner = [this]() -> void {
-        auto* bucket = dynamic_cast<EphemeralBucket*>(store);
-        bucket->enableTombstonePurgerTask();
-        auto& queue = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
-        bucket->attemptToFreeMemory(); // This wakes up the HTCleaner
-        runNextTask(queue, "Eph tombstone hashtable cleaner");
-        // Scheduled by HTCleaner
-        runNextTask(queue, "Eph tombstone stale item deleter");
-    };
-
     // keyA - SyncDelete and Commit
     const auto keyA = makeStoredDocKey("keyA");
     const std::string value = "value";
@@ -818,7 +808,7 @@ TEST_F(SingleThreadedEphemeralPurgerTest, MB_42568) {
     // ThrowExceptionUnderflowPolicy, as we try to remove seqno 1 and 2 (ie,
     // (two deleted items) from the SeqList and we try to decrement
     // num-deleted-items to -1.
-    runHTCleaner();
+    runEphemeralHTCleaner();
 
     EXPECT_EQ(3, vb.getHighSeqno());
     EXPECT_EQ(1, vb.getSeqListNumItems());

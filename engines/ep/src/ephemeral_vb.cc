@@ -573,7 +573,9 @@ EphemeralVBucket::softDeleteStoredValue(const HashTable::HashBucketLock& hbl,
 
         switch (res) {
         case SequenceList::UpdateStatus::Success:
-            /* OrderedStoredValue is moved to end of the list, do nothing */
+            // OrderedStoredValue is moved to end of the list, just need to
+            // update the deleted-items counter
+            seqList->updateNumDeletedItems(oldValueDeleted, true);
             break;
 
         case SequenceList::UpdateStatus::Append: {
@@ -592,6 +594,11 @@ EphemeralVBucket::softDeleteStoredValue(const HashTable::HashBucketLock& hbl,
 
             seqList->appendToList(
                     lh, listWriteLg, *(newSv->toOrderedStoredValue()));
+
+            // We couldn't overwrite any existing OVS due to a range-read, we
+            // just update with the same logic of an "add new stored value"
+            seqList->updateNumDeletedItems(false, true);
+
         } break;
         }
 
@@ -633,8 +640,6 @@ EphemeralVBucket::softDeleteStoredValue(const HashTable::HashBucketLock& hbl,
             seqList->markItemStale(listWriteLg, std::move(ownedSv), newSv);
         }
     }
-
-    seqList->updateNumDeletedItems(oldValueDeleted, true);
 
     return std::make_tuple(newSv, DeletionStatus::Success, notifyCtx);
 }
