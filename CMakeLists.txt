@@ -103,38 +103,44 @@ ENDIF (MEMORY_ALLOCATOR)
 
 IF (BREAKPAD_FOUND)
     ADD_DEFINITIONS(-DHAVE_BREAKPAD)
-    IF (UNIX AND COUCHBASE_KV_BUILD_UNIT_TESTS)
-        # On Linux Breakpad unit test relies on examining the minidump -> core
-        # file with GDB.
-        FIND_PROGRAM(GDB_EXECUTABLE gdb)
-        IF (GDB_EXECUTABLE)
-            function(add_breakpad_test VARIANT)
-                ADD_TEST(memcached-breakpad-test-${VARIANT} ${PYTHON_EXECUTABLE}
-                     ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
-                     ${Memcached_BINARY_DIR}/memcached ${VARIANT} ${MINIDUMP2CORE}
-                     ${GDB_EXECUTABLE})
-            endfunction()
-            # Four tests - crashing via segfault, std::exception,
-            # std::exception with trace and unknown exception
-            add_breakpad_test(segfault)
-            add_breakpad_test(std_exception)
-            add_breakpad_test(std_exception_with_trace)
-            add_breakpad_test(unknown_exception)
-        ELSE (GDB_EXECUTABLE)
-            MESSAGE(STATUS "GDB not available, skipping breakpad test")
-        ENDIF (GDB_EXECUTABLE)
-
-    # ELSEIF (WIN32)
-    # Disable the test on Windows until we understand why we're seeing all
-    # of the temporary test failures caused by python not detecting that
-    # the processes died.
-        # On Windows the test doesn't use minidump-2-core or GDB.
-        # ADD_TEST(breakpad-test
-        #          ${PYTHON_EXECUTABLE}
-        #          ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
-        #          ${Memcached_BINARY_DIR}/memcached)
-    ENDIF (UNIX AND COUCHBASE_KV_BUILD_UNIT_TESTS)
 ENDIF (BREAKPAD_FOUND)
+IF (UNIX AND COUCHBASE_KV_BUILD_UNIT_TESTS)
+    # On Linux Breakpad unit test relies on examining the minidump -> core
+    # file with GDB.
+    find_program(GDB_EXECUTABLE gdb)
+    set(test_extra_args)
+    if (MINIDUMP2CORE)
+        list(APPEND text_extra_args --m2core_exe=${MINIDUMP2CORE})
+    endif()
+    if (GDB_EXECUTABLE)
+        list(APPEND text_extra_args --gdb_exe=${GDB_EXECUTABLE})
+    endif()
+    function(add_breakpad_test VARIANT)
+        add_test(memcached-breakpad-test-${VARIANT} ${PYTHON_EXECUTABLE}
+             ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
+             ${Memcached_BINARY_DIR}/memcached ${VARIANT} ${test_extra_args})
+    endfunction()
+    # Four tests - crashing via segfault, std::exception,
+    # std::exception with trace and unknown exception
+    add_breakpad_test(segfault)
+    add_breakpad_test(std_exception)
+    if(NOT APPLE)
+        # Traced exceptions cannot have their backtrace read on macOS. Fixed
+        # in next patch.
+        add_breakpad_test(std_exception_with_trace)
+    endif()
+    add_breakpad_test(unknown_exception)
+
+# ELSEIF (WIN32)
+# Disable the test on Windows until we understand why we're seeing all
+# of the temporary test failures caused by python not detecting that
+# the processes died.
+    # On Windows the test doesn't use minidump-2-core or GDB.
+    # ADD_TEST(breakpad-test
+    #          ${PYTHON_EXECUTABLE}
+    #          ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
+    #          ${Memcached_BINARY_DIR}/memcached)
+ENDIF (UNIX AND COUCHBASE_KV_BUILD_UNIT_TESTS)
 
 ADD_SUBDIRECTORY(etc)
 ADD_SUBDIRECTORY(auditd)
