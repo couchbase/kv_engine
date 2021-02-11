@@ -439,9 +439,10 @@ public:
      * @param localDbReqs vector of localDb updates
      * @param collectionsFlush flush object for a single 'flush/commit'
      */
-    void updateCollectionsMeta(Vbid vbid,
-                               LocalDbReqs& localDbReqs,
-                               Collections::VB::Flush& collectionsFlush);
+    magma::Status updateCollectionsMeta(
+            Vbid vbid,
+            LocalDbReqs& localDbReqs,
+            Collections::VB::Flush& collectionsFlush);
 
     /**
      * Maintain the current uid committed
@@ -460,10 +461,12 @@ public:
      * @param vbid vbucket id
      * @param localDbReqs vector of localDb updates
      * @param collectionsFlush flush object for a single 'flush/commit'
+     * @return status
      */
-    void updateOpenCollections(Vbid vbid,
-                               LocalDbReqs& localDbReqs,
-                               Collections::VB::Flush& collectionsFlush);
+    magma::Status updateOpenCollections(
+            Vbid vbid,
+            LocalDbReqs& localDbReqs,
+            Collections::VB::Flush& collectionsFlush);
 
     /**
      * Maintain the list of dropped collections
@@ -471,10 +474,12 @@ public:
      * @param vbid vbucket id
      * @param localDbReqs vector of localDb updates
      * @param collectionsFlush flush object for a single 'flush/commit'
+     * @return status
      */
-    void updateDroppedCollections(Vbid vbid,
-                                  LocalDbReqs& localDbReqs,
-                                  Collections::VB::Flush& collectionsFlush);
+    magma::Status updateDroppedCollections(
+            Vbid vbid,
+            LocalDbReqs& localDbReqs,
+            Collections::VB::Flush& collectionsFlush);
 
     /**
      * Maintain the list of open scopes
@@ -482,10 +487,11 @@ public:
      * @param vbid vbucket id
      * @param localDbReqs vector of localDb updates
      * @param collectionsFlush flush object for a single 'flush/commit'
+     * @return status
      */
-    void updateScopes(Vbid vbid,
-                      LocalDbReqs& localDbReqs,
-                      Collections::VB::Flush& collectionsFlush);
+    magma::Status updateScopes(Vbid vbid,
+                               LocalDbReqs& localDbReqs,
+                               Collections::VB::Flush& collectionsFlush);
 
     /**
      * Given a collection id, return the key used to maintain the

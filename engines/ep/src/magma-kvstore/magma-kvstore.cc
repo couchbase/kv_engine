@@ -1265,7 +1265,14 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
                 });
 
         if (commitData.collections.isReadyForCommit()) {
-            updateCollectionsMeta(vbid, localDbReqs, commitData.collections);
+            auto status = updateCollectionsMeta(
+                    vbid, localDbReqs, commitData.collections);
+            if (!status.IsOK()) {
+                throw std::runtime_error(
+                        fmt::format("MagmaKVStore::saveDocs {} Failed to set "
+                                    "collections meta",
+                                    vbid));
+            }
         }
         addLocalDbReqs(localDbReqs, postWriteOps);
         auto now = std::chrono::steady_clock::now();
@@ -2328,23 +2335,36 @@ MagmaKVStore::getDroppedCollections(Vbid vbid,
                      dropped.length()})};
 }
 
-void MagmaKVStore::updateCollectionsMeta(
+magma::Status MagmaKVStore::updateCollectionsMeta(
         Vbid vbid,
         LocalDbReqs& localDbReqs,
         Collections::VB::Flush& collectionsFlush) {
     updateManifestUid(localDbReqs, collectionsFlush);
 
     if (collectionsFlush.isOpenCollectionsChanged()) {
-        updateOpenCollections(vbid, localDbReqs, collectionsFlush);
+        auto status =
+                updateOpenCollections(vbid, localDbReqs, collectionsFlush);
+        if (!status.IsOK()) {
+            return status;
+        }
     }
 
     if (collectionsFlush.isDroppedCollectionsChanged()) {
-        updateDroppedCollections(vbid, localDbReqs, collectionsFlush);
+        auto status =
+                updateDroppedCollections(vbid, localDbReqs, collectionsFlush);
+        if (!status.IsOK()) {
+            return status;
+        }
     }
 
     if (collectionsFlush.isScopesChanged()) {
-        updateScopes(vbid, localDbReqs, collectionsFlush);
+        auto status = updateScopes(vbid, localDbReqs, collectionsFlush);
+        if (!status.IsOK()) {
+            return status;
+        }
     }
+
+    return Status::OK();
 }
 
 void MagmaKVStore::updateManifestUid(LocalDbReqs& localDbReqs,
@@ -2353,22 +2373,26 @@ void MagmaKVStore::updateManifestUid(LocalDbReqs& localDbReqs,
     localDbReqs.emplace_back(MagmaLocalReq(manifestKey, buf));
 }
 
-void MagmaKVStore::updateOpenCollections(
+magma::Status MagmaKVStore::updateOpenCollections(
         Vbid vbid,
         LocalDbReqs& localDbReqs,
         Collections::VB::Flush& collectionsFlush) {
-    Status status;
-    std::string collections;
     Slice keySlice(openCollectionsKey);
-    std::tie(status, collections) = readLocalDoc(vbid, keySlice);
-    auto buf = collectionsFlush.encodeOpenCollections(
-            {reinterpret_cast<const uint8_t*>(collections.data()),
-             collections.length()});
+    auto [status, collections] = readLocalDoc(vbid, keySlice);
 
-    localDbReqs.emplace_back(MagmaLocalReq(openCollectionsKey, buf));
+    if (status.IsOK() || status.ErrorCode() == Status::Code::NotFound) {
+        auto buf = collectionsFlush.encodeOpenCollections(
+                {reinterpret_cast<const uint8_t*>(collections.data()),
+                 collections.length()});
+
+        localDbReqs.emplace_back(MagmaLocalReq(openCollectionsKey, buf));
+        return Status::OK();
+    }
+
+    return status;
 }
 
-void MagmaKVStore::updateDroppedCollections(
+magma::Status MagmaKVStore::updateDroppedCollections(
         Vbid vbid,
         LocalDbReqs& localDbReqs,
         Collections::VB::Flush& collectionsFlush) {
@@ -2381,6 +2405,9 @@ void MagmaKVStore::updateDroppedCollections(
     auto dropped = getDroppedCollections(vbid);
     auto buf = collectionsFlush.encodeDroppedCollections(dropped);
     localDbReqs.emplace_back(MagmaLocalReq(droppedCollectionsKey, buf));
+
+    // @TODO when getDroppedCollections(Vbid) returns status, return that
+    return Status::OK();
 }
 
 std::string MagmaKVStore::getCollectionsStatsKey(CollectionID cid) {
@@ -2423,16 +2450,22 @@ void MagmaKVStore::deleteCollectionStats(LocalDbReqs& localDbReqs,
     localDbReqs.emplace_back(MagmaLocalReq::makeDeleted(key));
 }
 
-void MagmaKVStore::updateScopes(Vbid vbid,
-                                LocalDbReqs& localDbReqs,
-                                Collections::VB::Flush& collectionsFlush) {
-    Status status;
-    std::string scopes;
+magma::Status MagmaKVStore::updateScopes(
+        Vbid vbid,
+        LocalDbReqs& localDbReqs,
+        Collections::VB::Flush& collectionsFlush) {
     Slice keySlice(openScopesKey);
-    std::tie(status, scopes) = readLocalDoc(vbid, keySlice);
-    auto buf = collectionsFlush.encodeOpenScopes(
-            {reinterpret_cast<const uint8_t*>(scopes.data()), scopes.length()});
-    localDbReqs.emplace_back(MagmaLocalReq(openScopesKey, buf));
+    auto [status, scopes] = readLocalDoc(vbid, keySlice);
+
+    if (status.IsOK() || status.ErrorCode() == Status::Code::NotFound) {
+        auto buf = collectionsFlush.encodeOpenScopes(
+                {reinterpret_cast<const uint8_t*>(scopes.data()),
+                 scopes.length()});
+        localDbReqs.emplace_back(MagmaLocalReq(openScopesKey, buf));
+        return Status::OK();
+    }
+
+    return status;
 }
 
 bool MagmaKVStore::getStat(std::string_view name, size_t& value) const {
