@@ -535,9 +535,6 @@ public:
     void reserveCookie(const void* cookie);
     void releaseCookie(const void* cookie);
 
-    void setDcpConnHandler(const void* cookie, DcpConnHandlerIface* handler);
-    DcpConnHandlerIface* getDcpConnHandler(const void* cookie);
-
     void storeEngineSpecific(const void* cookie, void* engine_data);
 
     void* getEngineSpecific(const void* cookie);

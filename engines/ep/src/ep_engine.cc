@@ -1799,18 +1799,6 @@ void EventuallyPersistentEngine::releaseCookie(const void* cookie) {
     serverApi->cookie->release(cookie);
 }
 
-void EventuallyPersistentEngine::setDcpConnHandler(
-        const void* cookie, DcpConnHandlerIface* handler) {
-    NonBucketAllocationGuard guard;
-    serverApi->cookie->setDcpConnHandler(cookie, handler);
-}
-
-DcpConnHandlerIface* EventuallyPersistentEngine::getDcpConnHandler(
-        const void* cookie) {
-    NonBucketAllocationGuard guard;
-    return serverApi->cookie->getDcpConnHandler(cookie);
-}
-
 void EventuallyPersistentEngine::storeEngineSpecific(const void* cookie,
                                                      void* engine_data) {
     NonBucketAllocationGuard guard;
@@ -6246,7 +6234,7 @@ cb::engine_errc EventuallyPersistentEngine::dcpAddStream(const void* cookie,
 }
 
 ConnHandler* EventuallyPersistentEngine::tryGetConnHandler(const void* cookie) {
-    auto* iface = getDcpConnHandler(cookie);
+    auto* iface = serverApi->cookie->getDcpConnHandler(cookie);
     if (iface) {
         auto* handler = dynamic_cast<ConnHandler*>(iface);
         if (handler) {
@@ -6254,8 +6242,7 @@ ConnHandler* EventuallyPersistentEngine::tryGetConnHandler(const void* cookie) {
         }
         throw std::logic_error(
                 "EventuallyPersistentEngine::tryGetConnHandler(): The "
-                "registered "
-                "connection handler is not a ConnHandler");
+                "registered connection handler is not a ConnHandler");
     }
 
     return nullptr;

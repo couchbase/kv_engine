@@ -43,6 +43,10 @@ struct ServerCookieIface {
      * Set the DCP connection handler to be used for the connection the
      * provided cookie belongs to.
      *
+     * NOTE: No logging or memory allocation is allowed in the impl
+     *       of this as ep-engine will not try to set the memory
+     *       allocation guard before calling it
+     *
      * @param cookie The cookie provided by the core for the operation
      * @param handler The new handler (may be nullptr to clear the handler)
      */
@@ -52,6 +56,10 @@ struct ServerCookieIface {
     /**
      * Get the DCP connection handler for the connection the provided
      * cookie belongs to
+     *
+     * NOTE: No logging or memory allocation is allowed in the impl
+     *       of this as ep-engine will not try to set the memory
+     *       allocation guard before calling it
      *
      * @param cookie The cookie provided by the core for the operation
      * @return The handler stored for the connection (may be nullptr if
