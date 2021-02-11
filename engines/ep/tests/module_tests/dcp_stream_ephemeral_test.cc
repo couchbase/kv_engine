@@ -17,12 +17,17 @@
 
 #include "dcp_stream_ephemeral_test.h"
 
+#include "checkpoint_utils.h"
+#include "collections/vbucket_manifest_handles.h"
+#include "dcp/backfill-manager.h"
 #include "dcp/backfill_memory.h"
+#include "dcp/response.h"
 #include "ephemeral_bucket.h"
 #include "ephemeral_vb.h"
 #include "test_helpers.h"
 
 #include "../mock/mock_dcp_consumer.h"
+#include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_stream.h"
 
 /* MB-24159 - Test to confirm a dcp stream backfill from an ephemeral bucket
@@ -122,6 +127,210 @@ INSTANTIATE_TEST_SUITE_P(Ephemeral,
                          [](const ::testing::TestParamInfo<std::string>& info) {
                              return info.param;
                          });
+
+/**
+ * Test verifies that Backfill skips a "stale item with replacement" in the case
+ * where the stale item is at RangeItr::begin. Test for Normal writes.
+ */
+TEST_P(STActiveStreamEphemeralTest, MB_43847_NormalWrite) {
+    // We need to re-create the stream in a condition that triggers a backfill
+    stream.reset();
+    producer.reset();
+
+    auto& vb = dynamic_cast<EphemeralVBucket&>(*store->getVBucket(vbid));
+    ASSERT_EQ(0, vb.getHighSeqno());
+    auto& manager = *vb.checkpointManager;
+    const auto& list =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    manager);
+    ASSERT_EQ(1, list.size());
+
+    const auto key = makeStoredDocKey("key");
+    const std::string value = "value";
+    store_item(vbid, key, value);
+    EXPECT_EQ(1, vb.getHighSeqno());
+    EXPECT_EQ(1, vb.getSeqListNumItems());
+
+    // Cover seqno 1 with a range-read, then queue an update.
+    // We cannot touch seqnos within the range-read, so we append a new OSV at
+    // the end of the SeqList.
+    {
+        const auto rangeIt = vb.makeRangeIterator(false /*isBackfill*/);
+        ASSERT_TRUE(rangeIt);
+
+        store_item(vbid,
+                   key,
+                   value,
+                   0 /*exptime*/,
+                   {cb::engine_errc::success},
+                   PROTOCOL_BINARY_RAW_BYTES,
+                   {},
+                   false /*deleted*/);
+    }
+    EXPECT_EQ(2, vb.getHighSeqno());
+    // Note: This would be 1 with no range-read
+    EXPECT_EQ(2, vb.getSeqListNumItems());
+
+    // Steps to ensure backfill when we re-create the stream in the following
+    manager.createNewCheckpoint();
+    ASSERT_EQ(2, list.size());
+    bool newCkptCreated;
+    EXPECT_EQ(1, manager.removeClosedUnrefCheckpoints(vb, newCkptCreated));
+    EXPECT_FALSE(newCkptCreated);
+    ASSERT_EQ(1, list.size());
+    ASSERT_EQ(0, manager.getNumOpenChkItems());
+
+    // Re-create producer and stream
+    recreateProducerAndStream(vb, 0 /*flags*/);
+    ASSERT_TRUE(producer);
+    producer->createCheckpointProcessorTask();
+    ASSERT_TRUE(stream);
+    ASSERT_TRUE(stream->isBackfilling());
+    auto resp = stream->next();
+    EXPECT_FALSE(resp);
+
+    // Drive the backfill - execute
+    auto& bfm = producer->getBFM();
+    ASSERT_EQ(1, bfm.getNumBackfills());
+
+    // Backfill::create - Verify SnapMarker{start:0, end:2}
+    ASSERT_EQ(backfill_success, bfm.backfill());
+    const auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(1, readyQ.size());
+    resp = stream->next();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(0, snapMarker.getStartSeqno());
+    EXPECT_EQ(2, snapMarker.getEndSeqno());
+
+    // Verify only s:2 sent at Backfill::scan.
+    // Before the fix backfill contains also s:1.
+    ASSERT_EQ(backfill_success, bfm.backfill());
+    ASSERT_EQ(1, readyQ.size());
+    resp = stream->next();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(2, *resp->getBySeqno());
+    ASSERT_EQ(0, readyQ.size());
+}
+
+/**
+ * Test verifies that Backfill skips a "stale item with replacement" in the case
+ * where the stale item is at RangeItr::begin. Test for Sync writes.
+ */
+TEST_P(STActiveStreamEphemeralTest, MB_43847_SyncWrite) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    // We need to re-create the stream in a condition that triggers a backfill
+    stream.reset();
+    producer.reset();
+
+    auto& vb = dynamic_cast<EphemeralVBucket&>(*store->getVBucket(vbid));
+    ASSERT_EQ(0, vb.getHighSeqno());
+    ASSERT_EQ(0, vb.getSeqListNumItems());
+    ASSERT_EQ(0, vb.getSeqListNumStaleItems());
+    auto& manager = *vb.checkpointManager;
+    const auto& list =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    manager);
+    ASSERT_EQ(1, list.size());
+
+    // SyncWrite and Commit
+    const auto key = makeStoredDocKey("key");
+    const std::string value = "value";
+    store_item(vbid,
+               key,
+               value,
+               0 /*exptime*/,
+               {cb::engine_errc::sync_write_pending},
+               PROTOCOL_BINARY_RAW_BYTES,
+               cb::durability::Requirements(),
+               false /*deleted*/);
+    EXPECT_EQ(1, vb.getHighSeqno());
+    EXPECT_EQ(1, vb.getSeqListNumItems());
+    EXPECT_EQ(0, vb.getSeqListNumStaleItems());
+    EXPECT_EQ(cb::engine_errc::success,
+              vb.commit(key, 1 /*prepareSeqno*/, {}, vb.lockCollections(key)));
+    EXPECT_EQ(2, vb.getHighSeqno());
+    EXPECT_EQ(2, vb.getSeqListNumItems());
+    EXPECT_EQ(0, vb.getSeqListNumStaleItems());
+
+    // Cover seqnos [1, 2] with a range-read, then queue another Prepare.
+    {
+        const auto rangeIt = vb.makeRangeIterator(false /*isBackfill*/);
+        ASSERT_TRUE(rangeIt);
+
+        store_item(vbid,
+                   key,
+                   value,
+                   0 /*exptime*/,
+                   {cb::engine_errc::sync_write_pending},
+                   PROTOCOL_BINARY_RAW_BYTES,
+                   cb::durability::Requirements(),
+                   false /*deleted*/);
+    }
+    EXPECT_EQ(3, vb.getHighSeqno());
+    EXPECT_EQ(3, vb.getSeqListNumItems());
+    EXPECT_EQ(1, vb.getSeqListNumStaleItems());
+
+    // Steps to ensure backfill when we re-create the stream in the following
+    manager.createNewCheckpoint();
+    ASSERT_EQ(3, list.size());
+    bool newCkptCreated;
+    EXPECT_EQ(3, manager.removeClosedUnrefCheckpoints(vb, newCkptCreated));
+    EXPECT_FALSE(newCkptCreated);
+    ASSERT_EQ(1, list.size());
+    ASSERT_EQ(0, manager.getNumOpenChkItems());
+
+    // Re-create producer and stream
+    recreateProducerAndStream(vb, 0 /*flags*/);
+    ASSERT_TRUE(producer);
+    producer->createCheckpointProcessorTask();
+    ASSERT_TRUE(stream);
+    ASSERT_TRUE(stream->isBackfilling());
+    ASSERT_TRUE(stream->public_supportSyncReplication());
+    auto resp = stream->next();
+    EXPECT_FALSE(resp);
+
+    // Drive the backfill - execute
+    auto& bfm = producer->getBFM();
+    ASSERT_EQ(1, bfm.getNumBackfills());
+
+    // Backfill::create - Verify SnapMarker{start:0, end:3}
+    ASSERT_EQ(backfill_success, bfm.backfill());
+    const auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(1, readyQ.size());
+    resp = stream->next();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(0, snapMarker.getStartSeqno());
+    EXPECT_EQ(3, snapMarker.getEndSeqno());
+
+    // Verify only seqnos [2, 3] sent at Backfill::scan.
+    // Before the fix backfill contains also s:1.
+    ASSERT_EQ(backfill_success, bfm.backfill());
+    ASSERT_EQ(2, readyQ.size());
+    resp = stream->next();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(2, *resp->getBySeqno());
+    ASSERT_EQ(1, readyQ.size());
+    resp = stream->next();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
+    EXPECT_EQ(3, *resp->getBySeqno());
+    ASSERT_EQ(0, readyQ.size());
+}
+
+INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
+                         STActiveStreamEphemeralTest,
+                         STParameterizedBucketTest::ephConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
 void STPassiveStreamEphemeralTest::SetUp() {
     config_string = "ephemeral_metadata_purge_age=0";

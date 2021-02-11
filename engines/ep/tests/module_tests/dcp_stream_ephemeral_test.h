@@ -21,6 +21,8 @@
 
 class EphemeralStreamTest : public StreamTest {};
 
+class STActiveStreamEphemeralTest : public SingleThreadedActiveStreamTest {};
+
 class STPassiveStreamEphemeralTest : public SingleThreadedPassiveStreamTest {
 public:
     void SetUp() override;
