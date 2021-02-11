@@ -17,10 +17,111 @@
 
 #include "dcp_stream_ephemeral_test.h"
 
+#include "dcp/backfill_memory.h"
 #include "ephemeral_bucket.h"
 #include "ephemeral_vb.h"
+#include "test_helpers.h"
 
 #include "../mock/mock_dcp_consumer.h"
+#include "../mock/mock_stream.h"
+
+/* MB-24159 - Test to confirm a dcp stream backfill from an ephemeral bucket
+ * over a range which includes /no/ items doesn't cause the producer to
+ * segfault.
+ */
+
+TEST_P(EphemeralStreamTest, backfillGetsNoItems) {
+    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
+    store_item(vbid, "key", "value1");
+    store_item(vbid, "key", "value2");
+
+    auto evb = std::shared_ptr<EphemeralVBucket>(
+            std::dynamic_pointer_cast<EphemeralVBucket>(vb0));
+    DCPBackfillMemoryBuffered dcpbfm(evb, stream, 1, 1);
+    dcpbfm.run();
+    destroy_dcp_stream();
+}
+
+TEST_P(EphemeralStreamTest, bufferedMemoryBackfillPurgeGreaterThanStart) {
+    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
+    auto evb = std::shared_ptr<EphemeralVBucket>(
+            std::dynamic_pointer_cast<EphemeralVBucket>(vb0));
+
+    // Force the purgeSeqno because it's easier than creating and
+    // deleting items
+    evb->setPurgeSeqno(3);
+
+    // Backfill with start != 1 and start != end and start < purge
+    DCPBackfillMemoryBuffered dcpbfm(evb, stream, 2, 4);
+    dcpbfm.run();
+    EXPECT_TRUE(stream->isDead());
+}
+
+/* Checks that DCP backfill in Ephemeral buckets does not have duplicates in
+ a snaphsot */
+TEST_P(EphemeralStreamTest, EphemeralBackfillSnapshotHasNoDuplicates) {
+    auto* evb = dynamic_cast<EphemeralVBucket*>(vb0.get());
+
+    /* Add 4 items */
+    const int numItems = 4;
+    for (int i = 0; i < numItems; ++i) {
+        std::string key("key" + std::to_string(i));
+        store_item(vbid, key, "value");
+    }
+
+    /* Update "key1" before range read cursors are on vb */
+    store_item(vbid, "key1", "value1");
+
+    /* Add fake range read cursor on vb and update items */
+    {
+        auto itr = evb->makeRangeIterator(/*isBackfill*/ true);
+        /* update 'key2' and 'key3' */
+        store_item(vbid, "key2", "value1");
+        store_item(vbid, "key3", "value1");
+    }
+
+    /* update key2 once again with a range iterator again so that it has 2 stale
+     values */
+    {
+        auto itr = evb->makeRangeIterator(/*isBackfill*/ true);
+        /* update 'key2' */
+        store_item(vbid, "key2", "value1");
+    }
+
+    removeCheckpoint(numItems);
+
+    /* Set up a DCP stream for the backfill */
+    setup_dcp_stream();
+
+    /* We want the backfill task to run in a background thread */
+    ExecutorPool::get()->setNumAuxIO(1);
+
+    // transitionStateToBackfilling should set isBackfillTaskRunning to true
+    // which will not be reset until the task finishes which we will use to
+    // block this thread.
+    stream->transitionStateToBackfilling();
+
+    /* Wait for the backfill task to complete */
+    {
+        std::chrono::microseconds uSleepTime(128);
+        while (stream->public_isBackfillTaskRunning()) {
+            uSleepTime = decayingSleep(uSleepTime);
+        }
+    }
+
+    /* Verify that only 4 items are read in the backfill (no duplicates) */
+    EXPECT_EQ(numItems, stream->getNumBackfillItems());
+
+    destroy_dcp_stream();
+}
+
+// Ephemeral only
+INSTANTIATE_TEST_SUITE_P(Ephemeral,
+                         EphemeralStreamTest,
+                         ::testing::Values("ephemeral"),
+                         [](const ::testing::TestParamInfo<std::string>& info) {
+                             return info.param;
+                         });
 
 void STPassiveStreamEphemeralTest::SetUp() {
     config_string = "ephemeral_metadata_purge_age=0";

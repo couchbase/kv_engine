@@ -19,6 +19,8 @@
 
 #include "dcp_stream_test.h"
 
+class EphemeralStreamTest : public StreamTest {};
+
 class STPassiveStreamEphemeralTest : public SingleThreadedPassiveStreamTest {
 public:
     void SetUp() override;
