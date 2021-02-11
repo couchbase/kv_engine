@@ -363,11 +363,12 @@ void SingleThreadedKVBucketTest::scheduleAndRunCollectionsEraser(Vbid id) {
         store->scheduleCompaction(id, {}, nullptr, std::chrono::seconds(0));
         std::string task = "Compact DB file " + std::to_string(id.get());
         runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX], task);
-        EXPECT_TRUE(store->getVBucket(id)
-                            ->getShard()
-                            ->getRWUnderlying()
-                            ->getDroppedCollections(id)
-                            .empty());
+        auto [status, dropped] = store->getVBucket(id)
+                                         ->getShard()
+                                         ->getRWUnderlying()
+                                         ->getDroppedCollections(id);
+        ASSERT_TRUE(status);
+        EXPECT_TRUE(dropped.empty());
     } else {
         auto* bucket = dynamic_cast<EphemeralBucket*>(store);
         bucket->scheduleTombstonePurgerTask();

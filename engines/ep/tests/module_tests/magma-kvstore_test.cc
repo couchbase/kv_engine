@@ -72,6 +72,8 @@ protected:
 };
 
 TEST_F(MagmaKVStoreRollbackTest, Rollback) {
+    kvstore->prepareToCreateImpl(vbid);
+
     uint64_t seqno = 1;
 
     for (int i = 0; i < 2; i++) {

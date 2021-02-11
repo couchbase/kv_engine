@@ -1304,8 +1304,17 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
                 &req));
     }
 
-    commitData.collections.setDroppedCollectionsForStore(
-            getDroppedCollections(vbid));
+    auto [getDroppedStatus, dropped] = getDroppedCollections(vbid);
+    if (!getDroppedStatus) {
+        logger->warn(
+                "MagmaKVStore::saveDocs {} Failed to get dropped "
+                "collections",
+                vbid);
+        // We have to return some non-success status, Invalid will do
+        return Status::Invalid;
+    }
+
+    commitData.collections.setDroppedCollectionsForStore(dropped);
 
     auto status = magma->WriteDocs(vbid.get(),
                                    writeOps,
@@ -1846,6 +1855,10 @@ std::pair<Status, std::string> MagmaKVStore::processReadLocalDocResult(
                 status.ErrorCode(),
                 "MagmaKVStore::readLocalDoc " + vbid.to_string() +
                         " key:" + keySlice.ToString() + " " + status.String());
+        logger->warn("MagmaKVStore::readLocalDoc {} key:{} returned status: {}",
+                     vbid,
+                     keySlice.ToString(),
+                     status.String());
     } else {
         if (!found) {
             retStatus = magma::Status(
@@ -2017,7 +2030,15 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<CompactionContext> ctx) {
 
     Vbid vbid = ctx->vbid;
 
-    auto dropped = getDroppedCollections(vbid);
+    auto [getDroppedStatus, dropped] = getDroppedCollections(vbid);
+    if (!getDroppedStatus) {
+        logger->warn(
+                "MagmaKVStore::compactDBInternal: {} Failed to get "
+                "dropped collections",
+                vbid);
+        return false;
+    }
+
     ctx->eraserContext =
             std::make_unique<Collections::VB::EraserContext>(dropped);
 
@@ -2214,15 +2235,10 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
     auto cacheLookup = std::make_shared<NoLookupCallback>();
     callback->setKVFileHandle(makeFileHandle(vbid));
 
-    auto dropped = getDroppedCollections(vbid);
-    auto eraserContext =
-            std::make_unique<Collections::VB::EraserContext>(dropped);
-
     auto keyCallback =
-            [this, ec = eraserContext.get(), cb = callback.get(), vbid](
-                    const Slice& keySlice,
-                    const uint64_t seqno,
-                    const Slice& metaSlice) {
+            [this, cb = callback.get(), vbid](const Slice& keySlice,
+                                              const uint64_t seqno,
+                                              const Slice& metaSlice) {
                 auto diskKey = makeDiskDocKey(keySlice);
                 auto docKey = diskKey.getDocKey();
                 if (docKey.isInSystemCollection()) {
@@ -2315,15 +2331,22 @@ MagmaKVStore::getCollectionsManifest(Vbid vbid) {
                      droppedCollections.length()})};
 }
 
-std::vector<Collections::KVStore::DroppedCollection>
+std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>
 MagmaKVStore::getDroppedCollections(Vbid vbid) {
-    Status status;
-    std::string dropped;
     Slice keySlice(droppedCollectionsKey);
-    std::tie(status, dropped) = readLocalDoc(vbid, keySlice);
-    return Collections::KVStore::decodeDroppedCollections(
-            {reinterpret_cast<const uint8_t*>(dropped.data()),
-             dropped.length()});
+    auto [status, dropped] = readLocalDoc(vbid, keySlice);
+    // Currently we need the NotExists check for the case in which we create the
+    // (magma)KVStore (done at first flush).
+    // @TODO investigate removal/use of snapshot variant
+    if (!status.IsOK() && status.ErrorCode() != Status::Code::NotExists &&
+        status.ErrorCode() != Status::Code::NotFound) {
+        return {false, {}};
+    }
+
+    return {true,
+            Collections::KVStore::decodeDroppedCollections(
+                    {reinterpret_cast<const uint8_t*>(dropped.data()),
+                     dropped.length()})};
 }
 
 std::pair<magma::Status, std::vector<Collections::KVStore::DroppedCollection>>
@@ -2404,11 +2427,15 @@ magma::Status MagmaKVStore::updateDroppedCollections(
     // count correctly we need to keep the stats doc around until the collection
     // erasure compaction runs which will then delete the doc when it has
     // processed the collection.
-    auto dropped = getDroppedCollections(vbid);
+    auto [status, dropped] = getDroppedCollections(vbid);
+    if (!status) {
+        return Status(Status::Code::Invalid,
+                      "Failed to get dropped collections");
+    }
+
     auto buf = collectionsFlush.encodeDroppedCollections(dropped);
     localDbReqs.emplace_back(MagmaLocalReq(droppedCollectionsKey, buf));
 
-    // @TODO when getDroppedCollections(Vbid) returns status, return that
     return Status::OK();
 }
 
@@ -2571,8 +2598,15 @@ std::shared_ptr<CompactionContext> MagmaKVStore::makeCompactionContext(
     CompactionConfig config{};
     auto ctx = makeCompactionContextCallback(vbid, config, 0 /*purgeSeqno*/);
 
-    ctx->eraserContext = std::make_unique<Collections::VB::EraserContext>(
-            getDroppedCollections(vbid));
+    auto [status, dropped] = getDroppedCollections(vbid);
+    if (!status) {
+        throw std::runtime_error(
+                fmt::format("MagmaKVStore::makeCompactionContext: {} failed to "
+                            "get the dropped collections",
+                            vbid));
+    }
+    ctx->eraserContext =
+            std::make_unique<Collections::VB::EraserContext>(dropped);
 
     auto readState = readVBStateFromDisk(vbid);
     if (!readState.status.IsOK()) {

@@ -554,11 +554,12 @@ TEST_P(CollectionsEraserTest, erase_after_warmup) {
     store->cancelCompaction(vbid);
     resetEngineAndWarmup();
 
-    EXPECT_FALSE(store->getVBucket(vbid)
-                         ->getShard()
-                         ->getRWUnderlying()
-                         ->getDroppedCollections(vbid)
-                         .empty());
+    auto [status, dropped] = store->getVBucket(vbid)
+                                     ->getShard()
+                                     ->getRWUnderlying()
+                                     ->getDroppedCollections(vbid);
+    ASSERT_TRUE(status);
+    EXPECT_FALSE(dropped.empty());
 
     // Now the eraser should ready to run, warmup will have noticed a dropped
     // collection in the manifest and schedule the eraser

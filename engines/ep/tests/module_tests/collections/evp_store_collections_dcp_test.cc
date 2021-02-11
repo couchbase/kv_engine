@@ -2801,10 +2801,16 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd) {
 
     // Now read back the persisted drop collection data and validate
     auto checkDropped =
-            [dropAtEnd, &vb, &target](
-                    const std::vector<Collections::KVStore::DroppedCollection>&
-                            dropped) {
-                EXPECT_EQ(1, dropped.size());
+            [dropAtEnd,
+             &vb,
+             &target](const std::pair<
+                      bool,
+                      std::vector<Collections::KVStore::DroppedCollection>>&
+                              passed) {
+                const auto& [status, dropped] = passed;
+
+                EXPECT_TRUE(status);
+                ASSERT_EQ(1, dropped.size());
                 auto& entry = dropped[0];
                 EXPECT_EQ(target.getId(), entry.collectionId);
                 // In this test the first generation of target is always seqno:1
@@ -2824,7 +2830,9 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd) {
     runEraser();
 
     auto checkKVS = [dropAtEnd, &target](KVStore& kvs, Vbid id) {
-        EXPECT_TRUE(kvs.getDroppedCollections(id).empty());
+        auto [status, dropped] = kvs.getDroppedCollections(id);
+        ASSERT_TRUE(status);
+        EXPECT_TRUE(dropped.empty());
         auto fileHandle = kvs.makeFileHandle(id);
         EXPECT_TRUE(fileHandle);
 

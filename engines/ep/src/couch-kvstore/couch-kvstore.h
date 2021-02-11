@@ -378,8 +378,8 @@ public:
     /**
      * CouchKVStore implements this method as a read of 1 _local document
      */
-    std::vector<Collections::KVStore::DroppedCollection> getDroppedCollections(
-            Vbid vbid) override;
+    std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>
+    getDroppedCollections(Vbid vbid) override;
 
     /**
      * Read vbstate from disk. Does not update the cached vbstate.

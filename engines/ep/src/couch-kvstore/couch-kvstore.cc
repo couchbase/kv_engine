@@ -3885,22 +3885,22 @@ CouchKVStore::getCollectionsManifest(Db& db) {
                                                  : empty)};
 }
 
-std::vector<Collections::KVStore::DroppedCollection>
+std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>
 CouchKVStore::getDroppedCollections(Vbid vbid) {
     DbHolder db(*this);
 
     couchstore_error_t errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errCode != COUCHSTORE_SUCCESS) {
-        return {};
+        return {false, {}};
     }
 
     auto [getDroppedStatus, droppedCollections] =
             getDroppedCollections(*db.getDb());
     if (getDroppedStatus != COUCHSTORE_SUCCESS) {
-        // @TODO deal with the error
+        return {false, {}};
     }
 
-    return droppedCollections;
+    return {true, droppedCollections};
 }
 
 std::pair<couchstore_error_t,

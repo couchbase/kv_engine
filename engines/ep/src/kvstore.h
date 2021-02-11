@@ -1164,9 +1164,11 @@ public:
      * underlying KV store atomically drops collections
      *
      * @param vbid vbucket to get data from
-     * @return vector of collections that are dropped but still may have data
+     * @return pair of bool status and vector of collections that are dropped
+     *         but still may have data
      */
-    virtual std::vector<Collections::KVStore::DroppedCollection>
+    virtual std::pair<bool,
+                      std::vector<Collections::KVStore::DroppedCollection>>
     getDroppedCollections(Vbid vbid) = 0;
 
     void setMakeCompactionContextCallback(MakeCompactionContextCallback cb) {

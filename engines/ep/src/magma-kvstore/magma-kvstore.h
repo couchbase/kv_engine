@@ -412,10 +412,11 @@ public:
      * latest snapshot
      *
      * @param vbid vbucket id
-     * @return a vector of dropped collections (can be empty)
+     * @return a pair of bool status and vector of dropped collections (can be
+     *         empty)
      */
-    std::vector<Collections::KVStore::DroppedCollection> getDroppedCollections(
-            Vbid vbid) override;
+    std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>
+    getDroppedCollections(Vbid vbid) override;
 
     /**
      * Read local doc to get the vector of dropped collections from the given

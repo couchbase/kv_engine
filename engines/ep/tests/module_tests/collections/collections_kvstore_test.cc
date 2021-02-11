@@ -160,7 +160,8 @@ public:
             EXPECT_NE(found, md.collections.end());
         }
 
-        auto dropped = kvstore->getDroppedCollections(Vbid(0));
+        auto [status, dropped] = kvstore->getDroppedCollections(Vbid(0));
+        ASSERT_TRUE(status);
         if (!expectedDropped.empty()) {
             EXPECT_TRUE(md.droppedCollectionsExist);
             EXPECT_EQ(expectedDropped.size(), dropped.size());
@@ -595,9 +596,11 @@ void CollectionRessurectionKVStoreTest::resurectionTest() {
 
     // Vegetable was dropped during the test, thus it must be part of the
     // drop list and it must span the very first create to the very last drop!
-    auto droppedCollections = kvstore->getDroppedCollections(Vbid(0));
+    auto [getDroppedStatus, droppedCollections] =
+            kvstore->getDroppedCollections(Vbid(0));
+    ASSERT_TRUE(getDroppedStatus);
     EXPECT_TRUE(md.droppedCollectionsExist);
-    EXPECT_EQ(1, droppedCollections.size()) << "Only vegetable was dropped";
+    ASSERT_EQ(1, droppedCollections.size()) << "Only vegetable was dropped";
     const auto& droppedMeta = droppedCollections[0];
     EXPECT_EQ(target.uid, droppedMeta.collectionId);
     // vegetable is always first created at seqno 1
@@ -693,9 +696,11 @@ void CollectionRessurectionKVStoreTest::resurectionScopesTest() {
 
     // Vegetable was dropped during the test, thus it must be part of the
     // drop list and it must span the very first create to the very last drop!
-    auto droppedCollections = kvstore->getDroppedCollections(Vbid(0));
+    auto [getDroppedStatus, droppedCollections] =
+            kvstore->getDroppedCollections(Vbid(0));
+    ASSERT_TRUE(getDroppedStatus);
     EXPECT_TRUE(md.droppedCollectionsExist);
-    EXPECT_EQ(1, droppedCollections.size()) << "Only vegetable was dropped";
+    ASSERT_EQ(1, droppedCollections.size()) << "Only vegetable was dropped";
     const auto& droppedMeta = droppedCollections[0];
     EXPECT_EQ(target.uid, droppedMeta.collectionId);
     // vegetable is always first created at seqno 2 (after the scope)
