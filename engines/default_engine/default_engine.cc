@@ -16,8 +16,6 @@
 #include <statistics/cbstat_collector.h>
 #include <statistics/labelled_collector.h>
 
-#include <unistd.h>
-#include <cctype>
 #include <cinttypes>
 #include <cstddef>
 #include <cstdio>

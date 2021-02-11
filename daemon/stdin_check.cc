@@ -1,11 +1,11 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 
-#include <unistd.h>
 #include <cstdio>
 #include <cstring>
 
 #ifndef WIN32
 #include <sys/poll.h>
+#include <unistd.h>
 #include <cerrno>
 #endif
 

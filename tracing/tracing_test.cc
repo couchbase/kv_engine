@@ -20,10 +20,7 @@
 #include <daemon/front_end_thread.h>
 #include <folly/portability/GTest.h>
 #include <memcached/tracer.h>
-#include <unistd.h>
-#include <algorithm>
 #include <chrono>
-#include <iostream>
 #include <string>
 #include <thread>
 
