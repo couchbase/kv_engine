@@ -102,9 +102,11 @@ static std::condition_variable init_cond;
 /*
  * Creates a worker thread.
  */
-static void create_worker(void (*func)(void *), void *arg, cb_thread_t *id,
-                          const char* name) {
-    if (cb_create_named_thread(id, func, arg, 0, name) != 0) {
+static void create_worker(void (*func)(void*),
+                          void* arg,
+                          cb_thread_t* id,
+                          const std::string& name) {
+    if (cb_create_named_thread(id, func, arg, 0, name.c_str()) != 0) {
         FATAL_ERROR(EXIT_FAILURE,
                     "Can't create thread {}: {}",
                     name,
@@ -420,9 +422,10 @@ void worker_threads_init() {
 
     /* Create threads after we've done all the libevent setup. */
     for (auto& thread : threads) {
-        const std::string name = "mc:worker_" + std::to_string(thread.index);
-        create_worker(
-                worker_libevent, &thread, &thread.thread_id, name.c_str());
+        create_worker(worker_libevent,
+                      &thread,
+                      &thread.thread_id,
+                      fmt::format("mc:worker_{:02d}", uint64_t(thread.index)));
     }
 
     // Wait for all the threads to set themselves up before returning.
