@@ -55,10 +55,12 @@ void CollectionsDcpTest::internalSetUp() {
 
 Collections::KVStore::Manifest CollectionsDcpTest::getPersistedManifest(
         Vbid vb) const {
-    return store->getVBucket(vb)
-            ->getShard()
-            ->getRWUnderlying()
-            ->getCollectionsManifest(vb);
+    auto [status, persistedManifest] = store->getVBucket(vb)
+                                               ->getShard()
+                                               ->getRWUnderlying()
+                                               ->getCollectionsManifest(vb);
+    EXPECT_TRUE(status);
+    return persistedManifest;
 }
 
 void CollectionsDcpTest::createDcpStream(

@@ -401,9 +401,11 @@ public:
      * manifest, open collections, open scopes
      *
      * @param vbid vbucket id
-     * @return collections manifest
+     * @return pair of bool status and the persisted manifest data for the given
+     *         vbid
      */
-    Collections::KVStore::Manifest getCollectionsManifest(Vbid vbid) override;
+    std::pair<bool, Collections::KVStore::Manifest> getCollectionsManifest(
+            Vbid vbid) override;
 
     /**
      * Read local document to get the vector of dropped collections from the

@@ -205,7 +205,8 @@ public:
         kvstore->begin(std::make_unique<TransactionContext>(vbucket.getId()));
         applyEvents(commitData, cm);
         kvstore->commit(commitData);
-        auto md = kvstore->getCollectionsManifest(Vbid(0));
+        auto [status, md] = kvstore->getCollectionsManifest(Vbid(0));
+        EXPECT_TRUE(status);
         checkUid(md, cm);
         checkCollections(md, cm, expectedDropped);
         checkScopes(md, cm);
@@ -284,7 +285,9 @@ TEST(CollectionsKVStoreTest, test_KVStore_comparison) {
 
 TEST_P(CollectionsKVStoreTest, initial_meta) {
     // Ask the kvstore for the initial meta
-    auto md = kvstore->getCollectionsManifest(Vbid(0));
+    auto [status, md] = kvstore->getCollectionsManifest(Vbid(0));
+
+    ASSERT_TRUE(status);
 
     // Expect 1 collection and 1 scope
     EXPECT_EQ(1, md.collections.size());
@@ -571,7 +574,8 @@ void CollectionRessurectionKVStoreTest::resurectionTest() {
     kvstore->commit(flush);
 
     // Now validate
-    auto md = kvstore->getCollectionsManifest(Vbid(0));
+    auto [status, md] = kvstore->getCollectionsManifest(Vbid(0));
+    ASSERT_TRUE(status);
     checkUid(md, cm);
     checkCollections(md, cm, {target.uid});
 
@@ -656,7 +660,8 @@ void CollectionRessurectionKVStoreTest::resurectionScopesTest() {
     kvstore->commit(flush);
 
     // Now validate
-    auto md = kvstore->getCollectionsManifest(Vbid(0));
+    auto [status, md] = kvstore->getCollectionsManifest(Vbid(0));
+    ASSERT_TRUE(status);
     checkUid(md, cm);
     checkCollections(md, cm, {target.uid});
 

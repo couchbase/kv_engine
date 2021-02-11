@@ -2277,7 +2277,8 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
                           vbstate->lastSnapEnd);
 }
 
-Collections::KVStore::Manifest MagmaKVStore::getCollectionsManifest(Vbid vbid) {
+std::pair<bool, Collections::KVStore::Manifest>
+MagmaKVStore::getCollectionsManifest(Vbid vbid) {
     Status status;
 
     std::string manifest;
@@ -2292,15 +2293,17 @@ Collections::KVStore::Manifest MagmaKVStore::getCollectionsManifest(Vbid vbid) {
     std::string droppedCollections;
     std::tie(status, droppedCollections) =
             readLocalDoc(vbid, droppedCollectionsKey);
-    return Collections::KVStore::decodeManifest(
-            {reinterpret_cast<const uint8_t*>(manifest.data()),
-             manifest.length()},
-            {reinterpret_cast<const uint8_t*>(openCollections.data()),
-             openCollections.length()},
-            {reinterpret_cast<const uint8_t*>(openScopes.data()),
-             openScopes.length()},
-            {reinterpret_cast<const uint8_t*>(droppedCollections.data()),
-             droppedCollections.length()});
+    return {true,
+            Collections::KVStore::decodeManifest(
+                    {reinterpret_cast<const uint8_t*>(manifest.data()),
+                     manifest.length()},
+                    {reinterpret_cast<const uint8_t*>(openCollections.data()),
+                     openCollections.length()},
+                    {reinterpret_cast<const uint8_t*>(openScopes.data()),
+                     openScopes.length()},
+                    {reinterpret_cast<const uint8_t*>(
+                             droppedCollections.data()),
+                     droppedCollections.length()})};
 }
 
 std::vector<Collections::KVStore::DroppedCollection>

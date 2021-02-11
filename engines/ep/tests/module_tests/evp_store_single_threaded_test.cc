@@ -5827,7 +5827,8 @@ TEST_P(STParamCouchstoreBucketTest, FlushFailureAtPersistingCollectionChange) {
 
     // Check nothing persisted to disk, only default collection exists
     auto* kvstore = store->getRWUnderlying(vbid);
-    auto m1 = kvstore->getCollectionsManifest(vbid);
+    auto [s1, m1] = kvstore->getCollectionsManifest(vbid);
+    ASSERT_TRUE(s1);
     EXPECT_EQ(1, m1.collections.size());
     const Collections::CollectionMetaData defaultState;
     EXPECT_EQ(defaultState, m1.collections[0].metaData);
@@ -5848,7 +5849,8 @@ TEST_P(STParamCouchstoreBucketTest, FlushFailureAtPersistingCollectionChange) {
             .Times(::testing::AnyNumber())
             .RetiresOnSaturation();
     // Check nothing persisted to disk, only default collection exists
-    auto m2 = kvstore->getCollectionsManifest(vbid);
+    auto [s2, m2] = kvstore->getCollectionsManifest(vbid);
+    ASSERT_TRUE(s2);
     EXPECT_EQ(1, m2.collections.size());
     EXPECT_EQ(defaultState, m2.collections[0].metaData);
     EXPECT_EQ(0, m2.collections[0].startSeqno);
@@ -5859,7 +5861,8 @@ TEST_P(STParamCouchstoreBucketTest, FlushFailureAtPersistingCollectionChange) {
     // Flush stats updated
     EXPECT_EQ(0, vb->dirtyQueueSize);
 
-    auto m3 = kvstore->getCollectionsManifest(vbid);
+    auto [s3, m3] = kvstore->getCollectionsManifest(vbid);
+    ASSERT_TRUE(s3);
     EXPECT_EQ(2, m3.collections.size());
 
     Collections::CollectionMetaData dairyState{ScopeID::Default,

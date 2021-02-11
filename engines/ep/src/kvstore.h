@@ -1152,10 +1152,11 @@ public:
      * Collections::VB::Manifest
      *
      * @param vbid vbucket to get data from
-     * @return the persisted manifest data for the given vbid
+     * @return pair of bool status and the persisted manifest data for the given
+     *         vbid
      */
-    virtual Collections::KVStore::Manifest getCollectionsManifest(
-            Vbid vbid) = 0;
+    virtual std::pair<bool, Collections::KVStore::Manifest>
+    getCollectionsManifest(Vbid vbid) = 0;
 
     /**
      * Return all collections that are dropped, i.e. not open but still exist

@@ -1066,12 +1066,15 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_drop_default) {
     flushVBucketToDiskIfPersistent(replicaVB, 1);
 
     if (persistent()) {
-        auto manifestA =
+        auto [statusA, manifestA] =
                 vb->getShard()->getRWUnderlying()->getCollectionsManifest(vbid);
+        ASSERT_TRUE(statusA);
+
         VBucketPtr vbr = store->getVBucket(replicaVB);
-        auto manifestR =
+        auto [statusR, manifestR] =
                 vbr->getShard()->getRWUnderlying()->getCollectionsManifest(
                         replicaVB);
+        ASSERT_TRUE(statusR);
 
         EXPECT_EQ(0, manifestA.collections.size());
         EXPECT_EQ(1, manifestA.scopes.size());
@@ -1454,15 +1457,6 @@ TEST_F(CollectionsFilteredDcpTest, filtering_scope) {
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
 
     flush_vbucket_to_disk(vbid, 8);
-
-    auto m2 = getPersistedManifest(replicaVB);
-
-    // Uid is 0 because we only set the manifest uid for the last SystemEvent
-    // generated in the manifest update. In this case this is for the meat
-    // collection.
-    EXPECT_EQ(0, m2.manifestUid);
-    EXPECT_EQ(1, m2.scopes.size());
-    EXPECT_EQ(1, m2.collections.size());
 
     vb.reset();
 
@@ -2776,8 +2770,12 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd) {
     EXPECT_EQ(rvb->getHighSeqno(), vb->getHighSeqno());
     // Now read back the persisted manifest(s) and validate that the fruit
     // collection exists.
-    auto checkManifest = [dropAtEnd, &vb, &target](
-                                 const Collections::KVStore::Manifest& m) {
+    auto checkManifest = [dropAtEnd, &vb, &target](const auto& result) {
+        auto status = result.first;
+        auto m = result.second;
+
+        ASSERT_TRUE(status);
+
         auto openSize = dropAtEnd ? 1 : 2;
         EXPECT_EQ(openSize, m.collections.size());
         EXPECT_TRUE(m.droppedCollectionsExist); // Always at least 1 drop

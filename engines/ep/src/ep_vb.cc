@@ -1063,9 +1063,18 @@ void EPVBucket::postProcessRollback(const RollbackResult& rollbackResult,
 
 void EPVBucket::collectionsRolledBack(KVBucket& bucket) {
     auto& kvstore = *bucket.getRWUnderlying(getId());
+    auto [getManifestStatus, persistedManifest] =
+            kvstore.getCollectionsManifest(getId());
+
+    if (!getManifestStatus) {
+        // Something bad happened that the KVStore ought to have logged.
+        throw std::runtime_error(
+                "EPVBucket::collectionsRolledBack: " + getId().to_string() +
+                " failed to read the manifest from disk");
+    }
+
     manifest = std::make_unique<Collections::VB::Manifest>(
-            bucket.getSharedCollectionsManager(),
-            kvstore.getCollectionsManifest(getId()));
+            bucket.getSharedCollectionsManager(), persistedManifest);
     auto kvstoreContext = kvstore.makeFileHandle(getId());
     auto wh = manifest->wlock();
     // For each collection in the VB, reload the stats to the point before

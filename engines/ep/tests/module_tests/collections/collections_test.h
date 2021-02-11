@@ -41,10 +41,13 @@ protected:
     }
 
     Collections::KVStore::Manifest getManifest(Vbid vb) const {
-        return store->getVBucket(vb)
-                ->getShard()
-                ->getRWUnderlying()
-                ->getCollectionsManifest(vbid);
+        auto [status, persistedManifest] =
+                store->getVBucket(vb)
+                        ->getShard()
+                        ->getRWUnderlying()
+                        ->getCollectionsManifest(vbid);
+        EXPECT_TRUE(status);
+        return persistedManifest;
     }
 
     cb::engine_errc sendGetKeys(std::string startKey,

@@ -513,6 +513,38 @@ protected:
     Vbid vbid = Vbid(0);
 };
 
+TEST_F(CouchKVStoreErrorInjectionTest, getCollectionsManifestFailed) {
+    populate_items(1);
+
+    CompactionConfig config;
+    config.purge_before_seq = 0;
+    config.purge_before_ts = 0;
+    config.drop_deletes = false;
+    auto cctx = std::make_shared<CompactionContext>(vbid, config, 0);
+
+    {
+        /* Establish Logger expectation */
+        EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_READ)))
+                .Times(1)
+                .RetiresOnSaturation();
+
+        /* Establish FileOps expectation */
+        EXPECT_CALL(ops, pread(_, _, _, _, _))
+                .Times(1)
+                .WillRepeatedly(Return(COUCHSTORE_ERROR_READ))
+                .RetiresOnSaturation();
+
+        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(20).RetiresOnSaturation();
+
+        std::mutex mutex;
+        std::unique_lock<std::mutex> lock(mutex);
+        EXPECT_FALSE(kvstore->compactDB(lock, cctx));
+    }
+}
+
 /**
  * Injects error during CouchKVStore::writeVBucketState/couchstore_commit
  */

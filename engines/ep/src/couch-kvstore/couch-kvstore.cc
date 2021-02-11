@@ -1500,7 +1500,16 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
 
         // Load in all of the collections stats docs so that we have the correct
         // baseline values to which we will apply deltas to during the catch up
-        auto manifest = getCollectionsManifest(*targetDb.getDb());
+        auto [getManifestResult, manifest] =
+                getCollectionsManifest(*targetDb.getDb());
+        if (getManifestResult != COUCHSTORE_SUCCESS) {
+            logger.warn(
+                    "CouchKVStore::compactDBInternal: {} failed to read "
+                    "collections manifest for replay phase, got status: ",
+                    vbid,
+                    couchstore_strerror(getManifestResult));
+            return CompactDBInternalStatus::Failed;
+        }
 
         for (auto& collection : manifest.collections) {
             auto cid = collection.metaData.cid;
@@ -3818,51 +3827,69 @@ CouchKVStore::ReadLocalDocResult CouchKVStore::readLocalDoc(
     return {COUCHSTORE_SUCCESS, std::move(lDoc)};
 }
 
-Collections::KVStore::Manifest CouchKVStore::getCollectionsManifest(Vbid vbid) {
+std::pair<bool, Collections::KVStore::Manifest>
+CouchKVStore::getCollectionsManifest(Vbid vbid) {
     DbHolder db(*this);
 
     couchstore_error_t errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errCode != COUCHSTORE_SUCCESS) {
         // openDB would of logged any critical error
-        return Collections::KVStore::Manifest{
-                Collections::KVStore::Manifest::Default{}};
+        return {false,
+                Collections::KVStore::Manifest{
+                        Collections::KVStore::Manifest::Default{}}};
     }
 
-    return getCollectionsManifest(*db.getDb());
+    auto [status, manifest] = getCollectionsManifest(*db.getDb());
+    bool ret = status == COUCHSTORE_SUCCESS ? true : false;
+    return {ret, manifest};
 }
 
-Collections::KVStore::Manifest CouchKVStore::getCollectionsManifest(Db& db) {
+std::pair<couchstore_error_t, Collections::KVStore::Manifest>
+CouchKVStore::getCollectionsManifest(Db& db) {
     auto manifestRes = readLocalDoc(db, Collections::manifestName);
     if (manifestRes.status != COUCHSTORE_SUCCESS &&
         manifestRes.status != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
-        // @TODO handle the error
+        return {manifestRes.status,
+                Collections::KVStore::Manifest{
+                        Collections::KVStore::Manifest::Default{}}};
     }
 
     auto collectionsRes = readLocalDoc(db, Collections::openCollectionsName);
     if (collectionsRes.status != COUCHSTORE_SUCCESS &&
         collectionsRes.status != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
-        // @TODO handle the error
+        return {collectionsRes.status,
+                Collections::KVStore::Manifest{
+                        Collections::KVStore::Manifest::Default{}}};
     }
 
     auto scopesRes = readLocalDoc(db, Collections::scopesName);
     if (scopesRes.status != COUCHSTORE_SUCCESS &&
         scopesRes.status != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
-        // @TODO handle the error
+        return {scopesRes.status,
+                Collections::KVStore::Manifest{
+                        Collections::KVStore::Manifest::Default{}}};
     }
 
     auto droppedRes = readLocalDoc(db, Collections::droppedCollectionsName);
     if (droppedRes.status != COUCHSTORE_SUCCESS &&
         droppedRes.status != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
-        // @TODO handle the error
+        return {droppedRes.status,
+                Collections::KVStore::Manifest{
+                        Collections::KVStore::Manifest::Default{}}};
     }
 
     cb::const_byte_buffer empty;
-    return Collections::KVStore::decodeManifest(
-            manifestRes.doc.getLocalDoc() ? manifestRes.doc.getBuffer() : empty,
-            collectionsRes.doc.getLocalDoc() ? collectionsRes.doc.getBuffer()
-                                             : empty,
-            scopesRes.doc.getLocalDoc() ? scopesRes.doc.getBuffer() : empty,
-            droppedRes.doc.getLocalDoc() ? droppedRes.doc.getBuffer() : empty);
+    return {COUCHSTORE_SUCCESS,
+            Collections::KVStore::decodeManifest(
+                    manifestRes.doc.getLocalDoc() ? manifestRes.doc.getBuffer()
+                                                  : empty,
+                    collectionsRes.doc.getLocalDoc()
+                            ? collectionsRes.doc.getBuffer()
+                            : empty,
+                    scopesRes.doc.getLocalDoc() ? scopesRes.doc.getBuffer()
+                                                : empty,
+                    droppedRes.doc.getLocalDoc() ? droppedRes.doc.getBuffer()
+                                                 : empty)};
 }
 
 std::vector<Collections::KVStore::DroppedCollection>

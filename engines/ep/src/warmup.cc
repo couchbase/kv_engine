@@ -1039,10 +1039,19 @@ void Warmup::createVBuckets(uint16_t shardId) {
 
             std::unique_ptr<Collections::VB::Manifest> manifest;
             if (config.isCollectionsEnabled()) {
-                manifest = std::make_unique<Collections::VB::Manifest>(
-                        store.getSharedCollectionsManager(),
+                auto [getManifestStatus, persistedManifest] =
                         store.getROUnderlyingByShard(shardId)
-                                ->getCollectionsManifest(vbid));
+                                ->getCollectionsManifest(vbid);
+                if (!getManifestStatus) {
+                    EP_LOG_CRITICAL(
+                            "Warmup::createVBuckets: {} failed to read "
+                            " collections manifest from disk",
+                            vbid);
+                    return;
+                }
+
+                manifest = std::make_unique<Collections::VB::Manifest>(
+                        store.getSharedCollectionsManager(), persistedManifest);
             } else {
                 manifest = std::make_unique<Collections::VB::Manifest>(
                         store.getSharedCollectionsManager());

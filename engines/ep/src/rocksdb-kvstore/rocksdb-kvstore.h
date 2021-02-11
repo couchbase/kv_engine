@@ -316,11 +316,12 @@ public:
         return 0;
     }
 
-    Collections::KVStore::Manifest getCollectionsManifest(
+    std::pair<bool, Collections::KVStore::Manifest> getCollectionsManifest(
             Vbid vbid) override {
         // TODO: rocksDb has no collections support, return default manifest
-        return Collections::KVStore::Manifest{
-                Collections::KVStore::Manifest::Default{}};
+        return {true,
+                Collections::KVStore::Manifest{
+                        Collections::KVStore::Manifest::Default{}}};
     }
 
     std::vector<Collections::KVStore::DroppedCollection> getDroppedCollections(

@@ -372,8 +372,8 @@ public:
     /**
      * CouchKVStore implements this method as a read of 3 _local documents
      */
-    Collections::KVStore::Manifest getCollectionsManifest(Vbid vbid) override;
-    Collections::KVStore::Manifest getCollectionsManifest(Db& db);
+    std::pair<bool, Collections::KVStore::Manifest> getCollectionsManifest(
+            Vbid vbid) override;
 
     /**
      * CouchKVStore implements this method as a read of 1 _local document
@@ -663,6 +663,13 @@ protected:
      */
     couchstore_error_t updateScopes(Db& db,
                                     Collections::VB::Flush& collectionsFlush);
+
+    /**
+     * Get the manifest from the Db object.
+     * CouchKVStore implements this method as a read of 3 _local documents.
+     */
+    std::pair<couchstore_error_t, Collections::KVStore::Manifest>
+    getCollectionsManifest(Db& db);
 
     /**
      * Read local document to get the vector of dropped collections from an

@@ -1087,10 +1087,11 @@ public:
         EXPECT_EQ(0, vb->getNumItems());
         if (persistent()) {
             // Collection should be purged from KVStore
-            auto manifest = store->getVBucket(vbid)
-                                    ->getShard()
-                                    ->getRWUnderlying()
-                                    ->getCollectionsManifest(vbid);
+            auto [status, manifest] = store->getVBucket(vbid)
+                                              ->getShard()
+                                              ->getRWUnderlying()
+                                              ->getCollectionsManifest(vbid);
+            ASSERT_TRUE(status);
             auto itr = manifest.collections.begin();
             for (; itr != manifest.collections.end(); itr++) {
                 if (itr->metaData.cid == CollectionEntry::dairy.getId()) {
