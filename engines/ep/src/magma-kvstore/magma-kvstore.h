@@ -421,10 +421,11 @@ public:
      *
      * @param vbid vbucket id
      * @param snapshot The magma snapshot from which we want to read
-     * @return a vector of dropped collections (can be empty)
+     * @return a pair of Status and vector of dropped collections (can be empty)
      */
-    std::vector<Collections::KVStore::DroppedCollection> getDroppedCollections(
-            Vbid vbid, magma::Magma::Snapshot& snapshot);
+    std::pair<magma::Status,
+              std::vector<Collections::KVStore::DroppedCollection>>
+    getDroppedCollections(Vbid vbid, magma::Magma::Snapshot& snapshot);
 
     /**
      * This function maintains the set of open collections, adding newly opened
