@@ -2,7 +2,7 @@ include_directories(AFTER ${Memcached_SOURCE_DIR}/auditd/src)
 add_executable(memcached_auditfile_test auditfile_test.cc
                ${Memcached_SOURCE_DIR}/include/memcached/isotime.h)
 target_link_libraries(memcached_auditfile_test auditd memcached_logger mcd_time
-                      dirutils platform gtest gtest_main
+                      platform gtest gtest_main
                       mcd_util)
 add_test(NAME memcached-auditfile-test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
@@ -10,7 +10,7 @@ add_test(NAME memcached-auditfile-test
 add_sanitizers(memcached_auditfile_test)
 
 ADD_EXECUTABLE(memcached_auditconfig_test auditconfig_test.cc)
-TARGET_LINK_LIBRARIES(memcached_auditconfig_test auditd memcached_logger dirutils
+TARGET_LINK_LIBRARIES(memcached_auditconfig_test auditd memcached_logger
                       platform gtest gtest_main mcd_util)
 ADD_TEST(NAME memcached-auditconfig-test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
@@ -19,7 +19,7 @@ add_sanitizers(memcached_auditconfig_test)
 
 ADD_EXECUTABLE(memcached_auditd_tests testauditd.cc)
 TARGET_LINK_LIBRARIES(memcached_auditd_tests
-                      auditd memcached_logger mcd_util mcd_time dirutils gtest)
+                      auditd memcached_logger mcd_util mcd_time platform gtest)
 ADD_DEPENDENCIES(memcached_auditd_tests generate_audit_descriptors)
 add_sanitizers(memcached_auditd_tests)
 ADD_TEST(NAME memcached-auditd-test

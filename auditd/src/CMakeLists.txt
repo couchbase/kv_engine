@@ -12,7 +12,6 @@ target_link_libraries(auditd
                       mcd_time
                       mcd_util
                       platform
-                      dirutils
                       statistics)
 add_dependencies(auditd generate_audit_descriptors)
 

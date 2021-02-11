@@ -25,11 +25,11 @@ add_library(mcbp STATIC
             status.cc
             )
 
-target_link_libraries(mcbp mcd_util dirutils)
+target_link_libraries(mcbp mcd_util platform)
 set_property(TARGET mcbp PROPERTY POSITION_INDEPENDENT_CODE 1)
 
 add_executable(mcbp_packet_printer mcbp_packet_printer.cc)
-target_link_libraries(mcbp_packet_printer mcbp dirutils)
+target_link_libraries(mcbp_packet_printer mcbp platform)
 add_sanitizers(mcbp_packet_printer)
 install(TARGETS mcbp_packet_printer RUNTIME DESTINATION bin)
 

@@ -88,7 +88,6 @@ target_link_libraries(memcached_testapp
     cbsasl
     platform
     platform_cb_malloc_arena
-    dirutils
     gtest
     gtest_main
     ${FOLLY_LIBRARIES}

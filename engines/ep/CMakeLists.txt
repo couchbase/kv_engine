@@ -109,7 +109,6 @@ add_executable(kvstore_gen tools/kvstore_gen.cc
 target_link_libraries(kvstore_gen
         JSON_checker
         cbcompress
-        dirutils
         engine_utilities
         ep-engine_collections
         hdr_histogram_static
@@ -388,7 +387,7 @@ if (NOT WIN32)
 endif(NOT WIN32)
 
 TARGET_LINK_LIBRARIES(ep JSON_checker ${EP_STORAGE_LIBS}
-                      engine_utilities ep-engine_collections dirutils cbcompress
+                      engine_utilities ep-engine_collections cbcompress
                       hdr_histogram_static mcbp mcd_util mcd_time platform phosphor
                       xattr mcd_tracing statistics ${LIBEVENT_LIBRARIES}
                       ${FOLLY_LIBRARIES})
@@ -424,7 +423,6 @@ if (NOT EP_BYPASS_TESTS)
     TARGET_LINK_LIBRARIES(ep_perfsuite
             engine_testapp_dependencies
             cbcompress
-            dirutils
             engine_utilities
             mcbp
             mcd_util
@@ -460,7 +458,6 @@ if (NOT EP_BYPASS_TESTS)
     TARGET_LINK_LIBRARIES(ep_engine_benchmarks PRIVATE
             benchmark
             cbcompress
-            dirutils
             engine_utilities
             ep-engine_collections
             gtest
@@ -494,7 +491,7 @@ if (NOT EP_BYPASS_TESTS)
                    $<TARGET_OBJECTS:ep_objs>)
     TARGET_LINK_LIBRARIES(ep-engine_sizes JSON_checker hdr_histogram_static
                           engine_utilities ep-engine_collections ${EP_STORAGE_LIBS}
-                          dirutils cbcompress platform mcbp mcd_util mcd_time
+                          cbcompress platform mcbp mcd_util mcd_time
                           mcd_tracing phosphor statistics xattr
                           ${LIBEVENT_LIBRARIES} ${FOLLY_LIBRARIES})
     add_sanitizers(ep-engine_sizes)

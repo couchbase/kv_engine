@@ -33,7 +33,7 @@ add_library(cbsasl STATIC
      user.h
      util.h)
 
-target_link_libraries(cbsasl cbcrypto dirutils mcd_util platform)
+target_link_libraries(cbsasl cbcrypto mcd_util platform)
 add_sanitizers(cbsasl)
 
 install(TARGETS cbsasl
@@ -71,7 +71,6 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                           cbcrypto
                           cbsasl
                           gtest
-                          dirutils
                           platform
                           ${OPENSSL_LIBRARIES})
     add_test(NAME cbsasl-password-database

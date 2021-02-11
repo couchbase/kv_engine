@@ -124,7 +124,6 @@ TARGET_INCLUDE_DIRECTORIES(ep-engine_ep_unit_tests
 
 TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests
         cbcompress
-        dirutils
         engine_utilities
         ep-engine_collections
         gtest
@@ -216,7 +215,6 @@ TARGET_LINK_LIBRARIES(ep_testsuite
                       mcd_util
                       ${EP_STORAGE_LIBS}
                       cbcompress
-                      dirutils
                       JSON_checker
                       platform
                       xattr
@@ -231,7 +229,6 @@ ADD_EXECUTABLE(ep_testsuite_basic
 TARGET_LINK_LIBRARIES(ep_testsuite_basic
                       engine_testapp_dependencies
                       cbcompress
-                      dirutils
                       engine_utilities
                       JSON_checker
                       mcbp
@@ -249,7 +246,6 @@ ADD_EXECUTABLE(ep_testsuite_dcp
 TARGET_LINK_LIBRARIES(ep_testsuite_dcp
                       engine_testapp_dependencies
                       cbcompress
-                      dirutils
                       engine_utilities
                       JSON_checker
                       mcbp
@@ -266,7 +262,6 @@ ADD_EXECUTABLE(ep_testsuite_checkpoint
 TARGET_LINK_LIBRARIES(ep_testsuite_checkpoint
                       engine_testapp_dependencies
                       cbcompress
-                      dirutils
                       engine_utilities
                       JSON_checker
                       mcbp
@@ -282,7 +277,7 @@ ADD_EXECUTABLE(ep_testsuite_xdcr
                $<TARGET_OBJECTS:engine_testapp>)
 TARGET_LINK_LIBRARIES(ep_testsuite_xdcr
                       engine_testapp_dependencies mcd_util engine_utilities
-                      mcbp JSON_checker dirutils platform xattr
+                      mcbp JSON_checker platform xattr
                       ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
 add_sanitizers(ep_testsuite_xdcr)
 
