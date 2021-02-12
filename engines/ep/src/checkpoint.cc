@@ -19,7 +19,6 @@
 #include <platform/checked_snprintf.h>
 #include <string>
 #include <utility>
-#include <vector>
 
 #include "bucket_logger.h"
 #include "checkpoint.h"
@@ -186,7 +185,7 @@ Checkpoint::Checkpoint(
         std::optional<uint64_t> highCompletedSeqno,
         Vbid vbid,
         CheckpointType checkpointType,
-        const std::function<void(int64_t delta)>& memOverheadChangedCallback)
+        const std::function<void(int64_t)>& memOverheadChangedCallback)
     : stats(st),
       checkpointId(id),
       snapStartSeqno(snapStart),
@@ -582,63 +581,65 @@ int64_t Checkpoint::getMutationId(const CheckpointCursor& cursor) const {
 }
 
 void Checkpoint::addStats(const AddStatFn& add_stat, const void* cookie) {
-    char buf[256];
+    std::array<char, 256> buf;
 
-    checked_snprintf(buf,
-                     sizeof(buf),
+    checked_snprintf(buf.data(),
+                     buf.size(),
                      "vb_%d:id_%" PRIu64 ":queued_items_mem_usage",
                      vbucketId.get(),
                      getId());
-    add_casted_stat(buf, getQueuedItemsMemUsage(), add_stat, cookie);
+    add_casted_stat(buf.data(), getQueuedItemsMemUsage(), add_stat, cookie);
 
-    checked_snprintf(buf,
-                     sizeof(buf),
+    checked_snprintf(buf.data(),
+                     buf.size(),
                      "vb_%d:id_%" PRIu64 ":key_index_allocator_bytes",
                      vbucketId.get(),
                      getId());
-    add_casted_stat(buf, getKeyIndexAllocatorBytes(), add_stat, cookie);
+    add_casted_stat(buf.data(), getKeyIndexAllocatorBytes(), add_stat, cookie);
 
-    checked_snprintf(buf,
-                     sizeof(buf),
+    checked_snprintf(buf.data(),
+                     buf.size(),
                      "vb_%d:id_%" PRIu64 ":to_write_allocator_bytes",
                      vbucketId.get(),
                      getId());
-    add_casted_stat(buf, getWriteQueueAllocatorBytes(), add_stat, cookie);
+    add_casted_stat(
+            buf.data(), getWriteQueueAllocatorBytes(), add_stat, cookie);
 
-    checked_snprintf(buf,
-                     sizeof(buf),
+    checked_snprintf(buf.data(),
+                     buf.size(),
                      "vb_%d:id_%" PRIu64 ":state",
                      vbucketId.get(),
                      getId());
-    add_casted_stat(buf, to_string(getState()), add_stat, cookie);
+    add_casted_stat(buf.data(), to_string(getState()), add_stat, cookie);
 
-    checked_snprintf(buf,
-                     sizeof(buf),
+    checked_snprintf(buf.data(),
+                     buf.size(),
                      "vb_%d:id_%" PRIu64 ":type",
                      vbucketId.get(),
                      getId());
-    add_casted_stat(buf, to_string(getCheckpointType()), add_stat, cookie);
+    add_casted_stat(
+            buf.data(), to_string(getCheckpointType()), add_stat, cookie);
 
-    checked_snprintf(buf,
-                     sizeof(buf),
+    checked_snprintf(buf.data(),
+                     buf.size(),
                      "vb_%d:id_%" PRIu64 ":snap_start",
                      vbucketId.get(),
                      getId());
-    add_casted_stat(buf, getSnapshotStartSeqno(), add_stat, cookie);
+    add_casted_stat(buf.data(), getSnapshotStartSeqno(), add_stat, cookie);
 
-    checked_snprintf(buf,
-                     sizeof(buf),
+    checked_snprintf(buf.data(),
+                     buf.size(),
                      "vb_%d:id_%" PRIu64 ":snap_end",
                      vbucketId.get(),
                      getId());
-    add_casted_stat(buf, getSnapshotEndSeqno(), add_stat, cookie);
+    add_casted_stat(buf.data(), getSnapshotEndSeqno(), add_stat, cookie);
 
-    checked_snprintf(buf,
-                     sizeof(buf),
+    checked_snprintf(buf.data(),
+                     buf.size(),
                      "vb_%d:id_%" PRIu64 ":visible_snap_end",
                      vbucketId.get(),
                      getId());
-    add_casted_stat(buf, getVisibleSnapshotEndSeqno(), add_stat, cookie);
+    add_casted_stat(buf.data(), getVisibleSnapshotEndSeqno(), add_stat, cookie);
 }
 
 std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {

@@ -60,8 +60,8 @@ const char* to_string(enum checkpoint_state);
 // List is used for queueing mutations as vector incurs shift operations for
 // de-duplication.  We template the list on a queued_item and our own
 // memory allocator which allows memory usage to be tracked.
-typedef std::list<queued_item, MemoryTrackingAllocator<queued_item>>
-        CheckpointQueue;
+using CheckpointQueue =
+        std::list<queued_item, MemoryTrackingAllocator<queued_item>>;
 
 // Iterator for the Checkpoint queue.  The iterator is templated on the
 // queue type (CheckpointQueue).
