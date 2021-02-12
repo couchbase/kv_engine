@@ -26,6 +26,7 @@
 #include <iostream>
 #include <sstream>
 #include <system_error>
+#include <vector>
 
 void usage() {
     using std::endl;
@@ -33,13 +34,11 @@ void usage() {
               << "\t--input filename    Input file to process (default stdin)"
               << endl
               << "\t--output dirname    Create output files in the named dir"
-              << endl
-              << "\t--preserve          Preseve the filenames" << endl
               << endl;
     exit(EXIT_FAILURE);
 }
 
-void process_stream(FILE* stream, const std::string& output, bool preserve) {
+void process_stream(FILE* stream, const std::string& output) {
     // By default dump everything outside the markers to stderr
     FILE* ofs = stderr;
     int idx = 0;
@@ -58,26 +57,17 @@ void process_stream(FILE* stream, const std::string& output, bool preserve) {
     while (fgets(line.data(), gsl::narrow<int>(line.size()), stream) !=
            nullptr) {
         // Check if this is a begin line..
-        const char* pos;
-        if ((pos = std::strstr(line.data(), start_marker.c_str())) != nullptr) {
+        const char* pos = std::strstr(line.data(), start_marker.c_str());
+        if (pos) {
             if (ofs != stderr) {
                 fclose(ofs);
             }
 
             // This is a new logfile..
-            std::string filename;
-            if (preserve) {
-                filename.assign(pos + start_marker.length());
-                filename.pop_back();
-                filename = output + "/" + cb::io::basename(filename);
-            } else {
-                std::stringstream ss;
-                ss << output << "/memcached.log." << std::setw(6)
-                   << std::setfill('0') << idx++ << ".txt";
-                filename = ss.str();
-            }
-
-            filename = cb::io::sanitizePath(filename);
+            std::stringstream ss;
+            ss << output << "/memcached.log." << std::setw(6)
+               << std::setfill('0') << idx++ << ".txt";
+            const auto filename = cb::io::sanitizePath(ss.str());
             ofs = fopen(filename.c_str(), "w");
             if (ofs == nullptr) {
                 throw std::system_error(errno,
@@ -104,15 +94,13 @@ void process_stream(FILE* stream, const std::string& output, bool preserve) {
     }
 }
 
-void process_file(const std::string& filename,
-                  const std::string& output,
-                  bool preserve) {
+void process_file(const std::string& filename, const std::string& output) {
     FILE* fp = fopen(filename.c_str(), "r");
     if (fp == nullptr) {
         throw std::system_error(
                 errno, std::system_category(), "Can't open " + filename);
     }
-    process_stream(fp, output, preserve);
+    process_stream(fp, output);
     fclose(fp);
 }
 
@@ -120,17 +108,16 @@ int main(int argc, char** argv) {
     // Make sure that we dump callstacks on the console
     install_backtrace_terminate_handler();
 
-    struct option long_options[] = {{"input", required_argument, nullptr, 'i'},
-                                    {"output", required_argument, nullptr, 'o'},
-                                    {"preserve", no_argument, nullptr, 'p'},
-                                    {nullptr, 0, nullptr, 0}};
+    std::vector<option> long_options = {
+            {"input", required_argument, nullptr, 'i'},
+            {"output", required_argument, nullptr, 'o'},
+            {nullptr, 0, nullptr, 0}};
 
     char* input = nullptr;
     std::string output{"."};
-    bool preserve = false;
 
     int cmd;
-    while ((cmd = getopt_long(argc, argv, "i:o:p", long_options, nullptr)) !=
+    while ((cmd = getopt_long(argc, argv, "", long_options.data(), nullptr)) !=
            EOF) {
         switch (cmd) {
         case 'i':
@@ -139,10 +126,6 @@ int main(int argc, char** argv) {
         case 'o':
             output = optarg;
             break;
-        case 'p':
-            preserve = true;
-            break;
-
         default:
             usage();
         }
@@ -151,16 +134,16 @@ int main(int argc, char** argv) {
     try {
         if (argc == optind && input == nullptr) {
             // No files specified. use stdin!
-            process_stream(stdin, output, preserve);
+            process_stream(stdin, output);
             return EXIT_SUCCESS;
         }
 
         if (input != nullptr) {
-            process_file(input, output, preserve);
+            process_file(input, output);
         }
 
         for (; optind < argc; ++optind) {
-            process_file(argv[optind], output, preserve);
+            process_file(argv[optind], output);
         }
 
         return EXIT_SUCCESS;
