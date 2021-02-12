@@ -83,6 +83,18 @@ PassiveDurabilityMonitor::PassiveDurabilityMonitor(
         VBucket& vb, ActiveDurabilityMonitor&& adm)
     : PassiveDurabilityMonitor(
               vb, adm.getHighPreparedSeqno(), adm.getHighCompletedSeqno()) {
+    // @todo: Temporarily added for the investigation on MB-44255.
+    // This path is execute only at vbstate change to active and dumping the
+    // ADM may be very useful as a diagnostic. It probably too noisy to keep
+    // though
+    std::stringstream ss;
+    ss << adm << std::endl;
+    EP_LOG_INFO(
+            "({}) PassoveDurabilityMonitor::ctor(PDM&&): Transitioning from "
+            "ADM: {}",
+            vb.getId(),
+            ss.str());
+
     auto s = state.wlock();
 
     // The adm will have to (read) lock it's own state to get these for us so
@@ -309,10 +321,14 @@ void PassiveDurabilityMonitor::completeSyncWrite(
             // so simply ignore it here.
             return;
         }
-        throwException<std::logic_error>(
-                __func__,
-                "No tracked, but received " + to_string(res) + " for key " +
-                        cb::tagUserData(key.to_string()));
+        std::stringstream ss;
+        ss << "No tracked, but received " << to_string(res) << " for key "
+           << cb::tagUserData(key.to_string());
+        if (prepareSeqno) {
+            ss << " with seqno" << std::to_string(prepareSeqno.value());
+        }
+
+        throwException<std::logic_error>(__func__, ss.str());
     }
 
     // If we can complete out of order, we have to check from the start of
