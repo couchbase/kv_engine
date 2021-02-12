@@ -23,6 +23,7 @@
 #include "test_helpers.h"
 #include "vbucket_queue_item_ctx.h"
 #include "vbucket_utils.h"
+#include <programs/engine_testapp/mock_cookie.h>
 #include <test_manifest.h>
 
 #include "durability/active_durability_monitor.h"
@@ -1841,6 +1842,11 @@ TEST_P(ActiveDurabilityMonitorTest, dropOnlyKey) {
     EXPECT_EQ(0, adm.getNumTracked());
     EXPECT_EQ(0, adm.getHighCompletedSeqno());
     EXPECT_EQ(1, adm.getHighPreparedSeqno());
+
+    // Should have notified the client
+    auto* mockCookie = cookie_to_mock_cookie(cookie);
+    ASSERT_TRUE(mockCookie);
+    EXPECT_EQ(cb::engine_errc::sync_write_ambiguous, mockCookie->status);
 }
 
 void ActiveDurabilityMonitorTest::testDropFirstKey() {

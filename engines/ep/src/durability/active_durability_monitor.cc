@@ -959,6 +959,16 @@ void ActiveDurabilityMonitor::eraseSyncWrite(const DocKey& key, int64_t seqno) {
         }
     }
 
+    // Kick the client so they stop waiting for a response. Not doing so would
+    // block shutdowns.
+    auto cookie = toErase->getCookie();
+
+    // Might lose the cookie on state transitions so can't assume it's there.
+    if (cookie) {
+        vb.notifyClientOfSyncWriteComplete(
+                cookie, cb::engine_errc::sync_write_ambiguous);
+    }
+
     // And erase
     s->trackedWrites.erase(toErase);
 }
