@@ -55,7 +55,9 @@ public:
         Abort,
     };
 
-    MetaData() = default;
+    MetaData()
+        : deleted(0), deleteSource(0), operation(0), durabilityLevel(0){};
+
     explicit MetaData(const Item& it);
 
     // Magma requires meta data for local documents. Rather than support 2
@@ -71,20 +73,20 @@ public:
 
     std::string to_string() const;
 
-    uint8_t metaDataVersion;
-    int64_t bySeqno;
-    uint64_t cas;
-    cb::uint48_t revSeqno;
-    uint32_t exptime;
-    uint32_t flags;
-    uint32_t valueSize;
-    uint16_t vbid;
-    uint8_t datatype;
+    uint8_t metaDataVersion = 0;
+    int64_t bySeqno = 0;
+    uint64_t cas = 0;
+    cb::uint48_t revSeqno = 0;
+    uint32_t exptime = 0;
+    uint32_t flags = 0;
+    uint32_t valueSize = 0;
+    uint16_t vbid = 0;
+    uint8_t datatype = 0;
     uint8_t deleted : 1;
     uint8_t deleteSource : 1;
     uint8_t operation : 2;
     uint8_t durabilityLevel : 2;
-    cb::uint48_t prepareSeqno;
+    cb::uint48_t prepareSeqno = 0;
 
 private:
     static Operation toOperation(queue_op op);
