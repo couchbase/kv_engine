@@ -6537,7 +6537,7 @@ TEST_P(STParamCouchstoreBucketTest, HeaderSyncFails) {
     ASSERT_EQ(0, kvstore->getPersistedVBucketState(vbid).onDiskPrepares);
     const auto& stats = engine->getEpStats();
     ASSERT_EQ(0, stats.commitFailed);
-    EXPECT_EQ(0, stats.flusherCommits);
+    ASSERT_EQ(1, stats.flusherCommits);
 
     // Store a mutation (that is for checking our num-items)
     const auto keyM = makeStoredDocKey("keyM");
@@ -6556,9 +6556,24 @@ TEST_P(STParamCouchstoreBucketTest, HeaderSyncFails) {
     auto res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
     EXPECT_EQ(EPBucket::MoreAvailable::No, res.moreAvailable);
     EXPECT_EQ(2, res.numFlushed);
-    EXPECT_EQ(1, stats.commitFailed);
-    EXPECT_EQ(1, stats.flusherCommits);
+    EXPECT_EQ(1, stats.commitFailed); // This indicates that we failed once
+    EXPECT_EQ(2, stats.flusherCommits);
     EXPECT_EQ(1, vb.getNumTotalItems());
     EXPECT_EQ(1, kvstore->getPersistedVBucketState(vbid).onDiskPrepares);
     EXPECT_EQ(1, kvstore->getCachedVBucketState(vbid)->onDiskPrepares);
+}
+
+TEST_P(STParamCouchstoreBucketTest, FlushVBStateUpdatesCommitStats) {
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.flusherCommits);
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto* kvstore = dynamic_cast<CouchKVStore*>(store->getRWUnderlying(vbid));
+    ASSERT_TRUE(kvstore);
+    EXPECT_EQ(vbucket_state_active,
+              kvstore->getPersistedVBucketState(vbid).transition.state);
+    EXPECT_EQ(vbucket_state_active,
+              kvstore->getCachedVBucketState(vbid)->transition.state);
+    EXPECT_EQ(1, stats.flusherCommits);
 }

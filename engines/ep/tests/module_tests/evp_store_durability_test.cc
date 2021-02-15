@@ -3064,6 +3064,10 @@ TEST_P(DurabilityCouchstoreBucketTest,
 }
 
 TEST_P(DurabilityCouchstoreBucketTest, MB_36739) {
+    const auto& stats = engine->getEpStats();
+    EXPECT_EQ(0, stats.commitFailed);
+    EXPECT_EQ(1, stats.flusherCommits);
+
     // Replace RW kvstore and use a gmocked ops so we an inject failure
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
     const auto& config = store->getRWUnderlying(vbid)->getConfig();
@@ -3081,32 +3085,32 @@ TEST_P(DurabilityCouchstoreBucketTest, MB_36739) {
             .WillOnce(testing::Return(COUCHSTORE_ERROR_WRITE))
             .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
 
-    setVBucketToActiveWithValidTopology();
     vbucket_state vbs =
             *store->getRWUnderlying(vbid)->getCachedVBucketState(vbid);
-    using namespace cb::durability;
 
+    using namespace cb::durability;
     auto key = makeStoredDocKey("key");
     auto req = Requirements(Level::Majority, Timeout(1000));
     auto pending = makePendingItem(key, "value", req);
     EXPECT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*pending, cookie));
 
-    // Flush prepare, expect fail, then success on retry
+    // Flush prepare, expect fail
     auto res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
     EXPECT_EQ(EPBucket::MoreAvailable::Yes, res.moreAvailable);
     EXPECT_EQ(0, res.numFlushed);
     EXPECT_EQ(EPBucket::WakeCkptRemover::No, res.wakeupCkptRemover);
-    EXPECT_EQ(1, engine->getEpStats().commitFailed);
-    EXPECT_EQ(0, engine->getEpStats().flusherCommits);
+    EXPECT_EQ(1, stats.commitFailed);
+    EXPECT_EQ(1, stats.flusherCommits);
     EXPECT_EQ(vbs, *store->getRWUnderlying(vbid)->getCachedVBucketState(vbid));
 
+    // Then success on retry
     res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
     EXPECT_EQ(EPBucket::MoreAvailable::No, res.moreAvailable);
     EXPECT_EQ(1, res.numFlushed);
     EXPECT_EQ(EPBucket::WakeCkptRemover::No, res.wakeupCkptRemover);
     EXPECT_EQ(1, engine->getEpStats().commitFailed);
-    EXPECT_EQ(1, engine->getEpStats().flusherCommits);
+    EXPECT_EQ(2, engine->getEpStats().flusherCommits);
 
     // Now expect that the vbucket state has been mutated by the flush
     vbucket_state newState =
@@ -3119,7 +3123,9 @@ TEST_P(DurabilityCouchstoreBucketTest, MB_36739) {
  * Verify that vbstate::onDiskPrepareBytes is not updated for normal mutations.
  */
 TEST_P(DurabilityCouchstoreBucketTest, MB_43964) {
-    setVBucketToActiveWithValidTopology();
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.commitFailed);
+    ASSERT_EQ(1, stats.flusherCommits);
 
     auto* kvstore = store->getRWUnderlying(vbid);
     ASSERT_EQ(0,
@@ -3135,7 +3141,7 @@ TEST_P(DurabilityCouchstoreBucketTest, MB_43964) {
     EXPECT_EQ(EPBucket::MoreAvailable::No, res.moreAvailable);
     EXPECT_EQ(1, res.numFlushed);
     EXPECT_EQ(EPBucket::WakeCkptRemover::No, res.wakeupCkptRemover);
-    EXPECT_EQ(1, engine->getEpStats().flusherCommits);
+    EXPECT_EQ(2, stats.flusherCommits);
 
     // Still 0
     EXPECT_EQ(0,
@@ -3150,7 +3156,7 @@ TEST_P(DurabilityCouchstoreBucketTest, MB_43964) {
     EXPECT_EQ(EPBucket::MoreAvailable::No, res.moreAvailable);
     EXPECT_EQ(1, res.numFlushed);
     EXPECT_EQ(EPBucket::WakeCkptRemover::No, res.wakeupCkptRemover);
-    EXPECT_EQ(2, engine->getEpStats().flusherCommits);
+    EXPECT_EQ(3, stats.flusherCommits);
 
     // Still 0
     // Before the fix this is > 0

@@ -867,6 +867,7 @@ void EPBucket::flushSuccessEpilogue(
     stats.cumulativeFlushTime.fetch_add(transTime);
     stats.flusher_todo.store(0);
     stats.totalPersistVBState++;
+    ++stats.flusherCommits;
 
     vb.doAggregatedFlushStats(aggStats);
 
@@ -901,9 +902,7 @@ bool EPBucket::commit(Vbid vbid, KVStore& kvstore, VB::Commit& commitData) {
     auto commit_start = std::chrono::steady_clock::now();
 
     const auto res = kvstore.commit(commitData);
-    if (res) {
-        ++stats.flusherCommits;
-    } else {
+    if (!res) {
         ++stats.commitFailed;
         EP_LOG_WARN("KVBucket::commit: kvstore.commit failed {}", vbid);
     }
