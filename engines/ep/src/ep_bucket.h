@@ -352,6 +352,14 @@ protected:
             const VBucket::AggregatedFlushStats& aggStats,
             Collections::VB::Flush& collectionFlush);
 
+    /**
+     * Performs operations that must be performed after flush fails,
+     * regardless of whether we flush non-meta items or a new vbstate only.
+     *
+     * @param itemsToFlush Used for performing post-flush operations
+     */
+    void flushFailureEpilogue(VBucket::ItemsToFlush& itemsToFlush);
+
     bool isValidBucketDurabilityLevel(
             cb::durability::Level level) const override;
 

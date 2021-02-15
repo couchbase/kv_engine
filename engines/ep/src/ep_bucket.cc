@@ -730,10 +730,7 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
     // Are we flushing only a new vbstate?
     if (mustPersistVBState && (flushBatchSize == 0)) {
         if (!rwUnderlying->snapshotVBucket(vbid, commitData.proposedVBState)) {
-            // Flush failed, we need to reset the pcursor to the original
-            // position. At the next run the flusher will re-attempt by
-            // retrieving all the items from the disk queue again.
-            toFlush.flushHandle->markFlushFailed();
+            flushFailureEpilogue(toFlush);
 
             return {MoreAvailable::Yes, 0, WakeCkptRemover::No};
         }
@@ -768,13 +765,8 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
     }
 
     // Persist the flush-batch.
-    const auto flushSuccess = commit(vbid, *rwUnderlying, commitData);
-
-    if (!flushSuccess) {
-        // Flush failed, we need to reset the pcursor to the original
-        // position. At the next run the flusher will re-attempt by retrieving
-        // all the items from the disk queue again.
-        toFlush.flushHandle->markFlushFailed();
+    if (!commit(vbid, *rwUnderlying, commitData)) {
+        flushFailureEpilogue(toFlush);
 
         return {MoreAvailable::Yes, 0, WakeCkptRemover::No};
     }
@@ -885,6 +877,15 @@ void EPBucket::flushSuccessEpilogue(
     handleCheckpointPersistence(vb);
 }
 
+void EPBucket::flushFailureEpilogue(VBucket::ItemsToFlush& flush) {
+    // Flush failed, we need to reset the pcursor to the original
+    // position. At the next run the flusher will re-attempt by retrieving
+    // all the items from the disk queue again.
+    flush.flushHandle->markFlushFailed();
+
+    ++stats.commitFailed;
+}
+
 void EPBucket::setFlusherBatchSplitTrigger(size_t limit) {
     // If limit is lower than the number of shards then we should run with a
     // limit of 1 as a 0 limit could cause us to fail to flush anything.
@@ -899,18 +900,17 @@ size_t EPBucket::getFlusherBatchSplitTrigger() {
 bool EPBucket::commit(Vbid vbid, KVStore& kvstore, VB::Commit& commitData) {
     HdrMicroSecBlockTimer timer(
             &stats.diskCommitHisto, "disk_commit", stats.timingLog);
-    auto commit_start = std::chrono::steady_clock::now();
+    const auto commit_start = std::chrono::steady_clock::now();
 
     const auto res = kvstore.commit(commitData);
     if (!res) {
-        ++stats.commitFailed;
         EP_LOG_WARN("KVBucket::commit: kvstore.commit failed {}", vbid);
     }
 
-    auto commit_end = std::chrono::steady_clock::now();
-    auto commit_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-                               commit_end - commit_start)
-                               .count();
+    const auto commit_time =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now() - commit_start)
+                    .count();
     stats.commit_time.store(commit_time);
     stats.cumulativeCommitTime.fetch_add(commit_time);
 

@@ -198,6 +198,22 @@ protected:
     void TearDown() override;
 
     /**
+     * Set a new vbucket state in memory and queues a set-vbstate itam into the
+     * CheckpointManager. But, this doesn't run the flusher, so the new state
+     * isn't persisted.
+     *
+     * @param vbid
+     * @param newState
+     * @param meta Optional meta information to apply alongside the state
+     * @param transfer Should vBucket be transferred without adding failover
+     *                 table entry (i.e. takeover)?
+     */
+    void setVBucketState(Vbid vbid,
+                         vbucket_state_t newState,
+                         const nlohmann::json& meta = {},
+                         TransferVB transfer = TransferVB::No);
+
+    /**
      * Change the vbucket state, and run the VBStatePeristTask (if necessary
      * for this bucket type).
      * On return the state will be changed and the task completed.
