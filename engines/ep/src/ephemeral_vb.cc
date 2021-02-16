@@ -1036,6 +1036,15 @@ uint64_t EphemeralVBucket::addSystemEventItem(
             }
         } else {
             stats.trackCollectionStats(*cid);
+
+            // Track the system event against the collection it is associated
+            // with
+            auto collectionMemUsed =
+                    stats.coreLocal.get()->collectionMemUsed.lock();
+            auto itr = collectionMemUsed->find(*cid);
+            if (itr != collectionMemUsed->end()) {
+                itr->second += v->size();
+            }
         }
     }
     Expects(v->getBySeqno() >= 0);

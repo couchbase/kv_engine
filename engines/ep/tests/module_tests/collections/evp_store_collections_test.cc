@@ -3477,6 +3477,17 @@ TEST_F(CollectionsTest, ConcCompactReplayUnDeleteNonPrepare) {
     runCompaction(vbid, 0, false);
 }
 
+TEST_P(CollectionsEphemeralParameterizedTest, TrackSystemEventSize) {
+    auto vb = store->getVBucket(vbid);
+
+    // Add the meat collection
+    CollectionsManifest cm(CollectionEntry::meat);
+    vb->updateFromManifest(makeManifest(cm));
+    // No system event for default
+    EXPECT_EQ(0, getCollectionMemUsed(vb, CollectionID::Default));
+    EXPECT_NE(0, getCollectionMemUsed(vb, CollectionEntry::meat.getId()));
+}
+
 INSTANTIATE_TEST_SUITE_P(CollectionsExpiryLimitTests,
                          CollectionsExpiryLimitTest,
                          ::testing::Bool(),
@@ -3486,6 +3497,11 @@ INSTANTIATE_TEST_SUITE_P(CollectionsExpiryLimitTests,
 INSTANTIATE_TEST_SUITE_P(CollectionsEphemeralOrPersistent,
                          CollectionsParameterizedTest,
                          STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(CollectionsEphemeralOnlyTests,
+                         CollectionsEphemeralParameterizedTest,
+                         STParameterizedBucketTest::ephConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_SUITE_P(CollectionsPersistent,

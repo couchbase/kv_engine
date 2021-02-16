@@ -78,3 +78,6 @@ class CollectionsPersistentParameterizedTest
 
 class CollectionsCouchstoreParameterizedTest
     : public CollectionsParameterizedTest {};
+
+class CollectionsEphemeralParameterizedTest
+    : public CollectionsParameterizedTest {};
