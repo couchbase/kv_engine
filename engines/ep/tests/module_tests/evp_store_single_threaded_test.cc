@@ -6568,6 +6568,76 @@ TEST_P(STParamCouchstoreBucketTest, HeaderSyncFails) {
     EXPECT_EQ(1, kvstore->getCachedVBucketState(vbid)->onDiskPrepares);
 }
 
+/**
+ * MB-42224: This test doesn't cover any fix, it just shows how
+ * KVStore::snapshotVBuckets behaves if the sync-header fails at commit.
+ */
+TEST_P(STParamCouchstoreBucketTest, HeaderSyncFails_VBStateOnly) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto* kvstore = dynamic_cast<CouchKVStore*>(store->getRWUnderlying(vbid));
+    ASSERT_TRUE(kvstore);
+    ASSERT_EQ(vbucket_state_active,
+              kvstore->getPersistedVBucketState(vbid).transition.state);
+    ASSERT_EQ(vbucket_state_active,
+              kvstore->getCachedVBucketState(vbid)->transition.state);
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.commitFailed);
+    ASSERT_EQ(1, stats.flusherCommits);
+
+    // Flush and verify nothing in the persistence queue.
+    auto& bucket = dynamic_cast<EPBucket&>(*store);
+    auto res = bucket.flushVBucket(vbid);
+    using MoreAvailable = EPBucket::MoreAvailable;
+    EXPECT_EQ(MoreAvailable::No, res.moreAvailable);
+    EXPECT_EQ(0, stats.commitFailed);
+    EXPECT_EQ(1, stats.flusherCommits);
+
+    // Use mock ops to inject syscall failures.
+    ::testing::NiceMock<MockOps> ops(create_default_file_ops());
+    const auto& config = store->getRWUnderlying(vbid)->getConfig();
+    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
+    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig), ops);
+    EXPECT_CALL(ops, sync(testing::_, testing::_))
+            .Times(testing::AnyNumber())
+            .WillOnce(testing::DoDefault()) // data
+            .WillOnce(testing::Return(COUCHSTORE_ERROR_WRITE)) // header
+            .WillRepeatedly(testing::DoDefault());
+    kvstore = dynamic_cast<CouchKVStore*>(store->getRWUnderlying(vbid));
+    ASSERT_TRUE(kvstore);
+
+    // Set new vbstate in memory only
+    setVBucketState(vbid, vbucket_state_replica);
+    EXPECT_EQ(vbucket_state_active,
+              kvstore->getPersistedVBucketState(vbid).transition.state);
+    EXPECT_EQ(vbucket_state_active,
+              kvstore->getCachedVBucketState(vbid)->transition.state);
+
+    // Flush and verify failure
+    res = bucket.flushVBucket(vbid);
+    EXPECT_EQ(MoreAvailable::Yes, res.moreAvailable);
+    EXPECT_EQ(1, stats.commitFailed);
+    EXPECT_EQ(1, stats.flusherCommits);
+
+    // Given that write-data has succeded, we have written the new vbstate to
+    // the OS buffer cache, so we do see the new vbstate when we make a VFS read
+    EXPECT_EQ(vbucket_state_replica,
+              kvstore->getPersistedVBucketState(vbid).transition.state);
+    // Note: Cached vbstate is updated only if commit succeeds, so we didn't
+    // reach the point where we update it.
+    EXPECT_EQ(vbucket_state_active,
+              kvstore->getCachedVBucketState(vbid)->transition.state);
+
+    // The next flush attempt succeeds, cached/on-disk vbstate aligned
+    res = bucket.flushVBucket(vbid);
+    EXPECT_EQ(MoreAvailable::No, res.moreAvailable);
+    EXPECT_EQ(1, stats.commitFailed);
+    EXPECT_EQ(2, stats.flusherCommits);
+    EXPECT_EQ(vbucket_state_replica,
+              kvstore->getPersistedVBucketState(vbid).transition.state);
+    EXPECT_EQ(vbucket_state_replica,
+              kvstore->getCachedVBucketState(vbid)->transition.state);
+}
+
 TEST_P(STParamCouchstoreBucketTest, FlushVBStateUpdatesCommitStats) {
     const auto& stats = engine->getEpStats();
     ASSERT_EQ(0, stats.commitFailed);
