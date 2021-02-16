@@ -136,6 +136,24 @@ private:
 
     bool doEviction(const HashTable::HashBucketLock& lh, StoredValue* v);
 
+    /*
+     * Calculate the age when the item was last stored / modified.
+     *
+     * We do this by taking the item's current cas from the maxCas
+     * (which is the maximum cas value of the current vbucket just
+     * before we begin visiting all the items in the hash table).
+     *
+     * The time is actually stored in the top 48 bits of the cas
+     * therefore we shift the age by casBitsNotTime.
+     *
+     * Note: If the item was written before we switched over to the
+     * hybrid logical clock (HLC) (i.e. the item was written when the
+     * bucket was 4.0/3.x etc...) then the cas value will be low and
+     * so the item will appear very old.  However, this does not
+     * matter as it just means that is likely to be evicted.
+     */
+    uint64_t casToAge(uint64_t cas) const;
+
     std::list<Item> expired;
 
     KVBucket& store;

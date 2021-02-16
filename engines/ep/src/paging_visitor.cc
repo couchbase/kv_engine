@@ -107,25 +107,8 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
      * add it to the histogram we want to use the original value.
      */
     auto storedValueFreqCounter = v.getFreqCounterValue();
-    bool evicted = true;
 
-    /*
-     * Calculate the age when the item was last stored / modified.
-     * We do this by taking the item's current cas from the maxCas
-     * (which is the maximum cas value of the current vbucket just
-     * before we begin visiting all the items in the hash table).
-     *
-     * The time is actually stored in the top 48 bits of the cas
-     * therefore we shift the age by casBitsNotTime.
-     *
-     * Note: If the item was written before we switched over to the
-     * hybrid logical clock (HLC) (i.e. the item was written when the
-     * bucket was 4.0/3.x etc...) then the cas value will be low and
-     * so the item will appear very old.  However, this does not
-     * matter as it just means that is likely to be evicted.
-     */
-    uint64_t age = (maxCas > v.getCas()) ? (maxCas - v.getCas()) : 0;
-    age = age >> ItemEviction::casBitsNotTime;
+    auto age = casToAge(v.getCas());
 
     const bool belowMFUThreshold =
             storedValueFreqCounter <= freqCounterThreshold;
@@ -143,29 +126,17 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
     // For replica vbuckets, young items are not protected from eviction.
     const bool isReplica = currentBucket->getState() == vbucket_state_replica;
 
+    bool evicted = false;
+    bool eligibleForPaging = false;
+
     if (belowMFUThreshold && (meetsAgeRequirements || isReplica)) {
-        /*
-         * If the storedValue is eligible for eviction then add its
-         * frequency counter value to the histogram, otherwise add the
-         * maximum (255) to indicate that the storedValue cannot be
-         * evicted.
-         *
-         * By adding the maximum value for each storedValue that cannot
-         * be evicted we ensure that the histogram is biased correctly
-         * so that we get a frequency threshold that will remove the
-         * correct number of storedValue items.
-         */
-        if (!doEviction(lh, &v)) {
-            evicted = false;
-            storedValueFreqCounter = std::numeric_limits<uint8_t>::max();
-        }
+        // try to evict, may fail if sv is not eligible due to being
+        // pending/non-resident/dirty.
+        evicted = eligibleForPaging = doEviction(lh, &v);
     } else {
-        evicted = false;
-        // If the storedValue is NOT eligible for eviction then
-        // we want to add the maximum value (255).
-        if (!currentBucket->eligibleToPageOut(lh, v)) {
-            storedValueFreqCounter = std::numeric_limits<uint8_t>::max();
-        } else {
+        // just check eligibility without trying to evict
+        eligibleForPaging = currentBucket->eligibleToPageOut(lh, v);
+        if (eligibleForPaging) {
             /*
              * MB-29333 - For items that we have visited and did not
              * evict just because their frequency counter was too high,
@@ -178,6 +149,20 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
                 v.setFreqCounterValue(storedValueFreqCounter - 1);
             }
         }
+    }
+
+    if (!eligibleForPaging) {
+        /*
+         * If the storedValue is not eligible for eviction then add the
+         * maximum MFU (255) to indicate that the storedValue cannot be
+         * evicted.
+         *
+         * By adding the maximum value for each storedValue that cannot
+         * be evicted we ensure that the histogram is biased correctly
+         * so that we get a frequency threshold that will remove the
+         * correct number of storedValue items.
+         */
+        storedValueFreqCounter = std::numeric_limits<uint8_t>::max();
     }
     itemEviction.addFreqAndAgeToHistograms(storedValueFreqCounter, age);
 
@@ -201,10 +186,9 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
     // threshold. We also want to update the threshold at periodic
     // intervals.
     if (itemEviction.isLearning() || itemEviction.isRequiredToUpdate()) {
-        auto thresholds =
-                itemEviction.getThresholds(evictionRatio * 100.0, agePercentage);
-        freqCounterThreshold = thresholds.first;
-        ageThreshold = thresholds.second;
+        std::tie(freqCounterThreshold, ageThreshold) =
+                itemEviction.getThresholds(evictionRatio * 100.0,
+                                           agePercentage);
     }
 
     return true;
@@ -399,6 +383,12 @@ bool PagingVisitor::doEviction(const HashTable::HashBucketLock& lh,
     }
     // did not perform eviction so return false
     return false;
+}
+
+uint64_t PagingVisitor::casToAge(uint64_t cas) const {
+    uint64_t age = (maxCas > cas) ? (maxCas - cas) : 0;
+    age = age >> ItemEviction::casBitsNotTime;
+    return age;
 }
 
 void PagingVisitor::setUpHashBucketVisit() {
