@@ -1975,22 +1975,6 @@ StorageProperties CouchKVStore::getStorageProperties() {
     return rv;
 }
 
-bool CouchKVStore::commit(VB::Commit& commitData) {
-    if (isReadOnly()) {
-        throw std::logic_error("CouchKVStore::commit: Not valid on a read-only "
-                        "object.");
-    }
-
-    if (inTransaction) {
-        if (commit2couchstore(commitData)) {
-            inTransaction = false;
-            transactionCtx.reset();
-        }
-    }
-
-    return !inTransaction;
-}
-
 bool CouchKVStore::getStat(std::string_view name, size_t& value) const {
     if (name == "failure_compaction") {
         value = st.numCompactionFailure.load();
@@ -2756,18 +2740,25 @@ static int byIdScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     return int(status);
 }
 
-bool CouchKVStore::commit2couchstore(VB::Commit& commitData) {
-    bool success = true;
+bool CouchKVStore::commit(VB::Commit& commitData) {
+    if (isReadOnly()) {
+        throw std::logic_error("CouchKVStore::commit: Read-only store.");
+    }
+
+    if (!inTransaction) {
+        logger.warn("CouchKVStore::commit: called not in transaction");
+        return true;
+    }
 
     size_t pendingCommitCnt = pendingReqsQ.size();
     if (pendingCommitCnt == 0) {
-        return success;
+        return true;
     }
 
     const auto vbid = transactionCtx->vbid;
 
     TRACE_EVENT2("CouchKVStore",
-                 "commit2couchstore",
+                 "commit",
                  "vbid",
                  vbid.get(),
                  "pendingCommitCnt",
@@ -2788,21 +2779,6 @@ bool CouchKVStore::commit2couchstore(VB::Commit& commitData) {
     // flush all
     const auto errCode = saveDocs(vbid, docs, docinfos, kvReqs, kvctx);
 
-    if (errCode) {
-        success = false;
-        logger.warn(
-                "CouchKVStore::commit2couchstore: saveDocs error:{}, "
-                "{}",
-                couchstore_strerror(errCode),
-                vbid);
-    } else {
-        // collection stats can be updated, this will make them readable to the
-        // world
-        kvctx.commitData.collections.postCommitMakeStatsVisible();
-
-        updateCachedVBState(vbid, commitData.proposedVBState);
-    }
-
     if (postFlushHook) {
         postFlushHook();
     }
@@ -2810,6 +2786,24 @@ bool CouchKVStore::commit2couchstore(VB::Commit& commitData) {
     commitCallback(pendingReqsQ, kvctx, errCode);
 
     pendingReqsQ.clear();
+
+    const auto success = (errCode == COUCHSTORE_SUCCESS);
+    if (success) {
+        // Updated collections stats and make them readable to the world
+        kvctx.commitData.collections.postCommitMakeStatsVisible();
+
+        updateCachedVBState(vbid, commitData.proposedVBState);
+
+        inTransaction = false;
+        transactionCtx.reset();
+    } else {
+        logger.warn(
+                "CouchKVStore::commit: saveDocs error:{}, "
+                "{}",
+                couchstore_strerror(errCode),
+                vbid);
+    }
+
     return success;
 }
 

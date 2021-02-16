@@ -468,7 +468,6 @@ protected:
     bool writeVBucketState(Vbid vbucketId, const vbucket_state& vbstate);
 
     void close();
-    bool commit2couchstore(VB::Commit& commitData);
 
     /**
      * Populate CouchKVStore::dbFileRevMap and remove any couch files that are
