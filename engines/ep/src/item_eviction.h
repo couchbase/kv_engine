@@ -60,9 +60,6 @@ public:
     // Adds a frequency and age to the respective histograms.
     void addFreqAndAgeToHistograms(uint8_t freq, uint64_t age);
 
-    // Adds an age to the age histogram.
-    void addAgeToHistogram(uint64_t age);
-
     // Returns the number of values added to the frequency histogram.
     uint64_t getFreqHistogramValueCount() const;
 

@@ -153,8 +153,6 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
 
     if (eligibleForPaging) {
         itemEviction.addFreqAndAgeToHistograms(storedValueFreqCounter, age);
-    } else {
-        itemEviction.addAgeToHistogram(age);
     }
 
     if (evicted) {

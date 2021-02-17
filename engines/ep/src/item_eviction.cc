@@ -28,10 +28,6 @@ void ItemEviction::addFreqAndAgeToHistograms(uint8_t freq, uint64_t age) {
     ageHistogram.addValue(age);
 }
 
-void ItemEviction::addAgeToHistogram(uint64_t age) {
-    ageHistogram.addValue(age);
-}
-
 uint64_t ItemEviction::getFreqHistogramValueCount() const {
     return freqHistogram.getValueCount();
 }
