@@ -178,16 +178,16 @@ protected:
         return count;
     }
 
-    int populateUntilAboveHighWaterMark(Vbid vbid) {
+    int populateUntilAboveHighWaterMark(Vbid vbid, uint8_t freqCount = 0) {
         bool populate = true;
         int count = 0;
         auto& stats = engine->getEpStats();
         while (populate) {
             auto key = makeStoredDocKey("key_" + std::to_string(count++));
             auto item = make_item(vbid, key, {"x", 128}, 0 /*ttl*/);
-            // Set freqCount to 0 so will be a candidate for paging out straight
-            // away.
-            item.setFreqCounterValue(0);
+            // By default, set freqCount to 0 so will be a candidate for paging
+            // out straight away. Some callers may need to set a different value
+            item.setFreqCounterValue(freqCount);
             EXPECT_EQ(cb::engine_errc::success, storeItem(item));
             populate = stats.getEstimatedTotalMemoryUsed() <=
                        stats.mem_high_wat.load();
@@ -888,7 +888,14 @@ TEST_P(STItemPagerTest, EvictBGFetchedDeletedItem) {
     checkItemStatePostFetch(true /*expect item to exist*/);
 
     // 6) Fill to just over HWM then run the pager
-    populateUntilAboveHighWaterMark(vbid);
+    // set the frequency counter of the stored items to the max value,
+    // to make it very likely that the above test item will be evicted
+    // (as it is much "colder")
+    populateUntilAboveHighWaterMark(
+            vbid, /* MFU */ std::numeric_limits<uint8_t>::max());
+    // flush the vb, only items which are eligible for eviction are used to
+    // determine the MFU threshold for evicting items.
+    flushDirectlyIfPersistent(vbid);
     runHighMemoryPager();
 
     // Finally, check our item again. It should now have been evicted

@@ -151,20 +151,11 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
         }
     }
 
-    if (!eligibleForPaging) {
-        /*
-         * If the storedValue is not eligible for eviction then add the
-         * maximum MFU (255) to indicate that the storedValue cannot be
-         * evicted.
-         *
-         * By adding the maximum value for each storedValue that cannot
-         * be evicted we ensure that the histogram is biased correctly
-         * so that we get a frequency threshold that will remove the
-         * correct number of storedValue items.
-         */
-        storedValueFreqCounter = std::numeric_limits<uint8_t>::max();
+    if (eligibleForPaging) {
+        itemEviction.addFreqAndAgeToHistograms(storedValueFreqCounter, age);
+    } else {
+        itemEviction.addAgeToHistogram(age);
     }
-    itemEviction.addFreqAndAgeToHistograms(storedValueFreqCounter, age);
 
     if (evicted) {
         /**
