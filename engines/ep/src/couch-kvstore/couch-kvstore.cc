@@ -1403,7 +1403,7 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                     "dropped collections - status:{}",
                     vbid,
                     couchstore_strerror(getDroppedStatus));
-            return false;
+            return CompactDBInternalStatus::Failed;
         }
 
         hook_ctx->eraserContext =
