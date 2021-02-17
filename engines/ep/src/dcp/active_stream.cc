@@ -632,11 +632,6 @@ void ActiveStream::setBackfillRemaining_UNLOCKED(size_t value) {
     backfillRemaining = value;
 }
 
-void ActiveStream::clearBackfillRemaining() {
-    std::lock_guard<std::mutex> guard(streamMutex);
-    backfillRemaining.reset();
-}
-
 std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
         std::lock_guard<std::mutex>& lh) {
     auto resp = nextQueuedItem();

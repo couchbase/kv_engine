@@ -161,10 +161,6 @@ public:
 
     void setBackfillRemaining_UNLOCKED(size_t value);
 
-    /// Clears the number of backfill items remaining, setting to an empty
-    /// (unknown) value.
-    void clearBackfillRemaining();
-
     /**
      * Queues a snapshot marker to be sent - only if there are items in
      * the backfill range which will be sent.
