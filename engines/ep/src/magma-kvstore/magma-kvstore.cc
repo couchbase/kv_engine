@@ -632,6 +632,7 @@ bool MagmaKVStore::commit(VB::Commit& commitData) {
     // This behaviour is to replicate the one in Couchstore.
     // Set `in_transanction = false` only if `commit` is successful.
     if (success) {
+        updateCachedVBState(transactionCtx->vbid, commitData.proposedVBState);
         inTransaction = false;
         transactionCtx.reset();
     }

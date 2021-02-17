@@ -226,14 +226,6 @@ void KVStore::createDataDir(const std::string& dbname) {
     }
 }
 
-void KVStore::setVBucketState(Vbid vbid, const vbucket_state& vbs) {
-    if (!cachedVBStates[vbid.get()]) {
-        cachedVBStates[vbid.get()] = std::make_unique<vbucket_state>(vbs);
-    } else {
-        *cachedVBStates[vbid.get()] = vbs;
-    }
-}
-
 bool KVStore::needsToBePersisted(Vbid vbid, const vbucket_state& newVbstate) {
     /*
      * The vbucket state information is to be persisted only if there is no
@@ -271,32 +263,9 @@ void KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
             vbucket_state_dead) {
             cachedValidVBCount++;
         }
-        return;
+    } else {
+        *vbState = newState;
     }
-
-    vbState->transition.state = newState.transition.state;
-    vbState->transition.failovers = newState.transition.failovers;
-    vbState->transition.replicationTopology =
-            newState.transition.replicationTopology;
-    vbState->persistedCompletedSeqno = newState.persistedCompletedSeqno;
-    vbState->persistedPreparedSeqno = newState.persistedPreparedSeqno;
-    vbState->highPreparedSeqno = newState.highPreparedSeqno;
-    vbState->maxVisibleSeqno = newState.maxVisibleSeqno;
-    vbState->onDiskPrepares = newState.onDiskPrepares;
-    vbState->setOnDiskPrepareBytes(newState.getOnDiskPrepareBytes());
-
-    if (newState.maxDeletedSeqno > 0 &&
-        vbState->maxDeletedSeqno < newState.maxDeletedSeqno) {
-        vbState->maxDeletedSeqno = newState.maxDeletedSeqno;
-    }
-
-    vbState->highSeqno = newState.highSeqno;
-    vbState->lastSnapStart = newState.lastSnapStart;
-    vbState->lastSnapEnd = newState.lastSnapEnd;
-    vbState->maxCas = std::max(vbState->maxCas, newState.maxCas);
-    vbState->hlcCasEpochSeqno = newState.hlcCasEpochSeqno;
-    vbState->mightContainXattrs = newState.mightContainXattrs;
-    vbState->checkpointType = newState.checkpointType;
 }
 
 bool KVStore::snapshotStats(const std::map<std::string,

@@ -2755,12 +2755,12 @@ bool CouchKVStore::commit2couchstore(VB::Commit& commitData) {
         return success;
     }
 
-    auto vbucket2flush = transactionCtx->vbid;
+    const auto vbid = transactionCtx->vbid;
 
     TRACE_EVENT2("CouchKVStore",
                  "commit2couchstore",
                  "vbid",
-                 vbucket2flush.get(),
+                 vbid.get(),
                  "pendingCommitCnt",
                  pendingCommitCnt);
 
@@ -2777,8 +2777,7 @@ bool CouchKVStore::commit2couchstore(VB::Commit& commitData) {
 
     kvstats_ctx kvctx(commitData);
     // flush all
-    couchstore_error_t errCode =
-            saveDocs(vbucket2flush, docs, docinfos, kvReqs, kvctx);
+    const auto errCode = saveDocs(vbid, docs, docinfos, kvReqs, kvctx);
 
     if (errCode) {
         success = false;
@@ -2786,11 +2785,13 @@ bool CouchKVStore::commit2couchstore(VB::Commit& commitData) {
                 "CouchKVStore::commit2couchstore: saveDocs error:{}, "
                 "{}",
                 couchstore_strerror(errCode),
-                vbucket2flush);
+                vbid);
     } else {
         // collection stats can be updated, this will make them readable to the
         // world
         kvctx.commitData.collections.postCommitMakeStatsVisible();
+
+        updateCachedVBState(vbid, commitData.proposedVBState);
     }
 
     if (postFlushHook) {

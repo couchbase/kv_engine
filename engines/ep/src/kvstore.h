@@ -905,8 +905,6 @@ public:
      */
     virtual vbucket_state getPersistedVBucketState(Vbid vbid) = 0;
 
-    void setVBucketState(Vbid vbid, const vbucket_state& vbs);
-
     /**
      * Get the number of deleted items that are persisted to a vbucket file
      *

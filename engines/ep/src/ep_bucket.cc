@@ -738,9 +738,6 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
             return {MoreAvailable::Yes, 0, WakeCkptRemover::No};
         }
 
-        // Update in-memory vbstate
-        rwUnderlying->setVBucketState(vbid, commitData.proposedVBState);
-
         // The new vbstate was the only thing to flush. All done.
         flushSuccessEpilogue(*vb,
                              flushStart,
@@ -906,8 +903,6 @@ bool EPBucket::commit(Vbid vbid, KVStore& kvstore, VB::Commit& commitData) {
     const auto res = kvstore.commit(commitData);
     if (res) {
         ++stats.flusherCommits;
-        // Update in-memory vbstate
-        kvstore.setVBucketState(vbid, commitData.proposedVBState);
     } else {
         ++stats.commitFailed;
         EP_LOG_WARN("KVBucket::commit: kvstore.commit failed {}", vbid);

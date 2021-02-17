@@ -917,8 +917,6 @@ TEST_P(KVStoreParamTest, HighSeqnoCorrectlyStoredForCommitBatch) {
     // Ensure a valid vbstate is committed
     flush.proposedVBState.lastSnapEnd = 10;
     kvstore->commit(flush);
-    // KVStore::commit does not update in-memory vbstate, so manually do it
-    kvstore->setVBucketState(vbid, flush.proposedVBState);
 
     GetValue gv = kvstore->get(DiskDocKey{key}, vbid);
     checkGetValue(gv);
