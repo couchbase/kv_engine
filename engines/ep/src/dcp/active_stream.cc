@@ -1809,11 +1809,6 @@ bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
     return false;
 }
 
-void ActiveStream::notifyEmptyBackfill(uint64_t lastSeenSeqno) {
-    LockHolder lh(streamMutex);
-    notifyEmptyBackfill_UNLOCKED(lastSeenSeqno);
-}
-
 void ActiveStream::notifyEmptyBackfill_UNLOCKED(uint64_t lastSeenSeqno) {
     setBackfillRemaining_UNLOCKED(0);
     auto vbucket = engine->getVBucket(vb_);

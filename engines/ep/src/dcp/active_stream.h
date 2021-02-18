@@ -304,20 +304,6 @@ public:
 
     static std::string to_string(StreamState type);
 
-    /**
-     * Notifies the stream that a scheduled backfill completed
-     * without providing any items to backfillReceived, and
-     * without marking a disk snapshot.
-     *
-     * If the cursor has been dropped, re-registers it to allow the stream
-     * to transition to memory.
-     *
-     * @param lastReadSeqno last seqno in backfill range
-     */
-    void notifyEmptyBackfill(uint64_t lastSeenSeqno);
-
-    void notifyEmptyBackfill_UNLOCKED(uint64_t lastSeenSeqno);
-
     bool collectionAllowed(DocKey key) const;
 
     /**
@@ -362,6 +348,18 @@ public:
     }
 
 protected:
+    /**
+     * Notifies the stream that a scheduled backfill completed
+     * without providing any items to backfillReceived, and
+     * without marking a disk snapshot.
+     *
+     * If the cursor has been dropped, re-registers it to allow the stream
+     * to transition to memory.
+     *
+     * @param lastReadSeqno last seqno in backfill range
+     */
+    void notifyEmptyBackfill_UNLOCKED(uint64_t lastSeenSeqno);
+
     /**
      * @param vb reference to the associated vbucket
      *
