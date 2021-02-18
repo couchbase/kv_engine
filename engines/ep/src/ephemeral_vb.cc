@@ -217,14 +217,12 @@ void EphemeralVBucket::addStats(VBucketStatsDetailLevel detail,
     }
 }
 
-void EphemeralVBucket::dump() const {
-    std::cerr << "EphemeralVBucket[" << this
-              << "] with state:" << toString(getState())
-              << " numItems:" << getNumItems()
-              << std::endl
-              << "  ";
-    seqList->dump();
-    std::cerr << "  " << ht << std::endl;
+void EphemeralVBucket::dump(std::ostream& ostream) const {
+    ostream << "EphemeralVBucket[" << this
+            << "] with state:" << toString(getState())
+            << " numItems:" << getNumItems() << std::endl
+            << "  ";
+    seqList->dump(ostream);
 }
 
 cb::engine_errc EphemeralVBucket::completeBGFetchForSingleItem(

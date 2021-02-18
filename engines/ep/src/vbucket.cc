@@ -3057,12 +3057,13 @@ bool VBucket::removeItemFromMemory(const Item& item) {
     return deleteStoredValue(htRes.lock, *htRes.storedValue);
 }
 
-void VBucket::dump() const {
-    std::cerr << "VBucket[" << this << "] with state: " << toString(getState())
-              << " numItems:" << getNumItems()
-              << " numNonResident:" << getNumNonResidentItems()
-              << " ht: " << std::endl << "  " << ht << std::endl
-              << "]" << std::endl;
+void VBucket::dump(std::ostream& ostream) const {
+    ostream << "VBucket[" << this << "] with state: " << toString(getState())
+            << " numItems:" << getNumItems()
+            << " numNonResident:" << getNumNonResidentItems()
+            << " ht: " << std::endl
+            << "  " << ht << std::endl
+            << "]" << std::endl;
 }
 
 void VBucket::setMutationMemoryThreshold(size_t memThreshold) {

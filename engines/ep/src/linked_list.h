@@ -186,7 +186,7 @@ public:
      */
     RangeGuard tryLockSeqnoRangeShared(seqno_t start, seqno_t end);
 
-    void dump() const override;
+    void dump(std::ostream& ostream) const override;
 
 protected:
     /* Underlying data structure that holds the items in an Ordered Sequence */

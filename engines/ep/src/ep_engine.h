@@ -985,6 +985,9 @@ protected:
     cb::engine_errc doDurabilityMonitorDump(const void* cookie,
                                             const AddStatFn& addStat,
                                             std::string_view keyArgs);
+    cb::engine_errc doVBucketDump(const void* cookie,
+                                  const AddStatFn& addStat,
+                                  std::string_view keyArgs);
     cb::engine_errc doDcpStats(const void* cookie,
                                const AddStatFn& add_stat,
                                std::string_view value);

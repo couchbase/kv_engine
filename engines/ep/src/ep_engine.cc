@@ -3482,6 +3482,22 @@ cb::engine_errc EventuallyPersistentEngine::doDurabilityMonitorDump(
     return cb::engine_errc::success;
 }
 
+cb::engine_errc EventuallyPersistentEngine::doVBucketDump(
+        const void* cookie,
+        const AddStatFn& addStat,
+        std::string_view keyArgs) {
+    auto result = getValidVBucketFromString(keyArgs);
+    if (result.status != cb::engine_errc::success) {
+        return result.status;
+    }
+
+    AddStatsStream as(result.vb->getId().to_string(), addStat, cookie);
+    result.vb->dump(as);
+    as << std::endl;
+
+    return cb::engine_errc::success;
+}
+
 class StatCheckpointVisitor : public VBucketVisitor {
 public:
     StatCheckpointVisitor(KVBucketIface* kvs, const void* c, AddStatFn a)
@@ -4580,6 +4596,12 @@ cb::engine_errc EventuallyPersistentEngine::doPrivilegedStats(
             const size_t keyLen = strlen("_durability-dump");
             std::string_view keyArgs(key.data() + keyLen, key.size() - keyLen);
             return doDurabilityMonitorDump(cookie, add_stat, keyArgs);
+        }
+
+        if (cb_isPrefix(key, "_vbucket-dump")) {
+            const size_t keyLen = strlen("_vbucket-dump");
+            std::string_view keyArgs(key.data() + keyLen, key.size() - keyLen);
+            return doVBucketDump(cookie, add_stat, keyArgs);
         }
 
         return cb::engine_errc::no_such_key;

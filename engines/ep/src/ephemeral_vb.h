@@ -145,7 +145,7 @@ public:
     std::optional<SequenceList::RangeIterator> makeRangeIterator(
             bool isBackfill);
 
-    void dump() const override;
+    void dump(std::ostream& ostream) const override;
 
     uint64_t getPersistenceSeqno() const override {
         /* Technically we do not have persistence in an ephemeral vb, however

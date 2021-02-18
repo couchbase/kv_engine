@@ -410,7 +410,8 @@ public:
             bool isBackfill) = 0;
 
     /**
-     * Debug - prints a representation of the list to stderr.
+     * Debug - prints a representation of the list to the given ostream, or
+     * stderr
      */
-    virtual void dump() const = 0;
+    virtual void dump(std::ostream& ostream = std::cerr) const = 0;
 };

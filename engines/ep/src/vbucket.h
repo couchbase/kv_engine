@@ -1484,9 +1484,10 @@ public:
             CollectionID cid) = 0;
 
     /**
-     * Debug - print a textual description of the VBucket to stderr.
+     * Debug - print a textual description of the VBucket to the given stream,
+     * or stderr.
      */
-    virtual void dump() const;
+    virtual void dump(std::ostream& ostream = std::cerr) const;
 
     /**
      * Sets the callback function to invoke when a frequency counter becomes

@@ -362,8 +362,8 @@ RangeGuard BasicLinkedList::tryLockSeqnoRangeShared(seqno_t start,
     return rangeLockManager.tryLockRangeShared(start, end);
 }
 
-void BasicLinkedList::dump() const {
-    std::cerr << *this << std::endl;
+void BasicLinkedList::dump(std::ostream& ostream) const {
+    ostream << *this << std::endl;
 }
 
 std::ostream& operator <<(std::ostream& os, const BasicLinkedList& ll) {
