@@ -134,8 +134,8 @@ struct item_info {
 
 /* Information to uniquely identify (and order) a mutation. */
 struct mutation_descr_t {
-    uint64_t vbucket_uuid; /** vBucket UUID for this mutation. */
-    uint64_t seqno; /** sequence number of the mutation. */
+    uint64_t vbucket_uuid = 0; /// vBucket UUID for this mutation.
+    uint64_t seqno = 0; /// sequence number of the mutation.
 };
 
 /* Value used to distinguish one bucket from another */

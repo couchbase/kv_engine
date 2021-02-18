@@ -1564,8 +1564,6 @@ static enum test_result test_delete(EngineIface* h) {
     mutation_descr_t mut_info;
     uint64_t high_seqno = 0;
 
-    memset(&mut_info, 0, sizeof(mut_info));
-
     vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
     checkeq(cb::engine_errc::success,

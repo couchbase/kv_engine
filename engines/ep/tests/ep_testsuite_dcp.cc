@@ -6360,7 +6360,6 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h) {
 
     testHarness->destroy_cookie(cookie);
 
-    memset(&mut_info, 0, sizeof(mut_info));
     /* Delete last 2 items */
     for (int count = 1; count < num_items; count++){
         checkeq(cb::engine_errc::success,
