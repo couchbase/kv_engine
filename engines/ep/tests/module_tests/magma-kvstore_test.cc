@@ -140,7 +140,7 @@ TEST_F(MagmaKVStoreTest, prepareToCreate) {
 }
 
 TEST_F(MagmaKVStoreTest, getStats) {
-    constexpr std::array<std::string_view, 33> statNames = {{
+    constexpr std::array<std::string_view, 34> statNames = {{
             "magma_NCompacts",
             "magma_NFlushes",
             "magma_NTTLCompacts",
@@ -166,6 +166,7 @@ TEST_F(MagmaKVStoreTest, getStats) {
             "magma_WALMemUsed",
             "magma_TableMetaMemUsed",
             "magma_BufferMemUsed",
+            "magma_TotalMemUsed",
             "magma_TotalBloomFilterMemUsed",
             "magma_BlockCacheHits",
             "magma_BlockCacheMisses",
@@ -222,6 +223,7 @@ TEST_F(MagmaKVStoreTest, getStat) {
     ASSERT_TRUE(kvstore->getStat("magma_TableMetaMemUsed", value));
     ASSERT_TRUE(kvstore->getStat("magma_BufferMemUsed", value));
     ASSERT_TRUE(kvstore->getStat("magma_TotalBloomFilterMemUsed", value));
+    ASSERT_TRUE(kvstore->getStat("magma_TotalMemUsed", value));
     // Block cache.
     ASSERT_TRUE(kvstore->getStat("magma_BlockCacheHits", value));
     ASSERT_TRUE(kvstore->getStat("magma_BlockCacheMisses", value));

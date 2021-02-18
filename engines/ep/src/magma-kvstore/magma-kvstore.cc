@@ -2480,6 +2480,7 @@ GetStatsMap MagmaKVStore::getStats(
     fill("magma_WALMemUsed", magmaStats.WALMemUsed);
     fill("magma_TableMetaMemUsed", magmaStats.TableMetaMemUsed);
     fill("magma_BufferMemUsed", magmaStats.BufferMemUsed);
+    fill("magma_TotalMemUsed", magmaStats.TotalMemUsed);
     fill("magma_TotalBloomFilterMemUsed", magmaStats.TotalBloomFilterMemUsed);
     fill("magma_BlockCacheHits", magmaStats.BlockCacheHits);
     fill("magma_BlockCacheMisses", magmaStats.BlockCacheMisses);

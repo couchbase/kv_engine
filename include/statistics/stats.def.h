@@ -303,6 +303,7 @@ STAT(ep_magma_wal_mem_used, , bytes, , )
 STAT(ep_magma_table_meta_mem_used, , bytes, , )
 STAT(ep_magma_buffer_mem_used, , bytes, , )
 STAT(ep_magma_bloom_filter_mem_used, , bytes, , )
+STAT(ep_magma_total_mem_used, , bytes, , )
 STAT(ep_magma_index_resident_ratio, , ratio, , )
 // Block cache.
 STAT(ep_magma_block_cache_hits, , count, , )

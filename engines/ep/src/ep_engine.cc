@@ -2702,7 +2702,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
         const BucketStatCollector& collector) {
     using namespace cb::stats;
     auto divide = [](double a, double b) { return b ? a / b : 0; };
-    constexpr std::array<std::string_view, 32> statNames = {
+    constexpr std::array<std::string_view, 33> statNames = {
             {"magma_NCompacts",
              "magma_NFlushes",
              "magma_NTTLCompacts",
@@ -2728,6 +2728,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
              "magma_WALMemUsed",
              "magma_TableMetaMemUsed",
              "magma_BufferMemUsed",
+             "magma_TotalMemUsed",
              "magma_TotalBloomFilterMemUsed",
              "magma_BlockCacheHits",
              "magma_BlockCacheMisses",
@@ -2846,6 +2847,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
     addStat(Key::ep_magma_buffer_mem_used, "magma_BufferMemUsed");
     addStat(Key::ep_magma_bloom_filter_mem_used,
             "magma_TotalBloomFilterMemUsed");
+    addStat(Key::ep_magma_total_mem_used, "magma_TotalMemUsed");
 
     // Block cache.
     size_t blockCacheHits = 0;
