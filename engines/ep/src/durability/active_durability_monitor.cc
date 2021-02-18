@@ -195,12 +195,17 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(EPStats& stats,
     // PDM may be very useful at diagnostic, so I'll keep the essential
     // logging once the bug is fixed.
     std::stringstream ss;
-    ss << pdm << std::endl;
+    ss << pdm;
+
+    // The stream/dump functions were designed for testing and log on multiple
+    // lines. Strip the new line characters out for the sake of cleaner logs
+    auto str = ss.str();
+    std::replace(str.begin(), str.end(), '\n', ',');
     EP_LOG_INFO(
             "({}) ActiveDurabilityMonitor::ctor(PDM&&): Transitioning from "
             "PDM: {}",
             vb.getId(),
-            ss.str());
+            str);
 
     auto s = state.wlock();
     for (auto& write : pdm.state.wlock()->trackedWrites) {

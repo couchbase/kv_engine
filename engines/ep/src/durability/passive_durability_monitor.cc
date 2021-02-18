@@ -88,12 +88,17 @@ PassiveDurabilityMonitor::PassiveDurabilityMonitor(
     // ADM may be very useful as a diagnostic. It probably too noisy to keep
     // though
     std::stringstream ss;
-    ss << adm << std::endl;
+    ss << adm;
+
+    // The stream/dump functions were designed for testing and log on multiple
+    // lines. Strip the new line characters out for the sake of cleaner logs
+    auto str = ss.str();
+    std::replace(str.begin(), str.end(), '\n', ',');
     EP_LOG_INFO(
             "({}) PassoveDurabilityMonitor::ctor(PDM&&): Transitioning from "
             "ADM: {}",
             vb.getId(),
-            ss.str());
+            str);
 
     auto s = state.wlock();
 
