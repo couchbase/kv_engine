@@ -239,8 +239,12 @@ public:
      * all names it previously retrieved from createOrReferenceMeta
      *
      * @param cid Collection the name belongs to
+     * @param meta Reference to the meta that was originally given out by
+     *        createOrReferenceMeta.
      */
-    void dereferenceMeta(CollectionID cid);
+    void dereferenceMeta(
+            CollectionID cid,
+            SingleThreadedRCPtr<const VB::CollectionSharedMetaData>&& meta);
 
     /**
      * When vbuckets create a scope (from new manifest of over DCP) all
@@ -259,8 +263,12 @@ public:
      * all names it previously retrieved from createOrReferenceMeta
      *
      * @param sid Scope the name belongs to
+     * @param meta Reference to the meta that was originally given out by
+     *        createOrReferenceMeta.
      */
-    void dereferenceMeta(ScopeID sid);
+    void dereferenceMeta(
+            ScopeID sid,
+            SingleThreadedRCPtr<const VB::ScopeSharedMetaData>&& meta);
 
     /**
      * Perform the gathering of collection stats for the bucket.

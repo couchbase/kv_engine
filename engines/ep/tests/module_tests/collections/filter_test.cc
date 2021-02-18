@@ -53,9 +53,9 @@ public:
     }
 
     ~CollectionsVBFilterTest() override {
-        entryInDefaultScope.reset();
-        entryInShop1Scope.reset();
-        manager->dereferenceMeta(CollectionID{});
+        manager->dereferenceMeta(CollectionID{},
+                                 entryInDefaultScope->takeMeta());
+        manager->dereferenceMeta(CollectionID{}, entryInShop1Scope->takeMeta());
     }
 
     void TearDown() override {

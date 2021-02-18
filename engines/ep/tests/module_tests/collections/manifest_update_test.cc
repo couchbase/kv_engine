@@ -364,32 +364,29 @@ TEST(SharedMetaDataTable, basic) {
     Meta m2{"woodwind", 10};
 
     auto ref1 = table.createOrReference(8, MetaView{m1});
+    EXPECT_EQ(2, ref1.refCount());
     EXPECT_EQ(1, table.count(8));
     auto ref2 = table.createOrReference(8, MetaView{m2});
+    EXPECT_EQ(2, ref2.refCount());
     EXPECT_EQ(2, table.count(8));
 
     // Get 3rd ref to the same as ref2/m2, table should not increase
     auto ref3 = table.createOrReference(8, MetaView{m2});
+    EXPECT_EQ(3, ref3.refCount());
+    EXPECT_EQ(ref2.refCount(), ref3.refCount());
     EXPECT_EQ(2, table.count(8)) << table;
 
     EXPECT_EQ(ref1->name, "brass");
     EXPECT_EQ(ref2, ref3);
 
-    EXPECT_THROW(table.dereference(7), std::invalid_argument);
-
     // Release one and tell the table
-    ref1.reset();
-    table.dereference(8);
+    table.dereference(8, std::move(ref1));
     EXPECT_EQ(1, table.count(8));
 
     // And the others
-    ref2.reset();
-    table.dereference(8);
+    table.dereference(8, std::move(ref2));
     EXPECT_EQ(1, table.count(8));
 
-    ref3.reset();
-    table.dereference(8);
+    table.dereference(8, std::move(ref3));
     EXPECT_EQ(0, table.count(8));
-
-    EXPECT_THROW(table.dereference(8), std::invalid_argument);
 }

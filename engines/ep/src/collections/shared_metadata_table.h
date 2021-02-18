@@ -72,8 +72,10 @@ public:
      * createOrReference (associated with key) has been released.
      *
      * @param id The id associated with the value
+     * @param meta Reference to the meta that was originally given out by
+     *        createOrReference.
      */
-    void dereference(Key id);
+    void dereference(Key id, SingleThreadedRCPtr<Value>&& meta);
     size_t count(Key id) const {
         return smt.count(id);
     }
@@ -103,13 +105,16 @@ SingleThreadedRCPtr<Value> SharedMetaDataTable<Key, Value>::createOrReference(
 }
 
 template <class Key, class Value>
-void SharedMetaDataTable<Key, Value>::dereference(Key id) {
+void SharedMetaDataTable<Key, Value>::dereference(
+        Key id, SingleThreadedRCPtr<Value>&& meta) {
     auto [itr, end] = smt.equal_range(id);
     if (itr == end) {
         throw std::invalid_argument(
                 "SharedMetaDataTable<Key>::dereference nothing found for id:" +
                 id.to_string());
     }
+    // Now reset, dropping the reference the user had on the metadata
+    meta.reset();
     while (itr != end) {
         if (itr->second.refCount() == 1) {
             itr = smt.erase(itr);

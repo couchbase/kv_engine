@@ -198,6 +198,14 @@ public:
                 getOpsGet()};
     }
 
+    /**
+     * Take the CollectionSharedMetaData from this entry (moves the data) to
+     * the caller.
+     */
+    SingleThreadedRCPtr<const CollectionSharedMetaData>&& takeMeta() {
+        return std::move(meta);
+    }
+
 private:
     /**
      * Return a string for use in throwException, returns:

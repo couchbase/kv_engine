@@ -64,15 +64,15 @@ Manifest::~Manifest() {
     // Erase our collections/scopes and tell the manager so that metadata can
     // be deleted if no longer in use.
     for (auto itr = map.begin(); itr != map.end();) {
-        auto id = itr->first;
+        auto& [id, entry] = *itr;
+        manager->dereferenceMeta(id, entry.takeMeta());
         itr = map.erase(itr);
-        manager->dereferenceMeta(id);
     }
 
     for (auto itr = scopes.begin(); itr != scopes.end();) {
-        auto id = itr->first;
+        auto& [id, meta] = *itr;
+        manager->dereferenceMeta(id, std::move(meta));
         itr = scopes.erase(itr);
-        manager->dereferenceMeta(id);
     }
 }
 
@@ -444,6 +444,7 @@ ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
                 __FUNCTION__,
                 "The collection already exists: failed adding collection:" +
                         identifiers.second.to_string() +
+                        ", name:" + std::string(collectionName) +
                         ", scope:" + identifiers.first.to_string() +
                         ", startSeqno:" + std::to_string(startSeqno));
     }
@@ -525,8 +526,8 @@ void Manifest::dropCollection(WriteHandle& wHandle,
             processingTombstone,
             isForcedDrop);
 
+    manager->dereferenceMeta(cid, itr->second.takeMeta());
     map.erase(itr);
-    manager->dereferenceMeta(cid);
 }
 
 // Method is cleaning up for insertions made in Manifest::dropCollection
@@ -612,10 +613,10 @@ void Manifest::dropScope(const WriteHandle& wHandle,
                 "no seqno defined and the scope doesn't exist, scope:" +
                         sid.to_string());
     } else if (itr != scopes.end()) {
+        // Tell the manager so that it can check for final clean-up
+        manager->dereferenceMeta(sid, std::move(itr->second));
         // erase the entry (drops our reference to meta)
         scopes.erase(itr);
-        // Tell the manager so that it can check for final clean-up
-        manager->dereferenceMeta(sid);
     }
 
     // record the uid of the manifest which removed the scope

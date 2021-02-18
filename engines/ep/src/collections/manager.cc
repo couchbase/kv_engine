@@ -369,8 +369,10 @@ Collections::Manager::createOrReferenceMeta(
     return collectionSMT.wlock()->createOrReference(cid, view);
 }
 
-void Collections::Manager::dereferenceMeta(CollectionID cid) {
-    collectionSMT.wlock()->dereference(cid);
+void Collections::Manager::dereferenceMeta(
+        CollectionID cid,
+        SingleThreadedRCPtr<const VB::CollectionSharedMetaData>&& meta) {
+    collectionSMT.wlock()->dereference(cid, std::move(meta));
 }
 
 SingleThreadedRCPtr<const Collections::VB::ScopeSharedMetaData>
@@ -379,8 +381,10 @@ Collections::Manager::createOrReferenceMeta(
     return scopeSMT.wlock()->createOrReference(sid, view);
 }
 
-void Collections::Manager::dereferenceMeta(ScopeID sid) {
-    scopeSMT.wlock()->dereference(sid);
+void Collections::Manager::dereferenceMeta(
+        ScopeID sid,
+        SingleThreadedRCPtr<const VB::ScopeSharedMetaData>&& meta) {
+    scopeSMT.wlock()->dereference(sid, std::move(meta));
 }
 
 /// VbucketVisitor that gathers stats for all collections
