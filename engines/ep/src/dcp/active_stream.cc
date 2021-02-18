@@ -1340,18 +1340,20 @@ void ActiveStream::processItems(OutstandingItemsResult& outstandingItemsResult,
         } else if (readyQ.empty() && isSeqnoAdvancedEnabled() &&
                    isSeqnoGapAtEndOfSnapshot()) {
             auto vb = engine->getVBucket(getVBucket());
-            if (vb && vb->getState() == vbucket_state_replica) {
-                /*
-                 * If this is a collection stream and we're not sending any
-                 * mutations from memory and we haven't queued a snapshot shot
-                 * and we're a replica. Then our snapshot covers backfill and in
-                 * memory. So we have one snapshot marker for both items on disk
-                 * and in memory. Thus, we need to send a SeqnoAdvanced to push
-                 * the consumer's seqno to the end of the snapshot. This is need
-                 * when no items for the collection we're streaming are present
-                 * in memory.
-                 */
-                queueSeqnoAdvanced();
+            if (vb) {
+                if (vb->getState() == vbucket_state_replica) {
+                    /*
+                     * If this is a collection stream and we're not sending any
+                     * mutations from memory and we haven't queued a snapshot
+                     * shot and we're a replica. Then our snapshot covers
+                     * backfill and in memory. So we have one snapshot marker
+                     * for both items on disk and in memory. Thus, we need to
+                     * send a SeqnoAdvanced to push the consumer's seqno to the
+                     * end of the snapshot. This is need when no items for the
+                     * collection we're streaming are present in memory.
+                     */
+                    queueSeqnoAdvanced();
+                }
             } else {
                 log(spdlog::level::level_enum::warn,
                     "{} processItems() for vbucket which does not "
