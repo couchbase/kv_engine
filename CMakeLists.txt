@@ -124,11 +124,7 @@ IF (UNIX AND COUCHBASE_KV_BUILD_UNIT_TESTS)
     # std::exception with trace and unknown exception
     add_breakpad_test(segfault)
     add_breakpad_test(std_exception)
-    if(NOT APPLE)
-        # Traced exceptions cannot have their backtrace read on macOS. Fixed
-        # in next patch.
-        add_breakpad_test(std_exception_with_trace)
-    endif()
+    add_breakpad_test(std_exception_with_trace)
     add_breakpad_test(unknown_exception)
 
 # ELSEIF (WIN32)
