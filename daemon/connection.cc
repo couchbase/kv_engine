@@ -317,6 +317,10 @@ cb::engine_errc Connection::remapErrorCode(cb::engine_errc code) {
         // we can return tmpfail to old clients and have them retry the
         // operation
         return cb::engine_errc::temporary_failure;
+    case cb::engine_errc::cannot_apply_collections_manifest:
+        // Don't disconnect for this error, just return failed. This keeps
+        // ns_server connected.
+        return cb::engine_errc::failed;
     case cb::engine_errc::no_access:
     case cb::engine_errc::no_bucket:
     case cb::engine_errc::authentication_stale:
@@ -325,7 +329,7 @@ cb::engine_errc Connection::remapErrorCode(cb::engine_errc code) {
     case cb::engine_errc::sync_write_pending:
     case cb::engine_errc::sync_write_ambiguous:
     case cb::engine_errc::dcp_streamid_invalid:
-    case cb::engine_errc::cannot_apply_collections_manifest:
+
         break;
     }
 
