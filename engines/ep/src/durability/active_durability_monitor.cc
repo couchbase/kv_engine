@@ -793,7 +793,7 @@ ActiveDurabilityMonitor::State::removeSyncWrite(Container::iterator it,
     // Reset the chains so that we don't attempt to use some possibly re-used
     // memory if we have any bugs that still touch the chains after we remove
     // the SyncWrite from trackedWrites.
-    it->initialiseChains(nullptr, nullptr);
+    it->resetChains();
 
     Container::iterator prev;
     // Note: iterators in trackedWrites are never singular, Container::end

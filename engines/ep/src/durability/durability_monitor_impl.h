@@ -228,6 +228,14 @@ public:
             const ActiveDurabilityMonitor::ReplicationChain* firstChain,
             const ActiveDurabilityMonitor::ReplicationChain* secondChain);
 
+    /**
+     * Reset the chains to nullptrs. They may be set accordingly when we move an
+     * ActiveSyncWrite from trackedWrites to the resolvedQueue as we won't
+     * update SyncWrites in the resolvedQueue when topologies change so we can
+     * no longer trust the pointers.
+     */
+    void resetChains();
+
 private:
     /**
      * Calculate the ackCount for this SyncWrite using the given chain.

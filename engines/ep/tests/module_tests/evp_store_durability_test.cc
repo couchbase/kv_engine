@@ -3717,20 +3717,6 @@ void DurabilityBucketTest::
     setVBucketToActiveWithValidTopology();
     auto& adm = VBucketTestIntrospector::public_getActiveDM(*vb);
 
-    // A dead vbucket will keep the ADM but setting the topology will move
-    // writes from trackedWrites to the completed queue as we will not touch the
-    // ackCount. Deal with this separately so we can continue testing other
-    // states
-    if (newState == vbucket_state_dead) {
-        EXPECT_EQ(0, adm.getNumTracked());
-        EXPECT_EQ(1, adm.getHighPreparedSeqno());
-        EXPECT_EQ(0, adm.getHighCompletedSeqno());
-
-        adm.processCompletedSyncWriteQueue();
-        EXPECT_EQ(1, adm.getHighCompletedSeqno());
-        return;
-    }
-
     EXPECT_EQ(1, adm.getNumTracked());
     EXPECT_EQ(1, adm.getHighPreparedSeqno());
     EXPECT_EQ(0, adm.getHighCompletedSeqno());
@@ -3745,9 +3731,18 @@ void DurabilityBucketTest::
     auto cookies = adm.getCookiesForInFlightSyncWrites();
     EXPECT_TRUE(cookies.empty());
 
-    // We SHOULD have set the timeout to infinite
+    // We SHOULD have set the timeout to infinite if we had a PDM at some point
     adm.processTimeout(std::chrono::steady_clock::now() +
                        std::chrono::seconds(70));
+
+    // A dead vbucket will not create a PDM so the timeouts are preserved
+    if (newState == vbucket_state_dead) {
+        EXPECT_EQ(0, adm.getNumTracked());
+        EXPECT_EQ(1, adm.getHighPreparedSeqno());
+        EXPECT_EQ(0, adm.getHighCompletedSeqno());
+        return;
+    }
+
     EXPECT_EQ(1, adm.getNumTracked());
     EXPECT_EQ(1, adm.getHighPreparedSeqno());
     EXPECT_EQ(0, adm.getHighCompletedSeqno());

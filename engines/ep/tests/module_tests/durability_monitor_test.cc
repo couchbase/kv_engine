@@ -1024,6 +1024,31 @@ TEST_P(ActiveDurabilityMonitorTest,
     adm.seqnoAckReceived("replica1", 1);
 }
 
+TEST_P(ActiveDurabilityMonitorTest,
+       MovingSyncWriteToResolvedQueueShouldInvalidateChains) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(nlohmann::json({{active, replica1, replica2}}));
+    DurabilityMonitorTest::addSyncWrites({1});
+
+    // Should be enough to commit
+    notifyPersistence(1, 1, 0);
+    adm.seqnoAckReceived("replica1", 1);
+
+    // Not resolved yet but in the resolved queue, means we won't try to
+    // update the chains
+    ASSERT_EQ(0, adm.getNumTracked());
+
+    // Recreate the chain to invalidate pointers to the first one
+    adm.setReplicationTopology(nlohmann::json({{active, replica1, replica3}}));
+
+    // Don't care about the resulting cookies
+    adm.prepareTransitionAwayFromActive();
+
+    // Before the fix we would segfault here
+    std::stringstream ss;
+    ss << adm;
+}
+
 // @todo: Refactor test suite and expand test cases
 TEST_P(ActiveDurabilityMonitorPersistentTest,
        SeqnoAckReceived_PersistToMajority) {

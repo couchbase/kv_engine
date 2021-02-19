@@ -109,6 +109,11 @@ void DurabilityMonitor::ActiveSyncWrite::initialiseChains(
     }
 }
 
+void DurabilityMonitor::ActiveSyncWrite::resetChains() {
+    this->firstChain.reset(nullptr, 0 /*ackCount*/);
+    this->secondChain.reset(nullptr, 0 /*ackCount*/);
+}
+
 const void* DurabilityMonitor::ActiveSyncWrite::getCookie() const {
     return cookie;
 }
