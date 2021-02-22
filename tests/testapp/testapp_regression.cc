@@ -437,3 +437,35 @@ TEST_P(RegressionTest, MB40076) {
     EXPECT_EQ(0, cb::net::recv(s, &byte, 1, 0));
     cb::net::closesocket(s);
 }
+
+TEST_P(RegressionTest, MB44460) {
+    auto& conn = getConnection();
+    auto admin = conn.clone();
+    admin->authenticate("@admin", "password", "PLAIN");
+    auto stats = conn.stats("connections self");
+    ASSERT_EQ(1, stats.size());
+    const auto connectionid = stats.front()["socket"].get<size_t>();
+
+    // Fill the sendqueue for the socket
+    for (int ii = 0; ii < 1000; ++ii) {
+        conn.sendCommand(BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop});
+    }
+    stats = admin->stats("connections " + std::to_string(connectionid));
+    EXPECT_EQ(1, stats.size());
+
+    cb::net::closesocket(conn.releaseSocket());
+
+    // We've got multiple connection threads and the "cleanup" happens async
+    // so we might need to check a few times. Normally this happens within a
+    // few ms..
+    auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds{5};
+
+    // Let at least the other thread have a timeslot to operate on first.
+    std::this_thread::sleep_for(std::chrono::milliseconds{10});
+    while (admin->stats("connections " + std::to_string(connectionid)) > 0) {
+        if (std::chrono::steady_clock::now() > timeout) {
+            FAIL() << "Timeout waiting 5 seconds for the connection to be "
+                      "cleaned up";
+        }
+    }
+}

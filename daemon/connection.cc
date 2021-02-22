@@ -884,6 +884,18 @@ void Connection::event_callback(bufferevent*, short event, void* ctx) {
                               "mutex",
                               "Connection::event_callback::threadLock",
                               SlowMutexThreshold);
+        // MB-44460: If a connection disconnects before all of the data
+        //           was moved to the kernels send buffer we would still
+        //           wait for the send buffer to be drained before closing
+        //           the connection. Given that the other side hung up that
+        //           will never happen so we should just terminate the
+        //           send queue immediately.
+        //           note: This extra complexity was added so that we could
+        //           send error messages back to the client and then
+        //           disconnect the socket once all data was sent to the
+        //           client (and bufferevent performs the actual send/recv
+        //           on the socket after the callback returned)
+        instance.sendQueueInfo.term = true;
 
         // Remove the connection from the list of pending io's (in case the
         // object was scheduled to run in the dispatcher before the
