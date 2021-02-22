@@ -1268,10 +1268,12 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
             auto status = updateCollectionsMeta(
                     vbid, localDbReqs, commitData.collections);
             if (!status.IsOK()) {
-                throw std::runtime_error(
-                        fmt::format("MagmaKVStore::saveDocs {} Failed to set "
-                                    "collections meta",
-                                    vbid));
+                logger->warn(
+                        "MagmaKVStore::saveDocs {} Failed to set "
+                        "collections meta, got status {}",
+                        vbid,
+                        status.String());
+                return status;
             }
         }
         addLocalDbReqs(localDbReqs, postWriteOps);
