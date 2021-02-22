@@ -795,20 +795,20 @@ void enable_shutdown() {
 
 /* BUCKET FUNCTIONS */
 void CreateBucketThread::create() {
-    LOG_INFO("{} Create bucket [{}]", connection.getId(), name);
+    LOG_INFO("{}: Create bucket [{}]", connection.getId(), name);
 
     if (!BucketValidator::validateBucketName(name, error)) {
-        LOG_WARNING("{} Create bucket [{}] failed - Invalid bucket name",
-                    connection.getId(),
-                    name);
+        LOG_ERROR("{}: Create bucket [{}] failed - Invalid bucket name",
+                  connection.getId(),
+                  name);
         result = cb::engine_errc::invalid_arguments;
         return;
     }
 
     if (!BucketValidator::validateBucketType(type, error)) {
-        LOG_WARNING("{} Create bucket [{}] failed - Invalid bucket type",
-                    connection.getId(),
-                    name);
+        LOG_ERROR("{}: Create bucket [{}] failed - Invalid bucket type",
+                  connection.getId(),
+                  name);
         result = cb::engine_errc::invalid_arguments;
         return;
     }
@@ -831,14 +831,14 @@ void CreateBucketThread::create() {
 
     if (found) {
         result = cb::engine_errc::key_already_exists;
-        LOG_WARNING("{} Create bucket [{}] failed - Already exists",
-                    connection.getId(),
-                    name);
+        LOG_ERROR("{}: Create bucket [{}] failed - Already exists",
+                  connection.getId(),
+                  name);
     } else if (first_free == all_buckets.size()) {
         result = cb::engine_errc::too_big;
-        LOG_WARNING("{} Create bucket [{}] failed - Too many buckets",
-                    connection.getId(),
-                    name);
+        LOG_ERROR("{}: Create bucket [{}] failed - Too many buckets",
+                  connection.getId(),
+                  name);
     } else {
         result = cb::engine_errc::success;
         ii = first_free;
@@ -855,9 +855,9 @@ void CreateBucketThread::create() {
                     Settings::instance().getTopkeysSize());
         } catch (const std::bad_alloc &) {
             result = cb::engine_errc::no_memory;
-            LOG_WARNING("{} Create bucket [{}] failed - out of memory",
-                        connection.getId(),
-                        name);
+            LOG_ERROR("{}: Create bucket [{}] failed - out of memory",
+                      connection.getId(),
+                      name);
         }
     }
     all_bucket_lock.unlock();
@@ -874,10 +874,10 @@ void CreateBucketThread::create() {
         bucket.setEngine(new_engine_instance(type, get_server_api));
     } catch (const cb::engine_error& exception) {
         bucket.reset();
-        LOG_WARNING("{} - Failed to create bucket [{}]: {}",
-                    connection.getId(),
-                    name,
-                    exception.what());
+        LOG_ERROR("{}: Failed to create bucket [{}]: {}",
+                  connection.getId(),
+                  name,
+                  exception.what());
         result = cb::engine_errc(exception.code().value());
         return;
     }
@@ -891,16 +891,16 @@ void CreateBucketThread::create() {
     try {
         result = engine.initialize(config.c_str());
     } catch (const std::runtime_error& e) {
-        LOG_WARNING("{} - Failed to create bucket [{}]: {}",
-                    connection.getId(),
-                    name,
-                    e.what());
+        LOG_ERROR("{}: Failed to create bucket [{}]: {}",
+                  connection.getId(),
+                  name,
+                  e.what());
         result = cb::engine_errc::failed;
     } catch (const std::bad_alloc& e) {
-        LOG_WARNING("{} - Failed to create bucket [{}]: {}",
-                    connection.getId(),
-                    name,
-                    e.what());
+        LOG_ERROR("{}: Failed to create bucket [{}]: {}",
+                  connection.getId(),
+                  name,
+                  e.what());
         result = cb::engine_errc::no_memory;
     }
 
@@ -921,7 +921,7 @@ void CreateBucketThread::create() {
             std::lock_guard<std::mutex> guard(bucket.mutex);
             bucket.state = Bucket::State::Ready;
         }
-        LOG_INFO("{} - Bucket [{}] created successfully",
+        LOG_INFO("{}: Bucket [{}] created successfully",
                  connection.getId(),
                  name);
         bucket.max_document_size = engine.getMaxItemSize();

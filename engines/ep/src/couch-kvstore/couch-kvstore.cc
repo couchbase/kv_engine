@@ -434,7 +434,6 @@ void CouchKVStore::initialize(
                              std::string(couchstore_strerror(openRes)) +
                              ", file_name:" +
                              getDBFileName(dbname, vbid, db.getFileRev());
-            logger.error(msg);
             throw std::runtime_error(msg);
         }
 
