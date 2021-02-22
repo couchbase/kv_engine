@@ -1280,6 +1280,8 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
                 std::chrono::duration_cast<std::chrono::microseconds>(
                         now - beginTime);
         beginTime = now;
+
+        return Status::OK();
     };
 
     // Vector of updates to be written to the data store.
