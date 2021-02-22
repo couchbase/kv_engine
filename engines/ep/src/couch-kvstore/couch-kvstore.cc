@@ -3961,12 +3961,11 @@ void CouchKVStore::updateManifestUid(Collections::VB::Flush& collectionsFlush) {
 
 couchstore_error_t CouchKVStore::updateOpenCollections(
         Db& db, Collections::VB::Flush& collectionsFlush) {
-    auto [getCollectionsStatus, collections] =
-            readLocalDoc(db, Collections::openCollectionsName);
+    auto collectionsRes = readLocalDoc(db, Collections::openCollectionsName);
 
-    if (getCollectionsStatus != COUCHSTORE_SUCCESS &&
-        getCollectionsStatus != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
-        return getCollectionsStatus;
+    if (collectionsRes.status != COUCHSTORE_SUCCESS &&
+        collectionsRes.status != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
+        return collectionsRes.status;
     }
 
     cb::const_byte_buffer empty;
@@ -3974,8 +3973,9 @@ couchstore_error_t CouchKVStore::updateOpenCollections(
     pendingLocalReqsQ.emplace_back(
             Collections::openCollectionsName,
             collectionsFlush.encodeOpenCollections(
-                    collections.getLocalDoc() ? collections.getBuffer()
-                                              : empty));
+                    collectionsRes.doc.getLocalDoc()
+                            ? collectionsRes.doc.getBuffer()
+                            : empty));
     return COUCHSTORE_SUCCESS;
 }
 
@@ -4002,18 +4002,19 @@ couchstore_error_t CouchKVStore::updateDroppedCollections(
 
 couchstore_error_t CouchKVStore::updateScopes(
         Db& db, Collections::VB::Flush& collectionsFlush) {
-    auto [getScopesStatus, scopes] = readLocalDoc(db, Collections::scopesName);
+    auto scopesRes = readLocalDoc(db, Collections::scopesName);
 
-    if (getScopesStatus != COUCHSTORE_SUCCESS &&
-        getScopesStatus != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
-        return getScopesStatus;
+    if (scopesRes.status != COUCHSTORE_SUCCESS &&
+        scopesRes.status != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
+        return scopesRes.status;
     }
 
     cb::const_byte_buffer empty;
     pendingLocalReqsQ.emplace_back(
             Collections::scopesName,
             collectionsFlush.encodeOpenScopes(
-                    scopes.getLocalDoc() ? scopes.getBuffer() : empty));
+                    scopesRes.doc.getLocalDoc() ? scopesRes.doc.getBuffer()
+                                                : empty));
 
     return COUCHSTORE_SUCCESS;
 }
