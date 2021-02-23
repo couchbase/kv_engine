@@ -1090,14 +1090,14 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
        ReplicaSeqnoAckNonMonotonicIfBounced) {
     // 1) Receive 2 majority prepares but only flush 1
     auto key = makeStoredDocKey("key");
-    makeAndReceiveDcpPrepare(key, 0 /*cas*/, 1 /*seqno*/);
+    makeAndReceiveSnapMarkerAndDcpPrepare(key, 0 /*cas*/, 1 /*seqno*/);
 
     // Flush only the first prepare so when we warmup later we won't have the
     // second
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     key = makeStoredDocKey("key2");
-    makeAndReceiveDcpPrepare(key, 0 /*cas*/, 2 /*seqno*/);
+    makeAndReceiveSnapMarkerAndDcpPrepare(key, 0 /*cas*/, 2 /*seqno*/);
 
     // 2) Check that we have acked twice, once for each prepare, as each is in
     // it's own snapshot
@@ -1541,7 +1541,7 @@ void DurabilityPassiveStreamTest::
     auto key = makeStoredDocKey("key");
     uint64_t prepareSeqno = 1;
     uint64_t cas = 0;
-    makeAndReceiveDcpPrepare(key, cas, prepareSeqno);
+    makeAndReceiveSnapMarkerAndDcpPrepare(key, cas, prepareSeqno);
 
     // 2) Fake disconnect and reconnect, importantly, this sets up the valid
     // window for ignoring DCPAborts.
@@ -1619,7 +1619,7 @@ void DurabilityPassiveStreamTest::
 
     // We should now be able to do a sync write to a different key
     key = makeStoredDocKey("newkey");
-    makeAndReceiveDcpPrepare(key, cas, 10);
+    makeAndReceiveSnapMarkerAndDcpPrepare(key, cas, 10);
     prepareSeqno = vb->getHighSeqno();
     marker = SnapshotMarker(
             opaque,
@@ -1958,15 +1958,8 @@ queued_item DurabilityPassiveStreamTest::makeAndReceiveDcpPrepare(
         const StoredDocKey& key,
         uint64_t cas,
         uint64_t seqno,
-        cb::durability::Level level,
-        uint64_t snapshotMarkerFlags,
-        boost::optional<uint64_t> hcs) {
+        cb::durability::Level level) {
     using namespace cb::durability;
-
-    // The consumer receives snapshot-marker [seqno, seqno]
-    uint32_t opaque = 0;
-    makeAndProcessSnapshotMarker(opaque, seqno, snapshotMarkerFlags, hcs);
-
     queued_item qi = makePendingItem(
             key, "value", Requirements(level, Timeout::Infinity()));
     qi->setBySeqno(seqno);
@@ -1975,7 +1968,7 @@ queued_item DurabilityPassiveStreamTest::makeAndReceiveDcpPrepare(
     EXPECT_EQ(ENGINE_SUCCESS,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       qi,
-                      opaque,
+                      0 /*opaque*/,
                       IncludeValue::Yes,
                       IncludeXattrs::Yes,
                       IncludeDeleteTime::No,
@@ -1984,6 +1977,20 @@ queued_item DurabilityPassiveStreamTest::makeAndReceiveDcpPrepare(
                       nullptr,
                       cb::mcbp::DcpStreamId{})));
     return qi;
+}
+
+queued_item DurabilityPassiveStreamTest::makeAndReceiveSnapMarkerAndDcpPrepare(
+        const StoredDocKey& key,
+        uint64_t cas,
+        uint64_t seqno,
+        cb::durability::Level level,
+        uint64_t snapshotMarkerFlags,
+        boost::optional<uint64_t> hcs) {
+    // The consumer receives snapshot-marker [seqno, seqno]
+    uint32_t opaque = 0;
+    makeAndProcessSnapshotMarker(opaque, seqno, snapshotMarkerFlags, hcs);
+
+    return makeAndReceiveDcpPrepare(key, cas, seqno, level);
 }
 void DurabilityPassiveStreamTest::makeAndProcessSnapshotMarker(
         uint32_t opaque,
@@ -2010,7 +2017,7 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepare() {
     const auto key = makeStoredDocKey("key");
     const uint64_t cas = 999;
     const uint64_t prepareSeqno = 1;
-    auto qi = makeAndReceiveDcpPrepare(key, cas, prepareSeqno);
+    auto qi = makeAndReceiveSnapMarkerAndDcpPrepare(key, cas, prepareSeqno);
 
     EXPECT_EQ(0, vb->getNumItems());
     EXPECT_EQ(1, vb->ht.getNumItems());
@@ -2162,14 +2169,14 @@ void DurabilityPassiveStreamTest::testReceiveMultipleDuplicateDcpPrepares() {
     // PRE1 PRE2 PRE3 CMT1 CMT2 CMT3 PRE1 PRE2 PRE3 CMT1 CMT2 CMT3
     // ^^^^ ^^^^ ^^^^
     std::vector<queued_item> queued_items;
-    queued_items.push_back(makeAndReceiveDcpPrepare(
+    queued_items.push_back(makeAndReceiveSnapMarkerAndDcpPrepare(
             keys[0], cas, seqno++, cb::durability::Level::Majority));
-    queued_items.push_back(makeAndReceiveDcpPrepare(
+    queued_items.push_back(makeAndReceiveSnapMarkerAndDcpPrepare(
             keys[1],
             cas,
             seqno++,
             cb::durability::Level::MajorityAndPersistOnMaster));
-    queued_items.push_back(makeAndReceiveDcpPrepare(
+    queued_items.push_back(makeAndReceiveSnapMarkerAndDcpPrepare(
             keys[2], cas, seqno++, cb::durability::Level::PersistToMajority));
 
     // The consumer now "disconnects" then "re-connects" and misses the commits
@@ -2213,13 +2220,13 @@ void DurabilityPassiveStreamTest::testReceiveMultipleDuplicateDcpPrepares() {
     //                               ^^^^ ^^^^ ^^^^
     seqno = 7;
     for (const auto& key : keys) {
-        queued_items.push_back(
-                makeAndReceiveDcpPrepare(key,
-                                         cas,
-                                         seqno++,
-                                         cb::durability::Level::Majority,
-                                         MARKER_FLAG_DISK | MARKER_FLAG_CHK,
-                                         0 /*HCS*/));
+        queued_items.push_back(makeAndReceiveSnapMarkerAndDcpPrepare(
+                key,
+                cas,
+                seqno++,
+                cb::durability::Level::Majority,
+                MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+                0 /*HCS*/));
     }
 
     marker = SnapshotMarker(
@@ -2327,7 +2334,8 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     // first prepare
     uint64_t cas = 999;
     using namespace cb::durability;
-    makeAndReceiveDcpPrepare(key, cas, 1, Level::PersistToMajority);
+    makeAndReceiveSnapMarkerAndDcpPrepare(
+            key, cas, 1, Level::PersistToMajority);
 
     EXPECT_EQ(1, dm.getNumTracked());
     // abort. Completes the first prepare, but the prepare will *not* be removed
@@ -2351,7 +2359,8 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     EXPECT_EQ(1, dm.getNumTracked());
 
     // second prepare
-    makeAndReceiveDcpPrepare(key, cas, 3, Level::PersistToMajority);
+    makeAndReceiveSnapMarkerAndDcpPrepare(
+            key, cas, 3, Level::PersistToMajority);
 
     EXPECT_EQ(2, dm.getNumTracked());
 
@@ -2377,12 +2386,13 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     // third prepare
     // receiving this prepare failed an `Expects` prior to the fix for MB-35933
     // as it attempted to replace the first, completed prepare in error.
-    EXPECT_NO_THROW(makeAndReceiveDcpPrepare(key,
-                                             cas,
-                                             5,
-                                             Level::PersistToMajority,
-                                             MARKER_FLAG_DISK | MARKER_FLAG_CHK,
-                                             0 /*HCS*/));
+    EXPECT_NO_THROW(makeAndReceiveSnapMarkerAndDcpPrepare(
+            key,
+            cas,
+            5,
+            Level::PersistToMajority,
+            MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+            0 /*HCS*/));
 
     EXPECT_EQ(2, dm.getNumTracked());
 }
@@ -2527,7 +2537,7 @@ TEST_P(DurabilityPassiveStreamTest, DeDupedPrepareWindowDoubleDisconnect) {
     auto key = makeStoredDocKey("key1");
     const uint64_t cas = 999;
     uint64_t prepareSeqno = 2;
-    makeAndReceiveDcpPrepare(key, cas, prepareSeqno);
+    makeAndReceiveSnapMarkerAndDcpPrepare(key, cas, prepareSeqno);
 
     // The consumer now "disconnects" then "re-connects" and misses a commit for
     // the given key at seqno 3.
@@ -2751,7 +2761,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveDcpPrepareCommitPrepare) {
     auto key = makeStoredDocKey("key");
     const uint64_t cas = 1234;
     const uint64_t prepare2ndSeqno = 3;
-    makeAndReceiveDcpPrepare(key, cas, prepare2ndSeqno);
+    makeAndReceiveSnapMarkerAndDcpPrepare(key, cas, prepare2ndSeqno);
 
     // 3 checkpoints
     auto vb = engine->getVBucket(vbid);
@@ -2959,7 +2969,7 @@ void DurabilityPassiveStreamTest::setUpHandleSnapshotEndTest() {
     auto key1 = makeStoredDocKey("key1");
     uint64_t cas = 1;
     uint64_t prepareSeqno = 1;
-    makeAndReceiveDcpPrepare(key1, cas, prepareSeqno);
+    makeAndReceiveSnapMarkerAndDcpPrepare(key1, cas, prepareSeqno);
 
     uint32_t opaque = 0;
     SnapshotMarker marker(
@@ -3988,7 +3998,7 @@ TEST_P(DurabilityPassiveStreamTest, AllowedDuplicatePreparesSetOnDiskSnap) {
     auto key = makeStoredDocKey("key");
     auto cas = 1;
     auto prepareSeqno = 1;
-    makeAndReceiveDcpPrepare(key, cas, prepareSeqno);
+    makeAndReceiveSnapMarkerAndDcpPrepare(key, cas, prepareSeqno);
 
     const uint32_t opaque = 0;
     SnapshotMarker marker(opaque,
@@ -4091,9 +4101,11 @@ void DurabilityPassiveStreamTest::testPrepareDeduplicationCorrectlyResetsHPS(
     }
 
     auto keyA = makeStoredDocKey("keyA");
-    makeAndReceiveDcpPrepare(keyA, 1 /*cas*/, 1 /*prepareSeqno*/, level);
+    makeAndReceiveSnapMarkerAndDcpPrepare(
+            keyA, 1 /*cas*/, 1 /*prepareSeqno*/, level);
     auto keyB = makeStoredDocKey("keyB");
-    makeAndReceiveDcpPrepare(keyB, 2 /*cas*/, 2 /*prepareSeqno*/, level);
+    makeAndReceiveSnapMarkerAndDcpPrepare(
+            keyB, 2 /*cas*/, 2 /*prepareSeqno*/, level);
     flushVBucketToDiskIfPersistent(vbid, 2 /*expected_num_flushed*/);
 
     // Expected state in PDM:
