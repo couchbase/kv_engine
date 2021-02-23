@@ -5415,57 +5415,65 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
     cb::const_byte_buffer inflatedValue = value;
     protocol_binary_datatype_t inflatedDatatype = datatype;
 
-    if (mcbp::datatype::is_snappy(datatype)) {
-        if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
-                                      payload, uncompressedValue)) {
-            setErrorContext(cookie, "Failed to inflate document");
-            return ENGINE_EINVAL;
+    if (value.empty()) {
+        finalDatatype = PROTOCOL_BINARY_RAW_BYTES;
+    } else {
+        if (mcbp::datatype::is_snappy(datatype)) {
+            if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
+                                          payload,
+                                          uncompressedValue)) {
+                setErrorContext(cookie, "Failed to inflate document");
+                return ENGINE_EINVAL;
+            }
+
+            inflatedValue = uncompressedValue;
+            inflatedDatatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
+
+            if (compressionMode == BucketCompressionMode::Off ||
+                uncompressedValue.size() < value.size()) {
+                // If the inflated version version is smaller than the
+                // compressed version we should keep it inflated
+                finalValue = uncompressedValue;
+                finalDatatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
+            }
         }
 
-        inflatedValue = uncompressedValue;
-        inflatedDatatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
-
-        if (compressionMode == BucketCompressionMode::Off ||
-            uncompressedValue.size() < value.size()) {
-            // If the inflated version version is smaller than the compressed
-            // version we should keep it inflated
-            finalValue = uncompressedValue;
-            finalDatatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
+        size_t system_xattr_size = 0;
+        if (mcbp::datatype::is_xattr(datatype)) {
+            // the validator ensured that the xattr was valid
+            cb::const_char_buffer xattr;
+            xattr = {reinterpret_cast<const char*>(inflatedValue.data()),
+                     inflatedValue.size()};
+            system_xattr_size =
+                    cb::xattr::get_system_xattr_size(inflatedDatatype, xattr);
+            if (system_xattr_size > cb::limits::PrivilegedBytes) {
+                setErrorContext(
+                        cookie,
+                        "System XATTR (" + std::to_string(system_xattr_size) +
+                                ") exceeds the max limit for system "
+                                "xattrs: " +
+                                std::to_string(cb::limits::PrivilegedBytes));
+                return ENGINE_EINVAL;
+            }
         }
-    }
 
-    size_t system_xattr_size = 0;
-    if (mcbp::datatype::is_xattr(datatype)) {
-        // the validator ensured that the xattr was valid
-        cb::const_char_buffer xattr;
-        xattr = {reinterpret_cast<const char*>(inflatedValue.data()),
-                 inflatedValue.size()};
-        system_xattr_size =
-                cb::xattr::get_system_xattr_size(inflatedDatatype, xattr);
-        if (system_xattr_size > cb::limits::PrivilegedBytes) {
-            setErrorContext(
-                    cookie,
-                    "System XATTR (" + std::to_string(system_xattr_size) +
-                            ") exceeds the max limit for system xattrs: " +
-                            std::to_string(cb::limits::PrivilegedBytes));
-            return ENGINE_EINVAL;
+        const auto valuesize = inflatedValue.size();
+        if ((valuesize - system_xattr_size) > maxItemSize) {
+            EP_LOG_WARN(
+                    "Item value size {} for setWithMeta is bigger than the max "
+                    "size {} allowed!!!",
+                    inflatedValue.size(),
+                    maxItemSize);
+
+            return ENGINE_E2BIG;
         }
+
+        finalDatatype = checkForDatatypeJson(cookie,
+                                             finalDatatype,
+                                             mcbp::datatype::is_snappy(datatype)
+                                                     ? uncompressedValue
+                                                     : payload);
     }
-
-    const auto valuesize = inflatedValue.size();
-    if ((valuesize - system_xattr_size) > maxItemSize) {
-        EP_LOG_WARN(
-                "Item value size {} for setWithMeta is bigger than the max "
-                "size {} allowed!!!",
-                inflatedValue.size(),
-                maxItemSize);
-
-        return ENGINE_E2BIG;
-    }
-
-    finalDatatype = checkForDatatypeJson(cookie, finalDatatype,
-                        mcbp::datatype::is_snappy(datatype) ?
-                        uncompressedValue : payload);
 
     auto item = std::make_unique<Item>(key,
                                        itemMeta.flags,
