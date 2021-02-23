@@ -367,6 +367,22 @@ BENCHMARK_DEFINE_F(HashTableBench, HTStatsEpilogue)(benchmark::State& state) {
     state.SetItemsProcessed(state.iterations());
 }
 
+BENCHMARK_DEFINE_F(HashTableBench, Clear)(benchmark::State& state) {
+    // Generate numItems to add to (and then clear from) HashTable.
+    sharedItems = createUniqueItems("Key");
+
+    // Benchmark - measure how long it takes to clear the HashTable.
+    while (state.KeepRunning()) {
+        state.PauseTiming();
+        for (auto& item : sharedItems) {
+            ASSERT_EQ(MutationStatus::WasClean, ht.set(item));
+        }
+        state.ResumeTiming();
+
+        ht.clear();
+    }
+}
+
 BENCHMARK_REGISTER_F(HashTableBench, FindForRead)
         ->ThreadPerCpu()
         ->Iterations(HashTableBench::numItems);
@@ -392,3 +408,5 @@ BENCHMARK_REGISTER_F(HashTableBench, HTStatsEpilogue)
         ->ThreadPerCpu()
         ->Iterations(HashTableBench::numItems)
         ->Range(1, 1000);
+
+BENCHMARK_REGISTER_F(HashTableBench, Clear)->Iterations(100);

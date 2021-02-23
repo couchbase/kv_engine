@@ -203,22 +203,11 @@ void HashTable::clear_UNLOCKED(bool deactivate) {
     if (deactivate) {
         setActiveState(false);
     }
-    size_t clearedMemSize = 0;
-    size_t clearedValSize = 0;
-    for (int i = 0; i < (int)size; i++) {
-        while (values[i]) {
-            // Take ownership of the StoredValue from the vector, update
-            // statistics and release it.
-            auto v = std::move(values[i]);
-            clearedMemSize += v->size();
-            clearedValSize += v->valuelen();
-            values[i] = std::move(v->getNext());
-        }
+    const auto metadataMemory = valueStats.getMetaDataMemory();
+    for (auto& chain : values) {
+        chain.reset();
     }
-
-    stats.coreLocal.get()->currentSize.fetch_sub(clearedMemSize -
-                                                 clearedValSize);
-
+    stats.coreLocal.get()->currentSize.fetch_sub(metadataMemory);
     valueStats.reset();
 }
 
