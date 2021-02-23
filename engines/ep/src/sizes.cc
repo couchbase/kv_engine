@@ -30,6 +30,10 @@
 #include "hash_table_stat_visitor.h"
 #include "item.h"
 #include "kvstore_priv.h"
+#ifdef EP_USE_MAGMA
+#include "magma-kvstore/magma-kvstore_iorequest.h"
+#include "magma-kvstore/magma-kvstore_metadata.h"
+#endif
 #include "persistence_callback.h"
 #include "probabilistic_counter.h"
 #include "stats.h"
@@ -122,6 +126,10 @@ int main(int, char **) {
 
     display("IORequest", sizeof(IORequest));
     display("CouchRequest", sizeof(CouchRequest));
+#ifdef EP_USE_MAGMA
+    display("MagmaRequest", sizeof(MagmaRequest));
+    display("magmakv::MetaData", sizeof(magmakv::MetaData));
+#endif
     display("PersistenceCallback", sizeof(PersistenceCallback));
     display("AtomicUnorderedMap<uint32_t, SingleThreadedRCPtr<Stream>>",
             sizeof(AtomicUnorderedMap<uint32_t, SingleThreadedRCPtr<Stream>>));
