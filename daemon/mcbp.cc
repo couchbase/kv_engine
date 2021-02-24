@@ -91,25 +91,8 @@ static bool mcbp_response_handler(std::string_view key,
                                    : PROTOCOL_BINARY_DATATYPE_JSON;
     }
 
-    const auto& request = cookie->getRequest();
-    cb::mcbp::Response response = {};
-    response.setMagic(cb::mcbp::Magic::ClientResponse);
-    response.setOpcode(request.getClientOpcode());
-    response.setDatatype(cb::mcbp::Datatype(datatype));
-    response.setStatus(status);
-    response.setFramingExtraslen(0);
-    response.setExtlen(extras.size());
-    response.setKeylen(key.size());
-    response.setBodylen(extras.size() + key.size() + payload.size());
-    response.setOpaque(request.getOpaque());
-    response.setCas(cas);
-    c->copyToOutputStream(
-            {reinterpret_cast<const char*>(&response), sizeof(response)});
-    c->copyToOutputStream(extras);
-    c->copyToOutputStream(key);
-    c->copyToOutputStream(payload);
-
-    ++c->getBucket().responseCounters[uint16_t(status)];
+    cookie->setCas(cas);
+    c->sendResponse(*cookie, status, extras, key, payload, datatype, {});
     return true;
 }
 
