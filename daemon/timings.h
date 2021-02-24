@@ -71,7 +71,8 @@ private:
     // create an array of unique_ptrs as we want to create HdrHistograms
     // in a lazy manner as their foot print is larger than our old
     // histogram class
-    std::array<std::atomic<Hdr1sfMicroSecHistogram*>, MAX_NUM_OPCODES> timings;
+    std::array<std::atomic<Hdr1sfMicroSecHistogram*>, MAX_NUM_OPCODES> timings{
+            {nullptr}};
     std::mutex histogram_mutex;
 
     // Sharded by core as cache contention was observed due to the number of
