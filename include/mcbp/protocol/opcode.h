@@ -426,6 +426,9 @@ enum class ServerOpcode {
 bool is_valid_opcode(ClientOpcode opcode);
 bool is_valid_opcode(ServerOpcode opcode);
 
+/// Is this opcode valid and supported
+bool is_supported_opcode(ClientOpcode opcode);
+
 /// Does the provided opcode support durability or not
 bool is_durability_supported(ClientOpcode opcode);
 

@@ -138,6 +138,34 @@ static void server_bucket_stats(const BucketStatCollector& collector,
     collector.addStat(Key::total_resp_errors, total_resp_errors);
 }
 
+/**
+ * Add timing stats related to a single bucket.
+ *
+ * Adds per-opcode timing histograms to the provided collector.
+ * Only opcodes which have actually been used will be included in the
+ * collector.
+ *
+ */
+void server_bucket_timing_stats(const BucketStatCollector& collector,
+                                const Timings& timings) {
+    using namespace cb::mcbp;
+
+    for (uint8_t opcode = 0; opcode < uint8_t(ClientOpcode::Invalid);
+         opcode++) {
+        if (!is_supported_opcode(ClientOpcode(opcode))) {
+            continue;
+        }
+        auto* histPtr = timings.get_timing_histogram(opcode);
+        // The histogram is created when the op is first seen.
+        // If the histogram has not been created, add an empty histogram
+        // to the stat collector.
+
+        const auto& histogram = histPtr ? *histPtr : Hdr1sfMicroSecHistogram();
+        collector.withLabels({{"opcode", to_string(ClientOpcode(opcode))}})
+                .addStat(cb::stats::Key::cmd_duration, histogram);
+    }
+}
+
 /// add global, aggregated and bucket specific stats
 cb::engine_errc server_stats(const StatCollector& collector,
                              const Bucket& bucket) {
@@ -178,6 +206,9 @@ cb::engine_errc server_prometheus_stats(
                     if (cardinality == cb::prometheus::Cardinality::Low) {
                         // do memcached per-bucket stats
                         server_bucket_stats(bucketC, bucket);
+                    } else {
+                        // do memcached timings stats
+                        server_bucket_timing_stats(bucketC, bucket.timings);
                     }
 
                     // continue checking buckets

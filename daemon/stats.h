@@ -208,6 +208,13 @@ class Bucket;
 cb::engine_errc server_stats(const StatCollector& collector,
                              const Bucket& bucket);
 
+class Timings;
+/**
+ * Add per-opcode timings stats to the given collector.
+ */
+void server_bucket_timing_stats(const BucketStatCollector& collector,
+                                const Timings& timings);
+
 /**
  * Add stats needed for Prometheus to the given collector.
  *

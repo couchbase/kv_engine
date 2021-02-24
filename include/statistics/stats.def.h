@@ -353,6 +353,8 @@ STAT(ep_db_file_size, , bytes, , )
 STAT(ep_db_prepare_size, , bytes, , )
 
 // Timing stats
+PSTAT(cmd_duration, microseconds, )
+
 STAT(bg_wait, , microseconds, , )
 STAT(bg_load, , microseconds, , )
 STAT(set_with_meta, , microseconds, , )
@@ -362,18 +364,14 @@ STAT(checkpoint_remover, , microseconds, , )
 STAT(item_pager, , microseconds, , )
 STAT(expiry_pager, , microseconds, , )
 STAT(storage_age, , microseconds, , )
-STAT(get_cmd, , microseconds, cmd_time_taken, LABEL(op, get))
-STAT(store_cmd, , microseconds, cmd_time_taken, LABEL(op, store))
-STAT(arith_cmd, , microseconds, cmd_time_taken, LABEL(op, arith))
-STAT(get_stats_cmd, , microseconds, cmd_time_taken, LABEL(op, get_stats))
-STAT(get_vb_cmd, , microseconds, cmd_time_taken, LABEL(op, get_vb))
-STAT(set_vb_cmd, , microseconds, cmd_time_taken, LABEL(op, set_vb))
-STAT(del_vb_cmd, , microseconds, cmd_time_taken, LABEL(op, del_vb))
-STAT(chk_persistence_cmd,
-     ,
-     microseconds,
-     cmd_time_taken,
-     LABEL(op, chk_persistence))
+CBSTAT(get_cmd, , microseconds)
+CBSTAT(store_cmd, , microseconds)
+CBSTAT(arith_cmd, , microseconds)
+CBSTAT(get_stats_cmd, , microseconds)
+CBSTAT(get_vb_cmd, , microseconds)
+CBSTAT(set_vb_cmd, , microseconds)
+CBSTAT(del_vb_cmd, , microseconds)
+CBSTAT(chk_persistence_cmd, , microseconds)
 STAT(notify_io, , microseconds, , )
 STAT(disk_insert, , microseconds, disk, LABEL(op, insert))
 STAT(disk_update, , microseconds, disk, LABEL(op, update))

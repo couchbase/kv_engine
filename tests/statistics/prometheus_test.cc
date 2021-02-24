@@ -22,9 +22,11 @@
 
 #include <daemon/mcaudit.h>
 #include <daemon/stats.h>
+#include <daemon/timings.h>
 #include <gmock/gmock-matchers.h>
 #include <gmock/gmock-more-matchers.h>
 #include <gtest/gtest-matchers.h>
+#include <statistics/labelled_collector.h>
 #include <statistics/prometheus.h>
 #include <statistics/prometheus_collector.h>
 
@@ -61,5 +63,52 @@ TEST_F(PrometheusStatTest, auditStatsNotPerBucket) {
         // That metric should have no labels. Per-bucket metrics have
         // a bucket name label.
         EXPECT_THAT(metric.metric.front().label, IsEmpty());
+    }
+}
+
+TEST_F(PrometheusStatTest, EmptyOpTimingHistograms) {
+    // Check that empty cmd_duration per-op histograms are exposed if
+    // memcached has not processed any occurrences of that operation
+    // (and thus has no timing data for it)
+    using namespace cb::stats;
+    using namespace ::testing;
+
+    auto metricName = "cmd_duration_seconds";
+
+    Timings dummyTimings;
+
+    StatMap stats;
+
+    server_bucket_timing_stats(
+            PrometheusStatCollector(stats).forBucket("foobar"), dummyTimings);
+
+    // confirm metricFamily family _is_ in  output
+    EXPECT_EQ(1, stats.count(metricName));
+
+    const auto& metricFamily = stats[metricName];
+
+    // there should be multiple instances in this metricFamily family, one
+    // per exposed op. Check that 133 or more are present to allow
+    // for future additions
+    EXPECT_THAT(metricFamily.metric, SizeIs(Ge(133)));
+
+    // check a specific instance, doesn't really matter which so check GAT
+    auto expectedLabel = prometheus::ClientMetric::Label();
+    expectedLabel.name = "op";
+    expectedLabel.value = "GAT";
+
+    // find the right metric instance
+    for (const auto& instance : metricFamily.metric) {
+        if (std::find(instance.label.begin(),
+                      instance.label.end(),
+                      expectedLabel) != instance.label.end()) {
+            const auto& histogram = instance.histogram;
+
+            EXPECT_EQ(0, histogram.sample_count);
+            EXPECT_EQ(0.0, histogram.sample_sum);
+            EXPECT_THAT(histogram.bucket, SizeIs(0));
+
+            break;
+        }
     }
 }
