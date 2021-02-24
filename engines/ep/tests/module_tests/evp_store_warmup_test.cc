@@ -2231,7 +2231,7 @@ public:
     boost::filesystem::path getDataDir() {
         auto* kvstore = engine->getKVBucket()->getOneRWUnderlying();
         const auto dbname = kvstore->getConfig().getDBName();
-        return (boost::filesystem::current_path() / dbname);
+        return boost::filesystem::current_path() / dbname;
     }
 
     boost::filesystem::path getDataFile() {
@@ -2300,6 +2300,58 @@ TEST_F(WarmupDiskTest, noDataFileCollectionCountsTest) {
         }
     }
     EXPECT_EQ(WarmupState::State::LoadingCollectionCounts,
+              getKVBucket()->getWarmup()->getWarmupState());
+}
+
+/**
+ * Test to check that if a data file deleted between Warmup::initialize() and
+ * Warmup::loadPreparedSyncWrites() that we fail warmup
+ */
+TEST_F(WarmupDiskTest, diskFailureBeforeLoadPrepares) {
+    // Create a vbucket on disk and a prepare
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    store_item(vbid,
+               makeStoredDocKey("key"),
+               "value",
+               0,
+               {cb::engine_errc::sync_write_pending},
+               PROTOCOL_BINARY_RAW_BYTES,
+               cb::durability::Requirements{});
+    flush_vbucket_to_disk(vbid);
+    // Set up engine so its ready to warm up from disk
+    resetEngineAndEnableWarmup();
+
+    bool runDiskFailure = true;
+    // run through the stages of warmup
+    while (getKVBucket()->isWarmingUp()) {
+        // if check this is the state of warmup that we want to fail
+        // only run the disruption the for the first task though as we
+        // have two shards
+        if (runDiskFailure &&
+            WarmupState::State::LoadPreparedSyncWrites ==
+            getKVBucket()->getWarmup()->getWarmupState()) {
+            // delete the datafile on disk
+            deleteDataFile();
+            runDiskFailure = false;
+        }
+        try {
+            CheckedExecutor executor(task_executor, getReaderQueue());
+            // run the task
+            executor.runCurrentTask();
+            executor.completeCurrentTask();
+        } catch (const std::logic_error& e) {
+            // CheckedExecutor should fail after LoadingCollectionCounts failed
+            // to open data file
+            EXPECT_FALSE(runDiskFailure);
+            EXPECT_EQ("CheckedExecutor failed fetchNextTask",
+                      std::string(e.what()));
+            break;
+        }
+    }
+    EXPECT_EQ(WarmupState::State::LoadPreparedSyncWrites,
               getKVBucket()->getWarmup()->getWarmupState());
 }
 

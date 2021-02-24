@@ -1845,7 +1845,7 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
         // with our vbucket_state.
         epVb.loadOutstandingPrepares(vbStateLh, *vbState, std::move(prepares));
         // No prepares loaded
-        return {0, 0};
+        return {0, 0, true};
     }
 
     // We optimise this step by starting the scan at the seqno following the
@@ -1917,7 +1917,7 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
                 "EPBucket::loadPreparedSyncWrites: scanCtx is null for {}",
                 epVb.getId());
         // No prepares loaded
-        return {0, 0};
+        return {0, 0, false};
     }
 
     auto scanResult = kvStore->scan(*scanCtx);
@@ -1951,7 +1951,7 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
 
     auto numPrepares = prepares.size();
     epVb.loadOutstandingPrepares(vbStateLh, *vbState, std::move(prepares));
-    return {storageCB.itemsVisited, numPrepares};
+    return {storageCB.itemsVisited, numPrepares, true};
 }
 
 ValueFilter EPBucket::getValueFilterForCompressionMode(const void* cookie) {

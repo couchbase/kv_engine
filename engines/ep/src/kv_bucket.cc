@@ -2442,7 +2442,15 @@ TaskStatus KVBucket::rollback(Vbid vbid, uint64_t rollbackSeqno) {
                                           instead of deleting everything in it
                                         */) {
                 rollbackUnpersistedItems(*vb, result.highSeqno);
-                loadPreparedSyncWrites(wlh, *vb);
+                auto loadResult = loadPreparedSyncWrites(wlh, *vb);
+                if (!loadResult.success) {
+                    EP_LOG_WARN(
+                            "{} KVBucket::rollback((): "
+                            "loadPreparedSyncWrites() "
+                            "failed to scan for prepares, PDM could be in a "
+                            "inconsistent state",
+                            vbid);
+                }
                 auto& epVb = static_cast<EPVBucket&>(*vb.getVB());
                 epVb.postProcessRollback(result, prevHighSeqno, *this);
                 engine.getDcpConnMap().closeStreamsDueToRollback(vbid);

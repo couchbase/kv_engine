@@ -1274,12 +1274,19 @@ void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
         auto& vb = *(itr->second);
         folly::SharedMutex::WriteHolder vbStateLh(vb.getStateLock());
 
-        auto result = store.loadPreparedSyncWrites(vbStateLh, vb);
-        store.getEPEngine()
-                .getEpStats()
-                .warmupItemsVisitedWhilstLoadingPrepares += result.itemsVisited;
-        store.getEPEngine().getEpStats().warmedUpPrepares +=
-                result.preparesLoaded;
+        auto [itemsVisited, preparesLoaded, success] =
+                store.loadPreparedSyncWrites(vbStateLh, vb);
+        if (!success) {
+            EP_LOG_CRITICAL(
+                    "Warmup::loadPreparedSyncWrites(): "
+                    "EPBucket::loadPreparedSyncWrites() failed for {} aborting "
+                    "Warmup",
+                    vbid);
+            return;
+        }
+        auto& epStats = store.getEPEngine().getEpStats();
+        epStats.warmupItemsVisitedWhilstLoadingPrepares += itemsVisited;
+        epStats.warmedUpPrepares += preparesLoaded;
     }
 
     if (++threadtask_count == store.vbMap.getNumShards()) {
