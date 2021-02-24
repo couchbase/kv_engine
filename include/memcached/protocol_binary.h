@@ -937,8 +937,8 @@ public:
         DcpMutationPayload::nru = nru;
     }
 
-    cb::const_byte_buffer getBuffer() const {
-        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    std::string_view getBuffer() const {
+        return {reinterpret_cast<const char*>(this), sizeof(*this)};
     }
 
 protected:
