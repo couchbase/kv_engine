@@ -574,8 +574,12 @@ void HashTable::Statistics::reset() {
     numItems.store(0);
     numTempItems.store(0);
     numNonResidentItems.store(0);
+    numDeletedItems.store(0);
+    numSystemItems.store(0);
+    numPreparedSyncWrites.store(0);
     memSize.store(0);
     cacheSize.store(0);
+    metaDataMemory.store(0);
     uncompressedMemSize.store(0);
 }
 

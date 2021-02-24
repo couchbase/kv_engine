@@ -353,6 +353,7 @@ protected:
         global_stats.reset();
         ASSERT_EQ(0, ht.getItemMemory());
         ASSERT_EQ(0, ht.getCacheSize());
+        ASSERT_EQ(0, ht.getMetadataMemory());
         ASSERT_EQ(0, ht.getUncompressedItemMemory());
         initialSize = stats.getCurrentSize();
 
@@ -372,6 +373,7 @@ protected:
         EXPECT_EQ(0, ht.getItemMemory());
         EXPECT_EQ(0, ht.getUncompressedItemMemory());
         EXPECT_EQ(0, ht.getCacheSize());
+        EXPECT_EQ(0, ht.getMetadataMemory());
         EXPECT_EQ(initialSize, stats.getCurrentSize());
 
         if (evictionPolicy == EvictionPolicy::Value) {
@@ -399,6 +401,13 @@ protected:
                 result.lock, result.storedValue, evictionPolicy));
         return result.storedValue;
     }
+
+    /// How should items be cleaned up at end of test:
+    enum class CleanupMethod { ExplicitDelete, HashTableClear };
+
+    void testSoftDelete(CleanupMethod method);
+    void testPreparedSyncWrite(CleanupMethod method);
+    void testPreparedSyncDelete(CleanupMethod method);
 
     EPStats stats;
     HashTable ht;
@@ -625,6 +634,14 @@ TEST_P(HashTableStatsTest, TempDeletedRestore) {
 
 /// Check counts for a soft-deleted item.
 TEST_P(HashTableStatsTest, SoftDelete) {
+    testSoftDelete(CleanupMethod::ExplicitDelete);
+}
+
+TEST_P(HashTableStatsTest, SoftDeleteClear) {
+    testSoftDelete(CleanupMethod::HashTableClear);
+}
+
+void HashTableStatsTest::testSoftDelete(CleanupMethod method) {
     ASSERT_EQ(MutationStatus::WasClean, ht.set(item));
 
     {
@@ -650,7 +667,14 @@ TEST_P(HashTableStatsTest, SoftDelete) {
             << "Deleted items should count as deleted items";
 
     // Cleanup, all counts should become zero.
-    del(ht, key);
+    switch (method) {
+    case CleanupMethod::ExplicitDelete:
+        del(ht, key);
+        break;
+    case CleanupMethod::HashTableClear:
+        ht.clear();
+        break;
+    }
 }
 
 /**
@@ -658,8 +682,6 @@ TEST_P(HashTableStatsTest, SoftDelete) {
  * is updated correctly
  */
 TEST_P(HashTableStatsTest, UncompressedMemorySizeTest) {
-    HashTable ht(global_stats, makeFactory(true), 2, 1);
-
     std::string valueData(
             "{\"product\": \"car\",\"price\": \"100\"},"
             "{\"product\": \"bus\",\"price\": \"1000\"},"
@@ -692,7 +714,6 @@ TEST_P(HashTableStatsTest, UncompressedMemorySizeTest) {
 }
 
 TEST_P(HashTableStatsTest, SystemEventItem) {
-    HashTable ht(global_stats, makeFactory(true), 128, 1);
     StoredDocKey key("key", CollectionID::System);
     store(ht, key);
     EXPECT_EQ(1, ht.getNumSystemItems());
@@ -707,7 +728,6 @@ TEST_P(HashTableStatsTest, SystemEventItem) {
 // should not cause us to update the numDeletedItems stat because we do not
 // want to track system events in numDeletedItems
 TEST_P(HashTableStatsTest, DeletedSystemEventItem) {
-    HashTable ht(global_stats, makeFactory(true), 128, 1);
     StoredDocKey key("key", CollectionID::System);
     store(ht, key);
     ASSERT_EQ(1, ht.getNumSystemItems());
@@ -735,9 +755,7 @@ TEST_P(HashTableStatsTest, DeletedSystemEventItem) {
     EXPECT_EQ(0, ht.getNumDeletedItems());
 }
 
-TEST_P(HashTableStatsTest, PreparedSyncWrite) {
-    // Setup
-    HashTable ht(global_stats, makeFactory(true), 128, 1);
+void HashTableStatsTest::testPreparedSyncWrite(CleanupMethod method) {
     auto prepared = makePendingItem(key, "prepared");
     ASSERT_EQ(MutationStatus::WasClean, ht.set(*prepared));
 
@@ -749,12 +767,26 @@ TEST_P(HashTableStatsTest, PreparedSyncWrite) {
     }
 
     // Cleanup
-    EXPECT_TRUE(del(ht, key));
+    switch (method) {
+    case CleanupMethod::ExplicitDelete:
+        EXPECT_TRUE(del(ht, key));
+        break;
+    case CleanupMethod::HashTableClear:
+        ht.clear();
+        break;
+    }
 }
 
-TEST_P(HashTableStatsTest, PreparedSyncDelete) {
+TEST_P(HashTableStatsTest, PreparedSyncWrite) {
+    testPreparedSyncWrite(CleanupMethod::ExplicitDelete);
+}
+
+TEST_P(HashTableStatsTest, PreparedSyncWriteClear) {
+    testPreparedSyncWrite(CleanupMethod::HashTableClear);
+}
+
+void HashTableStatsTest::testPreparedSyncDelete(CleanupMethod method) {
     // Setup
-    HashTable ht(global_stats, makeFactory(true), 128, 1);
     auto prepared = makePendingItem(key, "prepared");
     prepared->setDeleted(DeleteSource::Explicit);
     ASSERT_EQ(MutationStatus::WasClean, ht.set(*prepared));
@@ -769,7 +801,22 @@ TEST_P(HashTableStatsTest, PreparedSyncDelete) {
     }
 
     // Cleanup
-    EXPECT_TRUE(del(ht, key));
+    switch (method) {
+    case CleanupMethod::ExplicitDelete:
+        EXPECT_TRUE(del(ht, key));
+        break;
+    case CleanupMethod::HashTableClear:
+        ht.clear();
+        break;
+    }
+}
+
+TEST_P(HashTableStatsTest, PreparedSyncDelete) {
+    testPreparedSyncDelete(CleanupMethod::ExplicitDelete);
+}
+
+TEST_P(HashTableStatsTest, PreparedSyncDeleteClear) {
+    testPreparedSyncDelete(CleanupMethod::HashTableClear);
 }
 
 INSTANTIATE_TEST_CASE_P(
