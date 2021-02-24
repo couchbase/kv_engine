@@ -506,22 +506,22 @@ struct HashTable::Statistics::CacheLocalStatistics {
 
     /// Count of alive & deleted, in-memory non-resident and resident
     /// items. Excludes temporary and prepared items.
-    std::atomic<ssize_t> numItems;
+    CopyableAtomic<ssize_t> numItems;
 
     /// Count of alive, non-resident items.
-    std::atomic<ssize_t> numNonResidentItems;
+    CopyableAtomic<ssize_t> numNonResidentItems;
 
     /// Count of deleted items.
-    std::atomic<ssize_t> numDeletedItems;
+    CopyableAtomic<ssize_t> numDeletedItems;
 
     /// Count of items where StoredValue::isTempItem() is true.
-    std::atomic<ssize_t> numTempItems;
+    CopyableAtomic<ssize_t> numTempItems;
 
     /// Count of items where StoredValue resides in system namespace
-    std::atomic<ssize_t> numSystemItems;
+    CopyableAtomic<ssize_t> numSystemItems;
 
     /// Count of items where StoredValue is a prepared SyncWrite.
-    std::atomic<ssize_t> numPreparedSyncWrites;
+    CopyableAtomic<ssize_t> numPreparedSyncWrites;
 
     /**
      * Number of documents of a given datatype. Includes alive
@@ -535,16 +535,16 @@ struct HashTable::Statistics::CacheLocalStatistics {
 
     //! Cache size (fixed-length fields in StoredValue + keylen +
     //! valuelen).
-    std::atomic<ssize_t> cacheSize = {};
+    CopyableAtomic<ssize_t> cacheSize = {};
 
     //! Meta-data size (fixed-length fields in StoredValue + keylen).
-    std::atomic<ssize_t> metaDataMemory = {};
+    CopyableAtomic<ssize_t> metaDataMemory = {};
 
     //! Memory consumed by items in this hashtable.
-    std::atomic<ssize_t> memSize = {};
+    CopyableAtomic<ssize_t> memSize = {};
 
     /// Memory consumed if the items were uncompressed.
-    std::atomic<ssize_t> uncompressedMemSize = {};
+    CopyableAtomic<ssize_t> uncompressedMemSize = {};
 };
 
 HashTable::Statistics::Statistics(EPStats& epStats) : epStats(epStats) {
@@ -746,15 +746,7 @@ HashTable::Statistics::getMemChangedCallback() const {
 
 void HashTable::Statistics::reset() {
     for (auto& core : llcLocal) {
-        for (auto& entry: core.datatypeCounts) {
-            entry = 0;
-        }
-        core.numItems.store(0);
-        core.numTempItems.store(0);
-        core.numNonResidentItems.store(0);
-        core.memSize.store(0);
-        core.cacheSize.store(0);
-        core.uncompressedMemSize.store(0);
+        core = {};
     }
 }
 

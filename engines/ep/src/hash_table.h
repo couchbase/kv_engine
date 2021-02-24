@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "copyable_atomic.h"
 #include "probabilistic_counter.h"
 #include "stored-value.h"
 #include "storeddockey.h"
@@ -170,8 +171,8 @@ public:
     // is used in a LastLevelCacheStore; the copy for one core _may_ go
     // negative, even though the sum across cores for each entry will be
     // non-negative.
-    using AtomicDatatypeCombo = std::array<std::atomic<ssize_t>,
-            mcbp::datatype::highest + 1>;
+    using AtomicDatatypeCombo =
+            std::array<CopyableAtomic<ssize_t>, mcbp::datatype::highest + 1>;
 
     /**
      * Represents a position within the hashtable.
