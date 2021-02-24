@@ -1173,6 +1173,14 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
         // Take the KVFileHandle before we lock the manifest to prevent lock
         // order inversions.
         auto kvstoreContext = kvstore->makeFileHandle(vbid);
+        if (!kvstoreContext) {
+            EP_LOG_CRITICAL(
+                    "Warmup::loadCollectionStatsForShard() Unable to make "
+                    "KVFileHandle for {}, aborting warmup as we will not be "
+                    "able to check collection stats.",
+                    vbid);
+            return;
+        }
 
         auto wh = itr->second->getManifest().wlock();
         // For each collection in the VB, get its stats

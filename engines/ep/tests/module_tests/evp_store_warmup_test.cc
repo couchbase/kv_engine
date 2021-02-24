@@ -19,7 +19,6 @@
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_ep_bucket.h"
 #include "../mock/mock_item_freq_decayer.h"
-#include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint_manager.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/response.h"
@@ -34,6 +33,7 @@
 #include "test_helpers.h"
 #include "vbucket_state.h"
 #include "warmup.h"
+#include <boost/filesystem.hpp>
 #include <folly/synchronization/Baton.h>
 
 class WarmupTest : public SingleThreadedKVBucketTest {
@@ -2224,6 +2224,83 @@ TEST_F(WarmupTest, MB_35326) {
     store_item(vbid, key, "value");
 
     flush_vbucket_to_disk(vbid);
+}
+
+class WarmupDiskTest : public SingleThreadedKVBucketTest {
+public:
+    boost::filesystem::path getDataDir() {
+        auto* kvstore = engine->getKVBucket()->getOneRWUnderlying();
+        const auto dbname = kvstore->getConfig().getDBName();
+        return (boost::filesystem::current_path() / dbname);
+    }
+
+    boost::filesystem::path getDataFile() {
+        const boost::filesystem::path dir(getDataDir());
+        for (const auto& file :
+             boost::filesystem::recursive_directory_iterator(dir)) {
+            if (file.path().has_filename() &&
+                file.path().filename() == "stats.json") {
+                continue;
+            }
+            return file.path();
+        }
+        throw std::runtime_error("failed to find any data files");
+    };
+
+    void deleteDataFile() {
+        auto dataFile = getDataFile();
+        EXPECT_TRUE(boost::filesystem::remove(dataFile));
+        ASSERT_FALSE(boost::filesystem::is_regular_file(dataFile));
+    };
+
+    TaskQueue& getReaderQueue() {
+        return *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    }
+
+    KVBucket* getKVBucket() {
+        return engine->getKVBucket();
+    }
+};
+
+/**
+ * Test to check that if a data file deleted between Warmup::initialize() and
+ * Warmup::loadCollectionStatsForShard() that we fail warmup
+ */
+TEST_F(WarmupDiskTest, noDataFileCollectionCountsTest) {
+    // Create a vbucket on disk
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    // Set up engine so its ready to warm up from disk
+    resetEngineAndEnableWarmup();
+
+    bool runDiskFailure = true;
+    // run through the stages of warmup
+    while (getKVBucket()->isWarmingUp()) {
+        // if check this is the state of warmup that we want to fail
+        // only run the disruption the for the first task though as we
+        // have two shards
+        if (runDiskFailure &&
+            WarmupState::State::LoadingCollectionCounts ==
+                    getKVBucket()->getWarmup()->getWarmupState()) {
+            // delete the datafile on disk
+            deleteDataFile();
+            runDiskFailure = false;
+        }
+        try {
+            CheckedExecutor executor(task_executor, getReaderQueue());
+            // run the task
+            executor.runCurrentTask();
+            executor.completeCurrentTask();
+        } catch (const std::logic_error& e) {
+            // CheckedExecutor should fail after LoadingCollectionCounts failed
+            // to open data file
+            EXPECT_FALSE(runDiskFailure);
+            EXPECT_EQ("CheckedExecutor failed fetchNextTask",
+                      std::string(e.what()));
+            break;
+        }
+    }
+    EXPECT_EQ(WarmupState::State::LoadingCollectionCounts,
+              getKVBucket()->getWarmup()->getWarmupState());
 }
 
 INSTANTIATE_TEST_SUITE_P(FullOrValue,
