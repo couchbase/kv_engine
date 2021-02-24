@@ -83,6 +83,12 @@ struct STATISTICS_PUBLIC_API StatDef {
     struct CBStatsOnlyTag {};
 
     /**
+     * Tag struct used to explicitly identify stats which should not be exposed
+     * for cbstats.
+     */
+    struct PrometheusOnlyTag {};
+
+    /**
      * Constructs a stat specification including the information needed to
      * expose a stat only through CBStats. The stat will _not_ be exposed over
      * Prometheus.
@@ -91,8 +97,24 @@ struct STATISTICS_PUBLIC_API StatDef {
      */
     StatDef(std::string_view cbstatsKey, CBStatsOnlyTag);
 
+    /**
+     * Constructs a stat specification including the information needed to
+     * expose a stat only for Prometheus. The stat will _not_ be exposed over
+     * cbstats.
+     *
+     * @param metricFamilyKey name of stat which is unique within a bucket.
+     */
+    StatDef(std::string_view metricFamilyKey,
+            cb::stats::Unit unit,
+            Labels&& labels,
+            PrometheusOnlyTag);
+
+    bool isCBStat() const {
+        return !cbstatsKey.empty();
+    }
+
     bool isPrometheusStat() const {
-        return !cbStatsOnly;
+        return !metricFamily.empty();
     }
 
     // Key which is unique per bucket. Used by CBStats
@@ -106,21 +128,19 @@ struct STATISTICS_PUBLIC_API StatDef {
     // Labels for this metric. Labels set here will
     // override defaults labels set in the StatCollector
     Labels labels;
-
-    // flag indicating if this stat is only suitable for CBStat export,
-    // and should not be included in output for other stat backends (Prometheus)
-    const bool cbStatsOnly = false;
 };
 
 // don't need labels for the enum
 #define LABEL(...)
 #define STAT(statName, ...) statName,
 #define CBSTAT(statName, ...) statName,
+#define PSTAT(statName, ...) statName,
 enum class STATISTICS_PUBLIC_API Key {
 #include "stats.def.h"
 
     enum_max
 };
+#undef PSTAT
 #undef CBSTAT
 #undef STAT
 #undef LABEL

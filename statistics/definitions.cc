@@ -27,6 +27,7 @@ using namespace std::string_view_literals;
 
 #define LABEL(key, value) \
     { #key, #value }
+
 #define STAT(statEnum, cbstatsName, unit, prometheusName, ...) \
     StatDef(std::string_view(cbstatsName).empty()              \
                     ? #statEnum                                \
@@ -36,11 +37,19 @@ using namespace std::string_view_literals;
                     ? #statEnum                                \
                     : std::string_view(#prometheusName),       \
             {__VA_ARGS__}),
+
 #define CBSTAT(statEnum, cbstatsName, ...)           \
     StatDef(std::string_view(cbstatsName).empty()    \
                     ? #statEnum                      \
                     : std::string_view(cbstatsName), \
             cb::stats::StatDef::CBStatsOnlyTag{}),
+
+#define PSTAT(metricFamily, unit, ...) \
+    StatDef(#metricFamily,             \
+            unit,                      \
+            {__VA_ARGS__},             \
+            cb::stats::StatDef::PrometheusOnlyTag{}),
+
 const std::array<StatDef, size_t(Key::enum_max)> statDefinitions{{
 #include <statistics/stats.def.h>
 }};
@@ -63,7 +72,15 @@ StatDef::StatDef(std::string_view cbstatsKey,
 }
 
 StatDef::StatDef(std::string_view cbstatsKey, CBStatsOnlyTag)
-    : cbstatsKey(cbstatsKey), cbStatsOnly(true) {
+    : cbstatsKey(cbstatsKey) {
+}
+
+StatDef::StatDef(std::string_view metricFamilyKey,
+                 cb::stats::Unit unit,
+                 Labels&& labels,
+                 PrometheusOnlyTag)
+    : unit(unit), metricFamily(metricFamilyKey), labels(std::move(labels)) {
+    metricFamily += unit.getSuffix();
 }
 
 } // end namespace cb::stats

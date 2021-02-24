@@ -33,6 +33,9 @@ using namespace std::string_view_literals;
 void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               std::string_view v,
                               const Labels& labels) const {
+    if (!k.isCBStat()) {
+        return;
+    }
     // CBStats has no concept of labels, but needs to distinguish some stats
     // through prefixes
 

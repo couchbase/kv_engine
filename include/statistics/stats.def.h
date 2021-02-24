@@ -27,6 +27,7 @@
  *
  * STAT(enumKey, cbstatName, unit, familyName, ...)
  * CBSTAT(enumKey, cbstatName, [unit])
+ * PSTAT(enumKey, unit, familyName, ...)
  *
  * where:
  *  * enumKey - a key which identifies the stat
@@ -66,7 +67,9 @@
  * For stats with unspecified units and no labels. In this case, the uniqueName
  * will also be used as the familyName.
  *
- * For stats which should _not_ be exposed to Prometheus, the CBSTAT macro
+ *
+ * ** Cbstats-only metrics **
+ * For stats which should only be exposed for cbstats, the CBSTAT macro
  * can be used instead. Only a unique name is required.
  *
  *  CBSTAT(uniqueName)
@@ -75,6 +78,15 @@
  *
  *  CBSTAT(uptime, , milliseconds)
  *
+ * ** Prometheus-only metrics **
+ * For stats which should only be exposed for Prometheus, the PSTAT macro
+ * can be used instead. An unique enum key and unit are required.
+ *
+ *  PSTAT(enumKey, unit, )
+ *
+ * Labels are optional as with the STAT macro.
+ *
+ *  PSTAT(cmd_duration, microseconds, LABEL(op, get))
  */
 
 #ifndef STAT
@@ -88,6 +100,11 @@
 #ifndef CBSTAT
 #warning A CBSTAT macro must be defined before including stats.def.h
 #define CBSTAT(...)
+#endif
+
+#ifndef PSTAT
+#warning A PSTAT macro must be defined before including stats.def.h
+#define PSTAT(...)
 #endif
 
 #ifndef LABEL
