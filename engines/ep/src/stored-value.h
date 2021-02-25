@@ -146,14 +146,17 @@ public:
     enum class IncludeValue : uint8_t { Yes, No };
 
     /**
-     * C++14 will call the sized delete version, but we
-     * allocate the object by using the new operator with a custom
-     * size (the key is packed after the object). We need to use
-     * the non-sized delete variant as the runtime don't know
-     * the size of the allocated object.
+     * Class-specific deallocation function. We need to specify this
+     * because with it, C++ runtime will call the sized delete version
+     * with the size it _thinks_ StoredValue is, but we allocate the
+     * object by using the new operator with a custom size (the key is
+     * packed after the object) so the runtime's size is incorrect.
      */
     static void operator delete(void* ptr) {
-        ::operator delete(ptr);
+        // We actually know the size of the allocation, so use that to
+        // optimise deletion.
+        auto* sv = reinterpret_cast<StoredValue*>(ptr);
+        ::operator delete(sv, sv->getObjectSize());
     }
 
     /**
@@ -1111,14 +1114,12 @@ public:
     static size_t getRequiredStorage(const DocKey& key);
 
     /**
-     * C++14 will call the sized delete version, but we
-     * allocate the object by using the new operator with a custom
-     * size (the key is packed after the object). We need to use
-     * the non-sized delete variant as the runtime don't know
-     * the size of the allocated object.
+     * Class-specific deallocation function. See comments on
+     * StoredValue::operator delete for why this is necessary.
      */
     static void operator delete(void* ptr) {
-        ::operator delete(ptr);
+        // Delegate to StoredValue fucntion given they are identical.
+        StoredValue::operator delete(ptr);
     }
 
     /**

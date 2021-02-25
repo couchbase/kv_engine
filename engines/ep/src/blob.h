@@ -115,11 +115,19 @@ public:
      */
     const std::string to_s() const;
 
-    // This is necessary for making C++ happy when I'm doing a
-    // placement new on fairly "normal" c++ heap allocations, just
-    // with variable-sized objects.
-    void operator delete(void* p) {
-        ::operator delete(p);
+    /**
+     * Class-specific deallocation function. We need to specify this
+     * because with it, C++ runtime will call the sized delete version
+     * with the size it _thinks_ Blob is, but we allocate the
+     * object by using the new operator with a custom size (the value is
+     * packed after the object) so the runtime's size is incorrect.
+     */
+    static void operator delete(void* ptr) {
+        // We actually know the size of the allocation, so use that to
+        // optimise deletion.
+        auto* blob = reinterpret_cast<Blob*>(ptr);
+        auto size = Blob::getAllocationSize(blob->valueSize());
+        ::operator delete(blob, size);
     }
 
     ~Blob();
