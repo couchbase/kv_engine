@@ -48,11 +48,11 @@ StoredValue::StoredValue(const Item& itm,
       flags(itm.getFlags()),
       revSeqno(itm.getRevSeqno()),
       datatype(itm.getDataType()),
+      ordered(isOrdered),
       deletionSource(0),
       committed(static_cast<uint8_t>(CommittedState::CommittedViaMutation)) {
     // Initialise bit fields
     setDeletedPriv(itm.isDeleted());
-    setOrdered(isOrdered);
     setResident(!isTempItem());
     setStale(false);
     setCommitted(itm.getCommitted());
@@ -94,10 +94,10 @@ StoredValue::StoredValue(const StoredValue& other, UniquePtr n, EPStats& stats)
       exptime(other.exptime),
       flags(other.flags),
       revSeqno(other.revSeqno),
-      datatype(other.datatype) {
+      datatype(other.datatype),
+      ordered(other.ordered) {
     setDirty(other.isDirty());
     setDeletedPriv(other.isDeleted());
-    setOrdered(other.isOrdered());
     setResident(other.isResident());
     setStale(false);
     setCommitted(other.getCommitted());

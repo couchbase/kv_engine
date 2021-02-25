@@ -903,11 +903,7 @@ protected:
     }
 
     bool isOrdered() const {
-        return bits.test(orderedIndex);
-    }
-
-    void setOrdered(bool value) {
-        bits.set(orderedIndex, value);
+        return ordered;
     }
 
     void setDeletedPriv(bool value) {
@@ -1000,24 +996,16 @@ protected:
     protocol_binary_datatype_t datatype; // 1 byte
 
     /**
-     * Compressed members live in the AtomicBitSet
+     * Various mutable flags which may be modified without taking
+     * HashBucketLock, hence implemented using AtomicBitSet.
      */
     static constexpr size_t dirtyIndex = 0;
     static constexpr size_t deletedIndex = 1;
-    // Bit 2 of bits is currently unused and may be used for new purposes.
-    // static constexpr size_t unused = 2;
-    // ordered := true if this is an instance of OrderedStoredValue
-    static constexpr size_t orderedIndex = 3;
-    // Bit 4 and 5 of bits are currently unused and may be used for new purposes
-    // These bits were used for nru value but this was replaced by
-    // frequencyCounter stored in the tag of value
-    // static constexpr size_t unused = 4;
-    // static constexpr size_t unused = 5;
-    static constexpr size_t residentIndex = 6;
+    static constexpr size_t residentIndex = 2;
     // stale := Indicates if a newer instance of the item is added. Logically
     //          part of OSV, but is physically located in SV as there are spare
     //          bits here. Guarded by the SequenceList's writeLock.
-    static constexpr size_t staleIndex = 7;
+    static constexpr size_t staleIndex = 3;
 
     folly::AtomicBitSet<sizeof(uint8_t)> bits;
 
@@ -1027,6 +1015,8 @@ protected:
      * HashBucketLock.
      */
 
+    // ordered := true if this is an instance of OrderedStoredValue
+    const uint8_t ordered : 1;
     /// If the stored value is deleted, this stores the source of its deletion.
     uint8_t deletionSource : 1;
     /// 3-bit value which encodes the CommittedState of the StoredValue
