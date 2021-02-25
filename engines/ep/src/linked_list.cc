@@ -116,6 +116,13 @@ void BasicLinkedList::maybeUpdateMaxVisibleSeqno(
     }
 }
 
+void BasicLinkedList::updateHighCompletedSeqno(
+        std::lock_guard<std::mutex>& seqLock,
+        std::lock_guard<std::mutex>& writeLock,
+        int64_t hcs) {
+    highCompletedSeqno = hcs;
+}
+
 void BasicLinkedList::markItemStale(std::lock_guard<std::mutex>& listWriteLg,
                                     StoredValue::UniquePtr ownedSv,
                                     StoredValue* newSv) {
@@ -336,6 +343,16 @@ uint64_t BasicLinkedList::getMaxVisibleSeqno() const {
     return maxVisibleSeqno;
 }
 
+uint64_t BasicLinkedList::getHighCompletedSeqno() const {
+    std::lock_guard<std::mutex> lg(getListWriteLock());
+    return highCompletedSeqno;
+}
+
+uint64_t BasicLinkedList::getHighCompletedSeqno(
+        std::lock_guard<std::mutex>& writeLock) const {
+    return highCompletedSeqno;
+}
+
 std::pair<uint64_t, uint64_t> BasicLinkedList::getRangeRead() const {
     return rangeLockManager.getLockedRange().getRange();
 }
@@ -448,6 +465,7 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll,
     numRemaining = list.seqList.size();
 
     maxVisibleSeqno = list.maxVisibleSeqno;
+    highCompletedSeqno = list.highCompletedSeqno;
 
     /* Mark the snapshot range on linked list. The range that can be read by the
        iterator is inclusive of the start and the end. */

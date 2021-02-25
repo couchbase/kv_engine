@@ -103,6 +103,10 @@ public:
                                     std::lock_guard<std::mutex>& writeLock,
                                     const OrderedStoredValue& newSV) override;
 
+    void updateHighCompletedSeqno(std::lock_guard<std::mutex>& seqLock,
+                                  std::lock_guard<std::mutex>& writeLock,
+                                  int64_t hcs) override;
+
     void markItemStale(std::lock_guard<std::mutex>& listWriteLg,
                        StoredValue::UniquePtr ownedSv,
                        StoredValue* newSv) override;
@@ -130,6 +134,10 @@ public:
     seqno_t getHighestPurgedDeletedSeqno() const override;
 
     uint64_t getMaxVisibleSeqno() const override;
+
+    uint64_t getHighCompletedSeqno() const override;
+    uint64_t getHighCompletedSeqno(
+            std::lock_guard<std::mutex>& writeLock) const override;
 
     std::pair<uint64_t, uint64_t> getRangeRead() const override;
 
@@ -245,6 +253,12 @@ private:
     Monotonic<uint64_t> maxVisibleSeqno{0};
 
     /**
+     * Seqno of the highest completed prepare. Used at backfill to determine
+     * if a prepare should be sent or not.
+     */
+    Monotonic<uint64_t> highCompletedSeqno{0};
+
+    /**
      * Indicates the number of elements in the list that are stale (old,
      * duplicate values). Stale items are owned by the list and hence must
      * periodically clean them up.
@@ -318,6 +332,10 @@ private:
             return maxVisibleSeqno;
         }
 
+        uint64_t getHighCompletedSeqno() const override {
+            return highCompletedSeqno;
+        }
+
     private:
         /* We have a private constructor because we want to create the iterator
            optionally, that is, only when it is possible to get a read lock */
@@ -369,6 +387,8 @@ private:
         uint64_t numRemaining;
 
         uint64_t maxVisibleSeqno;
+
+        uint64_t highCompletedSeqno;
 
         /* Indicates if the range iterator is for DCP backfill
            (for debug) */

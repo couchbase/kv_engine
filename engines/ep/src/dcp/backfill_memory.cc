@@ -159,7 +159,7 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
             bool markerSent =
                     stream->markDiskSnapshot(startSeqno,
                                              endSeqno,
-                                             evb->getHighCompletedSeqno(),
+                                             rangeItr.getHighCompletedSeqno(),
                                              rangeItr.getMaxVisibleSeqno());
 
             if (markerSent) {

@@ -879,6 +879,7 @@ ENGINE_ERROR_CODE VBucket::commit(
     queueItmCtx.durability =
             DurabilityItemCtx{res.pending->getBySeqno(), nullptr /*cookie*/};
 
+    queueItmCtx.hcs = res.pending->getBySeqno();
     auto notify =
             commitStoredValue(res, prepareSeqno, queueItmCtx, commitSeqno);
 
