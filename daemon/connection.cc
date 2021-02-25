@@ -1801,9 +1801,7 @@ cb::engine_errc Connection::mutation(uint32_t opaque,
         builder.setVBucket(vbucket);
         builder.setCas(info.cas);
         builder.setDatatype(cb::mcbp::Datatype(info.datatype));
-
-        copyToOutputStream(builder.getFrame()->getFrame());
-        return cb::engine_errc::success;
+        return add_packet_to_send_pipe(builder.getFrame()->getFrame());
     }
 
     cb::mcbp::Request req = {};
@@ -1917,8 +1915,7 @@ cb::engine_errc Connection::deletion(uint32_t opaque,
         builder.setCas(info.cas);
         builder.setDatatype(cb::mcbp::Datatype(info.datatype));
 
-        copyToOutputStream(builder.getFrame()->getFrame());
-        return cb::engine_errc::success;
+        return add_packet_to_send_pipe(builder.getFrame()->getFrame());
     }
 
     using cb::mcbp::Request;
@@ -2002,8 +1999,7 @@ cb::engine_errc Connection::deletion_v2(uint32_t opaque,
         builder.setVBucket(vbucket);
         builder.setCas(info.cas);
         builder.setDatatype(cb::mcbp::Datatype(info.datatype));
-        copyToOutputStream(builder.getFrame()->getFrame());
-        return cb::engine_errc::success;
+        return add_packet_to_send_pipe(builder.getFrame()->getFrame());
     }
 
     // Make blob big enough for either delete or expiry
@@ -2087,8 +2083,7 @@ cb::engine_errc Connection::expiration(uint32_t opaque,
         builder.setVBucket(vbucket);
         builder.setCas(info.cas);
         builder.setDatatype(cb::mcbp::Datatype(info.datatype));
-        copyToOutputStream(builder.getFrame()->getFrame());
-        return cb::engine_errc::success;
+        return add_packet_to_send_pipe(builder.getFrame()->getFrame());
     }
 
     // Make blob big enough for either delete or expiry
@@ -2282,8 +2277,7 @@ cb::engine_errc Connection::prepare(uint32_t opaque,
         builder.setCas(info.cas);
         builder.setDatatype(cb::mcbp::Datatype(info.datatype));
         builder.setValue(buffer);
-        copyToOutputStream(builder.getFrame()->getFrame());
-        return cb::engine_errc::success;
+        return add_packet_to_send_pipe(builder.getFrame()->getFrame());
     }
 
     cb::mcbp::Request req = {};
