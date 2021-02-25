@@ -636,7 +636,15 @@ void DcpStreamSyncReplTest::testBackfillPrepareCommit(
     // Wait for the backfill task to have pushed all items to the Stream::readyQ
     // Note: we expect 1 SnapshotMarker + numItems in the readyQ
     std::chrono::microseconds uSleepTime(128);
-    while (stream->public_readyQSize() < 1 + 2) {
+    size_t expected = 2;
+    if (bucketType == "ephemeral") {
+        // Ephemeral doesn't sent committed prepares as the HTTombstonePurger
+        // marks items stale out of seqno order so items can be purged out of
+        // seqno order and a promotion to active would cause a recommit of that
+        // item
+        expected = 1;
+    }
+    while (stream->public_readyQSize() < 1 + expected) {
         uSleepTime = decayingSleep(uSleepTime);
     }
 
@@ -646,8 +654,10 @@ void DcpStreamSyncReplTest::testBackfillPrepareCommit(
     EXPECT_EQ(0, dcpSnapMarker.getStartSeqno());
     EXPECT_EQ(2, dcpSnapMarker.getEndSeqno());
 
-    item = stream->public_nextQueuedItem();
-    verifyDcpPrepare(*prepared, *item);
+    if (bucketType == "persistent") {
+        item = stream->public_nextQueuedItem();
+        verifyDcpPrepare(*prepared, *item);
+    }
 
     item = stream->public_nextQueuedItem();
     // In general, a backfill from disk will send a mutation instead of a
