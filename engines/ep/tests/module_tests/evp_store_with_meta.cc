@@ -248,6 +248,16 @@ public:
     void conflict_lose_xattr(cb::mcbp::ClientOpcode op,
                              int options,
                              bool withValue);
+
+    /**
+     * The test verifies that Set/DelWithMeta sanitizes invalid payloads like
+     * {datatype:xattr, value-size=0} by resetting to datatype:raw.
+     *
+     * @param op The *WithMeta operation under test
+     * @throws std::invalid_argument if a different kind of operation is passed
+     */
+    void testWithMetaXattrWithEmptyPayload(cb::mcbp::ClientOpcode op);
+
     /**
      * Initialise an expiry value which allows us to set/get items without them
      * expiring, i.e. a few years of expiry wiggle room
@@ -347,22 +357,25 @@ TEST_F(WithMetaTest, basicAdd) {
                   ENGINE_SUCCESS); // can still get the key
 }
 
-/**
- * The test verifies that SetWithMeta sanitizes invalid payloads like
- * {datatype:xattr, value-size=0} by resetting datatype:raw
- */
-TEST_F(WithMetaTest, SetWithMetaXattrWithEmptyPayload) {
+void WithMetaTest::testWithMetaXattrWithEmptyPayload(
+        cb::mcbp::ClientOpcode op) {
+    using ClientOpcode = cb::mcbp::ClientOpcode;
+    if (op != ClientOpcode::SetWithMeta && op != ClientOpcode::DelWithMeta) {
+        throw std::invalid_argument("testWithMetaXattrWithEmptyPayload: " +
+                                    std::to_string(static_cast<uint8_t>(op)));
+    }
+
     mock_set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_JSON);
 
-    const auto& vb = store->getVBucket(vbid);
-    ASSERT_EQ(0, vb->getHighSeqno());
+    auto& vb = *store->getVBucket(vbid);
+    ASSERT_EQ(0, vb.getHighSeqno());
 
     const std::string key = "key";
     const std::string value; // Empty value
     const auto datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
     ItemMetaData meta{1 /*cas*/, 1 /*revSeqno*/, 0 /*flags*/, 0 /*expiry*/};
     const std::vector<char> extMeta = {};
-    const auto packet = buildWithMetaPacket(cb::mcbp::ClientOpcode::SetWithMeta,
+    const auto packet = buildWithMetaPacket(op,
                                             datatype,
                                             vbid,
                                             0 /*opaque*/,
@@ -373,19 +386,26 @@ TEST_F(WithMetaTest, SetWithMetaXattrWithEmptyPayload) {
                                             extMeta,
                                             0 /*options*/);
     const auto* req = reinterpret_cast<const cb::mcbp::Request*>(packet.data());
-    EXPECT_EQ(ENGINE_SUCCESS, engine->setWithMeta(cookie, *req, addResponse));
+    if (op == ClientOpcode::SetWithMeta) {
+        // Note: Before the fix this allows storing invalid paylaods.
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  engine->setWithMeta(cookie, *req, addResponse));
+    } else {
+        // Note: Before the fix invalid payloads are detected but we throw and
+        // close the connection.
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  engine->deleteWithMeta(cookie, *req, addResponse));
+    }
 
     // Check in memory
-    const auto res = store->get({key, DocKeyEncodesCollectionId::No},
-                                vbid,
-                                cookie,
-                                get_options_t::NONE);
-    EXPECT_EQ(ENGINE_SUCCESS, res.getStatus());
-    EXPECT_EQ(1, res.item->getBySeqno());
-    EXPECT_FALSE(res.item->isDeleted());
-    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, res.item->getDataType());
-    EXPECT_NE(nullptr, res.item->getData());
-    EXPECT_EQ(0, res.item->getNBytes());
+    {
+        const auto res = vb.ht.findOnlyCommitted(makeStoredDocKey(key));
+        EXPECT_TRUE(res.storedValue);
+        EXPECT_EQ(1, res.storedValue->getBySeqno());
+        EXPECT_EQ(op == ClientOpcode::DelWithMeta ? true : false,
+                  res.storedValue->isDeleted());
+        EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, res.storedValue->getDatatype());
+    }
 
     // Check on disk
     flush_vbucket_to_disk(vbid, 1 /*expectedNumFlushed*/);
@@ -394,10 +414,19 @@ TEST_F(WithMetaTest, SetWithMetaXattrWithEmptyPayload) {
     auto gv = kvstore->get(makeDiskDocKey(key), vbid);
     EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
     EXPECT_EQ(1, gv.item->getBySeqno());
-    EXPECT_FALSE(gv.item->isDeleted());
+    EXPECT_EQ(op == ClientOpcode::DelWithMeta ? true : false,
+              gv.item->isDeleted());
     EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, gv.item->getDataType());
     EXPECT_TRUE(gv.item->getValue());
     EXPECT_EQ(0, gv.item->getNBytes());
+}
+
+TEST_F(WithMetaTest, SetWithMetaXattrWithEmptyPayload) {
+    testWithMetaXattrWithEmptyPayload(cb::mcbp::ClientOpcode::SetWithMeta);
+}
+
+TEST_F(WithMetaTest, DelWithMetaXattrWithEmptyPayload) {
+    testWithMetaXattrWithEmptyPayload(cb::mcbp::ClientOpcode::DelWithMeta);
 }
 
 TEST_P(DelWithMetaTest, basic) {

@@ -5564,12 +5564,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
 
         if (allowSanitizeValueInDeletion) {
             if (mcbp::datatype::is_xattr(datatype)) {
-                // Whatever we have in the value, just keep Xattrs
-                const auto valBuffer = cb::const_char_buffer{
-                        reinterpret_cast<const char*>(value.data()),
-                        value.size()};
-                value = {reinterpret_cast<const uint8_t*>(valBuffer.data()),
-                         cb::xattr::get_body_offset(valBuffer)};
+                if (!value.empty()) {
+                    // Whatever we have in the value, just keep Xattrs
+                    const auto valBuffer = cb::const_char_buffer{
+                            reinterpret_cast<const char*>(value.data()),
+                            value.size()};
+                    value = {reinterpret_cast<const uint8_t*>(valBuffer.data()),
+                             cb::xattr::get_body_offset(valBuffer)};
+                }
             } else {
                 // We may have nothing or only a Body, remove everything
                 value = {};
