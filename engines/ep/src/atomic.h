@@ -94,6 +94,52 @@ template <class S, class Pointer, class Deleter>
 class SingleThreadedRCPtr;
 
 /**
+ * A reference count, for use by SingleThreadedRCPtr.
+ *
+ * Exposes increment / decrement methods with the appropariate (and
+ * optimal) memory ordering for correct reference-counting (see
+ * https://en.cppreference.com/w/cpp/atomic/memory_order):
+ *
+ * Increments of count can use relaxed memory ordering:
+ *
+ *     "Typical use for relaxed memory ordering is incrementing
+ *     counters, such as the reference counters of std::shared_ptr,
+ *     since this only requires atomicity, but not ordering or
+ *     synchronization"
+ *
+ * Decrements of count must use acquire-release, as a decrment could
+ * reduce ref-count to zero when object must be destroyed exactly
+ * once:
+ *
+ *     "... note that decrementing the shared_ptr counters requires
+ *     acquire-release synchronization with the destructor".
+ *
+ * Reads of the count must use acquire ordering to ensure any (relaxed
+ * increments) from other threads are observed.
+ */
+class RefCount {
+public:
+    RefCount(int value = 0) {
+        count.store(value, std::memory_order_relaxed);
+    }
+
+    int operator++() noexcept {
+        return count.fetch_add(1, std::memory_order_relaxed) + 1;
+    }
+
+    int operator--() noexcept {
+        return count.fetch_sub(1, std::memory_order_acq_rel) - 1;
+    }
+
+    int load() const {
+        return count.load(std::memory_order_acquire);
+    }
+
+private:
+    mutable std::atomic<int> count;
+};
+
+/**
  * A reference counted value (used by SingleThreadedRCPtr).
  */
 class RCValue {
@@ -106,7 +152,7 @@ private:
     template <class MySS, class Pointer, class Deleter>
     friend class SingleThreadedRCPtr;
 
-    mutable std::atomic<int> _rc_refcount;
+    mutable RefCount _rc_refcount;
 };
 
 /**
@@ -248,7 +294,7 @@ private:
 
     Pointer gimme() const {
         if (value != nullptr) {
-            value->_rc_refcount++;
+            ++value->_rc_refcount;
         }
         return value;
     }

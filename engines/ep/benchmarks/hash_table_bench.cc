@@ -49,6 +49,18 @@ public:
         }
     }
 
+    StoredDocKey makeKey(CollectionID collection,
+                         std::string_view keyPrefix,
+                         int i) {
+        // Use fmtlib to format key with stack-local (non-heap) buffer to
+        // minimise the cost of constructing keys for Items.
+        fmt::memory_buffer keyBuf;
+        format_to(keyBuf, "{}{}", keyPrefix, i);
+        // Note: fmt::memory_buffer is not null-terminated, cannot use the
+        // cstring-ctor
+        return StoredDocKey(to_string(keyBuf), collection);
+    }
+
     /**
      * Create numItems Items, giving each key the given prefix.
      * @param prefix String to prefix each key with.
@@ -71,15 +83,8 @@ public:
         const size_t itemSize = 1;
         const auto data = std::string(itemSize, 'x');
         for (size_t i = 0; i < numItems; i++) {
-            // Use fmtlib to format key with stack-local (non-heap) buffer to
-            // minimise the cost of constructing keys for Items.
-            fmt::memory_buffer keyBuf;
-            format_to(keyBuf, "{}{}", prefix, i);
-            // Note: fmt::memory_buffer is not null-terminated, cannot use the
-            // cstring-ctor
             const auto& collection = collections.at(i % collections.size());
-
-            StoredDocKey key(to_string(keyBuf), collection);
+            auto key = makeKey(collection, prefix, i);
             items.emplace_back(key, 0, 0, data.data(), data.size());
 
             if (pendingSyncWritesPcnt > 0) {
@@ -368,14 +373,19 @@ BENCHMARK_DEFINE_F(HashTableBench, HTStatsEpilogue)(benchmark::State& state) {
 }
 
 BENCHMARK_DEFINE_F(HashTableBench, Clear)(benchmark::State& state) {
-    // Generate numItems to add to (and then clear from) HashTable.
-    sharedItems = createUniqueItems("Key");
-
     // Benchmark - measure how long it takes to clear the HashTable.
+    // Need to create Items each iteration so they have a ref-count of
+    // 1 in the HashTable and hence clear() has to delete them.
     while (state.KeepRunning()) {
         state.PauseTiming();
-        for (auto& item : sharedItems) {
-            ASSERT_EQ(MutationStatus::WasClean, ht.set(item));
+        // Vary item size across items; create a single sized string
+        // and then use a substring of it in ht.set().
+        const size_t itemSize = 256;
+        const auto data = std::string(itemSize, 'x');
+        for (size_t i = 0; i < numItems; i++) {
+            auto key = makeKey(CollectionID::Default, "key", i);
+            ASSERT_EQ(MutationStatus::WasClean,
+                      ht.set({key, 0, 0, data.data(), (i % data.size()) + 1}));
         }
         state.ResumeTiming();
 
