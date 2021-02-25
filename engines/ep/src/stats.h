@@ -484,7 +484,7 @@ public:
 
     //! Histogram of item allocation sizes.
     HdrHistogram itemAllocSizeHisto{
-            0,
+            1,
             20 * 1024 * 1024, // Max alloc size is 20MB
             1,
             HdrHistogram::Iterator::IterMode::Percentiles};

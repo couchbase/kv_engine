@@ -29,25 +29,23 @@ void HdrHistogram::HdrDeleter::operator()(struct hdr_histogram* val) {
     hdr_close_ex(val, cb_free);
 }
 
-HdrHistogram::HdrHistogram(uint64_t lowestTrackableValue,
+HdrHistogram::HdrHistogram(uint64_t lowestDiscernibleValue,
                            uint64_t highestTrackableValue,
                            int significantFigures,
                            Iterator::IterMode iterMode) {
-    if (lowestTrackableValue >= highestTrackableValue ||
+    if (lowestDiscernibleValue >= highestTrackableValue ||
         highestTrackableValue >=
                 static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
         throw std::logic_error(
                 "HdrHistogram must have logical low/high tackable values min:" +
-                std::to_string(lowestTrackableValue) +
+                std::to_string(lowestDiscernibleValue) +
                 " max:" + std::to_string(highestTrackableValue));
     }
 
     struct hdr_histogram* hist = nullptr;
-    // We add a bias of +1 to the lowest and highest trackable value
-    // because we add +1 to all values we store in the histogram (as this
-    // allows us to record the value 0).
-    hdr_init_ex(lowestTrackableValue + 1,
-                highestTrackableValue + 1, // Add one because all values
+
+    hdr_init_ex(lowestDiscernibleValue,
+                highestTrackableValue,
                 significantFigures,
                 &hist, // Pointer to initialise
                 cb_calloc);
@@ -71,13 +69,13 @@ HdrHistogram& HdrHistogram::operator+=(const HdrHistogram& other) {
     ConstRHistoLockedPtr& otherLock = lockPair.second;
     if (otherLock->get()->total_count > 0) {
         // work out if we need to resize the receiving histogram
-        auto newMin = getMinTrackableValue(thisLock);
+        auto newDiscernibleMin = getMinDiscernibleValue(thisLock);
         auto newMax = getMaxTrackableValue(thisLock);
         auto newSigfig = getSigFigAccuracy(thisLock);
         bool resize = false;
 
-        if (getMinTrackableValue(otherLock) < newMin) {
-            newMin = getMinTrackableValue(otherLock);
+        if (getMinDiscernibleValue(otherLock) < newDiscernibleMin) {
+            newDiscernibleMin = getMinDiscernibleValue(otherLock);
             resize = true;
         }
         if (getMaxTrackableValue(otherLock) > newMax) {
@@ -90,7 +88,7 @@ HdrHistogram& HdrHistogram::operator+=(const HdrHistogram& other) {
             resize = true;
         }
         if (resize) {
-            this->resize(thisLock, newMin, newMax, newSigfig);
+            this->resize(thisLock, newDiscernibleMin, newMax, newSigfig);
         }
         hdr_add(thisLock->get(), otherLock->get());
     }
@@ -109,15 +107,11 @@ HdrHistogram& HdrHistogram::operator=(const HdrHistogram& other) {
 }
 
 bool HdrHistogram::addValue(uint64_t v) {
-    // A hdr_histogram cannot store 0, therefore we add a bias of +1.
-    int64_t vBiased = v + 1;
-    return hdr_record_value(histogram.rlock()->get(), vBiased);
+    return hdr_record_value(histogram.rlock()->get(), v);
 }
 
 bool HdrHistogram::addValueAndCount(uint64_t v, uint64_t count) {
-    // A hdr_histogram cannot store 0, therefore we add a bias of +1.
-    int64_t vBiased = v + 1;
-    return hdr_record_values(histogram.rlock()->get(), vBiased, count);
+    return hdr_record_values(histogram.rlock()->get(), v, count);
 }
 
 uint64_t HdrHistogram::getValueCount() const {
@@ -125,21 +119,11 @@ uint64_t HdrHistogram::getValueCount() const {
 }
 
 uint64_t HdrHistogram::getMinValue() const {
-    // check there are values in the histogram otherwise hdr_min() will return
-    // 0 which will cause use to return a UINT64_MAX.
-    if (getValueCount()) {
-        return static_cast<uint64_t>(hdr_min(histogram.rlock()->get()) - 1);
-    }
-    return 0;
+    return static_cast<uint64_t>(hdr_min(histogram.rlock()->get()));
 }
 
 uint64_t HdrHistogram::getMaxValue() const {
-    // check there are values in the histogram otherwise hdr_max() will return
-    // 0 which will cause use to return a UINT64_MAX.
-    if (getValueCount()) {
-        return static_cast<uint64_t>(hdr_max(histogram.rlock()->get()) - 1);
-    }
-    return 0;
+    return static_cast<uint64_t>(hdr_max(histogram.rlock()->get()));
 }
 
 void HdrHistogram::reset() {
@@ -147,14 +131,7 @@ void HdrHistogram::reset() {
 }
 
 uint64_t HdrHistogram::getValueAtPercentile(double percentage) const {
-    // We added the bias of +1 to the input value (see
-    // addValueToFreqHistogram).  Therefore need to minus the bias
-    // before returning the value from the histogram.
-    // Note: If the histogram is empty we just want to return 0;
-    uint64_t value =
-            hdr_value_at_percentile(histogram.rlock()->get(), percentage);
-    uint64_t result = getValueCount() > 0 ? (value - 1) : 0;
-    return result;
+    return hdr_value_at_percentile(histogram.rlock()->get(), percentage);
 }
 
 HdrHistogram::Iterator HdrHistogram::makeLinearIterator(
@@ -193,8 +170,7 @@ HdrHistogram::Iterator HdrHistogram::makeIterator(
     case Iterator::IterMode::Log:
         return makeLogIterator(1, 2);
     case Iterator::IterMode::Linear: {
-        int64_t bucketWidth =
-                (getMaxTrackableValue() - getMinTrackableValue()) / 20;
+        int64_t bucketWidth = getMaxTrackableValue() / 20;
         if (bucketWidth < 0) {
             bucketWidth = 1;
         }
@@ -233,10 +209,7 @@ HdrHistogram::Iterator::getNextValueAndCount() {
             break;
         }
 
-        // We added the bias of +1 to the input value (see
-        // addValueToFreqHistogram).  Therefore need to minus the bias
-        // before returning value.
-        return valueAndCount = std::make_pair(value - 1, count);
+        return valueAndCount = std::make_pair(value, count);
     } else {
         return valueAndCount;
     }
@@ -259,10 +232,7 @@ HdrHistogram::Iterator::getNextValueAndPercentile() {
     std::optional<std::pair<uint64_t, double>> valueAndPer;
     if (type == Iterator::IterMode::Percentiles) {
         if (hdr_iter_next(this)) {
-            // We subtract one from the lowest value as we have added a one
-            // offset as the underlying hdr_histogram cannot store 0 and
-            // therefore the value must be greater than or equal to 1.
-            valueAndPer = {highest_equivalent_value - 1,
+            valueAndPer = {highest_equivalent_value,
                            specifics.percentiles.percentile};
         }
     }
@@ -332,28 +302,26 @@ size_t HdrHistogram::getMemFootPrint() const {
 }
 
 double HdrHistogram::getMean() const {
-    return hdr_mean(histogram.rlock()->get()) - 1;
+    return hdr_mean(histogram.rlock()->get());
 }
 
 void HdrHistogram::resize(WHistoLockedPtr& histoLockPtr,
-                          uint64_t lowestTrackableValue,
+                          uint64_t lowestDiscernibleValue,
                           uint64_t highestTrackableValue,
                           int significantFigures) {
-    if (lowestTrackableValue >= highestTrackableValue ||
+    if (lowestDiscernibleValue >= highestTrackableValue ||
         highestTrackableValue >=
                 static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
         throw std::logic_error(
                 "HdrHistogram must have logical low/high tackable values min:" +
-                std::to_string(lowestTrackableValue) +
+                std::to_string(lowestDiscernibleValue) +
                 " max:" + std::to_string(highestTrackableValue));
     }
 
     struct hdr_histogram* hist = nullptr;
-    // We add a bias of +1 to the lowest and highest value that can be tracked
-    // because we add +1 to all values we store in the histogram (as this
-    // allows us to record the value 0).
-    hdr_init_ex(lowestTrackableValue + 1,
-                highestTrackableValue + 1, // Add one because all values
+
+    hdr_init_ex(lowestDiscernibleValue,
+                highestTrackableValue,
                 significantFigures,
                 &hist, // Pointer to initialise
                 cb_calloc);

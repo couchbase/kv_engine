@@ -48,8 +48,10 @@ TEST(ItemEvictionClassTest, freqThreshold) {
     ASSERT_EQ(256, itemEv.getFreqHistogramValueCount());
     auto result50 = itemEv.getThresholds(50.0, 50.0);
     EXPECT_EQ(127, result50.first);
-    EXPECT_EQ(254, result50.second);
+    EXPECT_EQ(255, result50.second);
     auto result100 = itemEv.getThresholds(100.0, 100.0);
     EXPECT_EQ(255, result100.first);
-    EXPECT_EQ(510, result100.second);
+    // NOTE: the maximum added value age value was 255*2 = 510, but the age
+    // histogram only tracks one significant figure, so this value is not exact.
+    EXPECT_EQ(511, result100.second);
 }

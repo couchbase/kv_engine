@@ -33,12 +33,12 @@
 
 class HdrHistogramEmpty : public HdrHistogram {
 public:
-    HdrHistogramEmpty() : HdrHistogram(0, 1, 1){};
+    HdrHistogramEmpty() : HdrHistogram(1, 1, 1){};
 };
 
 class HdrHistogramBench : public HdrHistogram {
 public:
-    HdrHistogramBench() : HdrHistogram(0, 60000000, 2){};
+    HdrHistogramBench() : HdrHistogram(1, 60000000, 2){};
 };
 
 template <typename T>
@@ -129,7 +129,7 @@ void HdrVariantSizeConstructionDestructionHeap(benchmark::State& state) {
     nanoseconds testDuration(0);
     while (state.KeepRunning()) {
         std::unique_ptr<HdrHistogram> testHisto(
-                new HdrHistogram(0, static_cast<uint64_t>(state.range(0)), 2));
+                new HdrHistogram(1, static_cast<uint64_t>(state.range(0)), 2));
         HistoAddNs<HdrHistogram>(*testHisto.get(), testDuration);
     }
 }
@@ -148,7 +148,7 @@ void HdrVariantSizeConstructionDestructionStack(benchmark::State& state) {
     using namespace std::chrono;
     nanoseconds testDuration(0);
     while (state.KeepRunning()) {
-        HdrHistogram testHisto{0, static_cast<uint64_t>(state.range(0)), 2};
+        HdrHistogram testHisto{1, static_cast<uint64_t>(state.range(0)), 2};
         HistoAddNs<HdrHistogram>(testHisto, testDuration);
     }
 }

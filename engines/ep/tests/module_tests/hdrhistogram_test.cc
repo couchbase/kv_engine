@@ -18,6 +18,8 @@
 #include "thread_gate.h"
 
 #include <folly/portability/GTest.h>
+#include <gmock/gmock-matchers.h>
+
 #include <cmath>
 #include <memory>
 #include <optional>
@@ -41,7 +43,7 @@ static std::vector<std::pair<uint64_t, uint64_t>> getValuesOnePerBucket(
 
 // Test can add minimum value (0)
 TEST(HdrHistogramTest, addMin) {
-    HdrHistogram histogram{0, 255, 3};
+    HdrHistogram histogram{1, 255, 3};
     histogram.addValue(0);
     EXPECT_EQ(1, histogram.getValueCount());
     EXPECT_EQ(0, histogram.getValueAtPercentile(100.0));
@@ -50,7 +52,7 @@ TEST(HdrHistogramTest, addMin) {
 
 // Test can add maximum value (255)
 TEST(HdrHistogramTest, addMax) {
-    HdrHistogram histogram{0, 255, 3};
+    HdrHistogram histogram{1, 255, 3};
     histogram.addValue(255);
     EXPECT_EQ(1, histogram.getValueCount());
     EXPECT_EQ(255, histogram.getValueAtPercentile(100.0));
@@ -60,7 +62,7 @@ TEST(HdrHistogramTest, addMax) {
 // Test the bias of +1 used by the underlying hdr_histogram data structure
 // does not affect the overall behaviour.
 TEST(HdrHistogramTest, biasTest) {
-    HdrHistogram histogram{0, 255, 3};
+    HdrHistogram histogram{1, 255, 3};
 
     double sum = 0;
     for (int ii = 0; ii < 256; ii++) {
@@ -80,28 +82,29 @@ TEST(HdrHistogramTest, biasTest) {
 
 // Test the linear iterator
 TEST(HdrHistogramTest, linearIteratorTest) {
-    HdrHistogram histogram{0, 255, 3};
+    HdrHistogram histogram{1, 255, 3};
 
     for (int ii = 0; ii < 256; ii++) {
         histogram.addValue(ii);
     }
 
-    uint64_t valueCount = 0;
+    // the _upper_ bound of the first bucket will be 1
+    uint64_t expectedUpperBound = 1;
     auto values = getValuesOnePerBucket(histogram);
-    EXPECT_EQ(256, values.size());
+    EXPECT_EQ(255, values.size());
     for (auto& result : values) {
-        EXPECT_EQ(valueCount++, result.first);
+        EXPECT_EQ(expectedUpperBound++, result.first);
     }
 }
 
 // Test the linear iterator using base two
 TEST(HdrHistogramTest, logIteratorBaseTwoTest) {
     const uint64_t initBucketWidth = 1;
-    const uint64_t numOfValues = 256;
-    const uint64_t minValue = 0;
-    HdrHistogram histogram{minValue, numOfValues - 1, 3};
+    const uint64_t maxValue = 256;
+    const uint64_t minDiscernibleValue = 1;
+    HdrHistogram histogram{minDiscernibleValue, maxValue, 3};
 
-    for (uint64_t ii = minValue; ii < numOfValues; ii++) {
+    for (uint64_t ii = 0; ii <= maxValue; ii++) {
         histogram.addValue(ii);
     }
 
@@ -114,28 +117,32 @@ TEST(HdrHistogramTest, logIteratorBaseTwoTest) {
     uint64_t bucketIndex = 0;
     while (auto result = iter.getNextValueAndCount()) {
         // Check that the values of the buckets increase exponentially
-        EXPECT_EQ(pow(iteratorBase, bucketIndex) - 1, result->first);
+        EXPECT_EQ(pow(iteratorBase, bucketIndex), result->first);
         // Check that the width of the bucket is the same number as the count
         // as we added values in a linear matter
-        EXPECT_EQ((iter.value_iterated_to - iter.value_iterated_from),
-                  result->second);
+        auto expectedCount = iter.value_iterated_to - iter.value_iterated_from;
+        if (bucketIndex == 0) {
+            // the first bucket will include the values at 0 _and_ at 1.
+            expectedCount++;
+        }
+        EXPECT_EQ(expectedCount, result->second);
         bucketIndex++;
         countSum += result->second;
     }
     // check we count as many counts as we added
-    EXPECT_EQ(numOfValues, countSum);
+    EXPECT_EQ(maxValue + 1, countSum);
     // check the iterator has the same number of values we added
-    EXPECT_EQ(numOfValues, iter.total_count);
+    EXPECT_EQ(maxValue + 1, iter.total_count);
 }
 
 // Test the linear iterator using base five
 TEST(HdrHistogramTest, logIteratorBaseFiveTest) {
     const uint64_t initBucketWidth = 1;
-    const uint64_t numOfValues = 625;
-    const uint64_t minValue = 0;
-    HdrHistogram histogram{minValue, numOfValues - 1, 3};
+    const uint64_t maxValue = 625;
+    const uint64_t minDiscernibleValue = 1;
+    HdrHistogram histogram{minDiscernibleValue, maxValue, 3};
 
-    for (uint64_t ii = minValue; ii < numOfValues; ii++) {
+    for (uint64_t ii = 0; ii <= maxValue; ii++) {
         histogram.addValue(ii);
     }
 
@@ -148,31 +155,37 @@ TEST(HdrHistogramTest, logIteratorBaseFiveTest) {
     uint64_t bucketIndex = 0;
     while (auto result = iter.getNextValueAndCount()) {
         // Check that the values of the buckets increase exponentially
-        EXPECT_EQ(pow(iteratorBase, bucketIndex) - 1, result->first);
+        EXPECT_EQ(pow(iteratorBase, bucketIndex), result->first);
         // Check that the width of the bucket is the same number as the count
         // as we added values in a linear matter
-        EXPECT_EQ((iter.value_iterated_to - iter.value_iterated_from),
-                  result->second);
+        auto expectedCount = iter.value_iterated_to - iter.value_iterated_from;
+        if (bucketIndex == 0) {
+            // the first bucket will include the values at 0 _and_ at 1.
+            expectedCount++;
+        }
+        EXPECT_EQ(expectedCount, result->second);
         bucketIndex++;
         countSum += result->second;
     }
     // check we count as many counts as we added
-    EXPECT_EQ(numOfValues, countSum);
+    EXPECT_EQ(maxValue + 1, countSum);
     // check the iterator has the same number of values we added
-    EXPECT_EQ(numOfValues, iter.total_count);
+    EXPECT_EQ(maxValue + 1, iter.total_count);
 }
 
 // Test the addValueAndCount method
 TEST(HdrHistogramTest, addValueAndCountTest) {
-    HdrHistogram histogram{0, 255, 3};
+    HdrHistogram histogram{1, 255, 3};
 
     histogram.addValueAndCount(0, 100);
 
     auto values = getValuesOnePerBucket(histogram);
     EXPECT_EQ(1, values.size());
-    for (auto& result : values) {
-        EXPECT_EQ(0, result.first);
-        EXPECT_EQ(100, result.second);
+    for (const auto& [upperBound, count] : values) {
+        // Only bucket returned by iterator is 0 - 1
+        EXPECT_EQ(1, upperBound);
+        // with a count of 100 - all the values added above
+        EXPECT_EQ(100, count);
     }
 }
 
@@ -223,7 +236,7 @@ static uint64_t GetNextLogNormalValue() {
 
 // Test the getMean method
 TEST(HdrHistogramTest, meanTest) {
-    HdrHistogram histogram{0, 60000000, 3};
+    HdrHistogram histogram{1, 60000000, 3};
     uint64_t sum = 0;
     uint64_t total_count = 0;
 
@@ -270,7 +283,8 @@ TEST(HdrHistogramTest, addValueParallel) {
     // probability of dropping a count
     unsigned int numOfAddIterations = 5000;
     unsigned int maxVal = 2;
-    HdrHistogram histogram{0, maxVal, 3};
+    HdrHistogram histogram{
+            1 /*minDiscernible*/, maxVal /* maxTrackable */, 1 /* sigfigs */};
 
     // Create two threads and get them to add values to a small
     // histogram so there is a high contention on it's counts.
@@ -288,23 +302,25 @@ TEST(HdrHistogramTest, addValueParallel) {
         t.join();
     }
 
-    ASSERT_EQ(numOfAddIterations * maxVal * threads.size(),
+    EXPECT_EQ(numOfAddIterations * maxVal * threads.size(),
               histogram.getValueCount());
-    ASSERT_EQ(maxVal - 1, histogram.getMaxValue());
-    ASSERT_EQ(0, histogram.getMinValue());
+    EXPECT_EQ(maxVal - 1, histogram.getMaxValue());
+    EXPECT_EQ(0, histogram.getMinValue());
 
-    uint64_t valueCount = 0;
     auto values = getValuesOnePerBucket(histogram);
-    EXPECT_EQ(maxVal, values.size());
-    for (auto& result : values) {
-        ASSERT_EQ(valueCount++, result.first);
-        ASSERT_EQ(threads.size() * numOfAddIterations, result.second);
-    }
+    using namespace ::testing;
+    ASSERT_THAT(values, SizeIs(1));
+
+    auto [upperBound, count] = values.front();
+
+    // first bucket covers range 0 - 1
+    EXPECT_EQ(1, upperBound);
+    EXPECT_EQ(threads.size() * numOfAddIterations * maxVal, count);
 }
 
 // Test that when histogram is empty getValueAtPercentile returns 0.
 TEST(HdrHistogramTest, percentileWhenEmptyTest) {
-    HdrHistogram histogram{0, 255, 3};
+    HdrHistogram histogram{1, 255, 3};
     ASSERT_EQ(0, histogram.getValueCount());
     EXPECT_EQ(0, histogram.getValueAtPercentile(0.0));
     EXPECT_EQ(0, histogram.getValueAtPercentile(50.0));
@@ -313,11 +329,11 @@ TEST(HdrHistogramTest, percentileWhenEmptyTest) {
 
 // Test the aggregation operator method
 TEST(HdrHistogramTest, aggregationTest) {
-    const uint16_t numberOfValues = 15;
-    HdrHistogram histogramOne{0, numberOfValues, 3};
-    HdrHistogram histogramTwo{0, numberOfValues, 3};
+    const uint16_t maxValue = 16;
+    HdrHistogram histogramOne{1, maxValue, 3};
+    HdrHistogram histogramTwo{1, maxValue, 3};
 
-    for (int i = 0; i < numberOfValues; i++) {
+    for (int i = 0; i <= maxValue; i++) {
         histogramOne.addValue(i);
         histogramTwo.addValue(i);
     }
@@ -325,60 +341,63 @@ TEST(HdrHistogramTest, aggregationTest) {
     histogramOne += histogramTwo;
 
     auto histoOneValues = getValuesOnePerBucket(histogramOne);
-    EXPECT_EQ(numberOfValues, histoOneValues.size());
+    EXPECT_EQ(maxValue, histoOneValues.size());
 
     auto histoTwoValues = getValuesOnePerBucket(histogramTwo);
-    EXPECT_EQ(numberOfValues, histoTwoValues.size());
+    EXPECT_EQ(maxValue, histoTwoValues.size());
 
     EXPECT_NE(histoOneValues, histoTwoValues);
 
-    uint64_t valueCount = 0;
-    for (int i = 0; i < numberOfValues; i++) {
+    // first bucket [0 - 1]
+    uint64_t expectedUpperBound = 1;
+    for (int i = 0; i < maxValue; i++, expectedUpperBound++) {
         // check values are the same for both histograms
-        EXPECT_EQ(valueCount, histoTwoValues[i].first);
-        EXPECT_EQ(valueCount, histoOneValues[i].first);
+        EXPECT_EQ(expectedUpperBound, histoTwoValues[i].first);
+        EXPECT_EQ(expectedUpperBound, histoOneValues[i].first);
         // check that the counts for each value is twice as much as
         // in a bucket in histogram one as it is in histogram two
         EXPECT_EQ(histoOneValues[i].second, histoTwoValues[i].second * 2);
-        ++valueCount;
     }
 
     // Check the totals of each histogram
-    EXPECT_EQ(numberOfValues * 2, histogramOne.getValueCount());
-    EXPECT_EQ(numberOfValues, histogramTwo.getValueCount());
+    EXPECT_EQ((maxValue + 1) * 2, histogramOne.getValueCount());
+    EXPECT_EQ(maxValue + 1, histogramTwo.getValueCount());
 }
 
 // Test the aggregation operator method
-TEST(HdrHistogramTest, aggregationTestEmptyLhr) {
-    const uint16_t numberOfValues = 200;
-    HdrHistogram histogramOne{0, 15, 3};
-    HdrHistogram histogramTwo{0, numberOfValues, 3};
+TEST(HdrHistogramTest, aggregationTestEmptyLhs) {
+    const uint16_t maxValue = 200;
+    HdrHistogram histogramOne{1, 15, 3};
+    HdrHistogram histogramTwo{1, maxValue, 3};
 
-    for (int i = 0; i < numberOfValues; i++) {
+    for (int i = 0; i <= maxValue; i++) {
         histogramTwo.addValue(i);
     }
     // Do aggregation
     histogramOne += histogramTwo;
 
+    // buckets [0 - 1], (1 - 2] .... (maxValue - 1, maxValue]
+    // therefore maxValue buckets expected
     auto histoOneValues = getValuesOnePerBucket(histogramOne);
-    EXPECT_EQ(numberOfValues, histoOneValues.size());
+    EXPECT_EQ(maxValue, histoOneValues.size());
 
     auto histoTwoValues = getValuesOnePerBucket(histogramTwo);
-    EXPECT_EQ(numberOfValues, histoTwoValues.size());
+    EXPECT_EQ(maxValue, histoTwoValues.size());
 
     EXPECT_EQ(histoTwoValues, histoOneValues);
 
     // Check the totals of each histogram
-    EXPECT_EQ(numberOfValues, histogramOne.getValueCount());
-    EXPECT_EQ(numberOfValues, histogramTwo.getValueCount());
+    EXPECT_EQ(maxValue + 1, histogramOne.getValueCount());
+    EXPECT_EQ(maxValue + 1, histogramTwo.getValueCount());
 }
 
 // Test the aggregation operator method
 TEST(HdrHistogramTest, aggregationTestEmptyRhs) {
-    HdrHistogram histogramOne{0, 1, 3};
-    HdrHistogram histogramTwo{0, 1, 1};
+    const uint16_t maxValue = 200;
+    HdrHistogram histogramOne{1, maxValue, 3};
+    HdrHistogram histogramTwo{1, 2, 1};
 
-    for (int i = 0; i < 200; i++) {
+    for (int i = 0; i <= maxValue; i++) {
         histogramOne.addValue(i);
     }
     // Do aggregation
@@ -386,15 +405,21 @@ TEST(HdrHistogramTest, aggregationTestEmptyRhs) {
 
     // make sure the histogram has expanded in size for all 200 values
     auto values = getValuesOnePerBucket(histogramOne);
-    EXPECT_EQ(200, values.size());
-    uint64_t valueCount = 0;
-    for (auto& result : values) {
-        EXPECT_EQ(valueCount++, result.first);
-        EXPECT_EQ(1, result.second);
+    EXPECT_EQ(maxValue, values.size());
+
+    uint64_t expectedUpperBound = 1;
+    for (const auto& [upperBound, count] : values) {
+        if (expectedUpperBound == 1) {
+            // the first bucket will include the values at 0 _and_ at 1.
+            EXPECT_EQ(2, count);
+        } else {
+            EXPECT_EQ(1, count);
+        }
+        EXPECT_EQ(expectedUpperBound++, upperBound);
     }
 
     // Check the totals of each histogram
-    EXPECT_EQ(200, histogramOne.getValueCount());
+    EXPECT_EQ(maxValue + 1, histogramOne.getValueCount());
     EXPECT_EQ(0, histogramTwo.getValueCount());
 }
 
@@ -402,7 +427,7 @@ TEST(HdrHistogramTest, int32MaxSizeTest) {
     // Histogram type doesn't really matter for this but we first saw this with
     // a percentiles histogram so that's what we'll use here
     HdrHistogram histogram{
-            0, 255, 1, HdrHistogram::Iterator::IterMode::Percentiles};
+            1, 255, 1, HdrHistogram::Iterator::IterMode::Percentiles};
 
     // Add int32_t max counts
     uint64_t limit = std::numeric_limits<int32_t>::max();
@@ -450,7 +475,7 @@ TEST(HdrHistogramTest, int64MaxSizeTest) {
     // Histogram type doesn't really matter for this but we first saw this with
     // a percentiles histogram so that's what we'll use here
     HdrHistogram histogram{
-            0, 255, 1, HdrHistogram::Iterator::IterMode::Percentiles};
+            1, 255, 1, HdrHistogram::Iterator::IterMode::Percentiles};
 
     // Add int64_t max counts
     uint64_t limit = std::numeric_limits<int64_t>::max();

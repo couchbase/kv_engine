@@ -110,10 +110,6 @@ public:
     static const uint64_t casBitsNotTime = 16;
 
 private:
-
-    //  The minimum value that can be added to the age histogram
-    static const uint64_t minAgeValue = 0;
-
     // The maximum value that can be added to the age histogram
     static const uint64_t maxAgeValue = std::numeric_limits<uint64_t>::max() >> casBitsNotTime;
 
@@ -136,7 +132,8 @@ private:
     // therefore we shift the age by casBitsNotTime.  This allows us
     // to have an age histogram with a reduced maximum value and
     // therefore reduces the memory requirements.
-    HdrHistogram ageHistogram{minAgeValue, maxAgeValue, ageSignificantFigures};
+    HdrHistogram ageHistogram{
+            1 /* minDiscernibleValue */, maxAgeValue, ageSignificantFigures};
 
     // StatCounter: The number of frequencies that need to be added to the
     // frequency histogram before it is necessary to update the frequency

@@ -148,9 +148,10 @@ public:
 
     /**
      * Constructor for the histogram.
-     * @param lowestTrackableValue  smallest value that can be held in the
-     *        histogram.  Note the underlying hdr_histogram cannot store 0 and
-     *        therefore the value must be greater than or equal to 1.
+     * @param lowestDiscernibleValue  This is the smallest increment between
+     *        distinct values.
+     *        e.g., if values are recorded in nanoseconds but only microsecond
+     *        level accuracy is needed, this can be set to 1000.
      * @param highestTrackableValue  the largest values that can be held in
      *        the histogram
      * @param sigificantFigures  the level of precision for the histogram.
@@ -159,19 +160,19 @@ public:
      * @param iterMode sets the default iteration mode that should be used
      *        when iterate though this histogram's data.
      */
-    HdrHistogram(uint64_t lowestTrackableValue,
+    HdrHistogram(uint64_t lowestDiscernibleValue,
                  uint64_t highestTrackableValue,
                  int significantFigures,
                  Iterator::IterMode iterMode = Iterator::IterMode::Recorded);
 
-    HdrHistogram() : HdrHistogram(0, 1, 1){};
+    HdrHistogram() : HdrHistogram(1, 1, 1){};
 
     /**
      * Copy constructor to define how to do a deep copy of a HdrHistogram
      * @param other other HdrHistogram to copy
      */
     HdrHistogram(const HdrHistogram& other)
-        : HdrHistogram(other.getMinTrackableValue(),
+        : HdrHistogram(other.getMinDiscernibleValue(),
                        other.getMaxTrackableValue(),
                        other.getSigFigAccuracy()) {
         // take advantage of the code already written in for the addition
@@ -317,11 +318,10 @@ public:
     size_t getMemFootPrint() const;
 
     /**
-     * Method to get the minimum trackable value of this histogram
-     * @return minimum trackable value
+     * Get the lowest non-zero value this histogram can represent.
      */
-    uint64_t getMinTrackableValue() const {
-        return getMinTrackableValue(histogram.rlock());
+    uint64_t getMinDiscernibleValue() const {
+        return getMinDiscernibleValue(histogram.rlock());
     }
 
     /**
@@ -350,28 +350,26 @@ public:
 
 private:
     void resize(WHistoLockedPtr& histoLockPtr,
-                uint64_t lowestTrackableValue,
+                uint64_t lowestDiscernibleValue,
                 uint64_t highestTrackableValue,
                 int significantFigures);
 
+    /**
+     * Get the lowest non-zero value this histogram can represent.
+     */
     template <class LockType>
-    static uint64_t getMinTrackableValue(const LockType& histoLockPtr) {
-        // We subtract one from the lowest value as we have added a one offset
-        // as the underlying hdr_histogram cannot store 0 and
-        // therefore the value must be greater than or equal to 1.
+    static uint64_t getMinDiscernibleValue(const LockType& histoLockPtr) {
+        // NOTE: the current name used by hdr histogram, lowest_trackable_value
+        // is misleading, using "discernible" to reduce confusion and to be
+        // consistent with the _Java_ documentation,
         return static_cast<uint64_t>(
-                       histoLockPtr->get()->lowest_trackable_value) -
-               1;
+                histoLockPtr->get()->lowest_trackable_value);
     }
 
     template <class LockType>
     static uint64_t getMaxTrackableValue(const LockType& histoLockPtr) {
-        // We subtract one from the lowest value as we have added a one offset
-        // as the underlying hdr_histogram cannot store 0 and
-        // therefore the value must be greater than or equal to 1.
         return static_cast<uint64_t>(
-                       histoLockPtr->get()->highest_trackable_value) -
-               1;
+                histoLockPtr->get()->highest_trackable_value);
     }
 
     template <class LockType>
@@ -404,7 +402,7 @@ private:
 class Hdr1sfMicroSecHistogram : public HdrHistogram {
 public:
     Hdr1sfMicroSecHistogram()
-        : HdrHistogram(0, 60000000, 1, Iterator::IterMode::Percentiles){};
+        : HdrHistogram(1, 60000000, 1, Iterator::IterMode::Percentiles){};
     bool add(std::chrono::microseconds v, size_t count = 1) {
         return addValueAndCount(static_cast<uint64_t>(v.count()),
                                 static_cast<uint64_t>(count));
@@ -418,7 +416,7 @@ public:
 class Hdr2sfMicroSecHistogram : public HdrHistogram {
 public:
     Hdr2sfMicroSecHistogram()
-        : HdrHistogram(0, 60000000, 2, Iterator::IterMode::Percentiles){};
+        : HdrHistogram(1, 60000000, 2, Iterator::IterMode::Percentiles){};
     bool add(std::chrono::microseconds v, size_t count = 1) {
         return addValueAndCount(static_cast<uint64_t>(v.count()),
                                 static_cast<uint64_t>(count));
@@ -435,7 +433,7 @@ using HdrMicroSecStopwatch = MicrosecondStopwatch<Hdr1sfMicroSecHistogram>;
 class Hdr1sfInt32Histogram : public HdrHistogram {
 public:
     Hdr1sfInt32Histogram()
-        : HdrHistogram(0,
+        : HdrHistogram(1,
                        std::numeric_limits<int32_t>::max(),
                        1,
                        Iterator::IterMode::Percentiles){};
@@ -451,7 +449,7 @@ public:
 class HdrUint8Histogram : public HdrHistogram {
 public:
     HdrUint8Histogram()
-        : HdrHistogram(0,
+        : HdrHistogram(1,
                        std::numeric_limits<uint8_t>::max(),
                        3,
                        Iterator::IterMode::Linear){};

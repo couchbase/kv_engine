@@ -205,7 +205,7 @@ TEST_F(StatTest, HistogramStatExpansion) {
 TEST_F(StatTest, HdrHistogramStatExpansion) {
     // Test that HdrHistograms expand out to the expected stat keys to
     // be returned for CMD_STAT, even after being converted to HistogramData
-    HdrHistogram histogram{0, 1000000, 1};
+    HdrHistogram histogram{1, 1000000, 1};
 
     // populate the histogram with some dummy valuea
     histogram.addValueAndCount(1 /* value */, 100 /* count */);
@@ -221,10 +221,10 @@ TEST_F(StatTest, HdrHistogramStatExpansion) {
             std::string_view, std::string_view, gsl::not_null<const void*>)>>
             cb;
 
-    EXPECT_CALL(cb, Call("test_histogram_mean"sv, "9543"sv, _));
+    EXPECT_CALL(cb, Call("test_histogram_mean"sv, "9544"sv, _));
     EXPECT_CALL(cb, Call("test_histogram_0,1"sv, "100"sv, _));
     EXPECT_CALL(cb, Call("test_histogram_1,15"sv, "200"sv, _));
-    EXPECT_CALL(cb, Call("test_histogram_15,9727"sv, "6500"sv, _));
+    EXPECT_CALL(cb, Call("test_histogram_15,9728"sv, "6500"sv, _));
 
     add_casted_stat("test_histogram"sv, histogram, asStdFunction(cb), cookie);
 

@@ -111,17 +111,17 @@ int main(int, char **) {
     display("HdrUint8Histogram", HdrUint8Histogram().getMemFootPrint());
     display("Hdr1sfInt32Histogram", Hdr1sfInt32Histogram().getMemFootPrint());
 
-    display("HdrHistogram(0, std::numeric_limits<int32_t>::max(), 2)",
-            HdrHistogram(0, std::numeric_limits<int32_t>::max() - 1, 2)
+    display("HdrHistogram(1, std::numeric_limits<int32_t>::max(), 2)",
+            HdrHistogram(1, std::numeric_limits<int32_t>::max() - 1, 2)
                     .getMemFootPrint());
-    display("HdrHistogram(0, std::numeric_limits<int32_t>::max(), 1)",
-            HdrHistogram(0, std::numeric_limits<int32_t>::max() - 1, 1)
+    display("HdrHistogram(1, std::numeric_limits<int32_t>::max(), 1)",
+            HdrHistogram(1, std::numeric_limits<int32_t>::max() - 1, 1)
                     .getMemFootPrint());
-    display("HdrHistogram(0, std::numeric_limits<int64_t>::max(), 2)",
-            HdrHistogram(0, std::numeric_limits<int64_t>::max() - 1, 2)
+    display("HdrHistogram(1, std::numeric_limits<int64_t>::max(), 2)",
+            HdrHistogram(1, std::numeric_limits<int64_t>::max() - 1, 2)
                     .getMemFootPrint());
-    display("HdrHistogram(0, std::numeric_limits<int64_t>::max(), 1)",
-            HdrHistogram(0, std::numeric_limits<int64_t>::max() - 1, 1)
+    display("HdrHistogram(1, std::numeric_limits<int64_t>::max(), 1)",
+            HdrHistogram(1, std::numeric_limits<int64_t>::max() - 1, 1)
                     .getMemFootPrint());
 
     display("IORequest", sizeof(IORequest));

@@ -516,7 +516,7 @@ public:
     /// Encoded as integer, by multipling the floating-point ratio by 10 -
     // e.g. ratio of 3.3 -> 33
     HdrHistogram flusherWriteAmplificationHisto{
-            0, 1000, 2, HdrHistogram::Iterator::IterMode::Percentiles};
+            1, 1000, 2, HdrHistogram::Iterator::IterMode::Percentiles};
 
     // Stats from the underlying OS file operations
     FileStats fsStats;
