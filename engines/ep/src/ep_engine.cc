@@ -6625,7 +6625,7 @@ cb::engine_errc EventuallyPersistentEngine::setVBucketState(
 EventuallyPersistentEngine::~EventuallyPersistentEngine() {
     if (kvBucket) {
         auto tasks = kvBucket->deinitialize();
-        // Need to reset the kvBucket as we need our ThreadLocal engine ptr to
+        // Need to reset the kvBucket as we need our thread local engine ptr to
         // be valid when destructing Items in CheckpointManagers but we need to
         // reset it before destructing EPStats.
         kvBucket.reset();

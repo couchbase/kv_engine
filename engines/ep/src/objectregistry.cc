@@ -20,28 +20,9 @@
 #include "ep_engine.h"
 #include "item.h"
 #include "stored-value.h"
-#include "threadlocal.h"
 #include <platform/cb_arena_malloc.h>
 
-#if 1
-static ThreadLocal<EventuallyPersistentEngine*>* th;
-
-/**
- * Object registry link hook for getting the registry thread local
- * installed.
- */
-class installer {
-public:
-    installer() {
-        if (th == nullptr) {
-            th = new ThreadLocal<EventuallyPersistentEngine*>();
-        }
-    }
-
-    ~installer() {
-        delete th;
-    }
-} install;
+static thread_local EventuallyPersistentEngine* th = nullptr;
 
 static bool verifyEngine(EventuallyPersistentEngine* engine) {
     if (engine == nullptr) {
@@ -56,7 +37,7 @@ static bool verifyEngine(EventuallyPersistentEngine* engine) {
 }
 
 void ObjectRegistry::onCreateBlob(const Blob* blob) {
-    EventuallyPersistentEngine* engine = th->get();
+    EventuallyPersistentEngine* engine = th;
     if (verifyEngine(engine)) {
         auto& coreLocalStats = engine->getEpStats().coreLocal.get();
 
@@ -69,7 +50,7 @@ void ObjectRegistry::onCreateBlob(const Blob* blob) {
 }
 
 void ObjectRegistry::onDeleteBlob(const Blob* blob) {
-    EventuallyPersistentEngine* engine = th->get();
+    EventuallyPersistentEngine* engine = th;
     if (verifyEngine(engine)) {
         auto& coreLocalStats = engine->getEpStats().coreLocal.get();
 
@@ -82,7 +63,7 @@ void ObjectRegistry::onDeleteBlob(const Blob* blob) {
 }
 
 void ObjectRegistry::onCreateStoredValue(const StoredValue* sv) {
-    EventuallyPersistentEngine* engine = th->get();
+    EventuallyPersistentEngine* engine = th;
     if (verifyEngine(engine)) {
         auto& coreLocalStats = engine->getEpStats().coreLocal.get();
 
@@ -93,7 +74,7 @@ void ObjectRegistry::onCreateStoredValue(const StoredValue* sv) {
 }
 
 void ObjectRegistry::onDeleteStoredValue(const StoredValue* sv) {
-    EventuallyPersistentEngine* engine = th->get();
+    EventuallyPersistentEngine* engine = th;
     if (verifyEngine(engine)) {
         auto& coreLocalStats = engine->getEpStats().coreLocal.get();
 
@@ -104,7 +85,7 @@ void ObjectRegistry::onDeleteStoredValue(const StoredValue* sv) {
 }
 
 void ObjectRegistry::onCreateItem(const Item* pItem) {
-    EventuallyPersistentEngine* engine = th->get();
+    EventuallyPersistentEngine* engine = th;
     if (verifyEngine(engine)) {
         auto& coreLocalStats = engine->getEpStats().coreLocal.get();
         coreLocalStats->memOverhead.fetch_add(pItem->size() -
@@ -114,7 +95,7 @@ void ObjectRegistry::onCreateItem(const Item* pItem) {
 }
 
 void ObjectRegistry::onDeleteItem(const Item* pItem) {
-    EventuallyPersistentEngine* engine = th->get();
+    EventuallyPersistentEngine* engine = th;
     if (verifyEngine(engine)) {
         auto& coreLocalStats = engine->getEpStats().coreLocal.get();
         coreLocalStats->memOverhead.fetch_sub(pItem->size() -
@@ -124,7 +105,7 @@ void ObjectRegistry::onDeleteItem(const Item* pItem) {
 }
 
 EventuallyPersistentEngine* ObjectRegistry::getCurrentEngine() {
-    return th->get();
+    return th;
 }
 
 EventuallyPersistentEngine* ObjectRegistry::onSwitchThread(
@@ -132,11 +113,11 @@ EventuallyPersistentEngine* ObjectRegistry::onSwitchThread(
     EventuallyPersistentEngine* old_engine = nullptr;
 
     if (want_old_thread_local) {
-        old_engine = th->get();
+        old_engine = th;
     }
 
     // Set the engine so that onDeleteItem etc... can update their stats
-    th->set(engine);
+    th = engine;
 
     // Next tell ArenaMalloc what todo so that we can account memory to the
     // bucket
@@ -163,5 +144,3 @@ BucketAllocationGuard::BucketAllocationGuard(EventuallyPersistentEngine* engine)
 BucketAllocationGuard::~BucketAllocationGuard() {
     ObjectRegistry::onSwitchThread(previous);
 }
-
-#endif
