@@ -161,7 +161,7 @@ public:
      *        when iterate though this histogram's data.
      */
     HdrHistogram(uint64_t lowestDiscernibleValue,
-                 uint64_t highestTrackableValue,
+                 int64_t highestTrackableValue,
                  int significantFigures,
                  Iterator::IterMode iterMode = Iterator::IterMode::Recorded);
 
@@ -328,7 +328,7 @@ public:
      * Method to get the maximum trackable value of this histogram
      * @return maximum trackable value
      */
-    uint64_t getMaxTrackableValue() const {
+    int64_t getMaxTrackableValue() const {
         return getMaxTrackableValue(histogram.rlock());
     }
 
@@ -351,7 +351,7 @@ public:
 private:
     void resize(WHistoLockedPtr& histoLockPtr,
                 uint64_t lowestDiscernibleValue,
-                uint64_t highestTrackableValue,
+                int64_t highestTrackableValue,
                 int significantFigures);
 
     /**
@@ -367,9 +367,8 @@ private:
     }
 
     template <class LockType>
-    static uint64_t getMaxTrackableValue(const LockType& histoLockPtr) {
-        return static_cast<uint64_t>(
-                histoLockPtr->get()->highest_trackable_value);
+    static int64_t getMaxTrackableValue(const LockType& histoLockPtr) {
+        return histoLockPtr->get()->highest_trackable_value;
     }
 
     template <class LockType>

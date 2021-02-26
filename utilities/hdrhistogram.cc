@@ -30,7 +30,7 @@ void HdrHistogram::HdrDeleter::operator()(struct hdr_histogram* val) {
 }
 
 HdrHistogram::HdrHistogram(uint64_t lowestDiscernibleValue,
-                           uint64_t highestTrackableValue,
+                           int64_t highestTrackableValue,
                            int significantFigures,
                            Iterator::IterMode iterMode)
     : defaultIterationMode(iterMode) {
@@ -295,24 +295,37 @@ double HdrHistogram::getMean() const {
 
 void HdrHistogram::resize(WHistoLockedPtr& histoLockPtr,
                           uint64_t lowestDiscernibleValue,
-                          uint64_t highestTrackableValue,
+                          int64_t highestTrackableValue,
                           int significantFigures) {
-    if (lowestDiscernibleValue >= highestTrackableValue ||
-        highestTrackableValue >=
-                static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
-        throw std::logic_error(
-                "HdrHistogram must have logical low/high tackable values min:" +
-                std::to_string(lowestDiscernibleValue) +
-                " max:" + std::to_string(highestTrackableValue));
+    // hdr_init_ex will also check but will just return EINVAL. Check here
+    // first so we can generate amore useful exception message, as this could be
+    // a common mistake when adding a new histogram
+    if (lowestDiscernibleValue == 0) {
+        // lowestDiscernibleValue set to zero is not meaningful
+        throw std::invalid_argument(fmt::format(
+                "HdrHistogram lowestDiscernibleValue:{} must be greater than 0",
+                lowestDiscernibleValue));
     }
 
     struct hdr_histogram* hist = nullptr;
 
-    hdr_init_ex(lowestDiscernibleValue,
-                highestTrackableValue,
-                significantFigures,
-                &hist, // Pointer to initialise
-                cb_calloc);
+    auto status = hdr_init_ex(lowestDiscernibleValue,
+                              highestTrackableValue,
+                              significantFigures,
+                              &hist, // Pointer to initialise
+                              cb_calloc);
+
+    if (status != 0) {
+        throw std::system_error(
+                status,
+                std::generic_category(),
+                fmt::format("HdrHistogram init failed, "
+                            "params lowestDiscernibleValue:{} "
+                            "highestTrackableValue:{} significantFigures:{}",
+                            lowestDiscernibleValue,
+                            highestTrackableValue,
+                            significantFigures));
+    }
 
     if (*histoLockPtr) {
         hdr_add(hist, histoLockPtr->get());

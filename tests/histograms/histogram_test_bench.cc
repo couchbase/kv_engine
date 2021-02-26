@@ -148,7 +148,7 @@ void HdrVariantSizeConstructionDestructionStack(benchmark::State& state) {
     using namespace std::chrono;
     nanoseconds testDuration(0);
     while (state.KeepRunning()) {
-        HdrHistogram testHisto{1, static_cast<uint64_t>(state.range(0)), 2};
+        HdrHistogram testHisto{1, state.range(0), 2};
         HistoAddNs<HdrHistogram>(testHisto, testDuration);
     }
 }

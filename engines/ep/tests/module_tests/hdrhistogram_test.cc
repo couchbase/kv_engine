@@ -100,7 +100,7 @@ TEST(HdrHistogramTest, linearIteratorTest) {
 // Test the linear iterator using base two
 TEST(HdrHistogramTest, logIteratorBaseTwoTest) {
     const uint64_t initBucketWidth = 1;
-    const uint64_t maxValue = 256;
+    const int64_t maxValue = 256;
     const uint64_t minDiscernibleValue = 1;
     HdrHistogram histogram{minDiscernibleValue, maxValue, 3};
 
@@ -138,7 +138,7 @@ TEST(HdrHistogramTest, logIteratorBaseTwoTest) {
 // Test the linear iterator using base five
 TEST(HdrHistogramTest, logIteratorBaseFiveTest) {
     const uint64_t initBucketWidth = 1;
-    const uint64_t maxValue = 625;
+    const int64_t maxValue = 625;
     const uint64_t minDiscernibleValue = 1;
     HdrHistogram histogram{minDiscernibleValue, maxValue, 3};
 
@@ -246,7 +246,7 @@ TEST(HdrHistogramTest, meanTest) {
 
         // only add random values inside the histograms range
         // otherwise we sill skew the mean
-        if (value <= histogram.getMaxTrackableValue()) {
+        if (value <= static_cast<uint64_t>(histogram.getMaxTrackableValue())) {
             histogram.addValueAndCount(value, count);
             // store values so we can calculate the real mean
             sum += value * count;
@@ -329,7 +329,7 @@ TEST(HdrHistogramTest, percentileWhenEmptyTest) {
 
 // Test the aggregation operator method
 TEST(HdrHistogramTest, aggregationTest) {
-    const uint16_t maxValue = 16;
+    const int16_t maxValue = 16;
     HdrHistogram histogramOne{1, maxValue, 3};
     HdrHistogram histogramTwo{1, maxValue, 3};
 
@@ -366,7 +366,7 @@ TEST(HdrHistogramTest, aggregationTest) {
 
 // Test the aggregation operator method
 TEST(HdrHistogramTest, aggregationTestEmptyLhs) {
-    const uint16_t maxValue = 200;
+    const int16_t maxValue = 200;
     HdrHistogram histogramOne{1, 15, 3};
     HdrHistogram histogramTwo{1, maxValue, 3};
 
@@ -393,7 +393,7 @@ TEST(HdrHistogramTest, aggregationTestEmptyLhs) {
 
 // Test the aggregation operator method
 TEST(HdrHistogramTest, aggregationTestEmptyRhs) {
-    const uint16_t maxValue = 200;
+    const int16_t maxValue = 200;
     HdrHistogram histogramOne{1, maxValue, 3};
     HdrHistogram histogramTwo{1, 2, 1};
 
