@@ -32,25 +32,13 @@ void HdrHistogram::HdrDeleter::operator()(struct hdr_histogram* val) {
 HdrHistogram::HdrHistogram(uint64_t lowestDiscernibleValue,
                            uint64_t highestTrackableValue,
                            int significantFigures,
-                           Iterator::IterMode iterMode) {
-    if (lowestDiscernibleValue >= highestTrackableValue ||
-        highestTrackableValue >=
-                static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
-        throw std::logic_error(
-                "HdrHistogram must have logical low/high tackable values min:" +
-                std::to_string(lowestDiscernibleValue) +
-                " max:" + std::to_string(highestTrackableValue));
-    }
-
-    struct hdr_histogram* hist = nullptr;
-
-    hdr_init_ex(lowestDiscernibleValue,
-                highestTrackableValue,
-                significantFigures,
-                &hist, // Pointer to initialise
-                cb_calloc);
-    histogram.wlock()->reset(hist);
-    defaultIterationMode = iterMode;
+                           Iterator::IterMode iterMode)
+    : defaultIterationMode(iterMode) {
+    auto handle = histogram.wlock();
+    resize(handle,
+           lowestDiscernibleValue,
+           highestTrackableValue,
+           significantFigures);
 }
 
 HdrHistogram& HdrHistogram::operator+=(const HdrHistogram& other) {
@@ -326,6 +314,9 @@ void HdrHistogram::resize(WHistoLockedPtr& histoLockPtr,
                 &hist, // Pointer to initialise
                 cb_calloc);
 
-    hdr_add(hist, histoLockPtr->get());
+    if (*histoLockPtr) {
+        hdr_add(hist, histoLockPtr->get());
+    }
+
     histoLockPtr->reset(hist);
 }
