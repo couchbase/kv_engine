@@ -24,7 +24,7 @@
 #include <platform/cb_arena_malloc.h>
 
 #if 1
-static ThreadLocal<EventuallyPersistentEngine*> *th;
+static ThreadLocal<EventuallyPersistentEngine*>* th;
 
 /**
  * Object registry link hook for getting the registry thread local
@@ -32,113 +32,104 @@ static ThreadLocal<EventuallyPersistentEngine*> *th;
  */
 class installer {
 public:
-   installer() {
-      if (th == NULL) {
-         th = new ThreadLocal<EventuallyPersistentEngine*>();
-      }
-   }
+    installer() {
+        if (th == nullptr) {
+            th = new ThreadLocal<EventuallyPersistentEngine*>();
+        }
+    }
 
-   ~installer() {
-       delete th;
-   }
+    ~installer() {
+        delete th;
+    }
 } install;
 
-static bool verifyEngine(EventuallyPersistentEngine *engine)
-{
-   if (engine == nullptr) {
-       static const char* allowNoStatsUpdate = getenv("ALLOW_NO_STATS_UPDATE");
-       if (allowNoStatsUpdate) {
-           return false;
-       } else {
-           throw std::logic_error("verifyEngine: engine should be non-NULL");
-       }
-   }
-   return true;
+static bool verifyEngine(EventuallyPersistentEngine* engine) {
+    if (engine == nullptr) {
+        static const char* allowNoStatsUpdate = getenv("ALLOW_NO_STATS_UPDATE");
+        if (allowNoStatsUpdate) {
+            return false;
+        } else {
+            throw std::logic_error("verifyEngine: engine should be non-NULL");
+        }
+    }
+    return true;
 }
 
-void ObjectRegistry::onCreateBlob(const Blob *blob)
-{
-   EventuallyPersistentEngine *engine = th->get();
-   if (verifyEngine(engine)) {
-       auto& coreLocalStats = engine->getEpStats().coreLocal.get();
+void ObjectRegistry::onCreateBlob(const Blob* blob) {
+    EventuallyPersistentEngine* engine = th->get();
+    if (verifyEngine(engine)) {
+        auto& coreLocalStats = engine->getEpStats().coreLocal.get();
 
-       size_t size = cb::ArenaMalloc::malloc_usable_size(blob);
-       coreLocalStats->blobOverhead.fetch_add(size - blob->getSize());
-       coreLocalStats->currentSize.fetch_add(size);
-       coreLocalStats->totalValueSize.fetch_add(size);
-       coreLocalStats->numBlob++;
-   }
+        size_t size = cb::ArenaMalloc::malloc_usable_size(blob);
+        coreLocalStats->blobOverhead.fetch_add(size - blob->getSize());
+        coreLocalStats->currentSize.fetch_add(size);
+        coreLocalStats->totalValueSize.fetch_add(size);
+        coreLocalStats->numBlob++;
+    }
 }
 
-void ObjectRegistry::onDeleteBlob(const Blob *blob)
-{
-   EventuallyPersistentEngine *engine = th->get();
-   if (verifyEngine(engine)) {
-       auto& coreLocalStats = engine->getEpStats().coreLocal.get();
+void ObjectRegistry::onDeleteBlob(const Blob* blob) {
+    EventuallyPersistentEngine* engine = th->get();
+    if (verifyEngine(engine)) {
+        auto& coreLocalStats = engine->getEpStats().coreLocal.get();
 
-       size_t size = cb::ArenaMalloc::malloc_usable_size(blob);
-       coreLocalStats->blobOverhead.fetch_sub(size - blob->getSize());
-       coreLocalStats->currentSize.fetch_sub(size);
-       coreLocalStats->totalValueSize.fetch_sub(size);
-       coreLocalStats->numBlob--;
-   }
+        size_t size = cb::ArenaMalloc::malloc_usable_size(blob);
+        coreLocalStats->blobOverhead.fetch_sub(size - blob->getSize());
+        coreLocalStats->currentSize.fetch_sub(size);
+        coreLocalStats->totalValueSize.fetch_sub(size);
+        coreLocalStats->numBlob--;
+    }
 }
 
-void ObjectRegistry::onCreateStoredValue(const StoredValue *sv)
-{
-   EventuallyPersistentEngine *engine = th->get();
-   if (verifyEngine(engine)) {
-       auto& coreLocalStats = engine->getEpStats().coreLocal.get();
+void ObjectRegistry::onCreateStoredValue(const StoredValue* sv) {
+    EventuallyPersistentEngine* engine = th->get();
+    if (verifyEngine(engine)) {
+        auto& coreLocalStats = engine->getEpStats().coreLocal.get();
 
-       size_t size = cb::ArenaMalloc::malloc_usable_size(sv);
-       coreLocalStats->numStoredVal++;
-       coreLocalStats->totalStoredValSize.fetch_add(size);
-   }
+        size_t size = cb::ArenaMalloc::malloc_usable_size(sv);
+        coreLocalStats->numStoredVal++;
+        coreLocalStats->totalStoredValSize.fetch_add(size);
+    }
 }
 
-void ObjectRegistry::onDeleteStoredValue(const StoredValue *sv)
-{
-   EventuallyPersistentEngine *engine = th->get();
-   if (verifyEngine(engine)) {
-       auto& coreLocalStats = engine->getEpStats().coreLocal.get();
+void ObjectRegistry::onDeleteStoredValue(const StoredValue* sv) {
+    EventuallyPersistentEngine* engine = th->get();
+    if (verifyEngine(engine)) {
+        auto& coreLocalStats = engine->getEpStats().coreLocal.get();
 
-       size_t size = cb::ArenaMalloc::malloc_usable_size(sv);
-       coreLocalStats->totalStoredValSize.fetch_sub(size);
-       coreLocalStats->numStoredVal--;
-   }
+        size_t size = cb::ArenaMalloc::malloc_usable_size(sv);
+        coreLocalStats->totalStoredValSize.fetch_sub(size);
+        coreLocalStats->numStoredVal--;
+    }
 }
 
-
-void ObjectRegistry::onCreateItem(const Item *pItem)
-{
-   EventuallyPersistentEngine *engine = th->get();
-   if (verifyEngine(engine)) {
-       auto& coreLocalStats = engine->getEpStats().coreLocal.get();
-       coreLocalStats->memOverhead.fetch_add(pItem->size() -
-                                             pItem->getValMemSize());
-       ++coreLocalStats->numItem;
-   }
+void ObjectRegistry::onCreateItem(const Item* pItem) {
+    EventuallyPersistentEngine* engine = th->get();
+    if (verifyEngine(engine)) {
+        auto& coreLocalStats = engine->getEpStats().coreLocal.get();
+        coreLocalStats->memOverhead.fetch_add(pItem->size() -
+                                              pItem->getValMemSize());
+        ++coreLocalStats->numItem;
+    }
 }
 
-void ObjectRegistry::onDeleteItem(const Item *pItem)
-{
-   EventuallyPersistentEngine *engine = th->get();
-   if (verifyEngine(engine)) {
-       auto& coreLocalStats = engine->getEpStats().coreLocal.get();
-       coreLocalStats->memOverhead.fetch_sub(pItem->size() -
-                                             pItem->getValMemSize());
-       --coreLocalStats->numItem;
-   }
+void ObjectRegistry::onDeleteItem(const Item* pItem) {
+    EventuallyPersistentEngine* engine = th->get();
+    if (verifyEngine(engine)) {
+        auto& coreLocalStats = engine->getEpStats().coreLocal.get();
+        coreLocalStats->memOverhead.fetch_sub(pItem->size() -
+                                              pItem->getValMemSize());
+        --coreLocalStats->numItem;
+    }
 }
 
-EventuallyPersistentEngine *ObjectRegistry::getCurrentEngine() {
+EventuallyPersistentEngine* ObjectRegistry::getCurrentEngine() {
     return th->get();
 }
 
-EventuallyPersistentEngine *ObjectRegistry::onSwitchThread(
-                                            EventuallyPersistentEngine *engine,
-                                            bool want_old_thread_local) {
-    EventuallyPersistentEngine *old_engine = nullptr;
+EventuallyPersistentEngine* ObjectRegistry::onSwitchThread(
+        EventuallyPersistentEngine* engine, bool want_old_thread_local) {
+    EventuallyPersistentEngine* old_engine = nullptr;
 
     if (want_old_thread_local) {
         old_engine = th->get();

@@ -26,20 +26,20 @@ class StoredValue;
 
 class ObjectRegistry {
 public:
-    static void onCreateBlob(const Blob *blob);
-    static void onDeleteBlob(const Blob *blob);
+    static void onCreateBlob(const Blob* blob);
+    static void onDeleteBlob(const Blob* blob);
 
-    static void onCreateItem(const Item *pItem);
-    static void onDeleteItem(const Item *pItem);
+    static void onCreateItem(const Item* pItem);
+    static void onDeleteItem(const Item* pItem);
 
-    static void onCreateStoredValue(const StoredValue *sv);
-    static void onDeleteStoredValue(const StoredValue *sv);
+    static void onCreateStoredValue(const StoredValue* sv);
+    static void onDeleteStoredValue(const StoredValue* sv);
 
+    static EventuallyPersistentEngine* getCurrentEngine();
 
-    static EventuallyPersistentEngine *getCurrentEngine();
-
-    static EventuallyPersistentEngine *onSwitchThread(EventuallyPersistentEngine *engine,
-                                                      bool want_old_thread_local = false);
+    static EventuallyPersistentEngine* onSwitchThread(
+            EventuallyPersistentEngine* engine,
+            bool want_old_thread_local = false);
 };
 
 /**
