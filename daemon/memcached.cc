@@ -32,6 +32,7 @@
 #include "settings.h"
 #include "ssl_utils.h"
 #include "stats.h"
+#include "tenant_manager.h"
 #include "tracing.h"
 #include "utilities/terminate_handler.h"
 
@@ -1002,6 +1003,9 @@ int memcached_main(int argc, char** argv) {
     startStaleTraceDumpRemover(std::chrono::minutes(1),
                                std::chrono::minutes(5));
 
+    LOG_INFO_RAW("Starting Tenant stats collecting");
+    TenantManager::startup();
+
     /* Initialise memcached time keeping */
     mc_time_init(main_base->getLibeventBase());
 
@@ -1053,6 +1057,9 @@ int memcached_main(int argc, char** argv) {
 
     LOG_INFO_RAW("Shutting down RBAC subsystem");
     cb::rbac::destroy();
+
+    LOG_INFO_RAW("Shutting down Tenant stats collecting");
+    TenantManager::shutdown();
 
     LOG_INFO_RAW("Shutting down executor pool");
     ExecutorPool::get()->unregisterTaskable(NoBucketTaskable::instance(),

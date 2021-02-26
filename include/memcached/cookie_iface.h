@@ -11,11 +11,14 @@
 #pragma once
 
 #include <memcached/tracer.h>
+#include <memory>
 
 namespace cb::mcbp {
 class Header;
 enum class Status : uint16_t;
 } // namespace cb::mcbp
+
+class Tenant;
 
 /**
  * The CookieIface is an abstract class representing a single command
@@ -28,6 +31,10 @@ public:
     /// Get the identifier user for logging for all cookies bound to this
     /// connection.
     virtual uint32_t getConnectionId() const = 0;
+
+    /// Get the tenant the cookie is bound to (NOTE: may not be set to
+    /// a tenant)
+    virtual std::shared_ptr<Tenant> getTenant() = 0;
 
     /// Is the current cookie blocked?
     virtual bool isEwouldblock() const = 0;

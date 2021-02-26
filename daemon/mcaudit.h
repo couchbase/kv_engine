@@ -13,6 +13,7 @@
 #include <memcached/audit_interface.h>
 #include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
+#include <memcached/tenant.h>
 #include <cstdint>
 #include <string>
 
@@ -106,6 +107,9 @@ namespace cb::audit {
 /// sent to the audit daemon (which allows for unit tests to run code
 /// which performs audit calls without having the audit daemon running)
 void setEnabled(uint32_t id, bool enable);
+
+/// Add an audit event that the tenant was rate limited
+void addTenantRateLimited(const Connection&, Tenant::RateLimit limit);
 
 /**
  *  Add an audit event that the connection is terminated

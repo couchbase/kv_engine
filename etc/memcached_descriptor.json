@@ -291,6 +291,26 @@
       },
       "optional_fields": {
       }
+    },
+    {
+      "id": 20494,
+      "name": "tenant rate limited",
+      "description": "The given tenant was rate limited",
+      "sync": false,
+      "enabled": true,
+      "filtering_permitted": true,
+      "mandatory_fields": {
+        "timestamp": "",
+        "reason": "",
+        "real_userid": {
+          "domain": "",
+          "user": ""
+        },
+        "remote": { "ip": "", "port": 1 },
+        "local": { "ip": "", "port": 1 }
+      },
+      "optional_fields": {
+      }
     }
   ]
 }

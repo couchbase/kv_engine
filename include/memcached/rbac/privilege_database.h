@@ -41,6 +41,7 @@ struct UserIdent {
     UserIdent() = default;
     UserIdent(std::string n, Domain d) : name(std::move(n)), domain(d) {
     }
+    explicit UserIdent(const nlohmann::json& json);
     nlohmann::json to_json() const;
     std::string name;
     Domain domain{cb::rbac::Domain::Local};

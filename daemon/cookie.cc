@@ -172,6 +172,7 @@ bool Cookie::execute(bool useStartTime) {
     tracer.record(cb::tracing::Code::Execute, ts, te);
 
     if (done) {
+        connection.commandExecuted();
         collectTimings(te);
         return true;
     }
@@ -845,4 +846,8 @@ void Cookie::setUnknownCollectionErrorContext(uint64_t manifestUid) {
     // ensure that a valid collection which is 'invisible' from a priv check
     // doesn't expose the priv check failure via an event_id
     event_id.clear();
+}
+
+std::shared_ptr<Tenant> Cookie::getTenant() {
+    return connection.getTenant();
 }

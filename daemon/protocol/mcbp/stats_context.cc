@@ -19,13 +19,16 @@
 #include <daemon/mcaudit.h>
 #include <daemon/memcached.h>
 #include <daemon/runtime.h>
+#include <daemon/server_socket.h>
 #include <daemon/settings.h>
 #include <daemon/stats.h>
 #include <daemon/stats_tasks.h>
+#include <daemon/tenant_manager.h>
 #include <executor/executorpool.h>
 #include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
+#include <memcached/tenant.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/stats_callback.h>
 #include <phosphor/trace_log.h>
@@ -423,6 +426,15 @@ static cb::engine_errc stat_tracing_executor(const std::string& arg,
     }
 }
 
+static cb::engine_errc stat_tenant_executor(const std::string& arg,
+                                            Cookie& cookie) {
+    std::shared_ptr<StatsTask> task =
+            std::make_shared<StatsTenantsStats>(cookie, arg);
+    cookie.obtainContext<StatsCommandContext>(cookie).setTask(task);
+    ExecutorPool::get()->schedule(task);
+    return cb::engine_errc::would_block;
+}
+
 static cb::engine_errc stat_all_stats(const std::string& arg, Cookie& cookie) {
     auto value = cookie.getRequest().getValue();
     auto ret = bucket_get_stats(cookie, arg, value, appendStatsFn);
@@ -537,6 +549,7 @@ static std::unordered_map<std::string, struct command_stat_handler>
                 {"responses",
                  {false, true, true, stat_responses_json_executor}},
                 {"tracing", {true, false, true, stat_tracing_executor}},
+                {"tenants", {true, false, true, stat_tenant_executor}},
                 {"allocator", {true, false, true, stat_allocator_executor}},
                 {"scopes", {false, true, false, stat_bucket_collections_stats}},
                 {"scopes-byid",

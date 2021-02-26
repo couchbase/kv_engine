@@ -31,6 +31,19 @@ nlohmann::json UserIdent::to_json() const {
     return ret;
 }
 
+UserIdent::UserIdent(const nlohmann::json& json) {
+    auto iter = json.find("domain");
+    if (iter == json.cend()) {
+        throw std::invalid_argument("UserIdent: No domain specified");
+    }
+    domain = cb::sasl::to_domain(iter->get<std::string>());
+    iter = json.find("user");
+    if (iter == json.cend()) {
+        throw std::invalid_argument("UserIdent: No user specified");
+    }
+    name = iter->get<std::string>();
+}
+
 struct DatabaseContext {
     // Every time we create a new PrivilegeDatabase we bump the generation.
     // The PrivilegeContext contains the generation number it was generated

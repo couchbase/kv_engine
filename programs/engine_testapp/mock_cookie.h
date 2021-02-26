@@ -42,6 +42,10 @@ public:
 
     ~MockCookie() override;
 
+    std::shared_ptr<Tenant> getTenant() override {
+        return {};
+    }
+
     bool isEwouldblock() const override {
         return handle_ewouldblock;
     }

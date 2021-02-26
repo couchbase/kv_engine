@@ -38,7 +38,7 @@ folly::Synchronized<cb::audit::UniqueAuditPtr>& getAuditHandle() {
 static std::atomic_bool audit_enabled{false};
 
 static const int First = MEMCACHED_AUDIT_OPENED_DCP_CONNECTION;
-static const int Last = MEMCACHED_AUDIT_SESSION_TERMINATED;
+static const int Last = MEMCACHED_AUDIT_TENANT_RATE_LIMITED;
 
 static std::array<std::atomic_bool, Last - First + 1> events;
 
@@ -305,6 +305,19 @@ bool mc_audit_event(Cookie& cookie,
 }
 
 namespace cb::audit {
+
+void addTenantRateLimited(const Connection& c, Tenant::RateLimit limit) {
+    if (!isEnabled(MEMCACHED_AUDIT_TENANT_RATE_LIMITED) ||
+        !c.isAuthenticated()) {
+        return;
+    }
+    auto root = create_memcached_audit_object(c, c.getUser(), {});
+    root["reason"] = to_string(limit);
+    do_audit(nullptr,
+             MEMCACHED_AUDIT_TENANT_RATE_LIMITED,
+             root,
+             "Failed to audit tenant rate limited");
+}
 
 void addSessionTerminated(const Connection& c) {
     if (!isEnabled(MEMCACHED_AUDIT_SESSION_TERMINATED) ||

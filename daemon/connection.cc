@@ -23,6 +23,7 @@
 #include "sendbuffer.h"
 #include "settings.h"
 #include "ssl_utils.h"
+#include "tenant_manager.h"
 #include "tracing.h"
 
 #include <event2/bufferevent.h>
@@ -34,6 +35,7 @@
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/durability_spec.h>
+#include <memcached/tenant.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/backtrace.h>
@@ -218,8 +220,14 @@ nlohmann::json Connection::toJSON() const {
 }
 
 void Connection::restartAuthentication() {
-    if (authenticated && user.domain == cb::sasl::Domain::External) {
-        externalAuthManager->logoff(user.name);
+    if (authenticated) {
+        if (user.domain == cb::sasl::Domain::External) {
+            externalAuthManager->logoff(user.name);
+        }
+        if (tenant) {
+            tenant->logoff();
+            tenant.reset();
+        }
     }
     internal = false;
     authenticated = false;
@@ -413,6 +421,9 @@ void Connection::addCpuTime(std::chrono::nanoseconds ns) {
     total_cpu_time += ns;
     min_sched_time = std::min(min_sched_time, ns);
     max_sched_time = std::max(min_sched_time, ns);
+    if (tenant) {
+        tenant->addCpuTime(ns);
+    }
 }
 
 void Connection::shutdownIfSendQueueStuck(
@@ -534,7 +545,8 @@ void Connection::executeCommandPipeline() {
         auto input = bufferevent_get_input(bev.get());
         bool stop = !isDCP() && (getSendQueueSize() >= maxSendQueueSize);
         while (!stop && cookies.size() < maxActiveCommands &&
-               isPacketAvailable() && numEvents > 0) {
+               isPacketAvailable() && numEvents > 0 &&
+               state == State::running) {
             if (!cookies.back()->empty()) {
                 // Create a new entry if we can't reuse the last entry
                 cookies.emplace_back(std::make_unique<Cookie>(*this));
@@ -544,31 +556,79 @@ void Connection::executeCommandPipeline() {
             cookie.initialize(getPacket(), isTracingEnabled());
             auto drainSize = cookie.getPacket().size();
 
+            updateRecvBytes(drainSize);
+            auto limit = tenant ? tenant->checkRateLimits()
+                                : Tenant::RateLimit::None;
+
             const auto status = cookie.validate();
             if (status == cb::mcbp::Status::Success) {
-                // We may only start execute the packet if:
-                //  * We don't have any ongoing commands
-                //  * We have an ongoing command and this command allows
-                //    for reorder
-                if ((!active || cookie.mayReorder()) && cookie.execute(true)) {
-                    // Command executed successfully, reset the cookie to allow
-                    // it to be reused
-                    cookie.reset();
-                    // Check that we're not reserving too much memory for
-                    // this client...
-                    stop = !isDCP() && (getSendQueueSize() >= maxSendQueueSize);
-                } else {
-                    active = true;
-                    // We need to block so we need to preserve the request
-                    // as we'll drain the data from the buffer)
-                    cookie.preserveRequest();
-                    if (!cookie.mayReorder()) {
-                        // Don't add commands as we need the last one to
-                        // complete
-                        stop = true;
-                    }
+                if (cookie.getHeader().isResponse()) {
+                    // We can't really rate limit response packets (we only
+                    // accept a handful of them anyway (DCP related))
+                    limit = Tenant::RateLimit::None;
                 }
-                --numEvents;
+                // @todo should we honor reorder?
+                if (limit == Tenant::RateLimit::None) {
+                    // We may only start execute the packet if:
+                    //  * We don't have any ongoing commands
+                    //  * We have an ongoing command and this command allows
+                    //    for reorder
+                    if ((!active || cookie.mayReorder()) &&
+                        cookie.execute(true)) {
+                        // Command executed successfully, reset the cookie to
+                        // allow it to be reused
+                        cookie.reset();
+                        // Check that we're not reserving too much memory for
+                        // this client...
+                        stop = !isDCP() &&
+                               (getSendQueueSize() >= maxSendQueueSize);
+                    } else {
+                        active = true;
+                        // We need to block so we need to preserve the request
+                        // as we'll drain the data from the buffer)
+                        cookie.preserveRequest();
+                        if (!cookie.mayReorder()) {
+                            // Don't add commands as we need the last one to
+                            // complete
+                            stop = true;
+                        }
+                    }
+                    --numEvents;
+                } else {
+                    switch (limit) {
+                    case Tenant::RateLimit::None:
+                        throw std::logic_error(
+                                "executeCommandPipeline(): Should not get here "
+                                "as we've checked it above");
+                    case Tenant::RateLimit::Ingress:
+                        cb::audit::addTenantRateLimited(
+                                *this, Tenant::RateLimit::Ingress);
+                        cookie.sendResponse(
+                                cb::mcbp::Status::RateLimitedNetworkIngress);
+                        break;
+                    case Tenant::RateLimit::Egress:
+                        cb::audit::addTenantRateLimited(
+                                *this, Tenant::RateLimit::Egress);
+                        cookie.sendResponse(
+                                cb::mcbp::Status::RateLimitedNetworkEgress);
+                        break;
+                    case Tenant::RateLimit::Operations:
+                        cb::audit::addTenantRateLimited(
+                                *this, Tenant::RateLimit::Operations);
+                        cookie.sendResponse(
+                                cb::mcbp::Status::RateLimitedMaxCommands);
+                        break;
+                    case Tenant::RateLimit::Connections:
+                        cb::audit::addTenantRateLimited(
+                                *this, Tenant::RateLimit::Connections);
+                        cookie.sendResponse(
+                                cb::mcbp::Status::RateLimitedMaxConnections);
+                        setTerminationReason("Tenant exceeds max connections");
+                        shutdown();
+                        break;
+                    }
+                    cookie.reset();
+                }
             } else {
                 // Packet validation failed
                 cookie.sendResponse(status);
@@ -580,9 +640,6 @@ void Connection::executeCommandPipeline() {
                         "Connection::executeCommandsCallback(): Failed to "
                         "drain buffer");
             }
-
-            totalRecv += drainSize;
-            get_thread_stats(this)->bytes_read += drainSize;
         }
     }
 
@@ -632,6 +689,12 @@ void Connection::processNotifiedCookie(Cookie& cookie, cb::engine_errc status) {
     } catch (const std::exception& e) {
         LOG_CRITICAL("Connection::processNotifiedCookie got exception: {}",
                      e.what());
+    }
+}
+
+void Connection::commandExecuted() {
+    if (tenant) {
+        tenant->executed();
     }
 }
 
@@ -1100,8 +1163,15 @@ void Connection::setAuthenticated(bool authenticated_,
     if (authenticated_) {
         updateDescription();
         privilegeContext = cb::rbac::createContext(user, "");
+        if (!internal && TenantManager::isTenantTrackingEnabled()) {
+            tenant = TenantManager::get(user);
+            tenant->logon();
+        } else {
+            tenant.reset();
+        }
     } else {
         updateDescription();
+        tenant.reset();
         privilegeContext = cb::rbac::PrivilegeContext{user.domain};
     }
 }
@@ -1141,6 +1211,22 @@ bool Connection::dcpUseWriteBuffer(size_t size) const {
     return isSslEnabled() && size < thread.scratch_buffer.size();
 }
 
+void Connection::updateSendBytes(size_t nbytes) {
+    totalSend += nbytes;
+    get_thread_stats(this)->bytes_written += nbytes;
+    if (tenant) {
+        tenant->send(nbytes);
+    }
+}
+
+void Connection::updateRecvBytes(size_t nbytes) {
+    totalRecv += nbytes;
+    get_thread_stats(this)->bytes_read += nbytes;
+    if (tenant) {
+        tenant->recv(nbytes);
+    }
+}
+
 void Connection::copyToOutputStream(std::string_view data) {
     if (data.empty()) {
         return;
@@ -1150,21 +1236,18 @@ void Connection::copyToOutputStream(std::string_view data) {
         throw std::bad_alloc();
     }
 
-    totalSend += data.size();
-    get_thread_stats(this)->bytes_written += data.size();
+    updateSendBytes(data.size());
 }
 
 void Connection::copyToOutputStream(gsl::span<std::string_view> data) {
-    auto* ts = get_thread_stats(this);
-
+    size_t nb = 0;
     for (const auto& d : data) {
         if (bufferevent_write(bev.get(), d.data(), d.size()) == -1) {
             throw std::bad_alloc();
         }
-
-        totalSend += d.size();
-        ts->bytes_written += d.size();
+        nb += d.size();
     }
+    updateSendBytes(nb);
 }
 
 static void sendbuffer_cleanup_cb(const void*, size_t, void* extra) {
@@ -1190,8 +1273,7 @@ void Connection::chainDataToOutputStream(std::unique_ptr<SendBuffer> buffer) {
     // (sendbuffer_cleanup_cb) will free the memory.
     // Move the ownership of the buffer!
     (void)buffer.release();
-    totalSend += data.size();
-    get_thread_stats(this)->bytes_written += data.size();
+    updateSendBytes(data.size());
 }
 
 Connection::Connection(FrontEndThread& thr)
@@ -1271,6 +1353,14 @@ Connection::~Connection() {
     }
     if (authenticated && user.domain == cb::sasl::Domain::External) {
         externalAuthManager->logoff(user.name);
+    }
+
+    if (tenant) {
+        tenant->logoff();
+        LOG_DEBUG("Current tenant use for {}:{} - {}",
+                  user.name,
+                  to_string(user.domain),
+                  tenant->to_json());
     }
 
     if (bev) {

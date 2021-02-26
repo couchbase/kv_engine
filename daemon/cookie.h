@@ -168,6 +168,7 @@ public:
     }
 
     uint32_t getConnectionId() const override;
+    std::shared_ptr<Tenant> getTenant() override;
 
     /**
      * Execute the current packet
