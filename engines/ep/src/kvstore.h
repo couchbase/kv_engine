@@ -515,12 +515,6 @@ public:
     HdrHistogram flusherWriteAmplificationHisto{
             1, 1000, 2, HdrHistogram::Iterator::IterMode::Percentiles};
 
-    // Stats from the underlying OS file operations
-    FileStats fsStats;
-
-    // Underlying stats for OS file operations during compaction
-    FileStats fsStatsCompaction;
-
     size_t getMemFootPrint() const {
         return readTimeHisto.getMemFootPrint() +
                readSizeHisto.getMemFootPrint() +
@@ -531,7 +525,6 @@ public:
                saveDocsHisto.getMemFootPrint() + batchSize.getMemFootPrint() +
                getMultiFsReadHisto.getMemFootPrint() +
                getMultiFsReadPerDocHisto.getMemFootPrint() +
-               fsStats.getMemFootPrint() + fsStatsCompaction.getMemFootPrint() +
                flusherWriteAmplificationHisto.getMemFootPrint();
     }
 };
@@ -681,11 +674,11 @@ public:
     /**
      * Resets kvstore specific stats
      */
-    void resetStats() {
+    virtual void resetStats() {
         st.reset();
     }
 
-    size_t getMemFootPrint() const {
+    virtual size_t getMemFootPrint() const {
         return st.getMemFootPrint();
     }
 

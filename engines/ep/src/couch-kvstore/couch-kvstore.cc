@@ -22,6 +22,7 @@
 #include "kvstore_config.h"
 #include "persistence_callback.h"
 #include "rollback_result.h"
+#include "statistics/cbstat_collector.h"
 #include "vb_commit.h"
 #include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
@@ -353,9 +354,9 @@ CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
             std::vector<std::atomic_bool>(configuration.getMaxVBuckets());
     vbAbortCompaction =
             std::vector<std::atomic_bool>(configuration.getMaxVBuckets());
-    statCollectingFileOps = getCouchstoreStatsOps(st.fsStats, base_ops);
-    statCollectingFileOpsCompaction = getCouchstoreStatsOps(
-        st.fsStatsCompaction, base_ops);
+    statCollectingFileOps = getCouchstoreStatsOps(fsStats, base_ops);
+    statCollectingFileOpsCompaction =
+            getCouchstoreStatsOps(fsStatsCompaction, base_ops);
 
     // init db file map with default revision number, 1
     auto numDbFiles = configuration.getMaxVBuckets();
@@ -396,6 +397,84 @@ CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
 
     // 4) continue to intialise the store (reads vbstate etc...)
     initialize(map);
+}
+
+size_t CouchKVStore::getMemFootPrint() const {
+    return KVStore::getMemFootPrint() + fsStats.getMemFootPrint() +
+           fsStatsCompaction.getMemFootPrint();
+}
+
+void CouchKVStore::resetStats() {
+    KVStore::resetStats();
+    fsStats.reset();
+    fsStatsCompaction.reset();
+}
+
+void CouchKVStore::addStats(const AddStatFn& add_stat,
+                            const void* c,
+                            const std::string& args) const {
+    KVStore::addStats(add_stat, c, args);
+    const auto prefix = getStatsPrefix();
+
+    const size_t read = fsStats.totalBytesRead.load() +
+                        fsStatsCompaction.totalBytesRead.load();
+    add_prefixed_stat(prefix, "io_total_read_bytes", read, add_stat, c);
+
+    const size_t written = fsStats.totalBytesWritten.load() +
+                           fsStatsCompaction.totalBytesWritten.load();
+    add_prefixed_stat(prefix, "io_total_write_bytes", written, add_stat, c);
+
+    // Flusher Write Amplification - ratio of bytes written to disk by
+    // flusher to "useful" user data written - i.e. doesn't include bytes
+    // written later by compaction (after initial flush). Used to measure
+    // the impact of KVstore on persistTo times.
+    const double flusherWriteAmp = double(fsStats.totalBytesWritten.load()) /
+                                   st.io_document_write_bytes;
+    add_prefixed_stat(prefix,
+                      "io_flusher_write_amplification",
+                      flusherWriteAmp,
+                      add_stat,
+                      c);
+
+    // Total Write Amplification - ratio of total bytes written to disk
+    // to "useful" user data written over entire disk lifecycle. Includes
+    // bytes during initial item flush to disk  and compaction.
+    // Used to measure the overall write amplification.
+    const double totalWriteAmp = double(written) / st.io_document_write_bytes;
+    add_prefixed_stat(
+            prefix, "io_total_write_amplification", totalWriteAmp, add_stat, c);
+
+    add_prefixed_stat(prefix,
+                      "io_compaction_read_bytes",
+                      fsStatsCompaction.totalBytesRead,
+                      add_stat,
+                      c);
+    add_prefixed_stat(prefix,
+                      "io_compaction_write_bytes",
+                      fsStatsCompaction.totalBytesWritten,
+                      add_stat,
+                      c);
+}
+
+void CouchKVStore::addTimingStats(const AddStatFn& add_stat,
+                                  const CookieIface* c) const {
+    KVStore::addTimingStats(add_stat, c);
+
+    const auto prefix = getStatsPrefix();
+
+    // file ops stats.
+    add_prefixed_stat(prefix, "fsReadTime", fsStats.readTimeHisto, add_stat, c);
+    add_prefixed_stat(
+            prefix, "fsWriteTime", fsStats.writeTimeHisto, add_stat, c);
+    add_prefixed_stat(prefix, "fsSyncTime", fsStats.syncTimeHisto, add_stat, c);
+    add_prefixed_stat(prefix, "fsReadSize", fsStats.readSizeHisto, add_stat, c);
+    add_prefixed_stat(
+            prefix, "fsWriteSize", fsStats.writeSizeHisto, add_stat, c);
+    add_prefixed_stat(prefix, "fsReadSeek", fsStats.readSeekHisto, add_stat, c);
+    add_prefixed_stat(
+            prefix, "fsReadCount", fsStats.readCountHisto, add_stat, c);
+    add_prefixed_stat(
+            prefix, "fsWriteCount", fsStats.writeCountHisto, add_stat, c);
 }
 
 void CouchKVStore::initialize(
@@ -1973,21 +2052,21 @@ bool CouchKVStore::getStat(std::string_view name, size_t& value) const {
         value = st.io_document_write_bytes;
         return true;
     } else if (name == "io_flusher_write_bytes") {
-        value = st.fsStats.totalBytesWritten;
+        value = fsStats.totalBytesWritten;
         return true;
     } else if (name == "io_total_read_bytes") {
-        value = st.fsStats.totalBytesRead.load() +
-                st.fsStatsCompaction.totalBytesRead.load();
+        value = fsStats.totalBytesRead.load() +
+                fsStatsCompaction.totalBytesRead.load();
         return true;
     } else if (name == "io_total_write_bytes") {
-        value = st.fsStats.totalBytesWritten.load() +
-                st.fsStatsCompaction.totalBytesWritten.load();
+        value = fsStats.totalBytesWritten.load() +
+                fsStatsCompaction.totalBytesWritten.load();
         return true;
     } else if (name == "io_compaction_read_bytes") {
-        value = st.fsStatsCompaction.totalBytesRead;
+        value = fsStatsCompaction.totalBytesRead;
         return true;
     } else if (name == "io_compaction_write_bytes") {
-        value = st.fsStatsCompaction.totalBytesWritten;
+        value = fsStatsCompaction.totalBytesWritten;
         return true;
     } else if (name == "io_bg_fetch_read_count") {
         value = st.getMultiFsReadCount;

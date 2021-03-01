@@ -196,6 +196,17 @@ public:
 
     using KVStore::get;
 
+    void addTimingStats(const AddStatFn& add_stat,
+                        const CookieIface* c) const override;
+
+    size_t getMemFootPrint() const override;
+
+    void resetStats() override;
+
+    void addStats(const AddStatFn& add_stat,
+                  const void* c,
+                  const std::string& args) const override;
+
     GetValue getWithHeader(const KVFileHandle& kvFileHandle,
                            const DiskDocKey& key,
                            Vbid vb,
@@ -945,7 +956,7 @@ protected:
      * FileOpsInterface implementation for couchstore which tracks
      * all bytes read/written by couchstore *except* compaction.
      *
-     * Backed by this->st.fsStats
+     * Backed by this->fsStats
      */
     std::unique_ptr<FileOpsInterface> statCollectingFileOps;
 
@@ -953,7 +964,7 @@ protected:
      * FileOpsInterface implementation for couchstore which tracks
      * all bytes read/written by couchstore just for compaction
      *
-     * Backed by this->st.fsStatsCompaction
+     * Backed by this->fsStatsCompaction
      */
     std::unique_ptr<FileOpsInterface> statCollectingFileOpsCompaction;
 
@@ -1030,4 +1041,11 @@ protected:
     /// re-acquired. This allows the actual flusher to run in the hook rather
     /// poking the kvstore manually
     TestingHook<const std::string&> concurrentCompactionPreLockHook;
+
+private:
+    // Stats from the underlying OS file operations
+    FileStats fsStats;
+
+    // Underlying stats for OS file operations during compaction
+    FileStats fsStatsCompaction;
 };

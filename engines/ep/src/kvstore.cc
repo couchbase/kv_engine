@@ -174,9 +174,6 @@ void KVStoreStats::reset() {
     getMultiFsReadHisto.reset();
     getMultiFsReadPerDocHisto.reset();
     flusherWriteAmplificationHisto.reset();
-
-    fsStats.reset();
-    fsStatsCompaction.reset();
 }
 
 std::unique_ptr<KVStore> KVStoreFactory::create(KVStoreConfig& config) {
@@ -406,45 +403,6 @@ void KVStore::addStats(const AddStatFn& add_stat,
                       st.io_document_write_bytes,
                       add_stat,
                       c);
-
-    const size_t read = st.fsStats.totalBytesRead.load() +
-                        st.fsStatsCompaction.totalBytesRead.load();
-    add_prefixed_stat(prefix, "io_total_read_bytes", read, add_stat, c);
-
-    const size_t written = st.fsStats.totalBytesWritten.load() +
-                           st.fsStatsCompaction.totalBytesWritten.load();
-    add_prefixed_stat(prefix, "io_total_write_bytes", written, add_stat, c);
-
-    // Flusher Write Amplification - ratio of bytes written to disk by
-    // flusher to "useful" user data written - i.e. doesn't include bytes
-    // written later by compaction (after initial flush). Used to measure
-    // the impact of KVstore on persistTo times.
-    const double flusherWriteAmp = double(st.fsStats.totalBytesWritten.load()) /
-                                   st.io_document_write_bytes;
-    add_prefixed_stat(prefix,
-                      "io_flusher_write_amplification",
-                      flusherWriteAmp,
-                      add_stat,
-                      c);
-
-    // Total Write Amplification - ratio of total bytes written to disk
-    // to "useful" user data written over entire disk lifecycle. Includes
-    // bytes during initial item flush to disk  and compaction.
-    // Used to measure the overall write amplification.
-    const double totalWriteAmp = double(written) / st.io_document_write_bytes;
-    add_prefixed_stat(
-            prefix, "io_total_write_amplification", totalWriteAmp, add_stat, c);
-
-    add_prefixed_stat(prefix,
-                      "io_compaction_read_bytes",
-                      st.fsStatsCompaction.totalBytesRead,
-                      add_stat,
-                      c);
-    add_prefixed_stat(prefix,
-                      "io_compaction_write_bytes",
-                      st.fsStatsCompaction.totalBytesWritten,
-                      add_stat,
-                      c);
 }
 
 void KVStore::addTimingStats(const AddStatFn& add_stat,
@@ -474,24 +432,6 @@ void KVStore::addTimingStats(const AddStatFn& add_stat,
                       st.flusherWriteAmplificationHisto,
                       add_stat,
                       c);
-
-    //file ops stats
-    add_prefixed_stat(
-            prefix, "fsReadTime", st.fsStats.readTimeHisto, add_stat, c);
-    add_prefixed_stat(
-            prefix, "fsWriteTime", st.fsStats.writeTimeHisto, add_stat, c);
-    add_prefixed_stat(
-            prefix, "fsSyncTime", st.fsStats.syncTimeHisto, add_stat, c);
-    add_prefixed_stat(
-            prefix, "fsReadSize", st.fsStats.readSizeHisto, add_stat, c);
-    add_prefixed_stat(
-            prefix, "fsWriteSize", st.fsStats.writeSizeHisto, add_stat, c);
-    add_prefixed_stat(
-            prefix, "fsReadSeek", st.fsStats.readSeekHisto, add_stat, c);
-    add_prefixed_stat(
-            prefix, "fsReadCount", st.fsStats.readCountHisto, add_stat, c);
-    add_prefixed_stat(
-            prefix, "fsWriteCount", st.fsStats.writeCountHisto, add_stat, c);
 }
 
 void KVStore::optimizeWrites(std::vector<queued_item>& items) {
