@@ -415,10 +415,10 @@ STAT(connection_structures, , count, , )
 CBSTAT(cmd_get, , count) // this is not exposed to Prometheus as it duplicates
                          // the information provided by get_hits+get_misses
 STAT(cmd_set, , count, ops, LABEL(op, set))
-STAT(cmd_flush, , count, operations, LABEL(op, flush))
-STAT(cmd_lock, , count, operations, LABEL(op, lock))
-STAT(cmd_subdoc_lookup, , count, subdoc_operations, LABEL(op, lookup))
-STAT(cmd_subdoc_mutation, , count, subdoc_operations, LABEL(op, mutation))
+STAT(cmd_flush, , count, ops, LABEL(op, flush))
+STAT(cmd_lock, , count, ops, LABEL(op, lock))
+STAT(cmd_subdoc_lookup, , count, subdoc_ops, LABEL(op, lookup))
+STAT(cmd_subdoc_mutation, , count, subdoc_ops, LABEL(op, mutation))
 STAT(bytes_subdoc_lookup_total,
      ,
      bytes,
