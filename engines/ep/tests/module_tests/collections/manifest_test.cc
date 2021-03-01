@@ -859,16 +859,26 @@ TEST(ManifestTest, isSuccesor) {
     cm.add(ScopeEntry::shop1);
     cm.add(CollectionEntry::dairy, ScopeEntry::shop1);
 
-    Collections::Manifest a;
+    Collections::Manifest epoch;
     Collections::Manifest b1;
     Collections::Manifest b2{std::string{cm}};
     Collections::Manifest c{std::string{cm}};
 
-    // a and b1 are the same and isSuccessor allows
-    EXPECT_EQ(cb::engine_errc::success, a.isSuccessor(b1).code());
+    // epoch2 has the epoch state but a different manifest uid. E.g. a new
+    // collection was added and later removed.
+    CollectionsManifest cm2;
+    cm2.add(CollectionEntry::meat);
+    cm2.remove(CollectionEntry::meat);
+    Collections::Manifest epoch2{std::string{cm2}};
 
-    // b2 is a successor in valid ways
-    EXPECT_EQ(cb::engine_errc::success, a.isSuccessor(b2).code());
+    // epoch and b1 are the same and isSuccessor allows
+    EXPECT_EQ(cb::engine_errc::success, epoch.isSuccessor(b1).code());
+
+    // epoch and epoch2 are the same content, but different so isSuccessor:true
+    EXPECT_EQ(cb::engine_errc::success, epoch.isSuccessor(epoch2).code());
+
+    // b2 is epoch successor in valid ways
+    EXPECT_EQ(cb::engine_errc::success, epoch.isSuccessor(b2).code());
 
     // b2 and c are the same (but not default constructed)
     EXPECT_EQ(cb::engine_errc::success, b2.isSuccessor(c).code());
@@ -876,11 +886,20 @@ TEST(ManifestTest, isSuccesor) {
 
 TEST(ManifestTest, isNotSuccesor) {
     CollectionsManifest cm;
+    Collections::Manifest epoch{std::string{cm}};
     cm.add(CollectionEntry::meat);
     cm.add(ScopeEntry::shop1);
     cm.add(CollectionEntry::dairy, ScopeEntry::shop1);
     Collections::Manifest current{std::string{cm}};
 
+    {
+        // Make an epoch manifest and change to uid:1, going from 0 to 1 expect
+        // something changed
+        CollectionsManifest cm2;
+        cm2.updateUid(1);
+        Collections::Manifest incoming{std::string{cm2}};
+        EXPECT_NE(cb::engine_errc::success, epoch.isSuccessor(incoming).code());
+    }
     {
         // switch the name of the scope and test
         CollectionsManifest cm2 = cm;
