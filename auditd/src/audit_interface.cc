@@ -15,42 +15,24 @@
  *   limitations under the License.
  */
 
+#include "audit.h"
+
 #include <logger/logger.h>
 #include <memcached/audit_interface.h>
-#include <memcached/isotime.h>
-#include <nlohmann/json.hpp>
-#include <platform/strerror.h>
-#include <algorithm>
-#include <cstring>
-#include <sstream>
-
-#include "audit.h"
-#include "auditd_audit_events.h"
-#include "event.h"
+#include <stdexcept>
 
 namespace cb::audit {
-
-static std::string gethostname() {
-    char host[128];
-    if (::gethostname(host, sizeof(host)) != 0) {
-        throw std::runtime_error("gethostname() failed: " + cb_strerror());
-    }
-
-    return std::string(host);
-}
 
 UniqueAuditPtr create_audit_daemon(const std::string& config_file,
                                    ServerCookieIface* server_cookie_api) {
     if (!cb::logger::isInitialized()) {
         throw std::invalid_argument(
-                "start_auditdaemon: logger must have been created");
+                "create_audit_daemon: logger must have been created");
     }
 
     try {
-        UniqueAuditPtr holder;
-        holder.reset(
-                new AuditImpl(config_file, server_cookie_api, gethostname()));
-        return holder;
+        return std::make_unique<AuditImpl>(
+                config_file, server_cookie_api, cb::net::getHostname());
     } catch (std::runtime_error& err) {
         LOG_WARNING("{}", err.what());
     } catch (std::bad_alloc&) {

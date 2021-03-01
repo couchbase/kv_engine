@@ -12,7 +12,8 @@ target_link_libraries(auditd
                       mcd_time
                       mcd_util
                       platform
-                      statistics)
+                      statistics
+                      cbsocket)
 add_dependencies(auditd generate_audit_descriptors)
 
 
