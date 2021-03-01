@@ -5807,6 +5807,13 @@ cb::engine_errc EventuallyPersistentEngine::handleTrafficControlCmd(
                     "Data traffic to persistent engine cannot be enabled"
                     " due to out of memory failures during warmup");
             return cb::engine_errc::no_memory;
+        } else if (kvBucket->hasWarmupSetVbucketStateFailed()) {
+            setErrorContext(
+                    cookie,
+                    "Data traffic to persistent engine cannot be enabled"
+                    " due to write failures when persisting vbucket state to "
+                    "disk");
+            return cb::engine_errc::failed;
         } else {
             if (enableTraffic(true)) {
                 EP_LOG_INFO(

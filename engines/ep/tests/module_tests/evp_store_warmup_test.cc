@@ -2253,6 +2253,19 @@ public:
         ASSERT_FALSE(boost::filesystem::is_regular_file(dataFile));
     };
 
+    void makeFileReadOnly() {
+        auto dataFile = getDataFile();
+        boost::filesystem::permissions(
+                dataFile,
+                boost::filesystem::others_read | boost::filesystem::owner_read);
+    }
+
+    void deleteStatsFile() {
+        auto statsFile = (getDataDir() / "stats.json");
+        EXPECT_TRUE(boost::filesystem::remove(statsFile));
+        ASSERT_FALSE(boost::filesystem::is_regular_file(statsFile));
+    }
+
     TaskQueue& getReaderQueue() {
         return *task_executor->getLpTaskQ()[READER_TASK_IDX];
     }
@@ -2260,6 +2273,27 @@ public:
     KVBucket* getKVBucket() {
         return engine->getKVBucket();
     }
+
+    void sendEnableTrafficRequest(
+            cb::engine_errc expectedStatus = cb::engine_errc::failed) {
+        cb::mcbp::Request request;
+        request.setMagic(cb::mcbp::Magic::ClientRequest);
+        request.setOpcode(cb::mcbp::ClientOpcode::EnableTraffic);
+        EXPECT_EQ(expectedStatus,
+                  engine->handleTrafficControlCmd(
+                          cookie, request, dummyRespHandler));
+    }
+
+private:
+    AddResponseFn dummyRespHandler = [](std::string_view key,
+                                        std::string_view extras,
+                                        std::string_view body,
+                                        protocol_binary_datatype_t datatype,
+                                        cb::mcbp::Status status,
+                                        uint64_t cas,
+                                        const void* void_cookie) -> bool {
+        return true;
+    };
 };
 
 /**
@@ -2353,6 +2387,55 @@ TEST_F(WarmupDiskTest, diskFailureBeforeLoadPrepares) {
     }
     EXPECT_EQ(WarmupState::State::LoadPreparedSyncWrites,
               getKVBucket()->getWarmup()->getWarmupState());
+}
+
+/**
+ * Test to check that if a data has been made read only Warmup::initialize() and
+ * Warmup::populateVBucketMap() we don't enable traffic.
+ */
+TEST_F(WarmupDiskTest, readOnlyDataFileSetVbucketStateTest) {
+    // Create a vbucket on disk and add a key to read later
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    store_item(vbid, makeStoredDocKey("key"), "value");
+    flush_vbucket_to_disk(vbid);
+    // Set up engine so its ready to warm up from disk
+    resetEngineAndEnableWarmup();
+    // make sure create a new entry in the failover table so that we need
+    // to persist new vbucket state.
+    deleteStatsFile();
+
+    bool runDiskFailure = true;
+    // run through the stages of warmup
+    while (getKVBucket()->isWarmingUp()) {
+        // if check this is the state of warmup that we want to fail
+        // only run the disruption the for the first task though as we
+        // have two shards
+        if (runDiskFailure &&
+            WarmupState::State::PopulateVBucketMap ==
+                    getKVBucket()->getWarmup()->getWarmupState()) {
+            // delete the datafile on disk
+            makeFileReadOnly();
+            runDiskFailure = false;
+        }
+        CheckedExecutor executor(task_executor, getReaderQueue());
+        // run the task
+        executor.runCurrentTask();
+        executor.completeCurrentTask();
+    }
+    // Check that we finished warmuo
+    EXPECT_EQ(WarmupState::State::Done,
+              getKVBucket()->getWarmup()->getWarmupState());
+    EXPECT_FALSE(getKVBucket()->isWarmingUp());
+    // Ensure we don't enable traffic
+    EXPECT_TRUE(getKVBucket()->hasWarmupSetVbucketStateFailed());
+    sendEnableTrafficRequest();
+    // Check that we can read the file we had written before warmup and the file
+    // becoming read only
+    auto [status, item] = engine->get(
+            cookie, makeStoredDocKey("key"), vbid, DocStateFilter::Alive);
+    EXPECT_EQ(cb::engine_errc::success, status);
+    ASSERT_TRUE(item);
+    EXPECT_EQ("value", item->getValueView());
 }
 
 INSTANTIATE_TEST_SUITE_P(FullOrValue,

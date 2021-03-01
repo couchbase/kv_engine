@@ -76,6 +76,7 @@ public:
      * @return an instance of FlushResult
      */
     FlushResult flushVBucket(Vbid vbid);
+    FlushResult flushVBucket_UNLOCKED(LockedVBucketPtr vb);
 
     /**
      * Set the number of flusher items which can be included in a
@@ -236,6 +237,8 @@ public:
     bool isWarmingUp() override;
 
     bool isWarmupOOMFailure() override;
+
+    bool hasWarmupSetVbucketStateFailed() const override;
 
     /**
      * This method store the given cookie for later notification iff Warmup has

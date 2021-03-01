@@ -282,6 +282,10 @@ public:
 
     bool hasOOMFailure() { return warmupOOMFailure.load(); }
 
+    bool hasSetVbucketStateFailure() const {
+        return failedToSetAVbucketState;
+    };
+
     WarmupState::State getWarmupState() const {
         return state.getState();
     }
@@ -456,6 +460,8 @@ private:
     bool createVBucketsComplete{false};
     /// A mutex which gives safe access to the cookies and state flag
     std::mutex pendingCookiesMutex;
+    /// True if we've been unable to persist vbucket state during warmup
+    bool failedToSetAVbucketState{false};
 
     /**
      * Any vbucket found in the CreateVBuckets phase are added here and then

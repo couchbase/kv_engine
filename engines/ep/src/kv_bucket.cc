@@ -2042,6 +2042,10 @@ bool KVBucket::isWarmupOOMFailure() {
     return false;
 }
 
+bool KVBucket::hasWarmupSetVbucketStateFailed() const {
+    return false;
+}
+
 bool KVBucket::maybeWaitForVBucketWarmup(const void* cookie) {
     return false;
 }

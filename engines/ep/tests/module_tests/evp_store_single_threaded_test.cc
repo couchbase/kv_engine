@@ -5588,30 +5588,14 @@ TEST_P(STParamPersistentBucketTest,
 
     EXPECT_EQ(WarmupState::State::CheckForAccessLog, warmup->getWarmupState());
 
-    // We can't get the vBucket via the traditional means to get the failover
-    // table but we can see what the on disk state is by reading the persisted
-    // state and loading it into a new FailoverTable
-    auto state = store->getRWUnderlying(vbid)->getPersistedVBucketState(vbid);
-    FailoverTable preFlushTable{state.transition.failovers, 5, 0};
-    auto preFlushUuid = preFlushTable.getLatestUUID();
-
     auto flusher = store->getFlusher(0);
-    EXPECT_EQ(1, flusher->getLPQueueSize());
-
-    // Normally running the flusher would be done during a clean shutdown but
-    // unit tests just cancel the tasks instead. The presence of something in
-    // one of the flusher queues is enough for this to happen. We'll run it
-    // manually for simplicity
-    auto& writerQueue = *task_executor->getLpTaskQ()[WRITER_TASK_IDX];
-    while (flusher->getLPQueueSize() != 0) {
-        runNextTask(writerQueue);
-    }
+    EXPECT_EQ(0, flusher->getLPQueueSize());
 
     // Check that the on disk state shows a change in failover table
-    state = store->getRWUnderlying(vbid)->getPersistedVBucketState(vbid);
+    auto state = store->getRWUnderlying(vbid)->getPersistedVBucketState(vbid);
     FailoverTable postFlushTable{state.transition.failovers, 5, 0};
     auto postFlushUuid = postFlushTable.getLatestUUID();
-    EXPECT_NE(preFlushUuid, postFlushUuid);
+    EXPECT_NE(initialUuid, postFlushUuid);
 
     // Run through the rest of the warmup so that we can shutdown properly.
     // This isn't actually required in a production setup but the test will hang
@@ -5629,7 +5613,6 @@ TEST_P(STParamPersistentBucketTest,
     // And test that we persisted the new failover table entry
     vb = engine->getKVBucket()->getVBucket(vbid);
     EXPECT_NE(initialUuid, vb->failovers->getLatestUUID());
-    EXPECT_NE(preFlushUuid, vb->failovers->getLatestUUID());
     EXPECT_EQ(postFlushUuid, vb->failovers->getLatestUUID());
 }
 

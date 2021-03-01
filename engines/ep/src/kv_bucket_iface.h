@@ -782,6 +782,9 @@ public:
     /// Check if there were any out-of-memory errors during warmup
     virtual bool isWarmupOOMFailure() = 0;
 
+    /// Check if any of the vbucket set state failed during warmup
+    virtual bool hasWarmupSetVbucketStateFailed() const = 0;
+
     virtual bool maybeWaitForVBucketWarmup(const void* cookie) = 0;
 
     virtual size_t getActiveResidentRatio() const = 0;

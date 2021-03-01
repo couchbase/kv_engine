@@ -1301,6 +1301,7 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
     for (const auto vbid : shardVbIds[shardId]) {
         auto itr = warmedUpVbuckets.find(vbid.get());
         if (itr != warmedUpVbuckets.end()) {
+            const auto& vbPtr = itr->second;
             // Take the vBucket lock to stop the flusher from racing with our
             // set vBucket state. It MUST go to disk in the first flush batch
             // or we run the risk of not rolling back replicas that we should
@@ -1308,8 +1309,24 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
             Expects(lockedVb.owns_lock());
             Expects(!lockedVb);
 
-            store.vbMap.addBucket(itr->second);
-            itr->second->checkpointManager->queueSetVBState(*itr->second);
+            vbPtr->checkpointManager->queueSetVBState(*vbPtr);
+            auto result = store.flushVBucket_UNLOCKED(
+                    {vbPtr, std::move(lockedVb.getLock())});
+            // if flusher returned MoreAvailable::Yes, this indicates the single
+            // flush of the vbucket state failed.
+            if (result.moreAvailable == EPBucket::MoreAvailable::Yes) {
+                // Disabling writes to this node as we're unable to persist
+                // vbucket state to disk.
+                EP_LOG_CRITICAL(
+                        "Warmup::populateVBucketMap() flush state failed for "
+                        "{} highSeqno:{}, write traffic will be disabled for "
+                        "this node.",
+                        vbid,
+                        vbPtr->getHighSeqno());
+                failedToSetAVbucketState = true;
+            }
+
+            store.vbMap.addBucket(vbPtr);
         }
     }
 

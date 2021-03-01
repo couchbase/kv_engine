@@ -628,6 +628,8 @@ public:
 
     bool isWarmupOOMFailure() override;
 
+    bool hasWarmupSetVbucketStateFailed() const override;
+
     /**
      * This method store the given cookie for later notification iff Warmup has
      * yet to reach and complete the PopulateVBucketMap phase.

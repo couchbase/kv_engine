@@ -355,8 +355,6 @@ static bool canDeDuplicate(Item* lastFlushed, Item& candidate) {
 }
 
 EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
-    const auto flushStart = std::chrono::steady_clock::now();
-
     auto vb = getLockedVBucket(vbid, std::try_to_lock);
     if (!vb.owns_lock()) {
         // Try another bucket if this one is locked to avoid blocking flusher.
@@ -367,6 +365,22 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
         return {MoreAvailable::No, 0, WakeCkptRemover::No};
     }
 
+    return flushVBucket_UNLOCKED(std::move(vb));
+}
+
+EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
+    if (!vb || !vb.owns_lock()) {
+        // should never really hit this code, if we do you're using the method
+        // incorrectly
+        std::logic_error(fmt::format(
+                "EPBucket::flushVBucket_UNLOCKED(): should always be called "
+                "with a valid LockedVBucketPtr: VbucketPtr:{} owns_lock:{}",
+                bool{vb},
+                vb.owns_lock()));
+    }
+
+    const auto vbid = vb->getId();
+    const auto flushStart = std::chrono::steady_clock::now();
     // Obtain the set of items to flush, up to the maximum allowed for
     // a single flush.
     auto toFlush = vb->getItemsToPersist(flusherBatchSplitTrigger);
@@ -1980,6 +1994,10 @@ bool EPBucket::isWarmingUp() {
 
 bool EPBucket::isWarmupOOMFailure() {
     return warmupTask && warmupTask->hasOOMFailure();
+}
+
+bool EPBucket::hasWarmupSetVbucketStateFailed() const {
+    return warmupTask && warmupTask->hasSetVbucketStateFailure();
 }
 
 bool EPBucket::maybeWaitForVBucketWarmup(const void* cookie) {
