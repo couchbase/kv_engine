@@ -18,15 +18,12 @@
 #include "topkeys.h"
 #include "settings.h"
 
-#include <platform/sysinfo.h>
-
 #include <folly/concurrency/CacheLocality.h>
-#include <inttypes.h>
 #include <nlohmann/json.hpp>
-
+#include <platform/sysinfo.h>
 #include <algorithm>
+#include <cinttypes>
 #include <gsl/gsl>
-#include <set>
 #include <stdexcept>
 #include <utility>
 

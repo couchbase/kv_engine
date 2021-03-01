@@ -27,18 +27,12 @@
 #include <platform/dirutils.h>
 #include <statistics/collector.h>
 #include <statistics/definitions.h>
-#include <utilities/json_utilities.h>
 #include <utilities/logtags.h>
 
 #include <algorithm>
 #include <chrono>
-#include <cstring>
-#include <fstream>
-#include <iomanip>
-#include <iostream>
 #include <map>
 #include <queue>
-#include <sstream>
 #include <string>
 
 using namespace std::string_view_literals;

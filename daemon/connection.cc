@@ -21,7 +21,6 @@
 #include "cookie.h"
 #include "external_auth_manager_thread.h"
 #include "front_end_thread.h"
-#include "listening_port.h"
 #include "mc_time.h"
 #include "mcaudit.h"
 #include "memcached.h"

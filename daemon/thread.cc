@@ -6,7 +6,6 @@
 #include "connections.h"
 #include "cookie.h"
 #include "front_end_thread.h"
-#include "listening_port.h"
 #include "log_macros.h"
 #include "memcached.h"
 #include "settings.h"
@@ -14,7 +13,6 @@
 #include "tracing.h"
 #include <utilities/hdrhistogram.h>
 
-#include <nlohmann/json.hpp>
 #include <openssl/conf.h>
 #include <phosphor/phosphor.h>
 #include <platform/socket.h>

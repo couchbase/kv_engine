@@ -19,7 +19,6 @@
 #include <phosphor/trace_config.h>
 #include <platform/base64.h>
 #include <platform/dirutils.h>
-#include <platform/strerror.h>
 #include <platform/timeutils.h>
 
 #include <algorithm>

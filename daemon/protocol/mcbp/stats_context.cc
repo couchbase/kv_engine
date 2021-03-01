@@ -17,7 +17,6 @@
 #include "stats_context.h"
 
 #include "engine_wrapper.h"
-#include "logger/logger.h"
 #include "utilities.h"
 
 #include <daemon/buckets.h>
@@ -39,12 +38,9 @@
 #include <platform/cb_arena_malloc.h>
 #include <platform/checked_snprintf.h>
 #include <statistics/cbstat_collector.h>
-#include <statistics/collector.h>
-#include <statistics/definitions.h>
 #include <utilities/engine_errc_2_mcbp.h>
 #include <gsl/gsl>
 
-#include <daemon/server_socket.h>
 #include <cinttypes>
 
 using namespace std::string_view_literals;

@@ -261,12 +261,6 @@ cb::engine_errc server_prometheus_stats(
 #define STATS_MISS(conn, op) \
     STATS_TWO(conn, op##_misses, cmd_##op)
 
-/*
- * Set the statistic to the maximum of the current value, and the specified
- * value.
- */
-#define STATS_MAX(conn, op, value) get_thread_stats(conn)->op.setIfGreater(value);
-
 extern std::mutex stats_mutex;
 extern char reset_stats_time[80];
 

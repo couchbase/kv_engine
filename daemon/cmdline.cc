@@ -2,7 +2,6 @@
 
 #include "cmdline.h"
 #include "config_parse.h"
-#include "log_macros.h"
 #include "memcached.h"
 #include "settings.h"
 

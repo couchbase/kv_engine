@@ -19,7 +19,6 @@
 
 #include "engine_wrapper.h"
 #include "utilities.h"
-#include <memcached/protocol_binary.h>
 
 void dcp_control_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(cb::engine_errc::success);

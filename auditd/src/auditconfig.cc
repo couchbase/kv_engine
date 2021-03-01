@@ -16,7 +16,6 @@
  */
 
 #include <algorithm>
-#include <cerrno>
 #include <cstdio>
 #include <cstring>
 #include <iostream>

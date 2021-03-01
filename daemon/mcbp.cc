@@ -25,10 +25,7 @@
 #include "xattr/utils.h"
 #include <logger/logger.h>
 #include <mcbp/protocol/framebuilder.h>
-#include <mcbp/protocol/header.h>
-#include <memcached/protocol_binary.h>
 #include <platform/compress.h>
-#include <platform/string_hex.h>
 
 static bool mcbp_response_handler(std::string_view key,
                                   std::string_view extras,
