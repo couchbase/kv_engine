@@ -347,6 +347,60 @@ TEST_F(WithMetaTest, basicAdd) {
                   cb::engine_errc::success); // can still get the key
 }
 
+/**
+ * The test verifies that SetWithMeta sanitizes invalid payloads like
+ * {datatype:xattr, value-size=0} by resetting datatype:raw
+ */
+TEST_F(WithMetaTest, SetWithMetaXattrWithEmptyPayload) {
+    mock_set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_JSON);
+
+    const auto& vb = store->getVBucket(vbid);
+    ASSERT_EQ(0, vb->getHighSeqno());
+
+    const std::string key = "key";
+    const std::string value; // Empty value
+    const auto datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
+    ItemMetaData meta{1 /*cas*/, 1 /*revSeqno*/, 0 /*flags*/, 0 /*expiry*/};
+    const std::vector<char> extMeta = {};
+    const auto packet = buildWithMetaPacket(cb::mcbp::ClientOpcode::SetWithMeta,
+                                            datatype,
+                                            vbid,
+                                            0 /*opaque*/,
+                                            0 /*cas*/,
+                                            meta,
+                                            key,
+                                            value,
+                                            extMeta,
+                                            0 /*options*/);
+    const auto* req = reinterpret_cast<const cb::mcbp::Request*>(packet.data());
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->setWithMeta(cookie, *req, addResponse));
+
+    // Check in memory
+    const auto res = store->get({key, DocKeyEncodesCollectionId::No},
+                                vbid,
+                                cookie,
+                                get_options_t::NONE);
+    EXPECT_EQ(cb::engine_errc::success, res.getStatus());
+    EXPECT_EQ(1, res.item->getBySeqno());
+    EXPECT_FALSE(res.item->isDeleted());
+    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, res.item->getDataType());
+    EXPECT_NE(nullptr, res.item->getData());
+    EXPECT_EQ(0, res.item->getNBytes());
+
+    // Check on disk
+    flush_vbucket_to_disk(vbid, 1 /*expectedNumFlushed*/);
+    auto* kvstore = store->getRWUnderlyingByShard(
+            store->getVBucket(vbid)->getShard()->getId());
+    auto gv = kvstore->get(makeDiskDocKey(key), vbid);
+    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
+    EXPECT_EQ(1, gv.item->getBySeqno());
+    EXPECT_FALSE(gv.item->isDeleted());
+    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, gv.item->getDataType());
+    EXPECT_TRUE(gv.item->getValue());
+    EXPECT_EQ(0, gv.item->getNBytes());
+}
+
 TEST_P(DelWithMetaTest, basic) {
     ItemMetaData itemMeta{0xdeadbeef, 0xf00dcafe, 0xfacefeed, expiry};
     // A delete_w_meta against an empty bucket queues a BGFetch (get = ewblock)
