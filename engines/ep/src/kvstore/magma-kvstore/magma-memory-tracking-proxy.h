@@ -134,6 +134,9 @@ public:
     void GetStats(
             magma::Magma::MagmaStats& magmaStats,
             std::chrono::milliseconds cacheDuration = std::chrono::seconds(0));
+    void GetFileStats(magma::MagmaFileStats& fileStats);
+    void GetHistogramStats(magma::MagmaHistogramStats& histogramStats);
+
     DomainAwareUniquePtr<magma::Magma::SeqIterator> NewSeqIterator(
             magma::Magma::Snapshot& snapshot);
     magma::Status Open();

@@ -2730,6 +2730,56 @@ magma::Status MagmaKVStore::updateScopes(
     return status;
 }
 
+void MagmaKVStore::addTimingStats(const AddStatFn& add_stat,
+                                  const CookieIface* c) const {
+    KVStore::addTimingStats(add_stat, c);
+    const auto prefix = getStatsPrefix();
+
+    MagmaFileStats fileStats;
+    magma->GetFileStats(fileStats);
+
+    add_prefixed_stat(
+            prefix, "fsReadTime", fileStats.ReadTimeHisto, add_stat, c);
+    add_prefixed_stat(
+            prefix, "fsWriteTime", fileStats.WriteTimeHisto, add_stat, c);
+    add_prefixed_stat(
+            prefix, "fsSyncTime", fileStats.SyncTimeHisto, add_stat, c);
+    add_prefixed_stat(
+            prefix, "fsDelete", fileStats.DeleteTimeHisto, add_stat, c);
+    add_prefixed_stat(
+            prefix, "fsReadSize", fileStats.ReadSizeHisto, add_stat, c);
+    add_prefixed_stat(
+            prefix, "fsWriteSize", fileStats.WriteSizeHisto, add_stat, c);
+
+    MagmaHistogramStats histoStats;
+    magma->GetHistogramStats(histoStats);
+    add_prefixed_stat(prefix,
+                      "flushWaitTime",
+                      histoStats.FlushWaitTimeHisto,
+                      add_stat,
+                      c);
+    add_prefixed_stat(prefix,
+                      "keyWriteBlockingCompactTime",
+                      histoStats.KeyStats.WriteBlockingCompactTimeHisto,
+                      add_stat,
+                      c);
+    add_prefixed_stat(prefix,
+                      "keyCompactTime",
+                      histoStats.KeyStats.CompactTimeHisto,
+                      add_stat,
+                      c);
+    add_prefixed_stat(prefix,
+                      "seqWriteBlockingCompactTime",
+                      histoStats.SeqStats.WriteBlockingCompactTimeHisto,
+                      add_stat,
+                      c);
+    add_prefixed_stat(prefix,
+                      "seqCompactTime",
+                      histoStats.SeqStats.CompactTimeHisto,
+                      add_stat,
+                      c);
+}
+
 bool MagmaKVStore::getStat(std::string_view name, size_t& value) const {
     std::array<std::string_view, 1> keys = {{name}};
     auto stats = getStats(keys);

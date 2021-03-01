@@ -524,6 +524,15 @@ public:
                   const std::string& args) const override;
 
     /**
+     * Populate magma specific timing stats.
+     *
+     * @param add_stat the callback function to add statistics
+     * @param c the cookie to pass to the callback function
+     */
+    void addTimingStats(const AddStatFn& add_stat,
+                        const CookieIface* c) const override;
+
+    /**
      * Construct a compaction context for use with implicit compactions. Calls
      * back up to the bucket to do so as we need certain callbacks and config.
      */

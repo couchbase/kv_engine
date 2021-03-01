@@ -191,6 +191,17 @@ void MagmaMemoryTrackingProxy::GetStats(
     magma->GetStats(magmaStats, cacheDuration);
 }
 
+void MagmaMemoryTrackingProxy::GetFileStats(magma::MagmaFileStats& fileStats) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    magma->GetFileStats(fileStats);
+}
+
+void MagmaMemoryTrackingProxy::GetHistogramStats(
+        magma::MagmaHistogramStats& histogramStats) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    magma->GetHistogramStats(histogramStats);
+}
+
 DomainAwareUniquePtr<magma::Magma::SeqIterator>
 MagmaMemoryTrackingProxy::NewSeqIterator(magma::Magma::Snapshot& snapshot) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
