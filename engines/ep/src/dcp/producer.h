@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include "atomic_shared_ptr.h"
-#include "atomic_unordered_map.h"
 #include "connhandler.h"
 #include "dcp/dcp-types.h"
 #include "dcp/stream_container.h"
@@ -582,15 +580,17 @@ protected:
     BufferLog log;
 
     // backfill manager object is owned by this class, but use an
-    // AtomicSharedPtr as the lifetime of the manager is shared between the
+    // shared_ptr as the lifetime of the manager is shared between the
     // producer (this class) and BackfillManagerTask (which has a
-    // weak_ptr) to this, and because different threads may attempt to access
-    // the shared_ptr - for example:
+    // weak_ptr) to this.
+    // Different threads may attempt to access the shared_ptr - for example:
     // - Bucket deletion thread may attempt to reset() the shared_ptr when
     //   shutting down DCP connections
     // - A frontend thread may also attempt to reset() the shared_ptr when
     //   a connection is disconnected.
-    cb::AtomicSharedPtr<BackfillManager> backfillMgr;
+    // As such, reset (modification) of this pointer is mediated via
+    // closeAllStreamsLock - see MB-38521.
+    std::shared_ptr<BackfillManager> backfillMgr;
 
     VBReadyQueue ready;
 

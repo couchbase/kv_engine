@@ -136,11 +136,11 @@ public:
     BackfillScanBuffer& public_getBackfillScanBuffer();
 
     BackfillManager& getBFM() {
-        return *(backfillMgr.load());
+        return *backfillMgr;
     }
 
     BackfillManager* getBFMPtr() {
-        return backfillMgr.load().get();
+        return backfillMgr.get();
     }
 
     size_t getBytesOutstanding() const {

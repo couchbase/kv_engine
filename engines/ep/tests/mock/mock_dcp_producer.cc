@@ -136,22 +136,22 @@ std::pair<std::shared_ptr<Stream>, bool> MockDcpProducer::findStream(
 }
 
 void MockDcpProducer::setBackfillBufferSize(size_t newSize) {
-    return std::dynamic_pointer_cast<MockDcpBackfillManager>(backfillMgr.load())
+    return std::dynamic_pointer_cast<MockDcpBackfillManager>(backfillMgr)
             ->setBackfillBufferSize(newSize);
 }
 
 void MockDcpProducer::setBackfillBufferBytesRead(size_t newSize) {
-    return std::dynamic_pointer_cast<MockDcpBackfillManager>(backfillMgr.load())
+    return std::dynamic_pointer_cast<MockDcpBackfillManager>(backfillMgr)
             ->setBackfillBufferBytesRead(newSize);
 }
 
 bool MockDcpProducer::getBackfillBufferFullStatus() {
-    return std::dynamic_pointer_cast<MockDcpBackfillManager>(backfillMgr.load())
+    return std::dynamic_pointer_cast<MockDcpBackfillManager>(backfillMgr)
             ->getBackfillBufferFullStatus();
 }
 
 BackfillScanBuffer& MockDcpProducer::public_getBackfillScanBuffer() {
-    return std::dynamic_pointer_cast<MockDcpBackfillManager>(backfillMgr.load())
+    return std::dynamic_pointer_cast<MockDcpBackfillManager>(backfillMgr)
             ->public_getBackfillScanBuffer();
 }
 
