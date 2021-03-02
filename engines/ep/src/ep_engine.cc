@@ -5716,11 +5716,14 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
 
         if (allowSanitizeValueInDeletion) {
             if (mcbp::datatype::is_xattr(datatype)) {
-                // Whatever we have in the value, just keep Xattrs
-                const auto valBuffer = std::string_view{
-                        reinterpret_cast<const char*>(value.data()),
-                        value.size()};
-                value = {value.data(), cb::xattr::get_body_offset(valBuffer)};
+                if (!value.empty()) {
+                    // Whatever we have in the value, just keep Xattrs
+                    const auto valBuffer = std::string_view{
+                            reinterpret_cast<const char*>(value.data()),
+                            value.size()};
+                    value = {value.data(),
+                             cb::xattr::get_body_offset(valBuffer)};
+                }
             } else {
                 // We may have nothing or only a Body, remove everything
                 value = {};
