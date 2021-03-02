@@ -193,8 +193,22 @@ public:
 
     void notifyBackfillManager();
 
+    /**
+     * Notify the BackfillManager that the given number of bytes have been read,
+     * increasing the amount of space used in the Backfill buffer.
+     *
+     * @param bytes Size of the item which has been read and added to backfill
+     *        buffer.
+     * @returns True if the buffer still has available space (and further items
+     *          may be read), else false (and backfilling should be paused
+     *          until sufficient data has been consumed (sent) by client.
+     */
     bool recordBackfillManagerBytesRead(size_t bytes);
 
+    /**
+     * Notify the BackfillManager that the given number of bytes have been sent
+     * to the client, reducing the amount of space used in the Backfill buffer.
+     */
     void recordBackfillManagerBytesSent(size_t bytes);
 
     virtual bool scheduleBackfillManager(VBucket& vb,

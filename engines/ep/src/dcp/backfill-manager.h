@@ -206,6 +206,12 @@ public:
      */
     bool bytesCheckAndRead(size_t bytes);
 
+    /**
+     * Notify the BackfillManager that the given number of bytes have been
+     * sent (consumed) by the DcpProducer to the client. Reduces the amount
+     * of buffer consumed by the given value. If the buffer was previously
+     * full but is no longer, wakes up BackfillManagerTask.
+     */
     void bytesSent(size_t bytes);
 
     // Called by the managerTask to acutally perform backfilling & manage
