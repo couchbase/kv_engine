@@ -4830,6 +4830,112 @@ TEST_P(STParameterizedBucketTest, MB_41255_evicted_xattr) {
     destroy_mock_cookie(cookie);
 }
 
+void STParameterizedBucketTest::testValidateDatatypeForEmptyPayload(
+        EngineOp op) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto& vb = *store->getVBucket(vbid);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    auto& manager = *vb.checkpointManager;
+    manager.createNewCheckpoint(true);
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    manager);
+    ASSERT_EQ(2, ckptList.size());
+
+    // Try to store an empty value with (datatype != raw)
+    const auto key = makeStoredDocKey("key");
+    auto item = make_item(vbid,
+                          key,
+                          {} /*value*/,
+                          0 /*exptime*/,
+                          PROTOCOL_BINARY_DATATYPE_XATTR);
+
+    try {
+        uint64_t cas = 0;
+        switch (op) {
+        case EngineOp::Store: {
+            engine->store(cookie,
+                          &item,
+                          cas,
+                          StoreSemantics::Set,
+                          {},
+                          DocumentState::Alive,
+                          false);
+            break;
+        }
+        case EngineOp::StoreIf: {
+            const cb::StoreIfPredicate predicate =
+                    [](const std::optional<item_info>&, cb::vbucket_info) {
+                        return cb::StoreIfStatus::Continue;
+                    };
+            engine->store_if(cookie,
+                             &item,
+                             0 /*cas*/,
+                             StoreSemantics::Set,
+                             predicate,
+                             {},
+                             DocumentState::Alive,
+                             false);
+            break;
+        }
+        case EngineOp::Remove: {
+            throw std::invalid_argument(
+                    "Operation Remove not covered by the test");
+            break;
+        }
+        }
+    } catch (const std::invalid_argument& e) {
+        EXPECT_THAT(std::string(e.what()),
+                    ::testing::HasSubstr("Invalid datatype for empty payload"));
+        EXPECT_EQ(0, vb.getHighSeqno());
+
+        // Verify not in HashTable
+        {
+            const auto res = vb.ht.findOnlyCommitted(key);
+            EXPECT_FALSE(res.storedValue);
+        }
+
+        // Verify not in Checkpoint
+        const auto* ckpt = ckptList.back().get();
+        EXPECT_EQ(checkpoint_state::CHECKPOINT_OPEN, ckpt->getState());
+        auto it = ckpt->begin();
+        EXPECT_EQ(queue_op::empty, (*it)->getOperation());
+        it++;
+        EXPECT_EQ(1, ckpt->getNumMetaItems());
+        EXPECT_EQ(queue_op::checkpoint_start, (*it)->getOperation());
+        it++;
+        EXPECT_EQ(0, ckpt->getNumItems());
+
+        // Verify not in the storage
+        if (persistent()) {
+            const auto res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
+            EXPECT_EQ(0, res.numFlushed);
+            EXPECT_EQ(MoreAvailable ::No, res.moreAvailable);
+
+            auto* kvstore = store->getRWUnderlyingByShard(
+                    store->getVBucket(vbid)->getShard()->getId());
+            auto gv = kvstore->get(makeDiskDocKey("key"), vbid);
+            EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
+        } else {
+            EXPECT_EQ(0,
+                      dynamic_cast<const EphemeralVBucket&>(vb)
+                              .getSeqListNumItems());
+        }
+
+        return;
+    }
+    FAIL();
+}
+
+TEST_P(STParameterizedBucketTest, ValidateDatatypeForEmptyPayload_Store) {
+    testValidateDatatypeForEmptyPayload(EngineOp::Store);
+}
+
+TEST_P(STParameterizedBucketTest, ValidateDatatypeForEmptyPayload_StoreIf) {
+    testValidateDatatypeForEmptyPayload(EngineOp::StoreIf);
+}
+
 INSTANTIATE_TEST_SUITE_P(XattrSystemUserTest,
                          XattrSystemUserTest,
                          ::testing::Bool());

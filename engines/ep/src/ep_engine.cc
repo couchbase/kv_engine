@@ -412,6 +412,17 @@ cb::engine_errc EventuallyPersistentEngine::store(
         DocumentState document_state,
         bool preserveTtl) {
     Item& item = *static_cast<Item*>(itm.get());
+
+    if (item.getNBytes() == 0 &&
+        item.getDataType() != PROTOCOL_BINARY_RAW_BYTES) {
+        std::stringstream ss;
+        ss << item;
+        throw std::invalid_argument(
+                "EventuallyPersistentEngine::store: Invalid datatype for empty "
+                "payload: " +
+                cb::UserDataView(ss.str()).getSanitizedValue());
+    }
+
     if (document_state == DocumentState::Deleted) {
         item.setDeleted();
     }
@@ -435,6 +446,16 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
         DocumentState document_state,
         bool preserveTtl) {
     Item& item = static_cast<Item&>(*static_cast<Item*>(itm.get()));
+
+    if (item.getNBytes() == 0 &&
+        item.getDataType() != PROTOCOL_BINARY_RAW_BYTES) {
+        std::stringstream ss;
+        ss << item;
+        throw std::invalid_argument(
+                "EventuallyPersistentEngine::store_if: Invalid datatype for "
+                "empty payload: " +
+                cb::UserDataView(ss.str()).getSanitizedValue());
+    }
 
     if (document_state == DocumentState::Deleted) {
         item.setDeleted();

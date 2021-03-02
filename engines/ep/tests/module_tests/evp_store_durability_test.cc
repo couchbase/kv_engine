@@ -464,8 +464,6 @@ protected:
      */
     void testSetMinDurabilityLevel(cb::durability::Level level);
 
-    enum class EngineOp : uint8_t { Store, StoreIf, Remove };
-
     /**
      * Test that the Durability Level of a write is upgraded to the Bucket Min
      * Level.

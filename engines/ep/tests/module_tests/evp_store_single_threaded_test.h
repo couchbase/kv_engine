@@ -561,8 +561,19 @@ public:
 protected:
     void SetUp() override;
 
+    enum class EngineOp : uint8_t { Store, StoreIf, Remove };
+
     // Test replicating delete times.
     void test_replicateDeleteTime(time_t deleteTime);
+
+    /**
+     * Verifies that invalid items with empty payload and (datatype != raw) fail
+     * validation
+     *
+     * @param deleted Whether the item under test is alive or deleted
+     * @param op The operation under test
+     */
+    void testValidateDatatypeForEmptyPayload(EngineOp op);
 };
 
 class STParamPersistentBucketTest : public STParameterizedBucketTest {

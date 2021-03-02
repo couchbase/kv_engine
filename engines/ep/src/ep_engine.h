@@ -161,6 +161,7 @@ public:
             const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,
             bool preserveTtl) override;
+
     cb::EngineErrorCasPair store_if(
             gsl::not_null<const void*> cookie,
             gsl::not_null<ItemIface*> item,
