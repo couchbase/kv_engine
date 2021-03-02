@@ -20,8 +20,7 @@
 
 #pragma once
 
-namespace Collections {
-namespace VB {
+namespace Collections::VB {
 
 /**
  * The EraserContext subclasses ScanContext and provides extra methods for
@@ -54,5 +53,4 @@ private:
 
 std::ostream& operator<<(std::ostream&, const EraserContext&);
 
-} // namespace VB
-} // namespace Collections
+} // namespace Collections::VB
