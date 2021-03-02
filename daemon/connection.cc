@@ -1096,6 +1096,22 @@ void Connection::copyToOutputStream(std::string_view data) {
 }
 
 void Connection::copyToOutputStream(gsl::span<std::string_view> data) {
+    if (ssl) {
+        // MB-44678 Using evbuffer_reserve caused a perf regression on
+        //          the maxops test when using TLS. Its not fully clear _why_
+        //          that is happening as we don't see the same regression
+        //          without TLS (which is running at a higher ops/s).
+        //          My wild guess is that it is related to OpenSSl and
+        //          building up the TLS frames (I haven't looked into the
+        //          details in within the stacked bufferevent and how it
+        //          would drain the data through openssl yet).
+        //          Disable the code until we know the underlying issue.
+        for (const auto& d : data) {
+            copyToOutputStream(d);
+        }
+        return;
+    }
+
     std::size_t total_size = 0;
     for (const auto& d : data) {
         total_size += d.size();
@@ -1108,7 +1124,6 @@ void Connection::copyToOutputStream(gsl::span<std::string_view> data) {
     auto* out = bufferevent_get_output(bev.get());
     auto nentries = evbuffer_reserve_space(out, total_size, iov.data(), 2);
     if (nentries == -1) {
-        std::abort();
         throw std::bad_alloc();
     }
 
