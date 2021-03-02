@@ -730,6 +730,14 @@ TEST_F(SingleThreadedEphemeralPurgerTest, HTCleanerSkipsPrepares) {
         ASSERT_EQ(2, res.committed->getBySeqno());
     }
 
+    {
+        auto& ephVb = static_cast<EphemeralVBucket&>(vb);
+        auto itr = ephVb.makeRangeIterator(true /*backfill*/);
+
+        // HCS updated for commit
+        EXPECT_EQ(1, itr->getHighCompletedSeqno());
+    }
+
     // Run the StaleItemDeleter (scheduled by the first run of the HTCleaner)
     runNextTask(queue, "Eph tombstone stale item deleter");
     // Run the HTCleaner again
