@@ -171,7 +171,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
       log(*this),
       backfillMgr(std::make_shared<BackfillManager>(
               *e.getKVBucket(), e.getDcpConnMap(), e.getConfiguration())),
-      streams(streamsMapSize),
+      streams(makeStreamsMap(e.getConfiguration().getMaxVbuckets())),
       itemsSent(0),
       totalBytesSent(0),
       totalUncompressedDataSize(0),
@@ -362,8 +362,8 @@ cb::engine_errc DcpProducer::streamRequest(
     // Check if this vbid can be added to this producer connection, and if
     // the vb connection map needs updating (if this is a new VB).
     bool callAddVBConnByVBId = true;
-    auto found = streams.find(vbucket.get());
-    if (found != streams.end()) {
+    auto found = streams->find(vbucket.get());
+    if (found != streams->end()) {
         // vbid is already mapped. found.second is a shared_ptr<StreamContainer>
         if (found->second) {
             auto handle = found->second->wlock();
@@ -1126,8 +1126,8 @@ cb::engine_errc DcpProducer::seqno_acknowledged(uint32_t opaque,
                   prepared_seqno);
 
     // Confirm that we only receive ack seqnos we have sent
-    auto rv = streams.find(vbucket.get());
-    if (rv == streams.end()) {
+    auto rv = streams->find(vbucket.get());
+    if (rv == streams->end()) {
         throw std::logic_error(
                 "Replica acked seqno:" + std::to_string(prepared_seqno) +
                 " for vbucket:" + to_string(vbucket) +
@@ -1298,8 +1298,8 @@ std::pair<std::shared_ptr<Stream>, bool> DcpProducer::closeStreamInner(
     std::shared_ptr<Stream> stream;
     bool vbFound = false;
 
-    auto rv = streams.find(vbucket.get());
-    if (rv != streams.end()) {
+    auto rv = streams->find(vbucket.get());
+    if (rv != streams->end()) {
         vbFound = true;
         // Vbucket is mapped, get exclusive access to the StreamContainer
         auto handle = rv->second->wlock();
@@ -1476,8 +1476,8 @@ void DcpProducer::addStats(const AddStatFn& add_stat, const void* c) {
     // streams map locked for).
     std::vector<std::shared_ptr<Stream>> valid_streams;
 
-    std::for_each(streams.begin(),
-                  streams.end(),
+    std::for_each(streams->begin(),
+                  streams->end(),
                   [&valid_streams](const StreamsMap::value_type& vt) {
                       for (auto handle = vt.second->rlock(); !handle.end();
                            handle.next()) {
@@ -1500,9 +1500,9 @@ void DcpProducer::addTakeoverStats(const AddStatFn& add_stat,
         return;
     }
 
-    auto rv = streams.find(vb.getId().get());
+    auto rv = streams->find(vb.getId().get());
 
-    if (rv != streams.end()) {
+    if (rv != streams->end()) {
         auto handle = rv->second->rlock();
         // Only perform takeover stats on singleton streams
         if (handle.size() == 1) {
@@ -1564,9 +1564,9 @@ void DcpProducer::notifySeqnoAvailable(Vbid vbucket,
         return;
     }
 
-    auto rv = streams.find(vbucket.get());
+    auto rv = streams->find(vbucket.get());
 
-    if (rv != streams.end()) {
+    if (rv != streams->end()) {
         auto handle = rv->second->rlock();
         for (; !handle.end(); handle.next()) {
             if (handle.get()->isActive()) {
@@ -1600,8 +1600,8 @@ void DcpProducer::closeStreamDueToRollback(Vbid vbucket) {
 
 bool DcpProducer::handleSlowStream(Vbid vbid, const CheckpointCursor* cursor) {
     if (supportsCursorDropping) {
-        auto rv = streams.find(vbid.get());
-        if (rv != streams.end()) {
+        auto rv = streams->find(vbid.get());
+        if (rv != streams->end()) {
             for (auto handle = rv->second->rlock(); !handle.end();
                  handle.next()) {
                 if (handle.get()->getCursor().lock().get() == cursor) {
@@ -1619,8 +1619,8 @@ bool DcpProducer::setStreamDeadStatus(
         Vbid vbid,
         cb::mcbp::DcpStreamEndStatus status,
         folly::SharedMutex::WriteHolder* vbstateLock) {
-    auto rv = streams.find(vbid.get());
-    if (rv != streams.end()) {
+    auto rv = streams->find(vbid.get());
+    if (rv != streams->end()) {
         std::vector<std::shared_ptr<Stream>> streamPtrs;
         // MB-35073: holding StreamContainer rlock while calling setDead
         // has been seen to cause lock inversion elsewhere.
@@ -1663,8 +1663,8 @@ void DcpProducer::closeAllStreams() {
     lastReceiveTime = ep_current_time();
     std::vector<Vbid> vbvector;
     {
-        std::for_each(streams.begin(),
-                      streams.end(),
+        std::for_each(streams->begin(),
+                      streams->end(),
                       [this, &vbvector](StreamsMap::value_type& vt) {
                           vbvector.push_back((Vbid)vt.first);
                           std::vector<std::shared_ptr<Stream>> streamPtrs;
@@ -1721,8 +1721,8 @@ std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
                 return NULL;
             }
 
-            auto rv = streams.find(vbucket.get());
-            if (rv == streams.end()) {
+            auto rv = streams->find(vbucket.get());
+            if (rv == streams->end()) {
                 // The vbucket is not in the map.
                 continue;
             }
@@ -1796,7 +1796,7 @@ std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
 void DcpProducer::setDisconnect() {
     ConnHandler::setDisconnect();
     std::for_each(
-            streams.begin(), streams.end(), [](StreamsMap::value_type& vt) {
+            streams->begin(), streams->end(), [](StreamsMap::value_type& vt) {
                 std::vector<std::shared_ptr<Stream>> streamPtrs;
                 // MB-35049: hold StreamContainer rlock while calling setDead
                 // leads to lock inversion - so collect sharedptrs in one pass
@@ -1882,7 +1882,7 @@ cb::engine_errc DcpProducer::maybeSendNoop(
 
 void DcpProducer::clearQueues() {
     std::for_each(
-            streams.begin(), streams.end(), [](StreamsMap::value_type& vt) {
+            streams->begin(), streams->end(), [](StreamsMap::value_type& vt) {
                 for (auto itr = vt.second->rlock(); !itr.end(); itr.next()) {
                     itr.get()->clear();
                 }
@@ -1896,8 +1896,8 @@ size_t DcpProducer::getItemsSent() {
 size_t DcpProducer::getItemsRemaining() const {
     size_t remainingSize = 0;
     std::for_each(
-            streams.begin(),
-            streams.end(),
+            streams->begin(),
+            streams->end(),
             [&remainingSize](const StreamsMap::value_type& vt) {
                 for (auto itr = vt.second->rlock(); !itr.end(); itr.next()) {
                     auto* as = dynamic_cast<ActiveStream*>(itr.get().get());
@@ -1920,8 +1920,8 @@ size_t DcpProducer::getTotalUncompressedDataSize() {
 
 std::vector<Vbid> DcpProducer::getVBVector() {
     std::vector<Vbid> vbvector;
-    std::for_each(streams.begin(),
-                  streams.end(),
+    std::for_each(streams->begin(),
+                  streams->end(),
                   [&vbvector](StreamsMap::value_type& iter) {
                       vbvector.push_back((Vbid)iter.first);
                   });
@@ -1958,8 +1958,8 @@ void DcpProducer::scheduleCheckpointProcessorTask(
 
 std::shared_ptr<StreamContainer<std::shared_ptr<Stream>>>
 DcpProducer::findStreams(Vbid vbid) {
-    auto it = streams.find(vbid.get());
-    if (it != streams.end()) {
+    auto it = streams->find(vbid.get());
+    if (it != streams->end()) {
         return it->second;
     }
     return nullptr;
@@ -1968,9 +1968,9 @@ DcpProducer::findStreams(Vbid vbid) {
 void DcpProducer::updateStreamsMap(Vbid vbid,
                                    cb::mcbp::DcpStreamId sid,
                                    std::shared_ptr<Stream>& stream) {
-    auto found = streams.find(vbid.get());
+    auto found = streams->find(vbid.get());
 
-    if (found != streams.end()) {
+    if (found != streams->end()) {
         // vbid is already mapped found.first is a shared_ptr<StreamContainer>
         if (found->second) {
             auto handle = found->second->wlock();
@@ -2013,7 +2013,7 @@ void DcpProducer::updateStreamsMap(Vbid vbid,
         }
     } else {
         // vbid is not mapped
-        streams.insert(std::make_pair(
+        streams->insert(std::make_pair(
                 vbid.get(),
                 std::make_shared<StreamContainer<ContainerElement>>(stream)));
     }
@@ -2074,4 +2074,15 @@ std::optional<uint64_t> DcpProducer::getHighSeqnoOfCollections(
     }
 
     return {maxHighSeqno};
+}
+
+DcpProducer::StreamsMap::SmartPtr DcpProducer::makeStreamsMap(
+        size_t maxNumVBuckets) {
+    // If we know the maximum number of vBuckets which will exist for this
+    // Bucket (normally 1024), we can simply create a AtomicHashArray with
+    // capacity == size (i.e. load factor of 1.0), given the key (Vbid) is
+    // gauranteed to be unique and not collide with any other.
+    StreamsMap::Config config;
+    config.maxLoadFactor = 1.0;
+    return StreamsMap::create(maxNumVBuckets, config);
 }

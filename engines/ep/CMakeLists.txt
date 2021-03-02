@@ -435,6 +435,7 @@ if (NOT EP_BYPASS_TESTS)
                    benchmarks/access_scanner_bench.cc
                    benchmarks/benchmark_memory_tracker.cc
                    benchmarks/checkpoint_iterator_bench.cc
+                   benchmarks/dcp_producer_bench.cc
                    benchmarks/defragmenter_bench.cc
                    benchmarks/engine_fixture.cc
                    benchmarks/ep_engine_benchmarks_main.cc

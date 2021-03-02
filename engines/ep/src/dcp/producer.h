@@ -41,6 +41,22 @@ class Filter;
 class DcpProducer : public ConnHandler,
                     public std::enable_shared_from_this<DcpProducer> {
 public:
+    /**
+     * The StreamContainer stores the Stream via a shared_ptr, this is because
+     * we have multi-threaded access to the DcpProducer and the possibility
+     * that a stream maybe removed from the container whilst a thread is still
+     * working on the stream, e.g. closeStream and addStats occurring
+     * concurrently.
+     */
+    using ContainerElement = std::shared_ptr<Stream>;
+
+    /**
+     * The StreamsMap maps from vbid to the StreamContainer, which is stored
+     * via a shared_ptr. This allows multiple threads to obtain the
+     * StreamContainer and for safe destruction to occur.
+     */
+    using StreamMapValue = std::shared_ptr<StreamContainer<ContainerElement>>;
+    using StreamsMap = folly::AtomicHashArray<uint16_t, StreamMapValue>;
 
     /**
      * Construct a DCP Producer
@@ -484,23 +500,6 @@ protected:
     cb::unique_item_ptr toUniqueItemPtr(std::unique_ptr<Item>&& item) const;
 
     /**
-     * The StreamContainer stores the Stream via a shared_ptr, this is because
-     * we have multi-threaded access to the DcpProducer and the possibility
-     * that a stream maybe removed from the container whilst a thread is still
-     * working on the stream, e.g. closeStream and addStats occurring
-     * concurrently.
-     */
-    using ContainerElement = std::shared_ptr<Stream>;
-
-    /**
-     * The StreamsMap maps from vbid to the StreamContainer, which is stored
-     * via a shared_ptr. This allows multiple threads to obtain the
-     * StreamContainer and for safe destruction to occur.
-     */
-    using StreamMapValue = std::shared_ptr<StreamContainer<ContainerElement>>;
-    using StreamsMap = folly::AtomicHashMap<uint16_t, StreamMapValue>;
-
-    /**
      * Attempt to update the map of vb to stream(s) with the new stream
      *
      * @throws logic_error if the update is not possible.
@@ -551,8 +550,8 @@ protected:
      */
     template <class UnaryFunction>
     auto find_if2(UnaryFunction f) {
-        using UnaryFunctionRval = decltype(f(*streams.find({})));
-        for (auto& kv : streams) {
+        using UnaryFunctionRval = decltype(f(*streams->find({})));
+        for (auto& kv : *streams) {
             auto rv = f(kv);
             if (rv) {
                 return rv;
@@ -560,6 +559,12 @@ protected:
         }
         return UnaryFunctionRval{};
     }
+
+    /**
+     * Construct a StreamsMap for the given maximum number of vBuckets this
+     * Bucket could ever have.
+     */
+    static StreamsMap::SmartPtr makeStreamsMap(size_t maxNumVBuckets);
 
     // stash response for retry if E2BIG was hit
     std::unique_ptr<DcpResponse> rejectResp;
@@ -595,18 +600,11 @@ protected:
     VBReadyQueue ready;
 
     /**
-     * Folly's AtomicHashMap offers great performance if you know the maximum
-     * size of the map up front and don't care about freeing memory when you
-     * call erase on an element.
-     */
-    const static int streamsMapSize = 512;
-
-    /**
-     * folly::AtomicHashMap of uint16_t (Vbid underlying type) to
+     * folly::AtomicHashArray of uint16_t (Vbid underlying type) to
      * StreamContainer.
      *
      * We will create elements in the map as and when we need them. One caveat
-     * of Folly's AtomicHashMap is that you don't free memory when you call
+     * of Folly's AtomicHashArray is that you don't free memory when you call
      * erase. Given that we don't gain anything from call erase, other than a
      * boat load of locking issues, we will never call erase on streams.
      * Instead, we will simply rely on the locks provided by the
@@ -614,7 +612,7 @@ protected:
      * in place of calling erase. We'll clear up any memory allocated when we
      * destruct the DcpProducer.
      */
-    StreamsMap streams;
+    StreamsMap::SmartPtr streams;
     std::atomic<size_t> itemsSent;
     std::atomic<size_t> totalBytesSent;
     std::atomic<size_t> totalUncompressedDataSize;
