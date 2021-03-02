@@ -122,18 +122,18 @@ public:
 
     bool canAddBackfillToActiveQ() override;
 
-    void decrNumActiveSnoozingBackfills() override;
+    void decrNumRunningBackfills() override;
 
-    void updateMaxActiveSnoozingBackfills(size_t maxDataSize);
+    void updateMaxRunningBackfills(size_t maxDataSize);
 
-    uint16_t getNumActiveSnoozingBackfills () {
+    uint16_t getNumRunningBackfills() {
         std::lock_guard<std::mutex> lh(backfills.mutex);
-        return backfills.numActiveSnoozing;
+        return backfills.running;
     }
 
-    uint16_t getMaxActiveSnoozingBackfills () {
+    uint16_t getMaxRunningBackfills() {
         std::lock_guard<std::mutex> lh(backfills.mutex);
-        return backfills.maxActiveSnoozing;
+        return backfills.maxRunning;
     }
 
     cb::engine_errc addPassiveStream(ConnHandler& conn,
@@ -228,11 +228,12 @@ protected:
     /* Db file memory */
     static const uint32_t dbFileMem;
 
-    // Current and maximum number of backfills which are snoozing.
+    // Current and maximum number of running (active/initializing/snoozing)
+    // backfills. Does not include pending backfills.
     struct {
         std::mutex mutex;
-        uint16_t numActiveSnoozing;
-        uint16_t maxActiveSnoozing;
+        uint16_t running;
+        uint16_t maxRunning;
     } backfills;
 
     /* Max num of backfills we want to have irrespective of memory */

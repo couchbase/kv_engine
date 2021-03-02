@@ -35,7 +35,7 @@ public:
 class GMockBackfillTracker : public BackfillTrackingIface {
 public:
     MOCK_METHOD0(canAddBackfillToActiveQ, bool());
-    MOCK_METHOD0(decrNumActiveSnoozingBackfills, void());
+    MOCK_METHOD0(decrNumRunningBackfills, void());
 };
 
 class BackfillManagerTest : public SingleThreadedKVBucketTest {
@@ -62,7 +62,7 @@ protected:
     void ignoreBackfillTracker() {
         EXPECT_CALL(backfillTracker, canAddBackfillToActiveQ())
                 .WillRepeatedly(Return(true));
-        EXPECT_CALL(backfillTracker, decrNumActiveSnoozingBackfills())
+        EXPECT_CALL(backfillTracker, decrNumRunningBackfills())
                 .WillRepeatedly(Return());
     }
 
@@ -225,7 +225,7 @@ TEST_F(BackfillManagerTest, BackfillTrackerFull) {
                 .RetiresOnSaturation();
         // Upon backfill_finished, backfill manager should decrement the number
         // of actve/snoozing backfills.
-        EXPECT_CALL(backfillTracker, decrNumActiveSnoozingBackfills())
+        EXPECT_CALL(backfillTracker, decrNumRunningBackfills())
                 .WillOnce(Return())
                 .RetiresOnSaturation();
 
@@ -245,7 +245,7 @@ TEST_F(BackfillManagerTest, BackfillTrackerFull) {
         EXPECT_CALL(*backfill1, run())
                 .WillOnce(Return(backfill_finished))
                 .RetiresOnSaturation();
-        EXPECT_CALL(backfillTracker, decrNumActiveSnoozingBackfills())
+        EXPECT_CALL(backfillTracker, decrNumRunningBackfills())
                 .WillOnce(Return())
                 .RetiresOnSaturation();
     }
@@ -286,7 +286,7 @@ TEST_F(BackfillManagerTest, InitializingQNotifiesTrackerOnDtor) {
 
         // When BackfillManager is destroyed, the incomplete backfill in
         // initializingQ should be decremented in the tracker.
-        EXPECT_CALL(backfillTracker, decrNumActiveSnoozingBackfills())
+        EXPECT_CALL(backfillTracker, decrNumRunningBackfills())
                 .WillOnce(Return())
                 .RetiresOnSaturation();
     }
@@ -326,7 +326,7 @@ TEST_F(BackfillManagerTest, ActiveQNotifiesTrackerOnDtor) {
 
         // When BackfillManager is destroyed, the incomplete backfill in
         // activeQ should be decremented in the tracker.
-        EXPECT_CALL(backfillTracker, decrNumActiveSnoozingBackfills())
+        EXPECT_CALL(backfillTracker, decrNumRunningBackfills())
                 .WillOnce(Return())
                 .RetiresOnSaturation();
     }
@@ -368,7 +368,7 @@ TEST_F(BackfillManagerTest, SnoozingQNotifiesTrackerOnDtor) {
 
         // When BackfillManager is destroyed, the incomplete backfill in
         // snoozingQ should be decremented in the tracker.
-        EXPECT_CALL(backfillTracker, decrNumActiveSnoozingBackfills())
+        EXPECT_CALL(backfillTracker, decrNumRunningBackfills())
                 .WillOnce(Return())
                 .RetiresOnSaturation();
     }

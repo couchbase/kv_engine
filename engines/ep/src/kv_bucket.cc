@@ -332,8 +332,8 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     config.addValueChangedListener(
             "max_size",
             std::make_unique<StatsValueChangeListener>(stats, *this));
-    getEPEngine().getDcpConnMap().updateMaxActiveSnoozingBackfills(
-                                                        config.getMaxSize());
+    getEPEngine().getDcpConnMap().updateMaxRunningBackfills(
+            config.getMaxSize());
 
     config.addValueChangedListener(
             "mem_low_wat",

@@ -153,14 +153,14 @@ BackfillManager::~BackfillManager() {
                 std::move(initializingBackfills.front());
         initializingBackfills.pop_front();
         backfill->cancel();
-        backfillTracker.decrNumActiveSnoozingBackfills();
+        backfillTracker.decrNumRunningBackfills();
     }
 
     while (!activeBackfills.empty()) {
         UniqueDCPBackfillPtr backfill = std::move(activeBackfills.front());
         activeBackfills.pop_front();
         backfill->cancel();
-        backfillTracker.decrNumActiveSnoozingBackfills();
+        backfillTracker.decrNumRunningBackfills();
     }
 
     while (!snoozingBackfills.empty()) {
@@ -168,7 +168,7 @@ BackfillManager::~BackfillManager() {
                 std::move((snoozingBackfills.front()).second);
         snoozingBackfills.pop_front();
         backfill->cancel();
-        backfillTracker.decrNumActiveSnoozingBackfills();
+        backfillTracker.decrNumRunningBackfills();
     }
 
     while (!pendingBackfills.empty()) {
@@ -303,7 +303,7 @@ backfill_status_t BackfillManager::backfill() {
                 (*a_itr)->cancel();
                 toDelete.push_back(std::move(*a_itr));
                 a_itr = activeBackfills.erase(a_itr);
-                backfillTracker.decrNumActiveSnoozingBackfills();
+                backfillTracker.decrNumRunningBackfills();
             } else {
                 ++a_itr;
             }
@@ -362,7 +362,7 @@ backfill_status_t BackfillManager::backfill() {
             break;
         case backfill_finished:
             lh.unlock();
-            backfillTracker.decrNumActiveSnoozingBackfills();
+            backfillTracker.decrNumRunningBackfills();
             break;
         case backfill_snooze: {
             snoozingBackfills.emplace_back(ep_current_time(),

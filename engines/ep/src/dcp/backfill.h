@@ -120,9 +120,10 @@ struct BackfillTrackingIface {
     virtual bool canAddBackfillToActiveQ() = 0;
 
     /**
-     * Decrement by one the number of active / snoozing backfills.
+     * Decrement by one the number of running (active/initializing/snoozing)
+     * backfills. Does not include pending backfills.
      */
-    virtual void decrNumActiveSnoozingBackfills() = 0;
+    virtual void decrNumRunningBackfills() = 0;
 };
 
 using UniqueDCPBackfillPtr = std::unique_ptr<DCPBackfillIface>;

@@ -49,8 +49,8 @@ private:
 DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
     : ConnMap(e),
       aggrDcpConsumerBufferSize(0) {
-    backfills.numActiveSnoozing = 0;
-    updateMaxActiveSnoozingBackfills(engine.getEpStats().getMaxDataSize());
+    backfills.running = 0;
+    updateMaxRunningBackfills(engine.getEpStats().getMaxDataSize());
     minCompressionRatioForProducer.store(
                     engine.getConfiguration().getDcpMinCompressionRatio());
 
@@ -452,27 +452,25 @@ void DcpConnMap::notifyBackfillManagerTasks() {
 bool DcpConnMap::canAddBackfillToActiveQ()
 {
     std::lock_guard<std::mutex> lh(backfills.mutex);
-    if (backfills.numActiveSnoozing < backfills.maxActiveSnoozing) {
-        ++backfills.numActiveSnoozing;
+    if (backfills.running < backfills.maxRunning) {
+        ++backfills.running;
         return true;
     }
     return false;
 }
 
-void DcpConnMap::decrNumActiveSnoozingBackfills()
-{
+void DcpConnMap::decrNumRunningBackfills() {
     {
         std::lock_guard<std::mutex> lh(backfills.mutex);
-        if (backfills.numActiveSnoozing > 0) {
-            --backfills.numActiveSnoozing;
+        if (backfills.running > 0) {
+            --backfills.running;
             return;
         }
     }
-    EP_LOG_WARN("ActiveSnoozingBackfills already zero!!!");
+    EP_LOG_WARN("RunningBackfills already zero!!!");
 }
 
-void DcpConnMap::updateMaxActiveSnoozingBackfills(size_t maxDataSize)
-{
+void DcpConnMap::updateMaxRunningBackfills(size_t maxDataSize) {
     double numBackfillsMemThresholdPercent =
                          static_cast<double>(numBackfillsMemThreshold)/100;
     size_t max = maxDataSize * numBackfillsMemThresholdPercent / dbFileMem;
@@ -481,12 +479,12 @@ void DcpConnMap::updateMaxActiveSnoozingBackfills(size_t maxDataSize)
     {
         std::lock_guard<std::mutex> lh(backfills.mutex);
         /* We must have atleast one active/snoozing backfill */
-        backfills.maxActiveSnoozing =
-                std::max(static_cast<size_t>(1),
-                         std::min(max, static_cast<size_t>(numBackfillsThreshold)));
-        newMaxActive = backfills.maxActiveSnoozing;
+        backfills.maxRunning = std::max(
+                static_cast<size_t>(1),
+                std::min(max, static_cast<size_t>(numBackfillsThreshold)));
+        newMaxActive = backfills.maxRunning;
     }
-    EP_LOG_DEBUG("Max active snoozing backfills set to {}", newMaxActive);
+    EP_LOG_DEBUG("Max running backfills set to {}", newMaxActive);
 }
 
 void DcpConnMap::addStats(const AddStatFn& add_stat, const void* c) {

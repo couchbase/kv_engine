@@ -3868,9 +3868,13 @@ cb::engine_errc EventuallyPersistentEngine::doDcpStats(
     add_casted_stat("ep_dcp_items_remaining", aggregator.conn_queueRemaining,
                     add_stat, cookie);
     add_casted_stat("ep_dcp_num_running_backfills",
-                    dcpConnMap_->getNumActiveSnoozingBackfills(), add_stat, cookie);
+                    dcpConnMap_->getNumRunningBackfills(),
+                    add_stat,
+                    cookie);
     add_casted_stat("ep_dcp_max_running_backfills",
-                    dcpConnMap_->getMaxActiveSnoozingBackfills(), add_stat, cookie);
+                    dcpConnMap_->getMaxRunningBackfills(),
+                    add_stat,
+                    cookie);
 
     dcpConnMap_->addStats(add_stat, cookie);
     return cb::engine_errc::success;
@@ -6749,9 +6753,9 @@ void EventuallyPersistentEngine::setMaxDataSize(size_t size) {
     configuration.setMemLowWat(percentOf(size, stats.mem_low_wat_percent));
     configuration.setMemHighWat(percentOf(size, stats.mem_high_wat_percent));
 
-    getDcpConnMap().updateMaxActiveSnoozingBackfills(size);
+    getDcpConnMap().updateMaxRunningBackfills(size);
     getKVBucket()->setCursorDroppingLowerUpperThresholds(size);
-    getDcpConnMap().updateMaxActiveSnoozingBackfills(size);
+    getDcpConnMap().updateMaxRunningBackfills(size);
     // Pass the max bucket quota size down to the storage layer.
     for (uint16_t ii = 0; ii < getKVBucket()->getVBuckets().getNumShards();
          ++ii) {
