@@ -34,7 +34,7 @@ public:
 
     StatsTask(const StatsTask&) = delete;
 
-    StatsTask(Connection& connection_, Cookie& cookie_);
+    explicit StatsTask(Cookie& cookie);
 
     void notifyExecutionComplete() override;
 
@@ -48,9 +48,8 @@ public:
     }
 
 protected:
-    Connection& connection;
     Cookie& cookie;
-    cb::engine_errc command_error;
+    cb::engine_errc command_error = cb::engine_errc::success;
     std::vector<std::pair<std::string, std::string>> stats;
 };
 
@@ -60,9 +59,7 @@ public:
 
     StatsTaskConnectionStats(const StatsTaskConnectionStats&) = delete;
 
-    StatsTaskConnectionStats(Connection& connection_,
-                             Cookie& cookie_,
-                             int64_t fd_);
+    StatsTaskConnectionStats(Cookie& cookie, int64_t fd);
 
     Status execute() override;
 

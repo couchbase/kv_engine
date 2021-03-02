@@ -22,10 +22,8 @@
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
 
-StatsTaskConnectionStats::StatsTaskConnectionStats(Connection& connection_,
-                                                   Cookie& cookie_,
-                                                   int64_t fd_)
-    : StatsTask(connection_, cookie_), fd(fd_) {
+StatsTaskConnectionStats::StatsTaskConnectionStats(Cookie& cookie, int64_t fd)
+    : StatsTask(cookie), fd(fd) {
 }
 
 Task::Status StatsTaskConnectionStats::execute() {
@@ -49,7 +47,7 @@ Task::Status StatsTaskConnectionStats::execute() {
         LOG_WARNING(
                 "{}: ConnectionStatsTask::execute(): An exception "
                 "occurred: {}",
-                connection.getId(),
+                cookie.getConnection().getId(),
                 exception.what());
         cookie.setErrorContext("An exception occurred");
         command_error = cb::engine_errc::failed;
@@ -59,10 +57,7 @@ Task::Status StatsTaskConnectionStats::execute() {
     return Task::Status::Finished;
 }
 
-StatsTask::StatsTask(Connection& connection_, Cookie& cookie_)
-    : connection(connection_),
-      cookie(cookie_),
-      command_error(cb::engine_errc::success) {
+StatsTask::StatsTask(Cookie& cookie) : cookie(cookie) {
 }
 
 void StatsTask::notifyExecutionComplete() {

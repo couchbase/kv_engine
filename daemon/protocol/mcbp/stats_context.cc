@@ -290,8 +290,8 @@ static cb::engine_errc stat_connections_executor(const std::string& arg,
         }
     }
 
-    std::shared_ptr<Task> task = std::make_shared<StatsTaskConnectionStats>(
-            cookie.getConnection(), cookie, fd);
+    std::shared_ptr<Task> task =
+            std::make_shared<StatsTaskConnectionStats>(cookie, fd);
     cookie.obtainContext<StatsCommandContext>(cookie).setTask(task);
     std::lock_guard<std::mutex> guard(task->getMutex());
     executorPool->schedule(task, true);
