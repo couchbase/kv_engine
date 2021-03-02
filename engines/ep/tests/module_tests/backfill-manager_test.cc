@@ -34,7 +34,7 @@ public:
 
 class GMockBackfillTracker : public BackfillTrackingIface {
 public:
-    MOCK_METHOD0(canAddBackfillToActiveQ, bool());
+    MOCK_METHOD1(canAddBackfillToActiveQ, bool(BackfillManager&));
     MOCK_METHOD0(decrNumRunningBackfills, void());
 };
 
@@ -60,7 +60,7 @@ protected:
      * to accept an arbirary number of concurrent backfills.
      */
     void ignoreBackfillTracker() {
-        EXPECT_CALL(backfillTracker, canAddBackfillToActiveQ())
+        EXPECT_CALL(backfillTracker, canAddBackfillToActiveQ(testing::_))
                 .WillRepeatedly(Return(true));
         EXPECT_CALL(backfillTracker, decrNumRunningBackfills())
                 .WillRepeatedly(Return());
@@ -197,7 +197,7 @@ TEST_F(BackfillManagerTest, BackfillTrackerFull) {
         // Calls to schedule() for the two backfills. BackfillManager should
         // check if it is allowed to add backfill to activeQ. backfill0 should
         // be allowed, backfill1 should not (and hence be put in pendingQ).
-        EXPECT_CALL(backfillTracker, canAddBackfillToActiveQ())
+        EXPECT_CALL(backfillTracker, canAddBackfillToActiveQ(testing::_))
                 .WillOnce(Return(true))
                 .WillOnce(Return(false))
                 .RetiresOnSaturation();
@@ -206,7 +206,7 @@ TEST_F(BackfillManagerTest, BackfillTrackerFull) {
         // items in pending queue (which there is 1), and if they they can be
         // moved to activeQ. Given backfill0 has not finished (and made space),
         // return false here.
-        EXPECT_CALL(backfillTracker, canAddBackfillToActiveQ())
+        EXPECT_CALL(backfillTracker, canAddBackfillToActiveQ(testing::_))
                 .WillOnce(Return(false))
                 .RetiresOnSaturation();
         // backfill0 should be run now, we return success.
@@ -216,7 +216,7 @@ TEST_F(BackfillManagerTest, BackfillTrackerFull) {
 
         // Second call to backfill() will again attempt to add the pending item
         // to activeQ. Again tracker denies it.
-        EXPECT_CALL(backfillTracker, canAddBackfillToActiveQ())
+        EXPECT_CALL(backfillTracker, canAddBackfillToActiveQ(testing::_))
                 .WillOnce(Return(false))
                 .RetiresOnSaturation();
         // backfill0 should run a second time, we return finished.
@@ -231,7 +231,7 @@ TEST_F(BackfillManagerTest, BackfillTrackerFull) {
 
         // Third call to backfill() - the pending backfill1 should now be
         // allowed to be added to activeQ.
-        EXPECT_CALL(backfillTracker, canAddBackfillToActiveQ())
+        EXPECT_CALL(backfillTracker, canAddBackfillToActiveQ(testing::_))
                 .WillOnce(Return(true))
                 .RetiresOnSaturation();
         // backfill1 should be run now.
@@ -280,7 +280,7 @@ TEST_F(BackfillManagerTest, InitializingQNotifiesTrackerOnDtor) {
         // Call to schedule() for the backfills. BackfillManager should
         // check if it is allowed to add backfill to initializingQ. Backfill
         // should be allowed, which increments tracker's count.
-        EXPECT_CALL(backfillTracker, canAddBackfillToActiveQ())
+        EXPECT_CALL(backfillTracker, canAddBackfillToActiveQ(testing::_))
                 .WillOnce(Return(true))
                 .RetiresOnSaturation();
 
@@ -315,7 +315,7 @@ TEST_F(BackfillManagerTest, ActiveQNotifiesTrackerOnDtor) {
         // Call to schedule() for the backfills. BackfillManager should
         // check if it is allowed to add backfill to initializingQ. Backfill
         // should be allowed, which increments tracker's count.
-        EXPECT_CALL(backfillTracker, canAddBackfillToActiveQ())
+        EXPECT_CALL(backfillTracker, canAddBackfillToActiveQ(testing::_))
                 .WillOnce(Return(true))
                 .RetiresOnSaturation();
 
@@ -357,7 +357,7 @@ TEST_F(BackfillManagerTest, SnoozingQNotifiesTrackerOnDtor) {
         // Call to schedule() for the backfills. BackfillManager should
         // check if it is allowed to add backfill to activeQ. Backfill should
         // be allowed, which increments tracker's count.
-        EXPECT_CALL(backfillTracker, canAddBackfillToActiveQ())
+        EXPECT_CALL(backfillTracker, canAddBackfillToActiveQ(testing::_))
                 .WillOnce(Return(true))
                 .RetiresOnSaturation();
 

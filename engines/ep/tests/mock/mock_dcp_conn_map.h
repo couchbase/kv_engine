@@ -55,6 +55,11 @@ public:
 
     bool doesConnHandlerExist(const std::string& name);
 
+    void setMaxRunningBackfills(int64_t limit);
+
+    size_t getNumPendingBackfillQSize();
+    size_t getNumPendingBackfillSetSize();
+
 protected:
     /**
      * @param engine The engine

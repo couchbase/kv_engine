@@ -224,7 +224,13 @@ public:
                snoozingBackfills.size() + pendingBackfills.size();
     }
 
+    size_t getNumPendingBackfills() const {
+        return pendingBackfills.size();
+    }
+
     std::string to_string(ScheduleOrder order);
+
+    void moveFirstPendingToInitializing();
 
 protected:
     /**
