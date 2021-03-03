@@ -24,7 +24,12 @@
 #include "collections/vbucket_manifest_entry.h"
 #include "common.h"
 #include "couch-kvstore/couch-kvstore.h"
+#include "dcp/active_stream.h"
+#include "dcp/consumer.h"
+#include "dcp/passive_stream.h"
+#include "dcp/producer.h"
 #include "dcp/response.h"
+#include "dcp/stream_container.h"
 #include "hash_table_stat_visitor.h"
 #include "item.h"
 #include "kvstore_priv.h"
@@ -92,7 +97,14 @@ int main(int, char **) {
     display("Collections::VB::ManifestEntry",
             sizeof(Collections::VB::ManifestEntry));
     display("CouchRequest", sizeof(CouchRequest));
-    display("DcpResponse", sizeof(DcpResponse));
+    display("DCP", "", "");
+    display("    ActiveStream", sizeof(ActiveStream));
+    display("    DcpConsumer", sizeof(DcpConsumer));
+    display("    DcpProducer", sizeof(DcpProducer));
+    display("    DcpResponse", sizeof(DcpResponse));
+    display("    PassiveStream", sizeof(PassiveStream));
+    display("    StreamContainer<ContainerElement>",
+            sizeof(StreamContainer<DcpProducer::ContainerElement>));
     display("EPStats", sizeof(EPStats), stats.getMemFootPrint());
     display("FileStats", sizeof(FileStats), FileStats().getMemFootPrint());
     display("Item", sizeof(Item));
