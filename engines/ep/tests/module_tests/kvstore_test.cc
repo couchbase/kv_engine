@@ -41,6 +41,7 @@
 #include <folly/portability/GTest.h>
 #include <platform/dirutils.h>
 
+#include <boost/filesystem.hpp>
 #include <thread>
 #include <unordered_map>
 #include <utility>
@@ -148,6 +149,9 @@ class KVStoreParamTestSkipRocks : public KVStoreParamTest {
 public:
     KVStoreParamTestSkipRocks() : KVStoreParamTest() {
     }
+
+    /// corrupt couchstore data file by making it empty
+    void corruptCouchKVStoreDataFile();
 };
 
 // Rocks doesn't support returning compressed values.
@@ -1099,6 +1103,91 @@ TEST_P(KVStoreParamTestSkipRocks, GetAllKeysSanity) {
     DiskDocKey start(nullptr, 0);
     kvstore->getAllKeys(Vbid(0), start, 20, cb);
     EXPECT_EQ(keys, int(cb->getProcessedCount()));
+}
+
+TEST_P(KVStoreParamTestSkipRocks, GetCollectionStatsNoStats) {
+    auto kvHandle = kvstore->makeFileHandle(vbid);
+    EXPECT_TRUE(kvHandle);
+    auto [success, stats] =
+            kvstore->getCollectionStats(*kvHandle, CollectionID(99));
+    EXPECT_TRUE(success);
+    EXPECT_EQ(0, stats.itemCount);
+    EXPECT_EQ(0, stats.highSeqno);
+    EXPECT_EQ(0, stats.diskSize);
+}
+
+TEST_P(KVStoreParamTestSkipRocks, GetCollectionStats) {
+    CollectionID cid;
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    int64_t seqno = 1;
+    auto item = makeCommittedItem(makeStoredDocKey("mykey", cid), "value");
+    item->setBySeqno(seqno++);
+    kvstore->set(item);
+    kvstore->commit(flush);
+
+    auto kvHandle = kvstore->makeFileHandle(vbid);
+    EXPECT_TRUE(kvHandle);
+    auto [success, stats] = kvstore->getCollectionStats(*kvHandle, cid);
+    EXPECT_TRUE(success);
+    EXPECT_EQ(1, stats.itemCount);
+    EXPECT_EQ(1, stats.highSeqno);
+    EXPECT_LT(0, stats.diskSize);
+}
+
+void KVStoreParamTestSkipRocks::corruptCouchKVStoreDataFile() {
+    ASSERT_EQ("couchdb", GetParam())
+            << "This method should only be used for couchdb";
+    namespace fs = boost::filesystem;
+    fs::path dataDir(fs::current_path() / kvstore->getConfig().getDBName());
+    fs::path dataFile;
+    for (const auto& file :
+         boost::filesystem::recursive_directory_iterator(dataDir)) {
+        if (file.path().has_filename() &&
+            file.path().filename() == "stats.json") {
+            continue;
+        }
+        dataFile = file;
+    }
+    // manually write nothing to the file as resizing it to 0 using boost
+    // fails on windows.
+    fs::ofstream osf{dataFile};
+    if (osf.is_open()) {
+        osf << "";
+        osf.close();
+    } else {
+        FAIL();
+    }
+    ASSERT_TRUE(fs::is_regular_file(dataFile));
+}
+
+TEST_P(KVStoreParamTestSkipRocks, GetCollectionStatsFailed) {
+    /* Magma gets its collection stats from in memory so any corruption of
+     data files between KVStore::makeFileHandle() and
+     KVStore::getCollectionStats() won't cause the call to fail */
+    if (GetParam() == "magma") {
+        return;
+    }
+
+    CollectionID cid;
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    int64_t seqno = 1;
+    auto item = makeCommittedItem(makeStoredDocKey("mykey", cid), "value");
+    item->setBySeqno(seqno++);
+    kvstore->set(item);
+    kvstore->commit(flush);
+
+    auto kvHandle = kvstore->makeFileHandle(vbid);
+    EXPECT_TRUE(kvHandle);
+
+    // Corrupt couchdb file under
+    corruptCouchKVStoreDataFile();
+
+    auto [success, stats] = kvstore->getCollectionStats(*kvHandle, cid);
+    EXPECT_FALSE(success);
+    // check values for sanity and to use the variable
+    EXPECT_EQ(0, stats.itemCount);
+    EXPECT_EQ(0, stats.highSeqno);
+    EXPECT_EQ(0, stats.diskSize);
 }
 
 class ReuseSnapshotCallback : public StatusCallback<GetValue> {

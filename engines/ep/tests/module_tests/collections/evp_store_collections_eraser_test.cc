@@ -1590,13 +1590,15 @@ void CollectionsEraserPersistentOnly::testEmptyCollections(
         ASSERT_TRUE(fileHandle);
         auto stats =
                 kvs.getCollectionStats(*fileHandle, CollectionEntry::dairy);
-        EXPECT_EQ(0, stats.itemCount);
-        EXPECT_EQ(vb->getHighSeqno() - 1, stats.highSeqno);
-        EXPECT_NE(0, stats.diskSize);
+        EXPECT_TRUE(stats.first);
+        EXPECT_EQ(0, stats.second.itemCount);
+        EXPECT_EQ(vb->getHighSeqno() - 1, stats.second.highSeqno);
+        EXPECT_NE(0, stats.second.diskSize);
         stats = kvs.getCollectionStats(*fileHandle, CollectionEntry::fruit);
-        EXPECT_EQ(0, stats.itemCount);
-        EXPECT_EQ(vb->getHighSeqno(), stats.highSeqno);
-        EXPECT_NE(0, stats.diskSize);
+        EXPECT_TRUE(stats.first);
+        EXPECT_EQ(0, stats.second.itemCount);
+        EXPECT_EQ(vb->getHighSeqno(), stats.second.highSeqno);
+        EXPECT_NE(0, stats.second.diskSize);
     } else {
         auto handle = vb->lockCollections();
         EXPECT_EQ(vb->getHighSeqno() - 1,
@@ -1630,13 +1632,15 @@ void CollectionsEraserPersistentOnly::testEmptyCollections(
         ASSERT_TRUE(fileHandle);
         auto stats =
                 kvs.getCollectionStats(*fileHandle, CollectionEntry::fruit);
-        EXPECT_EQ(0, stats.itemCount);
-        EXPECT_EQ(0, stats.highSeqno);
-        EXPECT_EQ(0, stats.diskSize);
+        EXPECT_TRUE(stats.first);
+        EXPECT_EQ(0, stats.second.itemCount);
+        EXPECT_EQ(0, stats.second.highSeqno);
+        EXPECT_EQ(0, stats.second.diskSize);
         stats = kvs.getCollectionStats(*fileHandle, CollectionEntry::dairy);
-        EXPECT_EQ(0, stats.itemCount);
-        EXPECT_EQ(0, stats.highSeqno);
-        EXPECT_EQ(0, stats.diskSize);
+        EXPECT_TRUE(stats.first);
+        EXPECT_EQ(0, stats.second.itemCount);
+        EXPECT_EQ(0, stats.second.highSeqno);
+        EXPECT_EQ(0, stats.second.diskSize);
     }
 }
 

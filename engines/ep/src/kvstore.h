@@ -1115,10 +1115,11 @@ public:
      * all stats).
      * @param kvFileHandle a handle into a KV data file
      * @param collection the id of the collection to lookup
-     * @return persisted stats initialised if the collection stats have been
-     *         written or default initialised stats otherwise.
+     * @return pair of bool for success and persisted stats initialised if the
+     * collection stats have been written or default initialised stats
+     * otherwise.
      */
-    virtual Collections::VB::PersistedStats getCollectionStats(
+    virtual std::pair<bool, Collections::VB::PersistedStats> getCollectionStats(
             const KVFileHandle& kvFileHandle, CollectionID collection) = 0;
 
     /**

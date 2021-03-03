@@ -2094,6 +2094,25 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<CompactionContext> ctx) {
             return false;
         }
     } else {
+        std::vector<std::pair<Collections::KVStore::DroppedCollection,
+                              Collections::VB::PersistedStats>>
+                dcInfo;
+        for (auto& dc : dropped) {
+            auto handle = makeFileHandle(vbid);
+            auto [success, stats] =
+                    getCollectionStats(*handle, dc.collectionId);
+            if (!success) {
+                logger->warn(
+                        "MagmaKVStore::compactDBInternal getCollectionStats() "
+                        "failed for dropped collection "
+                        "cid:{} {}",
+                        dc.collectionId,
+                        vbid);
+                return false;
+            }
+            dcInfo.emplace_back(dc, stats);
+        }
+
         // For magma we also need to compact the prepare namespace as this is
         // disjoint from the collection namespaces.
         cb::mcbp::unsigned_leb128<CollectionIDType> leb128(CollectionID::DurabilityPrepare);
@@ -2109,15 +2128,7 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<CompactionContext> ctx) {
                     status.String());
         }
 
-        for (auto& dc : dropped) {
-            // Can't track number of collection items purged properly in the
-            // compaction callback for magma as it may be called multiple
-            // times per key. We CAN just subtract the number of items we know
-            // belong to the collection though before we update the vBucket doc
-            // count.
-            auto handle = makeFileHandle(vbid);
-            auto stats = getCollectionStats(*handle, dc.collectionId);
-            collectionItemsDropped += stats.itemCount;
+        for (auto& [dc, stats] : dcInfo) {
             std::string keyString =
                     Collections::makeCollectionIdIntoString(dc.collectionId);
             Slice keySlice{keyString};
@@ -2141,7 +2152,14 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<CompactionContext> ctx) {
                         vbid,
                         cb::UserData{makeDiskDocKey(keySlice).to_string()},
                         status.String());
+                continue;
             }
+            // Can't track number of collection items purged properly in the
+            // compaction callback for magma as it may be called multiple
+            // times per key. We CAN just subtract the number of items we know
+            // belong to the collection though before we update the vBucket doc
+            // count.
+            collectionItemsDropped += stats.itemCount;
 
             // We've finish processing this collection.
             // Create a SystemEvent key for the collection and process it.
@@ -2477,8 +2495,9 @@ void MagmaKVStore::saveCollectionStats(
     localDbReqs.emplace_back(MagmaLocalReq(key, std::move(encodedStats)));
 }
 
-Collections::VB::PersistedStats MagmaKVStore::getCollectionStats(
-        const KVFileHandle& kvFileHandle, CollectionID cid) {
+std::pair<bool, Collections::VB::PersistedStats>
+MagmaKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
+                                 CollectionID cid) {
     const auto& kvfh = static_cast<const MagmaKVFileHandle&>(kvFileHandle);
     auto vbid = kvfh.vbid;
     auto key = getCollectionsStatsKey(cid);
@@ -2487,15 +2506,16 @@ Collections::VB::PersistedStats MagmaKVStore::getCollectionStats(
     std::string stats;
     std::tie(status, stats) = readLocalDoc(vbid, keySlice);
     if (!status.IsOK()) {
-        if (status.ErrorCode() == Status::Code::NotFound) {
+        if (status.ErrorCode() != Status::Code::NotFound) {
             logger->warn("MagmaKVStore::getCollectionStats(): {}",
                          status.Message());
+            return {false, Collections::VB::PersistedStats()};
         }
-        // Return Collections::VB::PersistedStats() with everything set to
+        // Return Collections::VB::PersistedStats(true) with everything set to
         // 0 as the collection might have not been persisted to disk yet.
-        return Collections::VB::PersistedStats();
+        return {true, Collections::VB::PersistedStats()};
     }
-    return Collections::VB::PersistedStats(stats.c_str(), stats.size());
+    return {true, Collections::VB::PersistedStats(stats.c_str(), stats.size())};
 }
 
 void MagmaKVStore::deleteCollectionStats(LocalDbReqs& localDbReqs,

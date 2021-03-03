@@ -1080,8 +1080,14 @@ void EPVBucket::collectionsRolledBack(KVBucket& bucket) {
     // For each collection in the VB, reload the stats to the point before
     // the rollback seqno
     for (auto& collection : wh) {
-        auto stats =
+        auto [success, stats] =
                 kvstore.getCollectionStats(*kvstoreContext, collection.first);
+        if (!success) {
+            EP_LOG_WARN(
+                    "EPVBucket::collectionsRolledBack(): getCollectionStats() "
+                    "failed for {}",
+                    getId());
+        }
         collection.second.setItemCount(stats.itemCount);
         collection.second.setDiskSize(stats.diskSize);
         collection.second.resetPersistedHighSeqno(stats.highSeqno);

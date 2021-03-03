@@ -1189,8 +1189,20 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
             // This may be called repeatedly; it is idempotent.
             store.stats.trackCollectionStats(collection.first);
 
-            auto stats = kvstore->getCollectionStats(*kvstoreContext,
-                                                     collection.first);
+            // getCollectionStats() can still can fail if the data store on disk
+            // has been corrupted between the call to makeFileHandle() and
+            // getCollectionStats()
+            auto [success, stats] = kvstore->getCollectionStats(
+                    *kvstoreContext, collection.first);
+            if (!success) {
+                EP_LOG_CRITICAL(
+                        "Warmup::loadCollectionStatsForShard(): "
+                        "getCollectionStats() failed for {}, aborting warmup "
+                        "as we will not be "
+                        "able to check collection stats.",
+                        vbid);
+                return;
+            }
 
             collection.second.setItemCount(stats.itemCount);
             collection.second.setPersistedHighSeqno(stats.highSeqno);

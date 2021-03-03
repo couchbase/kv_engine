@@ -1102,6 +1102,23 @@ couchstore_error_t CouchKVStore::replayPrecommitHook(
         return status;
     }
     try {
+        std::unordered_map<CollectionID, Collections::VB::PersistedStats>
+                cStats;
+        for (const auto& pair : prepareStats.collectionSizes) {
+            const auto& cid = pair.first;
+            // Need to read the collection stats
+            const auto [success, collectionStats] = getCollectionStats(db, cid);
+            if (!success) {
+                logger.warn(
+                        "CouchKVStore::replayPrecommitHook: Failed to "
+                        "load collection stats for cid:{}, stats could be now "
+                        "wrong!",
+                        cid);
+                return COUCHSTORE_ERROR_READ;
+            }
+            cStats[cid] = collectionStats;
+        }
+
         if (std::stoul(json["on_disk_prepares"].get<std::string>()) !=
             prepareStats.onDiskPrepares) {
             json["on_disk_prepares"] =
@@ -1115,12 +1132,9 @@ couchstore_error_t CouchKVStore::replayPrecommitHook(
                     std::to_string(prepareStats.onDiskPrepareBytes);
         }
 
-        for (auto& pair : prepareStats.collectionSizes) {
-            const auto& cid = pair.first;
-            auto& adjustedDiskSize = pair.second;
-
+        for (auto& [cid, adjustedDiskSize] : prepareStats.collectionSizes) {
             // Need to read the collection stats
-            auto collectionStats = getCollectionStats(db, cid);
+            auto& collectionStats = cStats[cid];
 
             // To update them
             collectionStats.diskSize = adjustedDiskSize;
@@ -1508,15 +1522,25 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
         if (getManifestResult != COUCHSTORE_SUCCESS) {
             logger.warn(
                     "CouchKVStore::compactDBInternal: {} failed to read "
-                    "collections manifest for replay phase, got status: ",
+                    "collections manifest for replay phase, got status: {}",
                     vbid,
                     couchstore_strerror(getManifestResult));
             return CompactDBInternalStatus::Failed;
         }
 
-        for (auto& collection : manifest.collections) {
-            auto cid = collection.metaData.cid;
-            auto stats = getCollectionStats(*targetDb.getDb(), cid);
+        for (const auto& collection : manifest.collections) {
+            const auto cid = collection.metaData.cid;
+            const auto [success, stats] =
+                    getCollectionStats(*targetDb.getDb(), cid);
+            if (!success) {
+                logger.warn(
+                        "CouchKVStore::compactDBInternal: {} failed to read "
+                        "collections stats for replay phase, got status: ",
+                        vbid);
+                // fail in the same way as if we couldn't get the collection
+                // manifest
+                return CompactDBInternalStatus::Failed;
+            }
             prepareStats.collectionSizes[cid] = stats.diskSize;
 
             auto itr = hook_ctx->stats.collectionSizeUpdates.find(cid);
@@ -1768,28 +1792,42 @@ couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
         localDocQueue.emplace_back("_local/vbstate", json.dump());
     }
 
+    std::unordered_map<CollectionID, Collections::VB::PersistedStats> cStats;
+    for (const auto& pair : stats.collectionSizeUpdates) {
+        const auto& cid = pair.first;
+        // Need to read the collection stats
+        const auto [success, collectionStats] = getCollectionStats(db, cid);
+        if (!success) {
+            logger.warn(
+                    "CouchKVStore::maybePatchOnDiskPrepares: Failed to load "
+                    "collection stats for {}, cid:{}, stats could be now "
+                    "wrong!",
+                    vbid,
+                    cid);
+            return COUCHSTORE_ERROR_READ;
+        }
+        cStats[cid] = collectionStats;
+    }
+
     // Need to adjust prepare disk size as we have purged some prepares for
     // collections that have not been dropped (we may have entered this
     // function by purging prepares in dropped collections but we won't update
     // their stats here as the stats docs has already been deleted).
-    for (auto& pair : stats.collectionSizeUpdates) {
-        const auto& cid = pair.first;
-        auto& droppedPrepareBytes = pair.second;
-        // Need to read the collection stats
-        auto collectionStats = getCollectionStats(db, cid);
+    for (const auto& [cid, droppedPrepareBytes] : stats.collectionSizeUpdates) {
+        auto& currentStats = cStats[cid];
 
         // To update them
-        collectionStats.diskSize -= droppedPrepareBytes;
+        currentStats.diskSize -= droppedPrepareBytes;
 
         // Set the size to the total so that we can reset the cached value in
         // the manifest. We don't update using deltas as a concurrent flush
         // during compaction can't update the stats via deltas and we can re-use
         // the code
-        stats.collectionSizeUpdates[cid] = collectionStats.diskSize;
+        stats.collectionSizeUpdates[cid] = currentStats.diskSize;
 
         // To write them back
         localDocQueue.emplace_back(getCollectionStatsLocalDocId(cid),
-                                   collectionStats.getLebEncodedStats());
+                                   currentStats.getLebEncodedStats());
     }
 
     return COUCHSTORE_SUCCESS;
@@ -3290,19 +3328,20 @@ void CouchKVStore::deleteCollectionStats(CollectionID cid) {
                                    CouchLocalDocRequest::IsDeleted{});
 }
 
-Collections::VB::PersistedStats CouchKVStore::getCollectionStats(
-        const KVFileHandle& kvFileHandle, CollectionID collection) {
+std::pair<bool, Collections::VB::PersistedStats>
+CouchKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
+                                 CollectionID collection) {
     const auto& db = static_cast<const CouchKVFileHandle&>(kvFileHandle);
     return getCollectionStats(*db.getDb(), collection);
 }
 
-Collections::VB::PersistedStats CouchKVStore::getCollectionStats(
-        Db& db, CollectionID collection) {
+std::pair<bool, Collections::VB::PersistedStats>
+CouchKVStore::getCollectionStats(Db& db, CollectionID collection) {
     return getCollectionStats(db, getCollectionStatsLocalDocId(collection));
 }
 
-Collections::VB::PersistedStats CouchKVStore::getCollectionStats(
-        Db& db, const std::string& statDocName) {
+std::pair<bool, Collections::VB::PersistedStats>
+CouchKVStore::getCollectionStats(Db& db, const std::string& statDocName) {
     sized_buf id;
     id.buf = const_cast<char*>(statDocName.c_str());
     id.size = statDocName.size();
@@ -3319,11 +3358,11 @@ Collections::VB::PersistedStats CouchKVStore::getCollectionStats(
                     "couchstore_open_local_document error:{}",
                     statDocName,
                     couchstore_strerror(errCode));
+            return {false, Collections::VB::PersistedStats{}};
         }
-
         // Return Collections::VB::PersistedStats() with everything set to
         // 0 as the collection might have not been persisted to disk yet.
-        return Collections::VB::PersistedStats{};
+        return {true, Collections::VB::PersistedStats{}};
     }
 
     DbInfo info;
@@ -3336,9 +3375,10 @@ Collections::VB::PersistedStats CouchKVStore::getCollectionStats(
                 couchstore_strerror(errCode));
     }
 
-    return Collections::VB::PersistedStats(lDoc.getLocalDoc()->json.buf,
-                                           lDoc.getLocalDoc()->json.size,
-                                           info.space_used);
+    return {true,
+            Collections::VB::PersistedStats(lDoc.getLocalDoc()->json.buf,
+                                            lDoc.getLocalDoc()->json.size,
+                                            info.space_used)};
 }
 
 static int getMultiCallback(Db* db, DocInfo* docinfo, void* ctx) {

@@ -582,13 +582,13 @@ protected:
     void deleteCollectionStats(CollectionID cid);
 
     /// Get the collection stats for the given collection
-    Collections::VB::PersistedStats getCollectionStats(
+    std::pair<bool, Collections::VB::PersistedStats> getCollectionStats(
             const KVFileHandle& kvFileHandle, CollectionID collection) override;
-    Collections::VB::PersistedStats getCollectionStats(Db& db,
-                                                       CollectionID collection);
+    std::pair<bool, Collections::VB::PersistedStats> getCollectionStats(
+            Db& db, CollectionID collection);
 
     /// Get the collection stats from the local doc named statDocName
-    Collections::VB::PersistedStats getCollectionStats(
+    std::pair<bool, Collections::VB::PersistedStats> getCollectionStats(
             Db& db, const std::string& statDocName);
 
     /**
