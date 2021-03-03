@@ -686,6 +686,40 @@ flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
     return builder.Release();
 }
 
+flatbuffers::DetachedBuffer Flush::encodeRelativeComplementOfDroppedCollections(
+        const std::vector<Collections::KVStore::DroppedCollection>&
+                droppedCollections,
+        const std::unordered_set<CollectionID>& idsToRemove) {
+    flatbuffers::FlatBufferBuilder builder;
+    std::vector<flatbuffers::Offset<Collections::KVStore::Dropped>> output;
+
+    for (const auto& dc : droppedCollections) {
+        if (idsToRemove.count(dc.collectionId) == 0) {
+            // Include this collection in the final set
+            auto newEntry = Collections::KVStore::CreateDropped(
+                    builder,
+                    dc.startSeqno,
+                    dc.endSeqno,
+                    uint32_t(dc.collectionId));
+            output.push_back(newEntry);
+        }
+    }
+
+    // If the output vector is empty, return an empty buffer so the caller
+    // knows there is actually nothing to store (prefer no data stored vs
+    // storing a flatbuffer encoded empty vector)
+    if (output.empty()) {
+        return {};
+    }
+
+    auto vector = builder.CreateVector(output);
+    auto final =
+            Collections::KVStore::CreateDroppedCollections(builder, vector);
+    builder.Finish(final);
+
+    return builder.Release();
+}
+
 flatbuffers::DetachedBuffer Flush::encodeOpenScopes(
         cb::const_byte_buffer existingScopes) {
     flatbuffers::FlatBufferBuilder builder;

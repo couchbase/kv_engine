@@ -33,25 +33,23 @@ void EraserContext::processSystemEvent(const DocKey& key, SystemEvent se) {
         // 1) A deleted collection (so represents the end of dropped collection)
         // 2) A create event which came after a drop (collection resurrection)
         //    In this case we still need to look in the drop list so we know
-        //    that the old generation of the collection was fully visited and
-        //    can now be removed.
+        //    that the old generation of the collection was fully visited.
         // If the ID is in the drop list, then we remove it and set the
         // 'removed' flag.
         auto itr = dropped.find(getCollectionIDFromKey(key));
         if (itr != dropped.end()) {
-            dropped.erase(itr);
-            removed = true;
+            seenEndOfCollection = true;
         }
     }
 }
 
 bool EraserContext::needToUpdateCollectionsMetadata() const {
-    return removed;
+    return seenEndOfCollection;
 }
 
 std::ostream& operator<<(std::ostream& os, const EraserContext& eraserContext) {
-    os << "EraserContext: removed:"
-       << (eraserContext.removed ? "true, " : "false, ");
+    os << "EraserContext: seenEndOfCollection:"
+       << (eraserContext.seenEndOfCollection ? "true, " : "false, ");
     os << static_cast<const ScanContext&>(eraserContext);
     return os;
 }

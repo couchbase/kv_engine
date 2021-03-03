@@ -47,8 +47,8 @@ public:
 private:
     friend std::ostream& operator<<(std::ostream&, const EraserContext&);
 
-    /// set to true if an entry was removed from the 'dropped' container
-    bool removed = false;
+    /// set to true if a 'drop' system event was seen
+    bool seenEndOfCollection = false;
 };
 
 std::ostream& operator<<(std::ostream&, const EraserContext&);

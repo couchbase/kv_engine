@@ -712,6 +712,7 @@ protected:
      * @param purge_seqno The purge seqno to set in the headers
      * @param prepareStats The prepare stats that compaction updates
      * @param vbid the vbucket (used for logging)
+     * @param hook_ctx CompactionContext for the current compaction
      * @return true if the destination database is caught up with the source
      *              database
      */
@@ -721,7 +722,8 @@ protected:
                             bool copyWithoutLock,
                             uint64_t purge_seqno,
                             CompactionReplayPrepareStats& prepareStats,
-                            Vbid vbid);
+                            Vbid vbid,
+                            const CompactionContext& hook_ctx);
 
     /**
      * The following status codes can be returned by compactDBInternal
@@ -743,7 +745,6 @@ protected:
      *                     compacted version
      * @param vbLock the lock to acquire exclusive write access to the bucket
      * @param hook_ctx a context with information for the compaction process
-     * @param dhook a docinfo hook which will be called with each compacted key
      * @return CompactDBInternalStatus indicating the compaction outcome
      */
     CompactDBInternalStatus compactDBInternal(
@@ -864,12 +865,25 @@ protected:
      * @param db The database instance to update
      * @param prepareStats All the prepare stats changed during compaction
      * @param purge_seqno The new value to store in the couchstore header
+     * @param hook_ctx The CompactionContext
      * @returns COUCHSTORE_SUCCESS on success, couchstore error otherwise (which
      *          will cause replay to fail).
      */
     couchstore_error_t replayPrecommitHook(Db&,
                                            CompactionReplayPrepareStats&,
-                                           uint64_t);
+                                           uint64_t,
+                                           const CompactionContext&);
+
+    /**
+     * Helper method for replayPrecommitHook, processes the dropped collections
+     * (if any) and returns a local doc queue that has the correct dropped
+     * collection data in it (or is an empty queue)
+     * @param db The database instance to read and update
+     * @param hook_ctx The CompactionContext
+     * @return queue that replayPrecommitHook uses for further local doc updates
+     */
+    PendingLocalDocRequestQueue replayPrecommitProcessDroppedCollections(
+            Db& db, const CompactionContext& hook_ctx);
 
     const CouchKVStoreConfig& configuration;
 

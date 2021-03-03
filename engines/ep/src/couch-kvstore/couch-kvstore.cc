@@ -128,16 +128,6 @@ static std::pair<couchstore_error_t, nlohmann::json> getLocalVbState(Db& db) {
     return {status, {}};
 }
 
-static couchstore_error_t setLocalVbState(Db& db, const nlohmann::json& json) {
-    std::string_view id{"_local/vbstate"};
-    const std::string content = json.dump();
-    LocalDoc ldoc;
-    ldoc.json = {const_cast<char*>(content.data()), content.size()};
-    ldoc.id = {const_cast<char*>(id.data()), id.size()};
-    ldoc.deleted = 0;
-    return couchstore_save_local_document(&db, &ldoc);
-}
-
 /**
  * Helper function to create an Item from couchstore DocInfo & related types.
  */
@@ -1096,12 +1086,14 @@ static FileInfo toFileInfo(const cb::couchstore::Header& info) {
 couchstore_error_t CouchKVStore::replayPrecommitHook(
         Db& db,
         CompactionReplayPrepareStats& prepareStats,
-        uint64_t purge_seqno) {
+        uint64_t purge_seqno,
+        const CompactionContext& hook_ctx) {
     couchstore_set_purge_seq(&db, purge_seqno);
     auto [status, json] = getLocalVbState(db);
     if (status != COUCHSTORE_SUCCESS) {
         return status;
     }
+
     try {
         std::unordered_map<CollectionID, Collections::VB::PersistedStats>
                 cStats;
@@ -1133,6 +1125,9 @@ couchstore_error_t CouchKVStore::replayPrecommitHook(
                     std::to_string(prepareStats.onDiskPrepareBytes);
         }
 
+        PendingLocalDocRequestQueue localDocQueue =
+                replayPrecommitProcessDroppedCollections(db, hook_ctx);
+
         for (auto& [cid, adjustedDiskSize] : prepareStats.collectionSizes) {
             // Need to read the collection stats
             auto& collectionStats = cStats[cid];
@@ -1147,19 +1142,59 @@ couchstore_error_t CouchKVStore::replayPrecommitHook(
             prepareStats.collectionSizes[cid] = adjustedDiskSize;
 
             // To write them back
-            PendingLocalDocRequestQueue localDocQueue;
             localDocQueue.emplace_back(getCollectionStatsLocalDocId(cid),
                                        collectionStats.getLebEncodedStats());
-
-            updateLocalDocuments(db, localDocQueue);
         }
 
-        return setLocalVbState(db, json);
-    } catch (std::exception& e) {
+        localDocQueue.emplace_back("_local/vbstate", json.dump());
+
+        return updateLocalDocuments(db, localDocQueue);
+    } catch (const std::exception&) {
         return COUCHSTORE_ERROR_CORRUPT;
     }
 
     return COUCHSTORE_SUCCESS;
+}
+
+CouchKVStore::PendingLocalDocRequestQueue
+CouchKVStore::replayPrecommitProcessDroppedCollections(
+        Db& db, const CompactionContext& hook_ctx) {
+    PendingLocalDocRequestQueue localDocQueue;
+
+    // Do we need to generate a new dropped collection 'list'? One which loses
+    // the collections processed in *this* compaction run, but keeps any new
+    // data which may of been flushed whilst compacting.
+    if (hook_ctx.eraserContext->needToUpdateCollectionsMetadata()) {
+        // This compaction run processed dropped collections
+
+        // 1) Get the current state from disk
+        auto [getDroppedStatus, droppedCollections] = getDroppedCollections(db);
+        if (getDroppedStatus != COUCHSTORE_SUCCESS) {
+            throw std::runtime_error(
+                    "CouchKVStore::replayPrecommitProcessDroppedCollections "
+                    "failed getDroppedCollections status:" +
+                    std::string(couchstore_strerror(getDroppedStatus)));
+        }
+
+        // 2) Generate a new flatbuffer document to write back
+        auto fbData = Collections::VB::Flush::
+                encodeRelativeComplementOfDroppedCollections(
+                        droppedCollections,
+                        hook_ctx.eraserContext->getDroppedCollections());
+
+        // 3) If the function returned data, write it, else the document is
+        //    deleted.
+        if (fbData.data()) {
+            localDocQueue.emplace_back(Collections::droppedCollectionsName,
+                                       fbData);
+        } else {
+            // Need to ensure the 'dropped' list on disk is now gone
+            localDocQueue.emplace_back(Collections::droppedCollectionsName,
+                                       CouchLocalDocRequest::IsDeleted{});
+        }
+    }
+
+    return localDocQueue;
 }
 
 /**
@@ -1399,8 +1434,9 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                                 const DocInfo*) {
                     return replayPreCopyHook(target, docInfo, prepareStats);
                 },
-                [&prepareStats, &purge_seqno, this](Db& db) {
-                    return replayPrecommitHook(db, prepareStats, purge_seqno);
+                [&prepareStats, &purge_seqno, hook_ctx, this](Db& db) {
+                    return replayPrecommitHook(
+                            db, prepareStats, purge_seqno, *hook_ctx);
                 });
     } else {
         auto [status, state] = readVBState(sourceDb.getDb(), vbid);
@@ -1444,14 +1480,6 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                     PendingLocalDocRequestQueue localDocQueue;
                     if (hook_ctx->eraserContext
                                 ->needToUpdateCollectionsMetadata()) {
-                        if (!hook_ctx->eraserContext->empty()) {
-                            std::stringstream ss;
-                            ss << "CouchKVStore::compactDBInternal finalising "
-                                  "dropped collections, container should be "
-                                  "empty"
-                               << *hook_ctx->eraserContext << std::endl;
-                            throw std::logic_error(ss.str());
-                        }
                         // Need to ensure the 'dropped' list on disk is now gone
                         localDocQueue.emplace_back(
                                 Collections::droppedCollectionsName,
@@ -1570,7 +1598,8 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                                true, // copy without lock
                                hook_ctx->max_purged_seq,
                                prepareStats,
-                               vbid)) {
+                               vbid,
+                               *hook_ctx)) {
             // I'm at the tip
             break;
         }
@@ -1589,7 +1618,8 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                        false, // copy with lock
                        hook_ctx->max_purged_seq,
                        prepareStats,
-                       vbid);
+                       vbid,
+                       *hook_ctx);
     // Close the source Database File once compaction is done
     sourceDb.close();
     // Close the destination file so we may rename it
@@ -1841,7 +1871,8 @@ bool CouchKVStore::tryToCatchUpDbFile(
         bool copyWithoutLock,
         uint64_t purge_seqno,
         CompactionReplayPrepareStats& prepareStats,
-        Vbid vbid) {
+        Vbid vbid,
+        const CompactionContext& hook_ctx) {
     if (!lock.owns_lock()) {
         throw std::logic_error(
                 "CouchKVStore::tryToCatchUpDbFile: lock must be held");
@@ -1892,9 +1923,9 @@ bool CouchKVStore::tryToCatchUpDbFile(
                     Db&, Db& target, const DocInfo* docInfo, const DocInfo*) {
                 return replayPreCopyHook(target, docInfo, prepareStats);
             },
-            [&prepareStats, &purge_seqno, this](Db& compacted) {
+            [&prepareStats, &purge_seqno, &hook_ctx, this](Db& compacted) {
                 return replayPrecommitHook(
-                        compacted, prepareStats, purge_seqno);
+                        compacted, prepareStats, purge_seqno, hook_ctx);
             });
     if (err != COUCHSTORE_SUCCESS) {
         throw std::runtime_error("Failed to replay data!");

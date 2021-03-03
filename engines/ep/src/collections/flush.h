@@ -24,6 +24,7 @@
 
 #include <flatbuffers/flatbuffers.h>
 #include <unordered_map>
+#include <unordered_set>
 
 class EPBucket;
 
@@ -225,6 +226,34 @@ public:
     flatbuffers::DetachedBuffer encodeDroppedCollections(
             std::vector<Collections::KVStore::DroppedCollection>&
                     existingDropped);
+
+    /**
+     * Method is used by compaction, but works with data that flush maintains
+     * i.e. the output of encodeDroppedCollections.
+     *
+     * This method encodes a new dropped collections 'list'. The new list is the
+     * relative complement of the parameters:
+     * A (droppedCollections) and B (idsToRemove).
+     *
+     * E.g. if A[0, 1, 2] and B[0, 1] the function returns as flatbuffer data
+     * set[2]
+     *
+     * If the output is an empty set, the returned DetachedBuffer has no data.
+     * This allows the caller to determine the output is the empty set and
+     * delete the document which may own the DroppedCollections data.
+     *
+     * @param droppedCollection data read from KVStore, which is the set of
+     *        dropped collections.
+     * @param idsToRemove a set of IDs which should be removed from
+     *        droppedCollections
+     * @return A new set of dropped collections as per the description above.
+     *         This is flatbuffer encoding of DroppedCollections (kvstore.fbs)
+     */
+    static flatbuffers::DetachedBuffer
+    encodeRelativeComplementOfDroppedCollections(
+            const std::vector<Collections::KVStore::DroppedCollection>&
+                    droppedCollections,
+            const std::unordered_set<CollectionID>& idsToRemove);
 
     /**
      * Encode open scopes list into flat buffer format.

@@ -1446,10 +1446,12 @@ TEST_F(CollectionsTest, ConcCompactNewPrepare) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::dairy);
     cm.add(CollectionEntry::meat);
+    // MB-44590 include a collection drop in the test
+    cm.remove(CollectionEntry::defaultC);
 
     auto vb = store->getVBucket(vbid);
     vb->updateFromManifest(makeManifest(cm));
-    flushVBucketToDiskIfPersistent(vbid, 2);
+    flushVBucketToDiskIfPersistent(vbid, 3);
 
     // We add dairy and a key to it just to ensure that we're not breaking
     // collections that may change during compaction but not during the replay
@@ -1525,6 +1527,13 @@ TEST_F(CollectionsTest, ConcCompactNewPrepare) {
                   preCompactionMeatSize);
         EXPECT_EQ(summary[CollectionEntry::meat].diskSize, postFlushMeatSize);
     }
+    // MB-44590: Check that the dropped collection was cleaned-up
+    auto [status, dropped] = store->getVBucket(vbid)
+                                     ->getShard()
+                                     ->getRWUnderlying()
+                                     ->getDroppedCollections(vbid);
+    ASSERT_TRUE(status);
+    EXPECT_TRUE(dropped.empty());
 }
 
 TEST_F(CollectionsTest, ConcCompactPrepareAbort) {
@@ -1734,11 +1743,12 @@ TEST_F(CollectionsTest, ConcCompactDropCollection) {
     replaceCouchKVStoreWithMock();
 
     CollectionsManifest cm;
+    cm.remove(CollectionEntry::defaultC);
     cm.add(CollectionEntry::meat);
 
     auto vb = store->getVBucket(vbid);
     vb->updateFromManifest(makeManifest(cm));
-    flushVBucketToDiskIfPersistent(vbid, 1);
+    flushVBucketToDiskIfPersistent(vbid, 2);
 
     auto& kvstore =
             dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
@@ -1759,7 +1769,7 @@ TEST_F(CollectionsTest, ConcCompactDropCollection) {
 
         flushVBucketToDiskIfPersistent(vbid, 1);
 
-        // And drop the colleciton to check that we don't try to update the size
+        // And drop the collection to check that we don't try to update the size
         cm.remove(CollectionEntry::meat);
         vb->updateFromManifest(makeManifest(cm));
         flushVBucketToDiskIfPersistent(vbid, 1);
@@ -1773,6 +1783,123 @@ TEST_F(CollectionsTest, ConcCompactDropCollection) {
               store->getRWUnderlying(vbid)
                       ->getKVStoreStat()
                       .numCompactionFailure);
+}
+
+// Test reproduces MB-44590, here we have a drop collection and then compaction
+// and flusher interleave. With MB-44590, the final KVStore state was incorrect
+// as the dropped collection metadata still stored the dropped collection.
+TEST_F(CollectionsTest, ConcCompactDropCollectionMB_44590) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    replaceCouchKVStoreWithMock();
+
+    // Now drop default and add a second collection
+    CollectionsManifest cm;
+    cm.remove(CollectionEntry::defaultC);
+    cm.add(CollectionEntry::fruit);
+
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    auto& kvstore =
+            dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
+
+    kvstore.setConcurrentCompactionPreLockHook([&vb, this](auto&) {
+        // Flush an item during compaction
+        store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "v1");
+        flushVBucketToDiskIfPersistent(vbid, 1);
+    });
+
+    runCompaction(vbid, 0, false);
+
+    // At the end of the test, the dropped collections meta data should now
+    // be empty. MB-44590 it was not empty.
+    auto [status, dropped] = store->getVBucket(vbid)
+                                     ->getShard()
+                                     ->getRWUnderlying()
+                                     ->getDroppedCollections(vbid);
+    ASSERT_TRUE(status);
+    EXPECT_TRUE(dropped.empty());
+}
+
+// MB-44590 and MB-44694. This test reproduces what was seen in MB-44694, but is
+// fixed by MB-44590. The test drops collections and also tombstone purges them.
+// When MB-44590 occurs a second compaction/erase gets quite confused because
+// it cannot find the tombstones it thinks should exist.
+TEST_F(CollectionsTest, ConcCompactDropCollectionMB_44694) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    replaceCouchKVStoreWithMock();
+
+    // Create two collections
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::vegetable);
+    cm.add(CollectionEntry::fruit);
+
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "v1");
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Now remove the fruit collection
+    cm.remove(CollectionEntry::fruit);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Store an item, so that the fruit tombstone is not high-seqno
+    store_item(vbid, StoredDocKey{"carrot", CollectionEntry::vegetable}, "v2");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Setup the compaction hook so that another collection drops - triggering
+    // MB-44590
+    auto& kvstore =
+            dynamic_cast<MockCouchKVStore&>(*store->getRWUnderlying(vbid));
+
+    kvstore.setConcurrentCompactionPreLockHook(
+            [&vb, &cm, this](auto& compactionKey) {
+                // Drop a collection during flush
+                cm.remove(CollectionEntry::vegetable);
+                vb->updateFromManifest(makeManifest(cm));
+                flushVBucketToDiskIfPersistent(vbid, 1);
+            });
+
+    // compact and force purging of all deletes
+    runCompaction(vbid, 0, true);
+
+    // At the end of the first compaction, the dropped collections meta data
+    // should not be empty. It must include the collection which was dropped
+    // during compaction
+    auto [status, dropped] = store->getVBucket(vbid)
+                                     ->getShard()
+                                     ->getRWUnderlying()
+                                     ->getDroppedCollections(vbid);
+    EXPECT_TRUE(status);
+    EXPECT_EQ(1, dropped.size());
+    EXPECT_EQ(CollectionEntry::vegetable.getId(), dropped.front().collectionId);
+
+    kvstore.setConcurrentCompactionPreLockHook(
+            [](auto& compactionKey) { return; });
+
+    // With MB-44590, this would trigger the exception seen in MB-44694
+    runCollectionsEraser(vbid);
+
+    // At the end of the test, the dropped collections meta data should be empty
+    std::tie(status, dropped) = store->getVBucket(vbid)
+                                        ->getShard()
+                                        ->getRWUnderlying()
+                                        ->getDroppedCollections(vbid);
+    EXPECT_TRUE(status);
+    EXPECT_TRUE(dropped.empty());
 }
 
 // Test the pager doesn't generate expired items for a dropped collection
