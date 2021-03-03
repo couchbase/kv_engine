@@ -87,23 +87,31 @@ public:
     }
 
     /**
-     * This function should be called only when the task is already scheduled.
-     * The caller does not need to know the state of the task, it could be
+     * This function should be called only when the task is already exists and
+     * is "scheduled".
+     *
+     * The caller does not need to know the state of the task, it could be:
      * A: waiting in the scheduler
      * B: running (i.e. already executing a compaction)
      *
      * The config parameter is optional, if a config is specified then
      * compaction will run with the given config. If a config is not specified
-     * then compaction will run with the current config.
+     * then compaction will run with the current config. When a config is
+     * specified the input is merged with the current config
+     * (see CompactionConfig::merge)
      *
      * If the ordering means that A is true, then when compaction does run the
      * latest config will be used.
+     *
      * If the ordering means that B is true, then the task will reschedule once
      * the current compaction is complete, the latest config will be used in the
      * reschedule run.
+     *
+     * @return The config that the task is now configured with (e.g. merged
+     *         config) is returned.
      */
-    void runCompactionWithConfig(std::optional<CompactionConfig> config,
-                                 const void* cookie);
+    CompactionConfig runCompactionWithConfig(
+            std::optional<CompactionConfig> config, const void* cookie);
 
     /**
      * @return true if a reschedule is required

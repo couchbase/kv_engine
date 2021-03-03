@@ -54,16 +54,6 @@ CompactTask::CompactTask(EPBucket& bucket,
     if (ck) {
         lockedState->cookiesWaiting.push_back(ck);
     }
-
-    EP_LOG_INFO(
-            "Compaction of {}, task:{}, purge_before_ts:{}, "
-            "purge_before_seq:{}, "
-            "drop_deletes:{}, created (awaiting completion).",
-            vbid,
-            getId(),
-            lockedState->config.purge_before_ts,
-            lockedState->config.purge_before_seq,
-            lockedState->config.drop_deletes);
 }
 
 bool CompactTask::run() {
@@ -127,7 +117,7 @@ CompactTask::preDoCompact() {
             std::move(lockedState->cookiesWaiting)};
 }
 
-void CompactTask::runCompactionWithConfig(
+CompactionConfig CompactTask::runCompactionWithConfig(
         std::optional<CompactionConfig> config, const void* cookie) {
     auto lockedState = compaction.wlock();
     if (config) {
@@ -137,6 +127,7 @@ void CompactTask::runCompactionWithConfig(
         lockedState->cookiesWaiting.push_back(cookie);
     }
     lockedState->rescheduleRequired = true;
+    return lockedState->config;
 }
 
 bool StatSnap::run() {

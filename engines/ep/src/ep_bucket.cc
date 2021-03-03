@@ -1030,11 +1030,12 @@ cb::engine_errc EPBucket::scheduleCompaction(
     // try to emplace an empty shared_ptr
     auto [itr, emplaced] = handle->try_emplace(vbid, nullptr);
     auto& task = itr->second;
+    CompactionConfig tasksConfig;
 
     if (!emplaced) {
         // The existing task must be poked - it needs to either reschedule if
         // it is currently running or run with the given config.
-        task->runCompactionWithConfig(config, cookie);
+        tasksConfig = task->runCompactionWithConfig(config, cookie);
         if (execDelay.count() > 0.0) {
             ExecutorPool::get()->snooze(task->getId(), execDelay.count());
         } else {
@@ -1059,7 +1060,23 @@ cb::engine_errc EPBucket::scheduleCompaction(
             task->snooze(execDelay.count());
         }
         ExecutorPool::get()->schedule(task);
+
+        if (config) {
+            tasksConfig = config.value();
+        }
     }
+
+    EP_LOG_INFO(
+            "Compaction of {}, task:{}, purge_before_ts:{}, "
+            "purge_before_seq:{}, "
+            "drop_deletes:{}, {} with delay:{}s (awaiting completion).",
+            vbid,
+            task->getId(),
+            tasksConfig.purge_before_ts,
+            tasksConfig.purge_before_seq,
+            tasksConfig.drop_deletes,
+            !emplaced ? "rescheduled" : "created",
+            execDelay.count());
 
     return cb::engine_errc::would_block;
 }
