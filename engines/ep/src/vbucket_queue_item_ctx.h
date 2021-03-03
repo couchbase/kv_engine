@@ -89,4 +89,6 @@ struct VBQueueItemCtx {
     /// Passed into the durability monitor to instruct it to remove an old
     /// prepare with the given seqno
     std::optional<int64_t> overwritingPrepareSeqno = {};
+    // Ephemeral only, high completed seqno to update the seqlist with
+    std::optional<int64_t> hcs = {};
 };

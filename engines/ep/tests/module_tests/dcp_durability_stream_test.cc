@@ -16,7 +16,9 @@
  */
 
 #include "dcp_durability_stream_test.h"
+#include <engines/ep/src/ephemeral_vb.h>
 #include <engines/ep/tests/mock/mock_dcp.h>
+#include <engines/ep/tests/mock/mock_ephemeral_vb.h>
 
 #include "../../src/dcp/backfill-manager.h"
 #include "checkpoint.h"
@@ -514,13 +516,7 @@ TEST_P(DurabilityActiveStreamTest, AbortWithBackfillPrepare) {
     auto marker = dynamic_cast<SnapshotMarker&>(*resp);
     EXPECT_TRUE(marker.getFlags() & MARKER_FLAG_DISK);
     EXPECT_EQ(0, marker.getMaxVisibleSeqno().value_or(~0));
-    if (persistent()) {
-        EXPECT_EQ(1, *marker.getHighCompletedSeqno());
-    } else {
-        // Ephemeral HCS is taken from the ADM, and is not expected to be used.
-        // The value will not change when abort/commit are called directly.
-        EXPECT_EQ(0, *marker.getHighCompletedSeqno());
-    }
+    EXPECT_EQ(1, *marker.getHighCompletedSeqno());
     EXPECT_EQ(0, marker.getStartSeqno());
     EXPECT_EQ(2, marker.getEndSeqno());
 
@@ -579,13 +575,7 @@ TEST_P(DurabilityActiveStreamTest, BackfillAbort) {
     auto marker = dynamic_cast<SnapshotMarker&>(*resp);
     EXPECT_TRUE(marker.getFlags() & MARKER_FLAG_DISK);
     EXPECT_EQ(0, marker.getMaxVisibleSeqno().value_or(~0));
-    if (persistent()) {
-        EXPECT_EQ(1, *marker.getHighCompletedSeqno());
-    } else {
-        // Ephemeral HCS is taken from the ADM, and is not expected to be used.
-        // The value will not change when abort/commit are called directly.
-        EXPECT_EQ(0, *marker.getHighCompletedSeqno());
-    }
+    EXPECT_EQ(1, *marker.getHighCompletedSeqno());
     EXPECT_EQ(0, marker.getStartSeqno());
     EXPECT_EQ(2, marker.getEndSeqno());
 
@@ -817,13 +807,7 @@ TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForReconnectWindow) {
     auto marker = dynamic_cast<SnapshotMarker&>(*resp);
     EXPECT_TRUE(marker.getFlags() & MARKER_FLAG_DISK);
     EXPECT_EQ(4, marker.getMaxVisibleSeqno().value_or(~0));
-    if (persistent()) {
-        EXPECT_EQ(3, *marker.getHighCompletedSeqno());
-    } else {
-        // Ephemeral HCS is taken from the ADM, and is not expected to be used.
-        // The value will not change when abort/commit are called directly.
-        EXPECT_EQ(0, *marker.getHighCompletedSeqno());
-    }
+    EXPECT_EQ(3, *marker.getHighCompletedSeqno());
     EXPECT_EQ(1, marker.getStartSeqno());
     EXPECT_EQ(5, marker.getEndSeqno());
 
@@ -870,13 +854,7 @@ TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForNewVB) {
     auto marker = dynamic_cast<SnapshotMarker&>(*resp);
     EXPECT_TRUE(marker.getFlags() & MARKER_FLAG_DISK);
     EXPECT_EQ(4, marker.getMaxVisibleSeqno().value_or(~0));
-    if (persistent()) {
-        EXPECT_EQ(3, marker.getHighCompletedSeqno().value_or(~0));
-    } else {
-        // Ephemeral HCS is taken from the ADM, and is not expected to be used.
-        // The value will not change when abort/commit are called directly.
-        EXPECT_EQ(0, *marker.getHighCompletedSeqno());
-    }
+    EXPECT_EQ(3, marker.getHighCompletedSeqno().value_or(~0));
     EXPECT_EQ(0, marker.getStartSeqno());
     EXPECT_EQ(5, marker.getEndSeqno());
 
@@ -2007,6 +1985,35 @@ queued_item DurabilityPassiveStreamTest::makeAndReceiveSnapMarkerAndDcpPrepare(
 
     return makeAndReceiveDcpPrepare(key, cas, seqno, level);
 }
+
+queued_item DurabilityPassiveStreamTest::makeAndReceiveCommittedItem(
+        const StoredDocKey& key,
+        uint64_t cas,
+        uint64_t seqno,
+        std::optional<DeleteSource> deleted) {
+    queued_item qi = makeCommittedItem(key, "value");
+    qi->setBySeqno(seqno);
+    qi->setCas(cas);
+
+    if (deleted) {
+        qi->setDeleted(*deleted);
+    }
+
+    EXPECT_EQ(cb::engine_errc::success,
+              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
+                      qi,
+                      0 /*opaque*/,
+                      IncludeValue::Yes,
+                      IncludeXattrs::Yes,
+                      IncludeDeleteTime::No,
+                      IncludeDeletedUserXattrs::Yes,
+                      DocKeyEncodesCollectionId::No,
+                      nullptr,
+                      cb::mcbp::DcpStreamId{})));
+
+    return qi;
+}
+
 void DurabilityPassiveStreamTest::makeAndProcessSnapshotMarker(
         uint32_t opaque,
         uint64_t seqno,
@@ -5464,6 +5471,78 @@ void DurabilityActiveStreamTest::removeCheckpoint(VBucket& vb, int numItems) {
     EXPECT_EQ(numItems, itemsRemoved);
 }
 
+void DurabilityPassiveStreamEphemeralTest::testLogicalCommitCorrectTypeSetup() {
+    SnapshotMarker marker(0 /*opaque*/,
+                          vbid,
+                          1,
+                          3,
+                          MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+                          0 /*HCS*/,
+                          1 /*maxVisibleSeqno*/,
+                          {} /*timestamp*/,
+                          {} /*streamId*/);
+    stream->processMarker(&marker);
+}
+
+void DurabilityPassiveStreamEphemeralTest::
+        testPrepareCommitedInDiskSnapshotCorrectState(
+                std::optional<DeleteSource> deleted) {
+    testLogicalCommitCorrectTypeSetup();
+
+    auto key = makeStoredDocKey("key");
+    uint64_t cas = 0;
+    uint64_t seqno = 1;
+    makeAndReceiveDcpPrepare(key, cas++, seqno++);
+    makeAndReceiveCommittedItem(key, cas, seqno, deleted);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    auto* ephVb = static_cast<EphemeralVBucket*>(vb.get());
+    ASSERT_TRUE(ephVb);
+    auto itr = ephVb->makeRangeIterator(true /*backfill*/);
+    EXPECT_EQ(1, itr->getHighCompletedSeqno());
+}
+
+TEST_P(DurabilityPassiveStreamEphemeralTest,
+       PrepareMutationInDiskSnapshotCorrectCommittedState) {
+    testPrepareCommitedInDiskSnapshotCorrectState();
+}
+
+TEST_P(DurabilityPassiveStreamEphemeralTest,
+       PrepareDeletionInDiskSnapshotCorrectCommittedState) {
+    testPrepareCommitedInDiskSnapshotCorrectState(DeleteSource::Explicit);
+}
+
+void DurabilityPassiveStreamEphemeralTest::
+        testAbortCommitedInDiskSnapshotCorrectState(
+                std::optional<DeleteSource> deleted) {
+    testLogicalCommitCorrectTypeSetup();
+
+    auto key = makeStoredDocKey("key");
+    uint64_t cas = 0;
+    uint64_t seqno = 2;
+    stream->messageReceived(std::make_unique<AbortSyncWrite>(
+            0 /*opaque*/, vbid, key, 1, seqno++));
+    makeAndReceiveCommittedItem(key, cas, seqno, deleted);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    auto* ephVb = static_cast<EphemeralVBucket*>(vb.get());
+    ASSERT_TRUE(ephVb);
+    auto itr = ephVb->makeRangeIterator(true /*backfill*/);
+    EXPECT_EQ(1, itr->getHighCompletedSeqno());
+}
+
+TEST_P(DurabilityPassiveStreamEphemeralTest,
+       AbortMutationInDiskSnapshotCorrectCommittedState) {
+    testAbortCommitedInDiskSnapshotCorrectState();
+}
+
+TEST_P(DurabilityPassiveStreamEphemeralTest,
+       AbortDeletionInDiskSnapshotCorrectCommittedState) {
+    testAbortCommitedInDiskSnapshotCorrectState(DeleteSource::Explicit);
+}
+
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
                          DurabilityActiveStreamTest,
                          STParameterizedBucketTest::allConfigValues(),
@@ -5482,6 +5561,11 @@ INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
                          DurabilityPromotionStreamTest,
                          STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(Ephemeral,
+                         DurabilityPassiveStreamEphemeralTest,
+                         STParameterizedBucketTest::ephConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_SUITE_P(

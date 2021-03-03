@@ -55,3 +55,7 @@ uint64_t SequenceList::RangeIterator::count() const {
 uint64_t SequenceList::RangeIterator::getMaxVisibleSeqno() const {
     return rangeIterImpl->getMaxVisibleSeqno();
 }
+
+uint64_t SequenceList::RangeIterator::getHighCompletedSeqno() const {
+    return rangeIterImpl->getHighCompletedSeqno();
+}

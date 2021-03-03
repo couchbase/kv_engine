@@ -135,6 +135,12 @@ protected:
             uint64_t snapshotMarkerFlags = MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
             std::optional<uint64_t> hcs = 0);
 
+    queued_item makeAndReceiveCommittedItem(
+            const StoredDocKey& key,
+            uint64_t cas,
+            uint64_t seqno,
+            std::optional<DeleteSource> deleted = {});
+
     /*
      * Simulates a Replica receiving a DCP_PREPARE and checks that it is
      * queued correctly for persistence.
@@ -274,6 +280,16 @@ protected:
      * Read the highCompletedSeqno from disk.
      */
     uint64_t getPersistedHCS();
+};
+
+class DurabilityPassiveStreamEphemeralTest
+    : public DurabilityPassiveStreamTest {
+protected:
+    void testLogicalCommitCorrectTypeSetup();
+    void testPrepareCommitedInDiskSnapshotCorrectState(
+            std::optional<DeleteSource> = {});
+    void testAbortCommitedInDiskSnapshotCorrectState(
+            std::optional<DeleteSource> = {});
 };
 
 /**

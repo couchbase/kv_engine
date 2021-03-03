@@ -463,6 +463,11 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
 
         seqList->maybeUpdateMaxVisibleSeqno(lh, listWriteLg, osv);
 
+        if (queueItmCtx.hcs) {
+            seqList->updateHighCompletedSeqno(
+                    lh, listWriteLg, *queueItmCtx.hcs);
+        }
+
         if (res == SequenceList::UpdateStatus::Append) {
             /* Mark the un-updated storedValue as stale. This must be done after
                the new storedvalue for the item is visible for range read in the
@@ -529,6 +534,11 @@ std::pair<StoredValue*, VBNotifyCtx> EphemeralVBucket::addNewStoredValue(
         seqList->updateHighSeqno(listWriteLg, *osv);
 
         seqList->maybeUpdateMaxVisibleSeqno(lh, listWriteLg, *osv);
+
+        if (queueItmCtx.hcs) {
+            seqList->updateHighCompletedSeqno(
+                    lh, listWriteLg, *queueItmCtx.hcs);
+        }
     }
     if (itm.isCommitted()) {
         if (!itm.isDeleted()) {
@@ -776,8 +786,11 @@ VBNotifyCtx EphemeralVBucket::abortStoredValue(
         /* Update the high seqno in the sequential storage */
         auto& osv = *(newSv->toOrderedStoredValue());
 
-        updateSeqListPostAbort(
-                listWriteLg, oldSv ? oldSv->toOrderedStoredValue() : nullptr, osv, prepareSeqno);
+        updateSeqListPostAbort(lh,
+                               listWriteLg,
+                               oldSv ? oldSv->toOrderedStoredValue() : nullptr,
+                               osv,
+                               prepareSeqno);
 
         // If we did an append we still need to mark the un-updated StoredValue
         // as stale.
@@ -815,13 +828,14 @@ VBNotifyCtx EphemeralVBucket::addNewAbort(const HashTable::HashBucketLock& hbl,
 
         notifyCtx = queueAbortForUnseenPrepare(item, queueItmCtx);
 
-        updateSeqListPostAbort(listWriteLg, nullptr, osv, prepareSeqno);
+        updateSeqListPostAbort(lh, listWriteLg, nullptr, osv, prepareSeqno);
     }
 
     return notifyCtx;
 }
 
 void EphemeralVBucket::updateSeqListPostAbort(
+        std::lock_guard<std::mutex>& lh,
         std::lock_guard<std::mutex>& listWriteLg,
         const OrderedStoredValue* oldOsv,
         OrderedStoredValue& newOsv,
@@ -835,6 +849,8 @@ void EphemeralVBucket::updateSeqListPostAbort(
     // Manually set the prepareSeqno on the OSV so that it is stored in the
     // seqList
     newOsv.setPrepareSeqno(prepareSeqno);
+
+    seqList->updateHighCompletedSeqno(lh, listWriteLg, prepareSeqno);
 }
 
 void EphemeralVBucket::bgFetch(const DocKey& key,
@@ -1066,6 +1082,16 @@ bool EphemeralVBucket::isValidDurabilityLevel(cb::durability::Level level) {
 void EphemeralVBucket::processImplicitlyCompletedPrepare(
         HashTable::StoredValueProxy& v) {
     v.setCommitted(CommittedState::PrepareCommitted);
+
+    std::lock_guard<std::mutex> lh(sequenceLock);
+    std::lock_guard<std::mutex> listWriteLg(seqList->getListWriteLock());
+
+    // Backfills snapshot may be out of order so only update the HCS if new
+    // one is higher
+    auto currentSeqno = seqList->getHighCompletedSeqno(listWriteLg);
+    if (v->getBySeqno() > static_cast<int64_t>(currentSeqno)) {
+        seqList->updateHighCompletedSeqno(lh, listWriteLg, v->getBySeqno());
+    }
 }
 
 void EphemeralVBucket::doCollectionsStats(

@@ -119,6 +119,8 @@ protected:
         virtual uint64_t count() const = 0;
 
         virtual uint64_t getMaxVisibleSeqno() const = 0;
+
+        virtual uint64_t getHighCompletedSeqno() const = 0;
     };
 
 public:
@@ -213,6 +215,8 @@ public:
 
         uint64_t getMaxVisibleSeqno() const;
 
+        uint64_t getHighCompletedSeqno() const;
+
     private:
         /* Pointer to the abstract class of range iterator implementation */
         std::unique_ptr<RangeIteratorImpl> rangeIterImpl;
@@ -286,6 +290,24 @@ public:
             std::lock_guard<std::mutex>& seqLock,
             std::lock_guard<std::mutex>& writeLock,
             const OrderedStoredValue& newSV) = 0;
+
+    /**
+     * Updates the highCompletedSeqno to the seqno given.
+     *
+     * Note: In general we must hold the seqLock when we update seqnos in
+     * the sequenceList, so this function requires it.
+     * That is because different threads may interleave the execution of
+     * CM::queueDirty() and updateSeqno() otherwise, which could lead to
+     * breaking seqno monotonicity in seqList (and throwing).
+     *
+     * @param seqLock The sequence lock the caller is expected to hold
+     * @param writeLock Write lock of the sequenceList from getListWriteLock()
+     * @param hcs New HCS value
+     */
+    virtual void updateHighCompletedSeqno(
+            std::lock_guard<std::mutex>& seqLock,
+            std::lock_guard<std::mutex>& writeLock,
+            int64_t hcs) = 0;
 
     /**
      * Mark an OrderedStoredValue stale and assumes its ownership. Stores ptr to
@@ -382,6 +404,9 @@ public:
     virtual seqno_t getHighestPurgedDeletedSeqno() const = 0;
 
     virtual uint64_t getMaxVisibleSeqno() const = 0;
+    virtual uint64_t getHighCompletedSeqno() const = 0;
+    virtual uint64_t getHighCompletedSeqno(
+            std::lock_guard<std::mutex>&) const = 0;
 
     /**
      * Returns the current range lock begin and end sequence numbers,
