@@ -34,8 +34,6 @@
 #include <set>
 #include <unordered_map>
 
-#define GIGANTOR ((size_t)1<<(sizeof(size_t)*8-1))
-
 #define MIN_CHECKPOINT_ITEMS 10
 #define MAX_CHECKPOINT_ITEMS 50000
 #define DEFAULT_CHECKPOINT_ITEMS 500

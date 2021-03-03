@@ -18,7 +18,6 @@
 #include <algorithm>
 #include <limits>
 
-#include "atomic_unordered_map.h"
 #include "checkpoint.h"
 #include "checkpoint_config.h"
 #include "checkpoint_manager.h"
@@ -26,7 +25,6 @@
 #include "common.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "dcp/response.h"
-#include "dcp/stream.h"
 #include "hash_table_stat_visitor.h"
 #include "item.h"
 #include "kvstore_priv.h"
@@ -41,10 +39,20 @@
 #include "vbucket.h"
 #include "vbucketmap.h"
 #include <platform/histogram.h>
-#include <platform/timeutils.h>
+#include <spdlog/fmt/fmt.h>
 
-static void display(const char *name, size_t size) {
-    std::cout << name << "\t" << size << std::endl;
+template <typename T>
+static void display(const char* name, T size) {
+    fmt::print("{:<40} {:>12} {:>12}\n", name, size, "-");
+}
+
+template <typename T, typename U>
+static void display(const char* name, T size, U memFootprint) {
+    fmt::print("{:<40} {:>12} {:>12}\n", name, size, memFootprint);
+}
+
+static void ruler() {
+    fmt::print("{:-<40} {:->12} {:->12}\n", "", "", "");
 }
 
 template <typename T, template <class> class Traits>
@@ -69,83 +77,91 @@ static void display(const char* name, const Histogram<T, Traits>& histo) {
 int main(int, char **) {
     std::string s;
 
-    display("GIGANTOR", GIGANTOR);
-    display("StoredValue", sizeof(StoredValue));
-    display("StoredValue with 15 byte key",
-            StoredValue::getRequiredStorage(
-                    DocKey("1234567890abcde", DocKeyEncodesCollectionId::No)));
-    display("Ordered Stored Value", sizeof(OrderedStoredValue));
-    display("Blob", sizeof(Blob));
-    display("value_t", sizeof(value_t));
-    display("HashTable", sizeof(HashTable));
-    display("Item", sizeof(Item));
-    display("VBucket", sizeof(VBucket));
-    display("VBucketMap", sizeof(VBucketMap));
-    display("Stats", sizeof(EPStats));
-    display("CheckpointManager", sizeof(CheckpointManager));
-    display("Checkpoint\t", sizeof(Checkpoint));
-    display("CheckpointConfig", sizeof(CheckpointConfig));
-    display("Histogram<whatever>", Histogram<size_t>().getMemFootPrint());
-    display("HistogramBin<size_t>", sizeof(HistogramBin<size_t>));
-    display("HistogramBin<int>", sizeof(HistogramBin<int>));
-    display("HistogramBin<microseconds>",
-            sizeof(MicrosecondHistogram::bin_type));
-    display("MicrosecondHistogram", MicrosecondHistogram().getMemFootPrint());
     EPStats stats;
     const size_t size = GlobalTask::allTaskIds.size();
     stats.schedulingHisto.resize(size);
     stats.taskRuntimeHisto.resize(size);
-    display("EPStats", stats.getMemFootPrint());
-    display("FileStats", FileStats().getMemFootPrint());
-    display("KVStoreStats", KVStoreStats().getMemFootPrint());
-    display("Histogram<size_t>{ExponentialGenerator<size_t>(1, 2), 50}",
-            Histogram<size_t>{ExponentialGenerator<size_t>(1, 2), 50}
-                    .getMemFootPrint());
+
+    display("Type", "Sizeof (B)", "Mem Footprint (B)");
+    ruler();
+
+    display("Blob", sizeof(Blob));
+    display("CheckpointManager", sizeof(CheckpointManager));
+    display("Checkpoint", sizeof(Checkpoint));
+    display("CheckpointConfig", sizeof(CheckpointConfig));
+    display("Collections::VB::ManifestEntry",
+            sizeof(Collections::VB::ManifestEntry));
+    display("CouchRequest", sizeof(CouchRequest));
+    display("DcpResponse", sizeof(DcpResponse));
+    display("EPStats", sizeof(EPStats), stats.getMemFootPrint());
+    display("FileStats", sizeof(FileStats), FileStats().getMemFootPrint());
+    display("Item", sizeof(Item));
+    display("HashTable", sizeof(HashTable));
     display("HdrHistogram frequency histo",
+            sizeof(stats.activeOrPendingFrequencyValuesEvictedHisto),
             stats.activeOrPendingFrequencyValuesEvictedHisto.getMemFootPrint());
     display("Hdr1sfMicroSecHistogram",
+            sizeof(Hdr1sfMicroSecHistogram),
             Hdr1sfMicroSecHistogram().getMemFootPrint());
+    display("Hdr1sfInt32Histogram",
+            "-",
+            Hdr1sfInt32Histogram().getMemFootPrint());
     display("Hdr2sfMicroSecHistogram",
+            "-",
             Hdr2sfMicroSecHistogram().getMemFootPrint());
-
-    display("HdrUint8Histogram", HdrUint8Histogram().getMemFootPrint());
-    display("Hdr1sfInt32Histogram", Hdr1sfInt32Histogram().getMemFootPrint());
-
-    display("HdrHistogram(1, std::numeric_limits<int32_t>::max(), 2)",
+    display("HdrHistogram(1, <int32_t>::max(), 2)",
+            "-",
             HdrHistogram(1, std::numeric_limits<int32_t>::max() - 1, 2)
                     .getMemFootPrint());
-    display("HdrHistogram(1, std::numeric_limits<int32_t>::max(), 1)",
+    display("HdrHistogram(1, <int32_t>::max(), 1)",
+            "-",
             HdrHistogram(1, std::numeric_limits<int32_t>::max() - 1, 1)
                     .getMemFootPrint());
-    display("HdrHistogram(1, std::numeric_limits<int64_t>::max(), 2)",
+    display("HdrHistogram(1, <int64_t>::max(), 2)",
+            "-",
             HdrHistogram(1, std::numeric_limits<int64_t>::max() - 1, 2)
                     .getMemFootPrint());
-    display("HdrHistogram(1, std::numeric_limits<int64_t>::max(), 1)",
+    display("HdrHistogram(1, <int64_t>::max(), 1)",
+            "-",
             HdrHistogram(1, std::numeric_limits<int64_t>::max() - 1, 1)
                     .getMemFootPrint());
-
+    display("HdrUint8Histogram", "-", HdrUint8Histogram().getMemFootPrint());
+    display("Histogram<whatever>", "-", Histogram<size_t>().getMemFootPrint());
+    display("HistogramBin<size_t>", sizeof(HistogramBin<size_t>));
+    display("HistogramBin<int>", sizeof(HistogramBin<int>));
+    display("HistogramBin<microseconds>",
+            sizeof(MicrosecondHistogram::bin_type));
     display("IORequest", sizeof(IORequest));
-    display("CouchRequest", sizeof(CouchRequest));
+    display("KVStoreStats", "-", KVStoreStats().getMemFootPrint());
 #ifdef EP_USE_MAGMA
     display("MagmaRequest", sizeof(MagmaRequest));
     display("magmakv::MetaData", sizeof(magmakv::MetaData));
 #endif
+    display("MicrosecondHistogram",
+            "-",
+            MicrosecondHistogram().getMemFootPrint());
+    display("MutationResponse", sizeof(MutationResponse));
+    display("OrderedStoredValue (with 1 byte key)",
+            sizeof(OrderedStoredValue),
+            OrderedStoredValue::getRequiredStorage(
+                    DocKey("1", DocKeyEncodesCollectionId::No)));
+    display("OrderedStoredValue (with 15 byte key)",
+            sizeof(OrderedStoredValue),
+            OrderedStoredValue::getRequiredStorage(
+                    DocKey("1234567890abcde", DocKeyEncodesCollectionId::No)));
     display("PersistenceCallback", sizeof(PersistenceCallback));
-    display("AtomicUnorderedMap<uint32_t, SingleThreadedRCPtr<Stream>>",
-            sizeof(AtomicUnorderedMap<uint32_t, SingleThreadedRCPtr<Stream>>));
     display("ProbabilisticCounter<uint8_t>",
             sizeof(ProbabilisticCounter<uint8_t>));
-    display("DcpResponse", sizeof(DcpResponse));
-    display("MutationResponse", sizeof(MutationResponse));
     display("queued_item", sizeof(queued_item));
-    display("Collections::VB::ManifestEntry",
-            sizeof(Collections::VB::ManifestEntry));
-
-    std::cout << std::endl << "Histogram Ranges" << std::endl << std::endl;
-
-    HashTableDepthStatVisitor dv;
-    display("Default Histo", stats.diskInsertHisto.getMemFootPrint());
-    display("Commit Histo", stats.diskCommitHisto.getMemFootPrint());
-    display("Hash table depth histo", dv.depthHisto.getMemFootPrint());
-    return 0;
+    display("StoredValue (with 1 byte key)",
+            sizeof(StoredValue),
+            StoredValue::getRequiredStorage(
+                    DocKey("1", DocKeyEncodesCollectionId::No)));
+    display("StoredValue (with 15 byte key)",
+            sizeof(StoredValue),
+            StoredValue::getRequiredStorage(
+                    DocKey("1234567890abcde", DocKeyEncodesCollectionId::No)));
+    display("VBucket", sizeof(VBucket));
+    display("VBucketMap", sizeof(VBucketMap));
+    display("value_t", sizeof(value_t));
 }
