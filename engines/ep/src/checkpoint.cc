@@ -556,7 +556,7 @@ int64_t Checkpoint::getMutationId(const CheckpointCursor& cursor) const {
                 metaKeyIndex.find(makeIndexKey(*cursor.currentPos));
         if (cursor_item_idx == metaKeyIndex.end()) {
             throw std::logic_error(
-                    "Checkpoint::queueDirty: Unable "
+                    "Checkpoint::getMutationId: Unable "
                     "to find key in metaKeyIndex with op:" +
                     to_string((*cursor.currentPos)->getOperation()) +
                     " seqno:" +
@@ -571,7 +571,7 @@ int64_t Checkpoint::getMutationId(const CheckpointCursor& cursor) const {
     auto cursor_item_idx = keyIndex.find(makeIndexKey(*cursor.currentPos));
     if (cursor_item_idx == keyIndex.end()) {
         throw std::logic_error(
-                "Checkpoint::queueDirty: Unable "
+                "Checkpoint::getMutationId: Unable "
                 "to find key in keyIndex with op:" +
                 to_string((*cursor.currentPos)->getOperation()) +
                 " seqno:" + std::to_string((*cursor.currentPos)->getBySeqno()) +
