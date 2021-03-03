@@ -113,11 +113,21 @@ protected:
             const std::optional<uint64_t>& hcs = 0);
 
     /**
+     * Creates a DCP_PREPARE message and processes it on the DCP stream.
+     * Returns the SyncWrite prepare item.
+     */
+    queued_item makeAndReceiveDcpPrepare(
+            const StoredDocKey& key,
+            uint64_t cas,
+            uint64_t seqno,
+            cb::durability::Level level = cb::durability::Level::Majority);
+
+    /**
      * Creates a DCP_PREPARE message (with a preceeding SNAPSHOT_MARKER), and
      * processes it on the DCP stream.
      * Returns the SyncWrite prepare item.
      */
-    queued_item makeAndReceiveDcpPrepare(
+    queued_item makeAndReceiveSnapMarkerAndDcpPrepare(
             const StoredDocKey& key,
             uint64_t cas,
             uint64_t seqno,
