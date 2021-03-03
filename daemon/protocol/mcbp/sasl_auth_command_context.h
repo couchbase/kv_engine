@@ -18,8 +18,11 @@
 
 #include "steppable_command_context.h"
 
+#include <cbsasl/error.h>
 #include <daemon/cookie.h>
 #include <daemon/task.h>
+
+class SaslAuthTask;
 
 /**
  * SaslAuthCommandContext is responsible for handling the
@@ -30,40 +33,31 @@
  */
 class SaslAuthCommandContext : public SteppableCommandContext {
 public:
-
     // The authentication phase starts off in the Initial state where
     // we create a task and pass off to our executor before we wait
-    // for it to complete. Once it completes we'll parse the auth
-    // result in ParseAuthTaskResult and flip into each of the
-    // different states in order to handle the result from cbsasl
-    // and send the appropriate response back to the client
-    enum class State {
-        Initial,
-        ParseAuthTaskResult,
-        AuthOk,
-        AuthContinue,
-        AuthBadParameters,
-        AuthFailure,
-        Done };
+    // for it to complete. Once it completes we'll handle the
+    // result in handleSaslAuthTaskResult, which also send the
+    // response back to the client before we enter the "Done"
+    // state which just returns and terminates the state
+    // machinery.
+    enum class State { Initial, HandleSaslAuthTaskResult, Done };
 
-    explicit SaslAuthCommandContext(Cookie& cookie)
-        : SteppableCommandContext(cookie),
-          request(cookie.getRequest()),
-          state(State::Initial) {
-    }
+    explicit SaslAuthCommandContext(Cookie& cookie);
 
 protected:
     cb::engine_errc step() override;
 
     cb::engine_errc initial();
-    cb::engine_errc parseAuthTaskResult();
-    cb::engine_errc authOk();
+    cb::engine_errc handleSaslAuthTaskResult();
+    cb::engine_errc doHandleSaslAuthTaskResult(SaslAuthTask* auth_task);
+    cb::engine_errc tryHandleSaslOk();
     cb::engine_errc authContinue();
     cb::engine_errc authBadParameters();
     cb::engine_errc authFailure();
 
 private:
     const cb::mcbp::Request& request;
+    const std::string mechanism;
     State state;
     std::shared_ptr<Task> task;
 };

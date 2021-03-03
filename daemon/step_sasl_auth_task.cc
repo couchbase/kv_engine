@@ -21,11 +21,12 @@
 
 #include <logger/logger.h>
 
-StepSaslAuthTask::StepSaslAuthTask(Cookie& cookie_,
-                                   Connection& connection_,
-                                   const std::string& mechanism_,
-                                   const std::string& challenge_)
-    : SaslAuthTask(cookie_, connection_, mechanism_, challenge_) {
+StepSaslAuthTask::StepSaslAuthTask(
+        Cookie& cookie_,
+        cb::sasl::server::ServerContext& serverContext_,
+        const std::string& mechanism_,
+        const std::string& challenge_)
+    : SaslAuthTask(cookie_, serverContext_, mechanism_, challenge_) {
     // No extra initialization needed
 }
 
@@ -34,7 +35,7 @@ Task::Status StepSaslAuthTask::execute() {
         response = serverContext.step(challenge);
     } catch (const std::bad_alloc&) {
         LOG_WARNING("{}: StepSaslAuthTask::execute(): std::bad_alloc",
-                    connection.getId());
+                    cookie.getConnection().getId());
         response.first = cb::sasl::Error::NO_MEM;
     } catch (const std::exception& exception) {
         // If we generated an error as part of SASL, we should
@@ -45,7 +46,7 @@ Task::Status StepSaslAuthTask::execute() {
         LOG_WARNING(
                 "{}: StepSaslAuthTask::execute(): UUID:[{}] An exception "
                 "occurred: {}",
-                connection.getId(),
+                cookie.getConnection().getId(),
                 cookie.getEventId(),
                 exception.what());
         cookie.setErrorContext("An exception occurred");

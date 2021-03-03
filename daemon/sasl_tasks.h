@@ -38,7 +38,7 @@ public:
     SaslAuthTask(const SaslAuthTask&) = delete;
 
     SaslAuthTask(Cookie& cookie_,
-                 Connection& connection_,
+                 cb::sasl::server::ServerContext& serverContext_,
                  std::string mechanism_,
                  std::string challenge_);
 
@@ -66,7 +66,6 @@ public:
 
 protected:
     Cookie& cookie;
-    Connection& connection;
     cb::sasl::server::ServerContext& serverContext;
     std::string mechanism;
     std::string challenge;

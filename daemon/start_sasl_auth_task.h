@@ -32,7 +32,7 @@ public:
     StartSaslAuthTask(const StartSaslAuthTask&) = delete;
 
     StartSaslAuthTask(Cookie& cookie_,
-                      Connection& connection_,
+                      cb::sasl::server::ServerContext& serverContext_,
                       const std::string& mechanism_,
                       const std::string& challenge_);
 

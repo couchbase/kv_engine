@@ -17,6 +17,7 @@
 
 #include "sasl_auth_command_context.h"
 
+#include <daemon/buckets.h>
 #include <daemon/connection.h>
 #include <daemon/executorpool.h>
 #include <daemon/mcaudit.h>
@@ -26,20 +27,30 @@
 #include <daemon/stats.h>
 #include <daemon/step_sasl_auth_task.h>
 #include <logger/logger.h>
+#include <utilities/logtags.h>
+
+std::string getMechanism(cb::const_byte_buffer k) {
+    std::string mechanism;
+    const auto key =
+            std::string_view{reinterpret_cast<const char*>(k.data()), k.size()};
+    // Uppercase the requested mechanism so that we don't have to remember
+    // to do case insensitive comparisons all over the code
+    std::transform(
+            key.begin(), key.end(), std::back_inserter(mechanism), toupper);
+    return mechanism;
+}
+
+SaslAuthCommandContext::SaslAuthCommandContext(Cookie& cookie)
+    : SteppableCommandContext(cookie),
+      request(cookie.getRequest()),
+      mechanism(getMechanism(request.getKey())),
+      state(State::Initial) {
+}
 
 cb::engine_errc SaslAuthCommandContext::initial() {
     if (!connection.isSaslAuthEnabled()) {
         return cb::engine_errc::not_supported;
     }
-
-    // Uppercase the requested mechanism so that we don't have to remember
-    // to do case insensitive comparisons all over the code
-    auto k = request.getKey();
-    const auto key =
-            std::string_view{reinterpret_cast<const char*>(k.data()), k.size()};
-    std::string mechanism;
-    std::transform(
-            key.begin(), key.end(), std::back_inserter(mechanism), toupper);
 
     auto v = request.getValue();
     std::string challenge(reinterpret_cast<const char*>(v.data()), v.size());
@@ -59,7 +70,10 @@ cb::engine_errc SaslAuthCommandContext::initial() {
         connection.createSaslServerContext();
         connection.restartAuthentication();
         task = std::make_shared<StartSaslAuthTask>(
-                cookie, connection, mechanism, challenge);
+                cookie,
+                *connection.getSaslServerContext(),
+                mechanism,
+                challenge);
     } else if (request.getClientOpcode() == cb::mcbp::ClientOpcode::SaslStep) {
         if (!connection.getSaslServerContext()) {
             cookie.setErrorContext(
@@ -67,7 +81,10 @@ cb::engine_errc SaslAuthCommandContext::initial() {
             return cb::engine_errc::invalid_arguments;
         }
         task = std::make_shared<StepSaslAuthTask>(
-                cookie, connection, mechanism, challenge);
+                cookie,
+                *connection.getSaslServerContext(),
+                mechanism,
+                challenge);
     } else {
         throw std::logic_error(
             "SaslAuthCommandContext() used with illegal opcode");
@@ -76,73 +93,65 @@ cb::engine_errc SaslAuthCommandContext::initial() {
     std::lock_guard<std::mutex> guard(task->getMutex());
     executorPool->schedule(task, true);
 
-    state = State::ParseAuthTaskResult;
+    state = State::HandleSaslAuthTaskResult;
     return cb::engine_errc::would_block;
 }
 
-cb::engine_errc SaslAuthCommandContext::parseAuthTaskResult() {
+cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk() {
+    auto& serverContext = *connection.getSaslServerContext();
     auto auth_task = reinterpret_cast<SaslAuthTask*>(task.get());
+    std::pair<cb::rbac::PrivilegeContext, bool> context{
+            cb::rbac::PrivilegeContext{cb::sasl::Domain::Local}, false};
 
-    switch (auth_task->getError()) {
-    case cb::sasl::Error::OK:
-        state = State::AuthOk;
-        return cb::engine_errc::success;
-
-    case cb::sasl::Error::CONTINUE:
-        state = State::AuthContinue;
-        return cb::engine_errc::success;
-
-    case cb::sasl::Error::BAD_PARAM:
-        state = State::AuthBadParameters;
-        return cb::engine_errc::success;
-
-    case cb::sasl::Error::FAIL:
-    case cb::sasl::Error::NO_MEM:
-    case cb::sasl::Error::NO_MECH:
-    case cb::sasl::Error::NO_USER:
-    case cb::sasl::Error::PASSWORD_ERROR:
-    case cb::sasl::Error::NO_RBAC_PROFILE:
-    case cb::sasl::Error::AUTH_PROVIDER_DIED:
-        state = State::AuthFailure;
+    // Authentication successful, but it still has to be defined in
+    // our system
+    try {
+        context = cb::rbac::createInitialContext(serverContext.getUser());
+    } catch (const cb::rbac::NoSuchUserException&) {
+        LOG_WARNING(
+                "{}: User [{}] is not defined as a user in Couchbase. "
+                "Mechanism:[{}], UUID:[{}]",
+                connection.getId(),
+                cb::UserDataView(serverContext.getUser().name),
+                mechanism,
+                cookie.getEventId());
+        authFailure();
         return cb::engine_errc::success;
     }
-    throw std::logic_error(
-            "SaslAuthCommandContext::parseAuthTaskResult: Unknown sasl error");
-}
 
-cb::engine_errc SaslAuthCommandContext::step() {
-    auto ret = cb::engine_errc::success;
-    do {
-        switch (state) {
-        case State::Initial:
-            ret = initial();
-            break;
-        case State::ParseAuthTaskResult:
-            ret = parseAuthTaskResult();
-            break;
-        case State::AuthOk:
-            ret = authOk();
-            break;
-        case State::AuthContinue:
-            ret = authContinue();
-            break;
-        case State::AuthBadParameters:
-            ret = authBadParameters();
-            break;
-        case State::AuthFailure:
-            ret = authFailure();
-            break;
+    // Success
+    connection.setAuthenticated(true, context.second, serverContext.getUser());
+    audit_auth_success(connection);
+    LOG_INFO("{}: Client {} authenticated as {}",
+             connection.getId(),
+             connection.getPeername(),
+             cb::UserDataView(connection.getUser().name));
 
-        case State::Done:
-            return cb::engine_errc::success;
+    /* associate the connection with the appropriate bucket */
+    {
+        std::string username = connection.getUser().name;
+        auto idx = username.find(";legacy");
+        if (idx != username.npos) {
+            username.resize(idx);
         }
-    } while (ret == cb::engine_errc::success);
 
-    return ret;
-}
+        if (cb::rbac::mayAccessBucket(connection.getUser(), username)) {
+            associate_bucket(connection, username.c_str());
+            // Auth succeeded but the connection may not be valid for the
+            // bucket
+            if (connection.isCollectionsSupported() &&
+                !connection.getBucket().supports(
+                        cb::engine::Feature::Collections)) {
+                // Move back to the "no bucket" as this is not valid
+                associate_bucket(connection, "");
+            }
+        } else {
+            // the user don't have access to that bucket, move the
+            // connection to the "no bucket"
+            associate_bucket(connection, "");
+        }
+    }
 
-cb::engine_errc SaslAuthCommandContext::authOk() {
-    auto auth_task = reinterpret_cast<SaslAuthTask*>(task.get());
     auto payload = auth_task->getResponse();
     cookie.sendResponse(cb::mcbp::Status::Success,
                         {},
@@ -152,8 +161,112 @@ cb::engine_errc SaslAuthCommandContext::authOk() {
                         0);
     get_thread_stats(&connection)->auth_cmds++;
     state = State::Done;
-    connection.releaseSaslServerContext();
     return cb::engine_errc::success;
+}
+
+cb::engine_errc SaslAuthCommandContext::doHandleSaslAuthTaskResult(
+        SaslAuthTask* auth_task) {
+    auto& serverContext = *connection.getSaslServerContext();
+
+    // If CBSASL generated a UUID, we should continue to use that UUID
+    if (serverContext.containsUuid()) {
+        cookie.setEventId(serverContext.getUuid());
+    }
+
+    // Perform the appropriate logging for each error code
+    switch (auth_task->getError()) {
+    case cb::sasl::Error::OK:
+        return tryHandleSaslOk();
+
+    case cb::sasl::Error::CONTINUE:
+        LOG_DEBUG("{}: SASL CONTINUE", connection.getId());
+        return authContinue();
+
+    case cb::sasl::Error::BAD_PARAM:
+        return authBadParameters();
+
+    case cb::sasl::Error::FAIL:
+    case cb::sasl::Error::NO_MEM:
+        return authFailure();
+
+    case cb::sasl::Error::NO_MECH:
+        cookie.setErrorContext("Requested mechanism \"" + mechanism +
+                               "\" is not supported");
+        return authFailure();
+
+    case cb::sasl::Error::NO_USER:
+        LOG_WARNING("{}: User [{}] not found. Mechanism:[{}], UUID:[{}]",
+                    connection.getId(),
+                    cb::UserDataView(connection.getUser().name),
+                    mechanism,
+                    cookie.getEventId());
+        audit_auth_failure(connection, serverContext.getUser(), "Unknown user");
+        return authFailure();
+
+    case cb::sasl::Error::PASSWORD_ERROR:
+        LOG_WARNING(
+                "{}: Invalid password specified for [{}]. Mechanism:[{}], "
+                "UUID:[{}]",
+                connection.getId(),
+                cb::UserDataView(connection.getUser().name),
+                mechanism,
+                cookie.getEventId());
+        audit_auth_failure(
+                connection, serverContext.getUser(), "Incorrect password");
+
+        return authFailure();
+
+    case cb::sasl::Error::NO_RBAC_PROFILE:
+        LOG_WARNING(
+                "{}: User [{}] is not defined as a user in Couchbase. "
+                "Mechanism:[{}], UUID:[{}]",
+                connection.getId(),
+                cb::UserDataView(connection.getUser().name),
+                mechanism,
+                cookie.getEventId());
+        return authFailure();
+
+    case cb::sasl::Error::AUTH_PROVIDER_DIED:
+        LOG_WARNING("{}: Auth provider closed the connection. UUID:[{}]",
+                    connection.getId(),
+                    cookie.getEventId());
+        return authFailure();
+    }
+
+    throw std::logic_error(
+            "SaslAuthCommandContext::handleSaslAuthTaskResult: Unknown sasl "
+            "error");
+}
+
+cb::engine_errc SaslAuthCommandContext::handleSaslAuthTaskResult() {
+    auto auth_task = reinterpret_cast<SaslAuthTask*>(task.get());
+    auto error = auth_task->getError();
+    auto ret = doHandleSaslAuthTaskResult(auth_task);
+    if (error != cb::sasl::Error::CONTINUE) {
+        // we should _ONLY_ preserve the sasl server context if the underlying
+        // sasl backend returns CONTINUE
+        connection.releaseSaslServerContext();
+    }
+    return ret;
+}
+
+cb::engine_errc SaslAuthCommandContext::step() {
+    auto ret = cb::engine_errc::success;
+    do {
+        switch (state) {
+        case State::Initial:
+            ret = initial();
+            break;
+        case State::HandleSaslAuthTaskResult:
+            ret = handleSaslAuthTaskResult();
+            break;
+        case State::Done:
+            // All done and we've sent a response to the client
+            return cb::engine_errc::success;
+        }
+    } while (ret == cb::engine_errc::success);
+
+    return ret;
 }
 
 cb::engine_errc SaslAuthCommandContext::authContinue() {
@@ -179,17 +292,7 @@ cb::engine_errc SaslAuthCommandContext::authBadParameters() {
 
 cb::engine_errc SaslAuthCommandContext::authFailure() {
     state = State::Done;
-
     auto auth_task = reinterpret_cast<SaslAuthTask*>(task.get());
-    if (auth_task->getError() == cb::sasl::Error::NO_USER ||
-        auth_task->getError() == cb::sasl::Error::PASSWORD_ERROR) {
-        audit_auth_failure(connection,
-                           auth_task->getUser(),
-                           auth_task->getError() == cb::sasl::Error::NO_USER
-                                   ? "Unknown user"
-                                   : "Incorrect password");
-    }
-
     if (auth_task->getError() == cb::sasl::Error::AUTH_PROVIDER_DIED) {
         cookie.sendResponse(cb::mcbp::Status::Etmpfail);
     } else {

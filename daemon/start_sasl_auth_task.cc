@@ -25,11 +25,12 @@
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
 
-StartSaslAuthTask::StartSaslAuthTask(Cookie& cookie_,
-                                     Connection& connection_,
-                                     const std::string& mechanism_,
-                                     const std::string& challenge_)
-    : SaslAuthTask(cookie_, connection_, mechanism_, challenge_) {
+StartSaslAuthTask::StartSaslAuthTask(
+        Cookie& cookie_,
+        cb::sasl::server::ServerContext& serverContext_,
+        const std::string& mechanism_,
+        const std::string& challenge_)
+    : SaslAuthTask(cookie_, serverContext_, mechanism_, challenge_) {
     // No extra initialization needed
 }
 
@@ -42,11 +43,10 @@ Task::Status StartSaslAuthTask::execute() {
 }
 
 Task::Status StartSaslAuthTask::internal_auth() {
-    connection.restartAuthentication();
     auto& server = serverContext;
 
     try {
-        if (connection.isSslEnabled()) {
+        if (cookie.getConnection().isSslEnabled()) {
             response = server.start(mechanism,
                                     Settings::instance().getSslSaslMechanisms(),
                                     challenge);
@@ -59,7 +59,7 @@ Task::Status StartSaslAuthTask::internal_auth() {
         response.first = cb::sasl::Error::NO_MECH;
     } catch (const std::bad_alloc&) {
         LOG_WARNING("{}: StartSaslAuthTask::execute(): std::bad_alloc",
-                    connection.getId());
+                    cookie.getConnection().getId());
         response.first = cb::sasl::Error::NO_MEM;
     } catch (const std::exception& exception) {
         // If we generated an error as part of SASL, we should
@@ -70,7 +70,7 @@ Task::Status StartSaslAuthTask::internal_auth() {
         LOG_WARNING(
                 "{}: StartSaslAuthTask::execute(): UUID:[{}] An exception "
                 "occurred: {}",
-                connection.getId(),
+                cookie.getConnection().getId(),
                 cookie.getEventId(),
                 exception.what());
         cookie.setErrorContext("An exception occurred");
@@ -117,7 +117,7 @@ void StartSaslAuthTask::successfull_external_auth() {
         serverContext.setDomain(cb::sasl::Domain::External);
     } catch (const std::exception& e) {
         LOG_WARNING(R"({} successfull_external_auth() failed. UUID[{}] "{}")",
-                    connection.getId(),
+                    cookie.getConnection().getId(),
                     cookie.getEventId(),
                     e.what());
         response.first = cb::sasl::Error::FAIL;
@@ -154,7 +154,7 @@ void StartSaslAuthTask::unsuccessfull_external_auth(
         }
     } catch (const std::exception& e) {
         LOG_WARNING(R"({} successfull_external_auth() failed. UUID[{}] "{}")",
-                    connection.getId(),
+                    cookie.getConnection().getId(),
                     cookie.getEventId(),
                     e.what());
         response.first = cb::sasl::Error::FAIL;

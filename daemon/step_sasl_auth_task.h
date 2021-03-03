@@ -30,7 +30,7 @@ public:
     StepSaslAuthTask(const StepSaslAuthTask&) = delete;
 
     StepSaslAuthTask(Cookie& cookie_,
-                     Connection& connection_,
+                     cb::sasl::server::ServerContext& serverContext_,
                      const std::string& mechanism_,
                      const std::string& challenge_);
 
