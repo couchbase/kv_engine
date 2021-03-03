@@ -35,7 +35,7 @@ SaslAuthTask::SaslAuthTask(Cookie& cookie_,
                            std::string challenge_)
     : cookie(cookie_),
       connection(connection_),
-      serverContext(connection_.getSaslConn()),
+      serverContext(*connection_.getSaslServerContext()),
       mechanism(std::move(mechanism_)),
       challenge(std::move(challenge_)) {
     // no more init needed
@@ -57,7 +57,7 @@ void SaslAuthTask::notifyExecutionComplete() {
         // Authentication successful, but it still has to be defined in
         // our system
         try {
-            context = cb::rbac::createInitialContext(connection.getUser());
+            context = cb::rbac::createInitialContext(serverContext.getUser());
         } catch (const cb::rbac::NoSuchUserException&) {
             response.first = cb::sasl::Error::NO_RBAC_PROFILE;
         }
@@ -67,8 +67,8 @@ void SaslAuthTask::notifyExecutionComplete() {
     switch (response.first) {
     case cb::sasl::Error::OK:
         // Success
-        connection.setAuthenticated(true);
-        connection.setInternal(context.second);
+        connection.setAuthenticated(
+                true, context.second, serverContext.getUser());
         audit_auth_success(connection);
         LOG_INFO("{}: Client {} authenticated as {}",
                  connection.getId(),

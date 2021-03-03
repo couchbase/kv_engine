@@ -21,6 +21,7 @@
 #include <cbsasl/domain.h>
 #include <cbsasl/error.h>
 
+#include <memcached/rbac/privilege_database.h>
 #include <functional>
 #include <memory>
 #include <utility>
@@ -94,6 +95,10 @@ public:
         return domain;
     }
 
+    cb::rbac::UserIdent getUser() const {
+        return {username, domain};
+    }
+
 protected:
     ServerContext& context;
     std::string username;
@@ -104,6 +109,10 @@ class ServerContext : public Context {
 public:
     const std::string getName() const {
         return backend->getName();
+    }
+
+    cb::rbac::UserIdent getUser() const {
+        return backend->getUser();
     }
 
     const std::string& getUsername() const {

@@ -121,27 +121,14 @@ public:
         return internal;
     }
 
-    /**
-     * Specify if this connection is representing an internal user.
-     * An internal user is a user which is used by one of the components
-     * in Couchbase (like ns_server, indexer etc).
-     */
-    void setInternal(bool value) {
-        internal = value;
-    }
-
-    /**
-     * Update the username to reflect what the user used from the SASL
-     * authentication.
-     */
-    void resetUsernameCache();
-
-
     bool isAuthenticated() const {
         return authenticated;
     }
 
-    void setAuthenticated(bool authenticated);
+    void setAuthenticated(bool authenticated,
+                          bool internal = false,
+                          cb::rbac::UserIdent ui = {"unknown",
+                                                    cb::sasl::Domain::Local});
 
     ConnectionPriority getPriority() const {
         return priority.load();
@@ -166,10 +153,6 @@ public:
      */
     const cb::rbac::UserIdent& getUser() const {
         return user;
-    }
-
-    cb::sasl::server::ServerContext& getSaslConn() {
-        return sasl_conn;
     }
 
     /**
@@ -811,6 +794,21 @@ public:
                                    uint64_t seqno,
                                    cb::mcbp::DcpStreamId sid) override;
 
+    /// Create the SASL server context object to use for SASL authentication
+    void createSaslServerContext() {
+        saslServerContext = std::make_unique<cb::sasl::server::ServerContext>();
+    }
+
+    /// Get the a handle to the SASL server context
+    cb::sasl::server::ServerContext* getSaslServerContext() const {
+        return saslServerContext.get();
+    }
+
+    /// Release the allocate SASL server context.
+    void releaseSaslServerContext() {
+        saslServerContext.reset();
+    }
+
 protected:
     /**
      * Protected constructor so that it may only be used by MockSubclasses
@@ -902,10 +900,11 @@ protected:
      */
     cb::rbac::PrivilegeContext privilegeContext{cb::sasl::Domain::Local};
 
-    /**
-     * The SASL object used to do sasl authentication
-     */
-    cb::sasl::server::ServerContext sasl_conn;
+    /// The SASL object used to do sasl authentication. It should be created
+    /// as part of SASL START, and released UNLESS the underlying mechanism
+    /// returns CONTINUE (if it does it should be used for the next call
+    /// to STEP).
+    std::unique_ptr<cb::sasl::server::ServerContext> saslServerContext;
 
     /** Is this a system internal connection */
     bool internal{false};

@@ -94,7 +94,7 @@ Task::Status StartSaslAuthTask::external_auth() {
 }
 
 std::string StartSaslAuthTask::getUsername() const {
-    return connection.getSaslConn().getUsername();
+    return serverContext.getUsername();
 }
 
 void StartSaslAuthTask::externalResponse(cb::mcbp::Status status,

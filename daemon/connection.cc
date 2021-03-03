@@ -219,10 +219,9 @@ void Connection::restartAuthentication() {
     if (authenticated && user.domain == cb::sasl::Domain::External) {
         externalAuthManager->logoff(user.name);
     }
-    sasl_conn.reset();
-    setInternal(false);
+    internal = false;
     authenticated = false;
-    user = cb::rbac::UserIdent{"", cb::rbac::Domain::Local};
+    user = cb::rbac::UserIdent{"unknown", cb::rbac::Domain::Local};
 }
 
 cb::engine_errc Connection::dropPrivilege(cb::rbac::Privilege privilege) {
@@ -345,16 +344,6 @@ cb::engine_errc Connection::remapErrorCode(cb::engine_errc code) {
     setTerminationReason("XError not enabled on client");
 
     return cb::engine_errc::disconnect;
-}
-
-void Connection::resetUsernameCache() {
-    if (sasl_conn.isInitialized()) {
-        user = {sasl_conn.getUsername(), sasl_conn.getDomain()};
-    } else {
-        user = {"unknown", cb::sasl::Domain::Local};
-    }
-
-    updateDescription();
 }
 
 void Connection::updateDescription() {
@@ -946,6 +935,7 @@ void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
             switch (status) {
             case cb::x509::Status::NoMatch:
                 audit_auth_failure(instance,
+                                   {"unknown", cb::sasl::Domain::Local},
                                    "Failed to map a user from the client "
                                    "provided X.509 certificate");
                 instance.setTerminationReason(
@@ -961,6 +951,7 @@ void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
             case cb::x509::Status::Error:
                 audit_auth_failure(
                         instance,
+                        {"unknown", cb::sasl::Domain::Local},
                         "Failed to use client provided X.509 certificate");
                 instance.setTerminationReason(
                         "Failed to use client provided X.509 certificate");
@@ -980,7 +971,9 @@ void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
                     const char* reason =
                             "The server does not have any mapping rules "
                             "configured for certificate authentication";
-                    audit_auth_failure(instance, reason);
+                    audit_auth_failure(instance,
+                                       {"unknown", cb::sasl::Domain::Local},
+                                       reason);
                     instance.setTerminationReason(reason);
                     disconnect = true;
                     LOG_WARNING("{}: ssl_conn_init: disconnecting client: {}",
@@ -994,7 +987,9 @@ void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
                 if (!instance.tryAuthFromSslCert(name)) {
                     const std::string reason =
                             "User [" + name + "] not defined in Couchbase";
-                    audit_auth_failure(instance, reason.c_str());
+                    audit_auth_failure(instance,
+                                       {name, cb::sasl::Domain::Local},
+                                       reason.c_str());
                     instance.setTerminationReason(reason.c_str());
                     disconnect = true;
                 }
@@ -1034,25 +1029,27 @@ void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
     Connection::rw_callback(bev, ctx);
 }
 
-void Connection::setAuthenticated(bool authenticated_) {
-    Connection::authenticated = authenticated_;
+void Connection::setAuthenticated(bool authenticated_,
+                                  bool internal_,
+                                  cb::rbac::UserIdent ui) {
+    authenticated = authenticated_;
+    internal = internal_;
+    user = std::move(ui);
     if (authenticated_) {
         updateDescription();
         privilegeContext = cb::rbac::createContext(user, "");
     } else {
-        resetUsernameCache();
+        updateDescription();
         privilegeContext = cb::rbac::PrivilegeContext{user.domain};
     }
 }
 
 bool Connection::tryAuthFromSslCert(const std::string& userName) {
-    user.name.assign(userName);
-    user.domain = cb::sasl::Domain::Local;
-
     try {
-        auto context = cb::rbac::createInitialContext(user);
-        setAuthenticated(true);
-        setInternal(context.second);
+        auto context = cb::rbac::createInitialContext(
+                {userName, cb::sasl::Domain::Local});
+        setAuthenticated(
+                true, context.second, {userName, cb::sasl::Domain::Local});
         audit_auth_success(*this);
         LOG_INFO(
                 "{}: Client {} authenticated as '{}' via X509 "

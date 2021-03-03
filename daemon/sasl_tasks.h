@@ -59,6 +59,11 @@ public:
     const std::string& getChallenge() const {
         return challenge;
     }
+
+    cb::rbac::UserIdent getUser() const {
+        return serverContext.getUser();
+    }
+
 protected:
     Cookie& cookie;
     Connection& connection;

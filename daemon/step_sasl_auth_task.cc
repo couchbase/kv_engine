@@ -30,10 +30,8 @@ StepSaslAuthTask::StepSaslAuthTask(Cookie& cookie_,
 }
 
 Task::Status StepSaslAuthTask::execute() {
-    auto& server = connection.getSaslConn();
-
     try {
-        response = server.step(challenge);
+        response = serverContext.step(challenge);
     } catch (const std::bad_alloc&) {
         LOG_WARNING("{}: StepSaslAuthTask::execute(): std::bad_alloc",
                     connection.getId());
@@ -41,8 +39,8 @@ Task::Status StepSaslAuthTask::execute() {
     } catch (const std::exception& exception) {
         // If we generated an error as part of SASL, we should
         // return that back to the client
-        if (server.containsUuid()) {
-            cookie.setEventId(server.getUuid());
+        if (serverContext.containsUuid()) {
+            cookie.setEventId(serverContext.getUuid());
         }
         LOG_WARNING(
                 "{}: StepSaslAuthTask::execute(): UUID:[{}] An exception "

@@ -369,7 +369,7 @@ TEST_P(AuditTest, AuditX509FailedAuth) {
     }
 
     ASSERT_TRUE(searchAuditLogForID(MEMCACHED_AUDIT_AUTHENTICATION_FAILED,
-                                    "unknown"));
+                                    "ond Norbye"));
 }
 
 TEST_P(AuditTest, AuditSelectBucket) {

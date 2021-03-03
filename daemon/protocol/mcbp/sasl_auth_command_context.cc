@@ -50,9 +50,22 @@ cb::engine_errc SaslAuthCommandContext::initial() {
               v.size());
 
     if (request.getClientOpcode() == cb::mcbp::ClientOpcode::SaslAuth) {
+        if (connection.getSaslServerContext()) {
+            cookie.setErrorContext(
+                    R"(Logic error: The server expects SASL STEP after returning CONTINUE from SASL START)");
+            return cb::engine_errc::invalid_arguments;
+        }
+
+        connection.createSaslServerContext();
+        connection.restartAuthentication();
         task = std::make_shared<StartSaslAuthTask>(
                 cookie, connection, mechanism, challenge);
     } else if (request.getClientOpcode() == cb::mcbp::ClientOpcode::SaslStep) {
+        if (!connection.getSaslServerContext()) {
+            cookie.setErrorContext(
+                    R"(Logic error: The server expects the client to start with SASL_START before sending SASL STEP)");
+            return cb::engine_errc::invalid_arguments;
+        }
         task = std::make_shared<StepSaslAuthTask>(
                 cookie, connection, mechanism, challenge);
     } else {
@@ -139,6 +152,7 @@ cb::engine_errc SaslAuthCommandContext::authOk() {
                         0);
     get_thread_stats(&connection)->auth_cmds++;
     state = State::Done;
+    connection.releaseSaslServerContext();
     return cb::engine_errc::success;
 }
 
@@ -159,6 +173,7 @@ cb::engine_errc SaslAuthCommandContext::authBadParameters() {
     auto* ts = get_thread_stats(&connection);
     ts->auth_cmds++;
     ts->auth_errors++;
+    connection.releaseSaslServerContext();
     return cb::engine_errc::invalid_arguments;
 }
 
@@ -169,6 +184,7 @@ cb::engine_errc SaslAuthCommandContext::authFailure() {
     if (auth_task->getError() == cb::sasl::Error::NO_USER ||
         auth_task->getError() == cb::sasl::Error::PASSWORD_ERROR) {
         audit_auth_failure(connection,
+                           auth_task->getUser(),
                            auth_task->getError() == cb::sasl::Error::NO_USER
                                    ? "Unknown user"
                                    : "Incorrect password");
@@ -191,5 +207,6 @@ cb::engine_errc SaslAuthCommandContext::authFailure() {
     ts->auth_cmds++;
     ts->auth_errors++;
 
+    connection.releaseSaslServerContext();
     return cb::engine_errc::success;
 }

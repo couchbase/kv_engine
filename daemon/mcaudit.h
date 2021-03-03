@@ -30,9 +30,12 @@ class StatCollector;
  * Send an audit event for an authentication failure
  *
  * @param c the connection object performing the sasl auth
+ * @param ui the provided user ident used for bucket auth
  * @param reason the textual description of why auth failed
  */
-void audit_auth_failure(const Connection& c, const char* reason);
+void audit_auth_failure(const Connection& c,
+                        const cb::rbac::UserIdent& ui,
+                        const char* reason);
 
 /**
  * Send an audit event for a successful authentication
