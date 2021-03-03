@@ -50,11 +50,16 @@ public:
         return dropped.empty();
     }
 
+    /// @return the set of dropped collections
+    const std::unordered_set<CollectionID>& getDroppedCollections() const {
+        return dropped;
+    }
+
 protected:
     friend std::ostream& operator<<(std::ostream&, const ScanContext&);
 
     std::unordered_set<CollectionID> dropped;
-    uint64_t startSeqno = 0;
+    uint64_t startSeqno = std::numeric_limits<uint64_t>::max();
     uint64_t endSeqno = 0;
 };
 

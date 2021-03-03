@@ -724,6 +724,37 @@ TEST_P(CollectionRessurectionKVStoreTest, resurectionScopes) {
     resurectionScopesTest();
 }
 
+class TestScanContext : public Collections::VB::ScanContext {
+public:
+    TestScanContext(const std::vector<Collections::KVStore::DroppedCollection>&
+                            droppedCollections)
+        : ScanContext(droppedCollections) {
+    }
+
+    uint64_t getStartSeqno() const {
+        return startSeqno;
+    }
+
+    uint64_t getEndSeqno() const {
+        return endSeqno;
+    }
+};
+
+TEST(ScanContextTest, construct) {
+    std::vector<Collections::KVStore::DroppedCollection> dc = {
+            {{9, 200, 8}, {1, 105, 9}}};
+
+    TestScanContext tsc{dc};
+    EXPECT_EQ(1, tsc.getStartSeqno());
+    EXPECT_EQ(200, tsc.getEndSeqno());
+
+    auto& dropped = tsc.getDroppedCollections();
+    EXPECT_FALSE(dropped.empty());
+    EXPECT_EQ(2, dropped.size());
+    EXPECT_NE(0, dropped.count(8));
+    EXPECT_NE(0, dropped.count(9));
+}
+
 INSTANTIATE_TEST_SUITE_P(CollectionsKVStoreTests,
                          CollectionsKVStoreTest,
                          KVStoreParamTest::persistentConfigValues(),
