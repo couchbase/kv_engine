@@ -954,7 +954,15 @@ TEST_P(DurabilityActiveStreamTest,
     auto& bfm = producer->getBFM();
     bfm.backfill();
     bfm.backfill();
-    EXPECT_EQ(3, stream->public_readyQSize());
+
+    // Ephemeral doesn't sent committed prepares as the HTTombstonePurger marks
+    // items stale out of seqno order so items can be purged out of seqno order
+    // and a promotion to active would cause a recommit of that item
+    auto expected = 3;
+    if (!persistent()) {
+        expected = 2;
+    }
+    EXPECT_EQ(expected, stream->public_readyQSize());
 
     auto resp = stream->public_nextQueuedItem();
     ASSERT_TRUE(resp);
@@ -963,11 +971,71 @@ TEST_P(DurabilityActiveStreamTest,
     EXPECT_EQ(3, marker.getHighCompletedSeqno().value_or(~0));
     EXPECT_EQ(4, marker.getEndSeqno());
 
-    stream->consumeBackfillItems(2);
+    stream->consumeBackfillItems(1);
 
     EXPECT_EQ(cb::engine_errc::success, simulateStreamSeqnoAck(replica, 1));
 
     producer->cancelCheckpointCreatorTask();
+}
+
+/**
+ * Test that a prepare completed whilst we have an active backfill is still
+ * sent to a consumer to ensure that when we transition to in memory streaming
+ * we don't fail as we don't have a corresponding prepare
+ */
+TEST_P(DurabilityActiveStreamEphemeralTest,
+       BackfillSnapshotSendsFreshlyCompletedPrepare) {
+    // 1) Prepare
+    auto vb = engine->getVBucket(vbid);
+
+    const auto key = makeStoredDocKey("key");
+    const auto& value = "value";
+    auto item = makePendingItem(
+            key,
+            value,
+            cb::durability::Requirements(cb::durability::Level::Majority,
+                                         cb::durability::Timeout(1)));
+    VBQueueItemCtx ctx;
+    ctx.durability =
+            DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
+    EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
+    vb->notifyActiveDMOfLocalSyncWrite();
+
+    // 2) Start backfill but don't process items
+    // Remove the stream and the checkpoint to force a backfill
+    stream.reset();
+    removeCheckpoint(*vb, 1);
+
+    stream = std::make_shared<MockActiveStream>(
+            engine.get(), producer, 0 /*flags*/, 0 /*opaque*/, *vb);
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
+    stream->setActive();
+    auto& bfm = producer->getBFM();
+    bfm.backfill();
+
+    // 3) Complete prepare
+    EXPECT_EQ(cb::engine_errc::success,
+              vb->seqnoAcknowledged(
+                      folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                      "replica",
+                      1));
+    vb->processResolvedSyncWrites();
+
+    // 4) Process backfill, prepare seen
+    bfm.backfill();
+    ASSERT_EQ(2, stream->public_readyQSize());
+
+    auto resp = stream->public_popFromReadyQ();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    const auto& marker = static_cast<SnapshotMarker&>(*resp);
+    ASSERT_TRUE(marker.getHighCompletedSeqno().has_value());
+    EXPECT_EQ(0, *marker.getHighCompletedSeqno());
+
+    resp = stream->public_popFromReadyQ();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
 }
 
 TEST_P(DurabilityActiveStreamTest, DiskSnapshotSendsHCSWithSyncRepSupport) {
@@ -1013,7 +1081,11 @@ TEST_P(DurabilityActiveStreamTest, DiskSnapshotSendsHCSWithSyncRepSupport) {
     ASSERT_EQ(0, producer->getBytesOutstanding());
 
     // readyQ must contain a SnapshotMarker
-    ASSERT_EQ(3, stream->public_readyQSize());
+    auto expected = 3;
+    if (!persistent()) {
+        expected = 2;
+    }
+    ASSERT_EQ(expected, stream->public_readyQSize());
     auto resp = stream->public_nextQueuedItem();
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
@@ -5551,6 +5623,11 @@ INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
                          DurabilityPassiveStreamTest,
                          STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
+                         DurabilityActiveStreamEphemeralTest,
+                         STParameterizedBucketTest::ephConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
