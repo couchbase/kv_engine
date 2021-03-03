@@ -92,6 +92,9 @@ protected:
     const std::string replica = "replica";
 };
 
+class DurabilityActiveStreamEphemeralTest
+    : virtual public DurabilityActiveStreamTest {};
+
 /*
  * PassiveStream tests for Durability. Single-threaded.
  */

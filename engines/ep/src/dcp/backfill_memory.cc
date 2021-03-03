@@ -232,6 +232,44 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
             // mutated with the HashBucketLock, so get the correct bucket lock
             // before calling StoredValue::toItem
             auto hbl = evb->ht.getLockedBucket(osv.getKey());
+
+            // MB-44079: Skip any prepares that were completed at the point at
+            // which we started this backfill. Why? Because the
+            // HTTombstonePurger doesn't make items stale in seqno order it's
+            // possible for the StaleItemDeleter to purge items out of seqno
+            // order. That means that we could purge a commit of a prepare
+            // without purging the prepare itself and stream a prepare without
+            // a logical completion to a consumer. On transition to active that
+            // node would attempt to re-commit the prepare and assertions would
+            // fire on the new replicas or the active.
+            //
+            // Reading this you might ask why can't we just check if a prepare
+            // is in the PrepareCommitted state to determine if we should send
+            // it or not. The state of a prepare can be updated both outside of
+            // the seqlist write lock and regardless of whether or not there is
+            // a range read over the StoredValue being modified. This means that
+            // the prepare states will not be consistent with what they were
+            // when we took the rangeItr originally. To keep what we send
+            // consistent we consider the HighCompletedSeqno of the seqlist
+            // taken when we created our rangeItr instead. Any prepare committed
+            // after we created the rangeItr will still be sent. Aborts will
+            // always be sent (even if they have a seqno lower than the HCS) as
+            // they are logically tombstones.
+            switch (rangeItr->getCommitted()) {
+            case CommittedState::CommittedViaMutation:
+            case CommittedState::CommittedViaPrepare:
+            case CommittedState::PrepareAborted:
+                break;
+            case CommittedState::Pending:
+            case CommittedState::PreparedMaybeVisible:
+            case CommittedState::PrepareCommitted:
+                if (osv.getBySeqno() <=
+                    static_cast<int64_t>(rangeItr.getHighCompletedSeqno())) {
+                    ++rangeItr;
+                    continue;
+                }
+            }
+
             // Ephemeral only supports a durable write level of Majority so
             // instead of storing a durability level in our OrderedStoredValues
             // we can just assume that all durable writes have the Majority
