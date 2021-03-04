@@ -84,6 +84,7 @@ Options:
   -j or --json                   Print result as JSON (unformatted)
   -J or --json=pretty            Print result in JSON (formatted)
   -I or --impersonate username   Try to impersonate the specified user
+  -a or --all-buckets            Iterate buckets that list bucket returns
   --help                         This help text
   statkey ...  Statistic(s) to request
 )";
@@ -100,7 +101,6 @@ int main(int argc, char** argv) {
     std::string host{"localhost"};
     std::string user{};
     std::string password{};
-    std::string bucket{};
     std::string ssl_cert;
     std::string ssl_key;
     std::string impersonate;
@@ -108,6 +108,8 @@ int main(int argc, char** argv) {
     bool secure = false;
     bool json = false;
     bool format = false;
+    bool allBuckets = false;
+    std::vector<std::string> buckets;
 
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
@@ -123,14 +125,15 @@ int main(int argc, char** argv) {
             {"ssl", no_argument, nullptr, 's'},
             {"ssl-cert", required_argument, nullptr, 'C'},
             {"ssl-key", required_argument, nullptr, 'K'},
-            {"json", optional_argument, nullptr, 'j'},
             {"impersonate", required_argument, nullptr, 'I'},
+            {"json", optional_argument, nullptr, 'j'},
+            {"all-buckets", no_argument, nullptr, 'a'},
             {"help", no_argument, nullptr, 0},
             {nullptr, 0, nullptr, 0}};
 
     while ((cmd = getopt_long(argc,
                               argv,
-                              "46h:p:u:b:P:SsjJC:K:I:",
+                              "46h:p:u:b:P:SsjJC:K:I:a",
                               long_options,
                               nullptr)) != EOF) {
         switch (cmd) {
@@ -147,7 +150,7 @@ int main(int argc, char** argv) {
             port.assign(optarg);
             break;
         case 'b' :
-            bucket.assign(optarg);
+            buckets.emplace_back(optarg);
             break;
         case 'u' :
             user.assign(optarg);
@@ -182,10 +185,19 @@ int main(int argc, char** argv) {
         case 'I':
             impersonate.assign(optarg);
             break;
+        case 'a':
+            allBuckets = true;
+            break;
         default:
             usage();
             return EXIT_FAILURE;
         }
+    }
+
+    if (allBuckets && !buckets.empty()) {
+        std::cerr << "Cannot use both bucket and all-buckets options\n";
+        usage();
+        return EXIT_FAILURE;
     }
 
     if (password == "-") {
@@ -220,17 +232,35 @@ int main(int argc, char** argv) {
                                     connection.getSaslMechanisms());
         }
 
-        if (!bucket.empty()) {
-            connection.selectBucket(bucket);
+        if (allBuckets) {
+            buckets = connection.listBuckets();
         }
 
-        if (optind == argc) {
-            request_stat(connection, "", json, format, impersonate);
-        } else {
-            for (int ii = optind; ii < argc; ++ii) {
-                request_stat(connection, argv[ii], json, format, impersonate);
+        // buckets can be empty, so do..while at least one stat call
+        auto bucketItr = buckets.begin();
+        do {
+            if (bucketItr != buckets.end()) {
+                // When all buckets is enabled, clone what cbstats does
+                if (allBuckets) {
+                    static std::string bucketSeparator(78, '*');
+                    std::cout << bucketSeparator << std::endl;
+                    std::cout << *bucketItr << std::endl << std::endl;
+                    ;
+                }
+                connection.selectBucket(*bucketItr);
+                bucketItr++;
             }
-        }
+
+            if (optind == argc) {
+                request_stat(connection, "", json, format, impersonate);
+            } else {
+                for (int ii = optind; ii < argc; ++ii) {
+                    request_stat(
+                            connection, argv[ii], json, format, impersonate);
+                }
+            }
+        } while (bucketItr != buckets.end());
+
     } catch (const ConnectionError& ex) {
         std::cerr << ex.what() << std::endl;
         return EXIT_FAILURE;
