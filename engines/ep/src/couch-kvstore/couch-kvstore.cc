@@ -4027,17 +4027,18 @@ vbucket_state CouchKVStore::getPersistedVBucketState(Vbid vbid) {
     DbHolder db(*this);
     const auto errorCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errorCode != COUCHSTORE_SUCCESS) {
-        throw std::logic_error("CouchKVStore::readVBState: openDB for vbid:" +
-                               ::to_string(vbid) + " failed with error " +
-                               std::to_string(static_cast<int8_t>(errorCode)));
+        throw std::logic_error(
+                "CouchKVStore::getPersistedVBucketState: openDB error:" +
+                std::string(couchstore_strerror(errorCode)) +
+                ", file:" + getDBFileName(dbname, vbid, db.getFileRev()));
     }
 
     const auto res = readVBState(db, vbid);
     if (res.status != ReadVBStateStatus::Success) {
         throw std::logic_error(
-                "CouchKVStore::readVBState: readVBState for vbid:" +
-                ::to_string(vbid) + " failed with status " +
-                std::to_string(static_cast<uint8_t>(res.status)));
+                "CouchKVStore::getPersistedVBucketState: readVBState error:" +
+                to_string(res.status) +
+                ", file:" + getDBFileName(dbname, vbid, db.getFileRev()));
     }
 
     return res.state;
