@@ -51,6 +51,8 @@ public:
                 std::unique_ptr<PausableVBucketVisitor> v,
                 const char* l,
                 bool shutdown);
+    VBCBAdaptor(const VBCBAdaptor&) = delete;
+    const VBCBAdaptor& operator=(const VBCBAdaptor&) = delete;
 
     std::string getDescription() override;
 
@@ -98,8 +100,6 @@ private:
      */
     const Vbid::id_type None = std::numeric_limits<Vbid::id_type>::max();
     cb::RelaxedAtomic<Vbid::id_type> currentvb{None};
-
-    DISALLOW_COPY_AND_ASSIGN(VBCBAdaptor);
 };
 
 const uint16_t EP_PRIMARY_SHARD = 0;
@@ -115,6 +115,9 @@ class KVBucket : public KVBucketIface {
 public:
     explicit KVBucket(EventuallyPersistentEngine& theEngine);
     virtual ~KVBucket();
+
+    KVBucket(const KVBucket&) = delete;
+    const KVBucket& operator=(const KVBucket&) = delete;
 
     bool initialize() override;
 
@@ -917,7 +920,6 @@ protected:
 
     friend class KVBucketTest;
 
-    DISALLOW_COPY_AND_ASSIGN(KVBucket);
 };
 
 /**

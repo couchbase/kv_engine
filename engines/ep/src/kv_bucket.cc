@@ -2370,9 +2370,9 @@ void KVBucket::addKVStoreTimingStats(const AddStatFn& add_stat,
 bool KVBucket::getKVStoreStat(std::string_view name, size_t& value, KVSOption option)
 {
     std::array<std::string_view, 1> keys = {{name}};
-    auto stats = getKVStoreStats(keys, option);
-    auto stat = stats.find(name);
-    if (stat != stats.end()) {
+    auto kvStats = getKVStoreStats(keys, option);
+    auto stat = kvStats.find(name);
+    if (stat != kvStats.end()) {
         value = stat->second;
         return true;
     }
@@ -2381,11 +2381,11 @@ bool KVBucket::getKVStoreStat(std::string_view name, size_t& value, KVSOption op
 
 GetStatsMap KVBucket::getKVStoreStats(gsl::span<const std::string_view> keys,
                                       KVSOption option) {
-    GetStatsMap stats;
+    GetStatsMap statsMap;
     auto aggShardStats = [&](KVStore* store) {
         auto shardStats = store->getStats(keys);
         for (const auto& [name, value] : shardStats) {
-            auto [itr, emplaced] = stats.try_emplace(name, value);
+            auto [itr, emplaced] = statsMap.try_emplace(name, value);
             if (!emplaced) {
                 itr->second += value;
             }
@@ -2399,7 +2399,7 @@ GetStatsMap KVBucket::getKVStoreStats(gsl::span<const std::string_view> keys,
             aggShardStats(shard->getRWUnderlying());
         }
     }
-    return stats;
+    return statsMap;
 }
 
 KVStore *KVBucket::getOneROUnderlying() {
