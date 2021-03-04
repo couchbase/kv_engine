@@ -2434,27 +2434,29 @@ TaskStatus KVBucket::rollback(Vbid vbid, uint64_t rollbackSeqno) {
                 static_cast<uint64_t>(vb->checkpointManager->getHighSeqno());
         if (rollbackSeqno != 0) {
             RollbackResult result = doRollback(vbid, rollbackSeqno);
-
-            if (result.success /* not success hence reset vbucket to
-                                  avoid data loss */
-                &&
-                (result.highSeqno > 0) /* if 0, reset vbucket for a clean start
-                                          instead of deleting everything in it
-                                        */) {
-                rollbackUnpersistedItems(*vb, result.highSeqno);
-                auto loadResult = loadPreparedSyncWrites(wlh, *vb);
-                if (!loadResult.success) {
+            if (result.success) {
+                if (result.highSeqno > 0) {
+                    rollbackUnpersistedItems(*vb, result.highSeqno);
+                    const auto loadResult = loadPreparedSyncWrites(wlh, *vb);
+                    if (loadResult.success) {
+                        auto& epVb = static_cast<EPVBucket&>(*vb.getVB());
+                        epVb.postProcessRollback(result, prevHighSeqno, *this);
+                        engine.getDcpConnMap().closeStreamsDueToRollback(vbid);
+                        return TaskStatus::Complete;
+                    }
                     EP_LOG_WARN(
-                            "{} KVBucket::rollback((): "
-                            "loadPreparedSyncWrites() "
-                            "failed to scan for prepares, PDM could be in a "
-                            "inconsistent state",
+                            "{} KVBucket::rollback(): loadPreparedSyncWrites() "
+                            "failed to scan for prepares, resetting vbucket",
                             vbid);
                 }
-                auto& epVb = static_cast<EPVBucket&>(*vb.getVB());
-                epVb.postProcessRollback(result, prevHighSeqno, *this);
-                engine.getDcpConnMap().closeStreamsDueToRollback(vbid);
-                return TaskStatus::Complete;
+                // if 0, reset vbucket for a clean start instead of deleting
+                // everything in it
+            } else {
+                // not success hence reset vbucket to avoid data loss
+                EP_LOG_WARN(
+                        "{} KVBucket::rollback(): on disk rollback failed, "
+                        "resetting vbucket",
+                        vbid);
             }
         }
 
