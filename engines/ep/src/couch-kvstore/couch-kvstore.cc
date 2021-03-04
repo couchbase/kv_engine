@@ -205,6 +205,10 @@ static std::string getDBFileName(const std::string& dbname,
            std::to_string(rev);
 }
 
+static std::string getCollectionStatsLocalDocId(CollectionID cid) {
+    return fmt::format("|{:#x}|", uint32_t(cid));
+}
+
 struct GetMultiCbCtx {
     GetMultiCbCtx(CouchKVStore& c, Vbid v, vb_bgfetch_queue_t& f)
         : cks(c), vbId(v), fetches(f) {
@@ -1129,7 +1133,7 @@ couchstore_error_t CouchKVStore::replayPrecommitHook(
 
             // To write them back
             PendingLocalDocRequestQueue localDocQueue;
-            localDocQueue.emplace_back("|" + cid.to_string() + "|",
+            localDocQueue.emplace_back(getCollectionStatsLocalDocId(cid),
                                        collectionStats.getLebEncodedStats());
 
             updateLocalDocuments(db, localDocQueue);
@@ -1784,7 +1788,7 @@ couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
         stats.collectionSizeUpdates[cid] = collectionStats.diskSize;
 
         // To write them back
-        localDocQueue.emplace_back("|" + cid.to_string() + "|",
+        localDocQueue.emplace_back(getCollectionStatsLocalDocId(cid),
                                    collectionStats.getLebEncodedStats());
     }
 
@@ -3277,12 +3281,12 @@ void CouchKVStore::saveCollectionStats(
         Db& db,
         CollectionID cid,
         const Collections::VB::PersistedStats& stats) {
-    pendingLocalReqsQ.emplace_back("|" + cid.to_string() + "|",
+    pendingLocalReqsQ.emplace_back(getCollectionStatsLocalDocId(cid),
                                    stats.getLebEncodedStats());
 }
 
 void CouchKVStore::deleteCollectionStats(CollectionID cid) {
-    pendingLocalReqsQ.emplace_back("|" + cid.to_string() + "|",
+    pendingLocalReqsQ.emplace_back(getCollectionStatsLocalDocId(cid),
                                    CouchLocalDocRequest::IsDeleted{});
 }
 
@@ -3294,8 +3298,7 @@ Collections::VB::PersistedStats CouchKVStore::getCollectionStats(
 
 Collections::VB::PersistedStats CouchKVStore::getCollectionStats(
         Db& db, CollectionID collection) {
-    std::string statDocName = "|" + collection.to_string() + "|";
-    return getCollectionStats(db, statDocName);
+    return getCollectionStats(db, getCollectionStatsLocalDocId(collection));
 }
 
 Collections::VB::PersistedStats CouchKVStore::getCollectionStats(

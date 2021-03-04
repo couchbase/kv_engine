@@ -32,13 +32,11 @@ bool operator==(CollectionIDType lhs, const CollectionID& rhs) {
 }
 
 std::ostream& operator<<(std::ostream& os, const CollectionID& cid) {
-    return os << "0x" << std::hex << uint32_t(cid);
+    return os << cid.to_string();
 }
 
 std::string CollectionID::to_string() const {
-    std::stringstream sstream;
-    sstream << *this;
-    return sstream.str();
+    return fmt::format("{:#x}", value);
 }
 
 bool operator==(ScopeIDType lhs, const ScopeID& rhs) {
@@ -46,13 +44,11 @@ bool operator==(ScopeIDType lhs, const ScopeID& rhs) {
 }
 
 std::ostream& operator<<(std::ostream& os, const ScopeID& sid) {
-    return os << "0x" << std::hex << uint32_t(sid);
+    return os << sid.to_string();
 }
 
 std::string ScopeID::to_string() const {
-    std::stringstream sstream;
-    sstream << *this;
-    return sstream.str();
+    return fmt::format("{:#x}", value);
 }
 
 std::string DocKey::to_string() const {
