@@ -158,6 +158,9 @@ public:
      */
     int64_t getHighCompletedSeqno() const override;
 
+    /// @returns highest tracked seqno
+    int64_t getHighestTrackedSeqno() const;
+
     /**
      * @return true if the replication topology allows Majority being reached,
      *     false otherwise

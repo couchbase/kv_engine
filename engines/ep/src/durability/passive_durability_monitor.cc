@@ -83,22 +83,14 @@ PassiveDurabilityMonitor::PassiveDurabilityMonitor(
         VBucket& vb, ActiveDurabilityMonitor&& adm)
     : PassiveDurabilityMonitor(
               vb, adm.getHighPreparedSeqno(), adm.getHighCompletedSeqno()) {
-    // @todo: Temporarily added for the investigation on MB-44255.
-    // This path is execute only at vbstate change to active and dumping the
-    // ADM may be very useful as a diagnostic. It probably too noisy to keep
-    // though
-    std::stringstream ss;
-    ss << adm;
-
-    // The stream/dump functions were designed for testing and log on multiple
-    // lines. Strip the new line characters out for the sake of cleaner logs
-    auto str = ss.str();
-    std::replace(str.begin(), str.end(), '\n', ',');
     EP_LOG_INFO(
-            "({}) PassoveDurabilityMonitor::ctor(PDM&&): Transitioning from "
-            "ADM: {}",
+            "PassiveDurabilityMonitor::ctor(PDM&&): {} Transitioning from "
+            "ADM: {}. HPS:{}, HCS:{}, numTracked:{}, highestTracked:{}",
             vb.getId(),
-            str);
+            adm.getHighPreparedSeqno(),
+            adm.getHighCompletedSeqno(),
+            adm.getNumTracked(),
+            adm.getHighestTrackedSeqno());
 
     auto s = state.wlock();
 
