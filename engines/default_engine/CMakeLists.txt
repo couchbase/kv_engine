@@ -1,4 +1,4 @@
-ADD_LIBRARY(default_engine SHARED
+ADD_LIBRARY(default_engine STATIC
             assoc.cc
             assoc.h
             default_engine.cc

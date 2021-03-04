@@ -25,7 +25,6 @@
 
 #pragma once
 
-#include <logger/visibility.h>
 #include <spdlog/fmt/ostr.h>
 #include <spdlog/logger.h>
 
@@ -47,7 +46,6 @@ struct Config;
  * @param logger_settings the configuration for the logger
  * @return optional error message if something goes wrong
  */
-LOGGER_PUBLIC_API
 std::optional<std::string> initialize(const Config& logger_settings);
 
 /**
@@ -63,7 +61,6 @@ std::optional<std::string> initialize(const Config& logger_settings);
  * @throws spdlog::spdlog_ex if an error occurs creating the logger
  *                           (if it already exists for instance)
  */
-LOGGER_PUBLIC_API
 void createBlackholeLogger();
 
 /**
@@ -74,7 +71,6 @@ void createBlackholeLogger();
  * @throws std::bad_alloc
  * @throws spdlog::spdlog_ex if an error occurs creating the logger
  */
-LOGGER_PUBLIC_API
 void createConsoleLogger();
 
 /**
@@ -89,7 +85,6 @@ void createConsoleLogger();
  * - createBlackholeLogger()
  * - createConsoleLogger()
  */
-LOGGER_PUBLIC_API
 spdlog::logger* get();
 
 /**
@@ -97,7 +92,6 @@ spdlog::logger* get();
  *
  * See note about thread safety at the top of the file
  */
-LOGGER_PUBLIC_API
 void reset();
 
 /**
@@ -107,7 +101,6 @@ void reset();
  *
  * @param l spdlogger instance
  */
-LOGGER_PUBLIC_API
 void registerSpdLogger(std::shared_ptr<spdlog::logger> l);
 
 /**
@@ -117,7 +110,6 @@ void registerSpdLogger(std::shared_ptr<spdlog::logger> l);
  *
  * @param n The name of the spdlogger
  */
-LOGGER_PUBLIC_API
 void unregisterSpdLogger(const std::string& n);
 
 /**
@@ -125,33 +117,29 @@ void unregisterSpdLogger(const std::string& n);
  * @param log severity level
  * @return true if all registered loggers have the specified severity level
  */
-LOGGER_PUBLIC_API
 bool checkLogLevels(spdlog::level::level_enum level);
 
 /**
  * Set the log level of all registered spdLoggers
  * @param log severity level
  */
-LOGGER_PUBLIC_API
 void setLogLevels(spdlog::level::level_enum level);
 
 /**
  * Tell the logger to flush its buffers
  */
-LOGGER_PUBLIC_API
 void flush();
 
 /**
  * Tell the logger to shut down (flush buffers) and release _ALL_
  * loggers (you'd need to create new loggers after this method)
  */
-LOGGER_PUBLIC_API
 void shutdown();
 
 /**
  * @return whether or not the logger has been initialized
  */
-LOGGER_PUBLIC_API bool isInitialized();
+bool isInitialized();
 
 } // namespace cb::logger
 

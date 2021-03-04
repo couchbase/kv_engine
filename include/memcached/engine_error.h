@@ -10,17 +10,10 @@
  */
 #pragma once
 
-#include <memcached/engine_utilities_visibility.h>
 #include <platform/dynamic.h>
 
 #include <iosfwd>
 #include <system_error>
-
-#ifdef _MSC_VER
-// We need to add the right __declspec magic to the system types
-// to avoid msvc to spit out warnings
-class ENGINE_UTILITIES_PUBLIC_API std::system_error;
-#endif
 
 namespace cb {
 /**
@@ -143,10 +136,9 @@ enum class engine_errc {
  *
  * @return The one and only instance of the error object
  */
-ENGINE_UTILITIES_PUBLIC_API
 const std::error_category& engine_error_category() NOEXCEPT;
 
-class ENGINE_UTILITIES_PUBLIC_API engine_error : public std::system_error {
+class engine_error : public std::system_error {
 public:
     engine_error(engine_errc ev, const std::string& what_arg)
         : system_error(int(ev), engine_error_category(), what_arg) {}
@@ -159,14 +151,11 @@ static inline std::error_condition make_error_condition(engine_errc e) {
     return std::error_condition(int(e), engine_error_category());
 }
 
-ENGINE_UTILITIES_PUBLIC_API
 std::string to_string(engine_errc ev);
 
 // GoogleTest printing function.
-ENGINE_UTILITIES_PUBLIC_API
 void PrintTo(engine_errc ev, ::std::ostream* os);
 // For checkeqfn
-ENGINE_UTILITIES_PUBLIC_API
 std::ostream& operator<<(std::ostream& os, cb::engine_errc ec);
 } // namespace cb
 

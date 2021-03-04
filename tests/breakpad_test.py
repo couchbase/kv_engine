@@ -118,20 +118,18 @@ def check_gdb(memcached_exe, gdb_exe, md2core_exe, minidump):
 
         # Check for shared library information, and symbols successfully ead
         # (needed for any useful backtraces).
-        # Shared libraries may change over time, but we explicitly asked for
-        # crash_engine.so in the config so we should have that.
         logging.info('GDB: Checking for shared library information')
         m = re.search(
-            "^0x[0-9a-f]+\s+0x[0-9a-f]+\s+(\w+)\s+([^\s]+crash_engine\.so$)",
+            "^0x[0-9a-f]+\s+0x[0-9a-f]+\s+(\w+)\s+[\(\*\)\s+]*([^\s]+libstdc\+\+.so.6$)",
             gdb_output[1], re.MULTILINE)
         if not m:
             logging.error("FAIL - GDB unable to show information for " +
-                          "crash_engine.so shared library.")
+                          "libstdc++.so.6 shared library.")
             cleanup_and_exit(9)
 
         if not m.group(1).startswith('Yes'):
             logging.error(
-                "FAIL - GDB unable to read symbols for crash_engine.so " +
+                "FAIL - GDB unable to read symbols for libstdc++.so.6 " +
                 "(tried path: '{0}').".format(m.group(2)))
             cleanup_and_exit(10)
 

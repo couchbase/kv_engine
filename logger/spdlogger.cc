@@ -43,14 +43,12 @@ static const std::string log_pattern{"%^%Y-%m-%dT%T.%f%z %l %v%$"};
  */
 static std::shared_ptr<spdlog::logger> file_logger;
 
-LOGGER_PUBLIC_API
 void cb::logger::flush() {
     if (file_logger) {
         file_logger->flush();
     }
 }
 
-LOGGER_PUBLIC_API
 void cb::logger::shutdown() {
     // Force a flush (posts a message to the async logger if we are not in unit
     // test mode)
@@ -71,7 +69,6 @@ void cb::logger::shutdown() {
     file_logger.reset();
 }
 
-LOGGER_PUBLIC_API
 bool cb::logger::isInitialized() {
     return file_logger != nullptr;
 }
@@ -179,7 +176,6 @@ spdlog::logger* cb::logger::get() {
     return file_logger.get();
 }
 
-LOGGER_PUBLIC_API
 void cb::logger::reset() {
     spdlog::drop(logger_name);
     file_logger.reset();
@@ -211,7 +207,6 @@ void cb::logger::createConsoleLogger() {
     spdlog::register_logger(file_logger);
 }
 
-LOGGER_PUBLIC_API
 void cb::logger::registerSpdLogger(std::shared_ptr<spdlog::logger> l) {
     try {
         file_logger->debug("Registering logger {}", l->name());
@@ -227,12 +222,10 @@ void cb::logger::registerSpdLogger(std::shared_ptr<spdlog::logger> l) {
     }
 }
 
-LOGGER_PUBLIC_API
 void cb::logger::unregisterSpdLogger(const std::string& n) {
     spdlog::drop(n);
 }
 
-LOGGER_PUBLIC_API
 bool cb::logger::checkLogLevels(spdlog::level::level_enum level) {
     bool correct = true;
     spdlog::apply_all([&](std::shared_ptr<spdlog::logger> l) {
@@ -243,7 +236,6 @@ bool cb::logger::checkLogLevels(spdlog::level::level_enum level) {
     return correct;
 }
 
-LOGGER_PUBLIC_API
 void cb::logger::setLogLevels(spdlog::level::level_enum level) {
     // Apply the function to each registered spdlogger
     spdlog::apply_all([&](std::shared_ptr<spdlog::logger> l) {

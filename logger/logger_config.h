@@ -10,8 +10,6 @@
  */
 #pragma once
 
-#include "logger/visibility.h"
-
 #include <nlohmann/json_fwd.hpp>
 #include <spdlog/common.h>
 
@@ -19,7 +17,7 @@
 
 namespace cb::logger {
 
-struct LOGGER_PUBLIC_API Config {
+struct Config {
     Config() = default;
     explicit Config(const nlohmann::json& json);
 

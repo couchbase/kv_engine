@@ -18,7 +18,6 @@
 
 #include <memcached/engine_error.h>
 #include <platform/socket.h>
-#include <statistics/visibility.h>
 
 namespace prometheus {
 // forward declaration
@@ -45,18 +44,14 @@ using GetStatsCallback =
  * @throws std::bad_alloc for memory allocation failures
  * @throws std::runtime_errors if we failed to start the exporter service
  */
-STATISTICS_PUBLIC_API
 nlohmann::json initialize(const std::pair<in_port_t, sa_family_t>& config,
                           GetStatsCallback getStatsCB,
                           AuthCallback authCB);
 
-STATISTICS_PUBLIC_API
 void shutdown();
 
-STATISTICS_PUBLIC_API
 std::pair<in_port_t, sa_family_t> getRunningConfig();
 
-STATISTICS_PUBLIC_API
 nlohmann::json getRunningConfigAsJson();
 
 /**

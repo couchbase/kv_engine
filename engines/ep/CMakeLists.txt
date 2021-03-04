@@ -378,7 +378,7 @@ ADD_LIBRARY(ep_objs OBJECT
 SET_PROPERTY(TARGET ep_objs PROPERTY POSITION_INDEPENDENT_CODE 1)
 add_sanitizers(ep_objs)
 
-ADD_LIBRARY(ep SHARED $<TARGET_OBJECTS:ep_objs>)
+ADD_LIBRARY(ep STATIC $<TARGET_OBJECTS:ep_objs>)
 
 if (NOT WIN32)
   # Enable the more efficient ThreadLocalStorage model

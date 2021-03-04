@@ -1,4 +1,4 @@
-add_library(memcached_logger SHARED
+add_library(memcached_logger STATIC
             logger.h
             logger_config.cc
             logger_config.h
@@ -8,16 +8,7 @@ add_library(memcached_logger SHARED
             logger_test_fixture.h)
 
 target_link_libraries(memcached_logger platform spdlog)
-set_target_properties(memcached_logger PROPERTIES SOVERSION 1.0.0)
-generate_export_header(memcached_logger
-                       EXPORT_MACRO_NAME LOGGER_PUBLIC_API
-                       EXPORT_FILE_NAME ${PROJECT_BINARY_DIR}/include/logger/visibility.h)
 add_sanitizers(memcached_logger)
-
-install(TARGETS memcached_logger
-        RUNTIME DESTINATION bin
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     add_executable(memcached_logger_test

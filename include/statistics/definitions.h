@@ -76,7 +76,7 @@ public:
  * stats.def.h, but can also be created directly as a fallback until
  * all stats have been transitioned to stats.def.h.
  */
-struct STATISTICS_PUBLIC_API StatDef {
+struct StatDef {
     using Labels = std::unordered_map<std::string_view, std::string_view>;
     /**
      * Construct from char* to minimize code change while migrating to
@@ -188,7 +188,7 @@ struct STATISTICS_PUBLIC_API StatDef {
 #define STAT(statName, ...) statName,
 #define CBSTAT(statName, ...) statName,
 #define PSTAT(statName, ...) statName,
-enum class STATISTICS_PUBLIC_API Key {
+enum class Key {
 #include "stats.def.h"
 
     enum_max
