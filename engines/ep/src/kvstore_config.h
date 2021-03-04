@@ -67,7 +67,7 @@ public:
         return shardId;
     }
 
-    BucketLogger& getLogger() {
+    BucketLogger& getLogger() const {
         return *logger;
     }
 

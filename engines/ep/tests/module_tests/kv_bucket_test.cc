@@ -422,13 +422,18 @@ Collections::Manager& KVBucketTest::getCollectionsManager() {
  * Replace the rw KVStore with one that uses the given ops. This function
  * will test the config to be sure the KVBucket is persistsent/couchstore
  */
-void KVBucketTest::replaceCouchKVStore(CouchKVStoreConfig& config,
-                                       FileOpsInterface& ops) {
-    EXPECT_EQ(engine->getConfiguration().getBucketType(), "persistent");
-    EXPECT_EQ(engine->getConfiguration().getBackend(), "couchdb");
-    auto rwro = store->takeRWRO(0);
-    auto rw = std::make_unique<CouchKVStore>(config, ops);
-    store->setRWRO(0, std::move(rw), std::move(rwro.ro));
+void KVBucketTest::replaceCouchKVStore(FileOpsInterface& ops) {
+    ASSERT_EQ(engine->getConfiguration().getBucketType(), "persistent");
+    ASSERT_EQ(engine->getConfiguration().getBackend(), "couchdb");
+
+    const auto& config = store->getRWUnderlying(vbid)->getConfig();
+    auto rw = std::make_unique<CouchKVStore>(
+            dynamic_cast<const CouchKVStoreConfig&>(config), ops);
+
+    const auto shardId = store->getShardId(vbid);
+    auto rwro = store->takeRWRO(shardId);
+
+    store->setRWRO(shardId, std::move(rw), std::move(rwro.ro));
 }
 
 void KVBucketTest::replaceMagmaKVStore(MagmaKVStoreConfig& config) {

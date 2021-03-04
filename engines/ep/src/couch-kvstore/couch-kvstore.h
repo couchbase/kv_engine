@@ -153,7 +153,7 @@ public:
      *
      * @param config    Configuration information
      */
-    explicit CouchKVStore(CouchKVStoreConfig& config);
+    explicit CouchKVStore(const CouchKVStoreConfig& config);
 
     /**
      * Alternate constructor for injecting base FileOps
@@ -161,7 +161,7 @@ public:
      * @param config    Configuration information
      * @param ops       Couchstore FileOps implementation to be used
      */
-    CouchKVStore(CouchKVStoreConfig& config, FileOpsInterface& ops);
+    CouchKVStore(const CouchKVStoreConfig& config, FileOpsInterface& ops);
 
     /**
      * Deconstructor
@@ -871,7 +871,7 @@ protected:
                                            CompactionReplayPrepareStats&,
                                            uint64_t);
 
-    CouchKVStoreConfig& configuration;
+    const CouchKVStoreConfig& configuration;
 
     // The directory for the database
     const std::string dbname;
@@ -952,7 +952,7 @@ protected:
      * @param revMap a revisionMap to use (which should be data created by the
      *        RW store).
      */
-    CouchKVStore(CouchKVStoreConfig& config,
+    CouchKVStore(const CouchKVStoreConfig& config,
                  FileOpsInterface& ops,
                  bool readOnly,
                  std::shared_ptr<RevisionMap> revMap);
@@ -974,7 +974,7 @@ protected:
      * @param ops The ops interface to use for File I/O
      */
     CouchKVStore(CreateReadWrite,
-                 CouchKVStoreConfig& config,
+                 const CouchKVStoreConfig& config,
                  FileOpsInterface& ops);
 
     struct CreateReadOnly {};
@@ -989,7 +989,7 @@ protected:
      * @param dbFileRevMap to use
      */
     CouchKVStore(CreateReadOnly,
-                 CouchKVStoreConfig& config,
+                 const CouchKVStoreConfig& config,
                  FileOpsInterface& ops,
                  std::shared_ptr<RevisionMap> dbFileRevMap);
 

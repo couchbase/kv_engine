@@ -2726,3 +2726,7 @@ cb::engine_errc KVBucket::setMinDurabilityLevel(cb::durability::Level level) {
 cb::durability::Level KVBucket::getMinDurabilityLevel() const {
     return minDurabilityLevel;
 }
+
+KVShard::id_type KVBucket::getShardId(Vbid vbid) const {
+    return vbMap.getShardByVbId(vbid)->getId();
+}

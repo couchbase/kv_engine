@@ -3068,9 +3068,7 @@ TEST_P(DurabilityCouchstoreBucketTest, MB_36739) {
 
     // Replace RW kvstore and use a gmocked ops so we an inject failure
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
-    const auto& config = store->getRWUnderlying(vbid)->getConfig();
-    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
-    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig), ops);
+    replaceCouchKVStore(ops);
 
     // Inject one fsync error when writing the pending mutation
     //

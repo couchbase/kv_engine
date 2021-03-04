@@ -745,6 +745,12 @@ public:
 
     cb::durability::Level getMinDurabilityLevel() const;
 
+    /**
+     * @param vbid
+     * @return The ShardId
+     */
+    KVShard::id_type getShardId(Vbid vbid) const;
+
 protected:
     GetValue getInternal(const DocKey& key,
                          Vbid vbucket,

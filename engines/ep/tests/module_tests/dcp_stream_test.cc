@@ -4250,9 +4250,7 @@ TEST_P(STPassiveStreamCouchstoreTest, VBStateNotLostAfterFlushFailure) {
     // we have stored all the SnapRange info (together with items) when the
     // second flush succeeds.
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
-    const auto& config = store->getRWUnderlying(vbid)->getConfig();
-    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
-    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig), ops);
+    replaceCouchKVStore(ops);
     EXPECT_CALL(ops, sync(testing::_, testing::_))
             .Times(testing::AnyNumber())
             .WillOnce(testing::Return(COUCHSTORE_ERROR_WRITE))

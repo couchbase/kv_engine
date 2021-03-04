@@ -4974,9 +4974,7 @@ void STParamPersistentBucketTest::testFlushFailureAtPersistNonMetaItems(
     // - then, set-vbstate couchstore_commit()
     // They both sync(), see couchstore code for details.
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
-    const auto& config = store->getRWUnderlying(vbid)->getConfig();
-    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
-    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig), ops);
+    replaceCouchKVStore(ops);
     EXPECT_CALL(ops, sync(testing::_, testing::_))
             .Times(testing::AnyNumber())
             .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
@@ -5159,9 +5157,7 @@ TEST_P(STParamCouchstoreBucketTest,
 void STParamPersistentBucketTest::testFlushFailureAtPersistVBStateOnly(
         couchstore_error_t failureCode) {
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
-    const auto& config = store->getRWUnderlying(vbid)->getConfig();
-    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
-    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig), ops);
+    replaceCouchKVStore(ops);
     EXPECT_CALL(ops, sync(testing::_, testing::_))
             .Times(testing::AnyNumber())
             .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
@@ -5247,9 +5243,7 @@ TEST_P(STParamCouchstoreBucketTest,
 void STParamPersistentBucketTest::testFlushFailureStatsAtDedupedNonMetaItems(
         couchstore_error_t failureCode, bool vbDeletion) {
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
-    const auto& config = store->getRWUnderlying(vbid)->getConfig();
-    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
-    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig), ops);
+    replaceCouchKVStore(ops);
     EXPECT_CALL(ops, sync(testing::_, testing::_))
             .Times(testing::AnyNumber())
             .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
@@ -5378,9 +5372,7 @@ TEST_P(STParamCouchstoreBucketTest,
 TEST_P(STParamCouchstoreBucketTest,
        BucketCreationFlagClearedOnlyAtFlushSuccess_PersistVBStateOnly) {
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
-    const auto& config = store->getRWUnderlying(vbid)->getConfig();
-    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
-    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig), ops);
+    replaceCouchKVStore(ops);
     EXPECT_CALL(ops, sync(testing::_, testing::_))
             .Times(testing::AnyNumber())
             .WillOnce(testing::Return(COUCHSTORE_ERROR_WRITE))
@@ -5420,9 +5412,7 @@ TEST_P(STParamCouchstoreBucketTest,
 TEST_P(STParamCouchstoreBucketTest,
        BucketCreationFlagClearedOnlyAtFlushSuccess_PersistVBStateAndMutations) {
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
-    const auto& config = store->getRWUnderlying(vbid)->getConfig();
-    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
-    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig), ops);
+    replaceCouchKVStore(ops);
     EXPECT_CALL(ops, sync(testing::_, testing::_))
             .Times(testing::AnyNumber())
             .WillOnce(testing::Return(COUCHSTORE_ERROR_WRITE))
@@ -5820,9 +5810,7 @@ TEST_P(STParamPersistentBucketTest, BgFetcherMaintainsVbOrdering) {
 void STParamPersistentBucketTest::testFlushFailureAtPersistDelete(
         couchstore_error_t failureCode, bool vbDeletion) {
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
-    const auto& config = store->getRWUnderlying(vbid)->getConfig();
-    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
-    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig), ops);
+    replaceCouchKVStore(ops);
     EXPECT_CALL(ops, sync(testing::_, testing::_))
             .Times(testing::AnyNumber())
             .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
@@ -5922,9 +5910,7 @@ TEST_P(STParamCouchstoreBucketTest, FlushFailureAtPerstingDelete_VBDeletion) {
 
 TEST_P(STParamCouchstoreBucketTest, FlushFailureAtPersistingCollectionChange) {
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
-    const auto& config = store->getRWUnderlying(vbid)->getConfig();
-    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
-    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig), ops);
+    replaceCouchKVStore(ops);
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
@@ -6006,9 +5992,7 @@ TEST_P(STParamCouchstoreBucketTest, ItemCountsAndCommitFailure_MB_41321) {
 
     // Replace RW kvstore and use a gmocked ops so we can inject failure
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
-    const auto& config = store->getRWUnderlying(vbid)->getConfig();
-    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
-    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig), ops);
+    replaceCouchKVStore(ops);
 
     // Inject fsync error when so we fail the delete
     EXPECT_CALL(ops, sync(testing::_, testing::_))
@@ -6045,8 +6029,7 @@ TEST_P(STParamCouchstoreBucketTest, ItemCountsAndCommitFailure_MB_41321) {
     flushAndExpectFailure(2);
 
     // Replace the CouchKVStore as we need a valid FileOps to finish
-    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig),
-                        *couchstore_get_default_file_ops());
+    replaceCouchKVStore(*couchstore_get_default_file_ops());
 
     // Now a successful flush which will update the stats
     res = dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
@@ -6633,9 +6616,7 @@ TEST_P(STParamCouchstoreBucketTest, HeaderSyncFails) {
 
     // Use mock ops to inject syscall failures
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
-    const auto& config = store->getRWUnderlying(vbid)->getConfig();
-    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
-    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig), ops);
+    replaceCouchKVStore(ops);
     // We do 2 syncs per flush. First is for data sync, second is for header
     // sync. In this test we test we fail the second sync, which means that:
     // - All data (docs+local) will be flushed to the OSBC and sync'ed to disk
@@ -6704,9 +6685,7 @@ TEST_P(STParamCouchstoreBucketTest, HeaderSyncFails_VBStateOnly) {
 
     // Use mock ops to inject syscall failures.
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
-    const auto& config = store->getRWUnderlying(vbid)->getConfig();
-    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
-    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig), ops);
+    replaceCouchKVStore(ops);
     EXPECT_CALL(ops, sync(testing::_, testing::_))
             .Times(testing::AnyNumber())
             .WillOnce(testing::DoDefault()) // data
@@ -6766,9 +6745,7 @@ TEST_P(STParamCouchstoreBucketTest, FlushVBStateUpdatesCommitStats) {
 
     // Use mock ops to inject syscall failures
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
-    const auto& config = store->getRWUnderlying(vbid)->getConfig();
-    auto& nonConstConfig = const_cast<KVStoreConfig&>(config);
-    replaceCouchKVStore(dynamic_cast<CouchKVStoreConfig&>(nonConstConfig), ops);
+    replaceCouchKVStore(ops);
     EXPECT_CALL(ops, sync(testing::_, testing::_))
             .Times(testing::AnyNumber())
             .WillOnce(testing::Return(COUCHSTORE_ERROR_WRITE)) // data

@@ -249,7 +249,7 @@ public:
      * Replace the r/w KVStore with one that uses the given ops. This function
      * will test the config to be sure the KVBucket is persistent/couchstore.
      */
-    void replaceCouchKVStore(CouchKVStoreConfig& config, FileOpsInterface& ops);
+    void replaceCouchKVStore(FileOpsInterface& ops);
 
     /**
      * Replace the r/w KVStore with one that uses the given ops. This function

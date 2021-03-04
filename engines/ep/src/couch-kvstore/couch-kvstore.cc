@@ -335,11 +335,11 @@ static constexpr const char* droppedCollectionsName =
         "_local/collections/dropped";
 } // namespace Collections
 
-CouchKVStore::CouchKVStore(CouchKVStoreConfig& config)
+CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config)
     : CouchKVStore(config, *couchstore_get_default_file_ops()) {
 }
 
-CouchKVStore::CouchKVStore(CouchKVStoreConfig& config,
+CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
                            FileOpsInterface& ops,
                            bool readOnly,
                            std::shared_ptr<RevisionMap> revMap)
@@ -381,7 +381,7 @@ std::shared_ptr<CouchKVStore::RevisionMap> CouchKVStore::makeRevisionMap(
 }
 
 CouchKVStore::CouchKVStore(CreateReadWrite,
-                           CouchKVStoreConfig& config,
+                           const CouchKVStoreConfig& config,
                            FileOpsInterface& ops)
     : CouchKVStore(
               config, ops, false, makeRevisionMap(config.getMaxVBuckets())) {
@@ -402,7 +402,7 @@ CouchKVStore::CouchKVStore(CreateReadWrite,
 }
 
 CouchKVStore::CouchKVStore(CreateReadOnly,
-                           CouchKVStoreConfig& config,
+                           const CouchKVStoreConfig& config,
                            FileOpsInterface& ops,
                            std::shared_ptr<RevisionMap> dbFileRevMap)
     : CouchKVStore(config, ops, true, dbFileRevMap) {
@@ -410,7 +410,8 @@ CouchKVStore::CouchKVStore(CreateReadOnly,
     initialize(getVbucketRevisions(discoverDbFiles(dbname)));
 }
 
-CouchKVStore::CouchKVStore(CouchKVStoreConfig& config, FileOpsInterface& ops)
+CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
+                           FileOpsInterface& ops)
     : CouchKVStore(CreateReadWrite{}, config, ops) {
 }
 

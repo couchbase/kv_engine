@@ -51,12 +51,12 @@ public:
 class MockCouchKVStore : public CouchKVStore {
 public:
     /// Read-write constructor
-    explicit MockCouchKVStore(CouchKVStoreConfig& config)
+    explicit MockCouchKVStore(const CouchKVStoreConfig& config)
         : CouchKVStore(config) {
     }
 
     /// Read-Only constructor where we are given a RevisionMap
-    MockCouchKVStore(CouchKVStoreConfig& config,
+    MockCouchKVStore(const CouchKVStoreConfig& config,
                      std::shared_ptr<RevisionMap> dbFileRevMap)
         : CouchKVStore(CreateReadOnly{},
                        config,
