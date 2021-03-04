@@ -23,6 +23,7 @@
 #include "settings.h"
 #include "stats.h"
 
+#include <libevent/utilities.h>
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/socket.h>
@@ -34,13 +35,81 @@
 
 std::atomic<uint64_t> ServerSocket::numInstances{0};
 
+class LibeventServerSocketImpl : public ServerSocket {
+public:
+    LibeventServerSocketImpl() = delete;
+    LibeventServerSocketImpl(const LibeventServerSocketImpl&) = delete;
+
+    /**
+     * Create a new instance
+     *
+     * @param sfd The socket to operate on
+     * @param b The event base to use (the caller owns the event base)
+     * @param interf The interface object containing properties to use
+     */
+    LibeventServerSocketImpl(SOCKET sfd,
+                             event_base* b,
+                             std::shared_ptr<ListeningPort> interf);
+
+    ~LibeventServerSocketImpl() override;
+
+    /**
+     * Get the socket (used for logging)
+     */
+    SOCKET getSocket() {
+        return sfd;
+    }
+
+    void acceptNewClient();
+
+    const ListeningPort& getInterfaceDescription() const override {
+        return *interface;
+    }
+
+    /// Update the interface description to use the provided SSL info
+    void updateSSL(const std::string& key, const std::string& cert) override;
+
+    /**
+     * Get the details for this connection to put in the portnumber
+     * file so that the test framework may pick up the port numbers
+     */
+    nlohmann::json toJson() const override;
+
+    const std::string& getUuid() const override {
+        return uuid;
+    }
+
+protected:
+    /// The socket object to accept clients from
+    const SOCKET sfd;
+
+    /// The unique id used to identify _this_ port
+    const std::string uuid;
+
+    std::shared_ptr<ListeningPort> interface;
+
+    /// The sockets name (used for debug)
+    const std::string sockname;
+
+    /// The backlog to specify to bind
+    const int backlog = 1024;
+
+    /// The libevent object we're using
+    cb::libevent::unique_event_ptr ev;
+
+    /// The notification handler registered in libevent
+    static void listen_event_handler(evutil_socket_t, short, void* arg);
+};
+
 /**
  * The listen_event_handler is the callback from libevent when someone is
  * connecting to one of the server sockets. It runs in the context of the
  * listen thread
  */
-void ServerSocket::listen_event_handler(evutil_socket_t, short, void* arg) {
-    auto& c = *reinterpret_cast<ServerSocket*>(arg);
+void LibeventServerSocketImpl::listen_event_handler(evutil_socket_t,
+                                                    short,
+                                                    void* arg) {
+    auto& c = *reinterpret_cast<LibeventServerSocketImpl*>(arg);
 
     if (is_memcached_shutting_down()) {
         // Someone requested memcached to shut down. The listen thread should
@@ -59,9 +128,8 @@ void ServerSocket::listen_event_handler(evutil_socket_t, short, void* arg) {
     }
 }
 
-ServerSocket::ServerSocket(SOCKET fd,
-                           event_base* b,
-                           std::shared_ptr<ListeningPort> interf)
+LibeventServerSocketImpl::LibeventServerSocketImpl(
+        SOCKET fd, event_base* b, std::shared_ptr<ListeningPort> interf)
     : sfd(fd),
       uuid(to_string(cb::uuid::random())),
       interface(std::move(interf)),
@@ -98,7 +166,7 @@ ServerSocket::ServerSocket(SOCKET fd,
     numInstances++;
 }
 
-ServerSocket::~ServerSocket() {
+LibeventServerSocketImpl::~LibeventServerSocketImpl() {
     std::string tagstr;
     if (!interface->tag.empty()) {
         tagstr = " \"" + interface->tag + "\"";
@@ -118,7 +186,7 @@ ServerSocket::~ServerSocket() {
     numInstances--;
 }
 
-void ServerSocket::acceptNewClient() {
+void LibeventServerSocketImpl::acceptNewClient() {
     sockaddr_storage addr{};
     socklen_t addrlen = sizeof(addr);
     auto client = cb::net::accept(
@@ -198,7 +266,7 @@ void ServerSocket::acceptNewClient() {
             client, interface->system, interface->port, std::move(ssl));
 }
 
-nlohmann::json ServerSocket::toJson() const {
+nlohmann::json LibeventServerSocketImpl::toJson() const {
     nlohmann::json ret;
 
     const auto sockinfo = cb::net::getSockNameAsJson(sfd);
@@ -220,7 +288,8 @@ nlohmann::json ServerSocket::toJson() const {
     return ret;
 }
 
-void ServerSocket::updateSSL(const std::string& key, const std::string& cert) {
+void LibeventServerSocketImpl::updateSSL(const std::string& key,
+                                         const std::string& cert) {
     std::stringstream ss;
     ss << sfd << ": Update interface properties for IPv";
     if (interface->family == AF_INET) {
@@ -243,4 +312,9 @@ void ServerSocket::updateSSL(const std::string& key, const std::string& cert) {
                                                 interface->system,
                                                 key,
                                                 cert);
+}
+
+std::unique_ptr<ServerSocket> ServerSocket::create(
+        SOCKET sfd, event_base* b, std::shared_ptr<ListeningPort> interf) {
+    return std::make_unique<LibeventServerSocketImpl>(sfd, b, interf);
 }

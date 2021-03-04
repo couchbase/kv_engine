@@ -1,6 +1,5 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2015 Couchbase, Inc.
+ *     Copyright 2021 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -16,21 +15,19 @@
  */
 #pragma once
 
-#include <libevent/utilities.h>
 #include <nlohmann/json_fwd.hpp>
 #include <platform/socket.h>
 #include <atomic>
 #include <memory>
 
 class ListeningPort;
-class NetworkInterface;
+struct event_base;
 
 /**
  * The ServerSocket represents the socket used to accept new clients.
  */
 class ServerSocket {
 public:
-    ServerSocket() = delete;
     ServerSocket(const ServerSocket&) = delete;
 
     /**
@@ -40,63 +37,32 @@ public:
      * @param b The event base to use (the caller owns the event base)
      * @param interf The interface object containing properties to use
      */
-    ServerSocket(SOCKET sfd,
-                 event_base* b,
-                 std::shared_ptr<ListeningPort> interf);
+    static std::unique_ptr<ServerSocket> create(
+            SOCKET sfd, event_base* b, std::shared_ptr<ListeningPort> interf);
 
-    ~ServerSocket();
+    virtual ~ServerSocket() = default;
 
-    /**
-     * Get the socket (used for logging)
-     */
-    SOCKET getSocket() {
-        return sfd;
-    }
-
-    void acceptNewClient();
-
-    const ListeningPort& getInterfaceDescription() const {
-        return *interface;
-    }
+    virtual const ListeningPort& getInterfaceDescription() const = 0;
 
     /// Update the interface description to use the provided SSL info
-    void updateSSL(const std::string& key, const std::string& cert);
+    virtual void updateSSL(const std::string& key, const std::string& cert) = 0;
 
     /**
      * Get the details for this connection to put in the portnumber
      * file so that the test framework may pick up the port numbers
      */
-    nlohmann::json toJson() const;
+    virtual nlohmann::json toJson() const = 0;
 
-    /// Get the number of instances of ServerSocket currently in use
+    virtual const std::string& getUuid() const = 0;
+
+    /// Get the number of instances of ServerSocket currently in use (used
+    /// by the stats and we could probably move it elsewhere?)
     static uint64_t getNumInstances() {
         return numInstances.load();
     }
 
-    const std::string& getUuid() const {
-        return uuid;
-    }
-
 protected:
-    /// The socket object to accept clients from
-    const SOCKET sfd;
-
-    /// The unique id used to identify _this_ port
-    const std::string uuid;
-
-    std::shared_ptr<ListeningPort> interface;
-
-    /// The sockets name (used for debug)
-    const std::string sockname;
-
-    /// The backlog to specify to bind
-    const int backlog = 1024;
-
-    /// The libevent object we're using
-    cb::libevent::unique_event_ptr ev;
-
-    /// The notification handler registered in libevent
-    static void listen_event_handler(evutil_socket_t, short, void* arg);
+    ServerSocket() = default;
 
     /// The current number of instances of ServerSockets
     static std::atomic<uint64_t> numInstances;
