@@ -90,11 +90,6 @@ struct DcpStreamIdFrameInfo {
                                      sizeof(tag) + sizeof(sid)};
     }
 
-    std::string_view getBuffer() const {
-        auto buffer = getBuf();
-        return {reinterpret_cast<const char*>(buffer.data()), buffer.size()};
-    }
-
 private:
     // FrameID:2, len:2
     static const uint8_t frameId = uint8_t(request::FrameInfoId::DcpStreamId);

@@ -101,9 +101,9 @@ static void append_stats(std::string_view key,
     header.setOpaque(cookie.getHeader().getOpaque());
     auto& c = cookie.getConnection();
     c.copyToOutputStream(
-            {reinterpret_cast<const char*>(&header), sizeof(header)},
-            key,
-            value);
+            {reinterpret_cast<const char*>(&header), sizeof(header)});
+    c.copyToOutputStream(key);
+    c.copyToOutputStream(value);
 }
 
 // Create a static std::function to wrap append_stats, instead of creating a

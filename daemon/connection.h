@@ -350,70 +350,19 @@ public:
     }
 
     /**
-     * Copy the provided data to the end of the output stream.
+     * Copy the provided data to the end of the output stream
      *
-     * @param data The data to send
+     * @param data the data to send
      * @throws std::bad_alloc if we failed to insert the data into the output
      *                        stream.
      */
-    void copyToOutputStream(std::string_view data1);
-
-    /**
-     * Copy the provided data to the end of the output stream.
-     *
-     * @param data The data to send
-     * @throws std::bad_alloc if we failed to insert the data into the output
-     *                        stream.
-     */
-    void copyToOutputStream(gsl::span<std::string_view> data);
-
-    /**
-     * Copy the provided data to the end of the output stream.
-     *
-     * This is a convenience function around the span one to avoid having
-     * to build up the array everywhere we want to use the function. See
-     * https://stackoverflow.com/questions/33874772/why-cant-i-construct-a-gslspan-with-a-brace-enclosed-initializer-list
-     * for related problems.
-     *
-     * @param data[1,5] the data to send
-     * @throws std::bad_alloc if we failed to insert the data into the output
-     *                        stream.
-     */
-    void copyToOutputStream(std::string_view data1, std::string_view data2) {
-        std::array<std::string_view, 2> data{{data1, data2}};
-        copyToOutputStream(data);
-    }
-
-    void copyToOutputStream(std::string_view data1,
-                            std::string_view data2,
-                            std::string_view data3) {
-        std::array<std::string_view, 3> data{{data1, data2, data3}};
-        copyToOutputStream(data);
-    }
-
-    void copyToOutputStream(std::string_view data1,
-                            std::string_view data2,
-                            std::string_view data3,
-                            std::string_view data4) {
-        std::array<std::string_view, 4> data{{data1, data2, data3, data4}};
-        copyToOutputStream(data);
-    }
-
-    void copyToOutputStream(std::string_view data1,
-                            std::string_view data2,
-                            std::string_view data3,
-                            std::string_view data4,
-                            std::string_view data5) {
-        std::array<std::string_view, 5> data{
-                {data1, data2, data3, data4, data5}};
-        copyToOutputStream(data);
-    }
+    void copyToOutputStream(std::string_view data);
 
     /// Wrapper function to deal with byte buffers during the transition over
     /// to only use char buffers
     void copyToOutputStream(cb::const_byte_buffer data) {
-        copyToOutputStream(std::string_view{
-                reinterpret_cast<const char*>(data.data()), data.size()});
+        copyToOutputStream(
+                {reinterpret_cast<const char*>(data.data()), data.size()});
     }
 
     /**
@@ -857,32 +806,6 @@ protected:
      * be triggered once there is data on the socket).
      */
     void enableReadEvent();
-
-    /**
-     * Format the response header into the provided buffer.
-     *
-     * @param cookie The command to create a response for
-     * @param dest The destination buffer (the reason the buffer is huge
-     *             is that we'll be using the front-end-threads scratch
-     *             buffer and I don't want to do runtime checks to verify
-     *             that it is big enough when we can use a compile time
-     *             check (if someone change the size of the front-end-threads
-     *             scratch buffer we'll fail compile time when we pass it
-     *             in here)
-     * @param status The status code
-     * @param extras_len The length of the extras section
-     * @param key_len The length of the key
-     * @param value_len The length of the value
-     * @param datatype The datatype for the response
-     * @return A view into the destination buffer containing the header
-     */
-    std::string_view formatResponseHeaders(Cookie& cookie,
-                                           std::array<char, 2048>& dest,
-                                           cb::mcbp::Status status,
-                                           std::size_t extras_len,
-                                           std::size_t key_len,
-                                           std::size_t value_len,
-                                           uint8_t datatype);
 
     /**
      * The actual socket descriptor used by this connection
