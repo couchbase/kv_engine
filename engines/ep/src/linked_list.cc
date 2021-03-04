@@ -430,23 +430,30 @@ OrderedLL::iterator BasicLinkedList::purgeListElem(OrderedLL::iterator it,
 
 std::unique_ptr<BasicLinkedList::RangeIteratorLL>
 BasicLinkedList::RangeIteratorLL::create(BasicLinkedList& ll, bool isBackfill) {
-    /* Note: cannot use std::make_unique because the constructor of
-       RangeIteratorLL is private */
-    std::unique_ptr<BasicLinkedList::RangeIteratorLL> pRangeItr(
-            new BasicLinkedList::RangeIteratorLL(ll, isBackfill));
+    std::unique_ptr<BasicLinkedList::RangeIteratorLL> pRangeItr;
+    {
+        std::lock_guard<std::mutex> listWriteLg(ll.getListWriteLock());
+
+        /* Note: cannot use std::make_unique because the constructor of
+           RangeIteratorLL is private */
+        pRangeItr = std::unique_ptr<BasicLinkedList::RangeIteratorLL>(
+                new BasicLinkedList::RangeIteratorLL(
+                        ll, listWriteLg, isBackfill));
+    }
+
     return pRangeItr->tryLater() ? nullptr : std::move(pRangeItr);
 }
 
-BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll,
-                                                  bool isBackfill)
+BasicLinkedList::RangeIteratorLL::RangeIteratorLL(
+        BasicLinkedList& ll,
+        std::lock_guard<std::mutex>& listWriteLg,
+        bool isBackfill)
     : list(ll),
       itrRange(0, 0),
       numRemaining(0),
-      maxVisibleSeqno(0),
+      maxVisibleSeqno(list.maxVisibleSeqno),
+      highCompletedSeqno(list.highCompletedSeqno),
       isBackfill(isBackfill) {
-
-    std::lock_guard<std::mutex> listWriteLg(list.getListWriteLock());
-
     if (list.highSeqno < 1) {
         /* No need of holding a lock for the snapshot as there are no items;
            Also iterator range is at default (0, 0) */
@@ -465,9 +472,6 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll,
 
     /* Number of items that can be iterated over */
     numRemaining = list.seqList.size();
-
-    maxVisibleSeqno = list.maxVisibleSeqno;
-    highCompletedSeqno = list.highCompletedSeqno;
 
     /* Mark the snapshot range on linked list. The range that can be read by the
        iterator is inclusive of the start and the end. */

@@ -338,9 +338,17 @@ private:
         }
 
     private:
-        /* We have a private constructor because we want to create the iterator
-           optionally, that is, only when it is possible to get a read lock */
-        RangeIteratorLL(BasicLinkedList& ll, bool isBackfill);
+        /**
+         * We have a private constructor because we want to create the iterator
+         * optionally, that is, only when it is possible to get a read lock
+         *
+         * @param ll LinkedList object
+         * @param listWriteLg Write lock of the LinkedList
+         * @param isBackfill Is the RangeItr for backfilling?
+         */
+        RangeIteratorLL(BasicLinkedList& ll,
+                        std::lock_guard<std::mutex>& listWriteLg,
+                        bool isBackfill);
 
         /**
          * Indicates if the client should try creating the iterator at a later
@@ -387,9 +395,9 @@ private:
            iterator at that instance */
         uint64_t numRemaining;
 
-        uint64_t maxVisibleSeqno;
+        const uint64_t maxVisibleSeqno;
 
-        uint64_t highCompletedSeqno;
+        const uint64_t highCompletedSeqno;
 
         /* Indicates if the range iterator is for DCP backfill
            (for debug) */
