@@ -667,13 +667,16 @@ void MagmaKVStore::commitCallback(int errCode, kvstats_ctx&) {
                 ++st.numDelFailure;
             }
 
-            logger->TRACE(
-                    "MagmaKVStore::commitCallback(Delete) {} key:{} errCode:{} "
-                    "deleteState:{}",
-                    pendingReqs->front().getVbID(),
-                    cb::UserData(req.getKey().to_string()),
-                    errCode,
-                    to_string(state));
+            if (logger->should_log(spdlog::level::TRACE)) {
+                logger->TRACE(
+                        "MagmaKVStore::commitCallback(Delete) {} key:{} "
+                        "errCode:{} "
+                        "deleteState:{}",
+                        pendingReqs->front().getVbID(),
+                        cb::UserData(req.getKey().to_string()),
+                        errCode,
+                        to_string(state));
+            }
 
             transactionCtx->deleteCallback(req.getItem(), state);
         } else {
@@ -693,13 +696,16 @@ void MagmaKVStore::commitCallback(int errCode, kvstats_ctx&) {
                 ++st.numSetFailure;
             }
 
-            logger->TRACE(
-                    "MagmaKVStore::commitCallback(Set) {} key:{} errCode:{} "
-                    "setState:{}",
-                    pendingReqs->front().getVbID(),
-                    cb::UserData(req.getKey().to_string()),
-                    errCode,
-                    to_string(state));
+            if (logger->should_log(spdlog::level::TRACE)) {
+                logger->TRACE(
+                        "MagmaKVStore::commitCallback(Set) {} key:{} "
+                        "errCode:{} "
+                        "setState:{}",
+                        pendingReqs->front().getVbID(),
+                        cb::UserData(req.getKey().to_string()),
+                        errCode,
+                        to_string(state));
+            }
 
             transactionCtx->setCallback(req.getItem(), state);
         }
@@ -1581,11 +1587,14 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) {
 
         if (magmakv::isDeleted(metaSlice) &&
             ctx.docFilter == DocumentFilter::NO_DELETES) {
-            logger->TRACE(
-                    "MagmaKVStore::scan SKIPPED(Deleted) {} key:{} seqno:{}",
-                    ctx.vbid,
-                    cb::UserData{diskKey.to_string()},
-                    seqno);
+            if (logger->should_log(spdlog::level::TRACE)) {
+                logger->TRACE(
+                        "MagmaKVStore::scan SKIPPED(Deleted) {} key:{} "
+                        "seqno:{}",
+                        ctx.vbid,
+                        cb::UserData{diskKey.to_string()},
+                        seqno);
+            }
             continue;
         }
 
@@ -1599,13 +1608,16 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) {
                 DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
                 if (ctx.collectionsContext.isLogicallyDeleted(docKey, seqno)) {
                     ctx.lastReadSeqno = seqno;
-                    logger->TRACE(
-                            "MagmaKVStore::scan SKIPPED(Collection Deleted) {} "
-                            "key:{} "
-                            "seqno:{}",
-                            ctx.vbid,
-                            cb::UserData{diskKey.to_string()},
-                            seqno);
+                    if (logger->should_log(spdlog::level::TRACE)) {
+                        logger->TRACE(
+                                "MagmaKVStore::scan SKIPPED(Collection "
+                                "Deleted) {} "
+                                "key:{} "
+                                "seqno:{}",
+                                ctx.vbid,
+                                cb::UserData{diskKey.to_string()},
+                                seqno);
+                    }
                     continue;
                 }
             }
@@ -1616,13 +1628,15 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) {
             if (ctx.lookup->getStatus() ==
                 static_cast<int>(cb::engine_errc::key_already_exists)) {
                 ctx.lastReadSeqno = seqno;
-                logger->TRACE(
-                        "MagmaKVStore::scan "
-                        "SKIPPED(cb::engine_errc::key_already_exists) {} "
-                        "key:{} seqno:{}",
-                        ctx.vbid,
-                        cb::UserData{diskKey.to_string()},
-                        seqno);
+                if (logger->should_log(spdlog::level::TRACE)) {
+                    logger->TRACE(
+                            "MagmaKVStore::scan "
+                            "SKIPPED(cb::engine_errc::key_already_exists) {} "
+                            "key:{} seqno:{}",
+                            ctx.vbid,
+                            cb::UserData{diskKey.to_string()},
+                            seqno);
+                }
                 continue;
             } else if (ctx.lookup->getStatus() ==
                        static_cast<int>(cb::engine_errc::no_memory)) {
@@ -1635,15 +1649,18 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) {
             }
         }
 
-        logger->TRACE(
-                "MagmaKVStore::scan {} key:{} seqno:{} deleted:{} expiry:{} "
-                "compressed:{}",
-                ctx.vbid,
-                diskKey.to_string(),
-                seqno,
-                magmakv::isDeleted(metaSlice),
-                magmakv::getExpiryTime(metaSlice),
-                magmakv::isCompressed(metaSlice));
+        if (logger->should_log(spdlog::level::TRACE)) {
+            logger->TRACE(
+                    "MagmaKVStore::scan {} key:{} seqno:{} deleted:{} "
+                    "expiry:{} "
+                    "compressed:{}",
+                    ctx.vbid,
+                    cb::UserData{diskKey.to_string()},
+                    seqno,
+                    magmakv::isDeleted(metaSlice),
+                    magmakv::getExpiryTime(metaSlice),
+                    magmakv::isCompressed(metaSlice));
+        }
 
         auto itm = makeItem(
                 ctx.vbid, keySlice, metaSlice, valSlice, ctx.valFilter);
@@ -1668,11 +1685,13 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) {
         ctx.callback->callback(rv);
         auto callbackStatus = ctx.callback->getStatus();
         if (callbackStatus == static_cast<int>(cb::engine_errc::no_memory)) {
-            logger->TRACE(
-                    "MagmaKVStore::scan callback {} "
-                    "key:{} returned cb::engine_errc::no_memory",
-                    ctx.vbid,
-                    cb::UserData{diskKey.to_string()});
+            if (logger->should_log(spdlog::level::TRACE)) {
+                logger->TRACE(
+                        "MagmaKVStore::scan callback {} "
+                        "key:{} returned cb::engine_errc::no_memory",
+                        ctx.vbid,
+                        cb::UserData{diskKey.to_string()});
+            }
             return scan_again;
         }
         ctx.lastReadSeqno = seqno;
@@ -1753,8 +1772,7 @@ MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(Vbid vbid) {
                 kvstoreRev};
     }
 
-    logger->TRACE(
-            "MagmaKVStore::readVBStateFromDisk {} vbstate:{}", vbid, j.dump());
+    logger->TRACE("MagmaKVStore::readVBStateFromDisk {} vbstate:{}", vbid, j);
 
     vbucket_state vbstate = j;
     mergeMagmaDbStatsIntoVBState(vbstate, vbid);
@@ -2246,9 +2264,14 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
                 if (docKey.isInSystemCollection()) {
                     return;
                 }
-                logger->TRACE("MagmaKVStore::rollback callback key:{} seqno:{}",
-                              cb::UserData{diskKey.to_string()},
-                              seqno);
+
+                if (logger->should_log(spdlog::level::TRACE)) {
+                    logger->TRACE(
+                            "MagmaKVStore::rollback callback key:{} seqno:{}",
+                            cb::UserData{diskKey.to_string()},
+                            seqno);
+                }
+
                 auto rv = this->makeGetValue(vbid,
                                              keySlice,
                                              metaSlice,
