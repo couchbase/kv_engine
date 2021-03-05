@@ -111,14 +111,14 @@ public:
     /**
      * Finds the stream for a given vbucket
      */
-    std::shared_ptr<Stream> findStream(Vbid vbid);
+    std::shared_ptr<ActiveStream> findStream(Vbid vbid);
 
     /**
      * Finds the stream for a given vbucket/sid
      * @returns a pair where second indicates if the VB has no entries at all
      *          first is the stream (or null if no stream)
      */
-    std::pair<std::shared_ptr<Stream>, bool> findStream(
+    std::pair<std::shared_ptr<ActiveStream>, bool> findStream(
             Vbid vbid, cb::mcbp::DcpStreamId sid);
 
     /**

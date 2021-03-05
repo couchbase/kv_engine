@@ -102,7 +102,7 @@ void ActiveStreamCheckpointProcessorTask::addStats(const std::string& name,
     add_casted_stat((prefix + "notified").c_str(), notified, add_stat, c);
 }
 
-std::shared_ptr<StreamContainer<std::shared_ptr<Stream>>>
+std::shared_ptr<StreamContainer<std::shared_ptr<ActiveStream>>>
 ActiveStreamCheckpointProcessorTask::queuePop() {
     Vbid vbid = Vbid(0);
     auto ready = queue.popFront(vbid);

@@ -66,7 +66,7 @@ public:
                   const void* c) const;
 
 private:
-    std::shared_ptr<StreamContainer<std::shared_ptr<Stream>>> queuePop();
+    std::shared_ptr<StreamContainer<std::shared_ptr<ActiveStream>>> queuePop();
 
     bool queueEmpty() {
         return queue.empty();

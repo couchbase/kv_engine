@@ -65,7 +65,7 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
             includeDeletedUserXattrs);
     stream->setActive();
 
-    auto baseStream = std::dynamic_pointer_cast<Stream>(stream);
+    auto baseStream = std::dynamic_pointer_cast<ActiveStream>(stream);
     updateStreamsMap(vb.getId(), stream->getStreamId(), baseStream);
 
     auto found = streams->find(vb.getId().get());
@@ -92,7 +92,7 @@ cb::engine_errc MockDcpProducer::stepWithBorderGuard(
     return step(guardedProducers);
 }
 
-std::shared_ptr<Stream> MockDcpProducer::findStream(Vbid vbid) {
+std::shared_ptr<ActiveStream> MockDcpProducer::findStream(Vbid vbid) {
     auto rv = streams->find(vbid.get());
     if (rv != streams->end()) {
         auto handle = rv->second->rlock();
@@ -119,7 +119,7 @@ MockDcpProducer::getCheckpointSnapshotTask() const {
             checkpointCreator->task.get());
 }
 
-std::pair<std::shared_ptr<Stream>, bool> MockDcpProducer::findStream(
+std::pair<std::shared_ptr<ActiveStream>, bool> MockDcpProducer::findStream(
         Vbid vbid, cb::mcbp::DcpStreamId sid) {
     auto rv = streams->find(vbid.get());
     if (rv != streams->end()) {

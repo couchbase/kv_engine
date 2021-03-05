@@ -472,7 +472,7 @@ cb::engine_errc DcpProducer::streamRequest(
     // ActiveStream is constructed.
     const auto streamID = filter.getStreamId();
 
-    std::shared_ptr<Stream> s;
+    std::shared_ptr<ActiveStream> s;
     try {
         s = std::make_shared<ActiveStream>(&engine_,
                                            shared_from_this(),
@@ -527,7 +527,7 @@ cb::engine_errc DcpProducer::streamRequest(
 
         // MB-19428: Only activate the stream if we are adding it to the
         // streams map.
-        static_cast<ActiveStream*>(s.get())->setActive();
+        s->setActive();
 
         updateStreamsMap(vbucket, streamID, s);
     }
@@ -1173,9 +1173,8 @@ bool DcpProducer::handleResponse(const cb::mcbp::Response& response) {
         auto handle = s.second->rlock();
         for (; !handle.end(); handle.next()) {
             const auto& stream = handle.get();
-            auto* as = dynamic_cast<ActiveStream*>(stream.get());
-            if (as && opaque == stream->getOpaque()) {
-                return stream; // return matching shared_ptr<Stream>
+            if (stream && opaque == stream->getOpaque()) {
+                return stream;
             }
         }
         return ContainerElement{};
@@ -1507,9 +1506,8 @@ void DcpProducer::addTakeoverStats(const AddStatFn& add_stat,
         // Only perform takeover stats on singleton streams
         if (handle.size() == 1) {
             auto stream = handle.get();
-            ActiveStream* as = nullptr;
-            if ((as = dynamic_cast<ActiveStream*>(stream.get()))) {
-                as->addTakeoverStats(add_stat, c, vb);
+            if (stream) {
+                stream->addTakeoverStats(add_stat, c, vb);
                 return;
             }
             logger->warn(
@@ -1621,7 +1619,7 @@ bool DcpProducer::setStreamDeadStatus(
         folly::SharedMutex::WriteHolder* vbstateLock) {
     auto rv = streams->find(vbid.get());
     if (rv != streams->end()) {
-        std::vector<std::shared_ptr<Stream>> streamPtrs;
+        std::vector<std::shared_ptr<ActiveStream>> streamPtrs;
         // MB-35073: holding StreamContainer rlock while calling setDead
         // has been seen to cause lock inversion elsewhere.
         // Collect sharedptrs then setDead once lock is released (itr out of
@@ -1634,12 +1632,13 @@ bool DcpProducer::setStreamDeadStatus(
         // to vbstate and pass it down here. If that is the case, then we have
         // to avoid the call to ActiveStream::setDead(status) as it may deadlock
         // by acquiring the same lock again.
-        for (const auto& streamPtr : streamPtrs) {
-            auto* activeStream = dynamic_cast<ActiveStream*>(streamPtr.get());
-            if (activeStream && vbstateLock) {
-                activeStream->setDead(status, *vbstateLock);
-            } else if (streamPtr) {
-                streamPtr->setDead(status);
+        for (const auto& stream : streamPtrs) {
+            if (stream) {
+                if (vbstateLock) {
+                    stream->setDead(status, *vbstateLock);
+                } else {
+                    stream->setDead(status);
+                }
             }
         }
 
@@ -1891,7 +1890,7 @@ size_t DcpProducer::getItemsRemaining() const {
             streams->end(),
             [&remainingSize](const StreamsMap::value_type& vt) {
                 for (auto itr = vt.second->rlock(); !itr.end(); itr.next()) {
-                    auto* as = dynamic_cast<ActiveStream*>(itr.get().get());
+                    auto* as = itr.get().get();
                     if (as) {
                         remainingSize += as->getItemsRemaining();
                     }
@@ -1947,8 +1946,7 @@ void DcpProducer::scheduleCheckpointProcessorTask(
             ->schedule(s);
 }
 
-std::shared_ptr<StreamContainer<std::shared_ptr<Stream>>>
-DcpProducer::findStreams(Vbid vbid) {
+DcpProducer::StreamMapValue DcpProducer::findStreams(Vbid vbid) {
     auto it = streams->find(vbid.get());
     if (it != streams->end()) {
         return it->second;
@@ -1958,7 +1956,7 @@ DcpProducer::findStreams(Vbid vbid) {
 
 void DcpProducer::updateStreamsMap(Vbid vbid,
                                    cb::mcbp::DcpStreamId sid,
-                                   std::shared_ptr<Stream>& stream) {
+                                   std::shared_ptr<ActiveStream>& stream) {
     auto found = streams->find(vbid.get());
 
     if (found != streams->end()) {

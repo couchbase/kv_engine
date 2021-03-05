@@ -42,13 +42,13 @@ class DcpProducer : public ConnHandler,
                     public std::enable_shared_from_this<DcpProducer> {
 public:
     /**
-     * The StreamContainer stores the Stream via a shared_ptr, this is because
-     * we have multi-threaded access to the DcpProducer and the possibility
-     * that a stream maybe removed from the container whilst a thread is still
-     * working on the stream, e.g. closeStream and addStats occurring
-     * concurrently.
+     * The StreamContainer stores the ActiveStream via a shared_ptr, this is
+     * because we have multi-threaded access to the DcpProducer and the
+     * possibility that a stream maybe removed from the container whilst a
+     * thread is still working on the stream, e.g. closeStream and addStats
+     * occurring concurrently.
      */
-    using ContainerElement = std::shared_ptr<Stream>;
+    using ContainerElement = std::shared_ptr<ActiveStream>;
 
     /**
      * The StreamsMap maps from vbid to the StreamContainer, which is stored
@@ -374,8 +374,7 @@ public:
     /** Searches the streams map for a stream for vbucket ID. Returns the
      *  found stream, or an empty pointer if none found.
      */
-    std::shared_ptr<StreamContainer<std::shared_ptr<Stream>>> findStreams(
-            Vbid vbid);
+    StreamMapValue findStreams(Vbid vbid);
 
     std::string getConsumerName() const;
 
@@ -504,7 +503,7 @@ protected:
      */
     void updateStreamsMap(Vbid vbid,
                           cb::mcbp::DcpStreamId sid,
-                          std::shared_ptr<Stream>& stream);
+                          std::shared_ptr<ActiveStream>& stream);
 
     /**
      * Attempt to locate a stream associated with the vbucket/stream-id and
