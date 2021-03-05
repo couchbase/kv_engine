@@ -1880,15 +1880,6 @@ cb::engine_errc DcpProducer::maybeSendNoop(
     return cb::engine_errc::failed;
 }
 
-void DcpProducer::clearQueues() {
-    std::for_each(
-            streams->begin(), streams->end(), [](StreamsMap::value_type& vt) {
-                for (auto itr = vt.second->rlock(); !itr.end(); itr.next()) {
-                    itr.get()->clear();
-                }
-            });
-}
-
 size_t DcpProducer::getItemsSent() {
     return itemsSent;
 }

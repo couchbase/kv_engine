@@ -348,6 +348,8 @@ public:
     }
 
 protected:
+    void clear_UNLOCKED();
+
     /**
      * Notifies the stream that a scheduled backfill completed
      * without providing any items to backfillReceived, and

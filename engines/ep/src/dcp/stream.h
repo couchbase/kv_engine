@@ -112,8 +112,6 @@ public:
     /// @returns true if state_ is not in the Dead state.
     virtual bool isActive() const = 0;
 
-    void clear();
-
     virtual bool compareStreamId(cb::mcbp::DcpStreamId id) const {
         return id == cb::mcbp::DcpStreamId(0);
     }
@@ -121,8 +119,6 @@ public:
     virtual bool endIfRequiredPrivilegesLost(const void* cookie) = 0;
 
 protected:
-    void clear_UNLOCKED();
-
     /* To be called after getting streamMutex lock */
     void pushToReadyQ(std::unique_ptr<DcpResponse> resp);
 

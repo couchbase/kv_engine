@@ -62,17 +62,7 @@ Stream::Stream(std::string name,
       readyQueueMemory(0) {
 }
 
-Stream::~Stream() {
-    // NB: reusing the "unlocked" method without a lock because we're
-    // destructing and should not take any locks.
-    clear_UNLOCKED();
-}
-
-void Stream::clear_UNLOCKED() {
-    while (!readyQ.empty()) {
-        popFromReadyQ();
-    }
-}
+Stream::~Stream() = default;
 
 void Stream::pushToReadyQ(std::unique_ptr<DcpResponse> resp) {
     /* expect streamMutex.ownsLock() == true */
@@ -185,9 +175,4 @@ void Stream::addStats(const AddStatFn& add_stat, const void* c) {
         EP_LOG_WARN("Stream::addStats: Failed to build stats: {}",
                     error.what());
     }
-}
-
-void Stream::clear() {
-    LockHolder lh(streamMutex);
-    clear_UNLOCKED();
 }

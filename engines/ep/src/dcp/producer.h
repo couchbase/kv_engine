@@ -168,8 +168,6 @@ public:
 
     const char *getType() const override;
 
-    void clearQueues();
-
     size_t getBackfillQueueSize();
 
     size_t getItemsSent();

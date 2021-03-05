@@ -1809,6 +1809,12 @@ bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
     return false;
 }
 
+void ActiveStream::clear_UNLOCKED() {
+    while (!readyQ.empty()) {
+        popFromReadyQ();
+    }
+}
+
 void ActiveStream::notifyEmptyBackfill_UNLOCKED(uint64_t lastSeenSeqno) {
     setBackfillRemaining_UNLOCKED(0);
     auto vbucket = engine->getVBucket(vb_);
