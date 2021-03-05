@@ -558,28 +558,29 @@ TEST_F(CouchKVStoreErrorInjectionTest, initializeWithHeaderButNoVBState) {
     ASSERT_THROW(kvstore->getPersistedVBucketState(vbid), std::logic_error);
     ASSERT_EQ(0, kvstore->getKVStoreStat().numVbSetFailure);
 
-    {
-        EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-        EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-        EXPECT_CALL(logger,
-                    mlog(Ge(spdlog::level::level_enum::warn),
-                         VCE(COUCHSTORE_ERROR_WRITE)))
-                .Times(1)
-                .RetiresOnSaturation();
+    EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
+    EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
+    EXPECT_CALL(logger,
+                mlog(Ge(spdlog::level::level_enum::warn),
+                     VCE(COUCHSTORE_ERROR_WRITE)))
+            .Times(1)
+            .RetiresOnSaturation();
 
-        /* Establish FileOps expectation */
-        EXPECT_CALL(ops, pwrite(_, _, _, _, _))
-                .WillOnce(Return(COUCHSTORE_ERROR_WRITE))
-                .RetiresOnSaturation();
-        EXPECT_CALL(ops, pwrite(_, _, _, _, _)).Times(2).RetiresOnSaturation();
+    // Inject a failure in the setVBState phase
+    using namespace testing;
+    EXPECT_CALL(ops, sync(_, _))
+            .Times(3)
+            .WillOnce(Return(COUCHSTORE_SUCCESS)) // boot pre-commit
+            .WillOnce(Return(COUCHSTORE_SUCCESS)) // boot commit
+            .WillOnce(Return(COUCHSTORE_ERROR_WRITE)); // setVBS pre-commit
 
-        // Set something in the vbucket_state to differentiate it from the
-        // default constructed one. It doesn't matter what we set.
-        vbucket_state state;
-        state.maxVisibleSeqno = 10;
+    // Set something in the vbucket_state to differentiate it from the
+    // default constructed one. It doesn't matter what we set.
+    vbucket_state state;
+    state.maxVisibleSeqno = 10;
 
-        kvstore->snapshotVBucket(vbid, state);
-    }
+    // Must fail
+    EXPECT_FALSE(kvstore->snapshotVBucket(vbid, state));
 
     // vbucket_state is still default as readVBState returns a default value
     // instead of a non-success status or exception...
@@ -1191,7 +1192,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, savedocs_doc_infos_by_id) {
                     .WillOnce(Return(COUCHSTORE_ERROR_READ))
                     .RetiresOnSaturation();
             EXPECT_CALL(ops, pread(_, _, _, _, _))
-                    .Times(5)
+                    .Times(6)
                     .RetiresOnSaturation();
 
             kvstore->commit(flush);

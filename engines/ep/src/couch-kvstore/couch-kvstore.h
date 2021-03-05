@@ -885,6 +885,16 @@ protected:
     PendingLocalDocRequestQueue replayPrecommitProcessDroppedCollections(
             Db& db, const CompactionContext& hook_ctx);
 
+    /**
+     * Open the current vbid.couch.rev file if it exists, or atomic-create it.
+     * The result of the function is either a well-formed file that contains the
+     * first Header at filepos 0 (success path), or no file (failure path).
+     *
+     * @param vbid
+     * @returns The DbHolder for file or {} if the operation fails
+     */
+    std::optional<DbHolder> openOrCreate(Vbid vbid) noexcept;
+
     const CouchKVStoreConfig& configuration;
 
     // The directory for the database

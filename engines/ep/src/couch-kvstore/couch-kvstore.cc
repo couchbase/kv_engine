@@ -1956,23 +1956,15 @@ vbucket_state* CouchKVStore::getCachedVBucketState(Vbid vbucketId) {
 
 bool CouchKVStore::writeVBucketState(Vbid vbucketId,
                                      const vbucket_state& vbstate) {
-    std::map<Vbid, uint64_t>::iterator mapItr;
-    couchstore_error_t errorCode;
-
-    DbHolder db(*this);
-    errorCode = openDB(vbucketId, db, (uint64_t)COUCHSTORE_OPEN_FLAG_CREATE);
-    if (errorCode != COUCHSTORE_SUCCESS) {
+    auto handle = openOrCreate(vbucketId);
+    if (!handle) {
         ++st.numVbSetFailure;
-        logger.warn(
-                "CouchKVStore::writeVBucketState: openDB error:{}, "
-                "{}, fileRev:{}",
-                couchstore_strerror(errorCode),
-                vbucketId,
-                db.getFileRev());
+        logger.warn("CouchKVStore::writeVBucketState: openOrCreate error");
         return false;
     }
 
-    errorCode = updateLocalDocument(
+    auto& db = *handle;
+    auto errorCode = updateLocalDocument(
             *db, "_local/vbstate", makeJsonVBState(vbstate));
     if (errorCode != COUCHSTORE_SUCCESS) {
         ++st.numVbSetFailure;
@@ -1999,7 +1991,7 @@ bool CouchKVStore::writeVBucketState(Vbid vbucketId,
         return false;
     }
 
-    const auto info = cb::couchstore::getHeader(*db.getDb());
+    const auto info = cb::couchstore::getHeader(*db);
     cachedSpaceUsed[vbucketId.get()] = info.spaceUsed;
     cachedFileSize[vbucketId.get()] = info.fileSize;
 
@@ -2979,19 +2971,13 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
                                           const std::vector<DocInfo*>& docinfos,
                                           const std::vector<void*>& kvReqs,
                                           kvstats_ctx& kvctx) {
-    couchstore_error_t errCode;
-    DbHolder db(*this);
-    errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_CREATE);
-    if (errCode != COUCHSTORE_SUCCESS) {
-        logger.warn(
-                "CouchKVStore::saveDocs: openDB error:{}, {}, rev:{}, "
-                "numdocs:{}",
-                couchstore_strerror(errCode),
-                vbid,
-                db.getFileRev(),
-                uint64_t(docs.size()));
-        return errCode;
+    auto handle = openOrCreate(vbid);
+    if (!handle) {
+        logger.warn("CouchKVStore::saveDocs: openOrCreate error");
+        return COUCHSTORE_ERROR_OPEN_FILE;
     }
+
+    auto& db = *handle;
 
     uint64_t maxDBSeqno = 0;
 
@@ -3030,14 +3016,15 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
         auto cs_begin = std::chrono::steady_clock::now();
 
         uint64_t flags = COMPRESS_DOC_BODIES | COUCHSTORE_SEQUENCE_AS_IS;
-        errCode = couchstore_save_documents_and_callback(db,
-                                                         docs.data(),
-                                                         docinfos.data(),
-                                                         kvReqs.data(),
-                                                         (unsigned)docs.size(),
-                                                         flags,
-                                                         &saveDocsCallback,
-                                                         &kvctx);
+        const auto errCode =
+                couchstore_save_documents_and_callback(db,
+                                                       docs.data(),
+                                                       docinfos.data(),
+                                                       kvReqs.data(),
+                                                       (unsigned)docs.size(),
+                                                       flags,
+                                                       &saveDocsCallback,
+                                                       &kvctx);
 
         st.saveDocsHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(
@@ -3060,14 +3047,14 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
     pendingLocalReqsQ.emplace_back("_local/vbstate", makeJsonVBState(state));
 
     kvctx.commitData.collections.saveCollectionStats(
-            [this, &dbRef = *db](
-                    CollectionID cid,
-                    const Collections::VB::PersistedStats& stats) {
-              saveCollectionStats(dbRef, cid, stats);
+            [this, &dbRef = *db](CollectionID cid,
+                                 const Collections::VB::PersistedStats& stats) {
+                saveCollectionStats(dbRef, cid, stats);
             });
 
     if (kvctx.commitData.collections.isReadyForCommit()) {
-        errCode = updateCollectionsMeta(*db, kvctx.commitData.collections);
+        const auto errCode =
+                updateCollectionsMeta(*db, kvctx.commitData.collections);
         if (errCode) {
             logger.warn(
                     "CouchKVStore::saveDocs: {} updateCollections meta "
@@ -3079,7 +3066,7 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
     }
 
     /// Update the local documents before we commit
-    errCode = updateLocalDocuments(*db, pendingLocalReqsQ);
+    auto errCode = updateLocalDocuments(*db, pendingLocalReqsQ);
     if (errCode) {
         logger.warn(
                 "CouchKVStore::saveDocs: updateLocalDocuments size:{} "
@@ -3115,7 +3102,7 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
     }
 
     // retrieve storage system stats for file fragmentation computation
-    const auto info = cb::couchstore::getHeader(*db.getDb());
+    const auto info = cb::couchstore::getHeader(*db);
     cachedSpaceUsed[vbid.get()] = info.spaceUsed;
     cachedFileSize[vbid.get()] = info.fileSize;
     cachedDeleteCount[vbid.get()] = info.deletedCount;
@@ -4241,4 +4228,118 @@ std::string CouchKVStore::to_string(ReadVBStateStatus status) {
     folly::assume_unreachable();
 }
 
-/* end of couch-kvstore.cc */
+std::optional<DbHolder> CouchKVStore::openOrCreate(Vbid vbid) noexcept {
+    Expects(isReadWrite());
+
+    // Do we already have a well-formed file for this vbid?
+    {
+        DbHolder db(*this);
+        const auto res = openDB(vbid, db, 0 /*flags*/);
+        if (res == COUCHSTORE_SUCCESS) {
+            // We have a well-formed file with (rev > 0), return the DbHolder
+            return std::move(db);
+        }
+
+        if (res != COUCHSTORE_ERROR_NO_SUCH_FILE) {
+            // We have only two legal states, a legal file or no file. Anything
+            // else is an error condition.
+            logger.warn("CouchKVStore::openOrCreate: openDB error:{}, file:{}",
+                        std::string(couchstore_strerror(res)),
+                        getDBFileName(dbname, vbid, db.getFileRev()));
+            return {};
+        }
+    }
+
+    // No file for vbid, start bootstrap procedure for creating vbid.couch.rev
+
+    // Remove temp file if any left around by a previous failed bootstrap
+    const auto tempFile =
+            dbname + "/" + std::to_string(vbid.get()) + ".couch.boot";
+    const auto removeFileIfExists = [this](const std::string& file) -> void {
+        if (cb::io::isFile(file)) {
+            if (remove(file.c_str()) != 0) {
+                logger.warn(
+                        "CouchKVStore::openOrCreate: Failed to remove file:{}, "
+                        "error:{}",
+                        file,
+                        cb_strerror());
+            } else {
+                logger.info("CouchKVStore::openOrCreate: Removed file:{}",
+                            file);
+            }
+        }
+    };
+    removeFileIfExists(tempFile);
+
+    // The following open operation will:
+    // 1) Create the vbid.couch.boot temp file
+    // 2) Write the first header (filepos 0) to the OS buffer-cache
+    {
+        DbHolder db(*this);
+        auto res = openSpecificDBFile(
+                vbid,
+                0 /*fileRev*/,
+                db,
+                COUCHSTORE_OPEN_FLAG_CREATE | COUCHSTORE_OPEN_FLAG_EXCL,
+                tempFile);
+        if (res != COUCHSTORE_SUCCESS) {
+            // Any failure may leave an empty temp-file around
+            removeFileIfExists(tempFile);
+            logger.warn(
+                    "CouchKVStore::openOrCreate: openSpecificDBFile error:{}, "
+                    "file:{}",
+                    std::string(couchstore_strerror(res)),
+                    tempFile);
+            return {};
+        }
+
+        // Note: At this point the temp file is created, so any failure requires
+        // to remove it in case.
+
+        // Sync temp-file to disk
+        res = couchstore_commit(db);
+        if (res != COUCHSTORE_SUCCESS) {
+            removeFileIfExists(tempFile);
+            logger.warn(
+                    "CouchKVStore::openOrCreate: couchstore_commit error:{}, "
+                    "file:{}",
+                    std::string(couchstore_strerror(res)),
+                    tempFile);
+            return {};
+        }
+    }
+
+    // Rename vbid.couch.boot into vbid.couch.rev
+    {
+        const auto lockedRevMap = dbFileRevMap->rlock();
+        const auto revision = (*lockedRevMap)[vbid.get()];
+        const auto newFile = getDBFileName(dbname, vbid, revision);
+        if (rename(tempFile.c_str(), newFile.c_str()) != 0) {
+            removeFileIfExists(tempFile);
+            // Note: On the FileSystems that we support (so not NFS for example)
+            // a failure at rename() should guarantee that the new file is not
+            // created, but better to be resilient to OS bugs / misbehaviour.
+            removeFileIfExists(newFile);
+            logger.warn(
+                    "CouchKVStore::openOrCreate: rename error:{}, tempFile:{}, "
+                    "newFile:{}",
+                    cb_strerror(), // errno
+                    tempFile,
+                    newFile);
+            return {};
+        }
+    }
+
+    DbHolder db(*this);
+    const auto res = openDB(vbid, db, 0 /*flags*/);
+    if (res != COUCHSTORE_SUCCESS) {
+        logger.warn(
+                "CouchKVStore::openOrCreate: Post-create openDB error:{}, "
+                "file:{}",
+                std::string(couchstore_strerror(res)),
+                getDBFileName(dbname, vbid, db.getFileRev()));
+        return {};
+    }
+
+    return std::move(db);
+}

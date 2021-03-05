@@ -4969,18 +4969,17 @@ class STParamCouchstoreBucketTest : public STParamPersistentBucketTest {};
  */
 void STParamPersistentBucketTest::testFlushFailureAtPersistNonMetaItems(
         couchstore_error_t failureCode) {
-    // About the first two COUCHSTORE_SUCCESS:
-    // - firts, set-vbstate precommit()
-    // - then, set-vbstate couchstore_commit()
-    // They both sync(), see couchstore code for details.
-    ::testing::NiceMock<MockOps> ops(create_default_file_ops());
+    using namespace testing;
+    NiceMock<MockOps> ops(create_default_file_ops());
     replaceCouchKVStore(ops);
-    EXPECT_CALL(ops, sync(testing::_, testing::_))
-            .Times(testing::AnyNumber())
-            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
-            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
-            .WillOnce(testing::Return(failureCode))
-            .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
+    EXPECT_CALL(ops, sync(_, _))
+            .Times(AnyNumber())
+            .WillOnce(Return(COUCHSTORE_SUCCESS)) // boot pre-commit
+            .WillOnce(Return(COUCHSTORE_SUCCESS)) // boot commit
+            .WillOnce(Return(COUCHSTORE_SUCCESS)) // setVBS pre-commit
+            .WillOnce(Return(COUCHSTORE_SUCCESS)) // setVBS commit
+            .WillOnce(Return(failureCode))
+            .WillRepeatedly(Return(COUCHSTORE_SUCCESS));
 
     setVBucketStateAndRunPersistTask(
             vbid,
@@ -5156,14 +5155,17 @@ TEST_P(STParamCouchstoreBucketTest,
  */
 void STParamPersistentBucketTest::testFlushFailureAtPersistVBStateOnly(
         couchstore_error_t failureCode) {
-    ::testing::NiceMock<MockOps> ops(create_default_file_ops());
+    using namespace testing;
+    NiceMock<MockOps> ops(create_default_file_ops());
     replaceCouchKVStore(ops);
-    EXPECT_CALL(ops, sync(testing::_, testing::_))
-            .Times(testing::AnyNumber())
-            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
-            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
-            .WillOnce(testing::Return(failureCode))
-            .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
+    EXPECT_CALL(ops, sync(_, _))
+            .Times(AnyNumber())
+            .WillOnce(Return(COUCHSTORE_SUCCESS)) // boot pre-commit
+            .WillOnce(Return(COUCHSTORE_SUCCESS)) // boot commit
+            .WillOnce(Return(COUCHSTORE_SUCCESS)) // setVBS pre-commit
+            .WillOnce(Return(COUCHSTORE_SUCCESS)) // setVBS commit
+            .WillOnce(Return(failureCode))
+            .WillRepeatedly(Return(COUCHSTORE_SUCCESS));
 
     auto& kvStore = dynamic_cast<CouchKVStore&>(*store->getRWUnderlying(vbid));
     const auto checkCachedAndOnDiskVBState =
@@ -5242,14 +5244,17 @@ TEST_P(STParamCouchstoreBucketTest,
  */
 void STParamPersistentBucketTest::testFlushFailureStatsAtDedupedNonMetaItems(
         couchstore_error_t failureCode, bool vbDeletion) {
-    ::testing::NiceMock<MockOps> ops(create_default_file_ops());
+    using namespace testing;
+    NiceMock<MockOps> ops(create_default_file_ops());
     replaceCouchKVStore(ops);
-    EXPECT_CALL(ops, sync(testing::_, testing::_))
-            .Times(testing::AnyNumber())
-            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
-            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
-            .WillOnce(testing::Return(failureCode))
-            .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
+    EXPECT_CALL(ops, sync(_, _))
+            .Times(AnyNumber())
+            .WillOnce(Return(COUCHSTORE_SUCCESS)) // boot pre-commit
+            .WillOnce(Return(COUCHSTORE_SUCCESS)) // boot commit
+            .WillOnce(Return(COUCHSTORE_SUCCESS)) // setVBS pre-commit
+            .WillOnce(Return(COUCHSTORE_SUCCESS)) // setVBS commit
+            .WillOnce(Return(failureCode))
+            .WillRepeatedly(Return(COUCHSTORE_SUCCESS));
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
@@ -5809,14 +5814,17 @@ TEST_P(STParamPersistentBucketTest, BgFetcherMaintainsVbOrdering) {
  */
 void STParamPersistentBucketTest::testFlushFailureAtPersistDelete(
         couchstore_error_t failureCode, bool vbDeletion) {
-    ::testing::NiceMock<MockOps> ops(create_default_file_ops());
+    using namespace testing;
+    NiceMock<MockOps> ops(create_default_file_ops());
     replaceCouchKVStore(ops);
-    EXPECT_CALL(ops, sync(testing::_, testing::_))
-            .Times(testing::AnyNumber())
-            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
-            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
-            .WillOnce(testing::Return(failureCode))
-            .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
+    EXPECT_CALL(ops, sync(_, _))
+            .Times(AnyNumber())
+            .WillOnce(Return(COUCHSTORE_SUCCESS)) // boot pre-commit
+            .WillOnce(Return(COUCHSTORE_SUCCESS)) // boot commit
+            .WillOnce(Return(COUCHSTORE_SUCCESS)) // setVBS pre-commit
+            .WillOnce(Return(COUCHSTORE_SUCCESS)) // setVBS commit
+            .WillOnce(Return(failureCode))
+            .WillRepeatedly(Return(COUCHSTORE_SUCCESS));
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
@@ -6833,4 +6841,63 @@ TEST_P(STParamCouchstoreBucketTest,
     auto& vbucketR = *engine->getVBucket(vbid);
     EXPECT_EQ(0, vbucketR.getHighSeqno());
     EXPECT_EQ(0, vbucketR.getNumItems());
+}
+
+TEST_P(STParamCouchstoreBucketTest,
+       BootstrapProcedureLeavesNoCorruptedFileAtFailure) {
+    using namespace testing;
+
+    // Always fail the pwrite syscall for inducing the creation of an empty
+    // couchstore file when the first flush fails.
+    ::testing::NiceMock<MockOps> ops(create_default_file_ops());
+    replaceCouchKVStore(ops);
+    EXPECT_CALL(ops, pwrite(_, _, _, _, _))
+            .Times(2)
+            .WillRepeatedly(Return(COUCHSTORE_ERROR_WRITE));
+    auto* kvstore = dynamic_cast<CouchKVStore*>(store->getRWUnderlying(vbid));
+    ASSERT_TRUE(kvstore);
+
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.commitFailed);
+    ASSERT_EQ(0, stats.flusherCommits);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_FALSE(vb);
+
+    // The store has never received a SetVBstate yet, verify no file on disk
+    const auto verifyNoFile = [this, &kvstore]() -> void {
+        bool fileNotFound = false;
+        try {
+            kvstore->getPersistedVBucketState(vbid);
+        } catch (const std::logic_error& e) {
+            ASSERT_THAT(e.what(), HasSubstr("openDB error:no such file"));
+            fileNotFound = true;
+        }
+        ASSERT_TRUE(fileNotFound);
+    };
+    verifyNoFile();
+
+    setVBucketState(vbid, vbucket_state_replica);
+    vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    verifyNoFile();
+
+    // Flush fails
+    auto& ep = dynamic_cast<EPBucket&>(*store);
+    const auto res = ep.flushVBucket(vbid);
+    EXPECT_EQ(MoreAvailable::Yes, res.moreAvailable);
+    EXPECT_EQ(0, res.numFlushed);
+    EXPECT_EQ(1, stats.commitFailed);
+    EXPECT_EQ(0, stats.flusherCommits);
+
+    // Before the fix we fail with "no header in non-empty file" if we try to
+    // open the database at this point, as flush has failed but we have left an
+    // empty file behind.
+    // A practical example is a restart. We'll try to initialize KVStore and
+    // fail, and we'll never recover automatically from that state.
+    //
+    // After the fix persistence never creates empty files, so we see "no such
+    // file" if we try to read from disk here. At restart we are fine as we just
+    // don't see any file.
+    verifyNoFile();
 }
