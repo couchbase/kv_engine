@@ -188,7 +188,9 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
                 cb::mcbp::request::DcpOpenPayload::IncludeDeleteTimes) != 0)
                       ? IncludeDeleteTime::Yes
                       : IncludeDeleteTime::No),
-      createChkPtProcessorTsk(startTask) {
+      createChkPtProcessorTsk(startTask),
+      connectionSupportsSnappy(
+              e.isDatatypeSupported(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
     setSupportAck(true);
     setReserved(true);
     pause(PausedReason::Initializing);
@@ -956,8 +958,7 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
         }
         return cb::engine_errc::success;
     } else if (strncmp(param, "force_value_compression", key.size()) == 0) {
-        if (!engine_.isDatatypeSupported(getCookie(),
-                               PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
+        if (!isSnappyEnabled()) {
             engine_.setErrorContext(getCookie(), "The ctrl parameter "
                   "force_value_compression is only supported if datatype "
                   "snappy is enabled on the connection");

@@ -907,6 +907,10 @@ static void perf_dcp_client(EngineIface* h,
                             std::vector<hrtime_t>& recv_timings,
                             std::vector<size_t>& bytes_received) {
     auto* cookie = testHarness->create_cookie(h);
+    if (retrieveCompressed) {
+        testHarness->set_datatype_support(cookie,
+                                          PROTOCOL_BINARY_DATATYPE_SNAPPY);
+    }
 
     std::string uuid("vb_" + std::to_string(vbid.get()) + ":0:id");
     uint64_t vb_uuid = get_ull_stat(h, uuid.c_str(), "failovers");
@@ -927,9 +931,6 @@ static void perf_dcp_client(EngineIface* h,
             "Failed to establish connection buffer");
 
     if (retrieveCompressed) {
-        testHarness->set_datatype_support(cookie,
-                                          PROTOCOL_BINARY_DATATYPE_SNAPPY);
-
         checkeq(dcp.control(cookie,
                             ++streamOpaque,
                             "force_value_compression",

@@ -121,37 +121,37 @@ TEST_P(StreamTest, validate_compression_control_message_denied) {
     destroy_dcp_stream();
 }
 
-/*
- * Test to verify the number of items, total bytes sent and total data size
- * by the producer when DCP compression is enabled
- */
-TEST_P(StreamTest, test_verifyProducerCompressionStats) {
+void StreamTest::setupProducerCompression() {
     VBucketPtr vb = engine->getKVBucket()->getVBucket(vbid);
-    setup_dcp_stream();
+
     std::string compressibleValue(
             "{\"product\": \"car\",\"price\": \"100\"},"
             "{\"product\": \"bus\",\"price\": \"1000\"},"
             "{\"product\": \"Train\",\"price\": \"100000\"}");
     std::string regularValue(R"({"product": "car","price": "100"})");
 
-    std::string compressCtrlMsg("force_value_compression");
-    std::string compressCtrlValue("true");
-
-    mock_set_datatype_support(producer->getCookie(),
-                              PROTOCOL_BINARY_DATATYPE_SNAPPY);
-
-    ASSERT_EQ(cb::engine_errc::success,
-              producer->control(0, compressCtrlMsg, compressCtrlValue));
-    ASSERT_TRUE(producer->isForceValueCompressionEnabled());
-
     store_item(vbid, "key1", compressibleValue.c_str());
     store_item(vbid, "key2", regularValue.c_str());
-    store_item(vbid, "key3", compressibleValue.c_str());
+}
 
-    MockDcpMessageProducers producers;
+/*
+ * Test to verify the number of items, total bytes sent and total data size
+ * by the producer when DCP compression is enabled
+ */
+TEST_P(StreamTest, test_verifyProducerCompressionStats) {
+    setupProducerCompression();
+
+    mock_set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY);
+    setup_dcp_stream();
+
+    ASSERT_EQ(cb::engine_errc::success,
+              producer->control(0, "force_value_compression", "true"));
+    ASSERT_TRUE(producer->isForceValueCompressionEnabled());
 
     ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
 
+    MockDcpMessageProducers producers;
+    VBucketPtr vb = engine->getKVBucket()->getVBucket(vbid);
     prepareCheckpointItemsForStep(producers, *producer, *vb);
 
     /* Stream the snapshot marker first */
@@ -197,24 +197,44 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
               producer->getTotalUncompressedDataSize() -
                       totalUncompressedDataSize);
 
-    totalBytesSent = producer->getTotalBytesSent();
-    totalUncompressedDataSize = producer->getTotalUncompressedDataSize();
+    destroy_dcp_stream();
+}
+
+/*
+ * Test to verify the number of items, total bytes sent and total data size
+ * by the producer when DCP compression is disabled
+ */
+TEST_P(StreamTest, test_verifyProducerCompressionDisabledStats) {
+    setupProducerCompression();
+
+    mock_set_datatype_support(cookie, PROTOCOL_BINARY_RAW_BYTES);
+    setup_dcp_stream();
+
+    ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
+
+    MockDcpMessageProducers producers;
+    VBucketPtr vb = engine->getKVBucket()->getVBucket(vbid);
+    prepareCheckpointItemsForStep(producers, *producer, *vb);
+
+    /* Stream the snapshot marker first */
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_EQ(0, producer->getItemsSent());
+
+    uint64_t totalBytesSent = producer->getTotalBytesSent();
+    uint64_t totalUncompressedDataSize =
+            producer->getTotalUncompressedDataSize();
+    EXPECT_GT(totalBytesSent, 0);
+    EXPECT_GT(totalUncompressedDataSize, 0);
 
     /*
-     * Disable value compression on the producer side and stream a
+     * With value compression on the producer side disabled, stream a
      * compressible document. This should result in an increase in
      * total bytes. Even though the document is compressible, the
      * total data size and the total bytes sent would be incremented
      * by exactly the same amount
      */
-    compressCtrlValue.assign("false");
-    ASSERT_EQ(cb::engine_errc::success,
-              producer->control(0, compressCtrlMsg, compressCtrlValue));
-    mock_set_datatype_support(producer->getCookie(), PROTOCOL_BINARY_RAW_BYTES);
-
-    ASSERT_FALSE(producer->isCompressionEnabled());
     EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
-    EXPECT_EQ(3, producer->getItemsSent());
+    EXPECT_EQ(1, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytesSent);
     EXPECT_GT(producer->getTotalUncompressedDataSize(),
               totalUncompressedDataSize);

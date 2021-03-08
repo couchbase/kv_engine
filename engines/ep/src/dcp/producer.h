@@ -225,21 +225,15 @@ public:
     }
 
     bool isCompressionEnabled() const {
-        if (forceValueCompression ||
-            engine_.isDatatypeSupported(getCookie(), PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
-            return true;
-        }
-
-        return false;
+        return forceValueCompression || isSnappyEnabled();
     }
 
     bool isForceValueCompressionEnabled() {
         return forceValueCompression.load();
     }
 
-    bool isSnappyEnabled() {
-        return engine_.isDatatypeSupported(getCookie(),
-                                           PROTOCOL_BINARY_DATATYPE_SNAPPY);
+    bool isSnappyEnabled() const {
+        return connectionSupportsSnappy;
     }
 
     bool isCursorDroppingEnabled() const {
@@ -663,6 +657,12 @@ protected:
        NOTE: We always create the checkpoint processor task during regular
              operation. This flag is used for unit testing only */
     const bool createChkPtProcessorTsk;
+
+    /**
+     * Set to true if the underlying memcached connection supports the Snappy
+     * datatype, else false.
+     */
+    const bool connectionSupportsSnappy{false};
 
     /**
      * Does the producer allow the client to create more than one active stream
