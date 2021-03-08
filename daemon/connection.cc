@@ -1771,16 +1771,7 @@ cb::engine_errc Connection::mutation(uint32_t opaque,
                                      uint32_t lock_time,
                                      uint8_t nru,
                                      cb::mcbp::DcpStreamId sid) {
-    item_info info;
-    if (!bucket_get_item_info(*this, it.get(), &info)) {
-        LOG_WARNING("{}: Failed to get item info", getId());
-        return cb::engine_errc::failed;
-    }
-
-    char* root = reinterpret_cast<char*>(info.value[0].iov_base);
-    std::string_view value{root, info.value[0].iov_len};
-
-    auto key = info.key;
+    auto key = it->getDocKey();
     // The client doesn't support collections, so must not send an encoded key
     if (!isCollectionsSupported()) {
         key = key.makeDocKeyWithoutCollectionID();
@@ -1789,13 +1780,14 @@ cb::engine_errc Connection::mutation(uint32_t opaque,
     cb::mcbp::request::DcpMutationPayload extras(
             by_seqno,
             rev_seqno,
-            info.flags,
-            gsl::narrow<uint32_t>(info.exptime),
+            it->getFlags(),
+            gsl::narrow<uint32_t>(it->getExptime()),
             lock_time,
             nru);
 
     cb::mcbp::DcpStreamIdFrameInfo frameExtras(sid);
 
+    const auto value = it->getValueView();
     const auto total = sizeof(extras) + key.size() + value.size() +
                        (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0) +
                        sizeof(cb::mcbp::Request);
@@ -1812,8 +1804,8 @@ cb::engine_errc Connection::mutation(uint32_t opaque,
         builder.setValue(value);
         builder.setOpaque(opaque);
         builder.setVBucket(vbucket);
-        builder.setCas(info.cas);
-        builder.setDatatype(cb::mcbp::Datatype(info.datatype));
+        builder.setCas(it->getCas());
+        builder.setDatatype(cb::mcbp::Datatype(it->getDataType()));
         return add_packet_to_send_pipe(builder.getFrame()->getFrame());
     }
 
@@ -1828,8 +1820,8 @@ cb::engine_errc Connection::mutation(uint32_t opaque,
             (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0)));
     req.setOpaque(opaque);
     req.setVBucket(vbucket);
-    req.setCas(info.cas);
-    req.setDatatype(cb::mcbp::Datatype(info.datatype));
+    req.setCas(it->getCas());
+    req.setDatatype(cb::mcbp::Datatype(it->getDataType()));
 
     if (sid) {
         req.setFramingExtraslen(sizeof(cb::mcbp::DcpStreamIdFrameInfo));
@@ -1866,15 +1858,13 @@ cb::engine_errc Connection::mutation(uint32_t opaque,
     return cb::engine_errc::success;
 }
 
-cb::engine_errc Connection::deletionInner(const item_info& info,
+cb::engine_errc Connection::deletionInner(const ItemIface& item,
                                           cb::const_byte_buffer packet,
                                           const DocKey& key) {
     try {
         copyToOutputStream(packet);
         copyToOutputStream({key.data(), key.size()});
-        copyToOutputStream(
-                {reinterpret_cast<const char*>(info.value[0].iov_base),
-                 info.nbytes});
+        copyToOutputStream(item.getValueView());
     } catch (const std::bad_alloc&) {
         // We might have written a partial message into the buffer so
         // we need to disconnect the client
@@ -1890,19 +1880,11 @@ cb::engine_errc Connection::deletion(uint32_t opaque,
                                      uint64_t by_seqno,
                                      uint64_t rev_seqno,
                                      cb::mcbp::DcpStreamId sid) {
-    item_info info;
-    if (!bucket_get_item_info(*this, it.get(), &info)) {
-        LOG_WARNING("{}: Connection::deletion: Failed to get item info",
-                    getId());
-        return cb::engine_errc::failed;
-    }
-
-    auto key = info.key;
+    auto key = it->getDocKey();
     if (!isCollectionsSupported()) {
-        key = info.key.makeDocKeyWithoutCollectionID();
+        key = key.makeDocKeyWithoutCollectionID();
     }
-    char* root = reinterpret_cast<char*>(info.value[0].iov_base);
-    std::string_view value{root, info.value[0].iov_len};
+    auto value = it->getValueView();
 
     cb::mcbp::DcpStreamIdFrameInfo frameInfo(sid);
     cb::mcbp::request::DcpDeletionV1Payload extdata(by_seqno, rev_seqno);
@@ -1925,8 +1907,8 @@ cb::engine_errc Connection::deletion(uint32_t opaque,
         builder.setValue(value);
         builder.setOpaque(opaque);
         builder.setVBucket(vbucket);
-        builder.setCas(info.cas);
-        builder.setDatatype(cb::mcbp::Datatype(info.datatype));
+        builder.setCas(it->getCas());
+        builder.setDatatype(cb::mcbp::Datatype(it->getDataType()));
 
         return add_packet_to_send_pipe(builder.getFrame()->getFrame());
     }
@@ -1944,12 +1926,12 @@ cb::engine_errc Connection::deletion(uint32_t opaque,
     req.setExtlen(gsl::narrow<uint8_t>(sizeof(DcpDeletionV1Payload)));
     req.setKeylen(gsl::narrow<uint16_t>(key.size()));
     req.setBodylen(gsl::narrow<uint32_t>(
-            sizeof(DcpDeletionV1Payload) + key.size() + info.nbytes +
+            sizeof(DcpDeletionV1Payload) + key.size() + value.size() +
             (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0)));
     req.setOpaque(opaque);
     req.setVBucket(vbucket);
-    req.setCas(info.cas);
-    req.setDatatype(cb::mcbp::Datatype(info.datatype));
+    req.setCas(it->getCas());
+    req.setDatatype(cb::mcbp::Datatype(it->getDataType()));
 
     auto* ptr = blob.data() + sizeof(Request);
     if (sid) {
@@ -1965,7 +1947,7 @@ cb::engine_errc Connection::deletion(uint32_t opaque,
             sizeof(Request) + sizeof(DcpDeletionV1Payload) +
                     (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0)};
 
-    return deletionInner(info, packetBuffer, key);
+    return deletionInner(*it, packetBuffer, key);
 }
 
 cb::engine_errc Connection::deletion_v2(uint32_t opaque,
@@ -1975,23 +1957,15 @@ cb::engine_errc Connection::deletion_v2(uint32_t opaque,
                                         uint64_t rev_seqno,
                                         uint32_t delete_time,
                                         cb::mcbp::DcpStreamId sid) {
-    item_info info;
-    if (!bucket_get_item_info(*this, it.get(), &info)) {
-        LOG_WARNING("{}: Connection::deletion_v2: Failed to get item info",
-                    getId());
-        return cb::engine_errc::failed;
-    }
-
-    auto key = info.key;
+    auto key = it->getDocKey();
     if (!isCollectionsSupported()) {
-        key = info.key.makeDocKeyWithoutCollectionID();
+        key = key.makeDocKeyWithoutCollectionID();
     }
 
     cb::mcbp::request::DcpDeletionV2Payload extras(
             by_seqno, rev_seqno, delete_time);
     cb::mcbp::DcpStreamIdFrameInfo frameInfo(sid);
-    char* root = reinterpret_cast<char*>(info.value[0].iov_base);
-    std::string_view value{root, info.value[0].iov_len};
+    auto value = it->getValueView();
 
     const auto total = sizeof(extras) + key.size() + value.size() +
                        (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0) +
@@ -2010,8 +1984,8 @@ cb::engine_errc Connection::deletion_v2(uint32_t opaque,
         builder.setValue(value);
         builder.setOpaque(opaque);
         builder.setVBucket(vbucket);
-        builder.setCas(info.cas);
-        builder.setDatatype(cb::mcbp::Datatype(info.datatype));
+        builder.setCas(it->getCas());
+        builder.setDatatype(cb::mcbp::Datatype(it->getDataType()));
         return add_packet_to_send_pipe(builder.getFrame()->getFrame());
     }
 
@@ -2031,11 +2005,11 @@ cb::engine_errc Connection::deletion_v2(uint32_t opaque,
     req.setKeylen(gsl::narrow<uint16_t>(key.size()));
     req.setBodylen(gsl::narrow<uint32_t>(payloadLen +
                                          gsl::narrow<uint16_t>(key.size()) +
-                                         info.nbytes + frameInfoLen));
+                                         value.size() + frameInfoLen));
     req.setOpaque(opaque);
     req.setVBucket(vbucket);
-    req.setCas(info.cas);
-    req.setDatatype(cb::mcbp::Datatype(info.datatype));
+    req.setCas(it->getCas());
+    req.setDatatype(cb::mcbp::Datatype(it->getDataType()));
     auto size = sizeof(cb::mcbp::Request);
     auto* ptr = blob.data() + size;
     if (sid) {
@@ -2049,7 +2023,7 @@ cb::engine_errc Connection::deletion_v2(uint32_t opaque,
     std::copy(buffer.begin(), buffer.end(), ptr);
     size += buffer.size();
 
-    return deletionInner(info, {blob.data(), size}, key);
+    return deletionInner(*it, {blob.data(), size}, key);
 }
 
 cb::engine_errc Connection::expiration(uint32_t opaque,
@@ -2059,23 +2033,15 @@ cb::engine_errc Connection::expiration(uint32_t opaque,
                                        uint64_t rev_seqno,
                                        uint32_t delete_time,
                                        cb::mcbp::DcpStreamId sid) {
-    item_info info;
-    if (!bucket_get_item_info(*this, it.get(), &info)) {
-        LOG_WARNING("{}: Connection::expiration: Failed to get item info",
-                    getId());
-        return cb::engine_errc::failed;
-    }
-
-    auto key = info.key;
+    auto key = it->getDocKey();
     if (!isCollectionsSupported()) {
-        key = info.key.makeDocKeyWithoutCollectionID();
+        key = key.makeDocKeyWithoutCollectionID();
     }
 
     cb::mcbp::request::DcpExpirationPayload extras(
             by_seqno, rev_seqno, delete_time);
     cb::mcbp::DcpStreamIdFrameInfo frameInfo(sid);
-    char* root = reinterpret_cast<char*>(info.value[0].iov_base);
-    std::string_view value{root, info.value[0].iov_len};
+    auto value = it->getValueView();
 
     const auto total = sizeof(extras) + key.size() + value.size() +
                        (sid ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0) +
@@ -2094,8 +2060,8 @@ cb::engine_errc Connection::expiration(uint32_t opaque,
         builder.setValue(value);
         builder.setOpaque(opaque);
         builder.setVBucket(vbucket);
-        builder.setCas(info.cas);
-        builder.setDatatype(cb::mcbp::Datatype(info.datatype));
+        builder.setCas(it->getCas());
+        builder.setDatatype(cb::mcbp::Datatype(it->getDataType()));
         return add_packet_to_send_pipe(builder.getFrame()->getFrame());
     }
 
@@ -2115,11 +2081,11 @@ cb::engine_errc Connection::expiration(uint32_t opaque,
     req.setKeylen(gsl::narrow<uint16_t>(key.size()));
     req.setBodylen(gsl::narrow<uint32_t>(payloadLen +
                                          gsl::narrow<uint16_t>(key.size()) +
-                                         info.nbytes + frameInfoLen));
+                                         value.size() + frameInfoLen));
     req.setOpaque(opaque);
     req.setVBucket(vbucket);
-    req.setCas(info.cas);
-    req.setDatatype(cb::mcbp::Datatype(info.datatype));
+    req.setCas(it->getCas());
+    req.setDatatype(cb::mcbp::Datatype(it->getDataType()));
     auto size = sizeof(cb::mcbp::Request);
     auto* ptr = blob.data() + size;
     if (sid) {
@@ -2133,7 +2099,7 @@ cb::engine_errc Connection::expiration(uint32_t opaque,
     std::copy(buffer.begin(), buffer.end(), ptr);
     size += buffer.size();
 
-    return deletionInner(info, {blob.data(), size}, key);
+    return deletionInner(*it, {blob.data(), size}, key);
 }
 
 cb::engine_errc Connection::set_vbucket_state(uint32_t opaque,
@@ -2247,17 +2213,9 @@ cb::engine_errc Connection::prepare(uint32_t opaque,
                                     uint8_t nru,
                                     DocumentState document_state,
                                     cb::durability::Level level) {
-    item_info info;
-    if (!bucket_get_item_info(*this, it.get(), &info)) {
-        LOG_WARNING("{}: Connection::prepare: Failed to get item info",
-                    getId());
-        return cb::engine_errc::failed;
-    }
+    auto buffer = it->getValueView();
 
-    char* root = reinterpret_cast<char*>(info.value[0].iov_base);
-    std::string_view buffer{root, info.value[0].iov_len};
-
-    auto key = info.key;
+    auto key = it->getDocKey();
 
     // The client doesn't support collections, so must not send an encoded key
     if (!isCollectionsSupported()) {
@@ -2267,8 +2225,8 @@ cb::engine_errc Connection::prepare(uint32_t opaque,
     cb::mcbp::request::DcpPreparePayload extras(
             by_seqno,
             rev_seqno,
-            info.flags,
-            gsl::narrow<uint32_t>(info.exptime),
+            it->getFlags(),
+            gsl::narrow<uint32_t>(it->getExptime()),
             lock_time,
             nru);
     if (document_state == DocumentState::Deleted) {
@@ -2287,8 +2245,8 @@ cb::engine_errc Connection::prepare(uint32_t opaque,
         builder.setKey({key.data(), key.size()});
         builder.setOpaque(opaque);
         builder.setVBucket(vbucket);
-        builder.setCas(info.cas);
-        builder.setDatatype(cb::mcbp::Datatype(info.datatype));
+        builder.setCas(it->getCas());
+        builder.setDatatype(cb::mcbp::Datatype(it->getDataType()));
         builder.setValue(buffer);
         return add_packet_to_send_pipe(builder.getFrame()->getFrame());
     }
@@ -2302,8 +2260,8 @@ cb::engine_errc Connection::prepare(uint32_t opaque,
             gsl::narrow<uint32_t>(sizeof(extras) + key.size() + buffer.size()));
     req.setOpaque(opaque);
     req.setVBucket(vbucket);
-    req.setCas(info.cas);
-    req.setDatatype(cb::mcbp::Datatype(info.datatype));
+    req.setCas(it->getCas());
+    req.setDatatype(cb::mcbp::Datatype(it->getDataType()));
 
     try {
         // Add the header

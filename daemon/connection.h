@@ -786,7 +786,7 @@ protected:
     void updateDescription();
 
     // Shared DCP_DELETION write function for the v1/v2 commands.
-    cb::engine_errc deletionInner(const item_info& info,
+    cb::engine_errc deletionInner(const ItemIface& item,
                                   cb::const_byte_buffer packet,
                                   const DocKey& key);
 
