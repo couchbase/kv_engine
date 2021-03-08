@@ -407,20 +407,19 @@ void Manifest::createCollection(const WriteHandle& wHandle,
                                             {/*no callback*/});
 
     EP_LOG_INFO(
-            "collections: {} create collection:id:{}, name:{} to "
-            "scope:{}, "
-            "maxTTL:{} {}, "
-            "replica:{}, seqno:{}, manifest:{:#x}, force:{}",
+            "{} create collection:id:{}, name:{} in scope:{}, seq:{}, "
+            "manifest:{:#x}{}{}{}",
             vb.getId(),
             identifiers.second,
             collectionName,
             identifiers.first,
-            maxTtl.has_value(),
-            maxTtl.value_or(std::chrono::seconds::zero()).count(),
-            optionalSeqno.has_value(),
             seqno,
             newManUid,
-            isForcedAdd);
+            maxTtl.has_value()
+                    ? ", maxttl:" + std::to_string(maxTtl.value().count())
+                    : "",
+            optionalSeqno.has_value() ? ", replica" : "",
+            isForcedAdd ? ", forced" : "");
 
     // 3. Now patch the entry with the seqno of the system event, note the copy
     //    of the manifest taken at step 1 gets the correct seqno when the system
@@ -515,16 +514,16 @@ void Manifest::dropCollection(WriteHandle& wHandle,
             vb.getSaveDroppedCollectionCallback(cid, wHandle, itr->second));
 
     EP_LOG_INFO(
-            "collections: {} drop of collection:id:{} from scope:{}"
-            ", replica:{}, seqno:{}, manifest:{:#x} tombstone:{}, force:{}",
+            "{} drop collection:id:{} from scope:{}, seq:{}, manifest:{:#x}"
+            "{}{}{}",
             vb.getId(),
             cid,
             itr->second.getScopeID(),
-            optionalSeqno.has_value(),
             seqno,
             newManUid,
-            processingTombstone,
-            isForcedDrop);
+            processingTombstone ? ", tombstone" : "",
+            optionalSeqno.has_value() ? ", replica" : "",
+            isForcedDrop ? ", forced" : "");
 
     manager->dereferenceMeta(cid, itr->second.takeMeta());
     map.erase(itr);
@@ -584,16 +583,14 @@ void Manifest::createScope(const WriteHandle& wHandle,
     auto seqno = vb.addSystemEventItem(
             std::move(item), optionalSeqno, {}, wHandle, {});
 
-    EP_LOG_INFO(
-            "collections: {} create scope:id:{} name:{},"
-            "replica:{}, seqno:{}, manifest:{:#x}, force:{}",
-            vb.getId(),
-            sid,
-            scopeName,
-            optionalSeqno.has_value(),
-            seqno,
-            manifestUid,
-            isForcedAdd);
+    EP_LOG_INFO("{} create scope:id:{} name:{}, seq:{}, manifest:{:#x}{}{}",
+                vb.getId(),
+                sid,
+                scopeName,
+                seqno,
+                manifestUid,
+                optionalSeqno.has_value() ? ", replica" : "",
+                isForcedAdd ? ", forced" : "");
 }
 
 void Manifest::dropScope(const WriteHandle& wHandle,
@@ -642,15 +639,13 @@ void Manifest::dropScope(const WriteHandle& wHandle,
         vb.checkpointManager->createNewCheckpoint();
     }
 
-    EP_LOG_INFO(
-            "collections: {} dropped scope:id:{} "
-            "replica:{}, seqno:{}, manifest:{:#x} force:{}",
-            vb.getId(),
-            sid,
-            optionalSeqno.has_value(),
-            seqno,
-            manifestUid,
-            isForcedDrop);
+    EP_LOG_INFO("{} drop scope:id:{} seq:{}, manifest:{:#x}{}{}",
+                vb.getId(),
+                sid,
+                seqno,
+                manifestUid,
+                optionalSeqno.has_value() ? ", replica" : "",
+                isForcedDrop ? ", forced" : "");
 }
 
 Manifest::ManifestChanges Manifest::processManifest(
