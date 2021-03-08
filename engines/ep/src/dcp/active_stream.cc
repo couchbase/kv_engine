@@ -419,39 +419,61 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
         return true; // skipped, but return true as it's not a failure
     }
 
-    std::unique_lock<std::mutex> lh(streamMutex);
+    // Is the item accepted by the stream filter (e.g matching collection?)
+    if (!filter.checkAndUpdate(*itm)) {
+        // Skip this item, but continue backfill at next item.
+        return true;
+    }
 
-    if (isBackfilling() && filter.checkAndUpdate(*itm)) {
-        queued_item qi(std::move(itm));
-        // We need to send a mutation instead of a commit if this Item is a
-        // commit as we may have de-duped the preceding prepare and the replica
-        // needs to know what to commit.
-        std::unique_ptr<DcpResponse> resp(
-                makeResponseFromItem(qi, SendCommitSyncWriteAs::Mutation));
-        auto producer = producerPtr.lock();
-        if (!producer || !producer->recordBackfillManagerBytesRead(
-                                 resp->getApproximateSize())) {
-            // Deleting resp may also delete itm (which is owned by
-            // resp)
-            resp.reset();
+    queued_item qi(std::move(itm));
+    // We need to send a mutation instead of a commit if this Item is a
+    // commit as we may have de-duped the preceding prepare and the replica
+    // needs to know what to commit.
+    auto resp = makeResponseFromItem(qi, SendCommitSyncWriteAs::Mutation);
+
+    auto producer = producerPtr.lock();
+    if (!producer) {
+        // Producer no longer valid (e.g. DCP connection closed), return false
+        // to stop backfill task.
+        return false;
+    }
+
+    {
+        // Locked scope for ActiveStream state reads / writes. Note
+        // streamMutex is heavily contended - frontend thread must acquire it
+        // to consume data from ActiveStream::readyQ so try to minimise work
+        // under lock.
+        std::unique_lock<std::mutex> lh(streamMutex);
+
+        // isBackfilling reads ActiveStream::state hence requires streamMutex.
+        if (!isBackfilling()) {
+            // Stream no longer backfilling; return false to stop backfill
+            // task.
             return false;
         }
 
+        // recordBackfillManagerBytesRead requires a valid backillMgr hence
+        // must occur after isBackfilling check (and hence must be in locked
+        // region) :(
+        if (!producer->recordBackfillManagerBytesRead(
+                    resp->getApproximateSize())) {
+            return false;
+        }
+
+        // Passed all checks, item will be added to ready queue now.
         bufferedBackfill.bytes.fetch_add(resp->getApproximateSize());
         bufferedBackfill.items++;
         lastBackfilledSeqno = std::max<uint64_t>(lastBackfilledSeqno,
                                                  uint64_t(*resp->getBySeqno()));
-
         pushToReadyQ(std::move(resp));
+    }
 
-        lh.unlock();
-        notifyStreamReady();
+    notifyStreamReady();
 
-        if (backfill_source == BACKFILL_FROM_MEMORY) {
-            backfillItems.memory++;
-        } else {
-            backfillItems.disk++;
-        }
+    if (backfill_source == BACKFILL_FROM_MEMORY) {
+        backfillItems.memory++;
+    } else {
+        backfillItems.disk++;
     }
 
     return true;
