@@ -261,6 +261,11 @@ public:
      */
     flatbuffers::DetachedBuffer encodeOpenScopes(cb::const_byte_buffer scopes);
 
+    /**
+     * @return if dropped collections exist in storage
+     */
+    bool droppedCollectionsExists() const;
+
 private:
     /**
      * Set the ManifestUid from the create/drop events (but only the greatest

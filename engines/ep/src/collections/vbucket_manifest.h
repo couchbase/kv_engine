@@ -204,6 +204,21 @@ public:
     void collectionDropPersisted(CollectionID cid, uint64_t seqno);
 
     /**
+     * @return true if a collection drop is in-progress, at least 1 collection
+     *         is in the state isDeleting
+     */
+    bool isDropInProgress() const {
+        return dropInProgress.load();
+    }
+
+    /**
+     * Set the value of 'drop in progress'.
+     */
+    void setDropInProgress(bool value) {
+        dropInProgress.store(value);
+    }
+
+    /**
      * Get the system event collection create data from a SystemEvent
      * Item's value.
      *
@@ -818,12 +833,6 @@ protected:
             std::function<void(int64_t)> assignedSeqnoCallback) const;
 
     /**
-     * @return true if a collection drop is in-progress, at least 1 collection
-     *         is in the state isDeleting
-     */
-    bool isDropInProgress() const;
-
-    /**
      * @return the number of system events that exist (as items)
      */
     size_t getSystemEventItemCount() const;
@@ -944,8 +953,15 @@ protected:
     /// Manager of collections
     const std::shared_ptr<Manager> manager;
 
-    /// Does this vbucket need collection purging triggering
-    bool dropInProgress{false};
+    /**
+     * Flag value which indicates if dropped collections exist, that includes
+     * documents and metadata. This is atomic because we don't require the
+     * 'manifest' rwlock and this value is written by compaction and read by
+     * the flusher.
+     *
+     * Value is true if dropped collection data exists
+     */
+    std::atomic<bool> dropInProgress{false};
 
     friend std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
     friend std::ostream& operator<<(std::ostream&,

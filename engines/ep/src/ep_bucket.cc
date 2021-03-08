@@ -1218,6 +1218,7 @@ void EPBucket::compactionCompletionCallback(CompactionContext& ctx) {
     auto preNumTotalItems = vb->getNumTotalItems();
 
     auto preCollectionSizes = ctx.stats.collectionSizeUpdates;
+    bool preDropInProgess = vb->getManifest().isDropInProgress();
     for (auto& [cid, newSize] : preCollectionSizes) {
         auto handle = vb->getManifest().lock(cid);
 
@@ -1230,27 +1231,32 @@ void EPBucket::compactionCompletionCallback(CompactionContext& ctx) {
         vb->setPurgeSeqno(ctx.max_purged_seq);
         vb->decrNumTotalItems(ctx.stats.collectionsItemsPurged);
 
-        applyPostCompactionCollectionStats(*vb,
-                                           ctx.stats.collectionSizeUpdates);
+        updateCollectionStatePostCompaction(
+                *vb,
+                ctx.stats.collectionSizeUpdates,
+                ctx.eraserContext->doesOnDiskDroppedDataExist());
 
         if (postCompactionCompletionStatsUpdateHook) {
             postCompactionCompletionStatsUpdateHook();
         }
+
     } catch (std::exception& e) {
         // Re-apply our pre-compaction stats snapshot
         vb->setPurgeSeqno(prePurgeSeqno);
         vb->setNumTotalItems(preNumTotalItems);
 
-        applyPostCompactionCollectionStats(*vb, preCollectionSizes);
+        updateCollectionStatePostCompaction(
+                *vb, preCollectionSizes, preDropInProgess);
 
         // And re-throw to "undo" the on disk compaction
         throw e;
     }
 }
 
-void EPBucket::applyPostCompactionCollectionStats(
+void EPBucket::updateCollectionStatePostCompaction(
         VBucket& vb,
-        CompactionStats::CollectionSizeUpdates& collectionSizeUpdates) {
+        CompactionStats::CollectionSizeUpdates& collectionSizeUpdates,
+        bool onDiskDroppedCollectionDataExists) {
     for (const auto& [cid, newSize] : collectionSizeUpdates) {
         auto handle = vb.getManifest().lock(cid);
 
@@ -1258,6 +1264,9 @@ void EPBucket::applyPostCompactionCollectionStats(
             handle.setDiskSize(newSize);
         }
     }
+
+    // Set the dropInProgress flag to true if ondisk dropped data exists
+    vb.getManifest().setDropInProgress(onDiskDroppedCollectionDataExists);
 }
 
 void EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {

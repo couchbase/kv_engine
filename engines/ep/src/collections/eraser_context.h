@@ -39,16 +39,35 @@ public:
      * @param se The flags...SystemEvent of the value
      */
     void processSystemEvent(const DocKey& key, SystemEvent se);
+
     /**
      * @return true if the on-disk collection meta-data should be updated
      */
     bool needToUpdateCollectionsMetadata() const;
+
+    /**
+     * @return true if data associated with dropped collections exists on disk
+     */
+    bool doesOnDiskDroppedDataExist() const {
+        return onDiskDroppedDataExists;
+    }
+
+    /**
+     * Eraser (compaction) may not always remove *all* dropped data, compaction
+     * sets the status with this method.
+     */
+    void setOnDiskDroppedDataExists(bool value) {
+        onDiskDroppedDataExists = value;
+    }
 
 private:
     friend std::ostream& operator<<(std::ostream&, const EraserContext&);
 
     /// set to true if a 'drop' system event was seen
     bool seenEndOfCollection = false;
+
+    /// set to true when 'erase' completes and dropped collection data exists
+    bool onDiskDroppedDataExists = false;
 };
 
 std::ostream& operator<<(std::ostream&, const EraserContext&);

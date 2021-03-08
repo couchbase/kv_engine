@@ -529,8 +529,12 @@ void Manifest::dropCollection(WriteHandle& wHandle,
     map.erase(itr);
 }
 
-// Method is cleaning up for insertions made in Manifest::dropCollection
 void Manifest::collectionDropPersisted(CollectionID cid, uint64_t seqno) {
+    // As soon as we get notification that a dropped collection was flushed
+    // successfully, mark this flag so subsequent flushes can maintain stats
+    // correctly.
+    dropInProgress.store(true);
+
     droppedCollections.wlock()->remove(cid, seqno);
 }
 
@@ -845,10 +849,6 @@ uint64_t Manifest::queueCollectionSystemEvent(
             std::move(item), seq, cid, wHandle, assignedSeqnoCallback);
 
     return rv;
-}
-
-bool Manifest::isDropInProgress() const {
-    return dropInProgress;
 }
 
 size_t Manifest::getSystemEventItemCount() const {

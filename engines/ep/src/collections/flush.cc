@@ -805,4 +805,7 @@ flatbuffers::DetachedBuffer Flush::encodeOpenScopes(
     return builder.Release();
 }
 
+bool Flush::droppedCollectionsExists() const {
+    return manifest.isDropInProgress();
+}
 } // namespace Collections::VB

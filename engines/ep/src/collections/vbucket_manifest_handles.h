@@ -187,13 +187,6 @@ public:
                          Summary& summary) const {
         manifest->accumulateStats(collections, summary);
     }
-    /**
-     * @return true if a collection drop is in-progress, at least 1
-     * collection is in the state isDeleting
-     */
-    bool isDropInProgress() const {
-        return manifest->isDropInProgress();
-    }
 
     // @returns all of the statistics that need to be updated during flushing
     StatsForFlush getStatsForFlush(CollectionID collection,

@@ -1185,10 +1185,12 @@ CouchKVStore::replayPrecommitProcessDroppedCollections(
         // 3) If the function returned data, write it, else the document is
         //    deleted.
         if (fbData.data()) {
+            hook_ctx.eraserContext->setOnDiskDroppedDataExists(true);
             localDocQueue.emplace_back(Collections::droppedCollectionsName,
                                        fbData);
         } else {
             // Need to ensure the 'dropped' list on disk is now gone
+            hook_ctx.eraserContext->setOnDiskDroppedDataExists(false);
             localDocQueue.emplace_back(Collections::droppedCollectionsName,
                                        CouchLocalDocRequest::IsDeleted{});
         }
@@ -1484,6 +1486,8 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                         localDocQueue.emplace_back(
                                 Collections::droppedCollectionsName,
                                 CouchLocalDocRequest::IsDeleted{});
+                        hook_ctx->eraserContext->setOnDiskDroppedDataExists(
+                                false);
                     }
                     auto ret = maybePatchOnDiskPrepares(
                             compacted, hook_ctx->stats, localDocQueue, vbid);
@@ -3004,19 +3008,24 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
             docsLogicalBytes += calcLogicalDataSize(docs[idx], *docinfos[idx]);
         }
 
-        auto [getDroppedStatus, droppedCollections] =
-                getDroppedCollections(*db);
-        if (getDroppedStatus != COUCHSTORE_SUCCESS) {
-            logger.warn(
-                    "CouchKVStore::saveDocs: getDroppedConnections"
-                    "error:{}, {}",
-                    couchstore_strerror(getDroppedStatus),
-                    vbid);
-            return getDroppedStatus;
-        }
+        // If dropped collections exists, read the dropped collections metadata
+        // so the flusher can do the correct stat calculations. This is
+        // conditional as (trying) to read this data slows down saveDocs.
+        if (kvctx.commitData.collections.droppedCollectionsExists()) {
+            auto [getDroppedStatus, droppedCollections] =
+                    getDroppedCollections(*db);
+            if (getDroppedStatus != COUCHSTORE_SUCCESS) {
+                logger.warn(
+                        "CouchKVStore::saveDocs: getDroppedConnections"
+                        "error:{}, {}",
+                        couchstore_strerror(getDroppedStatus),
+                        vbid);
+                return getDroppedStatus;
+            }
 
-        kvctx.commitData.collections.setDroppedCollectionsForStore(
-                droppedCollections);
+            kvctx.commitData.collections.setDroppedCollectionsForStore(
+                    droppedCollections);
+        }
 
         auto cs_begin = std::chrono::steady_clock::now();
 

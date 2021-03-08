@@ -337,7 +337,7 @@ void Collections::Manager::warmupCompleted(EPBucket& bucket) const {
         Vbid vbid = Vbid(i);
         auto vb = bucket.getVBuckets().getBucket(vbid);
         if (vb) {
-            if (vb->lockCollections().isDropInProgress()) {
+            if (vb->getManifest().isDropInProgress()) {
                 Collections::VB::Flush::triggerPurge(vbid, bucket);
             }
 

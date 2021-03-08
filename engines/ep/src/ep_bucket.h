@@ -304,13 +304,17 @@ protected:
     void compactionCompletionCallback(CompactionContext& ctx);
 
     /**
-     * Apply the collection size updates post-compaction
+     * Update collection state (VB::Manifest) after compaction has completed.
      *
      * @param vb VBucket ref
      * @param stats Map of cid to new size value (new value not delta)
+     * @param onDiskDroppedCollectionDataExists true if the compacted file
+     *        has dropped collections (documents and/or metadata).
      */
-    void applyPostCompactionCollectionStats(
-            VBucket& vb, CompactionStats::CollectionSizeUpdates& stats);
+    void updateCollectionStatePostCompaction(
+            VBucket& vb,
+            CompactionStats::CollectionSizeUpdates& stats,
+            bool onDiskDroppedCollectionDataExists);
 
     void stopWarmup();
 

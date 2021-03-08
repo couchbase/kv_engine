@@ -22,7 +22,7 @@
 namespace VB {
 Commit::Commit(Collections::VB::Manifest& manifest,
                vbucket_state vbs,
-               std::function<bool(const std::system_error&)> sysErrorCallback)
+               SysErrorCallback sysErrorCallback)
     : collections(manifest),
       proposedVBState(std::move(vbs)),
       sysErrorCallback(std::move(sysErrorCallback)) {
