@@ -354,7 +354,7 @@ protected:
     /**
      * Our queue to bench
      */
-    VBReadyQueue queue;
+    VBReadyQueue queue{1024};
 };
 
 // Uncontended pushing test when element did not previously exist

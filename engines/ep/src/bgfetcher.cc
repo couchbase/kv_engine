@@ -28,6 +28,14 @@
 #include <climits>
 #include <vector>
 
+BgFetcher::BgFetcher(KVBucket& s, EPStats& st)
+    : store(s),
+      taskId(0),
+      stats(st),
+      pendingFetch(false),
+      queue(s.getVBuckets().getSize()) {
+}
+
 BgFetcher::BgFetcher(KVBucket& s) : BgFetcher(s, s.getEPEngine().getEpStats()) {
 }
 

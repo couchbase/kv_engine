@@ -30,6 +30,7 @@ ActiveStreamCheckpointProcessorTask::ActiveStreamCheckpointProcessorTask(
     : GlobalTask(
               &e, TaskId::ActiveStreamCheckpointProcessorTask, INT_MAX, false),
       description("Process checkpoint(s) for DCP producer " + p->getName()),
+      queue(e.getConfiguration().getMaxVbuckets()),
       notified(false),
       iterationsBeforeYield(
               e.getConfiguration().getDcpProducerSnapshotMarkerYieldLimit()),

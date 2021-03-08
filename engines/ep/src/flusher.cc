@@ -32,6 +32,7 @@ Flusher::Flusher(EPBucket* st, KVShard* k)
       _state(State::Initializing),
       taskId(0),
       forceShutdownReceived(false),
+      lpVbs(st->getVBuckets().getSize()),
       doHighPriority(false),
       numHighPriority(0),
       pendingMutation(false),

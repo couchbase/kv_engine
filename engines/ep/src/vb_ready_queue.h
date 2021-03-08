@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <boost/dynamic_bitset.hpp>
 #include <memcached/engine_common.h>
 #include <memcached/vbucket.h>
 
@@ -34,6 +35,9 @@
  */
 class VBReadyQueue {
 public:
+    /// Construct a VBReadyQueue with the specified maximum number of vBuckets.
+    VBReadyQueue(size_t maxVBuckets);
+
     bool exists(Vbid vbucket);
 
     /**
@@ -87,9 +91,9 @@ private:
     std::queue<Vbid> readyQueue;
 
     /**
-     * maintain a std::unordered_set of values that are in the readyQueue.
+     * maintain a set of values that are in the readyQueue.
      * find() is performed by front-end threads so we want it to be
      * efficient so just a set lookup is required.
      */
-    std::unordered_set<Vbid> queuedValues;
+    boost::dynamic_bitset<> queuedValues;
 };

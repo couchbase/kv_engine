@@ -40,9 +40,7 @@ public:
      * @param s  The store
      * @param st reference to statistics
      */
-    BgFetcher(KVBucket& s, EPStats& st)
-        : store(s), taskId(0), stats(st), pendingFetch(false) {
-    }
+    BgFetcher(KVBucket& s, EPStats& st);
 
     /**
      * Construct a BgFetcher

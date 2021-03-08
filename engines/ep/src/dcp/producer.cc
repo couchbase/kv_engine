@@ -171,6 +171,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
       log(*this),
       backfillMgr(std::make_shared<BackfillManager>(
               *e.getKVBucket(), e.getDcpConnMap(), e.getConfiguration())),
+      ready(e.getConfiguration().getMaxVbuckets()),
       streams(makeStreamsMap(e.getConfiguration().getMaxVbuckets())),
       itemsSent(0),
       totalBytesSent(0),

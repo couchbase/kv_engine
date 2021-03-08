@@ -21,9 +21,12 @@
 
 #include <statistics/cbstat_collector.h>
 
+VBReadyQueue::VBReadyQueue(size_t maxVBuckets) : queuedValues(maxVBuckets) {
+}
+
 bool VBReadyQueue::exists(Vbid vbucket) {
     LockHolder lh(lock);
-    return (queuedValues.count(vbucket) != 0);
+    return queuedValues.test(vbucket.get());
 }
 
 bool VBReadyQueue::popFront(Vbid& frontValue) {
@@ -31,7 +34,7 @@ bool VBReadyQueue::popFront(Vbid& frontValue) {
     if (!readyQueue.empty()) {
         frontValue = readyQueue.front();
         readyQueue.pop();
-        queuedValues.erase(frontValue);
+        queuedValues.reset(frontValue.get());
         return true;
     }
     return false;
@@ -40,7 +43,7 @@ bool VBReadyQueue::popFront(Vbid& frontValue) {
 void VBReadyQueue::pop() {
     LockHolder lh(lock);
     if (!readyQueue.empty()) {
-        queuedValues.erase(readyQueue.front());
+        queuedValues.reset(readyQueue.front().get());
         readyQueue.pop();
     }
 }
@@ -49,9 +52,9 @@ bool VBReadyQueue::pushUnique(Vbid vbucket) {
     bool wasEmpty;
     {
         LockHolder lh(lock);
-        wasEmpty = queuedValues.empty();
-        const bool inserted = queuedValues.emplace(vbucket).second;
-        if (inserted) {
+        wasEmpty = readyQueue.empty();
+        const bool wasSet = queuedValues.test_set(vbucket.get());
+        if (!wasSet) {
             readyQueue.push(vbucket);
         }
     }
@@ -73,14 +76,14 @@ void VBReadyQueue::clear() {
     while (!readyQueue.empty()) {
         readyQueue.pop();
     }
-    queuedValues.clear();
+    queuedValues.reset();
 }
 
 std::queue<Vbid> VBReadyQueue::swap() {
     LockHolder lh(lock);
     std::queue<Vbid> result;
     readyQueue.swap(result);
-    queuedValues.clear();
+    queuedValues.reset();
 
     return result;
 }
@@ -90,7 +93,7 @@ void VBReadyQueue::addStats(const std::string& prefix,
                             const void* c) const {
     // Take a copy of the queue data under lock; then format it to stats.
     std::queue<Vbid> qCopy;
-    std::unordered_set<Vbid> qMapCopy;
+    boost::dynamic_bitset<> qMapCopy;
     {
         LockHolder lh(lock);
         qCopy = readyQueue;
@@ -115,8 +118,9 @@ void VBReadyQueue::addStats(const std::string& prefix,
 
     // Form a comma-separated string of the queue map's contents.
     std::string qMapContents;
-    for (auto& vbid : qMapCopy) {
-        qMapContents += std::to_string(vbid.get()) + ",";
+    for (auto vbid = qMapCopy.find_first(); vbid != qMapCopy.npos;
+         vbid = qMapCopy.find_next(vbid)) {
+        qMapContents += std::to_string(vbid) + ",";
     }
     if (!qMapContents.empty()) {
         qMapContents.pop_back();

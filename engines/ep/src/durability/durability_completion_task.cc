@@ -27,7 +27,8 @@ using namespace std::chrono_literals;
 
 DurabilityCompletionTask::DurabilityCompletionTask(
         EventuallyPersistentEngine& engine)
-    : GlobalTask(&engine, TaskId::DurabilityCompletionTask) {
+    : GlobalTask(&engine, TaskId::DurabilityCompletionTask),
+      queue(engine.getConfiguration().getMaxVbuckets()) {
 }
 
 bool DurabilityCompletionTask::run() {
