@@ -168,15 +168,23 @@ public:
      */
     bool decompressValue();
 
-    const char *getData() const {
+    const char* getData() const {
         return value ? value->getData() : nullptr;
     }
 
-    const value_t &getValue() const {
+    const value_t& getValue() const {
         return value;
     }
 
+    std::string_view getValueView() const override {
+        return {getData(), getNBytes()};
+    }
+
     const StoredDocKey& getKey() const {
+        return key;
+    }
+
+    DocKey getDocKey() const override {
         return key;
     }
 
@@ -204,7 +212,7 @@ public:
         return value ? value->getSize() : 0;
     }
 
-    time_t getExptime() const {
+    time_t getExptime() const override {
         return metaData.exptime;
     }
 
@@ -216,15 +224,15 @@ public:
         return metaData.exptime;
     }
 
-    uint32_t getFlags() const {
+    uint32_t getFlags() const override {
         return metaData.flags;
     }
 
-    uint64_t getCas() const {
+    uint64_t getCas() const override {
         return metaData.cas;
     }
 
-    protocol_binary_datatype_t getDataType() const {
+    protocol_binary_datatype_t getDataType() const override {
         return datatype;
     }
 

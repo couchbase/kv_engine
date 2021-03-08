@@ -128,6 +128,30 @@ public:
         std::copy(body.begin(), body.end(), std::back_inserter(value));
     }
 
+    DocKey getDocKey() const override {
+        return DocKey(key, DocKeyEncodesCollectionId::No);
+    }
+
+    protocol_binary_datatype_t getDataType() const override {
+        return PROTOCOL_BINARY_DATATYPE_XATTR;
+    }
+
+    uint64_t getCas() const override {
+        return 0;
+    }
+
+    uint32_t getFlags() const override {
+        return 0;
+    }
+
+    time_t getExptime() const override {
+        return 0;
+    }
+
+    std::string_view getValueView() const override {
+        return {reinterpret_cast<const char*>(value.data()), value.size()};
+    }
+
     std::string key;
     std::vector<uint8_t> value;
 };

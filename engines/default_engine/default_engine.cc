@@ -45,6 +45,56 @@ struct ItemHolder : public ItemIface {
             item_release(engine, item);
         }
     }
+
+    DocKey getDocKey() const override {
+        auto key = item_get_key(item);
+        return DocKey{hash_key_get_client_key(key),
+                      hash_key_get_client_key_len(key),
+                      DocKeyEncodesCollectionId::No};
+    }
+
+    protocol_binary_datatype_t getDataType() const override {
+        return item->datatype;
+    }
+
+    uint64_t getCas() const override {
+        // This may potentially open up for a race, but:
+        // 1) If the item isn't linked anymore we don't need to mask
+        //    the CAS anymore. (if the client tries to use that
+        //    CAS it'll fail with an invalid cas)
+        // 2) In production the memcached buckets don't use the
+        //    ZOMBIE state (and if we start doing that, it is only
+        //    the owner of the item pointer (the one bumping the
+        //    refcount initially) which would change this. Anyone else
+        //    would create a new item object and set the iflag
+        //    to deleted.
+        const auto iflag = item->iflag.load(std::memory_order_relaxed);
+
+        if ((iflag & ITEM_LINKED) && item->locktime != 0 &&
+            item->locktime > engine->server.core->get_current_time()) {
+            // This object is locked. According to docs/Document.md we should
+            // return -1 in such cases to hide the real CAS for the other
+            // clients (Note the check on ITEM_LINKED.. for the actual item
+            // returned by get_locked we return an item which isn't linked (copy
+            // of the linked item) to allow returning the real CAS.
+            return -1;
+        }
+        return item->cas;
+    }
+
+    uint32_t getFlags() const override {
+        return item->flags;
+    }
+
+    time_t getExptime() const override {
+        return item->exptime == 0 ? 0
+                                  : engine->server.core->abstime(item->exptime);
+    }
+
+    std::string_view getValueView() const override {
+        return {item_get_data(item), item->nbytes};
+    }
+
     default_engine* const engine;
     hash_item* const item;
 };

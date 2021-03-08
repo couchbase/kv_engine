@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mcbp/protocol/datatype.h>
 #include <memcached/dockey.h>
 #include <sys/types.h>
 #include <chrono>
@@ -42,6 +43,24 @@ std::ostream& operator<<(std::ostream& os, const EngineParamCategory& epc);
 class ItemIface {
 public:
     virtual ~ItemIface() = default;
+
+    /// Return the Item's key.
+    virtual DocKey getDocKey() const = 0;
+
+    /// Return the Item's datatype.
+    virtual protocol_binary_datatype_t getDataType() const = 0;
+
+    /// Return the Item's CAS.
+    virtual uint64_t getCas() const = 0;
+
+    /// Return the user flags.
+    virtual uint32_t getFlags() const = 0;
+
+    /// Return the time the item will expire (or 0 if no expiration).
+    virtual time_t getExptime() const = 0;
+
+    /// Return a read-only view of the Item's raw value.
+    virtual std::string_view getValueView() const = 0;
 };
 
 std::ostream& operator<<(std::ostream& os, const ItemIface& item);
