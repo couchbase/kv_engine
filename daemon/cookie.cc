@@ -542,7 +542,7 @@ void Cookie::collectTimings() {
     // The state machinery cause this method to be called for all kinds
     // of packets, but the header musts be a client request for the timings
     // to make sense (and not when we handled a ServerResponse message etc ;)
-    if (!packet->isRequest() || connection.isDCP()) {
+    if (!packet->isRequest()) {
         return;
     }
 
