@@ -447,6 +447,7 @@ if (NOT EP_BYPASS_TESTS)
                    benchmarks/vb_ready_queue_bench.cc
                    benchmarks/vbucket_bench.cc
                    benchmarks/probabilistic_counter_bench.cc
+                   benchmarks/stats_bench.cc
                    benchmarks/tracing_bench.cc
                    $<TARGET_OBJECTS:mock_dcp>
                    $<TARGET_OBJECTS:ep_objs>
