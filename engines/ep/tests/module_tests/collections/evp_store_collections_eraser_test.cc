@@ -672,53 +672,6 @@ TEST_P(CollectionsEraserTest, MB_38313) {
                 "Compact DB file 0"); // would fault (gsl exception)
 }
 
-// @TODO move to CollectionsEraserSyncWriteTest when we run it for all backends
-TEST_P(CollectionsEraserTest, EraserFindsPrepares) {
-    // Ephemeral doesn't have comparable compaction so not valid to test here
-    if (!persistent()) {
-        return;
-    }
-    setVBucketStateAndRunPersistTask(
-            vbid,
-            vbucket_state_active,
-            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
-
-    CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm));
-    flushVBucketToDiskIfPersistent(vbid, 1);
-
-    // Do our SyncWrite
-    auto key = makeStoredDocKey("syncwrite");
-    auto item = makePendingItem(key, "value");
-    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
-    flushVBucketToDiskIfPersistent(vbid, 1);
-
-    // And commit it
-    EXPECT_EQ(cb::engine_errc::success,
-              vb->commit(key,
-                         2 /*prepareSeqno*/,
-                         {} /*commitSeqno*/,
-                         vb->lockCollections(key)));
-    flushVBucketToDiskIfPersistent(vbid, 1);
-
-    // add some items
-    store_item(vbid, StoredDocKey{"milk", CollectionEntry::dairy}, "nice");
-    flushVBucketToDiskIfPersistent(vbid, 1 /* 1x items */);
-
-    // delete the collection
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
-    flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
-
-    runCollectionsEraser(vbid);
-
-    // We expect the prepare to have been visited (and dropped due to
-    // completion) during this compaction as the compaction must iterate over
-    // the prepare namespace
-    auto state = store->getRWUnderlying(vbid)->getCachedVBucketState(vbid);
-    ASSERT_TRUE(state);
-    EXPECT_EQ(0, state->onDiskPrepares);
-}
-
 TEST_P(CollectionsEraserTest, PrepareCountCorrectAfterErase) {
     // Ephemeral doesn't have comparable compaction so not valid to test here
     if (!persistent()) {
@@ -1465,6 +1418,52 @@ TEST_P(CollectionsEraserSyncWriteTest, ErasePendingPrepare) {
         ASSERT_FALSE(res.committed);
     }
     ASSERT_EQ(0, dm.getNumTracked());
+}
+
+TEST_P(CollectionsEraserSyncWriteTest, EraserFindsPrepares) {
+    // Ephemeral doesn't have comparable compaction so not valid to test here
+    if (!persistent()) {
+        GTEST_SKIP();
+    }
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest(makeManifest(cm));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Do our SyncWrite
+    auto key = makeStoredDocKey("syncwrite");
+    auto item = makePendingItem(key, "value");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // And commit it
+    EXPECT_EQ(cb::engine_errc::success,
+              vb->commit(key,
+                         2 /*prepareSeqno*/,
+                         {} /*commitSeqno*/,
+                         vb->lockCollections(key)));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // add some items
+    store_item(vbid, StoredDocKey{"milk", CollectionEntry::dairy}, "nice");
+    flushVBucketToDiskIfPersistent(vbid, 1 /* 1x items */);
+
+    // delete the collection
+    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
+    flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
+
+    runCollectionsEraser(vbid);
+
+    // We expect the prepare to have been visited (and dropped due to
+    // completion) during this compaction as the compaction must iterate over
+    // the prepare namespace
+    auto state = store->getRWUnderlying(vbid)->getCachedVBucketState(vbid);
+    ASSERT_TRUE(state);
+    EXPECT_EQ(0, state->onDiskPrepares);
 }
 
 class CollectionsEraserPersistentOnly : public CollectionsEraserTest {
