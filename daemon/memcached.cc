@@ -186,13 +186,14 @@ bool associate_bucket(Connection& connection, const char* name) {
         if (b.state == Bucket::State::Ready && strcmp(b.name, name) == 0) {
             b.clients++;
             connection.setBucketIndex(gsl::narrow<int>(ii));
-            audit_bucket_selection(connection);
             found = true;
         }
     }
 
-    if (!found) {
-        /* Bucket not found, connect to the "no-bucket" */
+    if (found) {
+        audit_bucket_selection(connection);
+    } else {
+        // Bucket not found, connect to the "no-bucket"
         Bucket &b = all_buckets.at(0);
         {
             std::lock_guard<std::mutex> guard(b.mutex);
