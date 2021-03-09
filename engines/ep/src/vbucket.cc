@@ -3805,10 +3805,11 @@ void VBucket::addHighPriorityVBEntry(uint64_t seqnoOrChkId,
 
     EP_LOG_INFO(
             "Added high priority async request {} for {}, Check for:{}, "
-            "Persisted upto:{}, cookie:{}",
+            "High seqno: {}, Persisted upto:{}, cookie:{}",
             to_string(reqType),
             getId(),
             seqnoOrChkId,
+            getHighSeqno(),
             getPersistenceSeqno(),
             cookie);
 }
