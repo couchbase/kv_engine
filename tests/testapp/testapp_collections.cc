@@ -56,7 +56,7 @@ TEST_P(CollectionsTest, ManifestUidInResponse) {
 
     // Force the unknown collection error and check the JSON
     auto response = userConnection->execute(BinprotGenericCommand{
-            cb::mcbp::ClientOpcode::CollectionsGetID, "_default.error"});
+            cb::mcbp::ClientOpcode::CollectionsGetID, {}, "_default.error"});
     ASSERT_FALSE(response.isSuccess());
     ASSERT_EQ(cb::mcbp::Status::UnknownCollection, response.getStatus());
     nlohmann::json parsed;

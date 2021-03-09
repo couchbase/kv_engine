@@ -17,18 +17,11 @@
 void collections_get_scope_id_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     auto& req = cookie.getRequest();
-    auto key = req.getKey();
-    std::string_view path{};
-
-    if (key.size()) {
-        path = std::string_view{reinterpret_cast<const char*>(key.data()),
-                                key.size()};
-    } else {
-        auto value = req.getValue();
-        path = std::string_view{reinterpret_cast<const char*>(value.data()),
-                                value.size()};
-    }
+    auto value = req.getValue();
+    std::string_view path{reinterpret_cast<const char*>(value.data()),
+                          value.size()};
     auto rv = connection.getBucketEngine().get_scope_id(cookie, path);
+
     if (rv.result == cb::engine_errc::success) {
         auto payload = rv.getPayload();
         cookie.sendResponse(cb::mcbp::Status::Success,

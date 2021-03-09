@@ -91,16 +91,9 @@ TEST_F(GetCollectionIdValidator, CorrectMessage1) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
-// @todo MB-44807: this encoding will become invalid
-TEST_F(GetCollectionIdValidator, CorrectMessage2) {
-    request.message.header.request.setKeylen(10);
-    request.message.header.request.setBodylen(10);
-    EXPECT_EQ(cb::mcbp::Status::Success, validate());
-}
-
-TEST_F(SetCollectionsValidator, InvalidKeyAndBody) {
+TEST_F(SetCollectionsValidator, InvalidKey) {
     request.message.header.request.setKeylen(1);
-    request.message.header.request.setBodylen(10);
+    request.message.header.request.setBodylen(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
