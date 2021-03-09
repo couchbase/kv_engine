@@ -43,6 +43,12 @@ constexpr char vegetable2[] = "vegetable";
 constexpr char dairy[] = "dairy";
 constexpr char dairy2[] = "dairy";
 constexpr char customer1[] = "customer_collection1";
+constexpr char maxCollection[] =
+        "collectionaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
 } // namespace CollectionName
 
 // For building CollectionEntry we need a UID
@@ -55,6 +61,7 @@ const CollectionID vegetable2 = 0xb;
 const CollectionID dairy = 0xc;
 const CollectionID dairy2 = 0xd;
 const CollectionID customer1 = 0xb;
+const CollectionID maxCollection = 0xe;
 } // namespace CollectionUid
 
 namespace CollectionEntry {
@@ -82,6 +89,7 @@ Entry_(vegetable2);
 Entry_(dairy);
 Entry_(dairy2);
 Entry_(customer1);
+Entry_(maxCollection);
 
 #undef Entry_
 } // namespace CollectionEntry
@@ -92,6 +100,12 @@ constexpr char defaultS[] = "_default";
 constexpr char shop1[] = "supermarket";
 constexpr char shop2[] = "minimart";
 constexpr char customer[] = "customer_scope";
+constexpr char maxScope[] =
+        "scopeaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
 } // namespace ScopeName
 
 // For building ScopeEntry we need a UID
@@ -100,6 +114,7 @@ const ScopeID defaultS = 0;
 const ScopeID shop1 = 8;
 const ScopeID shop2 = 9;
 const ScopeID customer = 8;
+const ScopeID maxScope = 10;
 } // namespace ScopeUid
 
 namespace ScopeEntry {
@@ -122,6 +137,7 @@ Entry_(defaultS);
 Entry_(shop1);
 Entry_(shop2);
 Entry_(customer);
+Entry_(maxScope);
 #undef Entry_
 } // namespace ScopeEntry
 

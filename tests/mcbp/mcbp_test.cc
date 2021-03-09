@@ -2890,8 +2890,9 @@ TEST_P(CommandSpecificErrorContextTest, CollectionsGetManifest) {
 TEST_P(CommandSpecificErrorContextTest, CollectionsGetID) {
     connection.setCollectionsSupported(true);
     header.setExtlen(0);
-    header.setKeylen(0);
-    EXPECT_EQ("Request must include key",
+    header.setKeylen(1);
+    header.setBodylen(2);
+    EXPECT_EQ("Cannot set both key and value",
               validate_error_context(cb::mcbp::ClientOpcode::CollectionsGetID));
     header.setKeylen(1);
     header.setBodylen(1);

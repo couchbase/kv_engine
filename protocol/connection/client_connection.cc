@@ -1558,10 +1558,10 @@ void MemcachedConnection::dcpStreamRequest(Vbid vbid,
 cb::mcbp::request::GetCollectionIDPayload MemcachedConnection::getCollectionId(
         std::string_view path) {
     BinprotGenericCommand command(
-            cb::mcbp::ClientOpcode::CollectionsGetID, std::string(path), {});
+            cb::mcbp::ClientOpcode::CollectionsGetID, {}, std::string(path));
     const auto response = BinprotResponse(execute(command));
     if (!response.isSuccess()) {
-        throw ConnectionError("Failed dcpStreamRequest", response);
+        throw ConnectionError("Failed getCollectionId", response);
     }
 
     if (response.getExtlen() !=
@@ -1578,8 +1578,8 @@ cb::mcbp::request::GetCollectionIDPayload MemcachedConnection::getCollectionId(
 cb::mcbp::request::GetScopeIDPayload MemcachedConnection::getScopeId(
         std::string_view path) {
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::CollectionsGetScopeID,
-                                  std::string(path),
-                                  {});
+                                  {},
+                                  std::string(path));
     const auto response = BinprotResponse(execute(command));
     if (!response.isSuccess()) {
         throw ConnectionError("Failed getScopeId", response);

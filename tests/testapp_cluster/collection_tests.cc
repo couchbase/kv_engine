@@ -339,3 +339,61 @@ TEST_F(CollectionsTests, SetCollectionsWithNoDirectory) {
                << err.getErrorContext();
     }
 }
+
+TEST_F(CollectionsTests, getId_MB_44807) {
+    auto conn = getConnection();
+    std::string maxPath = ScopeEntry::maxScope.name + "." +
+                          CollectionEntry::maxCollection.name;
+    EXPECT_EQ(251 + 1 + 251, maxPath.size());
+    auto max = conn->getCollectionId(maxPath);
+    EXPECT_EQ(CollectionEntry::maxCollection.getId(), max.getCollectionId());
+
+    try {
+        maxPath += "a"; // and just double check the expected limit
+        conn->getCollectionId(maxPath);
+        FAIL() << "Expected getCollectionId to fail";
+    } catch (const ConnectionError& err) {
+    }
+}
+
+// @todo: The key encoding will be removed - check it works until then
+TEST_F(CollectionsTests, getId_MB_44807_using_keylen) {
+    auto conn = getConnection();
+    // Use a generic command to drive get_collection_id using key input
+    BinprotGenericCommand command1(cb::mcbp::ClientOpcode::CollectionsGetID,
+                                   "_default.fruit");
+    const auto response1 = BinprotResponse(conn->execute(command1));
+    if (!response1.isSuccess()) {
+        throw ConnectionError("Failed getCollectionId", response1);
+    }
+
+    if (response1.getExtlen() !=
+        sizeof(cb::mcbp::request::GetCollectionIDPayload)) {
+        throw std::logic_error("getCollectionId invalid extra length");
+    }
+    cb::mcbp::request::GetCollectionIDPayload payload1;
+    auto extras1 = response1.getResponse().getExtdata();
+    std::copy_n(extras1.data(),
+                extras1.size(),
+                reinterpret_cast<uint8_t*>(&payload1));
+    EXPECT_EQ(CollectionEntry::fruit.getId(), payload1.getCollectionId());
+
+    // Use a generic command to drive get_collection_id using key input
+    BinprotGenericCommand command2(
+            cb::mcbp::ClientOpcode::CollectionsGetScopeID, "_default");
+    const auto response2 = BinprotResponse(conn->execute(command2));
+    if (!response2.isSuccess()) {
+        throw ConnectionError("Failed getScopeId", response2);
+    }
+
+    if (response2.getExtlen() != sizeof(cb::mcbp::request::GetScopeIDPayload)) {
+        throw std::logic_error("getScopeId invalid extra length");
+    }
+    cb::mcbp::request::GetScopeIDPayload payload2;
+    auto extras2 = response2.getResponse().getExtdata();
+    std::copy_n(extras2.data(),
+                extras2.size(),
+                reinterpret_cast<uint8_t*>(&payload2));
+    EXPECT_EQ(CollectionEntry::defaultC.getId(),
+              uint32_t{payload2.getScopeId()});
+}

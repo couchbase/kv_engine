@@ -75,5 +75,39 @@ TEST_F(SetCollectionsValidator, InvalidBodylen) {
     request.message.header.request.setBodylen(0);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
+class GetCollectionIdValidator : public ValidatorTest {
+public:
+    GetCollectionIdValidator() : ValidatorTest(true) {
+    }
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        request.message.header.request.setOpcode(
+                cb::mcbp::ClientOpcode::CollectionsGetID);
+    }
+
+protected:
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::CollectionsGetID,
+                                       static_cast<void*>(&request));
+    }
+};
+
+TEST_F(GetCollectionIdValidator, CorrectMessage1) {
+    request.message.header.request.setBodylen(10);
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+// @todo MB-44807: this encoding will become invalid
+TEST_F(GetCollectionIdValidator, CorrectMessage2) {
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(10);
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_F(SetCollectionsValidator, InvalidKeyAndBody) {
+    request.message.header.request.setKeylen(1);
+    request.message.header.request.setBodylen(10);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
 
 } // namespace mcbp::test

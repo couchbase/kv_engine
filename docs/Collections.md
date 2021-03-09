@@ -283,8 +283,8 @@ Header errors:
 Request:
 
 * MUST NOT have extras.
-* MUST have a key.
-* MUST NOT have a value.
+* MUST NOT have a key.
+* MUST have a value.
 
 Response (if status is success):
 
@@ -292,14 +292,14 @@ Response (if status is success):
 * No key
 * No value.
 
-Get collection ID interprets the key as a path to a collection and using the
+Get collection ID interprets the value as a path to a collection and using the
 current manifest attempts to return the collection's unique ID.
 
 * A 'path' to a collection is defined as `scope.collection`
 * A 'path' supports _default scope and _default collection by omission as shown
-in the example keys.
+in the example inputs.
 
-Example keys:
+Example inputs:
 
 * `_default.c1` and `.c1` are equivalent paths, they both will lookup the `c1`
 collection in the `_default` scope.
@@ -320,10 +320,6 @@ against.
 
 ### Errors
 
-#### No collections manifest
-
-Get collection ID was invoked before "0xb9 - Set Collections Manifest"
-
 #### Unknown Scope
 
 If the path is correctly formed and consists of valid collection and scope names
@@ -340,7 +336,7 @@ Invalid argument can be returned for issues with the header or if the path is
 invalid.
 
 Header errors:
-* extra len, cas, vbucket, datatype are not 0
+* key len, extra len, cas, vbucket, datatype are not 0
 
 Path errors:
 * The path does not contain one `.`
@@ -354,8 +350,8 @@ Manifest" errors for validation of the name format)
 Request:
 
 * MUST NOT have extras.
-* MUST have a key.
-* MUST NOT have a value.
+* MUST NOT have a key.
+* MUST have a value.
 
 Response (if status is success):
 
@@ -363,13 +359,13 @@ Response (if status is success):
 * No key
 * No value.
 
-Get scope ID interprets the key as a path to a scope and using the current
+Get scope ID interprets the value as a path to a scope and using the current
 manifest attempts to return the scope's unique ID.
 
 * A 'path' to a scope is defined as `scope`
-* A 'path' supports `_default` scope by omission as shown in the example keys.
+* A 'path' supports `_default` scope by omission as shown in the example inputs.
 
-Example keys:
+Example inputs:
 
 * `_default` and `` are equivalent, both will lookup the unique ID of the
 `_default` scope.
@@ -390,10 +386,6 @@ against.
 
 ### Errors
 
-#### No collections manifest
-
-Get scope ID was invoked before "0xb9 - Set Collections Manifest"
-
 #### Unknown Scope
 
 If the path is correctly formed and consists of valid scope names but no
@@ -405,7 +397,7 @@ Invalid argument can be returned for issues with the header or if the path is
 invalid.
 
 Header errors:
-* extra len, cas, vbucket, datatype are not 0
+* key len, extra len, cas, vbucket, datatype are not 0
 
 Path errors:
 * The path contains more than one `.`

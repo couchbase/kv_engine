@@ -56,6 +56,9 @@ void cb::test::ClusterTest::createDefaultBucket() {
             .add(CollectionEntry::vegetable);
     cluster->collections.add(ScopeEntry::customer);
     cluster->collections.add(CollectionEntry::customer1, ScopeEntry::customer);
+    cluster->collections.add(ScopeEntry::maxScope);
+    cluster->collections.add(CollectionEntry::maxCollection,
+                             ScopeEntry::maxScope);
     bucket->setCollectionManifest(cluster->collections.getJson());
 }
 
