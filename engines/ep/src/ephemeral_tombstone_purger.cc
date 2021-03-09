@@ -44,34 +44,32 @@ void EphemeralVBucket::HTTombstonePurger::setCurrentVBucket(VBucket& vb) {
 bool EphemeralVBucket::HTTombstonePurger::visit(
         const HashTable::HashBucketLock& hbl, StoredValue& v) {
     // MB-41089: Never remove Pending Prepares, that would break SyncDelete.
-    if (v.isPending()) {
-        // Skip over and continue visiting
-        return true;
-    }
+    if (!v.isPending()) {
+        auto* osv = v.toOrderedStoredValue();
 
-    auto* osv = v.toOrderedStoredValue();
-
-    // MB-31175: Item must have been deleted before this task starts to ensure
-    // that we do not get a -ve value when we check if the time difference
-    // is >= purgeAge. This is preferable to updating the task start time for
-    // every visit and has little impact as this task runs frequently.
-    if ((osv->isDeleted() || osv->isPrepareCompleted()) &&
-        (now >= osv->getCompletedOrDeletedTime()) &&
-        (now - osv->getCompletedOrDeletedTime() >= purgeAge)) {
-        // This item should be purged. Remove from the HashTable and move over
-        // to being owned by the sequence list. Remove by pointer (not by key)
-        // so that we do not remove any committed/prepared StoredValues for
-        // which there may be two with the same key.
-        auto ownedSV = vbucket->ht.unlocked_release(hbl, osv);
-        {
-            std::lock_guard<std::mutex> listWriteLg(
-                    vbucket->seqList->getListWriteLock());
-            // Mark the item stale, with no replacement item
-            vbucket->seqList->markItemStale(
-                    listWriteLg, std::move(ownedSV), nullptr);
+        // MB-31175: Item must have been deleted before this task starts to
+        // ensure that we do not get a -ve value when we check if the time
+        // difference is >= purgeAge. This is preferable to updating the task
+        // start time for every visit and has little impact as this task runs
+        // frequently.
+        if ((osv->isDeleted() || osv->isPrepareCompleted()) &&
+            (now >= osv->getCompletedOrDeletedTime()) &&
+            (now - osv->getCompletedOrDeletedTime() >= purgeAge)) {
+            // This item should be purged. Remove from the HashTable and move
+            // over to being owned by the sequence list. Remove by pointer (not
+            // by key) so that we do not remove any committed/prepared
+            // StoredValues for which there may be two with the same key.
+            auto ownedSV = vbucket->ht.unlocked_release(hbl, osv);
+            {
+                std::lock_guard<std::mutex> listWriteLg(
+                        vbucket->seqList->getListWriteLock());
+                // Mark the item stale, with no replacement item
+                vbucket->seqList->markItemStale(
+                        listWriteLg, std::move(ownedSV), nullptr);
+            }
+            ++vbucket->htDeletedPurgeCount;
+            ++numPurgedItems;
         }
-        ++vbucket->htDeletedPurgeCount;
-        ++numPurgedItems;
     }
     ++numVisitedItems;
 
