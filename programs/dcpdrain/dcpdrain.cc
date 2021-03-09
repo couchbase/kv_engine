@@ -29,6 +29,7 @@
 #include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/json_utilities.h>
 #include <utilities/terminate_handler.h>
+#include <csignal>
 #include <cstdlib>
 #include <iostream>
 #include <vector>
@@ -540,6 +541,13 @@ int main(int argc, char** argv) {
         cb::throwIfWrongType("streams", *itr, nlohmann::json::value_t::array);
         streamIdConfig = *itr;
     }
+
+#ifndef WIN32
+    if (sigignore(SIGPIPE) == -1) {
+        std::cerr << "Fatal: failed to ignore SIGPIPE\n";
+        return EXIT_FAILURE;
+    }
+#endif
 
     cb::libevent::unique_event_base_ptr base(event_base_new());
     std::vector<cb::libevent::unique_bufferevent_ptr> events;
