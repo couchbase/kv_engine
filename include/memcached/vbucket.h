@@ -20,12 +20,12 @@
 #include <platform/socket.h>
 #include <string>
 
-typedef enum : int {
+enum vbucket_state_t : int {
     vbucket_state_active = 1, /**< Actively servicing a vbucket. */
     vbucket_state_replica, /**< Servicing a vbucket as a replica only. */
     vbucket_state_pending, /**< Pending active. */
     vbucket_state_dead /**< Not in use, pending deletion. */
-} vbucket_state_t;
+};
 
 /**
  * Enumeration used by GET_ALL_VBSEQNOS for the client to specify which
@@ -57,7 +57,7 @@ struct vbucket_failover_t {
  */
 class Vbid {
 public:
-    typedef uint16_t id_type;
+    using id_type = uint16_t;
 
     Vbid() = default;
 
