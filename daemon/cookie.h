@@ -183,7 +183,7 @@ public:
      * @return true if the command executed completely
      *         false if the command blocked (ewouldblock)
      */
-    bool execute();
+    bool execute(bool useStartTime = false);
 
     /**
      * Set the packet used by this command context.
@@ -582,6 +582,8 @@ public:
     }
 
 protected:
+    bool doExecute();
+
     /// Check if the current command have the requested privilege for
     /// for the provided scope collection identifier
     cb::rbac::PrivilegeAccess checkPrivilege(
@@ -613,7 +615,7 @@ protected:
      */
     CookieTraceContext extractTraceContext();
 
-    void collectTimings();
+    void collectTimings(const std::chrono::steady_clock::time_point& end);
 
     bool validated = false;
 

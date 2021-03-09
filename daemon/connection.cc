@@ -550,7 +550,7 @@ void Connection::executeCommandPipeline() {
                 //  * We don't have any ongoing commands
                 //  * We have an ongoing command and this command allows
                 //    for reorder
-                if ((!active || cookie.mayReorder()) && cookie.execute()) {
+                if ((!active || cookie.mayReorder()) && cookie.execute(true)) {
                     // Command executed successfully, reset the cookie to allow
                     // it to be reused
                     cookie.reset();

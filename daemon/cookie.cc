@@ -124,7 +124,7 @@ const std::string& Cookie::getErrorJson() {
     return json_message;
 }
 
-bool Cookie::execute() {
+bool Cookie::doExecute() {
     if (!validated) {
         throw std::runtime_error("Cookie::execute: validate() not called");
     }
@@ -140,7 +140,6 @@ bool Cookie::execute() {
         if (!fetchEuidPrivilegeSet()) {
             // we failed  to fetch the access privileges for the requested user
             audit_command_access_failed(*this);
-            collectTimings();
             return true;
         }
 
@@ -162,8 +161,22 @@ bool Cookie::execute() {
         return false;
     }
 
-    collectTimings();
     return true;
+}
+
+bool Cookie::execute(bool useStartTime) {
+    auto ts = useStartTime ? start : std::chrono::steady_clock::now();
+
+    auto done = doExecute();
+
+    auto te = std::chrono::steady_clock::now();
+    tracer.record(cb::tracing::Code::Execute, ts, te);
+
+    if (done) {
+        collectTimings(te);
+        return true;
+    }
+    return false;
 }
 
 void Cookie::setPacket(const cb::mcbp::Header& header, bool copy) {
@@ -538,7 +551,8 @@ CookieTraceContext Cookie::extractTraceContext() {
                               tracer.extractDurations()};
 }
 
-void Cookie::collectTimings() {
+void Cookie::collectTimings(
+        const std::chrono::steady_clock::time_point& endTime) {
     // The state machinery cause this method to be called for all kinds
     // of packets, but the header musts be a client request for the timings
     // to make sense (and not when we handled a ServerResponse message etc ;)
@@ -547,7 +561,6 @@ void Cookie::collectTimings() {
     }
 
     const auto opcode = packet->getRequest().getClientOpcode();
-    const auto endTime = std::chrono::steady_clock::now();
     const auto elapsed = endTime - start;
 
     // End the tracing span (Request) which is the first span in the tracer

@@ -27,6 +27,8 @@ namespace cb::tracing {
 enum class Code : uint8_t {
     /// Time spent in the entire request
     Request,
+    /// The time spent during execution on front end thread
+    Execute,
     /// Time spent decompressing Snappy data.
     SnappyDecompress,
     /// Time spent validating if incoming value is JSON.
