@@ -38,11 +38,15 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
     }
     // CBStats has no concept of labels, but needs to distinguish some stats
     // through prefixes
-
-    auto key = shouldFormatStatKeys ? formatKey(k.cbstatsKey, labels)
-                                    : std::string(k.cbstatsKey);
-
-    addStatFn(key, v, cookie);
+    // TODO: scope and collection prefixing was added before general formatted
+    // stat support. It should be removed, and scope/col stats should declare
+    // they require formatting. For now, if a scope_id is present the prefix
+    // must be added.
+    if (k.needsFormatting() || labels.count("scope_id")) {
+        addStatFn(formatKey(k.cbstatsKey, labels), v, cookie);
+    } else {
+        addStatFn(k.cbstatsKey, v, cookie);
+    }
 }
 
 void CBStatCollector::addStat(const cb::stats::StatDef& k,
@@ -78,8 +82,8 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
 void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               const HistogramData& hist,
                               const Labels& labels) const {
-    auto key = shouldFormatStatKeys ? formatKey(k.cbstatsKey, labels)
-                                    : std::string(k.cbstatsKey);
+    auto key = k.needsFormatting() ? formatKey(k.cbstatsKey, labels)
+                                   : std::string(k.cbstatsKey);
     fmt::memory_buffer buf;
     format_to(buf, "{}_mean", key);
     addStat(cb::stats::StatDef({buf.data(), buf.size()}), hist.mean, labels);

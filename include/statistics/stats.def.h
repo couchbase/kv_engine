@@ -18,12 +18,21 @@
 /**
  * Static definitions for statistics.
  *
- * Requires STAT, CBSTAT, and LABEL macros be defined before including this
- * file. LABEL wraps a key and a value. A common definition for LABEL would be
+ * Requires STAT, CBSTAT, PSTAT, FMT, and LABEL macros be defined before
+ * including this file. LABEL wraps a key and a value. A common definition for
+ * LABEL would be
  *
  * LABEL(key, value) {#key, #value}
  *
  * to stringify for insertion into a map.
+ *
+ * FMT(cbstatsName)
+ *
+ * Is used to declare that the key will need formatting as it currently contains
+ * replacement specifiers. This avoids wasting time for stats which _don't_
+ * require this.
+ * e.g.,
+ *  STAT(some_enum_key, FMT("{connection_type}:some_stat"),...)
  *
  * STAT(enumKey, cbstatName, unit, familyName, ...)
  * CBSTAT(enumKey, cbstatName, [unit])
@@ -32,7 +41,8 @@
  * where:
  *  * enumKey - a key which identifies the stat
  *  * cbstatName - key to expose this stat under for cbstats (defaults to
- *                 enumKey if empty)
+ *                 enumKey if empty). FMT may be used to wrap this key if
+ *                 it requires values to be formatted in e.g., "{scope}:foo"
  *  * unit - name of a cb::stats::Unit which identifies what unit the stat
  *           value represents (e.g., microseconds). default: none
  *  * familyName - the metric name used by Prometheus. This need _not_ be
@@ -480,58 +490,64 @@ STAT(total_resp_errors, , count, , )
 STAT(audit_enabled, "enabled", none, audit_enabled, )
 STAT(audit_dropped_events, "dropped_events", count, audit_dropped_events, )
 
-STAT(vb_num, "vb_{state}_num", count, num_vbuckets, )
-STAT(vb_curr_items, "vb_{state}_curr_items", count, vb_curr_items, )
+STAT(vb_num, FMT("vb_{state}_num"), count, num_vbuckets, )
+STAT(vb_curr_items, FMT("vb_{state}_curr_items"), count, vb_curr_items, )
 STAT(vb_hp_vb_req_size,
-     "vb_{state}_hp_vb_req_size",
+     FMT("vb_{state}_hp_vb_req_size"),
      count,
      num_high_pri_requests, )
 STAT(vb_num_non_resident,
-     "vb_{state}_num_non_resident",
+     FMT("vb_{state}_num_non_resident"),
      count,
      vb_num_non_resident, )
 STAT(vb_perc_mem_resident,
-     "vb_{state}_perc_mem_resident",
+     FMT("vb_{state}_perc_mem_resident"),
      percent,
      vb_perc_mem_resident, )
-STAT(vb_eject, "vb_{state}_eject", count, vb_eject, )
-STAT(vb_expired, "vb_{state}_expired", count, vb_expired, )
+STAT(vb_eject, FMT("vb_{state}_eject"), count, vb_eject, )
+STAT(vb_expired, FMT("vb_{state}_expired"), count, vb_expired, )
 STAT(vb_meta_data_memory,
-     "vb_{state}_meta_data_memory",
+     FMT("vb_{state}_meta_data_memory"),
      bytes,
      vb_meta_data_memory, )
-STAT(vb_meta_data_disk, "vb_{state}_meta_data_disk", bytes, vb_meta_data_disk, )
+STAT(vb_meta_data_disk,
+     FMT("vb_{state}_meta_data_disk"),
+     bytes,
+     vb_meta_data_disk, )
 STAT(vb_checkpoint_memory,
-     "vb_{state}_checkpoint_memory",
+     FMT("vb_{state}_checkpoint_memory"),
      bytes,
      vb_checkpoint_memory, )
 STAT(vb_checkpoint_memory_unreferenced,
-     "vb_{state}_checkpoint_memory_unreferenced",
+     FMT("vb_{state}_checkpoint_memory_unreferenced"),
      bytes,
      vb_checkpoint_memory_unreferenced, )
 STAT(vb_checkpoint_memory_overhead,
-     "vb_{state}_checkpoint_memory_overhead",
+     FMT("vb_{state}_checkpoint_memory_overhead"),
      bytes,
      vb_checkpoint_memory_overhead, )
-STAT(vb_ht_memory, "vb_{state}_ht_memory", bytes, vb_ht_memory, )
-STAT(vb_itm_memory, "vb_{state}_itm_memory", bytes, vb_itm_memory, )
+STAT(vb_ht_memory, FMT("vb_{state}_ht_memory"), bytes, vb_ht_memory, )
+STAT(vb_itm_memory, FMT("vb_{state}_itm_memory"), bytes, vb_itm_memory, )
 STAT(vb_itm_memory_uncompressed,
-     "vb_{state}_itm_memory_uncompressed",
+     FMT("vb_{state}_itm_memory_uncompressed"),
      bytes,
      vb_itm_memory_uncompressed, )
-STAT(vb_ops_create, "vb_{state}_ops_create", count, vb_ops_create, )
-STAT(vb_ops_update, "vb_{state}_ops_update", count, vb_ops_update, )
-STAT(vb_ops_delete, "vb_{state}_ops_delete", count, vb_ops_delete, )
-STAT(vb_ops_get, "vb_{state}_ops_get", count, vb_ops_get, )
-STAT(vb_ops_reject, "vb_{state}_ops_reject", count, vb_ops_reject, )
-STAT(vb_queue_size, "vb_{state}_queue_size", count, vb_queue_size, )
-STAT(vb_queue_memory, "vb_{state}_queue_memory", bytes, vb_queue_memory, )
-STAT(vb_queue_age, "vb_{state}_queue_age", milliseconds, vb_queue_age, )
-STAT(vb_queue_pending, "vb_{state}_queue_pending", bytes, vb_queue_pending, )
-STAT(vb_queue_fill, "vb_{state}_queue_fill", count, vb_queue_fill, )
-STAT(vb_queue_drain, "vb_{state}_queue_drain", count, vb_queue_drain, )
+STAT(vb_ops_create, FMT("vb_{state}_ops_create"), count, vb_ops_create, )
+STAT(vb_ops_update, FMT("vb_{state}_ops_update"), count, vb_ops_update, )
+STAT(vb_ops_delete, FMT("vb_{state}_ops_delete"), count, vb_ops_delete, )
+STAT(vb_ops_get, FMT("vb_{state}_ops_get"), count, vb_ops_get, )
+STAT(vb_ops_reject, FMT("vb_{state}_ops_reject"), count, vb_ops_reject, )
+STAT(vb_queue_size, FMT("vb_{state}_queue_size"), count, vb_queue_size, )
+STAT(vb_queue_memory, FMT("vb_{state}_queue_memory"), bytes, vb_queue_memory, )
+STAT(vb_queue_age, FMT("vb_{state}_queue_age"), milliseconds, vb_queue_age, )
+STAT(vb_queue_pending,
+     FMT("vb_{state}_queue_pending"),
+     bytes,
+     vb_queue_pending, )
+STAT(vb_queue_fill, FMT("vb_{state}_queue_fill"), count, vb_queue_fill, )
+STAT(vb_queue_drain, FMT("vb_{state}_queue_drain"), count, vb_queue_drain, )
 STAT(vb_rollback_item_count,
-     "vb_{state}_rollback_item_count",
+     FMT("vb_{state}_rollback_item_count"),
      count,
      vb_rollback_item_count, )
 
@@ -540,15 +556,15 @@ STAT(curr_temp_items, , count, , )
 STAT(curr_items_tot, , count, , )
 
 STAT(vb_sync_write_accepted_count,
-     "vb_{state}_sync_write_accepted_count",
+     FMT("vb_{state}_sync_write_accepted_count"),
      count,
      vb_sync_write_accepted_count, )
 STAT(vb_sync_write_committed_count,
-     "vb_{state}_sync_write_committed_count",
+     FMT("vb_{state}_sync_write_committed_count"),
      count,
      vb_sync_write_committed_count, )
 STAT(vb_sync_write_aborted_count,
-     "vb_{state}_sync_write_aborted_count",
+     FMT("vb_{state}_sync_write_aborted_count"),
      count,
      vb_sync_write_aborted_count, )
 
@@ -579,62 +595,65 @@ STAT(ep_replica_behind_exceptions, , count, , )
 STAT(ep_clock_cas_drift_threshold_exceeded, , count, , )
 
 STAT(vb_auto_delete_count,
-     "vb_{state}_auto_delete_count",
+     FMT("vb_{state}_auto_delete_count"),
      count,
      vb_auto_delete_count, )
 STAT(vb_ht_tombstone_purged_count,
-     "vb_{state}_ht_tombstone_purged_count",
+     FMT("vb_{state}_ht_tombstone_purged_count"),
      count,
      vb_ht_tombstone_purged_count, )
-STAT(vb_seqlist_count, "vb_{state}_seqlist_count", count, vb_seqlist_count, )
+STAT(vb_seqlist_count,
+     FMT("vb_{state}_seqlist_count"),
+     count,
+     vb_seqlist_count, )
 STAT(vb_seqlist_deleted_count,
-     "vb_{state}_seqlist_deleted_count",
+     FMT("vb_{state}_seqlist_deleted_count"),
      count,
      vb_seqlist_deleted_count, )
 STAT(vb_seqlist_purged_count,
-     "vb_{state}_seqlist_purged_count",
+     FMT("vb_{state}_seqlist_purged_count"),
      count,
      vb_seqlist_purged_count, )
 STAT(vb_seqlist_read_range_count,
-     "vb_{state}_seqlist_read_range_count",
+     FMT("vb_{state}_seqlist_read_range_count"),
      count,
      vb_seqlist_read_range_count, )
 STAT(vb_seqlist_stale_count,
-     "vb_{state}_seqlist_stale_count",
+     FMT("vb_{state}_seqlist_stale_count"),
      count,
      vb_seqlist_stale_count, )
 STAT(vb_seqlist_stale_value_bytes,
-     "vb_{state}_seqlist_stale_value_bytes",
+     FMT("vb_{state}_seqlist_stale_value_bytes"),
      bytes,
      vb_seqlist_stale_value, )
 STAT(vb_seqlist_stale_metadata_bytes,
-     "vb_{state}_seqlist_stale_metadata_bytes",
+     FMT("vb_{state}_seqlist_stale_metadata_bytes"),
      bytes,
      vb_seqlist_stale_metadata, )
 
 STAT(connagg_connection_count,
-     "{connection_type}:count",
+     FMT("{connection_type}:count"),
      count,
      dcp_connection_count, )
-STAT(connagg_backoff, "{connection_type}:backoff", count, dcp_backoff, )
+STAT(connagg_backoff, FMT("{connection_type}:backoff"), count, dcp_backoff, )
 STAT(connagg_producer_count,
-     "{connection_type}:producer_count",
+     FMT("{connection_type}:producer_count"),
      count,
      dcp_producer_count, )
 STAT(connagg_items_sent,
-     "{connection_type}:items_sent",
+     FMT("{connection_type}:items_sent"),
      count,
      dcp_items_sent, )
 STAT(connagg_items_remaining,
-     "{connection_type}:items_remaining",
+     FMT("{connection_type}:items_remaining"),
      count,
      dcp_items_remaining, )
 STAT(connagg_total_bytes,
-     "{connection_type}:total_bytes",
+     FMT("{connection_type}:total_bytes"),
      bytes,
      dcp_total_data_size, )
 STAT(connagg_total_uncompressed_data_size,
-     "{connection_type}:total_uncompressed_data_size",
+     FMT("{connection_type}:total_uncompressed_data_size"),
      bytes,
      dcp_total_uncompressed_data_size, )
 

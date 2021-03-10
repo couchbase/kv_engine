@@ -24,6 +24,44 @@
 #include <unordered_map>
 
 namespace cb::stats {
+
+/**
+ * Small wrapper to track whether a key from stats.def.h needs to be formatted.
+ *
+ * This is used to distinguish:
+ *
+ *  STAT(foo_bar, "foo_bar",...)
+ *    -> StatDef("foo_bar", ...)
+ * from
+ *  STAT(foo_bar, FMT("{scope}:foo_bar"),...)
+ *    -> StatDef( CBStatsKey("{scope}:foo_bar", NeedsFormattingTag{}), ...)
+ */
+class CBStatsKey {
+public:
+    // default constructor required for stats.def.h if cbstats name is not given
+    CBStatsKey() = default;
+
+    CBStatsKey(std::string_view key) : key(key) {
+    }
+
+    struct NeedsFormattingTag {};
+
+    CBStatsKey(std::string_view key, NeedsFormattingTag)
+        : key(key), needsFormatting(true) {
+    }
+
+    operator std::string_view() const {
+        return key;
+    }
+
+    bool empty() const {
+        return key.empty();
+    }
+
+    const std::string_view key;
+    const bool needsFormatting = false;
+};
+
 /**
  * Type representing the key under which a stat should be reported.
  *
@@ -53,11 +91,21 @@ struct STATISTICS_PUBLIC_API StatDef {
      * Ideally stats would specify a StatKey to lookup a StatDef,
      * but until all stats have been added to stats.def.h, this
      * allows convenient construction of a basic StatDef.
+     *
+     * StatDefs created in this manner will _not_ be formatted. Code which
+     * is unaware of StatCollectors may generate stat keys which are not
+     * safe to provide to fmt::format (e.g., may happen to contain invalid
+     * replacement specifiers).
      */
     StatDef(const char* uniqueKey) : StatDef(std::string_view(uniqueKey)) {
     }
 
+    StatDef(std::string_view uniqueKey) : cbstatsKey(CBStatsKey(uniqueKey)) {
+    }
+
     /**
+     * Construct a stat definition for use by CBStats and Prometheus.
+     *
      * Constructs a stat specification including the information needed to
      * expose a stat through either CBStats or Prometheus.
      *
@@ -71,7 +119,7 @@ struct STATISTICS_PUBLIC_API StatDef {
      * @param labels key/value pairs used by Prometheus to filter/aggregate
      * stats
      */
-    StatDef(std::string_view cbstatsKey,
+    StatDef(CBStatsKey cbstatsKey,
             cb::stats::Unit unit = cb::stats::units::none,
             std::string_view metricFamilyKey = "",
             Labels&& labels = {});
@@ -89,15 +137,19 @@ struct STATISTICS_PUBLIC_API StatDef {
     struct PrometheusOnlyTag {};
 
     /**
+     * Construct a CBStats-only stat definition.
+     *
      * Constructs a stat specification including the information needed to
      * expose a stat only through CBStats. The stat will _not_ be exposed over
      * Prometheus.
      *
      * @param cbstatsKey name of stat which is unique within a bucket.
      */
-    StatDef(std::string_view cbstatsKey, CBStatsOnlyTag);
+    StatDef(CBStatsKey cbstatsKey, CBStatsOnlyTag);
 
     /**
+     * Construct a Prometheus-only stat definition.
+     *
      * Constructs a stat specification including the information needed to
      * expose a stat only for Prometheus. The stat will _not_ be exposed over
      * cbstats.
@@ -117,21 +169,28 @@ struct STATISTICS_PUBLIC_API StatDef {
         return !metricFamily.empty();
     }
 
-    // Key which is unique per bucket. Used by CBStats
-    std::string_view cbstatsKey;
+    bool needsFormatting() const {
+        return cbstatsKey.needsFormatting;
+    }
+
+    // Key which should be unique per bucket, possibly after being formatted
+    // with values from `labels`. Used by CBStats.
+    const CBStatsKey cbstatsKey;
     // The unit this stat represents, e.g., microseconds.
     // Used to scale to base units and name the stat correctly for Prometheus,
-    cb::stats::Unit unit = cb::stats::units::none;
+    const cb::stats::Unit unit = cb::stats::units::none;
     // Metric name used by Prometheus. Used to "group"
     // stats in combination with distinguishing labels.
     std::string metricFamily;
     // Labels for this metric. Labels set here will
     // override defaults labels set in the StatCollector
-    Labels labels;
+    const Labels labels;
 };
 
 // don't need labels for the enum
 #define LABEL(...)
+// don't need formatted cbstats keys for the enum, only the enum key is needed.
+#define FMT(CBStatName)
 #define STAT(statName, ...) statName,
 #define CBSTAT(statName, ...) statName,
 #define PSTAT(statName, ...) statName,
@@ -143,6 +202,7 @@ enum class STATISTICS_PUBLIC_API Key {
 #undef PSTAT
 #undef CBSTAT
 #undef STAT
+#undef FMT
 #undef LABEL
 
 using namespace units;

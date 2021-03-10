@@ -416,7 +416,7 @@ TEST_F(StatTest, CollectorMapsTypesCorrectly) {
 MATCHER_P(StatDefNameMatcher,
           expectedName,
           "Check the unique name of the StatDef matches") {
-    return arg.cbstatsKey == expectedName;
+    return arg.cbstatsKey.key == expectedName;
 }
 
 TEST_F(StatTest, ConfigStatDefinitions) {
@@ -617,10 +617,14 @@ TEST_F(StatTest, LegacyStatsAreNotFormatted) {
     auto bucket = collector.forBucket("BucketName");
     InSequence s;
 
+    using namespace cb::stats;
+
     // First, confirm directly adding the stat to the collector _does_
     // format it.
     EXPECT_CALL(cb, Call("BucketName:some_stat_key"sv, _, _));
-    bucket.addStat("{bucket}:some_stat_key", "value");
+    bucket.addStat(CBStatsKey("{bucket}:some_stat_key",
+                              CBStatsKey::NeedsFormattingTag{}),
+                   "value");
 
     // but add_casted_stat does _not_.
     EXPECT_CALL(cb, Call("{bucket}:some_stat_key"sv, _, _));
