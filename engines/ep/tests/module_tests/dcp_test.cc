@@ -832,13 +832,6 @@ TEST_P(CompressionStreamTest,
     // pass the item in input to the function and check that we get the expected
     // DcpResponse.
 
-    // Core expectation of this test: we don't try to inflate an uncompressed or
-    // empty value, which leads to logging a warning. Before the fix, this
-    // expectation fails as GMock intercept 1 call to mlog.
-    producer->setupMockLogger();
-    using namespace testing;
-    EXPECT_CALL(producer->public_getLogger(), mlog(_, _)).Times(0);
-
     queued_item originalItem(std::move(item));
     const auto resp = stream->public_makeResponseFromItem(
             originalItem, SendCommitSyncWriteAs::Commit);

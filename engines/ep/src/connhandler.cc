@@ -24,21 +24,22 @@
 #include <memcached/durability_spec.h>
 #include <memcached/server_cookie_iface.h>
 #include <phosphor/phosphor.h>
+#include <platform/timeutils.h>
 
 std::string to_string(ConnHandler::PausedReason r) {
     switch (r) {
     case ConnHandler::PausedReason::BufferLogFull:
-        return "PausedReason::BufferLogFull";
+        return "BufferLogFull";
     case ConnHandler::PausedReason::Initializing:
-        return "PausedReason::Initializing";
+        return "Initializing";
     case ConnHandler::PausedReason::OutOfMemory:
-        return "PausedReason::OutOfMemory";
+        return "OutOfMemory";
     case ConnHandler::PausedReason::ReadyListEmpty:
-        return "PausedReason::ReadyListEmpty";
+        return "ReadyListEmpty";
     case ConnHandler::PausedReason::Unknown:
-        return "PausedReason::Unknown";
+        return "Unknown";
     }
-    return "PausedReason::Invalid";
+    return "Invalid";
 }
 
 ConnHandler::ConnHandler(EventuallyPersistentEngine& e,
@@ -64,7 +65,40 @@ ConnHandler::ConnHandler(EventuallyPersistentEngine& e,
     logger->setConnectionId(connId);
 }
 
-ConnHandler::~ConnHandler() = default;
+ConnHandler::~ConnHandler() {
+    // Log runtime / pause information when we destruct.
+    using namespace std::chrono;
+    const auto details = pausedDetails.copy();
+    fmt::memory_buffer buf;
+    bool addComma = false;
+    size_t totalCount = 0;
+    nanoseconds totalDuration{};
+    for (uint8_t reason = 0; size_t{reason} < PausedReasonCount; reason++) {
+        const auto count = details.reasonCounts[reason];
+        if (count) {
+            if (addComma) {
+                format_to(buf, ",");
+            }
+            addComma = true;
+            const auto duration = details.reasonDurations[reason];
+            format_to(buf,
+                      R"("{}": {{"count":{}, "duration":"{}"}})",
+                      to_string(PausedReason{reason}),
+                      count,
+                      cb::time2text(duration));
+            totalCount += count;
+            totalDuration += duration;
+        }
+    }
+    logger->info(
+            "Destroying connection. Created {} s ago. Paused {} times, for {} "
+            "total. "
+            "Details: {{{}}}",
+            (ep_current_time() - created),
+            totalCount,
+            cb::time2text(totalDuration),
+            std::string_view{buf.data(), buf.size()});
+}
 
 cb::engine_errc ConnHandler::addStream(uint32_t opaque, Vbid, uint32_t flags) {
     logger->warn(
@@ -317,14 +351,37 @@ void ConnHandler::releaseReference()
 }
 
 void ConnHandler::addStats(const AddStatFn& add_stat, const void* c) {
+    using namespace std::chrono;
+
     addStat("type", getType(), add_stat, c);
-    addStat("created", created.load(), add_stat, c);
+    addStat("created", created, add_stat, c);
     addStat("pending_disconnect", disconnect.load(), add_stat, c);
     addStat("supports_ack", supportAck.load(), add_stat, c);
     addStat("reserved", reserved.load(), add_stat, c);
     addStat("paused", isPaused(), add_stat, c);
+    const auto details = pausedDetails.copy();
     if (isPaused()) {
-        addStat("paused_reason", to_string(reason), add_stat, c);
+        addStat("paused_current_reason",
+                to_string(details.reason),
+                add_stat,
+                c);
+        addStat("paused_current_duration",
+                cb::time2text(steady_clock::now() - details.lastPaused),
+                add_stat,
+                c);
+    }
+    for (size_t reason = 0; reason < PausedReasonCount; reason++) {
+        const auto count = details.reasonCounts[reason];
+        if (count) {
+            std::string key{"paused_previous_" +
+                            to_string(PausedReason(reason)) + "_count"};
+            addStat(key.c_str(), count, add_stat, c);
+
+            const auto duration = details.reasonDurations[reason];
+            key = {"paused_previous_" + to_string(PausedReason(reason)) +
+                   "_duration"};
+            addStat(key.c_str(), cb::time2text(duration), add_stat, c);
+        }
     }
     const auto priority = engine_.getDCPPriority(cookie);
     const char* priString = "<INVALID>";
@@ -342,12 +399,36 @@ void ConnHandler::addStats(const AddStatFn& add_stat, const void* c) {
     addStat("priority", priString, add_stat, c);
 }
 
+void ConnHandler::pause(ConnHandler::PausedReason r) {
+    paused.store(true);
+    auto now = std::chrono::steady_clock::now();
+    pausedDetails.withLock([r, now](auto& details) {
+        details.reason = r;
+        details.lastPaused = now;
+    });
+}
+
 void ConnHandler::setLogHeader(const std::string& header) {
     logger->prefix = header;
 }
 
 const char* ConnHandler::logHeader() {
     return logger->prefix.c_str();
+}
+
+void ConnHandler::unPause() {
+    auto wasPaused = paused.exchange(false);
+    if (!wasPaused) {
+        return;
+    }
+    using namespace std::chrono;
+    auto now = steady_clock::now();
+    pausedDetails.withLock([now](auto& details) {
+        auto index = static_cast<std::underlying_type_t<PausedReason>>(
+                details.reason);
+        details.reasonCounts[index]++;
+        details.reasonDurations[index] += (now - details.lastPaused);
+    });
 }
 
 // Explicit instantition of addStat() used outside of ConnHandler and

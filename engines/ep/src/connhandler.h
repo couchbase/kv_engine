@@ -26,6 +26,7 @@
 #include <memcached/engine_error.h>
 #include <memcached/vbucket.h>
 
+#include <folly/Synchronized.h>
 #include <atomic>
 #include <mutex>
 #include <string>
@@ -80,13 +81,15 @@ public:
     /// The maximum length of a DCP stat name
     static constexpr size_t MaxDcpStatNameLength = 47;
 
-    enum class PausedReason {
+    enum class PausedReason : uint8_t {
         BufferLogFull,
         Initializing,
         OutOfMemory,
         ReadyListEmpty,
         Unknown
     };
+    static constexpr size_t PausedReasonCount =
+            size_t(PausedReason::Unknown) + 1;
 
     ConnHandler(EventuallyPersistentEngine& engine,
                 const void* c,
@@ -325,22 +328,17 @@ public:
 
     // Pause the connection.
     // @param reason why the connection was paused - for debugging / diagnostic
-    void pause(PausedReason r = PausedReason::Unknown) {
-        paused.store(true);
-        reason = r;
-    }
+    void pause(PausedReason r = PausedReason::Unknown);
 
     PausedReason getPausedReason() const {
-        return reason;
+        return pausedDetails.lock()->reason;
     }
 
     [[nodiscard]] bool isPaused() const {
         return paused;
     }
 
-    void unPause() {
-        paused.store(false);
-    }
+    void unPause();
 
     const std::string& getAuthenticatedUser() const {
         return authenticatedUser;
@@ -397,7 +395,7 @@ private:
     std::atomic<bool> reserved;
 
     //! Connection creation time
-    std::atomic<rel_time_t> created;
+    const rel_time_t created;
 
     //! Should we disconnect as soon as possible?
     std::atomic<bool> disconnect;
@@ -408,8 +406,24 @@ private:
     //! Connection is temporarily paused?
     std::atomic<bool> paused;
 
-    //! Description of why the connection is paused.
-    std::atomic<PausedReason> reason;
+    /**
+     * Details of why and for how long a connection is paused, for diagnostic
+     * purposes.
+     */
+    struct PausedDetails {
+        /// Reason why the connection is currently paused.
+        PausedReason reason{PausedReason::Unknown};
+        /// When the connection was last paused.
+        std::chrono::steady_clock::time_point lastPaused{};
+        /// Count of how many times the connection has previously been paused
+        /// for each possible reason (excluding current pause)
+        std::array<size_t, PausedReasonCount> reasonCounts{};
+        /// Duration of how long the connection has previously been paused for
+        /// each possible reason (excluding current pause).
+        std::array<std::chrono::nanoseconds, PausedReasonCount>
+                reasonDurations{};
+    };
+    folly::Synchronized<PausedDetails, std::mutex> pausedDetails;
 
     /// The authenticated user the connection
     const std::string authenticatedUser;
