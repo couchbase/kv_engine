@@ -1421,8 +1421,8 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
                 if (op.traits.responseHasValue() && mloc.length > 0) {
                     connection.copyToOutputStream(
                             encode_multi_mutation_result_spec(
-                                    index, op, scratch));
-                    connection.copyToOutputStream({mloc.at, mloc.length});
+                                    index, op, scratch),
+                            {mloc.at, mloc.length});
                 }
             } else {
                 // Failure - encode first unsuccessful path index and status.
@@ -1514,8 +1514,8 @@ static void subdoc_multi_lookup_response(Cookie& cookie,
 
             if (op.traits.responseHasValue()) {
                 h.setLength((mloc.length));
-                connection.copyToOutputStream(h.getBuffer());
-                connection.copyToOutputStream({mloc.at, mloc.length});
+                connection.copyToOutputStream(h.getBuffer(),
+                                              {mloc.at, mloc.length});
             } else {
                 connection.copyToOutputStream(h.getBuffer());
             }

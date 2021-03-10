@@ -436,6 +436,11 @@ struct DocKey : DocKeyInterface<DocKey> {
      */
     std::string to_string() const;
 
+    /// Get the view of the underlying keys data
+    std::string_view getBuffer() const {
+        return {reinterpret_cast<const char*>(buffer.data()), buffer.size()};
+    }
+
 private:
     cb::const_byte_buffer buffer;
     DocKeyEncodesCollectionId encoding{DocKeyEncodesCollectionId::No};

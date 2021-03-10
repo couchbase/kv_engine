@@ -1109,6 +1109,19 @@ void Connection::copyToOutputStream(std::string_view data) {
     get_thread_stats(this)->bytes_written += data.size();
 }
 
+void Connection::copyToOutputStream(gsl::span<std::string_view> data) {
+    auto* ts = get_thread_stats(this);
+
+    for (const auto& d : data) {
+        if (bufferevent_write(bev.get(), d.data(), d.size()) == -1) {
+            throw std::bad_alloc();
+        }
+
+        totalSend += d.size();
+        ts->bytes_written += d.size();
+    }
+}
+
 static void sendbuffer_cleanup_cb(const void*, size_t, void* extra) {
     delete reinterpret_cast<SendBuffer*>(extra);
 }
@@ -1476,22 +1489,19 @@ size_t Connection::getSendQueueSize() const {
     return evbuffer_get_length(bufferevent_get_output(bev.get()));
 }
 
-void Connection::sendResponseHeaders(Cookie& cookie,
-                                     cb::mcbp::Status status,
-                                     std::string_view extras,
-                                     std::string_view key,
-                                     std::size_t value_len,
-                                     uint8_t datatype) {
-    static_assert(sizeof(FrontEndThread::scratch_buffer) >
-                          (sizeof(cb::mcbp::Response) + 3),
-                  "scratch buffer too small");
+std::string_view Connection::formatResponseHeaders(Cookie& cookie,
+                                                   std::array<char, 2048>& dest,
+                                                   cb::mcbp::Status status,
+                                                   std::size_t extras_len,
+                                                   std::size_t key_len,
+                                                   std::size_t value_len,
+                                                   uint8_t datatype) {
     const auto& request = cookie.getRequest();
-    auto wbuf = cb::char_buffer{thread.scratch_buffer.data(),
-                                thread.scratch_buffer.size()};
+    auto wbuf = cb::char_buffer{dest.data(), dest.size()};
     auto& response = *reinterpret_cast<cb::mcbp::Response*>(wbuf.data());
 
     response.setOpcode(request.getClientOpcode());
-    response.setExtlen(gsl::narrow_cast<uint8_t>(extras.size()));
+    response.setExtlen(gsl::narrow_cast<uint8_t>(extras_len));
     response.setDatatype(cb::mcbp::Datatype(datatype));
     response.setStatus(status);
     response.setOpaque(request.getOpaque());
@@ -1517,8 +1527,8 @@ void Connection::sendResponseHeaders(Cookie& cookie,
         const uint8_t tracing_framing_id = 0x02;
 
         wbuf.data()[2] = framing_extras_size; // framing header extras 3 bytes
-        wbuf.data()[3] = gsl::narrow_cast<uint8_t>(key.size());
-        response.setBodylen(value_len + extras.size() + key.size() +
+        wbuf.data()[3] = gsl::narrow_cast<uint8_t>(key_len);
+        response.setBodylen(value_len + extras_len + key_len +
                             framing_extras_size);
 
         auto& tracer = cookie.getTracer();
@@ -1530,9 +1540,9 @@ void Connection::sendResponseHeaders(Cookie& cookie,
         wbuf = {wbuf.data(), sizeof(cb::mcbp::Response) + framing_extras_size};
     } else {
         response.setMagic(cb::mcbp::Magic::ClientResponse);
-        response.setKeylen(gsl::narrow_cast<uint16_t>(key.size()));
+        response.setKeylen(gsl::narrow_cast<uint16_t>(key_len));
         response.setFramingExtraslen(0);
-        response.setBodylen(value_len + extras.size() + key.size());
+        response.setBodylen(value_len + extras_len + key_len);
         wbuf = {wbuf.data(), sizeof(cb::mcbp::Response)};
     }
 
@@ -1548,23 +1558,25 @@ void Connection::sendResponseHeaders(Cookie& cookie,
                                   sizeof(cb::mcbp::Header)}));
         }
     }
-
-    // if we can fit the key and extras in the scratch buffer lets copy them
-    // in to avoid the extra mutex lock
-    if ((wbuf.size() + extras.size() + key.size()) <
-        thread.scratch_buffer.size()) {
-        std::copy(extras.begin(), extras.end(), wbuf.end());
-        wbuf = {wbuf.data(), wbuf.size() + extras.size()};
-        std::copy(key.begin(), key.end(), wbuf.end());
-        wbuf = {wbuf.data(), wbuf.size() + key.size()};
-        copyToOutputStream({wbuf.data(), wbuf.size()});
-    } else {
-        // Copy the data to the output stream
-        copyToOutputStream({wbuf.data(), wbuf.size()});
-        copyToOutputStream(extras);
-        copyToOutputStream(key);
-    }
     ++getBucket().responseCounters[uint16_t(status)];
+
+    return {wbuf.data(), wbuf.size()};
+}
+
+void Connection::sendResponseHeaders(Cookie& cookie,
+                                     cb::mcbp::Status status,
+                                     std::string_view extras,
+                                     std::string_view key,
+                                     std::size_t value_len,
+                                     uint8_t datatype) {
+    auto wbuf = formatResponseHeaders(cookie,
+                                      thread.scratch_buffer,
+                                      status,
+                                      extras.size(),
+                                      key.size(),
+                                      value_len,
+                                      datatype);
+    copyToOutputStream(wbuf, extras, key);
 }
 
 void Connection::sendResponse(Cookie& cookie,
@@ -1574,16 +1586,24 @@ void Connection::sendResponse(Cookie& cookie,
                               std::string_view value,
                               uint8_t datatype,
                               std::unique_ptr<SendBuffer> sendbuffer) {
-    sendResponseHeaders(cookie, status, extras, key, value.size(), datatype);
     if (sendbuffer) {
         if (sendbuffer->getPayload().size() != value.size()) {
             throw std::runtime_error(
                     "Connection::sendResponse: The sendbuffers payload must "
                     "match the value encoded in the response");
         }
+        sendResponseHeaders(
+                cookie, status, extras, key, value.size(), datatype);
         chainDataToOutputStream(std::move(sendbuffer));
     } else {
-        cookie.getConnection().copyToOutputStream(value);
+        auto wbuf = formatResponseHeaders(cookie,
+                                          thread.scratch_buffer,
+                                          status,
+                                          extras.size(),
+                                          key.size(),
+                                          value.size(),
+                                          datatype);
+        copyToOutputStream(wbuf, extras, key, value);
     }
 }
 
@@ -1828,26 +1848,26 @@ cb::engine_errc Connection::mutation(uint32_t opaque,
     }
 
     try {
-        // Add the header
-        copyToOutputStream(
-                {reinterpret_cast<const uint8_t*>(&req), sizeof(req)});
+        std::string_view sidbuffer;
         if (sid) {
-            copyToOutputStream(frameExtras.getBuf());
+            sidbuffer = frameExtras.getBuffer();
         }
-        copyToOutputStream(extras.getBuffer());
 
-        // Add the key
-        copyToOutputStream({key.data(), key.size()});
-
-        // Add the value
-        if (!value.empty()) {
-            if (value.size() > SendBuffer::MinimumDataSize) {
-                auto sendbuffer = std::make_unique<ItemSendBuffer>(
-                        std::move(it), value, getBucket());
-                chainDataToOutputStream(std::move(sendbuffer));
-            } else {
-                copyToOutputStream(value);
-            }
+        if (value.size() > SendBuffer::MinimumDataSize) {
+            copyToOutputStream(
+                    {reinterpret_cast<const char*>(&req), sizeof(req)},
+                    sidbuffer,
+                    extras.getBuffer(),
+                    key.getBuffer());
+            chainDataToOutputStream(std::make_unique<ItemSendBuffer>(
+                    std::move(it), value, getBucket()));
+        } else {
+            copyToOutputStream(
+                    {reinterpret_cast<const char*>(&req), sizeof(req)},
+                    sidbuffer,
+                    extras.getBuffer(),
+                    key.getBuffer(),
+                    value);
         }
     } catch (const std::bad_alloc&) {
         /// We might have written a partial message into the buffer so
@@ -1862,9 +1882,10 @@ cb::engine_errc Connection::deletionInner(const ItemIface& item,
                                           cb::const_byte_buffer packet,
                                           const DocKey& key) {
     try {
-        copyToOutputStream(packet);
-        copyToOutputStream({key.data(), key.size()});
-        copyToOutputStream(item.getValueView());
+        copyToOutputStream(
+                {reinterpret_cast<const char*>(packet.data()), packet.size()},
+                key.getBuffer(),
+                item.getValueView());
     } catch (const std::bad_alloc&) {
         // We might have written a partial message into the buffer so
         // we need to disconnect the client
@@ -2264,24 +2285,20 @@ cb::engine_errc Connection::prepare(uint32_t opaque,
     req.setDatatype(cb::mcbp::Datatype(it->getDataType()));
 
     try {
-        // Add the header
-        copyToOutputStream(
-                {reinterpret_cast<const uint8_t*>(&req), sizeof(req)});
-        copyToOutputStream(
-                {reinterpret_cast<const uint8_t*>(&extras), sizeof(extras)});
-
-        // Add the key
-        copyToOutputStream({key.data(), key.size()});
-
-        // Add the value
-        if (!buffer.empty()) {
-            if (buffer.size() > SendBuffer::MinimumDataSize) {
-                auto sendbuffer = std::make_unique<ItemSendBuffer>(
-                        std::move(it), buffer, getBucket());
-                chainDataToOutputStream(std::move(sendbuffer));
-            } else {
-                copyToOutputStream(buffer);
-            }
+        if (buffer.size() > SendBuffer::MinimumDataSize) {
+            copyToOutputStream(
+                    {reinterpret_cast<const char*>(&req), sizeof(req)},
+                    {reinterpret_cast<const char*>(&extras), sizeof(extras)},
+                    key.getBuffer());
+            auto sendbuffer = std::make_unique<ItemSendBuffer>(
+                    std::move(it), buffer, getBucket());
+            chainDataToOutputStream(std::move(sendbuffer));
+        } else {
+            copyToOutputStream(
+                    {reinterpret_cast<const char*>(&req), sizeof(req)},
+                    {reinterpret_cast<const char*>(&extras), sizeof(extras)},
+                    key.getBuffer(),
+                    buffer);
         }
     } catch (const std::bad_alloc&) {
         /// We might have written a partial message into the buffer so
