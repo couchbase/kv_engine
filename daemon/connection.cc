@@ -532,7 +532,7 @@ void Connection::executeCommandPipeline() {
         // Only look at new commands if we don't have any active commands
         // or the active command allows for reordering.
         auto input = bufferevent_get_input(bev.get());
-        bool stop = (getSendQueueSize() >= maxSendQueueSize);
+        bool stop = isDCP() ? false : (getSendQueueSize() >= maxSendQueueSize);
         while (!stop && cookies.size() < maxActiveCommands &&
                isPacketAvailable() && numEvents > 0) {
             if (!cookies.back()->empty()) {
@@ -556,7 +556,8 @@ void Connection::executeCommandPipeline() {
                     cookie.reset();
                     // Check that we're not reserving too much memory for
                     // this client...
-                    stop = (getSendQueueSize() >= maxSendQueueSize);
+                    stop = isDCP() ? false
+                                   : (getSendQueueSize() >= maxSendQueueSize);
                 } else {
                     active = true;
                     // We need to block so we need to preserve the request
@@ -600,7 +601,7 @@ void Connection::executeCommandPipeline() {
     // the thread to be run again if we've got a pending notification for
     // the thread (an active command running which is waiting for the engine)
     // If the last command in the pipeline may be reordered we can add more
-    if ((getSendQueueSize() < maxSendQueueSize) &&
+    if ((isDCP() || (getSendQueueSize() < maxSendQueueSize)) &&
         (!active || (cookies.back()->mayReorder() &&
                      cookies.size() < maxActiveCommands))) {
         enableReadEvent();
