@@ -44,30 +44,31 @@ bool Collections::VB::ManifestEntry::addStats(
         const std::string& cid,
         Vbid vbid,
         const StatCollector& collector) const {
-    fmt::memory_buffer prefix;
-    format_to(prefix, "vb_{}:{}", vbid.get(), cid);
+    fmt::memory_buffer key;
+    format_to(key, "vb_{}:{}:", vbid.get(), cid);
+    const auto prefixLen = key.size();
 
-    const auto addStat = [&prefix, &collector](const auto& statKey,
-                                               auto statValue) {
-        fmt::memory_buffer key;
-        format_to(key,
-                  "{}:{}",
-                  std::string_view{prefix.data(), prefix.size()},
-                  statKey);
+    const auto addStat = [&key, prefixLen, &collector](std::string_view statKey,
+                                                       auto statValue) {
+        // resize the buffer back down to just the prefix.
+        // this saves reformatting the prefix for each call.
+        key.resize(prefixLen);
+        key.append(statKey.data(), statKey.data() + statKey.size());
         collector.addStat(std::string_view(key.data(), key.size()), statValue);
     };
-    addStat("name", getName());
-    addStat("scope", getScopeID().to_string().c_str());
-    addStat("start_seqno", getStartSeqno());
-    addStat("high_seqno", getHighSeqno());
-    addStat("persisted_high_seqno", getPersistedHighSeqno());
-    addStat("items", getItemCount());
-    addStat("disk_size", getDiskSize());
-    addStat("ops_get", getOpsGet());
-    addStat("ops_store", getOpsStore());
-    addStat("ops_delete", getOpsDelete());
+    using namespace std::string_view_literals;
+    addStat("name"sv, getName());
+    addStat("scope"sv, getScopeID().to_string().c_str());
+    addStat("start_seqno"sv, getStartSeqno());
+    addStat("high_seqno"sv, getHighSeqno());
+    addStat("persisted_high_seqno"sv, getPersistedHighSeqno());
+    addStat("items"sv, getItemCount());
+    addStat("disk_size"sv, getDiskSize());
+    addStat("ops_get"sv, getOpsGet());
+    addStat("ops_store"sv, getOpsStore());
+    addStat("ops_delete"sv, getOpsDelete());
     if (getMaxTtl()) {
-        addStat("maxTTL", getMaxTtl().value().count());
+        addStat("maxTTL"sv, getMaxTtl().value().count());
     }
 
     return true;
