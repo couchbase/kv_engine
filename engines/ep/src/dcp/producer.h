@@ -433,7 +433,12 @@ protected:
     void scheduleCheckpointProcessorTask();
 
     struct {
-        rel_time_t sendTime;
+        // The time of the last noop message sent by this producer
+        rel_time_t sendTime = 0;
+
+        // The time of the last noop response message received by this producer
+        rel_time_t recvTime = 0;
+
         uint32_t opaque;
 
         /// How often are DCP noop messages transmitted?

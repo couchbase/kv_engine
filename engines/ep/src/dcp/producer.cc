@@ -1262,6 +1262,7 @@ bool DcpProducer::handleResponse(const cb::mcbp::Response& response) {
     case cb::mcbp::ClientOpcode::DcpNoop:
         if (noopCtx.opaque == response.getOpaque()) {
             noopCtx.pendingRecv = false;
+            noopCtx.recvTime = lastReceiveTime;
             return true;
         }
         return errorMessageHandler();
@@ -1836,12 +1837,14 @@ cb::engine_errc DcpProducer::maybeDisconnect() {
                 "Sent last message (e.g. mutation/noop/streamEnd) {}s ago. "
                 "Received last message {}s ago. "
                 "Last sent noop {}s ago. "
+                "Last received noop response {}s ago. "
                 "DCP noop interval is {}s. "
                 "opaque: {}, pendingRecv: {}.",
                 dcpIdleTimeout.count(),
                 (now - lastSendTime),
                 elapsedTime,
                 (now - noopCtx.sendTime),
+                (now - noopCtx.recvTime),
                 noopCtx.dcpNoopTxInterval.count(),
                 noopCtx.opaque,
                 noopCtx.pendingRecv ? "true" : "false");
