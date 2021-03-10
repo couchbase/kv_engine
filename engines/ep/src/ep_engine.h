@@ -18,7 +18,6 @@
 #pragma once
 
 #include "configuration.h"
-#include "connhandler.h"
 #include "ep_engine_public.h"
 #include "permitted_vb_states.h"
 #include "stats.h"
@@ -26,6 +25,7 @@
 #include "taskable.h"
 #include "vbucket_fwd.h"
 
+#include <memcached/dcp.h>
 #include <memcached/engine.h>
 #include <platform/cb_arena_malloc_client.h>
 
@@ -40,6 +40,7 @@ enum class ClientOpcode : uint8_t;
 
 class CheckpointConfig;
 struct CompactionConfig;
+class ConnHandler;
 enum class ConflictResolutionMode;
 class DcpConnMap;
 class DcpFlowControlManager;
