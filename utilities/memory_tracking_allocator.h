@@ -37,7 +37,7 @@
  *
  *  To return the bytes allocated use:
  *
- *  *(theDeque.get_allocator().getBytesAllocated())
+ *  theDeque.get_allocator().getBytesAllocated();
  *
  *  See /engines/ep/tests/module_tests/memory_tracking_allocator_test.cc for
  *  full code.
@@ -72,7 +72,7 @@ public:
          * Used during a rebind and therefore need to copy over the
          * byteAllocated shared pointer.
          */
-        : bytesAllocated(other.getBytesAllocated()) {
+        : bytesAllocated(other.getUnderlyingCounter()) {
     }
 
     MemoryTrackingAllocator(const MemoryTrackingAllocator& other) noexcept =
@@ -85,7 +85,7 @@ public:
         // in a std::list). As such, we need to ensure the moved-from
         // container's allocator (i.e. other) can still perform deallocations,
         // hence bytesAllocated should only be copied, not moved-from.
-        : bytesAllocated(other.getBytesAllocated()) {
+        : bytesAllocated(other.getUnderlyingCounter()) {
     }
 
     MemoryTrackingAllocator& operator=(
@@ -95,7 +95,7 @@ public:
             MemoryTrackingAllocator&& other) noexcept {
         // Need to copy bytesAllocated even though this is the move-assignment
         // operator - see comment in move ctor for rationale.
-        bytesAllocated = other.getBytesAllocated();
+        bytesAllocated = other.getUnderlyingCounter();
         return *this;
     }
 
@@ -117,11 +117,20 @@ public:
         return MemoryTrackingAllocator();
     }
 
-    auto getBytesAllocated() const {
-        return bytesAllocated;
+    // @return the value of the bytesAllocated counter
+    size_t getBytesAllocated() const {
+        return *bytesAllocated;
     }
 
 private:
+    // @return a shared_ptr to the bytesAllocated counter
+    auto getUnderlyingCounter() const {
+        return bytesAllocated;
+    }
+
+    template <class U>
+    friend class MemoryTrackingAllocator;
+
     std::shared_ptr<cb::NonNegativeCounter<size_t>> bytesAllocated;
 };
 

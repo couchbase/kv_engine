@@ -165,8 +165,8 @@ TEST_F(CheckpointRemoverEPTest, CheckpointManagerMemoryUsage) {
     }
 
     const auto metaKeyIndexSize =
-            *(metaKeyIndex.get_allocator().getBytesAllocated()) +
-            *(keyIndexKeyTrackingAllocator.getBytesAllocated());
+            metaKeyIndex.get_allocator().getBytesAllocated() +
+            keyIndexKeyTrackingAllocator.getBytesAllocated();
     ASSERT_EQ(expected_size + metaKeyIndexSize,
               checkpointManager->getMemoryUsage());
 
@@ -187,8 +187,8 @@ TEST_F(CheckpointRemoverEPTest, CheckpointManagerMemoryUsage) {
     // the same allocator, retrieving the bytes allocated for the keyIndex,
     // will also include the bytes allocated for the other indexes.
     const size_t keyIndexSize =
-            *(committedKeyIndex.get_allocator().getBytesAllocated()) +
-            *(keyIndexKeyTrackingAllocator.getBytesAllocated());
+            committedKeyIndex.get_allocator().getBytesAllocated() +
+            keyIndexKeyTrackingAllocator.getBytesAllocated();
     ASSERT_EQ(new_expected_size + keyIndexSize,
               checkpointManager->getMemoryUsage());
 }
@@ -284,7 +284,7 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
     // Grab the initial size of the keyIndex because on Windows an empty
     // std::unordered_map allocated 200 bytes.
     const auto initialKeyIndexSize =
-            *(keyIndex.get_allocator().getBytesAllocated());
+            keyIndex.get_allocator().getBytesAllocated();
     ChkptQueueIterator iterator =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     *checkpointManager)
@@ -336,10 +336,10 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
                                             keyIndexKeyTrackingAllocator),
                      entry);
 
-    const auto keyIndexSize = *(keyIndex.get_allocator().getBytesAllocated());
+    const auto keyIndexSize = keyIndex.get_allocator().getBytesAllocated();
     expectedFreedMemoryFromItems +=
             (keyIndexSize - initialKeyIndexSize +
-             *keyIndexKeyTrackingAllocator.getBytesAllocated());
+             keyIndexKeyTrackingAllocator.getBytesAllocated());
 
     // Manually handle the slow stream, this is the same logic as the checkpoint
     // remover task uses, just without the overhead of setting up the task

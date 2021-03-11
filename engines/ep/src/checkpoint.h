@@ -616,9 +616,9 @@ public:
         // same allocator and therefore getting the bytes allocated for the
         // one will include the others.
         return sizeof(Checkpoint) +
-               *(committedKeyIndex.get_allocator().getBytesAllocated()) +
-               *(toWrite.get_allocator().getBytesAllocated()) +
-               *(keyIndexKeyTrackingAllocator).getBytesAllocated();
+               (committedKeyIndex.get_allocator().getBytesAllocated()) +
+               (toWrite.get_allocator().getBytesAllocated()) +
+               (keyIndexKeyTrackingAllocator).getBytesAllocated();
     }
 
     /**
@@ -652,12 +652,12 @@ public:
 
     /// @return bytes allocated to keyIndex/metaKeyIndex as a signed type
     ssize_t getKeyIndexAllocatorBytes() const {
-        return ssize_t(*keyIndexTrackingAllocator.getBytesAllocated());
+        return ssize_t(keyIndexTrackingAllocator.getBytesAllocated());
     }
 
     /// @return bytes allocated to the toWrite as a signed type
     ssize_t getWriteQueueAllocatorBytes() const {
-        return *trackingAllocator.getBytesAllocated();
+        return trackingAllocator.getBytesAllocated();
     }
 
     // see member variable definition for info

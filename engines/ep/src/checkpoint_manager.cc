@@ -708,7 +708,7 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
 
     // Part 2 of calculating the estimate (see comment above).
     estimateOfAmountOfRecoveredMemory +=
-            *(expelledItems.get_allocator().getBytesAllocated());
+            expelledItems.get_allocator().getBytesAllocated();
 
     /*
      * We are now outside of the queueLock when the method exits,

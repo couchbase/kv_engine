@@ -54,16 +54,16 @@ protected:
 
 // Test empty List
 TEST_F(MemoryTrackingAllocatorListTest, initialValueForList) {
-    EXPECT_EQ(extra + 0, *(theList.get_allocator().getBytesAllocated()));
+    EXPECT_EQ(extra + 0, theList.get_allocator().getBytesAllocated());
 }
 
 // Test adding single int to List
 TEST_F(MemoryTrackingAllocatorListTest, addElementToList) {
     theList.push_back(1);
     EXPECT_EQ(extra + perElementOverhead,
-              *(theList.get_allocator().getBytesAllocated()));
+              theList.get_allocator().getBytesAllocated());
     theList.clear();
-    EXPECT_EQ(extra + 0, *(theList.get_allocator().getBytesAllocated()));
+    EXPECT_EQ(extra + 0, theList.get_allocator().getBytesAllocated());
 }
 
 // Test adding 4096 ints to List.
@@ -72,9 +72,9 @@ TEST_F(MemoryTrackingAllocatorListTest, addManyElementsToList) {
         theList.push_back(ii);
     }
     EXPECT_EQ(extra + (perElementOverhead * 4096),
-              *(theList.get_allocator().getBytesAllocated()));
+              theList.get_allocator().getBytesAllocated());
     theList.clear();
-    EXPECT_EQ(extra + 0, *(theList.get_allocator().getBytesAllocated()));
+    EXPECT_EQ(extra + 0, theList.get_allocator().getBytesAllocated());
 }
 
 // Test bytesAllocates is correct when a re-bind occurs.
@@ -90,9 +90,9 @@ TEST(MemoryTrackingAllocatorTest, rebindTest) {
     notCorrectlyAllocatedDeque.push_back(1);
 
     auto correctlyAllocatedSize =
-            *(correctlyAllocatedDeque.get_allocator().getBytesAllocated());
+            correctlyAllocatedDeque.get_allocator().getBytesAllocated();
     auto notCorrectlyAllocatedSize =
-            *(notCorrectlyAllocatedDeque.get_allocator().getBytesAllocated());
+            notCorrectlyAllocatedDeque.get_allocator().getBytesAllocated();
 #ifdef _LIBCPP_VERSION
     // When using libc++ the correctly allocated deque will be larger
     // because it combines the size allocated for metadata and the size
@@ -112,11 +112,11 @@ TEST(MemoryTrackingAllocatorTest, copyTest) {
     MemoryTrackingAllocator<int> allocator;
     Deque theDeque(allocator);
     theDeque.push_back(0);
-    auto theDequeSize = *(theDeque.get_allocator().getBytesAllocated());
+    auto theDequeSize = theDeque.get_allocator().getBytesAllocated();
 
     // Copy the deque.
     Deque copy = theDeque;
-    auto copySize = *(copy.get_allocator().getBytesAllocated());
+    auto copySize = copy.get_allocator().getBytesAllocated();
     EXPECT_EQ(theDequeSize, copySize);
 
     // Add a further 4095 items to the deque - which will cause a resize
@@ -124,8 +124,8 @@ TEST(MemoryTrackingAllocatorTest, copyTest) {
         theDeque.push_back(ii);
     }
 
-    auto newTheDequeSize = *(theDeque.get_allocator().getBytesAllocated());
-    auto newCopySize = *(copy.get_allocator().getBytesAllocated());
+    auto newTheDequeSize = theDeque.get_allocator().getBytesAllocated();
+    auto newCopySize = copy.get_allocator().getBytesAllocated();
     // The original deque should have increased in size.
     EXPECT_LT(theDequeSize, newTheDequeSize);
     // The copied deque should not have changed in size.

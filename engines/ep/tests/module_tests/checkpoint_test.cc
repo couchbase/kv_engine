@@ -1667,7 +1667,7 @@ TEST_P(CheckpointTest, checkpointMemoryTest) {
     // Grab the initial size of the keyIndex because on Windows an empty
     // std::unordered_map allocated 200 bytes.
     const auto initialKeyIndexSize =
-            *(keyIndex.get_allocator().getBytesAllocated());
+            keyIndex.get_allocator().getBytesAllocated();
     ChkptQueueIterator iterator =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     *(this->manager))
@@ -1711,7 +1711,7 @@ TEST_P(CheckpointTest, checkpointMemoryTest) {
                                             keyIndexKeyTrackingAllocator),
                      entry);
 
-    auto keyIndexSize = *(keyIndex.get_allocator().getBytesAllocated());
+    auto keyIndexSize = keyIndex.get_allocator().getBytesAllocated();
     expectedSize += (keyIndexSize - initialKeyIndexSize);
 
     EXPECT_EQ(expectedSize, this->manager->getMemoryUsage());
@@ -1747,7 +1747,7 @@ TEST_P(CheckpointTest, checkpointMemoryTest) {
                                             keyIndexKeyTrackingAllocator),
                      entry);
 
-    keyIndexSize = *(keyIndex.get_allocator().getBytesAllocated());
+    keyIndexSize = keyIndex.get_allocator().getBytesAllocated();
     expectedSize += (keyIndexSize - initialKeyIndexSize);
 
     EXPECT_EQ(expectedSize, this->manager->getMemoryUsage());
@@ -1801,7 +1801,7 @@ TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadTest) {
     // Grab the initial size of the keyIndex because on Windows an empty
     // std::unordered_map allocated 200 bytes.
     const auto initialKeyIndexSize =
-            *(keyIndex.get_allocator().getBytesAllocated());
+            keyIndex.get_allocator().getBytesAllocated();
 
     ChkptQueueIterator iterator =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
@@ -1838,7 +1838,7 @@ TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadTest) {
                                             keyIndexKeyTrackingAllocator),
                      entry);
 
-    const auto keyIndexSize = *(keyIndex.get_allocator().getBytesAllocated());
+    const auto keyIndexSize = keyIndex.get_allocator().getBytesAllocated();
     EXPECT_EQ(perElementListOverhead + (keyIndexSize - initialKeyIndexSize),
               updatedOverhead - initialOverhead);
 
