@@ -59,6 +59,8 @@ Options:
   -4 or --ipv4                   Connect over IPv4
   -6 or --ipv6                   Connect over IPv6
   --enable-oso                   Enable 'Out-of-Sequence Order' backfills
+  --disable-collections          Disable Hello::Collections negotiation (for use
+                                 with pre-7.0 versions).
   --stream-request-value         Path to a file containing stream-request value.
                                  This must be a file storing a JSON object
                                  matching the stream-request value
@@ -322,7 +324,8 @@ void setupVBMap(const std::string& host,
                 sa_family_t family,
                 const std::string& user,
                 const std::string& password,
-                const std::string& bucket) {
+                const std::string& bucket,
+                bool enableCollections) {
     MemcachedConnection connection(host, in_port, family, false);
     connection.connect();
 
@@ -335,8 +338,10 @@ void setupVBMap(const std::string& host,
              cb::mcbp::Feature::XATTR,
              cb::mcbp::Feature::XERROR,
              cb::mcbp::Feature::SNAPPY,
-             cb::mcbp::Feature::JSON,
-             cb::mcbp::Feature::Collections}};
+             cb::mcbp::Feature::JSON}};
+    if (enableCollections) {
+        features.push_back(cb::mcbp::Feature::Collections);
+    }
     connection.setFeatures(features);
     connection.selectBucket(bucket);
 
@@ -399,6 +404,7 @@ int main(int argc, char** argv) {
     std::vector<std::pair<std::string, std::string>> controls;
     std::string name = "dcpdrain";
     bool enableOso{false};
+    bool enableCollections{true};
     std::string streamRequestFileName;
     std::string streamIdFileName;
     uint32_t streamRequestFlags = DCP_ADD_STREAM_FLAG_LATEST;
@@ -409,7 +415,8 @@ int main(int argc, char** argv) {
     const int valueOptionId = 1;
     const int streamIdOptionId = 2;
     const int enableOsoOptionId = 3;
-    const int streamRequestFlagsOptionId = 4;
+    const int disableCollectionsOptionId = 4;
+    const int streamRequestFlagsOptionId = 5;
 
     std::vector<option> long_options = {
             {"ipv4", no_argument, nullptr, '4'},
@@ -427,6 +434,10 @@ int main(int argc, char** argv) {
             {"name", required_argument, nullptr, 'N'},
             {"verbose", no_argument, nullptr, 'v'},
             {"enable-oso", no_argument, nullptr, enableOsoOptionId},
+            {"disable-collections",
+             no_argument,
+             nullptr,
+             disableCollectionsOptionId},
             {"stream-request-value", required_argument, nullptr, valueOptionId},
             {"stream-id", required_argument, nullptr, streamIdOptionId},
             {"stream-request-flags",
@@ -482,6 +493,9 @@ int main(int argc, char** argv) {
             break;
         case enableOsoOptionId:
             enableOso = true;
+            break;
+        case disableCollectionsOptionId:
+            enableCollections = false;
             break;
         case valueOptionId:
             streamRequestFileName = optarg;
@@ -566,8 +580,10 @@ int main(int argc, char** argv) {
                      cb::mcbp::Feature::XATTR,
                      cb::mcbp::Feature::XERROR,
                      cb::mcbp::Feature::SNAPPY,
-                     cb::mcbp::Feature::JSON,
-                     cb::mcbp::Feature::Collections}};
+                     cb::mcbp::Feature::JSON}};
+            if (enableCollections) {
+                features.push_back(cb::mcbp::Feature::Collections);
+            }
 
             auto c = std::make_unique<MemcachedConnection>(
                     host, in_port, family, false);
@@ -585,7 +601,13 @@ int main(int argc, char** argv) {
                                    std::vector<uint16_t>>(std::move(c), {}));
             vbmap[0].second.emplace_back(max_vbuckets++);
         } else {
-            setupVBMap(host, in_port, family, user, password, bucket);
+            setupVBMap(host,
+                       in_port,
+                       family,
+                       user,
+                       password,
+                       bucket,
+                       enableCollections);
         }
 
         // set up all of the connections
