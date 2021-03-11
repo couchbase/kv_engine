@@ -730,7 +730,7 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
     // Are we flushing only a new vbstate?
     if (mustPersistVBState && (flushBatchSize == 0)) {
         if (!rwUnderlying->snapshotVBucket(vbid, commitData.proposedVBState)) {
-            flushFailureEpilogue(toFlush);
+            flushFailureEpilogue(*vb, toFlush);
 
             return {MoreAvailable::Yes, 0, WakeCkptRemover::No};
         }
@@ -766,7 +766,7 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
 
     // Persist the flush-batch.
     if (!commit(vbid, *rwUnderlying, commitData)) {
-        flushFailureEpilogue(toFlush);
+        flushFailureEpilogue(*vb, toFlush);
 
         return {MoreAvailable::Yes, 0, WakeCkptRemover::No};
     }
@@ -877,11 +877,11 @@ void EPBucket::flushSuccessEpilogue(
     handleCheckpointPersistence(vb);
 }
 
-void EPBucket::flushFailureEpilogue(VBucket::ItemsToFlush& flush) {
+void EPBucket::flushFailureEpilogue(VBucket& vb, VBucket::ItemsToFlush& flush) {
     // Flush failed, we need to reset the pcursor to the original
     // position. At the next run the flusher will re-attempt by retrieving
     // all the items from the disk queue again.
-    flush.flushHandle->markFlushFailed();
+    flush.flushHandle->markFlushFailed(vb);
 
     ++stats.commitFailed;
 }

@@ -271,8 +271,9 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
             if (it->second.mutation_id > highestExpelledSeqno) {
                 // Normal path - we haven't expelled the item. We have a valid
                 // cursor position to read the item and make our de-dupe checks.
-                const auto currPos = it->second.position;
-                if (!(canDedup(*currPos, qi))) {
+                const auto oldPos = it->second.position;
+                const auto& oldItem = (*it->second.position);
+                if (!(canDedup(oldItem, qi))) {
                     return QueueDirtyStatus::FailureDuplicateItem;
                 }
 
@@ -307,11 +308,50 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
                                 // Cursor has already processed the previous
                                 // value for this key so need to persist again.
                                 rv = QueueDirtyStatus::SuccessPersistAgain;
+
+                                // When we overwrite a persisted item again
+                                // we need to consider if we are currently
+                                // mid-flush. If we return SuccessPersistAgain
+                                // and update stats accordingly but the flush
+                                // fails then we'll have double incremented a
+                                // stat for a single item (we de-dupe below).
+                                // Track this in an AggregatedFlushStats in
+                                // CheckpointManager so that we can undo these
+                                // stat updates if the flush fails.
+                                auto backupPCursor =
+                                        checkpointManager->cursors.find(
+                                                CheckpointManager::
+                                                        backupPCursorName);
+                                if (backupPCursor !=
+                                    checkpointManager->cursors.end()) {
+                                    // We'd normally use "mutation_id" here
+                                    // which is basically the seqno but the
+                                    // backupPCursor may be in a different
+                                    // checkpoint and we'd fail a bunch of
+                                    // sanity checks trying to read it.
+                                    auto backupPCursorSeqno =
+                                            (*(*backupPCursor->second)
+                                                      .currentPos)
+                                                    ->getBySeqno();
+                                    if (backupPCursorSeqno <= currMutationId) {
+                                        // Pass the old queueTime in. When we
+                                        // return and update the stats we'll use
+                                        // the new queueTime and the flush will
+                                        // pick up the new queueTime too so we
+                                        // need to patch the increment of the
+                                        // original stat update/queueTime
+                                        checkpointManager
+                                                ->persistenceFailureStatOvercounts
+                                                .accountItem(
+                                                        *qi,
+                                                        oldItem->getQueuedTime());
+                                    }
+                                }
                             }
                         }
                         /* If a cursor points to the existing item for the same
                            key, shift it left by 1 */
-                        if (cursor.second->currentPos == currPos) {
+                        if (cursor.second->currentPos == oldPos) {
                             cursor.second->decrPos();
                         }
                     }
@@ -331,10 +371,10 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
 
                 // Reduce the size of the checkpoint by the size of the
                 // item being removed.
-                queuedItemsMemUsage -= ((*currPos)->size());
+                queuedItemsMemUsage -= oldItem->size();
                 // Remove the existing item for the same key from the list.
                 toWrite.erase(
-                        ChkptQueueIterator::const_underlying_iterator{currPos});
+                        ChkptQueueIterator::const_underlying_iterator{oldPos});
             } else {
                 // The old item has been expelled, but we can continue to use
                 // this checkpoint in most cases. If the previous op was a

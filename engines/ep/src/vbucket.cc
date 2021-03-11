@@ -707,12 +707,18 @@ void VBucket::doStatsForQueueing(const Item& qi, size_t itemBytes)
     dirtyQueuePendingWrites.fetch_add(itemBytes);
 }
 
-void VBucket::AggregatedFlushStats::accountItem(const Item& item) {
+void VBucket::AggregatedFlushStats::accountItem(
+        const Item& item,
+        std::optional<std::chrono::steady_clock::time_point> queueTime) {
     Expects(item.getQueuedTime().time_since_epoch().count() != 0);
+    if (!queueTime) {
+        queueTime = item.getQueuedTime();
+    }
+
     ++numItems;
     totalBytes += item.size();
     totalAgeInMicro += std::chrono::duration_cast<std::chrono::microseconds>(
-                               item.getQueuedTime().time_since_epoch())
+                               queueTime->time_since_epoch())
                                .count();
 }
 

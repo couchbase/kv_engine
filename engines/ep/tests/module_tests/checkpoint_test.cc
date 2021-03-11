@@ -103,6 +103,7 @@ bool CheckpointTest::queueNewItem(const std::string& key) {
                             queue_op::mutation,
                             /*revSeq*/ 0,
                             /*bySeq*/ 0)};
+    qi->setQueuedTime(std::chrono::steady_clock::now());
     return this->manager->queueDirty(*this->vbucket,
                                      qi,
                                      GenerateBySeqno::Yes,
@@ -211,6 +212,7 @@ static void launch_set_thread(void *arg) {
                                 queue_op::mutation,
                                 0,
                                 0));
+        qi->setQueuedTime(std::chrono::steady_clock::now());
         args->checkpoint_manager->queueDirty(*args->vbucket,
                                              qi,
                                              GenerateBySeqno::Yes,
@@ -2679,7 +2681,7 @@ TEST_P(CheckpointTest, GetItemsForPersistenceCursor_FlushFailureScenario) {
 
     // This step simulates the KVStore::commit failure path at persistence
     ASSERT_TRUE(res.flushHandle);
-    res.flushHandle->markFlushFailed();
+    res.flushHandle->markFlushFailed(*vbucket);
     res.flushHandle.reset();
 
     // The previous step re-initializes pcursor, need to reset the test cursor
@@ -2846,7 +2848,7 @@ TEST_P(CheckpointTest,
     //       ^
     //       P
     // This step simulates the KVStore::commit failure path at persistence
-    res.flushHandle->markFlushFailed();
+    res.flushHandle->markFlushFailed(*vbucket);
     res.flushHandle.reset();
 
     // The previous step re-initializes pcursor, need to reset the test cursor

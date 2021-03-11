@@ -382,9 +382,13 @@ void CheckpointManager::removeBackupPersistenceCursor() {
     LockHolder lh(queueLock);
     const auto res = removeCursor_UNLOCKED(cursors.at(backupPCursorName).get());
     Expects(res);
+
+    // Reset (recreate) the potential stats overcounts as our flush was
+    // successful
+    persistenceFailureStatOvercounts = VBucket::AggregatedFlushStats();
 }
 
-void CheckpointManager::resetPersistenceCursor() {
+VBucket::AggregatedFlushStats CheckpointManager::resetPersistenceCursor() {
     LockHolder lh(queueLock);
 
     // Note: the logic here relies on the existing cursor copy-ctor and
@@ -409,6 +413,13 @@ void CheckpointManager::resetPersistenceCursor() {
     // 3) Remove old backup
     remResult = removeCursor_UNLOCKED(backup);
     Expects(remResult);
+
+    // Swap the stat counts to reset them for the next flush - return the
+    // one we accumulated for the caller to adjust the VBucket stats
+    VBucket::AggregatedFlushStats ret;
+    std::swap(ret, persistenceFailureStatOvercounts);
+
+    return ret;
 }
 
 bool CheckpointManager::removeCursor_UNLOCKED(CheckpointCursor* cursor) {
@@ -1710,7 +1721,9 @@ std::ostream& operator <<(std::ostream& os, const CheckpointManager& m) {
 
 FlushHandle::~FlushHandle() {
     if (failed) {
-        manager.resetPersistenceCursor();
+        Expects(vbucket);
+        auto statUpdates = manager.resetPersistenceCursor();
+        vbucket->doAggregatedFlushStats(statUpdates);
         return;
     }
     // Flush-success path

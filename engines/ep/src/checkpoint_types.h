@@ -21,6 +21,7 @@
 
 class Checkpoint;
 class CheckpointManager;
+class VBucket;
 
 // List of Checkpoints used by class CheckpointManager to store Checkpoints for
 // a given vBucket.
@@ -46,12 +47,18 @@ public:
 
     // Signal that the flush has failed, we will release resources
     // accordingly in the dtor.
-    void markFlushFailed() {
+    void markFlushFailed(VBucket& vb) {
         failed = true;
+        vbucket = &vb;
     }
 
 private:
     bool failed = false;
+
+    // VBucket to update stats post flush failure. Ptr because we'd have to pass
+    // the VBucket into the depths of the CheckpointManger to set a reference on
+    // construction
+    VBucket* vbucket;
     CheckpointManager& manager;
 };
 

@@ -22,6 +22,7 @@
 #include "ep_types.h"
 #include "monotonic.h"
 #include "queue_op.h"
+#include "vbucket.h"
 
 #include <memcached/engine_common.h>
 #include <memcached/vbucket.h>
@@ -213,8 +214,9 @@ public:
      *  1) it is logical move, the function has constant complexity
      *  2) the backup cursor is logically removed (as it becomes the new
      *     pcursor)
+     * @return aggregated flush stats to roll back the VBucket counters by
      */
-    void resetPersistenceCursor();
+    VBucket::AggregatedFlushStats resetPersistenceCursor();
 
     /**
      * Queue an item to be written to persistent layer.
@@ -716,6 +718,13 @@ protected:
     // That allows to rely entirely on the CM for re-attemping the flush after
     // failure.
     static constexpr const char* backupPCursorName = "persistence-backup";
+
+    /**
+     * Flush stats that are accounted when we persist an item between the
+     * backup and persistence cursors. Should the flush fail we need to undo
+     * the stat updates or we'll overcount them.
+     */
+    VBucket::AggregatedFlushStats persistenceFailureStatOvercounts;
 
     friend std::ostream& operator<<(std::ostream& os, const CheckpointManager& m);
 };

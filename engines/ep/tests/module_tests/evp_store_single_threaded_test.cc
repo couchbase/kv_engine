@@ -6854,10 +6854,10 @@ TEST_P(STParamCouchstoreBucketTest,
     EXPECT_CALL(ops, pwrite(_, _, _, _, _))
             .Times(2)
             .WillRepeatedly(Return(COUCHSTORE_ERROR_WRITE));
-    auto* kvstore = dynamic_cast<CouchKVStore*>(store->getRWUnderlying(vbid));
+    auto *kvstore = dynamic_cast<CouchKVStore *>(store->getRWUnderlying(vbid));
     ASSERT_TRUE(kvstore);
 
-    const auto& stats = engine->getEpStats();
+    const auto &stats = engine->getEpStats();
     ASSERT_EQ(0, stats.commitFailed);
     ASSERT_EQ(0, stats.flusherCommits);
 
@@ -6869,7 +6869,7 @@ TEST_P(STParamCouchstoreBucketTest,
         bool fileNotFound = false;
         try {
             kvstore->getPersistedVBucketState(vbid);
-        } catch (const std::logic_error& e) {
+        } catch (const std::logic_error &e) {
             ASSERT_THAT(e.what(), HasSubstr("openDB error:no such file"));
             fileNotFound = true;
         }
@@ -6883,7 +6883,7 @@ TEST_P(STParamCouchstoreBucketTest,
     verifyNoFile();
 
     // Flush fails
-    auto& ep = dynamic_cast<EPBucket&>(*store);
+    auto &ep = dynamic_cast<EPBucket &>(*store);
     const auto res = ep.flushVBucket(vbid);
     EXPECT_EQ(MoreAvailable::Yes, res.moreAvailable);
     EXPECT_EQ(0, res.numFlushed);
@@ -6900,4 +6900,65 @@ TEST_P(STParamCouchstoreBucketTest,
     // file" if we try to read from disk here. At restart we are fine as we just
     // don't see any file.
     verifyNoFile();
+}
+
+TEST_P(STParamCouchstoreBucketTest,
+       FlushStatsAtPersistNonMetaItems_CkptMgrSuccessPersistAgain) {
+    ::testing::NiceMock<MockOps> ops(create_default_file_ops());
+    replaceCouchKVStore(ops);
+    EXPECT_CALL(ops, sync(testing::_, testing::_))
+            .Times(testing::AnyNumber())
+            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
+            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
+            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
+            .WillOnce(testing::Return(COUCHSTORE_SUCCESS))
+            .WillOnce(testing::Return(COUCHSTORE_ERROR_WRITE))
+            .WillRepeatedly(testing::Return(COUCHSTORE_SUCCESS));
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+        SCOPED_TRACE("");
+        store_item(vbid,
+                   makeStoredDocKey("keyA"),
+                   "value",
+                   0 /*exptime*/,
+                   {cb::engine_errc::success} /*expected*/,
+                   PROTOCOL_BINARY_RAW_BYTES);
+
+    const auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+    auto& manager = *vb.checkpointManager;
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
+    EXPECT_EQ(1, vb.dirtyQueueSize);
+
+    auto kvstore = store->getRWUnderlying(vbid);
+    kvstore->setPostFlushHook([this, &vb]() {
+        store_item(vbid,
+                   makeStoredDocKey("keyA"),
+                   "value",
+                   0 /*exptime*/,
+                   {cb::engine_errc::success} /*expected*/,
+                   PROTOCOL_BINARY_RAW_BYTES);
+        EXPECT_EQ(2, vb.dirtyQueueSize);
+    });
+
+    // This flush fails, we have not written anything to disk
+    auto& epBucket = dynamic_cast<EPBucket&>(*store);
+    EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+    // Flush stats not updated
+    EXPECT_EQ(1, vb.dirtyQueueSize);
+
+    // Reset hook, don't want to add another item on the successful flush
+    kvstore->setPostFlushHook([]() {});
+
+    // This flush succeeds, we must write all the expected items and new vbstate
+    // on disk
+    // Flusher deduplication, just 1 item flushed
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+              epBucket.flushVBucket(vbid));
+
+    // Flush stats updated
+    EXPECT_EQ(0, vb.dirtyQueueSize);
+    EXPECT_EQ(0, vb.dirtyQueueAge);
+    EXPECT_EQ(0, vb.dirtyQueueMem);
 }

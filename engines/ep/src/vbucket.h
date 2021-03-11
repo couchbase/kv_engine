@@ -480,7 +480,15 @@ public:
      */
     class AggregatedFlushStats {
     public:
-        void accountItem(const Item& item);
+        /**
+         * Add the stored values from the Item
+         * @param Item being accounted
+         * @param queueTime optional queueTime. If not supplied, takes the
+         *                  queueTime of the Item.
+         */
+        void accountItem(const Item& item,
+                         std::optional<std::chrono::steady_clock::time_point>
+                                 queueTime = {});
 
         size_t getNumItems() const {
             return numItems;
