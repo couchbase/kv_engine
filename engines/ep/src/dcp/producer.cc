@@ -1836,10 +1836,9 @@ cb::engine_errc DcpProducer::maybeDisconnect() {
                 "the DCP idle timeout of {}s. "
                 "Sent last message (e.g. mutation/noop/streamEnd) {}s ago. "
                 "Received last message {}s ago. "
-                "Last sent noop {}s ago. "
-                "Last received noop response {}s ago. "
-                "DCP noop interval is {}s. "
-                "opaque: {}, pendingRecv: {}.",
+                "DCP noop [lastSent:{}s, lastRecv:{}s, interval:{}s, "
+                "opaque:{}, pendingRecv:{}], "
+                "paused:{}, pausedReason:{}",
                 dcpIdleTimeout.count(),
                 (now - lastSendTime),
                 elapsedTime,
@@ -1847,7 +1846,9 @@ cb::engine_errc DcpProducer::maybeDisconnect() {
                 (now - noopCtx.recvTime),
                 noopCtx.dcpNoopTxInterval.count(),
                 noopCtx.opaque,
-                noopCtx.pendingRecv ? "true" : "false");
+                noopCtx.pendingRecv ? "true" : "false",
+                isPaused() ? "true" : "false",
+                to_string(getPausedReason()));
         return cb::engine_errc::disconnect;
     }
     // Returning cb::engine_errc::failed means ignore and continue
