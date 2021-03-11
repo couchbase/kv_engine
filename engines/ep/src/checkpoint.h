@@ -255,6 +255,15 @@ enum class QueueDirtyStatus {
     FailureDuplicateItem,
 };
 
+struct QueueDirtyResult {
+    // Status of operation
+    QueueDirtyStatus status;
+
+    // Difference in bytes, of the queued_item sizes, if status is
+    // SuccessExistingItem. Note, size includes value + key etc.
+    ssize_t successExistingByteDiff{0};
+};
+
 std::string to_string(QueueDirtyStatus value);
 
 /**
@@ -488,7 +497,7 @@ public:
      * @param bySeqno the by sequence number assigned to this mutation
      * @return a result indicating the status of the operation.
      */
-    QueueDirtyStatus queueDirty(const queued_item& qi,
+    QueueDirtyResult queueDirty(const queued_item& qi,
                                 CheckpointManager* checkpointManager);
 
     /**

@@ -1688,7 +1688,7 @@ public:
     std::atomic<size_t>  dirtyQueueFill;
     std::atomic<size_t>  dirtyQueueDrain;
     cb::NonNegativeCounter<uint64_t> dirtyQueueAge;
-    std::atomic<size_t>  dirtyQueuePendingWrites;
+    cb::NonNegativeCounter<size_t> dirtyQueuePendingWrites;
     std::atomic<size_t>  metaDataDisk;
 
     std::atomic<size_t>  numExpiredItems;

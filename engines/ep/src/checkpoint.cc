@@ -228,7 +228,7 @@ Checkpoint::~Checkpoint() {
     memOverheadChangedCallback(-getMemoryOverhead());
 }
 
-QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
+QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi,
                                         CheckpointManager* checkpointManager) {
     if (getState() != CHECKPOINT_OPEN) {
         throw std::logic_error(
@@ -237,7 +237,7 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
                 std::to_string(getState()) + ") is not OPEN");
     }
 
-    QueueDirtyStatus rv;
+    QueueDirtyResult rv;
     // trigger the memOverheadChangedCallback if the overhead is different
     // when this helper is destroyed
     auto overheadCheck = gsl::finally([pre = getMemoryOverhead(), this]() {
@@ -250,7 +250,7 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
     // Check if the item is a meta item
     if (qi->isCheckPointMetaItem()) {
         // We will just queue the item
-        rv = QueueDirtyStatus::SuccessNewItem;
+        rv.status = QueueDirtyStatus::SuccessNewItem;
         addItemToCheckpoint(qi);
     } else {
         // Check in the appropriate key index if an item already exists.
@@ -274,10 +274,10 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
                 const auto oldPos = it->second.position;
                 const auto& oldItem = (*it->second.position);
                 if (!(canDedup(oldItem, qi))) {
-                    return QueueDirtyStatus::FailureDuplicateItem;
+                    return {QueueDirtyStatus::FailureDuplicateItem, 0};
                 }
 
-                rv = QueueDirtyStatus::SuccessExistingItem;
+                rv.status = QueueDirtyStatus::SuccessExistingItem;
                 const int64_t currMutationId{it->second.mutation_id};
 
                 // Given the key already exists, need to check all cursors in
@@ -307,7 +307,8 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
                             if (currMutationId <= cursor_mutation_id) {
                                 // Cursor has already processed the previous
                                 // value for this key so need to persist again.
-                                rv = QueueDirtyStatus::SuccessPersistAgain;
+                                rv.status =
+                                        QueueDirtyStatus::SuccessPersistAgain;
 
                                 // When we overwrite a persisted item again
                                 // we need to consider if we are currently
@@ -357,7 +358,7 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
                     }
                 }
 
-                if (rv == QueueDirtyStatus::SuccessExistingItem) {
+                if (rv.status == QueueDirtyStatus::SuccessExistingItem) {
                     // Set the queuedTime of the item to the original queued
                     // time. We must do this to ensure that the dirtyQueueAge
                     // is tracked correctly when this item is persisted. If we
@@ -365,6 +366,11 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
                     // increment/decrement the stat again so no adjustment is
                     // necessary.
                     qi->setQueuedTime((*it->second.position)->getQueuedTime());
+
+                    // If we're changing the item size we need to pass that back
+                    // to update the dirtyQueuePendingWrites size also
+                    rv.successExistingByteDiff =
+                            qi->size() - (*it->second.position)->size();
                 }
 
                 addItemToCheckpoint(qi);
@@ -389,12 +395,12 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
                 // SyncWrite.
                 if (it->second.isSyncWrite() ||
                     qi->getOperation() == queue_op::commit_sync_write) {
-                    return QueueDirtyStatus::FailureDuplicateItem;
+                    return {QueueDirtyStatus::FailureDuplicateItem, 0};
                 }
 
                 // Always return PersistAgain because if the old item has been
                 // expelled then the persistence cursor MUST have passed it.
-                rv = QueueDirtyStatus::SuccessPersistAgain;
+                rv.status = QueueDirtyStatus::SuccessPersistAgain;
 
                 addItemToCheckpoint(qi);
             }
@@ -403,7 +409,7 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
             // increase the number by one.
             --numItems;
         } else {
-            rv = QueueDirtyStatus::SuccessNewItem;
+            rv.status = QueueDirtyStatus::SuccessNewItem;
             addItemToCheckpoint(qi);
         }
     }
@@ -442,7 +448,7 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
             }
         }
 
-        if (rv == QueueDirtyStatus::SuccessNewItem) {
+        if (rv.status == QueueDirtyStatus::SuccessNewItem) {
             auto indexKeyUsage = qi->getKey().size() + sizeof(index_entry);
             /**
              * Calculate as best we can the memory overhead of adding the new

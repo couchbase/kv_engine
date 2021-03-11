@@ -882,9 +882,9 @@ bool CheckpointManager::queueDirty(
         }
     }
 
-    QueueDirtyStatus result = openCkpt->queueDirty(qi, this);
+    QueueDirtyResult result = openCkpt->queueDirty(qi, this);
 
-    if (result == QueueDirtyStatus::FailureDuplicateItem) {
+    if (result.status == QueueDirtyStatus::FailureDuplicateItem) {
         // Could not queue into the current checkpoint as it already has a
         // duplicate item (and not permitted to de-dupe this item).
         if (vb.getState() != vbucket_state_active) {
@@ -893,8 +893,8 @@ bool CheckpointManager::queueDirty(
             // put duplicate mutations in the same Checkpoint.
             throw std::logic_error(
                     "CheckpointManager::queueDirty(" + vbucketId.to_string() +
-                    ") - got Ckpt::queueDirty() status:" + to_string(result) +
-                    " when vbstate is non-active:" +
+                    ") - got Ckpt::queueDirty() status:" +
+                    to_string(result.status) + " when vbstate is non-active:" +
                     std::to_string(vb.getState()));
         }
 
@@ -904,12 +904,12 @@ bool CheckpointManager::queueDirty(
         checkOpenCheckpoint_UNLOCKED(lh, /*force*/ true, false);
         openCkpt = &getOpenCheckpoint_UNLOCKED(lh);
         result = openCkpt->queueDirty(qi, this);
-        if (result != QueueDirtyStatus::SuccessNewItem) {
-            throw std::logic_error(
-                    "CheckpointManager::queueDirty(vb:" +
-                    vbucketId.to_string() +
-                    ") - got Ckpt::queueDirty() status:" + to_string(result) +
-                    " even after creating a new Checkpoint.");
+        if (result.status != QueueDirtyStatus::SuccessNewItem) {
+            throw std::logic_error("CheckpointManager::queueDirty(vb:" +
+                                   vbucketId.to_string() +
+                                   ") - got Ckpt::queueDirty() status:" +
+                                   to_string(result.status) +
+                                   " even after creating a new Checkpoint.");
         }
     }
 
@@ -939,9 +939,12 @@ bool CheckpointManager::queueDirty(
                 std::to_string(checkpointList.size()));
     }
 
-    switch (result) {
+    switch (result.status) {
     case QueueDirtyStatus::SuccessExistingItem:
         ++stats.totalDeduplicated;
+        if (checkpointConfig.isPersistenceEnabled()) {
+            vb.dirtyQueuePendingWrites += result.successExistingByteDiff;
+        }
         return false;
     case QueueDirtyStatus::SuccessNewItem:
         ++numItems;
@@ -955,8 +958,7 @@ bool CheckpointManager::queueDirty(
                 "result:FailureDuplicateItem - should have been handled with "
                 "retry.");
     }
-    throw std::logic_error("queueDirty: Invalid value for QueueDirtyStatus: " +
-                           std::to_string(int(result)));
+    folly::assume_unreachable();
 }
 
 void CheckpointManager::queueSetVBState(VBucket& vb) {
@@ -986,15 +988,18 @@ void CheckpointManager::queueSetVBState(VBucket& vb) {
     auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
     const auto result = openCkpt.queueDirty(item, this);
 
-    if (result == QueueDirtyStatus::SuccessNewItem) {
+    if (result.status == QueueDirtyStatus::SuccessNewItem) {
         ++numItems;
         updateStatsForNewQueuedItem_UNLOCKED(lh, vb, item);
     } else {
-        throw std::logic_error(
-                "CheckpointManager::queueSetVBState: "
-                "expected: SuccessNewItem, got:" +
-                to_string(result) + "after queueDirty. " +
-                vbucketId.to_string());
+        auto msg = fmt::format(
+                "CheckpointManager::queueSetVBState: {} "
+                "expected: SuccessNewItem, got: {} with byte "
+                "diff of: {} after queueDirty.",
+                vbucketId.to_string(),
+                to_string(result.status),
+                result.successExistingByteDiff);
+        throw std::logic_error(msg);
     }
 }
 

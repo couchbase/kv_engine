@@ -6962,3 +6962,51 @@ TEST_P(STParamCouchstoreBucketTest,
     EXPECT_EQ(0, vb.dirtyQueueAge);
     EXPECT_EQ(0, vb.dirtyQueueMem);
 }
+
+TEST_P(STParameterizedBucketTest, CkptMgrDedupeStatsCorrectSmallToLarge) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    store_item(vbid,
+               makeStoredDocKey("keyA"),
+               "value",
+               0 /*exptime*/,
+               {cb::engine_errc::success} /*expected*/,
+               PROTOCOL_BINARY_RAW_BYTES);
+    store_item(vbid,
+               makeStoredDocKey("keyA"),
+               "biggerValue",
+               0 /*exptime*/,
+               {cb::engine_errc::success} /*expected*/,
+               PROTOCOL_BINARY_RAW_BYTES);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    const auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+    EXPECT_EQ(0, vb.dirtyQueueSize);
+    EXPECT_EQ(0, vb.dirtyQueueAge);
+    EXPECT_EQ(0, vb.dirtyQueueMem);
+    EXPECT_EQ(0, vb.dirtyQueuePendingWrites);
+}
+
+TEST_P(STParameterizedBucketTest, CkptMgrDedupeStatsCorrectLargeToSmall) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    store_item(vbid,
+               makeStoredDocKey("keyA"),
+               "biggerValues",
+               0 /*exptime*/,
+               {cb::engine_errc::success} /*expected*/,
+               PROTOCOL_BINARY_RAW_BYTES);
+    store_item(vbid,
+               makeStoredDocKey("keyA"),
+               "value",
+               0 /*exptime*/,
+               {cb::engine_errc::success} /*expected*/,
+               PROTOCOL_BINARY_RAW_BYTES);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    const auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+    EXPECT_EQ(0, vb.dirtyQueueSize);
+    EXPECT_EQ(0, vb.dirtyQueueAge);
+    EXPECT_EQ(0, vb.dirtyQueueMem);
+    EXPECT_EQ(0, vb.dirtyQueuePendingWrites);
+}

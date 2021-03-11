@@ -3181,17 +3181,8 @@ void VBucket::decrDirtyQueueAge(size_t decrementBy) {
     dirtyQueueAge.fetch_sub(decrementBy);
 }
 
-void VBucket::decrDirtyQueuePendingWrites(size_t decrementBy)
-{
-    size_t oldVal, newVal;
-    do {
-        oldVal = dirtyQueuePendingWrites.load(std::memory_order_relaxed);
-        if (oldVal < decrementBy) {
-            newVal = 0;
-        } else {
-            newVal = oldVal - decrementBy;
-        }
-    } while (!dirtyQueuePendingWrites.compare_exchange_strong(oldVal, newVal));
+void VBucket::decrDirtyQueuePendingWrites(size_t decrementBy) {
+    dirtyQueuePendingWrites.fetch_sub(decrementBy);
 }
 
 std::pair<MutationStatus, std::optional<VBNotifyCtx>> VBucket::processSet(
