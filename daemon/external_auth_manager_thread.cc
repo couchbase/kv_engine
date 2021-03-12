@@ -13,8 +13,11 @@
 #include "connection.h"
 #include "front_end_thread.h"
 #include "get_authorization_task.h"
+#include "memcached.h"
 #include "server_event.h"
 #include "start_sasl_auth_task.h"
+#include "tracing.h"
+#include "tracing_types.h"
 
 #include <logger/logger.h>
 #include <mcbp/protocol/framebuilder.h>
@@ -24,126 +27,6 @@
 
 /// The one and only handle to the external authentication manager
 std::unique_ptr<ExternalAuthManagerThread> externalAuthManager;
-
-/**
- * The AuthenticationRequestServerEvent is responsible for injecting
- * the Authentication Request packet onto the connections stream.
- */
-class AuthenticationRequestServerEvent : public ServerEvent {
-public:
-    AuthenticationRequestServerEvent(uint32_t id,
-                                     StartSaslAuthTask& req,
-                                     bool authenticateOnly)
-        : id(id) {
-        nlohmann::json json;
-        json["mechanism"] = req.getMechanism();
-        json["challenge"] = cb::base64::encode(req.getChallenge(), false);
-        json["authentication-only"] = authenticateOnly;
-        payload = json.dump();
-    }
-
-    std::string getDescription() const override {
-        return "AuthenticationRequestServerEvent";
-    }
-
-    bool execute(Connection& connection) override {
-        using namespace cb::mcbp;
-
-        const size_t needed = sizeof(cb::mcbp::Request) + payload.size();
-        std::string buffer;
-        buffer.resize(needed);
-        RequestBuilder builder(buffer);
-        builder.setMagic(Magic::ServerRequest);
-        builder.setDatatype(cb::mcbp::Datatype::JSON);
-        builder.setOpcode(ServerOpcode::Authenticate);
-        builder.setOpaque(id);
-
-        // The extras contains the cluster revision number as an uint32_t
-        builder.setValue({reinterpret_cast<const uint8_t*>(payload.data()),
-                          payload.size()});
-
-        // Inject our packet into the stream!
-        connection.copyToOutputStream(builder.getFrame()->getFrame());
-        return true;
-    }
-
-protected:
-    const uint32_t id;
-    std::string payload;
-};
-
-/**
- * The GetAuthorizatonServerEvent is responsible for injecting
- * the GetAuthorization Request packet onto the connections stream.
- */
-class GetAuthorizationServerEvent : public ServerEvent {
-public:
-    GetAuthorizationServerEvent(uint32_t id, GetAuthorizationTask& req)
-        : id(id), user(req.getUsername()) {
-    }
-
-    std::string getDescription() const override {
-        return "GetAuthorizatonServerEvent";
-    }
-
-    bool execute(Connection& connection) override {
-        using namespace cb::mcbp;
-
-        const size_t needed = sizeof(cb::mcbp::Request) + user.size();
-        std::string buffer;
-        buffer.resize(needed);
-        RequestBuilder builder(buffer);
-        builder.setMagic(Magic::ServerRequest);
-        builder.setDatatype(cb::mcbp::Datatype::Raw);
-        builder.setOpcode(ServerOpcode::GetAuthorization);
-        builder.setOpaque(id);
-        builder.setKey(user);
-
-        // Inject our packet into the stream!
-        connection.copyToOutputStream(builder.getFrame()->getFrame());
-        return true;
-    }
-
-protected:
-    const uint32_t id;
-    const std::string user;
-};
-
-/**
- * The ActiveExternalUsersServerEvent is responsible for injecting
- * the ActiveExternalUsers packet onto the connections stream.
- */
-class ActiveExternalUsersServerEvent : public ServerEvent {
-public:
-    explicit ActiveExternalUsersServerEvent(std::string payload)
-        : payload(std::move(payload)) {
-    }
-
-    std::string getDescription() const override {
-        return "ActiveExternalUsersServerEvent";
-    }
-
-    bool execute(Connection& connection) override {
-        using namespace cb::mcbp;
-
-        const size_t needed = sizeof(cb::mcbp::Request) + payload.size();
-        std::string buffer;
-        buffer.resize(needed);
-        RequestBuilder builder(buffer);
-        builder.setMagic(Magic::ServerRequest);
-        builder.setDatatype(cb::mcbp::Datatype::JSON);
-        builder.setOpcode(ServerOpcode::ActiveExternalUsers);
-        builder.setValue({reinterpret_cast<const uint8_t*>(payload.data()),
-                          payload.size()});
-
-        // Inject our packet into the stream!
-        connection.copyToOutputStream(builder.getFrame()->getFrame());
-        return true;
-    }
-
-protected:
-    const std::string payload;
-};
 
 void ExternalAuthManagerThread::add(Connection& connection) {
     std::lock_guard<std::mutex> guard(mutex);
@@ -256,27 +139,25 @@ void ExternalAuthManagerThread::pushActiveUsers() {
         return;
     }
 
-    const std::string payload = activeUsers.to_json().dump();
-
-    // We cannot hold the internal lock when we try to lock the front
-    // end thread as that'll cause a potential deadlock with the "add",
-    // "remove" and "responseReceived" as they'll hold the thread
-    // mutex and try to acquire the auth mutex in order to enqueue
-    // a new connection / response.
+    std::string payload = activeUsers.to_json().dump();
     auto* provider = connections.front();
-
-    mutex.unlock();
-    {
-        // Lock the authentication provider (we're holding a
-        // reference counter to the provider, so it can't go away while we're
-        // doing this).
-        std::lock_guard<std::mutex> guard(provider->getThread().mutex);
-        provider->enqueueServerEvent(
-                std::make_unique<ActiveExternalUsersServerEvent>(payload));
-        provider->signalIfIdle();
-    }
-    // Acquire the lock
-    mutex.lock();
+    provider->getThread().eventBase.runInEventBaseThread(
+            [provider, p = std::move(payload)]() {
+                TRACE_LOCKGUARD_TIMED(provider->getThread().mutex,
+                                      "mutex",
+                                      "pushActiveUsers",
+                                      SlowMutexThreshold);
+                std::string buffer;
+                buffer.resize(sizeof(cb::mcbp::Request) + p.size());
+                cb::mcbp::RequestBuilder builder(buffer);
+                builder.setMagic(cb::mcbp::Magic::ServerRequest);
+                builder.setDatatype(cb::mcbp::Datatype::JSON);
+                builder.setOpcode(cb::mcbp::ServerOpcode::ActiveExternalUsers);
+                builder.setValue(
+                        {reinterpret_cast<const uint8_t*>(p.data()), p.size()});
+                // Inject our packet into the stream!
+                provider->copyToOutputStream(builder.getFrame()->getFrame());
+            });
 }
 
 void ExternalAuthManagerThread::processRequestQueue() {
@@ -297,10 +178,6 @@ void ExternalAuthManagerThread::processRequestQueue() {
     // We'll be using the first connection in the list of connections.
     auto* provider = connections.front();
 
-    // Ok, build up a list of all of the server events before locking
-    // the provider, so that I don't need to block the provider for a long
-    // period of time.
-    std::vector<std::unique_ptr<ServerEvent>> events;
     while (!incomingRequests.empty()) {
         auto* startSaslTask =
                 dynamic_cast<StartSaslAuthTask*>(incomingRequests.front());
@@ -314,44 +191,60 @@ void ExternalAuthManagerThread::processRequestQueue() {
                 incomingRequests.pop();
                 continue;
             }
-            events.emplace_back(std::make_unique<GetAuthorizationServerEvent>(
-                    next, *getAuthz));
+
+            provider->getThread().eventBase.runInEventBaseThread(
+                    [provider,
+                     id = next,
+                     user = std::string(getAuthz->getUsername())]() {
+                        TRACE_LOCKGUARD_TIMED(provider->getThread().mutex,
+                                              "mutex",
+                                              "processRequestQueue",
+                                              SlowMutexThreshold);
+                        std::string buffer;
+                        buffer.resize(sizeof(cb::mcbp::Request) + user.size());
+                        cb::mcbp::RequestBuilder builder(buffer);
+                        builder.setMagic(cb::mcbp::Magic::ServerRequest);
+                        builder.setDatatype(cb::mcbp::Datatype::Raw);
+                        builder.setOpcode(
+                                cb::mcbp::ServerOpcode::GetAuthorization);
+                        builder.setOpaque(id);
+                        builder.setKey(user);
+
+                        // Inject our packet into the stream!
+                        provider->copyToOutputStream(
+                                builder.getFrame()->getFrame());
+                    });
         } else {
-            events.emplace_back(
-                    std::make_unique<AuthenticationRequestServerEvent>(
-                            next,
-                            *startSaslTask,
-                            haveRbacEntryForUser(
-                                    startSaslTask->getUsername())));
+            nlohmann::json json;
+            json["mechanism"] = startSaslTask->getMechanism();
+            json["challenge"] =
+                    cb::base64::encode(startSaslTask->getChallenge(), false);
+            json["authentication-only"] =
+                    haveRbacEntryForUser(startSaslTask->getUsername());
+            auto payload = json.dump();
+
+            provider->getThread().eventBase.runInEventBaseThread(
+                    [provider, id = next, p = std::move(payload)]() {
+                        const size_t needed =
+                                sizeof(cb::mcbp::Request) + p.size();
+                        std::string buffer;
+                        buffer.resize(needed);
+                        cb::mcbp::RequestBuilder builder(buffer);
+                        builder.setMagic(cb::mcbp::Magic::ServerRequest);
+                        builder.setDatatype(cb::mcbp::Datatype::JSON);
+                        builder.setOpcode(cb::mcbp::ServerOpcode::Authenticate);
+                        builder.setOpaque(id);
+                        builder.setValue(
+                                {reinterpret_cast<const uint8_t*>(p.data()),
+                                 p.size()});
+                        // Inject our packet into the stream!
+                        provider->copyToOutputStream(
+                                builder.getFrame()->getFrame());
+                    });
         }
         requestMap[next++] = std::make_pair(provider, incomingRequests.front());
         incomingRequests.pop();
     }
-
-    // We cannot hold the internal lock when we try to lock the front
-    // end thread as that'll cause a potential deadlock with the "add",
-    // "remove" and "responseReceived" as they'll hold the thread
-    // mutex and try to acquire the auth mutex in order to enqueue
-    // a new connection / response. We've already copied out the
-    // entire list of incomming requests so we can release the lock
-    // while processing them.
-    mutex.unlock();
-
-    // Lock the authentication provider (we're holding a
-    // reference counter to the provider, so it can't go away while we're
-    // doing this).
-    {
-        std::lock_guard<std::mutex> guard(provider->getThread().mutex);
-        // The provider is locked, so I can move all of the server events
-        // over to the providers connection
-        for (auto& ev : events) {
-            provider->enqueueServerEvent(std::move(ev));
-        }
-        provider->signalIfIdle();
-    }
-
-    // Acquire the lock
-    mutex.lock();
 }
 
 void ExternalAuthManagerThread::setRbacCacheEpoch(
@@ -402,13 +295,14 @@ void ExternalAuthManagerThread::purgePendingDeadConnections() {
         }
 
         // Notify the thread so that it may complete it's shutdown logic
-        mutex.unlock();
-        {
-            std::lock_guard<std::mutex> guard(connection->getThread().mutex);
+        connection->getThread().eventBase.runInEventBaseThread([connection]() {
+            TRACE_LOCKGUARD_TIMED(connection->getThread().mutex,
+                                  "mutex",
+                                  "purgePendingDeadConnections",
+                                  SlowMutexThreshold);
             connection->decrementRefcount();
-            connection->signalIfIdle();
-        }
-        mutex.lock();
+            connection->triggerCallback();
+        });
     }
 }
 
