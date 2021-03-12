@@ -54,14 +54,14 @@ public:
     VBCBAdaptor(const VBCBAdaptor&) = delete;
     const VBCBAdaptor& operator=(const VBCBAdaptor&) = delete;
 
-    std::string getDescription() override;
+    std::string getDescription() const override;
 
     /// Set the maximum expected duration for this task.
     void setMaxExpectedDuration(std::chrono::microseconds duration) {
         maxDuration = duration;
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         return maxDuration;
     }
 

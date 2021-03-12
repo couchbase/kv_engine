@@ -51,11 +51,12 @@ VBucketMemoryDeletionTask::~VBucketMemoryDeletionTask() {
     ObjectRegistry::onSwitchThread(e);
 }
 
-std::string VBucketMemoryDeletionTask::getDescription() {
+std::string VBucketMemoryDeletionTask::getDescription() const {
     return description;
 }
 
-std::chrono::microseconds VBucketMemoryDeletionTask::maxExpectedDuration() {
+std::chrono::microseconds VBucketMemoryDeletionTask::maxExpectedDuration()
+        const {
     // p99.9 typically around 50ms.
     return std::chrono::milliseconds(100);
 }

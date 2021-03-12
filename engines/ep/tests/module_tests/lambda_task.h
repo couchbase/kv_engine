@@ -46,11 +46,11 @@ public:
         return func(*this);
     }
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return "Lambda Task";
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Only used for testing; return an arbitrary large value.
         return std::chrono::seconds(60);
     }

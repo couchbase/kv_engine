@@ -84,7 +84,7 @@ bool CompactTask::run() {
     return isTaskDone(compactionData.second) || reschedule;
 }
 
-std::string CompactTask::getDescription() {
+std::string CompactTask::getDescription() const {
     return "Compact DB file " + std::to_string(vbid.get());
 }
 

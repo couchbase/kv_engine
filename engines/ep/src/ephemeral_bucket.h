@@ -189,9 +189,9 @@ private:
 
         bool run() override;
 
-        std::string getDescription() override;
+        std::string getDescription() const override;
 
-        std::chrono::microseconds maxExpectedDuration() override;
+        std::chrono::microseconds maxExpectedDuration() const override;
 
         /**
          * Adds the connections to be notified by the task and then wakes up

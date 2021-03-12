@@ -42,9 +42,9 @@ public:
 
     ~VBucketMemoryDeletionTask() override;
 
-    std::string getDescription() override;
+    std::string getDescription() const override;
 
-    std::chrono::microseconds maxExpectedDuration() override;
+    std::chrono::microseconds maxExpectedDuration() const override;
 
     bool run() override;
 

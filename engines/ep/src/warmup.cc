@@ -137,11 +137,11 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return "Warmup - initialize";
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Typically takes single-digits ms.
         return std::chrono::milliseconds(50);
     }
@@ -168,11 +168,11 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return _description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // VB creation typically takes some 10s of milliseconds.
         return std::chrono::milliseconds(100);
     }
@@ -202,12 +202,12 @@ public:
         warmup.addToTaskSet(uid);
     }
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return "Warmup - loading collection counts: shard " +
                std::to_string(shardId);
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // This task has to open each VB's data-file and (certainly for
         // couchstore) read a small document per defined collection
         return std::chrono::seconds(10);
@@ -239,11 +239,11 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return _description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Typically takes a few 10s of milliseconds (need to open kstore files
         // and read statistics.
         return std::chrono::milliseconds(100);
@@ -277,11 +277,11 @@ public:
           description("Warmup - loading prepared SyncWrites: shard " +
                       std::to_string(shardId)){};
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Runtime is a function of how many prepared sync writes exist in the
         // buckets for this shard - can be minutes in large datasets.
         // Given this large variation; set max duration to a "way out" value
@@ -320,11 +320,11 @@ public:
           description("Warmup - populate VB Map: shard " +
                       std::to_string(shardId)){};
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Runtime is expected to be quick, we're just adding pointers to a map
         // with some locking
         return std::chrono::milliseconds(1);
@@ -354,11 +354,11 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return _description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Runtime is a function of the number of keys in the database; can be
         // many minutes in large datasets.
         // Given this large variation; set max duration to a "way out" value
@@ -388,11 +388,11 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return "Warmup - check for access log";
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Checking for the access log is a disk task (so can take a variable
         // amount of time), however it should be relatively quick as we are
         // just checking files exist.
@@ -421,11 +421,11 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return _description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Runtime is a function of the number of keys in the access log files;
         // can be many minutes in large datasets.
         // Given this large variation; set max duration to a "way out" value
@@ -457,11 +457,11 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return _description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Runtime is a function of the number of documents which can
         // be held in RAM (and need to be laoded from disk),
         // can be many minutes in large datasets.
@@ -494,11 +494,11 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return _description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Runtime is a function of the number of documents which can
         // be held in RAM (and need to be laoded from disk),
         // can be many minutes in large datasets.
@@ -528,11 +528,11 @@ public:
         _warmup->addToTaskSet(uid);
     }
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return "Warmup - completion";
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // This task should be very quick - just the final warmup steps.
         return std::chrono::milliseconds(1);
     }

@@ -42,11 +42,11 @@ public:
         return false;
     }
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return "DCP connection notifier";
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // In *theory* this should run very quickly (p50 of 64us); however
         // there's evidence it sometimes takes much longer than that - p99.999
         // of over 1s.

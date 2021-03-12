@@ -132,11 +132,11 @@ void ItemFreqDecayerTask::wakeup() {
     }
 }
 
-std::string ItemFreqDecayerTask::getDescription() {
+std::string ItemFreqDecayerTask::getDescription() const {
     return "Item frequency count decayer task";
 }
 
-std::chrono::microseconds ItemFreqDecayerTask::maxExpectedDuration() {
+std::chrono::microseconds ItemFreqDecayerTask::maxExpectedDuration() const {
     // ItemFreqDecayerTask processes items in chunks, with each chunk
     // constrained by a ChunkDuration runtime, so we expect to only take that
     // long.  However, the ProgressTracker used estimates the time remaining,

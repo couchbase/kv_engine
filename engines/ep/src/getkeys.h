@@ -81,11 +81,11 @@ public:
                      uint32_t count_,
                      std::optional<CollectionID> collection);
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Duration will be a function of how many documents are fetched;
         // however for simplicity just return a fixed "reasonable" duration.
         return std::chrono::milliseconds(100);

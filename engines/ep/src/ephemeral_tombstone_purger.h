@@ -137,9 +137,9 @@ public:
 
     bool run() override;
 
-    std::string getDescription() override;
+    std::string getDescription() const override;
 
-    std::chrono::microseconds maxExpectedDuration() override;
+    std::chrono::microseconds maxExpectedDuration() const override;
 
 private:
     /// How long should each chunk of HT cleaning run for?
@@ -187,9 +187,9 @@ public:
 
     bool run() override;
 
-    std::string getDescription() override;
+    std::string getDescription() const override;
 
-    std::chrono::microseconds maxExpectedDuration() override;
+    std::chrono::microseconds maxExpectedDuration() const override;
 
 private:
     /// How long should each chunk of stale item deleter run for?

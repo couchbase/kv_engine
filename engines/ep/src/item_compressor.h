@@ -34,9 +34,9 @@ public:
 
     void stop();
 
-    std::string getDescription() override;
+    std::string getDescription() const override;
 
-    std::chrono::microseconds maxExpectedDuration() override;
+    std::chrono::microseconds maxExpectedDuration() const override;
 
 private:
     /// Duration (in seconds) the compressor should sleep for between

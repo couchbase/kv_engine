@@ -151,11 +151,11 @@ bool EphTombstoneHTCleaner::run() {
     return true;
 }
 
-std::string EphTombstoneHTCleaner::getDescription() {
+std::string EphTombstoneHTCleaner::getDescription() const {
     return "Eph tombstone hashtable cleaner";
 }
 
-std::chrono::microseconds EphTombstoneHTCleaner::maxExpectedDuration() {
+std::chrono::microseconds EphTombstoneHTCleaner::maxExpectedDuration() const {
     // Tombstone HT cleaner processes items in chunks, with each chunk
     // constrained by a ChunkDuration runtime, so we expect to only take that
     // long. However, the ProgressTracker used estimates the time remaining, so
@@ -302,11 +302,12 @@ bool EphTombstoneStaleItemDeleter::run() {
     return true;
 }
 
-std::string EphTombstoneStaleItemDeleter::getDescription() {
+std::string EphTombstoneStaleItemDeleter::getDescription() const {
     return "Eph tombstone stale item deleter";
 }
 
-std::chrono::microseconds EphTombstoneStaleItemDeleter::maxExpectedDuration() {
+std::chrono::microseconds EphTombstoneStaleItemDeleter::maxExpectedDuration()
+        const {
     // Stale item deleter purges tombstone items in chunks, with each chunk
     // constrained by a ChunkDuration runtime, so we expect to only take that
     // long. However, the ProgressTracker used estimates the time remaining, so

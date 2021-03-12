@@ -46,11 +46,11 @@ public:
 
     bool run() override;
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return desc;
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Flusher duration is likely to vary significantly; depending on
         // number of documents to flush and speed/capacity of disk subsystem.
         // As such, selecting a good maximum duration for all scenarios is hard.
@@ -78,9 +78,9 @@ public:
 
     bool run() override;
 
-    std::string getDescription() override;
+    std::string getDescription() const override;
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Empirical evidence suggests this task runs under 25s 99.98% of
         // the time.
         return std::chrono::seconds(25);
@@ -178,11 +178,11 @@ public:
 
     bool run() override;
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return "Updating stat snapshot on disk";
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // A background periodic Writer task; which no front-end operation
         // depends on. However it does run on a writer thread; which we don't
         // want to slow down persistTo times; so expect to complete quickly.
@@ -202,11 +202,11 @@ public:
 
     bool run() override;
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return "Batching background fetch";
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Much like other disk tasks (e.g. Flusher), duration is likely to
         // vary significantly; depending on number of documents to fetch and
         // speed/capacity of disk subsystem. As such, selecting a good maximum
@@ -247,11 +247,11 @@ public:
 
     bool run() override;
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Much like other disk tasks, duration is likely to
         // vary significantly; depending on speed/capacity of disk subsystem.
         // As such, selecting a good maximum duration for all scenarios is hard.
@@ -279,13 +279,13 @@ public:
 
     bool run() override;
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Runtime should be very quick (lookup a few statistics; perform
         // some calculation on them). p99.9 is <50us.
         return std::chrono::milliseconds(1);
     }
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return "Monitoring a workload pattern";
     }
 

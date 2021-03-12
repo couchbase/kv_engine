@@ -34,11 +34,11 @@ public:
 
     bool run() override;
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return "Adjusting hash table sizes.";
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // [per Bucket Task] This task doesn't do very much (most of the actual
         // work to check and resize HashTables is delegated to the per-vBucket
         // 'ResizingVisitor' tasks). As such we don't expect to execute for

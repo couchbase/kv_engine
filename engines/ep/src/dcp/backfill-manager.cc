@@ -47,9 +47,9 @@ public:
 
     bool run() override;
 
-    std::string getDescription() override;
+    std::string getDescription() const override;
 
-    std::chrono::microseconds maxExpectedDuration() override;
+    std::chrono::microseconds maxExpectedDuration() const override;
 
 private:
     // A weak pointer to the backfill manager which owns this
@@ -87,11 +87,11 @@ bool BackfillManagerTask::run() {
     return true;
 }
 
-std::string BackfillManagerTask::getDescription() {
+std::string BackfillManagerTask::getDescription() const {
     return "Backfilling items for a DCP Connection";
 }
 
-std::chrono::microseconds BackfillManagerTask::maxExpectedDuration() {
+std::chrono::microseconds BackfillManagerTask::maxExpectedDuration() const {
     // Empirical evidence suggests this task runs under 300ms 99.999% of
     // the time.
     return std::chrono::milliseconds(300);

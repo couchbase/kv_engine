@@ -35,11 +35,11 @@ public:
 
     bool run() override;
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return "DurabilityTimeoutTask";
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // This tasks just spawns a new VBCBAdaptor, which is the actual tasks
         // that executes the DurabilityTimeoutVisitor. So, keeping the value
         // relatively high as there is no too much value in logging this timing.

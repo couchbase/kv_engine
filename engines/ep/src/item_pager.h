@@ -79,11 +79,11 @@ public:
 
     bool run() override;
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return "Paging out items.";
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Typically runs in single-digit milliseconds. Set max expected to
         // 25ms - a "fair" timeslice for a task to take.
         return std::chrono::milliseconds(25);
@@ -142,11 +142,11 @@ public:
 
     bool run() override;
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return "Paging expired items.";
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Typically runs in single-digit milliseconds. Set max expected to
         // 25ms - a "fair" timeslice for a task to take.
         return std::chrono::milliseconds(25);

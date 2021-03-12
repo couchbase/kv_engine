@@ -43,11 +43,11 @@ public:
 
     bool run() override;
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return "DurabilityCompletionTask";
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Task shouldn't run much longer than maxChunkDuration; given we yield
         // after that duration - however _could_ exceed a bit given we check
         // the duration on each vBucket. As such add a 2x margin of error.

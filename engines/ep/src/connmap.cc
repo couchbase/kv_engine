@@ -84,11 +84,11 @@ public:
                !connmap->isDeadConnectionsEmpty();
     }
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return "Connection Manager";
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // In *theory* this should run very quickly (p50 of <1ms); however
         // there's evidence it sometimes takes much longer than that - p99.99
         // of 10s.

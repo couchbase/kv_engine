@@ -38,9 +38,9 @@ public:
 
     void stop();
 
-    std::string getDescription() override;
+    std::string getDescription() const override;
 
-    std::chrono::microseconds maxExpectedDuration() override;
+    std::chrono::microseconds maxExpectedDuration() const override;
 
     // Request that the temFreqDecayerTask is woken up to run
     // Made virtual so can be overridden in mock version used in testing.

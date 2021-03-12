@@ -103,9 +103,9 @@ public:
 
     void stop();
 
-    std::string getDescription() override;
+    std::string getDescription() const override;
 
-    std::chrono::microseconds maxExpectedDuration() override;
+    std::chrono::microseconds maxExpectedDuration() const override;
 
     /// Maximum allocation size the defragmenter should consider
     static size_t getMaxValueSize();

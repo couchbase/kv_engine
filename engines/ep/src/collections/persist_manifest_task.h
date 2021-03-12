@@ -36,9 +36,9 @@ public:
                         std::unique_ptr<Collections::Manifest> manifest,
                         const void* cookie);
 
-    std::string getDescription() override;
+    std::string getDescription() const override;
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         return std::chrono::seconds(1);
     }
 

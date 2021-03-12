@@ -344,11 +344,11 @@ void AccessScanner::updateAlogTime(double sleepSecs) {
     stats.alogTime.store(_waketime.tv_sec);
 }
 
-std::string AccessScanner::getDescription() {
+std::string AccessScanner::getDescription() const {
     return "Generating access log";
 }
 
-std::chrono::microseconds AccessScanner::maxExpectedDuration() {
+std::chrono::microseconds AccessScanner::maxExpectedDuration() const {
     // The actual 'AccessScanner' task doesn't do very much (most of the actual
     // work to generate the access logs is delegated to the per-vBucket
     // 'ItemAccessVisitor' tasks). As such we don't expect to execute for

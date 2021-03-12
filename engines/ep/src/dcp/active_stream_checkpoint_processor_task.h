@@ -38,11 +38,11 @@ public:
     ActiveStreamCheckpointProcessorTask(EventuallyPersistentEngine& e,
                                         std::shared_ptr<DcpProducer> p);
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Empirical evidence from perf runs suggests this task runs under
         // 210ms 99.9999% of the time.
         return std::chrono::milliseconds(210);

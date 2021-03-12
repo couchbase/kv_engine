@@ -2034,11 +2034,11 @@ TEST_F(SingleThreadedEPBucketTest, ReadyQueueMaintainsWakeTimeOrder) {
             return false;
         }
 
-        std::string getDescription() override {
+        std::string getDescription() const override {
             return "Task uid:" + std::to_string(getId());
         }
 
-        std::chrono::microseconds maxExpectedDuration() override {
+        std::chrono::microseconds maxExpectedDuration() const override {
             return std::chrono::seconds(0);
         }
     };
@@ -2076,11 +2076,11 @@ TEST_F(SingleThreadedEPBucketTest, MB20235_wake_and_work_count) {
             return false;
         }
 
-        std::string getDescription() override {
+        std::string getDescription() const override {
             return "Test MB20235";
         }
 
-        std::chrono::microseconds maxExpectedDuration() override {
+        std::chrono::microseconds maxExpectedDuration() const override {
             return std::chrono::seconds(0);
         }
     };

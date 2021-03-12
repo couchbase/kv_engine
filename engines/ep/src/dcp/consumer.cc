@@ -131,11 +131,11 @@ public:
         return true;
     }
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // This should be a very fast operation (p50 under 10us), however we
         // have observed long tails: p99.9 of 20ms; so use a threshold of 100ms.
         return std::chrono::milliseconds(100);

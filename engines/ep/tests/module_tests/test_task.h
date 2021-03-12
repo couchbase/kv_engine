@@ -32,11 +32,11 @@ public:
         return true;
     }
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         return std::chrono::seconds(0);
     }
 

@@ -32,11 +32,11 @@ public:
     bool run() override {
         return false;
     }
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return "MockGlobalTask";
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Shouldn't matter what this returns
         return std::chrono::seconds(0);
     }

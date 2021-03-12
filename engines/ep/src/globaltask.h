@@ -81,7 +81,7 @@ public:
      *
      * @return A description of this task
      */
-    virtual std::string getDescription() = 0;
+    virtual std::string getDescription() const = 0;
 
     /**
      * The maximum expected duration of a single execution of this task - i.e.
@@ -109,7 +109,7 @@ public:
      *      given they must run before we can operate their duration isn't
      *      critical.
      */
-    virtual std::chrono::microseconds maxExpectedDuration() = 0;
+    virtual std::chrono::microseconds maxExpectedDuration() const = 0;
 
     /**
      * test if a task is dead

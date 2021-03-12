@@ -530,11 +530,11 @@ TYPED_TEST(ExecutorPoolTest, CancelThenSnooze) {
             pool.snooze(getId(), 10.0);
         }
 
-        std::string getDescription() override {
+        std::string getDescription() const override {
             return "TestTask - "s + GlobalTask::getTaskName(taskId);
         }
 
-        std::chrono::microseconds maxExpectedDuration() override {
+        std::chrono::microseconds maxExpectedDuration() const override {
             return {};
         }
 
@@ -643,11 +643,11 @@ TYPED_TEST(ExecutorPoolTest, ThreadPriorities) {
             : GlobalTask(taskable, taskId), threadGate(threadGate) {
         }
 
-        std::string getDescription() override {
+        std::string getDescription() const override {
             return "CheckPriorityTask - "s + GlobalTask::getTaskName(taskId);
         }
 
-        std::chrono::microseconds maxExpectedDuration() override {
+        std::chrono::microseconds maxExpectedDuration() const override {
             return {};
         }
 
@@ -1228,11 +1228,11 @@ public:
         return false;
     }
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return "ScheduleOnDestructTask";
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         return std::chrono::seconds(60);
     }
 
@@ -1254,11 +1254,11 @@ public:
         return false;
     }
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return "StopTask";
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         return std::chrono::seconds(60);
     }
 
@@ -1402,10 +1402,10 @@ TYPED_TEST(ExecutorPoolEpEngineTest, MemoryTracking_Run) {
             : GlobalTask(engine, TaskId::ItemPager, INT_MAX, false) {
         }
 
-        std::string getDescription() override {
+        std::string getDescription() const override {
             return "MemoryAllocTask";
         }
-        std::chrono::microseconds maxExpectedDuration() override {
+        std::chrono::microseconds maxExpectedDuration() const override {
             return std::chrono::microseconds(1);
         }
 

@@ -55,11 +55,11 @@ public:
 
     bool run() override;
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return "Removing closed unreferenced checkpoints from memory";
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Empirical evidence from perf runs suggests this task runs
         // under 250ms 99.99999% of the time.
         return std::chrono::milliseconds(250);

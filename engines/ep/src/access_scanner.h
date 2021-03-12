@@ -37,8 +37,8 @@ public:
                   bool completeBeforeShutdown = false);
 
     bool run() override;
-    std::string getDescription() override;
-    std::chrono::microseconds maxExpectedDuration() override;
+    std::string getDescription() const override;
+    std::chrono::microseconds maxExpectedDuration() const override;
 
     std::atomic<size_t> completedCount;
 

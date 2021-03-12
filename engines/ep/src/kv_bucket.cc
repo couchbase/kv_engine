@@ -205,11 +205,11 @@ public:
                       vbucket->getId().to_string()) {
     }
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // This should be a very fast operation (p50 under 10us), however we
         // have observed long tails: p99.9 of 20ms; so use a threshold of 100ms.
         return std::chrono::milliseconds(100);
@@ -249,11 +249,11 @@ public:
         }
     }
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Copied from PendingOpsNotification as this task is very similar
         return std::chrono::milliseconds(100);
     }
@@ -2289,7 +2289,7 @@ VBCBAdaptor::VBCBAdaptor(KVBucket* s,
               visitor->getVBucketComparator());
 }
 
-std::string VBCBAdaptor::getDescription() {
+std::string VBCBAdaptor::getDescription() const {
     auto value = currentvb.load();
     if (value == None) {
         return std::string(label) + " no vbucket assigned";

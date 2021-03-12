@@ -3583,11 +3583,11 @@ public:
         return false;
     }
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return "checkpoint stats for all vbuckets";
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Task needed to lookup "checkpoint" stats; so the runtime should only
         // affects the particular stat request. However we don't want this to
         // take /too/ long, so set limit of 100ms.

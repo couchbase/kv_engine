@@ -155,11 +155,11 @@ void DefragmenterTask::stop() {
     }
 }
 
-std::string DefragmenterTask::getDescription() {
+std::string DefragmenterTask::getDescription() const {
     return "Memory defragmenter";
 }
 
-std::chrono::microseconds DefragmenterTask::maxExpectedDuration() {
+std::chrono::microseconds DefragmenterTask::maxExpectedDuration() const {
     // Defragmenter processes items in chunks, with each chunk constrained
     // by a ChunkDuration runtime, so we expect to only take that long.
     // However, the ProgressTracker used estimates the time remaining, so

@@ -122,11 +122,11 @@ void ItemCompressorTask::stop() {
     }
 }
 
-std::string ItemCompressorTask::getDescription() {
+std::string ItemCompressorTask::getDescription() const {
     return "Item Compressor";
 }
 
-std::chrono::microseconds ItemCompressorTask::maxExpectedDuration() {
+std::chrono::microseconds ItemCompressorTask::maxExpectedDuration() const {
     // The item compressor processes items in chunks, with each chunk
     // constrained by a ChunkDuration runtime, so we expect to only take
     // that long. However, the ProgressTracker used estimates the time

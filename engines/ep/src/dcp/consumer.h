@@ -703,11 +703,11 @@ public:
           cons(std::move(conn)) {
     }
 
-    std::string getDescription() override {
+    std::string getDescription() const override {
         return description;
     }
 
-    std::chrono::microseconds maxExpectedDuration() override {
+    std::chrono::microseconds maxExpectedDuration() const override {
         // Little data on how long this typically takes (rare operation).
         // Somewhat arbitrary selection of 10s as being slow.
         return std::chrono::seconds(10);

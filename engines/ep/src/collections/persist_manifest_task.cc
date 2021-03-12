@@ -44,7 +44,7 @@ PersistManifestTask::PersistManifestTask(
       cookie(cookie) {
 }
 
-std::string PersistManifestTask::getDescription() {
+std::string PersistManifestTask::getDescription() const {
     return "PersistManifestTask for " + engine->getName();
 }
 
