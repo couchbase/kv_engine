@@ -693,16 +693,32 @@ bool Connection::executeCommandsCallback() {
             if (cookies.front()->empty()) {
                 // make sure we reset the privilege context
                 cookies.front()->reset();
-                const auto maxSendQueueSize =
-                        Settings::instance().getMaxSendQueueSize();
-                bool more = (getSendQueueSize() < maxSendQueueSize);
+
+                // MB-38007: We see an increase in rebalance time for
+                // "in memory" workloads when allowing DCP to fill up to
+                // 40MB (thats the default) batch size into the output buffer.
+                // We've not been able to figure out exactly _why_ this is
+                // happening and have assumptions that it may be caused
+                // that it doesn't align too much with the flow control being
+                // used. Before moving to bufferevent we would copy the entire
+                // message into kernel space before trying to read (and process)
+                // any input messages before trying to send the next one.
+                // It could be that it would be better at processing the
+                // incomming flow control messages instead of the current
+                // model where the input socket gets drained and put in
+                // userspace buffers, the send queue is tried to be drained
+                // before we do the callback and process the already queued
+                // input and generate more output before returning to the
+                // layer doing the actual IO.
+                static constexpr std::size_t dcpMaxQSize = 1024 * 1024;
+                bool more = (getSendQueueSize() < dcpMaxQSize);
                 while (more) {
                     const auto ret = getBucket().getDcpIface()->step(
                             static_cast<const void*>(cookies.front().get()),
                             *this);
                     switch (remapErrorCode(ret)) {
                     case cb::engine_errc::success:
-                        more = (getSendQueueSize() < maxSendQueueSize);
+                        more = (getSendQueueSize() < dcpMaxQSize);
                         break;
                     case cb::engine_errc::would_block:
                         more = false;
