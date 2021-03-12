@@ -20,6 +20,7 @@
 #include "hdrhistogram.h"
 
 #include <folly/Synchronized.h>
+#include <folly/container/F14Map.h>
 #include <folly/lang/Aligned.h>
 #include <memcached/durability_spec.h>
 #include <memcached/types.h>
@@ -56,13 +57,8 @@ class CoreLocalStats {
 public:
     /**
      * Map of collection id to the memory usage tracked for that collection.
-     *
-     folly::AtomicHashMap would avoid locking here but is unsuitable - it has a
-     max capacity, and erased elements still count towards that capacity. It
-     would either need to be grossly oversized, or would eventually be filled by
-     collection creation/deletions.
      */
-    folly::Synchronized<std::unordered_map<CollectionID, size_t>, std::mutex>
+    folly::Synchronized<folly::F14FastMap<CollectionID, size_t>, std::mutex>
             collectionMemUsed;
 
     // Thread-safe type for counting occurances of discrete,
