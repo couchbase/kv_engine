@@ -54,6 +54,7 @@
 #include <memcached/server_document_iface.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
+#include <platform/timeutils.h>
 #include <statistics/collector.h>
 #include <statistics/labelled_collector.h>
 
@@ -634,16 +635,51 @@ bool KVBucket::isMetaDataResident(VBucketPtr &vb, const DocKey& key) {
     return result.storedValue && !result.storedValue->isTempItem();
 }
 
-void KVBucket::logQTime(TaskId taskType,
-                        const std::chrono::steady_clock::duration enqTime) {
-    auto ms = std::chrono::duration_cast<std::chrono::microseconds>(enqTime);
-    stats.schedulingHisto[static_cast<int>(taskType)].add(ms);
+void KVBucket::logQTime(const GlobalTask& task,
+                        std::string_view threadName,
+                        std::chrono::steady_clock::duration enqTime) {
+    // MB-25822: It could be useful to have the exact datetime of long
+    // schedule times, in the same way we have for long runtimes.
+    // It is more difficult to estimate the expected schedule time than
+    // the runtime for a task, because the schedule times depends on
+    // things "external" to the task itself (e.g., how many tasks are
+    // in queue in the same priority-group).
+    // Also, the schedule time depends on the runtime of the previous
+    // run. That means that for Read/Write/AuxIO tasks it is even more
+    // difficult to predict because that do IO.
+    // So, for now we log long schedule times only for NON_IO tasks,
+    // which is the task type for the ConnManager and
+    // ConnNotifierCallback tasks involved in MB-25822 and that we aim
+    // to debug. We consider 1 second a sensible schedule overhead
+    // limit for NON_IO tasks.
+    if (GlobalTask::getTaskType(task.getTaskId()) ==
+                task_type_t::NONIO_TASK_IDX &&
+        enqTime > std::chrono::seconds(1)) {
+        EP_LOG_WARN(
+                "Slow scheduling for NON_IO task '{}' on thread {}. "
+                "Schedule overhead: {}",
+                task.getDescription(),
+                threadName,
+                cb::time2text(enqTime));
+    }
+
+    auto us = std::chrono::duration_cast<std::chrono::microseconds>(enqTime);
+    stats.schedulingHisto[static_cast<int>(task.getTaskId())].add(us);
 }
 
-void KVBucket::logRunTime(TaskId taskType,
-                          const std::chrono::steady_clock::duration runTime) {
-    auto ms = std::chrono::duration_cast<std::chrono::microseconds>(runTime);
-    stats.taskRuntimeHisto[static_cast<int>(taskType)].add(ms);
+void KVBucket::logRunTime(const GlobalTask& task,
+                          std::string_view threadName,
+                          std::chrono::steady_clock::duration runTime) {
+    // Check if exceeded expected duration; and if so log.
+    if (runTime > task.maxExpectedDuration()) {
+        EP_LOG_WARN("Slow runtime for '{}' on thread {}: {}",
+                    task.getDescription(),
+                    threadName,
+                    cb::time2text(runTime));
+    }
+
+    auto us = std::chrono::duration_cast<std::chrono::microseconds>(runTime);
+    stats.taskRuntimeHisto[static_cast<int>(task.getTaskId())].add(us);
 }
 
 cb::engine_errc KVBucket::set(Item& itm,

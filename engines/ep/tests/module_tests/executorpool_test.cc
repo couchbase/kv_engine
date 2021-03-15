@@ -159,7 +159,7 @@ TYPED_TEST(ExecutorPoolTest, UnregisterTaskablesCancelsTasks) {
 
         // Access it's taskable - if this runs after unregisterTaskable() than
         // that would be invalid.
-        taskablePtr->logRunTime(task.getTaskId(), {});
+        taskablePtr->logRunTime(task, {}, {});
         return false;
     };
     auto task = std::make_shared<LambdaTask>(
@@ -953,13 +953,15 @@ TYPED_TEST(ExecutorPoolTest, SchedulerStats) {
     NiceMock<MockTaskable> taskable;
     this->pool->registerTaskable(taskable);
 
-    // Set expectation on logQTime
-    using ::testing::_;
-    EXPECT_CALL(taskable, logQTime(TaskId::ItemPager, _));
-
     // Create a task to run, which we can check scheduler times for.
     ThreadGate tg{1};
-    this->pool->schedule(makeTask(taskable, tg, TaskId::ItemPager, 0));
+    auto task = makeTask(taskable, tg, TaskId::ItemPager, 0);
+
+    // Set expectation on logQTime
+    using ::testing::_;
+    EXPECT_CALL(taskable, logQTime(_, _, _));
+
+    this->pool->schedule(task);
 
     // Wait for the task to run (and notify threadGate).
     tg.waitFor(std::chrono::seconds(10));

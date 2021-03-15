@@ -39,8 +39,9 @@ WorkLoadPolicy& MockTaskable::getWorkLoadPolicy() {
     return policy;
 }
 
-void MockTaskable::logRunTime(
-        TaskId id, const std::chrono::steady_clock::duration runTime) {
+void MockTaskable::logRunTime(const GlobalTask& task,
+                              std::string_view threadName,
+                              std::chrono::steady_clock::duration runTime) {
 }
 
 bool MockTaskable::isShutdown() {

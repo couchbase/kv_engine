@@ -662,13 +662,13 @@ public:
     virtual bool isMetaDataResident(VBucketPtr &vb,
                                     const DocKey& key) = 0;
 
-    virtual void logQTime(
-            TaskId taskType,
-            const std::chrono::steady_clock::duration enqTime) = 0;
+    virtual void logQTime(const GlobalTask& taskType,
+                          std::string_view threadName,
+                          std::chrono::steady_clock::duration enqTime) = 0;
 
-    virtual void logRunTime(
-            TaskId taskType,
-            const std::chrono::steady_clock::duration runTime) = 0;
+    virtual void logRunTime(const GlobalTask& taskType,
+                            std::string_view threadName,
+                            std::chrono::steady_clock::duration runTime) = 0;
 
     virtual void updateCachedResidentRatio(size_t activePerc,
                                            size_t replicaPerc) = 0;

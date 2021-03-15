@@ -134,33 +134,8 @@ void CB3ExecutorThread::run() {
                 scheduleOverhead = std::chrono::steady_clock::duration::zero();
             }
 
-            currentTask->getTaskable().logQTime(currentTask->getTaskId(),
-                                                scheduleOverhead);
-            // MB-25822: It could be useful to have the exact datetime of long
-            // schedule times, in the same way we have for long runtimes.
-            // It is more difficult to estimate the expected schedule time than
-            // the runtime for a task, because the schedule times depends on
-            // things "external" to the task itself (e.g., how many tasks are
-            // in queue in the same priority-group).
-            // Also, the schedule time depends on the runtime of the previous
-            // run. That means that for Read/Write/AuxIO tasks it is even more
-            // difficult to predict because that do IO.
-            // So, for now we log long schedule times only for NON_IO tasks,
-            // which is the task type for the ConnManager and
-            // ConnNotifierCallback tasks involved in MB-25822 and that we aim
-            // to debug. We consider 1 second a sensible schedule overhead
-            // limit for NON_IO tasks.
-            if (GlobalTask::getTaskType(currentTask->getTaskId()) ==
-                        task_type_t::NONIO_TASK_IDX &&
-                scheduleOverhead > std::chrono::seconds(1)) {
-                auto description = currentTask->getDescription();
-                EP_LOG_WARN(
-                        "Slow scheduling for NON_IO task '{}' on thread {}. "
-                        "Schedule overhead: {}",
-                        description,
-                        getName(),
-                        cb::time2text(scheduleOverhead));
-            }
+            currentTask->getTaskable().logQTime(
+                    *currentTask, getName(), scheduleOverhead);
             updateTaskStart();
 
             const auto curTaskDescr = currentTask->getDescription();
@@ -174,22 +149,11 @@ void CB3ExecutorThread::run() {
             bool again = currentTask->execute();
 
             // Task done, log it ...
-            const std::chrono::steady_clock::duration runtime(
+            std::chrono::steady_clock::duration runtime(
                     std::chrono::steady_clock::now() - getTaskStart());
-            currentTask->getTaskable().logRunTime(currentTask->getTaskId(),
-                                                  runtime);
+            currentTask->getTaskable().logRunTime(
+                    *currentTask, getName(), runtime);
             currentTask->updateRuntime(runtime);
-
-            // Check if exceeded expected duration; and if so log.
-            // Note: This is done before we call onSwitchThread(NULL)
-            // so the bucket name is included in the Log message.
-            if (runtime > currentTask->maxExpectedDuration()) {
-                auto description = currentTask->getDescription();
-                EP_LOG_WARN("Slow runtime for '{}' on thread {}: {}",
-                            description,
-                            getName(),
-                            cb::time2text(runtime));
-            }
 
             // Check if task is run once or needs to be rescheduled..
             if (!again || currentTask->isdead()) {

@@ -77,11 +77,13 @@ public:
 
     WorkLoadPolicy& getWorkLoadPolicy() override;
 
-    void logQTime(TaskId id,
-                  const std::chrono::steady_clock::duration enqTime) override;
+    void logQTime(const GlobalTask& task,
+                  std::string_view threadName,
+                  std::chrono::steady_clock::duration enqTime) override;
 
-    void logRunTime(TaskId id,
-                    const std::chrono::steady_clock::duration runTime) override;
+    void logRunTime(const GlobalTask& task,
+                    std::string_view threadName,
+                    std::chrono::steady_clock::duration runTime) override;
 
     bool isShutdown() override;
 

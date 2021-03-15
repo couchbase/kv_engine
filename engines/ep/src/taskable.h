@@ -63,17 +63,26 @@ public:
     */
     virtual WorkLoadPolicy& getWorkLoadPolicy() = 0;
 
-    /*
-        Called with the time spent queued
-    */
-    virtual void logQTime(
-            TaskId id, const std::chrono::steady_clock::duration enqTime) = 0;
+    /**
+     * Log the the time the given task spent queued (ready to run but not yet
+     * started to execute).
+     * @param task The task which is about to run
+     * @param threadName The name of the thread the task is about to run on.
+     * @param runtime Duration the task was queued for.
+     */
+    virtual void logQTime(const GlobalTask& task,
+                          std::string_view threadName,
+                          std::chrono::steady_clock::duration enqTime) = 0;
 
-    /*
-        Called with the time spent running
-    */
-    virtual void logRunTime(
-            TaskId id, const std::chrono::steady_clock::duration runTime) = 0;
+    /**
+     * Log the the time the given task spent running.
+     * @param task The task which just ran.
+     * @param threadName The name of the thread the task ran on.
+     * @param runtime Duration the task ran for.
+     */
+    virtual void logRunTime(const GlobalTask& task,
+                            std::string_view threadName,
+                            std::chrono::steady_clock::duration runTime) = 0;
 
     /// @returns True if the Taskable is (in the process of) shutting down.
     virtual bool isShutdown() = 0;

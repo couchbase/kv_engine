@@ -516,11 +516,13 @@ public:
 
     bool isMetaDataResident(VBucketPtr &vb, const DocKey& key) override;
 
-    void logQTime(TaskId taskType,
-                  const std::chrono::steady_clock::duration enqTime) override;
+    void logQTime(const GlobalTask& taskType,
+                  std::string_view threadName,
+                  std::chrono::steady_clock::duration enqTime) override;
 
-    void logRunTime(TaskId taskType,
-                    const std::chrono::steady_clock::duration runTime) override;
+    void logRunTime(const GlobalTask& taskType,
+                    std::string_view threadName,
+                    std::chrono::steady_clock::duration runTime) override;
 
     void updateCachedResidentRatio(size_t activePerc, size_t replicaPerc) override {
         cachedResidentRatio.activeRatio.store(activePerc);

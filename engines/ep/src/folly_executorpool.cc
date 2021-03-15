@@ -185,7 +185,8 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
                 if (scheduleOverhead < steady_clock::duration::zero()) {
                     scheduleOverhead = steady_clock::duration::zero();
                 }
-                proxy.task->getTaskable().logQTime(proxy.task->getTaskId(),
+                proxy.task->getTaskable().logQTime(*proxy.task,
+                                                   proxy.getCurrentThreadName(),
                                                    scheduleOverhead);
 
                 const auto start = steady_clock::now();
@@ -196,8 +197,8 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
 
                 const auto end = steady_clock::now();
                 auto runtime = end - start;
-                proxy.task->getTaskable().logRunTime(proxy.task->getTaskId(),
-                                                     runtime);
+                proxy.task->getTaskable().logRunTime(
+                        *proxy.task, proxy.getCurrentThreadName(), runtime);
                 proxy.task->updateRuntime(runtime);
             }
 
@@ -335,6 +336,19 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
     bool proxyReused{false};
 
 private:
+    /**
+     * Helper method to retrieve the name of the currently running thread.
+     *
+     * Result is cached in thread-local as thread name lookup can require a
+     * system call; hence wouldn't handle changing thread names (but we don't
+     * do that).
+     */
+    std::string_view getCurrentThreadName() const {
+        static thread_local std::string name =
+                folly::getCurrentThreadName().value_or("unknown");
+        return name;
+    }
+
     // Associated FollyExecutorPool (needed for re-scheduling / cancelling
     // dead tasks).
     FollyExecutorPool& executor;

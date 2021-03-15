@@ -29,6 +29,7 @@
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/IOThreadPoolExecutor.h>
 #include <folly/futures/Future.h>
+#include <mock/mock_global_task.h>
 #include <relaxed_atomic.h>
 #include <random>
 
@@ -53,12 +54,13 @@ public:
     WorkLoadPolicy& getWorkLoadPolicy() override {
         return policy;
     }
-    void logQTime(TaskId id,
-                  const std::chrono::steady_clock::duration enqTime) override {
+    void logQTime(const GlobalTask& task,
+                  std::string_view threadName,
+                  std::chrono::steady_clock::duration enqTime) override {
     }
-    void logRunTime(
-            TaskId id,
-            const std::chrono::steady_clock::duration runTime) override {
+    void logRunTime(const GlobalTask& task,
+                    std::string_view threadName,
+                    std::chrono::steady_clock::duration runTime) override {
     }
     bool isShutdown() override {
         return false;
@@ -393,6 +395,9 @@ protected:
         pool = std::make_unique<folly::CPUThreadPoolExecutor>(numCPUThreads);
         ioPool = std::make_unique<folly::IOThreadPoolExecutor>(numIOThreads);
 
+        dummyTask =
+                std::make_shared<MockGlobalTask>(taskable, TaskId::ItemPager);
+
         // To match functionality of ep-engine ExecutorPool, register
         // a callback to record task wait/run times.
         // TODO: Make taskable actually record times in histogram
@@ -400,10 +405,18 @@ protected:
         // TODO: Record the timings on a per-Task basis. Folly adds support
         // for this as of
         // https://github.com/facebook/folly/commit/7469e0b55e0d534da34ef6bfe4d0d0068f023cd9
-        auto statsCallback = [taskable = &this->taskable](
+        auto statsCallback = [dummyTask = this->dummyTask,
+                              taskable = &this->taskable](
                                      folly::ThreadPoolExecutor::TaskStats ts) {
-            taskable->logQTime(TaskId::ItemPager, ts.waitTime);
-            taskable->logRunTime(TaskId::ItemPager, ts.runTime);
+            taskable->logQTime(*dummyTask,
+                               folly::getCurrentThreadName().value_or(
+                                       "Unknown PureFollyExecutorBench thread"),
+                               ts.waitTime);
+            taskable->logRunTime(
+                    *dummyTask,
+                    folly::getCurrentThreadName().value_or(
+                            "Unknown PureFollyExecutorBench thread"),
+                    ts.runTime);
         };
         pool->subscribeToTaskStats(statsCallback);
         ioPool->subscribeToTaskStats(statsCallback);
@@ -417,6 +430,9 @@ protected:
     std::unique_ptr<folly::CPUThreadPoolExecutor> pool;
     std::unique_ptr<folly::IOThreadPoolExecutor> ioPool;
     NullTaskable taskable;
+
+    // Dummy Global task used for statsCallback in makePool.
+    ExTask dummyTask;
 
     // Collection of TestTimeout tasks, shared across multiple benchmark
     // threds.

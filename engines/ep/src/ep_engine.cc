@@ -6720,15 +6720,18 @@ WorkLoadPolicy&  EpEngineTaskable::getWorkLoadPolicy() {
     return myEngine->getWorkLoadPolicy();
 }
 
-void EpEngineTaskable::logQTime(
-        TaskId id, const std::chrono::steady_clock::duration enqTime) {
-    myEngine->getKVBucket()->logQTime(id, enqTime);
+void EpEngineTaskable::logQTime(const GlobalTask& task,
+                                std::string_view threadName,
+                                std::chrono::steady_clock::duration enqTime) {
+    myEngine->getKVBucket()->logQTime(task, threadName, enqTime);
 }
 
-void EpEngineTaskable::logRunTime(
-        TaskId id, const std::chrono::steady_clock::duration runTime) {
-    myEngine->getKVBucket()->logRunTime(id, runTime);
+void EpEngineTaskable::logRunTime(const GlobalTask& task,
+                                  std::string_view threadName,
+                                  std::chrono::steady_clock::duration runTime) {
+    myEngine->getKVBucket()->logRunTime(task, threadName, runTime);
 }
+
 bool EpEngineTaskable::isShutdown() {
     return myEngine->getEpStats().isShutdown;
 }
