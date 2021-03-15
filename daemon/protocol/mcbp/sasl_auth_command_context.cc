@@ -135,20 +135,20 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk() {
             username.resize(idx);
         }
 
-        if (cb::rbac::mayAccessBucket(connection.getUser(), username)) {
-            associate_bucket(connection, username.c_str());
+        if (mayAccessBucket(cookie, username)) {
+            associate_bucket(cookie, username.c_str());
             // Auth succeeded but the connection may not be valid for the
             // bucket
             if (connection.isCollectionsSupported() &&
                 !connection.getBucket().supports(
                         cb::engine::Feature::Collections)) {
                 // Move back to the "no bucket" as this is not valid
-                associate_bucket(connection, "");
+                associate_bucket(cookie, "");
             }
         } else {
             // the user don't have access to that bucket, move the
             // connection to the "no bucket"
-            associate_bucket(connection, "");
+            associate_bucket(cookie, "");
         }
     }
 

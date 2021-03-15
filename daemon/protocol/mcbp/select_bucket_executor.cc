@@ -54,34 +54,7 @@ cb::engine_errc select_bucket(Cookie& cookie, const std::string& bucketname) {
 
     auto oldIndex = connection.getBucketIndex();
 
-    try {
-        cb::rbac::createContext(connection.getUser(), bucketname);
-        if (associate_bucket(connection, bucketname.c_str())) {
-            // We found the bucket, great. Test to see if it is valid for the
-            // given connection
-            if (connection.isCollectionsSupported() &&
-                !connection.getBucket().supports(
-                        cb::engine::Feature::Collections)) {
-                // It wasn't valid, try to jump back to the bucket we used to be
-                // associated with..
-                if (oldIndex != connection.getBucketIndex()) {
-                    associate_bucket(connection, all_buckets[oldIndex].name);
-                }
-                cookie.setErrorContext(
-                        "Destination bucket does not support collections");
-                return cb::engine_errc::not_supported;
-            }
-
-            return cb::engine_errc::success;
-        } else {
-            if (oldIndex != connection.getBucketIndex()) {
-                // try to jump back to the bucket we used to be associated
-                // with..
-                associate_bucket(connection, all_buckets[oldIndex].name);
-            }
-            return cb::engine_errc::no_such_key;
-        }
-    } catch (const cb::rbac::Exception&) {
+    if (!mayAccessBucket(cookie, bucketname)) {
         LOG_INFO(
                 "{}: select_bucket failed - No access. "
                 R"({{"cid":"{}/{:x}","connection":"{}","bucket":"{}"}})",
@@ -92,9 +65,37 @@ cb::engine_errc select_bucket(Cookie& cookie, const std::string& bucketname) {
                 bucketname);
         return cb::engine_errc::no_access;
     }
+
+    if (associate_bucket(cookie, bucketname.c_str())) {
+        // We found the bucket, great. Test to see if it is valid for the
+        // given connection
+        if (connection.isCollectionsSupported() &&
+            !connection.getBucket().supports(
+                    cb::engine::Feature::Collections)) {
+            // It wasn't valid, try to jump back to the bucket we used to be
+            // associated with..
+            if (oldIndex != connection.getBucketIndex()) {
+                associate_bucket(cookie, all_buckets[oldIndex].name);
+            }
+            cookie.setErrorContext(
+                    "Destination bucket does not support collections");
+            return cb::engine_errc::not_supported;
+        }
+
+        return cb::engine_errc::success;
+    }
+
+    if (oldIndex != connection.getBucketIndex()) {
+        // try to jump back to the bucket we used to be associated
+        // with..
+        associate_bucket(cookie, all_buckets[oldIndex].name);
+    }
+    return cb::engine_errc::no_such_key;
 }
 
 void select_bucket_executor(Cookie& cookie) {
+    const auto start = std::chrono::steady_clock::now();
+
     const auto key = cookie.getRequest().getKey();
     // Unfortunately we need to copy it over to a std::string as the
     // internal methods expects the string to be terminated with '\0'
@@ -119,10 +120,13 @@ void select_bucket_executor(Cookie& cookie) {
         code = cb::engine_errc::not_supported;
     } else if (bucketname == "@no bucket@") {
         // unselect bucket!
-        associate_bucket(connection, "");
+        associate_bucket(cookie, "");
     } else {
         code = select_bucket(cookie, bucketname);
     }
 
     handle_executor_status(cookie, code);
+    cookie.getTracer().record(cb::tracing::Code::SelectBucket,
+                              start,
+                              std::chrono::steady_clock::now());
 }

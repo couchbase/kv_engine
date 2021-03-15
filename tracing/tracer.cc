@@ -132,6 +132,10 @@ MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Code tracecode) {
         return "request";
     case Code::Execute:
         return "execute";
+    case Code::AssociateBucket:
+        return "associate_bucket";
+    case Code::CreateRbacContext:
+        return "create_rbac_context";
     case Code::SnappyDecompress:
         return "snappy.decompress";
     case Code::JsonValidate:
@@ -156,6 +160,8 @@ MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Code tracecode) {
         return "sync_write.ack_local";
     case Code::SyncWriteAckRemote:
         return "sync_write.ack_remote";
+    case Code::SelectBucket:
+        return "select_bucket";
     }
     return "unknown tracecode";
 }

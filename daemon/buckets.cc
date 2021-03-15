@@ -15,6 +15,8 @@
  *   limitations under the License.
  */
 #include "buckets.h"
+#include "connection.h"
+#include "cookie.h"
 #include "stats.h"
 #include "topkeys.h"
 #include <memcached/dcp.h>
@@ -112,7 +114,6 @@ namespace BucketValidator {
     }
 }
 
-
 std::string to_string(Bucket::State state) {
     switch (state) {
     case Bucket::State::None:
@@ -130,4 +131,14 @@ std::string to_string(Bucket::State state) {
     }
     throw std::invalid_argument("Invalid bucket state: " +
                                 std::to_string(int(state)));
+}
+
+bool mayAccessBucket(Cookie& cookie, const std::string& bucket) {
+    const auto start = std::chrono::steady_clock::now();
+    const auto ret =
+            cb::rbac::mayAccessBucket(cookie.getConnection().getUser(), bucket);
+    cookie.getTracer().record(cb::tracing::Code::CreateRbacContext,
+                              start,
+                              std::chrono::steady_clock::now());
+    return ret;
 }

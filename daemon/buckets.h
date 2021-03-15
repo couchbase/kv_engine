@@ -239,3 +239,5 @@ namespace BucketValidator {
     bool validateBucketType(const BucketType& type, std::string& errors);
 }
 
+/// May the user connected to this cookie access the specified bucket?
+bool mayAccessBucket(Cookie& cookie, const std::string& bucket);

@@ -29,6 +29,10 @@ enum class Code : uint8_t {
     Request,
     /// The time spent during execution on front end thread
     Execute,
+    /// The time spent associating a bucket
+    AssociateBucket,
+    /// Time spent creating the RBAC context
+    CreateRbacContext,
     /// Time spent decompressing Snappy data.
     SnappyDecompress,
     /// Time spent validating if incoming value is JSON.
@@ -54,6 +58,8 @@ enum class Code : uint8_t {
     SyncWriteAckLocal,
     /// Time when a SyncWrite replica ACK is received by the Active.
     SyncWriteAckRemote,
+    /// Time spent in Select Bucket
+    SelectBucket,
 };
 
 using SpanId = std::size_t;

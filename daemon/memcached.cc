@@ -205,6 +205,15 @@ bool associate_bucket(Connection& connection, const char* name) {
     return found;
 }
 
+bool associate_bucket(Cookie& cookie, const char* name) {
+    const auto start = std::chrono::steady_clock::now();
+    const auto ret = associate_bucket(cookie.getConnection(), name);
+    cookie.getTracer().record(cb::tracing::Code::AssociateBucket,
+                              start,
+                              std::chrono::steady_clock::now());
+    return ret;
+}
+
 void associate_initial_bucket(Connection& connection) {
     Bucket &b = all_buckets.at(0);
     {
