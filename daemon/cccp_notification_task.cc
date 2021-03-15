@@ -31,55 +31,6 @@ CccpNotificationTask::~CccpNotificationTask() {
     disconnect_bucket(bucket, nullptr);
 }
 
-class CccpPushNotificationServerEvent : public ServerEvent {
-public:
-    std::string getDescription() const override {
-        return "CccpPushNotificationServerEvent";
-    }
-
-    bool execute(Connection& connection) override {
-        auto& bucket = connection.getBucket();
-        auto payload = bucket.clusterConfiguration.getConfiguration();
-        if (payload.first < connection.getClustermapRevno()) {
-            // Ignore.. we've already sent a newer cluster config
-            return true;
-        }
-
-        connection.setClustermapRevno(payload.first);
-        LOG_INFO("{}: Sending Cluster map revision {}",
-                 connection.getId(),
-                 payload.first);
-
-        std::string name = bucket.name;
-
-        using namespace cb::mcbp;
-        size_t needed = sizeof(Request) + // packet header
-                        4 + // rev number in extdata
-                        name.size() + // the name of the bucket
-                        payload.second->size(); // The actual payload
-        std::string buffer;
-        buffer.resize(needed);
-        RequestBuilder builder(buffer);
-        builder.setMagic(Magic::ServerRequest);
-        builder.setDatatype(cb::mcbp::Datatype::JSON);
-        builder.setOpcode(ServerOpcode::ClustermapChangeNotification);
-
-        // The extras contains the cluster revision number as an uint32_t
-        const uint32_t rev = htonl(payload.first);
-        builder.setExtras(
-                {reinterpret_cast<const uint8_t*>(&rev), sizeof(rev)});
-        builder.setKey(
-                {reinterpret_cast<const uint8_t*>(name.data()), name.size()});
-        builder.setValue(
-                {reinterpret_cast<const uint8_t*>(payload.second->data()),
-                 payload.second->size()});
-
-        // Inject our packet into the stream!
-        connection.copyToOutputStream(builder.getFrame()->getFrame());
-        return true;
-    }
-};
-
 Task::Status CccpNotificationTask::execute() {
     if (bucket.type == BucketType::NoBucket) {
         LOG_INFO("Pushing new global cluster config - revision:[{}]", revision);
@@ -88,46 +39,54 @@ Task::Status CccpNotificationTask::execute() {
                  bucket.name,
                  revision);
     }
-    auto rev = revision;
-
-    // This feels a bit dirty, but the problem is that when we had
-    // the task being created we did hold the FrontEndThread mutex
-    // when we locked the task in order to schedule it.
-    // Now we want to iterate over all of the connections, and in
-    // order to do that we need to lock the libevent thread so that
-    // we can get exclusive access to the connection objects for that
-    // thread.
-    // No one is using this task so we can safely release the lock
-    getMutex().unlock();
     try {
-        iterate_all_connections([rev](Connection& connection) -> void {
+        iterate_all_connections([](Connection& connection) -> void {
             if (!connection.isClustermapChangeNotificationSupported()) {
                 // The client hasn't asked to be notified
                 return;
             }
 
-            if (rev <= connection.getClustermapRevno()) {
-                LOG_INFO("{}: Client is using {}, no need to push {}",
-                         connection.getId(),
-                         connection.getClustermapRevno(),
-                         rev);
+            auto& b = connection.getBucket();
+            auto payload = b.clusterConfiguration.getConfiguration();
+            if (payload.first < connection.getClustermapRevno()) {
+                // The client has a newer revision map, ignore this one
                 return;
             }
 
-            LOG_INFO("{}: Client is using {}. Push {}",
+            connection.setClustermapRevno(payload.first);
+            LOG_INFO("{}: Sending Cluster map revision {}",
                      connection.getId(),
-                     connection.getClustermapRevno(),
-                     rev);
+                     payload.first);
 
-            connection.enqueueServerEvent(
-                    std::make_unique<CccpPushNotificationServerEvent>());
-            connection.signalIfIdle();
+            std::string name = b.name;
+            size_t needed = sizeof(cb::mcbp::Request) + // packet header
+                            4 + // rev number in extdata
+                            name.size() + // the name of the bucket
+                            payload.second->size(); // The actual payload
+            std::string buffer;
+            buffer.resize(needed);
+            cb::mcbp::RequestBuilder builder(buffer);
+            builder.setMagic(cb::mcbp::Magic::ServerRequest);
+            builder.setDatatype(cb::mcbp::Datatype::JSON);
+            builder.setOpcode(
+                    cb::mcbp::ServerOpcode::ClustermapChangeNotification);
+
+            // The extras contains the cluster revision number as an uint32_t
+            const uint32_t rev = htonl(payload.first);
+            builder.setExtras(
+                    {reinterpret_cast<const uint8_t*>(&rev), sizeof(rev)});
+            builder.setKey({reinterpret_cast<const uint8_t*>(name.data()),
+                            name.size()});
+            builder.setValue(
+                    {reinterpret_cast<const uint8_t*>(payload.second->data()),
+                     payload.second->size()});
+
+            // Inject our packet into the stream!
+            connection.copyToOutputStream(builder.getFrame()->getFrame());
         });
     } catch (const std::exception& e) {
         LOG_WARNING("CccpNotificationTask::execute: received exception: {}",
                     e.what());
     }
-    getMutex().lock();
-
     return Status::Finished;
 }

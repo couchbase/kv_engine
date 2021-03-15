@@ -99,6 +99,9 @@ class ExecutorPool;
 }
 extern std::unique_ptr<cb::ExecutorPool> executorPool;
 
+/// Iterate over all of the connections and call the provided callback in
+/// the context of the front end thread it is bound to. This means
+/// that the function cannot be called in one of the front end context
 void iterate_all_connections(std::function<void(Connection&)> callback);
 
 void start_stdin_listener(std::function<void()> function);

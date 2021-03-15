@@ -21,15 +21,6 @@ StatsTaskConnectionStats::StatsTaskConnectionStats(Cookie& cookie, int64_t fd)
 }
 
 Task::Status StatsTaskConnectionStats::execute() {
-    // This feels a bit dirty, but the problem is that when we had
-    // the task being created we did hold the FrontEndThread mutex
-    // when we locked the task in order to schedule it.
-    // Now we want to iterate over all of the connections, and in
-    // order to do that we need to lock the libevent thread so that
-    // we can get exclusive access to the connection objects for that
-    // thread.
-    // No one is using this task so we can safely release the lock
-    getMutex().unlock();
     try {
         iterate_all_connections([this](Connection& c) -> void {
             if (fd == -1 || c.getId() == fd) {
@@ -46,7 +37,6 @@ Task::Status StatsTaskConnectionStats::execute() {
         cookie.setErrorContext("An exception occurred");
         command_error = cb::engine_errc::failed;
     }
-    getMutex().lock();
 
     return Task::Status::Finished;
 }

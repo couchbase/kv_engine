@@ -1484,8 +1484,7 @@ bool Connection::signalIfIdle() {
     }
 
     if (state != State::immediate_close) {
-        thread.notification.push(this);
-        notify_thread(thread);
+        triggerCallback();
         return true;
     }
     return false;

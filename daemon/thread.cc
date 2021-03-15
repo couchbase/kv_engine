@@ -123,11 +123,13 @@ static void create_worker(void (*func)(void*),
 
 void iterate_all_connections(std::function<void(Connection&)> callback) {
     for (auto& thr : threads) {
-        TRACE_LOCKGUARD_TIMED(thr.mutex,
-                              "mutex",
-                              "iterate_all_connections::threadLock",
-                              SlowMutexThreshold);
-        iterate_thread_connections(&thr, callback);
+        thr.eventBase.runInEventBaseThreadAndWait([&callback, &thr]() {
+            TRACE_LOCKGUARD_TIMED(thr.mutex,
+                                  "mutex",
+                                  "iterate_all_connections::threadLock",
+                                  SlowMutexThreshold);
+            iterate_thread_connections(&thr, callback);
+        });
     }
 }
 

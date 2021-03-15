@@ -47,10 +47,9 @@ Connection* conn_new(SOCKET sfd,
 void conn_destroy(Connection* c);
 
 /**
- * Signal all of the idle clients in the system.
- *
- * Due to the locking model we need to have the FrontEndThread locked
- * when calling the method.
+ * Signal all of the idle clients bound to the specified front
+ * end thread (and the function should _ONLY_ be called from the
+ * context of that running thread (via eventBase.runInThread())
  *
  * @param me The connections to inspect must be bound to this thread
  * @return The number of clients connections bound to this thread
