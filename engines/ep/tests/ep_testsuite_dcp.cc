@@ -1995,7 +1995,7 @@ static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h) {
     // Should start at checkpoint_id 2
     const auto initial_ckpt_id =
             get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint");
-    checkeq(2, initial_ckpt_id, "Expected to start at checkpoint ID 2");
+    checkeq(1, initial_ckpt_id, "Expected to start at checkpoint ID 1");
 
     // Create two 'full' checkpoints by storing exactly 2 x 'chk_max_items'
     // into the VBucket.
@@ -3114,7 +3114,7 @@ static test_result test_dcp_cursor_dropping_backfill(EngineIface* h) {
 
     wait_for_flusher_to_settle(h);
     verify_curr_items(h, num_items, "Wrong amount of items");
-    wait_for_stat_to_be_gte(h, "vb_0:open_checkpoint_id", 3, "checkpoint");
+    wait_for_stat_to_be_gte(h, "vb_0:open_checkpoint_id", 2, "checkpoint");
 
     // Wait for something to be removed from the checkpoint manager to ensure
     // that when we create our stream we will start backfilling from disk. If we
@@ -6303,7 +6303,7 @@ static enum test_result test_dcp_last_items_purged(EngineIface* h) {
             get_int_stat(h, "vb_0:purge_seqno", "vbucket-seqno"),
             "purge_seqno didn't match expected value");
 
-    wait_for_stat_to_be(h, "vb_0:open_checkpoint_id", 3, "checkpoint");
+    wait_for_stat_to_be(h, "vb_0:open_checkpoint_id", 2, "checkpoint");
     wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
 
     /* Create a DCP stream */
@@ -6383,7 +6383,7 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h) {
             get_int_stat(h, "vb_0:purge_seqno", "vbucket-seqno"),
             "purge_seqno didn't match expected value");
 
-    wait_for_stat_to_be(h, "vb_0:open_checkpoint_id", 3, "checkpoint");
+    wait_for_stat_to_be(h, "vb_0:open_checkpoint_id", 2, "checkpoint");
     wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
 
     /* DCP stream, expect a rollback to seq 0 */

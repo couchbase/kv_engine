@@ -126,7 +126,7 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
     auto& manager =
             *(engine->getKVBucket()->getVBucket(vbid)->checkpointManager);
 
-    EXPECT_EQ(0, manager.getOpenCheckpointId());
+    EXPECT_EQ(1, manager.getOpenCheckpointId());
 
     // Send a snapshotMarker
     consumer->snapshotMarker(1 /*opaque*/,
@@ -240,7 +240,7 @@ TEST_P(STDcpTest, SnapshotsAndNoData) {
     auto& manager =
             *(engine->getKVBucket()->getVBucket(vbid)->checkpointManager);
 
-    EXPECT_EQ(0, manager.getOpenCheckpointId());
+    EXPECT_EQ(1, manager.getOpenCheckpointId());
 
     // Send a snapshotMarker to move the vbucket into a backfilling state
     consumer->snapshotMarker(1 /*opaque*/,

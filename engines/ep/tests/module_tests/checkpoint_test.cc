@@ -1197,10 +1197,10 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     *ckptMgr);
 
-    // We must have only 1 open checkpoint with id=0 (set by setVBucketState)
+    // We must have only 1 initial open checkpoint with id=1
     EXPECT_EQ(ckptList.size(), 1);
     EXPECT_EQ(ckptList.back()->getState(), checkpoint_state::CHECKPOINT_OPEN);
-    EXPECT_EQ(ckptList.back()->getId(), 0);
+    EXPECT_EQ(ckptList.back()->getId(), 1);
     // We must have only one cursor (the persistence cursor), as there is no
     // DCP producer for vbid
     EXPECT_EQ(ckptMgr->getNumOfCursors(), 1);
@@ -2411,9 +2411,6 @@ TEST_P(CheckpointTest, InitialSnapshotDoesDoubleRefCheckpoint) {
 
     auto& cm = *this->manager;
     const auto& checkpointList = cm.getCheckpointList();
-
-    // done by KVBucket::setVBucketState
-    cm.setOpenCheckpointId(0);
 
     ASSERT_EQ(1, checkpointList.size());
     ASSERT_EQ(1, checkpointList.front()->getNumCursorsInCheckpoint());

@@ -1104,12 +1104,6 @@ void Warmup::createVBuckets(uint16_t shardId) {
             warmedUpVbuckets.insert(std::make_pair(vbid.get(), vb));
         }
 
-        // Initial checkpoint for an active vbucket has an ID of 2 (see
-        // VBucket::setState which does the same when a new vbucket is created)
-        if (vbs.transition.state == vbucket_state_active) {
-            vb->checkpointManager->setOpenCheckpointId(2);
-        }
-
         // Pass the max deleted seqno for each vbucket.
         vb->ht.setMaxDeletedRevSeqno(vbs.maxDeletedSeqno);
 

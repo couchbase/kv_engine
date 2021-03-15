@@ -155,8 +155,6 @@ public:
 
     uint64_t getLastClosedCheckpointId();
 
-    void setOpenCheckpointId(uint64_t id);
-
     /**
      * Remove closed unreferenced checkpoints and return them through the
      * vector.
@@ -537,8 +535,6 @@ protected:
 
     uint64_t getLastClosedCheckpointId_UNLOCKED(const LockHolder& lh);
 
-    void setOpenCheckpointId_UNLOCKED(const LockHolder& lh, uint64_t id);
-
     // Helper method for queueing methods - update the global and per-VBucket
     // stats after queueing a new item to a checkpoint.
     // Must be called with queueLock held (LockHolder passed in as argument to
@@ -645,12 +641,10 @@ protected:
      * high memory usage.
      * @param timeBound is to indicate if time bound should be considered in creating a new
      * checkpoint.
-     * @return the previous open checkpoint Id if we create the new open checkpoint. Otherwise
-     * return 0.
      */
-    uint64_t checkOpenCheckpoint_UNLOCKED(const LockHolder& lh,
-                                          bool forceCreation,
-                                          bool timeBound);
+    void checkOpenCheckpoint_UNLOCKED(const LockHolder& lh,
+                                      bool forceCreation,
+                                      bool timeBound);
 
     bool isLastMutationItemInCheckpoint(CheckpointCursor &cursor);
 

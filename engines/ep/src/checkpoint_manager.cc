@@ -94,43 +94,6 @@ uint64_t CheckpointManager::getLastClosedCheckpointId() {
     return getLastClosedCheckpointId_UNLOCKED(lh);
 }
 
-void CheckpointManager::setOpenCheckpointId(uint64_t id) {
-    LockHolder lh(queueLock);
-    setOpenCheckpointId_UNLOCKED(lh, id);
-}
-
-void CheckpointManager::setOpenCheckpointId_UNLOCKED(const LockHolder& lh,
-                                                     uint64_t id) {
-    auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
-
-    // Update the checkpoint_start item with the new Id.
-    const auto ckpt_start = ++(openCkpt.begin());
-    (*ckpt_start)->setRevSeqno(id);
-    if (openCkpt.getId() == 0) {
-        (*ckpt_start)->setBySeqno(lastBySeqno + 1);
-        openCkpt.setSnapshotStartSeqno(lastBySeqno);
-        openCkpt.setSnapshotEndSeqno(lastBySeqno, maxVisibleSeqno);
-    }
-
-    // Update any set_vbstate items to have the same seqno as the
-    // checkpoint_start.
-    const auto ckpt_start_seqno = (*ckpt_start)->getBySeqno();
-    for (auto item = std::next(ckpt_start); item != openCkpt.end(); item++) {
-        if ((*item)->getOperation() == queue_op::set_vbucket_state) {
-            (*item)->setBySeqno(ckpt_start_seqno);
-        }
-    }
-
-    openCkpt.setId(id);
-    EP_LOG_DEBUG(
-            "Set the current open checkpoint id to {} for {} bySeqno is "
-            "{}, max is {}",
-            id,
-            vbucketId,
-            (*ckpt_start)->getBySeqno(),
-            lastBySeqno);
-}
-
 Checkpoint& CheckpointManager::getOpenCheckpoint_UNLOCKED(
         const LockHolder&) const {
     // During its lifetime, the checkpointList can only be in one of the
@@ -163,6 +126,8 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(
         uint64_t visibleSnapEnd,
         std::optional<uint64_t> highCompletedSeqno,
         CheckpointType checkpointType) {
+    Expects(id > 0);
+
     // First, we must close the open checkpoint.
     auto& oldOpenCkpt = *checkpointList.back();
     EP_LOG_DEBUG(
@@ -496,7 +461,6 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
     CheckpointList unrefCheckpointList;
     {
         LockHolder lh(queueLock);
-        uint64_t oldCheckpointId = 0;
         bool canCreateNewCheckpoint = false;
         if (checkpointList.size() < checkpointConfig.getMaxCheckpoints() ||
             (checkpointList.size() == checkpointConfig.getMaxCheckpoints() &&
@@ -509,10 +473,11 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
                     isCheckpointCreationForHighMemUsage_UNLOCKED(lh, vbucket);
             // Check if this master active vbucket needs to create a new open
             // checkpoint.
-            oldCheckpointId =
-                    checkOpenCheckpoint_UNLOCKED(lh, forceCreation, true);
+            const auto oldCkptId = getOpenCheckpointId_UNLOCKED(lh);
+            checkOpenCheckpoint_UNLOCKED(lh, forceCreation, true);
+            newOpenCheckpointCreated =
+                    getOpenCheckpointId_UNLOCKED(lh) > oldCkptId;
         }
-        newOpenCheckpointCreated = oldCheckpointId > 0;
 
         if (checkpointConfig.canKeepClosedCheckpoints()) {
             auto memoryUsed =
@@ -1211,7 +1176,7 @@ void CheckpointManager::clear_UNLOCKED(vbucket_state_t vbState, uint64_t seqno) 
     numItems = 0;
     lastBySeqno.reset(seqno);
     maxVisibleSeqno.reset(seqno);
-    addOpenCheckpoint(vbState == vbucket_state_active ? 1 : 0 /* id */,
+    addOpenCheckpoint(1 /*id*/,
                       lastBySeqno,
                       lastBySeqno,
                       maxVisibleSeqno,
@@ -1264,11 +1229,9 @@ size_t CheckpointManager::getNumOpenChkItems() const {
     return getOpenCheckpoint_UNLOCKED(lh).getNumItems();
 }
 
-uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(const LockHolder& lh,
-                                                         bool forceCreation,
-                                                         bool timeBound) {
-    int checkpoint_id = 0;
-
+void CheckpointManager::checkOpenCheckpoint_UNLOCKED(const LockHolder& lh,
+                                                     bool forceCreation,
+                                                     bool timeBound) {
     const auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
 
     timeBound = timeBound && (ep_real_time() - openCkpt.getCreationTime()) >=
@@ -1284,10 +1247,8 @@ uint64_t CheckpointManager::checkOpenCheckpoint_UNLOCKED(const LockHolder& lh,
         (checkpointConfig.isItemNumBasedNewCheckpoint() &&
          openCkpt.getNumItems() >= checkpointConfig.getCheckpointMaxItems()) ||
         (openCkpt.getNumItems() > 0 && timeBound)) {
-        checkpoint_id = openCkpt.getId();
-        addNewCheckpoint_UNLOCKED(checkpoint_id + 1);
+        addNewCheckpoint_UNLOCKED(openCkpt.getId() + 1);
     }
-    return checkpoint_id;
 }
 
 size_t CheckpointManager::getNumItemsForCursor(
@@ -1346,13 +1307,14 @@ void CheckpointManager::createSnapshot(
     if (checkpointType == CheckpointType::Disk) {
         Expects(highCompletedSeqno.has_value());
     }
+
     LockHolder lh(queueLock);
+
     auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
     const auto openCkptId = openCkpt.getId();
+    Expects(openCkptId > 0);
+
     if (openCkpt.getNumItems() == 0) {
-        if (openCkptId == 0) {
-            setOpenCheckpointId_UNLOCKED(lh, openCkptId + 1);
-        }
         openCkpt.setSnapshotStartSeqno(snapStartSeqno);
         openCkpt.setSnapshotEndSeqno(snapEndSeqno, visibleSnapEnd);
         openCkpt.setCheckpointType(checkpointType);

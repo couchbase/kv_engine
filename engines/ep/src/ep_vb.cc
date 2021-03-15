@@ -1049,7 +1049,6 @@ void EPVBucket::postProcessRollback(const RollbackResult& rollbackResult,
     setPersistedSnapshot(
             {rollbackResult.snapStartSeqno, rollbackResult.snapEndSeqno});
     incrRollbackItemCount(prevHighSeqno - rollbackResult.highSeqno);
-    checkpointManager->setOpenCheckpointId(1);
     setReceivingInitialDiskSnapshot(false);
 
     auto& kvstore = *bucket.getRWUnderlying(getId());

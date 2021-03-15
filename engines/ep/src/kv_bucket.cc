@@ -1038,10 +1038,6 @@ cb::engine_errc KVBucket::createVBucket_UNLOCKED(
                             config.getBfilterFpProb());
     }
 
-    // The first checkpoint for active vbucket should start with id 2.
-    uint64_t start_chk_id = (to == vbucket_state_active) ? 2 : 0;
-    newvb->checkpointManager->setOpenCheckpointId(start_chk_id);
-
     // Before adding the VB to the map, notify KVStore of the create
     vbMap.getShardByVbId(vbid)->forEachKVStore(
             [vbid](KVStore* kvs) { kvs->prepareToCreate(vbid); });

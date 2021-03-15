@@ -1007,12 +1007,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
         } else {
             // Case: receiving any type of snapshot (Disk/Memory).
 
-            // @todo: The check on CheckpointId=0 is legacy from when that could
-            //   really happen (TAP). Currently CheckpointId is a positive
-            //   monotonic sequence starting from 1, so the check can be
-            //   removed. Deferring to a dedicated change.
-            if (marker->getFlags() & MARKER_FLAG_CHK ||
-                vb->checkpointManager->getOpenCheckpointId() == 0) {
+            if (marker->getFlags() & MARKER_FLAG_CHK) {
                 ckptMgr.createSnapshot(cur_snapshot_start.load(),
                                        cur_snapshot_end.load(),
                                        hcs,

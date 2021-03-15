@@ -846,7 +846,7 @@ TEST_P(RollbackTest, RollbackUnpersistedItemsFromCheckpointsOfDifferentType) {
     // Put two unpersisted items into the checkpoint manager in two different
     // checkpoints of different type
     ASSERT_FALSE(vb->checkpointManager->isOpenCheckpointDisk());
-    ASSERT_EQ(2, vb->checkpointManager->getOpenCheckpointId());
+    ASSERT_EQ(1, vb->checkpointManager->getOpenCheckpointId());
     store_item(vbid, makeStoredDocKey("key_memory"), "not rolled back");
 
     vb->checkpointManager->createSnapshot(vb->getHighSeqno() + 1,
@@ -855,7 +855,7 @@ TEST_P(RollbackTest, RollbackUnpersistedItemsFromCheckpointsOfDifferentType) {
                                           CheckpointType::Disk,
                                           vb->getHighSeqno() + 1);
     ASSERT_TRUE(vb->checkpointManager->isOpenCheckpointDisk());
-    ASSERT_EQ(3, vb->checkpointManager->getOpenCheckpointId());
+    ASSERT_EQ(2, vb->checkpointManager->getOpenCheckpointId());
     store_item(vbid, makeStoredDocKey("key_disk"), "not rolled back");
 
     // Flip to replica and rollback

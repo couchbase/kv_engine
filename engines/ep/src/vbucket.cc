@@ -532,11 +532,6 @@ void VBucket::setState_UNLOCKED(
         }
     }
 
-    if (to == vbucket_state_active &&
-        checkpointManager->getOpenCheckpointId() < 2) {
-        checkpointManager->setOpenCheckpointId(2);
-    }
-
     EP_LOG_INFO(
             "VBucket::setState: transitioning {} with high seqno:{} from:{} "
             "to:{}{}",

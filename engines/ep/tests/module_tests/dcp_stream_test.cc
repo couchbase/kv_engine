@@ -1946,7 +1946,7 @@ TEST_P(SingleThreadedActiveStreamTest, MB36146) {
         EXPECT_EQ(cb::engine_errc::success,
                   vb->set(item, cookie, *engine, {}, cHandle));
     }
-    EXPECT_EQ(3, ckptMgr.createNewCheckpoint());
+    EXPECT_EQ(2, ckptMgr.createNewCheckpoint());
 
     if (persistent()) {
         flush_vbucket_to_disk(vbid);
@@ -1980,7 +1980,7 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSkipsScanIfStreamInWrongState) {
         EXPECT_EQ(cb::engine_errc::success,
                   vb->set(item, cookie, *engine, {}, cHandle));
     }
-    EXPECT_EQ(3, ckptMgr.createNewCheckpoint());
+    EXPECT_EQ(2, ckptMgr.createNewCheckpoint());
 
     if (persistent()) {
         flush_vbucket_to_disk(vbid);

@@ -30,32 +30,32 @@
 
 static enum test_result test_create_new_checkpoint(EngineIface* h) {
     // Inserting more than 5 items (see testcase config) will cause a new open
-    // checkpoint with id 2 to be created.
+    // checkpoint to be created.
 
     write_items(h, 5);
     wait_for_flusher_to_settle(h);
 
-    checkeq(1,
+    checkeq(0,
             get_int_stat(h, "vb_0:last_closed_checkpoint_id", "checkpoint 0"),
-            "Last closed checkpoint Id for VB 0 should still be 1 after "
-            "storing 50 items");
+            "Last closed checkpoint Id for VB 0 should still be 0 after "
+            "storing 5 items");
 
     // Store 1 more - should push it over to the next checkpoint.
     write_items(h, 1, 5);
     wait_for_flusher_to_settle(h);
 
-    checkeq(2,
+    checkeq(1,
             get_int_stat(h, "vb_0:last_closed_checkpoint_id", "checkpoint 0"),
-            "Last closed checkpoint Id for VB 0 should increase to 2 after "
-            "storing 51 items");
+            "Last closed checkpoint Id for VB 0 should increase to 1 after "
+            "storing 6 items");
 
     createCheckpoint(h);
     checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Expected success response from creating a new checkpoint");
 
-    checkeq(3,
+    checkeq(2,
             get_int_stat(h, "vb_0:last_closed_checkpoint_id", "checkpoint 0"),
-            "Last closed checkpoint Id for VB 0 should be 3");
+            "Last closed checkpoint Id for VB 0 should be 2");
 
     return SUCCESS;
 }
@@ -100,7 +100,7 @@ static enum test_result test_checkpoint_create(EngineIface* h) {
                 store(h, nullptr, StoreSemantics::Set, key, "value"),
                 "Failed to store an item.");
     }
-    checkeq(3,
+    checkeq(2,
             get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint"),
             "New checkpoint wasn't create after 5001 item creates");
     checkeq(1,
