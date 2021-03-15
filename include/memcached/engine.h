@@ -190,6 +190,12 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
         // ignored
     }
 
+    // Set the number of storage threads
+    virtual void set_num_storage_threads(
+            ThreadPoolConfig::StorageThreadCount num) {
+        // ignored
+    }
+
     /**
      * Request the engine to cancel all of the ongoing requests which
      * may have cookies in an ewouldblock state.

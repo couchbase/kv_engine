@@ -582,16 +582,11 @@ static void settings_init() {
             });
     settings.addChangeListener(
             "num_storage_threads", [](const std::string&, Settings& s) -> void {
-                auto val = s.getNumStorageThreads();
+                auto val = ThreadPoolConfig::StorageThreadCount(
+                        s.getNumStorageThreads());
                 bucketsForEach(
                         [val](Bucket& b, void*) -> bool {
-                            auto* serverCoreApi = dynamic_cast<ServerCoreApi*>(
-                                    get_server_api()->core);
-                            if (!serverCoreApi) {
-                                throw std::runtime_error(
-                                        "Server core API is unexpected type");
-                            }
-                            serverCoreApi->updateStorageThreads(val);
+                            b.getEngine().set_num_storage_threads(val);
                             return true;
                         },
                         nullptr);
@@ -919,15 +914,15 @@ void CreateBucketThread::create() {
     if (result == cb::engine_errc::success) {
         // We don't pass the storage threads down in the config like we do for
         // readers and writers because that evolved over time to be duplicated
-        // in both configs. Instead, just invoke the callback that the engine
-        // should have set up.
+        // in both configs. Instead, we just inform the engine of the number
+        // of threads.
         auto* serverCoreApi =
                 dynamic_cast<ServerCoreApi*>(get_server_api()->core);
         if (!serverCoreApi) {
             throw std::runtime_error("Server core API is unexpected type");
         }
-        serverCoreApi->updateStorageThreads(
-                Settings::instance().getNumStorageThreads());
+        engine.set_num_storage_threads(ThreadPoolConfig::StorageThreadCount(
+                Settings::instance().getNumStorageThreads()));
 
         {
             std::lock_guard<std::mutex> guard(bucket.mutex);

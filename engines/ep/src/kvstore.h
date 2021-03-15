@@ -23,6 +23,7 @@
 #include "kvstore_fwd.h"
 
 #include <memcached/engine_common.h>
+#include <memcached/thread_pool_config.h>
 #include <utilities/hdrhistogram.h>
 
 #include <relaxed_atomic.h>
@@ -1180,6 +1181,13 @@ public:
      * @return Non derived class specific config
      */
     virtual const KVStoreConfig& getConfig() const = 0;
+
+    /**
+     * Set the number of storage threads based on configuration settings
+     */
+    virtual void setStorageThreads(ThreadPoolConfig::StorageThreadCount num) {
+        // ignored by default
+    }
 
     /**
      * Test-only. See definition of postFlushHook for details.

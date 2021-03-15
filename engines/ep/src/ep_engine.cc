@@ -6810,13 +6810,16 @@ void EventuallyPersistentEngine::set_num_writer_threads(
     }
 }
 
-void EventuallyPersistentEngine::disconnect(gsl::not_null<const void*> cookie) {
-    acquireEngine(this)->handleDisconnect(cookie);
+void EventuallyPersistentEngine::set_num_storage_threads(
+        ThreadPoolConfig::StorageThreadCount num) {
+    auto* epBucket = dynamic_cast<EPBucket*>(getKVBucket());
+    if (epBucket) {
+        epBucket->getOneROUnderlying()->setStorageThreads(num);
+    }
 }
 
-void EventuallyPersistentEngine::setStorageThreadCallback(
-        std::function<void(size_t)> cb) {
-    getServerApi()->core->setStorageThreadCallback(cb);
+void EventuallyPersistentEngine::disconnect(gsl::not_null<const void*> cookie) {
+    acquireEngine(this)->handleDisconnect(cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::compactDatabase(

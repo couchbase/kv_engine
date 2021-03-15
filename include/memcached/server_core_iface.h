@@ -82,9 +82,4 @@ struct ServerCoreIface {
     virtual size_t getMaxEngineFileDescriptors() = 0;
 
     virtual bool isCollectionsEnabled() const = 0;
-
-    /**
-     * Set a function to be called when number of storage threads changes
-     */
-    virtual void setStorageThreadCallback(std::function<void(size_t)> cb) = 0;
 };

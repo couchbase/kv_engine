@@ -106,7 +106,8 @@ void MagmaKVStoreConfig::setMagmaFragmentationPercentage(size_t value) {
     }
 }
 
-void MagmaKVStoreConfig::setStorageThreads(size_t value) {
+void MagmaKVStoreConfig::setStorageThreads(
+        ThreadPoolConfig::StorageThreadCount value) {
     storageThreads.store(value);
     if (store) {
         store->calculateAndSetMagmaThreads();

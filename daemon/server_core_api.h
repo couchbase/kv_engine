@@ -59,16 +59,4 @@ struct ServerCoreApi : public ServerCoreIface {
     bool isCollectionsEnabled() const override {
         return Settings::instance().isCollectionsEnabled();
     }
-
-    void setStorageThreadCallback(std::function<void(size_t)> cb) override {
-        storageThreadCallback = cb;
-    }
-
-    void updateStorageThreads(size_t num) {
-        if (storageThreadCallback) {
-            storageThreadCallback(num);
-        }
-    }
-
-    std::function<void(size_t)> storageThreadCallback;
 };

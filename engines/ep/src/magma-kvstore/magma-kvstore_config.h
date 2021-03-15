@@ -19,6 +19,8 @@
 
 #include "kvstore_config.h"
 #include "libmagma/magma.h"
+
+#include <memcached/thread_pool_config.h>
 #include <chrono>
 
 using namespace std::chrono_literals;
@@ -96,9 +98,9 @@ public:
     }
     void setMagmaFragmentationPercentage(size_t value);
 
-    void setStorageThreads(size_t value);
+    void setStorageThreads(ThreadPoolConfig::StorageThreadCount value);
 
-    size_t getStorageThreads() const {
+    ThreadPoolConfig::StorageThreadCount getStorageThreads() const {
         return storageThreads.load();
     }
 
@@ -242,7 +244,8 @@ private:
      * threads. This value exists in the memcached config, not the bucket
      * config, so we have to default the value here for unit tests.
      */
-    std::atomic<size_t> storageThreads{0};
+    std::atomic<ThreadPoolConfig::StorageThreadCount> storageThreads{
+            ThreadPoolConfig::StorageThreadCount::Default};
 
     /**
      * If the number of storage threads = 0, then we set the number

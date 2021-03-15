@@ -626,6 +626,8 @@ public:
 
     void setMagmaFragmentationPercentage(size_t value);
 
+    void setStorageThreads(ThreadPoolConfig::StorageThreadCount num) override;
+
     /**
      * Set the number of magma flushers and compactors based on configuration
      * settings of number of backend threads, number of writer threads, and

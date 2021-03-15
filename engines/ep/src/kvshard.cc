@@ -57,12 +57,6 @@ KVShard::KVShard(EventuallyPersistentEngine& engine, id_type id)
         kvConfig = std::make_unique<MagmaKVStoreConfig>(config, numShards, id);
         auto stores = KVStoreFactory::create(*kvConfig);
         rwStore = std::move(stores.rw);
-
-        engine.setStorageThreadCallback([this](size_t num) {
-            auto* magmaConfig =
-                    dynamic_cast<MagmaKVStoreConfig*>(kvConfig.get());
-            magmaConfig->setStorageThreads(num);
-        });
     }
 #endif
 #ifdef EP_USE_ROCKSDB

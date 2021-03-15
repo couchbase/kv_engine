@@ -101,6 +101,8 @@ public:
 
     void set_num_reader_threads(ThreadPoolConfig::ThreadCount num) override;
     void set_num_writer_threads(ThreadPoolConfig::ThreadCount num) override;
+    void set_num_storage_threads(
+            ThreadPoolConfig::StorageThreadCount num) override;
 
     std::pair<cb::unique_item_ptr, item_info> allocateItem(
             gsl::not_null<const void*> cookie,
@@ -867,8 +869,6 @@ public:
      * @return the privilege revision, which changes when privileges do.
      */
     uint32_t getPrivilegeRevision(const void* cookie) const;
-
-    void setStorageThreadCallback(std::function<void(size_t)> cb);
 
     cb::engine_errc compactDatabase(gsl::not_null<const void*> cookie,
                                     Vbid vbid,

@@ -81,9 +81,6 @@ public:
     bool isCollectionsEnabled() const override {
         return true;
     }
-
-    void setStorageThreadCallback(std::function<void(size_t)> cb) override {
-    }
 };
 
 int main(int argc, char **argv) {

@@ -2732,16 +2732,23 @@ void MagmaKVStore::setMagmaFragmentationPercentage(size_t value) {
     magma->SetFragmentationRatio(value / 100.0);
 }
 
+void MagmaKVStore::setStorageThreads(ThreadPoolConfig::StorageThreadCount num) {
+    configuration.setStorageThreads(num);
+    calculateAndSetMagmaThreads();
+}
+
 void MagmaKVStore::calculateAndSetMagmaThreads() {
     auto backendThreads = configuration.getStorageThreads();
-    if (backendThreads == 0) {
-        backendThreads = configuration.getMagmaMaxDefaultStorageThreads();
+    auto rawBackendThreads =
+            static_cast<int>(configuration.getStorageThreads());
+    if (backendThreads == ThreadPoolConfig::StorageThreadCount::Default) {
+        rawBackendThreads = configuration.getMagmaMaxDefaultStorageThreads();
     }
 
     auto flusherRatio =
             static_cast<float>(configuration.getMagmaFlusherPercentage()) / 100;
-    auto flushers = std::ceil(backendThreads * flusherRatio);
-    auto compactors = backendThreads - flushers;
+    auto flushers = std::ceil(rawBackendThreads * flusherRatio);
+    auto compactors = rawBackendThreads - flushers;
 
     if (flushers <= 0) {
         logger->warn(
@@ -2750,7 +2757,7 @@ void MagmaKVStore::calculateAndSetMagmaThreads() {
                 "StorageThreads:{} "
                 "WriterThreads:{} "
                 "Setting flushers=1",
-                configuration.getStorageThreads(),
+                rawBackendThreads,
                 configuration.getNumWriterThreads());
         flushers = 1;
     }
@@ -2762,7 +2769,7 @@ void MagmaKVStore::calculateAndSetMagmaThreads() {
                 "StorageThreads:{} "
                 "WriterThreads:{} "
                 "Setting compactors=1",
-                configuration.getStorageThreads(),
+                rawBackendThreads,
                 configuration.getNumWriterThreads());
         compactors = 1;
     }

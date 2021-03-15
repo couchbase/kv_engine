@@ -158,8 +158,6 @@ struct MockServerCoreApi : public ServerCoreIface {
     bool isCollectionsEnabled() const override {
         return true;
     }
-    void setStorageThreadCallback(std::function<void(size_t)> cb) override {
-    }
 };
 
 struct MockServerLogApi : public ServerLogIface {
