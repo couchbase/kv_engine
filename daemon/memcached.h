@@ -89,9 +89,6 @@ void shutdown_server();
 bool associate_bucket(Connection& connection, const char* name);
 void disassociate_bucket(Connection& connection);
 
-void disable_listen();
-bool is_listen_disabled();
-
 /**
  * The executor pool used to pick up the result for requests spawn by the
  * client io threads and dispatched over to a background thread (in order
