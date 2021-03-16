@@ -1911,9 +1911,10 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
         endSeqno = vbState->highSeqno;
 
         EP_LOG_INFO(
-                "EPBucket::loadPreparedSyncWrites: current snapshot is "
+                "EPBucket::loadPreparedSyncWrites: {} current snapshot is "
                 "disk type and incomplete so loading all prepares from: "
                 "{} to {}",
+                vb.getId(),
                 startSeqno,
                 endSeqno);
     }
