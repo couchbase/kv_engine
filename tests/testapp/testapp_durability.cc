@@ -28,7 +28,11 @@ class DurabilityTest : public TestappClientTest {
 protected:
     void SetUp() override {
         TestappTest::SetUp();
+        sock = connect_to_server_plain(port);
+        ASSERT_NE(INVALID_SOCKET, sock);
         store_document(name, "123");
+        cb::net::closesocket(sock);
+        sock = INVALID_SOCKET;
     }
 
     /**
@@ -221,7 +225,10 @@ protected:
     void SetUp() override {
         DurabilityTest::SetUp();
         // Store a JSON document instead
+        sock = connect_to_server_plain(port);
         store_document(name, R"({"tag":"value","array":[0,1,2],"counter":0})");
+        cb::net::closesocket(sock);
+        sock = INVALID_SOCKET;
     }
 
     /**

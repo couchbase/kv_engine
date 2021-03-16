@@ -56,6 +56,9 @@ TEST_P(LoggingTest, ChangeVerbosity) {
         break;
     }
 
+    sock = connect_to_server_plain(port);
+    ASSERT_NE(INVALID_SOCKET, sock);
+
     // The configure function will check the response and fail the test if not
     // cb::engine_errc::success.
     ewouldblock_engine_configure(cb::engine_errc::success,

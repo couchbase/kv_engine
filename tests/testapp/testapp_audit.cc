@@ -269,11 +269,14 @@ TEST_P(AuditTest, AuditIllegalFrame_MB31071) {
     std::vector<uint8_t> blob(300);
     std::fill(blob.begin(), blob.end(), 'a');
 
+    auto& conn = getConnection();
+    sock = conn.releaseSocket();
+
     safe_send(blob.data(), blob.size(), false);
 
     // This should terminate the conenction
     EXPECT_EQ(0, cb::net::recv(sock, blob.data(), blob.size(), 0));
-    reconnect_to_server();
+    cb::net::closesocket(sock);
 
     bool found = false;
     iterate([&found](const nlohmann::json& entry) -> bool {

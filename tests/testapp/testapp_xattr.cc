@@ -81,6 +81,14 @@ class XattrTest : public XattrNoDocTest {
 protected:
     void SetUp() override {
         XattrNoDocTest::SetUp();
+        sock = connect_to_server_plain(port);
+        ASSERT_NE(INVALID_SOCKET, sock);
+
+        // Set ewouldblock_engine test harness to default mode.
+        ewouldblock_engine_configure(cb::engine_errc::would_block,
+                                     EWBEngineMode::First,
+                                     /*unused*/ 0);
+        enabled_hello_features.clear();
 
         // Create the document to operate on (with some compressible data).
         document.info.id = name;

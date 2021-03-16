@@ -153,6 +153,8 @@ void TestappTest::SetUpTestCase() {
 void TestappTest::TearDownTestCase() {
     if (sock != INVALID_SOCKET) {
         cb::net::closesocket(sock);
+        sock = INVALID_SOCKET;
+        enabled_hello_features.clear();
     }
 
     if (server_pid != -1) {
@@ -189,15 +191,6 @@ bool TestappTest::isJSON(std::string_view value) {
 // per test setup function.
 void TestappTest::SetUp() {
     verify_server_running();
-    sock = connect_to_server_plain(port);
-    ASSERT_NE(INVALID_SOCKET, sock);
-
-    // Set ewouldblock_engine test harness to default mode.
-    ewouldblock_engine_configure(cb::engine_errc::would_block,
-                                 EWBEngineMode::First,
-                                 /*unused*/ 0);
-
-    enabled_hello_features.clear();
 
     const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
     name.assign(info->test_case_name());
@@ -208,7 +201,11 @@ void TestappTest::SetUp() {
 
 // per test tear-down function.
 void TestappTest::TearDown() {
-    cb::net::closesocket(sock);
+    if (sock != INVALID_SOCKET) {
+        cb::net::closesocket(sock);
+        sock = INVALID_SOCKET;
+        enabled_hello_features.clear();
+    }
 }
 
 const std::string TestappTest::bucketName = "default";
@@ -886,6 +883,9 @@ static const std::string phase_get_errno() {
 }
 
 void safe_send(const void* buf, size_t len, bool hickup) {
+    if (sock == INVALID_SOCKET) {
+        std::abort();
+    }
     size_t offset = 0;
     const char* ptr = reinterpret_cast<const char*>(buf);
     do {
@@ -928,6 +928,9 @@ void safe_send(const void* buf, size_t len, bool hickup) {
 }
 
 bool safe_recv(void* buf, size_t len) {
+    if (sock == INVALID_SOCKET) {
+        std::abort();
+    }
     size_t offset = 0;
     if (len == 0) {
         return true;
