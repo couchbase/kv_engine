@@ -26,7 +26,7 @@
  * Return the resident bytes for the client
  */
 static size_t get_mapped_bytes(const cb::ArenaMallocClient& client) {
-    return cb::ArenaMalloc::getFragmentationStats(client).second;
+    return cb::ArenaMalloc::getFragmentationStats(client).getResidentBytes();
 }
 
 /* Waits for mapped memory value to drop below the specified value, or for

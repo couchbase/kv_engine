@@ -58,10 +58,8 @@ bool DefragmenterTask::run() {
                     engine->getArenaMallocClient());
             ss << " Using chunk_duration=" << getChunkDuration().count()
                << " ms."
-               << " mem_used=" << stats.getEstimatedTotalMemoryUsed()
-               << ", allocated=" << fragStats.first
-               << ", resident:" << fragStats.second << " utilisation:"
-               << double(fragStats.second) / double(fragStats.first);
+               << " mem_used=" << stats.getEstimatedTotalMemoryUsed() << ", "
+               << fragStats;
             EP_LOG_DEBUG("{}", ss.str());
         }
 
@@ -122,11 +120,9 @@ bool DefragmenterTask::run() {
             ss << " Took " << duration.count() << " us."
                << " moved " << visitor.getDefragCount() << "/"
                << visitor.getVisitedCount() << " visited documents."
-               << " mem_used=" << stats.getEstimatedTotalMemoryUsed()
-               << ", allocated=" << fragStats.first
-               << ", resident:" << fragStats.second << " utilisation:"
-               << double(fragStats.second) / double(fragStats.first)
-               << ". Sleeping for " << getSleepTime() << " seconds.";
+               << " mem_used=" << stats.getEstimatedTotalMemoryUsed() << ", "
+               << fragStats << ". Sleeping for " << getSleepTime()
+               << " seconds.";
             EP_LOG_DEBUG("{}", ss.str());
         }
 
