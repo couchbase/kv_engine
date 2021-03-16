@@ -478,7 +478,7 @@ CheckpointQueue Checkpoint::expelItems(
     auto firstItemToExpel = std::next(begin());
     auto lastItemToExpel = iterator;
 
-    if (getState() == CHECKPOINT_OPEN) {
+    if (getState() == CHECKPOINT_OPEN && !isDiskCheckpoint()) {
         // If the checkpoint is open, for every item which will be expelled
         // the corresponding keyIndex entry must be invalidated. The items
         // to expel start /after/ the dummy item, and /include/ the item
@@ -495,7 +495,7 @@ CheckpointQueue Checkpoint::expelItems(
             // We don't put keys in the indexes for disk checkpoints so we:
             //     a) can't test that the key is in the index
             //     b) can't invalidate the index entry as it does not exist
-            if (!toExpel->isCheckPointMetaItem() && !isDiskCheckpoint()) {
+            if (!toExpel->isCheckPointMetaItem()) {
                 auto& keyIndex = toExpel->isCommitted() ? committedKeyIndex
                                                         : preparedKeyIndex;
 
