@@ -1001,13 +1001,15 @@ void MagmaKVStore::del(queued_item item) {
     pendingReqs->emplace_back(std::move(item), logger);
 }
 
-void MagmaKVStore::delVBucket(Vbid vbid, uint64_t vb_version) {
+void MagmaKVStore::delVBucket(Vbid vbid, uint64_t kvstoreRev) {
     auto status = magma->DeleteKVStore(
-            vbid.get(), static_cast<Magma::KVStoreRevision>(vb_version));
-    logger->info("MagmaKVStore::delVBucket DeleteKVStore {} {}. status:{}",
-                 vbid,
-                 vb_version,
-                 status.String());
+            vbid.get(), static_cast<Magma::KVStoreRevision>(kvstoreRev));
+    logger->info(
+            "MagmaKVStore::delVBucket DeleteKVStore {} kvstoreRev:{}. "
+            "status:{}",
+            vbid,
+            kvstoreRev,
+            status.String());
 }
 
 void MagmaKVStore::prepareToCreateImpl(Vbid vbid) {

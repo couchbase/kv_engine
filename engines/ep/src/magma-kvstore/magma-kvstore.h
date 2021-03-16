@@ -278,7 +278,7 @@ public:
 
     void del(queued_item itm) override;
 
-    void delVBucket(Vbid vbucket, uint64_t fileRev) override;
+    void delVBucket(Vbid vbucket, uint64_t kvstoreRev) override;
 
     std::vector<vbucket_state*> listPersistedVbuckets() override;
 
