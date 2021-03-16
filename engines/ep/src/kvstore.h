@@ -694,11 +694,6 @@ public:
     }
 
     /**
-     * Reset the vbucket to a clean state.
-     */
-    virtual void reset(Vbid vbid) = 0;
-
-    /**
      * Begin a transaction (if not already in one).
      *
      * @param txCtx A transaction context to associate with this transaction.

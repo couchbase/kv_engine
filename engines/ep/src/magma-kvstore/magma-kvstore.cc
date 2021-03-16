@@ -950,48 +950,6 @@ void MagmaKVStore::getRange(Vbid vbid,
     }
 }
 
-void MagmaKVStore::reset(Vbid vbid) {
-    auto vbstate = getCachedVBucketState(vbid);
-    if (!vbstate) {
-        throw std::invalid_argument(
-                "MagmaKVStore::reset: No entry in cached "
-                "states for " +
-                vbid.to_string());
-    }
-
-    Status status;
-    Magma::KVStoreRevision kvsRev;
-    std::tie(status, kvsRev) = magma->GetKVStoreRevision(vbid.get());
-    if (!status) {
-        logger->critical(
-                "MagmaKVStore::reset GetKVStoreRevision failed. {} "
-                "status:{}",
-                vbid.to_string(),
-                status.String());
-        // Magma doesn't think the kvstore exists. We need to use
-        // the kvstore revision from kv engine and assume its
-        // the latest revision. This will allow DeleteKVStore to
-        // remove the kvstore path.
-        kvsRev = kvstoreRevList[vbid.get()];
-    }
-
-    status = magma->DeleteKVStore(vbid.get(), kvsRev);
-    if (!status) {
-        logger->critical(
-                "MagmaKVStore::reset DeleteKVStore {} failed. status:{}",
-                vbid,
-                status.String());
-    }
-
-    vbstate->reset();
-    status = writeVBStateToDisk(vbid, *vbstate);
-    if (!status) {
-        throw std::runtime_error("MagmaKVStore::reset writeVBStateToDisk " +
-                                 vbid.to_string() +
-                                 " failed. Status:" + status.String());
-    }
-}
-
 void MagmaKVStore::del(queued_item item) {
     if (!inTransaction) {
         throw std::logic_error(

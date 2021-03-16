@@ -859,29 +859,6 @@ TEST_F(CouchKVStoreErrorInjectionTest, compactDB_compact_db_ex) {
 }
 
 /**
- * Injects error during CouchKVStore::reset/couchstore_commit
- */
-TEST_F(CouchKVStoreErrorInjectionTest, reset_commit) {
-    populate_items(1);
-    {
-        /* Establish Logger expectation */
-        EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-        EXPECT_CALL(logger,
-                    mlog(Ge(spdlog::level::level_enum::warn),
-                         VCE(COUCHSTORE_ERROR_READ)))
-                .Times(1)
-                .RetiresOnSaturation();
-
-        /* Establish FileOps expectation */
-        EXPECT_CALL(ops, sync(_, _))
-                .WillOnce(Return(COUCHSTORE_ERROR_READ))
-                .RetiresOnSaturation();
-
-        kvstore->reset(Vbid(0));
-    }
-}
-
-/**
  * Injects error during
  * CouchKVStore::initBySeqnoScanContext/couchstore_changes_count
  */

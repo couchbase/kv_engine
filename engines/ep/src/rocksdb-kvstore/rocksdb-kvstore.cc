@@ -760,10 +760,6 @@ void RocksDBKVStore::getRange(Vbid vb,
     Expects(it->status().ok());
 }
 
-void RocksDBKVStore::reset(Vbid vbucketId) {
-    // TODO RDB:  Implement.
-}
-
 void RocksDBKVStore::del(queued_item item) {
     if (!item->isDeleted()) {
         throw std::invalid_argument(

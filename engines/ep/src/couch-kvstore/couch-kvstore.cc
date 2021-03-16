@@ -464,38 +464,6 @@ CouchKVStore::~CouchKVStore() {
     close();
 }
 
-void CouchKVStore::reset(Vbid vbucketId) {
-    if (isReadOnly()) {
-        throw std::logic_error("CouchKVStore::reset: Not valid on a read-only "
-                        "object.");
-    }
-
-    vbucket_state* state = getCachedVBucketState(vbucketId);
-    if (state) {
-        state->reset();
-
-        cachedDocCount[vbucketId.get()] = 0;
-        cachedDeleteCount[vbucketId.get()] = 0;
-        cachedFileSize[vbucketId.get()] = 0;
-        cachedSpaceUsed[vbucketId.get()] = 0;
-        cachedOnDiskPrepareSize[vbucketId.get()] = 0;
-
-        // Unlink the current revision and then increment it to ensure any
-        // pending delete doesn't delete us. Note that the expectation is that
-        // some higher level per VB lock is required to prevent data-races here.
-        // KVBucket::vb_mutexes is used in this case.
-        unlinkCouchFile(vbucketId, getDbRevision(vbucketId));
-        prepareToCreateImpl(vbucketId);
-
-        writeVBucketState(vbucketId, *state);
-    } else {
-        throw std::invalid_argument(
-                "CouchKVStore::reset: No entry in cached "
-                "states for " +
-                vbucketId.to_string());
-    }
-}
-
 void CouchKVStore::set(queued_item item) {
     if (isReadOnly()) {
         throw std::logic_error("CouchKVStore::set: Not valid on a read-only "

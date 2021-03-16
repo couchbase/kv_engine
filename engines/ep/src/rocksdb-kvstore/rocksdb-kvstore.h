@@ -133,11 +133,6 @@ public:
     void operator=(RocksDBKVStore& from) = delete;
 
     /**
-     * Reset database to a clean state.
-     */
-    void reset(Vbid vbucketId) override;
-
-    /**
      * Commit a transaction (unless not currently in one).
      *
      * Returns false if the commit fails.

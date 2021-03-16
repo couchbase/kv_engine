@@ -177,11 +177,6 @@ public:
     std::unique_ptr<CouchKVStore> makeReadOnlyStore() const;
 
     /**
-     * Reset vbucket to a clean state.
-     */
-    void reset(Vbid vbucketId) override;
-
-    /**
      * Commit a transaction (unless not currently in one).
      *
      * @param flushData - see KVStore::commit

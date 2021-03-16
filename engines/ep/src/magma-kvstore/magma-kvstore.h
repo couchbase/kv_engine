@@ -224,11 +224,6 @@ public:
     void operator=(MagmaKVStore& from) = delete;
 
     /**
-     * Reset database to a clean state.
-     */
-    void reset(Vbid vbid) override;
-
-    /**
      * Commit a transaction (unless not currently in one).
      *
      * Returns false if the commit fails.
