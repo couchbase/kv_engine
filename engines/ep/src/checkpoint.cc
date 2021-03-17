@@ -285,77 +285,89 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi,
                 // to the "left" of the cursor (i.e. has already been
                 // processed).
                 for (auto& cursor : checkpointManager->cursors) {
-                    if ((*(cursor.second->currentCheckpoint)).get() == this) {
-                        if (cursor.second->name ==
-                            CheckpointManager::pCursorName) {
-                            int64_t cursor_mutation_id =
-                                    getMutationId(*cursor.second);
-                            queued_item& cursor_item =
-                                    *(cursor.second->currentPos);
-                            // If the cursor item is non-meta, then we need to
-                            // return persist again if the existing item is
-                            // either before or on the cursor - as the cursor
-                            // points to the "last processed" item.
-                            // However if the cursor item is meta, then we only
-                            // need to return persist again if the existing item
-                            // is strictly less than the cursor, as meta-items
-                            // can share a seqno with a non-meta item but are
-                            // logically before them.
-                            if (cursor_item->isCheckPointMetaItem()) {
-                                --cursor_mutation_id;
-                            }
-                            if (currMutationId <= cursor_mutation_id) {
-                                // Cursor has already processed the previous
-                                // value for this key so need to persist again.
-                                rv.status =
-                                        QueueDirtyStatus::SuccessPersistAgain;
+                    if ((*(cursor.second->currentCheckpoint)).get() != this) {
+                        // Cursor is in another checkpoint, doesn't need
+                        // updating here
+                        continue;
+                    }
 
-                                // When we overwrite a persisted item again
-                                // we need to consider if we are currently
-                                // mid-flush. If we return SuccessPersistAgain
-                                // and update stats accordingly but the flush
-                                // fails then we'll have double incremented a
-                                // stat for a single item (we de-dupe below).
-                                // Track this in an AggregatedFlushStats in
-                                // CheckpointManager so that we can undo these
-                                // stat updates if the flush fails.
-                                auto backupPCursor =
-                                        checkpointManager->cursors.find(
-                                                CheckpointManager::
-                                                        backupPCursorName);
-                                if (backupPCursor !=
-                                    checkpointManager->cursors.end()) {
-                                    // We'd normally use "mutation_id" here
-                                    // which is basically the seqno but the
-                                    // backupPCursor may be in a different
-                                    // checkpoint and we'd fail a bunch of
-                                    // sanity checks trying to read it.
-                                    auto backupPCursorSeqno =
-                                            (*(*backupPCursor->second)
-                                                      .currentPos)
-                                                    ->getBySeqno();
-                                    if (backupPCursorSeqno <= currMutationId) {
-                                        // Pass the old queueTime in. When we
-                                        // return and update the stats we'll use
-                                        // the new queueTime and the flush will
-                                        // pick up the new queueTime too so we
-                                        // need to patch the increment of the
-                                        // original stat update/queueTime
-                                        checkpointManager
-                                                ->persistenceFailureStatOvercounts
-                                                .accountItem(
-                                                        *qi,
-                                                        oldItem->getQueuedTime());
-                                    }
-                                }
-                            }
-                        }
-                        /* If a cursor points to the existing item for the same
-                           key, shift it left by 1 */
+                    auto decrCursorIfSameKey = [&cursor, &oldPos]() {
+                        // If a cursor points to the existing item for the same
+                        // key, shift it left by 1
                         if (cursor.second->currentPos == oldPos) {
                             cursor.second->decrPos();
                         }
+                    };
+
+                    if (cursor.second->name != CheckpointManager::pCursorName) {
+                        decrCursorIfSameKey();
+
+                        // Persistence cursor requires some special logic below,
+                        // other cursors are all "fixed up" so go to the
+                        // next
+                        continue;
                     }
+
+                    int64_t cursor_mutation_id = getMutationId(*cursor.second);
+                    queued_item& cursor_item = *(cursor.second->currentPos);
+                    // If the cursor item is non-meta, then we need to return
+                    // persist again if the existing item is either before or on
+                    // the cursor - as the cursor points to the "last processed"
+                    // item. However if the cursor item is meta, then we only
+                    // need to return persist again if the existing item is
+                    // strictly less than the cursor, as meta-items can share a
+                    // seqno with a non-meta item but are logically before them.
+                    if (cursor_item->isCheckPointMetaItem()) {
+                        --cursor_mutation_id;
+                    }
+
+                    if (currMutationId > cursor_mutation_id) {
+                        decrCursorIfSameKey();
+
+                        // New mutation comes after the cursor, nothing else to
+                        // do here
+                        continue;
+                    }
+
+                    // Cursor has already processed the previous value for this
+                    // key so need to persist again.
+                    rv.status = QueueDirtyStatus::SuccessPersistAgain;
+
+                    // When we overwrite a persisted item again we need to
+                    // consider if we are currently mid-flush. If we return
+                    // SuccessPersistAgain and update stats accordingly but the
+                    // flush fails then we'll have double incremented a stat for
+                    // a single item (we de-dupe below). Track this in an
+                    // AggregatedFlushStats in CheckpointManager so that we can
+                    // undo these stat updates if the flush fails.
+                    auto backupPCursor = checkpointManager->cursors.find(
+                            CheckpointManager::backupPCursorName);
+
+                    if (backupPCursor == checkpointManager->cursors.end()) {
+                        decrCursorIfSameKey();
+
+                        // We're not mid-flush, don't need to adjust any stats
+                        continue;
+                    }
+
+                    // We'd normally use "mutation_id" here which is basically
+                    // the seqno but the backupPCursor may be in a different
+                    // checkpoint and we'd fail a bunch of sanity checks trying
+                    // to read it.
+                    auto backupPCursorSeqno =
+                            (*(*backupPCursor->second).currentPos)
+                                    ->getBySeqno();
+                    if (backupPCursorSeqno <= currMutationId) {
+                        // Pass the old queueTime in. When we return and update
+                        // the stats we'll use the new queueTime and the flush
+                        // will pick up the new queueTime too so we need to
+                        // patch the increment of the original stat
+                        // update/queueTime
+                        checkpointManager->persistenceFailureStatOvercounts
+                                .accountItem(*qi, oldItem->getQueuedTime());
+                    }
+
+                    decrCursorIfSameKey();
                 }
 
                 if (rv.status == QueueDirtyStatus::SuccessExistingItem) {
