@@ -45,7 +45,7 @@ folly::Synchronized<cb::audit::UniqueAuditPtr>& getAuditHandle() {
 static std::atomic_bool audit_enabled{false};
 
 static const int First = MEMCACHED_AUDIT_OPENED_DCP_CONNECTION;
-static const int Last = MEMCACHED_AUDIT_SELECT_BUCKET;
+static const int Last = MEMCACHED_AUDIT_SESSION_TERMINATED;
 
 static std::array<std::atomic_bool, Last - First + 1> events;
 
