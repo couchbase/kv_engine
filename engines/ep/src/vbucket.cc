@@ -946,21 +946,6 @@ ENGINE_ERROR_CODE VBucket::abort(
             return ENGINE_EINVAL;
         }
 
-        // If we did not find the corresponding prepare for this abort then the
-        // prepare seqno of the abort must be greater than or equal to the
-        // snapshot start seqno.
-        if (static_cast<uint64_t>(prepareSeqno) <
-            checkpointManager->getOpenSnapshotStartSeqno()) {
-            EP_LOG_ERR(
-                    "VBucket::abort ({}) - replica - failed as we received "
-                    "an abort for a prepare that does not exist and the "
-                    "prepare seqno is less than the current snapshot start: {}",
-                    id,
-                    prepareSeqno,
-                    checkpointManager->getOpenSnapshotStartSeqno());
-            return ENGINE_EINVAL;
-        }
-
         // Replica is receiving a legal Abort but we do not have any in-flight
         // Prepare in the HT.
         // 1) If we do not have any pending in the HT, then we just proceed to
