@@ -45,6 +45,7 @@
 #include <platform/backtrace.h>
 #include <platform/checked_snprintf.h>
 #include <platform/exceptions.h>
+#include <platform/scope_timer.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>
 #include <platform/string_hex.h>
@@ -365,8 +366,13 @@ void Connection::updateDescription() {
     description += " ]";
 }
 
-void Connection::setBucketIndex(int index) {
+void Connection::setBucketIndex(int index, Cookie* cookie) {
     bucketIndex.store(index, std::memory_order_release);
+
+    using cb::tracing::Code;
+    using cb::tracing::SpanStopwatch;
+    ScopeTimer1<SpanStopwatch> timer(
+            {cookie, Code::UpdatePrivilegeContext, true});
 
     // Update the privilege context. If a problem occurs within the RBAC
     // module we'll assign an empty privilege context to the connection.

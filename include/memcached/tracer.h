@@ -31,10 +31,18 @@ enum class Code : uint8_t {
     Execute,
     /// The time spent associating a bucket
     AssociateBucket,
+    /// The time spent disassociating a bucket
+    DisassociateBucket,
     /// Time spent creating the RBAC context
     CreateRbacContext,
+    /// Time spent updating privilege context when toggling buckets
+    UpdatePrivilegeContext,
     /// Time spent generating audit event
     Audit,
+    /// Time spent reconfiguring audit daemon
+    AuditReconfigure,
+    /// Time spent generating audit stats
+    AuditStats,
     /// Time spent decompressing Snappy data.
     SnappyDecompress,
     /// Time spent validating if incoming value is JSON.
@@ -149,30 +157,26 @@ protected:
  * The start and stop methods record the duration of the span and it is
  * injected into the provided traceable object as part of object destruction (as
  * long as start() was at least called).
+ *
+ * Normally the span is only included if the client requested trace information,
+ * but it is possible to force the inclusion of the trace span.
+ *
+ * To allow simplification of code which might or might not be executed in
+ * a client-specific context it is possible to specify nullptr as the traceable
+ * and this is a "noop".
  */
 class MEMCACHED_PUBLIC_CLASS SpanStopwatch {
 public:
-    SpanStopwatch(Traceable& traceable, Code code)
-        : traceable(traceable), code(code) {
+    SpanStopwatch(Traceable& traceable, Code code, bool alwaysInclude = false)
+        : traceable(&traceable), code(code), alwaysInclude(alwaysInclude) {
+    }
+    SpanStopwatch(Traceable* traceable, Code code, bool alwaysInclude = false)
+        : traceable(traceable), code(code), alwaysInclude(alwaysInclude) {
     }
 
-    // Disable copy and move: doesn't make sense for this class (could
-    // result in recording spurious spans).
-    SpanStopwatch(const SpanStopwatch&) = delete;
-    SpanStopwatch& operator=(const SpanStopwatch&) = delete;
-    SpanStopwatch& operator=(SpanStopwatch&&) = delete;
-#if defined(_MSC_VER) && (_MSC_VER < 1920)
-    // Prior to MSVC 2019, the move constructor must be defined, if it is
-    // deleted then the code fails to compile (even though MSVC doesn't
-    // actually call the move constructor :S)
-    SpanStopwatch(SpanStopwatch&&) = default;
-#else
-    SpanStopwatch(SpanStopwatch&&) = delete;
-#endif
-
     ~SpanStopwatch() {
-        if (traceable.isTracingEnabled()) {
-            traceable.getTracer().record(code, startTime, stopTime);
+        if (traceable && (alwaysInclude || traceable->isTracingEnabled())) {
+            traceable->getTracer().record(code, startTime, stopTime);
         }
     }
 
@@ -185,10 +189,11 @@ public:
     }
 
 private:
-    Traceable& traceable;
+    Traceable* const traceable;
     Clock::time_point startTime;
     Clock::time_point stopTime;
     const Code code;
+    const bool alwaysInclude;
 };
 
 } // namespace cb::tracing

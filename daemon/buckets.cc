@@ -21,6 +21,7 @@
 #include "topkeys.h"
 #include <memcached/dcp.h>
 #include <memcached/engine.h>
+#include <platform/scope_timer.h>
 
 Bucket::Bucket() = default;
 
@@ -134,11 +135,8 @@ std::string to_string(Bucket::State state) {
 }
 
 bool mayAccessBucket(Cookie& cookie, const std::string& bucket) {
-    const auto start = std::chrono::steady_clock::now();
-    const auto ret =
-            cb::rbac::mayAccessBucket(cookie.getConnection().getUser(), bucket);
-    cookie.getTracer().record(cb::tracing::Code::CreateRbacContext,
-                              start,
-                              std::chrono::steady_clock::now());
-    return ret;
+    using cb::tracing::Code;
+    using cb::tracing::SpanStopwatch;
+    ScopeTimer1<SpanStopwatch> timer({cookie, Code::CreateRbacContext, true});
+    return cb::rbac::mayAccessBucket(cookie.getConnection().getUser(), bucket);
 }

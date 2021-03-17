@@ -27,13 +27,12 @@
 #include "runtime.h"
 #include "settings.h"
 
+#include <folly/Synchronized.h>
 #include <memcached/audit_interface.h>
 #include <memcached/isotime.h>
-#include <platform/string_hex.h>
-
-#include <folly/Synchronized.h>
 #include <nlohmann/json.hpp>
-
+#include <platform/scope_timer.h>
+#include <platform/string_hex.h>
 #include <sstream>
 
 /// @returns the singleton audit handle.
@@ -123,7 +122,10 @@ static void do_audit(Cookie* cookie,
                      uint32_t id,
                      const nlohmann::json& event,
                      const char* warn) {
-    const auto start = std::chrono::steady_clock::now();
+    using cb::tracing::Code;
+    using cb::tracing::SpanStopwatch;
+    ScopeTimer1<SpanStopwatch> timer({cookie, Code::Audit, true});
+
     auto text = event.dump();
     getAuditHandle().withRLock([id, warn, &text](auto& handle) {
         if (handle) {
@@ -132,11 +134,6 @@ static void do_audit(Cookie* cookie,
             }
         }
     });
-    if (cookie) {
-        cookie->getTracer().record(cb::tracing::Code::Audit,
-                                   start,
-                                   std::chrono::steady_clock::now());
-    }
 }
 
 void audit_auth_failure(const Connection& c,
@@ -301,17 +298,16 @@ bool mc_audit_event(Cookie& cookie,
 
     std::string_view buffer{reinterpret_cast<const char*>(payload.data()),
                             payload.size()};
-    const auto start = std::chrono::steady_clock::now();
-    auto ret =
-            getAuditHandle().withRLock([audit_eventid, buffer](auto& handle) {
-                if (!handle) {
-                    return false;
-                }
-                return handle->put_event(audit_eventid, buffer);
-            });
-    cookie.getTracer().record(
-            cb::tracing::Code::Audit, start, std::chrono::steady_clock::now());
-    return ret;
+
+    using cb::tracing::Code;
+    using cb::tracing::SpanStopwatch;
+    ScopeTimer1<SpanStopwatch> timer({cookie, Code::Audit, true});
+    return getAuditHandle().withRLock([audit_eventid, buffer](auto& handle) {
+        if (!handle) {
+            return false;
+        }
+        return handle->put_event(audit_eventid, buffer);
+    });
 }
 
 namespace cb::audit {
@@ -420,9 +416,11 @@ void shutdown_audit() {
 }
 
 cb::engine_errc reconfigure_audit(Cookie& cookie) {
-    const auto start = std::chrono::steady_clock::now();
+    using cb::tracing::Code;
+    using cb::tracing::SpanStopwatch;
+    ScopeTimer1<SpanStopwatch> timer({cookie, Code::AuditReconfigure, true});
 
-    auto ret = getAuditHandle().withRLock([&cookie](auto& handle) {
+    return getAuditHandle().withRLock([&cookie](auto& handle) {
         if (!handle) {
             return cb::engine_errc::failed;
         }
@@ -432,22 +430,15 @@ cb::engine_errc reconfigure_audit(Cookie& cookie) {
         }
         return cb::engine_errc::failed;
     });
-    cookie.getTracer().record(
-            cb::tracing::Code::Audit, start, std::chrono::steady_clock::now());
-
-    return ret;
 }
 
 void stats_audit(const StatCollector& collector, Cookie* cookie) {
-    const auto start = std::chrono::steady_clock::now();
+    using cb::tracing::Code;
+    using cb::tracing::SpanStopwatch;
+    ScopeTimer1<SpanStopwatch> timer({cookie, Code::AuditStats, true});
     getAuditHandle().withRLock([&collector](auto& handle) {
         if (handle) {
             handle->stats(collector);
         }
     });
-    if (cookie) {
-        cookie->getTracer().record(cb::tracing::Code::Audit,
-                                   start,
-                                   std::chrono::steady_clock::now());
-    }
 }

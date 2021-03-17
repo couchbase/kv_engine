@@ -198,7 +198,7 @@ public:
         return bucketIndex.load(std::memory_order_relaxed);
     }
 
-    void setBucketIndex(int index);
+    void setBucketIndex(int index, Cookie* cookie = nullptr);
 
     Bucket& getBucket() const;
 

@@ -22,6 +22,7 @@
 #include <daemon/memcached.h>
 #include <logger/logger.h>
 #include <mcbp/protocol/request.h>
+#include <platform/scope_timer.h>
 #include <utilities/engine_errc_2_mcbp.h>
 
 cb::engine_errc select_bucket(Cookie& cookie, const std::string& bucketname) {
@@ -94,7 +95,9 @@ cb::engine_errc select_bucket(Cookie& cookie, const std::string& bucketname) {
 }
 
 void select_bucket_executor(Cookie& cookie) {
-    const auto start = std::chrono::steady_clock::now();
+    using cb::tracing::Code;
+    using cb::tracing::SpanStopwatch;
+    ScopeTimer1<SpanStopwatch> timer({cookie, Code::SelectBucket, true});
 
     const auto key = cookie.getRequest().getKey();
     // Unfortunately we need to copy it over to a std::string as the
@@ -126,7 +129,4 @@ void select_bucket_executor(Cookie& cookie) {
     }
 
     handle_executor_status(cookie, code);
-    cookie.getTracer().record(cb::tracing::Code::SelectBucket,
-                              start,
-                              std::chrono::steady_clock::now());
 }

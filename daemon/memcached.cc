@@ -58,6 +58,7 @@
 #include <platform/backtrace.h>
 #include <platform/dirutils.h>
 #include <platform/interrupt.h>
+#include <platform/scope_timer.h>
 #include <platform/strerror.h>
 #include <platform/sysinfo.h>
 #include <statistics/prometheus.h>
@@ -161,12 +162,16 @@ static void set_stats_reset_time()
     }
 }
 
-void disassociate_bucket(Connection& connection) {
+void disassociate_bucket(Connection& connection, Cookie* cookie) {
+    using cb::tracing::Code;
+    using cb::tracing::SpanStopwatch;
+    ScopeTimer1<SpanStopwatch> timer({cookie, Code::DisassociateBucket, true});
+
     Bucket& b = connection.getBucket();
     std::lock_guard<std::mutex> guard(b.mutex);
     b.clients--;
 
-    connection.setBucketIndex(0);
+    connection.setBucketIndex(0, cookie);
 
     if (b.clients == 0 && b.state == Bucket::State::Destroying) {
         b.cond.notify_one();
@@ -176,23 +181,23 @@ void disassociate_bucket(Connection& connection) {
 bool associate_bucket(Connection& connection,
                       const char* name,
                       Cookie* cookie) {
-    bool found = false;
+    // leave the current bucket
+    disassociate_bucket(connection, cookie);
 
-    /* leave the current bucket */
-    disassociate_bucket(connection);
-
+    std::size_t idx = 0;
     /* Try to associate with the named bucket */
-    for (size_t ii = 1; ii < all_buckets.size() && !found; ++ii) {
+    for (size_t ii = 1; ii < all_buckets.size(); ++ii) {
         Bucket &b = all_buckets.at(ii);
         std::lock_guard<std::mutex> guard(b.mutex);
         if (b.state == Bucket::State::Ready && strcmp(b.name, name) == 0) {
             b.clients++;
-            connection.setBucketIndex(gsl::narrow<int>(ii));
-            found = true;
+            idx = ii;
+            break;
         }
     }
 
-    if (found) {
+    if (idx != 0) {
+        connection.setBucketIndex(gsl::narrow<int>(idx), cookie);
         audit_bucket_selection(connection, cookie);
     } else {
         // Bucket not found, connect to the "no-bucket"
@@ -201,19 +206,17 @@ bool associate_bucket(Connection& connection,
             std::lock_guard<std::mutex> guard(b.mutex);
             b.clients++;
         }
-        connection.setBucketIndex(0);
+        connection.setBucketIndex(0, cookie);
     }
 
-    return found;
+    return idx != 0;
 }
 
 bool associate_bucket(Cookie& cookie, const char* name) {
-    const auto start = std::chrono::steady_clock::now();
-    const auto ret = associate_bucket(cookie.getConnection(), name, &cookie);
-    cookie.getTracer().record(cb::tracing::Code::AssociateBucket,
-                              start,
-                              std::chrono::steady_clock::now());
-    return ret;
+    using cb::tracing::Code;
+    using cb::tracing::SpanStopwatch;
+    ScopeTimer1<SpanStopwatch> timer({cookie, Code::AssociateBucket, true});
+    return associate_bucket(cookie.getConnection(), name, &cookie);
 }
 
 void associate_initial_bucket(Connection& connection) {
@@ -1015,7 +1018,7 @@ void DestroyBucketThread::destroy() {
 
     /* If this thread is connected to the requested bucket... release it */
     if (connection != nullptr && idx == size_t(connection->getBucketIndex())) {
-        disassociate_bucket(*connection);
+        disassociate_bucket(*connection, cookie);
     }
 
     // Wait until all users disconnected...

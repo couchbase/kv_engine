@@ -92,7 +92,7 @@ bool associate_bucket(Cookie& cookie, const char* name);
 bool associate_bucket(Connection& connection,
                       const char* name,
                       Cookie* cookie = nullptr);
-void disassociate_bucket(Connection& connection);
+void disassociate_bucket(Connection& connection, Cookie* cookie = nullptr);
 
 /**
  * The executor pool used to pick up the result for requests spawn by the
