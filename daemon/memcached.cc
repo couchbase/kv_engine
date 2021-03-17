@@ -1350,17 +1350,6 @@ int memcached_main(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
 
-#if defined(__x86_64__) || defined(_M_X64)
-    if (!folly::CpuId().sse42()) {
-        // MB-44941: hw crc32 is required, and is part of SSE4.2. If the CPU
-        // does not support it, memcached would later crash with invalid
-        // instruction exceptions.
-        FATAL_ERROR(EXIT_FAILURE,
-                    "Failed to initialise - CPU with SSE4.2 extensions is "
-                    "required - terminating.");
-    }
-#endif
-
     // Setup terminate handler as early as possible to catch crashes
     // occurring during initialisation.
     install_backtrace_terminate_handler();
@@ -1414,6 +1403,17 @@ int memcached_main(int argc, char** argv) {
 #endif
 #ifdef THREAD_SANITIZER
     LOG_INFO("Thread sanitizer enabled");
+#endif
+
+#if defined(__x86_64__) || defined(_M_X64)
+    if (!folly::CpuId().sse42()) {
+        // MB-44941: hw crc32 is required, and is part of SSE4.2. If the CPU
+        // does not support it, memcached would later crash with invalid
+        // instruction exceptions.
+        FATAL_ERROR(EXIT_FAILURE,
+                    "Failed to initialise - CPU with SSE4.2 extensions is "
+                    "required - terminating.");
+    }
 #endif
 
     try {
