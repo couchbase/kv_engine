@@ -213,7 +213,7 @@ static cb::engine_errc stat_audit_executor(const std::string& arg,
                                            Cookie& cookie) {
     if (arg.empty()) {
         CBStatCollector collector(appendStatsFn, &cookie, get_server_api());
-        stats_audit(collector);
+        stats_audit(collector, &cookie);
         return cb::engine_errc::success;
     } else {
         return cb::engine_errc::invalid_arguments;

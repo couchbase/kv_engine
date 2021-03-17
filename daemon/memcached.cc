@@ -173,7 +173,9 @@ void disassociate_bucket(Connection& connection) {
     }
 }
 
-bool associate_bucket(Connection& connection, const char* name) {
+bool associate_bucket(Connection& connection,
+                      const char* name,
+                      Cookie* cookie) {
     bool found = false;
 
     /* leave the current bucket */
@@ -191,7 +193,7 @@ bool associate_bucket(Connection& connection, const char* name) {
     }
 
     if (found) {
-        audit_bucket_selection(connection);
+        audit_bucket_selection(connection, cookie);
     } else {
         // Bucket not found, connect to the "no-bucket"
         Bucket &b = all_buckets.at(0);
@@ -207,7 +209,7 @@ bool associate_bucket(Connection& connection, const char* name) {
 
 bool associate_bucket(Cookie& cookie, const char* name) {
     const auto start = std::chrono::steady_clock::now();
-    const auto ret = associate_bucket(cookie.getConnection(), name);
+    const auto ret = associate_bucket(cookie.getConnection(), name, &cookie);
     cookie.getTracer().record(cb::tracing::Code::AssociateBucket,
                               start,
                               std::chrono::steady_clock::now());

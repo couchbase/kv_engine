@@ -136,6 +136,8 @@ MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Code tracecode) {
         return "associate_bucket";
     case Code::CreateRbacContext:
         return "create_rbac_context";
+    case Code::Audit:
+        return "audit";
     case Code::SnappyDecompress:
         return "snappy.decompress";
     case Code::JsonValidate:

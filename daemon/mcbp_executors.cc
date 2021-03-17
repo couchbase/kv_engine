@@ -446,8 +446,7 @@ static void config_reload_executor(Cookie& cookie) {
         reload_config_file();
         if (Settings::instance().isPrivilegeDebug() != old_priv_debug) {
             audit_set_privilege_debug_mode(
-                    cookie.getConnection(),
-                    Settings::instance().isPrivilegeDebug());
+                    cookie, Settings::instance().isPrivilegeDebug());
         }
         cookie.sendResponse(cb::mcbp::Status::Success);
         return;
@@ -488,7 +487,7 @@ static void audit_put_executor(Cookie& cookie) {
     const auto extras = request.getExtdata();
     const uint32_t id = *reinterpret_cast<const uint32_t*>(extras.data());
 
-    if (mc_audit_event(ntohl(id), request.getValue())) {
+    if (mc_audit_event(cookie, ntohl(id), request.getValue())) {
         cookie.sendResponse(cb::mcbp::Status::Success);
     } else {
         cookie.sendResponse(cb::mcbp::Status::Ebusy);

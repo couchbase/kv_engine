@@ -142,7 +142,7 @@ void dcp_open_executor(Cookie& cookie) {
                  logBuffer,
                  connection.getDescription().c_str());
 
-        audit_dcp_open(connection);
+        audit_dcp_open(cookie);
         cookie.sendResponse(cb::mcbp::Status::Success);
     } else {
         handle_executor_status(cookie, ret);

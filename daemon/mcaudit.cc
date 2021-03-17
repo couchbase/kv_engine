@@ -119,9 +119,11 @@ static nlohmann::json create_memcached_audit_object(
  * @param event the payload of the audit description
  * @param warn what to log if we're failing to put the audit event
  */
-static void do_audit(uint32_t id,
+static void do_audit(Cookie* cookie,
+                     uint32_t id,
                      const nlohmann::json& event,
                      const char* warn) {
+    const auto start = std::chrono::steady_clock::now();
     auto text = event.dump();
     getAuditHandle().withRLock([id, warn, &text](auto& handle) {
         if (handle) {
@@ -130,33 +132,41 @@ static void do_audit(uint32_t id,
             }
         }
     });
+    if (cookie) {
+        cookie->getTracer().record(cb::tracing::Code::Audit,
+                                   start,
+                                   std::chrono::steady_clock::now());
+    }
 }
 
 void audit_auth_failure(const Connection& c,
                         const cb::rbac::UserIdent& ui,
-                        const char* reason) {
+                        const char* reason,
+                        Cookie* cookie) {
     if (!isEnabled(MEMCACHED_AUDIT_AUTHENTICATION_FAILED)) {
         return;
     }
     auto root = create_memcached_audit_object(c, ui, {});
     root["reason"] = reason;
 
-    do_audit(MEMCACHED_AUDIT_AUTHENTICATION_FAILED,
+    do_audit(cookie,
+             MEMCACHED_AUDIT_AUTHENTICATION_FAILED,
              root,
              "Failed to send AUTH FAILED audit event");
 }
 
-void audit_auth_success(const Connection& c) {
+void audit_auth_success(const Connection& c, Cookie* cookie) {
     if (!isEnabled(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED)) {
         return;
     }
     auto root = create_memcached_audit_object(c, c.getUser(), {});
-    do_audit(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED,
+    do_audit(cookie,
+             MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED,
              root,
              "Failed to send AUTH SUCCESS audit event");
 }
 
-void audit_bucket_selection(const Connection& c) {
+void audit_bucket_selection(const Connection& c, Cookie* cookie) {
     if (!isEnabled(MEMCACHED_AUDIT_SELECT_BUCKET)) {
         return;
     }
@@ -165,54 +175,61 @@ void audit_bucket_selection(const Connection& c) {
     if (bucket.type != BucketType::NoBucket) {
         auto root = create_memcached_audit_object(c, c.getUser(), {});
         root["bucket"] = c.getBucket().name;
-        do_audit(MEMCACHED_AUDIT_SELECT_BUCKET,
+        do_audit(cookie,
+                 MEMCACHED_AUDIT_SELECT_BUCKET,
                  root,
                  "Failed to send SELECT BUCKET audit event");
     }
 }
 
-void audit_bucket_flush(const Connection& c, const char* bucket) {
+void audit_bucket_flush(Cookie& cookie, const char* bucket) {
     if (!isEnabled(MEMCACHED_AUDIT_EXTERNAL_MEMCACHED_BUCKET_FLUSH)) {
         return;
     }
+    auto& c = cookie.getConnection();
     auto root = create_memcached_audit_object(c, c.getUser(), {});
     root["bucket"] = bucket;
 
-    do_audit(MEMCACHED_AUDIT_EXTERNAL_MEMCACHED_BUCKET_FLUSH,
+    do_audit(&cookie,
+             MEMCACHED_AUDIT_EXTERNAL_MEMCACHED_BUCKET_FLUSH,
              root,
              "Failed to send EXTERNAL_MEMCACHED_BUCKET_FLUSH audit event");
 }
 
-void audit_dcp_open(const Connection& c) {
+void audit_dcp_open(Cookie& cookie) {
     if (!isEnabled(MEMCACHED_AUDIT_OPENED_DCP_CONNECTION)) {
         return;
     }
+    auto& c = cookie.getConnection();
     if (c.isInternal()) {
         LOG_INFO("Open DCP stream with admin credentials");
     } else {
         auto root = create_memcached_audit_object(c, c.getUser(), {});
         root["bucket"] = c.getBucket().name;
 
-        do_audit(MEMCACHED_AUDIT_OPENED_DCP_CONNECTION,
+        do_audit(&cookie,
+                 MEMCACHED_AUDIT_OPENED_DCP_CONNECTION,
                  root,
                  "Failed to send DCP open connection "
                  "audit event to audit daemon");
     }
 }
 
-void audit_set_privilege_debug_mode(const Connection& c, bool enable) {
+void audit_set_privilege_debug_mode(Cookie& cookie, bool enable) {
     if (!isEnabled(MEMCACHED_AUDIT_PRIVILEGE_DEBUG_CONFIGURED)) {
         return;
     }
+    auto& c = cookie.getConnection();
     auto root = create_memcached_audit_object(c, c.getUser(), {});
     root["enable"] = enable;
-    do_audit(MEMCACHED_AUDIT_PRIVILEGE_DEBUG_CONFIGURED,
+    do_audit(&cookie,
+             MEMCACHED_AUDIT_PRIVILEGE_DEBUG_CONFIGURED,
              root,
              "Failed to send modifications in privilege debug state "
              "audit event to audit daemon");
 }
 
-void audit_privilege_debug(const Connection& c,
+void audit_privilege_debug(Cookie& cookie,
                            const std::string& command,
                            const std::string& bucket,
                            const std::string& privilege,
@@ -220,18 +237,20 @@ void audit_privilege_debug(const Connection& c,
     if (!isEnabled(MEMCACHED_AUDIT_PRIVILEGE_DEBUG)) {
         return;
     }
+    auto& c = cookie.getConnection();
     auto root = create_memcached_audit_object(c, c.getUser(), {});
     root["command"] = command;
     root["bucket"] = bucket;
     root["privilege"] = privilege;
     root["context"] = context;
 
-    do_audit(MEMCACHED_AUDIT_PRIVILEGE_DEBUG,
+    do_audit(&cookie,
+             MEMCACHED_AUDIT_PRIVILEGE_DEBUG,
              root,
              "Failed to send privilege debug audit event to audit daemon");
 }
 
-void audit_command_access_failed(const Cookie& cookie) {
+void audit_command_access_failed(Cookie& cookie) {
     if (!isEnabled(MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE)) {
         return;
     }
@@ -251,7 +270,7 @@ void audit_command_access_failed(const Cookie& cookie) {
                            reinterpret_cast<const char*>(packet.data()),
                            packet.size());
     root["packet"] = buffer;
-    do_audit(MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE, root, buffer);
+    do_audit(&cookie, MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE, root, buffer);
 }
 
 void audit_invalid_packet(const Connection& c, cb::const_byte_buffer packet) {
@@ -270,22 +289,29 @@ void audit_invalid_packet(const Connection& c, cb::const_byte_buffer packet) {
     ss << "Invalid packet: " << cb::to_hex(packet) << trunc;
     const auto message = ss.str();
     root["packet"] = message.c_str() + strlen("Invalid packet: ");
-    do_audit(MEMCACHED_AUDIT_INVALID_PACKET, root, message.c_str());
+    do_audit(nullptr, MEMCACHED_AUDIT_INVALID_PACKET, root, message.c_str());
 }
 
-bool mc_audit_event(uint32_t audit_eventid, cb::const_byte_buffer payload) {
+bool mc_audit_event(Cookie& cookie,
+                    uint32_t audit_eventid,
+                    cb::const_byte_buffer payload) {
     if (!audit_enabled) {
         return true;
     }
 
     std::string_view buffer{reinterpret_cast<const char*>(payload.data()),
                             payload.size()};
-    return getAuditHandle().withRLock([audit_eventid, buffer](auto& handle) {
-        if (!handle) {
-            return false;
-        }
-        return handle->put_event(audit_eventid, buffer);
-    });
+    const auto start = std::chrono::steady_clock::now();
+    auto ret =
+            getAuditHandle().withRLock([audit_eventid, buffer](auto& handle) {
+                if (!handle) {
+                    return false;
+                }
+                return handle->put_event(audit_eventid, buffer);
+            });
+    cookie.getTracer().record(
+            cb::tracing::Code::Audit, start, std::chrono::steady_clock::now());
+    return ret;
 }
 
 namespace cb::audit {
@@ -301,14 +327,15 @@ void addSessionTerminated(const Connection& c) {
         root["reason_for_termination"] = reason;
     }
 
-    do_audit(MEMCACHED_AUDIT_SESSION_TERMINATED,
+    do_audit(nullptr,
+             MEMCACHED_AUDIT_SESSION_TERMINATED,
              root,
              "Failed to audit session terminated");
 }
 
 namespace document {
 
-void add(const Cookie& cookie, Operation operation) {
+void add(Cookie& cookie, Operation operation) {
     uint32_t id = 0;
     switch (operation) {
     case Operation::Read:
@@ -343,22 +370,26 @@ void add(const Cookie& cookie, Operation operation) {
 
     switch (operation) {
     case Operation::Read:
-        do_audit(MEMCACHED_AUDIT_DOCUMENT_READ,
+        do_audit(&cookie,
+                 MEMCACHED_AUDIT_DOCUMENT_READ,
                  root,
                  "Failed to send document read audit event to audit daemon");
         break;
     case Operation::Lock:
-        do_audit(MEMCACHED_AUDIT_DOCUMENT_LOCKED,
+        do_audit(&cookie,
+                 MEMCACHED_AUDIT_DOCUMENT_LOCKED,
                  root,
                  "Failed to send document locked audit event to audit daemon");
         break;
     case Operation::Modify:
-        do_audit(MEMCACHED_AUDIT_DOCUMENT_MODIFY,
+        do_audit(&cookie,
+                 MEMCACHED_AUDIT_DOCUMENT_MODIFY,
                  root,
                  "Failed to send document modify audit event to audit daemon");
         break;
     case Operation::Delete:
-        do_audit(MEMCACHED_AUDIT_DOCUMENT_DELETE,
+        do_audit(&cookie,
+                 MEMCACHED_AUDIT_DOCUMENT_DELETE,
                  root,
                  "Failed to send document delete audit event to audit daemon");
         break;
@@ -389,7 +420,9 @@ void shutdown_audit() {
 }
 
 cb::engine_errc reconfigure_audit(Cookie& cookie) {
-    return getAuditHandle().withRLock([&cookie](auto& handle) {
+    const auto start = std::chrono::steady_clock::now();
+
+    auto ret = getAuditHandle().withRLock([&cookie](auto& handle) {
         if (!handle) {
             return cb::engine_errc::failed;
         }
@@ -399,12 +432,22 @@ cb::engine_errc reconfigure_audit(Cookie& cookie) {
         }
         return cb::engine_errc::failed;
     });
+    cookie.getTracer().record(
+            cb::tracing::Code::Audit, start, std::chrono::steady_clock::now());
+
+    return ret;
 }
 
-void stats_audit(const StatCollector& collector) {
+void stats_audit(const StatCollector& collector, Cookie* cookie) {
+    const auto start = std::chrono::steady_clock::now();
     getAuditHandle().withRLock([&collector](auto& handle) {
         if (handle) {
             handle->stats(collector);
         }
     });
+    if (cookie) {
+        cookie->getTracer().record(cb::tracing::Code::Audit,
+                                   start,
+                                   std::chrono::steady_clock::now());
+    }
 }

@@ -659,7 +659,7 @@ cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
         const auto context = ctx.to_string();
 
         if (Settings::instance().isPrivilegeDebug()) {
-            audit_privilege_debug(connection,
+            audit_privilege_debug(*this,
                                   command,
                                   connection.getBucket().name,
                                   privilege_string,

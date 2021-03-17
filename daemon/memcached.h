@@ -89,7 +89,9 @@ void shutdown_server();
 /// associate to a bucket when running from a cookie context (to allow
 /// trace span
 bool associate_bucket(Cookie& cookie, const char* name);
-bool associate_bucket(Connection& connection, const char* name);
+bool associate_bucket(Connection& connection,
+                      const char* name,
+                      Cookie* cookie = nullptr);
 void disassociate_bucket(Connection& connection);
 
 /**

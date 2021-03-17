@@ -121,7 +121,7 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk() {
 
     // Success
     connection.setAuthenticated(true, context.second, serverContext.getUser());
-    audit_auth_success(connection);
+    audit_auth_success(connection, &cookie);
     LOG_INFO("{}: Client {} authenticated as {}",
              connection.getId(),
              connection.getPeername(),
@@ -200,7 +200,8 @@ cb::engine_errc SaslAuthCommandContext::doHandleSaslAuthTaskResult(
                     cb::UserDataView(connection.getUser().name),
                     mechanism,
                     cookie.getEventId());
-        audit_auth_failure(connection, serverContext.getUser(), "Unknown user");
+        audit_auth_failure(
+                connection, serverContext.getUser(), "Unknown user", &cookie);
         return authFailure();
 
     case cb::sasl::Error::PASSWORD_ERROR:
@@ -211,8 +212,10 @@ cb::engine_errc SaslAuthCommandContext::doHandleSaslAuthTaskResult(
                 cb::UserDataView(connection.getUser().name),
                 mechanism,
                 cookie.getEventId());
-        audit_auth_failure(
-                connection, serverContext.getUser(), "Incorrect password");
+        audit_auth_failure(connection,
+                           serverContext.getUser(),
+                           "Incorrect password",
+                           &cookie);
 
         return authFailure();
 

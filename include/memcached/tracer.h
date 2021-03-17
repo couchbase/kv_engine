@@ -33,6 +33,8 @@ enum class Code : uint8_t {
     AssociateBucket,
     /// Time spent creating the RBAC context
     CreateRbacContext,
+    /// Time spent generating audit event
+    Audit,
     /// Time spent decompressing Snappy data.
     SnappyDecompress,
     /// Time spent validating if incoming value is JSON.
