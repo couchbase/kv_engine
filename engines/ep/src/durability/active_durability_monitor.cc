@@ -81,7 +81,7 @@ public:
      *        State locked.
      * @param sw SyncWrite which has been completed.
      */
-    void enqueue(const ActiveDurabilityMonitor::State& state,
+    void enqueue(const ActiveDurabilityMonitor::State& stateLock,
                  ActiveSyncWrite&& sw) {
         highEnqueuedSeqno = sw.getBySeqno();
         queue.enqueue(sw);
@@ -363,36 +363,41 @@ void ActiveDurabilityMonitor::notifyLocalPersistence() {
 
 void ActiveDurabilityMonitor::addStats(const AddStatFn& addStat,
                                        const void* cookie) const {
-    char buf[256];
+    std::array<char, 256> buf;
 
     try {
         const auto vbid = vb.getId().get();
 
-        checked_snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
-        add_casted_stat(buf, VBucket::toString(vb.getState()), addStat, cookie);
+        checked_snprintf(buf.data(), buf.size(), "vb_%d:state", vbid);
+        add_casted_stat(
+                buf.data(), VBucket::toString(vb.getState()), addStat, cookie);
 
         const auto s = state.rlock();
 
-        checked_snprintf(buf, sizeof(buf), "vb_%d:num_tracked", vbid);
-        add_casted_stat(buf, s->trackedWrites.size(), addStat, cookie);
+        checked_snprintf(buf.data(), buf.size(), "vb_%d:num_tracked", vbid);
+        add_casted_stat(buf.data(), s->trackedWrites.size(), addStat, cookie);
 
-        checked_snprintf(buf, sizeof(buf), "vb_%d:high_prepared_seqno", vbid);
+        checked_snprintf(
+                buf.data(), buf.size(), "vb_%d:high_prepared_seqno", vbid);
 
         // Do not have a valid HPS unless the first chain has been set.
         int64_t highPreparedSeqno = 0;
         if (s->firstChain) {
             highPreparedSeqno = s->getNodeWriteSeqno(s->getActive());
         }
-        add_casted_stat(buf, highPreparedSeqno, addStat, cookie);
+        add_casted_stat(buf.data(), highPreparedSeqno, addStat, cookie);
 
-        checked_snprintf(buf, sizeof(buf), "vb_%d:last_tracked_seqno", vbid);
-        add_casted_stat(buf, s->lastTrackedSeqno, addStat, cookie);
+        checked_snprintf(
+                buf.data(), buf.size(), "vb_%d:last_tracked_seqno", vbid);
+        add_casted_stat(buf.data(), s->lastTrackedSeqno, addStat, cookie);
 
-        checked_snprintf(buf, sizeof(buf), "vb_%d:last_committed_seqno", vbid);
-        add_casted_stat(buf, s->lastCommittedSeqno, addStat, cookie);
+        checked_snprintf(
+                buf.data(), buf.size(), "vb_%d:last_committed_seqno", vbid);
+        add_casted_stat(buf.data(), s->lastCommittedSeqno, addStat, cookie);
 
-        checked_snprintf(buf, sizeof(buf), "vb_%d:last_aborted_seqno", vbid);
-        add_casted_stat(buf, s->lastAbortedSeqno, addStat, cookie);
+        checked_snprintf(
+                buf.data(), buf.size(), "vb_%d:last_aborted_seqno", vbid);
+        add_casted_stat(buf.data(), s->lastAbortedSeqno, addStat, cookie);
 
         if (s->firstChain) {
             addStatsForChain(addStat, cookie, *s->firstChain.get());
@@ -413,33 +418,33 @@ void ActiveDurabilityMonitor::addStatsForChain(
         const AddStatFn& addStat,
         const void* cookie,
         const ReplicationChain& chain) const {
-    char buf[256];
+    std::array<char, 256> buf;
     const auto vbid = vb.getId().get();
-    checked_snprintf(buf,
-                     sizeof(buf),
+    checked_snprintf(buf.data(),
+                     buf.size(),
                      "vb_%d:replication_chain_%s:size",
                      vbid,
                      to_string(chain.name).c_str());
-    add_casted_stat(buf, chain.positions.size(), addStat, cookie);
+    add_casted_stat(buf.data(), chain.positions.size(), addStat, cookie);
 
     for (const auto& entry : chain.positions) {
         const auto* node = entry.first.c_str();
         const auto& pos = entry.second;
 
-        checked_snprintf(buf,
-                         sizeof(buf),
+        checked_snprintf(buf.data(),
+                         buf.size(),
                          "vb_%d:replication_chain_%s:%s:last_write_seqno",
                          vbid,
                          to_string(chain.name).c_str(),
                          node);
-        add_casted_stat(buf, pos.lastWriteSeqno, addStat, cookie);
-        checked_snprintf(buf,
-                         sizeof(buf),
+        add_casted_stat(buf.data(), pos.lastWriteSeqno, addStat, cookie);
+        checked_snprintf(buf.data(),
+                         buf.size(),
                          "vb_%d:replication_chain_%s:%s:last_ack_seqno",
                          vbid,
                          to_string(chain.name).c_str(),
                          node);
-        add_casted_stat(buf, pos.lastAckSeqno, addStat, cookie);
+        add_casted_stat(buf.data(), pos.lastAckSeqno, addStat, cookie);
     }
 }
 
@@ -1311,28 +1316,28 @@ void ActiveDurabilityMonitor::State::transitionFromNullTopology(
 }
 
 void ActiveDurabilityMonitor::State::copyChainPositions(
-        ReplicationChain* firstChain,
+        ReplicationChain* oldFirstChain,
         ReplicationChain& newFirstChain,
-        ReplicationChain* secondChain,
+        ReplicationChain* oldSecondChain,
         ReplicationChain* newSecondChain) {
-    if (firstChain) {
+    if (oldFirstChain) {
         // Copy over the trackedWrites position for all nodes which still exist
         // in the new chain. This ensures that if we manually set the HPS on the
         // firstChain then the secondChain will also be correctly set.
-        copyChainPositionsInner(*firstChain, newFirstChain);
+        copyChainPositionsInner(*oldFirstChain, newFirstChain);
         if (newSecondChain) {
             // This stage should never matter because we will find the node in
             // the firstChain and return early from processSeqnoAck. Added for
             // the sake of completeness.
             // @TODO make iterators optional and remove this
-            copyChainPositionsInner(*firstChain, *newSecondChain);
+            copyChainPositionsInner(*oldFirstChain, *newSecondChain);
         }
     }
 
-    if (secondChain) {
-        copyChainPositionsInner(*secondChain, newFirstChain);
+    if (oldSecondChain) {
+        copyChainPositionsInner(*oldSecondChain, newFirstChain);
         if (newSecondChain) {
-            copyChainPositionsInner(*secondChain, *newSecondChain);
+            copyChainPositionsInner(*oldSecondChain, *newSecondChain);
         }
     }
 }

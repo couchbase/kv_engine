@@ -76,8 +76,8 @@ public:
 
     cb::durability::Requirements getDurabilityReqs() const;
 
-    void setStatus(SyncWriteStatus status) {
-        this->status = status;
+    void setStatus(SyncWriteStatus newStatus) {
+        status = newStatus;
     }
 
     SyncWriteStatus getStatus() const {
@@ -261,10 +261,10 @@ private:
             return chainPtr;
         }
 
-        void reset(const ActiveDurabilityMonitor::ReplicationChain* chainPtr,
-                   uint8_t ackCount) {
-            this->ackCount.reset(ackCount);
-            this->chainPtr = chainPtr;
+        void reset(const ActiveDurabilityMonitor::ReplicationChain* newChainPtr,
+                   uint8_t newAckCount) {
+            ackCount.reset(newAckCount);
+            chainPtr = newChainPtr;
         }
 
         // Ack counter for the chain.
@@ -588,9 +588,9 @@ protected:
      * @param secondChain old second chain
      * @param newSecondChain new second chain
      */
-    void copyChainPositions(ReplicationChain* firstChain,
+    void copyChainPositions(ReplicationChain* oldFirstChain,
                             ReplicationChain& newFirstChain,
-                            ReplicationChain* secondChain,
+                            ReplicationChain* oldSecondChain,
                             ReplicationChain* newSecondChain);
 
     /**
