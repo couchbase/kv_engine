@@ -49,6 +49,7 @@
 
 #include <cbsasl/logging.h>
 #include <cbsasl/mechanism.h>
+#include <folly/CpuId.h>
 #include <mcbp/mcbp.h>
 #include <memcached/rbac.h>
 #include <memcached/server_core_iface.h>
@@ -1348,6 +1349,17 @@ int memcached_main(int argc, char** argv) {
                   << std::endl;
         exit(EXIT_FAILURE);
     }
+
+#if defined(__x86_64__) || defined(_M_X64)
+    if (!folly::CpuId().sse42()) {
+        // MB-44941: hw crc32 is required, and is part of SSE4.2. If the CPU
+        // does not support it, memcached would later crash with invalid
+        // instruction exceptions.
+        FATAL_ERROR(EXIT_FAILURE,
+                    "Failed to initialise - CPU with SSE4.2 extensions is "
+                    "required - terminating.");
+    }
+#endif
 
     // Setup terminate handler as early as possible to catch crashes
     // occurring during initialisation.
