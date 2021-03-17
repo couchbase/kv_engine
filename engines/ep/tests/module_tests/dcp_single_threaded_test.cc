@@ -21,15 +21,12 @@
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_stream.h"
 #include "checkpoint_manager.h"
-#include "dcp/backfill-manager.h"
 #include "dcp/consumer.h"
 #include "dcp/response.h"
 #include "dcp_utils.h"
 #include "evp_store_single_threaded_test.h"
 #include "kv_bucket.h"
-#include "test_helpers.h"
 
-#include <engines/ep/src/vbucket_queue_item_ctx.h>
 #include <programs/engine_testapp/mock_cookie.h>
 
 class STDcpTest : public STParameterizedBucketTest {
@@ -1016,93 +1013,6 @@ TEST_P(STDcpTest, ReplicateAfterThrottleThreshold) {
    just defer processing. */
 TEST_P(STDcpTest, ReplicateJustBeforeThrottleThreshold) {
     sendConsumerMutationsNearThreshold(false);
-}
-
-TEST_P(STDcpTest, BackfillLimitPendingQueue) {
-    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
-    auto* cookie = create_mock_cookie(engine.get());
-
-    // Set our max running backfills to 1 to test that we trigger the first
-    // in the queue successfully
-    auto& mockConnMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
-    mockConnMap.setMaxRunningBackfills(1);
-
-    // Add an item and drop ckpt to create streams with backfills
-    const auto key = makeStoredDocKey("key");
-    store_item(vbid, key, "value");
-    flushVBucketToDiskIfPersistent(vbid, 1 /*num expected flushed*/);
-    auto vb = store->getVBucket(vbid);
-    removeCheckpoint(*vb, 1);
-
-    // Create a few producers
-    auto producer1 = std::make_shared<MockDcpProducer>(*engine,
-                                                       cookie,
-                                                       "test_producer1",
-                                                       /*flags*/ 0);
-    EXPECT_EQ(cb::engine_errc::success, doStreamRequest(*producer1).status);
-
-    auto producer2 = std::make_shared<MockDcpProducer>(*engine,
-                                                       cookie,
-                                                       "test_producer2",
-                                                       /*flags*/ 0);
-
-    EXPECT_EQ(cb::engine_errc::success, doStreamRequest(*producer2).status);
-
-    auto producer3 = std::make_shared<MockDcpProducer>(*engine,
-                                                       cookie,
-                                                       "test_producer3",
-                                                       /*flags*/ 0);
-    EXPECT_EQ(cb::engine_errc::success, doStreamRequest(*producer3).status);
-
-    ASSERT_EQ(1, mockConnMap.getNumRunningBackfills());
-    ASSERT_EQ(2, mockConnMap.getNumPendingBackfillQSize());
-    ASSERT_EQ(2, mockConnMap.getNumPendingBackfillSetSize());
-
-    auto& bfm1 = producer1->getBFM();
-    EXPECT_EQ(1, bfm1.getNumBackfills());
-    EXPECT_EQ(0, bfm1.getNumPendingBackfills());
-
-    auto& bfm2 = producer2->getBFM();
-    EXPECT_EQ(1, bfm2.getNumBackfills());
-    EXPECT_EQ(1, bfm2.getNumPendingBackfills());
-
-    auto& bfm3 = producer3->getBFM();
-    EXPECT_EQ(1, bfm3.getNumBackfills());
-    EXPECT_EQ(1, bfm3.getNumPendingBackfills());
-
-    // Run first backfill to completion
-    bfm1.backfill();
-    bfm1.backfill();
-    bfm1.backfill();
-
-    // Finishing the first backfill should schedule the 2nd as it's the first
-    // in the queue.
-    EXPECT_EQ(0, bfm2.getNumPendingBackfills());
-    EXPECT_EQ(1, bfm3.getNumPendingBackfills());
-    EXPECT_EQ(1, mockConnMap.getNumRunningBackfills());
-    EXPECT_EQ(1, mockConnMap.getNumPendingBackfillQSize());
-    EXPECT_EQ(1, mockConnMap.getNumPendingBackfillSetSize());
-
-    // Run 2 to completion now and check the 3rd
-    bfm2.backfill();
-    bfm2.backfill();
-    bfm2.backfill();
-
-    EXPECT_EQ(0, bfm3.getNumPendingBackfills());
-    EXPECT_EQ(1, mockConnMap.getNumRunningBackfills());
-    EXPECT_EQ(0, mockConnMap.getNumPendingBackfillQSize());
-    EXPECT_EQ(0, mockConnMap.getNumPendingBackfillSetSize());
-
-    bfm3.backfill();
-    bfm3.backfill();
-    bfm3.backfill();
-
-    EXPECT_EQ(0, bfm3.getNumPendingBackfills());
-    EXPECT_EQ(0, mockConnMap.getNumRunningBackfills());
-    EXPECT_EQ(0, mockConnMap.getNumPendingBackfillQSize());
-    EXPECT_EQ(0, mockConnMap.getNumPendingBackfillSetSize());
-
-    destroy_mock_cookie(cookie);
 }
 
 INSTANTIATE_TEST_SUITE_P(PersistentAndEphemeral,

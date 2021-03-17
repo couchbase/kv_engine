@@ -18,7 +18,6 @@
 #include "mock_dcp_conn_map.h"
 
 #include "conn_store.h"
-#include "dcp/dcpconnmap.h"
 #include "dcp/response.h"
 #include "mock_dcp_consumer.h"
 
@@ -49,19 +48,4 @@ bool MockDcpConnMap::doesConnHandlerExist(const std::string& name) {
     return connStore->getCookieToConnectionMapHandle()
             ->findConnHandlerByName(name)
             .get();
-}
-
-void MockDcpConnMap::setMaxRunningBackfills(int64_t limit) {
-    std::lock_guard<std::mutex> lh(backfills.mutex);
-    backfills.maxRunning = limit;
-}
-
-size_t MockDcpConnMap::getNumPendingBackfillQSize() {
-    std::lock_guard<std::mutex> lh(backfills.mutex);
-    return backfills.pendingQueue.size();
-}
-
-size_t MockDcpConnMap::getNumPendingBackfillSetSize() {
-    std::lock_guard<std::mutex> lh(backfills.mutex);
-    return backfills.pendingSet.size();
 }

@@ -120,7 +120,7 @@ public:
 
     void manageConnections() override;
 
-    bool canAddBackfillToActiveQ(BackfillManager&) override;
+    bool canAddBackfillToActiveQ() override;
 
     void decrNumRunningBackfills() override;
 
@@ -234,23 +234,6 @@ protected:
         std::mutex mutex;
         uint16_t running;
         uint16_t maxRunning;
-
-        /**
-         * Queue of BackfillManager(ptrs) that are used to determine which
-         * BackfillManager may get the next backfill should we hit the point
-         * where running == maxRunning. At this point a completing backfill
-         * will start one backfill from the first BackfillManager in the
-         * queue and remove it from the queue instead of decrementing running.
-         */
-        std::queue<std::reference_wrapper<BackfillManager>> pendingQueue;
-
-        /**
-         * Set of BackfillManager(ptrs) that are used to ensure that we have
-         * unique entries in pendingQueue. We want a unique queue as that more
-         * fairly allocates backfills across BackfillManagers/Producers and
-         * should lessen the chances of any one connection from being starved.
-         */
-        std::unordered_set<BackfillManager*> pendingSet;
     } backfills;
 
     /* Max num of backfills we want to have irrespective of memory */

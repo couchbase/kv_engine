@@ -22,7 +22,6 @@
 #include <memory>
 
 class ActiveStream;
-class BackfillManager;
 class ScanContext;
 
 /**
@@ -118,7 +117,7 @@ struct BackfillTrackingIface {
      * then returns true, and notes that one more backfill is active.
      * If no more backfills can be added to the active set, returns false.
      */
-    virtual bool canAddBackfillToActiveQ(BackfillManager&) = 0;
+    virtual bool canAddBackfillToActiveQ() = 0;
 
     /**
      * Decrement by one the number of running (active/initializing/snoozing)

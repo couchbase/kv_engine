@@ -186,7 +186,7 @@ BackfillManager::ScheduleResult BackfillManager::schedule(
         UniqueDCPBackfillPtr backfill) {
     LockHolder lh(lock);
     ScheduleResult result;
-    if (backfillTracker.canAddBackfillToActiveQ(*this)) {
+    if (backfillTracker.canAddBackfillToActiveQ()) {
         initializingBackfills.push_back(std::move(backfill));
         result = ScheduleResult::Active;
     } else {
@@ -374,16 +374,12 @@ backfill_status_t BackfillManager::backfill() {
     return backfill_success;
 }
 
-void BackfillManager::moveFirstPendingToInitializing() {
-    initializingBackfills.splice(initializingBackfills.end(),
-                                 pendingBackfills,
-                                 pendingBackfills.begin());
-}
-
 void BackfillManager::movePendingToInitializing() {
     while (!pendingBackfills.empty() &&
-           backfillTracker.canAddBackfillToActiveQ(*this)) {
-        moveFirstPendingToInitializing();
+           backfillTracker.canAddBackfillToActiveQ()) {
+        initializingBackfills.splice(initializingBackfills.end(),
+                                     pendingBackfills,
+                                     pendingBackfills.begin());
     }
 }
 

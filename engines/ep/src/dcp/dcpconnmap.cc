@@ -17,7 +17,6 @@
 
 #include "dcpconnmap.h"
 
-#include "backfill-manager.h"
 #include "bucket_logger.h"
 #include "configuration.h"
 #include "conn_notifier.h"
@@ -450,18 +449,12 @@ void DcpConnMap::notifyBackfillManagerTasks() {
     }
 }
 
-bool DcpConnMap::canAddBackfillToActiveQ(BackfillManager& bfm) {
+bool DcpConnMap::canAddBackfillToActiveQ()
+{
     std::lock_guard<std::mutex> lh(backfills.mutex);
-    if (backfills.running < backfills.maxRunning &&
-        (backfills.pendingQueue.empty())) {
+    if (backfills.running < backfills.maxRunning) {
         ++backfills.running;
         return true;
-    }
-
-    auto res = backfills.pendingSet.insert(&bfm);
-    if (res.second) {
-        // Not in the set, add to queue
-        backfills.pendingQueue.push(bfm);
     }
     return false;
 }
@@ -470,15 +463,7 @@ void DcpConnMap::decrNumRunningBackfills() {
     {
         std::lock_guard<std::mutex> lh(backfills.mutex);
         if (backfills.running > 0) {
-            if (backfills.pendingQueue.empty()) {
-                --backfills.running;
-                return;
-            }
-
-            auto& pending = backfills.pendingQueue.front();
-            backfills.pendingQueue.pop();
-            backfills.pendingSet.erase(&(pending.get()));
-            pending.get().moveFirstPendingToInitializing();
+            --backfills.running;
             return;
         }
     }
