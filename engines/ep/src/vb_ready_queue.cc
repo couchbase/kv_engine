@@ -102,7 +102,7 @@ void VBReadyQueue::addStats(const std::string& prefix,
 
     add_casted_stat((prefix + "size").c_str(), qCopy.size(), add_stat, c);
     add_casted_stat(
-            (prefix + "map_size").c_str(), qMapCopy.size(), add_stat, c);
+            (prefix + "map_size").c_str(), qMapCopy.count(), add_stat, c);
 
     // Form a comma-separated string of the queue's contents.
     std::string contents;
