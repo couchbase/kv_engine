@@ -1041,6 +1041,7 @@ std::vector<ThreadCountsParams> threadCountValues = {
         {ThreadPoolConfig::ThreadCount::Default, 48, 16, 4, 5, 8},
         {ThreadPoolConfig::ThreadCount::Default, 64, 16, 4, 7, 8},
         {ThreadPoolConfig::ThreadCount::Default, 128, 16, 4, 8, 8},
+        {ThreadPoolConfig::ThreadCount::Default, 256, 16, 4, 8, 8},
         {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 1, 4, 4, 1, 2},
         {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 2, 4, 4, 1, 2},
         {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 4, 4, 4, 1, 2},
@@ -1052,7 +1053,8 @@ std::vector<ThreadCountsParams> threadCountValues = {
         {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 32, 32, 32, 4, 8},
         {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 48, 48, 48, 5, 8},
         {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 64, 64, 64, 7, 8},
-        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 128, 64, 64, 8, 8}};
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 128, 128, 128, 8, 8},
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 256, 128, 128, 8, 8}};
 
 INSTANTIATE_TEST_SUITE_P(ThreadCountTest,
                          ExecutorPoolTestWithParam,

@@ -47,11 +47,11 @@ public:
             // based on the number of available CPUs.
             maxNumShards = cb::get_available_cpu_count();
 
-            // Sanity - must always have at least 1 shard, but not more than 64
-            // given we don't have machines commonly available to test at
+            // Sanity - must always have at least 1 shard., but not more than
+            // 128 given we don't have machines commonly available to test at
             // greater sizes.
             maxNumShards = std::max(1, maxNumShards);
-            maxNumShards = std::min(64, maxNumShards);
+            maxNumShards = std::min(128, maxNumShards);
         }
     }
 

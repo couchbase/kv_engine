@@ -99,7 +99,7 @@ size_t ExecutorPool::calcNumReaders(
 
     case ThreadPoolConfig::ThreadCount::DiskIOOptimized: {
         // Configure Reader threads based on CPU count; increased up
-        // to a maximum of 64 threads.
+        // to a maximum of 128 threads.
 
         // Note: For maximum IO throughput we should create as many Reader
         // threads as concurrent iops the system can support, given we use
@@ -109,9 +109,9 @@ size_t ExecutorPool::calcNumReaders(
         // with lots of CPU cores are more likely to have more IO than little
         // machines.
         // However given we don't have test environments larger than
-        // 64 cores, limit to 64.
+        // ~128 cores, limit to 128.
         auto readers = maxGlobalThreads;
-        readers = std::min(readers, size_t{64});
+        readers = std::min(readers, size_t{128});
         readers = std::max(readers, size_t{4});
         return readers;
     }
@@ -129,7 +129,7 @@ size_t ExecutorPool::calcNumWriters(
         return 4;
 
     case ThreadPoolConfig::ThreadCount::DiskIOOptimized: {
-        // Configure Writer threads based on CPU count; up to a maximum of 64
+        // Configure Writer threads based on CPU count; up to a maximum of 128
         // threads.
 
         // Note: For maximum IO throughput we should create as many Writer
@@ -139,9 +139,9 @@ size_t ExecutorPool::calcNumWriters(
         // can support is hard, so we use #CPUs as a proxy for it - machines
         // with lots of CPU cores are more likely to have more IO than little
         // machines. However given we don't have test environments larger than
-        // 64 cores, limit to 64.
+        // ~128 cores, limit to 128.
         auto writers = maxGlobalThreads;
-        writers = std::min(writers, size_t{64});
+        writers = std::min(writers, size_t{128});
         writers = std::max(writers, size_t{4});
         return writers;
     }
