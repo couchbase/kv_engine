@@ -202,12 +202,9 @@ template <class Mutex>
 class MutexSpan {
 public:
     /**
-     * Acquires ownership of the specified mutex.
-     *
-     * If enabled is true, records the time spent waiting for the lock. Upon
-     * destruction, events will be logged with the specified details.
-     * @threshold Minimum duration that either the lock or acquire span must
-     * take for events to be logged.
+     * Acquire the specified mutex and push a trace element for the time
+     * waiting for acquire the mutex and one span for how long it was held
+     * if one of the values exceeds the provided threshold
      */
     MutexSpan(Traceable* traceable,
               Mutex& mutex_,
