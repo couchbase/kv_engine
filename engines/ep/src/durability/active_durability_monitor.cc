@@ -29,6 +29,7 @@
 #include <folly/concurrency/UnboundedQueue.h>
 
 #include <memcached/dockey.h>
+#include <spdlog/fmt/ostr.h>
 #include <statistics/cbstat_collector.h>
 #include <utilities/logtags.h>
 
@@ -140,7 +141,8 @@ private:
     ConsumerLock consumerLock;
 
     friend std::ostream& operator<<(
-            std::ostream& os, ActiveDurabilityMonitor::ResolvedQueue& rq) {
+            std::ostream& os,
+            const ActiveDurabilityMonitor::ResolvedQueue& rq) {
         os << "ResolvedQueue[" << &rq << "] size:" << rq.queue.size()
            << ", highEnqueuedSeqno:" << rq.highEnqueuedSeqno;
         return os;
@@ -1568,18 +1570,18 @@ void ActiveDurabilityMonitor::State::updateHighPreparedSeqno(
 }
 
 void ActiveDurabilityMonitor::State::updateHighCompletedSeqno() {
-    // @todo MB-41434: Remove extra logging when fixed
     try {
         highCompletedSeqno = std::max(lastCommittedSeqno, lastAbortedSeqno);
     } catch (const std::exception& e) {
-        std::stringstream ss;
-        ss << e.what() << std::endl;
-        ss << adm << std::endl;
         EP_LOG_ERR(
-                "({}) "
-                "ActiveDurabilityMonitor::State:::updateHighCompletedSeqno: {}",
+                "ActiveDurabilityMonitor::State::updateHighCompletedSeqno(): "
+                "threw:{} {} ActiveDurabilityMonitor[{}] state:{} "
+                "resolvedQueue:{}",
+                e.what(),
                 adm.vb.getId(),
-                ss.str());
+                (void*)&adm,
+                *this,
+                *adm.resolvedQueue);
         throw e;
     }
 }
