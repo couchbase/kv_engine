@@ -89,6 +89,13 @@ public:
         }
     }
 
+    bool isEnabled() const {
+        if (traceable) {
+            return traceable->isTracingEnabled();
+        }
+        return false;
+    }
+
     void start(cb::tracing::Clock::time_point tp) {
         startTime = tp;
     }

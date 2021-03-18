@@ -184,6 +184,13 @@ public:
         }
     }
 
+    bool isEnabled() const {
+        if (traceable) {
+            return (alwaysInclude || traceable->isTracingEnabled());
+        }
+        return false;
+    }
+
     void start(Clock::time_point tp) {
         startTime = tp;
     }
