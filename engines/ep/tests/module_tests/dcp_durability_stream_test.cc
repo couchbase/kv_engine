@@ -3048,29 +3048,55 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveAbortWithoutPrepareFromDisk) {
 }
 
 /**
- * Test that we do not accept an abort without a correponding prepare if we
- * are receiving a disk snapshot and the prepare seqno is less than the current
- * snapshot start.
+ * This test is for a scenario in which we may receive an abort with a prepare
+ * seqno outside of the snapshot. We're only consider backfill snapshots so
+ * aborts will deduplicate prepares. This could happen if a replica  streams
+ * a disk backfill as two snapshots due to a disconnect. This was seen after a
+ * rollback but that's not necessary for the test. We'll use the following
+ * snapshot:
+ *
+ *  [Start:1 - End:10]
+ *  At seqno 5 we have an abort with prepare seqno of 3
+ *
+ *  Should we disconnect at whatever item is/isn't at seqno 4 then we shouldn't
+ *  tear down the connection if the seqno of the abort is earlier than the first
+ *  seqno of the snapshot.
  */
 TEST_P(DurabilityPassiveStreamTest,
-       ReceiveAbortWithoutPrepareFromDiskInvalidPrepareSeqno) {
+       DiskSnapCatchupAbortWithPrepareSeqnoBeforeSnap) {
     uint32_t opaque = 0;
-    auto prepareSeqno = 2;
-    auto abortSeqno = 4;
+    auto prepareSeqno = 3;
+    auto abortSeqno = 5;
 
+    // 1) Receive a disk snapshot
     SnapshotMarker marker(opaque,
                           vbid,
-                          3 /*snapStart*/,
-                          4 /*snapEnd*/,
-                          dcp_marker_flag_t::MARKER_FLAG_DISK,
+                          0 /*snapStart*/,
+                          10 /*snapEnd*/,
+                          dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
                           prepareSeqno,
                           {} /*maxVisibleSeqno*/,
                           {}, // timestamp
                           {} /*streamId*/);
     stream->processMarker(&marker);
 
+    // 2) Pretend we disconnected by just sending another snapshot marker, all
+    // the state required gets updated when we process the snapshot marker
+    marker = SnapshotMarker(
+            opaque,
+            vbid,
+            5 /*snapStart*/,
+            10 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+            prepareSeqno,
+            {} /*maxVisibleSeqno*/,
+            {}, // timestamp
+            {} /*streamId*/);
+    stream->processMarker(&marker);
+
+    // 3) And abort
     auto key = makeStoredDocKey("key1");
-    EXPECT_EQ(cb::engine_errc::invalid_arguments,
+    EXPECT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<AbortSyncWrite>(
                       opaque, vbid, key, prepareSeqno, abortSeqno)));
 }
@@ -3973,18 +3999,6 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
                             {} /*streamId*/);
     stream->processMarker(&marker);
 
-    // This tests the failure path triggered by that prepareSeqno is less than
-    // snapStart.
-    ASSERT_EQ(cb::engine_errc::invalid_arguments,
-              stream->messageReceived(
-                      std::make_unique<AbortSyncWrite>(opaque,
-                                                       vbid,
-                                                       key,
-                                                       12 /*prepareSeqno*/,
-                                                       13 /*abortSeqno*/)));
-
-    // This time the unprepared abort is legal, the related Prepare could have
-    // been deduplicated at Active.
     auto abortSeqno = 16;
     ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(std::make_unique<AbortSyncWrite>(
