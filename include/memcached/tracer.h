@@ -33,6 +33,8 @@ enum class Code : uint8_t {
     AssociateBucket,
     /// The time spent disassociating a bucket
     DisassociateBucket,
+    BucketLockWait,
+    BucketLockHeld,
     /// Time spent creating the RBAC context
     CreateRbacContext,
     /// Time spent updating privilege context when toggling buckets
@@ -194,6 +196,61 @@ private:
     Clock::time_point stopTime;
     const Code code;
     const bool alwaysInclude;
+};
+
+template <class Mutex>
+class MutexSpan {
+public:
+    /**
+     * Acquires ownership of the specified mutex.
+     *
+     * If enabled is true, records the time spent waiting for the lock. Upon
+     * destruction, events will be logged with the specified details.
+     * @threshold Minimum duration that either the lock or acquire span must
+     * take for events to be logged.
+     */
+    MutexSpan(Traceable* traceable,
+              Mutex& mutex_,
+              Code wait,
+              Code held,
+              Clock::duration threshold_ = Clock::duration::zero())
+        : traceable(traceable),
+          mutex(mutex_),
+          threshold(threshold_),
+          wait(wait),
+          held(held) {
+        if (traceable) {
+            start = Clock::now();
+            mutex.lock();
+            lockedAt = Clock::now();
+        } else {
+            mutex.lock();
+        }
+    }
+
+    ~MutexSpan() {
+        mutex.unlock();
+        if (traceable) {
+            releasedAt = std::chrono::steady_clock::now();
+            const auto waitTime = lockedAt - start;
+            const auto heldTime = releasedAt - lockedAt;
+            if (waitTime > threshold || heldTime > threshold) {
+                auto tracer = traceable->getTracer();
+                tracer.record(wait, start, lockedAt);
+                tracer.record(held, lockedAt, releasedAt);
+            }
+        }
+    }
+
+private:
+    Traceable* const traceable;
+    Mutex& mutex;
+    const Clock::duration threshold;
+    const Code wait;
+    const Code held;
+    Clock::time_point start;
+    Clock::time_point lockedAt;
+    Clock::time_point releasedAt;
 };
 
 } // namespace cb::tracing

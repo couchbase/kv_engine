@@ -168,7 +168,11 @@ void disassociate_bucket(Connection& connection, Cookie* cookie) {
     ScopeTimer1<SpanStopwatch> timer({cookie, Code::DisassociateBucket, true});
 
     Bucket& b = connection.getBucket();
-    std::lock_guard<std::mutex> guard(b.mutex);
+    cb::tracing::MutexSpan guard(cookie,
+                                 b.mutex,
+                                 Code::BucketLockWait,
+                                 Code::BucketLockHeld,
+                                 std::chrono::milliseconds(5));
     b.clients--;
 
     connection.setBucketIndex(0, cookie);
@@ -188,7 +192,11 @@ bool associate_bucket(Connection& connection,
     /* Try to associate with the named bucket */
     for (size_t ii = 1; ii < all_buckets.size(); ++ii) {
         Bucket &b = all_buckets.at(ii);
-        std::lock_guard<std::mutex> guard(b.mutex);
+        cb::tracing::MutexSpan guard(cookie,
+                                     b.mutex,
+                                     cb::tracing::Code::BucketLockWait,
+                                     cb::tracing::Code::BucketLockHeld,
+                                     std::chrono::milliseconds(5));
         if (b.state == Bucket::State::Ready && strcmp(b.name, name) == 0) {
             b.clients++;
             idx = ii;
@@ -203,7 +211,11 @@ bool associate_bucket(Connection& connection,
         // Bucket not found, connect to the "no-bucket"
         Bucket &b = all_buckets.at(0);
         {
-            std::lock_guard<std::mutex> guard(b.mutex);
+            cb::tracing::MutexSpan guard(cookie,
+                                         b.mutex,
+                                         cb::tracing::Code::BucketLockWait,
+                                         cb::tracing::Code::BucketLockHeld,
+                                         std::chrono::milliseconds(5));
             b.clients++;
         }
         connection.setBucketIndex(0, cookie);

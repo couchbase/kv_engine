@@ -136,6 +136,10 @@ MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Code tracecode) {
         return "associate_bucket";
     case Code::DisassociateBucket:
         return "disassociate_bucket";
+    case Code::BucketLockWait:
+        return "bucket_lock.wait";
+    case Code::BucketLockHeld:
+        return "bucket_lock.held";
     case Code::UpdatePrivilegeContext:
         return "update_privilege_context";
     case Code::CreateRbacContext:
