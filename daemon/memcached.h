@@ -32,6 +32,7 @@
 
 #define MAX_VERBOSITY_LEVEL 2
 
+class Bucket;
 class Cookie;
 class Connection;
 struct thread_stats;
@@ -93,6 +94,7 @@ bool associate_bucket(Connection& connection,
                       const char* name,
                       Cookie* cookie = nullptr);
 void disassociate_bucket(Connection& connection, Cookie* cookie = nullptr);
+void disconnect_bucket(Bucket& bucket, Cookie* cookie);
 
 /**
  * The executor pool used to pick up the result for requests spawn by the

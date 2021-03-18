@@ -26,30 +26,15 @@
 #include <memory>
 #include <string>
 
-CccpNotificationTask::CccpNotificationTask(int bucket_, int revision_)
-    : Task(),
-      bucket(all_buckets.at(bucket_)),
-      bucketIndex(bucket_),
-      revision(revision_) {
+CccpNotificationTask::CccpNotificationTask(Bucket& bucket_, int revision_)
+    : Task(), bucket(bucket_), revision(revision_) {
     // Bump a reference so the bucket can't be deleted while we're in the
-    // middle of pushing configurations
-    std::lock_guard<std::mutex> guard(all_buckets[bucketIndex].mutex);
-    all_buckets[bucketIndex].clients++;
+    // middle of pushing configurations (we're already bound to the bucket)
+    bucket.clients++;
 }
 
 CccpNotificationTask::~CccpNotificationTask() {
-    bool notify = false;
-    {
-        std::lock_guard<std::mutex> guard(all_buckets[bucketIndex].mutex);
-        all_buckets[bucketIndex].clients--;
-        if (all_buckets[bucketIndex].clients == 0) {
-            notify = true;
-        }
-    }
-
-    if (notify) {
-        all_buckets[bucketIndex].cond.notify_all();
-    }
+    disconnect_bucket(bucket, nullptr);
 }
 
 class CccpPushNotificationServerEvent : public ServerEvent {

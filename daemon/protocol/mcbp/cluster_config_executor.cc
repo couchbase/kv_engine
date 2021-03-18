@@ -116,7 +116,6 @@ void set_cluster_config_executor(Cookie& cookie) {
             return;
         }
         auto& b = connection.getBucket();
-        std::lock_guard<std::mutex> guard(b.mutex);
         b.clients++;
     } else {
         // Locate bucket to operate
@@ -148,8 +147,7 @@ void set_cluster_config_executor(Cookie& cookie) {
     auto cas = req.getCas();
     if (!session_cas.increment_session_counter(cas)) {
         cookie.sendResponse(cb::mcbp::Status::KeyEexists);
-        std::lock_guard<std::mutex> guard(all_buckets[bucketIndex].mutex);
-        all_buckets[bucketIndex].clients--;
+        disconnect_bucket(all_buckets[bucketIndex], nullptr);
         return;
     }
 
@@ -192,7 +190,7 @@ void set_cluster_config_executor(Cookie& cookie) {
             // them to push new clustermaps
             std::shared_ptr<Task> task;
             task = std::make_shared<CccpNotificationTask>(
-                    connection.getBucketIndex(), revision);
+                    all_buckets.at(bucketIndex), revision);
             std::lock_guard<std::mutex> guard(task->getMutex());
             executorPool->schedule(task, true);
         } catch (const std::exception& e) {
@@ -207,6 +205,5 @@ void set_cluster_config_executor(Cookie& cookie) {
     }
 
     session_cas.decrement_session_counter();
-    std::lock_guard<std::mutex> guard(all_buckets[bucketIndex].mutex);
-    all_buckets[bucketIndex].clients--;
+    disconnect_bucket(all_buckets[bucketIndex], nullptr);
 }

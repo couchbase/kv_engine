@@ -162,24 +162,24 @@ static void set_stats_reset_time()
     }
 }
 
-void disassociate_bucket(Connection& connection, Cookie* cookie) {
+void disconnect_bucket(Bucket& bucket, Cookie* cookie) {
     using cb::tracing::Code;
     using cb::tracing::SpanStopwatch;
     ScopeTimer1<SpanStopwatch> timer({cookie, Code::DisassociateBucket, true});
-
-    Bucket& b = connection.getBucket();
     cb::tracing::MutexSpan guard(cookie,
-                                 b.mutex,
+                                 bucket.mutex,
                                  Code::BucketLockWait,
                                  Code::BucketLockHeld,
                                  std::chrono::milliseconds(5));
-    b.clients--;
 
-    connection.setBucketIndex(0, cookie);
-
-    if (b.clients == 0 && b.state == Bucket::State::Destroying) {
-        b.cond.notify_one();
+    if (--bucket.clients == 0 && bucket.state == Bucket::State::Destroying) {
+        bucket.cond.notify_one();
     }
+}
+
+void disassociate_bucket(Connection& connection, Cookie* cookie) {
+    disconnect_bucket(connection.getBucket(), cookie);
+    connection.setBucketIndex(0, cookie);
 }
 
 bool associate_bucket(Connection& connection,
@@ -192,15 +192,18 @@ bool associate_bucket(Connection& connection,
     /* Try to associate with the named bucket */
     for (size_t ii = 1; ii < all_buckets.size(); ++ii) {
         Bucket &b = all_buckets.at(ii);
-        cb::tracing::MutexSpan guard(cookie,
-                                     b.mutex,
-                                     cb::tracing::Code::BucketLockWait,
-                                     cb::tracing::Code::BucketLockHeld,
-                                     std::chrono::milliseconds(5));
-        if (b.state == Bucket::State::Ready && strcmp(b.name, name) == 0) {
-            b.clients++;
-            idx = ii;
-            break;
+        if (b.state == Bucket::State::Ready) {
+            // Lock and rerun the test
+            cb::tracing::MutexSpan guard(cookie,
+                                         b.mutex,
+                                         cb::tracing::Code::BucketLockWait,
+                                         cb::tracing::Code::BucketLockHeld,
+                                         std::chrono::milliseconds(5));
+            if (b.state == Bucket::State::Ready && strcmp(b.name, name) == 0) {
+                b.clients++;
+                idx = ii;
+                break;
+            }
         }
     }
 
@@ -704,7 +707,7 @@ static nlohmann::json get_bucket_details_UNLOCKED(const Bucket& bucket,
         try {
             json["index"] = idx;
             json["state"] = to_string(bucket.state.load());
-            json["clients"] = bucket.clients;
+            json["clients"] = bucket.clients.load();
             json["name"] = bucket.name;
             json["type"] = to_string(bucket.type);
         } catch (const std::exception& e) {

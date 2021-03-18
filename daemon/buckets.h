@@ -87,7 +87,7 @@ public:
      * The number of clients currently connected to the bucket (performed
      * a SASL_AUTH to the bucket.
      */
-    uint32_t clients{0};
+    std::atomic<uint32_t> clients{0};
 
     /**
      * The current state of the bucket. Atomic as we permit it to be

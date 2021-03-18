@@ -30,7 +30,7 @@ public:
     CccpNotificationTask() = delete;
     CccpNotificationTask(const CccpNotificationTask&) = delete;
 
-    CccpNotificationTask(int bucket_, int revision_);
+    CccpNotificationTask(Bucket& bucket_, int revision_);
 
     ~CccpNotificationTask() override;
 
@@ -39,8 +39,6 @@ public:
 protected:
     /// The bucket we're operating on
     Bucket& bucket;
-    /// The Index of the bucket to push notifications for
-    const int bucketIndex;
 
     /// The revision of the new config
     const int revision;
