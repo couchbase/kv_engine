@@ -95,14 +95,35 @@ void bucketsForEach(std::function<bool(Bucket&, void*)> fn, void *arg) {
     std::lock_guard<std::mutex> all_bucket_lock(buckets_lock);
     for (Bucket& bucket : all_buckets) {
         bool do_break = false;
-        std::lock_guard<std::mutex> guard(bucket.mutex);
         if (bucket.state == Bucket::State::Ready) {
-            if (!fn(bucket, arg)) {
-                do_break = true;
+            // MB-44827: We don't want to hold the bucket mutex for the
+            //           entire time of the callback as it would block
+            //           other threads to associate / leave the bucket,
+            //           and we don't know how slow the callback is going
+            //           to be. To make sure that the bucket won't get
+            //           killed while we run the callback we'll bump
+            //           the client reference and release it once
+            //           we're done with the callback
+            bool ready = true;
+            {
+                std::lock_guard<std::mutex> guard(bucket.mutex);
+                if (bucket.state == Bucket::State::Ready) {
+                    bucket.clients++;
+                } else {
+                    ready = false;
+                }
             }
-        }
-        if (do_break) {
-            break;
+            if (ready) {
+                if (!fn(bucket, arg)) {
+                    do_break = true;
+                }
+                // disconnect from the bucket (remove the client reference
+                // we added earlier
+                disconnect_bucket(bucket, nullptr);
+                if (do_break) {
+                    break;
+                }
+            }
         }
     }
 }
