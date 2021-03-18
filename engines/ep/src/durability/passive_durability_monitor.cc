@@ -130,22 +130,22 @@ PassiveDurabilityMonitor::~PassiveDurabilityMonitor() = default;
 
 void PassiveDurabilityMonitor::addStats(const AddStatFn& addStat,
                                         const void* cookie) const {
-    std::array<char, 256> buf;
-
     try {
         const auto vbid = vb.getId().get();
+        add_casted_stat(fmt::format("vb_{}:state", vbid),
+                        VBucket::toString(vb.getState()),
+                        addStat,
+                        cookie);
 
-        checked_snprintf(buf.data(), buf.size(), "vb_%d:state", vbid);
-        add_casted_stat(
-                buf.data(), VBucket::toString(vb.getState()), addStat, cookie);
+        add_casted_stat(fmt::format("vb_{}:high_prepared_seqno", vbid),
+                        getHighPreparedSeqno(),
+                        addStat,
+                        cookie);
 
-        checked_snprintf(
-                buf.data(), buf.size(), "vb_%d:high_prepared_seqno", vbid);
-        add_casted_stat(buf.data(), getHighPreparedSeqno(), addStat, cookie);
-
-        checked_snprintf(
-                buf.data(), buf.size(), "vb_%d:high_completed_seqno", vbid);
-        add_casted_stat(buf.data(), getHighCompletedSeqno(), addStat, cookie);
+        add_casted_stat(fmt::format("vb_{}:high_completed_seqno", vbid),
+                        getHighCompletedSeqno(),
+                        addStat,
+                        cookie);
 
     } catch (const std::exception& e) {
         EP_LOG_WARN(

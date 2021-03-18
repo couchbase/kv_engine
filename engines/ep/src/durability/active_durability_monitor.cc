@@ -363,41 +363,46 @@ void ActiveDurabilityMonitor::notifyLocalPersistence() {
 
 void ActiveDurabilityMonitor::addStats(const AddStatFn& addStat,
                                        const void* cookie) const {
-    std::array<char, 256> buf;
-
     try {
         const auto vbid = vb.getId().get();
 
-        checked_snprintf(buf.data(), buf.size(), "vb_%d:state", vbid);
-        add_casted_stat(
-                buf.data(), VBucket::toString(vb.getState()), addStat, cookie);
+        add_casted_stat(fmt::format("vb_{}:state", vbid),
+                        VBucket::toString(vb.getState()),
+                        addStat,
+                        cookie);
 
         const auto s = state.rlock();
 
-        checked_snprintf(buf.data(), buf.size(), "vb_%d:num_tracked", vbid);
-        add_casted_stat(buf.data(), s->trackedWrites.size(), addStat, cookie);
-
-        checked_snprintf(
-                buf.data(), buf.size(), "vb_%d:high_prepared_seqno", vbid);
+        add_casted_stat(fmt::format("vb_{}:num_tracked", vbid),
+                        s->trackedWrites.size(),
+                        addStat,
+                        cookie);
 
         // Do not have a valid HPS unless the first chain has been set.
         int64_t highPreparedSeqno = 0;
         if (s->firstChain) {
             highPreparedSeqno = s->getNodeWriteSeqno(s->getActive());
         }
-        add_casted_stat(buf.data(), highPreparedSeqno, addStat, cookie);
 
-        checked_snprintf(
-                buf.data(), buf.size(), "vb_%d:last_tracked_seqno", vbid);
-        add_casted_stat(buf.data(), s->lastTrackedSeqno, addStat, cookie);
+        add_casted_stat(fmt::format("vb_{}:high_prepared_seqno", vbid),
+                        highPreparedSeqno,
+                        addStat,
+                        cookie);
 
-        checked_snprintf(
-                buf.data(), buf.size(), "vb_%d:last_committed_seqno", vbid);
-        add_casted_stat(buf.data(), s->lastCommittedSeqno, addStat, cookie);
+        add_casted_stat(fmt::format("vb_{}:last_tracked_seqno", vbid),
+                        s->lastTrackedSeqno,
+                        addStat,
+                        cookie);
 
-        checked_snprintf(
-                buf.data(), buf.size(), "vb_%d:last_aborted_seqno", vbid);
-        add_casted_stat(buf.data(), s->lastAbortedSeqno, addStat, cookie);
+        add_casted_stat(fmt::format("vb_{}:last_committed_seqno", vbid),
+                        s->lastCommittedSeqno,
+                        addStat,
+                        cookie);
+
+        add_casted_stat(fmt::format("vb_{}:last_aborted_seqno", vbid),
+                        s->lastAbortedSeqno,
+                        addStat,
+                        cookie);
 
         if (s->firstChain) {
             addStatsForChain(addStat, cookie, *s->firstChain.get());
@@ -418,33 +423,37 @@ void ActiveDurabilityMonitor::addStatsForChain(
         const AddStatFn& addStat,
         const void* cookie,
         const ReplicationChain& chain) const {
-    std::array<char, 256> buf;
+    fmt::memory_buffer buff;
     const auto vbid = vb.getId().get();
-    checked_snprintf(buf.data(),
-                     buf.size(),
-                     "vb_%d:replication_chain_%s:size",
-                     vbid,
-                     to_string(chain.name).c_str());
-    add_casted_stat(buf.data(), chain.positions.size(), addStat, cookie);
+
+    add_casted_stat(fmt::format("vb_{}:replication_chain_{}:size",
+                                vbid,
+                                to_string(chain.name)),
+                    chain.positions.size(),
+                    addStat,
+                    cookie);
 
     for (const auto& entry : chain.positions) {
         const auto* node = entry.first.c_str();
         const auto& pos = entry.second;
 
-        checked_snprintf(buf.data(),
-                         buf.size(),
-                         "vb_%d:replication_chain_%s:%s:last_write_seqno",
-                         vbid,
-                         to_string(chain.name).c_str(),
-                         node);
-        add_casted_stat(buf.data(), pos.lastWriteSeqno, addStat, cookie);
-        checked_snprintf(buf.data(),
-                         buf.size(),
-                         "vb_%d:replication_chain_%s:%s:last_ack_seqno",
-                         vbid,
-                         to_string(chain.name).c_str(),
-                         node);
-        add_casted_stat(buf.data(), pos.lastAckSeqno, addStat, cookie);
+        add_casted_stat(
+                fmt::format("vb_{}:replication_chain_{}:{}:last_write_seqno",
+                            vbid,
+                            to_string(chain.name),
+                            node),
+                pos.lastWriteSeqno,
+                addStat,
+                cookie);
+
+        add_casted_stat(
+                fmt::format("vb_{}:replication_chain_{}:{}:last_ack_seqno",
+                            vbid,
+                            to_string(chain.name),
+                            node),
+                pos.lastAckSeqno,
+                addStat,
+                cookie);
     }
 }
 
