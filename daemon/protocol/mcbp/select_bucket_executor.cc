@@ -97,7 +97,7 @@ cb::engine_errc select_bucket(Cookie& cookie, const std::string& bucketname) {
 void select_bucket_executor(Cookie& cookie) {
     using cb::tracing::Code;
     using cb::tracing::SpanStopwatch;
-    ScopeTimer1<SpanStopwatch> timer({cookie, Code::SelectBucket, true});
+    ScopeTimer1<SpanStopwatch> timer({cookie, Code::SelectBucket});
 
     const auto key = cookie.getRequest().getKey();
     // Unfortunately we need to copy it over to a std::string as the

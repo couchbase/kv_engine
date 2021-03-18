@@ -371,8 +371,7 @@ void Connection::setBucketIndex(int index, Cookie* cookie) {
 
     using cb::tracing::Code;
     using cb::tracing::SpanStopwatch;
-    ScopeTimer1<SpanStopwatch> timer(
-            {cookie, Code::UpdatePrivilegeContext, true});
+    ScopeTimer1<SpanStopwatch> timer({cookie, Code::UpdatePrivilegeContext});
 
     // Update the privilege context. If a problem occurs within the RBAC
     // module we'll assign an empty privilege context to the connection.

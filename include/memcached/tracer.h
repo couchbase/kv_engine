@@ -33,7 +33,9 @@ enum class Code : uint8_t {
     AssociateBucket,
     /// The time spent disassociating a bucket
     DisassociateBucket,
+    /// The time spent waiting to acquire the bucket lock
     BucketLockWait,
+    /// The time spent holding the bucket lock
     BucketLockHeld,
     /// Time spent creating the RBAC context
     CreateRbacContext,
@@ -210,13 +212,15 @@ public:
               Mutex& mutex_,
               Code wait,
               Code held,
-              Clock::duration threshold_ = Clock::duration::zero())
+              Clock::duration threshold_ = Clock::duration::zero(),
+              bool force = false)
         : traceable(traceable),
           mutex(mutex_),
           threshold(threshold_),
           wait(wait),
-          held(held) {
-        if (traceable) {
+          held(held),
+          force(force) {
+        if (traceable && (force || traceable->isTracingEnabled())) {
             start = Clock::now();
             mutex.lock();
             lockedAt = Clock::now();
@@ -227,11 +231,11 @@ public:
 
     ~MutexSpan() {
         mutex.unlock();
-        if (traceable) {
+        if (traceable && (force || traceable->isTracingEnabled())) {
             releasedAt = std::chrono::steady_clock::now();
             const auto waitTime = lockedAt - start;
             const auto heldTime = releasedAt - lockedAt;
-            if (waitTime > threshold || heldTime > threshold) {
+            if (force || waitTime > threshold || heldTime > threshold) {
                 auto tracer = traceable->getTracer();
                 tracer.record(wait, start, lockedAt);
                 tracer.record(held, lockedAt, releasedAt);
@@ -245,6 +249,7 @@ private:
     const Clock::duration threshold;
     const Code wait;
     const Code held;
+    const bool force;
     Clock::time_point start;
     Clock::time_point lockedAt;
     Clock::time_point releasedAt;
