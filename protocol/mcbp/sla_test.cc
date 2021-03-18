@@ -215,9 +215,9 @@ TEST(McbpSlaReconfig, ReconfigureFiles) {
     // We override the default value with different values in both
     // override-1, 2 and 3 (the last one shouldn't be read). Verify that we
     // got the one from override-2
-    EXPECT_EQ(std::chrono::hours(1),
-              cb::mcbp::sla::getSlowOpThreshold(
-                      cb::mcbp::ClientOpcode::SelectBucket));
+    EXPECT_EQ(
+            std::chrono::hours(1),
+            cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Observe));
 }
 
 TEST(McbpSlaReconfig, toJSON) {

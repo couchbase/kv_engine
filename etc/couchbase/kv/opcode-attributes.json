@@ -7,6 +7,9 @@
   "compact_db": {
     "slow": "30 m"
   },
+  "select_bucket": {
+    "slow": "10 ms"
+  },
   "delete_bucket": {
     "slow": "10 s"
   },
