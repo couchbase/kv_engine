@@ -1448,14 +1448,10 @@ uint64_t CheckpointManager::getVisibleSnapshotEndSeqno() const {
 queued_item CheckpointManager::createCheckpointItem(uint64_t id,
                                                     Vbid vbid,
                                                     queue_op checkpoint_op) {
-    // It's not valid to actually increment lastBySeqno for any meta op for two
-    // reasons:
-    // 1) This may be called independently on the replica to the active
-    // (i.e. for a failover table change as part of set_vbucket_state) so the
-    // seqnos would differ to those on the active.
-    // 2) DcpConsumer calling getAllVBucketSeqnos would expect to see a
-    // seqno that will never be sent to them if the last item queued is a meta
-    // op.
+    // It's not valid to actually increment lastBySeqno for any meta op as this
+    // may be called independently on the replica to the active (i.e. for a
+    // failover table change as part of set_vbucket_state) so the seqnos would
+    // differ to those on the active.
     //
     // We enqueue all meta ops with lastBySeqno + 1 though to ensure that they
     // are weakly monotonic. If we used different seqnos for different meta ops
