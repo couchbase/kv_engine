@@ -241,11 +241,6 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(cb::mcbp::ClientOpcode::DisableTraffic,
           require<Privilege::NodeManagement>);
     /**
-     * Command to wait for the checkpoint persistence
-     */
-    setup(cb::mcbp::ClientOpcode::CheckpointPersistence,
-          require<Privilege::NodeManagement>);
-    /**
      * Command that returns meta data for typical memcached ops
      */
     setup(cb::mcbp::ClientOpcode::ReturnMeta, require<Privilege::MetaRead>);

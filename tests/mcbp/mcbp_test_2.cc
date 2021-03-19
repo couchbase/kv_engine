@@ -754,63 +754,6 @@ TEST_P(CreateCheckpointValidatorTest, InvalidBodylen) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
-class CheckpointPersistenceValidatorTest
-    : public ::testing::WithParamInterface<bool>,
-      public ValidatorTest {
-public:
-    CheckpointPersistenceValidatorTest()
-        : ValidatorTest(GetParam()), req(request.message.header.request) {
-    }
-
-    void SetUp() override {
-        ValidatorTest::SetUp();
-        req.setExtlen(sizeof(uint64_t));
-        req.setBodylen(sizeof(uint64_t));
-    }
-
-protected:
-    cb::mcbp::Request& req;
-    cb::mcbp::Status validate() {
-        return ValidatorTest::validate(
-                cb::mcbp::ClientOpcode::CheckpointPersistence,
-                static_cast<void*>(&request));
-    }
-};
-
-TEST_P(CheckpointPersistenceValidatorTest, CorrectMessage) {
-    EXPECT_EQ(cb::mcbp::Status::Success, validate());
-
-    // But the value may also be stored in the body..
-    req.setExtlen(0);
-    EXPECT_EQ(cb::mcbp::Status::Success, validate());
-}
-
-TEST_P(CheckpointPersistenceValidatorTest, InvalidExtlen) {
-    req.setExtlen(2);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(CheckpointPersistenceValidatorTest, InvalidDatatype) {
-    req.setDatatype(cb::mcbp::Datatype::JSON);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(CheckpointPersistenceValidatorTest, IvalidCas) {
-    req.setCas(0xff);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(CheckpointPersistenceValidatorTest, InvalidKey) {
-    req.setKeylen(2);
-    req.setBodylen(req.getBodylen() + req.getKeylen());
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(CheckpointPersistenceValidatorTest, InvalidBodylen) {
-    req.setBodylen(10);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 class CompactDbValidatorTest : public ::testing::WithParamInterface<bool>,
                                public ValidatorTest {
 public:
@@ -951,11 +894,6 @@ INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
 
 INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
                          CreateCheckpointValidatorTest,
-                         ::testing::Bool(),
-                         ::testing::PrintToStringParamName());
-
-INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
-                         CheckpointPersistenceValidatorTest,
                          ::testing::Bool(),
                          ::testing::PrintToStringParamName());
 

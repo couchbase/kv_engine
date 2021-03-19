@@ -148,7 +148,7 @@ bool is_valid_opcode(ClientOpcode opcode) {
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
     case ClientOpcode::ChangeVbFilter_Unsupported:
-    case ClientOpcode::CheckpointPersistence:
+    case ClientOpcode::CheckpointPersistence_Unsupported:
     case ClientOpcode::ReturnMeta:
     case ClientOpcode::CompactDb:
     case ClientOpcode::SetClusterConfig:
@@ -303,7 +303,7 @@ bool is_supported_opcode(ClientOpcode opcode) {
     case ClientOpcode::CreateCheckpoint:
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
-    case ClientOpcode::CheckpointPersistence:
+    case ClientOpcode::CheckpointPersistence_Unsupported:
     case ClientOpcode::ReturnMeta:
     case ClientOpcode::CompactDb:
     case ClientOpcode::SetClusterConfig:
@@ -518,7 +518,7 @@ bool is_durability_supported(ClientOpcode opcode) {
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
     case ClientOpcode::ChangeVbFilter_Unsupported:
-    case ClientOpcode::CheckpointPersistence:
+    case ClientOpcode::CheckpointPersistence_Unsupported:
     case ClientOpcode::ReturnMeta:
     case ClientOpcode::CompactDb:
     case ClientOpcode::SetClusterConfig:
@@ -700,7 +700,7 @@ bool is_reorder_supported(ClientOpcode opcode) {
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
     case ClientOpcode::ChangeVbFilter_Unsupported:
-    case ClientOpcode::CheckpointPersistence:
+    case ClientOpcode::CheckpointPersistence_Unsupported:
     case ClientOpcode::ReturnMeta:
     case ClientOpcode::CompactDb:
     case ClientOpcode::SetClusterConfig:
@@ -884,7 +884,7 @@ bool is_collection_command(ClientOpcode opcode) {
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
     case ClientOpcode::ChangeVbFilter_Unsupported:
-    case ClientOpcode::CheckpointPersistence:
+    case ClientOpcode::CheckpointPersistence_Unsupported:
     case ClientOpcode::CompactDb:
     case ClientOpcode::SetClusterConfig:
     case ClientOpcode::GetClusterConfig:
@@ -1056,7 +1056,7 @@ bool is_preserve_ttl_supported(ClientOpcode opcode) {
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
     case ClientOpcode::ChangeVbFilter_Unsupported:
-    case ClientOpcode::CheckpointPersistence:
+    case ClientOpcode::CheckpointPersistence_Unsupported:
     case ClientOpcode::ReturnMeta:
     case ClientOpcode::CompactDb:
     case ClientOpcode::SetClusterConfig:
@@ -1346,7 +1346,7 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "DISABLE_TRAFFIC";
     case ClientOpcode::ChangeVbFilter_Unsupported:
         return "CHANGE_VB_FILTER";
-    case ClientOpcode::CheckpointPersistence:
+    case ClientOpcode::CheckpointPersistence_Unsupported:
         return "CHECKPOINT_PERSISTENCE";
     case ClientOpcode::ReturnMeta:
         return "RETURN_META";

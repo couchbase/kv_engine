@@ -213,10 +213,12 @@ enum class ClientOpcode : uint8_t {
      * Command to change the vbucket filter for a given producer.
      */
     ChangeVbFilter_Unsupported = 0xb0,
+
     /**
      * Command to wait for the checkpoint persistence
      */
-    CheckpointPersistence = 0xb1,
+    CheckpointPersistence_Unsupported = 0xb1,
+
     /**
      * Command that returns meta data for typical memcached ops
      */

@@ -359,11 +359,8 @@ void sendDcpAck(EngineIface* h,
                 cb::mcbp::Status status,
                 uint32_t opaque);
 
-// Checkpoint Operations
 void createCheckpoint(EngineIface* h);
-cb::engine_errc checkpointPersistence(EngineIface* h,
-                                      uint64_t checkpoint_id,
-                                      Vbid vb);
+
 cb::engine_errc seqnoPersistence(EngineIface* h,
                                  cb::tracing::Traceable* cookie,
                                  Vbid vbucket,

@@ -133,104 +133,6 @@ static enum test_result test_checkpoint_deduplication(EngineIface* h) {
     return SUCCESS;
 }
 
-extern "C" {
-    static void checkpoint_persistence_thread(void *arg) {
-        auto* h = static_cast<EngineIface*>(arg);
-
-        // Issue a request with the unexpected large checkpoint id 100, which
-        // will cause timeout.
-        checkeq(cb::engine_errc::temporary_failure,
-                checkpointPersistence(h, 100, Vbid(0)),
-                "Expected temp failure for checkpoint persistence request");
-        checklt(10,
-                get_int_stat(h, "ep_chk_persistence_timeout"),
-                "Expected CHECKPOINT_PERSISTENCE_TIMEOUT was adjusted to be "
-                "greater"
-                " than 10 secs");
-
-        for (int j = 0; j < 10; ++j) {
-            std::stringstream ss;
-            ss << "key" << j;
-            checkeq(cb::engine_errc::success,
-                    store(h,
-                          nullptr,
-                          StoreSemantics::Set,
-                          ss.str().c_str(),
-                          ss.str().c_str()),
-                    "Failed to store a value");
-        }
-
-        createCheckpoint(h);
-    }
-}
-
-static enum test_result test_checkpoint_persistence(EngineIface* h) {
-    if (!isPersistentBucket(h)) {
-        checkeq(cb::engine_errc::success,
-                checkpointPersistence(h, 0, Vbid(0)),
-                "Failed to request checkpoint persistence");
-        checkeq(last_status.load(),
-                cb::mcbp::Status::NotSupported,
-                "Expected checkpoint persistence not be supported");
-        return SUCCESS;
-    }
-
-    const int  n_threads = 2;
-    cb_thread_t threads[n_threads];
-
-    for (auto& thread : threads) {
-        int r = cb_create_thread(&thread, checkpoint_persistence_thread, h, 0);
-        cb_assert(r == 0);
-    }
-
-    for (auto thread : threads) {
-        int r = cb_join_thread(thread);
-        cb_assert(r == 0);
-    }
-
-    // Last closed checkpoint id for vbucket 0.
-    int closed_chk_id =
-            get_int_stat(h, "vb_0:last_closed_checkpoint_id", "checkpoint 0");
-    // Request to prioritize persisting vbucket 0.
-    checkeq(cb::engine_errc::success,
-            checkpointPersistence(h, closed_chk_id, Vbid(0)),
-            "Failed to request checkpoint persistence");
-
-    return SUCCESS;
-}
-
-extern "C" {
-    static void wait_for_persistence_thread(void *arg) {
-        auto* h = static_cast<EngineIface*>(arg);
-
-        checkeq(cb::engine_errc::temporary_failure,
-                checkpointPersistence(h, 100, Vbid(1)),
-                "Expected temp failure for checkpoint persistence request");
-    }
-}
-
-static enum test_result test_wait_for_persist_vb_del(EngineIface* h) {
-    cb_thread_t th;
-    check(set_vbucket_state(h, Vbid(1), vbucket_state_active),
-          "Failed to set vbucket state.");
-
-    int ret = cb_create_thread(&th, wait_for_persistence_thread, h, 0);
-    cb_assert(ret == 0);
-
-    wait_for_stat_to_be(h, "ep_chk_persistence_remains", 1);
-
-    checkeq(cb::engine_errc::success,
-            vbucketDelete(h, Vbid(1)),
-            "Failure deleting dead bucket.");
-    check(verify_vbucket_missing(h, Vbid(1)),
-          "vbucket 1 was not missing after deleting it.");
-
-    ret = cb_join_thread(th);
-    cb_assert(ret == 0);
-
-    return SUCCESS;
-}
-
 // Test manifest //////////////////////////////////////////////////////////////
 
 const char *default_dbname = "./ep_testsuite_checkpoint";
@@ -279,24 +181,6 @@ BaseTestCase testsuite_testcases[] = {
                  * expected number of items in the checkpoint will not match.
                  */
                  prepare,
-                 cleanup),
-        TestCase("checkpoint: wait for persistence",
-                 test_checkpoint_persistence,
-                 test_setup,
-                 teardown,
-                 "chk_max_items=500;max_checkpoints=5;item_num_based_new_chk=true;chk_period=600"
-                 "true",
-                 prepare,
-                 cleanup),
-        TestCase("test wait for persist vb del",
-                 test_wait_for_persist_vb_del,
-                 test_setup,
-                 teardown,
-                 nullptr,
-                 prepare_ep_bucket, /* checks if we delete vb is successful
-                                       in presence of a pending chkPersistence
-                                       req; in ephemeral buckets we don't
-                                       handle chkPersistence requests */
                  cleanup),
 
         TestCase(nullptr, nullptr, nullptr, nullptr, nullptr, prepare, cleanup)};

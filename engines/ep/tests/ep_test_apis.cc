@@ -540,21 +540,6 @@ void evict_key(EngineIface* h,
     }
 }
 
-cb::engine_errc checkpointPersistence(EngineIface* h,
-                                      uint64_t checkpoint_id,
-                                      Vbid vb) {
-    checkpoint_id = htonll(checkpoint_id);
-    auto request =
-            createPacket(cb::mcbp::ClientOpcode::CheckpointPersistence,
-                         vb,
-                         0,
-                         {},
-                         {},
-                         {(const char*)&checkpoint_id, sizeof(uint64_t)});
-    std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    return h->unknown_command(cookie.get(), *request, add_response);
-}
-
 cb::engine_errc seqnoPersistence(EngineIface* h,
                                  cb::tracing::Traceable* cookie,
                                  Vbid vbucket,

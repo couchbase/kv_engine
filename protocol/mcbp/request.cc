@@ -199,7 +199,7 @@ bool Request::isQuiet() const {
         case ClientOpcode::EnableTraffic:
         case ClientOpcode::DisableTraffic:
         case ClientOpcode::ChangeVbFilter_Unsupported:
-        case ClientOpcode::CheckpointPersistence:
+        case ClientOpcode::CheckpointPersistence_Unsupported:
         case ClientOpcode::ReturnMeta:
         case ClientOpcode::CompactDb:
         case ClientOpcode::SetClusterConfig:

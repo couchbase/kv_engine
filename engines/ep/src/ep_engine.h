@@ -686,11 +686,6 @@ public:
                                            const cb::mcbp::Request& request,
                                            const AddResponseFn& response);
 
-    cb::engine_errc handleCheckpointPersistence(
-            const void* cookie,
-            const cb::mcbp::Request& request,
-            const AddResponseFn& response);
-
     cb::engine_errc handleSeqnoPersistence(const void* cookie,
                                            const cb::mcbp::Request& req,
                                            const AddResponseFn& response);

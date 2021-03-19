@@ -2134,35 +2134,6 @@ static Status create_checkpoint_validator(Cookie& cookie) {
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
-static Status chekpoint_persistence_validator(Cookie& cookie) {
-    auto& header = cookie.getHeader();
-
-    auto status = McbpValidator::verify_header(cookie,
-                                               header.getExtlen(),
-                                               ExpectedKeyLen::Zero,
-                                               ExpectedValueLen::Any,
-                                               ExpectedCas::NotSet,
-                                               PROTOCOL_BINARY_RAW_BYTES);
-    if (status != Status::Success) {
-        return status;
-    }
-
-    auto& req = header.getRequest();
-    if (req.getExtdata().size() == sizeof(uint64_t)) {
-        if (!req.getValue().empty()) {
-            cookie.setErrorContext("Missing checkpoint id");
-            return Status::Einval;
-        }
-    } else {
-        if (req.getValue().size() != sizeof(uint64_t)) {
-            cookie.setErrorContext("Missing checkpoint id");
-            return Status::Einval;
-        }
-    }
-
-    return Status::Success;
-}
-
 static Status compact_db_validator(Cookie& cookie) {
     using cb::mcbp::request::CompactDbPayload;
 
@@ -2391,14 +2362,12 @@ McbpValidator::McbpValidator() {
           last_closed_checkpoint_validator);
     setup(cb::mcbp::ClientOpcode::CreateCheckpoint,
           create_checkpoint_validator);
-    setup(cb::mcbp::ClientOpcode::CheckpointPersistence,
-          chekpoint_persistence_validator);
     setup(cb::mcbp::ClientOpcode::CompactDb, compact_db_validator);
     setup(cb::mcbp::ClientOpcode::Observe, observe_validator);
 
     // Add a validator which returns not supported (we won't execute
-    // these either as the executor would have returned not supported
-    // They're added sto make it easier to see which opcodes we currently
+    // these either as the executor would have returned not supported).
+    // They're added to make it easier to see which opcodes we currently
     // don't have a proper validator for
     setup(cb::mcbp::ClientOpcode::Rget_Unsupported, not_supported_validator);
     setup(cb::mcbp::ClientOpcode::Rset_Unsupported, not_supported_validator);
@@ -2448,5 +2417,7 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::VbucketBatchCount_Unsupported,
           not_supported_validator);
     setup(cb::mcbp::ClientOpcode::ChangeVbFilter_Unsupported,
+          not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::CheckpointPersistence_Unsupported,
           not_supported_validator);
 }
