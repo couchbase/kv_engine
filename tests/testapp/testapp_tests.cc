@@ -71,6 +71,15 @@ static std::vector<uint8_t> mcbp_storage_command(cb::mcbp::ClientOpcode cmd,
     return buffer;
 }
 
+class OldMemcachedTests : public McdTestappTest {
+protected:
+    /* Helpers for individual testcases */
+    void test_set_huge_impl(const std::string& key,
+                            cb::mcbp::ClientOpcode cmd,
+                            cb::mcbp::Status result,
+                            size_t message_size);
+};
+
 // Note: retained as a seperate function as other tests call this.
 void test_noop() {
     BinprotGenericCommand cmd(ClientOpcode::Noop);
@@ -84,7 +93,7 @@ void test_noop() {
                                   Status::Success);
 }
 
-TEST_P(McdTestappTest, Noop) {
+TEST_P(OldMemcachedTests, Noop) {
     test_noop();
 }
 
@@ -106,15 +115,15 @@ void test_quit_impl(ClientOpcode cmd) {
     reconnect_to_server();
 }
 
-TEST_P(McdTestappTest, Quit) {
+TEST_P(OldMemcachedTests, Quit) {
     test_quit_impl(ClientOpcode::Quit);
 }
 
-TEST_P(McdTestappTest, QuitQ) {
+TEST_P(OldMemcachedTests, QuitQ) {
     test_quit_impl(ClientOpcode::Quitq);
 }
 
-TEST_P(McdTestappTest, SetQ) {
+TEST_P(OldMemcachedTests, SetQ) {
     const std::string key = "test_setq";
     auto command = mcbp_storage_command(ClientOpcode::Setq, key, "value", 0, 0);
 
@@ -127,7 +136,7 @@ TEST_P(McdTestappTest, SetQ) {
     return test_noop();
 }
 
-TEST_P(McdTestappTest, AddQ) {
+TEST_P(OldMemcachedTests, AddQ) {
     const std::string key = "test_addq";
     auto command = mcbp_storage_command(ClientOpcode::Addq, key, "value", 0, 0);
 
@@ -146,7 +155,7 @@ TEST_P(McdTestappTest, AddQ) {
     delete_object(key);
 }
 
-TEST_P(McdTestappTest, ReplaceQ) {
+TEST_P(OldMemcachedTests, ReplaceQ) {
     const std::string key = "test_replaceq";
 
     auto command =
@@ -169,7 +178,7 @@ TEST_P(McdTestappTest, ReplaceQ) {
     delete_object(key);
 }
 
-TEST_P(McdTestappTest, DeleteQ) {
+TEST_P(OldMemcachedTests, DeleteQ) {
     const std::string key = "test_deleteq";
     BinprotGenericCommand del(ClientOpcode::Deleteq, key);
     std::vector<uint8_t> blob;
@@ -228,15 +237,15 @@ static void test_delete_cas_impl(const char *key, bool bad) {
     }
 }
 
-TEST_P(McdTestappTest, DeleteCAS) {
+TEST_P(OldMemcachedTests, DeleteCAS) {
     test_delete_cas_impl("test_delete_cas", false);
 }
 
-TEST_P(McdTestappTest, DeleteBadCAS) {
+TEST_P(OldMemcachedTests, DeleteBadCAS) {
     test_delete_cas_impl("test_delete_bad_cas", true);
 }
 
-TEST_P(McdTestappTest, GetK) {
+TEST_P(OldMemcachedTests, GetK) {
     const std::string key = "test_getk";
     BinprotGenericCommand get(ClientOpcode::Getk, key);
     std::vector<uint8_t> blob;
@@ -311,11 +320,11 @@ static void test_getq_impl(const char* key, ClientOpcode cmd) {
     delete_object(key);
 }
 
-TEST_P(McdTestappTest, GetQ) {
+TEST_P(OldMemcachedTests, GetQ) {
     test_getq_impl("test_getq", ClientOpcode::Getq);
 }
 
-TEST_P(McdTestappTest, GetKQ) {
+TEST_P(OldMemcachedTests, GetKQ) {
     test_getq_impl("test_getkq", ClientOpcode::Getkq);
 }
 
@@ -342,7 +351,7 @@ static std::vector<uint8_t> mcbp_arithmetic_command(cb::mcbp::ClientOpcode cmd,
     return buffer;
 }
 
-TEST_P(McdTestappTest, IncrQ) {
+TEST_P(OldMemcachedTests, IncrQ) {
     const std::string key = "test_incrq";
     const auto command =
             mcbp_arithmetic_command(ClientOpcode::Incrementq, key, 1, 0, 0);
@@ -358,7 +367,7 @@ TEST_P(McdTestappTest, IncrQ) {
     delete_object(key);
 }
 
-TEST_P(McdTestappTest, DecrQ) {
+TEST_P(OldMemcachedTests, DecrQ) {
     const std::string key = "test_decrq";
     const auto command =
             mcbp_arithmetic_command(ClientOpcode::Decrementq, key, 1, 9, 0);
@@ -374,7 +383,7 @@ TEST_P(McdTestappTest, DecrQ) {
     delete_object(key);
 }
 
-TEST_P(McdTestappTest, Version) {
+TEST_P(OldMemcachedTests, Version) {
     const auto rsp = getConnection().execute(
             BinprotGenericCommand{ClientOpcode::Version});
     EXPECT_EQ(ClientOpcode::Version, rsp.getOp());
@@ -410,15 +419,15 @@ void test_concat_impl(const std::string& key, ClientOpcode cmd) {
     delete_object(key);
 }
 
-TEST_P(McdTestappTest, AppendQ) {
+TEST_P(OldMemcachedTests, AppendQ) {
     test_concat_impl("test_appendq", ClientOpcode::Appendq);
 }
 
-TEST_P(McdTestappTest, PrependQ) {
+TEST_P(OldMemcachedTests, PrependQ) {
     test_concat_impl("test_prependq", ClientOpcode::Prependq);
 }
 
-TEST_P(McdTestappTest, IOCTL_Set) {
+TEST_P(OldMemcachedTests, IOCTL_Set) {
     // release_free_memory always returns OK, regardless of how much was
     // freed.
     auto& conn = getAdminConnection();
@@ -427,7 +436,7 @@ TEST_P(McdTestappTest, IOCTL_Set) {
     ASSERT_TRUE(rsp.isSuccess());
 }
 
-TEST_P(McdTestappTest, IOCTL_Tracing) {
+TEST_P(OldMemcachedTests, IOCTL_Tracing) {
     auto& conn = getAdminConnection();
     conn.authenticate("@admin", "password", "PLAIN");
 
@@ -474,21 +483,21 @@ TEST_P(McdTestappTest, IOCTL_Tracing) {
     EXPECT_TRUE(json["traceEvents"].is_array());
 }
 
-TEST_P(McdTestappTest, Config_Validate_Empty) {
+TEST_P(OldMemcachedTests, Config_Validate_Empty) {
     auto& conn = getAdminConnection();
     auto rsp =
             conn.execute(BinprotGenericCommand{ClientOpcode::ConfigValidate});
     ASSERT_EQ(Status::Einval, rsp.getStatus());
 }
 
-TEST_P(McdTestappTest, Config_ValidateInvalidJSON) {
+TEST_P(OldMemcachedTests, Config_ValidateInvalidJSON) {
     auto& conn = getAdminConnection();
     auto rsp = conn.execute(BinprotGenericCommand{
             ClientOpcode::ConfigValidate, "", "This isn't JSON"});
     ASSERT_EQ(Status::Einval, rsp.getStatus());
 }
 
-TEST_P(McdTestappTest, SessionCtrlToken) {
+TEST_P(OldMemcachedTests, SessionCtrlToken) {
     // Validate that you may successfully set the token to a legal value
     auto& conn = getAdminConnection();
     auto rsp = conn.execute(BinprotGenericCommand{ClientOpcode::GetCtrlToken});
@@ -523,7 +532,7 @@ TEST_P(McdTestappTest, SessionCtrlToken) {
     ASSERT_EQ(0xdeadbeefull, rsp.getCas());
 }
 
-TEST_P(McdTestappTest, MB_10114) {
+TEST_P(OldMemcachedTests, MB_10114) {
     // Disable ewouldblock_engine - not wanted / needed for this MB regression test.
     ewouldblock_engine_disable();
 
@@ -570,7 +579,7 @@ static void test_expiry(const char* key, time_t expiry,
     EXPECT_EQ(Status::Success, ret.first);
 }
 
-TEST_P(McdTestappTest, ExpiryRelativeWithClockChangeBackwards) {
+TEST_P(OldMemcachedTests, ExpiryRelativeWithClockChangeBackwards) {
     /*
        Just test for MB-11548
        120 second expiry.
@@ -583,10 +592,10 @@ TEST_P(McdTestappTest, ExpiryRelativeWithClockChangeBackwards) {
                 120, 2, (int)(0 - ((now - get_server_start_time()) * 2)));
 }
 
-void McdTestappTest::test_set_huge_impl(const std::string& key,
-                                        ClientOpcode cmd,
-                                        Status result,
-                                        size_t message_size) {
+void OldMemcachedTests::test_set_huge_impl(const std::string& key,
+                                           ClientOpcode cmd,
+                                           Status result,
+                                           size_t message_size) {
     // This is a large, long test. Disable ewouldblock_engine while
     // running it to speed it up.
     ewouldblock_engine_disable();
@@ -604,35 +613,35 @@ void McdTestappTest::test_set_huge_impl(const std::string& key,
     }
 }
 
-TEST_P(McdTestappTest, SetHuge) {
+TEST_P(OldMemcachedTests, SetHuge) {
     test_set_huge_impl("test_set_huge",
                        ClientOpcode::Set,
                        Status::Success,
                        GetTestBucket().getMaximumDocSize() - 256);
 }
 
-TEST_P(McdTestappTest, SetE2BIG) {
+TEST_P(OldMemcachedTests, SetE2BIG) {
     test_set_huge_impl("test_set_e2big",
                        ClientOpcode::Set,
                        Status::E2big,
                        GetTestBucket().getMaximumDocSize() + 1);
 }
 
-TEST_P(McdTestappTest, SetQHuge) {
+TEST_P(OldMemcachedTests, SetQHuge) {
     test_set_huge_impl("test_setq_huge",
                        ClientOpcode::Setq,
                        Status::Success,
                        GetTestBucket().getMaximumDocSize() - 256);
 }
 
-TEST_P(McdTestappTest, SetQE2BIG) {
+TEST_P(OldMemcachedTests, SetQE2BIG) {
     test_set_huge_impl("test_set_e2big",
                        ClientOpcode::Setq,
                        Status::E2big,
                        GetTestBucket().getMaximumDocSize() + 1);
 }
 
-TEST_P(McdTestappTest, ExceedMaxPacketSize) {
+TEST_P(OldMemcachedTests, ExceedMaxPacketSize) {
     Request request;
     request.setMagic(Magic::ClientRequest);
     request.setOpcode(ClientOpcode::Set);
@@ -652,7 +661,7 @@ TEST_P(McdTestappTest, ExceedMaxPacketSize) {
 /**
  * Test that opcode 255 is rejected and the server doesn't crash
  */
-TEST_P(McdTestappTest, test_MB_16333) {
+TEST_P(OldMemcachedTests, test_MB_16333) {
     auto& conn = getConnection();
     auto rsp = conn.execute(BinprotGenericCommand{ClientOpcode::Invalid});
     ASSERT_EQ(Status::UnknownCommand, rsp.getStatus());
@@ -662,7 +671,7 @@ TEST_P(McdTestappTest, test_MB_16333) {
  * Test that a bad SASL auth doesn't crash the server.
  * It should be rejected with EINVAL.
  */
-TEST_P(McdTestappTest, test_MB_16197) {
+TEST_P(OldMemcachedTests, test_MB_16197) {
     auto& conn = getConnection();
     auto rsp = conn.execute(BinprotGenericCommand{
             ClientOpcode::SaslAuth, "PLAIN", std::string{"\0", 1}});
@@ -701,8 +710,8 @@ TEST_F(TestappTest, CollectionsSelectBucket) {
 
 INSTANTIATE_TEST_SUITE_P(
         Transport,
-        McdTestappTest,
+        OldMemcachedTests,
         ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain),
                            ::testing::Values(ClientJSONSupport::Yes,
                                              ClientJSONSupport::No)),
-        McdTestappTest::PrintToStringCombinedName);
+        OldMemcachedTests::PrintToStringCombinedName);

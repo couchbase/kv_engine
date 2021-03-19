@@ -363,12 +363,6 @@ protected:
     }
 
     ClientJSONSupport hasJSONSupport() const override;
-
-    /* Helpers for individual testcases */
-    void test_set_huge_impl(const std::string& key,
-                            cb::mcbp::ClientOpcode cmd,
-                            cb::mcbp::Status result,
-                            size_t message_size);
 };
 
 SOCKET connect_to_server_plain();
