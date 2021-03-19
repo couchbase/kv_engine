@@ -2138,14 +2138,11 @@ public:
 protected:
     void SetUp() override {
         TestappTest::SetUp();
-        sock = connect_to_server_plain();
-        ASSERT_NE(INVALID_SOCKET, sock);
-
+        reconnect_to_server();
         // Set ewouldblock_engine test harness to default mode.
         ewouldblock_engine_configure(cb::engine_errc::would_block,
                                      EWBEngineMode::First,
                                      /*unused*/ 0);
-        enabled_hello_features.clear();
     }
 
 public:

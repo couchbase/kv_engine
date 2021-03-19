@@ -214,8 +214,7 @@ const std::string TestappTest::bucketName = "default";
 void McdTestappTest::SetUp() {
     verify_server_running();
     if (getProtocolParam() == TransportProtocols::McbpPlain) {
-        sock = connect_to_server_plain();
-        ASSERT_NE(INVALID_SOCKET, sock);
+        reconnect_to_server();
     } else {
         // Not reached (exception is thrown)
     }
@@ -606,7 +605,10 @@ SOCKET connect_to_server_plain() {
     New socket-fd written to global "sock" and "ssl_bio"
 */
 void reconnect_to_server() {
-    cb::net::closesocket(sock);
+    if (sock != INVALID_SOCKET) {
+        cb::net::closesocket(sock);
+    }
+    enabled_hello_features.clear();
     sock = connect_to_server_plain();
     ASSERT_NE(INVALID_SOCKET, sock);
 }
