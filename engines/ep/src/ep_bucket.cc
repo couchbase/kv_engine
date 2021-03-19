@@ -1249,7 +1249,7 @@ void EPBucket::compactionCompletionCallback(CompactionContext& ctx) {
                 *vb, preCollectionSizes, preDropInProgess);
 
         // And re-throw to "undo" the on disk compaction
-        throw e;
+        throw;
     }
 }
 
