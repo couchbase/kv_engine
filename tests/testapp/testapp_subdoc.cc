@@ -2135,17 +2135,6 @@ INSTANTIATE_TEST_SUITE_P(
 // performing operations.
 class WorkerConcurrencyTest : public TestappTest {
 public:
-protected:
-    void SetUp() override {
-        TestappTest::SetUp();
-        reconnect_to_server();
-        // Set ewouldblock_engine test harness to default mode.
-        ewouldblock_engine_configure(cb::engine_errc::would_block,
-                                     EWBEngineMode::First,
-                                     /*unused*/ 0);
-    }
-
-public:
     static void SetUpTestCase() {
         memcached_cfg = generate_config();
         // Change the number of worker threads to one so we guarantee that
@@ -2165,52 +2154,49 @@ public:
 };
 
 TEST_F(WorkerConcurrencyTest, SubdocArrayPushLast_Concurrent) {
-    // Concurrently add to two different array documents, using two connections.
+    // "Concurrently" add to two different array documents, using two
+    // connections. In this thread try to send data as fast as possible
+    // mixing on two sockets. Hopefully this is faster than the other
+    // end may consume the packets so that we'll end up with a "pipeline"
+    // of data on both connections.
+    auto& conn = getConnection();
+    conn.store("a", Vbid{0}, "[]");
+    conn.store("b", Vbid{0}, "[]");
 
-    // Setup the initial empty objects.
-    store_document("a", "[]");
-    store_document("b", "[]");
-
-    // Create an additional second connection to memcached.
-    SOCKET* current_sock = &sock;
-    SOCKET sock1 = *current_sock;
-    SOCKET sock2 = connect_to_server_plain();
-    ASSERT_NE(sock2, INVALID_SOCKET);
-    sock = sock1;
+    auto c1 = conn.clone();
+    auto c2 = conn.clone();
 
     const size_t push_count = 100;
-    std::vector<uint8_t> send_buf;
+
+    std::vector<BinprotSubdocCommand> docA;
+    std::vector<BinprotSubdocCommand> docB;
 
     // Build pipeline for the even commands.
     std::string expected_a;
-    for (unsigned int i = 0; i < push_count; i += 2) {
-        expected_a += std::to_string(i) + ",";
-        BinprotSubdocCommand cmd(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
-                                 "a",
-                                 "",
-                                 std::to_string(i));
-        std::vector<uint8_t> cmd_buf;
-        cmd.encode(cmd_buf);
-        send_buf.insert(send_buf.end(), cmd_buf.begin(), cmd_buf.end());
-    }
-    *current_sock = sock1;
-    safe_send(send_buf.data(), send_buf.size(), false);
-
-    // .. and the odd commands.
-    send_buf.clear();
     std::string expected_b;
-    for (unsigned int i = 1; i < push_count; i += 2) {
-        expected_b += std::to_string(i) + ",";
-        BinprotSubdocCommand cmd(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
-                                 "b",
-                                 "",
-                                 std::to_string(i));
-        std::vector<uint8_t> cmd_buf;
-        cmd.encode(cmd_buf);
-        send_buf.insert(send_buf.end(), cmd_buf.begin(), cmd_buf.end());
+
+    for (unsigned int i = 0; i < push_count; i++) {
+        if ((i & 1) == 0) {
+            expected_a += std::to_string(i) + ",";
+            docA.emplace_back(BinprotSubdocCommand{
+                    cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                    "a",
+                    "",
+                    std::to_string(i)});
+        } else {
+            expected_b += std::to_string(i) + ",";
+            docB.emplace_back(BinprotSubdocCommand{
+                    cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                    "b",
+                    "",
+                    std::to_string(i)});
+        }
     }
-    *current_sock = sock2;
-    safe_send(send_buf.data(), send_buf.size(), false);
+
+    for (unsigned int i = 0; i < push_count / 2; i++) {
+        c1->sendCommand(docA[i]);
+        c2->sendCommand(docB[i]);
+    }
 
     // Fixup the expected values - remove the trailing comma and bookend with
     // [ ].
@@ -2220,21 +2206,18 @@ TEST_F(WorkerConcurrencyTest, SubdocArrayPushLast_Concurrent) {
     expected_b.replace(expected_b.size() - 1, 1, "]");
 
     // Consume all the responses we should be expecting back.
-    for (unsigned int i = 0; i < push_count; i++) {
-        sock = (i % 2) ? sock1 : sock2;
-        recv_subdoc_response(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
-                             cb::mcbp::Status::Success,
-                             "");
+    for (unsigned int i = 0; i < push_count / 2; i++) {
+        BinprotResponse rsp;
+        c1->recvResponse(rsp);
+        ASSERT_TRUE(rsp.isSuccess());
+        c2->recvResponse(rsp);
+        ASSERT_TRUE(rsp.isSuccess());
     }
 
     // Validate correct data was written.
-    validate_json_document("a", expected_a);
-    validate_json_document("b", expected_b);
+    validate_json_document(conn, "a", expected_a);
+    validate_json_document(conn, "b", expected_b);
 
-    // Restore original socket; free second one.
-    *current_sock = sock1;
-    cb::net::closesocket(sock2);
-
-    delete_object("a");
-    delete_object("b");
+    conn.remove("a", Vbid{0});
+    conn.remove("b", Vbid{0});
 }

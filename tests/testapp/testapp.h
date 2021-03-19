@@ -391,6 +391,9 @@ void validate_datatype_is_json(const std::string& key, bool isJson);
  */
 void validate_json_document(const std::string& key,
                             const std::string& expected_value);
+void validate_json_document(MemcachedConnection& connection,
+                            const std::string& key,
+                            const std::string& expected_value);
 
 /* Attempts to get the given key and checks if it's flags matches
  * {expected_flags}.

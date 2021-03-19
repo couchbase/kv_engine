@@ -684,6 +684,15 @@ void validate_json_document(const std::string& key,
     EXPECT_EQ(exp, val);
 }
 
+void validate_json_document(MemcachedConnection& connection,
+                            const std::string& key,
+                            const std::string& expected_value) {
+    const auto info = connection.get(key, Vbid{0});
+    const auto exp = nlohmann::json::parse(expected_value).dump();
+    const auto val = nlohmann::json::parse(info.value).dump();
+    EXPECT_EQ(exp, val);
+}
+
 void validate_flags(const std::string& key, uint32_t expected_flags) {
     std::vector<uint8_t> blob;
     BinprotGetCommand cmd;
