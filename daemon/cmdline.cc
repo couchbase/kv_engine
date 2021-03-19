@@ -1,5 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-
 #include "cmdline.h"
 #include "config_parse.h"
 #include "memcached.h"
@@ -7,6 +5,7 @@
 
 #include <getopt.h>
 #include <iostream>
+#include <vector>
 
 static std::string config_file;
 
@@ -18,7 +17,7 @@ static void usage() {
 }
 
 void parse_arguments(int argc, char** argv) {
-    struct option long_options[] = {
+    const std::vector<option> options = {
             {"config", required_argument, nullptr, 'C'},
             {"help", no_argument, nullptr, 'h'},
             {nullptr, 0, nullptr, 0}};
@@ -29,7 +28,7 @@ void parse_arguments(int argc, char** argv) {
     // this method)
     optind = 1;
 
-    while ((cmd = getopt_long(argc, argv, "C:h", long_options, nullptr)) !=
+    while ((cmd = getopt_long(argc, argv, "C:h", options.data(), nullptr)) !=
            EOF) {
         switch (cmd) {
         case 'C':
@@ -52,7 +51,7 @@ void parse_arguments(int argc, char** argv) {
         std::exit(EXIT_FAILURE);
     }
 
-    load_config_file(config_file.c_str(), Settings::instance());
+    load_config_file(config_file, Settings::instance());
 }
 
 const std::string& get_config_file() {

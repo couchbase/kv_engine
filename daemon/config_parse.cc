@@ -26,8 +26,7 @@
  * Public functions
  *****************************************************************************/
 
-void load_config_file(const char *file, Settings& settings)
-{
+void load_config_file(const std::string& file, Settings& settings) {
     auto content = cb::io::loadFile(file, std::chrono::seconds{5});
     settings.reconfigure(nlohmann::json::parse(content));
 }

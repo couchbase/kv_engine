@@ -24,7 +24,7 @@
 #include <optional>
 
 class Settings;
-void load_config_file(const char *filename, Settings& settings);
+void load_config_file(const std::string& filename, Settings& settings);
 
 /* Given a new, proposed config, check if it can be applied to the running
  * config. Returns true if all differences between new_cfg and the live config
