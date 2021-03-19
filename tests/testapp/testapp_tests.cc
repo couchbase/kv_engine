@@ -391,61 +391,6 @@ TEST_P(OldMemcachedTests, PrependQ) {
     test_concat_impl("test_prependq", ClientOpcode::Prependq);
 }
 
-TEST_P(OldMemcachedTests, IOCTL_Set) {
-    // release_free_memory always returns OK, regardless of how much was
-    // freed.
-    auto& conn = getAdminConnection();
-    auto rsp = conn.execute(BinprotGenericCommand{ClientOpcode::IoctlSet,
-                                                  "release_free_memory"});
-    ASSERT_TRUE(rsp.isSuccess());
-}
-
-TEST_P(OldMemcachedTests, IOCTL_Tracing) {
-    auto& conn = getAdminConnection();
-    conn.authenticate("@admin", "password", "PLAIN");
-
-    // Disable trace so that we start from a known status
-    conn.ioctl_set("trace.stop", {});
-
-    // Ensure that trace isn't running
-    auto value = conn.ioctl_get("trace.status");
-    EXPECT_EQ("disabled", value);
-
-    // Specify config
-    const std::string config{"buffer-mode:ring;buffer-size:2000000;"
-                                 "enabled-categories:*"};
-    conn.ioctl_set("trace.config", config);
-
-    // Try to read it back and check that setting the config worked
-    // Phosphor rebuilds the string and adds the disabled categories
-    EXPECT_EQ(config + ";disabled-categories:", conn.ioctl_get("trace.config"));
-
-    // Start the trace
-    conn.ioctl_set("trace.start", {});
-
-    // Ensure that it's running
-    value = conn.ioctl_get("trace.status");
-    EXPECT_EQ("enabled", value);
-
-    // Stop the tracing
-    conn.ioctl_set("trace.stop", {});
-
-    // Ensure that it stopped
-    value = conn.ioctl_get("trace.status");
-    EXPECT_EQ("disabled", value);
-
-    // get the data
-    auto uuid = conn.ioctl_get("trace.dump.begin");
-
-    const std::string chunk_key = "trace.dump.get?id=" + uuid;
-    std::string dump = conn.ioctl_get(chunk_key);
-    conn.ioctl_set("trace.dump.clear", uuid);
-
-    // Difficult to tell what's been written to the buffer so just check
-    // that it's valid JSON and that the traceEvents array is present
-    auto json = nlohmann::json::parse(dump);
-    EXPECT_TRUE(json["traceEvents"].is_array());
-}
 
 TEST_P(OldMemcachedTests, Config_Validate_Empty) {
     auto& conn = getAdminConnection();
