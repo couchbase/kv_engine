@@ -81,14 +81,6 @@ class XattrTest : public XattrNoDocTest {
 protected:
     void SetUp() override {
         XattrNoDocTest::SetUp();
-        sock = connect_to_server_plain(port);
-        ASSERT_NE(INVALID_SOCKET, sock);
-
-        // Set ewouldblock_engine test harness to default mode.
-        ewouldblock_engine_configure(cb::engine_errc::would_block,
-                                     EWBEngineMode::First,
-                                     /*unused*/ 0);
-        enabled_hello_features.clear();
 
         // Create the document to operate on (with some compressible data).
         document.info.id = name;
@@ -549,7 +541,7 @@ TEST_P(XattrTest, SetXattrAndBodyNewDocWithExpiry) {
     testBodyAndXattrCmd(conn, cmd);
 
     // Jump forward in time to expire item
-    adjust_memcached_clock(
+    conn.adjustMemcachedClock(
             4, cb::mcbp::request::AdjustTimePayload::TimeType::Uptime);
 
     auto getResp = subdoc_multi_lookup(
@@ -557,7 +549,7 @@ TEST_P(XattrTest, SetXattrAndBodyNewDocWithExpiry) {
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, getResp.getStatus());
 
     // Restore time.
-    adjust_memcached_clock(
+    conn.adjustMemcachedClock(
             0, cb::mcbp::request::AdjustTimePayload::TimeType::Uptime);
 }
 

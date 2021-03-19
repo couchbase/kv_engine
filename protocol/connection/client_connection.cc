@@ -1707,6 +1707,26 @@ void MemcachedConnection::setServerInterfaceUuid(std::string value) {
     serverInterfaceUuid = std::move(value);
 }
 
+void MemcachedConnection::adjustMemcachedClock(
+        int64_t clock_shift,
+        cb::mcbp::request::AdjustTimePayload::TimeType timeType) {
+    cb::mcbp::request::AdjustTimePayload payload;
+    payload.setOffset(uint64_t(clock_shift));
+    payload.setTimeType(timeType);
+    auto buf = payload.getBuffer();
+    std::vector<uint8_t> extras;
+    std::copy(buf.begin(), buf.end(), std::back_inserter(extras));
+
+    BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::AdjustTimeofday);
+    cmd.setExtras(extras);
+
+    auto rsp = execute(cmd);
+    if (!rsp.isSuccess()) {
+        throw ConnectionError(
+                "adjustMemcachedClock: Failed to adjust server time", rsp);
+    }
+}
+
 /////////////////////////////////////////////////////////////////////////
 // Implementation of the ConnectionError class
 /////////////////////////////////////////////////////////////////////////

@@ -914,6 +914,11 @@ public:
     /// Set the interface uuid for the connection
     void setServerInterfaceUuid(std::string serverInterfaceUuid);
 
+    /// Request the server to adjust the clock
+    void adjustMemcachedClock(
+            int64_t clock_shift,
+            cb::mcbp::request::AdjustTimePayload::TimeType timeType);
+
 protected:
     void read(Frame& frame, size_t bytes);
 
