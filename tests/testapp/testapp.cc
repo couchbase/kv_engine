@@ -214,7 +214,7 @@ const std::string TestappTest::bucketName = "default";
 void McdTestappTest::SetUp() {
     verify_server_running();
     if (getProtocolParam() == TransportProtocols::McbpPlain) {
-        sock = connect_to_server_plain(port);
+        sock = connect_to_server_plain();
         ASSERT_NE(INVALID_SOCKET, sock);
     } else {
         // Not reached (exception is thrown)
@@ -588,20 +588,16 @@ void TestappTest::start_external_server() {
 #endif // !WIN32
 }
 
-SOCKET create_connect_plain_socket(in_port_t port) {
+SOCKET connect_to_server_plain() {
     if (port == in_port_t(-1)) {
         throw std::runtime_error(
                 "create_connect_plain_socket: Can't connect to port == -1");
     }
-    auto sock = cb::net::new_socket("", port, AF_INET);
-    if (sock == INVALID_SOCKET) {
+    auto s = cb::net::new_socket("", port, AF_INET);
+    if (s == INVALID_SOCKET) {
         ADD_FAILURE() << "Failed to connect socket to 127.0.0.1:" << port;
     }
-    return sock;
-}
-
-SOCKET connect_to_server_plain(in_port_t port) {
-    return create_connect_plain_socket(port);
+    return s;
 }
 
 /*
@@ -611,7 +607,7 @@ SOCKET connect_to_server_plain(in_port_t port) {
 */
 void reconnect_to_server() {
     cb::net::closesocket(sock);
-    sock = connect_to_server_plain(port);
+    sock = connect_to_server_plain();
     ASSERT_NE(INVALID_SOCKET, sock);
 }
 

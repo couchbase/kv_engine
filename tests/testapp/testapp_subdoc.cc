@@ -2138,7 +2138,7 @@ public:
 protected:
     void SetUp() override {
         TestappTest::SetUp();
-        sock = connect_to_server_plain(port);
+        sock = connect_to_server_plain();
         ASSERT_NE(INVALID_SOCKET, sock);
 
         // Set ewouldblock_engine test harness to default mode.
@@ -2177,7 +2177,7 @@ TEST_F(WorkerConcurrencyTest, SubdocArrayPushLast_Concurrent) {
     // Create an additional second connection to memcached.
     SOCKET* current_sock = &sock;
     SOCKET sock1 = *current_sock;
-    SOCKET sock2 = connect_to_server_plain(port);
+    SOCKET sock2 = connect_to_server_plain();
     ASSERT_NE(sock2, INVALID_SOCKET);
     sock = sock1;
 

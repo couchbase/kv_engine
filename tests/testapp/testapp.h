@@ -371,7 +371,7 @@ protected:
                             size_t message_size);
 };
 
-SOCKET connect_to_server_plain(in_port_t port);
+SOCKET connect_to_server_plain();
 void reconnect_to_server();
 
 // Attempts to fetch the document with the given key.
@@ -462,8 +462,6 @@ bool safe_recv(void* buf, size_t len);
 bool safe_recv_packet(void* buf, size_t size);
 bool safe_recv_packet(std::vector<uint8_t>& buf);
 bool safe_recv_packet(std::vector<char>& buf);
-
-SOCKET create_connect_plain_socket(in_port_t port);
 
 time_t get_server_start_time();
 
