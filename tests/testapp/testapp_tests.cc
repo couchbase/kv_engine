@@ -209,42 +209,6 @@ TEST_P(OldMemcachedTests, DeleteQ) {
                                   Status::KeyEnoent);
 }
 
-static void test_delete_cas_impl(const char *key, bool bad) {
-    BinprotMutationCommand mut;
-    mut.setMutationType(MutationType::Set);
-    mut.setKey(key);
-    std::vector<uint8_t> blob;
-    mut.encode(blob);
-    safe_send(blob);
-
-    ASSERT_TRUE(safe_recv_packet(blob));
-    auto response = reinterpret_cast<Response*>(blob.data());
-    mcbp_validate_response_header(
-            *response, ClientOpcode::Set, Status::Success);
-
-    BinprotGenericCommand del(ClientOpcode::Deleteq, key);
-    del.setCas(response->getCas() + (bad ? 1 : 0));
-    del.encode(blob);
-    safe_send(blob);
-
-    if (bad) {
-        ASSERT_TRUE(safe_recv_packet(blob));
-        response = reinterpret_cast<Response*>(blob.data());
-        mcbp_validate_response_header(
-                *response, ClientOpcode::Deleteq, Status::KeyEexists);
-    } else {
-        test_noop();
-    }
-}
-
-TEST_P(OldMemcachedTests, DeleteCAS) {
-    test_delete_cas_impl("test_delete_cas", false);
-}
-
-TEST_P(OldMemcachedTests, DeleteBadCAS) {
-    test_delete_cas_impl("test_delete_bad_cas", true);
-}
-
 TEST_P(OldMemcachedTests, GetK) {
     const std::string key = "test_getk";
     BinprotGenericCommand get(ClientOpcode::Getk, key);
