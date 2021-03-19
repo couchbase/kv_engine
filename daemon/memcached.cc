@@ -136,9 +136,6 @@ bool is_memcached_shutting_down() {
 
 std::unique_ptr<cb::ExecutorPool> executorPool;
 
-/* Mutex for global stats */
-std::mutex stats_mutex;
-
 /*
  * forward declarations
  */
@@ -156,31 +153,31 @@ struct stats stats;
 
 static struct event_base *main_base;
 
-/*
+static folly::Synchronized<std::string, std::mutex> reset_stats_time;
+/**
  * MB-12470 requests an easy way to see when (some of) the statistics
  * counters were reset. This functions grabs the current time and tries
  * to format it to the current timezone by using ctime_r/s (which adds
  * a newline at the end for some obscure reason which we'll need to
  * strip off).
- *
- * This function expects that the stats lock is held by the caller to get
- * a "sane" result (otherwise one thread may see a garbled version), but
- * no crash will occur since the buffer is big enough and always zero
- * terminated.
  */
-char reset_stats_time[80];
-static void set_stats_reset_time()
-{
+static void setStatsResetTime() {
     time_t now = time(nullptr);
+    std::array<char, 80> reset_time;
 #ifdef WIN32
-    ctime_s(reset_stats_time, sizeof(reset_stats_time), &now);
+    ctime_s(reset_time.data(), reset_time.size(), &now);
 #else
-    ctime_r(&now, reset_stats_time);
+    ctime_r(&now, reset_time.data());
 #endif
-    char *ptr = strchr(reset_stats_time, '\n');
+    char* ptr = strchr(reset_time.data(), '\n');
     if (ptr) {
         *ptr = '\0';
     }
+    reset_stats_time.lock()->assign(reset_time.data());
+}
+
+std::string getStatsResetTime() {
+    return *reset_stats_time.lock();
 }
 
 void disconnect_bucket(Bucket& bucket, Cookie* cookie) {
@@ -279,7 +276,7 @@ static void populate_log_level() {
 }
 
 static void stats_init() {
-    set_stats_reset_time();
+    setStatsResetTime();
     stats.conn_structs.reset();
     stats.total_conns.reset();
     stats.rejected_conns.reset();
@@ -348,10 +345,7 @@ struct thread_stats* get_thread_stats(Connection* c) {
 }
 
 void stats_reset(Cookie& cookie) {
-    {
-        std::lock_guard<std::mutex> guard(stats_mutex);
-        set_stats_reset_time();
-    }
+    setStatsResetTime();
     stats.total_conns.reset();
     stats.rejected_conns.reset();
     threadlocal_stats_reset(cookie.getConnection().getBucket().stats);

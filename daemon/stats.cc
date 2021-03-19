@@ -36,7 +36,7 @@ static void server_global_stats(const StatCollector& collector) {
 
     using namespace cb::stats;
     collector.addStat(Key::uptime, now);
-    collector.addStat(Key::stat_reset, (const char*)reset_stats_time);
+    collector.addStat(Key::stat_reset, getStatsResetTime());
     collector.addStat(Key::time, mc_time_convert_to_abs_time(now));
     collector.addStat(Key::version, get_server_version());
     collector.addStat(Key::memcached_version, MEMCACHED_VERSION);
@@ -169,7 +169,6 @@ void server_bucket_timing_stats(const BucketStatCollector& collector,
 /// add global, aggregated and bucket specific stats
 cb::engine_errc server_stats(const StatCollector& collector,
                              const Bucket& bucket) {
-    std::lock_guard<std::mutex> guard(stats_mutex);
     try {
         server_global_stats(collector);
         server_agg_stats(collector);
@@ -184,7 +183,6 @@ cb::engine_errc server_stats(const StatCollector& collector,
 cb::engine_errc server_prometheus_stats(
         const StatCollector& collector,
         cb::prometheus::Cardinality cardinality) {
-    std::lock_guard<std::mutex> guard(stats_mutex);
     try {
         // do global stats
         if (cardinality == cb::prometheus::Cardinality::Low) {
