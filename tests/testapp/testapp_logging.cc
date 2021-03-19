@@ -23,25 +23,18 @@
 
 class LoggingTest : public TestappTest,
                     public ::testing::WithParamInterface<int> {
-protected:
-    void sendVbCmd(int verbosityLevel) {
-        auto& conn = getAdminConnection();
-
-        BinprotVerbosityCommand cmd;
-        cmd.setLevel(verbosityLevel);
-        conn.sendCommand(cmd);
-
-        BinprotVerbosityResponse rsp;
-        conn.recvResponse(rsp);
-
-        // Fail this test if the connection does not return a successful
-        // response
-        ASSERT_TRUE(rsp.isSuccess());
-    }
 };
 
 TEST_P(LoggingTest, ChangeVerbosity) {
-    sendVbCmd(GetParam());
+    auto& conn = getAdminConnection();
+    conn.selectBucket("default");
+
+    BinprotVerbosityCommand cmd;
+    cmd.setLevel(GetParam());
+    auto rsp = conn.execute(cmd);
+    // Fail this test if the connection does not return a successful
+    // response
+    ASSERT_TRUE(rsp.isSuccess());
 
     spdlog::level::level_enum level;
     switch (GetParam()) {
@@ -56,15 +49,11 @@ TEST_P(LoggingTest, ChangeVerbosity) {
         break;
     }
 
-    sock = connect_to_server_plain(port);
-    ASSERT_NE(INVALID_SOCKET, sock);
-
-    // The configure function will check the response and fail the test if not
-    // cb::engine_errc::success.
-    ewouldblock_engine_configure(cb::engine_errc::success,
-                                 EWBEngineMode::CheckLogLevels,
-                                 level,
-                                 "key");
+    rsp = conn.execute(BinprotEWBCommand{EWBEngineMode::CheckLogLevels,
+                                         cb::engine_errc::success,
+                                         uint32_t(level),
+                                         "key"});
+    ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus());
 }
 
 // Test with verbosity values 0, 1, 2
