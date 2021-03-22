@@ -1718,31 +1718,14 @@ couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
 
     // Must sync the modified state back we need to update the _local/vbstate to
     // update the number of on_disk_prepares to match whatever we purged
-    LocalDoc* ldoc = nullptr;
-    sized_buf id{(char*)"_local/vbstate", sizeof("_local/vbstate") - 1};
-    auto err =
-            couchstore_open_local_document(&db, (void*)id.buf, id.size, &ldoc);
-    if (err != COUCHSTORE_SUCCESS) {
+    auto [status, json] = getLocalVbState(db);
+    if (status != COUCHSTORE_SUCCESS) {
         logger.warn(
                 "CouchKVStore::maybePatchOnDiskPrepares: Failed to load "
                 "_local/vbstate: {}",
-                couchstore_strerror(err));
-        return err;
+                couchstore_strerror(status));
+        return status;
     }
-
-    nlohmann::json json;
-    try {
-        json = nlohmann::json::parse(
-                std::string{ldoc->json.buf, ldoc->json.size});
-    } catch (const nlohmann::json::exception& e) {
-        couchstore_free_local_document(ldoc);
-        logger.warn(
-                "CouchKVStore::maybePatchOnDiskPrepares: Failed to parse the "
-                "vbstate json: {}",
-                std::string{ldoc->json.buf, ldoc->json.size});
-        return COUCHSTORE_ERROR_CANCEL;
-    }
-    couchstore_free_local_document(ldoc);
 
     bool updateVbState = false;
 
