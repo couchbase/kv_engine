@@ -1603,7 +1603,7 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
         }
 
         status = compactDBTryAndSwitchToNewFile(
-                         vbid, new_rev, hook_ctx, prepareStats)
+                         vbid, new_rev, hook_ctx, std::move(prepareStats))
                          ? CompactDBInternalStatus::Success
                          : CompactDBInternalStatus::Failed;
     } catch (const std::exception& e) {
@@ -1640,7 +1640,7 @@ bool CouchKVStore::compactDBTryAndSwitchToNewFile(
         Vbid vbid,
         uint64_t newRevision,
         CompactionContext* hookCtx,
-        const CompactionReplayPrepareStats& prepareStats) {
+        CompactionReplayPrepareStats&& prepareStats) {
     // Open the newly compacted VBucket database to update the cached vbstate
     DbHolder targetDb(*this);
     auto errCode = openSpecificDB(
@@ -1667,7 +1667,8 @@ bool CouchKVStore::compactDBTryAndSwitchToNewFile(
     // don't have to worry about race conditions with things like the purge
     // seqno.
     if (hookCtx->completionCallback) {
-        hookCtx->stats.collectionSizeUpdates = prepareStats.collectionSizes;
+        hookCtx->stats.collectionSizeUpdates =
+                std::move(prepareStats.collectionSizes);
         hookCtx->completionCallback(*hookCtx);
     }
 

@@ -756,14 +756,15 @@ protected:
      * @param vbid the vbucket being compacted
      * @param newRevision the revision of the new file
      * @param hookCtx the context for this compaction run
-     * @param prepareStats data used for memory state update
+     * @param prepareStats data used for memory state update. Function consumes
+     *        the data
      * @returns true if success, false if some failure occurred
      */
     bool compactDBTryAndSwitchToNewFile(
             Vbid vbid,
             uint64_t newRevision,
             CompactionContext* hookCtx,
-            const CompactionReplayPrepareStats& prepareStats);
+            CompactionReplayPrepareStats&& prepareStats);
 
     /// try to load _local/vbstate and patch the num_on_disk_prepares
     /// and subtract the number of prepares pruned
