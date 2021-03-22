@@ -1063,23 +1063,6 @@ couchstore_error_t CouchKVStore::replayPrecommitHook(
     }
 
     try {
-        std::unordered_map<CollectionID, Collections::VB::PersistedStats>
-                cStats;
-        for (const auto& pair : prepareStats.collectionSizes) {
-            const auto& cid = pair.first;
-            // Need to read the collection stats
-            const auto [success, collectionStats] = getCollectionStats(db, cid);
-            if (!success) {
-                logger.warn(
-                        "CouchKVStore::replayPrecommitHook: Failed to "
-                        "load collection stats for cid:{}, stats could be now "
-                        "wrong!",
-                        cid);
-                return COUCHSTORE_ERROR_READ;
-            }
-            cStats[cid] = collectionStats;
-        }
-
         if (std::stoul(json["on_disk_prepares"].get<std::string>()) !=
             prepareStats.onDiskPrepares) {
             json["on_disk_prepares"] =
@@ -1096,18 +1079,20 @@ couchstore_error_t CouchKVStore::replayPrecommitHook(
         PendingLocalDocRequestQueue localDocQueue =
                 replayPrecommitProcessDroppedCollections(db, hook_ctx);
 
-        for (auto& [cid, adjustedDiskSize] : prepareStats.collectionSizes) {
+        for (auto [cid, adjustedDiskSize] : prepareStats.collectionSizes) {
             // Need to read the collection stats
-            auto& collectionStats = cStats[cid];
+            auto [success, collectionStats] = getCollectionStats(db, cid);
+            if (!success) {
+                logger.warn(
+                        "CouchKVStore::replayPrecommitHook: Failed to "
+                        "load collection stats for cid:{}, stats could be now "
+                        "wrong!",
+                        cid);
+                return COUCHSTORE_ERROR_READ;
+            }
 
             // To update them
             collectionStats.diskSize = adjustedDiskSize;
-
-            // Set the size to the total so that we can reset the cached value
-            // in the manifest. We don't update using deltas as a concurrent
-            // flush during compaction can't update the stats via deltas and we
-            // can re-use the code
-            prepareStats.collectionSizes[cid] = adjustedDiskSize;
 
             // To write them back
             localDocQueue.emplace_back(getCollectionStatsLocalDocId(cid),
@@ -1778,11 +1763,9 @@ couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
         localDocQueue.emplace_back("_local/vbstate", json.dump());
     }
 
-    std::unordered_map<CollectionID, Collections::VB::PersistedStats> cStats;
-    for (const auto& pair : stats.collectionSizeUpdates) {
-        const auto& cid = pair.first;
+    for (auto [cid, droppedPrepareBytes] : stats.collectionSizeUpdates) {
         // Need to read the collection stats
-        const auto [success, collectionStats] = getCollectionStats(db, cid);
+        auto [success, currentStats] = getCollectionStats(db, cid);
         if (!success) {
             logger.warn(
                     "CouchKVStore::maybePatchOnDiskPrepares: Failed to load "
@@ -1792,15 +1775,6 @@ couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
                     cid);
             return COUCHSTORE_ERROR_READ;
         }
-        cStats[cid] = collectionStats;
-    }
-
-    // Need to adjust prepare disk size as we have purged some prepares for
-    // collections that have not been dropped (we may have entered this
-    // function by purging prepares in dropped collections but we won't update
-    // their stats here as the stats docs has already been deleted).
-    for (const auto& [cid, droppedPrepareBytes] : stats.collectionSizeUpdates) {
-        auto& currentStats = cStats[cid];
 
         // To update them
         currentStats.diskSize -= droppedPrepareBytes;
