@@ -541,6 +541,7 @@ public:
                        Vbid vbucket,
                        std::string value,
                        cb::mcbp::Datatype datatype = cb::mcbp::Datatype::Raw,
+                       uint32_t expiry = 0,
                        GetFrameInfoFunction getFrameInfo = {});
 
     /**

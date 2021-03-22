@@ -465,42 +465,6 @@ TEST_P(OldMemcachedTests, MB_10114) {
     delete_object(key, false);
 }
 
-/* expiry, wait1 and wait2 need to be crafted so that
-   1. sleep(wait1) and key exists
-   2. sleep(wait2) and key should now have expired.
-*/
-static void test_expiry(const char* key, time_t expiry,
-                        time_t wait1, int clock_shift) {
-    auto command = mcbp_storage_command(
-            ClientOpcode::Set, key, "value", 0, (uint32_t)expiry);
-
-    safe_send(command);
-    std::vector<uint8_t> blob;
-    safe_recv_packet(blob);
-    mcbp_validate_response_header(*reinterpret_cast<Response*>(blob.data()),
-                                  ClientOpcode::Set,
-                                  Status::Success);
-
-    adjust_memcached_clock(clock_shift,
-                           request::AdjustTimePayload::TimeType::TimeOfDay);
-
-    auto ret = fetch_value(key);
-    EXPECT_EQ(Status::Success, ret.first);
-}
-
-TEST_P(OldMemcachedTests, ExpiryRelativeWithClockChangeBackwards) {
-    /*
-       Just test for MB-11548
-       120 second expiry.
-       Set clock back by some amount that's before the time we started memcached.
-       wait 2 seconds (allow mc time to tick)
-       (defect was that time went negative and expired keys immediatley)
-    */
-    time_t now = time(nullptr);
-    test_expiry("test_expiry_relative_with_clock_change_backwards",
-                120, 2, (int)(0 - ((now - get_server_start_time()) * 2)));
-}
-
 void OldMemcachedTests::test_set_huge_impl(const std::string& key,
                                            ClientOpcode cmd,
                                            Status result,

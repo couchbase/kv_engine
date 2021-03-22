@@ -469,3 +469,23 @@ TEST_P(RegressionTest, MB44460) {
         }
     }
 }
+
+/**
+ *  Just test for MB-11548
+ *  120 second expiry.
+ *  Set clock back by some amount that's before the time we started memcached.
+ *  wait 2 seconds (allow mc time to tick)
+ *  (defect was that time went negative and expired keys immediatley)
+ */
+TEST_P(RegressionTest, MB11548_ExpiryRelativeWithClockChangeBackwards) {
+    time_t now = time(nullptr);
+    auto& conn = getConnection();
+    const auto clock_shift = (int)(0 - ((now - get_server_start_time()) * 2));
+    conn.store(name, Vbid{0}, "value", cb::mcbp::Datatype::Raw, 120);
+    conn.adjustMemcachedClock(
+            clock_shift,
+            cb::mcbp::request::AdjustTimePayload::TimeType::TimeOfDay);
+    conn.get(name, Vbid{0});
+    conn.adjustMemcachedClock(
+            0, cb::mcbp::request::AdjustTimePayload::TimeType::TimeOfDay);
+}

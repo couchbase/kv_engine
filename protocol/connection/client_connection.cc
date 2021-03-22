@@ -1059,11 +1059,13 @@ MutationInfo MemcachedConnection::store(const std::string& id,
                                         Vbid vbucket,
                                         std::string value,
                                         cb::mcbp::Datatype datatype,
+                                        uint32_t expiry,
                                         GetFrameInfoFunction getFrameInfo) {
     Document doc{};
     doc.value = std::move(value);
     doc.info.id = id;
     doc.info.datatype = datatype;
+    doc.info.expiration = expiry;
     return mutate(doc, vbucket, MutationType::Set, getFrameInfo);
 }
 
