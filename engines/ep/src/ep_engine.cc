@@ -2665,7 +2665,7 @@ void EventuallyPersistentEngine::doEngineStatsCouchDB(const BucketStatCollector&
         auto printWriteAmpStat = [this, &collector, docBytes = value](
                 const char* writeBytesStat,
                 const char* writeAmpStat) {
-          double writeAmp = std::numeric_limits<double>::infinity();
+          double writeAmp = 0;
           size_t bytesWritten;
           if (docBytes &&
               kvBucket->getKVStoreStat(writeBytesStat,
