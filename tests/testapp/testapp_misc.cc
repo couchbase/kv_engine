@@ -25,7 +25,7 @@ class MiscTest : public TestappClientTest {};
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          MiscTest,
-                         ::testing::Values(TransportProtocols::McbpSsl),
+                         ::testing::Values(TransportProtocols::McbpPlain),
                          ::testing::PrintToStringParamName());
 
 TEST_P(MiscTest, GetFailoverLog) {
@@ -124,4 +124,112 @@ TEST_P(MiscTest, GetRbacDatabase) {
             cb::mcbp::ClientOpcode::IoctlGet, "rbac.db.dump?domain=external"});
     ASSERT_FALSE(response.isSuccess());
     ASSERT_EQ(cb::mcbp::Status::Eaccess, response.getStatus());
+}
+
+TEST_P(MiscTest, Config_Validate_Empty) {
+    auto& conn = getAdminConnection();
+    auto rsp = conn.execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::ConfigValidate});
+    ASSERT_EQ(cb::mcbp::Status::Einval, rsp.getStatus());
+}
+
+TEST_P(MiscTest, Config_ValidateInvalidJSON) {
+    auto& conn = getAdminConnection();
+    auto rsp = conn.execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::ConfigValidate, "", "This isn't JSON"});
+    ASSERT_EQ(cb::mcbp::Status::Einval, rsp.getStatus());
+}
+
+TEST_P(MiscTest, SessionCtrlToken) {
+    // Validate that you may successfully set the token to a legal value
+    auto& conn = getAdminConnection();
+    auto rsp = conn.execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::GetCtrlToken});
+    ASSERT_TRUE(rsp.isSuccess());
+
+    uint64_t old_token = rsp.getCas();
+    ASSERT_NE(0, old_token);
+    uint64_t new_token = 0x0102030405060708;
+
+    // Test that you can set it with the correct ctrl token
+    rsp = conn.execute(BinprotSetControlTokenCommand{new_token, old_token});
+    ASSERT_TRUE(rsp.isSuccess());
+    EXPECT_EQ(new_token, rsp.getCas());
+    old_token = new_token;
+
+    // Validate that you can't set 0 as the ctrl token
+    rsp = conn.execute(BinprotSetControlTokenCommand{0ull, old_token});
+    ASSERT_FALSE(rsp.isSuccess())
+            << "It shouldn't be possible to set token to 0";
+
+    // Validate that you can't set it by providing an incorrect cas
+    rsp = conn.execute(BinprotSetControlTokenCommand{1234ull, old_token - 1});
+    ASSERT_EQ(cb::mcbp::Status::KeyEexists, rsp.getStatus());
+
+    // Validate that you can set it by providing the correct token
+    rsp = conn.execute(BinprotSetControlTokenCommand{0xdeadbeefull, old_token});
+    ASSERT_TRUE(rsp.isSuccess());
+    ASSERT_EQ(0xdeadbeefull, rsp.getCas());
+
+    rsp = conn.execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::GetCtrlToken});
+    ASSERT_TRUE(rsp.isSuccess());
+    ASSERT_EQ(0xdeadbeefull, rsp.getCas());
+}
+
+TEST_P(MiscTest, ExceedMaxPacketSize) {
+    cb::mcbp::Request request;
+    request.setMagic(cb::mcbp::Magic::ClientRequest);
+    request.setOpcode(cb::mcbp::ClientOpcode::Set);
+    request.setExtlen(sizeof(cb::mcbp::request::MutationPayload));
+    request.setKeylen(1);
+    request.setBodylen(31 * 1024 * 1024);
+    request.setOpaque(0xdeadbeef);
+
+    auto mysocket = getConnection().releaseSocket();
+    ASSERT_EQ(sizeof(request),
+              cb::net::send(mysocket, &request, sizeof(request), 0));
+
+    // the server will read the header, and figure out that the packet
+    // is too big and close the socket
+    std::vector<uint8_t> blob(1024);
+    EXPECT_EQ(0, cb::net::recv(mysocket, blob.data(), blob.size(), 0));
+    cb::net::closesocket(mysocket);
+}
+
+TEST_P(MiscTest, Version) {
+    const auto rsp = getConnection().execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::Version});
+    EXPECT_EQ(cb::mcbp::ClientOpcode::Version, rsp.getOp());
+    EXPECT_TRUE(rsp.isSuccess());
+}
+
+TEST_F(TestappTest, CollectionsSelectBucket) {
+    auto& conn = getAdminConnection();
+
+    // Create and select a bucket on which we will be able to hello collections
+    conn.createBucket("collections", "", BucketType::Couchbase);
+    conn.selectBucket("collections");
+
+    // Hello collections to enable collections for this connection
+    BinprotHelloCommand cmd("Collections");
+    cmd.enableFeature(cb::mcbp::Feature::Collections);
+    const auto rsp = BinprotHelloResponse(conn.execute(cmd));
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+
+    try {
+        conn.selectBucket("default");
+        if (!GetTestBucket().supportsCollections()) {
+            FAIL() << "Select bucket did not throw a not supported error when"
+                      "attempting to select a memcache bucket with a "
+                      "collections enabled connections";
+        }
+    } catch (const ConnectionError& e) {
+        if (!GetTestBucket().supportsCollections()) {
+            EXPECT_EQ(cb::mcbp::Status::NotSupported, e.getReason());
+        } else {
+            FAIL() << "Select bucket failed for unknown reason: "
+                   << to_string(e.getReason());
+        }
+    }
 }
