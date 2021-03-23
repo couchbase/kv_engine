@@ -441,34 +441,6 @@ TEST_P(OldMemcachedTests, SessionCtrlToken) {
     ASSERT_EQ(0xdeadbeefull, rsp.getCas());
 }
 
-TEST_P(OldMemcachedTests, MB_10114) {
-    // Disable ewouldblock_engine - not wanted / needed for this MB regression
-    // test.
-    auto& conn = getConnection();
-    conn.configureEwouldBlockEngine(
-            EWBEngineMode::Next_N, cb::engine_errc::would_block, 0);
-    const std::string key{"mb-10114"};
-    conn.store(key, Vbid{0}, "world");
-
-    Document document;
-    document.info.id = key;
-    document.value.resize(1000000);
-
-    while (true) {
-        try {
-            conn.mutate(document, Vbid{0}, MutationType::Append);
-        } catch (ConnectionError& error) {
-            if (error.isTooBig()) {
-                break;
-            }
-            throw error;
-        }
-    }
-
-    // We should be able to delete it
-    conn.remove(key, Vbid{0});
-}
-
 void OldMemcachedTests::test_set_huge_impl(const std::string& key,
                                            ClientOpcode cmd,
                                            Status result,
@@ -533,26 +505,6 @@ TEST_P(OldMemcachedTests, ExceedMaxPacketSize) {
     std::vector<uint8_t> blob(1024);
     EXPECT_EQ(0, cb::net::recv(sock, blob.data(), blob.size(), 0));
     reconnect_to_server();
-}
-
-/**
- * Test that opcode 255 is rejected and the server doesn't crash
- */
-TEST_P(OldMemcachedTests, test_MB_16333) {
-    auto& conn = getConnection();
-    auto rsp = conn.execute(BinprotGenericCommand{ClientOpcode::Invalid});
-    ASSERT_EQ(Status::UnknownCommand, rsp.getStatus());
-}
-
-/**
- * Test that a bad SASL auth doesn't crash the server.
- * It should be rejected with EINVAL.
- */
-TEST_P(OldMemcachedTests, test_MB_16197) {
-    auto& conn = getConnection();
-    auto rsp = conn.execute(BinprotGenericCommand{
-            ClientOpcode::SaslAuth, "PLAIN", std::string{"\0", 1}});
-    ASSERT_EQ(Status::Einval, rsp.getStatus());
 }
 
 TEST_F(TestappTest, CollectionsSelectBucket) {

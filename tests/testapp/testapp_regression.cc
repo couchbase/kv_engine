@@ -489,3 +489,54 @@ TEST_P(RegressionTest, MB11548_ExpiryRelativeWithClockChangeBackwards) {
     conn.adjustMemcachedClock(
             0, cb::mcbp::request::AdjustTimePayload::TimeType::TimeOfDay);
 }
+
+/// Verify that appending to a document won't cause it to be deleted when we
+/// exceed the max size
+TEST_P(RegressionTest, MB10114_append_e2big_wont_delete_doc) {
+    // Disable ewouldblock_engine - not wanted / needed for this MB regression
+    // test.
+    auto& conn = getConnection();
+    conn.configureEwouldBlockEngine(
+            EWBEngineMode::Next_N, cb::engine_errc::would_block, 0);
+    const std::string key{"mb-10114"};
+    conn.store(key, Vbid{0}, "world");
+
+    Document document;
+    document.info.id = key;
+    document.value.resize(mcd_env->getTestBucket().getMaximumDocSize() - 100);
+
+    while (true) {
+        try {
+            conn.mutate(document, Vbid{0}, MutationType::Append);
+        } catch (ConnectionError& error) {
+            if (error.isTooBig()) {
+                break;
+            }
+            throw error;
+        }
+    }
+
+    // We should be able to delete it
+    conn.remove(key, Vbid{0});
+}
+
+/**
+ * Test that opcode 255 is rejected and the server doesn't crash
+ */
+TEST_P(RegressionTest, MB16333_opcode_255_detected) {
+    auto& conn = getConnection();
+    auto rsp = conn.execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::Invalid});
+    ASSERT_EQ(cb::mcbp::Status::UnknownCommand, rsp.getStatus());
+}
+
+/**
+ * Test that a bad SASL auth doesn't crash the server.
+ * It should be rejected with EINVAL.
+ */
+TEST_P(RegressionTest, MB16197_malformed_sasl_auth) {
+    auto& conn = getConnection();
+    auto rsp = conn.execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::SaslAuth, "PLAIN", std::string{"\0", 1}});
+    ASSERT_EQ(cb::mcbp::Status::Einval, rsp.getStatus());
+}
