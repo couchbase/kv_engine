@@ -121,19 +121,34 @@ Value        (39-43): The textual string "World"
 ```
 
 
-## Error Code 0x88, Unknown collection
+## Errors Codes
+
+### 0x88, Unknown Collection
 
 The unknown collection error is used when a request is made, referencing a
 collection and the node could not match the collection against its manifest.
-The same error can be see on "opcode 0xbb Get Collection ID" when an unknown
+The same error can be seen on "opcode 0xbb Get Collection ID" when an unknown
 "scope.name" is used.
 
-The response packet for the unknown collection error includes the UID of the
-manifest the server used in determining the collection doesn't exist. The format
-of the returned value is a JSON document with the following format. The
-manifest_uid field's value is the UID of the manifest in the same format as the
-JSON manifest (a hex number in a string with no leading 0x).
+### 0x8a, Cannot Apply Collections Manifest
+The collections manifest passed validation but could not be applied to the
+bucket. This status code will also return a string giving reason for the failure
+in the error's context.
 
+### 0x8c, Unknown Scope
+
+The unknown collection error is used when a request is made, referencing a
+scope and the node could not match the scope against its manifest.
+The same error can be seen on "opcode 0xbc Get Scope ID" when an unknown
+"scope" is used.
+
+### Returned Manifest Uid - for Unknown (Collection/Scope)
+
+The response packet for the unknown collection or scope error includes the UID
+of the  manifest the server used in determining the collection or scope doesn't
+exist. The format of the returned value is a JSON document with the following
+format. The manifest_uid field's value is the UID of the manifest in the same
+format as the JSON manifest (a hex number in a string with no leading 0x).
 
 ```
 {
@@ -143,7 +158,8 @@ JSON manifest (a hex number in a string with no leading 0x).
 
 Note that other fields within this JSON response value are allowed.
 
-## 0xb9 - Set Collections Manifest
+## Collections Opcodes
+### 0xb9 - Set Collections Manifest
 
 Request:
 
@@ -210,14 +226,14 @@ In the following sections we refer to user's collections and system collections.
 At the moment, the only defining feature of a system collection is the naming
 and for validation purposes set collections allows either collection to be created.
 
-### Errors
+#### Errors
 
-#### Temporary Failure
+##### Temporary Failure
 
 Concurrent attempt to update the manifest, only one management connection should
 be active so concurrent updates may fail.
 
-#### Invalid Argument
+##### Invalid Argument
 
 Invalid argument can be returned for many issues with the header or value of the
 command.
@@ -230,7 +246,7 @@ Value errors:
 * Missing a required key
 * A key has a value of the wrong type
 * A name is not valid
-  * Size: 1 byte minimum, 30 byte maximum.
+  * Size: 1 byte minimum, 251 byte maximum.
   * A user's collection can only contain characters `A-Z`, `a-z`, `0-9` and the following symbols `_ - %`
   * The prefix character of a user’s collection name however is restricted. It cannot be `_` or `%`
   * A system collection name can contain characters `A-Z, a-z, 0-9` and the following symbols `_  $ - %`
@@ -245,11 +261,19 @@ Value errors:
 * Collection names in a scope are not unique
 * Default scope is missing
 
-#### Out of range
+##### Out of range
 
 * The manifest uid is less than uid of the last set manifest
 
-## 0xba - Get Collections Manifest
+##### Not Supported
+
+* The bucket does not support setting of collections
+
+##### Cannot Apply Collections Manifest
+
+* The collections manifest passed validation but could not be applied
+
+### 0xba - Get Collections Manifest
 
 Request:
 
@@ -265,20 +289,24 @@ Response (if status is success):
 
 Get collections returns the value of the last successful set collection.
 
-### Errors
+#### Errors
 
-#### No collections manifest
+##### No collections manifest
 
 Get collections was invoked without a prior set collections.
 
-#### Invalid Argument
+##### Invalid Argument
 
 Invalid argument can be returned for issues with the header.
 
 Header errors:
 * extra len, cas, vbucket, datatype are not 0
 
-## 0xbb - Get Collections ID
+### 0xbb - Get Collections ID
+
+##### Not Supported
+
+* The bucket does not support setting of collections
 
 Request:
 
@@ -308,7 +336,7 @@ collection in the `_default` scope.
 * `App1.c1` will lookup the unique ID of the `c1` collection in the `App1`
 scope.
 
-### Extras
+#### Extras
 
 Successful response includes an extras payload with two values.
 
@@ -318,19 +346,19 @@ Successful response includes an extras payload with two values.
 The returned manifest ID is the ID of the manifest that the lookup was performed
 against.
 
-### Errors
+#### Errors
 
-#### Unknown Scope
+##### Unknown Scope
 
 If the path is correctly formed and consists of valid collection and scope names
 but the scope couldn't be found, this error is returned.
 
-#### Unknown Collection
+##### Unknown Collection
 
 If the path is correctly formed and consists of valid collection and scope names
 but no collection could be found, this error is returned.
 
-#### Invalid Argument
+##### Invalid Argument
 
 Invalid argument can be returned for issues with the header or if the path is
 invalid.
@@ -345,7 +373,7 @@ errors for validation of the name format)
 * The collection is not a valid collection name (see "0xb9 - Set Collections
 Manifest" errors for validation of the name format)
 
-## 0xbc - Get Scope ID
+### 0xbc - Get Scope ID
 
 Request:
 
@@ -374,7 +402,7 @@ Example inputs:
 Note: Get Scope ID can accept a complete path `scope.collection` it ignores the
 the `.collection` part and only examines the scope.
 
-### Extras
+#### Extras
 
 Successful response includes an extras payload with two values.
 
@@ -384,14 +412,14 @@ Successful response includes an extras payload with two values.
 The returned manifest ID is the ID of the manifest that the lookup was performed
 against.
 
-### Errors
+#### Errors
 
-#### Unknown Scope
+##### Unknown Scope
 
 If the path is correctly formed and consists of valid scope names but no
 matching scope could be found, this error is returned.
 
-#### Invalid Argument
+##### Invalid Argument
 
 Invalid argument can be returned for issues with the header or if the path is
 invalid.
