@@ -17,18 +17,19 @@
 
 #include "testapp.h"
 
-#include <cstring>
-#include <ctime>
-
 #include <folly/portability/GTest.h>
-#include <atomic>
-#include <string>
-#include <vector>
-
 #include <mcbp/protocol/framebuilder.h>
 #include <memcached/util.h>
 #include <platform/socket.h>
 #include <platform/string_hex.h>
+#include <atomic>
+#include <cstring>
+#include <string>
+#include <vector>
+
+/// This file contains unit test for commands still supported in the product,
+/// but is put on the deprecation list as we want to get rid of them
+/// one time in the future
 
 using namespace cb::mcbp;
 
@@ -71,7 +72,7 @@ static std::vector<uint8_t> mcbp_storage_command(cb::mcbp::ClientOpcode cmd,
     return buffer;
 }
 
-class OldMemcachedTests : public McdTestappTest {
+class DeprecatedCommandsTests : public McdTestappTest {
 protected:
     /* Helpers for individual testcases */
     void test_set_huge_impl(const std::string& key,
@@ -93,7 +94,10 @@ void test_noop() {
                                   Status::Success);
 }
 
-TEST_P(OldMemcachedTests, Noop) {
+/// Noop is NOT being deprecated, but it is needed in order to test all of
+/// the quiet operation so we should run an isolated test first to see that
+/// it works as expected.
+TEST_P(DeprecatedCommandsTests, Noop) {
     test_noop();
 }
 
@@ -115,15 +119,15 @@ void test_quit_impl(ClientOpcode cmd) {
     reconnect_to_server();
 }
 
-TEST_P(OldMemcachedTests, Quit) {
+TEST_P(DeprecatedCommandsTests, Quit) {
     test_quit_impl(ClientOpcode::Quit);
 }
 
-TEST_P(OldMemcachedTests, QuitQ) {
+TEST_P(DeprecatedCommandsTests, QuitQ) {
     test_quit_impl(ClientOpcode::Quitq);
 }
 
-TEST_P(OldMemcachedTests, SetQ) {
+TEST_P(DeprecatedCommandsTests, SetQ) {
     const std::string key = "test_setq";
     auto command = mcbp_storage_command(ClientOpcode::Setq, key, "value", 0, 0);
 
@@ -136,7 +140,7 @@ TEST_P(OldMemcachedTests, SetQ) {
     return test_noop();
 }
 
-TEST_P(OldMemcachedTests, AddQ) {
+TEST_P(DeprecatedCommandsTests, AddQ) {
     const std::string key = "test_addq";
     auto command = mcbp_storage_command(ClientOpcode::Addq, key, "value", 0, 0);
 
@@ -155,7 +159,7 @@ TEST_P(OldMemcachedTests, AddQ) {
     delete_object(key);
 }
 
-TEST_P(OldMemcachedTests, ReplaceQ) {
+TEST_P(DeprecatedCommandsTests, ReplaceQ) {
     const std::string key = "test_replaceq";
 
     auto command =
@@ -178,7 +182,7 @@ TEST_P(OldMemcachedTests, ReplaceQ) {
     delete_object(key);
 }
 
-TEST_P(OldMemcachedTests, DeleteQ) {
+TEST_P(DeprecatedCommandsTests, DeleteQ) {
     const std::string key = "test_deleteq";
     BinprotGenericCommand del(ClientOpcode::Deleteq, key);
     std::vector<uint8_t> blob;
@@ -209,7 +213,7 @@ TEST_P(OldMemcachedTests, DeleteQ) {
                                   Status::KeyEnoent);
 }
 
-TEST_P(OldMemcachedTests, GetK) {
+TEST_P(DeprecatedCommandsTests, GetK) {
     const std::string key = "test_getk";
     BinprotGenericCommand get(ClientOpcode::Getk, key);
     std::vector<uint8_t> blob;
@@ -284,11 +288,11 @@ static void test_getq_impl(const char* key, ClientOpcode cmd) {
     delete_object(key);
 }
 
-TEST_P(OldMemcachedTests, GetQ) {
+TEST_P(DeprecatedCommandsTests, GetQ) {
     test_getq_impl("test_getq", ClientOpcode::Getq);
 }
 
-TEST_P(OldMemcachedTests, GetKQ) {
+TEST_P(DeprecatedCommandsTests, GetKQ) {
     test_getq_impl("test_getkq", ClientOpcode::Getkq);
 }
 
@@ -315,7 +319,7 @@ static std::vector<uint8_t> mcbp_arithmetic_command(cb::mcbp::ClientOpcode cmd,
     return buffer;
 }
 
-TEST_P(OldMemcachedTests, IncrQ) {
+TEST_P(DeprecatedCommandsTests, IncrQ) {
     const std::string key = "test_incrq";
     const auto command =
             mcbp_arithmetic_command(ClientOpcode::Incrementq, key, 1, 0, 0);
@@ -331,7 +335,7 @@ TEST_P(OldMemcachedTests, IncrQ) {
     delete_object(key);
 }
 
-TEST_P(OldMemcachedTests, DecrQ) {
+TEST_P(DeprecatedCommandsTests, DecrQ) {
     const std::string key = "test_decrq";
     const auto command =
             mcbp_arithmetic_command(ClientOpcode::Decrementq, key, 1, 9, 0);
@@ -345,13 +349,6 @@ TEST_P(OldMemcachedTests, DecrQ) {
     EXPECT_EQ(Status::Success, ret.first);
     EXPECT_EQ(0, std::stoi(ret.second));
     delete_object(key);
-}
-
-TEST_P(OldMemcachedTests, Version) {
-    const auto rsp = getConnection().execute(
-            BinprotGenericCommand{ClientOpcode::Version});
-    EXPECT_EQ(ClientOpcode::Version, rsp.getOp());
-    EXPECT_TRUE(rsp.isSuccess());
 }
 
 void test_concat_impl(const std::string& key, ClientOpcode cmd) {
@@ -383,18 +380,18 @@ void test_concat_impl(const std::string& key, ClientOpcode cmd) {
     delete_object(key);
 }
 
-TEST_P(OldMemcachedTests, AppendQ) {
+TEST_P(DeprecatedCommandsTests, AppendQ) {
     test_concat_impl("test_appendq", ClientOpcode::Appendq);
 }
 
-TEST_P(OldMemcachedTests, PrependQ) {
+TEST_P(DeprecatedCommandsTests, PrependQ) {
     test_concat_impl("test_prependq", ClientOpcode::Prependq);
 }
 
-void OldMemcachedTests::test_set_huge_impl(const std::string& key,
-                                           ClientOpcode cmd,
-                                           Status result,
-                                           size_t message_size) {
+void DeprecatedCommandsTests::test_set_huge_impl(const std::string& key,
+                                                 ClientOpcode cmd,
+                                                 Status result,
+                                                 size_t message_size) {
     // This is a large, long test. Disable ewouldblock_engine while
     // running it to speed it up.
     ewouldblock_engine_disable();
@@ -412,14 +409,14 @@ void OldMemcachedTests::test_set_huge_impl(const std::string& key,
     }
 }
 
-TEST_P(OldMemcachedTests, SetQHuge) {
+TEST_P(DeprecatedCommandsTests, SetQHuge) {
     test_set_huge_impl("test_setq_huge",
                        ClientOpcode::Setq,
                        Status::Success,
                        GetTestBucket().getMaximumDocSize() - 256);
 }
 
-TEST_P(OldMemcachedTests, SetQE2BIG) {
+TEST_P(DeprecatedCommandsTests, SetQE2BIG) {
     test_set_huge_impl("test_set_e2big",
                        ClientOpcode::Setq,
                        Status::E2big,
@@ -428,8 +425,8 @@ TEST_P(OldMemcachedTests, SetQE2BIG) {
 
 INSTANTIATE_TEST_SUITE_P(
         Transport,
-        OldMemcachedTests,
+        DeprecatedCommandsTests,
         ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain),
                            ::testing::Values(ClientJSONSupport::Yes,
                                              ClientJSONSupport::No)),
-        OldMemcachedTests::PrintToStringCombinedName);
+        DeprecatedCommandsTests::PrintToStringCombinedName);

@@ -34,6 +34,7 @@ set(memcached_testapp_SOURCES
     testapp_cmd_timers.cc
     testapp_collections.cc
     testapp_dcp.cc
+    testapp_deprecated_commands.cc
     testapp_durability.cc
     testapp_environment.cc
     testapp_environment.h
@@ -64,7 +65,6 @@ set(memcached_testapp_SOURCES
     testapp_subdoc_common.h
     testapp_subdoc_multipath.cc
     testapp_subdoc_perf.cc
-    testapp_tests.cc
     testapp_tls.cc
     testapp_topkeys.cc
     testapp_touch.cc
