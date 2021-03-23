@@ -325,6 +325,9 @@ Possible values of this two-byte field:
 | 0x0006 | Incr/Decr on a non-numeric value      |
 | 0x0007 | The vbucket belongs to another server |
 | 0x0008 | The connection is not connected to a bucket |
+| 0x0009 | The requested resource is locked      |
+| 0x000a | Stream not found for DCP message      |
+| 0x000b | The DCP message's opaque does not match the DCP stream's |
 | 0x001f | The authentication context is stale, please re-authenticate |
 | 0x0020 | Authentication error                  |
 | 0x0021 | Authentication continue               |
@@ -340,14 +343,14 @@ Possible values of this two-byte field:
 | 0x0086 | Temporary failure                     |
 | 0x0087 | XATTR invalid syntax                  |
 | 0x0088 | Unknown collection                    |
-| 0x0089 | No collections manifest               |
 | 0x008a | Collections manifest not applied      |
-| 0x008b | Client collections manifest ahead     |
 | 0x008c | Unknown scope                         |
+| 0x008d | DCP stream ID is invalid              |
 | 0x00a0 | Durability level invalid |
 | 0x00a1 | Durability impossible |
 | 0x00a2 | Synchronous write in progress |
 | 0x00a3 | Synchronous write ambiguous |
+| 0x00a4 | The SyncWrite is being re-committed after a change in active node |
 | 0x00c0 | (Subdoc) The provided path does not exist in the document |
 | 0x00c1 | (Subdoc) One of path components treats a non-dictionary as a dictionary, or a non-array as an array|
 | 0x00c2 | (Subdoc) The path’s syntax was incorrect |
