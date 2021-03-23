@@ -688,26 +688,28 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
 
     if (hcs) {
         if (hcs <= proposedVBState.persistedCompletedSeqno) {
-            throw std::logic_error(
-                    "EPBucket::flushVBucket: " + vbid.to_string() +
-                    " Trying to set PCS to " + std::to_string(*hcs) +
-                    " but the current value is " +
-                    std::to_string(proposedVBState.persistedCompletedSeqno) +
-                    " and the PCS must be monotonic. The current checkpoint " +
-                    "type is " + to_string(toFlush.checkpointType));
+            throw std::logic_error(fmt::format(
+                    "EPBucket::flushVBucket: {} Trying to set PCS to {} but "
+                    "the current value is {} and the PCS must be monotonic. "
+                    "The current checkpoint type is {}",
+                    vbid,
+                    *hcs,
+                    proposedVBState.persistedCompletedSeqno,
+                    to_string(toFlush.checkpointType)));
         }
         proposedVBState.persistedCompletedSeqno = *hcs;
     }
 
     if (hps) {
         if (hps <= proposedVBState.persistedPreparedSeqno) {
-            throw std::logic_error(
-                    "EPBucket::flushVBucket: " + vbid.to_string() +
-                    " Trying to set PPS to " + std::to_string(*hps) +
-                    " but the current value is " +
-                    std::to_string(proposedVBState.persistedPreparedSeqno) +
-                    " and the PPS must be monotonic. The current checkpoint " +
-                    "type is " + to_string(toFlush.checkpointType));
+            throw std::logic_error(fmt::format(
+                    "EPBucket::flushVBucket: {} Trying to set PPS to {} but "
+                    "the current value is {} and the PPS must be monotonic. "
+                    "The current checkpoint type is {}",
+                    vbid,
+                    *hps,
+                    proposedVBState.persistedPreparedSeqno,
+                    to_string(toFlush.checkpointType)));
         }
         proposedVBState.persistedPreparedSeqno = *hps;
     }
