@@ -506,7 +506,6 @@ information about a given command.
 | 0x86 | Delete bucket |
 | 0x87 | [List buckets](#0x87-list-buckets) |
 | 0x89 | [Select bucket](#0x89-select-bucket) |
-| 0x8a | Assume role |
 | 0x91 | Observe seqno |
 | 0x92 | [Observe](#92-observe) |
 | 0x93 | Evict key |
@@ -569,7 +568,9 @@ information about a given command.
 | 0xf6 | [Update External User Permissions](ExternalAuthProvider.md#updateexternaluserpermission) |
 | 0xf7 | RBAC refresh |
 | 0xf8 | AUTH provider |
-| 0xf9 | Get Active External Users |
+| 0xfb | Drop Privilege (for testing) |
+| 0xfc | Adjust time of day (for testing) |
+| 0xfd | EwouldblockCtl (for testing) |
 | 0xfe | [Get error map](#0xf5-get-error-map) |
 
 As a convention all of the commands ending with "Q" for Quiet. A quiet version
