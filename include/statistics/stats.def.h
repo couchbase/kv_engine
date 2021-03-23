@@ -669,7 +669,7 @@ STAT(scope_collection_count, "collections", count, , )
 
 STAT(collection_mem_used, "collections_mem_used", bytes, , )
 STAT(collection_item_count, "items", count, , )
-STAT(collection_disk_size, "disk_size", bytes, , )
+STAT(collection_data_size, "data_size", bytes, , )
 
 STAT(collection_ops_store, "ops_store", count, collection_ops, LABEL(op, store))
 STAT(collection_ops_delete,

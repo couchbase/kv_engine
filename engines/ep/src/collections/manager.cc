@@ -900,7 +900,7 @@ void Collections::CachedStats::addAggregatedCollectionStats(
 
     collector.addStat(Key::collection_mem_used, memUsed);
     collector.addStat(Key::collection_item_count, stats.itemCount);
-    collector.addStat(Key::collection_disk_size, stats.diskSize);
+    collector.addStat(Key::collection_data_size, stats.diskSize);
 
     collector.addStat(Key::collection_ops_store, stats.opsStore);
     collector.addStat(Key::collection_ops_delete, stats.opsDelete);
