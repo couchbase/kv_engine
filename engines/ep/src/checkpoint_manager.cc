@@ -1217,15 +1217,11 @@ void CheckpointManager::clear_UNLOCKED(vbucket_state_t vbState, uint64_t seqno) 
                       maxVisibleSeqno,
                       {},
                       CheckpointType::Memory);
-    resetCursors(true);
+    resetCursors();
 }
 
-void CheckpointManager::resetCursors(bool resetPersistenceCursor) {
+void CheckpointManager::resetCursors() {
     for (auto& cit : cursors) {
-        if (cit.second->name == pCursorName && !resetPersistenceCursor) {
-            continue;
-        }
-
         // Remove this cursor from the accounting of it's old checkpoint.
         (*cit.second->currentCheckpoint)->decNumOfCursorsInCheckpoint();
 
@@ -1356,7 +1352,6 @@ void CheckpointManager::createSnapshot(
     if (openCkpt.getNumItems() == 0) {
         if (openCkptId == 0) {
             setOpenCheckpointId_UNLOCKED(lh, openCkptId + 1);
-            resetCursors(false);
         }
         openCkpt.setSnapshotStartSeqno(snapStartSeqno);
         openCkpt.setSnapshotEndSeqno(snapEndSeqno, visibleSnapEnd);
@@ -1648,7 +1643,7 @@ void CheckpointManager::takeAndResetCursors(CheckpointManager& other) {
     }
     other.cursors.clear();
 
-    resetCursors(true);
+    resetCursors();
 }
 
 bool CheckpointManager::isOpenCheckpointDisk() {

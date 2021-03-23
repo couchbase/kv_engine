@@ -657,7 +657,7 @@ protected:
     bool isCheckpointCreationForHighMemUsage_UNLOCKED(const LockHolder& lh,
                                                       const VBucket& vbucket);
 
-    void resetCursors(bool resetPersistenceCursor);
+    void resetCursors();
 
     queued_item createCheckpointItem(uint64_t id,
                                      Vbid vbid,
