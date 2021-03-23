@@ -2645,7 +2645,7 @@ TEST_P(CollectionsDcpParameterizedTest, seqno_advanced_from_disk_to_memory) {
 class CollectionsDcpPersistentOnly : public CollectionsDcpParameterizedTest {
 public:
     void resurrectionTest(bool dropAtEnd, bool updateItemPath, bool deleteItem);
-    void resurrectionStatsTest(bool reproduceUnderflow);
+    void resurrectionStatsTest(bool reproduceUnderflow, bool updateItemDropped);
 };
 
 // Observed in MB-39864, the data we store in _local had a collection with
@@ -2952,7 +2952,7 @@ TEST_P(CollectionsDcpPersistentOnly,
 }
 
 void CollectionsDcpPersistentOnly::resurrectionStatsTest(
-        bool reproduceUnderflow) {
+        bool reproduceUnderflow, bool updateItemDropped) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Add the target collection
@@ -2963,6 +2963,9 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
     // Put a key in for the original 'fruit'
     store_item(vbid, key1, "yum1");
     flushVBucketToDiskIfPersistent(vbid, 2);
+
+    EXPECT_EQ(2, vb->getPersistenceSeqno());
+    EXPECT_EQ(2, vb->getHighSeqno());
 
     auto stats = vb->getManifest().lock(target.getId()).getPersistedStats();
 
@@ -2989,24 +2992,35 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
     // cannot read back apple!
     auto key2 = makeStoredDocKey("apple", target);
 
+    auto expectedToFlush = 1;
+    auto highSeqno = vb->getHighSeqno();
     if (!reproduceUnderflow) {
+        expectedToFlush++;
+        highSeqno++;
         store_item(vbid, key2, "yum1");
+    }
+
+    if (updateItemDropped) {
+        expectedToFlush++;
+        highSeqno++;
+        store_item(vbid, key1, "yum2");
     }
 
     // remove
     cm.remove(target);
+    highSeqno++;
     setCollections(cookie, cm);
 
     cm.add(target);
     setCollections(cookie, cm);
-    flushVBucketToDiskIfPersistent(vbid, reproduceUnderflow ? 1 : 2);
+    highSeqno++;
+    flushVBucketToDiskIfPersistent(vbid, expectedToFlush);
 
     stats = vb->getManifest().lock(target.getId()).getPersistedStats();
     // In both test variations the new collection has no items but some usage of
     // disk (system event is counted). Note 57 manually verified from dbdump
     EXPECT_EQ(0, stats.itemCount);
     EXPECT_EQ(systemeventSize, stats.diskSize);
-    auto highSeqno = !reproduceUnderflow ? 5 : 4;
     EXPECT_EQ(highSeqno, stats.highSeqno);
 
     // Finally we should be able to mutate/delete the key we stored at the start
@@ -3015,6 +3029,7 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
     // update, so we didn't increment the item count (so collection has 0 items)
     // the delete then triggers underflow.
     store_item(vbid, key1, "yummy");
+    highSeqno++;
     flushVBucketToDiskIfPersistent(vbid, 1);
     stats = vb->getManifest().lock(target.getId()).getPersistedStats();
 
@@ -3027,7 +3042,6 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
     }
     EXPECT_EQ(1, stats.itemCount);
     EXPECT_EQ(systemeventSize + itemSize, stats.diskSize);
-    highSeqno = !reproduceUnderflow ? 6 : 5;
     EXPECT_EQ(highSeqno, stats.highSeqno);
 
     delete_item(vbid, key1);
@@ -3040,18 +3054,27 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
     stats = vb->getManifest().lock(target.getId()).getPersistedStats();
     EXPECT_EQ(0, stats.itemCount);
     EXPECT_EQ(systemeventSize + itemSize, stats.diskSize);
-    highSeqno = !reproduceUnderflow ? 7 : 6;
+    highSeqno++;
     EXPECT_EQ(highSeqno, stats.highSeqno);
 }
 
 TEST_P(CollectionsDcpPersistentOnly, create_drop_create_same_id_stats) {
-    resurrectionStatsTest(false);
+    resurrectionStatsTest(false /*reproduceUnferflow*/, false /*updateItem*/);
 }
 
 // reproduce the underflow seen in MB-39864
 TEST_P(CollectionsDcpPersistentOnly,
        create_drop_create_same_id_stats_undeflow) {
-    resurrectionStatsTest(true);
+    resurrectionStatsTest(true /*reproduceUnferflow*/, false /*updateItem*/);
+}
+
+TEST_P(CollectionsDcpPersistentOnly, create_drop_create_same_id_stats_update) {
+    resurrectionStatsTest(false /*reproduceUnferflow*/, true /*updateItem*/);
+}
+
+TEST_P(CollectionsDcpPersistentOnly,
+       create_drop_create_same_id_stats_underflow_update) {
+    resurrectionStatsTest(true /*reproduceUnferflow*/, true /*updateItem*/);
 }
 
 /*
