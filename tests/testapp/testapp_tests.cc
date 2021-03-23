@@ -442,27 +442,31 @@ TEST_P(OldMemcachedTests, SessionCtrlToken) {
 }
 
 TEST_P(OldMemcachedTests, MB_10114) {
-    // Disable ewouldblock_engine - not wanted / needed for this MB regression test.
-    ewouldblock_engine_disable();
+    // Disable ewouldblock_engine - not wanted / needed for this MB regression
+    // test.
+    auto& conn = getConnection();
+    conn.configureEwouldBlockEngine(
+            EWBEngineMode::Next_N, cb::engine_errc::would_block, 0);
+    const std::string key{"mb-10114"};
+    conn.store(key, Vbid{0}, "world");
 
-    std::vector<char> value(1000000);
-    const char* key = "mb-10114";
-    auto command = mcbp_storage_command(
-            ClientOpcode::Append, key, {value.data(), value.size()}, 0, 0);
+    Document document;
+    document.info.id = key;
+    document.value.resize(1000000);
 
-    store_document(key, "world");
-    std::vector<uint8_t> blob;
-    do {
-        safe_send(command);
-        safe_recv_packet(blob);
-    } while (reinterpret_cast<Response*>(blob.data())->getStatus() ==
-             Status::Success);
+    while (true) {
+        try {
+            conn.mutate(document, Vbid{0}, MutationType::Append);
+        } catch (ConnectionError& error) {
+            if (error.isTooBig()) {
+                break;
+            }
+            throw error;
+        }
+    }
 
-    EXPECT_EQ(Status::E2big,
-              reinterpret_cast<Response*>(blob.data())->getStatus());
-
-    /* We should be able to delete it */
-    delete_object(key, false);
+    // We should be able to delete it
+    conn.remove(key, Vbid{0});
 }
 
 void OldMemcachedTests::test_set_huge_impl(const std::string& key,

@@ -81,18 +81,10 @@ public:
 class DocumentInfo {
 public:
     std::string id;
-    uint32_t flags;
-    uint32_t expiration;
-    cb::mcbp::Datatype datatype;
-    uint64_t cas;
-
-    DocumentInfo()
-        : id(""),
-          flags(0),
-          expiration(0),
-          datatype(cb::mcbp::Datatype::Raw),
-          cas(0) {
-    }
+    uint32_t flags = 0;
+    uint32_t expiration = 0;
+    cb::mcbp::Datatype datatype = cb::mcbp::Datatype::Raw;
+    uint64_t cas = 0;
 
     bool operator==(const DocumentInfo& rhs) const {
         return (id == rhs.id) && (flags == rhs.flags) &&
