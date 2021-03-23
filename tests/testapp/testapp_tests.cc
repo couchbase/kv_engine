@@ -412,20 +412,6 @@ void OldMemcachedTests::test_set_huge_impl(const std::string& key,
     }
 }
 
-TEST_P(OldMemcachedTests, SetHuge) {
-    test_set_huge_impl("test_set_huge",
-                       ClientOpcode::Set,
-                       Status::Success,
-                       GetTestBucket().getMaximumDocSize() - 256);
-}
-
-TEST_P(OldMemcachedTests, SetE2BIG) {
-    test_set_huge_impl("test_set_e2big",
-                       ClientOpcode::Set,
-                       Status::E2big,
-                       GetTestBucket().getMaximumDocSize() + 1);
-}
-
 TEST_P(OldMemcachedTests, SetQHuge) {
     test_set_huge_impl("test_setq_huge",
                        ClientOpcode::Setq,
