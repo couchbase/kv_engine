@@ -165,7 +165,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
       consumerName(std::move(consumerName_)),
       producerIsVersion5orHigher(false),
       processorTaskRunning(false),
-      flowControl(engine, this),
+      flowControl(engine, *this),
       processBufferedMessagesYieldThreshold(
               engine.getConfiguration()
                       .getDcpConsumerProcessBufferedMessagesYieldLimit()),

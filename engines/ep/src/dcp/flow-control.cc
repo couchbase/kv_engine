@@ -24,7 +24,7 @@
 #include "objectregistry.h"
 
 FlowControl::FlowControl(EventuallyPersistentEngine& engine,
-                         DcpConsumer* consumer)
+                         DcpConsumer& consumer)
     : consumerConn(consumer),
       engine_(engine),
       enabled(engine.getDcpFlowControlManager().isEnabled()),
@@ -34,13 +34,12 @@ FlowControl::FlowControl(EventuallyPersistentEngine& engine,
       freedBytes(0) {
     if (enabled) {
         bufferSize =
-                    engine.getDcpFlowControlManager().newConsumerConn(consumer);
+                engine.getDcpFlowControlManager().newConsumerConn(&consumer);
     }
 }
 
-FlowControl::~FlowControl()
-{
-    engine_.getDcpFlowControlManager().handleDisconnect(consumerConn);
+FlowControl::~FlowControl() {
+    engine_.getDcpFlowControlManager().handleDisconnect(&consumerConn);
 }
 
 cb::engine_errc FlowControl::handleFlowCtl(
@@ -53,15 +52,15 @@ cb::engine_errc FlowControl::handleFlowCtl(
             pendingControl = false;
             std::string buf_size(std::to_string(bufferSize));
             lh.unlock();
-            uint64_t opaque = consumerConn->incrOpaqueCounter();
-            const std::string &controlMsgKey = consumerConn->getControlMsgKey();
+            uint64_t opaque = consumerConn.incrOpaqueCounter();
+            const std::string& controlMsgKey = consumerConn.getControlMsgKey();
             NonBucketAllocationGuard guard;
             ret = producers.control(opaque, controlMsgKey, buf_size);
             return ret;
         } else if (isBufferSufficientlyDrained_UNLOCKED(ackable_bytes)) {
             lh.unlock();
             /* Send a buffer ack when at least 20% of the buffer is drained */
-            uint64_t opaque = consumerConn->incrOpaqueCounter();
+            uint64_t opaque = consumerConn.incrOpaqueCounter();
             ret = producers.buffer_acknowledgement(
                     opaque, Vbid(0), ackable_bytes);
             lastBufferAck = ep_current_time();
@@ -72,7 +71,7 @@ cb::engine_errc FlowControl::handleFlowCtl(
                    (ep_current_time() - lastBufferAck) > 5) {
             lh.unlock();
             /* Ack at least every 5 seconds */
-            uint64_t opaque = consumerConn->incrOpaqueCounter();
+            uint64_t opaque = consumerConn.incrOpaqueCounter();
             ret = producers.buffer_acknowledgement(
                     opaque, Vbid(0), ackable_bytes);
             lastBufferAck = ep_current_time();
@@ -115,7 +114,7 @@ bool FlowControl::isBufferSufficientlyDrained_UNLOCKED(uint32_t ackable_bytes) {
 }
 
 void FlowControl::addStats(const AddStatFn& add_stat, const void* c) const {
-    consumerConn->addStat("total_acked_bytes", ackedBytes, add_stat, c);
-    consumerConn->addStat("max_buffer_bytes", bufferSize, add_stat, c);
-    consumerConn->addStat("unacked_bytes", freedBytes, add_stat, c);
+    consumerConn.addStat("total_acked_bytes", ackedBytes, add_stat, c);
+    consumerConn.addStat("max_buffer_bytes", bufferSize, add_stat, c);
+    consumerConn.addStat("unacked_bytes", freedBytes, add_stat, c);
 }

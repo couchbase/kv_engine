@@ -34,7 +34,7 @@ struct DcpMessageProducersIface;
  */
 class FlowControl {
 public:
-    FlowControl(EventuallyPersistentEngine &engine, DcpConsumer* consumer);
+    FlowControl(EventuallyPersistentEngine& engine, DcpConsumer& consumer);
 
     ~FlowControl();
 
@@ -59,14 +59,13 @@ public:
     }
 
 private:
-    void setBufSizeWithinBounds(size_t &bufSize);
 
     bool isBufferSufficientlyDrained_UNLOCKED(uint32_t ackable_bytes);
 
-    /* Associated consumer connection handler */
-    DcpConsumer* consumerConn;
+    /// Associated consumer connection handler
+    DcpConsumer& consumerConn;
 
-    /* Reference to ep engine instance */
+    /// Reference to ep engine instance
     EventuallyPersistentEngine &engine_;
 
     /* Indicates if flow control is enabled for this connection */
