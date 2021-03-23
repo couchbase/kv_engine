@@ -43,6 +43,21 @@
 
 const std::chrono::seconds DcpProducer::defaultDcpNoopTxInterval(20);
 
+/**
+ * Construct a StreamsMap for the given maximum number of vBuckets this
+ * Bucket could ever have.
+ */
+DcpProducer::StreamsMap::SmartPtr makeStreamsMap(
+        size_t maxNumVBuckets) {
+    // If we know the maximum number of vBuckets which will exist for this
+    // Bucket (normally 1024), we can simply create a AtomicHashArray with
+    // capacity == size (i.e. load factor of 1.0), given the key (Vbid) is
+    // gauranteed to be unique and not collide with any other.
+    DcpProducer::StreamsMap::Config config;
+    config.maxLoadFactor = 1.0;
+    return DcpProducer::StreamsMap::create(maxNumVBuckets, config);
+}
+
 DcpProducer::BufferLog::State DcpProducer::BufferLog::getState_UNLOCKED() {
     if (isEnabled_UNLOCKED()) {
         if (isFull_UNLOCKED()) {
@@ -2061,15 +2076,4 @@ std::optional<uint64_t> DcpProducer::getHighSeqnoOfCollections(
     }
 
     return {maxHighSeqno};
-}
-
-DcpProducer::StreamsMap::SmartPtr DcpProducer::makeStreamsMap(
-        size_t maxNumVBuckets) {
-    // If we know the maximum number of vBuckets which will exist for this
-    // Bucket (normally 1024), we can simply create a AtomicHashArray with
-    // capacity == size (i.e. load factor of 1.0), given the key (Vbid) is
-    // gauranteed to be unique and not collide with any other.
-    StreamsMap::Config config;
-    config.maxLoadFactor = 1.0;
-    return StreamsMap::create(maxNumVBuckets, config);
 }

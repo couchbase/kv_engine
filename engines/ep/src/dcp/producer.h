@@ -570,12 +570,6 @@ protected:
         return UnaryFunctionRval{};
     }
 
-    /**
-     * Construct a StreamsMap for the given maximum number of vBuckets this
-     * Bucket could ever have.
-     */
-    static StreamsMap::SmartPtr makeStreamsMap(size_t maxNumVBuckets);
-
     // stash response for retry if E2BIG was hit
     std::unique_ptr<DcpResponse> rejectResp;
 
