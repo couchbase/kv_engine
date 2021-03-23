@@ -165,6 +165,18 @@ Item KVBucketTest::store_item(Vbid vbid,
     return item;
 }
 
+Item KVBucketTest::store_deleted_item(
+        Vbid vbid,
+        const DocKey& key,
+        const std::string& value,
+        uint32_t exptime,
+        const std::vector<cb::engine_errc>& expected,
+        protocol_binary_datatype_t datatype,
+        std::optional<cb::durability::Requirements> reqs) {
+    return store_item(
+            vbid, key, value, exptime, expected, datatype, reqs, true);
+}
+
 ::testing::AssertionResult KVBucketTest::store_items(
         int nitems,
         Vbid vbid,

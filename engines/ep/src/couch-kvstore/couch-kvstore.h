@@ -766,9 +766,21 @@ protected:
             CompactionContext* hookCtx,
             CompactionReplayPrepareStats&& prepareStats);
 
-    /// try to load _local/vbstate and patch the num_on_disk_prepares
-    /// and subtract the number of prepares pruned
-    couchstore_error_t maybePatchOnDiskPrepares(
+    /**
+     * Function considers if the metadata needs patching (following compaction).
+     *
+     * _local/vbstate may need num_on_disk_prepares and on_disk_prepare_bytes
+     * modifying if prepares were purged by compaction.
+     *
+     * The collection stats may need updating if documents in collections were
+     * purged.
+     *
+     * @param db The compacted database
+     * @param stats Data tracked by compaction used for stat updates
+     * @param localDocQueue the queue which will be updated with new documents
+     * @param vbid vbucket being compacted
+     */
+    couchstore_error_t maybePatchMetaData(
             Db& db,
             CompactionStats& stats,
             PendingLocalDocRequestQueue& localDocQueue,

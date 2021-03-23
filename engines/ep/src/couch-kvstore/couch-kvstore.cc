@@ -813,6 +813,16 @@ static int time_purge_hook(Db* d,
     // namespace) when checking if logically deleted;
     auto diskKey = makeDiskDocKey(info->id);
     const auto& docKey = diskKey.getDocKey();
+
+    // Define a helper function for updating the collection sizes
+    auto maybeAccountForPurgedCollectionData = [ctx, docKey, info] {
+        if (!docKey.isInSystemCollection()) {
+            auto itr = ctx->stats.collectionSizeUpdates.emplace(
+                    docKey.getCollectionID(), 0);
+            itr.first->second += info->physical_size;
+        }
+    };
+
     if (ctx->eraserContext->isLogicallyDeleted(docKey, int64_t(info->db_seq))) {
         // Inform vb that the key@seqno is dropped
         try {
@@ -838,6 +848,7 @@ static int time_purge_hook(Db* d,
                 ctx->stats.collectionsDeletedItemsPurged++;
             }
         }
+        // No need to make 'disk-size' changes here as the collection has gone.
         return COUCHSTORE_COMPACT_DROP_ITEM;
     } else if (docKey.isInSystemCollection()) {
         ctx->eraserContext->processSystemEvent(
@@ -847,14 +858,7 @@ static int time_purge_hook(Db* d,
     if (info->deleted) {
         const auto infoDb = cb::couchstore::getHeader(*d);
         if (info->db_seq != infoDb.updateSeqNum) {
-            if (ctx->compactConfig.drop_deletes) { // all deleted items must
-                                                   // be dropped ...
-                if (ctx->max_purged_seq < info->db_seq) {
-                    ctx->max_purged_seq = info->db_seq; // track max_purged_seq
-                }
-                ctx->stats.tombstonesPurged++;
-                return COUCHSTORE_COMPACT_DROP_ITEM; // ...unconditionally
-            }
+            bool purgeItem = ctx->compactConfig.drop_deletes;
 
             /**
              * MB-30015: Found a tombstone whose expiry time is 0. Log this
@@ -871,10 +875,17 @@ static int time_purge_hook(Db* d,
                 (exptime || !ctx->compactConfig.retain_erroneous_tombstones) &&
                 (!ctx->compactConfig.purge_before_seq ||
                  info->db_seq <= ctx->compactConfig.purge_before_seq)) {
+                purgeItem = true;
+            }
+
+            if (purgeItem) {
+                // Maybe update purge seqno
                 if (ctx->max_purged_seq < info->db_seq) {
                     ctx->max_purged_seq = info->db_seq;
                 }
+                // Update stats and return
                 ctx->stats.tombstonesPurged++;
+                maybeAccountForPurgedCollectionData();
                 return COUCHSTORE_COMPACT_DROP_ITEM;
             }
         }
@@ -892,10 +903,7 @@ static int time_purge_hook(Db* d,
                 // prepares in the value. We don't do this at collection drop
                 // as the stat doc will have already been deleted (for
                 // couchstore)
-                auto itr = ctx->stats.collectionSizeUpdates.emplace(
-                        docKey.getCollectionID(), 0);
-                itr.first->second += info->physical_size;
-
+                maybeAccountForPurgedCollectionData();
                 return COUCHSTORE_COMPACT_DROP_ITEM;
             }
 
@@ -1245,8 +1253,8 @@ static couchstore_error_t replayPreCopyHook(
                         docInfo->physical_size;
             } else if (st == COUCHSTORE_SUCCESS) {
                 // Change in item, change in count
-                ssize_t oldSize = di->deleted ? 0 : di->physical_size;
-                ssize_t newSize = docInfo->deleted ? 0 : docInfo->physical_size;
+                ssize_t oldSize = di->physical_size;
+                ssize_t newSize = docInfo->physical_size;
                 prepareStats.collectionSizes[diskDocKey.getDocKey()
                                                      .getCollectionID()] +=
                         newSize - oldSize;
@@ -1347,7 +1355,7 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                     // we don't try to delete the dropped collection document
                     // as it'll come back in the next database header anyway
                     PendingLocalDocRequestQueue localDocQueue;
-                    auto ret = maybePatchOnDiskPrepares(
+                    auto ret = maybePatchMetaData(
                             compacted, hook_ctx->stats, localDocQueue, vbid);
                     if (ret == COUCHSTORE_SUCCESS) {
                         ret = updateLocalDocuments(compacted, localDocQueue);
@@ -1442,7 +1450,7 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                         hook_ctx->eraserContext->setOnDiskDroppedDataExists(
                                 false);
                     }
-                    auto ret = maybePatchOnDiskPrepares(
+                    auto ret = maybePatchMetaData(
                             compacted, hook_ctx->stats, localDocQueue, vbid);
                     if (ret == COUCHSTORE_SUCCESS) {
                         ret = updateLocalDocuments(compacted, localDocQueue);
@@ -1693,83 +1701,85 @@ bool CouchKVStore::compactDBTryAndSwitchToNewFile(
     return true;
 }
 
-couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
+couchstore_error_t CouchKVStore::maybePatchMetaData(
         Db& db,
         CompactionStats& stats,
         PendingLocalDocRequestQueue& localDocQueue,
         Vbid vbid) {
-    if (stats.preparesPurged == 0) {
-        return COUCHSTORE_SUCCESS;
-    }
-
-    // Must sync the modified state back we need to update the _local/vbstate to
-    // update the number of on_disk_prepares to match whatever we purged
-    auto [status, json] = getLocalVbState(db);
-    if (status != COUCHSTORE_SUCCESS) {
-        logger.warn(
-                "CouchKVStore::maybePatchOnDiskPrepares: Failed to load "
-                "_local/vbstate: {}",
-                couchstore_strerror(status));
-        return status;
-    }
-
-    bool updateVbState = false;
-
-    auto prepares = json.find("on_disk_prepares");
-    // only update if it's there..
-    if (prepares != json.end()) {
-        const auto onDiskPrepares = std::stoull(prepares->get<std::string>());
-
-        if (stats.preparesPurged > onDiskPrepares) {
-            // Log the message before throwing the exception just in case
-            // someone catch the exception but don't log it...
-            const std::string msg =
-                    "CouchKVStore::maybePatchOnDiskPrepares(): According to "
-                    "_local/vbstate for " +
-                    vbid.to_string() + " there should be " +
-                    std::to_string(onDiskPrepares) +
-                    " prepares, but we just purged " +
-                    std::to_string(stats.preparesPurged);
-            logger.critical("{}", msg);
-            logger.flush();
-            throw std::runtime_error(msg);
+    // If prepares were purged, update vbstate
+    if (stats.preparesPurged) {
+        // Must sync the modified state back we need to update the
+        // _local/vbstate to update the number of on_disk_prepares to match
+        // whatever we purged
+        auto [status, json] = getLocalVbState(db);
+        if (status != COUCHSTORE_SUCCESS) {
+            logger.warn(
+                    "CouchKVStore::maybePatchMetaData: Failed to load "
+                    "_local/vbstate: {}",
+                    couchstore_strerror(status));
+            return status;
         }
 
-        *prepares = std::to_string(onDiskPrepares - stats.preparesPurged);
-        updateVbState = true;
-    }
+        bool updateVbState = false;
 
-    auto prepareBytes = json.find("on_disk_prepare_bytes");
-    // only update if it's there..
-    if (prepareBytes != json.end()) {
-        const uint64_t onDiskPrepareBytes =
-                std::stoull(prepareBytes->get<std::string>());
+        auto prepares = json.find("on_disk_prepares");
+        // only update if it's there..
+        if (prepares != json.end()) {
+            const auto onDiskPrepares =
+                    std::stoull(prepares->get<std::string>());
 
-        if (onDiskPrepareBytes > stats.prepareBytesPurged) {
-            *prepareBytes = std::to_string(onDiskPrepareBytes -
-                                           stats.prepareBytesPurged);
-        } else {
-            // prepare-bytes has been introduced in 6.6.1. Thus, at compaction
-            // we may end up purging prepares that have been persisted by a
-            // a pre-6.6.1 node and that are not accounted in prepare-bytes. The
-            // counter would go negative, just set to 0.
-            *prepareBytes = "0";
+            if (stats.preparesPurged > onDiskPrepares) {
+                // Log the message before throwing the exception just in case
+                // someone catch the exception but don't log it...
+                const std::string msg =
+                        "CouchKVStore::maybePatchMetaData(): According to "
+                        "_local/vbstate for " +
+                        vbid.to_string() + " there should be " +
+                        std::to_string(onDiskPrepares) +
+                        " prepares, but we just purged " +
+                        std::to_string(stats.preparesPurged);
+                logger.critical("{}", msg);
+                logger.flush();
+                throw std::runtime_error(msg);
+            }
+
+            *prepares = std::to_string(onDiskPrepares - stats.preparesPurged);
+            updateVbState = true;
         }
-        updateVbState = true;
+
+        auto prepareBytes = json.find("on_disk_prepare_bytes");
+        // only update if it's there..
+        if (prepareBytes != json.end()) {
+            const uint64_t onDiskPrepareBytes =
+                    std::stoull(prepareBytes->get<std::string>());
+
+            if (onDiskPrepareBytes > stats.prepareBytesPurged) {
+                *prepareBytes = std::to_string(onDiskPrepareBytes -
+                                               stats.prepareBytesPurged);
+            } else {
+                // prepare-bytes has been introduced in 6.6.1. Thus, at
+                // compaction we may end up purging prepares that have been
+                // persisted by a a pre-6.6.1 node and that are not accounted in
+                // prepare-bytes. The counter would go negative, just set to 0.
+                *prepareBytes = "0";
+            }
+            updateVbState = true;
+        }
+
+        // only update if at least one of the prepare stats is already there
+        if (updateVbState) {
+            const auto doc = json.dump();
+            localDocQueue.emplace_back("_local/vbstate", json.dump());
+        }
     }
 
-    // only update if at least one of the prepare stats is already there
-    if (updateVbState) {
-        const auto doc = json.dump();
-        localDocQueue.emplace_back("_local/vbstate", json.dump());
-    }
-
-    for (auto [cid, droppedPrepareBytes] : stats.collectionSizeUpdates) {
+    // Finally see if compaction purged data and disk size stats need updates
+    for (auto [cid, purgedBytes] : stats.collectionSizeUpdates) {
         // Need to read the collection stats
         auto [success, currentStats] = getCollectionStats(db, cid);
         if (!success) {
             logger.warn(
-                    "CouchKVStore::maybePatchOnDiskPrepares: Failed to load "
+                    "CouchKVStore::maybePatchMetaData: Failed to load "
                     "collection stats for {}, cid:{}, stats could be now "
                     "wrong!",
                     vbid,
@@ -1778,7 +1788,7 @@ couchstore_error_t CouchKVStore::maybePatchOnDiskPrepares(
         }
 
         // To update them
-        currentStats.diskSize -= droppedPrepareBytes;
+        currentStats.diskSize -= purgedBytes;
 
         // Set the size to the total so that we can reset the cached value in
         // the manifest. We don't update using deltas as a concurrent flush
@@ -3291,6 +3301,13 @@ CouchKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
 
 std::pair<bool, Collections::VB::PersistedStats>
 CouchKVStore::getCollectionStats(Db& db, CollectionID collection) {
+    if (!collection.isUserCollection()) {
+        logger.warn(
+                "CouchKVStore::getCollectionStats stats are not available for "
+                "cid:{}",
+                collection.to_string());
+        return {false, Collections::VB::PersistedStats{}};
+    }
     return getCollectionStats(db, getCollectionStatsLocalDocId(collection));
 }
 

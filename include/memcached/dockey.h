@@ -121,6 +121,11 @@ public:
         return value == DurabilityPrepare;
     }
 
+    /// @return true if the collection represents 'user' data
+    bool isUserCollection() const {
+        return isDefaultCollection() || value > CollectionID::Reserved7;
+    }
+
     /// Get network byte order of the value
     CollectionIDNetworkOrder to_network() const;
 
