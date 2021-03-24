@@ -350,14 +350,12 @@ private:
          * @param isDelete true if a deleted item is inserted (tombstone
          *        creation)
          * @param isCommitted does the item belong to the committed namespace?
-         * @param oldSize size of the item we are removing
-         * @param newSize size of the item that is replacing it
+         * @param diskSizeDelta difference between new and old item
          */
         void remove(IsSystem isSystem,
                     IsDeleted isDelete,
                     IsCommitted isCommitted,
-                    size_t oldSize,
-                    size_t newSize);
+                    ssize_t diskSizeDelta);
 
         /**
          * @return the highest persisted seqno recorded by the Flush object.

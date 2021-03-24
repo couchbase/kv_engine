@@ -62,18 +62,13 @@ void Flush::StatisticsUpdate::insert(IsSystem isSystem,
                                      IsDeleted isDelete,
                                      IsCommitted isCommitted,
                                      ssize_t diskSizeDelta) {
-    if (isCommitted == IsCommitted::No && isDelete == IsDeleted::Yes) {
-        // This is an abort, if we're inserting one then we don't update the
-        // disk size as they are logically tombstones
-        return;
-    }
-
     if (isSystem == IsSystem::No &&
         isDelete == IsDeleted::No &&
         isCommitted == IsCommitted::Yes) {
         incrementItemCount();
-    } // else inserting a tombstone - no item increment
-
+    }
+    // else inserting a collection-start/prepare/tombstone/abort:
+    // no item increment but account for the disk size change
     updateDiskSize(diskSizeDelta);
 }
 
@@ -84,20 +79,11 @@ void Flush::StatisticsUpdate::update(ssize_t diskSizeDelta) {
 void Flush::StatisticsUpdate::remove(IsSystem isSystem,
                                      IsDeleted isDelete,
                                      IsCommitted isCommitted,
-                                     size_t oldSize,
-                                     size_t newSize) {
-    ssize_t delta = newSize - oldSize;
-    if (isCommitted == IsCommitted::No) {
-        // Prepare -> Abort just decrement the old size (of the prepare)
-        // as we don't include abort sizes in disk sizes (as they are
-        // basically tombstones)
-        delta = -oldSize;
-    }
-
+                                     ssize_t diskSizeDelta) {
     if (isSystem == IsSystem::No && isCommitted == IsCommitted::Yes) {
         decrementItemCount();
     }
-    updateDiskSize(delta);
+    updateDiskSize(diskSizeDelta);
 }
 
 // Called from KVStore during the flush process and before we consider the
@@ -329,28 +315,68 @@ void Flush::updateStats(const DocKey& key,
         return;
     }
 
-    // Next update the delete state for the old item.
-    // 1) Already deleted or
-    // 2) the key's collection is dropped in this flush batch
-    // 3) the key's collection is dropped in the snapshot we are writing to
-    // For 2 and 3 we are switching live documents of dropped collections into
-    // being deleted, thus any update flips to an insert
-    auto oldIsDeleteBool = oldIsDelete == IsDeleted::Yes ||
-                           (isLogicallyDeleted(cid.value(), oldSeqno) ||
-                            isLogicallyDeletedInStore(cid.value(), oldSeqno));
-
     auto& collsFlushStats =
             getStatsAndMaybeSetPersistedHighSeqno(cid.value(), seqno);
 
-    // As above, logically deleted items don't update item-count/disk-size
-    if (!isLogicallyDeleted(cid.value(), seqno)) {
-        if (oldIsDeleteBool) {
+    // As per comment in the other updateStats, logically deleted items don't
+    // update item-count/disk-size
+    if (isLogicallyDeleted(cid.value(), seqno)) {
+        return;
+    }
+
+    // Of interest next is the state of old vs new. An update can become an
+    // insert or remove.
+    //
+    // The following defines our expected old and new states. Note that only
+    // committed items actually increment the item count (and that is handled
+    // in Flush::StatisticsUpdate::insert/remove).
+    //
+    // The old key can be live, deleted or dropped.
+    // The new key can be live or deleted.
+    //
+    // new key is live:
+    //   * old key dropped: Key is an insert => items += 1, diskSize += size
+    //   * old key deleted: Key is an insert => items += 1, diskSize += delta
+    //   * old key live: Key is an update => diskSize += delta
+    //
+    // new key is deleted
+    //   * old key is dropped: Key is an update => diskSize += size
+    //   * old key is deleted: Key is an update => diskSize += delta
+    //   * old key is live: Key is a remove => items -= 1, diskSize += delta
+    //
+    // Note that old can be both dropped and deleted (a dropped tombstone). In
+    // that case we process as dropped.
+    //
+    const bool oldIsDropped =
+            (isLogicallyDeleted(cid.value(), oldSeqno) ||
+             isLogicallyDeletedInStore(cid.value(), oldSeqno));
+
+    if (isDelete == IsDeleted::No) {
+        // new key is live
+        if (oldIsDropped) {
+            // insert with the new size
             collsFlushStats.insert(isSystemEvent, isDelete, isCommitted, size);
-        } else if (oldIsDelete == IsDeleted::No && isDelete == IsDeleted::Yes) {
-            collsFlushStats.remove(
-                    isSystemEvent, isDelete, isCommitted, oldSize, size);
+        } else if (oldIsDelete == IsDeleted::Yes) {
+            // insert with the delta of old/new
+            collsFlushStats.insert(
+                    isSystemEvent, isDelete, isCommitted, size - oldSize);
         } else {
+            // update with the delta
             collsFlushStats.update(size - oldSize);
+        }
+
+    } else {
+        // new key is delete
+        if (oldIsDropped) {
+            // update with the size of the new tombstone
+            collsFlushStats.update(size);
+        } else if (oldIsDelete == IsDeleted::Yes) {
+            // update with the delta of old/new
+            collsFlushStats.update(size - oldSize);
+        } else {
+            // remove
+            collsFlushStats.remove(
+                    isSystemEvent, isDelete, isCommitted, size - oldSize);
         }
     }
 }

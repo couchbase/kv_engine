@@ -1252,8 +1252,22 @@ TEST_P(CollectionsEraserSyncWriteTest, DropPrepareWhileDead) {
 
 TEST_P(CollectionsEraserSyncWriteTest, DropAfterAbort) {
     addCollection();
+    auto emptySz = vb->getManifest().lock(key.getCollectionID()).getDiskSize();
+    if (isPersistent()) {
+        EXPECT_NE(0, emptySz); // system event data is counted
+    }
+
     createPendingWrite();
     abort();
+
+    if (isPersistent()) {
+        // MB-45221 test the prepare->abort does the right thing with diskSize.
+        // prior to MB-45221, aborts were not counted. Without the updates from
+        // MB-45144, the abort takes the size back to the size at creation.
+        EXPECT_EQ(emptySz,
+                  vb->getManifest().lock(key.getCollectionID()).getDiskSize());
+    }
+
     dropCollection();
 
     // This is a dodgy way of testing things but in this test the only prepares

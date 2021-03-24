@@ -2431,8 +2431,8 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingAbortToAbort) {
     {
         Collections::Summary summary;
         manifest.lock().updateSummary(summary);
-        EXPECT_EQ(vbstate.getOnDiskPrepareBytes(),
-                  summary[CollectionID::Default].diskSize);
+        EXPECT_EQ(0, vbstate.getOnDiskPrepareBytes());
+        EXPECT_NE(0, summary[CollectionID::Default].diskSize);
     }
 
     bool seenPrepare = false;
@@ -2458,8 +2458,8 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingAbortToAbort) {
     {
         Collections::Summary summary;
         manifest.lock().updateSummary(summary);
-        EXPECT_EQ(vbstate.getOnDiskPrepareBytes(),
-                  summary[CollectionID::Default].diskSize);
+        EXPECT_EQ(0, vbstate.getOnDiskPrepareBytes());
+        EXPECT_NE(0, summary[CollectionID::Default].diskSize);
     }
 
     // Should also check the cached count
@@ -2499,8 +2499,9 @@ TEST_F(CouchstoreTest, PersistAbortStats) {
     {
         Collections::Summary summary;
         manifest.lock().updateSummary(summary);
-        EXPECT_EQ(persistedVBState.getOnDiskPrepareBytes(),
-                  summary[CollectionID::Default].diskSize);
+        EXPECT_EQ(0, persistedVBState.getOnDiskPrepareBytes());
+        // Collection disk usage accounts the abort
+        EXPECT_NE(0, summary[CollectionID::Default].diskSize);
     }
 }
 
@@ -2537,8 +2538,8 @@ TEST_F(CouchstoreTest, PersistPrepareAbortStats) {
     {
         Collections::Summary summary;
         manifest.lock().updateSummary(summary);
-        EXPECT_EQ(persistedVBState.getOnDiskPrepareBytes(),
-                  summary[CollectionID::Default].diskSize);
+        EXPECT_EQ(0, persistedVBState.getOnDiskPrepareBytes());
+        EXPECT_NE(0, summary[CollectionID::Default].diskSize);
     }
 }
 
@@ -2575,7 +2576,9 @@ TEST_F(CouchstoreTest, PersistAbortAbortStats) {
     {
         Collections::Summary summary;
         manifest.lock().updateSummary(summary);
-        EXPECT_EQ(persistedVBState.getOnDiskPrepareBytes(),
-                  summary[CollectionID::Default].diskSize);
+        // prepare bytes is 0
+        EXPECT_EQ(0, persistedVBState.getOnDiskPrepareBytes());
+        // collection size though accounts for aborts
+        EXPECT_NE(0, summary[CollectionID::Default].diskSize);
     }
 }
