@@ -510,8 +510,6 @@ protected:
     const IncludeDeletedUserXattrs includeDeletedUserXattrs;
 
 private:
-    std::unique_ptr<DcpResponse> next(std::lock_guard<std::mutex>& lh);
-
     std::unique_ptr<DcpResponse> inMemoryPhase();
 
     std::unique_ptr<DcpResponse> takeoverSendPhase();

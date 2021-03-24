@@ -151,13 +151,8 @@ ActiveStream::~ActiveStream() {
 
 std::unique_ptr<DcpResponse> ActiveStream::next() {
     std::lock_guard<std::mutex> lh(streamMutex);
-    return next(lh);
-}
 
-std::unique_ptr<DcpResponse> ActiveStream::next(
-        std::lock_guard<std::mutex>& lh) {
     std::unique_ptr<DcpResponse> response;
-
     switch (state_.load()) {
     case StreamState::Pending:
         break;
