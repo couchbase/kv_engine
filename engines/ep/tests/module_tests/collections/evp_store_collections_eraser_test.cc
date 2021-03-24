@@ -26,6 +26,7 @@
 #include "tests/mock/mock_ep_bucket.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
+#include "tests/module_tests/collections/stat_checker.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/vbucket_utils.h"
@@ -1256,18 +1257,17 @@ TEST_P(CollectionsEraserSyncWriteTest, DropAfterAbort) {
     if (isPersistent()) {
         EXPECT_NE(0, emptySz); // system event data is counted
     }
-
-    createPendingWrite();
-    abort();
-
-    if (isPersistent()) {
-        // MB-45221 test the prepare->abort does the right thing with diskSize.
-        // prior to MB-45221, aborts were not counted. Without the updates from
-        // MB-45144, the abort takes the size back to the size at creation.
-        EXPECT_EQ(emptySz,
-                  vb->getManifest().lock(key.getCollectionID()).getDiskSize());
+    {
+        std::function<bool(size_t, size_t)> gt = std::greater<>{};
+        std::function<bool(size_t, size_t)> eq = std::equal_to<>{};
+        // Expect collection disk to increase because aborts use storage.
+        // ephemeral no change expected and magma (MB-45185)
+        DiskChecker dc(vb,
+                       CollectionEntry::dairy,
+                       isPersistent() && !isMagma() ? gt : eq);
+        createPendingWrite();
+        abort();
     }
-
     dropCollection();
 
     // This is a dodgy way of testing things but in this test the only prepares

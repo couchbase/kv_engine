@@ -25,6 +25,7 @@
 #include "checkpoint_manager.h"
 #include "collections/manager.h"
 #include "collections/vbucket_manifest_handles.h"
+#include "couch-kvstore/couch-kvstore-metadata.h"
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "item.h"
@@ -1480,7 +1481,8 @@ TEST_F(CollectionsTest, ConcCompactNewPrepare) {
         EXPECT_NE(0, postCommitDairySize);
 
         preCompactionMeatSize = summary[CollectionEntry::meat].diskSize;
-        EXPECT_EQ(57, preCompactionMeatSize);
+        EXPECT_EQ(57 + 14 + MetaData::getMetaDataSize(MetaData::Version::V1),
+                  preCompactionMeatSize);
     }
 
     auto& kvstore =
@@ -2006,17 +2008,17 @@ TEST_P(ConcurrentCompactPurge, ConcCompactPurgeTombstones) {
     runCompaction(vbid, 0, true);
 
     // For GetParam==false (no prepare/commit) fruit collection consists of:
-    //    1) create-collection
-    //    2) apricot{v2}
+    //    1) create-collection k:14 + v:57 + m:+18 = 88
+    //    2) apricot{v2} k:8+ v:12 + m:18 = 38
     // For GetParam==true (prepare/commit) fruit collection consists of:
-    //    1) create-collection
-    //    2) durian{pong}
-    //    3) apricot{v2}
+    //    1) create-collection k:14 + v:57 + m:+18 = 88
+    //    2) durian{pong} k:8 +  v:14 + m:24 = 46
+    //    3) apricot{v2} k:8+ v:12 + m:18 = 38
     auto expectedSz = 0;
     if (!GetParam()) {
-        expectedSz = 57 + 12;
+        expectedSz = 89 + 38;
     } else {
-        expectedSz = 57 + 14 + 12;
+        expectedSz = 89 + 46 + 38;
     }
 
     auto diskSizeFinal =
@@ -2449,7 +2451,15 @@ TEST_P(CollectionsPersistentParameterizedTest, PerCollectionDiskSize) {
         delete_item(vbid, StoredDocKey{"key", CollectionEntry::defaultC});
         KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
 
-        EXPECT_EQ(0, getCollectionDiskSize(vb, CollectionEntry::defaultC.uid));
+        // key/meta remain (tombstone). magma doesn't yet account it
+        if (isMagma()) {
+            EXPECT_EQ(getCollectionDiskSize(vb, CollectionEntry::defaultC.uid),
+                      0);
+
+        } else {
+            EXPECT_GT(getCollectionDiskSize(vb, CollectionEntry::defaultC.uid),
+                      0);
+        }
     }
 
     {
@@ -3728,11 +3738,8 @@ TEST_P(CollectionsCouchstoreParameterizedTest, TombstonePurge) {
     EXPECT_GT(c2_d2, c2_d1);
     compareDiskStatMemoryVsPersisted();
 
-    // @todo: This test currently has to use a delete with value because the
-    // disk-size only accounts for the value. We can only detect the fix to
-    // MB-45132 if the delete has some value. MB-45144 will account for key and
-    // meta, so we will be able to detect the fix for MB-45132 for deletes with
-    // empty values.
+    // MB-45132: delete the item twice so we can detect that the key/meta is
+    // accounted
     store_deleted_item(
             vbid, StoredDocKey{"apple", CollectionEntry::fruit}, ".");
     store_deleted_item(vbid, StoredDocKey{"milk", CollectionEntry::dairy}, ".");
@@ -3744,15 +3751,30 @@ TEST_P(CollectionsCouchstoreParameterizedTest, TombstonePurge) {
     EXPECT_LT(c2_d3, c2_d2);
     compareDiskStatMemoryVsPersisted();
 
-    runCompaction(vbid, 0, true);
+    // Must store so that the delete can be success, but we don't flush the
+    // store so KVStore only sees two deletes.
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "nice");
+    store_item(vbid, StoredDocKey{"milk", CollectionEntry::dairy}, "nice");
+    delete_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit});
+    delete_item(vbid, StoredDocKey{"milk", CollectionEntry::dairy});
+    flushVBucketToDiskIfPersistent(vbid, 2);
 
     auto c1_d4 = manifest.lock(CollectionEntry::fruit).getDiskSize();
     auto c2_d4 = manifest.lock(CollectionEntry::dairy).getDiskSize();
     EXPECT_LT(c1_d4, c1_d3);
+    EXPECT_LT(c2_d4, c2_d3);
+    compareDiskStatMemoryVsPersisted();
+
+    // Now purge those tombstones
+    runCompaction(vbid, 0, true);
+
+    auto c1_d5 = manifest.lock(CollectionEntry::fruit).getDiskSize();
+    auto c2_d5 = manifest.lock(CollectionEntry::dairy).getDiskSize();
+    EXPECT_LT(c1_d5, c1_d4);
 
     // dairy is equal because we haven't purged the tombstone (it's the high
     // seqno which remains)
-    EXPECT_EQ(c2_d4, c2_d3);
+    EXPECT_EQ(c2_d5, c2_d4);
     compareDiskStatMemoryVsPersisted();
 }
 

@@ -2026,6 +2026,10 @@ TEST_F(CouchstoreTest, MB_39946_diskSize_could_underflow) {
     };
 
     doWrite("");
+    auto diskSize1 = manifest.lock()
+                             .getStatsForFlush(CollectionID::Default, seqno)
+                             .diskSize;
+    EXPECT_NE(0, diskSize1);
     kvstore->setConcurrentCompactionPostLockHook(doWrite);
 
     std::mutex mutex;
@@ -2050,7 +2054,10 @@ TEST_F(CouchstoreTest, MB_39946_diskSize_could_underflow) {
     }
     auto stats = manifest.lock().getStatsForFlush(CollectionID::Default, seqno);
     EXPECT_EQ(0, stats.itemCount);
-    EXPECT_EQ(0, stats.diskSize);
+    // diskSize doesn't get to zero because we still have the items key/meta
+    // stored (tombstones). It should though be > 0 and < diskSize1
+    EXPECT_GT(stats.diskSize, 0);
+    EXPECT_LT(stats.diskSize, diskSize1);
 }
 
 /// MB-43121: Make sure that we abort compaction if someone tries to delete
@@ -2382,8 +2389,10 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingPrepareCompleteToAbort) {
     // Just for a full sanity check, use this manually calculated size and
     // compare. The final data files stores two keys. 1 committed and 1 aborted.
     // These sizes are taken from couch_dbdump
-    auto expectedSz = 15; // committed dummy uses 15 bytes
-    expectedSz += 24; // the abort uses 24
+    // dummy: 15 for value, 6 for key and 18 for meta
+    auto expectedSz = 15 + 6 + 18;
+    // abort: 24 for value, 9 for key and 25 for meta
+    expectedSz += 24 + 9 + 25;
     EXPECT_EQ(expectedSz, manifest.lock(CollectionID::Default).getDiskSize());
 
     // Should also check the cached count

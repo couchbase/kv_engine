@@ -6035,7 +6035,7 @@ TEST_P(STParamCouchstoreBucketTest, ItemCountsAndCommitFailure_MB_41321) {
     stats = vb->getManifest().lock(CollectionID::Default).getPersistedStats();
     EXPECT_EQ(0, stats.itemCount);
     EXPECT_EQ(2, stats.highSeqno);
-    EXPECT_EQ(0, stats.diskSize);
+    EXPECT_GT(stats.diskSize, 0); // tombstone data remains
 }
 
 TEST_P(STParamCouchstoreBucketTest, MB_44098_compactionFailureLeavesNewFile) {

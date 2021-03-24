@@ -22,6 +22,7 @@
 #include "checkpoint_manager.h"
 #include "collections/manager.h"
 #include "collections/vbucket_manifest_handles.h"
+#include "couch-kvstore/couch-kvstore-metadata.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/response.h"
@@ -2891,10 +2892,13 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
 
     auto stats = vb->getManifest().lock(target.getId()).getPersistedStats();
 
-    // Note 57 manually verified from dbdump and is the system-event usage
-    // Note 14 manually verified from dbdump and is the item usage
-    size_t systemeventSize = 57;
-    size_t itemSize = 14;
+    // Sizes are manually verified from dbdump and other manual checks
+    // 57 for the value, 14 for the key and 18 for the v1 metadata
+    // 14 for the value, 7 for the key and 18 for the v1 metadata
+    size_t systemeventSize =
+            57 + 14 + MetaData::getMetaDataSize(MetaData::Version::V1);
+    size_t itemSize =
+            14 + key1.size() + MetaData::getMetaDataSize(MetaData::Version::V1);
     if (isMagma()) {
         // magma doesn't account the same bits and bytes
         systemeventSize = 56;
@@ -2941,7 +2945,8 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
     stats = vb->getManifest().lock(target.getId()).getPersistedStats();
 
     // Note 15 manually verified from dbdump and is the item usage
-    itemSize = 15;
+    itemSize =
+            15 + key1.size() + MetaData::getMetaDataSize(MetaData::Version::V1);
     if (isMagma()) {
         // magma doesn't account the same bits and bytes
         itemSize = 5;
@@ -2952,10 +2957,15 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
     EXPECT_EQ(highSeqno, stats.highSeqno);
 
     delete_item(vbid, key1);
+    itemSize = key1.size() + MetaData::getMetaDataSize(MetaData::Version::V1);
+    if (isMagma()) {
+        // magma doesn't account the remaining key/meta of the tombstone
+        itemSize = 0;
+    }
     flushVBucketToDiskIfPersistent(vbid, 1);
     stats = vb->getManifest().lock(target.getId()).getPersistedStats();
     EXPECT_EQ(0, stats.itemCount);
-    EXPECT_EQ(systemeventSize, stats.diskSize);
+    EXPECT_EQ(systemeventSize + itemSize, stats.diskSize);
     highSeqno = !reproduceUnderflow ? 7 : 6;
     EXPECT_EQ(highSeqno, stats.highSeqno);
 }
