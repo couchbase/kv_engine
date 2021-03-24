@@ -571,6 +571,58 @@ TYPED_TEST(ExecutorPoolTest, CancelThenSnooze) {
     this->pool->unregisterTaskable(taskable, false);
 }
 
+/**
+ * MB-45211: Test that a task returning true without snoozing correctly updates
+ * its waketime.
+ *
+ * If the waketime is not updated, the next time the task runs it will
+ * use the _previous_ waketime to calculate the scheduling delay.
+ * This can lead to erroneous slow scheduling logging.
+ */
+TYPED_TEST(ExecutorPoolTest, ReturnTrueWithoutSnoozeUpdatesWakeTime) {
+    this->makePool(1);
+    NiceMock<MockTaskable> taskable;
+    this->pool->registerTaskable(taskable);
+
+    bool firstRun = true;
+    folly::Baton<> taskFinished;
+
+    std::chrono::steady_clock::time_point firstWaketime;
+
+    using namespace std::chrono_literals;
+
+    // create a task which runs, returns true to be run again ASAP without
+    // snoozing first
+    auto task = [&](LambdaTask& task) {
+        if (firstRun) {
+            firstRun = false;
+            firstWaketime = task.getWaketime();
+            // return without snoozing
+            return true;
+        } else {
+            // If the waketime was not updated before running the task a
+            // second time, the apparent scheduling delay will be from the
+            // _original_ wake time.
+            EXPECT_LT(firstWaketime, task.getWaketime());
+            taskFinished.post();
+            return false;
+        }
+    };
+
+    auto initialSleepTime = 0.0; // run ASAP
+
+    this->pool->schedule(std::make_shared<LambdaTask>(taskable,
+                                                      TaskId::ItemPager,
+                                                      initialSleepTime,
+                                                      true,
+                                                      std::move(task)));
+
+    taskFinished.timed_wait(10s);
+
+    // Cleanup.
+    this->pool->unregisterTaskable(taskable, false);
+}
+
 /* This test creates an ExecutorPool, and attempts to verify that calls to
  * setNumWriters are able to dynamically create more workers than were present
  * at initialisation. A ThreadGate is used to confirm that two tasks

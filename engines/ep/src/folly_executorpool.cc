@@ -1192,10 +1192,17 @@ void FollyExecutorPool::rescheduleTaskAfterRun(TaskProxy& proxy) {
         return;
     }
 
-    // Task still alive, so should be run again. In the future or immediately?
     using namespace std::chrono;
-    const auto timeout = duration_cast<milliseconds>(proxy.task->getWaketime() -
-                                                     steady_clock::now());
+    auto now = steady_clock::now();
+
+    // if a task is not dead and has not set snooze, update its waketime to now
+    // before rescheduling for more accurate timing histograms and to avoid
+    // erroneous slow scheduling logs.
+    proxy.task->updateWaketimeIfLessThan(now);
+
+    // Task still alive, so should be run again. In the future or immediately?
+    const auto timeout =
+            duration_cast<milliseconds>(proxy.task->getWaketime() - now);
     if (timeout > milliseconds::zero()) {
         eventBase->timer().scheduleTimeout(&proxy, timeout);
     } else {
