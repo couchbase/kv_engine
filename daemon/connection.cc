@@ -873,15 +873,16 @@ void Connection::event_callback(bufferevent*, short event, void* ctx) {
     bool term = false;
 
     if ((event & BEV_EVENT_EOF) == BEV_EVENT_EOF) {
-        LOG_DEBUG("{}: Connection::on_event: Socket EOF", instance.getId());
+        LOG_DEBUG("{}: Connection::event_callback: Socket EOF",
+                  instance.getId());
         instance.setTerminationReason("Client closed connection");
         term = true;
     }
 
     if ((event & BEV_EVENT_ERROR) == BEV_EVENT_ERROR) {
-        LOG_INFO(
-                "{}: Connection::on_event: unrecoverable error encountered: "
-                "{}, shutting down connection",
+        LOG_ERROR(
+                "{}: Connection::event_callback: unrecoverable error "
+                "encountered: {}, shutting down connection",
                 instance.getId(),
                 BevEvent2Json(event).dump());
         instance.setTerminationReason("Network error");
