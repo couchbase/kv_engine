@@ -56,7 +56,7 @@ public:
 
     struct FlushResult {
         FlushResult(MoreAvailable m, size_t n, WakeCkptRemover w)
-            : moreAvailable(m), numFlushed(n), wakeupCkptRemover(w) {
+            : moreAvailable(m), wakeupCkptRemover(w), numFlushed(n) {
         }
 
         bool operator==(const FlushResult& other) const {
@@ -66,8 +66,8 @@ public:
         }
 
         MoreAvailable moreAvailable = MoreAvailable::No;
-        size_t numFlushed = 0;
         WakeCkptRemover wakeupCkptRemover = WakeCkptRemover::No;
+        size_t numFlushed = 0;
     };
 
     /**
