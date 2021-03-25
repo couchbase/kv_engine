@@ -881,12 +881,29 @@ void Connection::event_callback(bufferevent*, short event, void* ctx) {
         instance.setTerminationReason("Client closed connection");
         term = true;
     } else if ((event & BEV_EVENT_ERROR) == BEV_EVENT_ERROR) {
-        LOG_INFO(
-                "{}: Connection::event_callback: unrecoverable error "
-                "encountered: {}, shutting down connection",
-                instance.getId(),
-                BevEvent2Json(event).dump());
-        instance.setTerminationReason("Network error");
+        // Note: SSL connections may fail for reasons different than socket
+        // error, so we avoid to dump errno:0 (ie, socket operation success).
+        const auto err = EVUTIL_SOCKET_ERROR();
+        if (err != 0) {
+            const auto errStr = evutil_socket_error_to_string(err);
+            LOG_INFO(
+                    "{}: Connection::event_callback: unrecoverable error "
+                    "encountered: {}, socket_error: {}:{}, shutting down "
+                    "connection",
+                    instance.getId(),
+                    BevEvent2Json(event).dump(),
+                    err,
+                    errStr);
+            instance.setTerminationReason(
+                    "socket_error: " + std::to_string(err) + ":" + errStr);
+        } else {
+            LOG_INFO(
+                    "{}: Connection::event_callback: unrecoverable error "
+                    "encountered: {}, shutting down connection",
+                    instance.getId(),
+                    BevEvent2Json(event).dump());
+            instance.setTerminationReason("Network error");
+        }
         term = true;
     }
 
