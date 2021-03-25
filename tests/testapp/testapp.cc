@@ -665,7 +665,7 @@ void validate_datatype_is_json(const std::string& key, bool isJson) {
     BinprotGetCommand cmd;
     cmd.setKey(key);
     cmd.encode(blob);
-    safe_send(blob.data(), blob.size(), false);
+    safe_send(blob);
 
     blob.resize(0);
     safe_recv_packet(blob);
@@ -889,7 +889,7 @@ static const std::string phase_get_errno() {
     return cb_strerror();
 }
 
-void safe_send(const void* buf, size_t len, bool hickup) {
+void safe_send(const void* buf, size_t len) {
     if (sock == INVALID_SOCKET) {
         std::abort();
     }
@@ -898,12 +898,6 @@ void safe_send(const void* buf, size_t len, bool hickup) {
     do {
         size_t num_bytes = len - offset;
         ssize_t nw;
-        if (hickup) {
-            if (num_bytes > 1024) {
-                num_bytes = (rand() % 1023) + 1;
-            }
-        }
-
         nw = cb::net::send(sock, ptr + offset, num_bytes, 0);
 
         if (nw == -1) {
@@ -915,10 +909,6 @@ void safe_send(const void* buf, size_t len, bool hickup) {
                 abort();
             }
         } else {
-            if (hickup) {
-                std::this_thread::sleep_for(std::chrono::microseconds(100));
-            }
-
             if (dump_socket_traffic) {
                 std::cerr << "PLAIN> ";
                 for (ssize_t ii = 0; ii < nw; ++ii) {

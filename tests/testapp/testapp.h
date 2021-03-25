@@ -441,14 +441,14 @@ void set_mutation_seqno_feature(bool enable);
 void set_xerror_feature(bool enable);
 
 /* Send the specified buffer+len to memcached. */
-void safe_send(const void* buf, size_t len, bool hickup);
+void safe_send(const void* buf, size_t len);
 
 inline void safe_send(cb::const_byte_buffer data) {
-    safe_send(data.data(), data.size(), false);
+    safe_send(data.data(), data.size());
 }
 
 inline void safe_send(std::vector<uint8_t>& data) {
-    safe_send(data.data(), data.size(), false);
+    safe_send(data.data(), data.size());
 }
 
 /* Receive the specified len into buf from memcached */

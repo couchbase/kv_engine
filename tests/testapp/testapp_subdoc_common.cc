@@ -34,7 +34,7 @@ std::ostream& operator<<(std::ostream& os, const BinprotSubdocCommand& obj) {
 void send_subdoc_cmd(const BinprotSubdocCommand& cmd) {
     std::vector<uint8_t> buf;
     cmd.encode(buf);
-    safe_send(buf.data(), buf.size(), false);
+    safe_send(buf);
 }
 
 static void recv_subdoc_response(const BinprotSubdocCommand& cmd,
@@ -333,7 +333,7 @@ uint64_t expect_subdoc_cmd(
         cb::mcbp::Status expected_status,
         const std::vector<SubdocMultiLookupResult>& expected_results) {
     std::vector<char> payload = cmd.encode();
-    safe_send(payload.data(), payload.size(), false);
+    safe_send(payload.data(), payload.size());
 
     return recv_subdoc_response(cb::mcbp::ClientOpcode::SubdocMultiLookup,
                                 expected_status,
@@ -346,7 +346,7 @@ uint64_t expect_subdoc_cmd(
         cb::mcbp::Status expected_status,
         const std::vector<SubdocMultiMutationResult>& expected_results) {
     std::vector<char> payload = cmd.encode();
-    safe_send(payload.data(), payload.size(), false);
+    safe_send(payload.data(), payload.size());
 
     return recv_subdoc_response(cmd.command, expected_status, expected_results);
 }
