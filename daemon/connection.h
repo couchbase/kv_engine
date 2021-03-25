@@ -69,6 +69,7 @@ const size_t MaxSavedConnectionId = 34;
  */
 class Connection : public DcpMessageProducersIface {
 public:
+    enum class Type { Normal, Producer, Consumer };
     Connection(const Connection&) = delete;
 
     Connection(SOCKET sfd,
@@ -809,6 +810,14 @@ public:
         saslServerContext.reset();
     }
 
+    void setType(Type value) {
+        type = value;
+    }
+
+    Type getType() const {
+        return type;
+    }
+
 protected:
     /**
      * Protected constructor so that it may only be used by MockSubclasses
@@ -1094,6 +1103,9 @@ protected:
      * connections after they've been established.
      */
     bool saslAuthEnabled = true;
+
+    /// The type of connection this is
+    Type type = Type::Normal;
 
     /**
      * Is this connection over SSL or not

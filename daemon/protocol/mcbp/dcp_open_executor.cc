@@ -103,6 +103,8 @@ void dcp_open_executor(Cookie& cookie) {
         connection.setDcpNoValue(dcpNoValue);
         connection.setDcpDeleteTimeEnabled(dcpDeleteTimes);
         connection.disableSaslAuth();
+        connection.setType(dcpProducer ? Connection::Type::Producer
+                                       : Connection::Type::Consumer);
 
         if (!connection.getDcpConnHandlerIface()) {
             throw std::logic_error(

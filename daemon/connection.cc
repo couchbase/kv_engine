@@ -182,6 +182,9 @@ nlohmann::json Connection::toJSON() const {
 
     ret["sasl_enabled"] = saslAuthEnabled;
     ret["dcp"] = isDCP();
+    ret["type"] = (type == Type::Normal)
+                          ? "normal"
+                          : (type == Type::Producer) ? "producer" : "consumer";
     ret["dcp_xattr_aware"] = isDcpXattrAware();
     ret["dcp_deleted_user_xattr"] = isDcpDeletedUserXattr();
     ret["dcp_no_value"] = isDcpNoValue();
