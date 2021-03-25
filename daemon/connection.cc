@@ -880,10 +880,8 @@ void Connection::event_callback(bufferevent*, short event, void* ctx) {
                   instance.getId());
         instance.setTerminationReason("Client closed connection");
         term = true;
-    }
-
-    if ((event & BEV_EVENT_ERROR) == BEV_EVENT_ERROR) {
-        LOG_ERROR(
+    } else if ((event & BEV_EVENT_ERROR) == BEV_EVENT_ERROR) {
+        LOG_INFO(
                 "{}: Connection::event_callback: unrecoverable error "
                 "encountered: {}, shutting down connection",
                 instance.getId(),
