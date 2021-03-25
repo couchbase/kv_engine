@@ -125,6 +125,11 @@ struct ServerCookieApi : public ServerCookieIface {
         return getCookie(cookie).getConnection().getDcpConnHandlerIface();
     }
 
+    void setDcpFlowControlBufferSize(gsl::not_null<const void*> cookie,
+                                     std::size_t size) override {
+        getCookie(cookie).getConnection().setDcpFlowControlBufferSize(size);
+    }
+
     void store_engine_specific(gsl::not_null<const void*> void_cookie,
                                void* engine_data) override {
         const auto* cc = reinterpret_cast<const Cookie*>(void_cookie.get());

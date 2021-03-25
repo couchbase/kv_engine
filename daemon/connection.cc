@@ -182,9 +182,18 @@ nlohmann::json Connection::toJSON() const {
 
     ret["sasl_enabled"] = saslAuthEnabled;
     ret["dcp"] = isDCP();
-    ret["type"] = (type == Type::Normal)
-                          ? "normal"
-                          : (type == Type::Producer) ? "producer" : "consumer";
+    switch (type) {
+    case Type::Normal:
+        ret["type"] = "normal";
+        break;
+    case Type::Producer:
+        ret["type"] = "producer";
+        ret["flow_ctrl_buffer_size"] = dcpFlowControlBufferSize;
+        break;
+    case Type::Consumer:
+        ret["type"] = "consumer";
+        break;
+    }
     ret["dcp_xattr_aware"] = isDcpXattrAware();
     ret["dcp_deleted_user_xattr"] = isDcpDeletedUserXattr();
     ret["dcp_no_value"] = isDcpNoValue();
@@ -710,13 +719,16 @@ bool Connection::executeCommandsCallback() {
                 // message into kernel space before trying to read (and process)
                 // any input messages before trying to send the next one.
                 // It could be that it would be better at processing the
-                // incomming flow control messages instead of the current
+                // incoming flow control messages instead of the current
                 // model where the input socket gets drained and put in
                 // userspace buffers, the send queue is tried to be drained
                 // before we do the callback and process the already queued
                 // input and generate more output before returning to the
                 // layer doing the actual IO.
-                static constexpr std::size_t dcpMaxQSize = 1024 * 1024;
+                std::size_t dcpMaxQSize =
+                        (dcpFlowControlBufferSize == 0)
+                                ? Settings::instance().getMaxSendQueueSize()
+                                : 1024 * 1024;
                 bool more = (getSendQueueSize() < dcpMaxQSize);
                 if (type == Type::Consumer) {
                     // We want the consumer to perform some steps because
@@ -1578,6 +1590,17 @@ bool Connection::havePendingData() const {
 
 size_t Connection::getSendQueueSize() const {
     return evbuffer_get_length(bufferevent_get_output(bev.get()));
+}
+
+void Connection::setDcpFlowControlBufferSize(std::size_t size) {
+    if (type == Type::Producer) {
+        LOG_INFO("{} - using DCP buffer size of {}", getId(), size);
+        dcpFlowControlBufferSize = size;
+    } else {
+        throw std::logic_error(
+                "Connection::setDcpFlowControlBufferSize should only be called "
+                "on DCP Producers");
+    }
 }
 
 std::string_view Connection::formatResponseHeaders(Cookie& cookie,

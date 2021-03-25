@@ -55,6 +55,9 @@ public:
             gsl::not_null<const void*> cookie) override {
         throw std::runtime_error("Not implemented");
     }
+    void setDcpFlowControlBufferSize(gsl::not_null<const void*> cookie,
+                                     std::size_t size) override {
+    }
     void store_engine_specific(gsl::not_null<const void*> cookie,
                                void* engine_data) override {
         throw std::runtime_error("Not implemented");

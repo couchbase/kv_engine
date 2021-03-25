@@ -944,6 +944,9 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
             /* Size 0 implies the client (DCP consumer) does not support
                flow control */
             log.setBufferSize(size);
+            NonBucketAllocationGuard guard;
+            engine_.getServerApi()->cookie->setDcpFlowControlBufferSize(
+                    getCookie(), size);
             return cb::engine_errc::success;
         }
     } else if (strncmp(param, "stream_buffer_size", key.size()) == 0) {

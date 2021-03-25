@@ -228,7 +228,9 @@ struct MockServerCookieApi : public ServerCookieIface {
         auto* c = cookie_to_mock_cookie(cookie.get());
         return c->connHandlerIface;
     }
-
+    void setDcpFlowControlBufferSize(gsl::not_null<const void*> cookie,
+                                     std::size_t size) override {
+    }
     void store_engine_specific(gsl::not_null<const void*> cookie,
                                void* engine_data) override {
         auto* c = cookie_to_mock_cookie(cookie.get());

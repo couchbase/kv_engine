@@ -207,6 +207,16 @@ struct ServerCookieIface {
             std::optional<CollectionID> cid) = 0;
 
     /**
+     * Set the size of the DCP flow control buffer size used by this
+     * DCP producer
+     *
+     * @param cookie the cookie representing the DCP connection
+     * @param size The new buffer size
+     */
+    virtual void setDcpFlowControlBufferSize(gsl::not_null<const void*> cookie,
+                                             std::size_t size) = 0;
+
+    /**
      * Test if the cookie have the specified privilege in it's active set.
      *
      * @param cookie the cookie sent to the engine for an operation

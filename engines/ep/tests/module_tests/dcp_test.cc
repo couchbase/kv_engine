@@ -88,6 +88,10 @@ public:
             gsl::not_null<const void*> cookie) override {
         return wrapped->getDcpConnHandler(cookie);
     }
+    void setDcpFlowControlBufferSize(gsl::not_null<const void*> cookie,
+                                     std::size_t size) override {
+        wrapped->setDcpFlowControlBufferSize(cookie, size);
+    }
     void store_engine_specific(gsl::not_null<const void*> cookie,
                                void* engine_data) override {
         wrapped->store_engine_specific(cookie, engine_data);

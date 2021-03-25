@@ -350,6 +350,9 @@ public:
         dcpNoValue = enable;
     }
 
+    /// Set the size of the flow control buffer used by this producer
+    void setDcpFlowControlBufferSize(std::size_t size);
+
     /**
      * Copy the provided data to the end of the output stream.
      *
@@ -1095,6 +1098,9 @@ protected:
 
     /// The type of connection this is
     Type type = Type::Normal;
+
+    /// The size of the current Dcp flow control buffer (0 = unlimited)
+    std::size_t dcpFlowControlBufferSize = 0;
 
     /**
      * Is this connection over SSL or not
