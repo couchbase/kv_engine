@@ -1,6 +1,6 @@
 # Unordered Execution Mode
 
-Initially all connections to memcached is in an ordered execution
+By default all connections to memcached operate in an _ordered_ execution
 mode. That means that the server completes one command _before_ it
 starts executing the next command. This mode has a number of pros and
 a number of cons, but the biggest problem is that one slow operation
@@ -19,10 +19,18 @@ If the client send the following pipeline:
     cmd2
     cmd3 [barrier]
     cmd4
-    
-The server may start executing `cmd1` and `cmd2`, but has to wait
+
+The server _may_ start executing `cmd1` and `cmd2`, but has to wait
 for _both_ commands to complete before it may start executing `cmd3`.
 It *must* wait for `cmd3` to complete before it may start executing `cmd4`.
+
+Unordered-execution for given requests isn't _guaranteed_. Typically the
+server will only start executing a later command before an earlier (e.g.
+`cmd2` before `cmd1` in the above example) if the earlier command cannot
+be completed immediately. For example if `cmd1` is a GET for a key which is
+non-resident, `cmd1` must wait for a background fetch to disk to occur before
+it can be completed. With Unordered Exeuction, the server can start to execute
+`cmd2` while it is waiting for the background fetch for `cmd1` to complete.
 
 The server gives the client full freedom to do stupid things like:
 
@@ -44,26 +52,46 @@ can't enable unordered execution mode on a connection configured for
 DCP, and you cannot start DCP on a connection set in unordered execution
 mode.
 
-The client may use the opaque field in the request to identify the
+The client should use the opaque field in the request to identify the
 which request the response belongs to.
 
-## Commands to be supported in the server (initially)
+## Commands to be supported in the server
 
 The following is a list of commands the client may expect that
-the server may reorder (NOTE: the fact that a command isn't on
-the list doesn't mean that it won't be reordered! All commands
-needs to be whitelisted on the server to ensure that it is
-safe (no side effects, shared state etc) to execute in
-parallel. Once that is performed we _might_ start reordering
-the command).
+the server _may_ reorder. Note the commands below are not guaranteed to be
+reordered - the server may not reorder ones it is capable of due to resource
+limitations etc.
 
-* Get (including quiet versions with and without key)
-* Get Replica
-* Get locked
-* Get and touch
+* Get
+* Getk
+* Set
+* Add
+* Replace
+* Delete
+* Increment
+* Decrement
+* Append
+* Prepend
+* Gat
 * Touch
-* Unlock
-* Incr / decr (including quiet versions)
-* Delete (including quiet version)
-* Add, Set, Replace, append, prepend (including quiet versions)
-* Subdoc operations
+* EvictKey
+* GetLocked
+* UnlockKey
+* GetReplica
+* SubdocGet
+* SubdocExists
+* SubdocDictAdd
+* SubdocDictUpsert
+* SubdocDelete
+* SubdocReplace
+* SubdocArrayPushLast
+* SubdocArrayPushFirst
+* SubdocArrayInsert
+* SubdocArrayAddUnique
+* SubdocCounter
+* SubdocMultiLookup
+* SubdocMultiMutation
+* SubdocGetCount
+* SubdocReplaceBodyWithXattr
+
+(Reference: `cb::mcbp::is_reorder_supported()`)
