@@ -871,7 +871,7 @@ static nlohmann::json BevEvent2Json(short event) {
     return err;
 }
 
-void Connection::event_callback(bufferevent*, short event, void* ctx) {
+void Connection::event_callback(bufferevent* bev, short event, void* ctx) {
     auto& instance = *reinterpret_cast<Connection*>(ctx);
     bool term = false;
 
@@ -883,19 +883,34 @@ void Connection::event_callback(bufferevent*, short event, void* ctx) {
     } else if ((event & BEV_EVENT_ERROR) == BEV_EVENT_ERROR) {
         // Note: SSL connections may fail for reasons different than socket
         // error, so we avoid to dump errno:0 (ie, socket operation success).
-        const auto err = EVUTIL_SOCKET_ERROR();
-        if (err != 0) {
-            const auto errStr = evutil_socket_error_to_string(err);
+        const auto sockErr = EVUTIL_SOCKET_ERROR();
+        const auto sslErr = instance.isSslEnabled()
+                                    ? bufferevent_get_openssl_error(bev)
+                                    : 0;
+        if (sockErr != 0) {
+            const auto errStr = evutil_socket_error_to_string(sockErr);
             LOG_INFO(
                     "{}: Connection::event_callback: unrecoverable error "
                     "encountered: {}, socket_error: {}:{}, shutting down "
                     "connection",
                     instance.getId(),
                     BevEvent2Json(event).dump(),
-                    err,
+                    sockErr,
                     errStr);
             instance.setTerminationReason(
-                    "socket_error: " + std::to_string(err) + ":" + errStr);
+                    "socket_error: " + std::to_string(sockErr) + ":" + errStr);
+        } else if (sslErr != 0) {
+            const auto errStr = ERR_reason_error_string(sslErr);
+            LOG_INFO(
+                    "{}: Connection::event_callback: unrecoverable error "
+                    "encountered: {}, ssl_error: {}:{}, shutting down "
+                    "connection",
+                    instance.getId(),
+                    BevEvent2Json(event).dump(),
+                    sslErr,
+                    errStr);
+            instance.setTerminationReason(
+                    "ssl_error: " + std::to_string(sslErr) + ":" + errStr);
         } else {
             LOG_INFO(
                     "{}: Connection::event_callback: unrecoverable error "
@@ -904,6 +919,7 @@ void Connection::event_callback(bufferevent*, short event, void* ctx) {
                     BevEvent2Json(event).dump());
             instance.setTerminationReason("Network error");
         }
+
         term = true;
     }
 
