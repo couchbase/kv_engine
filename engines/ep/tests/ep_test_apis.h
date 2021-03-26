@@ -171,6 +171,9 @@ public:
 private:
     std::string filename;
     struct stat originalStat;
+#ifdef WIN32
+    HANDLE hFile = nullptr;
+#endif
 };
 
 void decayingSleep(std::chrono::microseconds* sleepTime);

@@ -66,6 +66,33 @@ CouchstoreFileAccessGuard::CouchstoreFileAccessGuard(
              "': " + cb_strerror())
                     .c_str());
 
+#ifdef WIN32
+    /**
+     * We can't use chmod to remove the ability of the process to read the
+     * couchstore file, so we must use an alternative. Windows does provide a
+     * way to remove read/write access to a file using file security permissions
+     * however, this requires involved code to check ACL (access control lists)
+     * and is overly complex for this test. So instead to prevent couchstore
+     * being able to read the data file on disk, create an exclusive handle to
+     * it, which will be released in the destructor of this object.
+     *
+     */
+    if (mode == Mode::DenyAll) {
+        hFile = CreateFileA(filename.c_str(),
+                            GENERIC_WRITE,
+                            0,
+                            nullptr,
+                            OPEN_EXISTING,
+                            0,
+                            nullptr);
+        checkne(INVALID_HANDLE_VALUE,
+                hFile,
+                ("Failed to exclusively open file:'"s + filename +
+                 "': " + cb_strerror()));
+        return;
+    }
+#endif
+
     const auto perms =
             (mode == Mode::ReadOnly) ? (S_IRUSR | S_IRGRP | S_IROTH) : 0;
 
@@ -83,6 +110,13 @@ CouchstoreFileAccessGuard::~CouchstoreFileAccessGuard() {
             ("Failed to make restore permissions to file '"s + filename +
              "': " + cb_strerror())
                     .c_str());
+#ifdef WIN32
+    if (hFile) {
+        checkeq(TRUE,
+                CloseHandle(hFile),
+                "Unable to close handle to file:"s + filename);
+    }
+#endif
 }
 
 template<typename T> class HistogramStats;
