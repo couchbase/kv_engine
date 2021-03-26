@@ -623,9 +623,7 @@ bool MagmaKVStore::commit(VB::Commit& commitData) {
         success = false;
     }
 
-    if (postFlushHook) {
-        postFlushHook();
-    }
+    postFlushHook();
 
     commitCallback(errCode, kvctx);
 

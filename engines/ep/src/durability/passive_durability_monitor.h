@@ -19,6 +19,7 @@
 #include "durability_monitor.h"
 #include "ep_types.h"
 #include "storeddockey_fwd.h"
+#include "utilities/testing_hook.h"
 
 #include <folly/SynchronizedPtr.h>
 #include <optional>
@@ -193,7 +194,7 @@ public:
      * Test only: Hook which if non-empty is called from
      * notifySnapshotEndReceived()
      */
-    std::function<void()> notifySnapEndSeqnoAckPreProcessHook;
+    TestingHook<> notifySnapEndSeqnoAckPreProcessHook;
 
 protected:
     /**

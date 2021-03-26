@@ -20,9 +20,10 @@
 #include "collections/manifest.h"
 #include "collections/shared_metadata_table.h"
 
+#include <folly/Synchronized.h>
 #include <memcached/engine.h>
 #include <memcached/engine_error.h>
-#include <folly/Synchronized.h>
+#include <testing_hook.h>
 #include <memory>
 #include <mutex>
 
@@ -292,7 +293,7 @@ public:
     /**
      * Test only hook
      */
-    std::function<void()> preSetStateAtWarmupHook;
+    TestingHook<> preSetStateAtWarmupHook;
 
 private:
     /**

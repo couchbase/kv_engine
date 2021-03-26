@@ -19,6 +19,7 @@
 #include "durability_monitor.h"
 #include "ep_types.h"
 #include "memcached/engine_error.h"
+#include "utilities/testing_hook.h"
 
 #include <folly/SynchronizedPtr.h>
 #include <nlohmann/json_fwd.hpp>
@@ -390,7 +391,7 @@ protected:
      * Test only: Hook which if non-empty is called from seqnoAckReceived()
      * after calling State::processSeqnoAck.
      */
-    std::function<void()> seqnoAckReceivedPostProcessHook;
+    TestingHook<> seqnoAckReceivedPostProcessHook;
 
     /**
      * Validate the given json replication chain checking if it's an array, not

@@ -19,6 +19,7 @@
 
 #include "collections/vbucket_filter.h"
 #include "dcp/stream.h"
+#include "utilities/testing_hook.h"
 #include <memcached/engine_error.h>
 #include <platform/non_negative_counter.h>
 #include <spdlog/common.h>
@@ -514,8 +515,8 @@ protected:
     Cursor cursor;
 
     // MB-37468: Test only hooks set via Mock class
-    std::function<void()> completeBackfillHook;
-    std::function<void()> nextHook;
+    TestingHook<> completeBackfillHook;
+    TestingHook<> nextHook;
 
     // Whether the responses sent using this stream should contain the body
     const IncludeValue includeValue;

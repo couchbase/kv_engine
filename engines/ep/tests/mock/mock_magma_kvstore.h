@@ -33,9 +33,7 @@ public:
 
     MagmaKVStore::DiskState readVBStateFromDisk(
             Vbid vbid, magma::Magma::Snapshot& snapshot) override {
-        if (readVBStateFromDiskHook) {
-            readVBStateFromDiskHook();
-        }
+        readVBStateFromDiskHook();
 
         return MagmaKVStore::readVBStateFromDisk(vbid, snapshot);
     }
@@ -78,7 +76,7 @@ public:
         return ret;
     }
 
-    std::function<void()> readVBStateFromDiskHook;
+    TestingHook<> readVBStateFromDiskHook;
 
     std::function<int(VB::Commit&, kvstats_ctx&)> saveDocsErrorInjector;
 };

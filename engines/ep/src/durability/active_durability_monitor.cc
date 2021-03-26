@@ -331,9 +331,7 @@ cb::engine_errc ActiveDurabilityMonitor::seqnoAckReceived(
     // transferring them into the resolvedQueue (under the correct locks).
     state.wlock()->processSeqnoAck(replica, preparedSeqno, *resolvedQueue);
 
-    if (seqnoAckReceivedPostProcessHook) {
-        seqnoAckReceivedPostProcessHook();
-    }
+    seqnoAckReceivedPostProcessHook();
 
     // Check if any there's now any resolved SyncWrites which should be
     // completed.

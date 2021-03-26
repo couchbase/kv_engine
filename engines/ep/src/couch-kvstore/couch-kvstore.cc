@@ -2784,9 +2784,7 @@ bool CouchKVStore::commit(VB::Commit& commitData) {
     // flush all
     const auto errCode = saveDocs(vbid, docs, docinfos, kvReqs, kvctx);
 
-    if (postFlushHook) {
-        postFlushHook();
-    }
+    postFlushHook();
 
     commitCallback(pendingReqsQ, kvctx, errCode);
 

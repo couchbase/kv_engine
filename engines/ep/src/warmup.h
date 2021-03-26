@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "utilities/testing_hook.h"
 #include "utility.h"
 #include "vbucket_fwd.h"
 
@@ -294,7 +295,7 @@ public:
      * Testing hook which if set is called every time warmup transitions to
      * a new state.
      */
-    std::function<void(WarmupState::State)> stateTransitionHook;
+    TestingHook<WarmupState::State> stateTransitionHook;
 
 private:
     void addToTaskSet(size_t taskId);

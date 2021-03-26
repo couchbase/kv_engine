@@ -19,6 +19,7 @@
 
 #include "kv_bucket.h"
 #include "kvstore.h"
+#include "utilities/testing_hook.h"
 
 class BgFetcher;
 namespace Collections::VB {
@@ -391,7 +392,7 @@ protected:
      * Testing hook called after we updated stats in the compactionCompletion
      * function
      */
-    std::function<void()> postCompactionCompletionStatsUpdateHook;
+    TestingHook<> postCompactionCompletionStatsUpdateHook;
 };
 
 std::ostream& operator<<(std::ostream& os, const EPBucket::FlushResult& res);

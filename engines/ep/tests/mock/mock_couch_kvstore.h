@@ -118,5 +118,5 @@ public:
         return std::make_unique<MockCouchKVStore>(configuration, dbFileRevMap);
     }
 
-    std::function<void()> preCommitHook = [] {};
+    TestingHook<> preCommitHook;
 };

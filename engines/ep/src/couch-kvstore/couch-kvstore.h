@@ -1050,12 +1050,10 @@ protected:
     /// The hook gets called after the initial compaction runs, and then
     /// after each step in the catch-up-phase. Notably it gets called after
     /// the vbucket lock is re-acquired
-    std::function<void(const std::string&)> concurrentCompactionPostLockHook =
-            [](const std::string&) {};
+    TestingHook<const std::string&> concurrentCompactionPostLockHook;
 
     /// Same as above but the hook is called before the vBucket lock is
     /// re-acquired. This allows the actual flusher to run in the hook rather
     /// poking the kvstore manually
-    std::function<void(const std::string&)> concurrentCompactionPreLockHook =
-            [](const std::string&) {};
+    TestingHook<const std::string&> concurrentCompactionPreLockHook;
 };

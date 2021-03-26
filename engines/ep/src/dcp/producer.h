@@ -21,6 +21,7 @@
 #include "dcp/stream_container.h"
 #include "ep_engine.h"
 #include "monotonic.h"
+#include "utilities/testing_hook.h"
 #include "vb_ready_queue.h"
 
 #include <include/mcbp/protocol/dcp_stream_end_status.h>
@@ -390,6 +391,16 @@ public:
 
     bool isOutOfOrderSnapshotsEnabled() const;
 
+    // MB-37702: Test hook set via mock class.
+    TestingHook<> closeAllStreamsHook;
+
+    // MB-38521: Test hook set via mock class.
+    TestingHook<> closeAllStreamsPreLockHook;
+    TestingHook<> closeAllStreamsPostLockHook;
+
+    // MB-37827: Test hook set via mock class.
+    TestingHook<> seqnoAckHook;
+
 protected:
     /**
      * For filtered DCP, method returns the maximum of all the high-seqnos of
@@ -681,14 +692,4 @@ protected:
      * references).
      */
     std::mutex closeAllStreamsLock;
-
-    // MB-37702: Test hook set via mock class.
-    std::function<void()> closeAllStreamsHook;
-
-    // MB-38521: Test hook set via mock class.
-    std::function<void()> closeAllStreamsPreLockHook;
-    std::function<void()> closeAllStreamsPostLockHook;
-
-    // MB-37827: Test hook set via mock class.
-    std::function<void()> seqnoAckHook;
 };

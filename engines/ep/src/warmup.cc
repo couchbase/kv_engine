@@ -1687,9 +1687,9 @@ void Warmup::transition(WarmupState::State to, bool force) {
     auto old = state.getState();
     if (old != WarmupState::State::Done) {
         state.transition(to, force);
-        if (stateTransitionHook) {
-            stateTransitionHook(to);
-        }
+
+        stateTransitionHook(to);
+
         step();
     }
 }

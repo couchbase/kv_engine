@@ -577,9 +577,7 @@ bool RocksDBKVStore::commit(VB::Commit& commitData) {
         success = false;
     }
 
-    if (postFlushHook) {
-        postFlushHook();
-    }
+    postFlushHook();
 
     commitCallback(status, commitBatch);
 

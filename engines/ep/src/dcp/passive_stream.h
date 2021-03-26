@@ -19,6 +19,7 @@
 #include "dcp/stream.h"
 #include "locks.h"
 #include "spdlog/common.h"
+#include "utilities/testing_hook.h"
 #include "vbucket_fwd.h"
 
 #include <engines/ep/src/collections/collections_types.h>
@@ -330,7 +331,7 @@ protected:
      * new incoming messages before the DcpConsumerTask has processed all
      * messages in the buffer.
      */
-    std::function<void()> processBufferedMessages_postFront_Hook;
+    TestingHook<> processBufferedMessages_postFront_Hook;
 
     // Flag indicating if the most recent call to processMessage
     // backed off due to ENOMEM. Only used for limiting logging

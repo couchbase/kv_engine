@@ -1163,9 +1163,7 @@ cb::engine_errc DcpProducer::seqno_acknowledged(uint32_t opaque,
         return cb::engine_errc::success;
     }
 
-    if (seqnoAckHook) {
-        seqnoAckHook();
-    }
+    seqnoAckHook();
 
     return stream->seqnoAck(consumerName, prepared_seqno);
 }
@@ -1662,15 +1660,11 @@ bool DcpProducer::setStreamDeadStatus(
 }
 
 void DcpProducer::closeAllStreams() {
-    if (closeAllStreamsPreLockHook) {
-        closeAllStreamsPreLockHook();
-    }
+    closeAllStreamsPreLockHook();
 
     std::lock_guard<std::mutex> lg(closeAllStreamsLock);
 
-    if (closeAllStreamsPostLockHook) {
-        closeAllStreamsPostLockHook();
-    }
+    closeAllStreamsPostLockHook();
 
     lastReceiveTime = ep_current_time();
     std::vector<Vbid> vbvector;
@@ -1702,9 +1696,7 @@ void DcpProducer::closeAllStreams() {
         engine_.getDcpConnMap().removeVBConnByVBId(getCookie(), vbid);
     }
 
-    if (closeAllStreamsHook) {
-        closeAllStreamsHook();
-    }
+    closeAllStreamsHook();
 
     // Destroy the backfillManager. (BackfillManager task also
     // may hold a weak reference to it while running, but that is

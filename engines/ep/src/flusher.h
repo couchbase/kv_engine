@@ -17,12 +17,12 @@
 #pragma once
 
 #include "cb3_executorthread.h"
+#include "utilities/testing_hook.h"
 #include "utility.h"
 #include "vb_ready_queue.h"
 
 #include <memcached/vbucket.h>
 
-#include <functional>
 #include <queue>
 
 #define NO_VBUCKETS_INSTANTIATED 0xFFFF
@@ -62,7 +62,7 @@ public:
 
     // Testing hook - if non-empty, called from step() just before snoozing
     // the task.
-    std::function<void()> stepPreSnoozeHook;
+    TestingHook<> stepPreSnoozeHook;
 
     size_t getHPQueueSize() const;
 

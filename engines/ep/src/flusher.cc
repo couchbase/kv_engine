@@ -212,9 +212,7 @@ bool Flusher::step(GlobalTask *task) {
                                       !more;
 
             // Testing hook
-            if (stepPreSnoozeHook) {
-                stepPreSnoozeHook();
-            }
+            stepPreSnoozeHook();
 
             if (!shouldSnooze) {
                 task->updateWaketime(std::chrono::steady_clock::now());

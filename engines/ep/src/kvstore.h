@@ -21,6 +21,7 @@
 #include "collections/eraser_context.h"
 #include "collections/kvstore.h"
 #include "kvstore_fwd.h"
+#include "utilities/testing_hook.h"
 
 #include <memcached/engine_common.h>
 #include <memcached/thread_pool_config.h>
@@ -1269,7 +1270,7 @@ protected:
 
     // Test-only. If set, this is executed after the a flush-batch is committed
     // to disk but before we call back into the PersistenceCallback.
-    std::function<void()> postFlushHook;
+    TestingHook<> postFlushHook;
 };
 
 std::string to_string(KVStore::FlushStateDeletion status);

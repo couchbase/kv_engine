@@ -351,9 +351,7 @@ void Collections::Manager::warmupCompleted(EPBucket& bucket) const {
             // when dropping a collection if we change from active to non-active
             // to active again.
             folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-            if (preSetStateAtWarmupHook) {
-                preSetStateAtWarmupHook();
-            }
+            preSetStateAtWarmupHook();
 
             if (vb->getState() == vbucket_state_active) {
                 update(*vb);

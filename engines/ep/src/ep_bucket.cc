@@ -1227,9 +1227,7 @@ void EPBucket::compactionCompletionCallback(CompactionContext& ctx) {
                 ctx.stats.collectionSizeUpdates,
                 ctx.eraserContext->doesOnDiskDroppedDataExist());
 
-        if (postCompactionCompletionStatsUpdateHook) {
-            postCompactionCompletionStatsUpdateHook();
-        }
+        postCompactionCompletionStatsUpdateHook();
 
     } catch (std::exception& e) {
         // Re-apply our pre-compaction stats snapshot

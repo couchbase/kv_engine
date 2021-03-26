@@ -133,9 +133,7 @@ void MockEPBucket::completeBGFetchMulti(
         Vbid vbId,
         std::vector<bgfetched_item_t>& fetchedItems,
         std::chrono::steady_clock::time_point start) {
-    if (completeBGFetchMultiHook) {
-        completeBGFetchMultiHook(vbId);
-    }
+    completeBGFetchMultiHook(vbId);
     EPBucket::completeBGFetchMulti(vbId, fetchedItems, start);
 }
 

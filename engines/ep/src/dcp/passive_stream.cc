@@ -448,9 +448,7 @@ process_items_error_t PassiveStream::processBufferedMessages(
         lh.unlock();
 
         // MB-31410: Only used for testing
-        if (processBufferedMessages_postFront_Hook) {
-            processBufferedMessages_postFront_Hook();
-        }
+        processBufferedMessages_postFront_Hook();
 
         message_bytes = response->getMessageSize();
         auto seqno = response->getBySeqno();

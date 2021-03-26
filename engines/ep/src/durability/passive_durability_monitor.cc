@@ -250,9 +250,7 @@ void PassiveDurabilityMonitor::notifySnapshotEndReceived(uint64_t snapEnd) {
         storeSeqnoAck(prevHps, s->highPreparedSeqno.lastWriteSeqno);
     }
 
-    if (notifySnapEndSeqnoAckPreProcessHook) {
-        notifySnapEndSeqnoAckPreProcessHook();
-    }
+    notifySnapEndSeqnoAckPreProcessHook();
 
     sendSeqnoAck();
 }
