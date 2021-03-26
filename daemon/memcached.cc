@@ -540,26 +540,9 @@ static void settings_init() {
     NetworkInterface default_interface;
     settings.addInterface(default_interface);
     settings.setVerbose(0);
-    settings.setConnectionIdleTime(0); // Connection idle time disabled
     settings.setNumWorkerThreads(get_number_of_worker_threads());
-    settings.setDatatypeJsonEnabled(true);
-    settings.setDatatypeSnappyEnabled(true);
-    settings.setRequestsPerEventNotification(50, EventPriority::High);
-    settings.setRequestsPerEventNotification(5, EventPriority::Medium);
-    settings.setRequestsPerEventNotification(1, EventPriority::Low);
-    settings.setRequestsPerEventNotification(20, EventPriority::Default);
-
-    /*
-     * The max object size is 20MB. Let's allow packets up to 30MB to
-     * be handled "properly" by returing E2BIG, but packets bigger
-     * than that will cause the server to disconnect the client
-     */
-    settings.setMaxPacketSize(30 * 1024 * 1024);
-
-    settings.setDedupeNmvbMaps(false);
 
     char *tmp = getenv("MEMCACHED_TOP_KEYS");
-    settings.setTopkeysSize(20);
     if (tmp) {
         int count;
         if (safe_strtol(tmp, count)) {

@@ -900,30 +900,30 @@ protected:
     /**
      * is datatype json/snappy enabled?
      */
-    bool datatype_json = false;
-    std::atomic_bool datatype_snappy{false};
+    bool datatype_json = true;
+    std::atomic_bool datatype_snappy{true};
 
     /**
      * Maximum number of io events to process based on the priority of the
      * connection
      */
-    int reqs_per_event_high_priority = 0;
-    int reqs_per_event_med_priority = 0;
-    int reqs_per_event_low_priority = 0;
-    int default_reqs_per_event = 0;
+    int reqs_per_event_high_priority = 50;
+    int reqs_per_event_med_priority = 5;
+    int reqs_per_event_low_priority = 1;
+    int default_reqs_per_event = 20;
 
     /**
      * Breakpad crash catcher settings
      */
     cb::breakpad::Settings breakpad;
 
-    /**
-     * To prevent us from reading (and allocating) an insane amount of
-     * data off the network we'll ignore (and disconnect clients) that
-     * tries to send packets bigger than this max_packet_size. See
-     * the man page for more information.
-     */
-    uint32_t max_packet_size = 0;
+    /// To prevent us from reading (and allocating) an insane amount of
+    /// data off the network we'll ignore (and disconnect clients) that
+    /// tries to send packets bigger than this max_packet_size. The current
+    /// Max document size is 20MB so by using 30MB we'll get the correct
+    /// E2BIG error message for connections going a bit bigger (and not
+    /// a quiet disconnect)
+    uint32_t max_packet_size{30 * 1024 * 1024};
 
     /// The maximum amount of data we want to keep in the send buffer for
     /// for a client until we pause execution of new commands until the
@@ -955,7 +955,7 @@ protected:
     /**
      * The number of topkeys to track
      */
-    int topkeys_size = 0;
+    int topkeys_size = 20;
 
     /// The available sasl mechanism list
     folly::Synchronized<std::string> sasl_mechanisms;
