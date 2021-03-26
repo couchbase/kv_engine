@@ -1198,13 +1198,13 @@ void Connection::chainDataToOutputStream(std::unique_ptr<SendBuffer> buffer) {
 }
 
 Connection::Connection(FrontEndThread& thr)
-    : socketDescriptor(INVALID_SOCKET),
-      connectedToSystemPort(false),
-      thread(thr),
-      peername(R"({"ip":"unknown","port":0})"),
+    : peername(R"({"ip":"unknown","port":0})"),
       sockname(R"({"ip":"unknown","port":0})"),
+      thread(thr),
       max_reqs_per_event(Settings::instance().getRequestsPerEventNotification(
               EventPriority::Default)),
+      socketDescriptor(INVALID_SOCKET),
+      connectedToSystemPort(false),
       ssl(false) {
     updateDescription();
     cookies.emplace_back(std::make_unique<Cookie>(*this));
@@ -1217,14 +1217,14 @@ Connection::Connection(SOCKET sfd,
                        bool system,
                        in_port_t parent_port,
                        uniqueSslPtr sslStructure)
-    : socketDescriptor(sfd),
-      connectedToSystemPort(system),
+    : peername(cb::net::getPeerNameAsJson(sfd).dump()),
+      sockname(cb::net::getSockNameAsJson(sfd).dump()),
       thread(thr),
-      parent_port(parent_port),
-      peername(cb::net::getPeerNameAsJson(socketDescriptor).dump()),
-      sockname(cb::net::getSockNameAsJson(socketDescriptor).dump()),
       max_reqs_per_event(Settings::instance().getRequestsPerEventNotification(
               EventPriority::Default)),
+      socketDescriptor(sfd),
+      parent_port(parent_port),
+      connectedToSystemPort(system),
       ssl(sslStructure) {
     setTcpNoDelay(true);
     updateDescription();

@@ -69,7 +69,7 @@ const size_t MaxSavedConnectionId = 34;
  */
 class Connection : public DcpMessageProducersIface {
 public:
-    enum class Type { Normal, Producer, Consumer };
+    enum class Type : uint8_t { Normal, Producer, Consumer };
     Connection(const Connection&) = delete;
 
     Connection(SOCKET sfd,
@@ -892,22 +892,49 @@ protected:
                                            std::size_t key_len,
                                            std::size_t value_len,
                                            uint8_t datatype);
-
     /**
-     * The actual socket descriptor used by this connection
+     * The "list" of commands currently being processed. We ALWAYS keep the
+     * the first entry in the list (and try to reuse that) due to how DCP
+     * works. The engine keeps a reference to the DCP consumer based on
+     * the address of the provided cookie. Connections registered for
+     * DCP will _ONLY_ use the first entry in the list (and never use OoO)
+     *
+     * Given that we want to be able to put them in an ordered sequence
+     * (we may receive a command we cannot reorder) we want to use a
+     * datastructure where we can easily remove an item in the middle
+     * (without having to move the rest of the elements as it could be
+     * that we want to get rid of more elements as we traverse).
      */
-    const SOCKET socketDescriptor;
+    std::deque<std::unique_ptr<Cookie>> cookies;
 
-    const bool connectedToSystemPort;
+    std::queue<std::unique_ptr<ServerEvent>> server_events;
 
-    // The number of times we've been backing off and yielding
-    // to allow other threads to run
-    cb::RelaxedAtomic<uint64_t> yields;
-
-    /**
-     * The current privilege context
-     */
+    /// The current privilege context
     cb::rbac::PrivilegeContext privilegeContext{cb::sasl::Domain::Local};
+
+    /// The authenticated user
+    cb::rbac::UserIdent user{std::string("unknown"), cb::sasl::Domain::Local};
+
+    /// The description of the connection
+    std::string description;
+
+    /// Name of the peer if known
+    const std::string peername;
+
+    /// Name of the local socket if known
+    const std::string sockname;
+
+    /// The reason why the session was terminated
+    std::string terminationReason;
+
+    struct SendQueueInfo {
+        std::chrono::steady_clock::time_point last{};
+        size_t size{};
+        bool term{false};
+    } sendQueueInfo;
+
+    /// Pointer to the thread object serving this connection
+    FrontEndThread& thread;
 
     /// The SASL object used to do sasl authentication. It should be created
     /// as part of SASL START, and released UNLESS the underlying mechanism
@@ -915,44 +942,60 @@ protected:
     /// to STEP).
     std::unique_ptr<cb::sasl::server::ServerContext> saslServerContext;
 
-    /** Is this a system internal connection */
+    /// The number of times we've been backing off and yielding
+    /// to allow other threads to run
+    cb::RelaxedAtomic<uint64_t> yields;
+
+    /// The total time this connection been on the CPU
+    std::chrono::nanoseconds total_cpu_time = std::chrono::nanoseconds::zero();
+    /// The shortest time this connection was occupying the thread
+    std::chrono::nanoseconds min_sched_time = std::chrono::nanoseconds::max();
+    /// The longest time this connection was occupying the thread
+    std::chrono::nanoseconds max_sched_time = std::chrono::nanoseconds::zero();
+
+    /// The stored DCP Connection Interface
+    std::atomic<DcpConnHandlerIface*> dcpConnHandlerIface{nullptr};
+
+    /// The bufferevent structure for the object
+    cb::libevent::unique_bufferevent_ptr bev;
+    /// Total number of bytes received on the network
+    size_t totalRecv = 0;
+    /// Total number of bytes sent to the network
+    size_t totalSend = 0;
+
+    /// The maximum requests we can process in a worker thread timeslice
+    int max_reqs_per_event;
+
+    /// number of events this connection can process in a single worker
+    /// thread timeslice
+    int numEvents = 0;
+
+    /// The actual socket descriptor used by this connection
+    const SOCKET socketDescriptor;
+
+    /// The index of the connected bucket
+    std::atomic_int bucketIndex{0};
+
+    /// The cluster map revision used by this client
+    int clustermap_revno{-2};
+
+    /// Listening port that creates this connection instance
+    const in_port_t parent_port{0};
+
+    const bool connectedToSystemPort;
+
+    /// Is this a system internal connection
     bool internal{false};
 
-    /** Is the connection authenticated or not */
+    /// Is the connection authenticated or not
     bool authenticated{false};
 
-    /// The authenticated user
-    cb::rbac::UserIdent user{std::string("unknown"), cb::sasl::Domain::Local};
-
-    /** The description of the connection */
-    std::string description;
-
-    /** Is tcp nodelay enabled or not? */
+    /// Is tcp nodelay enabled or not?
     bool nodelay{false};
 
     /// number of references to the object (set to 1 during creation as the
     /// creator has a reference)
     uint8_t refcount{1};
-
-    /** Pointer to the thread object serving this connection */
-    FrontEndThread& thread;
-
-    /** Listening port that creates this connection instance */
-    const in_port_t parent_port{0};
-
-    /**
-     * The index of the connected bucket
-     */
-    std::atomic_int bucketIndex{0};
-
-    /** Name of the peer if known */
-    const std::string peername;
-
-    /** Name of the local socket if known */
-    const std::string sockname;
-
-    /// The stored DCP Connection Interface
-    std::atomic<DcpConnHandlerIface*> dcpConnHandlerIface{nullptr};
 
     /**
      * The connections' priority.
@@ -961,8 +1004,6 @@ protected:
      */
     std::atomic<ConnectionPriority> priority{ConnectionPriority::Medium};
 
-    /** The cluster map revision used by this client */
-    int clustermap_revno{-2};
 
     /**
      * Is XERROR supported for this connection or not (or should we just
@@ -992,24 +1033,7 @@ protected:
 
     bool allow_unordered_execution{false};
 
-    std::queue<std::unique_ptr<ServerEvent>> server_events;
-
-    /**
-     * The total time this connection been on the CPU
-     */
-    std::chrono::nanoseconds total_cpu_time = std::chrono::nanoseconds::zero();
-    /**
-     * The shortest time this connection was occupying the thread
-     */
-    std::chrono::nanoseconds min_sched_time = std::chrono::nanoseconds::max();
-    /**
-     * The longest time this connection was occupying the thread
-     */
-    std::chrono::nanoseconds max_sched_time = std::chrono::nanoseconds::zero();
-
-    /**
-     * The name of the client provided to us by hello
-     */
+    /// The name of the client provided to us by hello
     std::array<char, MaxSavedAgentName> agentName{};
 
     /**
@@ -1038,35 +1062,20 @@ protected:
     /// The current state we're in
     State state{State::running};
 
-    /// The reason why the session was terminated
-    std::string terminationReason;
-
-    /** Is this DCP channel XAttrAware */
+    /// Is this DCP channel XAttrAware
     bool dcpXattrAware = false;
 
-    /** Is this DCP channel aware of DeletedUserXattr */
+    /// Is this DCP channel aware of DeletedUserXattr
     bool dcpDeletedUserXattr = false;
 
-    /** Shuld values be stripped off? */
+    /// Shuld values be stripped off?
     bool dcpNoValue = false;
 
-    /** Is Tracing enabled for this connection? */
+    /// Is Tracing enabled for this connection?
     bool tracingEnabled = false;
 
-    /** Should DCP replicate the time a delete was created? */
+    /// Should DCP replicate the time a delete was created?
     bool dcpDeleteTimeEnabled = false;
-
-    /** The maximum requests we can process in a worker thread timeslice */
-    int max_reqs_per_event;
-
-    /**
-     * number of events this connection can process in a single worker
-     * thread timeslice
-     */
-    int numEvents = 0;
-
-    /// The bufferevent structure for the object
-    cb::libevent::unique_bufferevent_ptr bev;
 
     /**
      * If the client enabled the mutation seqno feature each mutation
@@ -1074,26 +1083,6 @@ protected:
      * mutation.
      */
     bool supports_mutation_extras = false;
-
-    // Total number of bytes received on the network
-    size_t totalRecv = 0;
-    // Total number of bytes sent to the network
-    size_t totalSend = 0;
-
-    /**
-     * The "list" of commands currently being processed. We ALWAYS keep the
-     * the first entry in the list (and try to reuse that) due to how DCP
-     * works. The engine keeps a reference to the DCP consumer based on
-     * the address of the provided cookie. Connections registered for
-     * DCP will _ONLY_ use the first entry in the list (and never use OoO)
-     *
-     * Given that we want to be able to put them in an ordered sequence
-     * (we may receive a command we cannot reorder) we want to use a
-     * datastructure where we can easily remove an item in the middle
-     * (without having to move the rest of the elements as it could be
-     * that we want to get rid of more elements as we traverse).
-     */
-    std::deque<std::unique_ptr<Cookie>> cookies;
 
     /// Filter containing the data types available for the connection
     DatatypeFilter datatypeFilter;
@@ -1111,12 +1100,6 @@ protected:
      * Is this connection over SSL or not
      */
     const bool ssl;
-
-    struct SendQueueInfo {
-        std::chrono::steady_clock::time_point last{};
-        size_t size{};
-        bool term{false};
-    } sendQueueInfo;
 
     /**
      * Given that we "ack" the writing once we drain the write buffer in
