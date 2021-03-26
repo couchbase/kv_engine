@@ -718,13 +718,19 @@ bool Connection::executeCommandsCallback() {
                 // layer doing the actual IO.
                 static constexpr std::size_t dcpMaxQSize = 1024 * 1024;
                 bool more = (getSendQueueSize() < dcpMaxQSize);
-                while (more) {
+                if (type == Type::Consumer) {
+                    // We want the consumer to perform some steps because
+                    // it could be pending bufferAcks
+                    numEvents = max_reqs_per_event;
+                }
+                while (more && numEvents > 0) {
                     const auto ret = getBucket().getDcpIface()->step(
                             static_cast<const void*>(cookies.front().get()),
                             *this);
                     switch (remapErrorCode(ret)) {
                     case cb::engine_errc::success:
                         more = (getSendQueueSize() < dcpMaxQSize);
+                        --numEvents;
                         break;
                     case cb::engine_errc::would_block:
                         more = false;
@@ -741,6 +747,10 @@ bool Connection::executeCommandsCallback() {
                         shutdown();
                         more = false;
                     }
+                }
+                if (more && numEvents == 0) {
+                    // We used the entire timeslice... schedule a new one
+                    triggerCallback();
                 }
             }
         } catch (const std::exception& e) {
