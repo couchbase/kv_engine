@@ -443,6 +443,9 @@ bool is_collection_command(ClientOpcode opcode);
 /// Does the provided opcode support preserving TTL
 bool is_preserve_ttl_supported(ClientOpcode opcode);
 
+/// Is the command currently supported but deprecated
+bool is_deprecated(ClientOpcode opcode);
+
 } // namespace cb::mcbp
 
 /**
