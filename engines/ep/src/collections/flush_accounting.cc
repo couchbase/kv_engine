@@ -53,6 +53,12 @@ FlushAccounting::getStatsAndMaybeSetPersistedHighSeqno(CollectionID cid,
     return value;
 }
 
+FlushAccounting::StatisticsUpdate::StatisticsUpdate(const PersistedStats& stats)
+    : persistedHighSeqno(stats.highSeqno),
+      itemCount(stats.itemCount),
+      diskSize(stats.diskSize) {
+}
+
 void FlushAccounting::StatisticsUpdate::maybeSetPersistedHighSeqno(
         uint64_t seqno) {
     if (seqno > persistedHighSeqno) {
@@ -97,6 +103,21 @@ void FlushAccounting::StatisticsUpdate::remove(IsSystem isSystem,
         decrementItemCount();
     }
     updateDiskSize(diskSizeDelta);
+}
+
+FlushAccounting::FlushAccounting(
+        const std::vector<Collections::KVStore::DroppedCollection>& v) {
+    setDroppedCollectionsForStore(v);
+}
+
+void FlushAccounting::presetStats(CollectionID cid,
+                                  const PersistedStats& preStats) {
+    auto [itr, inserted] = stats.try_emplace(cid, StatisticsUpdate{preStats});
+    (void)itr;
+
+    // This function is used from a path where this should not be true, where
+    // only unique keys should be found.
+    Expects(inserted && "presetStats must insert unique collections");
 }
 
 void FlushAccounting::updateStats(const DocKey& key,
@@ -261,6 +282,35 @@ void FlushAccounting::setDroppedCollectionsForStore(
         const std::vector<Collections::KVStore::DroppedCollection>& v) {
     for (const auto& c : v) {
         droppedInStore.emplace(c.collectionId, c);
+    }
+}
+
+// Called from KVStore during flush or compaction replay
+// This method iterates through the statistics gathered by the Flush and uses
+// the std::function callback to have the KVStore implementation write them to
+// storage, e.g. a local document.
+void FlushAccounting::forEachCollection(
+        std::function<void(CollectionID, const PersistedStats&)> cb) const {
+    // For each collection modified in the flush run ask the VBM for the
+    // current stats (using the high-seqno so we find the correct generation
+    // of stats)
+    for (const auto& [cid, flushStats] : stats) {
+        // Don't generate an update of the statistics for a dropped collection.
+        // 1) it's wasted effort
+        // 2) the kvstore may not be able handle an update of a 'local' doc
+        //    and a delete of the same in one flush (couchstore doesn't)
+        auto itr = droppedInStore.find(cid);
+        if (itr != droppedInStore.end() &&
+            flushStats.getPersistedHighSeqno() < itr->second.endSeqno) {
+            continue;
+        }
+
+        // Generate new stats, add the deltas from this flush batch for count
+        // and size and set the high-seqno (which includes prepares)
+        PersistedStats ps(flushStats.getItemCount(),
+                          flushStats.getPersistedHighSeqno(),
+                          flushStats.getDiskSize());
+        cb(cid, ps);
     }
 }
 

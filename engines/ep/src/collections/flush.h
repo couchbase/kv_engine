@@ -332,7 +332,7 @@ private:
     /**
      * Used for accounting items, disk-size and high-seqno during flushing
      */
-    FlushAccounting flushAccounting;
+    FlushAccounting flushAccounting{};
 
     /**
      * The most recent manifest committed, if needsMetaCommit is true this value

@@ -522,6 +522,8 @@ public:
         return manifest->getDiskSize(itr);
     }
 
+    size_t getItemCount() const;
+
     /// @return the number of stores to the collection
     size_t getOpsStore() const;
 

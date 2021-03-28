@@ -32,6 +32,10 @@ uint64_t StatsReadHandle::getHighSeqno() const {
     return itr->second.getHighSeqno();
 }
 
+size_t StatsReadHandle::getItemCount() const {
+    return itr->second.getItemCount();
+}
+
 size_t StatsReadHandle::getOpsStore() const {
     return itr->second.getOpsStore();
 }

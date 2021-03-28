@@ -515,38 +515,6 @@ protected:
     Vbid vbid = Vbid(0);
 };
 
-TEST_F(CouchKVStoreErrorInjectionTest, getCollectionsManifestFailed) {
-    populate_items(1);
-
-    CompactionConfig config;
-    config.purge_before_seq = 0;
-    config.purge_before_ts = 0;
-    config.drop_deletes = false;
-    auto cctx = std::make_shared<CompactionContext>(vbid, config, 0);
-
-    {
-        /* Establish Logger expectation */
-        EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-        EXPECT_CALL(logger,
-                    mlog(Ge(spdlog::level::level_enum::warn),
-                         VCE(COUCHSTORE_ERROR_READ)))
-                .Times(1)
-                .RetiresOnSaturation();
-
-        /* Establish FileOps expectation */
-        EXPECT_CALL(ops, pread(_, _, _, _, _))
-                .Times(1)
-                .WillRepeatedly(Return(COUCHSTORE_ERROR_READ))
-                .RetiresOnSaturation();
-
-        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(20).RetiresOnSaturation();
-
-        std::mutex mutex;
-        std::unique_lock<std::mutex> lock(mutex);
-        EXPECT_FALSE(kvstore->compactDB(lock, cctx));
-    }
-}
-
 /**
  * Injects error during CouchKVStore::writeVBucketState/couchstore_commit
  */
@@ -2398,6 +2366,8 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingPrepareCompleteToAbort) {
             });
 
     // 2) Do the compaction
+    auto preCompactionDiskSize =
+            manifest.lock(CollectionID::Default).getDiskSize();
     runCompaction();
 
     // And verify that we don't change the prepare count
@@ -2405,12 +2375,16 @@ TEST_F(CouchstoreTest, ConcurrentCompactionAndFlushingPrepareCompleteToAbort) {
     EXPECT_EQ(0, vbstate.onDiskPrepares);
     EXPECT_EQ(0, vbstate.getOnDiskPrepareBytes());
 
-    {
-        Collections::Summary summary;
-        manifest.lock().updateSummary(summary);
-        auto expected = summary[CollectionID::Default].diskSize - dummySize;
-        EXPECT_EQ(expected, vbstate.getOnDiskPrepareBytes());
-    }
+    // Check collection stats, the abort should be accounted for, disk increased
+    EXPECT_GT(manifest.lock(CollectionID::Default).getDiskSize(),
+              preCompactionDiskSize);
+
+    // Just for a full sanity check, use this manually calculated size and
+    // compare. The final data files stores two keys. 1 committed and 1 aborted.
+    // These sizes are taken from couch_dbdump
+    auto expectedSz = 15; // committed dummy uses 15 bytes
+    expectedSz += 24; // the abort uses 24
+    EXPECT_EQ(expectedSz, manifest.lock(CollectionID::Default).getDiskSize());
 
     // Should also check the cached count
     auto cachedVBState = kvstore->getCachedVBucketState(vbid);
@@ -2581,4 +2555,47 @@ TEST_F(CouchstoreTest, PersistAbortAbortStats) {
         // collection size though accounts for aborts
         EXPECT_NE(0, summary[CollectionID::Default].diskSize);
     }
+}
+
+TEST(CouchKVStoreStatic, collectionStatsNames) {
+    EXPECT_EQ(
+            "|0x0|",
+            CouchKVStore::getCollectionStatsLocalDocId(CollectionID::Default));
+    EXPECT_EQ("|0x63|",
+              CouchKVStore::getCollectionStatsLocalDocId(CollectionID{99}));
+    EXPECT_EQ("|0xffffffff|",
+              CouchKVStore::getCollectionStatsLocalDocId(
+                      CollectionID{uint32_t(~0)}));
+
+    EXPECT_EQ(CollectionID::Default,
+              CouchKVStore::getCollectionIdFromStatsDocId("|0x0|"));
+    EXPECT_EQ(99, CouchKVStore::getCollectionIdFromStatsDocId("|0x63|"));
+    EXPECT_EQ(~0, CouchKVStore::getCollectionIdFromStatsDocId("|0xffffffff|"));
+    EXPECT_EQ(4294967280,
+              CouchKVStore::getCollectionIdFromStatsDocId("|0xfffffff0|"));
+
+    // Function doesn't fail for a completely unexpected name, internal usage
+    // is that we only call this for when we detect | in the first character
+    EXPECT_EQ(8, CouchKVStore::getCollectionIdFromStatsDocId(".0x8|"));
+    EXPECT_EQ(8, CouchKVStore::getCollectionIdFromStatsDocId(".0x8,..."));
+
+    // Error detection is based on
+    // length < 5
+    // failure of the string conversion
+    EXPECT_THROW(CouchKVStore::getCollectionIdFromStatsDocId(""),
+                 std::logic_error);
+    EXPECT_THROW(CouchKVStore::getCollectionIdFromStatsDocId("0x0|"),
+                 std::logic_error);
+    EXPECT_THROW(CouchKVStore::getCollectionIdFromStatsDocId("|what|"),
+                 std::logic_error);
+
+#ifndef WIN32
+    // Currently conversion uses strtoul which doesn't fail for this, when
+    // using from_chars it will detect the bad input
+    EXPECT_EQ(0, CouchKVStore::getCollectionIdFromStatsDocId("|0xwhat|"));
+#else
+    // Windows throws
+    EXPECT_THROW(CouchKVStore::getCollectionIdFromStatsDocId("|0xwhat|"),
+                 std::invalid_argument);
+#endif
 }

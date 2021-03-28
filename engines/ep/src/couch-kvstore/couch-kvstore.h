@@ -131,13 +131,6 @@ protected:
 struct CompactionReplayPrepareStats {
     uint64_t onDiskPrepares = 0;
     uint64_t onDiskPrepareBytes = 0;
-
-    /**
-     * Values which we will use to update the collection sizes. We load in the
-     * post-compaction values and apply deltas as we replay the new mutations to
-     * the new Db.
-     */
-    CompactionStats::CollectionSizeUpdates collectionSizes;
 };
 
 struct kvstats_ctx;
@@ -395,6 +388,17 @@ public:
      * @param db Database
      */
     void closeDatabaseHandle(Db* db);
+
+    /**
+     * @return the local document name for the collections stats
+     */
+    static std::string getCollectionStatsLocalDocId(CollectionID cid);
+
+    /**
+     * @return the collection id from the given document name (which is expected
+     * to be a stats document name).
+     */
+    static CollectionID getCollectionIdFromStatsDocId(std::string_view id);
 
 protected:
     /**
@@ -718,7 +722,7 @@ protected:
                             uint64_t purge_seqno,
                             CompactionReplayPrepareStats& prepareStats,
                             Vbid vbid,
-                            const CompactionContext& hook_ctx);
+                            CompactionContext& hook_ctx);
 
     /**
      * The following status codes can be returned by compactDBInternal
@@ -756,15 +760,14 @@ protected:
      * @param vbid the vbucket being compacted
      * @param newRevision the revision of the new file
      * @param hookCtx the context for this compaction run
-     * @param prepareStats data used for memory state update. Function consumes
-     *        the data
+     * @param prepareStats data used for memory state update
      * @returns true if success, false if some failure occurred
      */
     bool compactDBTryAndSwitchToNewFile(
             Vbid vbid,
             uint64_t newRevision,
             CompactionContext* hookCtx,
-            CompactionReplayPrepareStats&& prepareStats);
+            const CompactionReplayPrepareStats& prepareStats);
 
     /**
      * Function considers if the metadata needs patching (following compaction).
@@ -872,15 +875,34 @@ protected:
      *
      * @param db The database instance to update
      * @param prepareStats All the prepare stats changed during compaction
-     * @param purge_seqno The new value to store in the couchstore header
+     * @param collectionStats object tracking collection stats during replay
+     * @param purgeSeqno The new value to store in the couchstore header
      * @param hook_ctx The CompactionContext
      * @returns COUCHSTORE_SUCCESS on success, couchstore error otherwise (which
      *          will cause replay to fail).
      */
-    couchstore_error_t replayPrecommitHook(Db&,
-                                           CompactionReplayPrepareStats&,
-                                           uint64_t,
-                                           const CompactionContext&);
+    couchstore_error_t replayPrecommitHook(
+            Db& db,
+            CompactionReplayPrepareStats& prepareStats,
+            const Collections::VB::FlushAccounting& collectionStats,
+            uint64_t purgeSeqno,
+            CompactionContext& hook_ctx);
+
+    /**
+     * Replay will begin by copying local documents, we detect all modified
+     * collections here as we can see 'stat' documents copying from source to
+     * target. When a stats doc is seen the stats from the target database are
+     * loaded and used as baseline values to which we will add/subtract as
+     * documents copy from source to target.
+     *
+     * @param target handle on the compacted database
+     * @param localDocInfo DocInfo for a local document
+     * @param collectionStats object to load stats into
+     */
+    couchstore_error_t replayPreCopyLocalDoc(
+            Db& target,
+            const DocInfo* localDocInfo,
+            Collections::VB::FlushAccounting& collectionStats);
 
     /**
      * Helper method for replayPrecommitHook, processes the dropped collections

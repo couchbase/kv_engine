@@ -25,6 +25,8 @@
 
 namespace Collections::VB {
 
+struct PersistedStats;
+
 using DroppedMap = std::unordered_map<CollectionID, KVStore::DroppedCollection>;
 
 /**
@@ -37,6 +39,26 @@ using DroppedMap = std::unordered_map<CollectionID, KVStore::DroppedCollection>;
  */
 class FlushAccounting {
 public:
+    FlushAccounting() = default;
+
+    /**
+     * Construct the FlushAccounting object and directly give the class a set
+     * of collections that a KVStore says are dropped. The dropped collection
+     * set is used for determining if updateStats should consider keys as
+     * dropped
+     */
+    FlushAccounting(
+            const std::vector<Collections::KVStore::DroppedCollection>& v);
+
+    /**
+     * preset the statistics of the collection. Subsequent updateStats calls
+     * then account against preset values.
+     *
+     * @param cid Collection associated with the stats
+     * @param stats The collections persisted stats
+     */
+    void presetStats(CollectionID cid, const PersistedStats& stats);
+
     /**
      * Update collection stats from for a insert only operation.
      * We can be inserting a delete or a live document.
@@ -96,6 +118,15 @@ public:
             const std::vector<Collections::KVStore::DroppedCollection>& v);
 
     /**
+     * For each collection that we have stats tracked for, call the given
+     * callback with the collection id and current stats.
+     *
+     * @param cb callback to invoke for each tracked collection
+     */
+    void forEachCollection(
+            std::function<void(CollectionID, const PersistedStats&)> cb) const;
+
+    /**
      * @return reference to the map of collections dropped by the flusher
      */
     const DroppedMap& getDroppedCollections() const {
@@ -114,6 +145,8 @@ public:
     public:
         explicit StatisticsUpdate(uint64_t seqno) : persistedHighSeqno(seqno) {
         }
+
+        explicit StatisticsUpdate(const PersistedStats& stats);
 
         /**
          * Set the persistedHighSeqno iff seqno is > than the current value

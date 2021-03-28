@@ -51,6 +51,21 @@ StatChecker::~StatChecker() {
             << statName << " for collection: " << entry.name
             << " did not meet expected condition. "
             << "Was: " << initialValue << " New: " << newValue;
+
+    if (!vb->getShard()) {
+        // ephemeral has no Shard/KVStore, no check needed for memory vs disk
+        return;
+    }
+    auto kvs = vb->getShard()->getRWUnderlying();
+    auto fileHandle = kvs->makeFileHandle(vb->getId());
+    EXPECT_TRUE(fileHandle);
+    auto stats = kvs->getCollectionStats(*fileHandle, entry.uid);
+    EXPECT_TRUE(stats.first);
+
+    // Regardless of the postCondition the following should all be equal
+    auto inMemoryStats = vb->getManifest().lock(entry.uid);
+    EXPECT_EQ(stats.second.diskSize, inMemoryStats.getDiskSize());
+    EXPECT_EQ(stats.second.itemCount, inMemoryStats.getItemCount());
 }
 
 size_t StatChecker::getValue() {
