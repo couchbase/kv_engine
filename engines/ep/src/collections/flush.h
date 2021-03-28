@@ -19,6 +19,7 @@
 
 #include "collections/collection_persisted_stats.h"
 #include "collections/collections_types.h"
+#include "collections/flush_accounting.h"
 #include "collections/kvstore.h"
 #include "ep_types.h"
 
@@ -40,10 +41,6 @@ class Manifest;
 class Flush {
 public:
     explicit Flush(Manifest& manifest) : manifest(manifest) {
-    }
-
-    const Manifest& getManifest() const {
-        return manifest;
     }
 
     /**
@@ -79,7 +76,9 @@ public:
                      uint64_t seqno,
                      IsCommitted isCommitted,
                      IsDeleted isDelete,
-                     size_t size);
+                     size_t size) {
+        flushAccounting.updateStats(key, seqno, isCommitted, isDelete, size);
+    }
 
     /**
      * Update collection stats from the flusher when an old 'version' of the
@@ -101,7 +100,16 @@ public:
                      size_t size,
                      uint64_t oldSeqno,
                      IsDeleted oldIsDelete,
-                     size_t oldSize);
+                     size_t oldSize) {
+        flushAccounting.updateStats(key,
+                                    seqno,
+                                    isCommitted,
+                                    isDelete,
+                                    size,
+                                    oldSeqno,
+                                    oldIsDelete,
+                                    oldSize);
+    }
 
     /**
      * Update the collection high-seqno (only if the flushed item is higher)
@@ -112,7 +120,9 @@ public:
      */
     void maybeUpdatePersistedHighSeqno(const DocKey& key,
                                        uint64_t seqno,
-                                       bool isDelete);
+                                       bool isDelete) {
+        flushAccounting.maybeUpdatePersistedHighSeqno(key, seqno, isDelete);
+    }
 
     /**
      * Method for KVStore implementation to call before flushing a batch of
@@ -162,7 +172,7 @@ public:
 
     // @return if the set of dropped collections is changing
     bool isDroppedCollectionsChanged() const {
-        return !droppedCollections.empty();
+        return !flushAccounting.getDroppedCollections().empty();
     }
 
     // @return if the set of open scopes is changing
@@ -173,12 +183,6 @@ public:
     // @return if the set of dropped scopes is changing
     bool isDroppedScopesChanged() const {
         return !droppedScopes.empty();
-    }
-
-    // @return const reference to the map of dropped collections
-    const std::unordered_map<CollectionID, KVStore::DroppedCollection>&
-    getDroppedCollections() const {
-        return droppedCollections;
     }
 
     void recordSystemEvent(const Item& item);
@@ -274,29 +278,6 @@ private:
     void setManifestUid(ManifestUid in);
 
     /**
-     * Function determines if the collection @ seqno is dropped, but only
-     * in the current uncommitted flush batch. E.g. if cid:0, seqno:100 and
-     * the function returns true it means that this flush batch contains a
-     * collection drop event for collection 0 with a seqno greater than 100.
-     *
-     * @param cid Collection to look-up.
-     * @param seqno A seqno which was affected by the cid.
-     */
-    bool isLogicallyDeleted(CollectionID cid, uint64_t seqno) const;
-
-    /**
-     * Function determines if the collection @ seqno is dropped, but only
-     * in the current store we are flushing too, i.e. the committed data.
-     * E.g. if cid=0, seqno=100 and this function returns true it means that the
-     * committed store has a collection drop event for collection 0 with a
-     * seqno greater than 100.
-     *
-     * @param cid Collection to look-up.
-     * @param seqno A seqno which was affected by the cid.
-     */
-    bool isLogicallyDeletedInStore(CollectionID cid, uint64_t seqno) const;
-
-    /**
      * After all flushed items and system events have been processed this
      * function counts how many non-empty collections were dropped.
      *
@@ -308,97 +289,6 @@ private:
      */
     uint32_t countNonEmptyDroppedCollections() const;
 
-    // Helper class for doing collection stat updates
-    class StatisticsUpdate {
-    public:
-        explicit StatisticsUpdate(uint64_t seqno) : persistedHighSeqno(seqno) {
-        }
-
-        /**
-         * Set the persistedHighSeqno iff seqno is > than the current value
-         *
-         * @param seqno to use if it's greater than current value
-         */
-        void maybeSetPersistedHighSeqno(uint64_t seqno);
-
-        /**
-         * Process an insert into the collection
-         * @param isSystem true if a system event is inserted
-         * @param isDelete true if a deleted item is inserted (tombstone
-         *        creation)
-         * @param isCommitted does the item belong to the committed namespace?
-         * @param diskSize size in bytes 'inserted' into disk. Should be
-         *        representative of the bytes used by each document, but does
-         *        not need to be exact.
-         */
-        void insert(IsSystem isSystem,
-                    IsDeleted isDelete,
-                    IsCommitted isCommitted,
-                    ssize_t diskSize);
-
-        /**
-         * Process an update into the collection
-         * @param diskSizeDelta size in bytes difference. Should be
-         *        representative of the difference between existing and new
-         *        documents, but does not need to be exact.
-         */
-        void update(ssize_t diskSizeDelta);
-
-        /**
-         * Process a remove from the collection (store of a delete)
-         * @param isSystem true if a system event is removed
-         * @param isDelete true if a deleted item is inserted (tombstone
-         *        creation)
-         * @param isCommitted does the item belong to the committed namespace?
-         * @param diskSizeDelta difference between new and old item
-         */
-        void remove(IsSystem isSystem,
-                    IsDeleted isDelete,
-                    IsCommitted isCommitted,
-                    ssize_t diskSizeDelta);
-
-        /**
-         * @return the highest persisted seqno recorded by the Flush object.
-         *         this includes prepare/abort and committed items
-         */
-        uint64_t getPersistedHighSeqno() const {
-            return persistedHighSeqno;
-        }
-
-        /// @returns the items flushed (can be negative due to deletes)
-        ssize_t getItemCount() const {
-            return itemCount;
-        }
-
-        /// @returns the size of disk changes flushed (can be negative due to
-        ///          deletes or replacements shrinking documents)
-        ssize_t getDiskSize() const {
-            return diskSize;
-        }
-
-    private:
-        void incrementItemCount();
-
-        void decrementItemCount();
-
-        void updateDiskSize(ssize_t delta);
-
-        uint64_t persistedHighSeqno{0};
-        ssize_t itemCount{0};
-        ssize_t diskSize{0};
-    };
-
-    /**
-     * Obtain a Stats reference so insert/update/remove can be tracked.
-     * The function may also update the persisted high-seqno of the collection
-     * if the given seqno is greater than the currently recorded one.
-     *
-     * @param cid CollectionID
-     * @param seqno New high seqno to potentially update the persisted one
-     * @return Stats reference
-     */
-    StatisticsUpdate& getStatsAndMaybeSetPersistedHighSeqno(CollectionID cid,
-                                                            uint64_t seqno);
 
     /**
      * Iterate through the 'droppedCollections' container and call a function
@@ -415,19 +305,7 @@ private:
      */
     void checkAndTriggerPurge(Vbid vbid, EPBucket& bucket) const;
 
-    /**
-     * A map of collections that have had items flushed and the statistics
-     * gathered. E.g. the delta of disk and item count changes and the high
-     * seqno.
-     */
-    std::unordered_map<CollectionID, StatisticsUpdate> stats;
 
-    /**
-     * A map of collections that are currently dropped (and persisted) in the
-     * vbucket we are flushing to. As documents are flushed as 'updates' we need
-     * to know if the old document is logically deleted.
-     */
-    std::unordered_map<CollectionID, KVStore::DroppedCollection> droppedInStore;
 
     /**
      * For each collection created in the batch, we record meta data of the
@@ -447,16 +325,14 @@ private:
     std::unordered_map<ScopeID, KVStore::OpenScope> scopes;
 
     /**
-     * For each collection dropped in the batch, we record the metadata of the
-     * greatest
-     */
-    std::unordered_map<CollectionID, KVStore::DroppedCollection>
-            droppedCollections;
-
-    /**
      * For each scope dropped in the batch, we record the greatest seqno
      */
     std::unordered_map<ScopeID, uint64_t> droppedScopes;
+
+    /**
+     * Used for accounting items, disk-size and high-seqno during flushing
+     */
+    FlushAccounting flushAccounting;
 
     /**
      * The most recent manifest committed, if needsMetaCommit is true this value
