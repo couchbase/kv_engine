@@ -997,7 +997,7 @@ void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
                         "Failed to map a user from the client provided X.509 "
                         "certificate");
                 LOG_WARNING(
-                        "{}: conn_ssl_init: Failed to map a user from the "
+                        "{}: Failed to map a user from the "
                         "client provided X.509 certificate: [{}]",
                         instance.getId(),
                         name);
@@ -1011,8 +1011,8 @@ void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
                 instance.setTerminationReason(
                         "Failed to use client provided X.509 certificate");
                 LOG_WARNING(
-                        "{}: conn_ssl_init: disconnection client due to error "
-                        "[{}]",
+                        "{}: Disconnection client due to error with the X.509 "
+                        "certificate [{}]",
                         instance.getId(),
                         name);
                 disconnect = true;
@@ -1031,7 +1031,7 @@ void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
                                        reason);
                     instance.setTerminationReason(reason);
                     disconnect = true;
-                    LOG_WARNING("{}: ssl_conn_init: disconnecting client: {}",
+                    LOG_WARNING("{}: Disconnecting client: {}",
                                 instance.getId(),
                                 reason);
                 } else if (is_default_bucket_enabled()) {
