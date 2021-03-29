@@ -180,10 +180,6 @@ struct SubdocMultiMutationResult {
     std::string result;
 };
 
-uint64_t recv_subdoc_response(cb::mcbp::ClientOpcode expected_cmd,
-                              cb::mcbp::Status expected_status,
-                              const std::string& expected_value);
-
 uint64_t expect_subdoc_cmd(
         const SubdocMultiLookupCmd& cmd,
         cb::mcbp::Status expected_status,

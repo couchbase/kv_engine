@@ -53,47 +53,6 @@ static void recv_subdoc_response(const BinprotSubdocCommand& cmd,
     resp.assign(std::move(buf));
 }
 
-uint64_t recv_subdoc_response(cb::mcbp::ClientOpcode expected_cmd,
-                              cb::mcbp::Status expected_status,
-                              const std::string& expected_value) {
-    union {
-        protocol_binary_response_subdocument response;
-        char bytes[1024];
-    } receive;
-
-    if (!safe_recv_packet(receive.bytes, sizeof(receive.bytes))) {
-        ADD_FAILURE() << "Failed to recv subdoc response";
-        return -1;
-    }
-
-    mcbp_validate_response_header(
-            (protocol_binary_response_no_extras*)&receive.response,
-            expected_cmd,
-            expected_status);
-
-    const protocol_binary_response_header* header =
-            &receive.response.message.header;
-
-    const char* val_ptr =
-            receive.bytes + sizeof(*header) + header->response.getExtlen();
-    const size_t vallen =
-            header->response.getBodylen() - header->response.getExtlen();
-
-    if (!expected_value.empty() &&
-        (expected_cmd != cb::mcbp::ClientOpcode::SubdocExists)) {
-        const std::string val(val_ptr, val_ptr + vallen);
-        EXPECT_EQ(expected_value, val);
-    } else {
-        // Expect zero length on success (on error the error message string is
-        // returned).
-        if (header->response.getStatus() == cb::mcbp::Status::Success) {
-            EXPECT_EQ(0u, vallen);
-        }
-    }
-    return header->response.getCas();
-}
-
-// Overload for multi-lookup responses
 uint64_t recv_subdoc_response(
         cb::mcbp::ClientOpcode expected_cmd,
         cb::mcbp::Status expected_status,
