@@ -1167,7 +1167,7 @@ static void sendbuffer_cleanup_cb(const void*, size_t, void* extra) {
 void Connection::chainDataToOutputStream(std::unique_ptr<SendBuffer> buffer) {
     if (!buffer || buffer->getPayload().empty()) {
         throw std::logic_error(
-                "McbpConnection::chainDataToOutputStream: buffer must be set");
+                "Connection::chainDataToOutputStream: buffer must be set");
     }
 
     auto data = buffer->getPayload();
@@ -1499,7 +1499,7 @@ void Connection::disableReadEvent() {
     if ((bufferevent_get_enabled(bev.get()) & EV_READ) == EV_READ) {
         if (bufferevent_disable(bev.get(), EV_READ) == -1) {
             throw std::runtime_error(
-                    "McbpConnection::disableReadEvent: Failed to disable read "
+                    "Connection::disableReadEvent: Failed to disable read "
                     "events");
         }
     }
@@ -1509,7 +1509,7 @@ void Connection::enableReadEvent() {
     if ((bufferevent_get_enabled(bev.get()) & EV_READ) == 0) {
         if (bufferevent_enable(bev.get(), EV_READ) == -1) {
             throw std::runtime_error(
-                    "McbpConnection::enableReadEvent: Failed to enable read "
+                    "Connection::enableReadEvent: Failed to enable read "
                     "events");
         }
     }
