@@ -241,8 +241,8 @@ cb::rbac::PrivilegeContext Connection::getPrivilegeContext() {
             // Remove all access to the bucket
             privilegeContext = cb::rbac::createContext(user, "");
             LOG_INFO(
-                    "{}: RBAC: Connection::refreshPrivilegeContext() {} No "
-                    "access to bucket [{}]. new privilege set: {}",
+                    "{}: RBAC: {} No access to bucket [{}]. "
+                    "New privilege set: {}",
                     getId(),
                     getDescription(),
                     getBucket().name,
@@ -251,11 +251,9 @@ cb::rbac::PrivilegeContext Connection::getPrivilegeContext() {
             // Remove all access to the bucket
             privilegeContext = cb::rbac::PrivilegeContext{user.domain};
             if (isAuthenticated()) {
-                LOG_INFO(
-                        "{}: RBAC: Connection::refreshPrivilegeContext() {} No "
-                        "RBAC definition for the user.",
-                        getId(),
-                        getDescription());
+                LOG_INFO("{}: RBAC: {} No RBAC definition for the user.",
+                         getId(),
+                         getDescription());
             }
         }
     }
