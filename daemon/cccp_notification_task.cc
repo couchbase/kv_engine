@@ -87,10 +87,13 @@ public:
 };
 
 Task::Status CccpNotificationTask::execute() {
-    LOG_INFO("Pushing new cluster config for bucket:[{}] revision:[{}]",
-             bucket.name,
-             revision);
-
+    if (bucket.type == BucketType::NoBucket) {
+        LOG_INFO("Pushing new global cluster config - revision:[{}]", revision);
+    } else {
+        LOG_INFO("Pushing new cluster config for bucket:[{}] revision:[{}]",
+                 bucket.name,
+                 revision);
+    }
     auto rev = revision;
 
     // This feels a bit dirty, but the problem is that when we had
