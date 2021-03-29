@@ -884,8 +884,7 @@ void Connection::event_callback(bufferevent* bev, short event, void* ctx) {
     bool term = false;
 
     if ((event & BEV_EVENT_EOF) == BEV_EVENT_EOF) {
-        LOG_DEBUG("{}: Connection::event_callback: Socket EOF",
-                  instance.getId());
+        LOG_DEBUG("{}: Socket EOF", instance.getId());
         instance.setTerminationReason("Client closed connection");
         term = true;
     } else if ((event & BEV_EVENT_ERROR) == BEV_EVENT_ERROR) {
@@ -898,9 +897,8 @@ void Connection::event_callback(bufferevent* bev, short event, void* ctx) {
         if (sockErr != 0) {
             const auto errStr = evutil_socket_error_to_string(sockErr);
             LOG_INFO(
-                    "{}: Connection::event_callback: unrecoverable error "
-                    "encountered: {}, socket_error: {}:{}, shutting down "
-                    "connection",
+                    "{}: Unrecoverable error encountered: {}, socket_error: "
+                    "{}:{}, shutting down connection",
                     instance.getId(),
                     BevEvent2Json(event).dump(),
                     sockErr,
@@ -910,9 +908,8 @@ void Connection::event_callback(bufferevent* bev, short event, void* ctx) {
         } else if (sslErr != 0) {
             const auto errStr = ERR_reason_error_string(sslErr);
             LOG_INFO(
-                    "{}: Connection::event_callback: unrecoverable error "
-                    "encountered: {}, ssl_error: {}:{}, shutting down "
-                    "connection",
+                    "{}: Unrecoverable error encountered: {}, ssl_error: "
+                    "{}:{}, shutting down connection",
                     instance.getId(),
                     BevEvent2Json(event).dump(),
                     sslErr,
@@ -921,8 +918,8 @@ void Connection::event_callback(bufferevent* bev, short event, void* ctx) {
                     "ssl_error: " + std::to_string(sslErr) + ":" + errStr);
         } else {
             LOG_INFO(
-                    "{}: Connection::event_callback: unrecoverable error "
-                    "encountered: {}, shutting down connection",
+                    "{}: Unrecoverable error encountered: {}, shutting down "
+                    "connection",
                     instance.getId(),
                     BevEvent2Json(event).dump());
             instance.setTerminationReason("Network error");
