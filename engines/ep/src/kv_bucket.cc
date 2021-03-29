@@ -1364,23 +1364,19 @@ void KVBucket::appendAggregatedVBucketStats(
                               replica.getChkPersistRemaining());
 
     // Add stats for tracking HLC drift
-    collector.addStat(Key::ep_active_hlc_drift,
-                      active.getTotalAbsHLCDrift().total);
-    collector.addStat(Key::ep_active_hlc_drift_count,
-                      active.getTotalAbsHLCDrift().updates);
-    collector.addStat(Key::ep_replica_hlc_drift,
-                      replica.getTotalAbsHLCDrift().total);
-    collector.addStat(Key::ep_replica_hlc_drift_count,
-                      replica.getTotalAbsHLCDrift().updates);
+    for (const auto& visitor : {active, replica}) {
+        auto state = VBucket::toString(visitor.getVBucketState());
+        auto stateCol = collector.withLabels({{"state", state}});
+        stateCol.addStat(Key::ep_hlc_drift,
+                         visitor.getTotalAbsHLCDrift().total);
+        stateCol.addStat(Key::ep_hlc_drift_count,
+                         visitor.getTotalAbsHLCDrift().updates);
 
-    collector.addStat(Key::ep_active_ahead_exceptions,
-                      active.getTotalHLCDriftExceptionCounters().ahead);
-    collector.addStat(Key::ep_active_behind_exceptions,
-                      active.getTotalHLCDriftExceptionCounters().behind);
-    collector.addStat(Key::ep_replica_ahead_exceptions,
-                      replica.getTotalHLCDriftExceptionCounters().ahead);
-    collector.addStat(Key::ep_replica_behind_exceptions,
-                      replica.getTotalHLCDriftExceptionCounters().behind);
+        stateCol.addStat(Key::ep_ahead_exceptions,
+                         visitor.getTotalHLCDriftExceptionCounters().ahead);
+        stateCol.addStat(Key::ep_behind_exceptions,
+                         visitor.getTotalHLCDriftExceptionCounters().behind);
+    }
 
     // A single total for ahead exceptions accross all active/replicas
     collector.addStat(
