@@ -791,8 +791,47 @@ bool Connection::executeCommandsCallback() {
     return true;
 }
 
-void Connection::rw_callback(bufferevent*, void* ctx) {
+static std::string getOpenSSLErrors(Connection& c, bufferevent* bev) {
+    unsigned long err;
+    auto buffer = c.getThread().getScratchBuffer();
+    std::vector<std::string> messages;
+    while ((err = bufferevent_get_openssl_error(bev)) != 0) {
+        std::stringstream ss;
+        ERR_error_string_n(err, buffer.data(), buffer.size());
+        ss << "{" << buffer.data() << "},";
+        messages.emplace_back(ss.str());
+    };
+
+    if (messages.empty()) {
+        return {};
+    }
+
+    if (messages.size() == 1) {
+        // remove trailing ,
+        messages.front().pop_back();
+        return messages.front();
+    }
+
+    std::reverse(messages.begin(), messages.end());
+    std::string ret = "[";
+    for (const auto& a : messages) {
+        ret.append(a);
+    }
+    ret.back() = ']';
+    return ret;
+}
+
+void Connection::rw_callback(bufferevent* bev, void* ctx) {
     auto& instance = *reinterpret_cast<Connection*>(ctx);
+    if (instance.isSslEnabled()) {
+        const auto ssl_errors = getOpenSSLErrors(instance, bev);
+        if (!ssl_errors.empty()) {
+            LOG_INFO("{} - OpenSSL errors reported: {}",
+                     instance.getId(),
+                     ssl_errors);
+        }
+    }
+
     auto& thread = instance.getThread();
 
     TRACE_LOCKGUARD_TIMED(thread.mutex,
@@ -883,6 +922,11 @@ void Connection::event_callback(bufferevent* bev, short event, void* ctx) {
     auto& instance = *reinterpret_cast<Connection*>(ctx);
     bool term = false;
 
+    std::string ssl_errors;
+    if (instance.isSslEnabled()) {
+        ssl_errors = getOpenSSLErrors(instance, bev);
+    }
+
     if ((event & BEV_EVENT_EOF) == BEV_EVENT_EOF) {
         LOG_DEBUG("{}: Socket EOF", instance.getId());
         instance.setTerminationReason("Client closed connection");
@@ -891,9 +935,6 @@ void Connection::event_callback(bufferevent* bev, short event, void* ctx) {
         // Note: SSL connections may fail for reasons different than socket
         // error, so we avoid to dump errno:0 (ie, socket operation success).
         const auto sockErr = EVUTIL_SOCKET_ERROR();
-        const auto sslErr = instance.isSslEnabled()
-                                    ? bufferevent_get_openssl_error(bev)
-                                    : 0;
         if (sockErr != 0) {
             const auto errStr = evutil_socket_error_to_string(sockErr);
             LOG_INFO(
@@ -905,17 +946,14 @@ void Connection::event_callback(bufferevent* bev, short event, void* ctx) {
                     errStr);
             instance.setTerminationReason(
                     "socket_error: " + std::to_string(sockErr) + ":" + errStr);
-        } else if (sslErr != 0) {
-            const auto errStr = ERR_reason_error_string(sslErr);
+        } else if (!ssl_errors.empty()) {
             LOG_INFO(
                     "{}: Unrecoverable error encountered: {}, ssl_error: "
-                    "{}:{}, shutting down connection",
+                    "{}, shutting down connection",
                     instance.getId(),
                     BevEvent2Json(event).dump(),
-                    sslErr,
-                    errStr);
-            instance.setTerminationReason(
-                    "ssl_error: " + std::to_string(sslErr) + ":" + errStr);
+                    ssl_errors);
+            instance.setTerminationReason("ssl_error: " + ssl_errors);
         } else {
             LOG_INFO(
                     "{}: Unrecoverable error encountered: {}, shutting down "
@@ -980,6 +1018,14 @@ void Connection::event_callback(bufferevent* bev, short event, void* ctx) {
 
 void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
     auto& instance = *reinterpret_cast<Connection*>(ctx);
+
+    const auto ssl_errors = getOpenSSLErrors(instance, bev);
+    if (!ssl_errors.empty()) {
+        LOG_INFO("{} - OpenSSL errors reported: {}",
+                 instance.getId(),
+                 ssl_errors);
+    }
+
     // Lets inspect the certificate before we'll do anything further
     auto* ssl_st = bufferevent_openssl_get_ssl(bev);
     const auto verifyMode = SSL_get_verify_mode(ssl_st);
