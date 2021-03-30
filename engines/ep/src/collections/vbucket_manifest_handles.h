@@ -522,6 +522,15 @@ public:
         return manifest->getDiskSize(itr);
     }
 
+    /// @return the number of stores to the collection
+    size_t getOpsStore() const;
+
+    /// @return the deletes to the collection
+    size_t getOpsDelete() const;
+
+    /// @return the reads from the collection
+    size_t getOpsGet() const;
+
     void dump();
 
 protected:

@@ -726,7 +726,8 @@ cb::engine_errc KVBucket::set(Item& itm,
 
         result = vb->set(itm, cookie, engine, predicate, cHandle);
         if (result == cb::engine_errc::success) {
-            cHandle.incrementOpsStore();
+            itm.isDeleted() ? cHandle.incrementOpsDelete()
+                            : cHandle.incrementOpsStore();
         }
     }
 
@@ -781,7 +782,8 @@ cb::engine_errc KVBucket::add(Item& itm, const void* cookie) {
         cHandle.processExpiryTime(itm, getMaxTtl());
         result = vb->add(itm, cookie, engine, cHandle);
         if (result == cb::engine_errc::success) {
-            cHandle.incrementOpsStore();
+            itm.isDeleted() ? cHandle.incrementOpsDelete()
+                            : cHandle.incrementOpsStore();
         }
     }
 
@@ -827,7 +829,8 @@ cb::engine_errc KVBucket::replace(Item& itm,
         cHandle.processExpiryTime(itm, getMaxTtl());
         result = vb->replace(itm, cookie, engine, predicate, cHandle);
         if (result == cb::engine_errc::success) {
-            cHandle.incrementOpsStore();
+            itm.isDeleted() ? cHandle.incrementOpsDelete()
+                            : cHandle.incrementOpsStore();
         }
     }
 

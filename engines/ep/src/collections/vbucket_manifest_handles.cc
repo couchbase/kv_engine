@@ -32,6 +32,18 @@ uint64_t StatsReadHandle::getHighSeqno() const {
     return itr->second.getHighSeqno();
 }
 
+size_t StatsReadHandle::getOpsStore() const {
+    return itr->second.getOpsStore();
+}
+
+size_t StatsReadHandle::getOpsDelete() const {
+    return itr->second.getOpsDelete();
+}
+
+size_t StatsReadHandle::getOpsGet() const {
+    return itr->second.getOpsGet();
+}
+
 void ReadHandle::dump() const {
     std::cerr << *manifest << std::endl;
 }

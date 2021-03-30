@@ -3666,6 +3666,9 @@ TEST_F(CollectionsTest, ConcCompactReplayDeleteDelete) {
 
     auto d = DiskChecker(vb, CollectionEntry::meat, std::equal_to<>());
     runCompaction(vbid, 0, false);
+    auto handle = vb->getManifest().lock(CollectionEntry::meat);
+    EXPECT_EQ(2, handle.getOpsStore());
+    EXPECT_EQ(2, handle.getOpsDelete());
 }
 
 TEST_P(CollectionsEphemeralParameterizedTest, TrackSystemEventSize) {
