@@ -277,7 +277,7 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::isScopeIDValid(
     return cb::EngineErrorGetScopeIDResult{manifestLocked->getUid()};
 }
 
-void Collections::Manager::update(VBucket& vb) const {
+void Collections::Manager::maybeUpdate(VBucket& vb) const {
     // Lock manager updates, errors are logged by VB::Manifest
     currentManifest.withRLock(
             [&vb](const auto& manifest) { vb.updateFromManifest(manifest); });
@@ -330,7 +330,7 @@ bool Collections::Manager::warmupLoadManifest(const std::string& dbpath) {
 
 /**
  * Perform actions for a completed warmup - currently check if any
- * collections are 'deleting' and require erasing retriggering.
+ * collections are 'deleting' and require erase re-triggering.
  */
 void Collections::Manager::warmupCompleted(EPBucket& bucket) const {
     for (Vbid::id_type i = 0; i < bucket.getVBuckets().getSize(); i++) {
@@ -339,22 +339,6 @@ void Collections::Manager::warmupCompleted(EPBucket& bucket) const {
         if (vb) {
             if (vb->getManifest().isDropInProgress()) {
                 Collections::VB::Flush::triggerPurge(vbid, bucket);
-            }
-
-            // RLH for the state as we need to ensure that the state of the
-            // vBucket doesn't change underneath us. Why?
-            //
-            // 1) It's not valid for a replica to set the vBucket manifest in
-            // this way, it must do it via DCP
-            //
-            // 2) We could end up trying to access a PDM that does not exist
-            // when dropping a collection if we change from active to non-active
-            // to active again.
-            folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-            preSetStateAtWarmupHook();
-
-            if (vb->getState() == vbucket_state_active) {
-                update(*vb);
             }
         }
     }

@@ -173,11 +173,12 @@ public:
     cb::EngineErrorGetScopeIDResult isScopeIDValid(ScopeID sid) const;
 
     /**
-     * Update the vbucket's manifest with the current Manifest
+     * Update the vbucket's manifest with the current Manifest. This is a no-op
+     * if they are equal.
      * The Manager is locked to prevent current changing whilst this update
      * occurs.
      */
-    void update(VBucket& vb) const;
+    void maybeUpdate(VBucket& vb) const;
 
     /**
      * Do 'add_stat' calls for the bucket to retrieve summary collection stats
@@ -289,11 +290,6 @@ public:
 
     static cb::engine_errc doPrometheusCollectionStats(
             KVBucket& bucket, const BucketStatCollector& collector);
-
-    /**
-     * Test only hook
-     */
-    TestingHook<> preSetStateAtWarmupHook;
 
 private:
     /**

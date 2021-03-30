@@ -1281,38 +1281,6 @@ TEST_F(CollectionsWarmupTest, MB_38125) {
             StoredDocKey{"grape", CollectionEntry::fruit}));
 }
 
-TEST_F(CollectionsWarmupTest, LockedVBStateDuringManifestUpdate) {
-    // Reset but don't actually run the warmup yet
-    resetEngineAndEnableWarmup();
-
-    // Set the manifest before we run the "CreateVBuckets" phase of warmup. This
-    // ensures that we have a new manifest that requires setting when we
-    // complete warmup
-    CollectionsManifest cm;
-    cm.remove(CollectionEntry::defaultC);
-
-    // Cannot set the manifest yet - command follows ewouldblock pattern
-    auto status = engine->set_collection_manifest(cookie, std::string{cm});
-    EXPECT_EQ(cb::engine_errc::would_block, status);
-    cookie_to_mock_cookie(cookie)->status = cb::engine_errc::failed;
-
-    auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
-    mockEPBucket->setCollectionsManagerPreSetStateAtWarmupHook([this]() {
-        // We should not be able to lock exclusively here as we should already
-        // have a read handle on the VBucket state lock
-        auto vb = store->getVBucket(vbid);
-        ASSERT_TRUE(vb);
-        EXPECT_FALSE(vb->getStateLock().try_lock());
-        EXPECT_TRUE(vb->getStateLock().try_lock_shared());
-    });
-
-    runReadersUntilWarmedUp();
-
-    // cookie now notified and setCollections can go ahead
-    EXPECT_EQ(cb::engine_errc::success, cookie_to_mock_cookie(cookie)->status);
-    setCollections(cookie, cm);
-}
-
 /**
  * Test checks that setCollections propagates the collection data to active
  * vbuckets.

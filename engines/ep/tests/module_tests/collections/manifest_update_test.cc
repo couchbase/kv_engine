@@ -162,9 +162,13 @@ TEST_P(CollectionsManifestUpdate, update_add1_with_warmup) {
                         ->isForcedUpdate());
 
     // The apple is gone (dropped when the force update changed 22)
+    if (isFullEviction()) {
+        EXPECT_EQ(cb::engine_errc::would_block,
+                  store->get(apple, vbid, nullptr, QUEUE_BG_FETCH).getStatus());
+        runBGFetcherTask();
+    }
     EXPECT_EQ(cb::engine_errc::no_such_key,
               store->get(apple, vbid, nullptr, {}).getStatus());
-
     // But collection 22 lives on
     store_item(vbid, makeStoredDocKey("clarinet", 22), "soprano");
 }
@@ -300,6 +304,30 @@ TEST_P(CollectionsManifestUpdatePersistent, update_fail_warmup) {
     EXPECT_FALSE(store->getWarmup()->isComplete());
 
     // Warmup failed so we would not be able to diverge
+}
+
+// Warmup after set_collections is success, but before the vbucket was able
+// to flush. After warmup the vbucket should still know about collections
+// without any other set_collections
+TEST_P(CollectionsManifestUpdatePersistent, update_then_warmup) {
+    // Flush one key, this ensures the vbucket exists after warmup
+    auto apple1 = makeStoredDocKey("k1", CollectionID::Default);
+    store_item(vbid, apple1, "v1");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Now add a collection but do not flush
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    setCollections(cookie, cm);
+    EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().exists(
+            CollectionEntry::fruit));
+
+    // Warmup and expect that we can still access the collection (warmup
+    // replayed the 'forgotten' set_collections)
+    resetEngineAndWarmup();
+    // Store an apple in collection 22
+    auto apple = makeStoredDocKey("apple", CollectionEntry::fruit);
+    store_item(vbid, apple, "red");
 }
 
 INSTANTIATE_TEST_SUITE_P(CollectionsEphemeralOrPersistent,

@@ -977,7 +977,7 @@ void KVBucket::setVBucketState_UNLOCKED(
          * collectionsManager to ensure that it did not miss a manifest
          * that was not replicated via DCP.
          */
-        collectionsManager->update(*vb);
+        collectionsManager->maybeUpdate(*vb);
 
         // MB-37917: The vBucket is becoming an active and can no longer be
         // receiving an initial disk snapshot. It is now the source of truth so
@@ -1049,7 +1049,7 @@ cb::engine_errc KVBucket::createVBucket_UNLOCKED(
     // Note: Must be done /before/ adding the new VBucket to vbMap so that
     // it has the correct collections state when it is exposed to operations
     if (to == vbucket_state_active) {
-        collectionsManager->update(*newvb);
+        collectionsManager->maybeUpdate(*newvb);
     }
 
     if (vbMap.addBucket(newvb) == cb::engine_errc::out_of_range) {

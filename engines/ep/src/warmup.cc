@@ -1310,6 +1310,11 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
             Expects(!lockedVb);
 
             vbPtr->checkpointManager->queueSetVBState(*vbPtr);
+            if (itr->second->getState() == vbucket_state_active) {
+                // For all active vbuckets, call through to the manager so
+                // that they are made 'current' with the manifest.
+                store.getCollectionsManager().maybeUpdate(*itr->second);
+            }
             auto result = store.flushVBucket_UNLOCKED(
                     {vbPtr, std::move(lockedVb.getLock())});
             // if flusher returned MoreAvailable::Yes, this indicates the single

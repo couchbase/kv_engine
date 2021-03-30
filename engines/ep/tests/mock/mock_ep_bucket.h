@@ -71,9 +71,6 @@ public:
     /// @returns a non-const pointer to Flusher object.
     Flusher* getFlusherNonConst(Vbid vbid);
 
-    void setCollectionsManagerPreSetStateAtWarmupHook(
-            std::function<void()> hook);
-
     void setPostCompactionCompletionHook(std::function<void()> hook) {
         postCompactionCompletionStatsUpdateHook = hook;
     }

@@ -123,12 +123,6 @@ Flusher* MockEPBucket::getFlusherNonConst(Vbid vbid) {
     return vbMap.getShardByVbId(vbid)->getFlusher();
 }
 
-void MockEPBucket::setCollectionsManagerPreSetStateAtWarmupHook(
-        std::function<void()> hook) {
-    Expects(collectionsManager.get());
-    collectionsManager->preSetStateAtWarmupHook = hook;
-}
-
 void MockEPBucket::completeBGFetchMulti(
         Vbid vbId,
         std::vector<bgfetched_item_t>& fetchedItems,
