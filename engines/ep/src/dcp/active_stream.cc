@@ -725,7 +725,7 @@ std::unique_ptr<DcpResponse> ActiveStream::inMemoryPhase(
             transitionState(StreamState::Backfilling);
             pendingBackfill = false;
             return {};
-        } else if (nextCheckpointItem()) {
+        } else if (nextCheckpointItem(producer)) {
             return {};
         }
     }
@@ -744,7 +744,7 @@ std::unique_ptr<DcpResponse> ActiveStream::takeoverSendPhase(
     if (!readyQ.empty()) {
         return nextQueuedItem(producer);
     } else {
-        if (nextCheckpointItem()) {
+        if (nextCheckpointItem(producer)) {
             return {};
         }
     }
@@ -993,16 +993,12 @@ std::unique_ptr<DcpResponse> ActiveStream::nextQueuedItem(
     return nullptr;
 }
 
-bool ActiveStream::nextCheckpointItem() {
+bool ActiveStream::nextCheckpointItem(DcpProducer& producer) {
     VBucketPtr vbucket = engine->getVBucket(vb_);
     if (vbucket && vbucket->checkpointManager->getNumItemsForCursor(
                            cursor.lock().get()) > 0) {
         // schedule this stream to build the next checkpoint
-        auto producer = producerPtr.lock();
-        if (!producer) {
-            return false;
-        }
-        producer->scheduleCheckpointProcessorTask(shared_from_this());
+        producer.scheduleCheckpointProcessorTask(shared_from_this());
         return true;
     } else if (chkptItemsExtractionInProgress) {
         return true;
@@ -1989,10 +1985,14 @@ void ActiveStream::transitionState(StreamState newState) {
             // the Checkpoint flag on the next snapshot so the Consumer will
             // know to create a new Checkpoint.
             nextSnapshotIsCheckpoint = true;
-            nextCheckpointItem();
+
+            auto producer = producerPtr.lock();
+            if (producer) {
+                nextCheckpointItem(*producer);
+            }
         }
         break;
-    case StreamState::TakeoverSend:
+    case StreamState::TakeoverSend: {
         takeoverStart = ep_current_time();
 
         // Starting a new in-memory (takeover) snapshot which could contain
@@ -2001,10 +2001,11 @@ void ActiveStream::transitionState(StreamState newState) {
         // know to create a new Checkpoint.
         nextSnapshotIsCheckpoint = true;
 
-        if (!nextCheckpointItem()) {
+        auto producer = producerPtr.lock();
+        if (producer && !nextCheckpointItem(*producer)) {
             notifyStreamReady(true);
         }
-        break;
+    } break;
     case StreamState::Dead:
         removeCheckpointCursor();
         break;

@@ -55,8 +55,8 @@ public:
         processItems(result, lh);
     }
 
-    bool public_nextCheckpointItem() {
-        return nextCheckpointItem();
+    bool public_nextCheckpointItem(DcpProducer& producer) {
+        return nextCheckpointItem(producer);
     }
 
     const std::queue<std::unique_ptr<DcpResponse>>& public_readyQ() {

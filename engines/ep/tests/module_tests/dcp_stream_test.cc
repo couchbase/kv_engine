@@ -664,14 +664,14 @@ TEST_P(StreamTest, test_mb17766) {
     setup_dcp_stream();
 
     // Should start with nextCheckpointItem() returning true.
-    EXPECT_TRUE(stream->public_nextCheckpointItem())
+    EXPECT_TRUE(stream->public_nextCheckpointItem(*producer))
             << "nextCheckpointItem() should initially be true.";
 
     // Get the set of outstanding items
     auto items = stream->public_getOutstandingItems(*vb0);
 
     // REGRESSION CHECK: nextCheckpointItem() should still return true
-    EXPECT_TRUE(stream->public_nextCheckpointItem())
+    EXPECT_TRUE(stream->public_nextCheckpointItem(*producer))
             << "nextCheckpointItem() after getting outstanding items should be "
                "true.";
 
@@ -679,7 +679,7 @@ TEST_P(StreamTest, test_mb17766) {
     stream->public_processItems(items);
 
     // Should finish with nextCheckpointItem() returning false.
-    EXPECT_FALSE(stream->public_nextCheckpointItem())
+    EXPECT_FALSE(stream->public_nextCheckpointItem(*producer))
             << "nextCheckpointItem() after processing items should be false.";
     destroy_dcp_stream();
 }

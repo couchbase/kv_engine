@@ -401,7 +401,15 @@ protected:
      */
     bool shouldProcessItem(const Item& it);
 
-    bool nextCheckpointItem();
+    /**
+     * Schedules the checkpointProcessorTask of the DcpProducer if there are
+     * items to send.
+     *
+     * @param producer reference to the DcpProducer to schedule the
+     *                 checkpointProcessorTask
+     * @return true if there are items to be send from checkpoint(s)
+     */
+    bool nextCheckpointItem(DcpProducer& producer);
 
     /**
      * Get the next queued item.
