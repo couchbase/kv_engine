@@ -401,6 +401,8 @@ public:
     // MB-37827: Test hook set via mock class.
     TestingHook<> seqnoAckHook;
 
+    TestingHook<> updateStreamsMapHook;
+
 protected:
     /**
      * For filtered DCP, method returns the maximum of all the high-seqnos of

@@ -63,6 +63,7 @@
 #include "warmup.h"
 #include <utilities/test_manifest.h>
 
+#include <folly/synchronization/Baton.h>
 #include <platform/dirutils.h>
 #include <string_utilities.h>
 #include <xattr/blob.h>
@@ -494,6 +495,147 @@ std::string STParameterizedBucketTest::PrintToStringParamName(
         return bucket;
     }
     return bucket + "_" + evictionPolicy;
+}
+
+/**
+ * Regression test for MB-45255 - a crash due to a dereference of a null
+ * DcpProducer::backfillMgr if a streamRequest occurs during bucket shutdown:
+ *
+ * 1. Start with 1 producer and an existing stream (so DcpProducer is not
+ *    paused).
+ * 2. DcpProducer::streamRequest starts, succeeds but _doesn’t get as far as
+ *    adding to DCP conn map.
+ * 3. DcpConnMap::closeStreams (due to bucket shutdown)
+ *    1. closes all streams for each producer via DcpProducer::closeAllStreams
+ *    2. which resets backfillMgr ptr.
+ * 4. DcpProducer::streamRequest continues; adds new stream into map.
+ * 5. DcpConnMap::disconnect called, calls DcpProducer::closeAllStreams again
+ *    - which calls ActiveStream::setDead; attempts to dereference null
+ *    backfillMgr ptr (if in backfilling state).
+ *
+ * This is a similar issue to MB-37702 and MB-38521 - the difference being
+ * exactly when the streamRequest occurs relative to closeAllStreams.
+ */
+TEST_P(STParameterizedBucketTest,
+       MB45255_StreamRequestDuringShutdownNullBackfillMgr) {
+    // Setup /////////////////////////////////////////////////////////////////
+
+    // 1) Create Producer and ensure it is in the ConnMap so that we can
+    // emulate the shutdown
+    auto producer =
+            std::make_shared<MockDcpProducer>(*engine, cookie, "MB_45255", 0);
+    producer->createCheckpointProcessorTask();
+    auto& mockConnMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    mockConnMap.addConn(cookie, producer);
+
+    // 2) (Implementation detail) Get the Dcp Producer into a non-paused state,
+    // so when we later call DcpConnMap::manageConnections (via
+    // DcpConnMap::shutdownAllConnections) we don't notify the connection. This
+    // doesn't directly matter for the bug in question, but if we notify
+    // then we need to acquire the cookie mutex which will deadlock the test.
+    //
+    // Do this by:
+    //     storing some items into vb:0
+    //     creating a stream on that vb:0
+    //     advancing producer so it is no longer paused.
+    auto& kvBucket = *engine->getKVBucket();
+    kvBucket.setVBucketState(vbid, vbucket_state_active);
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+
+    uint64_t rollbackSeqno;
+    auto result = producer->streamRequest(0,
+                                          0,
+                                          Vbid{0},
+                                          0,
+                                          ~0,
+                                          0,
+                                          0,
+                                          0,
+                                          &rollbackSeqno,
+                                          mock_dcp_add_failover_log,
+                                          {});
+    ASSERT_EQ(cb::engine_errc::success, result);
+
+    auto stream = producer->findStream(Vbid{0});
+    auto nextItem = stream->next(*producer);
+    ASSERT_FALSE(nextItem);
+    ASSERT_TRUE(stream->isInMemory())
+            << vbid << " should be state:in-memory at start";
+
+    MockDcpMessageProducers mockMsgProducers;
+    runCheckpointProcessor(*producer, mockMsgProducers);
+    producer->step(mockMsgProducers);
+    ASSERT_FALSE(producer->isPaused());
+
+    // 3) Setup second stream - we need to perform a second streamRequest which
+    // must be backfilling (to backfillMgr is attempted to be accessed, so add
+    // one item to vb:1, then flush and remove checkpoint so required to
+    // backfill from disk.
+    const auto vbid1 = Vbid{1};
+    kvBucket.setVBucketState(vbid1, vbucket_state_active);
+    store_item(vbid1, makeStoredDocKey("key"), "value");
+    flushVBucketToDiskIfPersistent(vbid1, 1);
+    removeCheckpoint(*kvBucket.getVBucket(vbid1), 1);
+
+    // 4) Configure hook in updateStreamsMap so just before our 2nd
+    // DcpProducer::streamRequest (below) adds the created stream to
+    // DcpProducer::streams, shutdownAllConnections runs.
+    folly::Baton shutdownAllConnectionsStart;
+    folly::Baton shutdownAllConnectionsFinished;
+    producer->updateStreamsMapHook = [&] {
+        // Post to allow shutdownAllConnections to begin (cannot set
+        // DcpProducer disconnect = true before streamRequest has constructed
+        // stream and about to add to map).
+        shutdownAllConnectionsStart.post();
+
+        // Wait until shutdownAllCollections has finished, and
+        // DcpProducer::disconnect has been set (and backfillMgr set
+        // to nullptr.
+        shutdownAllConnectionsFinished.wait();
+    };
+
+    // 5. Create parallel thread which will perform the streamRequest
+    // concurrently with shutdownAllConnections.
+    std::thread frontend_thread_streamRequest{[&]() {
+        // Frontend thread always runs with the cookie locked, so
+        // lock here to match.
+        lock_mock_cookie(cookie);
+
+        uint64_t rollbackSeqno;
+        auto result = producer->streamRequest(0,
+                                              0,
+                                              vbid1,
+                                              0,
+                                              ~0,
+                                              0,
+                                              0,
+                                              0,
+                                              &rollbackSeqno,
+                                              mock_dcp_add_failover_log,
+                                              {});
+        EXPECT_EQ(cb::engine_errc::success, result);
+        unlock_mock_cookie(cookie);
+
+        auto stream = producer->findStream(vbid1);
+        ASSERT_TRUE(stream->isBackfilling());
+
+        lock_mock_cookie(cookie);
+        engine->handleDisconnect(cookie);
+        unlock_mock_cookie(cookie);
+    }};
+
+    // TEST: Trigger a shutdown. In original bug (with the sequence of
+    // operations setup above) this would result in a nullptr dereference of
+    // backfillMgr.
+    shutdownAllConnectionsStart.wait();
+    mockConnMap.shutdownAllConnections();
+    shutdownAllConnectionsFinished.post();
+
+    frontend_thread_streamRequest.join();
+
+    // DcpConnMap.manageConnections() will reset our cookie so we need to
+    // recreate it for the normal test TearDown to work
+    cookie = create_mock_cookie();
 }
 
 /**

@@ -1402,7 +1402,9 @@ bool DcpProducer::recordBackfillManagerBytesRead(size_t bytes) {
 }
 
 void DcpProducer::recordBackfillManagerBytesSent(size_t bytes) {
-    backfillMgr->bytesSent(bytes);
+    if (backfillMgr) {
+        backfillMgr->bytesSent(bytes);
+    }
 }
 
 bool DcpProducer::scheduleBackfillManager(VBucket& vb,
@@ -1963,6 +1965,8 @@ DcpProducer::StreamMapValue DcpProducer::findStreams(Vbid vbid) {
 void DcpProducer::updateStreamsMap(Vbid vbid,
                                    cb::mcbp::DcpStreamId sid,
                                    std::shared_ptr<ActiveStream>& stream) {
+    updateStreamsMapHook();
+
     auto found = streams->find(vbid.get());
 
     if (found != streams->end()) {
