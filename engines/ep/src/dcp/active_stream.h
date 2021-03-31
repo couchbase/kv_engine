@@ -537,13 +537,13 @@ protected:
     const IncludeDeletedUserXattrs includeDeletedUserXattrs;
 
 private:
-    std::unique_ptr<DcpResponse> inMemoryPhase();
+    std::unique_ptr<DcpResponse> inMemoryPhase(DcpProducer& producer);
 
-    std::unique_ptr<DcpResponse> takeoverSendPhase();
+    std::unique_ptr<DcpResponse> takeoverSendPhase(DcpProducer& producer);
 
-    std::unique_ptr<DcpResponse> takeoverWaitPhase();
+    std::unique_ptr<DcpResponse> takeoverWaitPhase(DcpProducer& producer);
 
-    std::unique_ptr<DcpResponse> deadPhase();
+    std::unique_ptr<DcpResponse> deadPhase(DcpProducer& producer);
 
     /**
      * Pushes the items of a snapshot to the readyQ.

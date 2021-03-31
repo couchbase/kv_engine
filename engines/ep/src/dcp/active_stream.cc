@@ -160,16 +160,16 @@ std::unique_ptr<DcpResponse> ActiveStream::next(DcpProducer& producer) {
         response = backfillPhase(producer, lh);
         break;
     case StreamState::InMemory:
-        response = inMemoryPhase();
+        response = inMemoryPhase(producer);
         break;
     case StreamState::TakeoverSend:
-        response = takeoverSendPhase();
+        response = takeoverSendPhase(producer);
         break;
     case StreamState::TakeoverWait:
-        response = takeoverWaitPhase();
+        response = takeoverWaitPhase(producer);
         break;
     case StreamState::Dead:
-        response = deadPhase();
+        response = deadPhase(producer);
         break;
     }
 
@@ -714,7 +714,8 @@ std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
     return resp;
 }
 
-std::unique_ptr<DcpResponse> ActiveStream::inMemoryPhase() {
+std::unique_ptr<DcpResponse> ActiveStream::inMemoryPhase(
+        DcpProducer& producer) {
     if (lastSentSeqno.load() >= end_seqno_) {
         endStream(cb::mcbp::DcpStreamEndStatus::Ok);
     } else if (readyQ.empty()) {
@@ -729,10 +730,11 @@ std::unique_ptr<DcpResponse> ActiveStream::inMemoryPhase() {
         }
     }
 
-    return nextQueuedItem();
+    return nextQueuedItem(producer);
 }
 
-std::unique_ptr<DcpResponse> ActiveStream::takeoverSendPhase() {
+std::unique_ptr<DcpResponse> ActiveStream::takeoverSendPhase(
+        DcpProducer& producer) {
     VBucketPtr vb = engine->getVBucket(vb_);
     if (vb && takeoverStart != 0 && !vb->isTakeoverBackedUp() &&
         (ep_current_time() - takeoverStart) > takeoverSendMaxTime) {
@@ -740,7 +742,7 @@ std::unique_ptr<DcpResponse> ActiveStream::takeoverSendPhase() {
     }
 
     if (!readyQ.empty()) {
-        return nextQueuedItem();
+        return nextQueuedItem(producer);
     } else {
         if (nextCheckpointItem()) {
             return {};
@@ -756,23 +758,21 @@ std::unique_ptr<DcpResponse> ActiveStream::takeoverSendPhase() {
         takeoverStart = 0;
     }
 
-    auto producer = producerPtr.lock();
-    if (producer) {
-        if (producer->bufferLogInsert(SetVBucketState::baseMsgBytes)) {
-            transitionState(StreamState::TakeoverWait);
-            return std::make_unique<SetVBucketState>(
-                    opaque_, vb_, takeoverState);
-        }
+    if (producer.bufferLogInsert(SetVBucketState::baseMsgBytes)) {
+        transitionState(StreamState::TakeoverWait);
+        return std::make_unique<SetVBucketState>(opaque_, vb_, takeoverState);
     }
+
     return nullptr;
 }
 
-std::unique_ptr<DcpResponse> ActiveStream::takeoverWaitPhase() {
-    return nextQueuedItem();
+std::unique_ptr<DcpResponse> ActiveStream::takeoverWaitPhase(
+        DcpProducer& producer) {
+    return nextQueuedItem(producer);
 }
 
-std::unique_ptr<DcpResponse> ActiveStream::deadPhase() {
-    auto resp = nextQueuedItem();
+std::unique_ptr<DcpResponse> ActiveStream::deadPhase(DcpProducer& producer) {
+    auto resp = nextQueuedItem(producer);
     if (!resp) {
         log(spdlog::level::level_enum::info,
             "{} Stream closed, "
