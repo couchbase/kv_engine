@@ -3052,7 +3052,7 @@ TEST_P(SingleThreadedActiveStreamTest,
                 EXPECT_EQ(backfillEnd + 1, (*pos)->getBySeqno());
             });
 
-    auto resp = stream->next();
+    auto resp = stream->next(*producer);
     EXPECT_FALSE(resp);
 
     // backfill not needed
@@ -3068,14 +3068,14 @@ TEST_P(SingleThreadedActiveStreamTest,
     // NB: This first snapshot will actually be _skipped_ as the checkpoint was
     // removed but the active stream did not backfill to "catch up"
     // snap marker
-    resp = stream->next();
+    resp = stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
     EXPECT_EQ(0, snapMarker.getStartSeqno());
     EXPECT_EQ(1, snapMarker.getEndSeqno());
 
     // receive mutation 1
-    resp = stream->next();
+    resp = stream->next(*producer);
     EXPECT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
 
@@ -3086,14 +3086,14 @@ TEST_P(SingleThreadedActiveStreamTest,
     }
 
     // snap marker
-    resp = stream->next();
+    resp = stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
     EXPECT_EQ(2, snapMarker.getStartSeqno());
     EXPECT_EQ(2, snapMarker.getEndSeqno());
 
     // receive mutation 2
-    resp = stream->next();
+    resp = stream->next(*producer);
     EXPECT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     {
@@ -4181,7 +4181,7 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillRangeCoversAllDataInTheStorage) {
     ASSERT_TRUE(stream);
     ASSERT_TRUE(stream->isBackfilling());
     ASSERT_TRUE(stream->public_supportSyncReplication());
-    auto resp = stream->next();
+    auto resp = stream->next(*producer);
     EXPECT_FALSE(resp);
 
     // Drive the backfill - execute
@@ -4194,7 +4194,7 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillRangeCoversAllDataInTheStorage) {
     ASSERT_EQ(backfill_success, bfm.backfill());
     const auto& readyQ = stream->public_readyQ();
     ASSERT_EQ(1, readyQ.size());
-    resp = stream->next();
+    resp = stream->next(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
@@ -4205,22 +4205,22 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillRangeCoversAllDataInTheStorage) {
     // Verify that all seqnos are sent at Backfill::scan
     ASSERT_EQ(backfill_success, bfm.backfill());
     ASSERT_EQ(4, readyQ.size());
-    resp = stream->next();
+    resp = stream->next(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     EXPECT_EQ(1, *resp->getBySeqno());
     ASSERT_EQ(3, readyQ.size());
-    resp = stream->next();
+    resp = stream->next(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     EXPECT_EQ(2, *resp->getBySeqno());
     ASSERT_EQ(2, readyQ.size());
-    resp = stream->next();
+    resp = stream->next(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     EXPECT_EQ(3, *resp->getBySeqno());
     ASSERT_EQ(1, readyQ.size());
-    resp = stream->next();
+    resp = stream->next(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     EXPECT_EQ(4, *resp->getBySeqno());

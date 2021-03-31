@@ -149,7 +149,7 @@ ActiveStream::~ActiveStream() {
     }
 }
 
-std::unique_ptr<DcpResponse> ActiveStream::next() {
+std::unique_ptr<DcpResponse> ActiveStream::next(DcpProducer& producer) {
     std::lock_guard<std::mutex> lh(streamMutex);
 
     std::unique_ptr<DcpResponse> response;

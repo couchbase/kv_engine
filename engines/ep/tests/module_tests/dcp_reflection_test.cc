@@ -389,7 +389,7 @@ void DCPLoopbackStreamTest::DcpRoute::destroy() {
 
 std::unique_ptr<DcpResponse>
 DCPLoopbackStreamTest::DcpRoute::getNextProducerMsg(ActiveStream* stream) {
-    std::unique_ptr<DcpResponse> producerMsg(stream->next());
+    std::unique_ptr<DcpResponse> producerMsg(stream->next(*producer));
     if (!producerMsg) {
         // Run the next ready task to populate the streams' items. This could
         // either be a NonIO task (ActiveStreamCheckpointProcessorTask) or

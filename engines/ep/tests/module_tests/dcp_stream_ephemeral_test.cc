@@ -186,7 +186,7 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_NormalWrite) {
     producer->createCheckpointProcessorTask();
     ASSERT_TRUE(stream);
     ASSERT_TRUE(stream->isBackfilling());
-    auto resp = stream->next();
+    auto resp = stream->next(*producer);
     EXPECT_FALSE(resp);
 
     // Drive the backfill - execute
@@ -197,7 +197,7 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_NormalWrite) {
     ASSERT_EQ(backfill_success, bfm.backfill());
     const auto& readyQ = stream->public_readyQ();
     ASSERT_EQ(1, readyQ.size());
-    resp = stream->next();
+    resp = stream->next(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
@@ -208,7 +208,7 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_NormalWrite) {
     // Before the fix backfill contains also s:1.
     ASSERT_EQ(backfill_success, bfm.backfill());
     ASSERT_EQ(1, readyQ.size());
-    resp = stream->next();
+    resp = stream->next(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     EXPECT_EQ(2, *resp->getBySeqno());
@@ -296,7 +296,7 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_SyncWrite) {
     ASSERT_TRUE(stream);
     ASSERT_TRUE(stream->isBackfilling());
     ASSERT_TRUE(stream->public_supportSyncReplication());
-    auto resp = stream->next();
+    auto resp = stream->next(*producer);
     EXPECT_FALSE(resp);
 
     // Drive the backfill - execute
@@ -307,7 +307,7 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_SyncWrite) {
     ASSERT_EQ(backfill_success, bfm.backfill());
     const auto& readyQ = stream->public_readyQ();
     ASSERT_EQ(1, readyQ.size());
-    resp = stream->next();
+    resp = stream->next(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
@@ -318,12 +318,12 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_SyncWrite) {
     // Before the fix backfill contains also s:1.
     ASSERT_EQ(backfill_success, bfm.backfill());
     ASSERT_EQ(2, readyQ.size());
-    resp = stream->next();
+    resp = stream->next(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     EXPECT_EQ(2, *resp->getBySeqno());
     ASSERT_EQ(1, readyQ.size());
-    resp = stream->next();
+    resp = stream->next(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
     EXPECT_EQ(3, *resp->getBySeqno());

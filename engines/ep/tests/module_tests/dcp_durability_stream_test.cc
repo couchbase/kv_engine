@@ -5226,7 +5226,7 @@ void DurabilityActiveStreamTest::testEmptyBackfillNoSyncWriteSupport(
 
     ASSERT_EQ(0, stream->public_readyQSize());
 
-    auto resp = stream->next();
+    auto resp = stream->next(*producer);
     EXPECT_FALSE(resp);
     EXPECT_EQ(ActiveStream::StreamState::InMemory, stream->getState());
 
@@ -5327,7 +5327,7 @@ void DurabilityActiveStreamTest::
 
     EXPECT_EQ(ActiveStream::StreamState::Backfilling, stream->getState());
 
-    auto resp = stream->next();
+    auto resp = stream->next(*producer);
     EXPECT_TRUE(resp);
 
     // snap marker
@@ -5340,7 +5340,7 @@ void DurabilityActiveStreamTest::
 
     // receive the mutation. Last item from backfill, stream transitions to
     // in memory.
-    resp = stream->next();
+    resp = stream->next(*producer);
     EXPECT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
 
@@ -5370,7 +5370,7 @@ void DurabilityActiveStreamTest::
     removeCheckpoint(*vb, 2);
 
     // stream transitions back to backfilling because the cursor was dropped
-    resp = stream->next();
+    resp = stream->next(*producer);
     EXPECT_FALSE(resp);
 
     EXPECT_EQ(ActiveStream::StreamState::Backfilling, stream->getState());
@@ -5383,7 +5383,7 @@ void DurabilityActiveStreamTest::
 
     // No items should have been added to the ready queue, they are all
     // aborts/prepares and the stream did not negotiate for sync writes
-    resp = stream->next();
+    resp = stream->next(*producer);
     EXPECT_FALSE(resp);
     EXPECT_EQ(ActiveStream::StreamState::InMemory, stream->getState());
 
@@ -5399,7 +5399,7 @@ void DurabilityActiveStreamTest::
     // snapshot marker + mutation
     EXPECT_EQ(2, stream->public_readyQSize());
 
-    resp = stream->next();
+    resp = stream->next(*producer);
     EXPECT_TRUE(resp);
 
     // snap marker
@@ -5409,11 +5409,11 @@ void DurabilityActiveStreamTest::
     EXPECT_EQ(4, snapMarker.getEndSeqno());
 
     // mutation
-    resp = stream->next();
+    resp = stream->next(*producer);
     EXPECT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
 
-    resp = stream->next();
+    resp = stream->next(*producer);
     EXPECT_FALSE(resp);
 }
 
@@ -5506,7 +5506,7 @@ TEST_P(DurabilityActiveStreamTest, inMemoryMultipleMarkers) {
 
     // marker, prepare, marker, mutation, prepare
     EXPECT_EQ(5, stream->public_readyQSize());
-    auto resp = stream->next();
+    auto resp = stream->next(*producer);
     EXPECT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
@@ -5515,10 +5515,10 @@ TEST_P(DurabilityActiveStreamTest, inMemoryMultipleMarkers) {
     EXPECT_EQ(1, snapMarker.getEndSeqno());
     EXPECT_EQ(0, snapMarker.getMaxVisibleSeqno().value_or(~0));
 
-    resp = stream->next();
+    resp = stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
 
-    resp = stream->next();
+    resp = stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
     EXPECT_TRUE(snapMarker.getFlags() & MARKER_FLAG_CHK);
@@ -5526,9 +5526,9 @@ TEST_P(DurabilityActiveStreamTest, inMemoryMultipleMarkers) {
     EXPECT_EQ(3, snapMarker.getEndSeqno());
     EXPECT_EQ(2, snapMarker.getMaxVisibleSeqno().value_or(~0));
 
-    resp = stream->next();
+    resp = stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
-    resp = stream->next();
+    resp = stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
 }
 

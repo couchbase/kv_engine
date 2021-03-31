@@ -108,7 +108,19 @@ public:
 
     ~ActiveStream() override;
 
-    std::unique_ptr<DcpResponse> next();
+    /**
+     * Get the next item for this stream
+     *
+     * @param producer Reference to the calling DcpProducer that may be used to
+     *                 update the BufferLog (nextQueuedItem) or notify the
+     *                 producer (notifyStream). This helps us avoid promotion of
+     *                 the producerPtr weak_ptr on the memcached worker path
+     *                 which reduces cache contention that can be observed on
+     *                 this path and the AuxIO backfill/checkpoint processor
+     *                 path.
+     * @return DcpResponse to ship to the consumer (via the calling DcpProducer)
+     */
+    std::unique_ptr<DcpResponse> next(DcpProducer& producer);
 
     void setActive() override {
         LockHolder lh(streamMutex);

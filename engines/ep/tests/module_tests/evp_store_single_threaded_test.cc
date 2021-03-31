@@ -991,7 +991,7 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_reregister_cursor) {
     mock_stream->public_setBackfillTaskRunning(false);
 
     //schedule a backfill
-    mock_stream->next();
+    mock_stream->next(*producer);
     // Calling scheduleBackfill_UNLOCKED(reschedule == true) will not actually
     // schedule a backfill task because backfillStart (is lastReadSeqno + 1) is
     // 1 and backfillEnd is 0, however the cursor still needs to be
@@ -1069,7 +1069,7 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
 
         // Request an item from each stream, so they all advance from
         // backfilling to in-memory
-        auto result = stream->next();
+        auto result = stream->next(*producer);
         EXPECT_FALSE(result);
         EXPECT_TRUE(stream->isInMemory())
                 << vbid << " should be state:in-memory at start";
@@ -1088,7 +1088,7 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
 
         // And then request another item, to add the VBID to
         // ActiveStreamCheckpointProcessorTask's queue.
-        result = stream->next();
+        result = stream->next(*producer);
         EXPECT_FALSE(result);
         EXPECT_EQ(id + 1, producer->getCheckpointSnapshotTask()->queueSize())
                 << "Should have added " << vbid << " to ProcessorTask queue";
@@ -1119,7 +1119,7 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
 
     // 2. Request next item from stream. Will transition to backfilling as part
     // of this.
-    auto result = stream->next();
+    auto result = stream->next(*producer);
     EXPECT_FALSE(result);
     EXPECT_TRUE(stream->isBackfilling()) << "should be state:backfilling "
                                             "after next() following "
@@ -1152,7 +1152,7 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
                                                "replication cursors after "
                                                "markDiskShapshot";
 
-    result = stream->next();
+    result = stream->next(*producer);
     ASSERT_TRUE(result);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, result->getEvent())
             << "Expected Snapshot marker after running backfill task.";
@@ -1173,7 +1173,7 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
 
     // Validate. We _should_ get two mutations: key1 & key2, but we have to
     // respin the checkpoint task for key2
-    result = stream->next();
+    result = stream->next(*producer);
     if (result && result->getEvent() == DcpResponse::Event::Mutation) {
         auto* mutation = dynamic_cast<MutationResponse*>(result.get());
         EXPECT_STREQ("key1", mutation->getItem()->getKey().c_str());
@@ -1182,7 +1182,7 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
     }
 
     // No items ready, but this should of rescheduled vb10
-    EXPECT_EQ(nullptr, stream->next());
+    EXPECT_EQ(nullptr, stream->next(*producer));
     EXPECT_EQ(1, producer->getCheckpointSnapshotTask()->queueSize())
             << "Should have 1 vBucket in ProcessorTask queue";
 
@@ -1191,11 +1191,11 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
     runNextTask(lpNonIoQ,
                 "Process checkpoint(s) for DCP producer test_producer");
 
-    result = stream->next();
+    result = stream->next(*producer);
     ASSERT_TRUE(result);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, result->getEvent())
             << "Expected Snapshot marker after running snapshot task.";
-    result = stream->next();
+    result = stream->next(*producer);
 
     if (result && result->getEvent() == DcpResponse::Event::Mutation) {
         auto* mutation = dynamic_cast<MutationResponse*>(result.get());
@@ -1204,7 +1204,7 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
         FAIL() << "Expected second Event::Mutation named 'key2'";
     }
 
-    result = stream->next();
+    result = stream->next(*producer);
     EXPECT_FALSE(result) << "Expected no more than 2 mutatons.";
 
     // Stop Producer checkpoint processor task
@@ -1243,12 +1243,12 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
               getEPBucket().flushVBucket(vbid));
 
     // Request an item from the stream, so it advances from to in-memory
-    auto result = stream->next();
+    auto result = stream->next(*producer);
     EXPECT_FALSE(result);
     EXPECT_TRUE(stream->isInMemory());
 
     // Now step the in-memory stream to schedule the checkpoint task
-    result = stream->next();
+    result = stream->next(*producer);
     EXPECT_FALSE(result);
     EXPECT_EQ(1, producer->getCheckpointSnapshotTask()->queueSize());
 
@@ -1281,7 +1281,7 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
                                                /*snap_end_seqno*/ ~0);
 
     // Step the stream which will now schedule a backfill
-    result = stream->next();
+    result = stream->next(*producer);
     EXPECT_FALSE(result);
     EXPECT_TRUE(stream->isBackfilling());
 
@@ -1303,7 +1303,7 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
             << "Expected persistence + replication cursors after "
                "markDiskShapshot";
 
-    result = stream->next();
+    result = stream->next(*producer);
     ASSERT_TRUE(result);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, result->getEvent())
             << "Expected Snapshot marker after running backfill task.";
@@ -1323,7 +1323,7 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
 
     // Finally read back all the items and we should get two snapshots and
     // key1/key2 key3/key4
-    result = stream->next();
+    result = stream->next(*producer);
     if (result && result->getEvent() == DcpResponse::Event::Mutation) {
         auto* mutation = dynamic_cast<MutationResponse*>(result.get());
         EXPECT_STREQ("key1", mutation->getItem()->getKey().c_str());
@@ -1331,7 +1331,7 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
         FAIL() << "Expected Event::Mutation named 'key1'";
     }
 
-    result = stream->next();
+    result = stream->next(*producer);
     if (result && result->getEvent() == DcpResponse::Event::Mutation) {
         auto* mutation = dynamic_cast<MutationResponse*>(result.get());
         EXPECT_STREQ("key2", mutation->getItem()->getKey().c_str());
@@ -1342,12 +1342,12 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
     runNextTask(lpNonIoQ,
                 "Process checkpoint(s) for DCP producer test_producer");
 
-    result = stream->next();
+    result = stream->next(*producer);
     ASSERT_TRUE(result);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, result->getEvent())
             << "Expected Snapshot marker after running snapshot task.";
 
-    result = stream->next();
+    result = stream->next(*producer);
     if (result && result->getEvent() == DcpResponse::Event::Mutation) {
         auto* mutation = dynamic_cast<MutationResponse*>(result.get());
         EXPECT_STREQ("key3", mutation->getItem()->getKey().c_str());
@@ -1355,7 +1355,7 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
         FAIL() << "Expected Event::Mutation named 'key3'";
     }
 
-    result = stream->next();
+    result = stream->next(*producer);
     if (result && result->getEvent() == DcpResponse::Event::Mutation) {
         auto* mutation = dynamic_cast<MutationResponse*>(result.get());
         EXPECT_STREQ("key4", mutation->getItem()->getKey().c_str());
@@ -1596,7 +1596,7 @@ TEST_P(STParamPersistentBucketTest, MB22960_cursor_dropping_data_loss) {
     EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
 
     //schedule a backfill
-    mock_stream->next();
+    mock_stream->next(*producer);
 
     // MB-37150: cursors are now registered before deciding if a backfill is
     // needed. to retain the original intent of this test, manually drop the
@@ -1621,29 +1621,29 @@ TEST_P(STParamPersistentBucketTest, MB22960_cursor_dropping_data_loss) {
     // inMemoryPhase and pendingBackfill is true and so transitions to
     // backfillPhase
     // take snapshot marker off the ReadyQ
-    auto resp = mock_stream->next();
+    auto resp = mock_stream->next(*producer);
     // backfillPhase() - take doc "key1" off the ReadyQ
-    resp = mock_stream->next();
+    resp = mock_stream->next(*producer);
     // backfillPhase - take doc "key2" off the ReadyQ
-    resp = mock_stream->next();
+    resp = mock_stream->next(*producer);
     runNextTask(lpAuxioQ);
     runNextTask(lpAuxioQ);
     runNextTask(lpAuxioQ);
     // Assert that the callback (and hence backfill) was only invoked twice
     ASSERT_EQ(2, registerCursorCount);
     // take snapshot marker off the ReadyQ
-    resp = mock_stream->next();
+    resp = mock_stream->next(*producer);
     // backfillPhase - take doc "key3" off the ReadyQ
-    resp = mock_stream->next();
+    resp = mock_stream->next(*producer);
     // backfillPhase() - take doc "key4" off the ReadyQ
     // isBackfillTaskRunning is not running and ReadyQ is now empty so also
     // transitionState from StreamBackfilling to StreamInMemory
-    resp = mock_stream->next();
+    resp = mock_stream->next(*producer);
     EXPECT_TRUE(mock_stream->isInMemory())
         << "stream state should have transitioned to StreamInMemory";
     // inMemoryPhase.  ReadyQ is empty and pendingBackfill is false and so
     // return NULL
-    resp = mock_stream->next();
+    resp = mock_stream->next(*producer);
     EXPECT_EQ(nullptr, resp);
     EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());
     EXPECT_EQ(2, ckpt_mgr.getNumOfCursors());
@@ -1810,7 +1810,7 @@ TEST_P(STParamPersistentBucketTest,
     // scheduleBackfill_UNLOCKED(false)
     mock_stream->transitionStateToBackfilling();
     // schedule the backfill
-    mock_stream->next();
+    mock_stream->next(*producer);
 
     auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
     EXPECT_EQ(1, lpAuxioQ.getFutureQueueSize());
@@ -1826,18 +1826,19 @@ TEST_P(STParamPersistentBucketTest,
     // backfillPhase
     // take snapshot marker off the ReadyQ
     std::unique_ptr<DcpResponse> resp =
-            static_cast< std::unique_ptr<DcpResponse> >(mock_stream->next());
+            static_cast<std::unique_ptr<DcpResponse>>(
+                    mock_stream->next(*producer));
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
 
     // backfillPhase() - take doc "key1" off the ReadyQ
-    resp = mock_stream->next();
+    resp = mock_stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     EXPECT_EQ(std::string("key1"),
               dynamic_cast<MutationResponse*>(resp.get())->
               getItem()->getKey().c_str());
 
     // backfillPhase - take doc "key2" off the ReadyQ
-    resp = mock_stream->next();
+    resp = mock_stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     EXPECT_EQ(std::string("key2"),
               dynamic_cast<MutationResponse*>(resp.get())->
@@ -1846,7 +1847,7 @@ TEST_P(STParamPersistentBucketTest,
     EXPECT_TRUE(mock_stream->isInMemory())
             << "stream state should have transitioned to StreamInMemory";
 
-    resp = mock_stream->next();
+    resp = mock_stream->next(*producer);
     EXPECT_FALSE(resp);
 
     EXPECT_EQ(1, ckpt_mgr.getNumCheckpoints());

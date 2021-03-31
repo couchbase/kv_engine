@@ -1751,7 +1751,7 @@ std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
                 const auto& stream = resumableIterator.get();
 
                 if (stream) {
-                    response = stream->next();
+                    response = stream->next(*this);
 
                     if (response) {
                         // VB gave us something, validate it
