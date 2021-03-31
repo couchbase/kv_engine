@@ -408,14 +408,6 @@ protected:
      * @param producer Producer for tracking the size against the BufferLog
      * @return DcpResponse to ship to the consumer
      */
-    std::unique_ptr<DcpResponse> nextQueuedItem();
-
-    /**
-     * Get the next queued item.
-     *
-     * @param producer Producer for tracking the size against the BufferLog
-     * @return DcpResponse to ship to the consumer
-     */
     std::unique_ptr<DcpResponse> nextQueuedItem(DcpProducer&);
 
     /**

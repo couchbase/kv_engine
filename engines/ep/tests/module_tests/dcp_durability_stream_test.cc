@@ -141,7 +141,7 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
 
     // readyQ must contain a SnapshotMarker (+ a Prepare)
     ASSERT_EQ(2, stream->public_readyQSize());
-    auto resp = stream->public_nextQueuedItem();
+    auto resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     // Only a prepare exists, so maxVisible remains 0
@@ -158,7 +158,7 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
 
     // readyQ must contain a DCP_PREPARE
     ASSERT_EQ(1, stream->public_readyQSize());
-    resp = stream->public_nextQueuedItem();
+    resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
     EXPECT_EQ(prepareSeqno, *resp->getBySeqno());
@@ -180,7 +180,7 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
 
     // readyQ empty now
     ASSERT_EQ(0, stream->public_readyQSize());
-    resp = stream->public_nextQueuedItem();
+    resp = stream->public_nextQueuedItem(*producer);
     ASSERT_FALSE(resp);
 }
 
@@ -314,7 +314,7 @@ void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
 
     // readyQ must contain SnapshotMarker
     ASSERT_EQ(2, stream->public_readyQSize());
-    auto resp = stream->public_nextQueuedItem();
+    auto resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     auto marker = dynamic_cast<SnapshotMarker&>(*resp);
@@ -329,7 +329,7 @@ void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
     ASSERT_EQ(0, producer->getBytesOutstanding());
 
     // readyQ must contain DCP_COMMIT/DCP_ABORT
-    resp = stream->public_nextQueuedItem();
+    resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     switch (res) {
     case Resolution::Commit: {
@@ -905,7 +905,7 @@ TEST_P(DurabilityActiveStreamTest,
     auto items = stream->getOutstandingItems(*vb);
     stream->public_processItems(items);
     stream->consumeBackfillItems(*producer, 1);
-    stream->public_nextQueuedItem();
+    stream->public_nextQueuedItem(*producer);
 
     EXPECT_EQ(cb::engine_errc::success, simulateStreamSeqnoAck(replica, 1));
     EXPECT_EQ(1, vb->getHighPreparedSeqno());
@@ -929,7 +929,7 @@ TEST_P(DurabilityActiveStreamTest,
     items = stream->getOutstandingItems(*vb);
     stream->public_processItems(items);
     stream->consumeBackfillItems(*producer, 3);
-    stream->public_nextQueuedItem();
+    stream->public_nextQueuedItem(*producer);
 
     EXPECT_EQ(cb::engine_errc::success, simulateStreamSeqnoAck(replica, 3));
     EXPECT_EQ(3, vb->getHighPreparedSeqno());
@@ -964,7 +964,7 @@ TEST_P(DurabilityActiveStreamTest,
     }
     EXPECT_EQ(expected, stream->public_readyQSize());
 
-    auto resp = stream->public_nextQueuedItem();
+    auto resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     auto marker = dynamic_cast<SnapshotMarker&>(*resp);
     EXPECT_EQ(4, marker.getMaxVisibleSeqno().value_or(~0));
@@ -1086,7 +1086,7 @@ TEST_P(DurabilityActiveStreamTest, DiskSnapshotSendsHCSWithSyncRepSupport) {
         expected = 2;
     }
     ASSERT_EQ(expected, stream->public_readyQSize());
-    auto resp = stream->public_nextQueuedItem();
+    auto resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
 
@@ -4463,7 +4463,7 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
 
     // readyQ must contain a SnapshotMarker + Prepare + Mutation
     ASSERT_EQ(3, stream->public_readyQSize());
-    auto resp = stream->public_nextQueuedItem();
+    auto resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
 
     // Snapshot marker must have the disk flag set, not the memory flag
@@ -4478,9 +4478,9 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
 
     // readyQ must contain a DCP_PREPARE
     ASSERT_EQ(2, stream->public_readyQSize());
-    resp = stream->public_nextQueuedItem();
+    resp = stream->public_nextQueuedItem(*producer);
     EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
-    resp = stream->public_nextQueuedItem();
+    resp = stream->public_nextQueuedItem(*producer);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     EXPECT_EQ(0, stream->public_readyQSize());
 
@@ -4508,7 +4508,7 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
     //   - SnapshotMarker, Mutation, Prepare
     //   - SnapshotMarker, Commit
     ASSERT_EQ(5, stream->public_readyQSize());
-    resp = stream->public_nextQueuedItem();
+    resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     ASSERT_EQ(4, stream->public_readyQSize());
 
@@ -4519,19 +4519,19 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
     // HCS not set for CheckpointType:Memory.
     ASSERT_FALSE(markerMemory->getHighCompletedSeqno());
 
-    resp = stream->public_nextQueuedItem();
+    resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     EXPECT_EQ(5, *resp->getBySeqno());
     ASSERT_EQ(3, stream->public_readyQSize());
 
-    resp = stream->public_nextQueuedItem();
+    resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
     EXPECT_EQ(6, *resp->getBySeqno());
     ASSERT_EQ(2, stream->public_readyQSize());
 
-    resp = stream->public_nextQueuedItem();
+    resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     ASSERT_EQ(1, stream->public_readyQSize());
@@ -4540,7 +4540,7 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
     // HCS not set for CheckpointType:Memory.
     ASSERT_FALSE(markerMemory->getHighCompletedSeqno());
 
-    resp = stream->public_nextQueuedItem();
+    resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Commit, resp->getEvent());
     EXPECT_EQ(7, *resp->getBySeqno());
@@ -4704,7 +4704,7 @@ void DurabilityPromotionStreamTest::
     // readyQ must contain a SnapshotMarker + Mutation
     ASSERT_EQ(2, activeStream->public_readyQSize());
     // SnapshotMarker must be Memory + CheckpointFlag
-    auto resp = activeStream->public_nextQueuedItem();
+    auto resp = activeStream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     auto* markerMemory = dynamic_cast<SnapshotMarker*>(resp.get());
@@ -4712,7 +4712,7 @@ void DurabilityPromotionStreamTest::
     // HCS not set for CheckpointType:Memory.
     ASSERT_FALSE(markerMemory->getHighCompletedSeqno());
     ASSERT_EQ(1, activeStream->public_readyQSize());
-    resp = activeStream->public_nextQueuedItem();
+    resp = activeStream->public_nextQueuedItem(*producer);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     EXPECT_EQ(0, activeStream->public_readyQSize());
 
@@ -4747,7 +4747,7 @@ void DurabilityPromotionStreamTest::
     //   That means that a Replica will not create a new Checkpoint at receiving
     //   the marker and will just queue (or at least it will try to) the
     //   snapshot into the open Checkpoint, which may even be of different type.
-    resp = activeStream->public_nextQueuedItem();
+    resp = activeStream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     const auto& markerDisk = dynamic_cast<SnapshotMarker&>(*resp);
@@ -4758,11 +4758,11 @@ void DurabilityPromotionStreamTest::
     ASSERT_TRUE(hcs);
     EXPECT_EQ(prepareSeqno, *hcs);
     ASSERT_EQ(2, activeStream->public_readyQSize());
-    resp = activeStream->public_nextQueuedItem();
+    resp = activeStream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
     ASSERT_EQ(1, activeStream->public_readyQSize());
-    resp = activeStream->public_nextQueuedItem();
+    resp = activeStream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     EXPECT_EQ(0, activeStream->public_readyQSize());
@@ -4790,7 +4790,7 @@ void DurabilityPromotionStreamTest::
     // !! NOTE: This is the important part of the test !!
     //   The marker must have the MARKER_FLAG_CHK. Note that we covered this
     //   case (Disk -> Memory snapshot transition) even before this patch.
-    resp = activeStream->public_nextQueuedItem();
+    resp = activeStream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     ASSERT_EQ(1, activeStream->public_readyQSize());
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
@@ -4799,7 +4799,7 @@ void DurabilityPromotionStreamTest::
     // HCS not set for CheckpointType:Memory.
     ASSERT_FALSE(markerMemory->getHighCompletedSeqno());
 
-    resp = activeStream->public_nextQueuedItem();
+    resp = activeStream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     EXPECT_EQ(4, *resp->getBySeqno());
@@ -4937,17 +4937,17 @@ void DurabilityPromotionStreamTest::
     // readyQ must contain SnapshotMarker{Disk, HCS:1} + PRE:1 + M:2
     ASSERT_EQ(3, activeStream->public_readyQSize());
 
-    auto resp = activeStream->public_nextQueuedItem();
+    auto resp = activeStream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     auto* marker = dynamic_cast<SnapshotMarker*>(resp.get());
     EXPECT_EQ(MARKER_FLAG_DISK | MARKER_FLAG_CHK, marker->getFlags());
     EXPECT_EQ(1, *marker->getHighCompletedSeqno());
     ASSERT_TRUE(resp);
-    resp = activeStream->public_nextQueuedItem();
+    resp = activeStream->public_nextQueuedItem(*producer);
     EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
     EXPECT_EQ(1, *resp->getBySeqno());
-    resp = activeStream->public_nextQueuedItem();
+    resp = activeStream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     ASSERT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     ASSERT_EQ(2, *resp->getBySeqno());
@@ -4974,17 +4974,17 @@ void DurabilityPromotionStreamTest::
     // readyQ must contain SnapshotMarker{Disk, HCS:3} + PRE:3 + M:4
     ASSERT_EQ(3, activeStream->public_readyQSize());
 
-    resp = activeStream->public_nextQueuedItem();
+    resp = activeStream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     marker = dynamic_cast<SnapshotMarker*>(resp.get());
     EXPECT_EQ(MARKER_FLAG_DISK | MARKER_FLAG_CHK, marker->getFlags());
     EXPECT_EQ(3, *marker->getHighCompletedSeqno());
     ASSERT_TRUE(resp);
-    resp = activeStream->public_nextQueuedItem();
+    resp = activeStream->public_nextQueuedItem(*producer);
     EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
     EXPECT_EQ(3, *resp->getBySeqno());
-    resp = activeStream->public_nextQueuedItem();
+    resp = activeStream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     ASSERT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     ASSERT_EQ(4, *resp->getBySeqno());
@@ -5111,13 +5111,13 @@ void DurabilityActiveStreamTest::testBackfillNoSyncWriteSupport(
 
     ASSERT_EQ(2, stream->public_readyQSize());
 
-    auto item = stream->public_nextQueuedItem();
+    auto item = stream->public_nextQueuedItem(*producer);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, item->getEvent());
     auto snapMarker = dynamic_cast<SnapshotMarker&>(*item);
     EXPECT_EQ(0, snapMarker.getStartSeqno());
     EXPECT_EQ(1, snapMarker.getEndSeqno());
 
-    item = stream->public_nextQueuedItem();
+    item = stream->public_nextQueuedItem(*producer);
 
     EXPECT_EQ(DcpResponse::Event::Mutation, item->getEvent());
 }

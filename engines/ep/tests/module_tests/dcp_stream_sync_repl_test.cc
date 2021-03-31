@@ -560,13 +560,13 @@ void DcpStreamSyncReplTest::testBackfillPrepare(DocumentState docState,
         uSleepTime = decayingSleep(uSleepTime);
     }
 
-    auto item = stream->public_nextQueuedItem();
+    auto item = stream->public_nextQueuedItem(*producer);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, item->getEvent());
     auto snapMarker = dynamic_cast<SnapshotMarker&>(*item);
     EXPECT_EQ(0, snapMarker.getStartSeqno());
     EXPECT_EQ(1, snapMarker.getEndSeqno());
 
-    item = stream->public_nextQueuedItem();
+    item = stream->public_nextQueuedItem(*producer);
     verifyDcpPrepare(*prepared, *item);
 }
 
@@ -648,18 +648,18 @@ void DcpStreamSyncReplTest::testBackfillPrepareCommit(
         uSleepTime = decayingSleep(uSleepTime);
     }
 
-    auto item = stream->public_nextQueuedItem();
+    auto item = stream->public_nextQueuedItem(*producer);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, item->getEvent());
     auto& dcpSnapMarker = dynamic_cast<SnapshotMarker&>(*item);
     EXPECT_EQ(0, dcpSnapMarker.getStartSeqno());
     EXPECT_EQ(2, dcpSnapMarker.getEndSeqno());
 
     if (bucketType != "ephemeral") {
-        item = stream->public_nextQueuedItem();
+        item = stream->public_nextQueuedItem(*producer);
         verifyDcpPrepare(*prepared, *item);
     }
 
-    item = stream->public_nextQueuedItem();
+    item = stream->public_nextQueuedItem(*producer);
     // In general, a backfill from disk will send a mutation instead of a
     // commit as we may have de-duped the preceding prepare. The only case where
     // a backfill from disk will send a commit message is when the prepare seqno
@@ -745,13 +745,13 @@ void DcpStreamSyncReplTest::testBackfillPrepareAbort(
         uSleepTime = decayingSleep(uSleepTime);
     }
 
-    auto item = stream->public_nextQueuedItem();
+    auto item = stream->public_nextQueuedItem(*producer);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, item->getEvent());
     auto& dcpSnapMarker = dynamic_cast<SnapshotMarker&>(*item);
     EXPECT_EQ(0, dcpSnapMarker.getStartSeqno());
     EXPECT_EQ(2, dcpSnapMarker.getEndSeqno());
 
-    item = stream->public_nextQueuedItem();
+    item = stream->public_nextQueuedItem(*producer);
     EXPECT_EQ(DcpResponse::Event::Abort, item->getEvent());
     auto& dcpAbort = dynamic_cast<AbortSyncWrite&>(*item);
     EXPECT_EQ(makeStoredDocKey("1"), dcpAbort.getKey());
@@ -842,15 +842,16 @@ TEST_P(DcpStreamSyncReplPersistentTest, ProducerAllowsSeqnoAckLEQToLastSent) {
     const auto& readyQ = stream->public_readyQ();
     ASSERT_EQ(3, readyQ.size());
 
-    std::unique_ptr<DcpResponse> resp = stream->public_nextQueuedItem();
+    std::unique_ptr<DcpResponse> resp =
+            stream->public_nextQueuedItem(*producer);
 
     ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     auto& snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
     EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, snapMarker.getFlags());
 
-    resp = stream->public_nextQueuedItem();
+    resp = stream->public_nextQueuedItem(*producer);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
-    resp = stream->public_nextQueuedItem();
+    resp = stream->public_nextQueuedItem(*producer);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
 
     EXPECT_NO_THROW(producer->seqno_acknowledged(0, vbid, 3));

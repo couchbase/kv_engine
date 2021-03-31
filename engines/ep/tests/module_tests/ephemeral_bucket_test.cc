@@ -575,16 +575,16 @@ TEST_F(SingleThreadedEphemeralTest, Commit_RangeRead) {
     //  QueueDirtyStatus::FailureDuplicateItem status at replica
     ASSERT_EQ(backfill_success, bfMgr.backfill());
     ASSERT_EQ(3, readyQ.size());
-    auto resp = stream->public_nextQueuedItem();
+    auto resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     ASSERT_EQ(2, readyQ.size());
-    resp = stream->public_nextQueuedItem();
+    resp = stream->public_nextQueuedItem(*producer);
     // Note: commit:2 sent as mutation in a backfill snapshot
     ASSERT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     ASSERT_EQ(2, resp->getBySeqno());
     ASSERT_EQ(1, readyQ.size());
-    resp = stream->public_nextQueuedItem();
+    resp = stream->public_nextQueuedItem(*producer);
     ASSERT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
     ASSERT_EQ(3, resp->getBySeqno());
 }

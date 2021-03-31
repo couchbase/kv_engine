@@ -64,9 +64,10 @@ std::unique_ptr<DcpResponse> MockActiveStream::public_popFromReadyQ() {
     return popFromReadyQ();
 }
 
-std::unique_ptr<DcpResponse> MockActiveStream::public_nextQueuedItem() {
+std::unique_ptr<DcpResponse> MockActiveStream::public_nextQueuedItem(
+        DcpProducer& producer) {
     LockHolder lh(streamMutex);
-    return nextQueuedItem();
+    return nextQueuedItem(producer);
 }
 
 std::unique_ptr<DcpResponse> MockActiveStream::public_makeResponseFromItem(

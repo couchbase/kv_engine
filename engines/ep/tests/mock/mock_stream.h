@@ -68,7 +68,7 @@ public:
         return readyQ.size();
     }
 
-    std::unique_ptr<DcpResponse> public_nextQueuedItem();
+    std::unique_ptr<DcpResponse> public_nextQueuedItem(DcpProducer& producer);
 
     void public_setBackfillTaskRunning(bool b) {
         isBackfillTaskRunning = b;

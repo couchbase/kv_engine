@@ -971,17 +971,6 @@ void ActiveStream::addTakeoverStats(const AddStatFn& add_stat,
     add_casted_stat("on_disk_deletes", del_items, add_stat, cookie);
 }
 
-std::unique_ptr<DcpResponse> ActiveStream::nextQueuedItem() {
-    if (!readyQ.empty()) {
-        auto producer = producerPtr.lock();
-        if (!producer) {
-            return nullptr;
-        }
-        return nextQueuedItem(*producer);
-    }
-    return nullptr;
-}
-
 std::unique_ptr<DcpResponse> ActiveStream::nextQueuedItem(
         DcpProducer& producer) {
     if (!readyQ.empty()) {

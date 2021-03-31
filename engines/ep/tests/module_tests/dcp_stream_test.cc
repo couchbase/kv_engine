@@ -727,15 +727,16 @@ TEST_P(StreamTest, MB17653_ItemsRemaining) {
     // Now actually drain the items from the readyQ and see how many we
     // received, excluding meta items. This will result in all but one of the
     // checkpoint items (the one we added just above) being drained.
-    std::unique_ptr<DcpResponse> response(stream->public_nextQueuedItem());
+    std::unique_ptr<DcpResponse> response(
+            stream->public_nextQueuedItem(*producer));
     ASSERT_NE(nullptr, response);
     EXPECT_TRUE(response->isMetaEvent()) << "Expected 1st item to be meta";
 
-    response = stream->public_nextQueuedItem();
+    response = stream->public_nextQueuedItem(*producer);
     ASSERT_NE(nullptr, response);
     EXPECT_FALSE(response->isMetaEvent()) << "Expected 2nd item to be non-meta";
 
-    response = stream->public_nextQueuedItem();
+    response = stream->public_nextQueuedItem(*producer);
     EXPECT_EQ(nullptr, response) << "Expected there to not be a 3rd item.";
 
     EXPECT_EQ(1, stream->getItemsRemaining()) << "Expected to have 1 item "
@@ -756,7 +757,7 @@ TEST_P(StreamTest, MB17653_ItemsRemaining) {
     // have no items left.
     stream->nextCheckpointItemTask();
     do {
-        response = stream->public_nextQueuedItem();
+        response = stream->public_nextQueuedItem(*producer);
     } while (response);
     EXPECT_EQ(0, stream->getItemsRemaining()) << "Should have 0 items "
                                                  "remaining after advancing "
@@ -800,11 +801,11 @@ TEST_P(StreamTest, BackfillOnly) {
     }
 
     // Check the content of readyQ
-    auto front = stream->public_nextQueuedItem();
+    auto front = stream->public_nextQueuedItem(*producer);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, front->getEvent());
     auto snapMarker = dynamic_cast<SnapshotMarker&>(*front);
     while (stream->public_readyQSize() > 0) {
-        auto item = stream->public_nextQueuedItem();
+        auto item = stream->public_nextQueuedItem(*producer);
         EXPECT_EQ(DcpResponse::Event::Mutation, item->getEvent());
         auto seqno = item->getBySeqno().value();
         EXPECT_GE(seqno, snapMarker.getStartSeqno());
@@ -1203,18 +1204,18 @@ TEST_P(StreamTest, ProcessItemsCheckpointStartIsLastItem) {
     // Don't care about startSeqno for this snapshot...
     EXPECT_EQ(10, snapMarker1.getEndSeqno());
 
-    stream->public_nextQueuedItem();
+    stream->public_nextQueuedItem(*producer);
     EXPECT_EQ(DcpResponse::Event::Mutation, readyQ.front()->getEvent());
 
     // Second snapshotMarker should be for seqno 11 and have the CHK flag set.
-    stream->public_nextQueuedItem();
+    stream->public_nextQueuedItem(*producer);
     ASSERT_EQ(DcpResponse::Event::SnapshotMarker, readyQ.front()->getEvent());
     auto& snapMarker2 = dynamic_cast<SnapshotMarker&>(*readyQ.front());
     EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, snapMarker2.getFlags());
     EXPECT_EQ(11, snapMarker2.getStartSeqno());
     EXPECT_EQ(11, snapMarker2.getEndSeqno());
 
-    stream->public_nextQueuedItem();
+    stream->public_nextQueuedItem(*producer);
     EXPECT_EQ(DcpResponse::Event::Mutation, readyQ.front()->getEvent());
 }
 
@@ -1662,7 +1663,7 @@ TEST_P(SingleThreadedActiveStreamTest, DiskSnapshotSendsChkMarker) {
 
     // readyQ must contain a SnapshotMarker
     ASSERT_GE(stream->public_readyQSize(), 1);
-    auto resp = stream->public_nextQueuedItem();
+    auto resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
 
@@ -3283,13 +3284,13 @@ void SingleThreadedActiveStreamTest::testProducerIncludesUserXattrsInDelete(
     stream->nextCheckpointItemTask();
     ASSERT_EQ(2, readyQ.size());
 
-    auto resp = stream->public_nextQueuedItem();
+    auto resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
 
     // Inspect payload for DCP deletion
 
-    resp = stream->public_nextQueuedItem();
+    resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
 
     const auto& deletion = dynamic_cast<MutationResponse&>(*resp);
@@ -3509,13 +3510,13 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
                   std::string_view(doc.item->getData(), doc.item->getNBytes()));
     }
 
-    auto resp = stream->public_nextQueuedItem();
+    auto resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
 
     // Inspect payload for DCP deletion
 
-    resp = stream->public_nextQueuedItem();
+    resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
 
     const auto& deletion = dynamic_cast<MutationResponse&>(*resp);
@@ -3707,20 +3708,20 @@ void SingleThreadedActiveStreamTest::testExpirationRemovesBody(uint32_t flags,
     stream->nextCheckpointItemTask();
     ASSERT_EQ(4, readyQ.size());
 
-    auto resp = stream->public_nextQueuedItem();
+    auto resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
-    resp = stream->public_nextQueuedItem();
+    resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     auto* msg = dynamic_cast<MutationResponse*>(resp.get());
     ASSERT_TRUE(msg);
     ASSERT_EQ(DcpResponse::Event::Mutation, msg->getEvent());
 
     // Inspect payload for DCP Expiration
-    resp = stream->public_nextQueuedItem();
+    resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
-    resp = stream->public_nextQueuedItem();
+    resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
     msg = dynamic_cast<MutationResponse*>(resp.get());
     ASSERT_TRUE(msg);
