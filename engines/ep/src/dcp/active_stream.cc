@@ -651,23 +651,19 @@ void ActiveStream::setBackfillRemaining_UNLOCKED(size_t value) {
 
 std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
         std::lock_guard<std::mutex>& lh) {
-    auto resp = nextQueuedItem();
+    auto producer = producerPtr.lock();
+    if (!producer) {
+        throw std::logic_error(
+                "ActiveStream::backfillPhase: Producer reference null. "
+                "This should not happen as "
+                "the function is called from the producer "
+                "object. " +
+                logPrefix);
+    }
+
+    auto resp = nextQueuedItem(*producer);
 
     if (resp) {
-        /* It is ok to have recordBackfillManagerBytesSent() and
-           bufferedBackfill.bytes.fetch_sub() for all events because
-           resp->getApproximateSize() is non zero for only certain resp types.
-           (MB-24905 is open to make the accounting cleaner) */
-        auto producer = producerPtr.lock();
-        if (!producer) {
-            throw std::logic_error(
-                    "ActiveStream::backfillPhase: Producer reference null. "
-                    "This should not happen as "
-                    "the function is called from the producer "
-                    "object. " +
-                    logPrefix);
-        }
-
         producer->recordBackfillManagerBytesSent(resp->getApproximateSize());
         bufferedBackfill.bytes.fetch_sub(resp->getApproximateSize());
         if (!resp->isMetaEvent() || resp->isSystemEvent()) {
@@ -691,7 +687,7 @@ std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
             // After scheduling a backfill we may now have items in readyQ -
             // so re-check if we didn't already have a response.
             if (!resp) {
-                resp = nextQueuedItem();
+                resp = nextQueuedItem(*producer.get());
             }
         } else {
             if (lastReadSeqno.load() >= end_seqno_) {
@@ -720,7 +716,7 @@ std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
             }
 
             if (!resp) {
-                resp = nextQueuedItem();
+                resp = nextQueuedItem(*producer.get());
             }
         }
     }
@@ -742,6 +738,7 @@ std::unique_ptr<DcpResponse> ActiveStream::inMemoryPhase() {
             return {};
         }
     }
+
     return nextQueuedItem();
 }
 
@@ -986,12 +983,20 @@ void ActiveStream::addTakeoverStats(const AddStatFn& add_stat,
 
 std::unique_ptr<DcpResponse> ActiveStream::nextQueuedItem() {
     if (!readyQ.empty()) {
-        auto& response = readyQ.front();
         auto producer = producerPtr.lock();
         if (!producer) {
             return nullptr;
         }
-        if (producer->bufferLogInsert(response->getMessageSize())) {
+        return nextQueuedItem(*producer);
+    }
+    return nullptr;
+}
+
+std::unique_ptr<DcpResponse> ActiveStream::nextQueuedItem(
+        DcpProducer& producer) {
+    if (!readyQ.empty()) {
+        auto& response = readyQ.front();
+        if (producer.bufferLogInsert(response->getMessageSize())) {
             auto seqno = response->getBySeqno();
             if (seqno) {
                 lastSentSeqno.store(*seqno);
