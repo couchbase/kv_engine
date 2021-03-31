@@ -82,8 +82,6 @@ public:
 
     virtual void addStats(const AddStatFn& add_stat, const void* c);
 
-    virtual std::unique_ptr<DcpResponse> next() = 0;
-
     virtual uint32_t setDead(cb::mcbp::DcpStreamEndStatus status) = 0;
 
     virtual void notifySeqnoAvailable(uint64_t seqno) {}

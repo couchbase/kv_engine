@@ -63,7 +63,7 @@ public:
     process_items_error_t processBufferedMessages(uint32_t& processed_bytes,
                                                   size_t batchSize);
 
-    std::unique_ptr<DcpResponse> next() override;
+    std::unique_ptr<DcpResponse> next();
 
     uint32_t setDead(cb::mcbp::DcpStreamEndStatus status) override;
 

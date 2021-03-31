@@ -108,7 +108,7 @@ public:
 
     ~ActiveStream() override;
 
-    std::unique_ptr<DcpResponse> next() override;
+    std::unique_ptr<DcpResponse> next();
 
     void setActive() override {
         LockHolder lh(streamMutex);

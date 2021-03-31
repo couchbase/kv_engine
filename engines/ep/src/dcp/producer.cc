@@ -1748,7 +1748,7 @@ std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
             for (auto resumableIterator = rv->second->startResumable();
                  !resumableIterator.complete();
                  resumableIterator.next()) {
-                const std::shared_ptr<Stream>& stream = resumableIterator.get();
+                const auto& stream = resumableIterator.get();
 
                 if (stream) {
                     response = stream->next();
@@ -1759,10 +1759,9 @@ std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
                         case DcpResponse::Event::SnapshotMarker: {
                             if (stream->endIfRequiredPrivilegesLost(
                                         getCookie())) {
-                                return static_cast<ActiveStream*>(stream.get())
-                                        ->makeEndStreamResponse(
-                                                cb::mcbp::DcpStreamEndStatus::
-                                                        LostPrivileges);
+                                return stream->makeEndStreamResponse(
+                                        cb::mcbp::DcpStreamEndStatus::
+                                                LostPrivileges);
                             }
                         }
                         case DcpResponse::Event::Mutation:
