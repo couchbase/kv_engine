@@ -279,8 +279,8 @@ void DCPTest::setup_dcp_stream(
     stream->setActive();
 }
 
-void DCPTest::destroy_dcp_stream() {
-    producer->closeStream(/*opaque*/ 0, vb0->getId());
+cb::engine_errc DCPTest::destroy_dcp_stream() {
+    return producer->closeStream(/*opaque*/ 0, vb0->getId());
 }
 
 DCPTest::StreamRequestResult DCPTest::doStreamRequest(DcpProducer& producer,
@@ -478,7 +478,7 @@ TEST_F(DCPTest, MB34280) {
             },
             cookie);
 
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 
     stream.reset();
     vb0.reset();
@@ -804,7 +804,7 @@ TEST_P(CompressionStreamTest, force_value_compression_enabled) {
     EXPECT_EQ((expectedDataType | PROTOCOL_BINARY_DATATYPE_SNAPPY),
               producers.last_datatype);
 
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::success, destroy_dcp_stream());
 }
 
 TEST_P(CompressionStreamTest,

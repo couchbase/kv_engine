@@ -38,7 +38,7 @@ TEST_P(EphemeralStreamTest, backfillGetsNoItems) {
             std::dynamic_pointer_cast<EphemeralVBucket>(vb0));
     DCPBackfillMemoryBuffered dcpbfm(evb, stream, 1, 1);
     dcpbfm.run();
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
 TEST_P(EphemeralStreamTest, bufferedMemoryBackfillPurgeGreaterThanStart) {
@@ -111,7 +111,7 @@ TEST_P(EphemeralStreamTest, EphemeralBackfillSnapshotHasNoDuplicates) {
     /* Verify that only 4 items are read in the backfill (no duplicates) */
     EXPECT_EQ(numItems, stream->getNumBackfillItems());
 
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
 // Ephemeral only

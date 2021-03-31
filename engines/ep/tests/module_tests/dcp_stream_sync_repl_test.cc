@@ -155,7 +155,7 @@ void DcpStreamSyncReplTest::testNoPendingWithoutSyncReplica(
 
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
 
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::success, destroy_dcp_stream());
 }
 
 TEST_P(DcpStreamSyncReplTest, NoPendingWriteWithoutSyncReplica) {
@@ -279,7 +279,7 @@ void DcpStreamSyncReplTest::testPendingAndMutationWithoutSyncReplica(
     EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
 
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::success, destroy_dcp_stream());
 }
 
 TEST_P(DcpStreamSyncReplTest, PendingWriteAndMutationWithoutSyncReplica) {
@@ -329,7 +329,7 @@ void DcpStreamSyncReplTest::testMutationAndPendingWithoutSyncReplica(
     EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
 
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::success, destroy_dcp_stream());
 }
 
 TEST_P(DcpStreamSyncReplTest, MutationAndPendingWriteWithoutSyncReplica) {
@@ -382,7 +382,7 @@ void DcpStreamSyncReplTest::testPendingItemWithSyncReplica(
     EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
 
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::success, destroy_dcp_stream());
 }
 
 TEST_P(DcpStreamSyncReplTest, PendingWriteWithSyncReplica) {
@@ -445,7 +445,7 @@ void DcpStreamSyncReplTest::testPendingAndMutationWithSyncReplica(
     EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
 
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::success, destroy_dcp_stream());
 }
 
 TEST_P(DcpStreamSyncReplTest, PendingWriteAndMutationWithSyncReplica) {
@@ -517,7 +517,7 @@ void DcpStreamSyncReplTest::testMutationAndPending2SnapshotsWithSyncReplica(
     EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
 
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::success, destroy_dcp_stream());
 }
 
 TEST_P(DcpStreamSyncReplTest, MutationAndPendingWrite2SSWithSyncReplica) {

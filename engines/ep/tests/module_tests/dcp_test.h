@@ -45,7 +45,7 @@ protected:
             IncludeXattrs includeXattrs = IncludeXattrs::Yes,
             std::vector<std::pair<std::string, std::string>> controls = {});
 
-    void destroy_dcp_stream();
+    cb::engine_errc destroy_dcp_stream();
 
     struct StreamRequestResult {
         cb::engine_errc status;

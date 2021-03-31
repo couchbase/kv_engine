@@ -91,7 +91,7 @@ TEST_P(StreamTest, test_streamIsKeyOnlyTrue) {
             producer->findStream(Vbid(0)));
     ASSERT_NE(nullptr, activeStream);
     EXPECT_TRUE(activeStream->isKeyOnly());
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::success, destroy_dcp_stream());
 }
 
 // Test the compression control error case
@@ -104,7 +104,7 @@ TEST_P(StreamTest, validate_compression_control_message_denied) {
     // Sending a control message without actually enabling SNAPPY must fail
     EXPECT_EQ(cb::engine_errc::invalid_arguments,
               producer->control(0, compressCtrlMsg, compressCtrlValue));
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
 void StreamTest::setupProducerCompression() {
@@ -183,7 +183,7 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
               producer->getTotalUncompressedDataSize() -
                       totalUncompressedDataSize);
 
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::success, destroy_dcp_stream());
 }
 
 /*
@@ -228,7 +228,7 @@ TEST_P(StreamTest, test_verifyProducerCompressionDisabledStats) {
               producer->getTotalUncompressedDataSize() -
                       totalUncompressedDataSize);
 
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::success, destroy_dcp_stream());
 }
 
 /*
@@ -340,7 +340,7 @@ TEST_P(StreamTest, test_verifyProducerStats) {
     EXPECT_EQ(6, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
 
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::success, destroy_dcp_stream());
 }
 
 /*
@@ -357,7 +357,7 @@ TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeValue) {
             producer->findStream(Vbid(0)));
     ASSERT_NE(nullptr, activeStream);
     EXPECT_FALSE(activeStream->isKeyOnly());
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::success, destroy_dcp_stream());
 }
 
 /*
@@ -374,7 +374,7 @@ TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeXattrs) {
             producer->findStream(Vbid(0)));
     ASSERT_NE(nullptr, activeStream);
     EXPECT_FALSE(activeStream->isKeyOnly());
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::success, destroy_dcp_stream());
 }
 
 /*
@@ -401,7 +401,7 @@ TEST_P(StreamTest, test_keyOnlyMessageSize) {
     ASSERT_NE(qi.get(), mutProdResponse->getItem().get());
 
     EXPECT_EQ(keyOnlyMessageSize, dcpResponse->getMessageSize());
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
 /*
@@ -429,7 +429,7 @@ TEST_P(StreamTest, test_keyOnlyMessageSizeUnderlyingDatatype) {
     ASSERT_NE(qi.get(), mutProdResponse->getItem().get());
 
     EXPECT_EQ(keyOnlyMessageSize, dcpResponse->getMessageSize());
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
 /*
@@ -456,7 +456,7 @@ TEST_P(StreamTest, test_keyValueAndXattrsMessageSize) {
     auto mutProdResponse = dynamic_cast<MutationResponse*>(dcpResponse.get());
     ASSERT_EQ(qi.get(), mutProdResponse->getItem().get());
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
 /*
@@ -483,7 +483,7 @@ TEST_P(StreamTest, test_keyAndValueMessageSize) {
     auto mutProdResponse = dynamic_cast<MutationResponse*>(dcpResponse.get());
     ASSERT_EQ(qi.get(), mutProdResponse->getItem().get());
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
 /*
@@ -514,7 +514,7 @@ TEST_P(StreamTest, test_keyAndValueExcludingXattrsMessageSize) {
     auto mutProdResponse = dynamic_cast<MutationResponse*>(dcpResponse.get());
     ASSERT_NE(qi.get(), mutProdResponse->getItem().get());
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
 /*
@@ -541,7 +541,7 @@ TEST_P(StreamTest,
     auto mutProdResponse = dynamic_cast<MutationResponse*>(dcpResponse.get());
     ASSERT_EQ(qi.get(), mutProdResponse->getItem().get());
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
 /*
@@ -571,7 +571,7 @@ TEST_P(StreamTest, test_keyAndValueExcludingValueDataMessageSize) {
     auto mutProdResponse = dynamic_cast<MutationResponse*>(dcpResponse.get());
     ASSERT_NE(qi.get(), mutProdResponse->getItem().get());
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
 /*
@@ -604,7 +604,7 @@ TEST_P(StreamTest, test_keyAndValueExcludingValueWithDatatype) {
     auto& responseItem = mutProdResponse->getItem();
     EXPECT_EQ(qi->getDataType(), responseItem->getDataType());
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
 /*
@@ -635,7 +635,7 @@ TEST_P(StreamTest, test_keyAndValueWithoutXattrExcludingValueWithDatatype) {
     auto& responseItem = mutProdResponse->getItem();
     EXPECT_EQ(qi->getDataType(), responseItem->getDataType());
     EXPECT_EQ(keyAndValueMessageSize, dcpResponse->getMessageSize());
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
 /* Regression test for MB-17766 - ensure that when an ActiveStream is preparing
@@ -667,7 +667,7 @@ TEST_P(StreamTest, test_mb17766) {
     // Should finish with nextCheckpointItem() returning false.
     EXPECT_FALSE(stream->public_nextCheckpointItem(*producer))
             << "nextCheckpointItem() after processing items should be false.";
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
 // Check that the items remaining statistic is accurate and is unaffected
@@ -748,7 +748,7 @@ TEST_P(StreamTest, MB17653_ItemsRemaining) {
     EXPECT_EQ(0, stream->getItemsRemaining()) << "Should have 0 items "
                                                  "remaining after advancing "
                                                  "cursor and draining readyQ";
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
 /* Stream items from a DCP backfill */
@@ -802,7 +802,7 @@ TEST_P(StreamTest, BackfillOnly) {
     EXPECT_EQ(numItems, stream->getNumBackfillItems());
     EXPECT_EQ(numItems, *stream->getNumBackfillItemsRemaining());
 
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
 /* Negative test case that checks whether the stream gracefully goes to
@@ -836,7 +836,7 @@ TEST_P(StreamTest, DiskBackfillFail) {
         }
     }
 
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
 /* Stream items from a DCP backfill with very small backfill buffer.
@@ -889,7 +889,7 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
 
     /* Read the other item */
     stream->consumeBackfillItems(*producer, 1);
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
 TEST_P(StreamTest, CursorDroppingBasicBackfillState) {
@@ -915,7 +915,7 @@ TEST_P(StreamTest, CursorDroppingBasicBackfillState) {
             uSleepTime = decayingSleep(uSleepTime);
         }
     }
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
 /*
@@ -972,7 +972,7 @@ TEST_P(StreamTest, MB_32329CursorDroppingResetCursor) {
             uSleepTime = decayingSleep(uSleepTime);
         }
     }
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
 TEST_P(StreamTest, CursorDroppingBasicInMemoryState) {
@@ -982,7 +982,7 @@ TEST_P(StreamTest, CursorDroppingBasicInMemoryState) {
     /* Transition stream to in-memory state and expect cursor dropping call to
        succeed */
     EXPECT_TRUE(stream->public_handleSlowStream());
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
 TEST_P(StreamTest, CursorDroppingBasicNotAllowedStates) {
@@ -1003,7 +1003,7 @@ TEST_P(StreamTest, CursorDroppingBasicNotAllowedStates) {
        to fail */
     stream->transitionStateToTakeoverDead();
     EXPECT_FALSE(stream->public_handleSlowStream());
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
 TEST_P(StreamTest, RollbackDueToPurge) {
@@ -1043,7 +1043,7 @@ TEST_P(StreamTest, RollbackDueToPurge) {
             *producer, numItems - 2, numItems, 0, numItems - 2, vbUuid);
     EXPECT_EQ(cb::engine_errc::rollback, result.status);
     EXPECT_EQ(0, result.rollbackSeqno);
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
 /*
@@ -1081,7 +1081,7 @@ TEST_P(StreamTest, validate_compression_control_message_allowed) {
     // Sending a control message after enabling SNAPPY should succeed
     EXPECT_EQ(cb::engine_errc::success,
               producer->control(0, compressCtrlMsg, compressCtrlValue));
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
 // Test that ActiveStream::processItems correctly encodes a Snapshot marker
@@ -1279,7 +1279,7 @@ TEST_P(StreamTest, MB38356_DuplicateStreamRequest) {
                 ElementsAre(HasOperation(queue_op::checkpoint_start),
                             HasOperation(queue_op::set_vbucket_state)));
 
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::success, destroy_dcp_stream());
 }
 
 class CacheCallbackTest : public StreamTest {
@@ -4545,7 +4545,7 @@ TEST_P(StreamTest, multi_stream_control_denied) {
               producer->control(0, "enable_stream_id", "true"));
     EXPECT_TRUE(producer->isSyncWritesEnabled());
     EXPECT_FALSE(producer->isMultipleStreamEnabled());
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
 TEST_P(StreamTest, sync_writes_denied) {
@@ -4559,7 +4559,7 @@ TEST_P(StreamTest, sync_writes_denied) {
               producer->control(0, "enable_sync_writes", "true"));
     EXPECT_FALSE(producer->isSyncWritesEnabled());
     EXPECT_TRUE(producer->isMultipleStreamEnabled());
-    destroy_dcp_stream();
+    EXPECT_EQ(cb::engine_errc::dcp_streamid_invalid, destroy_dcp_stream());
 }
 
 /**
