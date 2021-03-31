@@ -705,7 +705,7 @@ TEST_P(DurabilityActiveStreamTest, RemoveCorrectQueuedAckAtStreamSetDead) {
     bfm.backfill();
     bfm.backfill();
     EXPECT_EQ(2, stream->public_readyQSize());
-    stream->consumeBackfillItems(2);
+    stream->consumeBackfillItems(*producer, 2);
 
     // Should not throw a monotonic exception as the ack should have been
     // removed by setDead.
@@ -904,7 +904,7 @@ TEST_P(DurabilityActiveStreamTest,
 
     auto items = stream->getOutstandingItems(*vb);
     stream->public_processItems(items);
-    stream->consumeBackfillItems(1);
+    stream->consumeBackfillItems(*producer, 1);
     stream->public_nextQueuedItem();
 
     EXPECT_EQ(cb::engine_errc::success, simulateStreamSeqnoAck(replica, 1));
@@ -928,7 +928,7 @@ TEST_P(DurabilityActiveStreamTest,
 
     items = stream->getOutstandingItems(*vb);
     stream->public_processItems(items);
-    stream->consumeBackfillItems(3);
+    stream->consumeBackfillItems(*producer, 3);
     stream->public_nextQueuedItem();
 
     EXPECT_EQ(cb::engine_errc::success, simulateStreamSeqnoAck(replica, 3));
@@ -971,7 +971,7 @@ TEST_P(DurabilityActiveStreamTest,
     EXPECT_EQ(3, marker.getHighCompletedSeqno().value_or(~0));
     EXPECT_EQ(4, marker.getEndSeqno());
 
-    stream->consumeBackfillItems(1);
+    stream->consumeBackfillItems(*producer, 1);
 
     EXPECT_EQ(cb::engine_errc::success, simulateStreamSeqnoAck(replica, 1));
 

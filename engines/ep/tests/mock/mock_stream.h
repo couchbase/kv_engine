@@ -122,10 +122,10 @@ public:
     /**
      * Consumes numItems from the stream readyQ
      */
-    void consumeBackfillItems(int numItems);
+    void consumeBackfillItems(DcpProducer& producer, int numItems);
 
     /// Consumes all ready backfill items.
-    void consumeAllBackfillItems();
+    void consumeAllBackfillItems(DcpProducer& producer);
 
     bool public_handleSlowStream() {
         return handleSlowStream();

@@ -516,7 +516,8 @@ protected:
      */
     std::optional<cb::NonNegativeCounter<size_t>> backfillRemaining;
 
-    std::unique_ptr<DcpResponse> backfillPhase(std::lock_guard<std::mutex>& lh);
+    std::unique_ptr<DcpResponse> backfillPhase(DcpProducer& producer,
+                                               std::lock_guard<std::mutex>& lh);
 
     Cursor cursor;
 

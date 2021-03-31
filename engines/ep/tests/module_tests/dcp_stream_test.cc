@@ -886,7 +886,7 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
     }
 
     /* Consume the backfill item(s) */
-    stream->consumeBackfillItems(/*snapshot*/ 1 + /*mutation*/ 1);
+    stream->consumeBackfillItems(*producer, /*snapshot*/ 1 + /*mutation*/ 1);
 
     /* We should see that buffer full status must be false as we have read
        the item in the backfill buffer */
@@ -901,7 +901,7 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
     }
 
     /* Read the other item */
-    stream->consumeBackfillItems(1);
+    stream->consumeBackfillItems(*producer, 1);
     destroy_dcp_stream();
 }
 
@@ -1744,7 +1744,7 @@ TEST_P(SingleThreadedActiveStreamTest, DiskBackfillInitializingItemsRemaining) {
 
     // Consume the items from backfill; should update items remaining.
     // Actually need to consume 4 items (snapshot_marker + 3x mutation).
-    stream->consumeBackfillItems(4);
+    stream->consumeBackfillItems(*producer, 4);
     EXPECT_EQ(0, *stream->getNumBackfillItemsRemaining());
     statusFound = false;
     stream->addTakeoverStats(checkStatusFn, "in-memory", *vb);

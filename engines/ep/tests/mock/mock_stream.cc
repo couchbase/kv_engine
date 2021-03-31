@@ -74,18 +74,19 @@ std::unique_ptr<DcpResponse> MockActiveStream::public_makeResponseFromItem(
     return makeResponseFromItem(item, sendMutationInsteadOfCommit);
 }
 
-void MockActiveStream::consumeBackfillItems(int numItems) {
+void MockActiveStream::consumeBackfillItems(DcpProducer& producer,
+                                            int numItems) {
     std::lock_guard<std::mutex> lh(streamMutex);
     for (int items = 0; items < numItems;) {
-        auto resp = backfillPhase(lh);
+        auto resp = backfillPhase(producer, lh);
         if (resp) {
             ++items;
         }
     }
 }
-void MockActiveStream::consumeAllBackfillItems() {
+void MockActiveStream::consumeAllBackfillItems(DcpProducer& producer) {
     std::lock_guard<std::mutex> lh(streamMutex);
-    while (backfillPhase(lh)) {
+    while (backfillPhase(producer, lh)) {
     }
 }
 
