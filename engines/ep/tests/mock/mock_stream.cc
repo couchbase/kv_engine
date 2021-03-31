@@ -33,7 +33,8 @@ MockActiveStream::MockActiveStream(
         uint64_t snap_end_seqno,
         IncludeValue includeValue,
         IncludeXattrs includeXattrs,
-        IncludeDeletedUserXattrs includeDeletedUserXattrs)
+        IncludeDeletedUserXattrs includeDeletedUserXattrs,
+        std::optional<std::string_view> jsonFilter)
     : ActiveStream(e,
                    p,
                    p->getName(),
@@ -49,7 +50,7 @@ MockActiveStream::MockActiveStream(
                    includeXattrs,
                    IncludeDeleteTime::No,
                    includeDeletedUserXattrs,
-                   {{}, vb.getManifest(), p->getCookie(), *e}) {
+                   {jsonFilter, vb.getManifest(), p->getCookie(), *e}) {
 }
 
 void MockActiveStream::public_registerCursor(CheckpointManager& manager,

@@ -170,7 +170,8 @@ public:
             IncludeValue includeValue = IncludeValue::Yes,
             IncludeXattrs includeXattrs = IncludeXattrs::Yes,
             IncludeDeletedUserXattrs includeDeleteUserXattrs =
-                    IncludeDeletedUserXattrs::No);
+                    IncludeDeletedUserXattrs::No,
+            std::optional<std::string_view> jsonFilter = {});
 
     /**
      * Step the producer and expect the opcode to be returned

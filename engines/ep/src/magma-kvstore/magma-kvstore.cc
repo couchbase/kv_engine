@@ -1032,8 +1032,9 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
     auto key = makeDiskDocKey(keySlice);
     auto& meta = *reinterpret_cast<const magmakv::MetaData*>(metaSlice.Data());
 
-    const bool includeValue =
-            (filter != ValueFilter::KEYS_ONLY) && meta.valueSize;
+    const bool includeValue = (filter != ValueFilter::KEYS_ONLY ||
+                               key.getDocKey().isInSystemCollection()) &&
+                              meta.valueSize;
 
     auto item =
             std::make_unique<Item>(key.getDocKey(),

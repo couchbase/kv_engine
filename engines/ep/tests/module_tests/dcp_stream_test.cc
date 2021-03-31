@@ -18,6 +18,7 @@
 #include "dcp_stream_test.h"
 
 #include "checkpoint_manager.h"
+#include "collections/collections_test_helpers.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "couch-kvstore/couch-kvstore-config.h"
 #include "dcp/backfill-manager.h"
@@ -36,6 +37,7 @@
 #include "kvstore.h"
 #include "replicationthrottle.h"
 #include "test_helpers.h"
+#include "test_manifest.h"
 #include "tests/test_fileops.h"
 #include "thread_gate.h"
 #include "vbucket_state.h"
@@ -1535,19 +1537,23 @@ MutationStatus SingleThreadedActiveStreamTest::public_processSet(
             .first;
 }
 
-void SingleThreadedActiveStreamTest::recreateProducerAndStream(VBucket& vb,
-                                                               uint32_t flags) {
+void SingleThreadedActiveStreamTest::recreateProducerAndStream(
+        VBucket& vb,
+        uint32_t flags,
+        std::optional<std::string_view> jsonFilter) {
     producer = std::make_shared<MockDcpProducer>(*engine,
                                                  cookie,
                                                  "test_producer->test_consumer",
                                                  flags,
                                                  false /*startTask*/);
     producer->setSyncReplication(SyncReplication::SyncReplication);
-    recreateStream(vb, true /*enforceProducerFlags*/);
+    recreateStream(vb, true /*enforceProducerFlags*/, jsonFilter);
 }
 
-void SingleThreadedActiveStreamTest::recreateStream(VBucket& vb,
-                                                    bool enforceProducerFlags) {
+void SingleThreadedActiveStreamTest::recreateStream(
+        VBucket& vb,
+        bool enforceProducerFlags,
+        std::optional<std::string_view> jsonFilter) {
     if (enforceProducerFlags) {
         stream = producer->mockActiveStreamRequest(
                 0 /*flags*/,
@@ -1560,7 +1566,8 @@ void SingleThreadedActiveStreamTest::recreateStream(VBucket& vb,
                 ~0 /*snap_end_seqno*/,
                 producer->public_getIncludeValue(),
                 producer->public_getIncludeXattrs(),
-                producer->public_getIncludeDeletedUserXattrs());
+                producer->public_getIncludeDeletedUserXattrs(),
+                jsonFilter);
     } else {
         stream = producer->mockActiveStreamRequest(0 /*flags*/,
                                                    0 /*opaque*/,
@@ -3783,6 +3790,83 @@ TEST_P(SingleThreadedActiveStreamTest, testExpirationRemovesBody_UserXa_SysXa) {
     using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
     testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
                               Xattrs::UserAndSys);
+}
+
+/**
+ * Verifies that streams that set NO_VALUE still backfill the full payload for
+ * SystemEvents and succeed in making the DCP message from that.
+ */
+TEST_P(SingleThreadedActiveStreamTest, NoValueStreamBackfillsFullSystemEvent) {
+    // We need to re-create the stream in a condition that triggers a backfill
+    stream.reset();
+    producer.reset();
+
+    auto& vb = *engine->getVBucket(vbid);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    auto& manager = *vb.checkpointManager;
+    const auto& list =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    manager);
+    ASSERT_EQ(1, list.size());
+
+    const auto key = makeStoredDocKey("key");
+    const std::string value = "value";
+    store_item(vbid, key, value);
+    EXPECT_EQ(1, vb.getHighSeqno());
+
+    CollectionsManifest cm;
+    const auto& collection = CollectionEntry::fruit;
+    cm.add(collection);
+    vb.updateFromManifest(makeManifest(cm));
+    EXPECT_EQ(2, vb.getHighSeqno());
+
+    // Ensure backfill
+    manager.createNewCheckpoint();
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    bool newCkptCreated;
+    EXPECT_EQ(2, manager.removeClosedUnrefCheckpoints(vb, newCkptCreated));
+    ASSERT_EQ(1, list.size());
+    ASSERT_EQ(0, manager.getNumOpenChkItems());
+
+    // Re-create producer and stream
+    const std::string jsonFilter =
+            fmt::format(R"({{"collections":["{}", "{}"]}})",
+                        uint32_t(CollectionEntry::defaultC.getId()),
+                        uint32_t(collection.getId()));
+    const std::optional<std::string_view> json(jsonFilter);
+    recreateProducerAndStream(
+            vb, cb::mcbp::request::DcpOpenPayload::NoValue, json);
+    ASSERT_TRUE(producer);
+    producer->createCheckpointProcessorTask();
+    ASSERT_TRUE(stream);
+    ASSERT_TRUE(stream->isBackfilling());
+    ASSERT_EQ(IncludeValue::No, stream->public_getIncludeValue());
+    auto resp = stream->next();
+    EXPECT_FALSE(resp);
+
+    auto& bfm = producer->getBFM();
+    EXPECT_EQ(1, bfm.getNumBackfills());
+    EXPECT_EQ(backfill_success, bfm.backfill()); // create
+    // Before the fix this step throws with:
+    //     Collections::VB::Manifest::verifyFlatbuffersData: getCreateEventData
+    //     data invalid, .., size:0"
+    EXPECT_EQ(backfill_success, bfm.backfill()); // scan
+
+    const auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(3, readyQ.size());
+    resp = stream->next();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    ASSERT_EQ(2, readyQ.size());
+    resp = stream->next();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    ASSERT_EQ(1, readyQ.size());
+    resp = stream->next();
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SystemEvent, resp->getEvent());
+    const auto& event = dynamic_cast<CollectionCreateProducerMessage&>(*resp);
+    EXPECT_GT(event.getEventData().size(), 0);
 }
 
 class SingleThreadedBackfillTest : public SingleThreadedActiveStreamTest {

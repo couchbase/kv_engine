@@ -43,7 +43,8 @@ public:
             IncludeValue includeValue = IncludeValue::Yes,
             IncludeXattrs includeXattrs = IncludeXattrs::Yes,
             IncludeDeletedUserXattrs includeDeletedUserXattrs =
-                    IncludeDeletedUserXattrs::No);
+                    IncludeDeletedUserXattrs::No,
+            std::optional<std::string_view> jsonFilter = {});
 
     // Expose underlying protected ActiveStream methods as public
     OutstandingItemsResult public_getOutstandingItems(VBucket& vb) {

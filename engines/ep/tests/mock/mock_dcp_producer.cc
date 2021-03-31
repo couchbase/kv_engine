@@ -48,7 +48,8 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
         uint64_t snap_end_seqno,
         IncludeValue includeValue,
         IncludeXattrs includeXattrs,
-        IncludeDeletedUserXattrs includeDeletedUserXattrs) {
+        IncludeDeletedUserXattrs includeDeletedUserXattrs,
+        std::optional<std::string_view> jsonFilter) {
     auto stream = std::make_shared<MockActiveStream>(
             static_cast<EventuallyPersistentEngine*>(&engine_),
             std::static_pointer_cast<MockDcpProducer>(shared_from_this()),
@@ -62,7 +63,8 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
             snap_end_seqno,
             includeValue,
             includeXattrs,
-            includeDeletedUserXattrs);
+            includeDeletedUserXattrs,
+            jsonFilter);
     stream->setActive();
 
     auto baseStream = std::dynamic_pointer_cast<ActiveStream>(stream);

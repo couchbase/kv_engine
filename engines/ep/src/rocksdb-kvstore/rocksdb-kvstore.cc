@@ -1532,7 +1532,8 @@ scan_error_t RocksDBKVStore::scan(BySeqnoScanContext& ctx) {
                 makeItem(ctx.vbid,
                          key,
                          valSlice,
-                         ctx.valFilter != ValueFilter::KEYS_ONLY);
+                         ctx.valFilter != ValueFilter::KEYS_ONLY ||
+                                 key.getDocKey().isInSystemCollection());
 
         if (itm->getBySeqno() > seqno) {
             // TODO RDB: Old seqnos are never removed from the db!

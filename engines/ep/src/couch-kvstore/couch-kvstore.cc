@@ -2695,7 +2695,9 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     bool fetchCompressed = sctx->valFilter == ValueFilter::VALUES_COMPRESSED;
 
     const bool keysOnly = sctx->valFilter == ValueFilter::KEYS_ONLY;
-    if (!keysOnly) {
+    const bool isSystemEvent =
+            makeDiskDocKey(docinfo->id).getDocKey().isInSystemCollection();
+    if (!keysOnly || isSystemEvent) {
         const couchstore_open_options openOptions =
                 fetchCompressed ? 0 : DECOMPRESS_DOC_BODIES;
         auto errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc,

@@ -84,19 +84,27 @@ protected:
      *
      * @param vb
      * @param dcpOpenflags The flags used at producer creation
+     * @param jsonFilter JSON representing the collections filter for the stream
      */
-    void recreateProducerAndStream(VBucket& vb, uint32_t flags);
+    void recreateProducerAndStream(
+            VBucket& vb,
+            uint32_t flags,
+            std::optional<std::string_view> jsonFilter = {});
 
     /**
      * @param vb
      * @param enforceProducerFlags Whether we should simulate the real StreamReq
      *  where Stream features are enabled depending on the flags passed from
      *  Producer.
+     * @param jsonFilter JSON representing the collections filter for the stream
+     *
      *  @todo: Currently we use some arg-defaults which would be nice to remove,
      *  but that needs a general refactor and touching many tests unrelated from
      *  the current work.
      */
-    void recreateStream(VBucket& vb, bool enforceProducerFlags = false);
+    void recreateStream(VBucket& vb,
+                        bool enforceProducerFlags = false,
+                        std::optional<std::string_view> jsonFilter = {});
 
     /**
      * Verify that a DCP Producer sends user-xattrs in Normal (DCP_DELETE) and
