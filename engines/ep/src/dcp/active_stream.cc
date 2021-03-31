@@ -463,7 +463,7 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
         pushToReadyQ(std::move(resp));
     }
 
-    notifyStreamReady();
+    notifyStreamReady(false /*force*/, producer.get());
 
     if (backfill_source == BACKFILL_FROM_MEMORY) {
         backfillItems.memory++;
@@ -2091,9 +2091,21 @@ spdlog::level::level_enum ActiveStream::getTransitionStateLogLevel(
     return spdlog::level::level_enum::info;
 }
 
-void ActiveStream::notifyStreamReady(bool force) {
+void ActiveStream::notifyStreamReady(bool force, DcpProducer* producer) {
     bool inverse = false;
     if (force || itemsReady.compare_exchange_strong(inverse, true)) {
+        /**
+         * The below block of code exists to reduce the amount of times that we
+         * have to promote the producerPtr (weak_ptr<DcpProducer>). Callers that
+         * have already done so can supply a raw ptr for us to use instead.
+         */
+        if (producer) {
+            // Caller supplied a producer to call this on, use that
+            producer->notifyStreamReady(vb_);
+            return;
+        }
+
+        // No producer supplied, promote the weak_ptr and use that
         auto producer = producerPtr.lock();
         if (!producer) {
             return;

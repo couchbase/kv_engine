@@ -579,8 +579,11 @@ private:
      * @param force Indiciates if the function should notify the connection
      *              irrespective of whether the connection already knows that
      *              the items are ready to be picked up. Default is 'false'
+     * @param producer optional pointer to the DcpProducer owning this stream.
+     *                 Supplied in some cases to reduce the number of times that
+     *                 we promote the weak_ptr to the DcpProducer (producerPtr).
      */
-    void notifyStreamReady(bool force = false);
+    void notifyStreamReady(bool force = false, DcpProducer* producer = nullptr);
 
     /**
      * Helper function that tries to takes the ownership of the vbucket
