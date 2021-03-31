@@ -153,6 +153,15 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
 
     if (eligibleForPaging) {
         itemEviction.addFreqAndAgeToHistograms(storedValueFreqCounter, age);
+
+        // Whilst we are learning it is worth always updating the
+        // threshold. We also want to update the threshold at periodic
+        // intervals.
+        if (itemEviction.isLearning() || itemEviction.isRequiredToUpdate()) {
+            std::tie(freqCounterThreshold, ageThreshold) =
+                    itemEviction.getThresholds(evictionRatio * 100.0,
+                                               agePercentage);
+        }
     }
 
     if (evicted) {
@@ -169,15 +178,6 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
                         ? stats.activeOrPendingFrequencyValuesEvictedHisto
                         : stats.replicaFrequencyValuesEvictedHisto;
         frequencyValuesEvictedHisto.addValue(storedValueFreqCounter);
-    }
-
-    // Whilst we are learning it is worth always updating the
-    // threshold. We also want to update the threshold at periodic
-    // intervals.
-    if (itemEviction.isLearning() || itemEviction.isRequiredToUpdate()) {
-        std::tie(freqCounterThreshold, ageThreshold) =
-                itemEviction.getThresholds(evictionRatio * 100.0,
-                                           agePercentage);
     }
 
     return true;
