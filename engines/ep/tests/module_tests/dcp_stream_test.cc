@@ -18,19 +18,15 @@
 #include "dcp_stream_test.h"
 
 #include "checkpoint_manager.h"
+#include "checkpoint_utils.h"
 #include "collections/collections_test_helpers.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "couch-kvstore/couch-kvstore-config.h"
-#include "dcp/backfill-manager.h"
 #include "dcp/backfill_disk.h"
-#include "dcp/backfill_memory.h"
-#include "dcp/dcpconnmap.h"
 #include "dcp/response.h"
 #include "dcp_utils.h"
 #include "ep_bucket.h"
-#include "ep_engine.h"
 #include "ep_time.h"
-#include "ephemeral_vb.h"
 #include "executorpool.h"
 #include "failover-table.h"
 #include "kv_bucket.h"
@@ -43,24 +39,18 @@
 #include "vbucket_state.h"
 
 #include "../couchstore/src/internal.h"
-
 #include "../mock/mock_checkpoint_manager.h"
 #include "../mock/mock_dcp.h"
+#include "../mock/mock_dcp_conn_map.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_stream.h"
-#include "../mock/mock_synchronous_ep_engine.h"
-#include "checkpoint_utils.h"
 
-#include "engines/ep/tests/mock/mock_dcp_conn_map.h"
 #include <engines/ep/tests/mock/mock_dcp_backfill_mgr.h>
+#include <folly/portability/GMock.h>
 #include <programs/engine_testapp/mock_cookie.h>
-#include <programs/engine_testapp/mock_server.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
-
-#include <folly/portability/GMock.h>
-
 #include <thread>
 
 using FlushResult = EPBucket::FlushResult;
@@ -2162,7 +2152,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB31410) {
     std::set<int64_t> processedBufferSeqnos;
     bool isFirstRun = true;
     std::function<void()> hook =
-            [this, &tg, &isFirstRun, seqno, nextFrontEndSeqno, &sync]() {
+            [this, &tg, &isFirstRun, nextFrontEndSeqno, &sync]() {
                 // If the test succeeds (i.e., the frontEndTask above sees
                 // cb::engine_errc::temporary_failure) we will have 2 buffered
                 // messages, so we will execute here twice. Calling tg.threadUp
@@ -2524,7 +2514,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
 
     const uint32_t opaque = 0;
     const auto receiveSnapshot =
-            [this, opaque, &vb, &ckptMgr](
+            [this, opaque, &ckptMgr](
                     uint64_t snapStart,
                     uint64_t snapEnd,
                     uint32_t flags,
