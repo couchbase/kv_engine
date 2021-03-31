@@ -15,6 +15,7 @@
 #include <folly/portability/GTest.h>
 #include <kv_bucket.h>
 #include <paging_visitor.h>
+#include <platform/semaphore.h>
 #include <random>
 
 /**
@@ -108,7 +109,7 @@ BENCHMARK_DEFINE_F(ItemPagerBench, VBCBAdaptorCreation)
     // PagingVisitor. This involves visiting each vb and checking the memory
     // usage and state.
 
-    std::shared_ptr<std::atomic<bool>> available;
+    auto semaphore = std::make_shared<cb::Semaphore>();
     Configuration& cfg = engine->getConfiguration();
 
     while (state.KeepRunning()) {
@@ -120,7 +121,7 @@ BENCHMARK_DEFINE_F(ItemPagerBench, VBCBAdaptorCreation)
                         1 /* active&pending */,
                         1 /* replica */}, // evict everything (but this will
                 // not be run)
-                available,
+                semaphore,
                 EXPIRY_PAGER,
                 false,
                 VBucketFilter(vbids),

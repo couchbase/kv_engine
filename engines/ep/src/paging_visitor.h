@@ -26,6 +26,10 @@ class EventuallyPersistentEngine;
 class KVBucket;
 class StoredValue;
 
+namespace cb {
+class Semaphore;
+}
+
 enum pager_type_t { ITEM_PAGER, EXPIRY_PAGER };
 
 /**
@@ -61,7 +65,7 @@ public:
     PagingVisitor(KVBucket& s,
                   EPStats& st,
                   EvictionRatios evictionRatios,
-                  std::shared_ptr<std::atomic<bool>>& sfin,
+                  std::shared_ptr<cb::Semaphore> pagerSemaphore,
                   pager_type_t caller,
                   bool pause,
                   const VBucketFilter& vbFilter,
@@ -154,7 +158,7 @@ private:
     EPStats& stats;
     EvictionRatios evictionRatios;
     time_t startTime;
-    std::shared_ptr<std::atomic<bool>> stateFinalizer;
+    std::shared_ptr<cb::Semaphore> pagerSemaphore;
     pager_type_t owner;
     bool canPause;
 

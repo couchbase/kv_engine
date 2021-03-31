@@ -25,7 +25,9 @@
 #include <executor/executorpool.h>
 
 #include <folly/lang/Assume.h>
+#include <phosphor/phosphor.h>
 #include <platform/platform_time.h>
+#include <platform/semaphore.h>
 
 #include <cmath>
 #include <cstdlib>
@@ -35,7 +37,6 @@
 #include <string>
 #include <utility>
 
-#include <phosphor/phosphor.h>
 #include <memory>
 
 double EvictionRatios::getForState(vbucket_state_t state) {
@@ -71,7 +72,7 @@ ItemPager::ItemPager(EventuallyPersistentEngine& e, EPStats& st)
     : GlobalTask(&e, TaskId::ItemPager, 10, false),
       engine(e),
       stats(st),
-      available(new std::atomic<bool>(true)),
+      pagerSemaphore(std::make_shared<cb::Semaphore>()),
       doEvict(false),
       sleepTime(std::chrono::milliseconds(
               e.getConfiguration().getPagerSleepTimeMs())),
@@ -108,13 +109,13 @@ bool ItemPager::run() {
     }
 
     if ((current > upper) || doEvict || wasNotified) {
-        bool inverse = true;
-        if (!(*available).compare_exchange_strong(inverse, false)) {
-            // available != true, another PagingVisitor exists and is still
-            // running. Don't create another.
+        if (!pagerSemaphore->try_acquire()) {
+            // could not acquire the required number of tokens, so there's
+            // still a paging visitor running. Don't create more.
             return true;
         }
-        // Note: available is reset to true by PagingVisitor::complete()
+        // acquired token, PagingVisitor::complete() will call
+        // pagerSemaphore->signal() to release it.
 
         if (kvBucket->getItemEvictionPolicy() == EvictionPolicy::Value) {
             doEvict = true;
@@ -189,7 +190,7 @@ bool ItemPager::run() {
                 stats,
                 EvictionRatios{activeAndPendingEvictionRatio,
                                replicaEvictionRatio},
-                available,
+                pagerSemaphore,
                 ITEM_PAGER,
                 false,
                 filter,
@@ -250,16 +251,16 @@ size_t ItemPager::getEvictableBytes(const VBucketFilter& filter) const {
     return visitor.getTotalEvictableMemory();
 }
 
-ExpiredItemPager::ExpiredItemPager(EventuallyPersistentEngine *e,
-                                   EPStats &st, size_t stime,
-                                   ssize_t taskTime) :
-    GlobalTask(e, TaskId::ExpiredItemPager,
-               static_cast<double>(stime), false),
-    engine(e),
-    stats(st),
-    sleepTime(static_cast<double>(stime)),
-    available(new std::atomic<bool>(true)) {
-
+ExpiredItemPager::ExpiredItemPager(EventuallyPersistentEngine* e,
+                                   EPStats& st,
+                                   size_t stime,
+                                   ssize_t taskTime)
+    : GlobalTask(
+              e, TaskId::ExpiredItemPager, static_cast<double>(stime), false),
+      engine(e),
+      stats(st),
+      sleepTime(static_cast<double>(stime)),
+      pagerSemaphore(std::make_shared<cb::Semaphore>()) {
     double initialSleep = sleepTime;
     if (taskTime != -1) {
         /*
@@ -297,8 +298,10 @@ ExpiredItemPager::ExpiredItemPager(EventuallyPersistentEngine *e,
 bool ExpiredItemPager::run() {
     TRACE_EVENT0("ep-engine/task", "ExpiredItemPager");
     KVBucket* kvBucket = engine->getKVBucket();
-    bool inverse = true;
-    if ((*available).compare_exchange_strong(inverse, false)) {
+
+    if (pagerSemaphore->try_acquire()) {
+        // acquired token, PagingVisitor::complete() will call
+        // pagerSemaphore->signal() to release it.
         ++stats.expiryPagerRuns;
 
         VBucketFilter filter;
@@ -308,7 +311,7 @@ bool ExpiredItemPager::run() {
                 stats,
                 EvictionRatios{0.0 /* active&pending */,
                                0.0 /* replica */}, // evict nothing
-                available,
+                pagerSemaphore,
                 EXPIRY_PAGER,
                 true,
                 filter,

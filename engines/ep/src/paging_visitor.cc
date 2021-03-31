@@ -22,6 +22,8 @@
 #include "kv_bucket_iface.h"
 #include <executor/executorpool.h>
 
+#include <platform/semaphore.h>
+
 #include <cstdlib>
 #include <iostream>
 #include <limits>
@@ -34,7 +36,7 @@ static const size_t MAX_PERSISTENCE_QUEUE_SIZE = 1000000;
 PagingVisitor::PagingVisitor(KVBucket& s,
                              EPStats& st,
                              EvictionRatios evictionRatios,
-                             std::shared_ptr<std::atomic<bool>>& sfin,
+                             std::shared_ptr<cb::Semaphore> pagerSemaphore,
                              pager_type_t caller,
                              bool pause,
                              const VBucketFilter& vbFilter,
@@ -47,7 +49,7 @@ PagingVisitor::PagingVisitor(KVBucket& s,
       stats(st),
       evictionRatios(evictionRatios),
       startTime(ep_real_time()),
-      stateFinalizer(sfin),
+      pagerSemaphore(std::move(pagerSemaphore)),
       owner(caller),
       canPause(pause),
       isBelowLowWaterMark(false),
@@ -277,8 +279,9 @@ void PagingVisitor::complete() {
         stats.expiryPagerHisto.add(elapsed_time);
     }
 
-    bool inverse = false;
-    (*stateFinalizer).compare_exchange_strong(inverse, true);
+    // visitor done, return token so parent is aware when all visitors
+    // have finished.
+    pagerSemaphore->release();
 
     // Wake up any sleeping backfill tasks if the memory usage is lowered
     // below the backfill threshold as a result of item ejection.

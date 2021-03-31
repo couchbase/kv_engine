@@ -36,6 +36,7 @@
 #include <engines/ep/tests/mock/mock_ephemeral_bucket.h>
 #include <engines/ep/tests/mock/mock_paging_visitor.h>
 #include <platform/dirutils.h>
+#include <platform/semaphore.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
 
@@ -3232,7 +3233,7 @@ TEST_P(DurabilityEphemeralBucketTest, CompletedPreparesNotExpired) {
 
     TimeTraveller hgwells(10);
 
-    std::shared_ptr<std::atomic<bool>> available;
+    auto pagerSemaphore = std::make_shared<cb::Semaphore>();
 
     Configuration& cfg = engine->getConfiguration();
     std::unique_ptr<MockPagingVisitor> pv = std::make_unique<MockPagingVisitor>(
@@ -3240,7 +3241,7 @@ TEST_P(DurabilityEphemeralBucketTest, CompletedPreparesNotExpired) {
             engine->getEpStats(),
             EvictionRatios{0.0 /* active&pending */,
                            0.0 /* replica */}, // evict nothing
-            available,
+            pagerSemaphore,
             EXPIRY_PAGER,
             false,
             VBucketFilter(),

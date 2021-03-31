@@ -21,6 +21,10 @@ class EPStats;
 class EventuallyPersistentEngine;
 class VBucketFilter;
 
+namespace cb {
+class Semaphore;
+}
+
 /**
  * Tracks the desired eviction ratios for different vbucket states.
  *
@@ -102,7 +106,8 @@ private:
 
     EventuallyPersistentEngine& engine;
     EPStats& stats;
-    std::shared_ptr<std::atomic<bool>> available;
+    // used to avoid creating more paging visitors while any are still running
+    std::shared_ptr<cb::Semaphore> pagerSemaphore;
 
     bool doEvict;
 
@@ -156,5 +161,6 @@ private:
     EventuallyPersistentEngine     *engine;
     EPStats                        &stats;
     double                          sleepTime;
-    std::shared_ptr<std::atomic<bool>>   available;
+    // used to avoid creating more paging visitors while any are still running
+    std::shared_ptr<cb::Semaphore> pagerSemaphore;
 };

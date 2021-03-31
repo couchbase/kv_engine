@@ -31,6 +31,7 @@
 
 #include <folly/portability/GTest.h>
 #include <platform/cb_arena_malloc.h>
+#include <platform/semaphore.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <statistics/labelled_collector.h>
 #include <string_utilities.h>
@@ -687,14 +688,14 @@ TEST_P(STItemPagerTest, isEligible) {
         store->get(key, vbid, cookie, options);
         ObjectRegistry::onSwitchThread(epe);
     }
-    std::shared_ptr<std::atomic<bool>> available;
+    auto pagerSemaphore = std::make_shared<cb::Semaphore>();
     Configuration& cfg = engine->getConfiguration();
     std::unique_ptr<MockPagingVisitor> pv = std::make_unique<MockPagingVisitor>(
             *engine->getKVBucket(),
             engine->getEpStats(),
             EvictionRatios{0.0 /* active&pending */,
                            0.0 /* replica */}, // evict nothing
-            available,
+            pagerSemaphore,
             ITEM_PAGER,
             false,
             VBucketFilter(),
@@ -720,14 +721,14 @@ TEST_P(STItemPagerTest, decayByOne) {
     auto item = make_item(vbid, key, value, time_t(0));
     storeItem(item);
 
-    std::shared_ptr<std::atomic<bool>> available;
+    auto pagerSemaphore = std::make_shared<cb::Semaphore>();
     Configuration& cfg = engine->getConfiguration();
     std::unique_ptr<MockPagingVisitor> pv = std::make_unique<MockPagingVisitor>(
             *engine->getKVBucket(),
             engine->getEpStats(),
             EvictionRatios{1.0 /* active&pending */,
                            1.0 /* replica */}, // try evict everything
-            available,
+            pagerSemaphore,
             ITEM_PAGER,
             false,
             VBucketFilter(),
@@ -760,14 +761,14 @@ TEST_P(STItemPagerTest, doNotDecayIfCannotEvict) {
     auto item = make_item(vbid, key, value, time_t(0));
     storeItem(item);
 
-    std::shared_ptr<std::atomic<bool>> available;
+    auto pagerSemaphore = std::make_shared<cb::Semaphore>();
     Configuration& cfg = engine->getConfiguration();
     std::unique_ptr<MockPagingVisitor> pv = std::make_unique<MockPagingVisitor>(
             *engine->getKVBucket(),
             engine->getEpStats(),
             EvictionRatios{1.0 /* active&pending */,
                            1.0 /* replica */}, // try evict everything
-            available,
+            pagerSemaphore,
             ITEM_PAGER,
             false,
             VBucketFilter(),
@@ -1187,14 +1188,14 @@ TEST_P(STItemPagerTest, ItemPagerEvictionOrder) {
     setVBucketStateAndRunPersistTask(replicaVBs[1], vbucket_state_replica);
 
     auto& stats = engine->getEpStats();
-    auto available = std::make_shared<std::atomic<bool>>();
+    auto pagerSemaphore = std::make_shared<cb::Semaphore>();
     auto& config = engine->getConfiguration();
 
     auto pv = std::make_unique<MockPagingVisitor>(
             *store,
             stats,
             EvictionRatios{1.0 /*active*/, 1.0 /*replica*/},
-            available,
+            pagerSemaphore,
             ITEM_PAGER,
             false,
             VBucketFilter(ephemeral() ? activeVBs : allVBs),
@@ -1309,13 +1310,13 @@ TEST_P(STItemPagerTest, MB43559_EvictionWithoutReplicasReachesLWM) {
     // to make sure this isn't sensitive to small changes in memory usage,
     // try to evict _everything_ (eviction ratio 1.0). If mem_used still hasn't
     // gone below the lwm then something is definitely wrong.
-    auto available = std::make_shared<std::atomic<bool>>();
+    auto pagerSemaphore = std::make_shared<cb::Semaphore>();
 
     auto pv = std::make_unique<MockPagingVisitor>(
             *store,
             stats,
             EvictionRatios{1.0 /* active&pending */, 1.0 /* replica */},
-            available,
+            pagerSemaphore,
             ITEM_PAGER,
             false,
             VBucketFilter(vbids),
@@ -1730,14 +1731,14 @@ TEST_P(STItemPagerTest, ItemPagerEvictionOrderIsSafe) {
     }
 
     auto& stats = engine->getEpStats();
-    auto available = std::make_shared<std::atomic<bool>>();
+    auto pagerSemaphore = std::make_shared<cb::Semaphore>();
     auto& config = engine->getConfiguration();
 
     auto pv = std::make_unique<MockPagingVisitor>(
             *store,
             stats,
             EvictionRatios{1.0 /*active*/, 1.0 /*replica*/},
-            available,
+            pagerSemaphore,
             ITEM_PAGER,
             false,
             VBucketFilter(allVBs),
