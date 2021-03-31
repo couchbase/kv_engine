@@ -161,8 +161,10 @@ public:
             };
         } else if (getTaskName() == "Paging out items.") {
             checker = [=](bool taskRescheduled) {
-                // This task _may_ schedule a single task.
-                this->oneExecutes(taskRescheduled, /*min*/ 0, /*max*/ 1);
+                // This task _may_ schedule N subsequent tasks.
+                // Bound it at 10 as a sanity check. If tests wish to configure
+                // more than 10 concurrent visitors, this can be bumped.
+                this->oneExecutes(taskRescheduled, /*min*/ 0, /*max*/ 10);
             };
         } else {
             checker = [=](bool taskRescheduled) {

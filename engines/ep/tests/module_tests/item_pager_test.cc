@@ -2153,6 +2153,128 @@ TEST_P(MB_36087, DelWithMeta_EvictedKey) {
     EXPECT_EQ(metadata.revSeqno, gv.item->getRevSeqno());
 }
 
+/**
+ * Fixture similar to STItemPagerTest, but with 4 paging visitors configured.
+ */
+class MultiPagingVisitorTest : public STItemPagerTest {
+protected:
+    void SetUp() override {
+        config_string += "concurrent_pagers=4;";
+        STItemPagerTest::SetUp();
+    }
+};
+
+/**
+ * Test that the ItemPager correctly creates multiple PagingVisitors
+ * as configured.
+ */
+TEST_P(MultiPagingVisitorTest, ItemPagerCreatesMultiplePagers) {
+    if (!persistent()) {
+        GTEST_SKIP();
+    }
+    std::vector<Vbid> vbids{Vbid(0), Vbid(1), Vbid(2), Vbid(3)};
+
+    for (const auto& vbid : vbids) {
+        store->setVBucketState(vbid, vbucket_state_active);
+    }
+
+    auto& stats = engine->getEpStats();
+    // populate until above hwm
+    auto aboveHWM = [&stats]() {
+        return stats.getPreciseTotalMemoryUsed() > stats.mem_high_wat.load();
+    };
+
+    auto itemCount = 0;
+    auto i = 0;
+    // items need to be persisted to be evicted, but flushing after each item
+    // would be slow. Load to the HWM, then flush, then repeat if we dropped
+    // below the HWM
+    while (!aboveHWM()) {
+        itemCount += populateVbsUntil(
+                vbids, aboveHWM, "keys_" + std::to_string(i++) + "_", 500);
+        for (const auto& vb : vbids) {
+            // flush and remove checkpoints as eviction will not touch
+            // dirty items
+            flushAndRemoveCheckpoints(vb);
+        }
+    }
+
+    // make sure the item pager has been notified while we're above the HWM
+    store->attemptToFreeMemory();
+
+    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
+    ASSERT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
+
+    // Run the parent ItemPager task, and then N PagingVisitor tasks
+    runNextTask(lpNonioQ, "Paging out items.");
+    ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
+
+    auto numConcurrentPagers = engine->getConfiguration().getConcurrentPagers();
+    ASSERT_EQ(initialNonIoTasks + numConcurrentPagers,
+              lpNonioQ.getFutureQueueSize());
+
+    for (size_t i = 0; i < numConcurrentPagers; ++i) {
+        runNextTask(lpNonioQ, "Item pager no vbucket assigned");
+    }
+}
+
+// Confirm that splitting a filter into several disjoint filters works as
+// expected. Used when creating multiple PagingVisitors
+TEST(VbucketFilterTest, Split) {
+    const VBucketFilter filter(
+            std::vector<Vbid>{Vbid(0), Vbid(1), Vbid(2), Vbid(3)});
+
+    using namespace testing;
+    {
+        SCOPED_TRACE("Identity");
+        auto filters = filter.split(1);
+        EXPECT_THAT(filters, SizeIs(1));
+        EXPECT_TRUE(filter == filters.at(0));
+    }
+
+    {
+        SCOPED_TRACE("Split N");
+        // Expected: {0}, {1}, {2}, {3}
+        auto filters = filter.split(4);
+        EXPECT_THAT(filters, SizeIs(4));
+        for (int i = 0; i < 4; ++i) {
+            EXPECT_THAT(filters.at(i), SizeIs(1));
+            EXPECT_TRUE(filters.at(i)(Vbid(i)));
+        }
+    }
+
+    {
+        SCOPED_TRACE("Split >N");
+        // Expected: {0}, {1}, {2}, {3}, {}
+        auto filters = filter.split(5);
+        EXPECT_THAT(filters, SizeIs(5));
+        for (int i = 0; i < 4; ++i) {
+            EXPECT_THAT(filters.at(i), SizeIs(1));
+            EXPECT_TRUE(filters.at(i)(Vbid(i)));
+        }
+        // last filter is empty
+        EXPECT_THAT(filters.at(4), SizeIs(0));
+    }
+
+    {
+        SCOPED_TRACE("Split <N");
+        // Expected: {0, 3}, {1}, {2}
+        auto filters = filter.split(3);
+        EXPECT_THAT(filters, SizeIs(3));
+        // round robin means first filter has more items
+
+        EXPECT_THAT(filters.at(0), SizeIs(2));
+        EXPECT_TRUE(filters.at(0)(Vbid(0)));
+        EXPECT_TRUE(filters.at(0)(Vbid(3)));
+
+        for (int i = 1; i < 3; ++i) {
+            EXPECT_THAT(filters.at(i), SizeIs(1));
+            EXPECT_TRUE(filters.at(i)(Vbid(i)));
+        }
+    }
+}
+
 // TODO: Ideally all of these tests should run with or without jemalloc,
 // however we currently rely on jemalloc for accurate memory tracking; and
 // hence it is required currently.
@@ -2161,6 +2283,11 @@ TEST_P(MB_36087, DelWithMeta_EvictedKey) {
 INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
                          STItemPagerTest,
                          STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
+                         MultiPagingVisitorTest,
+                         STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,

@@ -393,9 +393,13 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
 
     xattrEnabled = config.isXattrEnabled();
 
+    // config defaults to creating a single PagingVisitor
+    auto numConcurrentPagers = config.getConcurrentPagers();
+
     // Always create the item pager; but initially disable, leaving scheduling
     // up to the specific KVBucket subclasses.
-    itemPagerTask = std::make_shared<ItemPager>(engine, stats);
+    itemPagerTask =
+            std::make_shared<ItemPager>(engine, stats, numConcurrentPagers);
     disableItemPager();
 
     minDurabilityLevel =

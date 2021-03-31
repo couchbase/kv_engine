@@ -46,6 +46,13 @@ public:
         return acceptable.empty() || acceptable.find(v) != acceptable.end();
     }
 
+    bool operator==(const VBucketFilter& other) const {
+        return acceptable == other.acceptable;
+    }
+    bool operator!=(const VBucketFilter& other) const {
+        return !(*this == other);
+    }
+
     size_t size() const {
         return acceptable.size();
     }
@@ -100,6 +107,25 @@ public:
     void removeVBucket(Vbid vbucket) {
         acceptable.erase(vbucket);
     }
+
+    /**
+     * Distribute the vbuckets in the current filter across @p count separate
+     * filters.
+     *
+     * Each Vbid this filter matches will appear in exactly one of the resulting
+     * filters. Vbids are round-robinned between the filters.
+     *
+     * If @p count exceeds the number of Vbids in the current filter, empty
+     * filters will be present in the result, e.g.,
+     *
+     *  VBucketFilter({1,2,3,4}).split(6);
+     *
+     * results in 6 filters:
+     *
+     *  {1}, {2}, {3}, {4}, {}, {}
+     *
+     */
+    std::vector<VBucketFilter> split(size_t count) const;
 
     /**
      * Dump the filter in a human readable form ( "{ bucket, bucket, bucket }"

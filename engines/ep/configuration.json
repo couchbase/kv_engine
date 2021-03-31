@@ -233,6 +233,17 @@
                 }
             }
         },
+        "concurrent_pagers": {
+            "default": "1",
+            "descr": "Number of eviction pager tasks to create when memory usage is high",
+            "dynamic": false,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 1
+                }
+            }
+        },
         "conflict_resolution_type": {
             "default": "seqno",
             "desr": "Conflict resolution mode to use for this Bucket",

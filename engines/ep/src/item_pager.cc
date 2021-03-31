@@ -68,11 +68,14 @@ void EvictionRatios::setForState(vbucket_state_t state, double value) {
     folly::assume_unreachable();
 }
 
-ItemPager::ItemPager(EventuallyPersistentEngine& e, EPStats& st)
+ItemPager::ItemPager(EventuallyPersistentEngine& e,
+                     EPStats& st,
+                     size_t numConcurrentPagers)
     : GlobalTask(&e, TaskId::ItemPager, 10, false),
+      numConcurrentPagers(numConcurrentPagers),
       engine(e),
       stats(st),
-      pagerSemaphore(std::make_shared<cb::Semaphore>()),
+      pagerSemaphore(std::make_shared<cb::Semaphore>(numConcurrentPagers)),
       doEvict(false),
       sleepTime(std::chrono::milliseconds(
               e.getConfiguration().getPagerSleepTimeMs())),
@@ -109,7 +112,7 @@ bool ItemPager::run() {
     }
 
     if ((current > upper) || doEvict || wasNotified) {
-        if (!pagerSemaphore->try_acquire()) {
+        if (!pagerSemaphore->try_acquire(numConcurrentPagers)) {
             // could not acquire the required number of tokens, so there's
             // still a paging visitor running. Don't create more.
             return true;
@@ -185,26 +188,30 @@ bool ItemPager::run() {
         // compute active vbuckets evicition bias factor
         const Configuration& cfg = engine.getConfiguration();
 
-        auto pv = std::make_unique<PagingVisitor>(
-                *kvBucket,
-                stats,
-                EvictionRatios{activeAndPendingEvictionRatio,
-                               replicaEvictionRatio},
-                pagerSemaphore,
-                ITEM_PAGER,
-                false,
-                filter,
-                cfg.getItemEvictionAgePercentage(),
-                cfg.getItemEvictionFreqCounterAgeThreshold());
-
         // p99.99 is ~200ms
         const auto maxExpectedDurationForVisitorTask =
                 std::chrono::milliseconds(200);
 
-        kvBucket->visitAsync(std::move(pv),
-                             "Item pager",
-                             TaskId::ItemPagerVisitor,
-                             maxExpectedDurationForVisitorTask);
+        // distribute the vbuckets that should be visited among multiple
+        // paging visitors.
+        for (const auto& partFilter : filter.split(numConcurrentPagers)) {
+            auto pv = std::make_unique<PagingVisitor>(
+                    *kvBucket,
+                    stats,
+                    EvictionRatios{activeAndPendingEvictionRatio,
+                                   replicaEvictionRatio},
+                    pagerSemaphore,
+                    ITEM_PAGER,
+                    false,
+                    partFilter,
+                    cfg.getItemEvictionAgePercentage(),
+                    cfg.getItemEvictionFreqCounterAgeThreshold());
+
+            kvBucket->visitAsync(std::move(pv),
+                                 "Item pager",
+                                 TaskId::ItemPagerVisitor,
+                                 maxExpectedDurationForVisitorTask);
+        }
     }
 
     return true;

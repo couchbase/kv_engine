@@ -87,6 +87,27 @@ VBucketFilter VBucketFilter::filter_union(const VBucketFilter& other) const {
     return copy;
 }
 
+std::vector<VBucketFilter> VBucketFilter::split(size_t count) const {
+    if (count == 0) {
+        throw std::invalid_argument("VBucketFilter::split requires count != 0");
+    }
+
+    if (count == 1) {
+        return {*this};
+    }
+
+    std::vector<VBucketFilter> filters(count);
+
+    auto filterIndex = 0;
+
+    for (const Vbid& vbid : acceptable) {
+        filters[filterIndex++].addVBucket(vbid);
+        filterIndex %= count;
+    }
+
+    return filters;
+}
+
 static bool isRange(std::set<Vbid>::const_iterator it,
                     const std::set<Vbid>::const_iterator& end,
                     size_t& length) {

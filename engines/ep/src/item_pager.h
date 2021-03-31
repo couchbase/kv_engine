@@ -72,8 +72,12 @@ public:
      *
      * @param e the store (where we'll visit)
      * @param st the stats
+     * @param numConcurrentPagers how many paging visitors should be created
+     *        per run ItemPager run.
      */
-    ItemPager(EventuallyPersistentEngine& e, EPStats& st);
+    ItemPager(EventuallyPersistentEngine& e,
+              EPStats& st,
+              size_t numConcurrentPagers);
 
     bool run() override;
 
@@ -103,6 +107,8 @@ private:
      * Reset the phase to the default determined by the bucket type
      */
     void resetPhase();
+
+    const size_t numConcurrentPagers;
 
     EventuallyPersistentEngine& engine;
     EPStats& stats;
