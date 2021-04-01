@@ -577,7 +577,7 @@ void ActiveStream::snapshotMarkerAckReceived() {
     }
 }
 
-void ActiveStream::setVBucketStateAckRecieved() {
+void ActiveStream::setVBucketStateAckRecieved(DcpProducer& producer) {
     VBucketPtr vbucket = engine->getVBucket(vb_);
     if (!vbucket) {
         log(spdlog::level::level_enum::warn,
@@ -637,7 +637,7 @@ void ActiveStream::setVBucketStateAckRecieved() {
         }
     }
 
-    notifyStreamReady();
+    notifyStreamReady(false /*force*/, &producer);
 }
 
 void ActiveStream::setBackfillRemaining(size_t value) {

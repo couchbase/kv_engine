@@ -167,7 +167,12 @@ public:
 
     void snapshotMarkerAckReceived();
 
-    void setVBucketStateAckRecieved();
+    /**
+     * Process SetVBucketState response
+     *
+     * @param producer reference to the calling DcpProducer
+     */
+    void setVBucketStateAckRecieved(DcpProducer& producer);
 
     /// Set the number of backfill items remaining to the given value.
     void setBackfillRemaining(size_t value);

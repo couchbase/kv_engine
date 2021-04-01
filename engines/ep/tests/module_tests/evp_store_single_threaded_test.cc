@@ -3312,7 +3312,7 @@ TEST_F(MB_29287, DISABLED_dataloss_end) {
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, producers->last_op);
 
     // Move stream to pending and vb to dead
-    as->setVBucketStateAckRecieved();
+    as->setVBucketStateAckRecieved(*producer);
 
     // Cannot store anymore items
     store_item(vbid,
@@ -3323,7 +3323,7 @@ TEST_F(MB_29287, DISABLED_dataloss_end) {
 
     EXPECT_EQ(cb::engine_errc::success, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, producers->last_op);
-    as->setVBucketStateAckRecieved();
+    as->setVBucketStateAckRecieved(*producer);
     EXPECT_TRUE(!stream->isActive());
 
     auto vb = store->getVBuckets().getBucket(vbid);
@@ -3379,7 +3379,7 @@ TEST_F(MB_29287, DISABLED_dataloss_hole) {
     producers->last_op = cb::mcbp::ClientOpcode::Invalid;
 
     // Move stream to pending and vb to dead
-    as->setVBucketStateAckRecieved();
+    as->setVBucketStateAckRecieved(*producer);
 
     // Cannot store anymore items
     store_item(vbid,
@@ -3390,7 +3390,7 @@ TEST_F(MB_29287, DISABLED_dataloss_hole) {
 
     EXPECT_EQ(cb::engine_errc::success, producer->step(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, producers->last_op);
-    as->setVBucketStateAckRecieved();
+    as->setVBucketStateAckRecieved(*producer);
     EXPECT_TRUE(!stream->isActive());
 
     auto vb = store->getVBuckets().getBucket(vbid);

@@ -1252,7 +1252,7 @@ bool DcpProducer::handleResponse(const cb::mcbp::Response& response) {
         if (stream) {
             auto* as = static_cast<ActiveStream*>(stream.get());
             if (opcode == cb::mcbp::ClientOpcode::DcpSetVbucketState) {
-                as->setVBucketStateAckRecieved();
+                as->setVBucketStateAckRecieved(*this);
             } else {
                 as->snapshotMarkerAckReceived();
             }
