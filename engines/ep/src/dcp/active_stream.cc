@@ -1534,8 +1534,9 @@ void ActiveStream::removeAcksFromDM(
             auto p = producerPtr.lock();
             if (!p) {
                 log(spdlog::level::warn,
-                    "Producer could not be locked when"
-                    "attempting to clear queued seqno acks");
+                    "({}) Producer could not be locked when"
+                    "attempting to clear queued seqno acks",
+                    vb_);
                 return;
             }
             consumerName = p->getConsumerName();
@@ -1543,8 +1544,9 @@ void ActiveStream::removeAcksFromDM(
 
         if (consumerName.empty()) {
             log(spdlog::level::warn,
-                "Consumer name not found for producer when"
-                "attempting to clear queued seqno acks");
+                "({}) Consumer name not found for producer when"
+                "attempting to clear queued seqno acks",
+                vb_);
             return;
         }
 
