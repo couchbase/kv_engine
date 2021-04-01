@@ -336,10 +336,6 @@ void process_hello_packet_executor(Cookie& cookie) {
             }
             break;
 
-        case cb::mcbp::Feature::PreserveTtl:
-            // not supported yet
-            break;
-
         case cb::mcbp::Feature::Tracing:
             if (Settings::instance().isTracingEnabled()) {
                 connection.setTracingEnabled(true);
@@ -351,6 +347,8 @@ void process_hello_packet_executor(Cookie& cookie) {
                          connection.getDescription());
             }
             break;
+
+        case cb::mcbp::Feature::PreserveTtl:
         case cb::mcbp::Feature::VAttr:
         case cb::mcbp::Feature::SubdocDocumentMacroSupport:
         case cb::mcbp::Feature::PiTR:
