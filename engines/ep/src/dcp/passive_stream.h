@@ -110,8 +110,6 @@ public:
      */
     void seqnoAck(int64_t seqno);
 
-    bool endIfRequiredPrivilegesLost(const void* cookie) override;
-
     static std::string to_string(StreamState st);
 
 protected:

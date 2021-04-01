@@ -112,8 +112,6 @@ public:
         return id == cb::mcbp::DcpStreamId(0);
     }
 
-    virtual bool endIfRequiredPrivilegesLost(const void* cookie) = 0;
-
 protected:
     /* To be called after getting streamMutex lock */
     void pushToReadyQ(std::unique_ptr<DcpResponse> resp);
