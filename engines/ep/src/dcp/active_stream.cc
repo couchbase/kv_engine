@@ -672,7 +672,7 @@ std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
         // The previous backfill has completed.  Check to see if another
         // backfill needs to be scheduled.
         if (pendingBackfill) {
-            scheduleBackfill_UNLOCKED(true);
+            scheduleBackfill_UNLOCKED(producer, true);
             pendingBackfill = false;
             // After scheduling a backfill we may now have items in readyQ -
             // so re-check if we didn't already have a response.
@@ -1617,7 +1617,8 @@ void ActiveStream::endStream(cb::mcbp::DcpStreamEndStatus reason) {
     }
 }
 
-void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
+void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
+                                             bool reschedule) {
     if (isBackfillTaskRunning) {
         log(spdlog::level::level_enum::info,
             "{} Skipping "
@@ -1636,20 +1637,6 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
         log(spdlog::level::level_enum::warn,
             "{} Failed to schedule "
             "backfill as unable to get vbucket; "
-            "lastReadSeqno : {}"
-            ", "
-            "reschedule : {}",
-            logPrefix,
-            lastReadSeqno.load(),
-            reschedule ? "True" : "False");
-        return;
-    }
-
-    auto producer = producerPtr.lock();
-    if (!producer) {
-        log(spdlog::level::level_enum::warn,
-            "{} Aborting scheduleBackfill_UNLOCKED() "
-            "as the producer conn is deleted; "
             "lastReadSeqno : {}"
             ", "
             "reschedule : {}",
@@ -1717,7 +1704,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
                     std::to_string(lastReadSeqno.load()) +
                     " ) is greater than curChkSeqno (which is " +
                     std::to_string(curChkSeqno) + " ). " + "for stream " +
-                    producer->logHeader() + "; " + logPrefix);
+                    producer.logHeader() + "; " + logPrefix);
         }
 
         // _if_ a backfill is required, it should end either at the
@@ -1727,13 +1714,13 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
         backfillEnd = std::min(end_seqno_, curChkSeqno - 1);
     }
 
-    if (tryBackfill && tryAndScheduleOSOBackfill(*producer, *vbucket)) {
+    if (tryBackfill && tryAndScheduleOSOBackfill(producer, *vbucket)) {
         return;
     } else if (tryBackfill &&
-               producer->scheduleBackfillManager(*vbucket,
-                                                 shared_from_this(),
-                                                 backfillStart,
-                                                 backfillEnd)) {
+               producer.scheduleBackfillManager(*vbucket,
+                                                shared_from_this(),
+                                                backfillStart,
+                                                backfillEnd)) {
         // backfill will be needed to catch up to the items in the
         // CheckpointManager
         log(spdlog::level::level_enum::info,
@@ -1768,7 +1755,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
              * time (i.e. when reschedule is false) because the stream is not
              * yet in producer conn list of streams.
              */
-            notifyStreamReady();
+            notifyStreamReady(false /*force*/, &producer);
         }
     }
 }
@@ -1964,13 +1951,17 @@ void ActiveStream::transitionState(StreamState newState) {
     state_ = newState;
 
     switch (newState) {
-    case StreamState::Backfilling:
-        if (StreamState::Pending == oldState) {
-            scheduleBackfill_UNLOCKED(false /* reschedule */);
-        } else if (StreamState::InMemory == oldState) {
-            scheduleBackfill_UNLOCKED(true /* reschedule */);
+    case StreamState::Backfilling: {
+        auto producer = producerPtr.lock();
+        if (producer) {
+            if (StreamState::Pending == oldState) {
+                scheduleBackfill_UNLOCKED(*producer, false /* reschedule */);
+            } else if (StreamState::InMemory == oldState) {
+                scheduleBackfill_UNLOCKED(*producer, true /* reschedule */);
+            }
         }
         break;
+    }
     case StreamState::InMemory:
         // Check if the producer has sent up till the last requested
         // sequence number already, if not - move checkpoint items into

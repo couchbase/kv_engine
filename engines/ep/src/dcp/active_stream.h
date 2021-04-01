@@ -577,7 +577,7 @@ private:
      *                       state.
      * Note: Expects the streamMutex to be acquired when called
      */
-    void scheduleBackfill_UNLOCKED(bool reschedule);
+    void scheduleBackfill_UNLOCKED(DcpProducer& producer, bool reschedule);
 
     bool isCurrentSnapshotCompleted() const;
 
