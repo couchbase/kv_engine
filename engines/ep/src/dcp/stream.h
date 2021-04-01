@@ -84,8 +84,6 @@ public:
 
     virtual uint32_t setDead(cb::mcbp::DcpStreamEndStatus status) = 0;
 
-    virtual void notifySeqnoAvailable(uint64_t seqno) {}
-
     const std::string& getName() {
         return name_;
     }

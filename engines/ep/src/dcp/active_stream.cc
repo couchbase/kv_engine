@@ -1558,9 +1558,9 @@ void ActiveStream::removeAcksFromDM(
     }
 }
 
-void ActiveStream::notifySeqnoAvailable(uint64_t seqno) {
+void ActiveStream::notifySeqnoAvailable(DcpProducer& producer) {
     if (isActive()) {
-        notifyStreamReady();
+        notifyStreamReady(false /*force*/, &producer);
     }
 }
 

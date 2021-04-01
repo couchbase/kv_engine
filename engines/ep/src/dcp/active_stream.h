@@ -163,7 +163,13 @@ public:
         return state_;
     }
 
-    void notifySeqnoAvailable(uint64_t seqno) override;
+    /**
+     * Notify the producer that the stream is ready.
+     *
+     * @param producer reference to the calling producer to avoid promoting the
+     *                 producerPtr weak_ptr
+     */
+    void notifySeqnoAvailable(DcpProducer& producer);
 
     void snapshotMarkerAckReceived();
 
