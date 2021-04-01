@@ -2166,9 +2166,10 @@ bool ActiveStream::collectionAllowed(DocKey key) const {
     return filter.check(key);
 }
 
-bool ActiveStream::endIfRequiredPrivilegesLost(const void* cookie) {
+bool ActiveStream::endIfRequiredPrivilegesLost(DcpProducer& producer) {
     // Does this stream still have the appropriate privileges to operate?
-    if (filter.checkPrivileges(cookie, *engine) != cb::engine_errc::success) {
+    if (filter.checkPrivileges(producer.getCookie(), *engine) !=
+        cb::engine_errc::success) {
         std::unique_lock lh(streamMutex);
         endStream(cb::mcbp::DcpStreamEndStatus::LostPrivileges);
         lh.unlock();

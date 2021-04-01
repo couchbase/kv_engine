@@ -337,9 +337,9 @@ public:
 
     /**
      * reassess the streams required privileges and call endStream if required
-     * @param cookie Producer's cookie
+     * @param producer reference to the calling DcpProducer
      */
-    bool endIfRequiredPrivilegesLost(const void* cookie);
+    bool endIfRequiredPrivilegesLost(DcpProducer& producer);
 
     std::unique_ptr<DcpResponse> makeEndStreamResponse(
             cb::mcbp::DcpStreamEndStatus);
