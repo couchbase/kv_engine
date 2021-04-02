@@ -135,6 +135,10 @@ void BackfillManager::addStats(DcpProducer& conn,
             "backfill_buffer_next_read_size", buffer.nextReadSize, add_stat, c);
     conn.addStat("backfill_buffer_max_bytes", buffer.maxBytes, add_stat, c);
     conn.addStat("backfill_buffer_full", buffer.full, add_stat, c);
+    conn.addStat("backfill_num_initializing",
+                 initializingBackfills.size(),
+                 add_stat,
+                 c);
     conn.addStat("backfill_num_active", activeBackfills.size(), add_stat, c);
     conn.addStat(
             "backfill_num_snoozing", snoozingBackfills.size(), add_stat, c);
