@@ -715,8 +715,7 @@ MutationLog::iterator& MutationLog::iterator::operator=(const MutationLog::itera
     return *this;
 }
 
-MutationLog::iterator::~iterator() {
-}
+MutationLog::iterator::~iterator() = default;
 
 void MutationLog::iterator::prepItem() {
     size_t copyLen = 0;
