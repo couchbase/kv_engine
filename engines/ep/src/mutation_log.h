@@ -269,11 +269,6 @@ public:
      */
     bool reset();
 
-    /**
-     * Replace the current log with a given log.
-     */
-    bool replaceWith(MutationLog &mlog);
-
     bool setSyncConfig(const std::string &s);
     bool setFlushConfig(const std::string &s);
 

@@ -615,46 +615,6 @@ bool MutationLog::reset() {
     return true;
 }
 
-bool MutationLog::replaceWith(MutationLog &mlog) {
-    if (!mlog.isEnabled()) {
-        throw std::invalid_argument("MutationLog::replaceWith: "
-                                    "mlog is not enabled");
-    }
-    if (!isEnabled()) {
-        throw std::logic_error("MutationLog::replaceWith: Not valid on "
-                               "a disabled log");
-    }
-
-    if (!mlog.flush()) {
-        return false;
-    }
-    mlog.close();
-
-    if (!flush()) {
-        return false;
-    }
-    close();
-
-    for (int i(0); i < int(MutationLogType::NumberOfTypes); ++i) {
-        itemsLogged[i].store(mlog.itemsLogged[i]);
-    }
-
-    if (rename(mlog.getLogFile().c_str(), getLogFile().c_str()) != 0) {
-        open();
-        EP_LOG_WARN("Unable to rename a mutation log \"{}\" to \"{}\": {}",
-                    mlog.getLogFile(),
-                    getLogFile(),
-                    strerror(errno));
-        return false;
-    }
-
-    open();
-    EP_LOG_DEBUG("Renamed a mutation log \"{}\" to \"{}\" and reopened it",
-                 mlog.getLogFile(),
-                 getLogFile());
-    return true;
-}
-
 bool MutationLog::flush() {
     if (isEnabled() && blockPos > HEADER_RESERVED) {
         if (!isOpen()) {
