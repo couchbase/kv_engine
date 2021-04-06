@@ -489,16 +489,6 @@ typedef bool (*mlCallbackWithQueue)(Vbid,
                                     const std::set<StoredDocKey>&,
                                     void* arg);
 
-/**
- * Type for mutation log leftovers.
- */
-struct mutation_log_uncommitted_t {
-    StoredDocKey        key;
-    uint64_t            rowid;
-    MutationLogType     type;
-    Vbid vbucket;
-};
-
 class EventuallyPersistentEngine;
 
 /**
