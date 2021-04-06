@@ -434,14 +434,11 @@ void MutationLog::updateInitialBlock() {
     }
     needWriteAccess();
 
-    uint8_t buf[MIN_LOG_HEADER_SIZE];
-    memset(buf, 0, sizeof(buf));
-    memcpy(buf, (uint8_t*)&headerBlock, sizeof(headerBlock));
+    std::vector<uint8_t> buf(MIN_LOG_HEADER_SIZE);
+    memcpy(buf.data(), &headerBlock, sizeof(headerBlock));
 
-    ssize_t byteswritten = pwrite(file, buf, sizeof(buf), 0);
-
-    // @todo we need a write exception
-    if (byteswritten != sizeof(buf)) {
+    ssize_t byteswritten = pwrite(file, buf.data(), buf.size(), 0);
+    if (byteswritten != ssize_t(buf.size())) {
         throw WriteException("Failed to update header block");
     }
 }
