@@ -408,13 +408,6 @@ private:
 
 std::ostream& operator<<(std::ostream& os, const MutationLog& mlog);
 
-/// @cond DETAILS
-
-//! rowid, (uint8_t)mutation_log_type_t
-typedef std::pair<uint64_t, uint8_t> mutation_log_event_t;
-
-/// @endcond
-
 /**
  * MutationLogHarvester::apply callback type.
  */
