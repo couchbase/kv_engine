@@ -171,7 +171,12 @@ public:
      */
     void notifySeqnoAvailable(DcpProducer& producer);
 
-    void snapshotMarkerAckReceived();
+    /**
+     * Notify stream of received snapshot ack
+     * @param producer reference to the calling producer to avoid promoting the
+     *                 producerPtr weak_ptr
+     */
+    void snapshotMarkerAckReceived(DcpProducer& producer);
 
     /**
      * Process SetVBucketState response

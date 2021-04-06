@@ -1254,7 +1254,7 @@ bool DcpProducer::handleResponse(const cb::mcbp::Response& response) {
             if (opcode == cb::mcbp::ClientOpcode::DcpSetVbucketState) {
                 as->setVBucketStateAckRecieved(*this);
             } else {
-                as->snapshotMarkerAckReceived();
+                as->snapshotMarkerAckReceived(*this);
             }
         }
 

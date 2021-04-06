@@ -3305,7 +3305,7 @@ TEST_F(MB_29287, DISABLED_dataloss_end) {
     EXPECT_EQ("5", producers->last_key);
 
     // Snapshot received
-    as->snapshotMarkerAckReceived();
+    as->snapshotMarkerAckReceived(*producer);
 
     // set-vb-state now underway
     EXPECT_EQ(cb::engine_errc::success, producer->step(*producers));
@@ -3353,7 +3353,7 @@ TEST_F(MB_29287, DISABLED_dataloss_hole) {
     EXPECT_EQ("5", producers->last_key);
 
     // Snapshot received
-    as->snapshotMarkerAckReceived();
+    as->snapshotMarkerAckReceived(*producer);
 
     // More data in the checkpoint (key 6)
 
@@ -3368,7 +3368,7 @@ TEST_F(MB_29287, DISABLED_dataloss_hole) {
     EXPECT_EQ("6", producers->last_key);
 
     // Snapshot received
-    as->snapshotMarkerAckReceived();
+    as->snapshotMarkerAckReceived(*producer);
 
     // Now send
     EXPECT_TRUE(as->isTakeoverSend());
