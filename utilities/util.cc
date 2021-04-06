@@ -1,3 +1,13 @@
+/*
+ * Portions Copyright (c) 2010-Present Couchbase
+ * Portions Copyright (c) 2008-2010 Danga Interactive
+ * Portions Copyright (c) 2009 Sun Microsystems
+ *
+ * Use of this software is governed by the Apache License, Version 2.0 and
+ * BSD 3 Clause included in the files licenses/APL.txt and
+ * licenses/BSD-3-Clause-Danga-Interactive.txt
+ * licenses/BSD-3-Clause-Sun-Microsystems.txt
+ */
 #include <cctype>
 #include <cerrno>
 #include <cstdarg>

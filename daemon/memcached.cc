@@ -1,19 +1,13 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *  memcached - memory caching daemon
+ * Portions Copyright (c) 2010-Present Couchbase
+ * Portions Copyright (c) 2008 Sun Microsystems
+ * Portions Copyright (c) 2003 Danga Interactive
  *
- *       http://www.danga.com/memcached/
- *
- *  Copyright 2003 Danga Interactive, Inc.  All rights reserved.
- *
- *  Use and distribution licensed under the BSD license.  See
- *  the LICENSE file for full text.
- *
- *  Authors:
- *      Anatoly Vorobey <mellon@pobox.com>
- *      Brad Fitzpatrick <brad@danga.com>
+ * Use of this software is governed by the Apache License, Version 2.0 and
+ * BSD 3 Clause included in the files licenses/APL.txt,
+ * licenses/BSD-3-Clause-Sun-Microsystems.txt and
+ * licenses/BSD-3-Clause-Danga-Interactive.txt
  */
-
 #include "memcached.h"
 #include "buckets.h"
 #include "cmdline.h"

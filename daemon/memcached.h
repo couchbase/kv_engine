@@ -1,4 +1,12 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/*
+ *     Copyright 2021-Present Couchbase, Inc.
+ *
+ *   Use of this software is governed by the Business Source License included
+ *   in the file licenses/BSL-Couchbase.txt.  As of the Change Date specified
+ *   in that file, in accordance with the Business Source License, use of this
+ *   software will be governed by the Apache License, Version 2.0, included in
+ *   the file licenses/APL2.txt.
+ */
 #pragma once
 
 #include <event.h>
@@ -21,16 +29,12 @@
 /** Maximum length of a key. */
 #define KEY_MAX_LENGTH 250
 
-#define MAX_SENDBUF_SIZE (256 * 1024 * 1024)
-
 /* Maximum length of config which can be validated */
 #define CONFIG_VALIDATE_MAX_LENGTH (64 * 1024)
 
 /* Maximum IOCTL get/set key and payload (body) length */
 #define IOCTL_KEY_LENGTH 128
 #define IOCTL_VAL_LENGTH 128
-
-#define MAX_VERBOSITY_LEVEL 2
 
 class Bucket;
 class Cookie;

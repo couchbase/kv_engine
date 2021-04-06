@@ -1,20 +1,11 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2018 Couchbase, Inc.
+ * Portions Copyright (c) 2010-Present Couchbase
+ * Portions Copyright (c) 2008 Danga Interactive
  *
- *   Licensed under the Apache License, Version 2.0 (the "License");
- *   you may not use this file except in compliance with the License.
- *   You may obtain a copy of the License at
- *
- *       http://www.apache.org/licenses/LICENSE-2.0
- *
- *   Unless required by applicable law or agreed to in writing, software
- *   distributed under the License is distributed on an "AS IS" BASIS,
- *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *   See the License for the specific language governing permissions and
- *   limitations under the License.
+ * Use of this software is governed by the Apache License, Version 2.0 and
+ * BSD 3 Clause included in the files licenses/APL.txt and
+ * licenses/BSD-3-Clause-Danga-Interactive.txt
  */
-
 #include "mcbp_executors.h"
 
 #include "cmdline.h"
@@ -203,6 +194,7 @@ static void ssl_certs_refresh_executor(Cookie& cookie) {
 }
 
 static void verbosity_executor(Cookie& cookie) {
+#define MAX_VERBOSITY_LEVEL 2
     using cb::mcbp::request::VerbosityPayload;
     auto extras = cookie.getRequest().getExtdata();
     auto* payload = reinterpret_cast<const VerbosityPayload*>(extras.data());

@@ -1,4 +1,11 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/*
+ * Portions Copyright (c) 2010-Present Couchbase
+ * Portions Copyright (c) 2008 Danga Interactive
+ *
+ * Use of this software is governed by the Apache License, Version 2.0 and
+ * BSD 3 Clause included in the files licenses/APL.txt and
+ * licenses/BSD-3-Clause-Danga-Interactive.txt
+ */
 /*
  * Thread management for memcached.
  */

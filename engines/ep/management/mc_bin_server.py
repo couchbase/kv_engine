@@ -2,7 +2,12 @@
 """
 A memcached test server.
 
-Copyright (c) 2007  Dustin Sallings <dustin@spy.net>
+Portions Copyright (c) 2009-Present Couchbase
+Portions Copyright (c) 2007  Dustin Sallings <dustin@spy.net>
+
+Use of this software is governed by the Apache License, Version 2.0, included
+in the file licenses/APL.txt.
+
 """
 
 import asyncore
