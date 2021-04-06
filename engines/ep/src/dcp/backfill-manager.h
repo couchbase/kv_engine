@@ -233,13 +233,6 @@ public:
     std::string to_string(ScheduleOrder order);
 
 protected:
-    /**
-     * Common code for adding a new backfill
-     */
-    void addBackfill_UNLOCKED(VBucket& vb,
-                              std::shared_ptr<ActiveStream> stream,
-                              UniqueDCPBackfillPtr& backfill);
-
     //! The buffer is the total bytes used by all backfills for this connection
     struct {
         size_t bytesRead;
