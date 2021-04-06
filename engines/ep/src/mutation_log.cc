@@ -724,21 +724,18 @@ void MutationLog::iterator::prepItem() {
     // to obtain the copy length. newEntry also validates magic is valid and
     // the length doesn't overflow bufferBytesRemaining()
     switch (log->headerBlock.version()) {
-    case MutationLogVersion::V1: {
+    case MutationLogVersion::V1:
         copyLen =
                 MutationLogEntryV1::newEntry(p, bufferBytesRemaining())->len();
         break;
-    }
-    case MutationLogVersion::V2: {
+    case MutationLogVersion::V2:
         copyLen =
                 MutationLogEntryV2::newEntry(p, bufferBytesRemaining())->len();
         break;
-    }
-    case MutationLogVersion::V3: {
+    case MutationLogVersion::V3:
         copyLen =
                 MutationLogEntryV3::newEntry(p, bufferBytesRemaining())->len();
         break;
-    }
     }
 
     entryBuf.resize(LOG_ENTRY_BUF_SIZE);
@@ -747,18 +744,15 @@ void MutationLog::iterator::prepItem() {
 
 size_t MutationLog::iterator::getCurrentEntryLen() const {
     switch (log->headerBlock.version()) {
-    case MutationLogVersion::V1: {
+    case MutationLogVersion::V1:
         return MutationLogEntryV1::newEntry(entryBuf.begin(), entryBuf.size())
                 ->len();
-    }
-    case MutationLogVersion::V2: {
+    case MutationLogVersion::V2:
         return MutationLogEntryV2::newEntry(entryBuf.begin(), entryBuf.size())
                 ->len();
-    }
-    case MutationLogVersion::V3: {
+    case MutationLogVersion::V3:
         return MutationLogEntryV3::newEntry(entryBuf.begin(), entryBuf.size())
                 ->len();
-    }
     }
     throw std::logic_error(
             "MutationLog::iterator::getCurrentEntryLen unknown version " +
@@ -809,25 +803,22 @@ MutationLog::MutationLogEntryHolder MutationLog::iterator::upgradeEntry()
     // cause the addition of V4 to fail compile. The aim is that the addition of
     // V4 should now be obvious. I.e. we can step V1->V2->V3->V4 or V2->V3->V4
     switch (log->headerBlock.version()) {
-    case MutationLogVersion::V1: {
+    case MutationLogVersion::V1:
         mleV1 = MutationLogEntryV1::newEntry(entryBuf.begin(), entryBuf.size());
         break;
-    }
-    case MutationLogVersion::V2: {
+    case MutationLogVersion::V2:
         mleV2 = MutationLogEntryV2::newEntry(entryBuf.begin(), entryBuf.size());
         break;
-    }
     /* If V4 exists then add a case for V3, for example:
     case MutationLogVersion::V3: {
         mleV3 = MutationLogEntryV3::newEntry(entryBuf.begin(), entryBuf.size());
         break;
     }
     */
-    case MutationLogVersion::Current: {
+    case MutationLogVersion::Current:
         throw std::invalid_argument(
                 "MutationLog::iterator::upgradeEntry cannot"
                 " upgrade if version == current");
-    }
     }
 
     // Next switch runs the upgrade. Each version must be constructable from
@@ -836,10 +827,9 @@ MutationLog::MutationLogEntryHolder MutationLog::iterator::upgradeEntry()
     // versions.
     // We start the upgrade at version + 1
     switch (MutationLogVersion(int(log->headerBlock.version()) + 1)) {
-    case MutationLogVersion::V1: {
+    case MutationLogVersion::V1:
         // fall through
-    }
-    case MutationLogVersion::V2: {
+    case MutationLogVersion::V2:
         if (!mleV1) {
             throw std::logic_error(
                     "MutationLog::iterator::upgradeEntry mleV1 is null");
@@ -853,8 +843,7 @@ MutationLog::MutationLogEntryHolder MutationLog::iterator::upgradeEntry()
         mleV2 = new (allocatedV2.get()) MutationLogEntryV2(*mleV1);
 
         // fall through
-    }
-    case MutationLogVersion::V3: {
+    case MutationLogVersion::V3:
         if (!mleV2) {
             throw std::logic_error(
                     "MutationLog::iterator::upgradeEntry mleV2 is null");
@@ -870,7 +859,7 @@ MutationLog::MutationLogEntryHolder MutationLog::iterator::upgradeEntry()
         // mleV3 and allow the next case to read it.
 
         // fall through
-    }
+
         /* If V4 exists then add a case (which is hit by V3 falling through)
         case MutationLogVersion::V4: {
             // Upgrade V3 to V4
@@ -1017,12 +1006,11 @@ MutationLog::iterator MutationLogHarvester::loadBatch(
 
         case MutationLogType::Commit1:
         case MutationLogType::Commit2:
-        case MutationLogType::NumberOfTypes: {
+        case MutationLogType::NumberOfTypes:
             // We ignore COMMIT2 for Access log, was only relevent to the
             // 'proper' mutation log.
             // all other types ignored as well.
             break;
-        }
         }
     }
     return it;
