@@ -3841,7 +3841,7 @@ TEST_P(SingleThreadedActiveStreamTest, NoValueStreamBackfillsFullSystemEvent) {
     ASSERT_TRUE(stream);
     ASSERT_TRUE(stream->isBackfilling());
     ASSERT_EQ(IncludeValue::No, stream->public_getIncludeValue());
-    auto resp = stream->next();
+    auto resp = stream->next(*producer);
     EXPECT_FALSE(resp);
 
     auto& bfm = producer->getBFM();
@@ -3854,15 +3854,15 @@ TEST_P(SingleThreadedActiveStreamTest, NoValueStreamBackfillsFullSystemEvent) {
 
     const auto& readyQ = stream->public_readyQ();
     ASSERT_EQ(3, readyQ.size());
-    resp = stream->next();
+    resp = stream->next(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     ASSERT_EQ(2, readyQ.size());
-    resp = stream->next();
+    resp = stream->next(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     ASSERT_EQ(1, readyQ.size());
-    resp = stream->next();
+    resp = stream->next(*producer);
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SystemEvent, resp->getEvent());
     const auto& event = dynamic_cast<CollectionCreateProducerMessage&>(*resp);
