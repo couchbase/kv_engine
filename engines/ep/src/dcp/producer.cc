@@ -259,9 +259,6 @@ DcpProducer::~DcpProducer() {
 void DcpProducer::cancelCheckpointCreatorTask() {
     std::lock_guard<std::mutex> guard(checkpointCreator->mutex);
     if (checkpointCreator->task) {
-        static_cast<ActiveStreamCheckpointProcessorTask*>(
-                checkpointCreator->task.get())
-                ->cancelTask();
         ExecutorPool::get()->cancel(checkpointCreator->task->getId());
         checkpointCreator->task.reset();
     }

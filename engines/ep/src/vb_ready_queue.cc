@@ -18,14 +18,51 @@ VBReadyQueue::VBReadyQueue(size_t maxVBuckets)
 }
 
 bool VBReadyQueue::exists(Vbid vbucket) {
-    std::lock_guard<std::mutex> lh(lock);
-    return queuedValues.test(vbucket.get());
+    return queuedValues[vbucket.get()].load();
 }
 
 bool VBReadyQueue::popFront(Vbid& frontValue) {
-    std::lock_guard<std::mutex> lh(lock);
-    if (readyQueue.read(frontValue)) {
-        queuedValues.reset(frontValue.get());
+    // Read the size before we attempt to pop anything. Folly's MPMC queue has a
+    // non-blocking read function but the memory ordering is release/acquire.
+    // This is fine if we were just using the queue, but we require a slightly
+    // greater level of synchronization between the readyQueue and the queue
+    // size so we must do a sequentially consistent read (of the queueSize) to
+    // avoid any memory ordering issues which would otherwise cause us to see
+    // the queue as empty when (if it was sequentially consistent) it would not
+    // be.
+    auto size = queueSize.load();
+#ifndef NDEBUG
+    popFrontAfterSizeLoad();
+#endif
+    if (size) {
+        // Blocking read - definitely should be something in the queue.
+        readyQueue.blockingRead(frontValue);
+
+#ifndef NDEBUG
+        popFrontAfterQueueRead();
+#endif
+
+        // If one looks closely at the pushUnique function, one might assume
+        // that we could lose a notification if the pushUnique function is
+        // executed entirely between the line before and the line after this
+        // comment. Why? Because the queuedValues[vbid] is set to true so the
+        // vBucket will not be enqueued. This is correct, but doesn't take into
+        // account that this function (after setting queuedValues to false) will
+        // return the vBucket that we did not enqueue to the caller. The caller
+        // will not miss the update for this vBucket, it will just be processed
+        // immediately.
+        bool expected = true;
+        queuedValues[frontValue.get()].compare_exchange_strong(expected, false);
+
+#ifndef NDEBUG
+        popFrontAfterQueuedValueSet();
+#endif
+
+        queueSize.fetch_sub(1);
+
+#ifndef NDEBUG
+        popFrontAfterSizeSub();
+#endif
         return true;
     }
     return false;
@@ -37,81 +74,35 @@ void VBReadyQueue::pop() {
 }
 
 bool VBReadyQueue::pushUnique(Vbid vbucket) {
-    bool wasEmpty;
-    {
-        std::lock_guard<std::mutex> lh(lock);
-        wasEmpty = readyQueue.size() == 0;
-        const bool wasSet = queuedValues.test_set(vbucket.get());
-        if (!wasSet) {
-            auto result = readyQueue.write(vbucket);
-            Expects(result);
-        }
+    bool expected = false;
+    if (queuedValues[vbucket.get()].compare_exchange_strong(expected, true)) {
+#ifndef NDEBUG
+        pushUniqueQueuedValuesUpdatedPreQueueWrite();
+#endif
+        auto queued = readyQueue.write(vbucket);
+        Expects(queued);
+
+#ifndef NDEBUG
+        pushUniqueQueuedValuesUpdatedPostQueueWrite();
+#endif
+        return queueSize.fetch_add(1) == 0;
+    } else {
+        return false;
     }
-    return wasEmpty;
 }
 
 size_t VBReadyQueue::size() const {
-    std::lock_guard<std::mutex> lh(lock);
-    return readyQueue.size();
+    return queueSize.load();
 }
 
 bool VBReadyQueue::empty() {
-    std::lock_guard<std::mutex> lh(lock);
-    return readyQueue.isEmpty();
-}
-
-void VBReadyQueue::clear() {
-    std::lock_guard<std::mutex> lh(lock);
-    Vbid vbid;
-    while (!readyQueue.isEmpty()) {
-        readyQueue.read(vbid);
-    }
-    queuedValues.reset();
-}
-
-std::queue<Vbid> VBReadyQueue::swap() {
-    std::lock_guard<std::mutex> lh(lock);
-    std::queue<Vbid> result;
-    // TODO: Fix this - either remove swap() or reconsider MPMCQueue; given
-    // the below implementation is not O(1) anymore.
-    Vbid element;
-    while (readyQueue.read(element)) {
-        result.push(element);
-    }
-    queuedValues.reset();
-
-    return result;
+    return queueSize.load() == 0;
 }
 
 void VBReadyQueue::addStats(const std::string& prefix,
                             const AddStatFn& add_stat,
                             const void* c) const {
-    // Take a copy of the queue data under lock; then format it to stats. We
-    // can't copy the readyQueue as it wouldn't be thread safe so folly removed
-    // the copy ctor so we'll just grab the size.
-    boost::dynamic_bitset<> qMapCopy;
-    auto size = 0;
-    {
-        std::lock_guard<std::mutex> lh(lock);
-        qMapCopy = queuedValues;
-        size = readyQueue.size();
-    }
-
-    add_casted_stat((prefix + "size").c_str(), size, add_stat, c);
-    add_casted_stat(
-            (prefix + "map_size").c_str(), qMapCopy.count(), add_stat, c);
-
-    // Form a comma-separated string of the queue map's contents.
-    std::string qMapContents;
-    for (auto vbid = qMapCopy.find_first(); vbid != qMapCopy.npos;
-         vbid = qMapCopy.find_next(vbid)) {
-        qMapContents += std::to_string(vbid) + ",";
-    }
-    if (!qMapContents.empty()) {
-        qMapContents.pop_back();
-    }
-    add_casted_stat((prefix + "map_contents").c_str(),
-                    qMapContents.c_str(),
-                    add_stat,
-                    c);
+    // We can't access the queue easily in a thread safe way so just report the
+    // size
+    add_casted_stat((prefix + "size").c_str(), readyQueue.size(), add_stat, c);
 }

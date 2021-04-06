@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include "testing_hook.h"
+
 #include <boost/dynamic_bitset.hpp>
 #include <folly/MPMCQueue.h>
 #include <memcached/engine_common.h>
@@ -60,31 +62,38 @@ public:
      */
     bool empty();
 
-    /**
-     * Clears the queue
-     */
-    void clear();
-
-    /**
-     * Pop the contents of the queue into another and return that
-     */
-    std::queue<Vbid> swap();
-
     void addStats(const std::string& prefix,
                   const AddStatFn& add_stat,
                   const void* c) const;
 
-private:
-    // Mutable so that we can lock in addStats (const) to copy the queue/set
-    mutable std::mutex lock;
+    /**
+     * Testing hooks for testing things... Lock free is HARD so sanity checks
+     * for this stuff is good. Don't want to bloat the class in production cases
+     * so only included in debug builds.
+     */
+#ifndef NDEBUG
+    TestingHook<> popFrontAfterSizeLoad;
+    TestingHook<> popFrontAfterQueueRead;
+    TestingHook<> popFrontAfterSizeSub;
+    TestingHook<> popFrontAfterQueuedValueSet;
 
+    TestingHook<> pushUniqueQueuedValuesUpdatedPreQueueWrite;
+    TestingHook<> pushUniqueQueuedValuesUpdatedPostQueueWrite;
+#endif
+private:
     /// A queue of Vbid for vBuckets needing work
     folly::MPMCQueue<Vbid> readyQueue;
 
     /**
+     * Queue size is tracked separately from the queue as finding the size of it
+     * is expensive.
+     */
+    std::atomic<size_t> queueSize{};
+
+    /**
      * maintain a set of values that are in the readyQueue.
      * find() is performed by front-end threads so we want it to be
-     * efficient so just a set lookup is required.
+     * efficient so just an array lookup is required.
      */
-    boost::dynamic_bitset<> queuedValues;
+    std::vector<std::atomic_bool> queuedValues{};
 };

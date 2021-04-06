@@ -363,7 +363,8 @@ BENCHMARK_DEFINE_F(VBReadyQueueBench, PushEmpty)(benchmark::State& state) {
         state.SetIterationTime(
                 std::chrono::duration<double>(end - start).count());
 
-        queue.clear();
+        Vbid vbid;
+        queue.popFront(vbid);
     }
 }
 
@@ -381,7 +382,8 @@ BENCHMARK_DEFINE_F(VBReadyQueueBench, PushNotEmpty)(benchmark::State& state) {
         state.SetIterationTime(
                 std::chrono::duration<double>(end - start).count());
 
-        queue.clear();
+        Vbid vbid;
+        queue.popFront(vbid);
     }
 }
 
@@ -401,7 +403,6 @@ BENCHMARK_DEFINE_F(VBReadyQueueBench, PopFront)(benchmark::State& state) {
         state.SetIterationTime(
                 std::chrono::duration<double>(end - start).count());
 
-        queue.clear();
         queue.pushUnique(Vbid(0));
     }
 }
@@ -432,7 +433,10 @@ BENCHMARK_DEFINE_F(VBReadyQueueBench, PopAllSanity)(benchmark::State& state) {
         for (int i = 0; i < 1024; i++) {
             EXPECT_FALSE(queue.exists(Vbid(i)));
         }
-        queue.clear();
+
+        while (queue.popFront(vbid)) {
+        }
+
         for (int i = 0; i < 1024; i++) {
             queue.pushUnique(Vbid(i));
         }

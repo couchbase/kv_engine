@@ -84,10 +84,6 @@ void ActiveStreamCheckpointProcessorTask::schedule(
     }
 }
 
-void ActiveStreamCheckpointProcessorTask::cancelTask() {
-    queue.clear();
-}
-
 void ActiveStreamCheckpointProcessorTask::addStats(const std::string& name,
                                                    const AddStatFn& add_stat,
                                                    const void* c) const {

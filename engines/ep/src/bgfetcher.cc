@@ -39,7 +39,6 @@ BgFetcher::~BgFetcher() {
                 "Terminating database reader without completing "
                 "background fetches for {} vbuckets.",
                 queue.size());
-        queue.clear();
     }
 }
 
@@ -129,15 +128,15 @@ bool BgFetcher::run(GlobalTask *task) {
     task->snooze(INT_MAX);
     pendingFetch.store(false);
 
-    auto vbs = queue.swap();
-
     size_t num_fetched_items = 0;
 
-    // Iterate as many items as we had in the queue originally (to avoid
-    // starving anything else on this thread pool)
-    while (!vbs.empty()) {
-        auto vbid = vbs.front();
-        vbs.pop();
+    // Take size so we will yield after processing what was originally in the
+    // queue (this is MPSC so nothing else should drain). We'll guard against
+    // the case that something else does anyway
+    auto size = queue.size();
+    Vbid vbid;
+    while (size > 0 && queue.popFront(vbid)) {
+        size--;
 
         auto vb = store.getVBucket(vbid);
         if (vb) {

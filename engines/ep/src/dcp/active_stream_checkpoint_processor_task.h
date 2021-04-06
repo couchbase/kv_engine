@@ -46,9 +46,6 @@ public:
     void schedule(std::shared_ptr<ActiveStream> stream);
     void wakeup();
 
-    /* Clears the queues and resets the producer reference */
-    void cancelTask();
-
     /* Returns the number of unique streams waiting to be processed */
     size_t queueSize() {
         return queue.size();

@@ -57,3 +57,77 @@ TEST_F(VBReadyQueueTest, insertionOrdering) {
     EXPECT_TRUE(queue->popFront(vbid));
     EXPECT_EQ(Vbid(2), vbid);
 }
+
+#ifndef NDEBUG
+// Check that at varying stages of pop, a push will return true (notify)
+TEST_F(VBReadyQueueTest, PushAfterPopSizeLoad) {
+    EXPECT_TRUE(queue->pushUnique(Vbid(0)));
+    queue->popFrontAfterSizeLoad = ([&]() {
+        EXPECT_FALSE(queue->pushUnique(Vbid(0)));
+        EXPECT_EQ(1, queue->size());
+    });
+
+    Vbid vbid;
+    EXPECT_TRUE(queue->popFront(vbid));
+}
+
+TEST_F(VBReadyQueueTest, PushAfterPopQueueReady) {
+    EXPECT_TRUE(queue->pushUnique(Vbid(0)));
+    queue->popFrontAfterQueueRead = ([&]() {
+        EXPECT_FALSE(queue->pushUnique(Vbid(0)));
+        EXPECT_EQ(1, queue->size());
+    });
+
+    Vbid vbid;
+    EXPECT_TRUE(queue->popFront(vbid));
+}
+
+TEST_F(VBReadyQueueTest, PushAfterPopSizeSub) {
+    EXPECT_TRUE(queue->pushUnique(Vbid(0)));
+    queue->popFrontAfterSizeSub = ([&]() {
+        EXPECT_TRUE(queue->pushUnique(Vbid(0)));
+        EXPECT_EQ(1, queue->size());
+    });
+
+    Vbid vbid;
+    EXPECT_TRUE(queue->popFront(vbid));
+}
+
+TEST_F(VBReadyQueueTest, PushAfterPopQueuedValueSet) {
+    EXPECT_TRUE(queue->pushUnique(Vbid(0)));
+    queue->popFrontAfterQueuedValueSet = ([&]() {
+        EXPECT_FALSE(queue->pushUnique(Vbid(0)));
+        EXPECT_EQ(2, queue->size());
+    });
+
+    Vbid vbid;
+    EXPECT_TRUE(queue->popFront(vbid));
+
+    EXPECT_EQ(1, queue->size());
+}
+
+// Check that at varying stages of push, a pop being run will still return the
+// correct result
+TEST_F(VBReadyQueueTest, PopAfterPushBeforeQueueWrite) {
+    EXPECT_TRUE(queue->pushUnique(Vbid(0)));
+
+    queue->pushUniqueQueuedValuesUpdatedPreQueueWrite = [&]() {
+        Vbid vbid;
+        EXPECT_TRUE(queue->popFront(vbid));
+    };
+
+    EXPECT_FALSE(queue->pushUnique(Vbid(0)));
+}
+
+TEST_F(VBReadyQueueTest, PopAfterPushAfterQueueWrite) {
+    EXPECT_TRUE(queue->pushUnique(Vbid(0)));
+
+    queue->pushUniqueQueuedValuesUpdatedPostQueueWrite = [&]() {
+        Vbid vbid;
+        EXPECT_TRUE(queue->popFront(vbid));
+    };
+
+    EXPECT_TRUE(queue->pushUnique(Vbid(1)));
+}
+
+#endif
