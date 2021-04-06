@@ -155,11 +155,16 @@ def check_gdb(memcached_exe, gdb_exe, md2core_exe, minidump):
         # not have a valid symbol).
         backtrace.pop(-1)
 
+        recursive_crash_function_found = False
         for i, frame in enumerate(backtrace):
             # GDB prints stack frames in a variety of formats, however for
-            # these purposes we just care that we *don't* have with an unknown
-            # symbol, i.e. of the format:
+            # these purposes we just care that either recursive_crash_function
+            # is present, or the frame isn't an unknown symbol (indicating
+            # symbolification is broken) - i.e. of the format:
             #     #0 <hex-address> in ??
+            if 'recursive_crash_function' in frame:
+                recursive_crash_function_found = True
+                continue
             m = re.match('#\d+\s+0x[0-9a-f]+ in \?\? \(\) from ([^\s]+)', frame)
             if m:
                 # However allow unknown symbols if they are in system libraries.
@@ -175,6 +180,15 @@ def check_gdb(memcached_exe, gdb_exe, md2core_exe, minidump):
                         print(line)
                     print("=== GDB end ===")
                     cleanup_and_exit(11)
+        if not recursive_crash_function_found:
+            logging.error(
+                ("FAIL - GDB unable to locate at least one " +
+                 "'recursive_crash_function' symbol in backtrace."))
+            logging.error("=== GDB backtrace begin ===")
+            for line in backtrace:
+                logging.error(line)
+            logging.error("=== GDB backtrace end ===")
+            cleanup_and_exit(11)
 
         # Check we can read stack memory. Another tricky one as again we have
         # no idea where we crashed. Just ensure that we get *something* back

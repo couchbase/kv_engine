@@ -24,7 +24,9 @@
 #include <cstdlib>
 #include <stdexcept>
 #include <string>
+#include <thread>
 
+#include <folly/lang/Assume.h>
 #include <memcached/config_parser.h>
 #include <memcached/engine.h>
 #include <platform/exceptions.h>
@@ -33,6 +35,7 @@
 enum class CrashMode {
     SegFault,
     UncaughtStdException,
+    UncaughtStdExceptionViaStdThread,
     UncaughtStdExceptionWithTrace,
     UncaughtUnknownException
 };
@@ -54,6 +57,7 @@ char recursive_crash_function(char depth, CrashMode mode) {
             return *death + dummy;
         }
         case CrashMode::UncaughtStdException:
+        case CrashMode::UncaughtStdExceptionViaStdThread:
             throw std::runtime_error(
                     "crash_engine: This exception wasn't handled");
         case CrashMode::UncaughtStdExceptionWithTrace:
@@ -82,6 +86,8 @@ public:
             mode = CrashMode::SegFault;
         } else if (mode_string == "std_exception") {
             mode = CrashMode::UncaughtStdException;
+        } else if (mode_string == "std_exception_via_std_thread") {
+            mode = CrashMode::UncaughtStdExceptionViaStdThread;
         } else if (mode_string == "std_exception_with_trace") {
             mode = CrashMode::UncaughtStdExceptionWithTrace;
         } else if (mode_string == "unknown_exception") {
@@ -93,7 +99,14 @@ public:
                     mode_string.c_str());
             exit(1);
         }
-        return cb::engine_errc(recursive_crash_function(25, mode));
+        if (mode == CrashMode::UncaughtStdExceptionViaStdThread) {
+            std::thread thread{[mode] { recursive_crash_function(25, mode); }};
+            thread.join();
+            // Thread should crash before it joins.
+            folly::assume_unreachable();
+        } else {
+            return cb::engine_errc(recursive_crash_function(25, mode));
+        }
     }
 
     void destroy(bool) override {
