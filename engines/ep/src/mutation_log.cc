@@ -380,6 +380,16 @@ bool MutationLog::writeInitialBlock() {
     return true;
 }
 
+static bool validateHeaderBlockVersion(MutationLogVersion version) {
+    switch (version) {
+    case MutationLogVersion::V1:
+    case MutationLogVersion::V2:
+    case MutationLogVersion::V3:
+        return true;
+    }
+    return false;
+}
+
 void MutationLog::readInitialBlock() {
     if (!isOpen()) {
         throw std::logic_error("MutationLog::readInitialBlock: Not valid on "
@@ -398,26 +408,14 @@ void MutationLog::readInitialBlock() {
     }
 
     headerBlock.set(buf);
-
-    // Check the version is one we can handle, V1 and V2.
-    switch (headerBlock.version()) {
-    case MutationLogVersion::V1:
-    case MutationLogVersion::V2:
-    case MutationLogVersion::V3:
-        break;
-    default: {
-        std::stringstream ss;
-        ss << "HeaderBlock version is unknown " +
-                        std::to_string(int(headerBlock.version()));
-        throw ReadException(ss.str());
-    }
+    if (!validateHeaderBlockVersion(headerBlock.version())) {
+        throw ReadException("HeaderBlock version is unknown " +
+                            std::to_string(int(headerBlock.version())));
     }
 
     if (headerBlock.blockCount() != 1) {
-        std::stringstream ss;
-        ss << "HeaderBlock blockCount mismatch " +
-                        std::to_string(headerBlock.blockCount());
-        throw ReadException(ss.str());
+        throw ReadException("HeaderBlock blockCount mismatch " +
+                            std::to_string(headerBlock.blockCount()));
     }
 
     blockSize = headerBlock.blockSize();
