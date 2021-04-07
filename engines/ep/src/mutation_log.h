@@ -373,7 +373,11 @@ public:
     //! Size of the log
     std::atomic<size_t> logSize;
 
-private:
+protected:
+    /// Calculate the CRC for the provided data according to the version
+    /// number set in the header
+    uint16_t calculateCrc(cb::const_byte_buffer data) const;
+
     void needWriteAccess() {
         if (readOnly) {
             throw WriteException("Invalid access (file opened read only)");

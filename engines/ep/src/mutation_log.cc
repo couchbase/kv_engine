@@ -627,8 +627,8 @@ bool MutationLog::flush() {
         entries = htons(entries);
         memcpy(blockBuffer.get() + 2, &entries, sizeof(entries));
 
-        uint32_t crc32(crc32buf(blockBuffer.get() + 2, blockSize - 2));
-        uint16_t crc16(htons(crc32 & 0xffff));
+        uint16_t crc16(
+                htons(calculateCrc({blockBuffer.get() + 2, blockSize - 2})));
         memcpy(blockBuffer.get(), &crc16, sizeof(crc16));
 
         if (writeFully(file, blockBuffer.get(), blockSize)) {
@@ -886,6 +886,24 @@ size_t MutationLog::iterator::bufferBytesRemaining() {
     return buf.size() - (p - buf.begin());
 }
 
+uint16_t MutationLog::calculateCrc(cb::const_byte_buffer data) const {
+    uint32_t crc32 = 0;
+    // Note: The header block version was checked as part of opening
+    //       the file (for reading) and initialized to current version
+    //       when writing so we don't need to worry about "illegal"
+    //       enum values
+    switch (headerBlock.version()) {
+    case MutationLogVersion::V1:
+    case MutationLogVersion::V2:
+    case MutationLogVersion::V3:
+        crc32 = crc32buf(const_cast<uint8_t*>(data.data()), data.size());
+        break;
+    }
+
+    const uint16_t computed_crc16(crc32 & 0xffff);
+    return computed_crc16;
+}
+
 void MutationLog::iterator::nextBlock() {
     if (log->isEnabled() && !log->isOpen()) {
         throw std::logic_error("MutationLog::iterator::nextBlock: "
@@ -909,12 +927,12 @@ void MutationLog::iterator::nextBlock() {
     offset += bytesread;
 
     // block starts with 2 byte crc and 2 byte item count
-    uint32_t crc32(crc32buf(buf.data() + sizeof(uint16_t), buf.size() - sizeof(uint16_t)));
-    uint16_t computed_crc16(crc32 & 0xffff);
+    const auto crc16 = log->calculateCrc(
+            {buf.data() + sizeof(uint16_t), buf.size() - sizeof(uint16_t)});
     uint16_t retrieved_crc16;
     memcpy(&retrieved_crc16, buf.data(), sizeof(retrieved_crc16));
     retrieved_crc16 = ntohs(retrieved_crc16);
-    if (computed_crc16 != retrieved_crc16) {
+    if (retrieved_crc16 != crc16) {
         throw CRCReadException();
     }
 
