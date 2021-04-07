@@ -210,30 +210,33 @@ BackfillManager::ScheduleResult BackfillManager::schedule(
 
 bool BackfillManager::bytesCheckAndRead(size_t bytes) {
     LockHolder lh(lock);
-    if (scanBuffer.itemsRead >= scanBuffer.maxItems) {
-        return false;
-    }
 
-    // Always allow an item to be backfilled if the scan buffer is empty,
-    // otherwise check to see if there is room for the item.
-    if (scanBuffer.bytesRead + bytes <= scanBuffer.maxBytes ||
-        scanBuffer.bytesRead == 0) {
-        scanBuffer.bytesRead += bytes;
-    } else {
-        /* Subsequent items for this backfill will be read in next run */
-        return false;
-    }
+    // Note: For both backfill/scan buffers, the logic allows reading bytes when
+    // 'bytesRead == 0'. That is for ensuring that we allow DCP streaming in a
+    // scenario where 'buffer-size < data-size' (eg, imagine 10MB buffer-size
+    // and a 15MB document). Backfill would block forever otherwise.
 
-    if (buffer.bytesRead == 0 || buffer.bytesRead + bytes <= buffer.maxBytes) {
-        buffer.bytesRead += bytes;
-    } else {
-        scanBuffer.bytesRead -= bytes;
+    // Space available in the backfill buffer?
+    const bool bufferAvailable = buffer.bytesRead == 0 ||
+                                 buffer.bytesRead + bytes <= buffer.maxBytes;
+    if (!bufferAvailable) {
         buffer.full = true;
         buffer.nextReadSize = bytes;
         return false;
     }
 
+    // Space available for the current scan?
+    const bool scanAvailable =
+            (scanBuffer.itemsRead < scanBuffer.maxItems) &&
+            (scanBuffer.bytesRead == 0 ||
+             scanBuffer.bytesRead + bytes <= scanBuffer.maxBytes);
+    if (!scanAvailable) {
+        return false;
+    }
+
+    buffer.bytesRead += bytes;
     scanBuffer.itemsRead++;
+    scanBuffer.bytesRead += bytes;
 
     return true;
 }
