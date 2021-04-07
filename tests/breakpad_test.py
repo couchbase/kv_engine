@@ -65,7 +65,7 @@ def invoke_gdb(gdb_exe, program, core_file, commands=[]):
     """Invoke GDB on the specified program and core file, running the given
     commands. Returns a string of GDB's output.
     """
-    args = [gdb_exe, memcached_exe,
+    args = [gdb_exe, program,
             '--core=' + os.path.abspath(core_file.name),
             '--batch']
     for c in commands:
@@ -232,7 +232,7 @@ class Subprocess(object):
 parser = argparse.ArgumentParser()
 parser.add_argument('memcached_exe', help='Path to memcached executable')
 parser.add_argument('crash_mode', help='Type of crash to perform')
-parser.add_argument('--breakpad', type=bool, help='Is Breakpad enabled or not?')
+parser.add_argument('--breakpad', action='store_true', help='Is Breakpad enabled or not?')
 parser.add_argument('--gdb_exe',
                     help='Path to GDB executable, enables GDB checks. Requires that m2core_exe has been specified.')
 parser.add_argument('--md2core_exe',
