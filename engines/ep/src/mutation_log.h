@@ -58,7 +58,12 @@ typedef int file_handle_t;
 const size_t MIN_LOG_HEADER_SIZE(4096);
 const size_t HEADER_RESERVED(4);
 
-enum class MutationLogVersion { V1 = 1, V2 = 2, V3 = 3, Current = V3 };
+/**
+ * The versions of the layout for the mutation log
+ *
+ * V4 is identical with V3 except that it use the HW enabled CRC32 calculation
+ */
+enum class MutationLogVersion { V1 = 1, V2 = 2, V3 = 3, V4 = 4, Current = V4 };
 
 const size_t LOG_ENTRY_BUF_SIZE(512);
 
@@ -103,6 +108,10 @@ public:
 
     MutationLogVersion version() const {
         return MutationLogVersion(ntohl(_version));
+    }
+
+    void setVersion(MutationLogVersion version) {
+        _version = htonl(uint32_t(version));
     }
 
     uint32_t blockSize() const {

@@ -559,7 +559,10 @@ private:
                   "_type must be a uint8_t");
 };
 
-using MutationLogEntry = MutationLogEntryV3;
+/// V4 use the same on disk format as V3, except that it use the HW enabled
+/// CRC calculation in libplatform
+using MutationLogEntryV4 = MutationLogEntryV3;
+using MutationLogEntry = MutationLogEntryV4;
 
 std::ostream& operator<<(std::ostream& out, const MutationLogEntryV1& mle);
 std::ostream& operator<<(std::ostream& out, const MutationLogEntryV2& mle);

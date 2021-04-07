@@ -623,6 +623,41 @@ TEST_F(MutationLogTest, upgrade) {
     }
 }
 
+TEST_F(MutationLogTest, upgradeV3toV4) {
+    // V3 and V4 use the same format for the various entries, but use
+    // a different CRC version
+    class MockMutationLog : public MutationLog {
+    public:
+        MockMutationLog(std::string path, MutationLogVersion version)
+            : MutationLog(path) {
+            headerBlock.setVersion(version);
+        }
+    };
+
+    {
+        MockMutationLog ml(tmp_log_filename, MutationLogVersion::V3);
+        ml.open();
+        ml.newItem(Vbid(3), makeStoredDocKey("somekey"));
+        ml.commit1();
+        ml.commit2();
+        ml.flush();
+        ml.close();
+    }
+
+    {
+        MutationLog ml(tmp_log_filename);
+        ml.open(true);
+        ASSERT_EQ(MutationLogVersion::V3, ml.header().version());
+        auto iter = ml.begin();
+        EXPECT_EQ(MutationLogType::New, (*iter)->type());
+        EXPECT_EQ(makeStoredDocKey("somekey"), (*iter)->key());
+        ++iter;
+        EXPECT_EQ(MutationLogType::Commit1, (*iter)->type());
+        ++iter;
+        EXPECT_EQ(MutationLogType::Commit2, (*iter)->type());
+    }
+}
+
 // matcher testing a DocKey against an expected key (std::string)
 MATCHER_P(_key, expected, "") {
     auto key =

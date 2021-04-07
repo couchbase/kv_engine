@@ -10,6 +10,7 @@
  */
 
 #include <fcntl.h>
+#include <platform/crc32c.h>
 #include <platform/dirutils.h>
 #include <platform/histogram.h>
 #include <platform/strerror.h>
@@ -379,6 +380,7 @@ static bool validateHeaderBlockVersion(MutationLogVersion version) {
     case MutationLogVersion::V1:
     case MutationLogVersion::V2:
     case MutationLogVersion::V3:
+    case MutationLogVersion::V4:
         return true;
     }
     return false;
@@ -720,7 +722,9 @@ void MutationLog::iterator::prepItem() {
         copyLen =
                 MutationLogEntryV2::newEntry(p, bufferBytesRemaining())->len();
         break;
+        // V3 and V4 use the same on-disk format (just use different CRC)
     case MutationLogVersion::V3:
+    case MutationLogVersion::V4:
         copyLen =
                 MutationLogEntryV3::newEntry(p, bufferBytesRemaining())->len();
         break;
@@ -738,7 +742,9 @@ size_t MutationLog::iterator::getCurrentEntryLen() const {
     case MutationLogVersion::V2:
         return MutationLogEntryV2::newEntry(entryBuf.begin(), entryBuf.size())
                 ->len();
+        // V3 and V4 use the same format (just use different CRC calculation)
     case MutationLogVersion::V3:
+    case MutationLogVersion::V4:
         return MutationLogEntryV3::newEntry(entryBuf.begin(), entryBuf.size())
                 ->len();
     }
@@ -787,6 +793,10 @@ MutationLog::MutationLogEntryHolder MutationLog::iterator::upgradeEntry()
     std::unique_ptr<uint8_t[]> allocatedV2;
     std::unique_ptr<uint8_t[]> allocated;
 
+    static_assert(MutationLogVersion::Current == MutationLogVersion::V4,
+                  "The difference between V3 and V4 is the CRC used on disk so "
+                  "there isn't a upgrade from V3 to V4");
+
     // With only two versions this code is a little unnecessary but will
     // cause the addition of V4 to fail compile. The aim is that the addition of
     // V4 should now be obvious. I.e. we can step V1->V2->V3->V4 or V2->V3->V4
@@ -797,6 +807,11 @@ MutationLog::MutationLogEntryHolder MutationLog::iterator::upgradeEntry()
     case MutationLogVersion::V2:
         mleV2 = MutationLogEntryV2::newEntry(entryBuf.begin(), entryBuf.size());
         break;
+    case MutationLogVersion::V3:
+        // V3 == V4 with a different CRC (which we've already checked) so we
+        // can treat it as upgraded.
+        return {entryBuf.data(), false /*not allocated*/};
+
     /* If V4 exists then add a case for V3, for example:
     case MutationLogVersion::V3: {
         mleV3 = MutationLogEntryV3::newEntry(entryBuf.begin(), entryBuf.size());
@@ -832,6 +847,7 @@ MutationLog::MutationLogEntryHolder MutationLog::iterator::upgradeEntry()
 
         // fall through
     case MutationLogVersion::V3:
+    case MutationLogVersion::V4:
         if (!mleV2) {
             throw std::logic_error(
                     "MutationLog::iterator::upgradeEntry mleV2 is null");
@@ -869,10 +885,10 @@ MutationLog::MutationLogEntryHolder MutationLog::iterator::upgradeEntry()
 
 MutationLog::MutationLogEntryHolder MutationLog::iterator::operator*() {
     // If the file version is down-level return an upgraded entry
-    if (log->headerBlock.version() != MutationLogVersion::Current) {
-        return upgradeEntry();
-    } else {
+    if (log->headerBlock.version() == MutationLogVersion::Current) {
         return {entryBuf.data(), false /*not allocated*/};
+    } else {
+        return upgradeEntry();
     }
 }
 
@@ -891,6 +907,9 @@ uint16_t MutationLog::calculateCrc(cb::const_byte_buffer data) const {
     case MutationLogVersion::V2:
     case MutationLogVersion::V3:
         crc32 = crc32buf(const_cast<uint8_t*>(data.data()), data.size());
+        break;
+    case MutationLogVersion::V4:
+        crc32 = crc32c(data.data(), data.size(), 0);
         break;
     }
 
