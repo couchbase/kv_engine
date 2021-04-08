@@ -27,32 +27,6 @@
 
 cb::engine_errc select_bucket(Cookie& cookie, const std::string& bucketname) {
     auto& connection = cookie.getConnection();
-    if (!connection.isAuthenticated()) {
-        cookie.setErrorContext("Not authenticated");
-        LOG_INFO(
-                "{}: select_bucket failed - Not authenticated. "
-                R"({{"cid":"{}/{:x}","connection":"{}","bucket":"{}"}})",
-                connection.getId(),
-                connection.getConnectionId().data(),
-                ntohl(cookie.getRequest().getOpaque()),
-                connection.getDescription(),
-                bucketname);
-        return cb::engine_errc::no_access;
-    }
-
-    if (connection.isDCP()) {
-        cookie.setErrorContext("DCP connections cannot change bucket");
-        LOG_INFO(
-                "{}: select_bucket failed - DCP connection. "
-                R"({{"cid":"{}/{:x}","connection":"{}","bucket":"{}"}})",
-                connection.getId(),
-                connection.getConnectionId().data(),
-                ntohl(cookie.getRequest().getOpaque()),
-                connection.getDescription(),
-                bucketname);
-        return cb::engine_errc::not_supported;
-    }
-
     auto oldIndex = connection.getBucketIndex();
 
     if (!mayAccessBucket(cookie, bucketname)) {
@@ -105,13 +79,32 @@ void select_bucket_executor(Cookie& cookie) {
     const std::string bucketname{reinterpret_cast<const char*>(key.data()),
                                  key.size()};
 
-    auto& connection = cookie.getConnection();
-    cookie.logCommand();
-
     cb::engine_errc code = cb::engine_errc::success;
-
-    // We can't switch bucket if we've got multiple commands in flight
-    if (connection.getNumberOfCookies() > 1) {
+    auto& connection = cookie.getConnection();
+    if (!connection.isAuthenticated()) {
+        cookie.setErrorContext("Not authenticated");
+        LOG_INFO(
+                "{}: select_bucket failed - Not authenticated. "
+                R"({{"cid":"{}/{:x}","connection":"{}","bucket":"{}"}})",
+                connection.getId(),
+                connection.getConnectionId().data(),
+                ntohl(cookie.getRequest().getOpaque()),
+                connection.getDescription(),
+                bucketname);
+        code = cb::engine_errc::no_access;
+    } else if (connection.isDCP()) {
+        cookie.setErrorContext("DCP connections cannot change bucket");
+        LOG_INFO(
+                "{}: select_bucket failed - DCP connection. "
+                R"({{"cid":"{}/{:x}","connection":"{}","bucket":"{}"}})",
+                connection.getId(),
+                connection.getConnectionId().data(),
+                ntohl(cookie.getRequest().getOpaque()),
+                connection.getDescription(),
+                bucketname);
+        code = cb::engine_errc::not_supported;
+    } else if (connection.getNumberOfCookies() > 1) {
+        // We can't switch bucket if we've got multiple commands in flight
         LOG_INFO(
                 "{}: select_bucket failed - multiple commands in flight. "
                 R"({{"cid":"{}/{:x}","connection":"{}","bucket":"{}"}})",
