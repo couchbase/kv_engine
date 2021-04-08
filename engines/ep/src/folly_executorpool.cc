@@ -686,7 +686,7 @@ struct FollyExecutorPool::State {
      * (isScheduled() == true) for each task group.
      */
     std::array<int, NUM_TASK_GROUPS> getWaitingTasksPerGroup() {
-        std::array<int, NUM_TASK_GROUPS> waitingTasksPerGroup;
+        std::array<int, NUM_TASK_GROUPS> waitingTasksPerGroup{};
         for (const auto& owner : taskOwners) {
             for (const auto& task : owner.second.locator) {
                 if (task.second->isScheduled()) {

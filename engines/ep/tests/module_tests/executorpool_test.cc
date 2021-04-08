@@ -770,6 +770,57 @@ TYPED_TEST(ExecutorPoolTest, ThreadPriorities) {
 
 // Test that Task queue stats are reported correctly.
 TYPED_TEST(ExecutorPoolTest, TaskQStats) {
+    this->makePool(1);
+    MockTaskable lowPriBucket{LOW_BUCKET_PRIORITY};
+    this->pool->registerTaskable(lowPriBucket);
+
+    // Create some tasks with long sleep times to check for non-zero InQueue
+    // (futureQueue) sizes.
+    auto scheduleTask = [&](Taskable& bucket, TaskId id) {
+        this->pool->schedule(ExTask(new LambdaTask(
+                bucket, id, 600.0, true, [&](LambdaTask&) { return false; })));
+    };
+
+    // Reader.
+    scheduleTask(lowPriBucket, TaskId::MultiBGFetcherTask);
+    scheduleTask(lowPriBucket, TaskId::MultiBGFetcherTask);
+    // Writer
+    scheduleTask(lowPriBucket, TaskId::FlusherTask);
+    scheduleTask(lowPriBucket, TaskId::FlusherTask);
+    scheduleTask(lowPriBucket, TaskId::FlusherTask);
+    // AuxIO
+    scheduleTask(lowPriBucket, TaskId::AccessScanner);
+    // NonIO - left empty.
+
+    MockAddStat mockAddStat;
+
+    using ::testing::_;
+    const void* cookie = this;
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:LowPrioQ_Writer:InQsize", "3", cookie));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:LowPrioQ_Writer:OutQsize", "0", cookie));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:LowPrioQ_Reader:InQsize", "2", cookie));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:LowPrioQ_Reader:OutQsize", "0", cookie));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:LowPrioQ_AuxIO:InQsize", "1", cookie));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:LowPrioQ_AuxIO:OutQsize", "0", cookie));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:LowPrioQ_NonIO:InQsize", "0", cookie));
+    EXPECT_CALL(mockAddStat,
+                callback("ep_workload:LowPrioQ_NonIO:OutQsize", "0", cookie));
+
+    this->pool->doTaskQStat(lowPriBucket, this, mockAddStat.asStdFunction());
+
+    // Set force==true to cancel all the pending tasks.
+    this->pool->unregisterTaskable(lowPriBucket, true);
+}
+
+// Test that Task queue stats for different prioritoes are reported correctly.
+TYPED_TEST(ExecutorPoolTest, TaskQStatsMultiPriority) {
     if (typeid(TypeParam) == typeid(FollyExecutorPool)) {
         // Not yet implemented for FollyExecutorPool.
         GTEST_SKIP();
