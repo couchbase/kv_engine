@@ -1,18 +1,12 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2019 Couchbase, Inc
+ *     Copyright 2019-Present Couchbase, Inc.
  *
- *   Licensed under the Apache License, Version 2.0 (the "License");
- *   you may not use this file except in compliance with the License.
- *   You may obtain a copy of the License at
- *
- *       http://www.apache.org/licenses/LICENSE-2.0
- *
- *   Unless required by applicable law or agreed to in writing, software
- *   distributed under the License is distributed on an "AS IS" BASIS,
- *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *   See the License for the specific language governing permissions and
- *   limitations under the License.
+ *   Use of this software is governed by the Business Source License included
+ *   in the file licenses/BSL-Couchbase.txt.  As of the Change Date specified
+ *   in that file, in accordance with the Business Source License, use of this
+ *   software will be governed by the Apache License, Version 2.0, included in
+ *   the file licenses/APL2.txt.
  */
 #include "utilities/readfile.h"
 
@@ -98,30 +92,19 @@ int main(int argc, char **argv) {
     headerfile << "/*" << std::endl
                << " *     Copyright 2020 Couchbase, Inc" << std::endl
                << " *" << std::endl
-               << " *   Licensed under the Apache License, Version 2.0 (the "
-                  "\"License\");"
+               << " *   Use of this software is governed by the Business "
+                  "Source License included"
                << std::endl
-               << " *   you may not use this file except in compliance with "
-                  "the License."
+               << " *   in the file licenses/BSL-Couchbase.txt.  As"
+                  " of the Change Date specified"
                << std::endl
-               << " *   You may obtain a copy of the License at" << std::endl
-               << " *" << std::endl
-               << " *       http://www.apache.org/licenses/LICENSE-2.0"
+               << " *   in that file, in accordance with the Business"
+                  "Source License, use of this"
                << std::endl
-               << " *" << std::endl
-               << " *   Unless required by applicable law or agreed to in "
-                  "writing, software"
+               << " *   software will be governed by the Apache License, "
+                  "Version 2.0, included in"
                << std::endl
-               << " *   distributed under the License is distributed on an "
-                  "\"AS IS\" BASIS,"
-               << std::endl
-               << " *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either "
-                  "express or implied."
-               << std::endl
-               << " *   See the License for the specific language governing "
-                  "permissions and"
-               << std::endl
-               << " *   limitations under the License." << std::endl
+               << " *   the file licenses/APL2.txt." << std::endl
                << " */" << std::endl
                << std::endl
                << "/********************************" << std::endl
@@ -148,30 +131,19 @@ int main(int argc, char **argv) {
     sourcefile << "/*" << std::endl
                << " *     Copyright 2020 Couchbase, Inc" << std::endl
                << " *" << std::endl
-               << " *   Licensed under the Apache License, Version 2.0 (the "
-                  "\"License\");"
+               << " *   Use of this software is governed by the Business "
+                  "Source License included"
                << std::endl
-               << " *   you may not use this file except in compliance with "
-                  "the License."
+               << " *   in the file licenses/BSL-Couchbase.txt.  As"
+                  " of the Change Date specified"
                << std::endl
-               << " *   You may obtain a copy of the License at" << std::endl
-               << " *" << std::endl
-               << " *       http://www.apache.org/licenses/LICENSE-2.0"
+               << " *   in that file, in accordance with the Business"
+                  "Source License, use of this"
                << std::endl
-               << " *" << std::endl
-               << " *   Unless required by applicable law or agreed to in "
-                  "writing, software"
+               << " *   software will be governed by the Apache License, "
+                  "Version 2.0, included in"
                << std::endl
-               << " *   distributed under the License is distributed on an "
-                  "\"AS IS\" BASIS,"
-               << std::endl
-               << " *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either "
-                  "express or implied."
-               << std::endl
-               << " *   See the License for the specific language governing "
-                  "permissions and"
-               << std::endl
-               << " *   limitations under the License." << std::endl
+               << " *   the file licenses/APL2.txt." << std::endl
                << " */" << std::endl
                << std::endl
                << "/********************************" << std::endl
