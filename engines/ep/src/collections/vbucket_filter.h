@@ -186,8 +186,6 @@ public:
         return filter.begin()->first;
     }
 
-    std::string getUid() const;
-
     cb::mcbp::DcpStreamId getStreamId() const {
         return streamId;
     }
@@ -298,7 +296,6 @@ protected:
 
     Container filter;
 
-    std::optional<Collections::ManifestUid> uid;
     std::optional<ScopeID> scopeID;
     // use an optional so we don't use any special values to mean unset
     std::optional<uint32_t> lastCheckedPrivilegeRevision;
@@ -313,7 +310,6 @@ protected:
     // keys and types used in JSON parsing
     static const char* CollectionsKey;
     static const char* ScopeKey;
-    static const char* UidKey;
     static const char* StreamIdKey;
 };
 
