@@ -11,7 +11,7 @@
 
 #include <relaxed_atomic.h>
 
-#include "collections/collections_types.h"
+#include "collections/system_event_types.h"
 #include "item.h"
 #include "mock_dcp.h"
 

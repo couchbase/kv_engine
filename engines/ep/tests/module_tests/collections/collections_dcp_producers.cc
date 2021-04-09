@@ -11,7 +11,7 @@
 
 #include "collections_dcp_producers.h"
 
-#include "collections/collections_types.h"
+#include "collections/system_event_types.h"
 #include "item.h"
 #include "tests/mock/mock_dcp_consumer.h"
 

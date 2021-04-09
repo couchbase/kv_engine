@@ -10,7 +10,7 @@
  */
 #pragma once
 
-#include "collections/collections_types.h"
+#include "collections/system_event_types.h"
 #include "dcp/dcp-types.h"
 #include "ep_types.h"
 #include "ext_meta_parser.h"

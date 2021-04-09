@@ -13,6 +13,7 @@
 
 #include "collections/collections_types.h"
 #include "collections/manifest.h"
+#include "collections/system_event_types.h"
 #include "collections/vbucket_manifest_entry.h"
 #include "ep_types.h"
 #include "storeddockey_fwd.h"

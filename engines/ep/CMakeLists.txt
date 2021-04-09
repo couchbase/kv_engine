@@ -246,6 +246,7 @@ SET(COLLECTIONS_SOURCE src/collections/collections_types.cc
                        ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_generated.h
                        ${CMAKE_CURRENT_BINARY_DIR}/src/collections/manifest_generated.h
                        src/collections/scan_context.cc
+                       src/collections/system_event_types.cc
                        src/collections/vbucket_filter.cc
                        src/collections/vbucket_manifest.cc
                        src/collections/vbucket_manifest_entry.cc
