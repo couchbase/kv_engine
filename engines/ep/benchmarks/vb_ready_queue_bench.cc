@@ -34,7 +34,15 @@ public:
         // Run until we are told to stop. Acquire memory order to ensure that we
         // don't throw due to pop returning false (i.e. queue is empty)
         while (!shouldConsumerStop()) {
-            {
+            Vbid vbid;
+
+            auto start = std::chrono::steady_clock::now();
+            auto popped = queue.popFront(vbid);
+            auto end = std::chrono::steady_clock::now();
+
+            if (popped) {
+                popTime += std::chrono::duration<double>(end - start).count();
+            } else {
                 // Sleep until we are notified.
                 std::unique_lock<std::mutex> lh(syncObject);
                 syncObject.wait(lh, [this]() {
@@ -55,15 +63,6 @@ public:
             if (shouldConsumerStop()) {
                 break;
             }
-
-            Vbid vbid;
-
-            auto start = std::chrono::steady_clock::now();
-            auto popped = queue.popFront(vbid);
-            auto end = std::chrono::steady_clock::now();
-
-            EXPECT_TRUE(popped);
-            popTime += std::chrono::duration<double>(end - start).count();
         }
 
         state.counters["PopTime"] = popTime / state.iterations();
