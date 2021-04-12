@@ -1,19 +1,8 @@
-daemon/cmdline\.h
-daemon/cmdline\.cc
-daemon/mc_time\.h
-daemon/stdin_check\.cc
 engines/default_engine/.*
 engines/ep/src/murmurhash3\.h
 engines/ep/src/murmurhash3\.cc
-include/memcached/engine\.h
-include/memcached/engine_common\.h
-include/memcached/engine_testapp\.h
-include/memcached/types\.h
-include/memcached/visibility\.h
 scripts/jemalloc/jemalloc_analyse\.py
 tests/cbnt_tests/cbnt_test_list\.yml
 tests/cert/create\.sh
 tests/scripts_tests/jemalloc_allocator_stats\.cc
-tests/sizes/sizes\.cc
-utilities/util\.cc
 
