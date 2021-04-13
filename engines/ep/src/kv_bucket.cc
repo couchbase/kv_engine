@@ -2307,10 +2307,11 @@ VBCBAdaptor::VBCBAdaptor(KVBucket* s,
       maxDuration(std::chrono::microseconds::max()) {
     // populate the list of vbuckets to visit, and order them as needed by
     // the visitor.
-    for (Vbid::id_type vbid = 0; vbid < store->getVBuckets().getSize();
-         ++vbid) {
+    const auto numVbs = store->getVBuckets().getSize();
+
+    for (Vbid::id_type vbid = 0; vbid < numVbs; ++vbid) {
         if (visitor->getVBucketFilter()(Vbid(vbid))) {
-            vbucketsToVisit.emplace_front(vbid);
+            vbucketsToVisit.emplace_back(vbid);
         }
     }
     std::sort(vbucketsToVisit.begin(),

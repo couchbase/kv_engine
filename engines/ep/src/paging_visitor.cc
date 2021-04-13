@@ -308,23 +308,25 @@ PagingVisitor::getVBucketComparator() const {
     // Fetching these values repeatedly in the comparator could cause issues
     // as the values can change _during_ a given sort call.
 
-    std::map<Vbid, std::pair<bool, size_t>>
-            stateAndPageableMemUsed;
+    auto numVbs = store.getVBuckets().getSize();
+
+    std::vector<bool> isReplica(numVbs);
+    std::vector<size_t> memUsed(numVbs);
 
     for (const auto& vbid : store.getVBuckets().getBuckets()) {
         auto vb = store.getVBucket(vbid);
         if (vb) {
-            stateAndPageableMemUsed[vbid] = {
-                    vb->getState() == vbucket_state_replica,
-                    vb->getPageableMemUsage()};
+            isReplica[vbid.get()] = vb->getState() == vbucket_state_replica;
+            memUsed[vbid.get()] = vb->getPageableMemUsage();
         }
     }
 
-    return [stateAndPageableMemUsed = std::move(stateAndPageableMemUsed)](
+    return [isReplica = std::move(isReplica), memUsed = std::move(memUsed)](
                    const Vbid& a, const Vbid& b) mutable {
         // sort replicas before all other vbucket states, then sort by
         // pageableMemUsed
-        return stateAndPageableMemUsed[a] > stateAndPageableMemUsed[b];
+        return std::make_pair(isReplica[a.get()], memUsed[a.get()]) >
+               std::make_pair(isReplica[b.get()], memUsed[b.get()]);
     };
 }
 
