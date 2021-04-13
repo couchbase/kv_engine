@@ -444,6 +444,7 @@ if (NOT EP_BYPASS_TESTS)
                    benchmarks/executor_bench.cc
                    benchmarks/hash_table_bench.cc
                    benchmarks/item_bench.cc
+                   benchmarks/item_pager_bench.cc
                    benchmarks/item_compressor_bench.cc
                    benchmarks/kvstore_bench.cc
                    benchmarks/vb_ready_queue_bench.cc
