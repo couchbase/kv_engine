@@ -23,6 +23,7 @@ Areas of interest in the repository:
       which interposes a real engine and can perform various types of
       error-injection.
 * `tests/` - Test cases.
+* `licenses/` - The various licenses in use
 
 ## Building
 
