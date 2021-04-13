@@ -4,7 +4,7 @@
  * Portions Copyright (c) 2003 Danga Interactive
  *
  * Use of this software is governed by the Apache License, Version 2.0 and
- * BSD 3 Clause included in the files licenses/APL.txt,
+ * BSD 3 Clause included in the files licenses/APL2.txt,
  * licenses/BSD-3-Clause-Sun-Microsystems.txt and
  * licenses/BSD-3-Clause-Danga-Interactive.txt
  */

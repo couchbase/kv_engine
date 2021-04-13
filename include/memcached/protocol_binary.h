@@ -3,7 +3,7 @@
  * Portions Copyright (c) 2008 Sun Microsystems
  *
  * Use of this software is governed by the Apache License, Version 2.0 and
- * BSD 3 Clause included in the files licenses/APL.txt and
+ * BSD 3 Clause included in the files licenses/APL2.txt and
  * licenses/BSD-3-Clause-Sun-Microsystems.txt
  */
 #pragma once
