@@ -7057,7 +7057,7 @@ TEST_P(STParamCouchstoreBucketTest,
     kvstore->setPostFlushHook([this, &vb]() {
         store_item(vbid,
                    makeStoredDocKey("keyA"),
-                   "value",
+                   "biggerValue",
                    0 /*exptime*/,
                    {cb::engine_errc::success} /*expected*/,
                    PROTOCOL_BINARY_RAW_BYTES);
@@ -7084,6 +7084,7 @@ TEST_P(STParamCouchstoreBucketTest,
     EXPECT_EQ(0, vb.dirtyQueueSize);
     EXPECT_EQ(0, vb.dirtyQueueAge);
     EXPECT_EQ(0, vb.dirtyQueueMem);
+    EXPECT_EQ(0, vb.dirtyQueuePendingWrites);
 }
 
 TEST_P(STParameterizedBucketTest, CkptMgrDedupeStatsCorrectSmallToLarge) {

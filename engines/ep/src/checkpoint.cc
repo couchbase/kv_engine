@@ -352,13 +352,12 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi,
                             (*(*backupPCursor->second).currentPos)
                                     ->getBySeqno();
                     if (backupPCursorSeqno <= currMutationId) {
-                        // Pass the old queueTime in. When we return and update
-                        // the stats we'll use the new queueTime and the flush
-                        // will pick up the new queueTime too so we need to
-                        // patch the increment of the original stat
-                        // update/queueTime
+                        // Pass the oldItem in. When we return and update
+                        // the stats we'll use the new item and the flush
+                        // will pick up the new item too so we have to match
+                        // the original (oldItem) increment with a decrement
                         checkpointManager->persistenceFailureStatOvercounts
-                                .accountItem(*qi, oldItem->getQueuedTime());
+                                .accountItem(*oldItem);
                     }
 
                     decrCursorIfSameKey();
