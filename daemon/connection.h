@@ -868,13 +868,7 @@ protected:
      * Format the response header into the provided buffer.
      *
      * @param cookie The command to create a response for
-     * @param dest The destination buffer (the reason the buffer is huge
-     *             is that we'll be using the front-end-threads scratch
-     *             buffer and I don't want to do runtime checks to verify
-     *             that it is big enough when we can use a compile time
-     *             check (if someone change the size of the front-end-threads
-     *             scratch buffer we'll fail compile time when we pass it
-     *             in here)
+     * @param dest The destination buffer
      * @param status The status code
      * @param extras_len The length of the extras section
      * @param key_len The length of the key
@@ -883,7 +877,7 @@ protected:
      * @return A view into the destination buffer containing the header
      */
     std::string_view formatResponseHeaders(Cookie& cookie,
-                                           std::array<char, 2048>& dest,
+                                           cb::char_buffer dest,
                                            cb::mcbp::Status status,
                                            std::size_t extras_len,
                                            std::size_t key_len,

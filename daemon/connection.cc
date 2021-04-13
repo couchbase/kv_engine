@@ -1598,14 +1598,20 @@ void Connection::setDcpFlowControlBufferSize(std::size_t size) {
 }
 
 std::string_view Connection::formatResponseHeaders(Cookie& cookie,
-                                                   std::array<char, 2048>& dest,
+                                                   cb::char_buffer dest,
                                                    cb::mcbp::Status status,
                                                    std::size_t extras_len,
                                                    std::size_t key_len,
                                                    std::size_t value_len,
                                                    uint8_t datatype) {
+    if (dest.size() < sizeof(cb::mcbp::Response) + MCBP_TRACING_RESPONSE_SIZE) {
+        throw std::runtime_error(
+                "Connection::formatResponseHeaders: The provided buffer must "
+                "be big enough to hold header and tracing frame info");
+    }
+
     const auto& request = cookie.getRequest();
-    auto wbuf = cb::char_buffer{dest.data(), dest.size()};
+    auto wbuf = dest;
     auto& response = *reinterpret_cast<cb::mcbp::Response*>(wbuf.data());
 
     response.setOpcode(request.getClientOpcode());
@@ -1677,8 +1683,11 @@ void Connection::sendResponseHeaders(Cookie& cookie,
                                      std::string_view key,
                                      std::size_t value_len,
                                      uint8_t datatype) {
+    std::array<char, sizeof(cb::mcbp::Response) + MCBP_TRACING_RESPONSE_SIZE>
+            buffer;
+
     auto wbuf = formatResponseHeaders(cookie,
-                                      thread.scratch_buffer,
+                                      {buffer.data(), buffer.size()},
                                       status,
                                       extras.size(),
                                       key.size(),
@@ -1704,8 +1713,11 @@ void Connection::sendResponse(Cookie& cookie,
                 cookie, status, extras, key, value.size(), datatype);
         chainDataToOutputStream(std::move(sendbuffer));
     } else {
+        std::array<char,
+                   sizeof(cb::mcbp::Response) + MCBP_TRACING_RESPONSE_SIZE>
+                buffer;
         auto wbuf = formatResponseHeaders(cookie,
-                                          thread.scratch_buffer,
+                                          {buffer.data(), buffer.size()},
                                           status,
                                           extras.size(),
                                           key.size(),
