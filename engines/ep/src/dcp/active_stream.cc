@@ -56,6 +56,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       includeDeletedUserXattrs(includeDeletedUserXattrs),
       lastReadSeqnoUnSnapshotted(st_seqno),
       lastSentSeqno(st_seqno),
+      lastSentSeqnoAdvance(0),
       curChkSeqno(st_seqno),
       takeoverState(vbucket_state_pending),
       itemsFromMemoryPhase(0),
@@ -825,6 +826,14 @@ void ActiveStream::addStats(const AddStatFn& add_stat, const void* c) {
                          name_.c_str(),
                          vb_.get());
         add_casted_stat(buffer, lastSentSeqno.load(), add_stat, c);
+
+        checked_snprintf(buffer,
+                         bsize,
+                         "%s:stream_%d_last_sent_seqno_advance",
+                         name_.c_str(),
+                         vb_.get());
+        add_casted_stat(buffer, lastSentSeqnoAdvance.load(), add_stat, c);
+
         checked_snprintf(buffer,
                          bsize,
                          "%s:stream_%d_last_sent_snap_end_seqno",
@@ -2178,8 +2187,9 @@ std::unique_ptr<DcpResponse> ActiveStream::makeEndStreamResponse(
 }
 
 void ActiveStream::queueSeqnoAdvanced() {
-    pushToReadyQ(std::make_unique<SeqnoAdvanced>(
-            opaque_, vb_, sid, lastSentSnapEndSeqno.load()));
+    const auto seqno = lastSentSnapEndSeqno.load();
+    pushToReadyQ(std::make_unique<SeqnoAdvanced>(opaque_, vb_, sid, seqno));
+    lastSentSeqnoAdvance.store(seqno);
 }
 
 bool ActiveStream::isDiskOnly() const {

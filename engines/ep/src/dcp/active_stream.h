@@ -677,6 +677,9 @@ private:
     //! The last sequence number sent to the network layer
     std::atomic<uint64_t> lastSentSeqno;
 
+    //! The seqno of the last SeqnoAdvance sent
+    std::atomic<uint64_t> lastSentSeqnoAdvance;
+
     //! The last known seqno pointed to by the checkpoint cursor
     std::atomic<uint64_t> curChkSeqno;
 
