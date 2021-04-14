@@ -422,6 +422,17 @@ void Filter::addStats(const AddStatFn& add_stat,
         checked_snprintf(
                 buffer, bsize, "%s:filter_%d_size", prefix.c_str(), vb.get());
         add_casted_stat(buffer, filter.size(), add_stat, c);
+
+        std::string cids;
+        for (const auto& pair : filter) {
+            cids += pair.first.to_string() + ",";
+        }
+        if (!cids.empty()) {
+            cids.pop_back();
+        }
+        checked_snprintf(
+                buffer, bsize, "%s:filter_%d_cids", prefix.c_str(), vb.get());
+        add_casted_stat(buffer, cids, add_stat, c);
     } catch (std::exception& error) {
         EP_LOG_WARN(
                 "Filter::addStats: {}:{}"

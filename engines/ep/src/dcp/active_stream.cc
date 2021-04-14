@@ -108,7 +108,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
 
     log(spdlog::level::info,
         "{} Creating {}stream with start seqno {} and end seqno {}; "
-        "requested end seqno was {}, collections-manifest filter:{} {}",
+        "requested end seqno was {}, collections-filter-size:{} {}",
         logPrefix,
         type,
         st_seqno,
