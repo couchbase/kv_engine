@@ -29,6 +29,7 @@
 #include <stdexcept>
 #include <string>
 
+#define JSON_DUMP_NO_INDENT -1
 #define JSON_DUMP_INDENT_SIZE 4
 
 const static std::string_view histogramInfo = R"(Histogram Legend:
@@ -511,7 +512,7 @@ int main(int argc, char** argv) {
             connection.selectBucket(bucket);
         }
 
-        if (verbose) {
+        if (verbose && !json) {
             fmt::print(stdout, histogramInfo);
         }
 
@@ -547,7 +548,10 @@ int main(int argc, char** argv) {
             }
         }
         if (jsonOutput.has_value()) {
-            fmt::print(stdout, "{}\n", jsonOutput->dump(JSON_DUMP_INDENT_SIZE));
+            fmt::print(stdout,
+                       "{}\n",
+                       jsonOutput->dump(verbose ? JSON_DUMP_INDENT_SIZE
+                                                : JSON_DUMP_NO_INDENT));
         }
     } catch (const ConnectionError& ex) {
         fmt::print(stderr, "{}\n", ex.what());
