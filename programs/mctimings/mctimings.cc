@@ -403,24 +403,26 @@ int main(int argc, char** argv) {
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
 
-    struct option long_options[] = {
-            {"ipv4", no_argument, nullptr, '4'},
-            {"ipv6", no_argument, nullptr, '6'},
-            {"host", required_argument, nullptr, 'h'},
-            {"port", required_argument, nullptr, 'p'},
-            {"bucket", required_argument, nullptr, 'b'},
-            {"password", required_argument, nullptr, 'P'},
-            {"user", required_argument, nullptr, 'u'},
-            {"ssl", no_argument, nullptr, 's'},
-            {"verbose", no_argument, nullptr, 'v'},
-            {"json", optional_argument, nullptr, 'j'},
-            {"file", required_argument, nullptr, 'f'},
-            {"help", no_argument, nullptr, 0},
-            {nullptr, 0, nullptr, 0}};
+    std::vector<option> long_options{
+            {{"ipv4", no_argument, nullptr, '4'},
+             {"ipv6", no_argument, nullptr, '6'},
+             {"host", required_argument, nullptr, 'h'},
+             {"port", required_argument, nullptr, 'p'},
+             {"bucket", required_argument, nullptr, 'b'},
+             {"password", required_argument, nullptr, 'P'},
+             {"user", required_argument, nullptr, 'u'},
+             {"ssl", no_argument, nullptr, 's'},
+             {"verbose", no_argument, nullptr, 'v'},
+             {"json", optional_argument, nullptr, 'j'},
+             {"file", required_argument, nullptr, 'f'},
+             {"help", no_argument, nullptr, 0},
+             {nullptr, 0, nullptr, 0}}};
 
-    while ((cmd = getopt_long(
-                    argc, argv, "46h:p:u:b:P:sSvj", long_options, nullptr)) !=
-           EOF) {
+    while ((cmd = getopt_long(argc,
+                              argv,
+                              "46h:p:u:b:P:sSvjf:",
+                              long_options.data(),
+                              nullptr)) != EOF) {
         switch (cmd) {
         case '6':
             family = AF_INET6;
