@@ -325,6 +325,11 @@ static void request_stat_timings(MemcachedConnection& connection,
     }
 }
 
+static void printBucketHeader(const std::string& bucket) {
+    fmt::print(stdout, "{}\n", std::string(78, '*'));
+    fmt::print(stdout, "Bucket:'{}'\n\n", bucket);
+}
+
 void dumpHistogramFromFile(const std::string& file) {
     auto fileAsString = cb::io::loadFile(file);
     try {
@@ -341,8 +346,18 @@ void dumpHistogramFromFile(const std::string& file) {
         };
 
         if (jsonData.is_array()) {
-            for (auto obj : jsonData) {
-                runDumpHisto(obj);
+            for (const auto& obj : jsonData) {
+                if (obj.is_object()) {
+                    if (obj.find("memcachedBucket") != obj.end()) {
+                        printBucketHeader(obj["memcachedBucket"]);
+                        for (const auto& histoObj :
+                             obj["memcachedBucketData"]) {
+                            runDumpHisto(histoObj);
+                        }
+                    } else {
+                        runDumpHisto(obj);
+                    }
+                }
             }
         } else if (jsonData.is_object()) {
             runDumpHisto(jsonData);
@@ -376,6 +391,10 @@ void usage() {
   -j or --json[=pretty]          Print JSON instead of histograms
   -f or --file path.json         Dump Histogram data from a json file produced
                                  from mctimings using the --json arg
+  -a or --all-buckets            Get list of buckets from the node and display
+                                 stats per bucket basis rather than aggregated
+                                 e.g. --bucket /all/. Also -a and -b may not be
+                                 used at the same time.
   --help                         This help text
 
 )");
@@ -393,12 +412,13 @@ int main(int argc, char** argv) {
     std::string host{"localhost"};
     std::string user{};
     std::string password{};
-    std::string bucket{"/all/"};
+    std::vector<std::string> buckets{{"/all/"}};
     std::string file;
     sa_family_t family = AF_UNSPEC;
     bool verbose = false;
     bool secure = false;
     bool json = false;
+    std::vector<std::string> extraArgs;
 
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
@@ -415,12 +435,13 @@ int main(int argc, char** argv) {
              {"verbose", no_argument, nullptr, 'v'},
              {"json", optional_argument, nullptr, 'j'},
              {"file", required_argument, nullptr, 'f'},
+             {"all-buckets", no_argument, nullptr, 'a'},
              {"help", no_argument, nullptr, 0},
              {nullptr, 0, nullptr, 0}}};
 
     while ((cmd = getopt_long(argc,
                               argv,
-                              "46h:p:u:b:P:sSvjf:",
+                              "46h:p:u:b:P:sSvjf:a",
                               long_options.data(),
                               nullptr)) != EOF) {
         switch (cmd) {
@@ -440,7 +461,11 @@ int main(int argc, char** argv) {
             password.assign("-");
             break;
         case 'b':
-            bucket.assign(optarg);
+            if (buckets.empty()) {
+                usage();
+                return EXIT_FAILURE;
+            }
+            buckets.front().assign(optarg);
             break;
         case 'u':
             user.assign(optarg);
@@ -463,9 +488,22 @@ int main(int argc, char** argv) {
         case 'f':
             file.assign(optarg);
             break;
+        case 'a':
+            if (!buckets.empty() && buckets.front() != "/all/") {
+                usage();
+                return EXIT_FAILURE;
+            }
+            buckets.clear();
+            break;
         default:
             usage();
             return cmd == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+        }
+    }
+
+    if (optind != argc) {
+        for (; optind < argc; ++optind) {
+            extraArgs.emplace_back(argv[optind]);
         }
     }
 
@@ -510,43 +548,60 @@ int main(int argc, char** argv) {
                                     connection.getSaslMechanisms());
         }
 
-        if (!bucket.empty() && bucket != "/all/") {
-            connection.selectBucket(bucket);
-        }
-
         if (verbose && !json) {
             fmt::print(stdout, histogramInfo);
+        }
+
+        if (buckets.empty()) {
+            buckets = connection.listBuckets();
         }
 
         std::optional<nlohmann::json> jsonOutput;
         if (json) {
             jsonOutput = nlohmann::json::array();
         }
-
-        if (optind == argc) {
-            for (int ii = 0; ii < 256; ++ii) {
-                request_cmd_timings(connection,
-                                    bucket,
-                                    cb::mcbp::ClientOpcode(ii),
-                                    verbose,
-                                    true,
-                                    jsonOutput);
+        for (const auto& bucket : buckets) {
+            if (bucket != "/all/") {
+                connection.selectBucket(bucket);
             }
-        } else {
-            for (; optind < argc; ++optind) {
-                try {
-                    const auto opcode = to_opcode(argv[optind]);
+
+            if (!json) {
+                printBucketHeader(bucket);
+            }
+
+            std::optional<nlohmann::json> jsonDataFromBucket;
+            if (json) {
+                jsonDataFromBucket = nlohmann::json::array();
+            }
+            if (extraArgs.empty()) {
+                for (int i = 0; i < 256; ++i) {
                     request_cmd_timings(connection,
                                         bucket,
-                                        opcode,
+                                        cb::mcbp::ClientOpcode(i),
                                         verbose,
-                                        false,
-                                        jsonOutput);
-                } catch (const std::invalid_argument&) {
-                    // Not a command timing, try as statistic timing.
-                    request_stat_timings(
-                            connection, argv[optind], verbose, jsonOutput);
+                                        true,
+                                        jsonDataFromBucket);
                 }
+            } else {
+                for (const auto& arg : extraArgs) {
+                    try {
+                        request_cmd_timings(connection,
+                                            bucket,
+                                            to_opcode(arg),
+                                            verbose,
+                                            false,
+                                            jsonDataFromBucket);
+                    } catch (const std::invalid_argument&) {
+                        // Not a command timing, try as statistic timing.
+                        request_stat_timings(
+                                connection, arg, verbose, jsonDataFromBucket);
+                    }
+                }
+            }
+            if (jsonDataFromBucket) {
+                jsonOutput->push_back(
+                        {{"memcachedBucket", bucket},
+                         {"memcachedBucketData", *jsonDataFromBucket}});
             }
         }
         if (jsonOutput.has_value()) {
