@@ -541,7 +541,7 @@ void Connection::executeCommandPipeline() {
         // Only look at new commands if we don't have any active commands
         // or the active command allows for reordering.
         auto input = bufferevent_get_input(bev.get());
-        bool stop = isDCP() ? false : (getSendQueueSize() >= maxSendQueueSize);
+        bool stop = !isDCP() && (getSendQueueSize() >= maxSendQueueSize);
         while (!stop && cookies.size() < maxActiveCommands &&
                isPacketAvailable() && numEvents > 0) {
             if (!cookies.back()->empty()) {
@@ -565,8 +565,7 @@ void Connection::executeCommandPipeline() {
                     cookie.reset();
                     // Check that we're not reserving too much memory for
                     // this client...
-                    stop = isDCP() ? false
-                                   : (getSendQueueSize() >= maxSendQueueSize);
+                    stop = !isDCP() && (getSendQueueSize() >= maxSendQueueSize);
                 } else {
                     active = true;
                     // We need to block so we need to preserve the request
@@ -806,7 +805,7 @@ static std::string getOpenSSLErrors(Connection& c, bufferevent* bev) {
         ERR_error_string_n(err, buffer.data(), buffer.size());
         ss << "{" << buffer.data() << "},";
         messages.emplace_back(ss.str());
-    };
+    }
 
     if (messages.empty()) {
         return {};
