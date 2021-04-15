@@ -622,6 +622,32 @@ void Connection::executeCommandPipeline() {
     }
 }
 
+void Connection::processNotifiedCookie(Cookie& cookie, cb::engine_errc status) {
+    try {
+        cookie.setAiostat(status);
+        cookie.setEwouldblock(false);
+        if (cookie.execute()) {
+            // completed!!! time to clean up after it and process the
+            // command pipeline? / schedule more?
+            if (cookies.front().get() == &cookie) {
+                cookies.front()->reset();
+            } else {
+                cookies.erase(
+                        std::remove_if(cookies.begin(),
+                                       cookies.end(),
+                                       [ptr = &cookie](const auto& cookie) {
+                                           return ptr == cookie.get();
+                                       }),
+                        cookies.end());
+            }
+            triggerCallback();
+        }
+    } catch (const std::exception& e) {
+        LOG_CRITICAL("Connection::processNotifiedCookie got exception: {}",
+                     e.what());
+    }
+}
+
 void Connection::logExecutionException(const std::string_view where,
                                        const std::exception& e) {
     setTerminationReason(std::string("Received exception: ") + e.what());
@@ -784,11 +810,6 @@ bool Connection::executeCommandsCallback() {
 
             // Do the final cleanup of the connection:
             thread.notification.remove(this);
-            // remove from pending-io list
-            {
-                std::lock_guard<std::mutex> lock(thread.pending_io.mutex);
-                thread.pending_io.map.erase(this);
-            }
 
             // delete the object
             return false;
@@ -844,42 +865,6 @@ void Connection::rw_callback(bufferevent* bev, void* ctx) {
                           "mutex",
                           "Connection::rw_callback::threadLock",
                           SlowMutexThreshold);
-    // Remove the connection from the list of pending io's (in case the
-    // object was scheduled to run in the dispatcher before the
-    // callback for the worker thread is executed.
-    //
-    {
-        std::lock_guard<std::mutex> lock(thread.pending_io.mutex);
-        auto iter = thread.pending_io.map.find(&instance);
-        if (iter != thread.pending_io.map.end()) {
-            for (const auto& pair : iter->second) {
-                if (pair.first) {
-                    if (!pair.first->isEwouldblock()) {
-                        try {
-                            LOG_WARNING(
-                                    "{}: tried to notify cookie {} which isn't "
-                                    "blocked - {}",
-                                    pair.first->getConnection().getId(),
-                                    uint64_t(pair.first),
-                                    pair.first->getHeader()
-                                            .toJSON(true)
-                                            .dump());
-                        } catch (const std::exception& e) {
-                            LOG_WARNING(
-                                    "{}: tried to notify cookie {} which isn't "
-                                    "blocked - {}",
-                                    pair.first->getConnection().getId(),
-                                    uint64_t(pair.first),
-                                    e.what());
-                        }
-                    }
-                    pair.first->setAiostat(pair.second);
-                    pair.first->setEwouldblock(false);
-                }
-            }
-            thread.pending_io.map.erase(iter);
-        }
-    }
 
     // Remove the connection from the notification list if it's there
     thread.notification.remove(&instance);
@@ -990,24 +975,6 @@ void Connection::event_callback(bufferevent* bev, short event, void* ctx) {
         //           client (and bufferevent performs the actual send/recv
         //           on the socket after the callback returned)
         instance.sendQueueInfo.term = true;
-
-        // Remove the connection from the list of pending io's (in case the
-        // object was scheduled to run in the dispatcher before the
-        // callback for the worker thread is executed.
-        //
-        {
-            std::lock_guard<std::mutex> lock(thread.pending_io.mutex);
-            auto iter = thread.pending_io.map.find(&instance);
-            if (iter != thread.pending_io.map.end()) {
-                for (const auto& pair : iter->second) {
-                    if (pair.first) {
-                        pair.first->setAiostat(pair.second);
-                        pair.first->setEwouldblock(false);
-                    }
-                }
-                thread.pending_io.map.erase(iter);
-            }
-        }
 
         // Remove the connection from the notification list if it's there
         thread.notification.remove(&instance);

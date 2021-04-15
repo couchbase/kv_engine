@@ -36,14 +36,6 @@ struct thread_stats;
 
 struct FrontEndThread {
     /**
-     * Pending IO requests for this thread. Maps each pending Connection to
-     * the IO status to be notified.
-     */
-    using PendingIoMap = std::unordered_map<
-            Connection*,
-            std::vector<std::pair<Cookie*, cb::engine_errc>>>;
-
-    /**
      * Destructor.
      *
      * Close the notification pipe (if open)
@@ -85,12 +77,6 @@ struct FrontEndThread {
 
     /// Mutex to lock protect access to this object.
     std::mutex mutex;
-
-    /// Set of connections with pending async io ops.
-    struct {
-        std::mutex mutex;
-        PendingIoMap map;
-    } pending_io;
 
     /// A list of connections to signal if they're idle
     class NotificationList {

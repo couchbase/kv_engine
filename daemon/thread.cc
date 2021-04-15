@@ -266,12 +266,6 @@ void FrontEndThread::libevent_callback() {
 
     dispatch_new_connections();
 
-    FrontEndThread::PendingIoMap pending;
-    {
-        std::lock_guard<std::mutex> lock(pending_io.mutex);
-        pending_io.map.swap(pending);
-    }
-
     TRACE_LOCKGUARD_TIMED(mutex,
                           "mutex",
                           "thread_libevent_process::threadLock",
@@ -279,28 +273,6 @@ void FrontEndThread::libevent_callback() {
 
     std::vector<Connection*> toNotify;
     notification.swap(toNotify);
-
-    for (auto& io : pending) {
-        auto* c = io.first;
-
-        for (const auto& pair : io.second) {
-            if (pair.first) {
-                pair.first->setAiostat(pair.second);
-                pair.first->setEwouldblock(false);
-            }
-        }
-
-        // Remove from the notify list if it's there as we don't
-        // want to run them twice
-        {
-            auto iter = std::find(toNotify.begin(), toNotify.end(), c);
-            if (iter != toNotify.end()) {
-                toNotify.erase(iter);
-            }
-        }
-
-        c->triggerCallback();
-    }
 
     // Notify the connections we haven't notified yet
     for (auto& c : toNotify) {
@@ -330,14 +302,13 @@ void FrontEndThread::libevent_callback() {
 
 void notifyIoComplete(Cookie& cookie, cb::engine_errc status) {
     auto& thr = cookie.getConnection().getThread();
-    LOG_DEBUG("notifyIoComplete: Got notify from {}, status {}",
-              cookie.getConnection().getId(),
-              status);
-
-    /* kick the thread in the butt */
-    if (add_conn_to_pending_io_list(cookie.getConnection(), cookie, status)) {
-        notify_thread(thr);
-    }
+    thr.eventBase.runInEventBaseThread([&cookie, status]() {
+        TRACE_LOCKGUARD_TIMED(cookie.getConnection().getThread().mutex,
+                              "mutex",
+                              "notifyIoComplete",
+                              SlowMutexThreshold);
+        cookie.getConnection().processNotifiedCookie(cookie, status);
+    });
 }
 
 void scheduleDcpStep(Cookie& cookie) {
@@ -478,30 +449,4 @@ void notify_thread(FrontEndThread& thread) {
         LOG_WARNING("Failed to notify thread: {}",
                     cb_strerror(cb::net::get_socket_error()));
     }
-}
-
-int add_conn_to_pending_io_list(Connection& c,
-                                Cookie& cookie,
-                                cb::engine_errc status) {
-    auto& thread = c.getThread();
-
-    std::lock_guard<std::mutex> lock(thread.pending_io.mutex);
-    auto iter = thread.pending_io.map.find(&c);
-    if (iter == thread.pending_io.map.end()) {
-        thread.pending_io.map.emplace(
-                &c,
-                std::vector<std::pair<Cookie*, cb::engine_errc>>{
-                        {&cookie, status}});
-        return 1;
-    }
-
-    for (const auto& pair : iter->second) {
-        if (pair.first == &cookie) {
-            // we've already got a pending notification for this
-            // cookie.. Ignore it
-            return 0;
-        }
-    }
-    iter->second.emplace_back(&cookie, status);
-    return 1;
 }

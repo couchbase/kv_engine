@@ -63,9 +63,6 @@ void notifyIoComplete(Cookie& cookie, cb::engine_errc status);
 void scheduleDcpStep(Cookie& cookie);
 
 void safe_close(SOCKET sfd);
-int add_conn_to_pending_io_list(Connection& c,
-                                Cookie& cookie,
-                                cb::engine_errc status);
 const char* get_server_version();
 bool is_memcached_shutting_down();
 

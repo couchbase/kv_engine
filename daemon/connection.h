@@ -815,6 +815,14 @@ public:
         return type;
     }
 
+    /**
+     * Process a blocked cookie
+     *
+     * @param cookie The cookie to resume execution of (must be blocked)
+     * @param status The status the background thread set for the cookie
+     */
+    void processNotifiedCookie(Cookie& cookie, cb::engine_errc status);
+
 protected:
     /**
      * Protected constructor so that it may only be used by MockSubclasses
