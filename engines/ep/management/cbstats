@@ -538,7 +538,7 @@ def stats_key(mc, key, vb, *args):
         print(cmd)
         vbs = mc.stats(cmd)
     except mc_bin_client.MemcachedError as e:
-        print(e.message)
+        print(e)
         sys.exit(1)
     except ValueError as e:
         print("Failed to parse collection: %s" % str(e))
@@ -563,7 +563,7 @@ def stats_vkey(mc, key, vb, *args):
         cmd = "%s %s %s %s" % (requestStatKey, key, str(vb), collection)
         vbs = mc.stats(cmd)
     except mc_bin_client.MemcachedError as e:
-        print(e.message)
+        print(e)
         sys.exit(1)
     except ValueError as e:
         print("Failed to parse collection: %s" % str(e))
