@@ -1553,9 +1553,6 @@ int memcached_main(int argc, char** argv) {
     LOG_INFO("Shutting down RBAC subsystem");
     cb::rbac::destroy();
 
-    LOG_INFO("Releasing thread resources");
-    threads_cleanup();
-
     LOG_INFO("Shutting down executor pool");
     executorPool.reset();
 

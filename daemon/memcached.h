@@ -48,7 +48,6 @@ void associate_initial_bucket(Connection& connection);
 void worker_threads_init();
 
 void threads_shutdown();
-void threads_cleanup();
 
 /**
  * Create a socketpair and make it non-blocking

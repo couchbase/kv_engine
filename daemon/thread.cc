@@ -166,15 +166,9 @@ bool create_nonblocking_socketpair(std::array<SOCKET, 2>& sockets) {
  * Set up a thread's information.
  */
 static void setup_thread(FrontEndThread& me) {
-    me.base = event_base_new();
-
-    if (!me.base) {
-        FATAL_ERROR(EXIT_FAILURE, "Can't allocate event base");
-    }
-
     /* Listen for notifications from other threads */
     if ((event_assign(&me.notify_event,
-                      me.base,
+                      me.eventBase.getLibeventBase(),
                       me.notify[0],
                       EV_READ | EV_PERSIST,
                       FrontEndThread::libevent_callback,
@@ -199,7 +193,7 @@ static void worker_libevent(void *arg) {
         init_cond.notify_all();
     }
 
-    event_base_loop(me.base, 0);
+    me.eventBase.loopForever();
     me.running = false;
 }
 
@@ -265,7 +259,7 @@ void FrontEndThread::libevent_callback() {
     if (is_memcached_shutting_down()) {
         if (signal_idle_clients(*this, false) == 0) {
             LOG_INFO("Stopping worker thread {}", index);
-            event_base_loopbreak(base);
+            eventBase.terminateLoopSoon();
             return;
         }
     }
@@ -325,7 +319,7 @@ void FrontEndThread::libevent_callback() {
         auto connected = signal_idle_clients(*this, log);
         if (connected == 0) {
             LOG_INFO("Stopping worker thread {}", index);
-            event_base_loopbreak(base);
+            eventBase.terminateLoopSoon();
         } else if (log) {
             LOG_INFO("Waiting for {} connected clients on worker thread {}",
                      connected,
@@ -385,7 +379,16 @@ void FrontEndThread::dispatch(SOCKET sfd,
 
     try {
         thread.new_conn_queue.push(sfd, system, port, move(ssl));
-        notify_thread(thread);
+        thread.eventBase.runInEventBaseThread([&thread]() {
+            if (is_memcached_shutting_down()) {
+                if (signal_idle_clients(thread, false) == 0) {
+                    LOG_INFO("Stopping worker thread {}", thread.index);
+                    thread.eventBase.terminateLoopSoon();
+                    return;
+                }
+            }
+            thread.dispatch_new_connections();
+        });
     } catch (const std::bad_alloc& e) {
         LOG_WARNING("dispatch_conn_new: Failed to dispatch new connection: {}",
                     e.what());
@@ -456,12 +459,7 @@ void threads_shutdown() {
         }
         cb_join_thread(thread.thread_id);
     }
-}
-
-void threads_cleanup() {
-    for (auto& thread : threads) {
-        event_base_free(thread.base);
-    }
+    threads.clear();
 }
 
 FrontEndThread::~FrontEndThread() {

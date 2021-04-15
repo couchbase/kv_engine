@@ -15,6 +15,7 @@
 #include <JSON_checker.h>
 #include <event.h>
 #include <folly/Synchronized.h>
+#include <folly/io/async/EventBase.h>
 #include <memcached/engine_error.h>
 #include <platform/platform_thread.h>
 #include <platform/sized_buffer.h>
@@ -52,8 +53,8 @@ struct FrontEndThread {
     /// unique ID of this thread
     cb_thread_t thread_id = {};
 
-    /// libevent handle this thread uses
-    struct event_base* base = nullptr;
+    /// The event base used by this thread
+    folly::EventBase eventBase;
 
     /// listen event for notify pipe
     struct event notify_event = {};

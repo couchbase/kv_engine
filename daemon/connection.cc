@@ -1290,18 +1290,20 @@ Connection::Connection(SOCKET sfd,
     const auto options = BEV_OPT_THREADSAFE | BEV_OPT_UNLOCK_CALLBACKS |
                          BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS;
     if (ssl) {
-        bev.reset(bufferevent_openssl_socket_new(thr.base,
-                                                 sfd,
-                                                 sslStructure.release(),
-                                                 BUFFEREVENT_SSL_ACCEPTING,
-                                                 options));
+        bev.reset(
+                bufferevent_openssl_socket_new(thr.eventBase.getLibeventBase(),
+                                               sfd,
+                                               sslStructure.release(),
+                                               BUFFEREVENT_SSL_ACCEPTING,
+                                               options));
         bufferevent_setcb(bev.get(),
                           Connection::ssl_read_callback,
                           Connection::rw_callback,
                           Connection::event_callback,
                           static_cast<void*>(this));
     } else {
-        bev.reset(bufferevent_socket_new(thr.base, sfd, options));
+        bev.reset(bufferevent_socket_new(
+                thr.eventBase.getLibeventBase(), sfd, options));
         bufferevent_setcb(bev.get(),
                           Connection::rw_callback,
                           Connection::rw_callback,
