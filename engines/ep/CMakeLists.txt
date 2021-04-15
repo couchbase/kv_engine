@@ -52,7 +52,7 @@ INCLUDE_DIRECTORIES(BEFORE SYSTEM ${hdr_histogram_SOURCE_DIR}/src)
 
 INCLUDE_DIRECTORIES(AFTER ${Memcached_BINARY_DIR}/include)
 
-SET(EP_STORAGE_LIBS couchstore)
+SET(EP_STORAGE_LIBS couchstore_static)
 
 IF (EP_USE_ROCKSDB)
     INCLUDE_DIRECTORIES(AFTER SYSTEM ${ROCKSDB_INCLUDE_DIR})
@@ -376,7 +376,7 @@ ADD_LIBRARY(ep_objs OBJECT
             ${COLLECTIONS_SOURCE})
 SET_PROPERTY(TARGET ep_objs PROPERTY POSITION_INDEPENDENT_CODE 1)
 add_sanitizers(ep_objs)
-target_link_libraries(ep_objs PUBLIC platform)
+target_link_libraries(ep_objs PUBLIC platform ${EP_STORAGE_LIBS})
 
 ADD_LIBRARY(ep STATIC $<TARGET_OBJECTS:ep_objs>)
 
