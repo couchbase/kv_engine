@@ -21,8 +21,3 @@ TARGET_LINK_LIBRARIES(default_engine
         statistics
         ${COUCHBASE_NETWORK_LIBS})
 add_sanitizers(default_engine)
-
-INSTALL(TARGETS default_engine
-        RUNTIME DESTINATION bin
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib)
