@@ -360,11 +360,13 @@ void scheduleDcpStep(Cookie& cookie) {
         throw std::logic_error("scheduleDcpStep: cookie must be reserved!");
     }
 
-    auto& thread = connection.getThread();
-    LOG_DEBUG("scheduleDcpStep: {}", cookie.getConnection().getId());
-    if (thread.notification.push(&connection)) {
-        notify_thread(thread);
-    }
+    connection.getThread().eventBase.runInEventBaseThread([&connection]() {
+        TRACE_LOCKGUARD_TIMED(connection.getThread().mutex,
+                              "mutex",
+                              "scheduleDcpStep",
+                              SlowMutexThreshold);
+        connection.triggerCallback();
+    });
 }
 
 void FrontEndThread::dispatch(SOCKET sfd,
