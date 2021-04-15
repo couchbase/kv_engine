@@ -13,11 +13,9 @@
 #include "network_interface.h"
 #include "server_socket.h"
 
-#include <event2/util.h>
-#include <libevent/utilities.h>
-#include <platform/socket.h>
-#include <array>
-#include <atomic>
+namespace folly {
+class EventBase;
+}
 
 /**
  * The NetworkInterfaceManager will eventually be responsible for adding /
@@ -33,7 +31,7 @@ public:
      * Create a new instance and bind it to a given event base (the same
      * base as all of the listening sockets use)
      */
-    explicit NetworkInterfaceManager(event_base* base);
+    explicit NetworkInterfaceManager(folly::EventBase& base);
 
     /**
      * Signal the network interface from any other thread (by sending
@@ -66,21 +64,10 @@ protected:
                          NetworkInterface::Protocol iv4,
                          NetworkInterface::Protocol iv6);
 
-    /// The event handler called from libevent
-    void event_handler();
+    /// Update the active interface list
+    void updateInterfaces();
 
-    /**
-     * The event_handler function called from libevent
-     *
-     * @param fd The file descriptor where the event happened
-     * @param mask The type of event
-     * @param arg pointer to "this"
-     */
-    static void event_handler(evutil_socket_t fd, short mask, void* arg);
-
-    std::array<SOCKET, 2> pipe = {{INVALID_SOCKET, INVALID_SOCKET}};
-    cb::libevent::unique_event_ptr event;
-    std::atomic_bool check_listen_conn{};
+    folly::EventBase& eventBase;
     std::vector<std::unique_ptr<ServerSocket>> listen_conn;
     std::pair<in_port_t, sa_family_t> prometheus_conn;
 };

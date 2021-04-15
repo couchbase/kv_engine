@@ -17,6 +17,7 @@
 #include "settings.h"
 #include "stats.h"
 
+#include <folly/io/async/EventBase.h>
 #include <libevent/utilities.h>
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
@@ -42,7 +43,7 @@ public:
      * @param interf The interface object containing properties to use
      */
     LibeventServerSocketImpl(SOCKET sfd,
-                             event_base* b,
+                             folly::EventBase& b,
                              std::shared_ptr<ListeningPort> interf);
 
     ~LibeventServerSocketImpl() override;
@@ -123,12 +124,12 @@ void LibeventServerSocketImpl::listen_event_handler(evutil_socket_t,
 }
 
 LibeventServerSocketImpl::LibeventServerSocketImpl(
-        SOCKET fd, event_base* b, std::shared_ptr<ListeningPort> interf)
+        SOCKET fd, folly::EventBase& b, std::shared_ptr<ListeningPort> interf)
     : sfd(fd),
       uuid(to_string(cb::uuid::random())),
       interface(std::move(interf)),
       sockname(cb::net::getsockname(fd)),
-      ev(event_new(b,
+      ev(event_new(b.getLibeventBase(),
                    sfd,
                    EV_READ | EV_PERSIST,
                    listen_event_handler,
@@ -309,6 +310,8 @@ void LibeventServerSocketImpl::updateSSL(const std::string& key,
 }
 
 std::unique_ptr<ServerSocket> ServerSocket::create(
-        SOCKET sfd, event_base* b, std::shared_ptr<ListeningPort> interf) {
+        SOCKET sfd,
+        folly::EventBase& b,
+        std::shared_ptr<ListeningPort> interf) {
     return std::make_unique<LibeventServerSocketImpl>(sfd, b, interf);
 }

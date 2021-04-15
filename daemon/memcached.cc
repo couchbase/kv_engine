@@ -44,6 +44,7 @@
 #include <cbsasl/logging.h>
 #include <cbsasl/mechanism.h>
 #include <folly/CpuId.h>
+#include <folly/io/async/EventBase.h>
 #include <mcbp/mcbp.h>
 #include <memcached/rbac.h>
 #include <memcached/server_core_iface.h>
@@ -146,7 +147,7 @@ struct stats stats;
 
 /** file scope variables **/
 
-static struct event_base *main_base;
+static std::unique_ptr<folly::EventBase> main_base;
 
 static folly::Synchronized<std::string, std::mutex> reset_stats_time;
 /**
@@ -766,7 +767,8 @@ static struct event* sigterm_event;
 
 static bool install_signal_handlers() {
     // SIGTERM - Used to shut down memcached cleanly
-    sigterm_event = evsignal_new(main_base, SIGTERM, sigterm_handler, nullptr);
+    sigterm_event = evsignal_new(
+            main_base->getLibeventBase(), SIGTERM, sigterm_handler, nullptr);
     if (!sigterm_event) {
         LOG_WARNING("Failed to allocate SIGTERM handler");
         return false;
@@ -802,7 +804,7 @@ void shutdown_server() {
     }
     memcached_shutdown = true;
     LOG_INFO("Received shutdown request");
-    event_base_loopbreak(main_base);
+    main_base->terminateLoopSoon();
 }
 
 void enable_shutdown() {
@@ -1462,7 +1464,7 @@ int memcached_main(int argc, char** argv) {
     initialize_sasl();
 
     /* initialize main thread libevent instance */
-    main_base = event_base_new();
+    main_base = std::make_unique<folly::EventBase>();
 
     cb::console::set_sigint_handler(sigint_handler);
 
@@ -1485,7 +1487,7 @@ int memcached_main(int argc, char** argv) {
 #endif
 
     networkInterfaceManager =
-            std::make_unique<NetworkInterfaceManager>(main_base);
+            std::make_unique<NetworkInterfaceManager>(*main_base);
 
     /* start up worker threads if MT mode */
     worker_threads_init();
@@ -1508,7 +1510,7 @@ int memcached_main(int argc, char** argv) {
     enable_shutdown();
 
     /* Initialise memcached time keeping */
-    mc_time_init(main_base);
+    mc_time_init(main_base->getLibeventBase());
 
     // Optional parent monitor
     {
@@ -1522,7 +1524,7 @@ int memcached_main(int argc, char** argv) {
     if (!memcached_shutdown) {
         /* enter the event loop */
         LOG_INFO("Initialization complete. Accepting clients.");
-        event_base_loop(main_base, 0);
+        main_base->loopForever();
     }
 
     LOG_INFO("Initiating graceful shutdown.");
@@ -1583,10 +1585,11 @@ int memcached_main(int argc, char** argv) {
     LOG_INFO("Shutting down OpenSSL");
     shutdown_openssl();
 
-    LOG_INFO("Shutting down libevent");
-    event_base_free(main_base);
+    LOG_INFO("Shutting down event base");
+    main_base.reset();
 
     if (OpenTelemetry::isEnabled()) {
+        LOG_INFO("Shutting down OpenTelemetry");
         OpenTelemetry::shutdown();
     }
 

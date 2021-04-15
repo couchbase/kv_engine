@@ -8,7 +8,6 @@
  */
 #include "network_interface_manager.h"
 
-#include "front_end_thread.h"
 #include "listening_port.h"
 #include "log_macros.h"
 #include "memcached.h"
@@ -17,6 +16,7 @@
 #include "ssl_utils.h"
 #include "stats.h"
 
+#include <folly/io/async/EventBase.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
@@ -28,25 +28,8 @@ std::pair<in_port_t, sa_family_t> getRunningConfig();
 
 std::unique_ptr<NetworkInterfaceManager> networkInterfaceManager;
 
-NetworkInterfaceManager::NetworkInterfaceManager(event_base* base) {
-    if (!create_nonblocking_socketpair(pipe)) {
-        FATAL_ERROR(EXIT_FAILURE, "Unable to create notification pipe");
-    }
-
-    event.reset(event_new(base,
-                          pipe[0],
-                          EV_READ | EV_PERSIST,
-                          NetworkInterfaceManager::event_handler,
-                          this));
-
-    if (!event) {
-        FATAL_ERROR(EXIT_FAILURE, "Failed to allocate network manager event");
-    }
-
-    if (event_add(event.get(), nullptr) == -1) {
-        FATAL_ERROR(EXIT_FAILURE, "Can't setup network manager event");
-    }
-
+NetworkInterfaceManager::NetworkInterfaceManager(folly::EventBase& base)
+    : eventBase(base) {
     LOG_INFO("Enable port(s)");
     for (auto& interf : Settings::instance().getInterfaces()) {
         if (!createInterface(interf.tag,
@@ -67,147 +50,128 @@ NetworkInterfaceManager::NetworkInterfaceManager(event_base* base) {
 }
 
 void NetworkInterfaceManager::signal() {
-    check_listen_conn = true;
-    if (pipe[1] != INVALID_SOCKET) {
-        if (cb::net::send(pipe[1], "", 1, 0) != 1 &&
-            !cb::net::is_blocking(cb::net::get_socket_error())) {
-            LOG_WARNING("Failed to notify network manager: {}",
-                        cb_strerror(cb::net::get_socket_error()));
-        }
-    }
+    eventBase.runInEventBaseThread([this]() { updateInterfaces(); });
 }
 
-void NetworkInterfaceManager::event_handler(evutil_socket_t fd,
-                                            short,
-                                            void* arg) {
-    auto& me = *reinterpret_cast<NetworkInterfaceManager*>(arg);
-    // Start by draining the notification pipe fist
-    drain_notification_channel(fd);
-    me.event_handler();
-}
+void NetworkInterfaceManager::updateInterfaces() {
+    invalidateSslCache();
 
-void NetworkInterfaceManager::event_handler() {
-    if (check_listen_conn) {
-        invalidateSslCache();
-        check_listen_conn = false;
+    bool changes = false;
+    auto interfaces = Settings::instance().getInterfaces();
 
-        bool changes = false;
-        auto interfaces = Settings::instance().getInterfaces();
+    // Step one, enable all new ports
+    bool success = true;
+    for (const auto& interface : interfaces) {
+        const bool useTag = interface.port == 0;
+        bool ipv4 = interface.ipv4 != NetworkInterface::Protocol::Off;
+        bool ipv6 = interface.ipv6 != NetworkInterface::Protocol::Off;
 
-        // Step one, enable all new ports
-        bool success = true;
-        for (const auto& interface : interfaces) {
-            const bool useTag = interface.port == 0;
-            bool ipv4 = interface.ipv4 != NetworkInterface::Protocol::Off;
-            bool ipv6 = interface.ipv6 != NetworkInterface::Protocol::Off;
+        for (const auto& connection : listen_conn) {
+            const auto& descr = connection->getInterfaceDescription();
 
-            for (const auto& connection : listen_conn) {
-                const auto& descr = connection->getInterfaceDescription();
-
-                if ((useTag && (descr.tag == interface.tag)) ||
-                    (!useTag && ((descr.port == interface.port)) &&
-                     descr.host == interface.host)) {
-                    if (descr.family == AF_INET) {
-                        ipv4 = false;
-                    } else {
-                        ipv6 = false;
-                    }
-
-                    if (!ipv4 && !ipv6) {
-                        // no need to search anymore as we've got both
-                        break;
-                    }
+            if ((useTag && (descr.tag == interface.tag)) ||
+                (!useTag && ((descr.port == interface.port)) &&
+                 descr.host == interface.host)) {
+                if (descr.family == AF_INET) {
+                    ipv4 = false;
+                } else {
+                    ipv6 = false;
                 }
-            }
 
-            if (ipv4) {
-                // create an IPv4 interface
-                changes = true;
-                success &= createInterface(interface.tag,
-                                           interface.host,
-                                           interface.port,
-                                           interface.system,
-                                           interface.ssl.key,
-                                           interface.ssl.cert,
-                                           interface.ipv4,
-                                           NetworkInterface::Protocol::Off);
-            }
-
-            if (ipv6) {
-                // create an IPv6 interface
-                changes = true;
-                success &= createInterface(interface.tag,
-                                           interface.host,
-                                           interface.port,
-                                           interface.system,
-                                           interface.ssl.key,
-                                           interface.ssl.cert,
-                                           NetworkInterface::Protocol::Off,
-                                           interface.ipv6);
-            }
-        }
-
-        // Step two, shut down ports if we didn't fail opening new ports
-        if (success) {
-            for (auto iter = listen_conn.begin(); iter != listen_conn.end();
-                 /* empty */) {
-                auto& connection = *iter;
-                const auto& descr = connection->getInterfaceDescription();
-                // should this entry be here:
-                bool drop = true;
-                for (const auto& interface : interfaces) {
-                    if (descr.tag.empty()) {
-                        if (interface.port != descr.port ||
-                            interface.host != descr.host) {
-                            // port mismatch... look at the next
-                            continue;
-                        }
-                    } else if (descr.tag != interface.tag) {
-                        // Tag mismatch... look at the next
-                        continue;
-                    }
-
-                    if ((descr.family == AF_INET &&
-                         interface.ipv4 == NetworkInterface::Protocol::Off) ||
-                        (descr.family == AF_INET6 &&
-                         interface.ipv6 == NetworkInterface::Protocol::Off)) {
-                        // address family mismatch... look at the next
-                        continue;
-                    }
-
-                    drop = false;
-                    if (descr.sslKey != interface.ssl.key ||
-                        descr.sslCert != interface.ssl.cert) {
-                        // change the associated description
-                        connection->updateSSL(interface.ssl.key,
-                                              interface.ssl.cert);
-                    }
-
+                if (!ipv4 && !ipv6) {
+                    // no need to search anymore as we've got both
                     break;
                 }
-                if (drop) {
-                    // erase returns the element following this one (or end())
-                    changes = true;
-                    iter = listen_conn.erase(iter);
-                } else {
-                    // look at the next element
-                    ++iter;
-                }
             }
         }
 
-        auto prometheus_config = cb::prometheus::getRunningConfig();
-        if (prometheus_conn != prometheus_config) {
-            // current prometheus MetricServer config does not match
-            // what was last written to disk.
-            prometheus_conn = prometheus_config;
+        if (ipv4) {
+            // create an IPv4 interface
             changes = true;
+            success &= createInterface(interface.tag,
+                                       interface.host,
+                                       interface.port,
+                                       interface.system,
+                                       interface.ssl.key,
+                                       interface.ssl.cert,
+                                       interface.ipv4,
+                                       NetworkInterface::Protocol::Off);
         }
 
-        if (changes) {
-            // Try to write all of the changes, ignore errors
-            writeInterfaceFile(false);
+        if (ipv6) {
+            // create an IPv6 interface
+            changes = true;
+            success &= createInterface(interface.tag,
+                                       interface.host,
+                                       interface.port,
+                                       interface.system,
+                                       interface.ssl.key,
+                                       interface.ssl.cert,
+                                       NetworkInterface::Protocol::Off,
+                                       interface.ipv6);
         }
+    }
+
+    // Step two, shut down ports if we didn't fail opening new ports
+    if (success) {
+        for (auto iter = listen_conn.begin(); iter != listen_conn.end();
+             /* empty */) {
+            auto& connection = *iter;
+            const auto& descr = connection->getInterfaceDescription();
+            // should this entry be here:
+            bool drop = true;
+            for (const auto& interface : interfaces) {
+                if (descr.tag.empty()) {
+                    if (interface.port != descr.port ||
+                        interface.host != descr.host) {
+                        // port mismatch... look at the next
+                        continue;
+                    }
+                } else if (descr.tag != interface.tag) {
+                    // Tag mismatch... look at the next
+                    continue;
+                }
+
+                if ((descr.family == AF_INET &&
+                     interface.ipv4 == NetworkInterface::Protocol::Off) ||
+                    (descr.family == AF_INET6 &&
+                     interface.ipv6 == NetworkInterface::Protocol::Off)) {
+                    // address family mismatch... look at the next
+                    continue;
+                }
+
+                drop = false;
+                if (descr.sslKey != interface.ssl.key ||
+                    descr.sslCert != interface.ssl.cert) {
+                    // change the associated description
+                    connection->updateSSL(interface.ssl.key,
+                                          interface.ssl.cert);
+                }
+
+                break;
+            }
+            if (drop) {
+                // erase returns the element following this one (or end())
+                changes = true;
+                iter = listen_conn.erase(iter);
+            } else {
+                // look at the next element
+                ++iter;
+            }
+        }
+    }
+
+    auto prometheus_config = cb::prometheus::getRunningConfig();
+    if (prometheus_conn != prometheus_config) {
+        // current prometheus MetricServer config does not match
+        // what was last written to disk.
+        prometheus_conn = prometheus_config;
+        changes = true;
+    }
+
+    if (changes) {
+        // Try to write all of the changes, ignore errors
+        writeInterfaceFile(false);
     }
 }
 
@@ -507,8 +471,7 @@ bool NetworkInterfaceManager::createInterface(const std::string& tag,
                                                      system_port,
                                                      sslkey,
                                                      sslcert);
-        listen_conn.emplace_back(
-                ServerSocket::create(sfd, event_get_base(event.get()), inter));
+        listen_conn.emplace_back(ServerSocket::create(sfd, eventBase, inter));
         stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
     }
 

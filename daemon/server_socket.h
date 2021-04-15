@@ -14,8 +14,11 @@
 #include <atomic>
 #include <memory>
 
+namespace folly {
+class EventBase;
+}
+
 class ListeningPort;
-struct event_base;
 
 /**
  * The ServerSocket represents the socket used to accept new clients.
@@ -32,7 +35,9 @@ public:
      * @param interf The interface object containing properties to use
      */
     static std::unique_ptr<ServerSocket> create(
-            SOCKET sfd, event_base* b, std::shared_ptr<ListeningPort> interf);
+            SOCKET sfd,
+            folly::EventBase& b,
+            std::shared_ptr<ListeningPort> interf);
 
     virtual ~ServerSocket() = default;
 
