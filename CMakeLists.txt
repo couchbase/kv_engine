@@ -88,7 +88,6 @@ include_directories(AFTER SYSTEM
                     ${subjson_SOURCE_DIR}
                     ${LIBEVENT_INCLUDE_DIR}
                     ${OPENSSL_INCLUDE_DIR}
-                    ${FOLLY_INCLUDE_DIR}
                     ${BOOST_INCLUDE_DIR})
 
 if (WIN32)

@@ -9,6 +9,7 @@ add_library(mock_server STATIC
             mock_server.h
 )
 set_property(TARGET mock_server PROPERTY POSITION_INDEPENDENT_CODE 1)
+target_link_libraries(mock_server PRIVATE platform_headers)
 target_link_libraries(mock_server INTERFACE
                       memcached_logger
                       mcd_tracing
@@ -25,6 +26,7 @@ add_library(engine_testapp OBJECT engine_testapp.cc
         ${Memcached_SOURCE_DIR}/daemon/enginemap.cc
         ${Memcached_SOURCE_DIR}/daemon/enginemap.h
 )
+target_link_libraries(engine_testapp PUBLIC Folly::headers)
 
 # An object library will not propagate dependencies
 # https://gitlab.kitware.com/cmake/cmake/issues/18090

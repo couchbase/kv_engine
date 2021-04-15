@@ -5,6 +5,7 @@ add_compile_options_disable_optimization()
 ADD_LIBRARY(mock_dcp OBJECT mock/mock_dcp.cc)
 SET_PROPERTY(TARGET mock_dcp PROPERTY POSITION_INDEPENDENT_CODE 1)
 add_sanitizers(mock_dcp)
+target_link_libraries(mock_dcp PUBLIC platform)
 
 ADD_LIBRARY(ep_testsuite_objs OBJECT
         ep_request_utils.cc
@@ -14,6 +15,7 @@ ADD_LIBRARY(ep_testsuite_objs OBJECT
         ${EventuallyPersistentEngine_SOURCE_DIR}/src/storeddockey.cc)
 SET_PROPERTY(TARGET ep_testsuite_objs PROPERTY POSITION_INDEPENDENT_CODE 1)
 add_sanitizers(ep_testsuite_objs)
+target_link_libraries(ep_testsuite_objs PUBLIC platform)
 
 # Single executable containing all class-level unit tests involving
 # EventuallyPersistentEngine driven by GoogleTest.
@@ -145,8 +147,7 @@ TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests
         xattr
         ${EP_STORAGE_LIBS}
         ${MALLOC_LIBRARIES}
-        ${LIBEVENT_LIBRARIES}
-        ${FOLLY_LIBRARIES})
+        ${LIBEVENT_LIBRARIES})
 
 if (NUMA_FOUND)
     target_link_libraries(ep-engine_ep_unit_tests ${NUMA_LIBRARIES})

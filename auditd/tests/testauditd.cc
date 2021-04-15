@@ -16,6 +16,7 @@
 #include <memcached/server_cookie_iface.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
+#include <platform/socket.h>
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>

@@ -1,7 +1,7 @@
 add_library(mc_program_utils OBJECT
             getpass.cc getpass.h
             hostname_utils.cc hostname_utils.h)
-target_link_libraries(mc_program_utils ${COUCHBASE_NETWORK_LIBS})
+target_link_libraries(mc_program_utils platform ${COUCHBASE_NETWORK_LIBS})
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     add_executable(memcached-hostutils-test

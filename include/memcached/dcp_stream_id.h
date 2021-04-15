@@ -12,7 +12,6 @@
 #pragma once
 
 #include <mcbp/protocol/request.h>
-#include <platform/socket.h>
 
 #include <stdint.h>
 #include <iosfwd>

@@ -122,7 +122,6 @@ target_link_libraries(kvstore_gen
         xattr
         ${EP_STORAGE_LIBS}
         ${LIBEVENT_LIBRARIES}
-        ${FOLLY_LIBRARIES}
 )
 
 ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
@@ -377,6 +376,7 @@ ADD_LIBRARY(ep_objs OBJECT
             ${COLLECTIONS_SOURCE})
 SET_PROPERTY(TARGET ep_objs PROPERTY POSITION_INDEPENDENT_CODE 1)
 add_sanitizers(ep_objs)
+target_link_libraries(ep_objs PUBLIC platform)
 
 ADD_LIBRARY(ep STATIC $<TARGET_OBJECTS:ep_objs>)
 
@@ -391,8 +391,7 @@ endif(NOT WIN32)
 TARGET_LINK_LIBRARIES(ep JSON_checker ${EP_STORAGE_LIBS}
                       engine_utilities ep-engine_collections cbcompress
                       hdr_histogram_static mcbp mcd_util mcd_time platform phosphor
-                      xattr mcd_tracing statistics ${LIBEVENT_LIBRARIES}
-                      ${FOLLY_LIBRARIES})
+                      xattr mcd_tracing statistics ${LIBEVENT_LIBRARIES})
 add_sanitizers(ep)
 
 if (NOT EP_BYPASS_TESTS)
@@ -412,6 +411,7 @@ if (NOT EP_BYPASS_TESTS)
             tests/mock/mock_taskable.cc
             ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.h)
     set_property(TARGET ep_mocks PROPERTY POSITION_INDEPENDENT_CODE 1)
+    target_link_libraries(ep_mocks PUBLIC platform)
     add_sanitizers(ep_mocks)
 
     # While ep_perfsuite is arguably a "test" and hence should live under
@@ -481,8 +481,7 @@ if (NOT EP_BYPASS_TESTS)
             xattr
             ${MALLOC_LIBRARIES}
             ${EP_STORAGE_LIBS}
-            ${LIBEVENT_LIBRARIES}
-            ${FOLLY_LIBRARIES})
+            ${LIBEVENT_LIBRARIES})
     target_include_directories(ep_engine_benchmarks SYSTEM PRIVATE
                                ${benchmark_SOURCE_DIR}/include)
     TARGET_INCLUDE_DIRECTORIES(ep_engine_benchmarks PUBLIC
@@ -498,7 +497,7 @@ if (NOT EP_BYPASS_TESTS)
                           engine_utilities ep-engine_collections ${EP_STORAGE_LIBS}
                           cbcompress platform mcbp mcd_util mcd_time
                           mcd_tracing phosphor statistics xattr
-                          ${LIBEVENT_LIBRARIES} ${FOLLY_LIBRARIES})
+                          ${LIBEVENT_LIBRARIES})
     add_sanitizers(ep-engine_sizes)
 
 

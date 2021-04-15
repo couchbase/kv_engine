@@ -12,6 +12,7 @@
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <memcached/dockey.h>
 #include <memcached/systemevent.h>
+#include <platform/socket.h>
 #include <spdlog/fmt/fmt.h>
 #include <ostream>
 #include <sstream>
@@ -43,6 +44,22 @@ std::ostream& operator<<(std::ostream& os, const ScopeID& sid) {
 
 std::string ScopeID::to_string() const {
     return fmt::format("{:#x}", value);
+}
+
+CollectionIDNetworkOrder::CollectionIDNetworkOrder(CollectionID v)
+    : value(htonl(uint32_t(v))) {
+}
+
+CollectionID CollectionIDNetworkOrder::to_host() const {
+    return CollectionID(ntohl(value));
+}
+
+ScopeIDNetworkOrder::ScopeIDNetworkOrder(ScopeID v)
+    : value(htonl(uint32_t(v))) {
+}
+
+ScopeID ScopeIDNetworkOrder::to_host() const {
+    return ScopeID(ntohl(value));
 }
 
 std::string DocKey::to_string() const {

@@ -1,6 +1,6 @@
 ADD_EXECUTABLE(memcached_statistics_test
         prometheus_test.cc)
-TARGET_LINK_LIBRARIES(memcached_statistics_test statistics memcached_daemon gtest_main gmock ${FOLLY_LIBRARIES})
+TARGET_LINK_LIBRARIES(memcached_statistics_test statistics memcached_daemon gtest_main gmock)
 
 add_sanitizers(memcached_statistics_test)
 

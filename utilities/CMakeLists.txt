@@ -50,6 +50,7 @@ add_sanitizers(mcd_util)
 
 add_library(mcd_test_util STATIC test_manifest.h test_manifest.cc)
 set_property(TARGET mcd_test_util PROPERTY POSITION_INDEPENDENT_CODE 1)
+target_link_libraries(mcd_test_util PRIVATE platform_headers)
 add_sanitizers(mcd_test_util)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)

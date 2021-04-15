@@ -5,8 +5,7 @@ add_library(memcached_rbac STATIC
             ${PROJECT_SOURCE_DIR}/include/memcached/rbac.h
             )
 
-target_include_directories(memcached_rbac SYSTEM PRIVATE ${FOLLY_INCLUDE_DIR})
-target_link_libraries(memcached_rbac cbsasl platform ${FOLLY_LIBRARIES})
+target_link_libraries(memcached_rbac cbsasl platform)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     add_executable(memcached_rbac_test

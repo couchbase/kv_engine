@@ -24,6 +24,7 @@
 #include <phosphor/phosphor.h>
 #include <platform/cbassert.h>
 #include <platform/dirutils.h>
+#include <platform/socket.h>
 
 #include <chrono>
 #include <cinttypes>

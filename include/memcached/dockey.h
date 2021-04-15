@@ -14,7 +14,6 @@
 #include <cstring>
 
 #include <platform/sized_buffer.h>
-#include <platform/socket.h>
 
 class CollectionIDNetworkOrder;
 class ScopeIDNetworkOrder;
@@ -201,13 +200,9 @@ using ScopeCollectionPair = std::pair<ScopeID, CollectionID>;
  */
 class CollectionIDNetworkOrder {
 public:
-    explicit CollectionIDNetworkOrder(CollectionID v)
-        : value(htonl(uint32_t(v))) {
-    }
+    explicit CollectionIDNetworkOrder(CollectionID v);
 
-    CollectionID to_host() const {
-        return CollectionID(ntohl(value));
-    }
+    CollectionID to_host() const;
 
 private:
     CollectionIDType value;
@@ -215,12 +210,9 @@ private:
 
 class ScopeIDNetworkOrder {
 public:
-    explicit ScopeIDNetworkOrder(ScopeID v) : value(htonl(uint32_t(v))) {
-    }
+    explicit ScopeIDNetworkOrder(ScopeID v);
 
-    ScopeID to_host() const {
-        return ScopeID(ntohl(value));
-    }
+    ScopeID to_host() const;
 
 private:
     ScopeIDType value;

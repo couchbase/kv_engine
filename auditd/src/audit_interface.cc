@@ -13,6 +13,7 @@
 
 #include <logger/logger.h>
 #include <memcached/audit_interface.h>
+#include <platform/socket.h>
 #include <stdexcept>
 
 namespace cb::audit {
