@@ -113,6 +113,14 @@ std::pair<cb::engine_errc, uint64_t> Filter::constructFromJson(
         }
     }
 
+    const auto uidObject = json.find(UidKey);
+    // Check if a uid is specified and parse it
+    if (uidObject != json.end()) {
+        auto jsonUid = cb::getJsonObject(
+                json, UidKey, UidType, "Filter::constructFromJson");
+        uid = makeUid(jsonUid.get<std::string>());
+    }
+
     const auto scopesObject = json.find(ScopeKey);
     const auto collectionsObject = json.find(CollectionsKey);
     if (scopesObject != json.end()) {
@@ -154,10 +162,10 @@ std::pair<cb::engine_errc, uint64_t> Filter::constructFromJson(
         }
     }
 
-    // The input JSON must of contained at least a sid, scope, or
+    // The input JSON must of contained at least a sid, uid, scope, or
     // collections key
-    if (collectionsObject == json.end() && scopesObject == json.end() &&
-        streamIdObject == json.end()) {
+    if (uidObject == json.end() && collectionsObject == json.end() &&
+        scopesObject == json.end() && streamIdObject == json.end()) {
         throw cb::engine_error(
                 cb::engine_errc::invalid_arguments,
                 "Filter::constructFromJson no sid, uid, scope or "
@@ -333,16 +341,20 @@ bool Filter::processScopeEvent(const Item& item) {
     }
 
     // scope filter we check if event matches our scope
+    // passthrough we check if the event manifest-id is greater than the clients
     if (scopeID || passthrough) {
         ScopeID sid = 0;
+        ManifestUid manifestUid{0};
 
         if (!item.isDeleted()) {
             auto dcpData = VB::Manifest::getCreateScopeEventData(
                     {item.getData(), item.getNBytes()});
+            manifestUid = dcpData.manifestUid;
             sid = dcpData.metaData.sid;
         } else {
             auto dcpData = VB::Manifest::getDropScopeEventData(
                     {item.getData(), item.getNBytes()});
+            manifestUid = dcpData.manifestUid;
             sid = dcpData.sid;
 
             if (sid == scopeID) {
@@ -412,6 +424,10 @@ void Filter::addStats(const AddStatFn& add_stat,
         }
 
         checked_snprintf(
+                buffer, bsize, "%s:filter_%d_uid", prefix.c_str(), vb.get());
+        add_casted_stat(buffer, getUid(), add_stat, c);
+
+        checked_snprintf(
                 buffer, bsize, "%s:filter_%d_sid", prefix.c_str(), vb.get());
         add_casted_stat(buffer, streamId.to_string(), add_stat, c);
 
@@ -426,6 +442,13 @@ void Filter::addStats(const AddStatFn& add_stat,
                 vb,
                 error.what());
     }
+}
+
+std::string Filter::getUid() const {
+    if (uid) {
+        return std::to_string(*uid);
+    }
+    return "none";
 }
 
 cb::engine_errc Filter::checkPrivileges(
@@ -490,6 +513,7 @@ void Filter::dump() const {
 // To use the keys in json::find, they need to be statically allocated
 const char* Filter::CollectionsKey = "collections";
 const char* Filter::ScopeKey = "scope";
+const char* Filter::UidKey = "uid";
 const char* Filter::StreamIdKey = "sid";
 
 std::ostream& operator<<(std::ostream& os, const Filter& filter) {
@@ -504,6 +528,9 @@ std::ostream& operator<<(std::ostream& os, const Filter& filter) {
     if (filter.lastCheckedPrivilegeRevision) {
         os << ", lastCheckedPrivilegeRevision: "
            << filter.lastCheckedPrivilegeRevision.value();
+    }
+    if (filter.uid) {
+        os << ", uid:" << *filter.uid;
     }
 
     os << ", sid:" << filter.streamId;
