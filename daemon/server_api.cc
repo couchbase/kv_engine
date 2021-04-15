@@ -186,23 +186,14 @@ struct ServerCookieApi : public ServerCookieIface {
     void release(gsl::not_null<const void*> void_cookie) override {
         auto& cookie = getCookie(void_cookie);
         auto& connection = cookie.getConnection();
-        auto& thr = connection.getThread();
-
-        TRACE_LOCKGUARD_TIMED(thr.mutex,
-                              "mutex",
-                              "release_cookie::threadLock",
-                              SlowMutexThreshold);
-
-        // Releasing the reference to the object may cause it to change
-        // state. (NOTE: the release call shall never be called from the
-        // worker threads), so put the connection in the pool of pending
-        // IO and have the system retry the operation for the connection
-        cookie.decrementRefcount();
-
-        // kick the thread in the butt
-        if (thr.notification.push(&connection)) {
-            notify_thread(thr);
-        }
+        connection.getThread().eventBase.runInEventBaseThread([&cookie]() {
+            TRACE_LOCKGUARD_TIMED(cookie.getConnection().getThread().mutex,
+                                  "mutex",
+                                  "release",
+                                  SlowMutexThreshold);
+            cookie.decrementRefcount();
+            cookie.getConnection().triggerCallback();
+        });
     }
 
     void set_priority(gsl::not_null<const void*> cookie,
