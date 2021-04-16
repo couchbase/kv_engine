@@ -148,10 +148,10 @@ TEST_F(CollectionsVBFilterTest, validation1) {
     auto m = makeManifest(cm);
     vbm.update(*vb, m);
 
-    std::vector<std::string> inputs = {
-            R"({"collections":["0"]})",
-            R"({"collections":["8"]})",
-            R"({"collections":["9", "a"]})"};
+    std::vector<std::string> inputs = {R"({"uid":"a"})",
+                                       R"({"collections":["0"]})",
+                                       R"({"collections":["8"]})",
+                                       R"({"collections":["9", "a"]})"};
 
     for (const auto& s : inputs) {
         std::optional<std::string_view> json(s);
