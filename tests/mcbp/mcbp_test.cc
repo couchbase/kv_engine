@@ -11,7 +11,6 @@
 #include "mcbp_test.h"
 
 #include <daemon/cookie.h>
-#include <daemon/front_end_thread.h>
 #include <daemon/settings.h>
 #include <event2/event.h>
 #include <mcbp/protocol/framebuilder.h>
@@ -27,8 +26,6 @@
  * don't have any command validators for...
  */
 namespace mcbp::test {
-
-static FrontEndThread thread;
 
 ValidatorTest::ValidatorTest(bool collectionsEnabled)
     : connection(thread),

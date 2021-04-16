@@ -17,6 +17,7 @@
 #include "mock_connection.h"
 
 #include <daemon/connection.h>
+#include <daemon/front_end_thread.h>
 #include <daemon/mcbp_validators.h>
 #include <daemon/stats.h>
 #include <folly/portability/GTest.h>
@@ -46,6 +47,7 @@ protected:
             cb::mcbp::ClientOpcode opcode,
             cb::mcbp::Status expectedStatus = cb::mcbp::Status::Einval);
 
+    FrontEndThread thread;
     McbpValidator validatorChains;
 
     MockConnection connection;
