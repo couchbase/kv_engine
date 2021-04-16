@@ -355,8 +355,10 @@ TEST_P(BucketTest, DeleteWhileSendDataAndFullWriteBuffer) {
         } catch (const std::exception& e) {
             std::cerr << "DeleteWhileSendDataAndFullWriteBuffer: Failed to "
                          "send data to the server: "
-                      << e.what() << std::endl;
-            exit(EXIT_FAILURE);
+                      << e.what()
+                      << " we might have deleted the bucket already and been "
+                         "disconnected"
+                      << std::endl;
         }
     }};
 
