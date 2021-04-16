@@ -18,8 +18,6 @@
 #include <string>
 #include <thread>
 
-FrontEndThread thread;
-
 class TracingTest : public ::testing::Test {
 public:
     void SetUp() override {
@@ -67,21 +65,3 @@ TEST_F(TracingTest, ErrorRate) {
         EXPECT_LE((micros - decoded) * 100.0 / micros, 0.5);
     }
 }
-
-/// Text fixture for session tracing associated with a Cookie object.
-class TracingCookieTest : public ::testing::Test {
-protected:
-    TracingCookieTest() : connection(thread), cookie(connection) {
-        cookie.setTracingEnabled(true);
-    }
-
-    void SetUp() override {
-        // Record initial time as an epoch (all subsequent times should be
-        // greater or equal to this).
-        epoch = std::chrono::steady_clock::now();
-    }
-
-    MockConnection connection;
-    Cookie cookie;
-    std::chrono::steady_clock::time_point epoch;
-};
