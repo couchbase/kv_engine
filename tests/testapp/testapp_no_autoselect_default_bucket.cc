@@ -11,16 +11,14 @@
 
 #include "testapp.h"
 #include "testapp_client_test.h"
+#include <folly/portability/Stdlib.h>
 
-#include <algorithm>
-#include <platform/compress.h>
-
-static std::string env{"MEMCACHED_UNIT_TESTS_NO_DEFAULT_BUCKET=true"};
+#define VARIABLE "MEMCACHED_UNIT_TESTS_NO_DEFAULT_BUCKET"
 
 class NoAutoselectDefaultBucketTest : public TestappClientTest {
 public:
     static void SetUpTestCase() {
-        putenv(const_cast<char*>(env.c_str()));
+        setenv(VARIABLE, "true", 1);
         ::TestappClientTest::SetUpTestCase();
     }
 
@@ -30,54 +28,32 @@ public:
         // do that all of the following test suites will fail as they
         // (at least right now) expects to be associated with the default
         // bucket.
-#ifdef WIN32
-        // Windows don't have unsetenv, but use putenv with an empty variable
-        env.resize(env.size() - 4);
-        putenv(const_cast<char*>(env.c_str()));
-#else
-        env.resize(env.size() - 5);
-        unsetenv(env.c_str());
-#endif
+        unsetenv(VARIABLE);
         stop_memcached_server();
-    }
-
-    void SetUp() override {
-    }
-
-    void TearDown() override {
     }
 };
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          NoAutoselectDefaultBucketTest,
-                         ::testing::Values(TransportProtocols::McbpPlain,
-                                           TransportProtocols::McbpSsl),
+                         ::testing::Values(TransportProtocols::McbpPlain),
                          ::testing::PrintToStringParamName());
 
 TEST_P(NoAutoselectDefaultBucketTest, NoAutoselect) {
-    auto& conn = getAdminConnection();
-
-    auto buckets = conn.listBuckets();
-    for (auto& name : buckets) {
-        if (name == "default") {
-            conn.deleteBucket("default");
+    // Verify that we have a bucket named default!
+    auto& admin = getAdminConnection();
+    bool found = false;
+    for (const auto& b : admin.listBuckets()) {
+        if (b == "default") {
+            found = true;
         }
     }
-    conn.createBucket("default", "", BucketType::Memcached);
+    ASSERT_TRUE(found) << "Did not find a bucket named default";
 
-    // Reconnect (to drop the admin credentials)
-    conn = getConnection();
-
-    BinprotGetCommand cmd;
-    cmd.setKey("GetKey");
-    auto rsp = conn.execute(cmd);
-
-    EXPECT_FALSE(rsp.isSuccess()) << rsp.getDataString();
+    auto& conn = getConnection();
+    auto rsp = conn.execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::Get, "get"});
     // You would have expected NO BUCKET, but we don't have access
     // to this bucket ;)
     EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus())
             << rsp.getDataString();
-
-    conn = getAdminConnection();
-    conn.deleteBucket("default");
 }
