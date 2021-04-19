@@ -213,24 +213,15 @@ nlohmann::json get_bucket_details(size_t idx);
 bool is_bucket_dying(Connection& c);
 
 namespace BucketValidator {
-    /**
-     * Validate that a bucket name confirms to the restrictions for bucket
-     * names.
-     *
-     * @param name the name to validate
-     * @param errors where to store a textual description of the problems
-     * @return true if the bucket name is valid, false otherwise
-     */
-    bool validateBucketName(const std::string& name, std::string& errors);
-
-    /**
-     * Validate that a bucket type is one of the supported types
-     *
-     * @param type the type to validate
-     * @param errors where to store a textual description of the problems
-     * @return true if the bucket type is valid and supported, false otherwise
-     */
-    bool validateBucketType(const BucketType& type, std::string& errors);
+/**
+ * Validate that a bucket name confirms to the restrictions for bucket
+ * names.
+ *
+ * @param name the name to validate
+ * @return An error message if there was something wrong with the name
+ *         (empty string == everything OK)
+ */
+std::string validateBucketName(std::string_view name);
 }
 
 /// May the user connected to this cookie access the specified bucket?

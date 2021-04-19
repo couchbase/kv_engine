@@ -13,6 +13,7 @@
 #include "buckets.h"
 #include "connection.h"
 #include "cookie.h"
+#include "enginemap.h"
 #include "memcached.h"
 #include "subdocument_validators.h"
 #include "xattr/utils.h"
@@ -1524,9 +1525,37 @@ static Status create_bucket_validator(Cookie& cookie) {
     if (status != Status::Success) {
         return status;
     }
-    if (cookie.getHeader().getKeylen() > MAX_BUCKET_NAME_LENGTH) {
-        cookie.setErrorContext("Request key length exceeds maximum");
+
+    const auto& req = cookie.getRequest();
+    const auto k = req.getKey();
+    auto error = BucketValidator::validateBucketName(
+            {reinterpret_cast<const char*>(k.data()), k.size()});
+    if (!error.empty()) {
+        cookie.setErrorContext(error);
         return Status::Einval;
+    }
+
+    const auto v = req.getValue();
+    std::string value(reinterpret_cast<const char*>(v.data()), v.size());
+    auto marker = value.find('\0');
+    if (marker != std::string::npos) {
+        value.resize(marker);
+    }
+
+    switch (module_to_bucket_type(value)) {
+    case BucketType::Unknown:
+        cookie.setErrorContext("Unknown bucket type");
+        return Status::Einval;
+
+    case BucketType::NoBucket:
+        cookie.setErrorContext(
+                "The internal bucket type nobucket.so can't be created");
+        return Status::NotSupported;
+
+    case BucketType::Memcached:
+    case BucketType::Couchstore:
+    case BucketType::EWouldBlock:
+        break;
     }
 
     return Status::Success;

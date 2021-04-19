@@ -2706,7 +2706,7 @@ TEST_P(CommandSpecificErrorContextTest, CreateBucket) {
     header.setExtlen(0);
     header.setKeylen(101);
     header.setBodylen(102);
-    EXPECT_EQ("Request key length exceeds maximum",
+    EXPECT_EQ("Name too long (exceeds 100)",
               validate_error_context(cb::mcbp::ClientOpcode::CreateBucket));
 }
 

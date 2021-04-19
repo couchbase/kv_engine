@@ -263,6 +263,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     add_sanitizers(client_cert_config_test)
 
     add_executable(memcached_unit_tests
+                   bucket_validator_test.cc
                    connection_unit_tests.cc
                    datatype_filter_test.cc
                    doc_pre_expiry_test.cc

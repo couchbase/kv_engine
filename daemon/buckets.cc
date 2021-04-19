@@ -63,50 +63,33 @@ void Bucket::setEngine(unique_engine_ptr engine_) {
 }
 
 namespace BucketValidator {
-    bool validateBucketName(const std::string& name, std::string& errors) {
-        if (name.empty()) {
-            errors.assign("BucketValidator::validateBucketName: "
-                              "Name can't be empty");
-            return false;
-        }
+std::string validateBucketName(std::string_view name) {
+    if (name.empty()) {
+        return "Name can't be empty";
+    }
 
-        if (name.length() > MAX_BUCKET_NAME_LENGTH) {
-            errors.assign("BucketValidator::validateBucketName: Name"
-                              " too long (exceeds " +
-                          std::to_string(MAX_BUCKET_NAME_LENGTH) +
-                          ")");
-            return false;
-        }
+    if (name.length() > MAX_BUCKET_NAME_LENGTH) {
+        return "Name too long (exceeds " +
+               std::to_string(MAX_BUCKET_NAME_LENGTH) + ")";
+    }
 
-        // Verify that the bucket name only consists of legal characters
-        for (const uint8_t ii : name) {
-            if (!(isupper(ii) || islower(ii) || isdigit(ii))) {
-                switch (ii) {
-                case '_':
-                case '-':
-                case '.':
-                case '%':
-                    break;
-                default:
-                    errors.assign("BucketValidator::validateBucketName: "
-                                      "name contains invalid characters");
-                    return false;
-                }
+    // Verify that the bucket name only consists of legal characters
+    for (const uint8_t ii : name) {
+        if (!(isupper(ii) || islower(ii) || isdigit(ii))) {
+            switch (ii) {
+            case '_':
+            case '-':
+            case '.':
+            case '%':
+                break;
+            default:
+                return "Name contains invalid characters";
             }
         }
-
-        return true;
     }
 
-    bool validateBucketType(const BucketType& type, std::string& errors) {
-        if (type == BucketType::Unknown) {
-            errors.assign("BucketValidator::validateBucketType: "
-                              "Unsupported bucket type");
-            return false;
-        }
-
-        return true;
-    }
+    return {};
+}
 }
 
 std::string to_string(Bucket::State state) {

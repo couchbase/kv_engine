@@ -815,22 +815,6 @@ void enable_shutdown() {
 void CreateBucketThread::create() {
     LOG_INFO("{}: Create bucket [{}]", connection.getId(), name);
 
-    if (!BucketValidator::validateBucketName(name, error)) {
-        LOG_ERROR("{}: Create bucket [{}] failed - Invalid bucket name",
-                  connection.getId(),
-                  name);
-        result = cb::engine_errc::invalid_arguments;
-        return;
-    }
-
-    if (!BucketValidator::validateBucketType(type, error)) {
-        LOG_ERROR("{}: Create bucket [{}] failed - Invalid bucket type",
-                  connection.getId(),
-                  name);
-        result = cb::engine_errc::invalid_arguments;
-        return;
-    }
-
     size_t ii;
     size_t first_free = all_buckets.size();
     bool found = false;
