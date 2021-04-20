@@ -9,7 +9,7 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "bucket_type.h"
+#include <memcached/bucket_type.h>
 
 std::string to_string(BucketType type) {
     switch (type) {

@@ -840,26 +840,30 @@ void MemcachedConnection::authenticate(const std::string& username,
     }
 }
 
+static std::string bucketTypeToModule(BucketType type) {
+    switch (type) {
+    case BucketType::Unknown:
+        throw std::runtime_error(
+                "bucketTypeToModule: Can't create an unknown bucket type");
+    case BucketType::NoBucket:
+        return "nobucket.so";
+    case BucketType::Memcached:
+        return "default_engine.so";
+    case BucketType::Couchbase:
+        return "ep.so";
+    case BucketType::EWouldBlock:
+        return "ewouldblock_engine.so";
+    }
+
+    throw std::runtime_error("bucketTypeToModule: Invalid BucketType: " +
+                             std::to_string(int(type)));
+}
+
 void MemcachedConnection::createBucket(const std::string& name,
                                        const std::string& config,
                                        BucketType type) {
-    std::string module;
-    switch (type) {
-    case BucketType::Memcached:
-        module.assign("default_engine.so");
-        break;
-    case BucketType::EWouldBlock:
-        module.assign("ewouldblock_engine.so");
-        break;
-    case BucketType::Couchbase:
-        module.assign("ep.so");
-        break;
-    default:
-        throw std::runtime_error("Not implemented");
-    }
-
     BinprotCreateBucketCommand command(name.c_str());
-    command.setConfig(module, config);
+    command.setConfig(bucketTypeToModule(type), config);
 
     const auto response = execute(command);
     if (!response.isSuccess()) {

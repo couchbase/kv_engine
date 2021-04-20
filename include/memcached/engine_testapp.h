@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include <daemon/bucket_type.h>
+#include <memcached/bucket_type.h>
 #include <memcached/engine.h>
 #include <functional>
 

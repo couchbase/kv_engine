@@ -10,11 +10,11 @@
  */
 #pragma once
 
-#include "bucket_type.h"
 #include "cluster_config.h"
 #include "mcbp_validators.h"
 #include "timings.h"
 
+#include <memcached/bucket_type.h>
 #include <memcached/engine.h>
 #include <memcached/limits.h>
 #include <memcached/types.h>

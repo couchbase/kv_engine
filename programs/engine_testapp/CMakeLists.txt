@@ -21,10 +21,10 @@ target_link_libraries(mock_server INTERFACE
 
 add_library(engine_testapp OBJECT engine_testapp.cc
         ${Memcached_SOURCE_DIR}/daemon/bucket_type.cc
-        ${Memcached_SOURCE_DIR}/daemon/bucket_type.h
         ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
         ${Memcached_SOURCE_DIR}/daemon/enginemap.cc
         ${Memcached_SOURCE_DIR}/daemon/enginemap.h
+        ${Memcached_SOURCE_DIR}/include/memcached/bucket_type.h
 )
 target_link_libraries(engine_testapp PUBLIC Folly::headers)
 

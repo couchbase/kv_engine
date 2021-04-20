@@ -11,6 +11,7 @@
 #pragma once
 
 #include <engines/ewouldblock_engine/ewouldblock_engine.h>
+#include <memcached/bucket_type.h>
 #include <memcached/engine_error.h>
 #include <memcached/openssl.h>
 #include <memcached/protocol_binary.h>
@@ -123,13 +124,6 @@ struct ObserveInfo {
     uint64_t currentSeqno;
     uint64_t failoverUUID;
     uint64_t failoverSeqno;
-};
-
-enum class BucketType : uint8_t {
-    Invalid = 0,
-    Memcached = 1,
-    Couchbase = 2,
-    EWouldBlock = 3
 };
 
 enum class MutationType {

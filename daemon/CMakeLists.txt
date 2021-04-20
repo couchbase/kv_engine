@@ -1,7 +1,6 @@
 ADD_LIBRARY(memcached_daemon STATIC
             bucket_threads.h
             bucket_type.cc
-            bucket_type.h
             buckets.cc
             buckets.h
             cccp_notification_task.cc
