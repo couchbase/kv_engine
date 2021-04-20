@@ -148,9 +148,10 @@ public:
                      CheckpointList::iterator checkpoint,
                      ChkptQueueIterator pos);
 
-    // We need to define the copy construct explicitly due to the fact
-    // that std::atomic implicitly deleted the assignment operator
-    CheckpointCursor(const CheckpointCursor& other);
+    // The implicitly generated copy-ctor would miss to increment the
+    // checkpoint-cursor count, so we make sure that nobody can accidentally
+    // invoke it.
+    CheckpointCursor(const CheckpointCursor& other) = delete;
 
     /**
      * Construct by copy and assign the new name.
@@ -158,7 +159,7 @@ public:
      * @param other
      * @param name The new name
      */
-    CheckpointCursor(const CheckpointCursor& other, const std::string& name);
+    CheckpointCursor(const CheckpointCursor& other, std::string name);
 
     CheckpointCursor& operator=(const CheckpointCursor& other);
 
