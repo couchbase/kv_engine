@@ -74,18 +74,6 @@ CheckpointCursor::~CheckpointCursor() {
     }
 }
 
-CheckpointCursor& CheckpointCursor::operator=(const CheckpointCursor& other) {
-    name.assign(other.name);
-    currentCheckpoint = other.currentCheckpoint;
-    currentPos = other.currentPos;
-    numVisits = other.numVisits.load();
-    isValid = other.isValid;
-    if (isValid) {
-        (*currentCheckpoint)->incNumOfCursorsInCheckpoint();
-    }
-    return *this;
-}
-
 void CheckpointCursor::invalidate() {
     (*currentCheckpoint)->decNumOfCursorsInCheckpoint();
     isValid = false;

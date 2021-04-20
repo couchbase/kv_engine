@@ -152,6 +152,7 @@ public:
     // checkpoint-cursor count, so we make sure that nobody can accidentally
     // invoke it.
     CheckpointCursor(const CheckpointCursor& other) = delete;
+    CheckpointCursor& operator=(const CheckpointCursor& other) = delete;
 
     /**
      * Construct by copy and assign the new name.
@@ -160,8 +161,6 @@ public:
      * @param name The new name
      */
     CheckpointCursor(const CheckpointCursor& other, std::string name);
-
-    CheckpointCursor& operator=(const CheckpointCursor& other);
 
     ~CheckpointCursor();
 
