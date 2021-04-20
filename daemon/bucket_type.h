@@ -18,7 +18,7 @@ enum class BucketType : uint8_t {
     Unknown,
     NoBucket,
     Memcached,
-    Couchstore,
+    Couchbase,
     EWouldBlock
 };
 

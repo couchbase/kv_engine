@@ -15,8 +15,8 @@ std::string to_string(BucketType type) {
     switch (type) {
     case BucketType::Memcached:
         return "Memcached";
-    case BucketType::Couchstore:
-        return "Couchstore";
+    case BucketType::Couchbase:
+        return "Couchbase";
     case BucketType::EWouldBlock:
         return "EWouldBlock";
     case BucketType::NoBucket:

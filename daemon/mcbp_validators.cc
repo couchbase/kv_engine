@@ -1553,7 +1553,7 @@ static Status create_bucket_validator(Cookie& cookie) {
         return Status::NotSupported;
 
     case BucketType::Memcached:
-    case BucketType::Couchstore:
+    case BucketType::Couchbase:
     case BucketType::EWouldBlock:
         break;
     }

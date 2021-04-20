@@ -74,7 +74,7 @@ TEST(BucketTypeValidatorTest, Memcached) {
 }
 
 TEST(BucketTypeValidatorTest, Couchstore) {
-    EXPECT_EQ(BucketType::Couchstore,
+    EXPECT_EQ(BucketType::Couchbase,
               module_to_bucket_type(cb::io::sanitizePath("/foo/bar/ep.so")));
 }
 

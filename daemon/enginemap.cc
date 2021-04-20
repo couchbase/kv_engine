@@ -29,7 +29,7 @@ unique_engine_ptr new_engine_instance(BucketType type,
         case BucketType::Memcached:
             status = create_memcache_instance(get_server_api, &ret);
             break;
-        case BucketType::Couchstore:
+        case BucketType::Couchbase:
             status = create_ep_engine_instance(get_server_api, &ret);
             break;
         case BucketType::EWouldBlock:
@@ -72,7 +72,7 @@ BucketType module_to_bucket_type(const std::string& module) {
     } else if (nm == "default_engine.so") {
         return BucketType::Memcached;
     } else if (nm == "ep.so") {
-        return BucketType::Couchstore;
+        return BucketType::Couchbase;
     } else if (nm == "ewouldblock_engine.so") {
         return BucketType::EWouldBlock;
     }
@@ -89,7 +89,7 @@ void shutdown_all_engines() {
         // no cleanup needed;
     case BucketType::Memcached:
         destroy_memcache_engine();
-    case BucketType::Couchstore:
+    case BucketType::Couchbase:
         destroy_ep_engine();
     case BucketType::EWouldBlock:
         // no cleanup needed;

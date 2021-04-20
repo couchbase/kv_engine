@@ -435,7 +435,7 @@ std::vector<engine_test_t> get_tests() {
 }
 
 BucketType get_bucket_type() {
-    return BucketType::Couchstore;
+    return BucketType::Couchbase;
 }
 
 bool setup_suite(struct test_harness *th) {

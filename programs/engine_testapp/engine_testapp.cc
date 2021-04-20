@@ -583,7 +583,7 @@ int main(int argc, char **argv) {
         harness.bucketType = get_bucket_type();
     } else {
         if (engine == "ep") {
-            harness.bucketType = BucketType::Couchstore;
+            harness.bucketType = BucketType::Couchbase;
         } else if (engine == "mc") {
             harness.bucketType = BucketType::Memcached;
         } else {
