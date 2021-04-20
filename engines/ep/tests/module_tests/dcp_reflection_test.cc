@@ -537,7 +537,7 @@ void DCPLoopbackStreamTest::DcpRoute::transferResponseMessage() {
     if (consumerMsg) {
         switch (consumerMsg->getEvent()) {
         case DcpResponse::Event::SnapshotMarker:
-            streams.first->snapshotMarkerAckReceived(*producer);
+            streams.first->snapshotMarkerAckReceived();
             break;
         case DcpResponse::Event::SetVbucket:
             streams.first->setVBucketStateAckRecieved(*producer);

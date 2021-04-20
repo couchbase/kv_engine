@@ -566,9 +566,9 @@ void ActiveStream::completeOSOBackfill() {
     notifyStreamReady(true);
 }
 
-void ActiveStream::snapshotMarkerAckReceived(DcpProducer& producer) {
+void ActiveStream::snapshotMarkerAckReceived() {
     if (--waitForSnapshot == 0) {
-        notifyStreamReady(false /*force*/, &producer);
+        notifyStreamReady();
     }
 }
 
