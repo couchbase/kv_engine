@@ -125,6 +125,12 @@ public:
                 name, "default_engine.so", mergeConfigString(config), conn);
     }
 
+    void createBucket(const std::string& name,
+                      const std::string& config,
+                      MemcachedConnection& conn) override {
+        conn.createBucket(name, config, BucketType::Memcached);
+    }
+
     std::string getName() const override {
         return "default_engine";
     }
@@ -215,6 +221,41 @@ public:
     }
 
     BucketCreateMode bucketCreateMode = BucketCreateMode::Clean;
+
+    void createBucket(const std::string& name,
+                      const std::string& config,
+                      MemcachedConnection& conn) override {
+        const auto dbdir = cb::io::sanitizePath(dbPath + "/" + name);
+        if (cb::io::isDirectory(dbdir)) {
+            cb::io::rmrf(dbdir);
+        }
+
+        std::string settings = "dbname=" + dbPath + "/" + name;
+        if (!config.empty()) {
+            settings += ";" + config;
+        }
+
+        conn.createBucket(name, settings, BucketType::Couchbase);
+        conn.selectBucket(name);
+
+        // Set the vBucket state. Set a single replica so that any SyncWrites
+        // can be completed.
+        conn.setDatatypeJson(true);
+        nlohmann::json meta;
+        meta["topology"] = nlohmann::json::array({{"active"}});
+        conn.setVbucket(Vbid(0), vbucket_state_active, meta);
+
+        // Clear the JSON data type (just in case)
+        conn.setDatatypeJson(false);
+
+        auto auto_retry_tmpfail = conn.getAutoRetryTmpfail();
+        conn.setAutoRetryTmpfail(true);
+        auto resp = conn.execute(
+                BinprotGenericCommand{cb::mcbp::ClientOpcode::EnableTraffic});
+        conn.setAutoRetryTmpfail(auto_retry_tmpfail);
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+        conn.selectBucket("@no bucket@");
+    }
 
     void setUpBucket(const std::string& name,
                      const std::string& config,

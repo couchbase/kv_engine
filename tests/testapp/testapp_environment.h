@@ -27,6 +27,10 @@ public:
         : extraConfig(std::move(extraConfig)) {
     }
 
+    virtual void createBucket(const std::string& name,
+                              const std::string& config,
+                              MemcachedConnection& conn) = 0;
+
     virtual void setUpBucket(const std::string& name,
                              const std::string& config,
                              MemcachedConnection& conn) = 0;

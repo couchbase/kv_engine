@@ -385,14 +385,18 @@ TEST_P(BucketTest, TestListSomeBuckets) {
 }
 
 TEST_P(BucketTest, TestBucketIsolationBuckets) {
-    // @todo we should improve the test to also test EP buckets
-    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Memcached);
     auto& connection = getAdminConnection();
 
-    for (std::size_t ii = 1; ii < cb::limits::TotalBuckets; ++ii) {
+    size_t totalBuckets = cb::limits::TotalBuckets;
+    if (folly::kIsSanitize) {
+        // We don't need to test _all_ buckets when running under sanitizers
+        totalBuckets = 5;
+    }
+
+    for (std::size_t ii = 1; ii < totalBuckets; ++ii) {
         std::stringstream ss;
         ss << "mybucket_" << std::setfill('0') << std::setw(3) << ii;
-        connection.createBucket(ss.str(), "", BucketType::Memcached);
+        GetTestBucket().createBucket(ss.str(), "", connection);
     }
 
     // I should be able to select each bucket and the same document..
@@ -402,7 +406,7 @@ TEST_P(BucketTest, TestBucketIsolationBuckets) {
     doc.info.id = "TestBucketIsolationBuckets";
     doc.value = memcached_cfg.dump();
 
-    for (std::size_t ii = 1; ii < cb::limits::TotalBuckets; ++ii) {
+    for (std::size_t ii = 1; ii < totalBuckets; ++ii) {
         std::stringstream ss;
         ss << "mybucket_" << std::setfill('0') << std::setw(3) << ii;
         const auto name = ss.str();
@@ -412,7 +416,7 @@ TEST_P(BucketTest, TestBucketIsolationBuckets) {
 
     connection = getAdminConnection();
     // Delete all buckets
-    for (std::size_t ii = 1; ii < cb::limits::TotalBuckets; ++ii) {
+    for (std::size_t ii = 1; ii < totalBuckets; ++ii) {
         std::stringstream ss;
         ss << "mybucket_" << std::setfill('0') << std::setw(3) << ii;
         connection.deleteBucket(ss.str());
