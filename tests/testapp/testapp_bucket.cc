@@ -45,7 +45,12 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          ::testing::Values(TransportProtocols::McbpSsl),
                          ::testing::PrintToStringParamName());
 
+/// This test test that we can create up to the maximum number of buckets
+/// The memcache bucket type is the least resource hungry bucket type so
+/// lets just test with that bucket type
 TEST_P(BucketTest, TestMultipleBuckets) {
+    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Memcached);
+
     auto& connection = getAdminConnection();
     std::size_t ii;
     try {
@@ -55,6 +60,15 @@ TEST_P(BucketTest, TestMultipleBuckets) {
         }
     } catch (ConnectionError&) {
         FAIL() << "Failed to create more than " << ii << " buckets";
+    }
+
+    /// Creating another bucket should fail!
+    try {
+        connection.createBucket("BucketShouldFail", "", BucketType::Memcached);
+        FAIL() << "It should not be possible to test more than "
+               << cb::limits::TotalBuckets << "buckets";
+    } catch (ConnectionError&) {
+        connection = getAdminConnection();
     }
 
     for (--ii; ii > 0; --ii) {
@@ -162,6 +176,11 @@ TEST_P(BucketTest, DeleteWhileClientSendCommand) {
 // a file and the removal of the file simulates that the background task
 // completes and the cookie should be signalled.
 TEST_P(BucketTest, DeleteWhileClientConnectedAndEWouldBlocked) {
+    /// The test don't test anything in the actual engine so we don't need
+    /// to run the test on both ep-engine and default_engine. Given that
+    /// we test with default_engine we only run the test for default_engine
+    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Memcached);
+
     // The test was refactored to run 50k deletions under TSAN to try to
     // identify a race condition. I _think_ it was because of a race condition
     // in the tests and not the delete bucket logic. In this test we first tell
@@ -241,6 +260,11 @@ static int64_t getTotalSent(MemcachedConnection& conn, intptr_t id) {
  * (because we never try to read the data)
  */
 TEST_P(BucketTest, DeleteWhileSendDataAndFullWriteBuffer) {
+    /// The test don't test anything in the actual engine so we don't need
+    /// to run the test on both ep-engine and default_engine. Given that
+    /// we test with default_engine we only run the test for default_engine
+    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Memcached);
+
     auto& conn = getAdminConnection();
     const auto id = conn.getServerConnectionId();
     conn.createBucket("bucket",
@@ -319,17 +343,18 @@ TEST_P(BucketTest, TestListBucket_not_authenticated) {
     }
 }
 
+/// Smith only has access to a bucket named rbac_test (and not the
+/// default bucket) so when we authenticate as smith we shouldn't be put
+/// into rbac_test, but be in no_bucket
 TEST_P(BucketTest, TestNoAutoSelectOfBucketForNormalUser) {
+    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Memcached);
     auto& conn = getAdminConnection();
     conn.createBucket("rbac_test", "", BucketType::Memcached);
 
     conn = getConnection();
     conn.authenticate("smith", "smithpassword", "PLAIN");
-    BinprotGetCommand cmd;
-    cmd.setKey(name);
-    conn.sendCommand(cmd);
-    BinprotResponse response;
-    conn.recvResponse(response);
+    auto response = conn.execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::Get, name});
     EXPECT_EQ(cb::mcbp::Status::NoBucket, response.getStatus());
 
     conn = getAdminConnection();
@@ -337,6 +362,7 @@ TEST_P(BucketTest, TestNoAutoSelectOfBucketForNormalUser) {
 }
 
 TEST_P(BucketTest, TestListSomeBuckets) {
+    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Memcached);
     auto& conn = getAdminConnection();
     conn.createBucket("bucket-1", "", BucketType::Memcached);
     conn.createBucket("bucket-2", "", BucketType::Memcached);
@@ -358,8 +384,9 @@ TEST_P(BucketTest, TestListSomeBuckets) {
     conn.deleteBucket("rbac_test");
 }
 
-TEST_P(BucketTest, TestBucketIsolationBuckets)
-{
+TEST_P(BucketTest, TestBucketIsolationBuckets) {
+    // @todo we should improve the test to also test EP buckets
+    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Memcached);
     auto& connection = getAdminConnection();
 
     for (std::size_t ii = 1; ii < cb::limits::TotalBuckets; ++ii) {
@@ -392,8 +419,12 @@ TEST_P(BucketTest, TestBucketIsolationBuckets)
     }
 }
 
-TEST_P(BucketTest, TestMemcachedBucketBigObjects)
-{
+/// Test that it is possible to specify bigger item sizes for memcache buckets
+/// NOTE: This isn't used in our product, and memcache buckets is deprecated.
+/// Only run the test if we're testing memcache bucket types
+TEST_P(BucketTest, TestMemcachedBucketBigObjects) {
+    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Memcached);
+
     auto& connection = getAdminConnection();
 
     const size_t item_max_size = 2 * 1024 * 1024; // 2MB

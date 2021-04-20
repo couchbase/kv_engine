@@ -16,6 +16,7 @@
 #include <string>
 
 class MemcachedConnection;
+enum class BucketType : uint8_t;
 
 /**
  * The test bucket which tests are being run against.
@@ -37,6 +38,8 @@ public:
     virtual ~TestBucketImpl() = default;
 
     virtual std::string getName() const = 0;
+
+    virtual BucketType getType() const = 0;
 
     // Whether the given bucket type supports an opcode
     virtual bool supportsOp(cb::mcbp::ClientOpcode cmd) const = 0;

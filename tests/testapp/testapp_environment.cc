@@ -129,6 +129,10 @@ public:
         return "default_engine";
     }
 
+    BucketType getType() const override {
+        return BucketType::Memcached;
+    }
+
     bool supportsOp(cb::mcbp::ClientOpcode cmd) const override {
         switch (cmd) {
         case cb::mcbp::ClientOpcode::DcpOpen:
@@ -265,6 +269,10 @@ public:
 
     std::string getName() const override {
         return "ep_engine";
+    }
+
+    BucketType getType() const override {
+        return BucketType::Couchbase;
     }
 
     bool supportsOp(cb::mcbp::ClientOpcode cmd) const override {
