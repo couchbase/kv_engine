@@ -839,12 +839,6 @@
                 }
             }
         },
-        "quorum_history_id": {
-            "default":  "invalid",
-            "descr": "The cluster's current history-id",
-            "dynamic" : false,
-            "type": "std::string"
-        },
         "replication_throttle_cap_pcnt": {
             "default": "10",
             "descr": "Percentage of total items in write queue at which we throttle replication input",
