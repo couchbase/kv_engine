@@ -149,60 +149,45 @@ TEST_P(BucketTest, DeleteWhileClientConnectedAndEWouldBlocked) {
     /// we test with default_engine we only run the test for default_engine
     TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Memcached);
 
-    // The test was refactored to run 50k deletions under TSAN to try to
-    // identify a race condition. I _think_ it was because of a race condition
-    // in the tests and not the delete bucket logic. In this test we first tell
-    // ewb to start a block monitor thread before we send the get call. Then we
-    // immediately send a delete bucket. Given that the server use multiple
-    // threads to serve the clients it could be that the get() wasn't processed
-    // on that worker thread and would delete the connection immediately. At a
-    // later time the server detects that the file is gone and tries to signal
-    // the cookie (which now is deleted). The test have now been refactored
-    // to use a single worker thread which would make sure that this won't
-    // happen.
-    for (int ii = 0; ii < 2; ++ii) {
-        auto& conn = getAdminConnection();
-        conn.createBucket(
-                "bucket", "default_engine.so", BucketType::EWouldBlock);
+    auto& conn = getAdminConnection();
+    conn.createBucket("bucket", "default_engine.so", BucketType::EWouldBlock);
 
-        std::vector<std::unique_ptr<MemcachedConnection>> connections;
-        std::vector<std::string> lockfiles;
+    std::vector<std::unique_ptr<MemcachedConnection>> connections;
+    std::vector<std::string> lockfiles;
 
-        for (int jj = 0; jj < 5; ++jj) {
-            connections.emplace_back(conn.clone());
-            auto& c = connections.back();
-            c->authenticate("@admin", "password", "PLAIN");
-            c->selectBucket("bucket");
+    for (int jj = 0; jj < 5; ++jj) {
+        connections.emplace_back(conn.clone());
+        auto& c = connections.back();
+        c->authenticate("@admin", "password", "PLAIN");
+        c->selectBucket("bucket");
 
-            auto cwd = cb::io::getcwd();
-            auto testfile = cwd + "/" + cb::io::mktemp("lockfile");
+        auto cwd = cb::io::getcwd();
+        auto testfile = cwd + "/" + cb::io::mktemp("lockfile");
 
-            // Configure so that the engine will return
-            // cb::engine_errc::would_block and not process any operation given
-            // to it.  This means the connection will remain in a blocked state.
-            c->configureEwouldBlockEngine(
-                    EWBEngineMode::BlockMonitorFile,
-                    cb::engine_errc::would_block /* unused */,
-                    jj,
-                    testfile);
-            lockfiles.emplace_back(std::move(testfile));
-            c->sendCommand(BinprotGenericCommand{cb::mcbp::ClientOpcode::Get,
-                                                 "mykey"});
-        }
-
-        deleteBucket(conn, "bucket", [&lockfiles](const std::string& state) {
-            if (lockfiles.empty()) {
-                return;
-            }
-            if (state == "destroying") {
-                for (const auto& f : lockfiles) {
-                    cb::io::rmrf(f);
-                }
-
-                lockfiles.clear();
-            }
-        });
+        // Configure so that the engine will return
+        // cb::engine_errc::would_block and not process any operation given
+        // to it.  This means the connection will remain in a blocked state.
+        c->configureEwouldBlockEngine(EWBEngineMode::BlockMonitorFile,
+                                      cb::engine_errc::would_block /* unused */,
+                                      jj,
+                                      testfile);
+        lockfiles.emplace_back(std::move(testfile));
+        c->sendCommand(
+                BinprotGenericCommand{cb::mcbp::ClientOpcode::Get, "mykey"});
     }
+
+    deleteBucket(conn, "bucket", [&lockfiles](const std::string& state) {
+        if (lockfiles.empty()) {
+            return;
+        }
+        if (state == "destroying") {
+            for (const auto& f : lockfiles) {
+                cb::io::rmrf(f);
+            }
+
+            lockfiles.clear();
+        }
+    });
 }
 
 static int64_t getTotalSent(MemcachedConnection& conn, intptr_t id) {
