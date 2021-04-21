@@ -45,38 +45,6 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          ::testing::Values(TransportProtocols::McbpSsl),
                          ::testing::PrintToStringParamName());
 
-/// This test test that we can create up to the maximum number of buckets
-/// The memcache bucket type is the least resource hungry bucket type so
-/// lets just test with that bucket type
-TEST_P(BucketTest, TestMultipleBuckets) {
-    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Memcached);
-
-    auto& connection = getAdminConnection();
-    std::size_t ii;
-    try {
-        for (ii = 1; ii < cb::limits::TotalBuckets; ++ii) {
-            std::string name = "bucket-" + std::to_string(ii);
-            connection.createBucket(name, "", BucketType::Memcached);
-        }
-    } catch (ConnectionError&) {
-        FAIL() << "Failed to create more than " << ii << " buckets";
-    }
-
-    /// Creating another bucket should fail!
-    try {
-        connection.createBucket("BucketShouldFail", "", BucketType::Memcached);
-        FAIL() << "It should not be possible to test more than "
-               << cb::limits::TotalBuckets << "buckets";
-    } catch (ConnectionError&) {
-        connection = getAdminConnection();
-    }
-
-    for (--ii; ii > 0; --ii) {
-        std::string name = "bucket-" + std::to_string(ii);
-        connection.deleteBucket(name);
-    }
-}
-
 TEST_P(BucketTest, TestCreateBucketAlreadyExists) {
     auto& conn = getAdminConnection();
     try {
@@ -384,7 +352,10 @@ TEST_P(BucketTest, TestListSomeBuckets) {
     conn.deleteBucket("rbac_test");
 }
 
-TEST_P(BucketTest, TestBucketIsolationBuckets) {
+/// Test that one bucket don't leak information into another bucket
+/// and that we can create up to the maximum number of buckets
+/// allowd
+TEST_P(BucketTest, TestBucketIsolationAndMaxBuckets) {
     auto& connection = getAdminConnection();
 
     size_t totalBuckets = cb::limits::TotalBuckets;
@@ -397,6 +368,16 @@ TEST_P(BucketTest, TestBucketIsolationBuckets) {
         std::stringstream ss;
         ss << "mybucket_" << std::setfill('0') << std::setw(3) << ii;
         GetTestBucket().createBucket(ss.str(), "", connection);
+    }
+
+    if (totalBuckets == cb::limits::TotalBuckets) {
+        try {
+            GetTestBucket().createBucket("BucketShouldFail", "", connection);
+            FAIL() << "It should not be possible to test more than "
+                   << cb::limits::TotalBuckets << "buckets";
+        } catch (ConnectionError&) {
+            connection = getAdminConnection();
+        }
     }
 
     // I should be able to select each bucket and the same document..
