@@ -3992,6 +3992,154 @@ TEST_P(STParamPersistentBucketTest, MB_29541) {
     producer->cancelCheckpointCreatorTask();
 }
 
+TEST_F(SingleThreadedEPBucketTest, takeoverUnblockingRaceWhenBufferLogFull) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // 1) First store some keys which we will backfill
+    std::array<std::string, 3> keys = {{"k1", "k2", "k3"}};
+    for (const auto& key : keys) {
+        store_item(vbid, makeStoredDocKey(key), key);
+    }
+    flush_vbucket_to_disk(vbid, keys.size());
+
+    // Simplest way to ensure DCP has to do a backfill - 'wipe memory'
+    resetEngineAndWarmup();
+
+    // Setup DCP, 1 producer and we will do a takeover of the vbucket
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      "takeoverBlocking",
+                                                      /*flags*/ 0);
+
+    producer->createCheckpointProcessorTask();
+
+    MockDcpMessageProducers producers;
+
+    auto vb = store->getVBuckets().getBucket(vbid);
+    ASSERT_NE(nullptr, vb.get());
+    auto mockStream = producer->mockActiveStreamRequest(
+            DCP_ADD_STREAM_FLAG_TAKEOVER, // flags
+            1, // opaque
+            *vb,
+            0, // start_seqno
+            vb->getHighSeqno(), // end_seqno
+            vb->failovers->getLatestUUID(),
+            0, // snap_start_seqno
+            vb->getHighSeqno() // snap_end_seqno
+    );
+
+    // Manually drive the backfill (not using notifyAndStepToCheckpoint)
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    // backfill:create()
+    runNextTask(lpAuxioQ);
+    // backfill:scan()
+    runNextTask(lpAuxioQ);
+
+    // Now drain all items before we proceed to complete
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
+    for (const auto& key : keys) {
+        EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+        EXPECT_EQ(key, producers.last_key);
+    }
+
+    // backfill:complete()
+    runNextTask(lpAuxioQ);
+    // backfill:finished()
+    runNextTask(lpAuxioQ);
+
+    producers.last_op = cb::mcbp::ClientOpcode::Invalid;
+
+    // Next the backfill should switch to takeover-send
+    auto vb0Stream = producer->findStream(Vbid(0));
+    ASSERT_NE(nullptr, vb0Stream.get());
+    auto* as0 = static_cast<ActiveStream*>(vb0Stream.get());
+    EXPECT_TRUE(as0->isBackfilling());
+
+    // Add some more keys because we don't want to run immediately through
+    // takeover
+    for (const auto& key : keys) {
+        store_item(vbid, makeStoredDocKey(key), key);
+    }
+    flush_vbucket_to_disk(vbid, keys.size());
+
+    // We special case takeoverStart being set to 0 (and time starts at 0 for
+    // unit tests) so bump time to 1
+    TimeTraveller offset(1);
+
+    // Sent all items in the readyQueue, but there are some in the checkpoint
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
+    EXPECT_TRUE(as0->isTakeoverSend());
+
+    // So run the checkpoint task to pull them into the readyQueue
+    producer->getCheckpointSnapshotTask()->run();
+
+    // Travel forward in time - want to set takeoverBackedUp to block front end
+    // ops
+    TimeTraveller t(engine->getConfiguration().getDcpTakeoverMaxTime() + 1);
+
+    // Send the snapshot marker
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_TRUE(vb->isTakeoverBackedUp());
+
+    // Send 3 items
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_TRUE(as0->isTakeoverSend());
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_TRUE(as0->isTakeoverSend());
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_TRUE(as0->isTakeoverSend());
+
+    // Hitting waitForSnapshot, unblock it by "acking" from the consumer
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
+    EXPECT_TRUE(as0->isTakeoverSend());
+    as0->snapshotMarkerAckReceived();
+
+    // Shouldn't be able to store an item as takeover is blocked
+    EXPECT_TRUE(vb->isTakeoverBackedUp());
+    std::vector<cb::engine_errc> expected = {
+            cb::engine_errc::temporary_failure};
+    store_item(vbid, makeStoredDocKey("testest"), "val", 0, expected);
+
+    // Hook to set buffer log size whilst in ActiveStream::takeoverSendPhase()
+    // required as we check the capacity in DcpProducer::getNextItem() and would
+    // otherwise not make it that far
+    mockStream->setTakeoverSendPhaseHook([&]() {
+        EXPECT_EQ(cb::engine_errc::success,
+                  producer->control(
+                          1,
+                          "connection_buffer_size",
+                          std::to_string(producer->getBytesOutstanding())));
+    });
+
+    // Takeover still blocked, before the fix this would have reset
+    // takeoverBackedUp
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
+    EXPECT_TRUE(as0->isTakeoverSend());
+    EXPECT_TRUE(vb->isTakeoverBackedUp());
+    store_item(vbid, makeStoredDocKey("testest"), "val", 0, expected);
+
+    // Resize buffer log to unblock us
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->control(
+                      1,
+                      "connection_buffer_size",
+                      std::to_string(producer->getBytesOutstanding() * 2)));
+
+    // Resetting hook to unblock buffer log check
+    mockStream->setTakeoverSendPhaseHook([]() {});
+
+    // If we hadn't notified the stream when the buffer log was full then this
+    // would return would_block
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_TRUE(as0->isTakeoverWait());
+
+    // @TODO MB-45829 We should reset this when we transition vBucket state to
+    // dead for simplicity
+    EXPECT_FALSE(vb->isTakeoverBackedUp());
+}
+
 // Verify that handleResponse against an unknown stream returns true, MB-32724
 // demonstrated a case where false will cause a failure.
 TEST_F(SingleThreadedEPBucketTest, MB_32724) {

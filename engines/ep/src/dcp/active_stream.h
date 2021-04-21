@@ -530,6 +530,7 @@ protected:
     // MB-37468: Test only hooks set via Mock class
     TestingHook<> completeBackfillHook;
     TestingHook<> nextHook;
+    TestingHook<> takeoverSendPhaseHook;
 
     // Whether the responses sent using this stream should contain the body
     const IncludeValue includeValue;

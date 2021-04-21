@@ -747,17 +747,26 @@ std::unique_ptr<DcpResponse> ActiveStream::takeoverSendPhase(
         return {};
     }
 
-    if (vb) {
-        vb->setTakeoverBackedUpState(false);
-        takeoverStart = 0;
-    }
+    takeoverSendPhaseHook();
 
     if (producer.bufferLogInsert(SetVBucketState::baseMsgBytes)) {
         transitionState(StreamState::TakeoverWait);
+
+        // Unblock takeover now that we are in TakeoverWait
+        if (vb) {
+            vb->setTakeoverBackedUpState(false);
+            takeoverStart = 0;
+        }
+
         return std::make_unique<SetVBucketState>(opaque_, vb_, takeoverState);
+    } else {
+        // Force notification of the stream, with no new mutations we might get
+        // stuck otherwise as returning no item doesn't add this vBucket back to
+        // the producer's readyQueue
+        notifyStreamReady(true, &producer);
     }
 
-    return nullptr;
+    return {};
 }
 
 std::unique_ptr<DcpResponse> ActiveStream::takeoverWaitPhase(

@@ -162,6 +162,10 @@ public:
         nextHook = hook;
     }
 
+    void setTakeoverSendPhaseHook(std::function<void()> hook) {
+        takeoverSendPhaseHook = hook;
+    }
+
     uint64_t getLastBackfilledSeqno() const {
         LockHolder lh(streamMutex);
         return lastBackfilledSeqno;
