@@ -1004,6 +1004,11 @@ void KVBucket::setVBucketState_UNLOCKED(
         ExecutorPool::get()->schedule(notifyTask);
     }
 
+    if (to == vbucket_state_dead) {
+        // Reset takeover state (which sets vBucket to dead)
+        vb->setTakeoverBackedUpState(false);
+    }
+
     scheduleVBStatePersist(vb->getId());
 }
 

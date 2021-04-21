@@ -750,13 +750,6 @@ std::unique_ptr<DcpResponse> ActiveStream::takeoverSendPhase(
 
     if (producer.bufferLogInsert(SetVBucketState::baseMsgBytes)) {
         transitionState(StreamState::TakeoverWait);
-
-        // Unblock takeover now that we are in TakeoverWait
-        if (vb) {
-            vb->setTakeoverBackedUpState(false);
-            takeoverStart = 0;
-        }
-
         return std::make_unique<SetVBucketState>(opaque_, vb_, takeoverState);
     } else {
         // Force notification of the stream, with no new mutations we might get

@@ -4152,9 +4152,11 @@ TEST_F(SingleThreadedEPBucketTest, takeoverUnblockingRaceWhenBufferLogFull) {
     // would return would_block
     EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
     EXPECT_TRUE(as0->isTakeoverWait());
+    EXPECT_TRUE(vb->isTakeoverBackedUp());
 
-    // @TODO MB-45829 We should reset this when we transition vBucket state to
-    // dead for simplicity
+    as0->setVBucketStateAckRecieved(*producer);
+
+    EXPECT_EQ(vbucket_state_dead, vb->getState());
     EXPECT_FALSE(vb->isTakeoverBackedUp());
 }
 
