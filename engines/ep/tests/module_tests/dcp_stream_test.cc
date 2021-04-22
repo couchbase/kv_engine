@@ -999,9 +999,9 @@ TEST_P(StreamTest, CursorDroppingBasicNotAllowedStates) {
     stream->transitionStateToTakeoverWait();
     EXPECT_FALSE(stream->public_handleSlowStream());
 
-    /* Transition stream to takeoverSend state and expect cursor dropping call
+    /* Transition stream to dead state and expect cursor dropping call
        to fail */
-    stream->transitionStateToTakeoverDead();
+    stream->transitionStateToDead();
     EXPECT_FALSE(stream->public_handleSlowStream());
     EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
@@ -1956,7 +1956,7 @@ TEST_P(SingleThreadedActiveStreamTest, MB36146) {
         EXPECT_EQ(0, numberOfItemsInCursor);
     };
 
-    stream->transitionStateToTakeoverDead();
+    stream->transitionStateToDead();
 }
 
 TEST_P(SingleThreadedActiveStreamTest, BackfillSkipsScanIfStreamInWrongState) {
@@ -4294,6 +4294,90 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillRangeCoversAllDataInTheStorage) {
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     EXPECT_EQ(4, *resp->getBySeqno());
     ASSERT_EQ(0, readyQ.size());
+}
+
+TEST_P(SingleThreadedActiveStreamTest, MB_45757) {
+    auto& vb = *engine->getVBucket(vbid);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    auto& manager = *vb.checkpointManager;
+    const auto& list =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    manager);
+    ASSERT_EQ(1, list.size());
+
+    const auto key = makeStoredDocKey("key");
+    const std::string value = "value";
+    store_item(vbid, key, value);
+    EXPECT_EQ(1, vb.getHighSeqno());
+
+    // In the test we need to re-create streams in a condition that triggers
+    // backfill. So get rid of the DCP cursor and move the persistence cursor to
+    // a new checkpoint, then remove checkpoints.
+    stream.reset();
+    producer.reset();
+    manager.createNewCheckpoint();
+    flushVBucketToDiskIfPersistent(vbid, 1 /*expected_num_flushed*/);
+    ASSERT_EQ(2, list.size());
+    bool newCkptCreated;
+    EXPECT_EQ(1, manager.removeClosedUnrefCheckpoints(vb, newCkptCreated));
+    EXPECT_FALSE(newCkptCreated);
+    ASSERT_EQ(1, list.size());
+    ASSERT_EQ(0, manager.getNumOpenChkItems());
+
+    // Re-create the old producer and stream
+    recreateProducerAndStream(vb, 0 /*flags*/);
+    ASSERT_TRUE(producer);
+    producer->createCheckpointProcessorTask();
+    ASSERT_TRUE(stream);
+
+    // Initiate disconnection of the old producer, but block it in
+    // CM::removeCursor() just before it acquires the CM::lock.
+    ThreadGate gate(2);
+    vb.checkpointManager->removeCursorPreLockHook = [&gate]() {
+        gate.threadUp();
+    };
+    auto threadCrash = std::thread(
+            [stream = this->stream]() { stream->transitionStateToDead(); });
+
+    // The same DCP client reconnects and creates a new producer, so same name
+    // as the old producer.
+    auto newProd = std::make_shared<MockDcpProducer>(*engine,
+                                                     cookie,
+                                                     producer->getName(),
+                                                     0 /*flags*/,
+                                                     false /*startTask*/);
+    ASSERT_TRUE(newProd);
+    newProd->createCheckpointProcessorTask();
+    // StreamReq from the client on the same vbucket -> This stream has the same
+    // name as the one that is transitioning to dead in threadCrash
+    auto newStream = newProd->mockActiveStreamRequest(0 /*flags*/,
+                                                      0 /*opaque*/,
+                                                      vb,
+                                                      0 /*st_seqno*/,
+                                                      ~0 /*en_seqno*/,
+                                                      0x0 /*vb_uuid*/,
+                                                      0 /*snap_start_seqno*/,
+                                                      ~0 /*snap_end_seqno*/);
+    ASSERT_TRUE(newStream);
+    ASSERT_TRUE(newStream->isBackfilling());
+
+    // New connection backfills and registers cursor.
+    // This step invalidates the old stream from the CM::cursors map as it has
+    // the same name as the new stream.
+    auto& bfm = newProd->getBFM();
+    ASSERT_EQ(1, bfm.getNumBackfills());
+    ASSERT_EQ(backfill_success, bfm.backfill());
+    const auto& readyQ = newStream->public_readyQ();
+    ASSERT_EQ(1, readyQ.size());
+    const auto resp = newStream->next(*newProd);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+
+    // Unblock threadCrash. It tries to invalidate the old stream that is
+    // already invalid. This step throws before the fix.
+    gate.threadUp();
+
+    threadCrash.join();
 }
 
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,

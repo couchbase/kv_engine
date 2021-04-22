@@ -332,6 +332,8 @@ void CheckpointManager::registerBackupPersistenceCursor(const LockHolder& lh) {
 }
 
 bool CheckpointManager::removeCursor(CheckpointCursor* cursor) {
+    removeCursorPreLockHook();
+
     LockHolder lh(queueLock);
     return removeCursor_UNLOCKED(cursor);
 }
@@ -385,17 +387,11 @@ bool CheckpointManager::removeCursor_UNLOCKED(CheckpointCursor* cursor) {
         return false;
     }
 
-    // if the currentCheckpoint is a the checkpointList end then we must have
-    // removed this cursor before.
+    // We have logic "race conditions" that may lead to legally executing here
+    // when the cursor has already been marked invalid, so we just return if
+    // that is the case. See MB-45757 for details.
     if (!cursor->valid()) {
-        throw std::logic_error(
-                "CheckpointManager::removeCursor_UNLOCKED tried to remove "
-                "cursor "
-                "named:" +
-                cursor->name +
-                " but currentCheckpoint"
-                " was equal to checkpointList.end() implying we have already "
-                "removed it");
+        return false;
     }
 
     EP_LOG_DEBUG("Remove the checkpoint cursor with the name \"{}\" from {}",
@@ -405,10 +401,9 @@ bool CheckpointManager::removeCursor_UNLOCKED(CheckpointCursor* cursor) {
     cursor->invalidate();
 
     if (cursors.erase(cursor->name) == 0) {
-        throw std::logic_error(
-                "CheckpointManager::removeCursor_UNLOCKED failed to remove "
-                "name:" +
-                cursor->name);
+        throw std::logic_error("CheckpointManager::removeCursor_UNLOCKED: " +
+                               to_string(vbucketId) +
+                               " Failed to remove cursor: " + cursor->name);
     }
 
     /**

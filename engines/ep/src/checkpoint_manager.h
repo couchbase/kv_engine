@@ -16,6 +16,7 @@
 #include "ep_types.h"
 #include "monotonic.h"
 #include "queue_op.h"
+#include "utilities/testing_hook.h"
 #include "vbucket.h"
 
 #include <memcached/engine_common.h>
@@ -511,6 +512,9 @@ public:
     std::function<void(const CheckpointCursor* cursor, Vbid vbid)>
             runGetItemsHook;
 
+    // Introduced in MB-45757 for testing a race condition on invalidate-cursor
+    TestingHook<> removeCursorPreLockHook;
+
 protected:
     /**
      * Advance the given cursor. Protected as it's valid to call this from
@@ -547,6 +551,13 @@ protected:
      */
     std::function<void(int64_t delta)> overheadChangedCallback{[](int64_t) {}};
 
+    /**
+     * Marks the given cursor invalid and removes it from the internal
+     * cursor-map.
+     *
+     * @param cursor
+     * @return true is the cursor was removed, false otherwise
+     */
     bool removeCursor_UNLOCKED(CheckpointCursor* cursor);
 
     CursorRegResult registerCursorBySeqno_UNLOCKED(const LockHolder& lh,

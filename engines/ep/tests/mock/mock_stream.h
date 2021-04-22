@@ -93,7 +93,7 @@ public:
         transitionState(StreamState::TakeoverWait);
     }
 
-    void transitionStateToTakeoverDead() {
+    void transitionStateToDead() {
         transitionState(StreamState::Dead);
     }
 
