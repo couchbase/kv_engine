@@ -815,11 +815,14 @@ void set_xerror_feature(bool enable) {
 
 void TestappTest::waitForShutdown(bool killed) {
 #ifdef WIN32
-    ASSERT_EQ(WAIT_OBJECT_0,
-              WaitForSingleObject(pidTToHandle(server_pid), 60000));
-    DWORD exit_code = NULL;
-    GetExitCodeProcess(pidTToHandle(server_pid), &exit_code);
-    EXPECT_EQ(0, exit_code);
+    DWORD exit_code = 0;
+    do {
+        ASSERT_EQ(WAIT_OBJECT_0,
+                  WaitForSingleObject(pidTToHandle(server_pid), 60000));
+        EXPECT_NE(0, GetExitCodeProcess(pidTToHandle(server_pid), &exit_code));
+    } while (exit_code == STILL_ACTIVE);
+    EXPECT_EQ(0, exit_code) << "This is probably an exception value: "
+                            << cb::to_hex(uint32_t(exit_code));
 #else
     int status;
     pid_t ret;
