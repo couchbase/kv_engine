@@ -171,6 +171,9 @@ public:
     size_t exp_seqno_advanced;
     /* Expected number of SystemEvent ops*/
     size_t exp_system_events;
+    /* Expected number of oso markers*/
+    size_t exp_oso_markers{0};
+
     /* Expected sequence of Collection IDs from SystemEvents */
     std::vector<CollectionID> exp_collection_ids{};
 };
@@ -291,6 +294,7 @@ private:
         size_t num_values;
         size_t number_of_seqno_advanced;
         size_t number_of_system_events;
+        size_t number_of_oso_markers{0};
         std::vector<CollectionID> collections{};
     };
 
@@ -570,6 +574,11 @@ void TestDcpConsumer::run(bool openConn) {
                 stats.number_of_system_events++;
                 stats.collections.push_back(producers.last_collection_id);
                 break;
+            case cb::mcbp::ClientOpcode::DcpOsoSnapshot:
+                stats.number_of_oso_markers++;
+                bytes_read += producers.last_packet_size;
+                all_bytes += producers.last_packet_size;
+                break;
             default:
                 // Aborting ...
                 std::stringstream ss;
@@ -662,6 +671,10 @@ void TestDcpConsumer::run(bool openConn) {
             checkeq(ctx.exp_system_events,
                     stats.number_of_system_events,
                     "Number of expected SystemEvent ops sent to the consumer "
+                    "is incorrect");
+            checkeq(ctx.exp_oso_markers,
+                    stats.number_of_oso_markers,
+                    "Number of expected OSO markers sent to the consumer "
                     "is incorrect");
             if (!ctx.exp_collection_ids.empty()) {
                 check(ctx.exp_collection_ids == stats.collections,
@@ -8149,6 +8162,47 @@ static enum test_result test_MB_34664(EngineIface* h) {
     return SUCCESS;
 }
 
+static enum test_result testDcpOsoBackfill(EngineIface* h) {
+    // OSO won't trigger for ephemeral
+    if (isEphemeralBucket(h)) {
+        return SKIPPED;
+    }
+
+    const int items = 5;
+    const int start_seqno = 0;
+    write_items(h,
+                items,
+                start_seqno,
+                "exp",
+                "value",
+                0 /*exp*/,
+                Vbid(0),
+                DocumentState::Alive);
+
+    wait_for_flusher_to_settle(h);
+    verify_curr_items(h, items, "Wrong number of items");
+
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    ctx.flags |= DCP_ADD_STREAM_FLAG_DISKONLY;
+    ctx.exp_oso_markers = 2;
+    ctx.exp_mutations = items;
+    auto* cookie = testHarness->create_cookie(h);
+    TestDcpConsumer tdc("testDcpOsoBackfill", cookie, h);
+    tdc.openConnection(cb::mcbp::request::DcpOpenPayload::Producer);
+
+    checkeq(cb::engine_errc::success,
+            tdc.sendControlMessage("enable_out_of_order_snapshots", "true"),
+            "Failed control enable_out_of_order_snapshots");
+
+    tdc.addStreamCtx(ctx);
+    tdc.run(false);
+
+    testHarness->destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
 // Test manifest //////////////////////////////////////////////////////////////
 
 const char *default_dbname = "./ep_testsuite_dcp";
@@ -8929,6 +8983,15 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  nullptr,
                  prepare,
+                 cleanup),
+
+        TestCase("test oso backfill",
+                 testDcpOsoBackfill,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 // No OSO for rocks or magma
+                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
                  cleanup),
 
         TestCase(

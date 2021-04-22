@@ -489,8 +489,11 @@ cb::engine_errc MockDcpMessageProducers::oso_snapshot(
     last_oso_snapshot_flags = flags;
     last_stream_id = sid;
     cb::mcbp::request::DcpOsoSnapshotPayload extras(flags);
-    const size_t totalBytes = sizeof(cb::mcbp::Request) + sizeof(extras) +
-                              sizeof(cb::mcbp::DcpStreamIdFrameInfo);
+    size_t totalBytes = sizeof(cb::mcbp::Request) + sizeof(extras);
+
+    if (sid) {
+        totalBytes += sizeof(cb::mcbp::DcpStreamIdFrameInfo);
+    }
     last_packet_size = totalBytes;
     return cb::engine_errc::success;
 }

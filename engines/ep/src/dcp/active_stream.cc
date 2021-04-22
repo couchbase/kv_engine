@@ -550,6 +550,8 @@ void ActiveStream::completeOSOBackfill() {
                 logPrefix,
                 to_string(state_.load()));
         }
+        pushToReadyQ(std::make_unique<OSOSnapshot>(
+                opaque_, vb_, sid, OSOSnapshot::End{}));
     }
 
     if (completeBackfillHook) {
@@ -558,9 +560,6 @@ void ActiveStream::completeOSOBackfill() {
 
     bool inverse = true;
     isBackfillTaskRunning.compare_exchange_strong(inverse, false);
-
-    pushToReadyQ(std::make_unique<OSOSnapshot>(
-            opaque_, vb_, sid, OSOSnapshot::End{}));
 
     notifyStreamReady(true);
 }

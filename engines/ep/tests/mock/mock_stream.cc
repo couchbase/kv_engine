@@ -93,5 +93,6 @@ cb::engine_errc MockPassiveStream::messageReceived(
 }
 
 std::unique_ptr<DcpResponse> MockPassiveStream::public_popFromReadyQ() {
+    std::lock_guard<std::mutex> lg(streamMutex);
     return popFromReadyQ();
 }
