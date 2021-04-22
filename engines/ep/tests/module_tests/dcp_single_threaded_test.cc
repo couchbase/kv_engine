@@ -1009,6 +1009,63 @@ TEST_P(STDcpTest, ReplicateJustBeforeThrottleThreshold) {
     sendConsumerMutationsNearThreshold(false);
 }
 
+// Test that reprocessing a stream-end is safe
+TEST_P(STDcpTest, MB_45863) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto* cookie = create_mock_cookie(engine.get());
+    auto& mockConnMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+
+    /* Create a new Dcp producer */
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      "test_producer",
+                                                      /*flags*/ 0);
+    mockConnMap.addConn(cookie, producer);
+    EXPECT_TRUE(mockConnMap.doesConnHandlerExist("test_producer"));
+
+    /* Send a control message to the producer indicating that the DCP client
+       expects a "DCP_STREAM_END" upon stream close */
+    const std::string sendStreamEndOnClientStreamCloseCtrlMsg(
+            "send_stream_end_on_client_close_stream");
+    const std::string sendStreamEndOnClientStreamCloseCtrlValue("true");
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->control(0,
+                                sendStreamEndOnClientStreamCloseCtrlMsg,
+                                sendStreamEndOnClientStreamCloseCtrlValue));
+
+    /* Open stream */
+    EXPECT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
+    EXPECT_TRUE(mockConnMap.doesVbConnExist(vbid, "test_producer"));
+
+    /* Close stream */
+    EXPECT_EQ(cb::engine_errc::success, producer->closeStream(0, vbid));
+
+    // Expect a stream end message, process this using two steps, the first will
+    // see 'too_big' and stash the response for the next call to step
+    class ForceStreamEndFailure : public MockDcpMessageProducers {
+    public:
+        cb::engine_errc stream_end(uint32_t opaque,
+                                   Vbid vbucket,
+                                   cb::mcbp::DcpStreamEndStatus status,
+                                   cb::mcbp::DcpStreamId sid) override {
+            return cb::engine_errc::too_big;
+        }
+    } producers1;
+    EXPECT_EQ(cb::engine_errc::too_big, producer->step(producers1));
+    EXPECT_TRUE(producer->findStream(vbid));
+
+    // Now expect a stream end message to send, this would throw before fixing
+    // MB-45863
+    MockDcpMessageProducers producers2;
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers2));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers2.last_op);
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Closed, producers2.last_end_status);
+    EXPECT_FALSE(producer->findStream(vbid));
+    mockConnMap.disconnect(cookie);
+    mockConnMap.manageConnections();
+}
+
 INSTANTIATE_TEST_SUITE_P(PersistentAndEphemeral,
                          STDcpTest,
                          STParameterizedBucketTest::allConfigValues());

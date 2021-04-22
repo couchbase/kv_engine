@@ -645,8 +645,9 @@ cb::engine_errc DcpProducer::step(DcpMessageProducersIface& producers) {
             // If sendStreamEndOnClientStreamClose is false and the stream was
             // closed by the client, the stream was released at the point of
             // handling the close-stream.
-            if (sendStreamEndOnClientStreamClose ||
-                se->getFlags() != cb::mcbp::DcpStreamEndStatus::Closed) {
+            if (ret == cb::engine_errc::success &&
+                (sendStreamEndOnClientStreamClose ||
+                 se->getFlags() != cb::mcbp::DcpStreamEndStatus::Closed)) {
                 // We did not remove the ConnHandler earlier so we could wait to
                 // send the streamEnd We have done that now, remove it.
                 engine_.getDcpConnMap().removeVBConnByVBId(getCookie(),
