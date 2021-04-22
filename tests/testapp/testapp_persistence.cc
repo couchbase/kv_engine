@@ -108,7 +108,7 @@ protected:
  */
 TEST_P(PersistToTest, PersistedAfterShutdown) {
     if (skipTest) {
-        return;
+        GTEST_SKIP();
     }
 
     // Store 1 item, noting it's sequence number
@@ -163,7 +163,7 @@ TEST_P(PersistToTest, PersistedAfterShutdown) {
  */
 TEST_P(PersistToTest, ConsistentStateAfterShutdown) {
     if (skipTest) {
-        return;
+        GTEST_SKIP();
     }
 
     // Start off with persistence disabled.
