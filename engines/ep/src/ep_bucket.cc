@@ -2098,7 +2098,7 @@ void EPBucket::warmupCompleted() {
 
     ExecutorPool* iom = ExecutorPool::get();
     ExTask task = std::make_shared<StatSnap>(&engine);
-    statsSnapshotTaskId = iom->schedule(task);
+    iom->schedule(task);
 
     // Whilst we do schedule a compaction here and it can run before we call
     // initializeShards below (which sets makeCompactionContext), this scheduled

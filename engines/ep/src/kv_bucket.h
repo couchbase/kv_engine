@@ -889,7 +889,7 @@ protected:
         std::atomic<size_t> activeRatio;
         std::atomic<size_t> replicaRatio;
     } cachedResidentRatio;
-    size_t statsSnapshotTaskId;
+
     std::atomic<size_t> lastTransTimePerItem;
     EvictionPolicy eviction_policy;
 

@@ -287,7 +287,6 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
       itemFreqDecayerTask(nullptr),
       vb_mutexes(engine.getConfiguration().getMaxVbuckets()),
       backfillMemoryThreshold(0.95),
-      statsSnapshotTaskId(0),
       lastTransTimePerItem(0),
       collectionsManager(std::make_shared<Collections::Manager>()),
       xattrEnabled(true),
