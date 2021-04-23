@@ -395,6 +395,31 @@ TARGET_LINK_LIBRARIES(ep JSON_checker ${EP_STORAGE_LIBS}
 add_sanitizers(ep)
 
 if (NOT EP_BYPASS_TESTS)
+    # Convenience function to define an ep_testsuite /ep_perfsuite -style
+    # test.
+    function(add_ep_testsuite name source)
+      add_executable(${name}
+        ${source}
+        $<TARGET_OBJECTS:ep_testsuite_objs>
+        $<TARGET_OBJECTS:mock_dcp>
+        $<TARGET_OBJECTS:engine_testapp>
+        )
+
+      target_link_libraries(${name}
+        ${LIBEVENT_LIBRARIES}
+        JSON_checker
+        cbcompress
+        engine_testapp_dependencies
+        engine_utilities
+        mcbp
+        mcd_util
+        platform
+        platform_cb_malloc_arena
+        xattr
+        )
+      add_sanitizers(${name})
+    endfunction()
+
     add_subdirectory(tests)
 
     add_library(ep_mocks OBJECT
@@ -417,21 +442,7 @@ if (NOT EP_BYPASS_TESTS)
     # While ep_perfsuite is arguably a "test" and hence should live under
     # tests/, we *don't* want optimizations disabled for it hence keep in
     # this directory.
-    ADD_EXECUTABLE(ep_perfsuite
-                   tests/ep_perfsuite.cc
-                   $<TARGET_OBJECTS:ep_testsuite_objs>
-                   $<TARGET_OBJECTS:mock_dcp>
-                   $<TARGET_OBJECTS:engine_testapp>)
-    TARGET_LINK_LIBRARIES(ep_perfsuite
-            engine_testapp_dependencies
-            cbcompress
-            engine_utilities
-            mcbp
-            mcd_util
-            platform
-            statistics
-            ${LIBEVENT_LIBRARIES})
-    add_sanitizers(ep_perfsuite)
+    add_ep_testsuite(ep_perfsuite tests/ep_perfsuite.cc)
 
     ADD_EXECUTABLE(ep_engine_benchmarks
                    benchmarks/access_scanner_bench.cc

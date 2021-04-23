@@ -207,83 +207,11 @@ ENDIF()
 
 ADD_TEST(NAME ep-engine_misc_test COMMAND ep-engine_misc_test)
 
-ADD_EXECUTABLE(ep_testsuite
-               ep_testsuite.cc
-               $<TARGET_OBJECTS:ep_testsuite_objs>
-               $<TARGET_OBJECTS:mock_dcp>
-               $<TARGET_OBJECTS:engine_testapp>)
-TARGET_LINK_LIBRARIES(ep_testsuite
-                      engine_testapp_dependencies
-                      engine_utilities
-                      mcbp
-                      mcd_util
-                      ${EP_STORAGE_LIBS}
-                      cbcompress
-                      JSON_checker
-                      platform
-                      xattr
-                      ${LIBEVENT_LIBRARIES})
-add_sanitizers(ep_testsuite)
-
-ADD_EXECUTABLE(ep_testsuite_basic
-               ep_testsuite_basic.cc
-               $<TARGET_OBJECTS:ep_testsuite_objs>
-               $<TARGET_OBJECTS:mock_dcp>
-               $<TARGET_OBJECTS:engine_testapp>)
-TARGET_LINK_LIBRARIES(ep_testsuite_basic
-                      engine_testapp_dependencies
-                      cbcompress
-                      engine_utilities
-                      JSON_checker
-                      mcbp
-                      mcd_util
-                      platform
-                      ${LIBEVENT_LIBRARIES}
-                      ${SNAPPY_LIBRARIES})
-add_sanitizers(ep_testsuite_basic)
-
-ADD_EXECUTABLE(ep_testsuite_dcp
-               ep_testsuite_dcp.cc
-               $<TARGET_OBJECTS:ep_testsuite_objs>
-               $<TARGET_OBJECTS:mock_dcp>
-               $<TARGET_OBJECTS:engine_testapp>)
-TARGET_LINK_LIBRARIES(ep_testsuite_dcp
-                      engine_testapp_dependencies
-                      cbcompress
-                      engine_utilities
-                      JSON_checker
-                      mcbp
-                      mcd_util
-                      platform
-                      ${LIBEVENT_LIBRARIES}
-                      ${SNAPPY_LIBRARIES})
-add_sanitizers(ep_testsuite_dcp)
-
-ADD_EXECUTABLE(ep_testsuite_checkpoint
-               ep_testsuite_checkpoint.cc
-               $<TARGET_OBJECTS:ep_testsuite_objs>
-               $<TARGET_OBJECTS:engine_testapp>)
-TARGET_LINK_LIBRARIES(ep_testsuite_checkpoint
-                      engine_testapp_dependencies
-                      cbcompress
-                      engine_utilities
-                      JSON_checker
-                      mcbp
-                      mcd_util
-                      platform
-                      ${LIBEVENT_LIBRARIES}
-                      ${SNAPPY_LIBRARIES})
-add_sanitizers(ep_testsuite_checkpoint)
-
-ADD_EXECUTABLE(ep_testsuite_xdcr
-               ep_testsuite_xdcr.cc
-               $<TARGET_OBJECTS:ep_testsuite_objs>
-               $<TARGET_OBJECTS:engine_testapp>)
-TARGET_LINK_LIBRARIES(ep_testsuite_xdcr
-                      engine_testapp_dependencies mcd_util engine_utilities
-                      mcbp JSON_checker platform xattr
-                      ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
-add_sanitizers(ep_testsuite_xdcr)
+add_ep_testsuite(ep_testsuite ep_testsuite.cc)
+add_ep_testsuite(ep_testsuite_basic ep_testsuite_basic.cc)
+add_ep_testsuite(ep_testsuite_dcp ep_testsuite_dcp.cc)
+add_ep_testsuite(ep_testsuite_checkpoint ep_testsuite_checkpoint.cc)
+add_ep_testsuite(ep_testsuite_xdcr ep_testsuite_xdcr.cc)
 
 # MB-35234: Currently broken due to data race during warmup when enabling
 # durability.
