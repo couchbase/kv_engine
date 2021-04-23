@@ -784,7 +784,7 @@ class MemcachedClient(object):
                 output.append(0)
             else:
                 output[-1] = byte
-        return output.tostring().decode(errors='ignore') + key
+        return output.tobytes().decode(errors='ignore') + key
 
     # Maintain a map of 'scope.collection' => 'collection-id'
     def _update_collection_map(self, manifest):
