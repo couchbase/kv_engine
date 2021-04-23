@@ -36,11 +36,6 @@ add_library(cbsasl STATIC
 target_link_libraries(cbsasl cbcrypto mcd_util platform)
 add_sanitizers(cbsasl)
 
-install(TARGETS cbsasl
-        RUNTIME DESTINATION bin
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib)
-
 # Unit tests
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     add_executable(cbsasl_utils_test strcmp_test.cc
