@@ -10,6 +10,7 @@
  */
 #include "testapp_environment.h"
 #include "memcached_audit_events.h"
+#include <folly/portability/Stdlib.h>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
 #include <protocol/connection/client_connection.h>
@@ -400,9 +401,7 @@ void McdEnvironment::SetupIsaslPw() {
     std::replace(isasl_file_name.begin(), isasl_file_name.end(), '\\', '/');
 
     // Add the file to the exec environment
-    snprintf(isasl_env_var, sizeof(isasl_env_var), "CBSASL_PWFILE=%s",
-             isasl_file_name.c_str());
-    putenv(isasl_env_var);
+    setenv("CBSASL_PWFILE", isasl_file_name.c_str(), 1);
 }
 
 void McdEnvironment::SetupAuditFile() {
@@ -486,5 +485,3 @@ void McdEnvironment::rewriteRbacFile() {
 const std::string& McdEnvironment::getDbPath() const {
     return static_cast<EpBucketImpl*>(testBucket.get())->dbPath;
 }
-
-char McdEnvironment::isasl_env_var[256];

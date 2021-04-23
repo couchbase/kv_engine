@@ -12,25 +12,26 @@
 #include <JSON_checker.h>
 #include <cbsasl/client.h>
 #include <folly/portability/GTest.h>
+#include <folly/portability/Stdlib.h>
 #include <folly/portability/SysTypes.h>
+#include <getopt.h>
+#include <include/memcached/protocol_binary.h>
 #include <mcbp/protocol/framebuilder.h>
+#include <nlohmann/json.hpp>
 #include <platform/backtrace.h>
 #include <platform/cb_malloc.h>
 #include <platform/cbassert.h>
+#include <platform/compress.h>
 #include <platform/dirutils.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>
 #include <platform/string_hex.h>
-#include <gsl/gsl>
-#include <getopt.h>
-#include <platform/compress.h>
-#include <fstream>
-#include <include/memcached/protocol_binary.h>
-#include <nlohmann/json.hpp>
 #include <protocol/mcbp/ewb_encode.h>
 #include <atomic>
 #include <chrono>
 #include <csignal>
+#include <fstream>
+#include <gsl/gsl>
 
 McdEnvironment* mcd_env = nullptr;
 
@@ -513,8 +514,6 @@ void TestappTest::spawn_embedded_server() {
 }
 
 void TestappTest::start_external_server() {
-    static char topkeys_env[] = "MEMCACHED_TOP_KEYS=10";
-    putenv(topkeys_env);
 #ifdef WIN32
     STARTUPINFO sinfo;
     PROCESS_INFORMATION pinfo;
@@ -1299,9 +1298,8 @@ std::size_t TestappTest::num_server_starts = 0;
 int main(int argc, char** argv) {
     // We need to set MEMCACHED_UNIT_TESTS to enable the use of
     // the ewouldblock engine..
-    static char envvar[80];
-    snprintf(envvar, sizeof(envvar), "MEMCACHED_UNIT_TESTS=true");
-    putenv(envvar);
+    setenv("MEMCACHED_UNIT_TESTS", "true", 1);
+    setenv("MEMCACHED_TOP_KEYS", "10", 1);
 
     setupWindowsDebugCRTAssertHandling();
 

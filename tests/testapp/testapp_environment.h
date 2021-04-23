@@ -230,7 +230,6 @@ private:
     std::string cwd;
     nlohmann::json audit_config;
     nlohmann::json rbac_data;
-    static char isasl_env_var[256];
     bool manageSSL;
     std::unique_ptr<TestBucketImpl> testBucket;
 };
