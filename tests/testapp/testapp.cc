@@ -334,6 +334,7 @@ nlohmann::json TestappTest::generate_config() {
                "128_GCM_SHA256:TLS_AES_128_CCM_8_SHA256:TLS_AES_128_CCM_"
                "SHA256"}}},
             {"ssl_minimum_protocol", "tlsv1"},
+            {"threads", 2},
             {"opcode_attributes_override",
              {{"version", 1},
               {"EWB_CTL", {{"slow", 50}}},
