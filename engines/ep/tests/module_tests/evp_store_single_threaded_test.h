@@ -238,6 +238,14 @@ protected:
     void runReadersUntilWarmedUp();
 
     /**
+     * Destroy engine and replace it with a new engine.
+     *
+     * @param new_config The config to supply to engine creation
+     * @param unclean Should the restart be made to appear unclean
+     */
+    void resetEngine(std::string new_config = "", bool unclean = false);
+
+    /**
      * Destroy engine and replace it with a new engine that can be warmed up.
      *
      * @param new_config The config to supply to engine creation

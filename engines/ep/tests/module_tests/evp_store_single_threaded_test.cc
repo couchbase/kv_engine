@@ -179,12 +179,8 @@ void SingleThreadedKVBucketTest::runReadersUntilWarmedUp() {
     }
 }
 
-/**
- * Destroy engine and replace it with a new engine that can be warmed up.
- * Finally, run warmup.
- */
-void SingleThreadedKVBucketTest::resetEngineAndEnableWarmup(
-        std::string new_config, bool force) {
+void SingleThreadedKVBucketTest::resetEngine(std::string new_config,
+                                             bool force) {
     shutdownAndPurgeTasks(engine.get());
     std::string config = config_string;
 
@@ -204,6 +200,16 @@ void SingleThreadedKVBucketTest::resetEngineAndEnableWarmup(
     }
 
     reinitialise(config, force);
+}
+
+/**
+ * Destroy engine and replace it with a new engine that can be warmed up.
+ * Finally, run warmup.
+ */
+void SingleThreadedKVBucketTest::resetEngineAndEnableWarmup(
+        std::string new_config, bool force) {
+    resetEngine(new_config, force);
+
     if (isPersistent()) {
         static_cast<EPBucket*>(engine->getKVBucket())->initializeWarmupTask();
         static_cast<EPBucket*>(engine->getKVBucket())->startWarmupTask();
@@ -5851,13 +5857,10 @@ TEST_P(STParamPersistentBucketTest,
     // 2) Restart as though we had an unclean shutdown (creating a new failover
     //    table entry) and run the warmup up to the point of completion.
     vb.reset();
-    resetEngineAndEnableWarmup("", true /*force*/);
+    resetEngine("", true /*force*/);
 
-    // Manually start the flusher. This is typically done by
-    // EPBucket::initialize which is done during engine setup but we don't want
-    // to start up the warmup task or we run into some test issues.
-    auto& epBucket = static_cast<EPBucket&>(*engine->getKVBucket());
-    epBucket.startFlusher();
+    // Create warmup task and flusher
+    store->initialize();
 
     auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
     auto* warmup = engine->getKVBucket()->getWarmup();
