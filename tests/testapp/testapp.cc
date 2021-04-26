@@ -298,21 +298,17 @@ std::string McdTestappTest::PrintToStringCombinedName(
            to_string(::testing::get<1>(info.param));
 }
 
-std::string CERTIFICATE_PATH(const std::string& file) {
-#ifdef WIN32
-    return std::string("\\tests\\cert\\") + file;
-#else
-    return std::string("/tests/cert/") + file;
-#endif
+static std::string get_certificate_path(const std::string& file) {
+    return cb::io::sanitizePath(SOURCE_ROOT "/tests/cert/" + file);
 }
+
 static std::string get_errmaps_dir() {
     return cb::io::sanitizePath(SOURCE_ROOT "/etc/couchbase/kv/error_maps");
 }
 
 nlohmann::json TestappTest::generate_config() {
-    const std::string cwd = cb::io::getcwd();
-    const std::string pem_path = cwd + CERTIFICATE_PATH("testapp.pem");
-    const std::string cert_path = cwd + CERTIFICATE_PATH("testapp.cert");
+    const std::string pem_path = get_certificate_path("testapp.pem");
+    const std::string cert_path = get_certificate_path("testapp.cert");
 
     nlohmann::json ret = {
             {"always_collect_trace_info", true},

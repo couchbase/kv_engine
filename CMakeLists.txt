@@ -157,19 +157,8 @@ ADD_SUBDIRECTORY(statistics)
 add_subdirectory(cluster_framework)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
-    CONFIGURE_FILE(tests/cert/testapp.pem tests/cert/testapp.pem COPYONLY)
-    CONFIGURE_FILE(tests/cert/testapp.cert tests/cert/testapp.cert COPYONLY)
-    CONFIGURE_FILE(tests/cert/client.pem tests/cert/client.pem COPYONLY)
-    CONFIGURE_FILE(tests/cert/client.key tests/cert/client.key COPYONLY)
-    CONFIGURE_FILE(tests/cert/parse-test.key tests/cert/parse-test.key COPYONLY)
-    CONFIGURE_FILE(tests/cert/parse-test.pem tests/cert/parse-test.pem COPYONLY)
-    # Second copy to test changing at runtime
-    CONFIGURE_FILE(tests/cert/testapp.pem tests/cert/testapp2.pem COPYONLY)
-    CONFIGURE_FILE(tests/cert/testapp.cert tests/cert/testapp2.cert COPYONLY)
-
     ADD_SUBDIRECTORY(testsuite)
     ADD_SUBDIRECTORY(tests)
-
     ENABLE_CODE_COVERAGE_REPORT()
 endif (COUCHBASE_KV_BUILD_UNIT_TESTS)
 
