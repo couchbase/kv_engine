@@ -414,7 +414,7 @@ void TestappTest::verify_server_running() {
     }
     if (status != STILL_ACTIVE) {
         std::cerr << "memcached process is not active: Exit code " << status
-                  << std::endl;
+                  << "(" << cb::to_hex(uint32_t(status)) << ")" << std::endl;
         exit(EXIT_FAILURE);
     }
 #else
