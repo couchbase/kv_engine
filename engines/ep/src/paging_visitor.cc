@@ -22,15 +22,10 @@
 #include "kv_bucket.h"
 #include "kv_bucket_iface.h"
 
-#include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <limits>
 #include <list>
-#include <string>
-#include <utility>
-
-#include <phosphor/phosphor.h>
 #include <memory>
 #include <utility>
 
