@@ -12,10 +12,16 @@
 #include "executors.h"
 
 #include <daemon/cookie.h>
+#include <daemon/settings.h>
 #include <memcached/engine.h>
 #include <memcached/protocol_binary.h>
 
 void collections_set_manifest_executor(Cookie& cookie) {
+    if (!Settings::instance().isCollectionsEnabled()) {
+        handle_executor_status(cookie, cb::engine_errc::not_supported);
+        return;
+    }
+
     auto& connection = cookie.getConnection();
     auto ret = cookie.swapAiostat(cb::engine_errc::success);
     if (ret == cb::engine_errc::success) {

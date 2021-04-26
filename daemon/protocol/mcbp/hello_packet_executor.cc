@@ -298,17 +298,14 @@ void process_hello_packet_executor(Cookie& cookie) {
                 added = true;
             }
             break;
-        case cb::mcbp::Feature::Collections:
-            // Allow KV engine to chicken out
-            if (Settings::instance().isCollectionsEnabled()) {
-                auto& bucket = connection.getBucket();
-                // Abort if the engine cannot support collections
-                if (bucket.supports(cb::engine::Feature::Collections)) {
-                    connection.setCollectionsSupported(true);
-                    added = true;
-                }
+        case cb::mcbp::Feature::Collections: {
+            auto& bucket = connection.getBucket();
+            // Abort if the engine cannot support collections
+            if (bucket.supports(cb::engine::Feature::Collections)) {
+                connection.setCollectionsSupported(true);
+                added = true;
             }
-            break;
+        } break;
         case cb::mcbp::Feature::Duplex:
             connection.setDuplexSupported(true);
             added = true;
