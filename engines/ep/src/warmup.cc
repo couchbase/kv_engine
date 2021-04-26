@@ -1653,11 +1653,11 @@ void Warmup::step() {
     case WarmupState::State::EstimateDatabaseItemCount:
         scheduleEstimateDatabaseItemCount();
         return;
-    case WarmupState::State::PopulateVBucketMap:
-        schedulePopulateVBucketMap();
-        return;
     case WarmupState::State::LoadPreparedSyncWrites:
         scheduleLoadPreparedSyncWrites();
+        return;
+    case WarmupState::State::PopulateVBucketMap:
+        schedulePopulateVBucketMap();
         return;
     case WarmupState::State::KeyDump:
         scheduleKeyDump();
