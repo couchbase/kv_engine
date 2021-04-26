@@ -1122,7 +1122,9 @@ void Manifest::accumulateStats(const std::vector<CollectionEntry>& collections,
                                Summary& summary) const {
     for (const auto& entry : collections) {
         auto itr = map.find(entry.cid);
-        summary[entry.cid] += itr->second.getStatsForSummary();
+        if (itr != map.end()) {
+            summary[entry.cid] += itr->second.getStatsForSummary();
+        }
     }
 }
 

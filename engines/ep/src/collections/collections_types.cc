@@ -77,6 +77,16 @@ AccumulatedStats& AccumulatedStats::operator+=(const AccumulatedStats& other) {
     return *this;
 }
 
+bool AccumulatedStats::operator==(const AccumulatedStats& other) const {
+    return itemCount == other.itemCount && diskSize == other.diskSize &&
+           opsStore == other.opsStore && opsDelete == other.opsDelete &&
+           opsGet == other.opsGet;
+}
+
+bool AccumulatedStats::operator!=(const AccumulatedStats& other) const {
+    return !(*this == other);
+}
+
 namespace VB {
 std::string to_string(ManifestUpdateStatus status) {
     switch (status) {

@@ -3780,6 +3780,46 @@ TEST_P(CollectionsPersistentParameterizedTest, DeleteDelete) {
     EXPECT_EQ(c1_diskSize4, c1_diskSize3);
 }
 
+// MB-45899 occured as accumulateStats didn't check the result of a map.find
+// which allows for a crash to occur if collection state is changing (collection
+// dropped) whilst stats are gathered.
+TEST_F(CollectionsTest, MB_45899) {
+    const auto vbid0 = vbid;
+    const auto vbid1 = Vbid(vbid.get() + 1);
+    setVBucketStateAndRunPersistTask(vbid1, vbucket_state_active);
+
+    // Put one item in vb1 so we can detect that stats don't change at the end
+    // of the test.
+    store_item(vbid1, StoredDocKey{"key", CollectionID::Default}, "value");
+    flushVBucketToDiskIfPersistent(vbid1, 1);
+
+    // Remove the default collection from the manifest
+    CollectionsManifest cm;
+    cm.remove(CollectionEntry::defaultC);
+
+    // Now poke accumulateStats, which requires a vector of entries we are
+    // interested in.
+    std::vector<Collections::CollectionEntry> collections;
+    collections.push_back(
+            {CollectionID::Default, "_default", {}, ScopeID::Default});
+    Collections::Summary summary;
+    auto vb0 = store->getVBucket(vbid0);
+    auto vb1 = store->getVBucket(vbid1);
+
+    // The following order of calls to accumulateStats and updateFromManifest
+    // would previously expose an access violation via an invalid iterator
+    EXPECT_EQ(0, summary.count(CollectionID::Default));
+    vb0->lockCollections().accumulateStats(collections, summary);
+    EXPECT_EQ(1, summary.count(CollectionID::Default));
+    auto copyStats = summary.find(CollectionID::Default)->second;
+    vb0->updateFromManifest(makeManifest(cm));
+    vb1->updateFromManifest(makeManifest(cm));
+    vb1->lockCollections().accumulateStats(collections, summary);
+
+    // No changes made, collection doesn't exist in vb1
+    EXPECT_EQ(copyStats, summary.find(CollectionID::Default)->second);
+}
+
 INSTANTIATE_TEST_SUITE_P(CollectionsExpiryLimitTests,
                          CollectionsExpiryLimitTest,
                          ::testing::Bool(),

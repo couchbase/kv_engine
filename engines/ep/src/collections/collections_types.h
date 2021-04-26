@@ -51,6 +51,9 @@ using ManifestUid = WeaklyMonotonic<uint64_t>;
 // Struct/Map used in summary stat collecting (where we do vb accumulation)
 struct AccumulatedStats {
     AccumulatedStats& operator+=(const AccumulatedStats& other);
+    bool operator==(const AccumulatedStats& other) const;
+    bool operator!=(const AccumulatedStats& other) const;
+
     uint64_t itemCount{0};
     uint64_t diskSize{0};
     uint64_t opsStore{0};
