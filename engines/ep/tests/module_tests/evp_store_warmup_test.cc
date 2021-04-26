@@ -22,6 +22,7 @@
 #include "evp_store_durability_test.h"
 #include "evp_store_single_threaded_test.h"
 #include "failover-table.h"
+#include "flusher.h"
 #include "kvstore.h"
 #include "programs/engine_testapp/mock_cookie.h"
 #include "test_helpers.h"
@@ -2430,6 +2431,50 @@ TEST_F(WarmupDiskTest, readOnlyDataFileSetVbucketStateTest) {
     EXPECT_EQ(cb::engine_errc::success, status);
     ASSERT_TRUE(item);
     EXPECT_EQ("value", item->getValueView());
+}
+
+TEST_F(WarmupTest, DontStartFlushersUntilPopulateVBucketMap) {
+    // Create a vbucket on disk and add a key to read later
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    store_item(vbid, makeStoredDocKey("key"), "value");
+    flush_vbucket_to_disk(vbid);
+
+    // Reset without starting the warmup task
+    resetEngine();
+
+    // Normal setup would call KVBucket::intialize() to create warmup task and
+    // before this
+    store->initialize();
+
+    // Flusher will be in initializing and we won't have scheduled a task
+    auto* flusher = store->getVBuckets().getShardByVbId(vbid)->getFlusher();
+    EXPECT_EQ("initializing", std::string(flusher->stateName()));
+
+    auto& writerQueue = *task_executor->getLpTaskQ()[WRITER_TASK_IDX];
+    EXPECT_EQ(0, writerQueue.getFutureQueueSize());
+
+    // Warmup - run past the PopulateVBucketMap step which is the one that
+    // we care about
+    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    auto* warmup = engine->getKVBucket()->getWarmup();
+    ASSERT_TRUE(warmup);
+
+    while (warmup->getWarmupState() != WarmupState::State::CheckForAccessLog) {
+        runNextTask(readerQueue);
+    }
+
+    // 2 shards so 2 flushers/tasks
+    EXPECT_EQ(2, writerQueue.getFutureQueueSize());
+    EXPECT_EQ("initializing", std::string(flusher->stateName()));
+
+    // Run them and the flushers should be good to go
+    runNextTask(writerQueue);
+    runNextTask(writerQueue);
+
+    EXPECT_EQ("running", std::string(flusher->stateName()));
+
+    // Finish warmup or the test gets stuck
+    runReadersUntilWarmedUp();
 }
 
 INSTANTIATE_TEST_SUITE_P(FullOrValue,

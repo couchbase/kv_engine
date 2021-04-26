@@ -23,6 +23,7 @@
 #include "ep_vb.h"
 #include "executorpool.h"
 #include "failover-table.h"
+#include "flusher.h"
 #include "item.h"
 #include "kvstore.h"
 #include "mutation_log.h"
@@ -1328,6 +1329,10 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
             store.vbMap.addBucket(vbPtr);
         }
     }
+
+    // We're done trying to flush for this shard now, it's safe for the flusher
+    // to start running
+    store.vbMap.getShard(shardId)->getFlusher()->start();
 
     if (++threadtask_count == store.vbMap.getNumShards()) {
         warmedUpVbuckets.clear();

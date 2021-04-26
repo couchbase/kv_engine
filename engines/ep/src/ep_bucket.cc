@@ -291,7 +291,6 @@ bool EPBucket::initialize() {
                 "bgFetchers");
         return false;
     }
-    startFlusher();
 
     return true;
 }
