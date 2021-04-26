@@ -10,6 +10,7 @@
  */
 #include "testapp_environment.h"
 #include "memcached_audit_events.h"
+#include <boost/filesystem.hpp>
 #include <folly/portability/Stdlib.h>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
@@ -204,7 +205,7 @@ public:
         : TestBucketImpl(extraConfig), dbPath(cb::io::mkdtemp("mc_testapp")) {
         // Cleanup any files from a previous run still on disk.
         try {
-            cb::io::rmrf(dbPath);
+            cb::io::rmrf(dbPath.string());
         } catch (...) { /* nothing exists */
         }
     }
@@ -212,7 +213,7 @@ public:
     ~EpBucketImpl() override {
         // Cleanup any files created.
         try {
-            cb::io::rmrf(dbPath);
+            boost::filesystem::remove_all(dbPath);
         } catch (...) { /* nothing exists */
         }
     }
@@ -226,12 +227,12 @@ public:
     void createBucket(const std::string& name,
                       const std::string& config,
                       MemcachedConnection& conn) override {
-        const auto dbdir = cb::io::sanitizePath(dbPath + "/" + name);
+        const auto dbdir = cb::io::sanitizePath((dbPath / name).string());
         if (cb::io::isDirectory(dbdir)) {
             cb::io::rmrf(dbdir);
         }
 
-        std::string settings = "dbname=" + dbPath + "/" + name;
+        std::string settings = "dbname=" + (dbPath / name).generic_string();
         if (!config.empty()) {
             settings += ";" + config;
         }
@@ -261,13 +262,13 @@ public:
     void setUpBucket(const std::string& name,
                      const std::string& config,
                      MemcachedConnection& conn) override {
-        const auto dbdir = cb::io::sanitizePath(dbPath + "/" + name);
+        const auto dbdir = cb::io::sanitizePath((dbPath / name).string());
         if (cb::io::isDirectory(dbdir) &&
             bucketCreateMode == BucketCreateMode::Clean) {
             cb::io::rmrf(dbdir);
         }
 
-        std::string settings = "dbname=" + dbPath + "/" + name;
+        std::string settings = "dbname=" + (dbPath / name).generic_string();
         // Increase bucket quota from 100MB to 200MB as there are some
         // testapp tests requiring more than the default.
         settings += ";max_size=200000000";
@@ -356,7 +357,7 @@ public:
     }
 
     /// Directory for any database files.
-    const std::string dbPath;
+    const boost::filesystem::path dbPath;
 };
 
 McdEnvironment::McdEnvironment(bool manageSSL_,
@@ -482,6 +483,6 @@ void McdEnvironment::rewriteRbacFile() {
     }
 }
 
-const std::string& McdEnvironment::getDbPath() const {
-    return static_cast<EpBucketImpl*>(testBucket.get())->dbPath;
+std::string McdEnvironment::getDbPath() const {
+    return static_cast<EpBucketImpl*>(testBucket.get())->dbPath.string();
 }
