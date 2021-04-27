@@ -772,13 +772,15 @@ protected:
      * The collection stats may need updating if documents in collections were
      * purged.
      *
-     * @param db The compacted database
+     * @param source The source of compaction
+     * @param target The compacted database
      * @param stats Data tracked by compaction used for stat updates
      * @param localDocQueue the queue which will be updated with new documents
      * @param vbid vbucket being compacted
      */
     couchstore_error_t maybePatchMetaData(
-            Db& db,
+            Db& source,
+            Db& target,
             CompactionStats& stats,
             PendingLocalDocRequestQueue& localDocQueue,
             Vbid vbid);

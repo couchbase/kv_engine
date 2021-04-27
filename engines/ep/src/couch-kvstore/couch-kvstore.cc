@@ -1082,11 +1082,7 @@ couchstore_error_t CouchKVStore::replayPrecommitHook(
     }
 
     try {
-        if (std::stoul(json["on_disk_prepares"].get<std::string>()) !=
-            prepareStats.onDiskPrepares) {
-            json["on_disk_prepares"] =
-                    std::to_string(prepareStats.onDiskPrepares);
-        }
+        json["on_disk_prepares"] = std::to_string(prepareStats.onDiskPrepares);
 
         auto prepareBytes = json.find("on_disk_prepare_bytes");
         // only update if it's there..
@@ -1377,12 +1373,15 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                 },
                 {},
                 def_iops,
-                [vbid, hook_ctx, this](Db& compacted) {
+                [vbid, hook_ctx, this](Db& source, Db& compacted) {
                     // we don't try to delete the dropped collection document
                     // as it'll come back in the next database header anyway
                     PendingLocalDocRequestQueue localDocQueue;
-                    auto ret = maybePatchMetaData(
-                            compacted, hook_ctx->stats, localDocQueue, vbid);
+                    auto ret = maybePatchMetaData(source,
+                                                  compacted,
+                                                  hook_ctx->stats,
+                                                  localDocQueue,
+                                                  vbid);
                     if (ret == COUCHSTORE_SUCCESS) {
                         ret = updateLocalDocuments(compacted, localDocQueue);
                     }
@@ -1425,8 +1424,8 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                             target, docInfo, prepareStats, collectionStats);
                 },
                 [&prepareStats, &collectionStats, &purge_seqno, hook_ctx, this](
-                        Db& db) {
-                    return replayPrecommitHook(db,
+                        Db&, Db& compacted) {
+                    return replayPrecommitHook(compacted,
                                                prepareStats,
                                                collectionStats,
                                                purge_seqno,
@@ -1466,7 +1465,7 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                 },
                 {},
                 def_iops,
-                [vbid, hook_ctx, this](Db& compacted) {
+                [vbid, hook_ctx, this](Db& source, Db& compacted) {
                     if (mb40415_regression_hook) {
                         return COUCHSTORE_ERROR_CANCEL;
                     }
@@ -1481,8 +1480,11 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                         hook_ctx->eraserContext->setOnDiskDroppedDataExists(
                                 false);
                     }
-                    auto ret = maybePatchMetaData(
-                            compacted, hook_ctx->stats, localDocQueue, vbid);
+                    auto ret = maybePatchMetaData(source,
+                                                  compacted,
+                                                  hook_ctx->stats,
+                                                  localDocQueue,
+                                                  vbid);
                     if (ret == COUCHSTORE_SUCCESS) {
                         ret = updateLocalDocuments(compacted, localDocQueue);
                     }
@@ -1530,8 +1532,11 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
                         couchstore_strerror(status));
             return CompactDBInternalStatus::Failed;
         }
+
+        // This field may not be present if first compaction after upgrade from
+        // less than 6.5 to 7.0, e.g. 6.0 -> 7.0
         prepareStats.onDiskPrepares =
-                std::stoul(json["on_disk_prepares"].get<std::string>());
+                std::stoul(json.value("on_disk_prepares", "0"));
 
         auto prepareBytes = json.find("on_disk_prepare_bytes");
         // only update if it's there..
@@ -1697,7 +1702,8 @@ bool CouchKVStore::compactDBTryAndSwitchToNewFile(
 }
 
 couchstore_error_t CouchKVStore::maybePatchMetaData(
-        Db& db,
+        Db& source,
+        Db& target,
         CompactionStats& stats,
         PendingLocalDocRequestQueue& localDocQueue,
         Vbid vbid) {
@@ -1706,7 +1712,7 @@ couchstore_error_t CouchKVStore::maybePatchMetaData(
         // Must sync the modified state back we need to update the
         // _local/vbstate to update the number of on_disk_prepares to match
         // whatever we purged
-        auto [status, json] = getLocalVbState(db);
+        auto [status, json] = getLocalVbState(target);
         if (status != COUCHSTORE_SUCCESS) {
             logger.warn(
                     "CouchKVStore::maybePatchMetaData: Failed to load "
@@ -1770,8 +1776,11 @@ couchstore_error_t CouchKVStore::maybePatchMetaData(
 
     // Finally see if compaction purged data and disk size stats need updates
     for (auto [cid, purgedBytes] : stats.collectionSizeUpdates) {
-        // Need to read the collection stats
-        auto [success, currentStats] = getCollectionStats(db, cid);
+        // Need to read the collection stats. We read from the source file so
+        // that in the case of a first compaction after upgrade from pre 7.0
+        // we get the correct disk (because we use the dbinfo.space_used). The
+        // target file could return a value too small in that case (MB-45917)
+        auto [success, currentStats] = getCollectionStats(source, cid);
         if (!success) {
             logger.warn(
                     "CouchKVStore::maybePatchMetaData: Failed to load "
@@ -1798,7 +1807,6 @@ couchstore_error_t CouchKVStore::maybePatchMetaData(
 
     return COUCHSTORE_SUCCESS;
 }
-
 
 bool CouchKVStore::tryToCatchUpDbFile(Db& source,
                                       Db& destination,
@@ -1887,7 +1895,7 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
                         target, docInfo, prepareStats, collectionStats);
             },
             [&prepareStats, &collectionStats, &purge_seqno, &hook_ctx, this](
-                    Db& compacted) {
+                    Db&, Db& compacted) {
                 return replayPrecommitHook(compacted,
                                            prepareStats,
                                            collectionStats,

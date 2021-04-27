@@ -42,7 +42,24 @@ public:
     CouchKVStoreTest() : KVStoreTest() {
     }
 
-    void collectionsOfflineUpgrade(bool writeAsMadHatter);
+    /**
+     * Run an offline upgrade
+     * @param writeAsMadHatter Make the data file appear as if it's 6.5
+     * @param outputCid Upgrade and move the keys to this collection
+     * @param keys how many keys to write
+     * @param deleteKeyRange a range of keys that will be deleted
+     */
+    void collectionsOfflineUpgrade(bool writeAsMadHatter,
+                                   CollectionID outputCid,
+                                   int keys,
+                                   std::pair<int, int> deletedKeyRange);
+
+    void runCompaction(KVStore& kvstore, CompactionConfig config) {
+        std::mutex mutex;
+        std::unique_lock<std::mutex> lock(mutex);
+        auto ctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
+        EXPECT_TRUE(kvstore.compactDB(lock, ctx));
+    }
 };
 
 // Verify the stats returned from operations are accurate.
@@ -173,8 +190,9 @@ public:
 
 class CollectionsOfflineGetCallback : public StatusCallback<GetValue> {
 public:
-    explicit CollectionsOfflineGetCallback(std::pair<int, int> deletedRange)
-        : deletedRange(std::move(deletedRange)) {
+    explicit CollectionsOfflineGetCallback(CollectionID expectedId,
+                                           std::pair<int, int> deletedRange)
+        : expectedId(expectedId), deletedRange(std::move(deletedRange)) {
     }
 
     void callback(GetValue& result) override {
@@ -182,9 +200,8 @@ public:
 
         if (result.item->isDeleted()) {
             DocKey dk = result.item->getKey();
-            EXPECT_EQ(500, dk.getCollectionID());
+            EXPECT_EQ(expectedId, dk.getCollectionID());
             auto noCollection = dk.makeDocKeyWithoutCollectionID();
-            EXPECT_EQ(3, noCollection.size());
             // create a string from the logical-key, i.e. +1 and skip the
             // collection-ID
             std::string str(
@@ -206,32 +223,37 @@ public:
                     result.item->getDataType());
         result.item->decompressValue();
 
-        EXPECT_EQ(0,
-                  strncmp("valuable",
-                          result.item->getData(),
-                          result.item->getNBytes()));
+        std::string_view value{result.item->getData(),
+                               result.item->getNBytes()};
+
+        std::string expectedValue = "valuable";
+        if (result.item->getDataType() & PROTOCOL_BINARY_DATATYPE_XATTR) {
+            expectedValue = createXattrValue("value");
+        }
+        EXPECT_EQ(expectedValue, value);
     }
 
 private:
+    CollectionID expectedId;
     std::pair<int, int> deletedRange;
 };
 
 // Test the InputCouchFile/OutputCouchFile objects (in a simple test) to
 // check they do what we expect, that is create a new couchfile with all keys
 // moved into a specified collection.
-void CouchKVStoreTest::collectionsOfflineUpgrade(bool writeAsMadHatter) {
+void CouchKVStoreTest::collectionsOfflineUpgrade(
+        bool writeAsMadHatter,
+        CollectionID outputCid,
+        int keys,
+        std::pair<int, int> deletedRange) {
+    ASSERT_LE(deletedRange.first, deletedRange.second);
+    ASSERT_LE(deletedRange.second, keys);
     CouchKVStoreConfig config1(1024, 4, data_dir, "couchdb", 0);
-
     CouchKVStoreConfig config2(1024, 4, data_dir, "couchdb", 0);
 
     // Test setup, create a new file
     auto kvstore = setup_kv_store(config1);
     kvstore->begin(std::make_unique<TransactionContext>(vbid));
-
-    // The key count is large enough to ensure the count uses more than 1 byte
-    // of leb storage so we validate that leb encode/decode works on this path
-    const int keys = 129;
-    const int deletedKeys = 14;
 
     for (int i = 0; i < keys; i++) {
         // key needs to look like it's in the default collection so we can flush
@@ -248,25 +270,26 @@ void CouchKVStoreTest::collectionsOfflineUpgrade(bool writeAsMadHatter) {
 
     kvstore->begin(std::make_unique<TransactionContext>(vbid));
 
-    // Delete some keys. With and without a value (like xattr)
-    for (int i = 18, j = 1; i < 18 + deletedKeys; ++i, ++j) {
+    // Now delete keys (if requested). Alternate between value and no-value
+    // (like xattr)
+    for (int i = deletedRange.first, seqno = keys; i < deletedRange.second;
+         ++i, ++seqno) {
         std::unique_ptr<Item> item;
         auto key = makeStoredDocKey(std::to_string(i));
         if (i & 1) {
             item.reset(Item::makeDeletedItem(
                     DeleteSource::Explicit, key, 0, 0, nullptr, 0));
         } else {
-            // Note: this is not really xattr, just checking the datatype is
-            // preserved on upgrade
+            const auto body = createXattrValue("value");
             item.reset(Item::makeDeletedItem(DeleteSource::Explicit,
                                              key,
                                              0,
                                              0,
-                                             "valuable",
-                                             8,
+                                             body.data(),
+                                             body.size(),
                                              PROTOCOL_BINARY_DATATYPE_XATTR));
         }
-        item->setBySeqno(keys + j);
+        item->setBySeqno(seqno);
         kvstore->del(queued_item(std::move(item)));
     }
     kvstore->commit(flush);
@@ -276,7 +299,7 @@ void CouchKVStoreTest::collectionsOfflineUpgrade(bool writeAsMadHatter) {
     // Use the upgrade tool's objects to run an upgrade
     // setup_kv_store will have progressed the rev to .2
     Collections::InputCouchFile input({}, data_dir + "/0.couch.2");
-    CollectionID cid = 500;
+    CollectionID cid = outputCid;
     Collections::OutputCouchFile output({},
                                         data_dir + "/0.couch.3",
                                         cid /*collection-id*/,
@@ -291,8 +314,7 @@ void CouchKVStoreTest::collectionsOfflineUpgrade(bool writeAsMadHatter) {
 
     auto kvstore2 = KVStoreFactory::create(config2);
     auto scanCtx = kvstore2.rw->initBySeqnoScanContext(
-            std::make_unique<CollectionsOfflineGetCallback>(
-                    std::pair<int, int>{18, 18 + deletedKeys}),
+            std::make_unique<CollectionsOfflineGetCallback>(cid, deletedRange),
             std::make_unique<CollectionsOfflineUpgradeCallback>(cid),
             Vbid(0),
             1,
@@ -312,17 +334,37 @@ void CouchKVStoreTest::collectionsOfflineUpgrade(bool writeAsMadHatter) {
     auto [success, stats] =
             kvstore2.rw->getCollectionStats(*kvstoreContext, cid);
     EXPECT_TRUE(success);
-    EXPECT_EQ(keys - deletedKeys, stats.itemCount);
-    EXPECT_EQ(keys + deletedKeys, stats.highSeqno);
+    auto deletedCount = deletedRange.second - deletedRange.first;
+    EXPECT_EQ(keys - deletedCount, stats.itemCount);
+    EXPECT_EQ(keys + (deletedCount - 1), stats.highSeqno);
     EXPECT_NE(0, stats.diskSize);
+
+    // Test that the datafile can be compacted.
+    // MB-45917
+    CompactionConfig config{0, 0, true /*purge all tombstones*/, false};
+    runCompaction(*kvstore2.rw, config);
 }
 
 TEST_F(CouchKVStoreTest, CollectionsOfflineUpgrade) {
-    collectionsOfflineUpgrade(false);
+    // The key count is large enough to ensure the count uses more than 1 byte
+    // of leb storage so we validate that leb encode/decode works on this path
+    collectionsOfflineUpgrade(false, CollectionID{500}, 129, {14, 14 + 18});
 }
 
 TEST_F(CouchKVStoreTest, CollectionsOfflineUpgradeMadHatter) {
-    collectionsOfflineUpgrade(true);
+    // The key count is large enough to ensure the count uses more than 1 byte
+    // of leb storage so we validate that leb encode/decode works on this path
+    collectionsOfflineUpgrade(true, CollectionID{500}, 129, {14, 14 + 18});
+}
+
+TEST_F(CouchKVStoreTest, CollectionsOfflineUpgradeMadHatter_MB_45917) {
+    // Delete all the keys, this would trigger MB-45917.
+    // Here we upgrade as if from mad-hatter, that means there is no diskSize
+    // stat in the collections local doc, which then leads to an underflow as
+    // the wrong file disk size was used in calculating the collection's disk
+    // size. The target collection could be anything, but do a to=default so
+    // it more mimics what happens. Finally write 129 keys and delete them all.
+    collectionsOfflineUpgrade(true, CollectionID::Default, 129, {0, 129});
 }
 
 TEST_F(CouchKVStoreTest, OpenHistoricalSnapshot) {
