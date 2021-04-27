@@ -26,6 +26,7 @@
 #include <memcached/config_parser.h>
 #include <memcached/server_core_iface.h>
 #include <memcached/server_log_iface.h>
+#include <phosphor/phosphor.h>
 #include <platform/cb_arena_malloc.h>
 #include <platform/cbassert.h>
 
@@ -162,6 +163,14 @@ int main(int argc, char **argv) {
         auto& env = Environment::get();
         env.engineFileDescriptors = env.reservedFileDescriptors * 2;
     }
+
+    // Ensure phosphor TraceLog singleton is initialised before we run any
+    // tests - specifically before we create the ExecutorPool singleton and
+    // its background threads. If TraceLog is *not* initialised before
+    // ExecutorPool, then it will also be destroyed before ExecutorPool; which
+    // then results in ExecutorPool crashing when it attempts to unregister
+    // worker threads from phosphor.
+    phosphor::TraceLog::getInstance();
 
     auto ret = RUN_ALL_TESTS();
 
