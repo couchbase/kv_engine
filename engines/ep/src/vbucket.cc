@@ -819,14 +819,32 @@ cb::engine_errc VBucket::commit(
     Expects(cHandle.valid());
     auto res = ht.findForUpdate(key);
     if (!res.pending) {
+        std::string committedItemInfo("null");
+        if (res.committed) {
+            committedItemInfo =
+                    fmt::format("seqno:{}, isDeleted:{}, isResident:{}, cas:{}",
+                                res.committed->getBySeqno(),
+                                res.committed->isDeleted(),
+                                res.committed->isResident(),
+                                res.committed->getCas());
+        }
         // If we are committing we /should/ always find the pending item.
         EP_LOG_ERR(
-                "VBucket::commit ({}) failed as no HashTable item found with "
-                "key:{} prepare_seqno:{}, commit_seqno:{}",
+                "VBucket::commit ({}) failed as no pending HashTable item "
+                "found with "
+                "key:{}, committed item:[{}], prepare_seqno:{}, "
+                "commit_seqno:{}, IsDiskSnapshot:{}, "
+                "snapshotInfo:{}, HS:{}, HPS:{}, HCS:{}",
                 id,
                 cb::UserDataView(key.to_string()),
+                committedItemInfo,
                 prepareSeqno,
-                to_string_or_none(commitSeqno));
+                to_string_or_none(commitSeqno),
+                isReceivingDiskSnapshot(),
+                checkpointManager->getSnapshotInfo(),
+                getHighSeqno(),
+                getHighPreparedSeqno(),
+                getHighCompletedSeqno());
         return cb::engine_errc::no_such_key;
     }
 
