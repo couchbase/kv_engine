@@ -2246,7 +2246,8 @@ cb::engine_errc VBucket::deleteWithMeta(
     auto& hbl = htRes.pending.getHBL();
 
     if (v && cHandle.isLogicallyDeleted(v->getBySeqno())) {
-        return cb::engine_errc::no_such_key;
+        // v is not really here, operate like it's not and skip conflict checks
+        checkConflicts = CheckConflicts::No;
     }
 
     // Need conflict resolution?

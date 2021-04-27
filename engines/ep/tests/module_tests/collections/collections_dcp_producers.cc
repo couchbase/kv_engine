@@ -202,6 +202,74 @@ cb::engine_errc CollectionsDcpTestProducers::mutation(
     return ret;
 }
 
+cb::engine_errc CollectionsDcpTestProducers::deletion(
+        uint32_t opaque,
+        cb::unique_item_ptr itm,
+        Vbid vbucket,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        cb::mcbp::DcpStreamId sid) {
+    auto ret = cb::engine_errc::success;
+    if (consumer) {
+        auto& item = *static_cast<Item*>(itm.get());
+
+        ret = consumer->deletion(
+                opaque,
+                item.getKey(),
+                {reinterpret_cast<const uint8_t*>(item.getData()),
+                 item.getNBytes()},
+                0,
+                item.getDataType(),
+                item.getCas(),
+                replicaVB,
+                by_seqno,
+                rev_seqno,
+                {});
+    }
+
+    MockDcpMessageProducers::deletion(
+            opaque, std::move(itm), vbucket, by_seqno, rev_seqno, sid);
+
+    return ret;
+}
+
+cb::engine_errc CollectionsDcpTestProducers::deletion_v2(
+        uint32_t opaque,
+        cb::unique_item_ptr itm,
+        Vbid vbucket,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        uint32_t delete_time,
+        cb::mcbp::DcpStreamId sid) {
+    auto ret = cb::engine_errc::success;
+    if (consumer) {
+        auto& item = *static_cast<Item*>(itm.get());
+
+        ret = consumer->deletionV2(
+                opaque,
+                item.getKey(),
+                {reinterpret_cast<const uint8_t*>(item.getData()),
+                 item.getNBytes()},
+                0,
+                item.getDataType(),
+                item.getCas(),
+                replicaVB,
+                by_seqno,
+                rev_seqno,
+                delete_time);
+    }
+
+    MockDcpMessageProducers::deletion_v2(opaque,
+                                         std::move(itm),
+                                         vbucket,
+                                         by_seqno,
+                                         rev_seqno,
+                                         delete_time,
+                                         sid);
+
+    return ret;
+}
+
 cb::engine_errc CollectionsDcpTestProducers::prepare(
         uint32_t opaque,
         cb::unique_item_ptr itm,

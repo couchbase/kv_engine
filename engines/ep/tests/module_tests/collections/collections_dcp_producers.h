@@ -47,6 +47,21 @@ public:
                              uint8_t nru,
                              cb::mcbp::DcpStreamId sid) override;
 
+    cb::engine_errc deletion(uint32_t opaque,
+                             cb::unique_item_ptr itm,
+                             Vbid vbucket,
+                             uint64_t by_seqno,
+                             uint64_t rev_seqno,
+                             cb::mcbp::DcpStreamId sid) override;
+
+    cb::engine_errc deletion_v2(uint32_t opaque,
+                                cb::unique_item_ptr itm,
+                                Vbid vbucket,
+                                uint64_t by_seqno,
+                                uint64_t rev_seqno,
+                                uint32_t delete_time,
+                                cb::mcbp::DcpStreamId sid) override;
+
     cb::engine_errc prepare(uint32_t opaque,
                             cb::unique_item_ptr itm,
                             Vbid vbucket,

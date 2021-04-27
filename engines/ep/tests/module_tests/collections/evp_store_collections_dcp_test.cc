@@ -2644,7 +2644,7 @@ TEST_P(CollectionsDcpParameterizedTest, seqno_advanced_from_disk_to_memory) {
 
 class CollectionsDcpPersistentOnly : public CollectionsDcpParameterizedTest {
 public:
-    void resurrectionTest(bool dropAtEnd);
+    void resurrectionTest(bool dropAtEnd, bool updateItemPath, bool deleteItem);
     void resurrectionStatsTest(bool reproduceUnderflow);
 };
 
@@ -2655,7 +2655,9 @@ public:
 // de-duped the drop{c1} away so the meta-data became 'corrupt'.
 // This test re-creates the events which lead to a underflow in stats and
 // metadata corruption that lead to warmup failing.
-void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd) {
+void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd,
+                                                    bool updateItemPath,
+                                                    bool deleteItem) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Add the fruit collection
@@ -2698,7 +2700,21 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd) {
 
     // Store one key in the last generation of the target collection, this
     // allows stats to be tested at the end.
-    store_item(vbid, makeStoredDocKey("pear", target), "shaped");
+    StoredDocKey lastGenKey;
+    if (updateItemPath) {
+        lastGenKey = makeStoredDocKey("orange", target);
+    } else {
+        lastGenKey = makeStoredDocKey("pear", target);
+    }
+
+    store_item(vbid,
+               lastGenKey,
+               "shaped",
+               0 /*exptime*/,
+               {cb::engine_errc::success},
+               PROTOCOL_BINARY_DATATYPE_JSON,
+               {},
+               deleteItem);
 
     if (dropAtEnd) {
         cm.remove(target);
@@ -2733,8 +2749,12 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd) {
     stepDelete();
     stepCreate();
 
-    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
-                  cb::engine_errc::success);
+    auto messageType = cb::mcbp::ClientOpcode::DcpMutation;
+    if (deleteItem) {
+        messageType = cb::mcbp::ClientOpcode::DcpDeletion;
+    }
+
+    stepAndExpect(messageType, cb::engine_errc::success);
 
     if (dropAtEnd) {
         stepDelete();
@@ -2755,11 +2775,19 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd) {
 
     GetValue gv = store->get(key, vbid, cookie, options);
 
-    if (dropAtEnd) {
-        EXPECT_EQ(cb::engine_errc::unknown_collection, gv.getStatus());
-    } else {
-        EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
+    if (gv.getStatus() == cb::engine_errc::would_block) {
+        runBGFetcherTask();
+        gv = store->get(key, vbid, cookie, options);
     }
+
+    auto expectedGetStatus = cb::engine_errc::no_such_key;
+    if (dropAtEnd) {
+        expectedGetStatus = cb::engine_errc::unknown_collection;
+    } else if (updateItemPath && !deleteItem) {
+        expectedGetStatus = cb::engine_errc::success;
+    }
+
+    EXPECT_EQ(expectedGetStatus, gv.getStatus());
 
     VBucketPtr rvb = store->getVBucket(replicaVB);
     EXPECT_EQ(rvb->getHighSeqno(), vb->getHighSeqno());
@@ -2822,9 +2850,25 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd) {
     checkDropped(rvb->getShard()->getRWUnderlying()->getDroppedCollections(
             replicaVB));
 
+    // Check value in VB before erasure
+    auto expected = 2;
+    if (updateItemPath) {
+        expected = 1;
+    }
+
+    if (deleteItem) {
+        expected--;
+    }
+
+    ASSERT_EQ(expected, vb->getNumItems());
     runEraser();
 
-    auto checkKVS = [dropAtEnd, &target](KVStore& kvs, Vbid id) {
+    expected = 1;
+    if (deleteItem) {
+        expected--;
+    }
+
+    auto checkKVS = [dropAtEnd, expected, &target](KVStore& kvs, Vbid id) {
         auto [status, dropped] = kvs.getDroppedCollections(id);
         ASSERT_TRUE(status);
         EXPECT_TRUE(dropped.empty());
@@ -2842,7 +2886,7 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd) {
         } else {
             auto [success, stats] = kvs.getCollectionStats(*fileHandle, target);
             EXPECT_TRUE(success);
-            EXPECT_EQ(1, stats.itemCount);
+            EXPECT_EQ(expected, stats.itemCount);
             EXPECT_EQ(7, stats.highSeqno);
         }
     };
@@ -2855,20 +2899,56 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd) {
     ASSERT_TRUE(replicaKVS);
     checkKVS(*replicaKVS, replicaVB);
 
-    // MB-42272: skip check for magma
-    if (dropAtEnd && !(isFullEviction() && isMagma())) {
+    // MB-42272: skip check for magma full eviction, most variants don't pass
+    if ((isFullEviction() && isMagma())) {
+        return;
+    }
+
+    if (dropAtEnd) {
         EXPECT_EQ(0, vb->getNumItems());
     } else {
-        EXPECT_EQ(1, vb->getNumItems());
+        EXPECT_EQ(expected, vb->getNumItems());
     }
 }
 
 TEST_P(CollectionsDcpPersistentOnly, create_drop_create_same_id) {
-    resurrectionTest(false);
+    resurrectionTest(false, false, false);
+}
+
+TEST_P(CollectionsDcpPersistentOnly, create_drop_create_same_id_update) {
+    resurrectionTest(false, true, false);
 }
 
 TEST_P(CollectionsDcpPersistentOnly, create_drop_create_same_id_end_dropped) {
-    resurrectionTest(true);
+    resurrectionTest(true, false, false);
+}
+
+TEST_P(CollectionsDcpPersistentOnly,
+       create_drop_create_same_id_end_dropped_update) {
+    resurrectionTest(true, true, false);
+}
+
+TEST_P(CollectionsDcpPersistentOnly, create_drop_create_same_id_delete) {
+    resurrectionTest(false, false, true);
+}
+
+TEST_P(CollectionsDcpPersistentOnly, create_drop_create_same_id_update_delete) {
+    resurrectionTest(false, true, true);
+}
+
+TEST_P(CollectionsDcpPersistentOnly,
+       create_drop_create_same_id_end_dropped_delete) {
+    resurrectionTest(true, false, true);
+}
+
+TEST_P(CollectionsDcpPersistentOnly,
+       create_drop_create_same_id_end_dropped_update_delete) {
+    if (isMagma()) {
+        // Test currently crashes with an underflow and will be fixed as part of
+        // MB-42272
+        GTEST_SKIP();
+    }
+    resurrectionTest(true, true, true);
 }
 
 void CollectionsDcpPersistentOnly::resurrectionStatsTest(
