@@ -110,7 +110,9 @@ TEST_F(MagmaKVStoreRollbackTest, RollbackNoValidCheckpoint) {
     auto cfg = reinterpret_cast<MagmaKVStoreConfig*>(kvstoreConfig.get());
     auto maxCheckpoints = cfg->getMagmaMaxCheckpoints();
 
-    for (int i = 0; i < int(maxCheckpoints) + 1; i++) {
+    // Create maxCheckpoints+2 checkpoints
+    // Magma may internally retain +1 additional checkpoint for crash recovery
+    for (int i = 0; i < int(maxCheckpoints) + 2; i++) {
         kvstore->begin(std::make_unique<TransactionContext>(vbid));
         for (int j = 0; j < 5; j++) {
             auto key = makeStoredDocKey("key" + std::to_string(seqno));
