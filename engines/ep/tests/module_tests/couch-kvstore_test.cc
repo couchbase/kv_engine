@@ -2619,13 +2619,9 @@ TEST(CouchKVStoreStatic, collectionStatsNames) {
     EXPECT_EQ(4294967280,
               CouchKVStore::getCollectionIdFromStatsDocId("|0xfffffff0|"));
 
-    // Function doesn't fail for a completely unexpected name, internal usage
-    // is that we only call this for when we detect | in the first character
-    EXPECT_EQ(8, CouchKVStore::getCollectionIdFromStatsDocId(".0x8|"));
-    EXPECT_EQ(8, CouchKVStore::getCollectionIdFromStatsDocId(".0x8,..."));
-
     // Error detection is based on
     // length < 5
+    // invalid format |0x
     // failure of the string conversion
     EXPECT_THROW(CouchKVStore::getCollectionIdFromStatsDocId(""),
                  std::logic_error);
@@ -2633,14 +2629,6 @@ TEST(CouchKVStoreStatic, collectionStatsNames) {
                  std::logic_error);
     EXPECT_THROW(CouchKVStore::getCollectionIdFromStatsDocId("|what|"),
                  std::logic_error);
-
-#ifndef WIN32
-    // Currently conversion uses strtoul which doesn't fail for this, when
-    // using from_chars it will detect the bad input
-    EXPECT_EQ(0, CouchKVStore::getCollectionIdFromStatsDocId("|0xwhat|"));
-#else
-    // Windows throws
     EXPECT_THROW(CouchKVStore::getCollectionIdFromStatsDocId("|0xwhat|"),
-                 std::invalid_argument);
-#endif
+                 std::logic_error);
 }

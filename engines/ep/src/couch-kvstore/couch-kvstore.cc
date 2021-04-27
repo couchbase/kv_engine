@@ -36,6 +36,7 @@
 #include <platform/dirutils.h>
 #include <gsl/gsl>
 
+#include <charconv>
 #include <memory>
 #include <shared_mutex>
 #include <utility>
@@ -196,17 +197,18 @@ std::string CouchKVStore::getCollectionStatsLocalDocId(CollectionID cid) {
 
 /// @returns the cid from a document-ID (see getCollectionStatsLocalDocId)
 CollectionID CouchKVStore::getCollectionIdFromStatsDocId(std::string_view id) {
+    unsigned int result{0};
     // id is expected to be "|0x<id>|" min size is 5, i.e. "|0x0|"
-    if (id.size() < 5) {
-        throw std::logic_error(
-                "getCollectionIdFromStatsDocId: cannot convert id:" +
-                std::string(id));
+    if (id.size() >= 5 && id[0] == '|' && id[1] == '0' && id[2] == 'x') {
+        id.remove_prefix(3);
+        auto [p, ec] = std::from_chars(id.data(), id.data() + id.size(), result, 16);
+        (void)p;
+        if (ec == std::errc()) {
+            return result;
+        }
     }
-    id.remove_prefix(1); // |0x.. becomes 0x..
-    std::string tmp{id};
-    // @todo: switch to using from_chars which avoids the tmp std::string.
-    // this is dependent on compiler upgrade MB-45044
-    return std::stoul(tmp, nullptr, 16);
+    throw std::logic_error("getCollectionIdFromStatsDocId: cannot convert id:" +
+                           std::string(id));
 }
 
 struct GetMultiCbCtx {
