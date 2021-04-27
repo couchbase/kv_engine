@@ -219,9 +219,11 @@ protected:
      */
     size_t calcNumNonIO(size_t threadCount) const;
 
+    // Return a reference to the singleton ExecutorPool.
+    static std::unique_ptr<ExecutorPool>& getInstance();
+
     // Singleton creation
     static std::mutex initGuard;
-    static std::atomic<ExecutorPool*> instance;
 
     /**
      * Maximum number of threads of any given class (Reader, Writer, AuxIO,

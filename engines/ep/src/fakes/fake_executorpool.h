@@ -29,6 +29,8 @@
 
 #include <folly/portability/GTest.h>
 
+#include <memory>
+
 class SingleThreadedExecutorPool : public CB3ExecutorPool {
 public:
 
@@ -39,17 +41,16 @@ public:
      */
     static void replaceExecutorPoolWithFake() {
         LockHolder lh(initGuard);
-        auto* tmp = instance.load();
-        if (tmp != nullptr) {
+        auto& instance = getInstance();
+        if (instance) {
             throw std::runtime_error("replaceExecutorPoolWithFake: "
                     "ExecutorPool instance already created - cowardly refusing to continue!");
         }
 
         EventuallyPersistentEngine *epe =
                 ObjectRegistry::onSwitchThread(nullptr, true);
-        tmp = new SingleThreadedExecutorPool();
+        instance = std::make_unique<SingleThreadedExecutorPool>();
         ObjectRegistry::onSwitchThread(epe);
-        instance.store(tmp);
     }
 
     explicit SingleThreadedExecutorPool()

@@ -17,7 +17,6 @@
 #include "objectregistry.h"
 
 std::mutex ExecutorPool::initGuard;
-std::atomic<ExecutorPool*> ExecutorPool::instance;
 
 static const size_t EP_MIN_NONIO_THREADS = 2;
 
@@ -25,10 +24,10 @@ static const size_t EP_MAX_AUXIO_THREADS = 8;
 static const size_t EP_MAX_NONIO_THREADS = 8;
 
 ExecutorPool *ExecutorPool::get() {
-    auto* tmp = instance.load();
+    auto* tmp = getInstance().get();
     if (tmp == nullptr) {
         LockHolder lh(initGuard);
-        tmp = instance.load();
+        tmp = getInstance().get();
         if (tmp == nullptr) {
             // Double-checked locking if instance is null - ensure two threads
             // don't both create an instance.
@@ -58,7 +57,7 @@ ExecutorPool *ExecutorPool::get() {
                         "ExecutorPool::get() Invalid executor_pool_backend '" +
                         config.getExecutorPoolBackend() + "'");
             }
-            instance.store(tmp);
+            getInstance().reset(tmp);
         }
     }
     return tmp;
@@ -66,12 +65,8 @@ ExecutorPool *ExecutorPool::get() {
 
 void ExecutorPool::shutdown() {
     std::lock_guard<std::mutex> lock(initGuard);
-    auto* tmp = instance.load();
-    if (tmp != nullptr) {
-        NonBucketAllocationGuard guard;
-        delete tmp;
-        instance = nullptr;
-    }
+    NonBucketAllocationGuard guard;
+    getInstance().reset();
 }
 
 ExecutorPool::ExecutorPool(size_t maxThreads)
@@ -212,4 +207,9 @@ int ExecutorPool::getThreadPriority(task_type_t taskType) {
     }
 #endif
     return 0;
+}
+
+std::unique_ptr<ExecutorPool>& ExecutorPool::getInstance() {
+    static std::unique_ptr<ExecutorPool> instance;
+    return instance;
 }

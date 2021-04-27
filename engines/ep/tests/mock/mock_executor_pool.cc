@@ -10,19 +10,20 @@
  */
 
 #include "mock_executor_pool.h"
+
 #include "objectregistry.h"
 #include "taskqueue.h"
+#include <memory>
 
 void MockExecutorPool::replaceExecutorPoolWithMock() {
     LockHolder lh(initGuard);
-    auto* executor = instance.load();
+    auto& executor = getInstance();
     if (executor) {
         executor->shutdown();
     }
     auto* epEngine = ObjectRegistry::onSwitchThread(nullptr, true);
-    executor = new MockExecutorPool();
+    executor = std::make_unique<MockExecutorPool>();
     ObjectRegistry::onSwitchThread(epEngine);
-    instance.store(executor);
 }
 
 bool MockExecutorPool::isTaskScheduled(const task_type_t queueType,

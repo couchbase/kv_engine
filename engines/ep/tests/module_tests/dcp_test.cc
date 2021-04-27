@@ -1700,7 +1700,9 @@ protected:
     }
 
     void TearDown() override {
+        engine.reset();
         ObjectRegistry::onSwitchThread(nullptr);
+        ExecutorPool::shutdown();
     }
 
     /**
