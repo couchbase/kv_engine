@@ -135,8 +135,6 @@ std::string to_string(queue_op op) {
         return "commit_sync_write";
     case queue_op::abort_sync_write:
         return "abort_sync_write";
-    case queue_op::flush:
-        return "flush";
     case queue_op::empty:
         return "empty";
     case queue_op::checkpoint_start:
@@ -322,7 +320,6 @@ void Item::setDeleted(DeleteSource cause) {
         deleted = 1; // true
         deletionCause = static_cast<uint8_t>(cause);
         break;
-    case queue_op::flush:
     case queue_op::empty:
     case queue_op::checkpoint_start:
     case queue_op::checkpoint_end:
@@ -390,7 +387,6 @@ bool Item::isAnySyncWriteOp() const {
             return true;
         case queue_op::mutation:
         case queue_op::system_event:
-        case queue_op::flush:
         case queue_op::empty:
         case queue_op::checkpoint_start:
         case queue_op::checkpoint_end:

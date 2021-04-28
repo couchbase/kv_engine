@@ -45,11 +45,6 @@ enum class queue_op : uint8_t {
     /// It is both persisted to disk and replicated via DCP.
     abort_sync_write,
 
-    /// (meta item) Testing only op, used to mark the end of a test.
-    /// TODO: Remove this, it shouldn't be necessary / included just to support
-    /// testing.
-    flush,
-
     /// (meta item) Dummy op added to the start of checkpoints to simplify
     /// checkpoint logic.
     /// This is because our Checkpoints are structured such that

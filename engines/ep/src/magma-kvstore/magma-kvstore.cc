@@ -144,7 +144,6 @@ MetaData::Operation MetaData::toOperation(queue_op op) {
         return Operation::CommittedSyncWrite;
     case queue_op::abort_sync_write:
         return Operation::Abort;
-    case queue_op::flush:
     case queue_op::empty:
     case queue_op::checkpoint_start:
     case queue_op::checkpoint_end:

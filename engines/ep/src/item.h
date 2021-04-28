@@ -330,7 +330,6 @@ public:
         case queue_op::system_event:
         case queue_op::set_vbucket_state:
             return true;
-        case queue_op::flush:
         case queue_op::empty:
         case queue_op::checkpoint_start:
         case queue_op::checkpoint_end:
@@ -362,7 +361,6 @@ public:
         case queue_op::abort_sync_write:
         case queue_op::system_event:
             return false;
-        case queue_op::flush:
         case queue_op::empty:
         case queue_op::checkpoint_start:
         case queue_op::checkpoint_end:
@@ -386,7 +384,6 @@ public:
         case queue_op::system_event:
             return true;
         case queue_op::set_vbucket_state:
-        case queue_op::flush:
         case queue_op::empty:
         case queue_op::checkpoint_start:
         case queue_op::checkpoint_end:
