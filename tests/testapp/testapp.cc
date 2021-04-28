@@ -336,7 +336,7 @@ nlohmann::json TestappTest::generate_config() {
               {"EWB_CTL", {{"slow", 50}}},
               {"default", {{"slow", 500}}}}},
             {"logger", {{"unit_test", true}}},
-            {"portnumber_file", portnumber_file},
+            {"portnumber_file", mcd_env->getPortnumberFile()},
             {"prometheus", {{"port", 0}, {"family", "inet"}}},
     };
 
@@ -370,13 +370,14 @@ nlohmann::json TestappTest::generate_config() {
     return ret;
 }
 
-void write_config_to_file(const std::string& config, const std::string& fname) {
-    FILE* fp = fopen(fname.c_str(), "w");
+void write_config_to_file(const std::string& config) {
+    FILE* fp = fopen(mcd_env->getConfigurationFile().c_str(), "w");
 
     if (fp == nullptr) {
         throw std::system_error(errno,
                                 std::system_category(),
-                                "Failed to open file \"" + fname + "\"");
+                                "Failed to open file \"" +
+                                        mcd_env->getConfigurationFile() + "\"");
     } else {
         fprintf(fp, "%s", config.c_str());
         fclose(fp);
@@ -447,8 +448,8 @@ void TestappTest::parse_portnumber_file() {
         // if we hit it we have a real problem and not just a loaded
         // server (rebuilding all of the source one more time is just
         // putting more load on the servers).
-        connectionMap.initialize(nlohmann::json::parse(
-                cb::io::loadFile(portnumber_file, std::chrono::minutes{5})));
+        connectionMap.initialize(nlohmann::json::parse(cb::io::loadFile(
+                mcd_env->getPortnumberFile(), std::chrono::minutes{5})));
 
         // The tests which don't use the MemcachedConnection class needs the
         // global variables port and ssl_port to be set
@@ -473,7 +474,7 @@ void TestappTest::parse_portnumber_file() {
                     "connection from: " +
                     ss.str());
         }
-        EXPECT_EQ(0, remove(portnumber_file.c_str()));
+        EXPECT_EQ(0, remove(mcd_env->getPortnumberFile().c_str()));
     } catch (const std::exception& e) {
         std::cerr << "FATAL ERROR in parse_portnumber_file!" << std::endl
                   << "An error occured while getting the connection ports: "
@@ -485,7 +486,7 @@ void TestappTest::parse_portnumber_file() {
 
 int memcached_main(int argc, char** argv);
 
-void memcached_server_thread_main(const std::string& config) {
+void memcached_server_thread_main(std::string config) {
     char* argv[4];
     int argc = 0;
     argv[argc++] = const_cast<char*>("./memcached");
@@ -506,8 +507,8 @@ void TestappTest::spawn_embedded_server() {
         exit(EXIT_FAILURE);
     }
 
-    memcached_server_thread =
-            std::thread(memcached_server_thread_main, config_file);
+    memcached_server_thread = std::thread(memcached_server_thread_main,
+                                          mcd_env->getConfigurationFile());
 }
 
 void TestappTest::start_external_server() {
@@ -519,7 +520,9 @@ void TestappTest::start_external_server() {
     sinfo.cb = sizeof(sinfo);
 
     char commandline[1024];
-    sprintf(commandline, "memcached.exe -C %s", config_file.c_str());
+    sprintf(commandline,
+            "memcached.exe -C %s",
+            mcd_env->getConfigurationFile().c_str());
 
     if (!CreateProcess("memcached.exe",
                        commandline,
@@ -545,6 +548,8 @@ void TestappTest::start_external_server() {
         const char* argv[20];
         int arg = 0;
 
+        const auto config = mcd_env->getConfigurationFile();
+
         if (getenv("RUN_UNDER_VALGRIND") != nullptr) {
             argv[arg++] = "valgrind";
             argv[arg++] = "--log-file=valgrind.%p.log";
@@ -564,7 +569,7 @@ void TestappTest::start_external_server() {
 
         argv[arg++] = "./memcached";
         argv[arg++] = "-C";
-        argv[arg++] = config_file.c_str();
+        argv[arg++] = config.c_str();
 
         argv[arg++] = nullptr;
         execvp(argv[0], const_cast<char**>(argv));
@@ -719,8 +724,7 @@ void delete_object(const std::string& key, bool ignore_missing) {
 }
 
 void TestappTest::start_memcached_server() {
-    config_file = cb::io::mktemp("memcached_testapp.json");
-    write_config_to_file(memcached_cfg.dump(2), config_file);
+    write_config_to_file(memcached_cfg.dump(2));
 
     server_start_time = time(nullptr);
 
@@ -867,11 +871,6 @@ void TestappTest::stop_memcached_server() {
             waitForShutdown();
         }
 #endif
-    }
-
-    if (!config_file.empty()) {
-        EXPECT_NE(-1, remove(config_file.c_str()));
-        config_file.clear();
     }
 }
 
@@ -1083,7 +1082,7 @@ void TestappTest::ewouldblock_engine_disable() {
 }
 
 void TestappTest::reconfigure() {
-    write_config_to_file(memcached_cfg.dump(2), config_file);
+    write_config_to_file(memcached_cfg.dump(2));
 
     bool network_failure;
     const auto timeout =
@@ -1283,10 +1282,6 @@ void adjust_memcached_clock(
 }
 
 nlohmann::json TestappTest::memcached_cfg;
-const std::string TestappTest::portnumber_file =
-        "memcached_ports." + std::to_string(getpid()) + "." +
-        std::to_string(time(nullptr));
-std::string TestappTest::config_file;
 ConnectionMap TestappTest::connectionMap;
 uint64_t TestappTest::token;
 std::thread TestappTest::memcached_server_thread;
@@ -1358,7 +1353,7 @@ int main(int argc, char** argv) {
     try {
         mcd_env = new McdEnvironment(
                 !embedded_memcached_server, engine_name, engine_config);
-    } catch (const std::invalid_argument& e) {
+    } catch (const std::exception& e) {
         std::cerr << "Failed to set up test environment: " << e.what()
                   << std::endl;
         exit(EXIT_FAILURE);

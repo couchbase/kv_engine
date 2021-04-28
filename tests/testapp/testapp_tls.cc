@@ -30,7 +30,7 @@ protected:
     }
 
     void reloadConfig() {
-        write_config_to_file(memcached_cfg.dump(2), config_file);
+        write_config_to_file(memcached_cfg.dump(2));
         auto& conn = prepare(connectionMap.getConnection(false, AF_INET));
         conn.authenticate("@admin", "password", "PLAIN");
         auto rsp = conn.execute(

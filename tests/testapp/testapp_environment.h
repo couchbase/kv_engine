@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include <boost/filesystem/path.hpp>
 #include <folly/portability/GTest.h>
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
@@ -23,7 +24,7 @@ enum class BucketType : uint8_t;
  */
 class TestBucketImpl {
 public:
-    explicit TestBucketImpl(std::string extraConfig = {})
+    explicit TestBucketImpl(std::string extraConfig)
         : extraConfig(std::move(extraConfig)) {
     }
 
@@ -122,8 +123,8 @@ public:
      *                     buckets.
      */
     McdEnvironment(bool manageSSL_,
-                   std::string engineName,
-                   std::string engineConfig);
+                   const std::string& engineName,
+                   const std::string& engineConfig);
 
     ~McdEnvironment() override;
 
@@ -136,18 +137,12 @@ public:
     void SetUp() override;
 
     /**
-     * Tear down the test environment. This call invalidates the object
-     * and calling the members may return rubbish.
-     */
-    void TearDown() override;
-
-    /**
      * Get the name of the configuration file used by the audit daemon.
      *
      * @return the absolute path of the file containing the audit config
      */
-    const std::string& getAuditFilename() const {
-        return audit_file_name;
+    std::string getAuditFilename() const {
+        return audit_file_name.generic_string();
     }
 
     /**
@@ -155,8 +150,8 @@ public:
      *
      * @return the absolute path of the directory containing the audit config
      */
-    const std::string& getAuditLogDir() const {
-        return audit_log_dir;
+    std::string getAuditLogDir() const {
+        return audit_log_dir.generic_string();
     }
 
     /**
@@ -182,8 +177,8 @@ public:
      *
      * @return the absolute path of the file containing the RBAC data
      */
-    const std::string& getRbacFilename() const {
-        return rbac_file_name;
+    std::string getRbacFilename() const {
+        return rbac_file_name.generic_string();
     }
 
     /**
@@ -216,21 +211,31 @@ public:
      */
     std::string getDbPath() const;
 
+    /// Get the name of the configuration file to use
+    std::string getConfigurationFile() const {
+        return configuration_file.generic_string();
+    }
+
+    std::string getPortnumberFile() const {
+        return portnumber_file.generic_string();
+    }
+
 private:
     void SetupAuditFile();
 
     void SetupRbacFile();
 
-    void SetupIsaslPw();
+    const boost::filesystem::path test_directory;
+    const boost::filesystem::path isasl_file_name;
+    const boost::filesystem::path configuration_file;
+    const boost::filesystem::path portnumber_file;
+    const boost::filesystem::path rbac_file_name;
+    const boost::filesystem::path audit_file_name;
+    const boost::filesystem::path audit_log_dir;
+    const bool manageSSL;
 
-    std::string isasl_file_name;
-    std::string rbac_file_name;
-    std::string audit_file_name;
-    std::string audit_log_dir;
-    std::string cwd;
     nlohmann::json audit_config;
     nlohmann::json rbac_data;
-    bool manageSSL;
     std::unique_ptr<TestBucketImpl> testBucket;
 };
 

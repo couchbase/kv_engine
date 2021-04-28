@@ -225,9 +225,6 @@ protected:
 
     // JSON configuration (as JSON object) memcached was configured with.
     static nlohmann::json memcached_cfg;
-    static const std::string portnumber_file;
-    static std::string config_file;
-
     static ConnectionMap connectionMap;
     static uint64_t token;
     static std::thread memcached_server_thread;
@@ -463,7 +460,7 @@ time_t get_server_start_time();
 
 std::string CERTIFICATE_PATH(const std::string& in);
 
-void write_config_to_file(const std::string& config, const std::string& fname);
+void write_config_to_file(const std::string& config);
 
 // map of statistic key (name) -> value.
 typedef std::map<std::string, std::string> stats_response_t;

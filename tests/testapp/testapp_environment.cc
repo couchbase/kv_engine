@@ -116,8 +116,8 @@ void TestBucketImpl::setMinCompressionRatio(MemcachedConnection& conn,
 
 class DefaultBucketImpl : public TestBucketImpl {
 public:
-    explicit DefaultBucketImpl(std::string extraConfig = {})
-        : TestBucketImpl(extraConfig) {
+    explicit DefaultBucketImpl(std::string extraConfig)
+        : TestBucketImpl(std::move(extraConfig)) {
     }
 
     void setUpBucket(const std::string& name,
@@ -201,21 +201,10 @@ public:
 
 class EpBucketImpl : public TestBucketImpl {
 public:
-    explicit EpBucketImpl(std::string extraConfig = {})
-        : TestBucketImpl(extraConfig), dbPath(cb::io::mkdtemp("mc_testapp")) {
-        // Cleanup any files from a previous run still on disk.
-        try {
-            cb::io::rmrf(dbPath.string());
-        } catch (...) { /* nothing exists */
-        }
-    }
-
-    ~EpBucketImpl() override {
-        // Cleanup any files created.
-        try {
-            boost::filesystem::remove_all(dbPath);
-        } catch (...) { /* nothing exists */
-        }
+    EpBucketImpl(const boost::filesystem::path& test_directory,
+                 std::string extraConfig)
+        : TestBucketImpl(std::move(extraConfig)),
+          dbPath(test_directory / "dbase") {
     }
 
     void setBucketCreateMode(BucketCreateMode mode) override {
@@ -224,15 +213,19 @@ public:
 
     BucketCreateMode bucketCreateMode = BucketCreateMode::Clean;
 
+    void removeDbDir(const boost::filesystem::path& path) {
+        if (exists(path)) {
+            boost::filesystem::remove_all(path);
+        }
+    }
+
     void createBucket(const std::string& name,
                       const std::string& config,
                       MemcachedConnection& conn) override {
-        const auto dbdir = cb::io::sanitizePath((dbPath / name).string());
-        if (cb::io::isDirectory(dbdir)) {
-            cb::io::rmrf(dbdir);
-        }
+        const auto dbdir = dbPath / name;
+        removeDbDir(dbdir);
 
-        std::string settings = "dbname=" + (dbPath / name).generic_string();
+        std::string settings = "dbname=" + dbdir.generic_string();
         if (!config.empty()) {
             settings += ";" + config;
         }
@@ -262,13 +255,12 @@ public:
     void setUpBucket(const std::string& name,
                      const std::string& config,
                      MemcachedConnection& conn) override {
-        const auto dbdir = cb::io::sanitizePath((dbPath / name).string());
-        if (cb::io::isDirectory(dbdir) &&
-            bucketCreateMode == BucketCreateMode::Clean) {
-            cb::io::rmrf(dbdir);
+        const auto dbdir = dbPath / name;
+        if (bucketCreateMode == BucketCreateMode::Clean) {
+            removeDbDir(dbdir);
         }
 
-        std::string settings = "dbname=" + (dbPath / name).generic_string();
+        std::string settings = "dbname=" + dbdir.generic_string();
         // Increase bucket quota from 100MB to 200MB as there are some
         // testapp tests requiring more than the default.
         settings += ";max_size=200000000";
@@ -361,9 +353,18 @@ public:
 };
 
 McdEnvironment::McdEnvironment(bool manageSSL_,
-                               std::string engineName,
-                               std::string engineConfig)
-    : manageSSL(manageSSL_) {
+                               const std::string& engineName,
+                               const std::string& engineConfig)
+    : test_directory(absolute(
+              boost::filesystem::path(cb::io::mkdtemp("memcached_testapp.")))),
+      isasl_file_name(boost::filesystem::path(SOURCE_ROOT) / "tests" /
+                      "testapp" / "cbsaslpw.json"),
+      configuration_file(test_directory / "memcached.json"),
+      portnumber_file(test_directory / "ports.json"),
+      rbac_file_name(test_directory / "rbac.json"),
+      audit_file_name(test_directory / "audit.cfg"),
+      audit_log_dir(test_directory / "audittrail"),
+      manageSSL(manageSSL_) {
     if (manageSSL) {
         initialize_openssl();
     }
@@ -375,43 +376,40 @@ McdEnvironment::McdEnvironment(bool manageSSL_,
         }
         testBucket = std::make_unique<DefaultBucketImpl>(config);
     } else if (engineName == "ep") {
-        testBucket = std::make_unique<EpBucketImpl>(engineConfig);
+        testBucket =
+                std::make_unique<EpBucketImpl>(test_directory, engineConfig);
     } else {
         throw std::invalid_argument("Unknown engine '" + engineName +
-                                    "' "
-                                    "Options are 'default' and 'ep'");
+                                    "' Options are 'default' and 'ep'");
     }
+    // I shouldn't need to use string() here, but it fails to compile on
+    // windows without it:
+    //
+    // cannot convert argument 2 from
+    // 'const boost::filesystem::path::value_type *' to 'const char *'
+    setenv("CBSASL_PWFILE", isasl_file_name.generic_string().c_str(), 1);
 }
 
 McdEnvironment::~McdEnvironment() {
    if (manageSSL) {
        shutdown_openssl();
    }
+   try {
+       boost::filesystem::remove_all(test_directory);
+   } catch (...) {
+       // Ignore errors
+   }
 }
 
 void McdEnvironment::SetUp() {
-    cwd = cb::io::getcwd();
     SetupAuditFile();
-    SetupIsaslPw();
     SetupRbacFile();
-}
-
-void McdEnvironment::SetupIsaslPw() {
-    isasl_file_name = SOURCE_ROOT;
-    isasl_file_name.append("/tests/testapp/cbsaslpw.json");
-    std::replace(isasl_file_name.begin(), isasl_file_name.end(), '\\', '/');
-
-    // Add the file to the exec environment
-    setenv("CBSASL_PWFILE", isasl_file_name.c_str(), 1);
 }
 
 void McdEnvironment::SetupAuditFile() {
     try {
-        audit_file_name = cwd + "/" + cb::io::mktemp("audit.cfg");
-        audit_log_dir = cwd + "/" + cb::io::mktemp("audit.log");
-        const std::string descriptor = cwd + "/auditd";
-        EXPECT_NO_THROW(cb::io::rmrf(audit_log_dir));
-        cb::io::mkdirp(audit_log_dir);
+        const auto descr =
+                (test_directory.parent_path() / "auditd").generic_string();
 
         // Generate the auditd config file.
         audit_config = {};
@@ -421,8 +419,8 @@ void McdEnvironment::SetupAuditFile() {
         audit_config["rotate_interval"] = 1440;
         audit_config["rotate_size"] = 20971520;
         audit_config["buffered"] = false;
-        audit_config["log_path"] = audit_log_dir;
-        audit_config["descriptors_path"] = descriptor;
+        audit_config["log_path"] = audit_log_dir.generic_string();
+        audit_config["descriptors_path"] = descr;
         audit_config["sync"] = nlohmann::json::array();
         audit_config["disabled"] = nlohmann::json::array();
         audit_config["event_states"]
@@ -437,28 +435,10 @@ void McdEnvironment::SetupAuditFile() {
     rewriteAuditConfig();
 }
 
-void McdEnvironment::TearDown() {
-    // Cleanup Audit config file
-    if (!audit_file_name.empty()) {
-        cb::io::rmrf(audit_file_name);
-    }
-
-    // Cleanup Audit log directory
-    if (!audit_log_dir.empty()) {
-        cb::io::rmrf(audit_log_dir);
-    }
-
-    // Cleanup RBAC configuration
-    if (!rbac_file_name.empty()) {
-        cb::io::rmrf(rbac_file_name);
-    }
-}
-
 void McdEnvironment::rewriteAuditConfig() {
     try {
-        std::string audit_text = audit_config.dump();
-        std::ofstream out(audit_file_name);
-        out.write(audit_text.c_str(), audit_text.size());
+        std::ofstream out(audit_file_name.generic_string());
+        out << audit_config.dump(2) << std::endl;
         out.close();
     } catch (std::exception& e) {
         FAIL() << "Failed to store audit configuration: " << e.what();
@@ -469,13 +449,12 @@ void McdEnvironment::SetupRbacFile() {
     const auto input_file =
             cb::io::sanitizePath(SOURCE_ROOT "/tests/testapp/rbac.json");
     rbac_data = nlohmann::json::parse(cb::io::loadFile(input_file));
-    rbac_file_name = cwd + "/" + cb::io::mktemp("rbac.json.XXXXXX");
     rewriteRbacFile();
 }
 
 void McdEnvironment::rewriteRbacFile() {
     try {
-        std::ofstream out(rbac_file_name);
+        std::ofstream out(rbac_file_name.generic_string());
         out << rbac_data.dump(2) << std::endl;
         out.close();
     } catch (std::exception& e) {
@@ -484,5 +463,6 @@ void McdEnvironment::rewriteRbacFile() {
 }
 
 std::string McdEnvironment::getDbPath() const {
-    return static_cast<EpBucketImpl*>(testBucket.get())->dbPath.string();
+    return static_cast<EpBucketImpl*>(testBucket.get())
+            ->dbPath.generic_string();
 }

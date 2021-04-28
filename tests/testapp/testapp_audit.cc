@@ -48,7 +48,7 @@ public:
         json["descriptors_path"] = descriptor_file;
 
         reconfigure_client_cert_auth("disable", "", "", "");
-        auto& logdir = mcd_env->getAuditLogDir();
+        auto logdir = mcd_env->getAuditLogDir();
         EXPECT_NO_THROW(cb::io::rmrf(logdir));
         cb::io::mkdirp(logdir);
         setEnabled(true);
@@ -59,7 +59,7 @@ public:
         auto& json = mcd_env->getAuditConfig();
         json["descriptors_path"] = org_descriptor_file;
         setEnabled(false);
-        auto& logdir = mcd_env->getAuditLogDir();
+        auto logdir = mcd_env->getAuditLogDir();
         EXPECT_NO_THROW(cb::io::rmrf(mcd_env->getAuditLogDir()));
         cb::io::mkdirp(logdir);
         cb::io::rmrf(descriptor_file);
