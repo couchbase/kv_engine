@@ -10,14 +10,16 @@
  */
 #pragma once
 
-#include <boost/filesystem/path.hpp>
 #include <folly/portability/GTest.h>
-#include <memcached/protocol_binary.h>
-#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <string>
 
 class MemcachedConnection;
 enum class BucketType : uint8_t;
+
+namespace cb::mcbp {
+enum class ClientOpcode : uint8_t;
+}
 
 /**
  * The test bucket which tests are being run against.
@@ -107,52 +109,23 @@ protected:
  */
 class McdEnvironment : public ::testing::Environment {
 public:
-    /* In stand-alone mode we have to init/shutdown OpenSSL (i.e. manage it),
-     * as the SetUp/TearDown methods only get called if at least
-     * one Test is run; and we *need* to call shutdown_openssl() to
-     * correctly free all memory allocated by OpenSSL's shared_library
-     * constructor.  Therefore in this case we pass true into the McdEnvironment
-     * constructor.
-     *
-     * @param manageSSL_ In embedded mode the memcached server is responsible
-     *                   for init/shutdown of OpenSSL and therefore in this
-     *                   case we pass false into the McdEnvironment constructor.
-     * @param engineName The name of the engine which memcached will be started
-     *                   with.
-     * @param engineConfig Any additional engine config to pass when creating
-     *                     buckets.
-     */
-    McdEnvironment(bool manageSSL_,
-                   const std::string& engineName,
-                   const std::string& engineConfig);
-
-    ~McdEnvironment() override;
-
-    /**
-     * Create the test environment. This method is called automatically
-     * from the Google Test Framework. You should not try to access any
-     * of the members before this method is called. As long as you only
-     * try to access this class from a test case you're on the safe side
-     */
-    void SetUp() override;
+    static McdEnvironment* create(bool manageSSL_,
+                                  const std::string& engineName,
+                                  const std::string& engineConfig);
 
     /**
      * Get the name of the configuration file used by the audit daemon.
      *
      * @return the absolute path of the file containing the audit config
      */
-    std::string getAuditFilename() const {
-        return audit_file_name.generic_string();
-    }
+    virtual std::string getAuditFilename() const = 0;
 
     /**
      * Get the name of the directory containing the audit logs
      *
      * @return the absolute path of the directory containing the audit config
      */
-    std::string getAuditLogDir() const {
-        return audit_log_dir.generic_string();
-    }
+    virtual std::string getAuditLogDir() const = 0;
 
     /**
      * Get a handle to the current audit configuration so that you may
@@ -161,25 +134,21 @@ public:
      *
      * @return the root object of the audit configuration.
      */
-    nlohmann::json& getAuditConfig() {
-        return audit_config;
-    }
+    virtual nlohmann::json& getAuditConfig() = 0;
 
     /**
      * Dump the internal representation of the audit configuration
      * (returned by <code>getAuditConfig()</code>) to the configuration file
      * (returned by <getAuditFilename()</config>)
      */
-    void rewriteAuditConfig();
+    virtual void rewriteAuditConfig() = 0;
 
     /**
      * Get the name of the RBAC file used.
      *
      * @return the absolute path of the file containing the RBAC data
      */
-    std::string getRbacFilename() const {
-        return rbac_file_name.generic_string();
-    }
+    virtual std::string getRbacFilename() const = 0;
 
     /**
      * Get a handle to the current RBAC configuration so that you may
@@ -188,55 +157,29 @@ public:
      *
      * @return the object containing the RBAC configuration
      */
-    nlohmann::json& getRbacConfig() {
-        return rbac_data;
-    }
+    virtual nlohmann::json& getRbacConfig() = 0;
 
     /**
      * Dump the internal representation of the rbac configuration
      * (returned by <code>getRbacConfig()</code>) to the configuration file
      * (returned by <getRbacFilename()</config>)
      */
-    void rewriteRbacFile();
+    virtual void rewriteRbacFile() = 0;
 
     /**
      * @return The bucket type being tested.
      */
-    TestBucketImpl& getTestBucket() {
-        return *testBucket;
-    }
+    virtual TestBucketImpl& getTestBucket() = 0;
 
     /**
      * @return The dbPath of a persistent bucket (throws if not persistent)
      */
-    std::string getDbPath() const;
+    virtual std::string getDbPath() const = 0;
 
     /// Get the name of the configuration file to use
-    std::string getConfigurationFile() const {
-        return configuration_file.generic_string();
-    }
+    virtual std::string getConfigurationFile() const = 0;
 
-    std::string getPortnumberFile() const {
-        return portnumber_file.generic_string();
-    }
-
-private:
-    void SetupAuditFile();
-
-    void SetupRbacFile();
-
-    const boost::filesystem::path test_directory;
-    const boost::filesystem::path isasl_file_name;
-    const boost::filesystem::path configuration_file;
-    const boost::filesystem::path portnumber_file;
-    const boost::filesystem::path rbac_file_name;
-    const boost::filesystem::path audit_file_name;
-    const boost::filesystem::path audit_log_dir;
-    const bool manageSSL;
-
-    nlohmann::json audit_config;
-    nlohmann::json rbac_data;
-    std::unique_ptr<TestBucketImpl> testBucket;
+    virtual std::string getPortnumberFile() const = 0;
 };
 
 extern McdEnvironment* mcd_env;

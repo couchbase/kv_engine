@@ -12,6 +12,7 @@
 #include "memcached_audit_events.h"
 #include <boost/filesystem.hpp>
 #include <folly/portability/Stdlib.h>
+#include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
 #include <protocol/connection/client_connection.h>
@@ -352,117 +353,152 @@ public:
     const boost::filesystem::path dbPath;
 };
 
-McdEnvironment::McdEnvironment(bool manageSSL_,
-                               const std::string& engineName,
-                               const std::string& engineConfig)
-    : test_directory(absolute(
-              boost::filesystem::path(cb::io::mkdtemp("memcached_testapp.")))),
-      isasl_file_name(boost::filesystem::path(SOURCE_ROOT) / "tests" /
-                      "testapp" / "cbsaslpw.json"),
-      configuration_file(test_directory / "memcached.json"),
-      portnumber_file(test_directory / "ports.json"),
-      rbac_file_name(test_directory / "rbac.json"),
-      audit_file_name(test_directory / "audit.cfg"),
-      audit_log_dir(test_directory / "audittrail"),
-      manageSSL(manageSSL_) {
-    if (manageSSL) {
-        initialize_openssl();
-    }
-
-    if (engineName == "default") {
-        std::string config = "keep_deleted=true";
-        if (!engineConfig.empty()) {
-            config += ";" + engineConfig;
+class McdEnvironmentImpl : public McdEnvironment {
+public:
+    McdEnvironmentImpl(bool manageSSL_,
+                       const std::string& engineName,
+                       const std::string& engineConfig)
+        : test_directory(absolute(boost::filesystem::path(
+                  cb::io::mkdtemp("memcached_testapp.")))),
+          isasl_file_name(boost::filesystem::path(SOURCE_ROOT) / "tests" /
+                          "testapp" / "cbsaslpw.json"),
+          configuration_file(test_directory / "memcached.json"),
+          portnumber_file(test_directory / "ports.json"),
+          rbac_file_name(test_directory / "rbac.json"),
+          audit_file_name(test_directory / "audit.cfg"),
+          audit_log_dir(test_directory / "audittrail"),
+          manageSSL(manageSSL_) {
+        if (manageSSL) {
+            initialize_openssl();
         }
-        testBucket = std::make_unique<DefaultBucketImpl>(config);
-    } else if (engineName == "ep") {
-        testBucket =
-                std::make_unique<EpBucketImpl>(test_directory, engineConfig);
-    } else {
-        throw std::invalid_argument("Unknown engine '" + engineName +
-                                    "' Options are 'default' and 'ep'");
-    }
-    // I shouldn't need to use string() here, but it fails to compile on
-    // windows without it:
-    //
-    // cannot convert argument 2 from
-    // 'const boost::filesystem::path::value_type *' to 'const char *'
-    setenv("CBSASL_PWFILE", isasl_file_name.generic_string().c_str(), 1);
-}
 
-McdEnvironment::~McdEnvironment() {
-   if (manageSSL) {
-       shutdown_openssl();
-   }
-   try {
-       boost::filesystem::remove_all(test_directory);
-   } catch (...) {
-       // Ignore errors
-   }
-}
+        if (engineName == "default") {
+            std::string config = "keep_deleted=true";
+            if (!engineConfig.empty()) {
+                config += ";" + engineConfig;
+            }
+            testBucket = std::make_unique<DefaultBucketImpl>(config);
+        } else if (engineName == "ep") {
+            testBucket = std::make_unique<EpBucketImpl>(test_directory,
+                                                        engineConfig);
+        } else {
+            throw std::invalid_argument("Unknown engine '" + engineName +
+                                        "' Options are 'default' and 'ep'");
+        }
+        // I shouldn't need to use string() here, but it fails to compile on
+        // windows without it:
+        //
+        // cannot convert argument 2 from
+        // 'const boost::filesystem::path::value_type *' to 'const char *'
+        setenv("CBSASL_PWFILE", isasl_file_name.generic_string().c_str(), 1);
 
-void McdEnvironment::SetUp() {
-    SetupAuditFile();
-    SetupRbacFile();
-}
+        // Some of the tests wants to modify the RBAC file so we need
+        // to make a local copy they can operate on
+        const auto input_file =
+                cb::io::sanitizePath(SOURCE_ROOT "/tests/testapp/rbac.json");
+        rbac_data = nlohmann::json::parse(cb::io::loadFile(input_file));
+        rewriteRbacFile();
 
-void McdEnvironment::SetupAuditFile() {
-    try {
+        // And we need an audit daemon configuration
         const auto descr =
                 (test_directory.parent_path() / "auditd").generic_string();
+        audit_config = {
+                {"version", 2},
+                {"uuid", "this_is_the_uuid"},
+                {"auditd_enabled", false},
+                {"rotate_interval", 1440},
+                {"rotate_size", 20971520},
+                {"buffered", false},
+                {"log_path", audit_log_dir.generic_string()},
+                {"descriptors_path", descr},
+                {"sync", nlohmann::json::array()},
+                {"disabled", nlohmann::json::array()},
+                {"event_states",
+                 {{std::to_string(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED),
+                   "enabled"}}},
+                {"filtering_enabled", false},
+                {"disabled_userids", nlohmann::json::array()}};
 
-        // Generate the auditd config file.
-        audit_config = {};
-        audit_config["version"] = 2;
-        audit_config["uuid"] = "this_is_the_uuid";
-        audit_config["auditd_enabled"] = false;
-        audit_config["rotate_interval"] = 1440;
-        audit_config["rotate_size"] = 20971520;
-        audit_config["buffered"] = false;
-        audit_config["log_path"] = audit_log_dir.generic_string();
-        audit_config["descriptors_path"] = descr;
-        audit_config["sync"] = nlohmann::json::array();
-        audit_config["disabled"] = nlohmann::json::array();
-        audit_config["event_states"]
-                    [std::to_string(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED)] =
-                            "enabled";
-        audit_config["filtering_enabled"] = false;
-        audit_config["disabled_userids"] = nlohmann::json::array();
-    } catch (const std::exception& e) {
-        FAIL() << "Failed to generate audit configuration: " << e.what();
+        rewriteAuditConfig();
     }
 
-    rewriteAuditConfig();
-}
+    ~McdEnvironmentImpl() override {
+        if (manageSSL) {
+            shutdown_openssl();
+        }
+        try {
+            boost::filesystem::remove_all(test_directory);
+        } catch (...) {
+            // Ignore errors
+        }
+    }
 
-void McdEnvironment::rewriteAuditConfig() {
-    try {
+    std::string getAuditFilename() const override {
+        return audit_file_name.generic_string();
+    }
+
+    std::string getAuditLogDir() const override {
+        return audit_log_dir.generic_string();
+    }
+
+    nlohmann::json& getAuditConfig() override {
+        return audit_config;
+    }
+
+    void rewriteAuditConfig() override {
         std::ofstream out(audit_file_name.generic_string());
         out << audit_config.dump(2) << std::endl;
         out.close();
-    } catch (std::exception& e) {
-        FAIL() << "Failed to store audit configuration: " << e.what();
     }
-}
 
-void McdEnvironment::SetupRbacFile() {
-    const auto input_file =
-            cb::io::sanitizePath(SOURCE_ROOT "/tests/testapp/rbac.json");
-    rbac_data = nlohmann::json::parse(cb::io::loadFile(input_file));
-    rewriteRbacFile();
-}
+    std::string getRbacFilename() const override {
+        return rbac_file_name.generic_string();
+    }
 
-void McdEnvironment::rewriteRbacFile() {
-    try {
+    nlohmann::json& getRbacConfig() override {
+        return rbac_data;
+    }
+
+    void rewriteRbacFile() override {
         std::ofstream out(rbac_file_name.generic_string());
         out << rbac_data.dump(2) << std::endl;
         out.close();
-    } catch (std::exception& e) {
-        FAIL() << "Failed to store rbac configuration: " << e.what();
     }
-}
 
-std::string McdEnvironment::getDbPath() const {
-    return static_cast<EpBucketImpl*>(testBucket.get())
-            ->dbPath.generic_string();
+    TestBucketImpl& getTestBucket() override {
+        return *testBucket;
+    }
+
+    std::string getDbPath() const override {
+        return static_cast<EpBucketImpl*>(testBucket.get())
+                ->dbPath.generic_string();
+    }
+
+    std::string getConfigurationFile() const override {
+        return configuration_file.generic_string();
+    }
+
+    std::string getPortnumberFile() const override {
+        return portnumber_file.generic_string();
+    }
+
+private:
+    const boost::filesystem::path test_directory;
+    const boost::filesystem::path isasl_file_name;
+    const boost::filesystem::path configuration_file;
+    const boost::filesystem::path portnumber_file;
+    const boost::filesystem::path rbac_file_name;
+    const boost::filesystem::path audit_file_name;
+    const boost::filesystem::path audit_log_dir;
+    const bool manageSSL;
+
+    nlohmann::json audit_config;
+    nlohmann::json rbac_data;
+    std::unique_ptr<TestBucketImpl> testBucket;
+};
+
+McdEnvironment* McdEnvironment::create(bool manageSSL_,
+                                       const std::string& engineName,
+                                       const std::string& engineConfig) {
+    return new McdEnvironmentImpl(manageSSL_, engineName, engineConfig);
 }
