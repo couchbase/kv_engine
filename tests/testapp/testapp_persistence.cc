@@ -9,8 +9,6 @@
  *   the file licenses/APL2.txt.
  */
 #include <platform/dirutils.h>
-#include <string.h>
-#include <cerrno>
 #include <csignal>
 
 #include "testapp_shutdown.h"
@@ -33,13 +31,16 @@ std::ostream& operator<<(std::ostream& os, const ShutdownMode& mode) {
 class PersistToTest : public ShutdownTest,
                       public ::testing::WithParamInterface<ShutdownMode> {
 protected:
+    static void SetUpTestCase() {
+        if (!mcd_env->getTestBucket().supportsPersistence()) {
+            std::cout << "Note: skipping tests as persistence isn't supported."
+                      << std::endl;
+        }
+        ShutdownTest::SetUpTestCase();
+    }
+
     void SetUp() override {
         if (!mcd_env->getTestBucket().supportsPersistence()) {
-            std::cout << "Note: skipping test '"
-                      << ::testing::UnitTest::GetInstance()
-                                 ->current_test_info()
-                                 ->name()
-                      << "' as persistence isn't supported.\n";
             skipTest = true;
             return;
         }
