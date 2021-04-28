@@ -211,7 +211,8 @@ nlohmann::json Connection::toJSON() const {
 
     ret["ssl"] = ssl;
     ret["total_recv"] = totalRecv;
-    ret["total_send"] = totalSend;
+    ret["total_queued_send"] = totalSend;
+    ret["total_send"] = totalSend - getSendQueueSize();
 
     ret["datatype"] = mcbp::datatype::to_string(datatypeFilter.getRaw());
 
