@@ -871,12 +871,19 @@ void EPVBucket::loadOutstandingPrepares(
 
     EP_LOG_INFO(
             "EPVBucket::loadOutstandingPrepares: ({}) created DM with PCS:{}, "
-            "PPS:{}, HPS:{}, number of prepares loaded:{}",
+            "PPS:{}, HPS:{}, number of prepares loaded:{}, outstandingPrepares "
+            "seqnoRange:[{} -> {}]",
             getId(),
             vbs.persistedCompletedSeqno,
             vbs.persistedPreparedSeqno,
             vbs.highPreparedSeqno,
-            outstandingPrepares.size());
+            outstandingPrepares.size(),
+            !outstandingPrepares.empty()
+                    ? outstandingPrepares.front()->getBySeqno()
+                    : 0,
+            !outstandingPrepares.empty()
+                    ? outstandingPrepares.back()->getBySeqno()
+                    : 0);
 
     // Second restore them into the appropriate DurabilityMonitor.
     switch (getState()) {
