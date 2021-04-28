@@ -42,6 +42,9 @@ public:
     }
 
     Cursor& operator=(const Cursor& in) {
+        if (this == &in) {
+            return *this;
+        }
         // Need exclusive access to us, but read access to them
         std::unique_lock<LockType> writer(cursorLock);
         std::shared_lock<LockType> reader(in.cursorLock);
@@ -63,9 +66,9 @@ public:
         return *this;
     }
 
-    void setCursor(std::shared_ptr<CheckpointCursor> cursor) {
+    void setCursor(std::shared_ptr<CheckpointCursor> newCursor) {
         std::unique_lock<LockType> writer(cursorLock);
-        this->cursor = cursor;
+        cursor = newCursor;
     }
 
     std::shared_ptr<CheckpointCursor> lock() const {
