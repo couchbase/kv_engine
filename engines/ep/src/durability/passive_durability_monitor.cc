@@ -19,6 +19,7 @@
 #include "vbucket_state.h"
 
 #include <gsl/gsl-lite.hpp>
+#include <platform/optional.h>
 #include <statistics/cbstat_collector.h>
 #include <utilities/logtags.h>
 #include <unordered_map>
@@ -310,14 +311,15 @@ void PassiveDurabilityMonitor::completeSyncWrite(
             // so simply ignore it here.
             return;
         }
-        std::stringstream ss;
-        ss << "No tracked, but received " << to_string(res) << " for key "
-           << cb::tagUserData(key.to_string());
-        if (prepareSeqno) {
-            ss << " with seqno" << std::to_string(prepareSeqno.value());
-        }
 
-        throwException<std::logic_error>(__func__, ss.str());
+        throwException<std::logic_error>(
+                __func__,
+                fmt::format("No tracked, but received {} for key:{} with "
+                            "prepareSeqno:{}, highSeqno:{}",
+                            to_string(res),
+                            cb::tagUserData(key.to_string()),
+                            to_string_or_none(prepareSeqno),
+                            vb.getHighSeqno()));
     }
 
     // If we can complete out of order, we have to check from the start of
@@ -381,14 +383,39 @@ void PassiveDurabilityMonitor::completeSyncWrite(
     if ((next->getKey() != key) ||
         (prepareSeqno &&
          next->getBySeqno() != static_cast<int64_t>(*prepareSeqno))) {
+        // We want to see if we've seen a prepare for the key and if things
+        // are just out of order so check the trackedWrites.
+        std::string strSyncWrite("none");
+        auto itr = std::find_if(s->trackedWrites.begin(),
+                                s->trackedWrites.end(),
+                                [&key](const SyncWrite& write) {
+                                    return write.getKey() == key;
+                                });
+        if (itr != s->trackedWrites.end()) {
+            strSyncWrite = fmt::format("{}", *itr);
+        }
+
+        std::optional<SnapshotEndInfo> lastReceivedSnapEndData;
+        if (!s->receivedSnapshotEnds.empty()) {
+            lastReceivedSnapEndData = s->receivedSnapshotEnds.back();
+        }
+
         throwException<std::logic_error>(
                 __func__,
                 fmt::format("Pending resolution for '{}', but received "
-                            "unexpected {} for key {} and prepare seqno: {}",
+                            "unexpected {} for key {} and prepare seqno: {}, "
+                            "highSeqno:{},"
+                            " HPS:{}, HCS:{}, foundKeyWithSeqno:'{}' "
+                            "lastReceivedSnapEnd:'{}'",
                             *next,
                             to_string(res),
                             cb::tagUserData(key.to_string()),
-                            *prepareSeqno));
+                            *prepareSeqno,
+                            vb.getHighSeqno(),
+                            s->highPreparedSeqno.lastWriteSeqno,
+                            s->highCompletedSeqno.lastWriteSeqno,
+                            strSyncWrite,
+                            to_string_or_none(lastReceivedSnapEndData)));
     }
 
     if (enforceOrderedCompletion ||

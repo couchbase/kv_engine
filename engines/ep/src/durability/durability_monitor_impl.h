@@ -386,6 +386,7 @@ struct SnapshotEndInfo {
  * comparator
  */
 bool operator>(const SnapshotEndInfo& a, const SnapshotEndInfo& b);
+
 std::string to_string(const SnapshotEndInfo& snapshotEndInfo);
 
 /*
