@@ -237,13 +237,15 @@ VBucket::VBucket(Vbid i,
 
     EP_LOG_INFO(
             "VBucket: created {} with state:{} initialState:{} lastSeqno:{} "
-            "persistedRange:{{{},{}}} max_cas:{} uuid:{} topology:{}",
+            "persistedRange:{{{},{}}} purge_seqno:{} max_cas:{} uuid:{} "
+            "topology:{}",
             id,
             VBucket::toString(state),
             VBucket::toString(initialState),
             lastSeqno,
             persistedRange.getStart(),
             persistedRange.getEnd(),
+            purge_seqno,
             getMaxCas(),
             failovers ? std::to_string(failovers->getLatestUUID()) : "<>",
             replicationTopology.rlock()->dump());
