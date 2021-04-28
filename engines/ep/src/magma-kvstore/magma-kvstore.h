@@ -395,6 +395,15 @@ public:
             Vbid, magma::Slice keySlice);
 
     /**
+     * Get the dropped collection stats for the given collection
+     * @param vbid Vbid
+     * @param collection to find stats for
+     * @return Bool statis and Stats (defaulted to 0 if not found)
+     */
+    std::pair<bool, Collections::VB::PersistedStats> getDroppedCollectionStats(
+            Vbid vbid, CollectionID collection);
+
+    /**
      * Increment the kvstore revision.
      */
     void prepareToCreateImpl(Vbid vbid) override;
@@ -512,6 +521,14 @@ public:
     std::string getCollectionsStatsKey(CollectionID cid);
 
     /**
+     * Given a collection id, return the key used to maintain the dropped
+     * collection stats in the local db.
+     *
+     * @param cid Collection ID
+     */
+    std::string getDroppedCollectionsStatsKey(CollectionID cid);
+
+    /**
      * Save stats for collection cid
      *
      * @param localDbReqs vector of localDb updates
@@ -523,8 +540,16 @@ public:
                              const Collections::VB::PersistedStats& stats);
 
     /**
-     * Delete the collection stats for the given collection id
+     * Delete the dropped collection stats for the given collection id
      *
+     * @param localDbReqs vector of localDb updates
+     * @param cid Collection ID
+     */
+    void deleteDroppedCollectionStats(LocalDbReqs& localDbReqs,
+                                      CollectionID cid);
+
+    /**
+     * Delete the collection stats for the given collection id
      * @param localDbReqs vector of localDb updates
      * @param cid Collection ID
      */

@@ -596,4 +596,32 @@ flatbuffers::DetachedBuffer Flush::encodeOpenScopes(
 bool Flush::droppedCollectionsExists() const {
     return manifest.isDropInProgress();
 }
+
+FlushAccounting::StatisticsUpdate Flush::getDroppedStats(CollectionID cid) {
+    auto itr = flushAccounting.getDroppedStats().find(cid);
+    if (itr == flushAccounting.getDroppedStats().end()) {
+        return FlushAccounting::StatisticsUpdate(0);
+    }
+
+    return FlushAccounting::StatisticsUpdate(itr->second);
+}
+
+bool Flush::isOpen(CollectionID cid) const {
+    auto collectionsItr = collections.find(cid);
+    if (collectionsItr != collections.end()) {
+        // Probably open, check dropped
+
+        auto droppedItr = flushAccounting.getDroppedCollections().find(cid);
+        if (droppedItr != flushAccounting.getDroppedCollections().end()) {
+            return collectionsItr->second.high.startSeqno >
+                   droppedItr->second.endSeqno;
+        }
+
+        // Opened in this flush
+        return true;
+    }
+
+    // Not opened in this flush
+    return false;
+}
 } // namespace Collections::VB

@@ -62,12 +62,14 @@ public:
      * @param isCommitted the prepare/commit state of the item flushed
      * @param isDelete alive/delete state of the item flushed
      * @param size bytes used on disk of the item flushed
+     * @param wantsDropped should we update dropped stats?
      */
     void updateStats(const DocKey& key,
                      uint64_t seqno,
                      IsCommitted isCommitted,
                      IsDeleted isDelete,
-                     size_t size);
+                     size_t size,
+                     WantsDropped wantsDropped = WantsDropped::No);
 
     /**
      * Update collection stats when an old 'version' of the item already exists.
@@ -81,6 +83,7 @@ public:
      * @param oldSeqno The seqno of the old 'version' of the item
      * @param oldIsDelete alive/delete state of the old 'version' of the item
      * @param oldSize bytes used on disk of the old 'version' of the item
+     * @param wantsDropped should we update dropped stats?
      */
     void updateStats(const DocKey& key,
                      uint64_t seqno,
@@ -89,7 +92,8 @@ public:
                      size_t size,
                      uint64_t oldSeqno,
                      IsDeleted oldIsDelete,
-                     size_t oldSize);
+                     size_t oldSize,
+                     WantsDropped wantsDropped = WantsDropped::No);
 
     /**
      * Update the collection high-seqno (only if the flushed item is higher)
@@ -221,6 +225,10 @@ public:
         return stats;
     }
 
+    const StatsMap& getDroppedStats() const {
+        return droppedStats;
+    }
+
 private:
     /**
      * Function determines if the collection @ seqno is dropped, but only
@@ -250,12 +258,29 @@ private:
      * The function may also update the persisted high-seqno of the collection
      * if the given seqno is greater than the currently recorded one.
      *
+     * @param stats StatsMap in which to look for our stats
      * @param cid CollectionID
      * @param seqno New high seqno to potentially update the persisted one
      * @return Stats reference
      */
-    StatisticsUpdate& getStatsAndMaybeSetPersistedHighSeqno(CollectionID cid,
+    StatisticsUpdate& getStatsAndMaybeSetPersistedHighSeqno(StatsMap& stats,
+                                                            CollectionID cid,
                                                             uint64_t seqno);
+
+    /**
+     * Obtain a Stats reference so insert/update/remove can be tracked.
+     * The function may also update the persisted high-seqno of the collection
+     * if the given seqno is greater than the currently recorded one.
+     *
+     * @param cid CollectionID
+     * @param seqno New high seqno to potentially update the persisted one
+     * @param wantsDropped Wants the stats of dropped collections
+     * @return Stats reference
+     */
+    StatisticsUpdate& getStatsAndMaybeSetPersistedHighSeqno(
+            CollectionID cid,
+            uint64_t seqno,
+            WantsDropped wantsDropped = WantsDropped::No);
 
     /**
      * A map of collections that have had items flushed and the statistics
@@ -263,6 +288,13 @@ private:
      * seqno.
      */
     StatsMap stats;
+
+    /**
+     * Similar to stats, but these collections have been dropped and now are
+     * logicallyDeleted. We don't track these under "stats" as some backends
+     * don't keep around stats for deleted collections
+     */
+    StatsMap droppedStats;
 
     /**
      * For each collection dropped in the batch, we record the metadata of the

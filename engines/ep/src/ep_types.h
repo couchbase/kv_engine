@@ -43,6 +43,7 @@ enum class SyncWriteOperation : char { No, Yes };
 enum class IsSystem : char { No, Yes };
 enum class IsDeleted : char { No, Yes };
 enum class IsCommitted : char { No, Yes };
+enum class WantsDropped : char { No, Yes };
 
 enum class CheckpointType : char {
     /**

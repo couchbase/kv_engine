@@ -1131,13 +1131,15 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
                         req->getBodySize(),
                         configuration.magmaCfg.GetSeqNum(oldMeta),
                         oldIsDeleted,
-                        configuration.magmaCfg.GetValueSize(oldMeta));
+                        configuration.magmaCfg.GetValueSize(oldMeta),
+                        WantsDropped::Yes);
             } else {
                 commitData.collections.updateStats(docKey,
                                                    req->getDocMeta().bySeqno,
                                                    isCommitted,
                                                    isDeleted,
-                                                   req->getBodySize());
+                                                   req->getBodySize(),
+                                                   WantsDropped::Yes);
             }
         } else {
             // Tell Collections::Flush that it may need to record this seqno
@@ -2052,7 +2054,7 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<CompactionContext> ctx) {
         for (auto& dc : dropped) {
             auto handle = makeFileHandle(vbid);
             auto [success, stats] =
-                    getCollectionStats(*handle, dc.collectionId);
+                    getDroppedCollectionStats(vbid, dc.collectionId);
             if (!success) {
                 logger->warn(
                         "MagmaKVStore::compactDBInternal getCollectionStats() "
@@ -2135,7 +2137,7 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<CompactionContext> ctx) {
             // But only after checking the ordering (seqno). Stats are only
             // removed if there is no recreation of the collection.
             if (dc.endSeqno > stats.highSeqno) {
-                deleteCollectionStats(localDbReqs, dc.collectionId);
+                deleteDroppedCollectionStats(localDbReqs, dc.collectionId);
             }
             ctx->eraserContext->processSystemEvent(key.getDocKey(),
                                                    SystemEvent::Collection);
@@ -2416,9 +2418,9 @@ magma::Status MagmaKVStore::updateDroppedCollections(
         Vbid vbid,
         LocalDbReqs& localDbReqs,
         Collections::VB::Flush& collectionsFlush) {
-    // Normally we would drop the collections stats local doc here but magma
-    // can visit old keys (during the collection erasure compaction) and we
-    // can't work out if they are the latest or not. To track the document
+    // For couchstore we would drop the collections stats local doc here but
+    // magma can visit old keys (during the collection erasure compaction) and
+    // we can't work out if they are the latest or not. To track the document
     // count correctly we need to keep the stats doc around until the collection
     // erasure compaction runs which will then delete the doc when it has
     // processed the collection.
@@ -2426,6 +2428,38 @@ magma::Status MagmaKVStore::updateDroppedCollections(
     if (!status) {
         return Status(Status::Code::Invalid,
                       "Failed to get dropped collections");
+    }
+
+    auto flushDroppedCollections = collectionsFlush.getDroppedCollections();
+    for (auto [cid, droppedCollection] : flushDroppedCollections) {
+        // Step 1) Read the dropped stats - they may already exist and we should
+        // add to their values if they do.
+        auto [droppedStatus, droppedStats] =
+                getDroppedCollectionStats(vbid, cid);
+
+        // Step 2) Read the current alive stats on disk, we'll add them to the
+        // dropped stats as the collection is now gone
+        auto [status, currentAliveStats] = getCollectionStats(vbid, cid);
+        if (status) {
+            droppedStats.itemCount += currentAliveStats.itemCount;
+            droppedStats.diskSize += currentAliveStats.diskSize;
+        }
+
+        // Step 3) Add the dropped stats from FlushAccounting
+        auto droppedInFlush = collectionsFlush.getDroppedStats(cid);
+        droppedStats.itemCount += droppedInFlush.getItemCount();
+        droppedStats.diskSize += droppedInFlush.getDiskSize();
+
+        // Step 4) Write the new dropped stats back for compaction
+        auto key = getDroppedCollectionsStatsKey(cid);
+        auto encodedStats = droppedStats.getLebEncodedStats();
+        localDbReqs.emplace_back(MagmaLocalReq(key, std::move(encodedStats)));
+
+        // Step 5) Delete the latest alive stats if the collection wasn't
+        // resurrected, we don't need them anymore
+        if (!collectionsFlush.isOpen(cid)) {
+            deleteCollectionStats(localDbReqs, cid);
+        }
     }
 
     auto buf = collectionsFlush.encodeDroppedCollections(dropped);
@@ -2438,6 +2472,10 @@ std::string MagmaKVStore::getCollectionsStatsKey(CollectionID cid) {
     return std::string{"|" + cid.to_string() + "|"};
 }
 
+std::string MagmaKVStore::getDroppedCollectionsStatsKey(CollectionID cid) {
+    return std::string{"|" + cid.to_string() + "|.deleted"};
+}
+
 void MagmaKVStore::saveCollectionStats(
         LocalDbReqs& localDbReqs,
         CollectionID cid,
@@ -2445,6 +2483,12 @@ void MagmaKVStore::saveCollectionStats(
     auto key = getCollectionsStatsKey(cid);
     auto encodedStats = stats.getLebEncodedStats();
     localDbReqs.emplace_back(MagmaLocalReq(key, std::move(encodedStats)));
+}
+
+std::pair<bool, Collections::VB::PersistedStats>
+MagmaKVStore::getDroppedCollectionStats(Vbid vbid, CollectionID cid) {
+    auto key = getDroppedCollectionsStatsKey(cid);
+    return getCollectionStats(vbid, key);
 }
 
 std::pair<bool, Collections::VB::PersistedStats>
@@ -2477,6 +2521,12 @@ std::pair<bool, Collections::VB::PersistedStats> MagmaKVStore::getCollectionStat
         return {true, Collections::VB::PersistedStats()};
     }
     return {true, Collections::VB::PersistedStats(stats.c_str(), stats.size())};
+}
+
+void MagmaKVStore::deleteDroppedCollectionStats(LocalDbReqs& localDbReqs,
+                                                CollectionID cid) {
+    auto key = getDroppedCollectionsStatsKey(cid);
+    localDbReqs.emplace_back(MagmaLocalReq::makeDeleted(key));
 }
 
 void MagmaKVStore::deleteCollectionStats(LocalDbReqs& localDbReqs,

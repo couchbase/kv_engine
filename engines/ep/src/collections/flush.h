@@ -65,13 +65,16 @@ public:
      * @param isCommitted the prepare/commit state of the item flushed
      * @param isDelete alive/delete state of the item flushed
      * @param size bytes used on disk of the item flushed
+     * @param wantsDropped should we update dropped stats?
      */
     void updateStats(const DocKey& key,
                      uint64_t seqno,
                      IsCommitted isCommitted,
                      IsDeleted isDelete,
-                     size_t size) {
-        flushAccounting.updateStats(key, seqno, isCommitted, isDelete, size);
+                     size_t size,
+                     WantsDropped wantsDropped = WantsDropped::No) {
+        flushAccounting.updateStats(
+                key, seqno, isCommitted, isDelete, size, wantsDropped);
     }
 
     /**
@@ -86,6 +89,7 @@ public:
      * @param oldSeqno The seqno of the old 'version' of the item
      * @param oldIsDelete alive/delete state of the old 'version' of the item
      * @param oldSize bytes used on disk of the old 'version' of the item
+     * @param wantsDropped should we update dropped stats?
      */
     void updateStats(const DocKey& key,
                      uint64_t seqno,
@@ -94,7 +98,8 @@ public:
                      size_t size,
                      uint64_t oldSeqno,
                      IsDeleted oldIsDelete,
-                     size_t oldSize) {
+                     size_t oldSize,
+                     WantsDropped wantsDropped = WantsDropped::No) {
         flushAccounting.updateStats(key,
                                     seqno,
                                     isCommitted,
@@ -102,7 +107,8 @@ public:
                                     size,
                                     oldSeqno,
                                     oldIsDelete,
-                                    oldSize);
+                                    oldSize,
+                                    wantsDropped);
     }
 
     /**
@@ -178,6 +184,15 @@ public:
     bool isDroppedScopesChanged() const {
         return !droppedScopes.empty();
     }
+
+    /// @return const reference to the map of dropped collections
+    const std::unordered_map<CollectionID, KVStore::DroppedCollection>&
+    getDroppedCollections() const {
+        return flushAccounting.getDroppedCollections();
+    }
+
+    /// @return the stats for a given dropped collection
+    FlushAccounting::StatisticsUpdate getDroppedStats(CollectionID cid);
 
     void recordSystemEvent(const Item& item);
 
@@ -264,6 +279,9 @@ public:
      */
     bool droppedCollectionsExists() const;
 
+    // @return was the collection opened in this batch?
+    bool isOpen(CollectionID cid) const;
+
 private:
     /**
      * Set the ManifestUid from the create/drop events (but only the greatest
@@ -298,8 +316,6 @@ private:
      * collections. The actual task scheduled is compaction
      */
     void checkAndTriggerPurge(Vbid vbid, EPBucket& bucket) const;
-
-
 
     /**
      * For each collection created in the batch, we record meta data of the

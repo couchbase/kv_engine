@@ -2893,15 +2893,16 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd,
 
     auto* activeKVS = vb->getShard()->getRWUnderlying();
     ASSERT_TRUE(activeKVS);
-    checkKVS(*activeKVS, vbid);
+    {
+        SCOPED_TRACE("Active");
+        checkKVS(*activeKVS, vbid);
+    }
 
     auto* replicaKVS = rvb->getShard()->getRWUnderlying();
     ASSERT_TRUE(replicaKVS);
-    checkKVS(*replicaKVS, replicaVB);
-
-    // MB-42272: skip check for magma full eviction, most variants don't pass
-    if ((isFullEviction() && isMagma())) {
-        return;
+    {
+        SCOPED_TRACE("Replica");
+        checkKVS(*replicaKVS, replicaVB);
     }
 
     if (dropAtEnd) {
@@ -2943,11 +2944,6 @@ TEST_P(CollectionsDcpPersistentOnly,
 
 TEST_P(CollectionsDcpPersistentOnly,
        create_drop_create_same_id_end_dropped_update_delete) {
-    if (isMagma()) {
-        // Test currently crashes with an underflow and will be fixed as part of
-        // MB-42272
-        GTEST_SKIP();
-    }
     resurrectionTest(true, true, true);
 }
 

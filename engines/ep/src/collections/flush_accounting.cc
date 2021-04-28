@@ -35,7 +35,20 @@ static std::pair<bool, std::optional<CollectionID>> getCollectionID(
 }
 
 FlushAccounting::StatisticsUpdate&
-FlushAccounting::getStatsAndMaybeSetPersistedHighSeqno(CollectionID cid,
+FlushAccounting::getStatsAndMaybeSetPersistedHighSeqno(
+        CollectionID cid, uint64_t seqno, WantsDropped wantsDropped) {
+    if (isLogicallyDeleted(cid, seqno) && wantsDropped == WantsDropped::Yes) {
+        getStatsAndMaybeSetPersistedHighSeqno(stats, cid, seqno);
+
+        return getStatsAndMaybeSetPersistedHighSeqno(droppedStats, cid, seqno);
+    }
+
+    return getStatsAndMaybeSetPersistedHighSeqno(stats, cid, seqno);
+}
+
+FlushAccounting::StatisticsUpdate&
+FlushAccounting::getStatsAndMaybeSetPersistedHighSeqno(StatsMap& stats,
+                                                       CollectionID cid,
                                                        uint64_t seqno) {
     auto [itr, inserted] = stats.try_emplace(cid, StatisticsUpdate{seqno});
     auto& [key, value] = *itr;
@@ -118,7 +131,8 @@ void FlushAccounting::updateStats(const DocKey& key,
                                   uint64_t seqno,
                                   IsCommitted isCommitted,
                                   IsDeleted isDelete,
-                                  size_t size) {
+                                  size_t size,
+                                  WantsDropped wantsDropped) {
     auto [isSystemEvent, cid] = getCollectionID(key);
 
     if (!cid) {
@@ -136,16 +150,13 @@ void FlushAccounting::updateStats(const DocKey& key,
     }
 
     // Track high-seqno for the item
-    auto& collsFlushStats =
-            getStatsAndMaybeSetPersistedHighSeqno(cid.value(), seqno);
+    auto& collsFlushStats = getStatsAndMaybeSetPersistedHighSeqno(
+            cid.value(), seqno, wantsDropped);
 
-    // but don't track any changes if the item is logically deleted. Why?
-    // A flush batch could of recreated the collection, the stats tracking code
-    // only has stats stored for the most recent collection, we cannot then
-    // call insert for a dropped collection otherwise the stats will be
-    // incorrect. Note this relates to an issue for MB-42272, magma assumes the
-    // stats item count will include *everything*, but isn't.
-    if (!isLogicallyDeleted(cid.value(), seqno)) {
+    // If we want the dropped stats then getStatsAndMaybeSetPersistedHighSeqno
+    // would have returned a reference to stats in droppedCollections.
+    if (!isLogicallyDeleted(cid.value(), seqno) ||
+        wantsDropped == WantsDropped::Yes) {
         collsFlushStats.insert(isSystemEvent ? IsSystem::Yes : IsSystem::No,
                                isDelete,
                                isCommitted,
@@ -160,7 +171,8 @@ void FlushAccounting::updateStats(const DocKey& key,
                                   size_t size,
                                   uint64_t oldSeqno,
                                   IsDeleted oldIsDelete,
-                                  size_t oldSize) {
+                                  size_t oldSize,
+                                  WantsDropped wantsDropped) {
     // Same logic and comment as updateStats above.
     auto [systemEvent, cid] = getCollectionID(key);
     auto isSystemEvent = systemEvent ? IsSystem::Yes : IsSystem::No;
@@ -172,13 +184,25 @@ void FlushAccounting::updateStats(const DocKey& key,
         return;
     }
 
-    auto& collsFlushStats =
-            getStatsAndMaybeSetPersistedHighSeqno(cid.value(), seqno);
+    auto& collsFlushStats = getStatsAndMaybeSetPersistedHighSeqno(
+            cid.value(), seqno, wantsDropped);
 
-    // As per comment in the other updateStats, logically deleted items don't
-    // update item-count/disk-size
-    if (isLogicallyDeleted(cid.value(), seqno)) {
+    // Logically deleted items don't update item-count/disk-size
+    if (isLogicallyDeleted(cid.value(), seqno) &&
+        wantsDropped == WantsDropped::No) {
         return;
+    }
+
+    if (isSystemEvent == IsSystem::No && wantsDropped == WantsDropped::Yes &&
+        droppedCollections.find(cid.value()) != droppedCollections.end() &&
+        isLogicallyDeleted(cid.value(), oldSeqno)) {
+        // When we resurrect a collection and update a stat in it in this flush
+        // batch (i.e. the key previously existed on disk for the old generation
+        // of the collection) we need to decrement our dropped stats by that
+        // value as the key will still exist and isn't going to go away now.
+        auto& dropped = getStatsAndMaybeSetPersistedHighSeqno(
+                droppedStats, cid.value(), seqno);
+        dropped.remove(IsSystem::No, IsDeleted::No, IsCommitted::Yes, 50);
     }
 
     // Of interest next is the state of old vs new. An update can become an
