@@ -63,10 +63,10 @@ DcpProducer::BufferLog::State DcpProducer::BufferLog::getState_UNLOCKED() {
     return Disabled;
 }
 
-void DcpProducer::BufferLog::setBufferSize(size_t maxBytes) {
+void DcpProducer::BufferLog::setBufferSize(size_t newMaxBytes) {
     std::unique_lock<folly::SharedMutex> wlh(logLock);
-    this->maxBytes = maxBytes;
-    if (maxBytes == 0) {
+    maxBytes = newMaxBytes;
+    if (newMaxBytes == 0) {
         bytesOutstanding = 0;
         ackedBytes.reset(0);
     }
@@ -846,9 +846,7 @@ cb::engine_errc DcpProducer::step(DcpMessageProducersIface& producers) {
     const auto event = resp->getEvent();
     if (ret == cb::engine_errc::too_big) {
         rejectResp = std::move(resp);
-    }
-
-    if (ret == cb::engine_errc::success) {
+    } else if (ret == cb::engine_errc::success) {
         switch (event) {
         case DcpResponse::Event::Abort:
         case DcpResponse::Event::Commit:
@@ -885,13 +883,13 @@ cb::engine_errc DcpProducer::bufferAcknowledgement(uint32_t opaque,
     return cb::engine_errc::success;
 }
 
-cb::engine_errc DcpProducer::deletionV1OrV2(IncludeDeleteTime includeDeleteTime,
+cb::engine_errc DcpProducer::deletionV1OrV2(IncludeDeleteTime incDeleteTime,
                                             MutationResponse& mutationResponse,
                                             DcpMessageProducersIface& producers,
                                             std::unique_ptr<Item> itmCpy,
                                             cb::engine_errc ret,
                                             cb::mcbp::DcpStreamId sid) {
-    if (includeDeleteTime == IncludeDeleteTime::Yes) {
+    if (incDeleteTime == IncludeDeleteTime::Yes) {
         ret = producers.deletion_v2(mutationResponse.getOpaque(),
                                     toUniqueItemPtr(std::move(itmCpy)),
                                     mutationResponse.getVBucket(),
@@ -1668,7 +1666,7 @@ void DcpProducer::closeAllStreams() {
     {
         std::for_each(streams->begin(),
                       streams->end(),
-                      [this, &vbvector](StreamsMap::value_type& vt) {
+                      [&vbvector](StreamsMap::value_type& vt) {
                           vbvector.push_back((Vbid)vt.first);
                           std::vector<std::shared_ptr<Stream>> streamPtrs;
                           // MB-35073: holding StreamContainer lock while
@@ -1719,7 +1717,7 @@ std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
         while (ready.popFront(vbucket)) {
             if (log.pauseIfFull()) {
                 ready.pushUnique(vbucket);
-                return NULL;
+                return nullptr;
             }
 
             auto rv = streams->find(vbucket.get());

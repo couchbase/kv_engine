@@ -163,8 +163,6 @@ public:
 
     const char *getType() const override;
 
-    size_t getBackfillQueueSize();
-
     size_t getItemsSent();
 
     size_t getTotalBytesSent();
@@ -380,8 +378,6 @@ public:
     StreamMapValue findStreams(Vbid vbid);
 
     std::string getConsumerName() const;
-
-    void setIdleTimeout(size_t newValue);
 
     bool isOutOfOrderSnapshotsEnabled() const;
 
