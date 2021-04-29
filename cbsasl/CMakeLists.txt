@@ -39,7 +39,7 @@ add_sanitizers(cbsasl)
 
 # Unit tests
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
-    add_executable(cbsasl_utils_test strcmp_test.cc
+    cb_add_test_executable(cbsasl_utils_test strcmp_test.cc
                    scram-sha/saslprep_test.cc)
     kv_enable_pch(cbsasl_utils_test)
     target_link_libraries(cbsasl_utils_test cbsasl gtest gtest_main)
@@ -47,7 +47,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
              COMMAND cbsasl_utils_test)
 
-    add_executable(cbsasl_pwconv_test
+    cb_add_test_executable(cbsasl_pwconv_test
                    ${Memcached_SOURCE_DIR}/include/cbcrypto/cbcrypto.h
                    pwconv_test.cc)
     kv_enable_pch(cbsasl_pwconv_test)
@@ -62,7 +62,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
              COMMAND cbsasl_pwconv_test)
     add_sanitizers(cbsasl_pwconv_test)
 
-    add_executable(cbsasl_password_database_test
+    cb_add_test_executable(cbsasl_password_database_test
                    ${Memcached_SOURCE_DIR}/include/cbcrypto/cbcrypto.h
                    password_database_test.cc    )
     kv_enable_pch(cbsasl_password_database_test)
@@ -77,7 +77,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
              COMMAND cbsasl_password_database_test)
     add_sanitizers(cbsasl_password_database_test)
 
-    add_executable(cbsasl_client_server_test
+    cb_add_test_executable(cbsasl_client_server_test
                    ${Memcached_SOURCE_DIR}/include/cbcrypto/cbcrypto.h
                    client_server_test.cc)
     kv_enable_pch(cbsasl_client_server_test)
@@ -87,7 +87,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
              COMMAND cbsasl_client_server_test)
     add_sanitizers(cbsasl_client_server_test)
 
-    add_executable(cbsasl_server_test sasl_server_test.cc)
+    cb_add_test_executable(cbsasl_server_test sasl_server_test.cc)
     kv_enable_pch(cbsasl_server_test)
     target_link_libraries(cbsasl_server_test
                           cbsasl

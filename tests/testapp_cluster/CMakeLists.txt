@@ -1,4 +1,4 @@
-add_executable(cluster_test
+cb_add_test_executable(cluster_test
                clustertest.cc
                clustertest.h
                collection_tests.cc

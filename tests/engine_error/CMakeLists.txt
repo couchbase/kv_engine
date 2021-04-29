@@ -1,5 +1,5 @@
 INCLUDE_DIRECTORIES(AFTER SYSTEM ${gtest_SOURCE_DIR}/include)
-ADD_EXECUTABLE(memcached-engine-error-test engine_error_test.cc)
+cb_add_test_executable(memcached-engine-error-test engine_error_test.cc)
 kv_enable_pch(memcached-engine-error-test)
 TARGET_LINK_LIBRARIES(memcached-engine-error-test engine_utilities gtest gtest_main)
 ADD_TEST(NAME memcached-engine-error-test

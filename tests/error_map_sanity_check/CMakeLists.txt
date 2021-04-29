@@ -1,4 +1,4 @@
-ADD_EXECUTABLE(memcached_errormap_sanity_check
+cb_add_test_executable(memcached_errormap_sanity_check
                error_map_sanity_check.cc)
 kv_enable_pch(memcached_errormap_sanity_check)
 

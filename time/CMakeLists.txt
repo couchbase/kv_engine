@@ -6,7 +6,7 @@ TARGET_LINK_LIBRARIES(mcd_time platform)
 kv_enable_pch(mcd_time)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
-    ADD_EXECUTABLE(memcached_timestamp_test timestamp_test.cc
+    cb_add_test_executable(memcached_timestamp_test timestamp_test.cc
                    ${PROJECT_SOURCE_DIR}/include/memcached/isotime.h)
     kv_enable_pch(memcached_timestamp_test)
     TARGET_LINK_LIBRARIES(memcached_timestamp_test mcd_time)

@@ -247,7 +247,7 @@ INSTALL(TARGETS memcached
 # Unit tests
 #
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
-    add_executable(client_cert_config_test
+    cb_add_test_executable(client_cert_config_test
                    client_cert_config_test.cc
                    client_cert_config.cc
                    client_cert_config.h)
@@ -263,7 +263,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     add_sanitizers(client_cert_config_test)
     kv_enable_pch(client_cert_config_test)
 
-    add_executable(memcached_unit_tests
+    cb_add_test_executable(memcached_unit_tests
                    bucket_validator_test.cc
                    connection_unit_tests.cc
                    datatype_filter_test.cc

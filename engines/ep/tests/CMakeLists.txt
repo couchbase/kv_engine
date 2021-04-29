@@ -21,7 +21,7 @@ target_link_libraries(ep_testsuite_objs PUBLIC platform)
 # EventuallyPersistentEngine driven by GoogleTest.
 # (We end up compiling most of the src/ files of ep-engine for these unit tests,
 # so simpler / quicker just to link them into a single executable).
-ADD_EXECUTABLE(ep-engine_ep_unit_tests
+cb_add_test_executable(ep-engine_ep_unit_tests
         ep_request_utils.cc
         module_tests/atomic_unordered_map_test.cc
         module_tests/backfill-manager_test.cc
@@ -163,7 +163,7 @@ endif()
 add_sanitizers(ep-engine_ep_unit_tests)
 kv_enable_pch(ep-engine_ep_unit_tests)
 
-ADD_EXECUTABLE(ep-engine_couch-fs-stats_test
+cb_add_test_executable(ep-engine_couch-fs-stats_test
         ${EventuallyPersistentEngine_SOURCE_DIR}/src/couch-kvstore/couch-fs-stats.cc
         ${EventuallyPersistentEngine_SOURCE_DIR}/src/configuration.h
         module_tests/couch-fs-stats_test.cc
@@ -183,11 +183,11 @@ TARGET_LINK_LIBRARIES(ep-engine_couch-fs-stats_test
         phosphor)
 add_sanitizers(ep-engine_couch-fs-stats_test)
 
-ADD_EXECUTABLE(ep-engine_misc_test module_tests/misc_test.cc)
+cb_add_test_executable(ep-engine_misc_test module_tests/misc_test.cc)
 kv_enable_pch(ep-engine_misc_test)
 TARGET_LINK_LIBRARIES(ep-engine_misc_test mcbp platform)
 
-ADD_EXECUTABLE(ep-engine_string_utils_test
+cb_add_test_executable(ep-engine_string_utils_test
         module_tests/string_utils_test.cc
         ${EventuallyPersistentEngine_SOURCE_DIR}/src/string_utils.cc)
 kv_enable_pch(ep-engine_string_utils_test)

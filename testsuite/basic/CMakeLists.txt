@@ -1,4 +1,4 @@
-add_executable(memcached-basic-engine-tests
+cb_add_test_executable(memcached-basic-engine-tests
                basic_engine_testsuite.cc
                engine_testsuite.cc)
 kv_enable_pch(memcached-basic-engine-tests)

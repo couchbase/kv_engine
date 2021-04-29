@@ -1,7 +1,7 @@
 IF(NOT WIN32)
     INCLUDE_DIRECTORIES(${JEMALLOC_INCLUDE_DIR})
 
-    ADD_EXECUTABLE(jemalloc_allocator_stats
+    cb_add_test_executable(jemalloc_allocator_stats
             jemalloc_allocator_stats.cc)
     kv_enable_pch(jemalloc_allocator_stats)
 

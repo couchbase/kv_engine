@@ -5,7 +5,7 @@ add_sanitizers(mcd_tracing)
 kv_enable_pch(mcd_tracing)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
-    add_executable(tracing_test tracing_test.cc)
+    cb_add_test_executable(tracing_test tracing_test.cc)
     kv_enable_pch(tracing_test)
     target_link_libraries(tracing_test
                           mcd_tracing memcached_daemon gtest gtest_main)

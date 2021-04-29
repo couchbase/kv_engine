@@ -54,7 +54,7 @@ install(FILES
         DESTINATION etc/security)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
-    add_executable(audit_generator_unit_test
+    cb_add_test_executable(audit_generator_unit_test
                    generator_event_test.cc
                    generator_module_test.cc
                    $<TARGET_OBJECTS:audit_generator_utilities>)

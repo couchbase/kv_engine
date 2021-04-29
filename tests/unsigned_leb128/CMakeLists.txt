@@ -1,7 +1,7 @@
-add_executable(memcached_unsigned_leb128_test
+cb_add_test_executable(memcached_unsigned_leb128_test
                unsigned_leb128_test.cc)
 kv_enable_pch(memcached_unsigned_leb128_test)
-add_executable(memcached_unsigned_leb128_bench
+cb_add_test_executable(memcached_unsigned_leb128_bench
                unsigned_leb128_bench.cc)
 kv_enable_pch(memcached_unsigned_leb128_bench)
 target_link_libraries(memcached_unsigned_leb128_test

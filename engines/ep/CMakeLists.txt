@@ -102,7 +102,7 @@ add_sanitizers(genconfig)
 add_subdirectory(tools/couchfile_upgrade)
 include_directories(tools/couchfile_upgrade)
 
-add_executable(kvstore_gen tools/kvstore_gen.cc
+cb_add_test_executable(kvstore_gen tools/kvstore_gen.cc
         ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_cookie.cc
         ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
         ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
@@ -419,7 +419,7 @@ if (NOT EP_BYPASS_TESTS)
     # Convenience function to define an ep_testsuite /ep_perfsuite -style
     # test.
     function(add_ep_testsuite name source)
-      add_executable(${name}
+      cb_add_test_executable(${name}
         ${source}
         $<TARGET_OBJECTS:ep_testsuite_objs>
         $<TARGET_OBJECTS:mock_dcp>
@@ -468,7 +468,7 @@ if (NOT EP_BYPASS_TESTS)
     # this directory.
     add_ep_testsuite(ep_perfsuite tests/ep_perfsuite.cc)
 
-    ADD_EXECUTABLE(ep_engine_benchmarks
+    cb_add_test_executable(ep_engine_benchmarks
                    benchmarks/access_scanner_bench.cc
                    benchmarks/benchmark_memory_tracker.cc
                    benchmarks/checkpoint_iterator_bench.cc
@@ -530,7 +530,7 @@ if (NOT EP_BYPASS_TESTS)
     add_sanitizers(ep_engine_benchmarks)
     cb_enable_unity_build(ep_engine_benchmarks)
 
-    ADD_EXECUTABLE(ep-engine_sizes src/sizes.cc
+    cb_add_test_executable(ep-engine_sizes src/sizes.cc
                    $<TARGET_OBJECTS:ep_objs>)
     kv_enable_pch(ep-engine_sizes)
     TARGET_LINK_LIBRARIES(ep-engine_sizes JSON_checker hdr_histogram_static

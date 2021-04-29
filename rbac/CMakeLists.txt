@@ -9,7 +9,7 @@ kv_enable_pch(memcached_rbac)
 target_link_libraries(memcached_rbac cbsasl platform)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
-    add_executable(memcached_rbac_test
+    cb_add_test_executable(memcached_rbac_test
                    privilege_test.cc
                    privilege_database_test.cc)
     kv_enable_pch(memcached_rbac_test)

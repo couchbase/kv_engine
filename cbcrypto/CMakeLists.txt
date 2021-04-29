@@ -15,7 +15,7 @@ else()
 endif ()
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
-    add_executable(cbcrypto_test
+    cb_add_test_executable(cbcrypto_test
                    cbcrypto_test.cc
                    ${Memcached_SOURCE_DIR}/include/cbcrypto/cbcrypto.h)
     kv_enable_pch(cbcrypto_test)

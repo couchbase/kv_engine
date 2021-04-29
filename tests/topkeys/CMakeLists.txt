@@ -1,4 +1,4 @@
-add_executable(memcached_topkeys_test topkeys_test.cc)
+cb_add_test_executable(memcached_topkeys_test topkeys_test.cc)
 kv_enable_pch(memcached_topkeys_test)
 target_link_libraries(memcached_topkeys_test memcached_daemon gtest gtest_main)
 add_sanitizers(memcached_topkeys_test)
@@ -8,7 +8,7 @@ add_test(NAME memcached_topkeys_test
          COMMAND memcached_topkeys_test)
 
 if (NOT WIN32)
-  add_executable(memcached_topkeys_benchmark topkeys_benchmark.cc)
+  cb_add_test_executable(memcached_topkeys_benchmark topkeys_benchmark.cc)
   kv_enable_pch(memcached_topkeys_benchmark)
   target_include_directories(memcached_topkeys_benchmark
       SYSTEM PRIVATE

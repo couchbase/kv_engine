@@ -1,5 +1,5 @@
 include_directories(AFTER SYSTEM ${gtest_SOURCE_DIR}/include)
-add_executable(memcached_mcbp_test
+cb_add_test_executable(memcached_mcbp_test
                mcbp_frame_extra.cc
                mcbp_dcp_test.cc
                mcbp_gat_test.cc
@@ -30,7 +30,7 @@ if(MSVC)
     target_compile_options(memcached_mcbp_test PRIVATE "/bigobj")
 endif()
 
-add_executable(memcached_mcbp_bench
+cb_add_test_executable(memcached_mcbp_bench
         mcbp_bench.cc)
 kv_enable_pch(memcached_mcbp_bench)
 target_include_directories(memcached_mcbp_bench

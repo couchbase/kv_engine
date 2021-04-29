@@ -12,7 +12,7 @@ target_link_libraries(memcached_logger PUBLIC platform spdlog)
 add_sanitizers(memcached_logger)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
-    add_executable(memcached_logger_test
+    cb_add_test_executable(memcached_logger_test
                    logger_test.cc
                    logger_test_fixture.cc)
     kv_enable_pch(memcached_logger_test)
@@ -23,7 +23,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
              COMMAND memcached_logger_test)
 
-    add_executable(memcached_logger_benchmark logger_benchmark.cc)
+    cb_add_test_executable(memcached_logger_benchmark logger_benchmark.cc)
     kv_enable_pch(memcached_logger_benchmark)
     target_include_directories(memcached_logger_benchmark
                                SYSTEM PRIVATE

@@ -30,18 +30,18 @@ set_property(TARGET mcbp PROPERTY POSITION_INDEPENDENT_CODE 1)
 kv_enable_pch(mcbp)
 cb_enable_unity_build(mcbp)
 
-add_executable(mcbp_packet_printer mcbp_packet_printer.cc)
+cb_add_test_executable(mcbp_packet_printer mcbp_packet_printer.cc)
 kv_enable_pch(mcbp_packet_printer)
 target_link_libraries(mcbp_packet_printer mcbp platform)
 add_sanitizers(mcbp_packet_printer)
 
-add_executable(mcbp_info mcbp_info.cc)
+cb_add_test_executable(mcbp_info mcbp_info.cc)
 kv_enable_pch(mcbp_info)
 target_link_libraries(mcbp_info mcbp)
 add_sanitizers(mcbp_info)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
-    add_executable(mcbp_unit_tests
+    cb_add_test_executable(mcbp_unit_tests
                    feature_test.cc
                    framebuilder_test.cc
                    magic_test.cc
