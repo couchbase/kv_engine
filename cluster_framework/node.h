@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <boost/filesystem/path.hpp>
 #include <folly/portability/Unistd.h>
 #include <folly/portability/Windows.h>
 #include <protocol/connection/client_connection_map.h>
@@ -33,7 +34,7 @@ public:
 
     virtual std::unique_ptr<MemcachedConnection> getConnection() const = 0;
 
-    const std::string directory;
+    const boost::filesystem::path directory;
 
     /**
      * Get the map of connections to the node. Given that the node was
@@ -51,11 +52,11 @@ public:
      *                  databases should live)
      * @param id a textual identifier to use for the node
      */
-    static std::unique_ptr<Node> create(const std::string& directory,
+    static std::unique_ptr<Node> create(boost::filesystem::path directory,
                                         const std::string& id);
 
 protected:
-    explicit Node(std::string dir);
+    explicit Node(boost::filesystem::path dir);
 
 #ifdef WIN32
     mutable HANDLE child = INVALID_HANDLE_VALUE;

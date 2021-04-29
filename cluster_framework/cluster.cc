@@ -13,7 +13,7 @@
 #include "bucket.h"
 #include "node.h"
 
-#include <platform/dirutils.h>
+#include <boost/filesystem.hpp>
 #include <platform/uuid.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <iostream>
@@ -29,7 +29,8 @@ class ClusterImpl : public Cluster {
 public:
     ClusterImpl() = delete;
     ClusterImpl(const ClusterImpl&) = delete;
-    ClusterImpl(std::vector<std::unique_ptr<Node>>& nod, std::string dir)
+    ClusterImpl(std::vector<std::unique_ptr<Node>>& nod,
+                boost::filesystem::path dir)
         : nodes(std::move(nod)),
           directory(std::move(dir)),
           authProviderService(*this),
@@ -121,7 +122,7 @@ public:
 protected:
     std::vector<std::unique_ptr<Node>> nodes;
     std::vector<std::shared_ptr<Bucket>> buckets;
-    const std::string directory;
+    const boost::filesystem::path directory;
     AuthProviderService authProviderService;
     const std::string uuid;
     nlohmann::json manifest;
@@ -188,12 +189,9 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
                                      cb::mcbp::Feature::SELECT_BUCKET,
                                      cb::mcbp::Feature::JSON,
                                      cb::mcbp::Feature::SNAPPY});
-            std::string fname = nodes[node_idx]->directory + "/" + name;
-            std::replace(fname.begin(), fname.end(), '\\', '/');
-            json["dbname"] = fname;
-            fname = json["dbname"].get<std::string>() + "/access.log";
-            std::replace(fname.begin(), fname.end(), '\\', '/');
-            json["alog_path"] = fname;
+            const auto dbname = nodes[node_idx]->directory / name;
+            json["dbname"] = dbname.generic_string();
+            json["alog_path"] = (dbname / "access.log").generic_string();
             std::string config;
             for (auto it = json.begin(); it != json.end(); ++it) {
                 if (it.value().is_string()) {
@@ -289,8 +287,7 @@ void ClusterImpl::deleteBucket(const std::string& name) {
         connection->authenticate("@admin", "password", "plain");
         connection->deleteBucket(name);
         // And nuke the files for the database on that node..
-        std::string bucketdir = cb::io::sanitizePath(n->directory + "/" + name);
-        cb::io::rmrf(bucketdir);
+        removeWithRetry(n->directory / name);
     }
 }
 
@@ -298,30 +295,24 @@ size_t ClusterImpl::size() const {
     return nodes.size();
 }
 
-std::pair<bool, std::string> rmrf_nothrow(const std::string& path) {
-    try {
-        cb::io::rmrf(path);
-    } catch (const std::exception& e) {
-        return {false, std::string{e.what()}};
-    }
-    return {true, {}};
-}
-
 ClusterImpl::~ClusterImpl() {
     buckets.clear();
     bool cleanup = true;
 
     for (auto& n : nodes) {
-        const auto minidump_dir = cb::io::sanitizePath(n->directory + "/crash");
-        if (cb::io::isDirectory(minidump_dir)) {
-            auto files = cb::io::findFilesWithPrefix(minidump_dir, "");
-            cleanup &= files.empty();
+        const auto minidump_dir = n->directory / "crash";
+        for (const auto& p :
+             boost::filesystem::directory_iterator(minidump_dir)) {
+            if (is_regular_file(p)) {
+                cleanup = false;
+                break;
+            }
         }
     }
 
     nodes.clear();
     // @todo I should make this configurable?
-    if (cleanup && cb::io::isDirectory(directory)) {
+    if (cleanup && exists(directory) && is_directory(directory)) {
         // I'm seeing a lot of failures on windows where file removal returns
         // EINVAL (when using ::remove) and EIO (when using DeleteFile).
         // From the looks of it EIO could be that someone else is holding
@@ -330,16 +321,7 @@ ClusterImpl::~ClusterImpl() {
         // now and then, and when it failed it would typically succeed within
         // 1-4 times of retrying.. Allow a few more to avoid failures if the
         // server is loaded and slow...
-        for (int retry = 0; retry < 100; ++retry) {
-            auto [success, msg] = rmrf_nothrow(directory);
-            if (success) {
-                break;
-            }
-            std::cerr << "WARNING: Failed to delete directory. " << msg
-                      << std::endl
-                      << "         Sleep 20ms before retry" << std::endl;
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
+        removeWithRetry(directory);
     }
 }
 
@@ -360,23 +342,29 @@ void ClusterImpl::iterateNodes(std::function<void(const Node&)> visitor) const {
     }
 }
 
+static boost::filesystem::path createTemporaryDirectory() {
+    const auto cwd = absolute(boost::filesystem::path{"."}).parent_path();
+    for (;;) {
+        auto candidate = cwd / boost::filesystem::unique_path("cluster_%%%%%%");
+        if (create_directories(candidate)) {
+            return candidate;
+        }
+    }
+}
+
 std::unique_ptr<Cluster> Cluster::create(size_t num_nodes,
                                          std::optional<std::string> directory) {
-    if (!directory) {
-        const auto pattern =
-                cb::io::sanitizePath(cb::io::getcwd() + "/cluster_");
-        directory = cb::io::mkdtemp(pattern);
-    }
-
+    const boost::filesystem::path root =
+            directory.has_value() ? *directory : createTemporaryDirectory();
     std::vector<std::unique_ptr<Node>> nodes;
     for (size_t n = 0; n < num_nodes; ++n) {
         const std::string id = "n_" + std::to_string(n);
-        const auto nodedir = cb::io::sanitizePath(*directory + "/" + id);
-        cb::io::mkdirp(nodedir);
+        auto nodedir = root / id;
+        create_directories(nodedir);
         nodes.emplace_back(Node::create(nodedir, id));
     }
 
-    return std::make_unique<ClusterImpl>(nodes, *directory);
+    return std::make_unique<ClusterImpl>(nodes, root);
 }
 
 nlohmann::json Cluster::getUninitializedJson() {
@@ -389,6 +377,32 @@ nlohmann::json Cluster::getUninitializedJson() {
     ret["pools"] = nlohmann::json::array();
     ret["implementationVersion"] = "7.0.0-0000-enterprise";
     return ret;
+}
+
+void Cluster::removeWithRetry(
+        const boost::filesystem::path& path,
+        std::function<bool(const std::exception&)> errorcallback) {
+    int retry = 100;
+    if (!errorcallback) {
+        errorcallback = [&retry](const std::exception& e) {
+            std::cerr << "WARNING: Failed to delete directory: " << e.what()
+                      << std::endl
+                      << "         Sleep 20ms before retry" << std::endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            return --retry > 0;
+        };
+    }
+
+    do {
+        try {
+            boost::filesystem::remove_all(path);
+            return;
+        } catch (const std::exception& e) {
+            if (!errorcallback(e)) {
+                return;
+            }
+        }
+    } while (true);
 }
 
 } // namespace cb::test

@@ -13,6 +13,7 @@
 #include "dcp_packet_filter.h"
 #include "utilities/test_manifest.h"
 
+#include <boost/filesystem/path.hpp>
 #include <memcached/vbucket.h>
 #include <nlohmann/json_fwd.hpp>
 #include <memory>
@@ -121,6 +122,22 @@ public:
     static nlohmann::json getUninitializedJson();
 
     virtual nlohmann::json getGlobalClusterMap() = 0;
+
+    /**
+     * Utility function to try to remove a file or directory with retries
+     * (on windows you cannot remove a file if someone have it open and we
+     * have some race conditions in our tests doing that)
+     *
+     * @param path The file or directory to remove
+     * @param errorcallback A callback with the error. If a callback is
+     *                      provided the function will retry until the callback
+     *                      returns false
+     * @return The last error message if we failed to remove the requested
+     *
+     */
+    static void removeWithRetry(
+            const boost::filesystem::path& path,
+            std::function<bool(const std::exception&)> errorcallback = {});
 };
 
 } // namespace cb::test

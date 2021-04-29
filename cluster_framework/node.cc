@@ -9,6 +9,7 @@
  */
 
 #include "node.h"
+#include <boost/filesystem.hpp>
 #include <folly/portability/Unistd.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
@@ -26,12 +27,13 @@
 namespace cb::test {
 
 Node::~Node() = default;
-Node::Node(std::string directory) : directory(std::move(directory)) {
+Node::Node(boost::filesystem::path directory)
+    : directory(std::move(directory)) {
 }
 
 class NodeImpl : public Node {
 public:
-    NodeImpl(std::string directory, std::string id);
+    NodeImpl(boost::filesystem::path directory, std::string id);
     ~NodeImpl() override;
     void startMemcachedServer();
 
@@ -43,25 +45,24 @@ public:
 protected:
     void parsePortnumberFile();
 
-    std::string configfile;
+    const boost::filesystem::path configfile;
     nlohmann::json config;
     ConnectionMap connectionMap;
     const std::string id;
 };
 
-NodeImpl::NodeImpl(std::string directory, std::string id)
-    : Node(std::move(directory)), id(std::move(id)) {
+NodeImpl::NodeImpl(boost::filesystem::path directory, std::string id)
+    : Node(std::move(directory)),
+      configfile(Node::directory / "memcached.json"),
+      id(std::move(id)) {
+    const boost::filesystem::path source_root(SOURCE_ROOT);
     const auto errmaps =
-            cb::io::sanitizePath(SOURCE_ROOT "/etc/couchbase/kv/error_maps");
-    const auto rbac = cb::io::sanitizePath(SOURCE_ROOT
-                                           "/tests/testapp_cluster/rbac.json");
-    const auto log_filename =
-            cb::io::sanitizePath(NodeImpl::directory + "/memcached_log");
-    const auto portnumber_file =
-            cb::io::sanitizePath(NodeImpl::directory + "/memcached.ports.json");
-    const auto minidump_dir =
-            cb::io::sanitizePath(NodeImpl::directory + "/crash");
-    cb::io::mkdirp(minidump_dir);
+            source_root / "etc" / "couchbase" / "kv" / "error_maps";
+    const auto rbac = source_root / "tests" / "testapp_cluster" / "rbac.json";
+    const auto log_filename = NodeImpl::directory / "memcached_log";
+    const auto portnumber_file = NodeImpl::directory / "memcached.ports.json";
+    const auto minidump_dir = NodeImpl::directory / "crash";
+    create_directories(minidump_dir);
 
     config = {{"max_connections", 1000},
               {"system_connections", 250},
@@ -72,9 +73,9 @@ NodeImpl::NodeImpl(std::string directory, std::string id)
               {"dedupe_nmvb_maps", false},
               {"active_external_users_push_interval", "30 m"},
               {"always_collect_trace_info", true},
-              {"error_maps_dir", errmaps},
+              {"error_maps_dir", errmaps.generic_string()},
               {"external_auth_service", true},
-              {"rbac_file", rbac},
+              {"rbac_file", rbac.generic_string()},
               {"ssl_cipher_list", "HIGH"},
               {"ssl_minimum_protocol", "tlsv1"},
               {"opcode_attributes_override",
@@ -84,12 +85,12 @@ NodeImpl::NodeImpl(std::string directory, std::string id)
               {"logger",
                {{"unit_test", false},
                 {"console", true},
-                {"filename", log_filename}}},
+                {"filename", log_filename.generic_string()}}},
               {"breakpad",
                {{"enabled", true},
-                {"minidump_dir", minidump_dir},
+                {"minidump_dir", minidump_dir.generic_string()},
                 {"content", "default"}}},
-              {"portnumber_file", portnumber_file},
+              {"portnumber_file", portnumber_file.generic_string()},
               {"parent_identifier", (int)getpid()},
               {"prometheus", {{"port", 0}, {"family", "inet"}}}};
     config["interfaces"][0] = {{"tag", "plain"},
@@ -97,8 +98,7 @@ NodeImpl::NodeImpl(std::string directory, std::string id)
                                {"port", 0},
                                {"ipv4", "required"},
                                {"host", "*"}};
-    configfile = cb::io::sanitizePath(NodeImpl::directory + "/memcached.json");
-    std::ofstream out(configfile);
+    std::ofstream out(configfile.generic_string());
     out << config.dump(2);
     out.close();
 }
@@ -110,7 +110,9 @@ void NodeImpl::startMemcachedServer() {
     sinfo.cb = sizeof(sinfo);
 
     char commandline[1024];
-    sprintf(commandline, "memcached.exe -C %s", configfile.c_str());
+    sprintf(commandline,
+            "memcached.exe -C %s",
+            configfile.generic_string().c_str());
     if (!CreateProcess("memcached.exe", // lpApplicationName
                        commandline, // lpCommandLine
                        nullptr, // lpProcessAttributes
@@ -136,12 +138,13 @@ void NodeImpl::startMemcachedServer() {
 
     if (child == 0) {
         std::string binary(OBJECT_ROOT);
+        const auto memcached_json = configfile.generic_string();
         binary.append("/memcached");
 
         std::vector<const char*> argv;
         argv.emplace_back(binary.c_str());
         argv.emplace_back("-C");
-        argv.emplace_back(configfile.c_str());
+        argv.emplace_back(memcached_json.c_str());
         argv.emplace_back(nullptr);
         execvp(argv[0], const_cast<char**>(argv.data()));
         throw std::system_error(
@@ -205,7 +208,7 @@ NodeImpl::~NodeImpl() {
 
     if (!configfile.empty()) {
         try {
-            cb::io::rmrf(configfile);
+            remove(configfile);
         } catch (const std::exception& e) {
             std::cerr << "WARNING: Failed to remove \"" << configfile
                       << "\": " << e.what() << std::endl;
@@ -278,9 +281,9 @@ std::unique_ptr<MemcachedConnection> NodeImpl::getConnection() const {
     return ret;
 }
 
-std::unique_ptr<Node> Node::create(const std::string& directory,
+std::unique_ptr<Node> Node::create(boost::filesystem::path directory,
                                    const std::string& id) {
-    auto ret = std::make_unique<NodeImpl>(directory, id);
+    auto ret = std::make_unique<NodeImpl>(std::move(directory), id);
     ret->startMemcachedServer();
     return ret;
 }

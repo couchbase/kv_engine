@@ -10,6 +10,7 @@
 
 #include "clustertest.h"
 
+#include <boost/filesystem.hpp>
 #include <cluster_framework/auth_provider_service.h>
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
@@ -299,19 +300,15 @@ TEST_F(CollectionsTests, SetCollectionsWithNoDirectory) {
     // Remove the data dir, with a retry loop. Windows KV maybe accessing
     // the directory.
     cluster->iterateNodes([this](const cb::test::Node& node) {
-        auto path = node.directory + "/default";
+        const auto path = node.directory / "default";
         int tries = 0;
         const int retries = 50;
-        do {
-            tries++;
-            try {
-                cb::io::rmrf(cb::io::sanitizePath(path));
-                break;
-            } catch (const std::system_error&) {
-                using namespace std::chrono_literals;
-                std::this_thread::sleep_for(100ms);
-            }
-        } while (tries < retries);
+        cluster->removeWithRetry(path,
+                                 [&tries, &retries](const std::exception& e) {
+                                     using namespace std::chrono_literals;
+                                     std::this_thread::sleep_for(100ms);
+                                     return (++tries < retries);
+                                 });
     });
 
     cluster->collections.remove(CollectionEntry::vegetable);
@@ -323,8 +320,8 @@ TEST_F(CollectionsTests, SetCollectionsWithNoDirectory) {
     }
 
     cluster->iterateNodes([this](const cb::test::Node& node) {
-        auto path = node.directory + "/default";
-        cb::io::mkdirp(cb::io::sanitizePath(path));
+        const auto path = node.directory / "default";
+        create_directories(path);
     });
     try {
         bucket->setCollectionManifest(cluster->collections.getJson());
