@@ -12,7 +12,7 @@ add_executable(cluster_test
                upgrade_test.cc
                upgrade_test.h)
 target_link_libraries(cluster_test cluster_framework)
-add_dependencies(cluster_test memcached ep default_engine)
+add_dependencies(cluster_test memcached)
 add_sanitizers(cluster_test)
 
 add_test(NAME cluster_test
