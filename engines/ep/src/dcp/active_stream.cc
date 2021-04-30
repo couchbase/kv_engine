@@ -2089,11 +2089,11 @@ void ActiveStream::notifyStreamReady(bool force, DcpProducer* producer) {
         }
 
         // No producer supplied, promote the weak_ptr and use that
-        auto producer = producerPtr.lock();
-        if (!producer) {
+        auto lkProducer = producerPtr.lock();
+        if (!lkProducer) {
             return;
         }
-        producer->notifyStreamReady(vb_);
+        lkProducer->notifyStreamReady(vb_);
     }
 }
 

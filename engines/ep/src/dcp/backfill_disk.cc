@@ -122,8 +122,7 @@ void DiskCallback::callback(GetValue& val) {
 DCPBackfillDisk::DCPBackfillDisk(KVBucket& bucket) : bucket(bucket) {
 }
 
-DCPBackfillDisk::~DCPBackfillDisk() {
-}
+DCPBackfillDisk::~DCPBackfillDisk() = default;
 
 backfill_status_t DCPBackfillDisk::run() {
     LockHolder lh(lock);

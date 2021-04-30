@@ -11,7 +11,6 @@
 
 #include "dcp/backfill_by_seqno_disk.h"
 #include "dcp/active_stream_impl.h"
-#include "ep_engine.h"
 #include "kv_bucket.h"
 #include "kvstore.h"
 

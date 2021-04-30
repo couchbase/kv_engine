@@ -22,6 +22,7 @@
 
 #include <phosphor/phosphor.h>
 
+#include <memory>
 #include <utility>
 
 static const size_t sleepTime = 1;
@@ -195,8 +196,8 @@ BackfillManager::ScheduleResult BackfillManager::schedule(
     if (managerTask && !managerTask->isdead()) {
         ExecutorPool::get()->wake(managerTask->getId());
     } else {
-        managerTask.reset(new BackfillManagerTask(kvBucket.getEPEngine(),
-                                                  shared_from_this()));
+        managerTask = std::make_shared<BackfillManagerTask>(
+                kvBucket.getEPEngine(), shared_from_this());
         ExecutorPool::get()->schedule(managerTask);
     }
     return result;
