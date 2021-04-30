@@ -802,102 +802,34 @@ void ActiveStream::addStats(const AddStatFn& add_stat, const void* c) {
     Stream::addStats(add_stat, c);
 
     try {
-        const int bsize = 1024;
-        char buffer[bsize];
-        checked_snprintf(buffer,
-                         bsize,
-                         "%s:stream_%d_backfill_disk_items",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buffer, backfillItems.disk, add_stat, c);
-        checked_snprintf(buffer,
-                         bsize,
-                         "%s:stream_%d_backfill_mem_items",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buffer, backfillItems.memory, add_stat, c);
-        checked_snprintf(buffer,
-                         bsize,
-                         "%s:stream_%d_backfill_sent",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buffer, backfillItems.sent, add_stat, c);
-        checked_snprintf(buffer,
-                         bsize,
-                         "%s:stream_%d_memory_phase",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buffer, itemsFromMemoryPhase.load(), add_stat, c);
-        checked_snprintf(buffer,
-                         bsize,
-                         "%s:stream_%d_last_sent_seqno",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buffer, lastSentSeqno.load(), add_stat, c);
-
-        checked_snprintf(buffer,
-                         bsize,
-                         "%s:stream_%d_last_sent_seqno_advance",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buffer, lastSentSeqnoAdvance.load(), add_stat, c);
-
-        checked_snprintf(buffer,
-                         bsize,
-                         "%s:stream_%d_last_sent_snap_end_seqno",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buffer,
-                        lastSentSnapEndSeqno.load(std::memory_order_relaxed),
-                        add_stat,
-                        c);
-        checked_snprintf(buffer,
-                         bsize,
-                         "%s:stream_%d_last_read_seqno",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buffer, lastReadSeqno.load(), add_stat, c);
-        checked_snprintf(buffer,
-                         bsize,
-                         "%s:stream_%d_last_read_seqno_unsnapshotted",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buffer, lastReadSeqnoUnSnapshotted.load(), add_stat, c);
-        checked_snprintf(buffer,
-                         bsize,
-                         "%s:stream_%d_ready_queue_memory",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buffer, getReadyQueueMemory(), add_stat, c);
-
-        checked_snprintf(buffer,
-                         bsize,
-                         "%s:stream_%d_backfill_buffer_bytes",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buffer, bufferedBackfill.bytes, add_stat, c);
-        checked_snprintf(buffer,
-                         bsize,
-                         "%s:stream_%d_backfill_buffer_items",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buffer, bufferedBackfill.items, add_stat, c);
-
-        checked_snprintf(buffer,
-                         bsize,
-                         "%s:stream_%d_cursor_registered",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buffer, cursor.lock() != nullptr, add_stat, c);
+        fmt::memory_buffer keyBuff;
+        fmt::format_to(keyBuff, "{}:stream_{}_", name_, vb_.get());
+        const auto prefixLen = keyBuff.size();
+        const auto addStat = [&keyBuff, prefixLen, add_stat, c](
+                                     const auto& statKey, auto statValue) {
+            keyBuff.resize(prefixLen);
+            fmt::format_to(keyBuff, "{}", statKey);
+            add_casted_stat(
+                    {keyBuff.data(), keyBuff.size()}, statValue, add_stat, c);
+        };
+        addStat("backfill_disk_items", backfillItems.disk.load());
+        addStat("backfill_mem_items", backfillItems.memory.load());
+        addStat("backfill_sent", backfillItems.sent.load());
+        addStat("memory_phase", itemsFromMemoryPhase.load());
+        addStat("last_sent_seqno", lastSentSeqno.load());
+        addStat("last_sent_seqno_advance", lastSentSeqnoAdvance.load());
+        addStat("last_sent_snap_end_seqno",
+                lastSentSnapEndSeqno.load(std::memory_order_relaxed));
+        addStat("last_read_seqno", lastReadSeqno.load());
+        addStat("last_read_seqno_unsnapshotted",
+                lastReadSeqnoUnSnapshotted.load());
+        addStat("ready_queue_memory", getReadyQueueMemory());
+        addStat("backfill_buffer_bytes", bufferedBackfill.bytes.load());
+        addStat("backfill_buffer_items", bufferedBackfill.items.load());
+        addStat("cursor_registered", cursor.lock() != nullptr);
 
         if (isTakeoverSend() && takeoverStart != 0) {
-            checked_snprintf(buffer,
-                             bsize,
-                             "%s:stream_%d_takeover_since",
-                             name_.c_str(),
-                             vb_.get());
-            add_casted_stat(
-                    buffer, ep_current_time() - takeoverStart, add_stat, c);
+            addStat("takeover_since", ep_current_time() - takeoverStart);
         }
     } catch (std::exception& error) {
         log(spdlog::level::level_enum::warn,
