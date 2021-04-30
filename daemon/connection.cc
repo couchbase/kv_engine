@@ -639,7 +639,7 @@ void Connection::logExecutionException(const std::string_view where,
             print_backtrace_frames(*backtrace, [&callstack](const char* frame) {
                 callstack.emplace_back(frame);
             });
-            LOG_WARNING(
+            LOG_ERROR(
                     "{}: Exception occurred during {}. Closing connection: "
                     "{}. Cookies: {} Exception thrown from: {}",
                     getId(),
@@ -648,7 +648,7 @@ void Connection::logExecutionException(const std::string_view where,
                     array.dump(),
                     callstack.dump());
         } else {
-            LOG_WARNING(
+            LOG_ERROR(
                     "{}: Exception occurred during {}. Closing connection: "
                     "{}. Cookies: {}",
                     getId(),
@@ -658,15 +658,15 @@ void Connection::logExecutionException(const std::string_view where,
         }
     } catch (const std::bad_alloc&) {
         try {
-            LOG_WARNING(
+            LOG_ERROR(
                     "{}: Exception occurred during {}. Closing connection: {}",
                     getId(),
                     where,
                     e.what());
             if (const auto* backtrace = cb::getBacktrace(e)) {
-                LOG_WARNING("{}: Exception thrown from:", getId());
+                LOG_ERROR("{}: Exception thrown from:", getId());
                 print_backtrace_frames(*backtrace, [this](const char* frame) {
-                    LOG_WARNING("{} -    {}", getId(), frame);
+                    LOG_ERROR("{} -    {}", getId(), frame);
                 });
             }
         } catch (const std::bad_alloc&) {
