@@ -231,7 +231,6 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
     noopCtx.pendingRecv = false;
     noopCtx.enabled = false;
 
-    enableExtMetaData = false;
     forceValueCompression = false;
     enableExpiryOpcode = false;
 
@@ -954,13 +953,6 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
             noopCtx.enabled = false;
         }
         return cb::engine_errc::success;
-    } else if (strncmp(param, "enable_ext_metadata", key.size()) == 0) {
-        if (valueStr == "true") {
-            enableExtMetaData = true;
-        } else {
-            enableExtMetaData = false;
-        }
-        return cb::engine_errc::success;
     } else if (strncmp(param, "force_value_compression", key.size()) == 0) {
         if (!isSnappyEnabled()) {
             engine_.setErrorContext(getCookie(), "The ctrl parameter "
@@ -1440,7 +1432,6 @@ void DcpProducer::addStats(const AddStatFn& add_stat, const void* c) {
     addStat("last_receive_time", lastReceiveTime, add_stat, c);
     addStat("noop_enabled", noopCtx.enabled, add_stat, c);
     addStat("noop_wait", noopCtx.pendingRecv, add_stat, c);
-    addStat("enable_ext_metadata", enableExtMetaData, add_stat, c);
     addStat("force_value_compression", forceValueCompression, add_stat, c);
     addStat("cursor_dropping", supportsCursorDropping, add_stat, c);
     addStat("send_stream_end_on_client_close_stream",

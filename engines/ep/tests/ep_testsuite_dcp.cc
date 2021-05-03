@@ -737,10 +737,6 @@ void TestDcpConsumer::openConnection(uint32_t flags) {
         std::string status = get_str_stat(h, stats_buffer, "dcp");
         checkeq(status, std::string("disabled"), "Flow control enabled!");
     }
-
-    checkeq(cb::engine_errc::success,
-            dcp->control(cookie, ++opaque, "enable_ext_metadata", "true"),
-            "Failed to enable xdcr extras");
 }
 
 cb::engine_errc TestDcpConsumer::openStreams() {
@@ -3384,7 +3380,6 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
     }
 
     dcpStepAndExpectControlMsg("set_priority"s);
-    dcpStepAndExpectControlMsg("enable_ext_metadata"s);
     dcpStepAndExpectControlMsg("supports_cursor_dropping_vulcan"s);
     dcpStepAndExpectControlMsg("supports_hifi_MFU"s);
     dcpStepAndExpectControlMsg("send_stream_end_on_client_close_stream"s);

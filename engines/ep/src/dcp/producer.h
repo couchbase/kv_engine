@@ -213,10 +213,6 @@ public:
                                  std::shared_ptr<ActiveStream> s,
                                  CollectionID cid);
 
-    bool isExtMetaDataEnabled () {
-        return enableExtMetaData;
-    }
-
     bool isCompressionEnabled() const {
         return forceValueCompression || isSnappyEnabled();
     }
@@ -576,7 +572,6 @@ protected:
     // stash response for retry if E2BIG was hit
     std::unique_ptr<DcpResponse> rejectResp;
 
-    cb::RelaxedAtomic<bool> enableExtMetaData;
     cb::RelaxedAtomic<bool> forceValueCompression;
     cb::RelaxedAtomic<bool> supportsCursorDropping;
     cb::RelaxedAtomic<bool> sendStreamEndOnClientStreamClose;

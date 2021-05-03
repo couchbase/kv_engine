@@ -376,8 +376,6 @@ protected:
 
     cb::engine_errc handlePriority(DcpMessageProducersIface& producers);
 
-    cb::engine_errc handleExtMetaData(DcpMessageProducersIface& producers);
-
     cb::engine_errc supportCursorDropping(DcpMessageProducersIface& producers);
 
     cb::engine_errc supportHifiMFU(DcpMessageProducersIface& producers);
@@ -591,7 +589,6 @@ protected:
     bool pendingEnableNoop;
     bool pendingSendNoopInterval;
     bool pendingSetPriority;
-    bool pendingEnableExtMetaData;
     bool pendingSupportCursorDropping;
     bool pendingSendStreamEndOnClientStreamClose;
     bool pendingSupportHifiMFU;
@@ -670,7 +667,6 @@ protected:
     static const std::string noopIntervalCtrlMsg;
     static const std::string connBufferCtrlMsg;
     static const std::string priorityCtrlMsg;
-    static const std::string extMetadataCtrlMsg;
     static const std::string cursorDroppingCtrlMsg;
     static const std::string sendStreamEndOnClientStreamCloseCtrlMsg;
     static const std::string hifiMFUCtrlMsg;

@@ -35,7 +35,6 @@ const std::string DcpConsumer::noopCtrlMsg = "enable_noop";
 const std::string DcpConsumer::noopIntervalCtrlMsg = "set_noop_interval";
 const std::string DcpConsumer::connBufferCtrlMsg = "connection_buffer_size";
 const std::string DcpConsumer::priorityCtrlMsg = "set_priority";
-const std::string DcpConsumer::extMetadataCtrlMsg = "enable_ext_metadata";
 // from vulcan onwards we only use the _vulcan control message
 const std::string DcpConsumer::cursorDroppingCtrlMsg =
         "supports_cursor_dropping_vulcan";
@@ -176,7 +175,6 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
                                          : GetErrorMapState::Skip;
     pendingSendNoopInterval = config.isDcpEnableNoop();
     pendingSetPriority = true;
-    pendingEnableExtMetaData = true;
     pendingSupportCursorDropping = true;
     pendingSupportHifiMFU = true;
     pendingEnableExpiryOpcode = true;
@@ -862,10 +860,6 @@ cb::engine_errc DcpConsumer::step(DcpMessageProducersIface& producers) {
         return ret;
     }
 
-    if ((ret = handleExtMetaData(producers)) != cb::engine_errc::failed) {
-        return ret;
-    }
-
     if ((ret = supportCursorDropping(producers)) != cb::engine_errc::failed) {
         return ret;
     }
@@ -1517,20 +1511,6 @@ cb::engine_errc DcpConsumer::handlePriority(
         std::string val("high");
         ret = producers.control(opaque, priorityCtrlMsg, val);
         pendingSetPriority = false;
-        return ret;
-    }
-
-    return cb::engine_errc::failed;
-}
-
-cb::engine_errc DcpConsumer::handleExtMetaData(
-        DcpMessageProducersIface& producers) {
-    if (pendingEnableExtMetaData) {
-        cb::engine_errc ret;
-        uint32_t opaque = ++opaqueCounter;
-        std::string val("true");
-        ret = producers.control(opaque, extMetadataCtrlMsg, val);
-        pendingEnableExtMetaData = false;
         return ret;
     }
 
