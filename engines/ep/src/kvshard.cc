@@ -39,9 +39,8 @@ KVShard::KVShard(EventuallyPersistentEngine& engine, id_type id)
     const std::string backend = config.getBackend();
     if (backend == "couchdb") {
         kvConfig = std::make_unique<CouchKVStoreConfig>(config, numShards, id);
-        auto stores = KVStoreFactory::create(*kvConfig);
-        rwStore = std::move(stores.rw);
-        roStore = std::move(stores.ro);
+        rwStore = KVStoreFactory::create(*kvConfig);
+        roStore = nullptr;
     }
 #ifdef EP_USE_MAGMA
     else if (backend == "magma") {
@@ -49,16 +48,14 @@ KVShard::KVShard(EventuallyPersistentEngine& engine, id_type id)
         // kv_engine's bloom filters. Should save some memory.
         config.setBfilterEnabled(false);
         kvConfig = std::make_unique<MagmaKVStoreConfig>(config, numShards, id);
-        auto stores = KVStoreFactory::create(*kvConfig);
-        rwStore = std::move(stores.rw);
+        rwStore = KVStoreFactory::create(*kvConfig);
     }
 #endif
 #ifdef EP_USE_ROCKSDB
     else if (backend == "rocksdb") {
         kvConfig =
                 std::make_unique<RocksDBKVStoreConfig>(config, numShards, id);
-        auto stores = KVStoreFactory::create(*kvConfig);
-        rwStore = std::move(stores.rw);
+        rwStore = KVStoreFactory::create(*kvConfig);
     }
 #endif
     else {
@@ -160,10 +157,6 @@ void KVShard::setRWUnderlying(std::unique_ptr<KVStore> newStore) {
     rwStore.swap(newStore);
 }
 
-void KVShard::setROUnderlying(std::unique_ptr<KVStore> newStore) {
-    roStore.swap(newStore);
-}
-
-KVStoreRWRO KVShard::takeRWRO() {
-    return {std::move(rwStore), std::move(roStore)};
+std::unique_ptr<KVStore> KVShard::takeRW() {
+    return std::move(rwStore);
 }

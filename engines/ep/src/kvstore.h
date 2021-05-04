@@ -1274,23 +1274,6 @@ std::string to_string(KVStore::FlushStateDeletion status);
 std::string to_string(KVStore::FlushStateMutation state);
 
 /**
- * Structure holding the read/write and read only instances of the KVStore.
- * They could be the same underlying object, or different.
- */
-struct KVStoreRWRO {
-    KVStoreRWRO() = default;
-    KVStoreRWRO(KVStore* rw, KVStore* ro) : rw(rw), ro(ro) {
-    }
-
-    KVStoreRWRO(std::unique_ptr<KVStore> rw, std::unique_ptr<KVStore> ro)
-        : rw(std::move(rw)), ro(std::move(ro)) {
-    }
-
-    std::unique_ptr<KVStore> rw;
-    std::unique_ptr<KVStore> ro;
-};
-
-/**
  * The KVStoreFactory creates the correct KVStore instance(s) when
  * needed by EPStore.
  */
@@ -1301,7 +1284,7 @@ public:
      *
      * @param config engine configuration
      */
-    static KVStoreRWRO create(KVStoreConfig& config);
+    static std::unique_ptr<KVStore> create(KVStoreConfig& config);
 };
 
 /**

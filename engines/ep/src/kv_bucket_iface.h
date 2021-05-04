@@ -38,7 +38,6 @@ class ItemMetaData;
 class KVBucket;
 class KVShard;
 class KVStore;
-struct KVStoreRWRO;
 class MutationLog;
 class PauseResumeVBVisitor;
 class PersistenceCallback;
@@ -585,24 +584,21 @@ public:
     virtual const KVStore* getROUnderlying(Vbid vbId) const = 0;
 
     /**
-     * takeRWRO and setRWRO are used for changing the kvstore(s) in unit tests
-     * takeRWRO will move the value of ro/rw out of this object, leaving the
-     * KVBucket with no store, setRWRO should be after take to put back valid
+     * takeRW and setRW are used for changing the kvstore(s) in unit tests
+     * takeRW will move the value of rw out of this object, leaving the
+     * KVBucket with no store, setRW should be run after take to put back valid
      * KVStores
      * @param shardId the shard to take from
      */
-    virtual KVStoreRWRO takeRWRO(size_t shardId) = 0;
+    virtual std::unique_ptr<KVStore> takeRW(size_t shardId) = 0;
 
     /**
-     * takeRWRO and  setRWRO are used for changing the kvstore(s) in unit tests
-     * setRWRO will move the value of ro/rw over the current ro/rw
+     * takeRW and  setRW are used for changing the kvstore(s) in unit tests
+     * setRW will move the value of rw over the current rw
      * @param shardId the shared to set onto
-     * @param ro the read only KVStore
      * @param rw the read write KVStore
      */
-    virtual void setRWRO(size_t shardId,
-                         std::unique_ptr<KVStore> ro,
-                         std::unique_ptr<KVStore> rw) = 0;
+    virtual void setRW(size_t shardId, std::unique_ptr<KVStore> rw) = 0;
 
     virtual void deleteExpiredItem(Item& it,
                                    time_t startTime,

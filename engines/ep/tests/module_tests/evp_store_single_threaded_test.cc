@@ -414,11 +414,11 @@ size_t SingleThreadedKVBucketTest::getReadyQueueSize(task_type_t type) const {
 void SingleThreadedKVBucketTest::replaceCouchKVStoreWithMock() {
     ASSERT_EQ(engine->getConfiguration().getBucketType(), "persistent");
     ASSERT_EQ(engine->getConfiguration().getBackend(), "couchdb");
-    auto rwro = store->takeRWRO(0);
+    auto old = store->takeRW(0);
     auto& config = const_cast<CouchKVStoreConfig&>(
-            dynamic_cast<const CouchKVStoreConfig&>(rwro.rw->getConfig()));
+            dynamic_cast<const CouchKVStoreConfig&>(old->getConfig()));
     auto rw = std::make_unique<MockCouchKVStore>(config);
-    store->setRWRO(0, std::move(rw), std::move(rwro.ro));
+    store->setRW(0, std::move(rw));
 }
 
 void SingleThreadedKVBucketTest::runEphemeralHTCleaner() {

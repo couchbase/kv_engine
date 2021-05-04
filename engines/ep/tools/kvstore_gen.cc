@@ -114,23 +114,23 @@ int main(int argc, char** argv) {
     vbucket_state state;
     state.transition.state = vbucket_state_active;
     Vbid vbid{0};
-    kvstore.rw->snapshotVBucket(vbid, state);
+    kvstore->snapshotVBucket(vbid, state);
 
     std::vector<StoredDocKey> keys;
     // Populate vBucket with N documents
     const std::string key = "key";
-    kvstore.rw->begin(std::make_unique<TransactionContext>(vbid));
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
     for (uint64_t i = 0; i < totalDocs; i++) {
         keys.emplace_back(key + std::to_string(i), CollectionID::Default);
         auto value = makeRandomString(docSize);
         queued_item qi{new Item(keys.back(), 0, 0, value.data(), value.size())};
         qi->setBySeqno(i);
-        kvstore.rw->set(qi);
+        kvstore->set(qi);
     }
     Collections::VB::Manifest manifest{
             std::make_shared<Collections::Manager>()};
     VB::Commit commit(manifest);
-    kvstore.rw->commit(commit);
+    kvstore->commit(commit);
 
     // Now perform specified number of commits.
     // Shuffle initial keys, then mutate each key in turn (uniform random
@@ -140,12 +140,12 @@ int main(int argc, char** argv) {
     int updates = 0;
     auto keyIt = keys.begin();
     for (uint64_t c = 0; c < numCommits; c++) {
-        kvstore.rw->begin(std::make_unique<TransactionContext>(vbid));
+        kvstore->begin(std::make_unique<TransactionContext>(vbid));
         for (uint64_t u = 0; u < updatesPerCommit; u++) {
             auto value = makeRandomString(docSize);
             queued_item qi{new Item(*keyIt, 0, 0, value.data(), value.size())};
             qi->setBySeqno(totalDocs + updates);
-            kvstore.rw->set(qi);
+            kvstore->set(qi);
 
             keyIt++;
             if (keyIt == keys.end()) {
@@ -154,6 +154,6 @@ int main(int argc, char** argv) {
             updates++;
         }
         VB::Commit commit(manifest);
-        kvstore.rw->commit(commit);
+        kvstore->commit(commit);
     }
 }

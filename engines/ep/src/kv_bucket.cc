@@ -2708,14 +2708,11 @@ SeqnoAckCallback KVBucket::makeSeqnoAckCB() const {
     };
 }
 
-KVStoreRWRO KVBucket::takeRWRO(size_t shardId) {
-    return vbMap.shards[shardId]->takeRWRO();
+std::unique_ptr<KVStore> KVBucket::takeRW(size_t shardId) {
+    return vbMap.shards[shardId]->takeRW();
 }
 
-void KVBucket::setRWRO(size_t shardId,
-                       std::unique_ptr<KVStore> rw,
-                       std::unique_ptr<KVStore> ro) {
-    vbMap.shards[shardId]->setROUnderlying(std::move(ro));
+void KVBucket::setRW(size_t shardId, std::unique_ptr<KVStore> rw) {
     vbMap.shards[shardId]->setRWUnderlying(std::move(rw));
 }
 

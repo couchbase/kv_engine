@@ -440,18 +440,15 @@ void KVBucketTest::replaceCouchKVStore(FileOpsInterface& ops) {
             dynamic_cast<const CouchKVStoreConfig&>(config), ops);
 
     const auto shardId = store->getShardId(vbid);
-    auto rwro = store->takeRWRO(shardId);
-
-    store->setRWRO(shardId, std::move(rw), std::move(rwro.ro));
+    store->setRW(shardId, std::move(rw));
 }
 
 void KVBucketTest::replaceMagmaKVStore(MagmaKVStoreConfig& config) {
     EXPECT_EQ(engine->getConfiguration().getBucketType(), "persistent");
     EXPECT_EQ(engine->getConfiguration().getBackend(), "magma");
 #ifdef EP_USE_MAGMA
-    auto rwro = store->takeRWRO(0);
     auto rw = std::make_unique<MockMagmaKVStore>(config);
-    store->setRWRO(0, std::move(rw), std::move(rwro.ro));
+    store->setRW(0, std::move(rw));
 #endif
 }
 

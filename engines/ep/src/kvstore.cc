@@ -179,25 +179,25 @@ void KVStoreStats::reset() {
     fsStatsCompaction.reset();
 }
 
-KVStoreRWRO KVStoreFactory::create(KVStoreConfig& config) {
+std::unique_ptr<KVStore> KVStoreFactory::create(KVStoreConfig& config) {
     std::string backend = config.getBackend();
     if (backend == "couchdb") {
         auto rw = std::make_unique<CouchKVStore>(
                 dynamic_cast<CouchKVStoreConfig&>(config));
-        return {rw.release(), nullptr};
+        return std::move(rw);
     }
 #ifdef EP_USE_MAGMA
     else if (backend == "magma") {
         auto rw = std::make_unique<MagmaKVStore>(
                 dynamic_cast<MagmaKVStoreConfig&>(config));
-        return {rw.release(), nullptr};
+        return std::move(rw);
     }
 #endif
 #ifdef EP_USE_ROCKSDB
     else if (backend == "rocksdb") {
         auto rw = std::make_unique<RocksDBKVStore>(
                 dynamic_cast<RocksDBKVStoreConfig&>(config));
-        return {rw.release(), nullptr};
+        return std::move(rw);
     }
 #endif
     else {

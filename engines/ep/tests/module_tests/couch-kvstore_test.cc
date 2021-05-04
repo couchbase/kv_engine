@@ -154,21 +154,21 @@ TEST_F(CouchKVStoreTest, CompactStatsTest) {
 TEST_F(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
     CouchKVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
     auto kvstore = KVStoreFactory::create(config);
-    ASSERT_NE(nullptr, kvstore.rw);
+    ASSERT_NE(nullptr, kvstore);
 
     // Activate vBucket.
     vbucket_state state;
     state.transition.state = vbucket_state_active;
     state.maxCas = -1;
-    EXPECT_TRUE(kvstore.rw->snapshotVBucket(Vbid(0), state));
-    EXPECT_EQ(~0ull, kvstore.rw->listPersistedVbuckets()[0]->maxCas);
+    EXPECT_TRUE(kvstore->snapshotVBucket(Vbid(0), state));
+    EXPECT_EQ(~0ull, kvstore->listPersistedVbuckets()[0]->maxCas);
 
     // Close the file, then re-open.
     kvstore = KVStoreFactory::create(config);
-    EXPECT_NE(nullptr, kvstore.rw);
+    EXPECT_NE(nullptr, kvstore);
 
     // Check that our max CAS was repaired on startup.
-    EXPECT_EQ(0u, kvstore.rw->listPersistedVbuckets()[0]->maxCas);
+    EXPECT_EQ(0u, kvstore->listPersistedVbuckets()[0]->maxCas);
 }
 
 // Regression test for MB-19430 - ensure that an attempt to get the
@@ -176,13 +176,11 @@ TEST_F(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
 // error so the caller can detect (and retry as necessary).
 TEST_F(CouchKVStoreTest, MB_18580_ENOENT) {
     CouchKVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
-    // Create a read-only kvstore (which disables item count caching), then
-    // attempt to get the count from a non-existent vbucket.
     auto kvstore = KVStoreFactory::create(config);
-    ASSERT_EQ(nullptr, kvstore.ro);
+    ASSERT_NE(nullptr, kvstore);
 
     // Expect to get a system_error (ENOENT)
-    EXPECT_THROW(kvstore.rw->getDbFileInfo(Vbid(0)), std::system_error);
+    EXPECT_THROW(kvstore->getDbFileInfo(Vbid(0)), std::system_error);
 }
 
 class CollectionsOfflineUpgradeCallback : public StatusCallback<CacheLookup> {
@@ -325,7 +323,7 @@ void CouchKVStoreTest::collectionsOfflineUpgrade(
     output.commit();
 
     auto kvstore2 = KVStoreFactory::create(config2);
-    auto scanCtx = kvstore2.rw->initBySeqnoScanContext(
+    auto scanCtx = kvstore2->initBySeqnoScanContext(
             std::make_unique<CollectionsOfflineGetCallback>(cid, deletedRange),
             std::make_unique<CollectionsOfflineUpgradeCallback>(cid),
             Vbid(0),
@@ -335,16 +333,15 @@ void CouchKVStoreTest::collectionsOfflineUpgrade(
             SnapshotSource::Head);
 
     ASSERT_TRUE(scanCtx);
-    EXPECT_EQ(scan_success, kvstore2.rw->scan(*scanCtx));
+    EXPECT_EQ(scan_success, kvstore2->scan(*scanCtx));
 
     const auto& cl = static_cast<const CollectionsOfflineUpgradeCallback&>(
             scanCtx->getCacheCallback());
     EXPECT_EQ(keys, cl.callbacks);
 
     // Check item count
-    auto kvstoreContext = kvstore2.rw->makeFileHandle(Vbid(0));
-    auto [success, stats] =
-            kvstore2.rw->getCollectionStats(*kvstoreContext, cid);
+    auto kvstoreContext = kvstore2->makeFileHandle(Vbid(0));
+    auto [success, stats] = kvstore2->getCollectionStats(*kvstoreContext, cid);
     EXPECT_TRUE(success);
     auto deletedCount = deletedRange.second - deletedRange.first;
     EXPECT_EQ(keys - deletedCount, stats.itemCount);
@@ -354,7 +351,7 @@ void CouchKVStoreTest::collectionsOfflineUpgrade(
     // Test that the datafile can be compacted.
     // MB-45917
     CompactionConfig config{0, 0, true /*purge all tombstones*/, false};
-    runCompaction(*kvstore2.rw, config);
+    runCompaction(*kvstore2, config);
 }
 
 TEST_F(CouchKVStoreTest, CollectionsOfflineUpgrade) {

@@ -66,7 +66,6 @@ class EPBucket;
 class EventuallyPersistentEngine;
 class Flusher;
 class KVStore;
-struct KVStoreRWRO;
 
 class KVShard {
 public:
@@ -88,13 +87,11 @@ public:
 
     void setRWUnderlying(std::unique_ptr<KVStore> newStore);
 
-    void setROUnderlying(std::unique_ptr<KVStore> newStore);
-
     /**
-     * move the rw/ro stores out of the shard, the shard will be left with no
+     * move the rw store out of the shard, the shard will be left with no
      * KVStores after calling this method
      */
-    KVStoreRWRO takeRWRO();
+    std::unique_ptr<KVStore> takeRW();
 
     template <class UnaryFunction>
     void forEachKVStore(UnaryFunction f) {

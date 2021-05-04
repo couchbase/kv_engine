@@ -104,9 +104,9 @@ std::unique_ptr<KVStore> setup_kv_store(KVStoreConfig& config,
                                         std::vector<Vbid> vbids) {
     auto kvstore = KVStoreFactory::create(config);
     for (auto vbid : vbids) {
-        initialize_kv_store(kvstore.rw.get(), vbid);
+        initialize_kv_store(kvstore.get(), vbid);
     }
-    return std::move(kvstore.rw);
+    return kvstore;
 }
 
 KVStoreTest::KVStoreTest()

@@ -149,8 +149,8 @@ private:
         auto kvstore = KVStoreFactory::create(config);
         vbucket_state state;
         state.transition.state = vbucket_state_active;
-        kvstore.rw->snapshotVBucket(vbid, state);
-        return std::move(kvstore.rw);
+        kvstore->snapshotVBucket(vbid, state);
+        return kvstore;
     }
 
 protected:
