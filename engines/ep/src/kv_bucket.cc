@@ -545,7 +545,7 @@ void KVBucket::getValue(Item& it) {
 }
 
 const StorageProperties KVBucket::getStorageProperties() const {
-    KVStore* store = vbMap.shards[0]->getROUnderlying();
+    const KVStore* store = vbMap.shards[0]->getROUnderlying();
     return store->getStorageProperties();
 }
 
@@ -2335,7 +2335,6 @@ void KVBucket::resetUnderlyingStats()
     for (auto& i : vbMap.shards) {
         KVShard* shard = i.get();
         shard->getRWUnderlying()->resetStats();
-        shard->getROUnderlying()->resetStats();
     }
 
     for (size_t i = 0; i < GlobalTask::allTaskIds.size(); i++) {
@@ -2347,14 +2346,14 @@ void KVBucket::resetUnderlyingStats()
 void KVBucket::addKVStoreStats(const AddStatFn& add_stat,
                                const CookieIface* cookie,
                                const std::string& args) {
-    for (auto& shard : vbMap.shards) {
+    for (const auto& shard : vbMap.shards) {
         /* Add the different KVStore instances into a set and then
          * retrieve the stats from each instance separately. This
          * is because CouchKVStore has separate read only and read
          * write instance whereas RocksDBKVStore has only instance
          * for both read write and read-only.
          */
-        std::set<KVStore *> underlyingSet;
+        std::set<const KVStore*> underlyingSet;
         underlyingSet.insert(shard->getRWUnderlying());
         underlyingSet.insert(shard->getROUnderlying());
 
@@ -2366,8 +2365,8 @@ void KVBucket::addKVStoreStats(const AddStatFn& add_stat,
 
 void KVBucket::addKVStoreTimingStats(const AddStatFn& add_stat,
                                      const CookieIface* cookie) {
-    for (auto& shard : vbMap.shards) {
-        std::set<KVStore*> underlyingSet;
+    for (const auto& shard : vbMap.shards) {
+        std::set<const KVStore*> underlyingSet;
         underlyingSet.insert(shard->getRWUnderlying());
         underlyingSet.insert(shard->getROUnderlying());
 
@@ -2392,7 +2391,7 @@ bool KVBucket::getKVStoreStat(std::string_view name, size_t& value, KVSOption op
 GetStatsMap KVBucket::getKVStoreStats(gsl::span<const std::string_view> keys,
                                       KVSOption option) {
     GetStatsMap statsMap;
-    auto aggShardStats = [&](KVStore* store) {
+    auto aggShardStats = [&](const KVStore* store) {
         auto shardStats = store->getStats(keys);
         for (const auto& [name, value] : shardStats) {
             auto [itr, emplaced] = statsMap.try_emplace(name, value);
@@ -2412,7 +2411,7 @@ GetStatsMap KVBucket::getKVStoreStats(gsl::span<const std::string_view> keys,
     return statsMap;
 }
 
-KVStore *KVBucket::getOneROUnderlying() {
+const KVStore* KVBucket::getOneROUnderlying() const {
     return vbMap.shards[EP_PRIMARY_SHARD]->getROUnderlying();
 }
 

@@ -1162,7 +1162,7 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
     // get each VB in the shard and iterate its collections manifest
     // load the _local doc count value
 
-    KVStore* kvstore = store.getROUnderlyingByShard(shardId);
+    const KVStore* kvstore = store.getROUnderlyingByShard(shardId);
     // Iterate the VBs in the shard
     for (const auto vbid : shardVbIds[shardId]) {
         auto itr = warmedUpVbuckets.find(vbid.get());
@@ -1369,7 +1369,7 @@ void Warmup::scheduleKeyDump()
 
 void Warmup::keyDumpforShard(uint16_t shardId)
 {
-    KVStore* kvstore = store.getROUnderlyingByShard(shardId);
+    const KVStore* kvstore = store.getROUnderlyingByShard(shardId);
     for (const auto vbid : shardVbIds[shardId]) {
         auto ctx = kvstore->initBySeqnoScanContext(
                 std::make_unique<LoadStorageKVPairCallback>(
@@ -1570,7 +1570,7 @@ void Warmup::loadKVPairsforShard(uint16_t shardId)
         maybe_enable_traffic = true;
     }
 
-    KVStore* kvstore = store.getROUnderlyingByShard(shardId);
+    const KVStore* kvstore = store.getROUnderlyingByShard(shardId);
     ValueFilter valFilter = store.getValueFilterForCompressionMode();
 
     for (const auto vbid : shardVbIds[shardId]) {
@@ -1613,7 +1613,7 @@ void Warmup::loadDataforShard(uint16_t shardId)
 {
     scan_error_t errorCode = scan_success;
 
-    KVStore* kvstore = store.getROUnderlyingByShard(shardId);
+    const KVStore* kvstore = store.getROUnderlyingByShard(shardId);
     ValueFilter valFilter = store.getValueFilterForCompressionMode();
 
     for (const auto vbid : shardVbIds[shardId]) {
@@ -1808,8 +1808,8 @@ void Warmup::populateShardVbStates() {
     uint16_t numKvs = getNumKVStores();
 
     for (size_t i = 0; i < numKvs; i++) {
-        std::vector<vbucket_state *> allVbStates =
-                     store.getROUnderlyingByShard(i)->listPersistedVbuckets();
+        std::vector<vbucket_state*> allVbStates =
+                store.getRWUnderlyingByShard(i)->listPersistedVbuckets();
         for (uint16_t vb = 0; vb < allVbStates.size(); vb++) {
             if (!allVbStates[vb]) {
                 continue;

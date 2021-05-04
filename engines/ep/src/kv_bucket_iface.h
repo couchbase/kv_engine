@@ -580,9 +580,9 @@ public:
 
     virtual KVStore* getRWUnderlyingByShard(size_t shardId) = 0;
 
-    virtual KVStore* getROUnderlyingByShard(size_t shardId) = 0;
+    virtual const KVStore* getROUnderlyingByShard(size_t shardId) const = 0;
 
-    virtual KVStore* getROUnderlying(Vbid vbId) = 0;
+    virtual const KVStore* getROUnderlying(Vbid vbId) const = 0;
 
     /**
      * takeRWRO and setRWRO are used for changing the kvstore(s) in unit tests
@@ -716,7 +716,7 @@ public:
                                         KVSOption option) = 0;
 
     virtual void resetUnderlyingStats() = 0;
-    virtual KVStore *getOneROUnderlying() = 0;
+    virtual const KVStore* getOneROUnderlying() const = 0;
     virtual KVStore *getOneRWUnderlying() = 0;
 
     virtual EvictionPolicy getItemEvictionPolicy() const = 0;

@@ -403,11 +403,11 @@ public:
         return vbMap.shards[shardId]->getRWUnderlying();
     }
 
-    KVStore* getROUnderlyingByShard(size_t shardId) override {
+    const KVStore* getROUnderlyingByShard(size_t shardId) const override {
         return vbMap.shards[shardId]->getROUnderlying();
     }
 
-    KVStore* getROUnderlying(Vbid vbId) override {
+    const KVStore* getROUnderlying(Vbid vbId) const override {
         return vbMap.getShardByVbId(vbId)->getROUnderlying();
     }
 
@@ -574,7 +574,7 @@ public:
                         KVSOption option) override;
 
     void resetUnderlyingStats() override;
-    KVStore *getOneROUnderlying() override;
+    const KVStore* getOneROUnderlying() const override;
     KVStore *getOneRWUnderlying() override;
 
     EvictionPolicy getItemEvictionPolicy() const override {

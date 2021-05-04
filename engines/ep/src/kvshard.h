@@ -82,10 +82,7 @@ public:
         return rwStore.get();
     }
 
-    KVStore* getROUnderlying() {
-        if (roStore) {
-            return roStore.get();
-        }
+    const KVStore* getROUnderlying() const {
         return rwStore.get();
     }
 

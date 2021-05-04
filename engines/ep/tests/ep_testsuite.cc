@@ -2212,18 +2212,8 @@ static enum test_result test_io_stats(EngineIface* h) {
 
     check_key_value(h, "a", value.c_str(), value.size(), Vbid(0));
 
-    std::stringstream numReadStatStr;
-    std::stringstream readBytesStatStr;
-
-    if (backend == "couchdb") {
-        numReadStatStr << "ro_" << 0 << ":io_bg_fetch_docs_read";
-        readBytesStatStr << "ro_" << 0 << ":io_bg_fetch_doc_bytes";
-    } else {
-        cb_assert(false);
-    }
-
     checkeq(1,
-            get_int_stat(h, numReadStatStr.str().c_str(), "kvstore"),
+            get_int_stat(h, "rw_0:io_bg_fetch_docs_read", "kvstore"),
             "Expected reading the value back in to update the read counter");
 
     uint64_t exp_read_bytes = key.size() + value.size() +
@@ -2233,7 +2223,7 @@ static enum test_result test_io_stats(EngineIface* h) {
         exp_read_bytes += 1;
     }
     checkeq(exp_read_bytes,
-            get_stat<uint64_t>(h, readBytesStatStr.str().c_str(), "kvstore"),
+            get_stat<uint64_t>(h, "rw_0:io_bg_fetch_doc_bytes", "kvstore"),
             "Expected reading the value back in to update the read bytes");
 
     // For read amplification, exact value depends on couchstore file layout,
@@ -6678,69 +6668,6 @@ static enum test_result test_MB34173_warmup(EngineIface* h) {
 // buffers. All of the tests in this batch make sure that all of the stats
 // exists (the stats call return a fixed set of stats)
 static enum test_result test_mb19687_fixed(EngineIface* h) {
-    std::vector<std::string> roKVStoreStats = {
-                "ro_0:backend_type",
-                "ro_0:close",
-                "ro_0:failure_compaction",
-                "ro_0:failure_get",
-                "ro_0:failure_open",
-                "ro_0:io_compaction_read_bytes",
-                "ro_0:io_compaction_write_bytes",
-                "ro_0:io_bg_fetch_docs_read",
-                "ro_0:io_num_write",
-                "ro_0:io_bg_fetch_doc_bytes",
-                "ro_0:io_total_read_bytes",
-                "ro_0:io_total_write_bytes",
-                "ro_0:io_document_write_bytes",
-                "ro_0:numLoadedVb",
-                "ro_0:open",
-                "ro_1:backend_type",
-                "ro_1:close",
-                "ro_1:failure_compaction",
-                "ro_1:failure_get",
-                "ro_1:failure_open",
-                "ro_1:io_compaction_read_bytes",
-                "ro_1:io_compaction_write_bytes",
-                "ro_1:io_bg_fetch_docs_read",
-                "ro_1:io_num_write",
-                "ro_1:io_bg_fetch_doc_bytes",
-                "ro_1:io_total_read_bytes",
-                "ro_1:io_total_write_bytes",
-                "ro_1:io_document_write_bytes",
-                "ro_1:numLoadedVb",
-                "ro_1:open",
-                "ro_2:backend_type",
-                "ro_2:close",
-                "ro_2:failure_compaction",
-                "ro_2:failure_get",
-                "ro_2:failure_open",
-                "ro_2:io_compaction_read_bytes",
-                "ro_2:io_compaction_write_bytes",
-                "ro_2:io_bg_fetch_docs_read",
-                "ro_2:io_num_write",
-                "ro_2:io_bg_fetch_doc_bytes",
-                "ro_2:io_total_read_bytes",
-                "ro_2:io_total_write_bytes",
-                "ro_2:io_document_write_bytes",
-                "ro_2:numLoadedVb",
-                "ro_2:open",
-                "ro_3:backend_type",
-                "ro_3:close",
-                "ro_3:failure_compaction",
-                "ro_3:failure_get",
-                "ro_3:failure_open",
-                "ro_3:io_compaction_read_bytes",
-                "ro_3:io_compaction_write_bytes",
-                "ro_3:io_bg_fetch_docs_read",
-                "ro_3:io_num_write",
-                "ro_3:io_bg_fetch_doc_bytes",
-                "ro_3:io_total_read_bytes",
-                "ro_3:io_total_write_bytes",
-                "ro_3:io_document_write_bytes",
-                "ro_3:numLoadedVb",
-                "ro_3:open"
-    };
-
     std::vector<std::string> rwKVStoreStats = {
                 "rw_0:backend_type",
                 "rw_0:close",
@@ -6834,12 +6761,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
     /* initialize with all the read write stats */
     kvstats.insert(kvstats.begin(), rwKVStoreStats.begin(),
                    rwKVStoreStats.end());
-
-    /* add the read-only stats in the case of couchstore */
-    if (backend == "couchdb") {
-        kvstats.insert(kvstats.end(), roKVStoreStats.begin(),
-                       roKVStoreStats.end());
-    }
 
     std::map<std::string, std::vector<std::string> > statsKeys{
             {"dcp-vbtakeover 0",
