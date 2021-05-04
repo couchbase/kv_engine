@@ -117,7 +117,7 @@ void KVBucketTest::TearDown() {
     // Cleanup any files we created.
     try {
         cb::io::rmrf(test_dbname);
-    } catch (const std::system_error& e) {
+    } catch (const std::system_error&) {
         // ignore - test cases may destroy data dir to force a test condition
     }
 }

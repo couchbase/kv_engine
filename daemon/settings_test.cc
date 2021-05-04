@@ -296,7 +296,7 @@ TEST_F(SettingsTest, Prometheus) {
     try {
         Settings settings(json);
         FAIL() << "Should detect invalid port";
-    } catch (std::exception& exception) {
+    } catch (std::exception&) {
     }
 
     // Check for invalid family
@@ -305,7 +305,7 @@ TEST_F(SettingsTest, Prometheus) {
     try {
         Settings settings(json);
         FAIL() << "Should detect invalid family";
-    } catch (std::exception& exception) {
+    } catch (std::exception&) {
     }
 
     json["prometheus"] = nlohmann::json::value_t::object;
@@ -313,14 +313,14 @@ TEST_F(SettingsTest, Prometheus) {
     try {
         Settings settings(json);
         FAIL() << "Should detect missing port";
-    } catch (std::exception& exception) {
+    } catch (std::exception&) {
     }
     json["prometheus"] = nlohmann::json::value_t::object;
     json["prometheus"]["port"] = 999;
     try {
         Settings settings(json);
         FAIL() << "Should detect missing family";
-    } catch (std::exception& exception) {
+    } catch (std::exception&) {
     }
 }
 

@@ -1222,7 +1222,7 @@ void EPBucket::compactionCompletionCallback(CompactionContext& ctx) {
 
         postCompactionCompletionStatsUpdateHook();
 
-    } catch (std::exception& e) {
+    } catch (std::exception&) {
         // Re-apply our pre-compaction stats snapshot
         vb->setPurgeSeqno(prePurgeSeqno);
         vb->setNumTotalItems(preNumTotalItems);

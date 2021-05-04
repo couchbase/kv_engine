@@ -116,7 +116,7 @@ static std::pair<couchstore_error_t, nlohmann::json> getLocalVbState(Db& db) {
         try {
             auto view = std::string_view{doc->json.buf, doc->json.size};
             return {status, nlohmann::json::parse(view)};
-        } catch (const std::exception& e) {
+        } catch (const std::exception&) {
             return {COUCHSTORE_ERROR_CORRUPT, {}};
         }
     }
