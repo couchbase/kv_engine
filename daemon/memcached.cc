@@ -292,7 +292,7 @@ static bool prometheus_auth_callback(const std::string& user,
                        std::nullopt /* no scope */,
                        std::nullopt /* no collection */)
                 .success();
-    } catch (const cb::rbac::Exception& e) {
+    } catch (const cb::rbac::Exception&) {
         return false;
     }
 }
