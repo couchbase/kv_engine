@@ -365,7 +365,10 @@ public:
           rbac_file_name(test_directory / "rbac.json"),
           audit_file_name(test_directory / "audit.cfg"),
           audit_log_dir(test_directory / "audittrail"),
+          minidump_dir(test_directory / "crash"),
           manageSSL(manageSSL_) {
+        create_directories(minidump_dir);
+
         if (manageSSL) {
             initialize_openssl();
         }
@@ -424,10 +427,24 @@ public:
         if (manageSSL) {
             shutdown_openssl();
         }
-        try {
-            boost::filesystem::remove_all(test_directory);
-        } catch (...) {
-            // Ignore errors
+
+        bool cleanup = true;
+        for (const auto& p :
+             boost::filesystem::directory_iterator(minidump_dir)) {
+            if (is_regular_file(p)) {
+                cleanup = false;
+                break;
+            }
+        }
+
+        if (cleanup) {
+            try {
+                boost::filesystem::remove_all(test_directory);
+            } catch (...) {
+            }
+        } else {
+            std::cerr << "Test directory " << test_directory.generic_string()
+                      << " not removed as minidump files exists" << std::endl;
         }
     }
 
@@ -480,6 +497,10 @@ public:
         return portnumber_file.generic_string();
     }
 
+    std::string getMinidumpDir() const override {
+        return minidump_dir.generic_string();
+    }
+
 private:
     const boost::filesystem::path test_directory;
     const boost::filesystem::path isasl_file_name;
@@ -488,6 +509,7 @@ private:
     const boost::filesystem::path rbac_file_name;
     const boost::filesystem::path audit_file_name;
     const boost::filesystem::path audit_log_dir;
+    const boost::filesystem::path minidump_dir;
     const bool manageSSL;
 
     nlohmann::json audit_config;

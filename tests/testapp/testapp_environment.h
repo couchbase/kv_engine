@@ -180,6 +180,8 @@ public:
     virtual std::string getConfigurationFile() const = 0;
 
     virtual std::string getPortnumberFile() const = 0;
+
+    virtual std::string getMinidumpDir() const = 0;
 };
 
 extern McdEnvironment* mcd_env;
