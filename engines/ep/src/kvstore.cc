@@ -184,8 +184,7 @@ KVStoreRWRO KVStoreFactory::create(KVStoreConfig& config) {
     if (backend == "couchdb") {
         auto rw = std::make_unique<CouchKVStore>(
                 dynamic_cast<CouchKVStoreConfig&>(config));
-        auto ro = rw->makeReadOnlyStore();
-        return {rw.release(), ro.release()};
+        return {rw.release(), nullptr};
     }
 #ifdef EP_USE_MAGMA
     else if (backend == "magma") {

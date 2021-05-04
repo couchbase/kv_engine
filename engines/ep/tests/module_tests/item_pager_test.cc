@@ -931,7 +931,7 @@ TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
     // greater than the gap between high and low watermarks. With the default
     // quota, there's not enough "headroom" left after base memory usage to
     // populate vbs as desired.
-    increaseQuota(2200000);
+    increaseQuota(2400000);
 
     auto& stats = engine->getEpStats();
 

@@ -179,10 +179,10 @@ TEST_F(CouchKVStoreTest, MB_18580_ENOENT) {
     // Create a read-only kvstore (which disables item count caching), then
     // attempt to get the count from a non-existent vbucket.
     auto kvstore = KVStoreFactory::create(config);
-    ASSERT_NE(nullptr, kvstore.ro);
+    ASSERT_EQ(nullptr, kvstore.ro);
 
     // Expect to get a system_error (ENOENT)
-    EXPECT_THROW(kvstore.ro->getDbFileInfo(Vbid(0)), std::system_error);
+    EXPECT_THROW(kvstore.rw->getDbFileInfo(Vbid(0)), std::system_error);
 }
 
 class CollectionsOfflineUpgradeCallback : public StatusCallback<CacheLookup> {
