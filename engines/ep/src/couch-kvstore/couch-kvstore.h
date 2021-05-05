@@ -143,10 +143,18 @@ public:
     explicit CouchKVStore(const CouchKVStoreConfig& config);
 
     /**
-     * Alternate constructor for injecting base FileOps
+     * Construction for a read-write CouchKVStore.
+     * This constructor:
+     *  - Attempts to create the data directory
+     *    Removes stale data files (e.g. when multiple copies of a vbucket file
+     *    exist).
+     *  - Removes any .compact files, but only for the most recent revision of
+     *    a vbucket. E.g. if x.couch.y then delete x.couch.y.compact
+     *  - Creates and initialises a vbucket revision 'map'
+     *  - Initialises from the vbucket files that remain in the data directory
      *
-     * @param config    Configuration information
-     * @param ops       Couchstore FileOps implementation to be used
+     * @param config config to use
+     * @param ops The ops interface to use for File I/O
      */
     CouchKVStore(const CouchKVStoreConfig& config, FileOpsInterface& ops);
 
@@ -991,50 +999,12 @@ protected:
      *
      * @param config configuration data for the store
      * @param ops the file ops to use
-     * @param readOnly true if the store can only do read functionality
      * @param revMap a revisionMap to use (which should be data created by the
      *        RW store).
      */
     CouchKVStore(const CouchKVStoreConfig& config,
                  FileOpsInterface& ops,
-                 bool readOnly,
                  std::shared_ptr<RevisionMap> revMap);
-
-    struct CreateReadWrite {};
-    /**
-     * Construction for a read-write CouchKVStore.
-     * This constructor:
-     *  - Attempts to create the data directory
-     *    Removes stale data files (e.g. when multiple copies of a vbucket file
-     *    exist).
-     *  - Removes any .compact files, but only for the most recent revision of
-     *    a vbucket. E.g. if x.couch.y then delete x.couch.y.compact
-     *  - Creates and initialises a vbucket revision 'map'
-     *  - Initialises from the vbucket files that remain in the data directory
-     *
-     * @param CreateReadWrite tag to clearly differentiate from ReadOnly method
-     * @param config config to use
-     * @param ops The ops interface to use for File I/O
-     */
-    CouchKVStore(CreateReadWrite,
-                 const CouchKVStoreConfig& config,
-                 FileOpsInterface& ops);
-
-    struct CreateReadOnly {};
-    /**
-     * Construction for a read-only CouchKVStore.
-     * This constructor will initialise from files it finds in the data
-     * directory and use the given RevisionMap for operations.
-     *
-     * @param CreateReadOnly tag to clearly differentiate from ReadWrite method
-     * @param config config to use
-     * @param ops The ops interface to use for File I/O
-     * @param dbFileRevMap to use
-     */
-    CouchKVStore(CreateReadOnly,
-                 const CouchKVStoreConfig& config,
-                 FileOpsInterface& ops,
-                 std::shared_ptr<RevisionMap> dbFileRevMap);
 
     /**
      * Common RO/RW initialisation

@@ -52,10 +52,8 @@ public:
     /// Read-Only constructor where we are given a RevisionMap
     MockCouchKVStore(const CouchKVStoreConfig& config,
                      std::shared_ptr<RevisionMap> dbFileRevMap)
-        : CouchKVStore(CreateReadOnly{},
-                       config,
-                       *couchstore_get_default_file_ops(),
-                       dbFileRevMap) {
+        : CouchKVStore(
+                  config, *couchstore_get_default_file_ops(), dbFileRevMap) {
     }
 
     using CouchKVStore::setConcurrentCompactionPostLockHook;

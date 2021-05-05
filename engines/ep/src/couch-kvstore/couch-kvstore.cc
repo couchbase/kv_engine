@@ -343,19 +343,16 @@ CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config)
 
 CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
                            FileOpsInterface& ops,
-                           bool readOnly,
                            std::shared_ptr<RevisionMap> revMap)
     : configuration(config),
       dbname(config.getDBName()),
       dbFileRevMap(std::move(revMap)),
       logger(config.getLogger()),
       base_ops(ops) {
-    if (!readOnly) {
-        vbCompactionRunning =
-                std::vector<std::atomic_bool>(configuration.getMaxVBuckets());
-        vbAbortCompaction =
-                std::vector<std::atomic_bool>(configuration.getMaxVBuckets());
-    }
+    vbCompactionRunning =
+            std::vector<std::atomic_bool>(configuration.getMaxVBuckets());
+    vbAbortCompaction =
+            std::vector<std::atomic_bool>(configuration.getMaxVBuckets());
     statCollectingFileOps = getCouchstoreStatsOps(st.fsStats, base_ops);
     statCollectingFileOpsCompaction = getCouchstoreStatsOps(
         st.fsStatsCompaction, base_ops);
@@ -381,11 +378,9 @@ std::shared_ptr<CouchKVStore::RevisionMap> CouchKVStore::makeRevisionMap(
     return map;
 }
 
-CouchKVStore::CouchKVStore(CreateReadWrite,
-                           const CouchKVStoreConfig& config,
+CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
                            FileOpsInterface& ops)
-    : CouchKVStore(
-              config, ops, false, makeRevisionMap(config.getMaxVBuckets())) {
+    : CouchKVStore(config, ops, makeRevisionMap(config.getMaxVBuckets())) {
     // 1) Create the data directory
     createDataDir(dbname);
 
@@ -400,20 +395,6 @@ CouchKVStore::CouchKVStore(CreateReadWrite,
 
     // 4) continue to intialise the store (reads vbstate etc...)
     initialize(map);
-}
-
-CouchKVStore::CouchKVStore(CreateReadOnly,
-                           const CouchKVStoreConfig& config,
-                           FileOpsInterface& ops,
-                           std::shared_ptr<RevisionMap> dbFileRevMap)
-    : CouchKVStore(config, ops, true, dbFileRevMap) {
-    // intialise the store (reads vbstate etc...)
-    initialize(getVbucketRevisions(discoverDbFiles(dbname)));
-}
-
-CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
-                           FileOpsInterface& ops)
-    : CouchKVStore(CreateReadWrite{}, config, ops) {
 }
 
 void CouchKVStore::initialize(
