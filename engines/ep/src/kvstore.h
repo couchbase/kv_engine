@@ -627,8 +627,6 @@ public:
     /// Result of flushing a Mutation, passed to the PersistenceCallback.
     enum class FlushStateMutation { Insert, Update, Failed };
 
-    explicit KVStore(bool read_only = false);
-
     virtual ~KVStore();
 
     /**
@@ -1235,7 +1233,6 @@ protected:
 
     /* all stats */
     KVStoreStats st;
-    bool readOnly;
     std::vector<std::unique_ptr<vbucket_state>> cachedVBStates;
     /* non-deleted docs in each file, indexed by vBucket.
        RelaxedAtomic to allow stats access without lock. */

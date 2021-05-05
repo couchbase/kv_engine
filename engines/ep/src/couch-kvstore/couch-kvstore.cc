@@ -345,8 +345,7 @@ CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
                            FileOpsInterface& ops,
                            bool readOnly,
                            std::shared_ptr<RevisionMap> revMap)
-    : KVStore(readOnly),
-      configuration(config),
+    : configuration(config),
       dbname(config.getDBName()),
       dbFileRevMap(std::move(revMap)),
       logger(config.getLogger()),
@@ -3455,10 +3454,6 @@ cb::engine_errc CouchKVStore::couchErr2EngineErr(
 }
 
 size_t CouchKVStore::getNumPersistedDeletes(Vbid vbid) {
-    // cachedDeletes isn't tracked correctly for the RO store as it's only set
-    // on write so we can't read the stat from it.
-    Expects(!readOnly);
-
     return cachedDeleteCount[vbid.get()];
 }
 

@@ -349,9 +349,6 @@ nlohmann::json KVStore::getPersistedStats() const {
     return json;
 }
 
-KVStore::KVStore(bool read_only) : readOnly(read_only) {
-}
-
 KVStore::~KVStore() = default;
 
 std::string KVStore::getStatsPrefix() const {
