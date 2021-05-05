@@ -288,8 +288,13 @@ bool EPBucket::initialize() {
 void EPBucket::deinitialize() {
     stopFlusher();
     stopBgFetcher();
-
     stopWarmup();
+
+    // Perform a snapshot of the stats before shutting down so we can
+    // persist the type of shutdown (stats.forceShutdown), and consequently
+    // on the next warmup can determine is there was a clean shutdown - see
+    // Warmup::cleanShutdown
+    snapshotStats();
     KVBucket::deinitialize();
 }
 

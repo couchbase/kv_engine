@@ -1124,6 +1124,13 @@ protected:
      */
     DocKey makeDocKey(const void* cookie, cb::const_byte_buffer key);
 
+public:
+    // Testing hook for MB-45756, to allow a throw to be made during
+    // destroyInner() to simulate a crash while waiting for the flusher to
+    // finish
+    std::function<void()> epDestroyFailureHook;
+
+protected:
     SERVER_HANDLE_V1 *serverApi;
 
     // Engine statistics. First concrete member as a number of other members

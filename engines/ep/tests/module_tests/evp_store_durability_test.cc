@@ -2366,7 +2366,8 @@ TEST_F(DurabilityRespondAmbiguousTest, RespondAmbiguousNotificationDeadLock) {
         destroy_mock_event_callbacks();
         engine->getDcpConnMap().manageConnections();
 
-        // Should deadlock here in ~SynchronousEPEngine
+        // Should deadlock here
+        engine->destroyInner(false);
         engine.reset();
 
         // The RespondAmbiguousNotification task requires our cookie to still be

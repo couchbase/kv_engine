@@ -28,10 +28,17 @@
 #include <mutex>
 #include <string>
 
-typedef struct {
+struct failover_entry_t {
+    bool operator==(const failover_entry_t& rhs) const {
+        return this->vb_uuid == rhs.vb_uuid && this->by_seqno == rhs.by_seqno;
+    };
+    bool operator!=(const failover_entry_t& rhs) const {
+        return !(*this == rhs);
+    };
+
     uint64_t vb_uuid;
     uint64_t by_seqno;
-} failover_entry_t;
+};
 
 /**
  * The failover table hold a list of uuid/sequence number pairs. The sequence

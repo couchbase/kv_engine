@@ -2216,16 +2216,25 @@ void EventuallyPersistentEngine::destroyInner(bool force) {
     stats.forceShutdown = force;
     stats.isShutdown = true;
 
-    // Perform a snapshot of the stats before shutting down so we can persist
-    // the type of shutdown (stats.forceShutdown), and consequently on the
-    // next warmup can determine is there was a clean shutdown - see
-    // Warmup::cleanShutdown
-    if (kvBucket) {
-        kvBucket->snapshotStats();
-    }
     if (dcpConnMap_) {
         dcpConnMap_->shutdownAllConnections();
     }
+    if (kvBucket) {
+        if (epDestroyFailureHook) {
+            epDestroyFailureHook();
+        }
+        // deinitialize() will shutdown the flusher, bgfetcher and warmup tasks
+        // then take a snapshot the stats.
+        kvBucket->deinitialize();
+
+        // Need to reset the kvBucket as we need our thread local engine ptr to
+        // be valid when destructing Items in CheckpointManagers but we need to
+        // reset it before destructing EPStats.
+        kvBucket.reset();
+    }
+    EP_LOG_INFO(
+            "EventuallyPersistentEngine::destroyInner(): Completed "
+            "deinitialize.");
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::itemAllocate(
@@ -6622,14 +6631,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setVBucketState(
 }
 
 EventuallyPersistentEngine::~EventuallyPersistentEngine() {
-    if (kvBucket) {
-        kvBucket->deinitialize();
-        // Need to reset the kvBucket as we need our ThreadLocal engine ptr to
-        // be valid when destructing Items in CheckpointManagers but we need to
-        // reset it before destructing EPStats.
-        kvBucket.reset();
-    }
-    EP_LOG_INFO("~EPEngine: Completed deinitialize.");
     workload.reset();
     checkpointConfig.reset();
 

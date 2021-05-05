@@ -2164,6 +2164,10 @@ protected:
     }
 
     void TearDown() override {
+        // To prevent a leak in shutdown we need to unregister the engine from
+        // the executor pool.
+        ExecutorPool::get()->unregisterTaskable(engine->getTaskable(),
+                                                false /*force*/);
         destroy_mock_event_callbacks();
         ObjectRegistry::onSwitchThread(nullptr);
     }

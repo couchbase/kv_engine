@@ -170,13 +170,8 @@ void SingleThreadedKVBucketTest::runReadersUntilWarmedUp() {
     }
 }
 
-/**
- * Destroy engine and replace it with a new engine that can be warmed up.
- * Finally, run warmup.
- */
-void SingleThreadedKVBucketTest::resetEngineAndEnableWarmup(
-        std::string new_config, bool force) {
-    shutdownAndPurgeTasks(engine.get());
+std::string SingleThreadedKVBucketTest::buildNewWarmupConfig(
+        std::string new_config) {
     std::string config = config_string;
 
     // check if warmup=false needs replacing with warmup=true
@@ -193,8 +188,18 @@ void SingleThreadedKVBucketTest::resetEngineAndEnableWarmup(
         config += ";";
         config += new_config;
     }
+    return config;
+}
 
-    reinitialise(config, force);
+/**
+ * Destroy engine and replace it with a new engine that can be warmed up.
+ * Finally, run warmup.
+ */
+void SingleThreadedKVBucketTest::resetEngineAndEnableWarmup(
+        std::string new_config, bool force) {
+    shutdownAndPurgeTasks(engine.get());
+    reinitialise(buildNewWarmupConfig(new_config), force);
+
     if (engine->getConfiguration().getBucketType() == "persistent") {
         static_cast<EPBucket*>(engine->getKVBucket())->initializeWarmupTask();
         static_cast<EPBucket*>(engine->getKVBucket())->startWarmupTask();
@@ -335,6 +340,15 @@ void SingleThreadedKVBucketTest::runCompaction(uint64_t purgeBeforeTime,
     // run the compaction task
     runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX],
                 "Compact DB file 0");
+}
+
+boost::optional<failover_entry_t>
+SingleThreadedKVBucketTest::getLatestFailoverTableEntry() const {
+    auto vb = engine->getVBucket(vbid);
+    if (vb) {
+        return {vb->failovers->getLatestEntry()};
+    }
+    return {};
 }
 
 void SingleThreadedKVBucketTest::runCollectionsEraser() {
@@ -2461,9 +2475,8 @@ TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_del
     }
 
     ObjectRegistry::onSwitchThread(engine.get());
-    // 'Destroy' the engine - this doesn't delete the object, just shuts down
-    // connections, marks streams as dead etc.
-    engine->destroyInner(/*force*/ false);
+    // Shutdown connections, marks streams as dead etc.
+    engine->initiate_shutdown();
 
     {
         // If we can get the lock we know the thread is waiting for destroy.

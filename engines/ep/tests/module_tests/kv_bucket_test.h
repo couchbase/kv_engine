@@ -243,12 +243,12 @@ public:
     unique_request_ptr createObserveRequest(
             const std::vector<std::string>& key);
 
-private:
     /**
      * Initialise test objects - e.g. engine/store/cookie
      */
     void initialise(std::string config);
 
+private:
     /**
      * Destroy the test objects - e.g. engine/store/cookie
      *
