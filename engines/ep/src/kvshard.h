@@ -40,8 +40,7 @@
  *   |                                 |
  *   | flusher: Flusher                |
  *   |                                 |
- *   | rwUnderlying: KVStore (write)   |----> (CouchKVStore)
- *   | roUnderlying: KVStore (read)    |----> (CouchKVStore)
+ *   | rwUnderlying: KVStore (write)   |
  *   -----------------------------------
  *
  * vBuckets are mapped to Shards by (vbid modulo numShards) - see
@@ -95,9 +94,6 @@ public:
 
     template <class UnaryFunction>
     void forEachKVStore(UnaryFunction f) {
-        if (roStore) {
-            f(roStore.get());
-        }
         f(rwStore.get());
     }
 
@@ -235,7 +231,6 @@ private:
     std::vector<VBMapElement> vbuckets;
 
     std::unique_ptr<KVStore> rwStore;
-    std::unique_ptr<KVStore> roStore;
 
     std::unique_ptr<Flusher> flusher;
 
