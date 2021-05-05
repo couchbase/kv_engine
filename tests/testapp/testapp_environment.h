@@ -10,7 +10,6 @@
  */
 #pragma once
 
-#include <folly/portability/GTest.h>
 #include <nlohmann/json_fwd.hpp>
 #include <string>
 
@@ -102,16 +101,26 @@ protected:
 };
 
 /**
- * The test environment added to the Google Test Framework.
+ * The test environment
  *
  * The environment is set up once before the first test is run, and
  * shut down after the last test is run.
  */
-class McdEnvironment : public ::testing::Environment {
+class McdEnvironment {
 public:
+    virtual ~McdEnvironment() = default;
+
     static McdEnvironment* create(bool manageSSL_,
                                   const std::string& engineName,
                                   const std::string& engineConfig);
+
+    /**
+     * Shut down the test environment, clean up the test directory and
+     * terminate the process by calling std::exit(exitcode)
+     *
+     * @param exitcode The exit code from running all tests
+     */
+    virtual void terminate(int exitcode) = 0;
 
     /**
      * Get the name of the configuration file used by the audit daemon.
@@ -184,4 +193,4 @@ public:
     virtual std::string getMinidumpDir() const = 0;
 };
 
-extern McdEnvironment* mcd_env;
+extern std::unique_ptr<McdEnvironment> mcd_env;

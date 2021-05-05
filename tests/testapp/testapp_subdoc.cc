@@ -2140,7 +2140,7 @@ public:
             std::cerr << "Error in WorkerConcurrencyTest::SetUpTestCase, "
                          "terminating process"
                       << std::endl;
-            exit(EXIT_FAILURE);
+            mcd_env->terminate(EXIT_FAILURE);
         } else {
             CreateTestBucket();
         }

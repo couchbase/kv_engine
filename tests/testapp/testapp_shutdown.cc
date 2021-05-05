@@ -15,7 +15,7 @@ void ShutdownTest::SetUp() {
     if (server_pid == pid_t(-1)) {
         std::cerr << "memcached not running. Terminate test execution"
                   << std::endl;
-        exit(EXIT_FAILURE);
+        mcd_env->terminate(EXIT_FAILURE);
     }
 
     auto& conn = getAdminConnection();
@@ -24,7 +24,7 @@ void ShutdownTest::SetUp() {
         std::cerr << "Failed to set control token: " << rsp.getStatus()
                   << rsp.getResponse().toJSON(false) << std::endl
                   << "Exit program";
-        exit(EXIT_FAILURE);
+        mcd_env->terminate(EXIT_FAILURE);
     }
 }
 

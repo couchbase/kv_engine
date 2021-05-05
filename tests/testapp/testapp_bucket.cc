@@ -33,7 +33,7 @@ public:
             std::cerr << "Error in BucketTest::SetUpTestCase, "
                          "terminating process"
                       << std::endl;
-            exit(EXIT_FAILURE);
+            mcd_env->terminate(EXIT_FAILURE);
         } else {
             CreateTestBucket();
         }

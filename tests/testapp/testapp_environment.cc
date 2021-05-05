@@ -11,6 +11,7 @@
 #include "testapp_environment.h"
 #include "memcached_audit_events.h"
 #include <boost/filesystem.hpp>
+#include <folly/portability/GTest.h>
 #include <folly/portability/Stdlib.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
@@ -21,6 +22,7 @@
 #include <utilities/string_utilities.h>
 #include <fstream>
 #include <memory>
+#include <thread>
 
 std::string TestBucketImpl::mergeConfigString(const std::string& next) {
     if (next.empty()) {
@@ -373,6 +375,11 @@ public:
             initialize_openssl();
         }
 
+        // We need to set MEMCACHED_UNIT_TESTS to enable the use of
+        // the ewouldblock engine..
+        setenv("MEMCACHED_UNIT_TESTS", "true", 1);
+        setenv("MEMCACHED_TOP_KEYS", "10", 1);
+
         if (engineName == "default") {
             std::string config = "keep_deleted=true";
             if (!engineConfig.empty()) {
@@ -423,10 +430,14 @@ public:
         rewriteAuditConfig();
     }
 
-    ~McdEnvironmentImpl() override {
+    void terminate(int exitcode) override {
         if (manageSSL) {
             shutdown_openssl();
         }
+
+        unsetenv("MEMCACHED_UNIT_TESTS");
+        unsetenv("MEMCACHED_TOP_KEYS");
+        unsetenv("CBSASL_PWFILE");
 
         bool cleanup = true;
         for (const auto& p :
@@ -438,14 +449,23 @@ public:
         }
 
         if (cleanup) {
-            try {
-                boost::filesystem::remove_all(test_directory);
-            } catch (...) {
+            for (int ii = 0; ii < 100; ++ii) {
+                try {
+                    boost::filesystem::remove_all(test_directory);
+                    break;
+                } catch (const std::exception& e) {
+                    std::cerr << "Failed to remove: "
+                              << test_directory.generic_string() << ": "
+                              << e.what() << std::endl;
+                    std::this_thread::sleep_for(std::chrono::milliseconds{20});
+                }
             }
         } else {
             std::cerr << "Test directory " << test_directory.generic_string()
                       << " not removed as minidump files exists" << std::endl;
         }
+
+        std::exit(exitcode);
     }
 
     std::string getAuditFilename() const override {

@@ -33,7 +33,7 @@
 #include <fstream>
 #include <gsl/gsl>
 
-McdEnvironment* mcd_env = nullptr;
+std::unique_ptr<McdEnvironment> mcd_env;
 
 pid_t server_pid = -1;
 in_port_t port = -1;
@@ -136,7 +136,7 @@ void TestappTest::SetUpTestCase() {
         std::cerr << "Error in TestappTest::SetUpTestCase, terminating process"
                   << std::endl;
 
-        exit(EXIT_FAILURE);
+        mcd_env->terminate(EXIT_FAILURE);
     } else {
         CreateTestBucket();
     }
@@ -406,7 +406,7 @@ void TestappTest::verify_server_running() {
 
     if (-1 == server_pid) {
         std::cerr << "Server not running (server_pid == -1)" << std::endl;
-        exit(EXIT_FAILURE);
+        mcd_env->terminate(EXIT_FAILURE);
     }
 
 #ifdef WIN32
@@ -415,12 +415,12 @@ void TestappTest::verify_server_running() {
     if (!GetExitCodeProcess(pidTToHandle(server_pid), &status)) {
         std::cerr << "GetExitCodeProcess: failed: " << cb_strerror()
                   << std::endl;
-        exit(EXIT_FAILURE);
+        mcd_env->terminate(EXIT_FAILURE);
     }
     if (status != STILL_ACTIVE) {
         std::cerr << "memcached process is not active: Exit code " << status
                   << "(" << cb::to_hex(uint32_t(status)) << ")" << std::endl;
-        exit(EXIT_FAILURE);
+        mcd_env->terminate(EXIT_FAILURE);
     }
 #else
     int status;
@@ -428,7 +428,7 @@ void TestappTest::verify_server_running() {
 
     if (ret == static_cast<pid_t>(-1)) {
         std::cerr << "waitpid() failed with: " << strerror(errno) << std::endl;
-        exit(EXIT_FAILURE);
+        mcd_env->terminate(EXIT_FAILURE);
     }
 
     if (server_pid == ret) {
@@ -438,7 +438,7 @@ void TestappTest::verify_server_running() {
                   << "WIFSIGNALED(status): " << WIFSIGNALED(status) << std::endl
                   << "WTERMSIG(status)   : " << WTERMSIG(status) << std::endl
                   << "WCOREDUMP(status)  : " << WCOREDUMP(status) << std::endl;
-        exit(EXIT_FAILURE);
+        mcd_env->terminate(EXIT_FAILURE);
     }
 #endif
 }
@@ -508,7 +508,7 @@ void TestappTest::spawn_embedded_server() {
         std::cerr << "ERROR: Embedded server may only be started once as we "
                      "don't properly reset all global variables"
                   << std::endl;
-        exit(EXIT_FAILURE);
+        mcd_env->terminate(EXIT_FAILURE);
     }
 
     memcached_server_thread = std::thread(memcached_server_thread_main,
@@ -539,7 +539,7 @@ void TestappTest::start_external_server() {
                        &sinfo,
                        &pinfo)) {
         std::cerr << "Failed to start process: " << cb_strerror() << std::endl;
-        exit(EXIT_FAILURE);
+        mcd_env->terminate(EXIT_FAILURE);
     }
 
     server_pid = handleToPidT(pinfo.hProcess);
@@ -1292,11 +1292,6 @@ std::thread TestappTest::memcached_server_thread;
 std::size_t TestappTest::num_server_starts = 0;
 
 int main(int argc, char** argv) {
-    // We need to set MEMCACHED_UNIT_TESTS to enable the use of
-    // the ewouldblock engine..
-    setenv("MEMCACHED_UNIT_TESTS", "true", 1);
-    setenv("MEMCACHED_TOP_KEYS", "10", 1);
-
     setupWindowsDebugCRTAssertHandling();
 
     ::testing::InitGoogleTest(&argc, argv);
@@ -1353,14 +1348,13 @@ int main(int argc, char** argv) {
     // If not running in embedded mode we need the McdEnvironment to manageSSL
     // initialization and shutdown.
     try {
-        mcd_env = McdEnvironment::create(
-                !embedded_memcached_server, engine_name, engine_config);
+        mcd_env.reset(McdEnvironment::create(
+                !embedded_memcached_server, engine_name, engine_config));
     } catch (const std::exception& e) {
         std::cerr << "Failed to set up test environment: " << e.what()
                   << std::endl;
         exit(EXIT_FAILURE);
     }
-    ::testing::AddGlobalTestEnvironment(mcd_env);
 
     cb_initialize_sockets();
     try {
@@ -1368,7 +1362,7 @@ int main(int argc, char** argv) {
     } catch (const std::exception& e) {
         std::cerr << "Failed to setup bactrace support: " << e.what()
                   << std::endl;
-        exit(EXIT_FAILURE);
+        mcd_env->terminate(EXIT_FAILURE);
     }
 
 #if !defined(WIN32)
@@ -1386,5 +1380,5 @@ int main(int argc, char** argv) {
     }
 #endif
 
-    return RUN_ALL_TESTS();
+    mcd_env->terminate(RUN_ALL_TESTS());
 }
