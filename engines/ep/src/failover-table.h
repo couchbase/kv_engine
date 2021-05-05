@@ -25,6 +25,12 @@
 struct failover_entry_t {
     uint64_t vb_uuid;
     uint64_t by_seqno;
+    bool operator==(const failover_entry_t& rhs) const {
+        return this->vb_uuid == rhs.vb_uuid && this->by_seqno == rhs.by_seqno;
+    };
+    bool operator!=(const failover_entry_t& rhs) const {
+        return !(*this == rhs);
+    };
 };
 
 /**

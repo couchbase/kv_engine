@@ -972,10 +972,22 @@ void Warmup::initialize() {
     }
 
     auto session_stats = store.getOneROUnderlying()->getPersistedStats();
-
     auto it = session_stats.find("ep_force_shutdown");
     if (it != session_stats.end() && it.value() == "false") {
         cleanShutdown = true;
+        // We want to ensure that if we crash from now and before the
+        // StatSnap task runs. Then warmup again, that we will generate a new
+        // failover entry and not treat the last shutdown as being clean. To do
+        // this we just need to set 'ep_force_shutdown=true' in the stats.json
+        // file.
+        session_stats["ep_force_shutdown"] = "true";
+        while (!store.getOneRWUnderlying()->snapshotStats(session_stats)) {
+            EP_LOG_ERR(
+                    "Warmup::initialize(): failed to persist snapshotStats "
+                    "setting ep_force_shutdown=true, sleeping for 1 sec before "
+                    "retrying");
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
     }
 
     if (!store.getCollectionsManager().warmupLoadManifest(

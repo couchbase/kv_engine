@@ -179,9 +179,8 @@ void SingleThreadedKVBucketTest::runReadersUntilWarmedUp() {
     }
 }
 
-void SingleThreadedKVBucketTest::resetEngine(std::string new_config,
-                                             bool force) {
-    shutdownAndPurgeTasks(engine.get());
+std::string SingleThreadedKVBucketTest::buildNewWarmupConfig(
+        std::string new_config) {
     std::string config = config_string;
 
     // check if warmup=false needs replacing with warmup=true
@@ -198,8 +197,13 @@ void SingleThreadedKVBucketTest::resetEngine(std::string new_config,
         config += ";";
         config += new_config;
     }
+    return config;
+}
 
-    reinitialise(config, force);
+void SingleThreadedKVBucketTest::resetEngine(std::string new_config,
+                                             bool force) {
+    shutdownAndPurgeTasks(engine.get());
+    reinitialise(buildNewWarmupConfig(new_config), force);
 }
 
 /**
@@ -428,6 +432,15 @@ void SingleThreadedKVBucketTest::runEphemeralHTCleaner() {
     runNextTask(queue, "Eph tombstone hashtable cleaner");
     // Scheduled by HTCleaner
     runNextTask(queue, "Eph tombstone stale item deleter");
+}
+
+std::optional<failover_entry_t>
+SingleThreadedKVBucketTest::getLatestFailoverTableEntry() const {
+    auto vb = engine->getVBucket(vbid);
+    if (vb) {
+        return {vb->failovers->getLatestEntry()};
+    }
+    return {};
 }
 
 cb::engine_errc SingleThreadedKVBucketTest::setCollections(
@@ -2825,9 +2838,8 @@ TEST_P(MB20054_SingleThreadedEPStoreTest,
     }
 
     ObjectRegistry::onSwitchThread(engine.get());
-    // 'Destroy' the engine - this doesn't delete the object, just shuts down
-    // connections, marks streams as dead etc.
-    engine->destroyInner(/*force*/ false);
+    // Shutdown connections, marks streams as dead etc.
+    engine->initiate_shutdown();
 
     {
         // If we can get the lock we know the thread is waiting for destroy.

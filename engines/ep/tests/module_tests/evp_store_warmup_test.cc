@@ -34,6 +34,32 @@
 class WarmupTest : public SingleThreadedKVBucketTest {
 public:
     void MB_31450(bool newCheckpoint);
+
+    void initialiseAndWarmupFully() {
+        initialise(buildNewWarmupConfig(""));
+        task_executor = reinterpret_cast<SingleThreadedExecutorPool*>(
+                ExecutorPool::get());
+        if (isPersistent()) {
+            static_cast<EPBucket*>(engine->getKVBucket())
+                    ->initializeWarmupTask();
+            static_cast<EPBucket*>(engine->getKVBucket())->startWarmupTask();
+        }
+        runReadersUntilWarmedUp();
+    }
+
+    void tidyUpAbortedShutdown() {
+        // switch context for when we destroy the engine
+        ObjectRegistry::onSwitchThread(engine.get());
+        // Mark the connection as dead for clean shutdown
+        destroy_mock_cookie(cookie);
+        engine->getDcpConnMap().manageConnections();
+        // ensure all the task have done away so we can shutdown
+        shutdownAndPurgeTasks(engine.get());
+        // release the engine object which will cleanly clean up any objects
+        // still in memory
+        engine.reset(nullptr);
+        ObjectRegistry::onSwitchThread(nullptr);
+    };
 };
 
 // Test that the FreqSaturatedCallback of a vbucket is initialized and after
@@ -2476,6 +2502,129 @@ TEST_F(WarmupTest, DontStartFlushersUntilPopulateVBucketMap) {
 
     // Finish warmup or the test gets stuck
     runReadersUntilWarmedUp();
+}
+
+TEST_F(WarmupTest, MB_45756_CrashDuringEPDestruction) {
+    auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS);
+    std::function<void()> stopDestructionEarly = []() {
+        // throw so we exit the destroy method early
+        throw std::runtime_error("Stop destruction");
+    };
+
+    // 1. Create a vbucket on disk that we can warm up from.
+    //    also place a doc on disk so the seqno is non zero
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    ASSERT_EQ(0, engine->getVBucket(vbid)->getHighSeqno());
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, "value");
+    flush_vbucket_to_disk(vbid);
+    ASSERT_EQ(1, engine->getVBucket(vbid)->getHighSeqno());
+
+    // 2. Check that our first failover entry is 0
+    const auto initFailoverEntry = *getLatestFailoverTableEntry();
+    ASSERT_EQ(0, initFailoverEntry.by_seqno);
+
+    // 3. Shutdown cleanly and re-warmup. Check that the failover entry hasn't
+    //    changed and that our high seqno is 1 so we've warmed up with the doc
+    //    and that we can get it.
+    resetEngineAndWarmup("", false);
+    const auto failoverEntryCleanShutdown = *getLatestFailoverTableEntry();
+    EXPECT_EQ(initFailoverEntry, failoverEntryCleanShutdown);
+    EXPECT_EQ(1, engine->getVBucket(vbid)->getHighSeqno());
+    auto gv = store->get(key, vbid, cookie, options);
+    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
+
+    // 4. Perform a forced shutdown and re-warmup. Check that the failover entry
+    //    has changed and that our high seqno is 1 so we've warmed up with the
+    //    doc and that we can get it.
+    resetEngineAndWarmup("", true);
+    const auto failoverEntryForcedShutdown = *getLatestFailoverTableEntry();
+    EXPECT_NE(initFailoverEntry, failoverEntryForcedShutdown);
+    EXPECT_EQ(1, failoverEntryForcedShutdown.by_seqno);
+    EXPECT_EQ(1, engine->getVBucket(vbid)->getHighSeqno());
+    gv = store->get(key, vbid, cookie, options);
+    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
+
+    // 5. This stage is to "simulate" ep-engine being SIGKILLed during shutdown
+    //    Set the hook to ensure that destroy() will throw half way though
+    //    we should have not shutdown cleanly. Then manually clean up the mess
+    //    the throw has caused.
+    engine->epDestroyFailureHook = stopDestructionEarly;
+    try {
+        engine->destroy(false);
+        FAIL() << "We should have thrown so we didn't run destroy() in "
+                  "full";
+    } catch (const std::runtime_error& e) {
+        // catch the exception thrown by stopDestructionEarly() so we clean
+        // up the thread nicely and check it was the exception we where
+        // expecting
+        EXPECT_EQ(std::string_view{"Stop destruction"}, e.what());
+    }
+    // clear the early exit hook
+    engine->epDestroyFailureHook = []() -> void {};
+    tidyUpAbortedShutdown();
+
+    // 6. Init the engine and warm backup. We shouldn't have written to
+    //    stats.json that we shutdown cleanly so we should generate a new
+    //    failover table uuid, but the entry should be still at seqno 1.
+    //    Also check that we warmed up correctly but fetching the doc that
+    //    should still be on disk
+    initialiseAndWarmupFully();
+    const auto failoverEntryAfterKill = *getLatestFailoverTableEntry();
+    EXPECT_NE(initFailoverEntry, failoverEntryAfterKill);
+    EXPECT_NE(failoverEntryCleanShutdown, failoverEntryAfterKill);
+    EXPECT_NE(failoverEntryForcedShutdown, failoverEntryAfterKill);
+    EXPECT_EQ(1, engine->getVBucket(vbid)->getHighSeqno());
+    EXPECT_EQ(1, failoverEntryForcedShutdown.by_seqno);
+    gv = store->get(key, vbid, cookie, options);
+    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
+}
+
+TEST_F(WarmupTest, CrashWarmupAfterInitialize) {
+    // Create a vbucket on disk and add a key to read later
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    // Write a doc to disk so we can see the failover entry seqno change
+    store_item(vbid, makeStoredDocKey("key"), "value");
+    flush_vbucket_to_disk(vbid);
+    auto initFailoverEntry = *getLatestFailoverTableEntry();
+    ASSERT_EQ(1, engine->getVBucket(vbid)->getHighSeqno());
+    ASSERT_EQ(0, initFailoverEntry.by_seqno);
+
+    {
+        // Set up engine so its ready to warm up from disk
+        resetEngineAndEnableWarmup();
+        auto kvBucket = engine->getKVBucket();
+        auto warmup = kvBucket->getWarmup();
+        // 1. Warmup stopping just before WarmupState::State::CreateVBuckets
+        //    We should set 'ep_force_shutdown=true' in stats.log during
+        //    WarmupState::State::initialize.
+        do {
+            CheckedExecutor executor(
+                    task_executor,
+                    *task_executor->getLpTaskQ()[READER_TASK_IDX]);
+            // run the task
+            executor.runCurrentTask();
+            executor.completeCurrentTask();
+        } while (kvBucket->isWarmingUp() &&
+                 WarmupState::State::CreateVBuckets !=
+                         warmup->getWarmupState());
+        ASSERT_EQ(WarmupState::State::CreateVBuckets, warmup->getWarmupState());
+        // 2. Tear down the Engine without calling destroyInner() to simulate
+        //    the process being SIGKILLed during warmup
+        tidyUpAbortedShutdown();
+    }
+
+    // 3. Init the Engine and warmup full, we should notice that
+    //    'ep_force_shutdown' is set to 'true' in stats.log and generate a new
+    //    failover table entry.
+    initialiseAndWarmupFully();
+    // 4. Verify that we did indeed generate a new failover table entry
+    auto failoverEntry = *getLatestFailoverTableEntry();
+    EXPECT_NE(initFailoverEntry, failoverEntry);
+    EXPECT_EQ(1, engine->getVBucket(vbid)->getHighSeqno());
+    EXPECT_EQ(1, failoverEntry.by_seqno);
 }
 
 INSTANTIATE_TEST_SUITE_P(FullOrValue,

@@ -26,6 +26,7 @@ class EPBucket;
 class MockActiveStreamWithOverloadedRegisterCursor;
 class MockDcpMessageProducers;
 class MockDcpProducer;
+struct failover_entry_t;
 
 /*
  * A subclass of KVBucketTest which uses a fake ExecutorPool,
@@ -238,6 +239,14 @@ protected:
     void runReadersUntilWarmedUp();
 
     /**
+     * Helper method that takes the objects current base config, will re-enable
+     * warmup in the returned config and also add the new_config arg.
+     * @param new_config args to add to the config
+     * @return a config string with an warmup=true
+     */
+    std::string buildNewWarmupConfig(std::string new_config);
+
+    /**
      * Destroy engine and replace it with a new engine.
      *
      * @param new_config The config to supply to engine creation
@@ -278,6 +287,13 @@ protected:
      * @throws std::bad_cast If the underlying bucket is not Ephemeral.
      */
     void runEphemeralHTCleaner();
+
+    /**
+     * Get the latest failover table entry for vbucket with vbid
+     * @return latest failover table or if no vbucket for vbid a default value
+     *         failover_entry_t
+     */
+    std::optional<failover_entry_t> getLatestFailoverTableEntry() const;
 
     SingleThreadedExecutorPool* task_executor;
 };

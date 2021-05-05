@@ -22,6 +22,7 @@
 #include <memcached/dcp.h>
 #include <memcached/engine.h>
 #include <platform/cb_arena_malloc_client.h>
+#include <utilities/testing_hook.h>
 
 #include <chrono>
 #include <string>
@@ -1259,6 +1260,12 @@ private:
     parseStatKeyArg(const void* cookie,
                     std::string_view statKeyPrefix,
                     std::string_view statKey);
+
+public:
+    // Testing hook for MB-45756, to allow a throw to be made during
+    // destroyInner() to simulate a crash while waiting for the flusher to
+    // finish
+    TestingHook<> epDestroyFailureHook;
 
 protected:
     ServerApi* serverApi;

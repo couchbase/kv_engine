@@ -311,6 +311,12 @@ std::vector<ExTask> EPBucket::deinitialize() {
     stopBgFetcher();
     stopWarmup();
 
+    // Perform a snapshot of the stats before shutting down so we can
+    // persist the type of shutdown (stats.forceShutdown), and consequently
+    // on the next warmup can determine is there was a clean shutdown - see
+    // Warmup::cleanShutdown
+    snapshotStats();
+
     auto ret = KVBucket::deinitialize();
 
     // Now that we've stopped all of our tasks, stop any tasks the storage
