@@ -416,16 +416,6 @@ CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
     : CouchKVStore(CreateReadWrite{}, config, ops) {
 }
 
-// Make a read-only CouchKVStore from this object
-std::unique_ptr<CouchKVStore> CouchKVStore::makeReadOnlyStore() const {
-    // Not using make_unique due to the private constructor we're calling
-    return std::unique_ptr<CouchKVStore>(
-            new CouchKVStore(CreateReadOnly{},
-                             configuration,
-                             *couchstore_get_default_file_ops(),
-                             dbFileRevMap));
-}
-
 void CouchKVStore::initialize(
         const std::unordered_map<Vbid, std::unordered_set<uint64_t>>& map) {
     for (const auto& [vbid, revisions] : map) {

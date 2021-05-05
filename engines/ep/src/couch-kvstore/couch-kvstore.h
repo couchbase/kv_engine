@@ -156,14 +156,6 @@ public:
     ~CouchKVStore() override;
 
     /**
-     * A read only CouchKVStore can only be created by a RW store. They should
-     * be created in pairs as they share some data.
-     *
-     * @return a unique_ptr holding a RO 'sibling' to this object.
-     */
-    std::unique_ptr<CouchKVStore> makeReadOnlyStore() const;
-
-    /**
      * Commit a transaction (unless not currently in one).
      *
      * @param flushData - see KVStore::commit

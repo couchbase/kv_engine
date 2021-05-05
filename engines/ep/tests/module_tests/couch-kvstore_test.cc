@@ -1904,7 +1904,7 @@ TEST_F(CouchstoreTest, getVbucketRevisions) {
 }
 
 // Add stale files to data directory and create a RW store which will clean
-// up. Add more files, create RO store and nothing happens
+// up.
 TEST_F(CouchstoreTest, CouchKVStore_construct_and_cleanup) {
     struct CouchstoreFile {
         uint16_t id;
@@ -1978,27 +1978,6 @@ TEST_F(CouchstoreTest, CouchKVStore_construct_and_cleanup) {
     for (const auto& filename : removedFilenames) {
         EXPECT_FALSE(cb::io::isFile(filename))
                 << "File should not exist filename:" << filename;
-    }
-
-    // Finally, create the RO store which only initialises and doesn't remove
-    // anything. Start by putting all files back, stale and all
-    createFiles();
-    auto roStore = kvstore->makeReadOnlyStore();
-
-    EXPECT_EQ(3, kvstore->public_getDbRevision(Vbid(5)));
-    EXPECT_EQ(102, kvstore->public_getDbRevision(Vbid(99)));
-    EXPECT_EQ(3, roStore->public_getDbRevision(Vbid(5)));
-    EXPECT_EQ(102, roStore->public_getDbRevision(Vbid(99)));
-
-    for (const auto& filename : expectedFilenames) {
-        EXPECT_TRUE(cb::io::isFile(filename));
-    }
-
-    // RO store does nothing to disk, so the files which RW store originally
-    // removed but were put back should still exist
-    for (const auto& filename : removedFilenames) {
-        EXPECT_TRUE(cb::io::isFile(filename))
-                << "File should exist filename:" << filename;
     }
 }
 

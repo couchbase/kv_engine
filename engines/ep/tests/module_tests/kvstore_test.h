@@ -60,11 +60,6 @@ public:
 
     std::unique_ptr<KVStoreConfig> kvstoreConfig;
     std::unique_ptr<KVStore> kvstore;
-
-    // KV-engine may have one or two instances of the KVStore. With couchstore
-    // two instances exist.
-    std::unique_ptr<KVStore> kvsReadOnly;
-    KVStore* kvstoreReadOnly;
 };
 
 // Test fixture for tests which run on all KVStore implementations (Couchstore

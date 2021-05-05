@@ -281,13 +281,6 @@ void KVStoreBackend::setup(const std::string& dataDir,
     }
 #endif
     kvstore = setup_kv_store(*kvstoreConfig);
-    if (config.getBackend() == "couchdb") {
-        kvsReadOnly =
-                static_cast<CouchKVStore*>(kvstore.get())->makeReadOnlyStore();
-        kvstoreReadOnly = kvsReadOnly.get();
-    } else {
-        kvstoreReadOnly = kvstore.get();
-    }
 }
 
 void KVStoreBackend::teardown() {
@@ -850,7 +843,7 @@ TEST_P(KVStoreParamTest, CompactAndScan) {
         for (int i = 0; i < 10; i++) {
             auto cb = std::make_unique<GetCallback>(true /*expectcompressed*/);
             auto cl = std::make_unique<KVStoreTestCacheCallback>(1, 5, Vbid(0));
-            auto scanCtx = kvstoreReadOnly->initBySeqnoScanContext(
+            auto scanCtx = kvstore->initBySeqnoScanContext(
                     std::make_unique<GetCallback>(true /*expectcompressed*/),
                     std::make_unique<KVStoreTestCacheCallback>(1, 5, Vbid(0)),
                     Vbid(0),

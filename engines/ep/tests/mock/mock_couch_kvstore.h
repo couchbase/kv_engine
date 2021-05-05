@@ -103,9 +103,5 @@ public:
         return getDbRevision(vbucketId);
     }
 
-    std::unique_ptr<MockCouchKVStore> makeReadOnlyStore() const {
-        return std::make_unique<MockCouchKVStore>(configuration, dbFileRevMap);
-    }
-
     TestingHook<> preCommitHook;
 };
