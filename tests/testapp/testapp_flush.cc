@@ -18,41 +18,20 @@ class FlushTest : public TestappClientTest {
 protected:
     void SetUp() override {
         TestappClientTest::SetUp();
-
-        conn = &getAdminConnection();
-        conn->selectBucket("default");
-
         // Store our lone document
         Document doc;
         doc.info.datatype = cb::mcbp::Datatype::Raw;
         doc.info.cas = 0;
         doc.info.flags = 0;
-        doc.info.id = key;
-        conn->mutate(doc, vbid, MutationType::Set);
+        doc.info.id = name;
+        getConnection().mutate(doc, Vbid{0}, MutationType::Set);
     }
 
-    void TearDown() override {
-        try {
-            conn->remove(key, vbid, 0);
-        } catch (ConnectionError& err) {
-            if (!err.isNotFound()) {
-                throw err;
-            }
-        }
-        conn = nullptr;
-        TestappClientTest::TearDown();
-    }
-
-    cb::mcbp::Status get() {
+    cb::mcbp::Status get(MemcachedConnection& conn) {
         BinprotGetCommand cmd;
-        cmd.setKey(key);
-        cmd.setVBucket(vbid);
-        return conn->execute(cmd).getStatus();
+        cmd.setKey(name);
+        return conn.execute(cmd).getStatus();
     }
-
-    const char *key = "test_flush";
-    const Vbid vbid = Vbid(0);
-    MemcachedConnection* conn = nullptr;
 };
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
@@ -62,52 +41,62 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
 
 TEST_P(FlushTest, Flush) {
     TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::Flush);
-    BinprotGenericCommand command(cb::mcbp::ClientOpcode::Flush);
-    const auto response = conn->execute(command);
+    auto& conn = getAdminConnection();
+    conn.selectBucket("default");
+    ASSERT_EQ(cb::mcbp::Status::Success, get(conn));
+    const auto response =
+            conn.execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Flush});
     ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
-    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, get());
+    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, get(conn));
 }
 
 TEST_P(FlushTest, FlushQ) {
     TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::Flush);
-    BinprotGenericCommand command(cb::mcbp::ClientOpcode::Flushq);
-    conn->sendCommand(command);
-    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, get());
+    auto& conn = getAdminConnection();
+    conn.selectBucket("default");
+    ASSERT_EQ(cb::mcbp::Status::Success, get(conn));
+    conn.sendCommand(BinprotGenericCommand{cb::mcbp::ClientOpcode::Flushq});
+    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, get(conn));
 }
 
 TEST_P(FlushTest, FlushWithExtlen) {
     TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::Flush);
+    auto& conn = getAdminConnection();
+    conn.selectBucket("default");
+    ASSERT_EQ(cb::mcbp::Status::Success, get(conn));
+
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::Flush);
     command.setExtrasValue(uint32_t(htonl(0)));
 
     // Ensure it still works
-    const auto response = conn->execute(command);
+    const auto response = conn.execute(command);
     ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
-    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, get());
+    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, get(conn));
 }
 
 TEST_P(FlushTest, FlushQWithExtlen) {
     TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::Flush);
+    auto& conn = getAdminConnection();
+    conn.selectBucket("default");
+    ASSERT_EQ(cb::mcbp::Status::Success, get(conn));
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::Flushq);
     command.setExtrasValue(static_cast<uint32_t>(htonl(0)));
-    conn->sendCommand(command);
+    conn.sendCommand(command);
 
-    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, get());
+    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, get(conn));
 }
 
-TEST_P(FlushTest, DISABLED_DelayedFlushNotSupported) {
+TEST_P(FlushTest, DelayedFlushNotSupported) {
     TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::Flush);
-    BinprotGenericCommand command;
-
-    command.setExtrasValue(static_cast<uint32_t>(htonl(2)));
+    auto& conn = getAdminConnection();
+    conn.selectBucket("default");
 
     std::array<cb::mcbp::ClientOpcode, 2> commands{
             {cb::mcbp::ClientOpcode::Flush, cb::mcbp::ClientOpcode::Flushq}};
     for (auto op : commands) {
-        const auto response = conn->execute(command.setOp(op));
+        BinprotGenericCommand command{op};
+        command.setExtrasValue(static_cast<uint32_t>(htonl(2)));
+        const auto response = conn.execute(command);
         ASSERT_EQ(cb::mcbp::Status::NotSupported, response.getStatus());
-
-        conn->reconnect();
-        ASSERT_EQ(cb::mcbp::Status::Success, get());
     }
 }
