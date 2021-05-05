@@ -262,11 +262,6 @@ void KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
 }
 
 bool KVStore::snapshotStats(const nlohmann::json& stats) {
-    if (isReadOnly()) {
-        throw std::logic_error("KVStore::snapshotStats: Cannot perform "
-                        "on a read-only instance.");
-    }
-
     std::string dbname = getConfig().getDBName();
     std::string next_fname = dbname + "/stats.json.new";
 
@@ -361,9 +356,6 @@ KVStore::~KVStore() = default;
 
 std::string KVStore::getStatsPrefix() const {
     const auto shardId = getConfig().getShardId();
-    if (isReadOnly()) {
-        return "ro_" + std::to_string(shardId);
-    }
     return "rw_" + std::to_string(shardId);
 }
 
@@ -396,14 +388,10 @@ void KVStore::addStats(const AddStatFn& add_stat,
     add_prefixed_stat(prefix, "failure_open", st.numOpenFailure, add_stat, c);
     add_prefixed_stat(prefix, "failure_get", st.numGetFailure, add_stat, c);
 
-    if (!isReadOnly()) {
-        add_prefixed_stat(prefix, "failure_set", st.numSetFailure, add_stat, c);
-        add_prefixed_stat(prefix, "failure_del", st.numDelFailure, add_stat, c);
-        add_prefixed_stat(
-                prefix, "failure_vbset", st.numVbSetFailure, add_stat, c);
-        add_prefixed_stat(
-                prefix, "lastCommDocs", st.docsCommitted, add_stat, c);
-    }
+    add_prefixed_stat(prefix, "failure_set", st.numSetFailure, add_stat, c);
+    add_prefixed_stat(prefix, "failure_del", st.numDelFailure, add_stat, c);
+    add_prefixed_stat(prefix, "failure_vbset", st.numVbSetFailure, add_stat, c);
+    add_prefixed_stat(prefix, "lastCommDocs", st.docsCommitted, add_stat, c);
 
     add_prefixed_stat(prefix,
                       "io_bg_fetch_docs_read",
@@ -430,32 +418,25 @@ void KVStore::addStats(const AddStatFn& add_stat,
                            st.fsStatsCompaction.totalBytesWritten.load();
     add_prefixed_stat(prefix, "io_total_write_bytes", written, add_stat, c);
 
-    if (!isReadOnly()) {
-        // Flusher Write Amplification - ratio of bytes written to disk by
-        // flusher to "useful" user data written - i.e. doesn't include bytes
-        // written later by compaction (after initial flush). Used to measure
-        // the impact of KVstore on persistTo times.
-        const double flusherWriteAmp =
-                double(st.fsStats.totalBytesWritten.load()) /
-                st.io_document_write_bytes;
-        add_prefixed_stat(prefix,
-                          "io_flusher_write_amplification",
-                          flusherWriteAmp,
-                          add_stat,
-                          c);
+    // Flusher Write Amplification - ratio of bytes written to disk by
+    // flusher to "useful" user data written - i.e. doesn't include bytes
+    // written later by compaction (after initial flush). Used to measure
+    // the impact of KVstore on persistTo times.
+    const double flusherWriteAmp = double(st.fsStats.totalBytesWritten.load()) /
+                                   st.io_document_write_bytes;
+    add_prefixed_stat(prefix,
+                      "io_flusher_write_amplification",
+                      flusherWriteAmp,
+                      add_stat,
+                      c);
 
-        // Total Write Amplification - ratio of total bytes written to disk
-        // to "useful" user data written over entire disk lifecycle. Includes
-        // bytes during initial item flush to disk  and compaction.
-        // Used to measure the overall write amplification.
-        const double totalWriteAmp =
-                double(written) / st.io_document_write_bytes;
-        add_prefixed_stat(prefix,
-                          "io_total_write_amplification",
-                          totalWriteAmp,
-                          add_stat,
-                          c);
-    }
+    // Total Write Amplification - ratio of total bytes written to disk
+    // to "useful" user data written over entire disk lifecycle. Includes
+    // bytes during initial item flush to disk  and compaction.
+    // Used to measure the overall write amplification.
+    const double totalWriteAmp = double(written) / st.io_document_write_bytes;
+    add_prefixed_stat(
+            prefix, "io_total_write_amplification", totalWriteAmp, add_stat, c);
 
     add_prefixed_stat(prefix,
                       "io_compaction_read_bytes",
@@ -517,11 +498,6 @@ void KVStore::addTimingStats(const AddStatFn& add_stat,
 }
 
 void KVStore::optimizeWrites(std::vector<queued_item>& items) {
-    if (isReadOnly()) {
-        throw std::logic_error(
-                "KVStore::optimizeWrites: Not valid on a "
-                "read-only object");
-    }
     if (items.empty()) {
         return;
     }
@@ -568,10 +544,6 @@ void KVStore::delSystemEvent(const queued_item item) {
 bool KVStore::begin(std::unique_ptr<TransactionContext> txCtx) {
     if (!txCtx) {
         throw std::invalid_argument("KVStore::begin: txCtx is null");
-    }
-    if (isReadOnly()) {
-        throw std::logic_error(
-                "KVStore::begin: Not valid on a read-only object.");
     }
     inTransaction = true;
     transactionCtx = std::move(txCtx);

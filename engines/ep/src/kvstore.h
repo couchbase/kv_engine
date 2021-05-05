@@ -965,10 +965,6 @@ public:
 
     uint64_t getLastPersistedSeqno(Vbid vbid);
 
-    bool isReadOnly() const {
-        return readOnly;
-    }
-
     const KVStoreStats& getKVStoreStat() const {
         return st;
     }

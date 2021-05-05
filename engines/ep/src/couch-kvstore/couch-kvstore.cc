@@ -475,10 +475,6 @@ CouchKVStore::~CouchKVStore() {
 }
 
 void CouchKVStore::set(queued_item item) {
-    if (isReadOnly()) {
-        throw std::logic_error("CouchKVStore::set: Not valid on a read-only "
-                        "object.");
-    }
     if (!inTransaction) {
         throw std::invalid_argument(
                 "CouchKVStore::set: inTransaction must be "
@@ -724,10 +720,6 @@ void CouchKVStore::getRange(Vbid vb,
 }
 
 void CouchKVStore::del(queued_item item) {
-    if (isReadOnly()) {
-        throw std::logic_error("CouchKVStore::del: Not valid on a read-only "
-                        "object.");
-    }
     if (!inTransaction) {
         throw std::invalid_argument(
                 "CouchKVStore::del: inTransaction must be "
@@ -738,11 +730,6 @@ void CouchKVStore::del(queued_item item) {
 }
 
 void CouchKVStore::delVBucket(Vbid vbucket, uint64_t fileRev) {
-    if (isReadOnly()) {
-        throw std::logic_error("CouchKVStore::delVBucket: Not valid on a "
-                        "read-only object.");
-    }
-
     unlinkCouchFile(vbucket, fileRev);
 }
 
@@ -969,12 +956,6 @@ static int time_purge_hook(Db* d,
 
 bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
                              std::shared_ptr<CompactionContext> hook_ctx) {
-    if (isReadOnly()) {
-        throw std::logic_error(
-                "CouchKVStore::compactDB() can't be called on read only "
-                "instance");
-    }
-
     if (!hook_ctx->droppedKeyCb) {
         throw std::runtime_error(
                 "CouchKVStore::compactDB: droppedKeyCb must be set ");
@@ -1975,13 +1956,6 @@ bool CouchKVStore::writeVBucketState(Vbid vbucketId,
 
 bool CouchKVStore::snapshotVBucket(Vbid vbucketId,
                                    const vbucket_state& vbstate) {
-    if (isReadOnly()) {
-        logger.warn(
-                "CouchKVStore::snapshotVBucket: cannot be performed on a "
-                "read-only KVStore instance");
-        return false;
-    }
-
     if (!needsToBePersisted(vbucketId, vbstate)) {
         return true;
     }
@@ -2055,11 +2029,6 @@ bool CouchKVStore::getStat(std::string_view name, size_t& value) const {
 }
 
 void CouchKVStore::pendingTasks() {
-    if (isReadOnly()) {
-        throw std::logic_error("CouchKVStore::pendingTasks: Not valid on a "
-                        "read-only object.");
-    }
-
     // Swap out the contents of pendingFileDeletions to a temporary - we don't
     // want to hold the lock while performing IO.
     std::queue<std::string> filesToDelete;
@@ -2785,10 +2754,6 @@ static int byIdScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
 }
 
 bool CouchKVStore::commit(VB::Commit& commitData) {
-    if (isReadOnly()) {
-        throw std::logic_error("CouchKVStore::commit: Read-only store.");
-    }
-
     if (!inTransaction) {
         logger.warn("CouchKVStore::commit: called not in transaction");
         return true;
@@ -3519,21 +3484,12 @@ DBFileInfo CouchKVStore::getAggrDbFileInfo() {
 }
 
 size_t CouchKVStore::getItemCount(Vbid vbid) {
-    if (!isReadOnly()) {
-        return cachedDocCount.at(vbid.get());
-    }
-    return getDbInfo(vbid).docCount;
+    return cachedDocCount.at(vbid.get());
 }
 
 RollbackResult CouchKVStore::rollback(Vbid vbid,
                                       uint64_t rollbackSeqno,
                                       std::unique_ptr<RollbackCB> cb) {
-    if (isReadOnly()) {
-        throw std::logic_error(
-                "CouchKVStore::rollback() can't be called on read only "
-                "instance");
-    }
-
     // Note that this isn't racy as we'll hold the vbucket lock
     if (vbCompactionRunning[vbid.get()]) {
         // Set the flag so that the compactor aborts the compaction
@@ -3740,11 +3696,6 @@ cb::engine_errc CouchKVStore::getAllKeys(
 }
 
 void CouchKVStore::unlinkCouchFile(Vbid vbucket, uint64_t fRev) {
-    if (isReadOnly()) {
-        throw std::logic_error("CouchKVStore::unlinkCouchFile: Not valid on a "
-                "read-only object.");
-    }
-
     const auto fname =
             cb::io::sanitizePath(dbname + "/" + std::to_string(vbucket.get()) +
                                  ".couch." + std::to_string(fRev));
@@ -3775,26 +3726,10 @@ void CouchKVStore::maybeRemoveCompactFile(const std::string& filename,
             getDBFileName(filename, vbid, getDbRevision(vbid)) +
             ".compact";
 
-    if (!isReadOnly()) {
-        removeCompactFile(compact_file, vbid);
-    } else {
-        logger.warn(
-                "CouchKVStore::maybeRemoveCompactFile: {} A read-only instance "
-                "of the underlying store was not allowed to delete a temporary "
-                "file: {}",
-                vbid,
-                compact_file);
-    }
+    removeCompactFile(compact_file, vbid);
 }
 
 void CouchKVStore::removeCompactFile(const std::string& filename, Vbid vbid) {
-    if (isReadOnly()) {
-        throw std::logic_error(
-                "CouchKVStore::removeCompactFile: " + vbid.to_string() +
-                "Not valid on "
-                "a read-only object.");
-    }
-
     if (cb::io::isFile(filename)) {
         if (remove(filename.c_str()) == 0) {
             logger.info(
@@ -3830,9 +3765,7 @@ std::unique_ptr<KVFileHandle> CouchKVStore::makeFileHandle(Vbid vbid) const {
 }
 
 void CouchKVStore::prepareToCreateImpl(Vbid vbid) {
-    if (!isReadOnly()) {
-        (*dbFileRevMap->wlock())[vbid.get()]++;
-    }
+    (*dbFileRevMap->wlock())[vbid.get()]++;
 }
 
 uint64_t CouchKVStore::prepareToDeleteImpl(Vbid vbid) {

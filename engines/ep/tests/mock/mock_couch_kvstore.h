@@ -69,11 +69,6 @@ public:
      * the pendingReqsQ.
      */
     MockCouchRequest* setAndReturnRequest(queued_item& itm) {
-        if (isReadOnly()) {
-            throw std::logic_error(
-                    "MockCouchKVStore::set: Not valid on a read-only "
-                    "object.");
-        }
         if (!inTransaction) {
             throw std::invalid_argument(
                     "MockCouchKVStore::set: inTransaction must be "

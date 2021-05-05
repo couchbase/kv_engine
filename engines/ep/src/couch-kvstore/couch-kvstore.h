@@ -175,10 +175,6 @@ public:
      * Rollback a transaction (unless not currently in one).
      */
     void rollback() override {
-        if (isReadOnly()) {
-            throw std::logic_error("CouchKVStore::rollback: Not valid on a "
-                    "read-only object.");
-        }
         if (inTransaction) {
             inTransaction = false;
             transactionCtx.reset();
