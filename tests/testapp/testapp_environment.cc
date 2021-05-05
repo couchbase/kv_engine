@@ -315,8 +315,6 @@ public:
         switch (cmd) {
         case cb::mcbp::ClientOpcode::Flush:
         case cb::mcbp::ClientOpcode::Flushq:
-            // TODO: Flush *is* supported by ep-engine, but it needs traffic
-            // disabling before it's permitted.
         case cb::mcbp::ClientOpcode::Scrub:
             return false;
 
