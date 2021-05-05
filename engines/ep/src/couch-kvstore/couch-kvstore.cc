@@ -419,8 +419,6 @@ CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
 
 // Make a read-only CouchKVStore from this object
 std::unique_ptr<CouchKVStore> CouchKVStore::makeReadOnlyStore() const {
-    // Can only make the RO store from an RW store
-    Expects(isReadWrite());
     // Not using make_unique due to the private constructor we're calling
     return std::unique_ptr<CouchKVStore>(
             new CouchKVStore(CreateReadOnly{},
@@ -2562,8 +2560,6 @@ CouchKVStore::getVbucketRevisions(
 
 std::unordered_map<Vbid, std::unordered_set<uint64_t>>
 CouchKVStore::populateRevMapAndRemoveStaleFiles() {
-    Expects(isReadWrite());
-
     // For each vb, more than 1 file could be found. This occurs if we had an
     // unclean shutdown before deleting a stale file. getVbucketRevisions will
     // return a list of 'revisions' for each vb
@@ -4214,8 +4210,6 @@ std::string CouchKVStore::to_string(ReadVBStateStatus status) {
 }
 
 std::optional<DbHolder> CouchKVStore::openOrCreate(Vbid vbid) noexcept {
-    Expects(isReadWrite());
-
     // Do we already have a well-formed file for this vbid?
     {
         DbHolder db(*this);
