@@ -3196,7 +3196,6 @@ CouchKVStore::ReadVBStateResult CouchKVStore::readVBState(Db* db, Vbid vbId) {
     // by couchstore.
     int64_t highSeqno = 0;
     uint64_t purgeSeqno = 0;
-    snapshot_info_t snapshot{0, {0, 0}};
     const auto info = cb::couchstore::getHeader(*db);
     highSeqno = info.updateSeqNum;
     purgeSeqno = info.purgeSeqNum;
