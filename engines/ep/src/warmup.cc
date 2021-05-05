@@ -960,14 +960,12 @@ void Warmup::stop() {
     done();
 }
 
-void Warmup::scheduleInitialize()
-{
+void Warmup::scheduleInitialize() {
     ExTask task = std::make_shared<WarmupInitialize>(store, this);
     ExecutorPool::get()->schedule(task);
 }
 
-void Warmup::initialize()
-{
+void Warmup::initialize() {
     {
         std::lock_guard<std::mutex> lock(warmupStart.mutex);
         warmupStart.time = std::chrono::steady_clock::now();
@@ -977,9 +975,8 @@ void Warmup::initialize()
     store.getOneROUnderlying()->getPersistedStats(session_stats);
 
     auto it = session_stats.find("ep_force_shutdown");
-
-    if (it == session_stats.end() || it->second.compare("false") != 0) {
-        cleanShutdown = false;
+    if (it != session_stats.end() && it->second == "false") {
+        cleanShutdown = true;
     }
 
     if (!store.getCollectionsManager().warmupLoadManifest(

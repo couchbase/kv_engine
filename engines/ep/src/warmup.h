@@ -442,7 +442,7 @@ private:
 
     cb::AtomicDuration<> estimateTime;
     std::atomic<size_t> estimatedItemCount{std::numeric_limits<size_t>::max()};
-    bool cleanShutdown{true};
+    bool cleanShutdown{false};
     bool corruptAccessLog{false};
     std::atomic<bool> warmupComplete{false};
     std::atomic<bool> warmupOOMFailure{false};
