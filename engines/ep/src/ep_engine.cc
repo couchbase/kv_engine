@@ -2572,65 +2572,45 @@ void EventuallyPersistentEngine::doEngineStatsRocksDB(
     // Specific to RocksDB. Cumulative ep-engine stats.
     // Note: These are also reported per-shard in 'kvstore' stats.
     // Memory Usage
-    if (kvBucket->getKVStoreStat(
-                "kMemTableTotal", value, KVBucketIface::KVSOption::RW)) {
+    if (kvBucket->getKVStoreStat("kMemTableTotal", value)) {
         collector.addStat(Key::ep_rocksdb_kMemTableTotal, value);
     }
-    if (kvBucket->getKVStoreStat(
-                "kMemTableUnFlushed", value, KVBucketIface::KVSOption::RW)) {
+    if (kvBucket->getKVStoreStat("kMemTableUnFlushed", value)) {
         collector.addStat(Key::ep_rocksdb_kMemTableUnFlushed, value);
     }
-    if (kvBucket->getKVStoreStat(
-                "kTableReadersTotal", value, KVBucketIface::KVSOption::RW)) {
+    if (kvBucket->getKVStoreStat("kTableReadersTotal", value)) {
         collector.addStat(Key::ep_rocksdb_kTableReadersTotal, value);
     }
-    if (kvBucket->getKVStoreStat(
-                "kCacheTotal", value, KVBucketIface::KVSOption::RW)) {
+    if (kvBucket->getKVStoreStat("kCacheTotal", value)) {
         collector.addStat(Key::ep_rocksdb_kCacheTotal, value);
     }
     // MemTable Size per-CF
-    if (kvBucket->getKVStoreStat("default_kSizeAllMemTables",
-                                 value,
-                                 KVBucketIface::KVSOption::RW)) {
+    if (kvBucket->getKVStoreStat("default_kSizeAllMemTables", value)) {
         collector.addStat(Key::ep_rocksdb_default_kSizeAllMemTables, value);
     }
-    if (kvBucket->getKVStoreStat("seqno_kSizeAllMemTables",
-                                 value,
-                                 KVBucketIface::KVSOption::RW)) {
+    if (kvBucket->getKVStoreStat("seqno_kSizeAllMemTables", value)) {
         collector.addStat(Key::ep_rocksdb_seqno_kSizeAllMemTables, value);
     }
     // BlockCache Hit Ratio
     size_t hit = 0;
     size_t miss = 0;
-    if (kvBucket->getKVStoreStat("rocksdb.block.cache.data.hit",
-                                 hit,
-                                 KVBucketIface::KVSOption::RW) &&
-        kvBucket->getKVStoreStat("rocksdb.block.cache.data.miss",
-                                 miss,
-                                 KVBucketIface::KVSOption::RW) &&
+    if (kvBucket->getKVStoreStat("rocksdb.block.cache.data.hit", hit) &&
+        kvBucket->getKVStoreStat("rocksdb.block.cache.data.miss", miss) &&
         (hit + miss) != 0) {
         const auto tmpRatio =
                 gsl::narrow_cast<int>(float(hit) / (hit + miss) * 10000);
         collector.addStat(Key::ep_rocksdb_block_cache_data_hit_ratio, tmpRatio);
     }
-    if (kvBucket->getKVStoreStat("rocksdb.block.cache.index.hit",
-                                 hit,
-                                 KVBucketIface::KVSOption::RW) &&
-        kvBucket->getKVStoreStat("rocksdb.block.cache.index.miss",
-                                 miss,
-                                 KVBucketIface::KVSOption::RW) &&
+    if (kvBucket->getKVStoreStat("rocksdb.block.cache.index.hit", hit) &&
+        kvBucket->getKVStoreStat("rocksdb.block.cache.index.miss", miss) &&
         (hit + miss) != 0) {
         const auto tmpRatio =
                 gsl::narrow_cast<int>(float(hit) / (hit + miss) * 10000);
         collector.addStat(Key::ep_rocksdb_block_cache_index_hit_ratio,
                           tmpRatio);
     }
-    if (kvBucket->getKVStoreStat("rocksdb.block.cache.filter.hit",
-                                 hit,
-                                 KVBucketIface::KVSOption::RW) &&
-        kvBucket->getKVStoreStat("rocksdb.block.cache.filter.miss",
-                                 miss,
-                                 KVBucketIface::KVSOption::RW) &&
+    if (kvBucket->getKVStoreStat("rocksdb.block.cache.filter.hit", hit) &&
+        kvBucket->getKVStoreStat("rocksdb.block.cache.filter.miss", miss) &&
         (hit + miss) != 0) {
         const auto tmpRatio =
                 gsl::narrow_cast<int>(float(hit) / (hit + miss) * 10000);
@@ -2638,23 +2618,17 @@ void EventuallyPersistentEngine::doEngineStatsRocksDB(
                           tmpRatio);
     }
     // Disk Usage per-CF
-    if (kvBucket->getKVStoreStat("default_kTotalSstFilesSize",
-                                 value,
-                                 KVBucketIface::KVSOption::RW)) {
+    if (kvBucket->getKVStoreStat("default_kTotalSstFilesSize", value)) {
         collector.addStat(Key::ep_rocksdb_default_kTotalSstFilesSize, value);
     }
-    if (kvBucket->getKVStoreStat("seqno_kTotalSstFilesSize",
-                                 value,
-                                 KVBucketIface::KVSOption::RW)) {
+    if (kvBucket->getKVStoreStat("seqno_kTotalSstFilesSize", value)) {
         collector.addStat(Key::ep_rocksdb_seqno_kTotalSstFilesSize, value);
     }
     // Scan stats
-    if (kvBucket->getKVStoreStat(
-                "scan_totalSeqnoHits", value, KVBucketIface::KVSOption::RW)) {
+    if (kvBucket->getKVStoreStat("scan_totalSeqnoHits", value)) {
         collector.addStat(Key::ep_rocksdb_scan_totalSeqnoHits, value);
     }
-    if (kvBucket->getKVStoreStat(
-                "scan_oldSeqnoHits", value, KVBucketIface::KVSOption::RW)) {
+    if (kvBucket->getKVStoreStat("scan_oldSeqnoHits", value)) {
         collector.addStat(Key::ep_rocksdb_scan_oldSeqnoHits, value);
     }
 }
@@ -2662,9 +2636,7 @@ void EventuallyPersistentEngine::doEngineStatsRocksDB(
 void EventuallyPersistentEngine::doEngineStatsCouchDB(const BucketStatCollector& collector, const EPStats& epstats){
     using namespace cb::stats;
     size_t value;
-    if (kvBucket->getKVStoreStat("io_document_write_bytes",
-                                 value,
-                                 KVBucketIface::KVSOption::RW)) {
+    if (kvBucket->getKVStoreStat("io_document_write_bytes", value)) {
         collector.addStat(Key::ep_io_document_write_bytes, value);
 
         // Lambda to print a Write Amplification stat for the given bytes
@@ -2675,9 +2647,7 @@ void EventuallyPersistentEngine::doEngineStatsCouchDB(const BucketStatCollector&
           double writeAmp = 0;
           size_t bytesWritten;
           if (docBytes &&
-              kvBucket->getKVStoreStat(writeBytesStat,
-                                       bytesWritten,
-                                       KVBucketIface::KVSOption::RW)) {
+              kvBucket->getKVStoreStat(writeBytesStat, bytesWritten)) {
               writeAmp = double(bytesWritten) / docBytes;
           }
           collector.addStat(writeAmpStat, writeAmp);
@@ -2688,26 +2658,20 @@ void EventuallyPersistentEngine::doEngineStatsCouchDB(const BucketStatCollector&
         printWriteAmpStat("io_total_write_bytes",
                           "ep_io_total_write_amplification");
     }
-    if (kvBucket->getKVStoreStat("io_total_read_bytes", value,
-                                 KVBucketIface::KVSOption::BOTH)) {
+    if (kvBucket->getKVStoreStat("io_total_read_bytes", value)) {
         collector.addStat(Key::ep_io_total_read_bytes, value);
     }
-    if (kvBucket->getKVStoreStat("io_total_write_bytes", value,
-                                 KVBucketIface::KVSOption::BOTH)) {
+    if (kvBucket->getKVStoreStat("io_total_write_bytes", value)) {
         collector.addStat(Key::ep_io_total_write_bytes, value);
     }
-    if (kvBucket->getKVStoreStat("io_compaction_read_bytes", value,
-                                 KVBucketIface::KVSOption::BOTH)) {
+    if (kvBucket->getKVStoreStat("io_compaction_read_bytes", value)) {
         collector.addStat(Key::ep_io_compaction_read_bytes, value);
     }
-    if (kvBucket->getKVStoreStat("io_compaction_write_bytes", value,
-                                 KVBucketIface::KVSOption::BOTH)) {
+    if (kvBucket->getKVStoreStat("io_compaction_write_bytes", value)) {
         collector.addStat(Key::ep_io_compaction_write_bytes, value);
     }
 
-    if (kvBucket->getKVStoreStat("io_bg_fetch_read_count",
-                                 value,
-                                 KVBucketIface::KVSOption::BOTH)) {
+    if (kvBucket->getKVStoreStat("io_bg_fetch_read_count", value)) {
         collector.addStat(Key::ep_io_bg_fetch_read_count, value);
         // Calculate read amplication (RA) in terms of disk reads:
         // ratio of number of reads performed, compared to how many docs
@@ -4593,14 +4557,12 @@ void EventuallyPersistentEngine::doDiskFailureStats(
         const BucketStatCollector& collector) {
     using namespace cb::stats;
     size_t value = 0;
-    if (kvBucket->getKVStoreStat(
-                "failure_compaction", value, KVBucketIface::KVSOption::BOTH)) {
+    if (kvBucket->getKVStoreStat("failure_compaction", value)) {
         // Total data write failures is compaction failures plus commit failures
         auto writeFailure = value + stats.commitFailed;
         collector.addStat(Key::ep_data_write_failed, writeFailure);
     }
-    if (kvBucket->getKVStoreStat(
-                "failure_get", value, KVBucketIface::KVSOption::BOTH)) {
+    if (kvBucket->getKVStoreStat("failure_get", value)) {
         collector.addStat(Key::ep_data_read_failed, value);
     }
 }

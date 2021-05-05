@@ -2374,8 +2374,7 @@ void KVBucket::addKVStoreTimingStats(const AddStatFn& add_stat,
     }
 }
 
-bool KVBucket::getKVStoreStat(std::string_view name, size_t& value, KVSOption option)
-{
+bool KVBucket::getKVStoreStat(std::string_view name, size_t& value) {
     std::array<std::string_view, 1> keys = {{name}};
     auto kvStats = getKVStoreStats(keys);
     auto stat = kvStats.find(name);

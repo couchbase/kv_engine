@@ -567,9 +567,7 @@ public:
     GetStatsMap getKVStoreStats(
             gsl::span<const std::string_view> keys) override;
 
-    bool getKVStoreStat(std::string_view name,
-                        size_t& value,
-                        KVSOption option) override;
+    bool getKVStoreStat(std::string_view name, size_t& value) override;
 
     void resetUnderlyingStats() override;
     const KVStore* getOneROUnderlying() const override;

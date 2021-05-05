@@ -677,28 +677,15 @@ public:
     virtual void addKVStoreTimingStats(const AddStatFn& add_stat,
                                        const CookieIface* cookie) = 0;
 
-    /**
-     * The following options will be used to identify
-     * the kind of KVStores to be considered for stat collection.
-     */
-    enum class KVSOption {
-        RO,          // RO KVStore
-        RW,          // RW KVStore
-        BOTH         // Both KVStores
-    };
-
     /* Given a named KVStore statistic, return the value of that statistic,
      * accumulated across any shards.
      *
      * @param name The name of the statistic
      * @param[out] value The value of the statistic.
-     * @param option the KVStore to read stats from.
      * @return True if the statistic was successfully returned via {value},
      *              else false.
      */
-    virtual bool getKVStoreStat(std::string_view name,
-                                size_t& value,
-                                KVSOption option) = 0;
+    virtual bool getKVStoreStat(std::string_view name, size_t& value) = 0;
 
     /// Get statistic values for specified ones, accumulated across any shards.
     ///

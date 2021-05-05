@@ -528,8 +528,7 @@ TEST_P(KVBucketParamTest, GetKVStoreStats) {
     auto stats = store->getKVStoreStats(keys);
     store->getRWUnderlying(vbid1)->getStat(nSetsStatName, nSetsVbid1);
     store->getRWUnderlying(vbid2)->getStat(nSetsStatName, nSetsVbid2);
-    store->getKVStoreStat(
-            nSetsStatName, nSetsAll, KVBucketIface::KVSOption::RW);
+    store->getKVStoreStat(nSetsStatName, nSetsAll);
 
     EXPECT_EQ(nSetsVbid1, 1);
     EXPECT_EQ(nSetsVbid2, 1);
