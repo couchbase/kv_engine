@@ -488,14 +488,14 @@ public:
             return totalBytes;
         }
 
-        size_t getTotalAgeInMicro() const {
-            return totalAgeInMicro;
+        size_t getTotalAgeInMilliseconds() const {
+            return totalAgeInMilliseconds;
         }
 
     private:
         size_t numItems = 0;
         size_t totalBytes = 0;
-        size_t totalAgeInMicro = 0;
+        size_t totalAgeInMilliseconds = 0;
     };
 
     /**

@@ -692,9 +692,9 @@ void VBucket::doStatsForQueueing(const Item& qi, size_t itemBytes)
     ++dirtyQueueSize;
     dirtyQueueMem.fetch_add(sizeof(Item));
     ++dirtyQueueFill;
-    auto us = std::chrono::duration_cast<std::chrono::microseconds>(
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             qi.getQueuedTime().time_since_epoch());
-    dirtyQueueAge.fetch_add(us.count());
+    dirtyQueueAge.fetch_add(ms.count());
     dirtyQueuePendingWrites.fetch_add(itemBytes);
 }
 
@@ -703,9 +703,10 @@ void VBucket::AggregatedFlushStats::accountItem(const Item& item) {
 
     ++numItems;
     totalBytes += item.size();
-    totalAgeInMicro += std::chrono::duration_cast<std::chrono::microseconds>(
-                               item.getQueuedTime().time_since_epoch())
-                               .count();
+    totalAgeInMilliseconds +=
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                    item.getQueuedTime().time_since_epoch())
+                    .count();
 }
 
 void VBucket::doAggregatedFlushStats(const AggregatedFlushStats& aggStats) {
@@ -714,7 +715,7 @@ void VBucket::doAggregatedFlushStats(const AggregatedFlushStats& aggStats) {
     dirtyQueueSize -= numItems;
     decrDirtyQueueMem(sizeof(Item) * numItems);
     dirtyQueueDrain += numItems;
-    decrDirtyQueueAge(aggStats.getTotalAgeInMicro());
+    decrDirtyQueueAge(aggStats.getTotalAgeInMilliseconds());
     decrDirtyQueuePendingWrites(aggStats.getTotalBytes());
 }
 
@@ -754,13 +755,13 @@ uint64_t VBucket::getQueueAge() {
     // Get time now multiplied by the queue size. We need to subtract
     // dirtyQueueAge from this to offset time_since_epoch.
     auto currentAge =
-            std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::steady_clock::now().time_since_epoch())
                     .count() *
             dirtyQueueSize;
 
     // Return the time in milliseconds
-    return (currentAge - currDirtyQueueAge) / 1000;
+    return (currentAge - currDirtyQueueAge);
 }
 
 template <typename T>

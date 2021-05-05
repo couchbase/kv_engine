@@ -27,7 +27,7 @@ For introductory information on stats within Couchbase, start with the
 |---------------------------------------+-----------------------------------------|
 | uuid                                  | The unique identifier for the bucket    |
 | ep_version                            | Version number of ep_engine             |
-| ep_storage_age                        | Microseconds since most recently        |
+| ep_storage_age                        | Milliseconds since most recently        |
 |                                       | stored object was initially queued      |
 | ep_storage_age_highwat                | ep_storage_age high water mark (us)     |
 | ep_startup_time                       | System-generated engine startup time    |
