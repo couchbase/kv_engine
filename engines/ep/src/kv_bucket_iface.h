@@ -703,13 +703,12 @@ public:
     /// Get statistic values for specified ones, accumulated across any shards.
     ///
     /// @param [in] keys specifies the statistics to be fetched.
-    /// @param option the kind of KVStore to read stats from.
     /// @return statistic values. Note that the string_view keys in the returned
     /// map refer to the same string keys that the input string_view refers to.
     /// Hence the map is ok to use only as long as the string keys live.
     ///
-    virtual GetStatsMap getKVStoreStats(gsl::span<const std::string_view> keys,
-                                        KVSOption option) = 0;
+    virtual GetStatsMap getKVStoreStats(
+            gsl::span<const std::string_view> keys) = 0;
 
     virtual void resetUnderlyingStats() = 0;
     virtual const KVStore* getOneROUnderlying() const = 0;

@@ -2377,7 +2377,7 @@ void KVBucket::addKVStoreTimingStats(const AddStatFn& add_stat,
 bool KVBucket::getKVStoreStat(std::string_view name, size_t& value, KVSOption option)
 {
     std::array<std::string_view, 1> keys = {{name}};
-    auto kvStats = getKVStoreStats(keys, option);
+    auto kvStats = getKVStoreStats(keys);
     auto stat = kvStats.find(name);
     if (stat != kvStats.end()) {
         value = stat->second;
@@ -2386,8 +2386,7 @@ bool KVBucket::getKVStoreStat(std::string_view name, size_t& value, KVSOption op
     return false;
 }
 
-GetStatsMap KVBucket::getKVStoreStats(gsl::span<const std::string_view> keys,
-                                      KVSOption option) {
+GetStatsMap KVBucket::getKVStoreStats(gsl::span<const std::string_view> keys) {
     GetStatsMap statsMap;
     auto aggShardStats = [&](const KVStore* store) {
         auto shardStats = store->getStats(keys);
@@ -2399,9 +2398,7 @@ GetStatsMap KVBucket::getKVStoreStats(gsl::span<const std::string_view> keys,
         }
     };
     for (const auto& shard : vbMap.shards) {
-        if (option == KVSOption::RW || option == KVSOption::BOTH) {
-            aggShardStats(shard->getRWUnderlying());
-        }
+        aggShardStats(shard->getRWUnderlying());
     }
     return statsMap;
 }

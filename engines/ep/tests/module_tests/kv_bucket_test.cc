@@ -525,7 +525,7 @@ TEST_P(KVBucketParamTest, GetKVStoreStats) {
     constexpr std::array<std::string_view, 2> keys = {
             {nSetsStatName, fooStatName}};
 
-    auto stats = store->getKVStoreStats(keys, KVBucketIface::KVSOption::RW);
+    auto stats = store->getKVStoreStats(keys);
     store->getRWUnderlying(vbid1)->getStat(nSetsStatName, nSetsVbid1);
     store->getRWUnderlying(vbid2)->getStat(nSetsStatName, nSetsVbid2);
     store->getKVStoreStat(

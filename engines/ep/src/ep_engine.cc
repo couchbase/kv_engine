@@ -2764,8 +2764,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
              "magma_NTableFiles",
              "magma_NSyncs"}};
 
-    auto stats =
-            kvBucket->getKVStoreStats(statNames, KVBucketIface::KVSOption::RW);
+    auto stats = kvBucket->getKVStoreStats(statNames);
 
     // Return whether stat exists. If exists, save value in output param value.
     auto statExists = [&](std::string_view name, size_t& value) {

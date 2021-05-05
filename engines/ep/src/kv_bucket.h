@@ -564,8 +564,8 @@ public:
     void addKVStoreTimingStats(const AddStatFn& add_stat,
                                const CookieIface* cookie) override;
 
-    GetStatsMap getKVStoreStats(gsl::span<const std::string_view> keys,
-                                KVSOption option) override;
+    GetStatsMap getKVStoreStats(
+            gsl::span<const std::string_view> keys) override;
 
     bool getKVStoreStat(std::string_view name,
                         size_t& value,
