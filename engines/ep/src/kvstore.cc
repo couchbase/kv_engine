@@ -248,8 +248,9 @@ void KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
     vbucket_state* vbState = getCachedVBucketState(vbid);
 
     if (!vbState) {
-        cachedVBStates[vbid.get()] = std::make_unique<vbucket_state>(newState);
-        if (cachedVBStates[vbid.get()]->transition.state !=
+        cachedVBStates[getCacheSlot(vbid)] =
+                std::make_unique<vbucket_state>(newState);
+        if (cachedVBStates[getCacheSlot(vbid)]->transition.state !=
             vbucket_state_dead) {
             cachedValidVBCount++;
         }

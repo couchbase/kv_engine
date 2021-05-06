@@ -470,7 +470,10 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
 
     magma::SetMaxOpenFiles(configuration.getMaxFileDescriptors());
 
-    cachedVBStates.resize(configuration.getMaxVBuckets());
+    // To save memory only allocate counters for the number of vBuckets that
+    // this shard will have to deal with
+    auto cacheSize = getCacheSize();
+    cachedVBStates.resize(cacheSize);
     kvstoreRevList.resize(configuration.getMaxVBuckets(),
                           Monotonic<uint64_t>(0));
 
@@ -1686,7 +1689,7 @@ void MagmaKVStore::mergeMagmaDbStatsIntoVBState(vbucket_state& vbstate,
 }
 
 vbucket_state* MagmaKVStore::getCachedVBucketState(Vbid vbid) {
-    auto& vbstate = cachedVBStates[vbid.get()];
+    auto& vbstate = cachedVBStates[getCacheSlot(vbid)];
     if (vbstate) {
         mergeMagmaDbStatsIntoVBState(*vbstate, vbid);
         if (logger->should_log(spdlog::level::TRACE)) {
@@ -1811,7 +1814,7 @@ magma::Status MagmaKVStore::loadVBStateCache(Vbid vbid, bool resetKVStoreRev) {
         return readState.status;
     }
 
-    cachedVBStates[vbid.get()] =
+    cachedVBStates[getCacheSlot(vbid)] =
             std::make_unique<vbucket_state>(readState.vbstate);
 
     // We only want to reset the kvstoreRev when loading up the

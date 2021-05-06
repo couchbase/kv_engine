@@ -288,7 +288,7 @@ RocksDBKVStore::RocksDBKVStore(RocksDBKVStoreConfig& configuration)
       vbHandles(configuration.getMaxVBuckets()),
       pendingReqs(std::make_unique<PendingRequestQueue>()),
       logger(configuration.getLogger()) {
-    cachedVBStates.resize(configuration.getMaxVBuckets());
+    cachedVBStates.resize(getCacheSize());
     writeOptions.sync = true;
 
     // The RocksDB Options is a set of DBOptions and ColumnFamilyOptions.
@@ -1152,7 +1152,8 @@ void RocksDBKVStore::loadVBStateCache(const VBHandle& vbh) {
     // Cannot use make_unique here as it doesn't support brace-initialization
     // until C++20.
     auto vbid = vbh.vbid;
-    cachedVBStates[vbid.get()].reset(new vbucket_state(diskState.vbstate));
+    cachedVBStates[getCacheSlot(vbid)] =
+            std::make_unique<vbucket_state>(diskState.vbstate);
 }
 
 rocksdb::Status RocksDBKVStore::saveVBStateToBatch(const VBHandle& vbh,

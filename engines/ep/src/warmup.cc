@@ -1787,35 +1787,25 @@ void Warmup::addStats(const AddStatFn& add_stat, const CookieIface* c) const {
     }
 }
 
-/* In the case of CouchKVStore, all vbucket states of all the shards
- * are stored in a single instance. Others (e.g. RocksDBKVStore) store
- * only the vbucket states specific to that shard. Hence the vbucket
- * states of all the shards need to be retrieved */
 uint16_t Warmup::getNumKVStores() {
-    auto backend = store.getEPEngine().getConfiguration().getBackend();
-    if (backend.compare("couchdb") == 0) {
-        return 1;
-    } else if (backend.compare("rocksdb") == 0 ||
-               backend.compare("magma") == 0) {
-        return store.vbMap.getNumShards();
-    }
-    return 0;
+    return store.vbMap.getNumShards();
 }
 
 void Warmup::populateShardVbStates() {
     uint16_t numKvs = getNumKVStores();
 
     for (size_t i = 0; i < numKvs; i++) {
-        std::vector<vbucket_state*> allVbStates =
+        std::vector<vbucket_state*> kvStoreVbStates =
                 store.getRWUnderlyingByShard(i)->listPersistedVbuckets();
-        for (uint16_t vb = 0; vb < allVbStates.size(); vb++) {
-            if (!allVbStates[vb]) {
+        for (uint16_t j = 0; j < kvStoreVbStates.size(); j++) {
+            if (!kvStoreVbStates[j]) {
                 continue;
             }
+            auto vb = (j * numKvs) + i;
             std::map<Vbid, vbucket_state>& shardVB =
                     shardVbStates[vb % store.vbMap.getNumShards()];
-            shardVB.insert(std::pair<Vbid, vbucket_state>(Vbid(vb),
-                                                          *(allVbStates[vb])));
+            shardVB.insert(std::pair<Vbid, vbucket_state>(
+                    Vbid(vb), *(kvStoreVbStates[j])));
         }
     }
 

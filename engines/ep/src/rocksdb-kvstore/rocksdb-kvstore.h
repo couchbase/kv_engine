@@ -216,7 +216,7 @@ public:
     }
 
     vbucket_state* getCachedVBucketState(Vbid vbucketId) override {
-        return cachedVBStates[vbucketId.get()].get();
+        return cachedVBStates[getCacheSlot(vbucketId)].get();
     }
 
     vbucket_state getPersistedVBucketState(Vbid vbid) override;

@@ -358,9 +358,6 @@ CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
     statCollectingFileOpsCompaction =
             getCouchstoreStatsOps(fsStatsCompaction, base_ops);
 
-    // init db file map with default revision number, 1
-    auto numDbFiles = configuration.getMaxVBuckets();
-
     // To save memory only allocate counters for the number of vBuckets that
     // this shard will have to deal with
     auto cacheSize = getCacheSize();
@@ -369,7 +366,7 @@ CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
     cachedOnDiskPrepareSize.assign(cacheSize, 0);
     cachedSpaceUsed.assign(cacheSize, 0);
 
-    cachedVBStates.resize(numDbFiles);
+    cachedVBStates.resize(cacheSize);
 }
 
 // Helper function to create and resize the 'locked' vector
@@ -1955,7 +1952,7 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
 }
 
 vbucket_state* CouchKVStore::getCachedVBucketState(Vbid vbucketId) {
-    return cachedVBStates[vbucketId.get()].get();
+    return cachedVBStates[getCacheSlot(vbucketId)].get();
 }
 
 bool CouchKVStore::writeVBucketState(Vbid vbucketId,
@@ -2549,6 +2546,18 @@ CouchKVStore::getVbucketRevisions(
         }
 
         if (valid) {
+            if (id.get() % configuration.getMaxShards() !=
+                configuration.getShardId()) {
+                // Either doesn't belong to this shard or is the last element
+                // (case where max vB % shards != 0) which we now need to check
+                // for
+                if (id.get() != (((configuration.getMaxVBuckets() /
+                                   configuration.getMaxShards()) *
+                                  configuration.getMaxShards()) +
+                                 configuration.getShardId())) {
+                    continue;
+                }
+            }
             // update map or create new element
             if (vbids.count(id)) {
                 // id is mapped, add the revision
@@ -3306,6 +3315,27 @@ CouchKVStore::ReadVBStateResult CouchKVStore::readVBState(Db* db,
 CouchKVStore::ReadVBStateResult CouchKVStore::readVBStateAndUpdateCache(
         Db* db, Vbid vbid) {
     auto res = readVBState(db, vbid);
+
+    // Defensive - ensure that we don't try to put state into the cache for a
+    // vBucket that this shard isn't responsible for
+    if (vbid.get() % configuration.getMaxShards() !=
+        configuration.getShardId()) {
+        // Either doesn't belong to this shard or is the last element
+        // (case where max vB % shards != 0) which we now need to check for
+        if (vbid.get() !=
+            (((configuration.getMaxVBuckets() / configuration.getMaxShards()) *
+              configuration.getMaxShards()) +
+             1)) {
+            throw std::runtime_error(
+                    "Attempting to access " + vbid.to_string() +
+                    " against "
+                    "incorrect KVStore:" +
+                    std::to_string(configuration.getShardId()) +
+                    ". Max shards is:" +
+                    std::to_string(configuration.getMaxShards()));
+        }
+    }
+
     if (res.status == ReadVBStateStatus::Success) {
         // For the case where a local doc does not exist, readVBState actually
         // returns Success as the read was successful. It also returns a default
@@ -3313,7 +3343,8 @@ CouchKVStore::ReadVBStateResult CouchKVStore::readVBStateAndUpdateCache(
         // cachedVBStates here. As the default constructed vbucket_state
         // defaults the vbucket_state_t to vbucket_state_dead this should behave
         // in the same way as a lack of a vbucket/vbucket_state.
-        cachedVBStates[vbid.get()] = std::make_unique<vbucket_state>(res.state);
+        cachedVBStates[getCacheSlot(vbid)] =
+                std::make_unique<vbucket_state>(res.state);
     }
     return res;
 }
