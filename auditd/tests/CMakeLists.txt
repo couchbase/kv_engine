@@ -1,7 +1,7 @@
 include_directories(AFTER ${Memcached_SOURCE_DIR}/auditd/src)
 add_executable(memcached_audit_test
                auditfile_test.cc
-               auditconfig_test
+               auditconfig_test.cc
                eventdescriptor_test.cc
                ${Memcached_SOURCE_DIR}/auditd/src/eventdescriptor.cc
                ${Memcached_SOURCE_DIR}/auditd/src/eventdescriptor.h
