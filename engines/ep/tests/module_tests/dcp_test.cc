@@ -47,6 +47,7 @@
 #include <memcached/server_cookie_iface.h>
 #include <platform/cbassert.h>
 #include <platform/compress.h>
+#include <platform/dirutils.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <statistics/cbstat_collector.h>
@@ -1691,7 +1692,11 @@ TEST_P(ConnectionTest, ConsumerWithConsumerNameEnablesSyncRepl) {
 class DcpConnMapTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        engine = SynchronousEPEngine::build({});
+        const auto dbname = dbnameFromCurrentGTestInfo();
+        removePathIfExists(dbname);
+
+        const auto extraConfig = "dbname=" + dbname;
+        engine = SynchronousEPEngine::build(extraConfig);
 
         initialize_time_functions(get_mock_server_api()->core);
 
@@ -1703,6 +1708,7 @@ protected:
         engine.reset();
         ObjectRegistry::onSwitchThread(nullptr);
         ExecutorPool::shutdown();
+        removePathIfExists(dbnameFromCurrentGTestInfo());
     }
 
     /**
