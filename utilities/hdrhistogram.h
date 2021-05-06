@@ -127,7 +127,6 @@ public:
         IterMode type;
         uint64_t lastVal = 0;
         uint64_t lastCumulativeCount = 0;
-        bool isFirst = true;
 
     private:
         // allow HdrHistogram to access histoRLockPtr
