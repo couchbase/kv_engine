@@ -14,7 +14,6 @@
 #include "connection.h"
 #include "log_macros.h"
 #include "memcached.h"
-#include "server_event.h"
 
 #include <mcbp/protocol/framebuilder.h>
 #include <memory>

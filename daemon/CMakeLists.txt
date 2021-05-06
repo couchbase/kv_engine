@@ -155,7 +155,6 @@ ADD_LIBRARY(memcached_daemon STATIC
             sendbuffer.cc
             sendbuffer.h
             server_api.cc
-            server_event.h
             session_cas.cc
             session_cas.h
             settings.cc

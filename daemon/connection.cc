@@ -21,7 +21,6 @@
 #include "protocol/mcbp/engine_wrapper.h"
 #include "runtime.h"
 #include "sendbuffer.h"
-#include "server_event.h"
 #include "settings.h"
 #include "ssl_utils.h"
 #include "tracing.h"
@@ -421,10 +420,6 @@ void Connection::addCpuTime(std::chrono::nanoseconds ns) {
     max_sched_time = std::max(min_sched_time, ns);
 }
 
-void Connection::enqueueServerEvent(std::unique_ptr<ServerEvent> event) {
-    server_events.push(std::move(event));
-}
-
 void Connection::shutdownIfSendQueueStuck(
         std::chrono::steady_clock::time_point now) {
     auto currentSendBufferSize = getSendQueueSize();
@@ -595,9 +590,6 @@ void Connection::executeCommandPipeline() {
             get_thread_stats(this)->bytes_read += drainSize;
         }
     }
-
-    // Do we have any server-side messages to send?
-    processServerEvents();
 
     if (numEvents == 0) {
         yields++;
@@ -1404,23 +1396,6 @@ cb::const_byte_buffer Connection::getAvailableBytes(size_t max) const {
     auto* input = bufferevent_get_input(bev.get());
     auto nb = std::min(evbuffer_get_length(input), max);
     return {evbuffer_pullup(input, nb), nb};
-}
-
-bool Connection::processServerEvents() {
-    if (server_events.empty()) {
-        return false;
-    }
-
-    const auto before = state;
-
-    // We're waiting for the next command to arrive from the client
-    // and we've got a server event to process. Let's start
-    // processing the server events (which might toggle our state)
-    if (server_events.front()->execute(*this)) {
-        server_events.pop();
-    }
-
-    return state != before;
 }
 
 void Connection::close() {

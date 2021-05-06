@@ -37,7 +37,6 @@
 class Bucket;
 class Cookie;
 class ListeningPort;
-class ServerEvent;
 struct EngineIface;
 struct FrontEndThread;
 class SendBuffer;
@@ -287,13 +286,6 @@ public:
      * @param ns The number of nanoseconds spent in this iteration.
      */
     void addCpuTime(std::chrono::nanoseconds ns);
-
-    /**
-     * Enqueue a new server event
-     *
-     * @param event
-     */
-    void enqueueServerEvent(std::unique_ptr<ServerEvent> event);
 
     const std::string& getTerminationReason() const {
         return terminationReason;
@@ -568,17 +560,6 @@ public:
 
     /// Initiate shutdown of the connection
     void shutdown();
-
-    /**
-     * Try to process some of the server events. This may _ONLY_ be performed
-     * after we've completely transferred the response for one command, and
-     * before we start executing the next one.
-     *
-     * @return true if processing server events set changed the path in the
-     *              state machine (and the current task should be
-     *              terminated immediately)
-     */
-    bool processServerEvents();
 
     DcpConnHandlerIface* getDcpConnHandlerIface() const {
         return dcpConnHandlerIface.load(std::memory_order_acquire);
@@ -905,8 +886,6 @@ protected:
      * that we want to get rid of more elements as we traverse).
      */
     std::deque<std::unique_ptr<Cookie>> cookies;
-
-    std::queue<std::unique_ptr<ServerEvent>> server_events;
 
     /// The current privilege context
     cb::rbac::PrivilegeContext privilegeContext{cb::sasl::Domain::Local};

@@ -14,7 +14,6 @@
 #include "front_end_thread.h"
 #include "get_authorization_task.h"
 #include "memcached.h"
-#include "server_event.h"
 #include "start_sasl_auth_task.h"
 #include "tracing.h"
 #include "tracing_types.h"
