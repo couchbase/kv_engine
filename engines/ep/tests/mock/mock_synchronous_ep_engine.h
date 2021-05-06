@@ -62,8 +62,6 @@ public:
      */
     void initializeConnmap();
 
-    std::unique_ptr<KVBucket> public_makeBucket(Configuration& config);
-
     std::unique_ptr<KVBucket> public_makeMockBucket(Configuration& config);
 
     cb::engine_errc public_setWithMeta(Vbid vbucket,

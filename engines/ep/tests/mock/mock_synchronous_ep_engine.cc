@@ -165,11 +165,6 @@ std::unique_ptr<KVBucket> SynchronousEPEngine::public_makeMockBucket(
                                 "type");
 }
 
-std::unique_ptr<KVBucket> SynchronousEPEngine::public_makeBucket(
-        Configuration& config) {
-    return makeBucket(config);
-}
-
 cb::engine_errc SynchronousEPEngine::public_setWithMeta(
         Vbid vbucket,
         DocKey key,
