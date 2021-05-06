@@ -51,11 +51,6 @@ public:
     void logoff(const std::string& user);
 
     /**
-     * Get the list of active users defined in the system
-     */
-    nlohmann::json getActiveUsers() const;
-
-    /**
      * Add the provided connection to the list of available authentication
      * providers
      */

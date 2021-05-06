@@ -196,7 +196,6 @@ void ExternalAuthManagerThread::responseReceived(
         auto decoded = nlohmann::json::parse(payload);
         auto rbac = decoded.find("rbac");
         if (rbac != decoded.end()) {
-            const auto username = rbac->begin().key();
             cb::rbac::updateExternalUser(rbac->dump());
         }
     }
@@ -419,10 +418,6 @@ void ExternalAuthManagerThread::login(const std::string& user) {
 
 void ExternalAuthManagerThread::logoff(const std::string& user) {
     activeUsers.logoff(user);
-}
-
-nlohmann::json ExternalAuthManagerThread::getActiveUsers() const {
-    return activeUsers.to_json();
 }
 
 bool ExternalAuthManagerThread::haveRbacEntryForUser(
