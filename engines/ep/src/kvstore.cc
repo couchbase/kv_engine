@@ -262,26 +262,12 @@ void KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
     }
 }
 
-bool KVStore::snapshotStats(const std::map<std::string,
-                            std::string> &stats) {
+bool KVStore::snapshotStats(const nlohmann::json& stats) {
     if (isReadOnly()) {
         throw std::logic_error("KVStore::snapshotStats: Cannot perform "
                         "on a read-only instance.");
     }
 
-    size_t count = 0;
-    size_t size = stats.size();
-    std::stringstream stats_buf;
-    stats_buf << "{";
-    auto it = stats.begin();
-    for (; it != stats.end(); ++it) {
-        stats_buf << "\"" << it->first << "\": \"" << it->second << "\"";
-        ++count;
-        if (count < size) {
-            stats_buf << ", ";
-        }
-    }
-    stats_buf << "}";
     std::string dbname = getConfig().getDBName();
     std::string next_fname = dbname + "/stats.json.new";
 
@@ -297,7 +283,7 @@ bool KVStore::snapshotStats(const std::map<std::string,
     }
 
     bool rv = true;
-    if (fprintf(new_stats, "%s\n", stats_buf.str().c_str()) < 0) {
+    if (fprintf(new_stats, "%s\n", stats.dump().c_str()) < 0) {
         EP_LOG_INFO(
                 "Failed to write the engine stats to "
                 "file \"{}\" due to an error \"{}\"; Not critical because new "
@@ -337,11 +323,11 @@ bool KVStore::snapshotStats(const std::map<std::string,
     return rv;
 }
 
-void KVStore::getPersistedStats(std::map<std::string, std::string>& stats) {
+nlohmann::json KVStore::getPersistedStats() {
     std::string dbname = getConfig().getDBName();
     const auto fname = cb::io::sanitizePath(dbname + "/stats.json");
     if (!cb::io::isFile(fname)) {
-        return;
+        return nlohmann::json();
     }
 
     std::string buffer;
@@ -352,7 +338,7 @@ void KVStore::getPersistedStats(std::map<std::string, std::string>& stats) {
                 "KVStore::getPersistedStats: Failed to load the engine "
                 "session stats due to IO exception \"{}\"",
                 exception.what());
-        return;
+        return nlohmann::json();
     }
 
     nlohmann::json json;
@@ -363,12 +349,10 @@ void KVStore::getPersistedStats(std::map<std::string, std::string>& stats) {
                 "KVStore::getPersistedStats:"
                 " Failed to parse the session stats json doc!!!: \"{}\"",
                 exception.what());
-        return;
+        return nlohmann::json();
     }
 
-    for (auto it = json.begin(); it != json.end(); ++it) {
-        stats[it.key()] = it.value().get<std::string>();
-    }
+    return json;
 }
 
 KVStore::KVStore(bool read_only) : readOnly(read_only) {
