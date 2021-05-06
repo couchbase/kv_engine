@@ -288,3 +288,13 @@ std::string dbnameFromCurrentGTestInfo() {
     return "ep_engine_ep_unit_tests.db/"s + subdir;
 #endif
 }
+
+void removePathIfExists(const std::string& path) {
+    try {
+        cb::io::rmrf(path);
+    } catch (std::system_error& e) {
+        if (e.code() != std::error_code(ENOENT, std::system_category())) {
+            throw e;
+        }
+    }
+}

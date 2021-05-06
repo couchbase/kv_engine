@@ -21,20 +21,23 @@
 #include "test_helpers.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 
-#include <logger/logger_test_fixture.h>
-#include <programs/engine_testapp/mock_server.h>
 #include <spdlog/async.h>
 
 class ObjectRegistryTest : virtual public ::testing::Test {
 protected:
     void SetUp() override {
+        const auto dbname = dbnameFromCurrentGTestInfo();
+        removePathIfExists(dbname);
+
         SingleThreadedExecutorPool::replaceExecutorPoolWithFake();
-        engine = SynchronousEPEngine::build({});
+        const auto extraConfig = "dbname=" + dbname;
+        engine = SynchronousEPEngine::build(extraConfig);
     }
 
     void TearDown() override {
         engine.reset();
         ExecutorPool::shutdown();
+        removePathIfExists(dbnameFromCurrentGTestInfo());
     }
 
     SynchronousEPEngineUniquePtr engine;

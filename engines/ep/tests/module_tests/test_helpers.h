@@ -181,3 +181,11 @@ void modifyCouchstoreVBState(
         const std::string& dbDir,
         int revision,
         std::function<void(nlohmann::json& vbState)> modifyFn);
+
+/**
+ * Removes the given path if it exists, NOP otherwise.
+ *
+ * @param path
+ * @throws std::system_error If the removal fails for reason other than ENOENT
+ */
+void removePathIfExists(const std::string& path);
