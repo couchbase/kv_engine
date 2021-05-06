@@ -1184,13 +1184,13 @@ void KVBucket::snapshotStats() {
               engine.getStats(&snap, "dcp", {}, snapshot_add_stat) ==
                       ENGINE_SUCCESS;
 
+    nlohmann::json snapshotStats(snap.smap);
     if (rv && stats.isShutdown) {
-        snap.smap["ep_force_shutdown"] = stats.forceShutdown ? "true" : "false";
-        std::stringstream ss;
-        ss << ep_real_time();
-        snap.smap["ep_shutdown_time"] = ss.str();
+        snapshotStats["ep_force_shutdown"] =
+                stats.forceShutdown ? "true" : "false";
+        snapshotStats["ep_shutdown_time"] = fmt::format("{}", ep_real_time());
     }
-    getOneRWUnderlying()->snapshotStats(snap.smap);
+    getOneRWUnderlying()->snapshotStats(snapshotStats);
 }
 
 void KVBucket::getAggregatedVBucketStats(const void* cookie,

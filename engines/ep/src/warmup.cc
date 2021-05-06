@@ -977,11 +977,10 @@ void Warmup::initialize() {
         warmupStart.time = std::chrono::steady_clock::now();
     }
 
-    std::map<std::string, std::string> session_stats;
-    store.getOneROUnderlying()->getPersistedStats(session_stats);
+    auto session_stats = store.getOneROUnderlying()->getPersistedStats();
 
     auto it = session_stats.find("ep_force_shutdown");
-    if (it != session_stats.end() && it->second == "false") {
+    if (it != session_stats.end() && it.value() == "false") {
         cleanShutdown = true;
     }
 
