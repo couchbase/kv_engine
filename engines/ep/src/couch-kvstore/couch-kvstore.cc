@@ -363,11 +363,11 @@ CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
     // pre-allocate lookup maps (vectors) given we have a relatively
     // small, fixed number of vBuckets.
     cachedDeleteCount.assign(numDbFiles, cb::RelaxedAtomic<size_t>(0));
-    cachedFileSize.assign(numDbFiles, cb::RelaxedAtomic<uint64_t>(0));
 
     // To save memory only allocate counters for the number of vBuckets that
     // this shard will have to deal with
     auto cacheSize = getCacheSize();
+    cachedFileSize.assign(cacheSize, 0);
     cachedOnDiskPrepareSize.assign(cacheSize, 0);
     cachedSpaceUsed.assign(cacheSize, 0);
 
@@ -1638,7 +1638,7 @@ bool CouchKVStore::compactDBTryAndSwitchToNewFile(
     auto info = cb::couchstore::getHeader(*targetDb.getDb());
     hookCtx->stats.post = toFileInfo(info);
 
-    cachedFileSize[vbid.get()] = info.fileSize;
+    cachedFileSize[getCacheSlot(vbid)] = info.fileSize;
     cachedSpaceUsed[getCacheSlot(vbid)] = info.spaceUsed;
 
     // also update cached state with dbinfo (the disk entry is already updated)
@@ -1921,7 +1921,7 @@ bool CouchKVStore::writeVBucketState(Vbid vbucketId,
 
     const auto info = cb::couchstore::getHeader(*db);
     cachedSpaceUsed[getCacheSlot(vbucketId)] = info.spaceUsed;
-    cachedFileSize[vbucketId.get()] = info.fileSize;
+    cachedFileSize[getCacheSlot(vbucketId)] = info.fileSize;
 
     return true;
 }
@@ -3014,7 +3014,7 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
     // retrieve storage system stats for file fragmentation computation
     const auto info = cb::couchstore::getHeader(*db);
     cachedSpaceUsed[getCacheSlot(vbid)] = info.spaceUsed;
-    cachedFileSize[vbid.get()] = info.fileSize;
+    cachedFileSize[getCacheSlot(vbid)] = info.fileSize;
     cachedDeleteCount[vbid.get()] = info.deletedCount;
     cachedOnDiskPrepareSize[getCacheSlot(vbid)] = state.getOnDiskPrepareBytes();
 
@@ -3446,16 +3446,8 @@ DBFileInfo CouchKVStore::getAggrDbFileInfo() {
 
     for (uint16_t vbid = 0; vbid < cachedFileSize.size(); vbid++) {
         kvsFileInfo.fileSize += cachedFileSize[vbid].load();
-    }
-
-    // @TODO when cachedFileSize is shrunk we should swap back to using a single
-    // loop
-    for (auto i : cachedOnDiskPrepareSize) {
-        kvsFileInfo.prepareBytes += i.load();
-    }
-
-    for(auto i : cachedSpaceUsed) {
-        kvsFileInfo.spaceUsed += i.load();
+        kvsFileInfo.spaceUsed += cachedSpaceUsed[vbid].load();
+        kvsFileInfo.prepareBytes += cachedOnDiskPrepareSize[vbid].load();
     }
     return kvsFileInfo;
 }
@@ -3748,7 +3740,7 @@ uint64_t CouchKVStore::prepareToDeleteImpl(Vbid vbid) {
     // Clear the stats so it looks empty (real deletion of the disk data occurs
     // later)
     cachedDeleteCount[vbid.get()] = 0;
-    cachedFileSize[vbid.get()] = 0;
+    cachedFileSize[getCacheSlot(vbid)] = 0;
     cachedSpaceUsed[getCacheSlot(vbid)] = 0;
     cachedOnDiskPrepareSize[getCacheSlot(vbid)] = 0;
     return getDbRevision(vbid);
