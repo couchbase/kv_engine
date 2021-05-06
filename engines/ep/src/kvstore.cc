@@ -622,3 +622,11 @@ void CompactionConfig::merge(const CompactionConfig& other) {
     purge_before_seq =
             std::max<uint64_t>(purge_before_seq, other.purge_before_seq);
 }
+
+Vbid::id_type KVStore::getCacheSlot(Vbid vbid) const {
+    return vbid.get() / getConfig().getMaxShards();
+}
+
+size_t KVStore::getCacheSize() const {
+    return getConfig().getCacheSize();
+}

@@ -101,7 +101,7 @@ TEST_F(CouchKVStoreTest, StatsTest) {
 
 // Verify the compaction stats returned from operations are accurate.
 TEST_F(CouchKVStoreTest, CompactStatsTest) {
-    CouchKVStoreConfig config(1, 4, data_dir, "couchdb", 0);
+    CouchKVStoreConfig config(4, 4, data_dir, "couchdb", 0);
     auto kvstore = setup_kv_store(config);
 
     // Perform a transaction with a single mutation (set) in it.

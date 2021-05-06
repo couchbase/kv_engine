@@ -1231,6 +1231,19 @@ protected:
      */
     void resetCachedVBState(Vbid vbid);
 
+    /**
+     * We cache many values per-vBucket and to save memory usage we only
+     * allocate num vBuckets / num shards slots in the array. Return correct
+     * slot.
+     *
+     * @param vbid Vbid to map
+     * @return vbid / num shards
+     */
+    Vbid::id_type getCacheSlot(Vbid vbid) const;
+
+    /// @returns the size to use for the cached values
+    size_t getCacheSize() const;
+
     /* all stats */
     KVStoreStats st;
     std::vector<std::unique_ptr<vbucket_state>> cachedVBStates;

@@ -107,3 +107,7 @@ KVStoreConfig& KVStoreConfig::setLogger(BucketLogger& _logger) {
     logger = &_logger;
     return *this;
 }
+
+size_t KVStoreConfig::getCacheSize() const {
+    return std::ceil(float(getMaxVBuckets()) / getMaxShards());
+}

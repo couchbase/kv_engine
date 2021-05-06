@@ -365,7 +365,12 @@ CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
     cachedDeleteCount.assign(numDbFiles, cb::RelaxedAtomic<size_t>(0));
     cachedFileSize.assign(numDbFiles, cb::RelaxedAtomic<uint64_t>(0));
     cachedSpaceUsed.assign(numDbFiles, cb::RelaxedAtomic<uint64_t>(0));
-    cachedOnDiskPrepareSize.assign(numDbFiles, 0);
+
+    // To save memory only allocate counters for the number of vBuckets that
+    // this shard will have to deal with
+    auto cacheSize = getCacheSize();
+    cachedOnDiskPrepareSize.assign(cacheSize, 0);
+
     cachedVBStates.resize(numDbFiles);
 }
 
@@ -1644,7 +1649,8 @@ bool CouchKVStore::compactDBTryAndSwitchToNewFile(
         cachedDeleteCount[vbid.get()] = info.deletedCount;
         state->onDiskPrepares = prepareStats.onDiskPrepares;
         state->setOnDiskPrepareBytes(prepareStats.onDiskPrepareBytes);
-        cachedOnDiskPrepareSize[vbid.get()] = state->getOnDiskPrepareBytes();
+        cachedOnDiskPrepareSize[getCacheSlot(vbid)] =
+                state->getOnDiskPrepareBytes();
     }
 
     return true;
@@ -3010,7 +3016,7 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
     cachedSpaceUsed[vbid.get()] = info.spaceUsed;
     cachedFileSize[vbid.get()] = info.fileSize;
     cachedDeleteCount[vbid.get()] = info.deletedCount;
-    cachedOnDiskPrepareSize[vbid.get()] = state.getOnDiskPrepareBytes();
+    cachedOnDiskPrepareSize[getCacheSlot(vbid)] = state.getOnDiskPrepareBytes();
 
     // Check seqno if we wrote documents
     if (!docs.empty() && maxDBSeqno != info.updateSeqNum) {
@@ -3425,8 +3431,9 @@ size_t CouchKVStore::getNumPersistedDeletes(Vbid vbid) {
 
 DBFileInfo CouchKVStore::getDbFileInfo(Vbid vbid) {
     const auto info = getDbInfo(vbid);
-    return DBFileInfo{
-            info.fileSize, info.spaceUsed, cachedOnDiskPrepareSize[vbid.get()]};
+    return DBFileInfo{info.fileSize,
+                      info.spaceUsed,
+                      cachedOnDiskPrepareSize[getCacheSlot(vbid)]};
 }
 
 DBFileInfo CouchKVStore::getAggrDbFileInfo() {
@@ -3436,10 +3443,16 @@ DBFileInfo CouchKVStore::getAggrDbFileInfo() {
      * If the vbucket is dead, then its value would
      * be zero.
      */
+
     for (uint16_t vbid = 0; vbid < cachedFileSize.size(); vbid++) {
         kvsFileInfo.fileSize += cachedFileSize[vbid].load();
         kvsFileInfo.spaceUsed += cachedSpaceUsed[vbid].load();
-        kvsFileInfo.prepareBytes += cachedOnDiskPrepareSize[vbid].load();
+    }
+
+    // @TODO when cachedFileSize is shrunk we should swap back to using a single
+    // loop
+    for (auto i : cachedOnDiskPrepareSize) {
+        kvsFileInfo.prepareBytes += i.load();
     }
     return kvsFileInfo;
 }
@@ -3734,7 +3747,7 @@ uint64_t CouchKVStore::prepareToDeleteImpl(Vbid vbid) {
     cachedDeleteCount[vbid.get()] = 0;
     cachedFileSize[vbid.get()] = 0;
     cachedSpaceUsed[vbid.get()] = 0;
-    cachedOnDiskPrepareSize[vbid.get()] = 0;
+    cachedOnDiskPrepareSize[getCacheSlot(vbid)] = 0;
     return getDbRevision(vbid);
 }
 

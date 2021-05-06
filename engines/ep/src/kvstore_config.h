@@ -118,6 +118,9 @@ public:
         return metadataPurgeAge;
     }
 
+    /// @returns the size to use for the cached values in the KVStores
+    size_t getCacheSize() const;
+
 protected:
     class ConfigChangeListener;
 
