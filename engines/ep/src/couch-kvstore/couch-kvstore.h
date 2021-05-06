@@ -265,13 +265,6 @@ public:
      */
     DBFileInfo getAggrDbFileInfo() override;
 
-    /**
-     * This method will return the total number of items in the vbucket. Unlike
-     * the getNumItems function that returns items within a specified range of
-     * sequence numbers, this will return all the items in the vbucket.
-     *
-     * vbid - vbucket id
-     */
     size_t getItemCount(Vbid vbid) override;
 
     /**

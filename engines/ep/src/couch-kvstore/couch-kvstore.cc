@@ -362,7 +362,6 @@ CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
 
     // pre-allocate lookup maps (vectors) given we have a relatively
     // small, fixed number of vBuckets.
-    cachedDocCount.assign(numDbFiles, cb::RelaxedAtomic<size_t>(0));
     cachedDeleteCount.assign(numDbFiles, cb::RelaxedAtomic<size_t>(0));
     cachedFileSize.assign(numDbFiles, cb::RelaxedAtomic<uint64_t>(0));
     cachedSpaceUsed.assign(numDbFiles, cb::RelaxedAtomic<uint64_t>(0));
@@ -435,8 +434,6 @@ void CouchKVStore::initialize(
         ++st.numLoadedVb;
         cachedDeleteCount[vbid.get()] =
                 cb::couchstore::getHeader(*db.getDb()).deletedCount;
-        cachedDocCount[vbid.get()] =
-                cb::couchstore::getHeader(*db.getDb()).docCount;
     }
 }
 
@@ -1645,7 +1642,6 @@ bool CouchKVStore::compactDBTryAndSwitchToNewFile(
         state->highSeqno = info.updateSeqNum;
         state->purgeSeqno = info.purgeSeqNum;
         cachedDeleteCount[vbid.get()] = info.deletedCount;
-        cachedDocCount[vbid.get()] = info.docCount;
         state->onDiskPrepares = prepareStats.onDiskPrepares;
         state->setOnDiskPrepareBytes(prepareStats.onDiskPrepareBytes);
         cachedOnDiskPrepareSize[vbid.get()] = state->getOnDiskPrepareBytes();
@@ -3014,7 +3010,6 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
     cachedSpaceUsed[vbid.get()] = info.spaceUsed;
     cachedFileSize[vbid.get()] = info.fileSize;
     cachedDeleteCount[vbid.get()] = info.deletedCount;
-    cachedDocCount[vbid.get()] = info.docCount;
     cachedOnDiskPrepareSize[vbid.get()] = state.getOnDiskPrepareBytes();
 
     // Check seqno if we wrote documents
@@ -3450,7 +3445,7 @@ DBFileInfo CouchKVStore::getAggrDbFileInfo() {
 }
 
 size_t CouchKVStore::getItemCount(Vbid vbid) {
-    return cachedDocCount.at(vbid.get());
+    return getDbInfo(vbid).docCount;
 }
 
 RollbackResult CouchKVStore::rollback(Vbid vbid,
@@ -3600,7 +3595,6 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
         return RollbackResult(false);
     }
     cachedDeleteCount[vbid.get()] = info.deletedCount;
-    cachedDocCount[vbid.get()] = info.docCount;
 
     // Append the rewinded header to the database file
     errCode = couchstore_commit(handle->getDbHolder());
@@ -3737,7 +3731,6 @@ void CouchKVStore::prepareToCreateImpl(Vbid vbid) {
 uint64_t CouchKVStore::prepareToDeleteImpl(Vbid vbid) {
     // Clear the stats so it looks empty (real deletion of the disk data occurs
     // later)
-    cachedDocCount[vbid.get()] = 0;
     cachedDeleteCount[vbid.get()] = 0;
     cachedFileSize[vbid.get()] = 0;
     cachedSpaceUsed[vbid.get()] = 0;

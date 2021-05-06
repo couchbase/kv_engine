@@ -814,7 +814,10 @@ void CollectionsEraserTest::testCollectionPurgedItemsCorrectAfterDrop(
 
     // The warmup will definitely fail if this isn't true
     auto kvStore = store->getRWUnderlying(vbid);
-    ASSERT_EQ(0, kvStore->getItemCount(vbid));
+
+    if (isPersistent()) {
+        ASSERT_EQ(0, kvStore->getItemCount(vbid));
+    }
 
     vb.reset();
 
@@ -906,7 +909,10 @@ void CollectionsEraserTest::testScopePurgedItemsCorrectAfterDrop(
 
     // The warmup will definitely fail if this isn't true
     auto kvStore = store->getRWUnderlying(vbid);
-    ASSERT_EQ(0, kvStore->getItemCount(vbid));
+
+    if (isPersistent()) {
+        ASSERT_EQ(0, kvStore->getItemCount(vbid));
+    }
 
     vb.reset();
 
