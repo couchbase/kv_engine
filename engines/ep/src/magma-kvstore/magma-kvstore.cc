@@ -474,8 +474,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     // this shard will have to deal with
     auto cacheSize = getCacheSize();
     cachedVBStates.resize(cacheSize);
-    kvstoreRevList.resize(configuration.getMaxVBuckets(),
-                          Monotonic<uint64_t>(0));
+    kvstoreRevList.resize(cacheSize, Monotonic<uint64_t>(0));
 
     useUpsertForSet = configuration.getMagmaEnableUpsert();
     if (useUpsertForSet) {
@@ -968,11 +967,11 @@ void MagmaKVStore::prepareToCreateImpl(Vbid vbid) {
     if (vbstate) {
         vbstate->reset();
     }
-    kvstoreRevList[vbid.get()]++;
+    kvstoreRevList[getCacheSlot(vbid)]++;
 
     logger->info("MagmaKVStore::prepareToCreateImpl {} kvstoreRev:{}",
                  vbid,
-                 kvstoreRevList[vbid.get()]);
+                 kvstoreRevList[getCacheSlot(vbid)]);
 }
 
 uint64_t MagmaKVStore::prepareToDeleteImpl(Vbid vbid) {
@@ -987,7 +986,7 @@ uint64_t MagmaKVStore::prepareToDeleteImpl(Vbid vbid) {
                 status.String());
         // Even though we couldn't get the kvstore revision from magma,
         // we'll use what is in kv engine and assume its the latest.
-        kvsRev = kvstoreRevList[vbid.get()];
+        kvsRev = kvstoreRevList[getCacheSlot(vbid)];
     }
     return kvsRev;
 }
@@ -1216,7 +1215,7 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
 
         // Write out current vbstate to the CommitBatch.
         addVBStateUpdateToLocalDbReqs(
-                localDbReqs, vbstate, kvstoreRevList[vbid.get()]);
+                localDbReqs, vbstate, kvstoreRevList[getCacheSlot(vbid)]);
 
         commitData.collections.saveCollectionStats(
                 [this, &localDbReqs](
@@ -1295,7 +1294,7 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
 
     auto status = magma->WriteDocs(vbid.get(),
                                    writeOps,
-                                   kvstoreRevList[vbid.get()],
+                                   kvstoreRevList[getCacheSlot(vbid)],
                                    writeDocsCB,
                                    postWriteDocsCB);
     if (status) {
@@ -1820,7 +1819,7 @@ magma::Status MagmaKVStore::loadVBStateCache(Vbid vbid, bool resetKVStoreRev) {
     // We only want to reset the kvstoreRev when loading up the
     // vbstate cache during magma instantiation.
     if (resetKVStoreRev) {
-        kvstoreRevList[vbid.get()].reset(readState.kvstoreRev);
+        kvstoreRevList[getCacheSlot(vbid)].reset(readState.kvstoreRev);
     }
 
     return Status::OK();
@@ -2198,7 +2197,7 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<CompactionContext> ctx) {
         addStatUpdateToWriteOps(magmaDbStats, writeOps);
 
         status = magma->WriteDocs(
-                vbid.get(), writeOps, kvstoreRevList[vbid.get()]);
+                vbid.get(), writeOps, kvstoreRevList[getCacheSlot(vbid)]);
         if (!status) {
             logger->critical(
                     "MagmaKVStore::compactDBInternal {} WriteDocs failed. "
@@ -2761,13 +2760,13 @@ Status MagmaKVStore::writeVBStateToDisk(Vbid vbid,
                                         const vbucket_state& vbstate) {
     LocalDbReqs localDbReqs;
     addVBStateUpdateToLocalDbReqs(
-            localDbReqs, vbstate, kvstoreRevList[vbid.get()]);
+            localDbReqs, vbstate, kvstoreRevList[getCacheSlot(vbid)]);
 
     WriteOps writeOps;
     addLocalDbReqs(localDbReqs, writeOps);
 
-    auto status =
-            magma->WriteDocs(vbid.get(), writeOps, kvstoreRevList[vbid.get()]);
+    auto status = magma->WriteDocs(
+            vbid.get(), writeOps, kvstoreRevList[getCacheSlot(vbid)]);
     if (!status) {
         ++st.numVbSetFailure;
         logger->critical(

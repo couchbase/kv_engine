@@ -49,7 +49,7 @@ public:
 
         addLocalDbReqs(localDbReqs, writeOps);
         auto ret = magma->WriteDocs(
-                vbid.get(), writeOps, kvstoreRevList[vbid.get()]);
+                vbid.get(), writeOps, kvstoreRevList[getCacheSlot(vbid)]);
 
         magma->Sync(true);
 
@@ -63,7 +63,7 @@ public:
 
         addLocalDbReqs(localDbReqs, writeOps);
         auto ret = magma->WriteDocs(
-                vbid.get(), writeOps, kvstoreRevList[vbid.get()]);
+                vbid.get(), writeOps, kvstoreRevList[getCacheSlot(vbid)]);
 
         magma->Sync(true);
 
