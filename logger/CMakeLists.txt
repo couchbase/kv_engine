@@ -7,7 +7,7 @@ add_library(memcached_logger STATIC
             custom_rotating_file_sink.h
             logger_test_fixture.h)
 
-target_link_libraries(memcached_logger platform spdlog)
+target_link_libraries(memcached_logger PUBLIC platform spdlog)
 add_sanitizers(memcached_logger)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)

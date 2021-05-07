@@ -376,7 +376,7 @@ ADD_LIBRARY(ep_objs OBJECT
             ${COLLECTIONS_SOURCE})
 SET_PROPERTY(TARGET ep_objs PROPERTY POSITION_INDEPENDENT_CODE 1)
 add_sanitizers(ep_objs)
-target_link_libraries(ep_objs PUBLIC platform ${EP_STORAGE_LIBS})
+target_link_libraries(ep_objs PUBLIC platform spdlog ${EP_STORAGE_LIBS})
 
 ADD_LIBRARY(ep STATIC $<TARGET_OBJECTS:ep_objs>)
 
@@ -436,7 +436,7 @@ if (NOT EP_BYPASS_TESTS)
             tests/mock/mock_taskable.cc
             ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.h)
     set_property(TARGET ep_mocks PROPERTY POSITION_INDEPENDENT_CODE 1)
-    target_link_libraries(ep_mocks PUBLIC platform)
+    target_link_libraries(ep_mocks PUBLIC platform spdlog)
     add_sanitizers(ep_mocks)
 
     # While ep_perfsuite is arguably a "test" and hence should live under
