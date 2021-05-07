@@ -13,7 +13,6 @@
 
 #include "ssl_utils.h"
 #include <JSON_checker.h>
-#include <event.h>
 #include <folly/Synchronized.h>
 #include <folly/io/async/EventBase.h>
 #include <memcached/engine_error.h>
@@ -48,18 +47,6 @@ struct FrontEndThread {
     /// The event base used by this thread
     folly::EventBase eventBase;
 
-    /// listen event for notify pipe
-    struct event notify_event = {};
-
-    /**
-     * notification pipe.
-     *
-     * The various worker threads are listening on index 0,
-     * and in order to notify the thread other threads will
-     * write data to index 1.
-     */
-    std::array<SOCKET, 2> notify = {{INVALID_SOCKET, INVALID_SOCKET}};
-
     /**
      * Dispatches a new connection to the worker thread by using round
      * robin.
@@ -77,18 +64,6 @@ struct FrontEndThread {
 
     /// Mutex to lock protect access to this object.
     std::mutex mutex;
-
-    /// A list of connections to signal if they're idle
-    class NotificationList {
-    public:
-        bool push(Connection* c);
-        void remove(Connection* c);
-        void swap(std::vector<Connection*>& other);
-
-    protected:
-        std::mutex mutex;
-        std::vector<Connection*> connections;
-    } notification;
 
     /// index of this thread in the threads array
     size_t index = 0;
@@ -127,10 +102,7 @@ struct FrontEndThread {
     /// of the problem)
     time_t shutdown_next_log = 0;
 
-    static void libevent_callback(evutil_socket_t fd, short, void* arg);
-
 protected:
-    void libevent_callback();
     void dispatch_new_connections();
 
     /**
@@ -159,6 +131,3 @@ protected:
         folly::Synchronized<std::vector<Entry>, std::mutex> connections;
     } new_conn_queue;
 };
-
-void notify_thread(FrontEndThread& thread);
-void drain_notification_channel(evutil_socket_t fd);

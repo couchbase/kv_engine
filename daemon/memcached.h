@@ -49,14 +49,6 @@ void worker_threads_init();
 
 void threads_shutdown();
 
-/**
- * Create a socketpair and make it non-blocking
- *
- * @param sockets Where to store the sockets
- * @return true if success, false otherwise (and the error reason logged)
- */
-bool create_nonblocking_socketpair(std::array<SOCKET, 2>& sockets);
-
 void threadlocal_stats_reset(std::vector<thread_stats>& thread_stats);
 
 void notifyIoComplete(Cookie& cookie, cb::engine_errc status);

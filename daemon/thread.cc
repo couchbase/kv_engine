@@ -55,41 +55,6 @@ void FrontEndThread::ConnectionQueue::swap(std::vector<Entry>& other) {
     connections.lock()->swap(other);
 }
 
-bool FrontEndThread::NotificationList::push(Connection* c) {
-    std::lock_guard<std::mutex> lock(mutex);
-    auto iter = std::find(connections.begin(), connections.end(), c);
-    if (iter == connections.end()) {
-        try {
-            connections.push_back(c);
-            return true;
-        } catch (const std::bad_alloc&) {
-            // Just ignore and hopefully we'll be able to signal it at a later
-            // time.
-            try {
-                LOG_WARNING(
-                        "FrontEndThread::NotificationList::push(): Failed to "
-                        "enqueue {}",
-                        c->getId());
-            } catch (const std::bad_alloc&) {
-            }
-        }
-    }
-    return false;
-}
-
-void FrontEndThread::NotificationList::remove(Connection* c) {
-    std::lock_guard<std::mutex> lock(mutex);
-    auto iter = std::find(connections.begin(), connections.end(), c);
-    if (iter != connections.end()) {
-        connections.erase(iter);
-    }
-}
-
-void FrontEndThread::NotificationList::swap(std::vector<Connection*>& other) {
-    std::lock_guard<std::mutex> lock(mutex);
-    connections.swap(other);
-}
-
 /*
  * Each libevent instance has a wakeup pipe, which other threads
  * can use to signal that they've put a new connection on its queue.
@@ -133,56 +98,7 @@ void iterate_all_connections(std::function<void(Connection&)> callback) {
     }
 }
 
-bool create_nonblocking_socketpair(std::array<SOCKET, 2>& sockets) {
-    if (cb::net::socketpair(SOCKETPAIR_AF,
-                            SOCK_STREAM,
-                            0,
-                            reinterpret_cast<SOCKET*>(sockets.data())) ==
-        SOCKET_ERROR) {
-        LOG_WARNING("Failed to create socketpair: {}",
-                    cb_strerror(cb::net::get_socket_error()));
-        return false;
-    }
-
-    for (auto sock : sockets) {
-        int flags = 1;
-        const auto* flag_ptr = reinterpret_cast<const void*>(&flags);
-        cb::net::setsockopt(
-                sock, IPPROTO_TCP, TCP_NODELAY, flag_ptr, sizeof(flags));
-        cb::net::setsockopt(
-                sock, SOL_SOCKET, SO_REUSEADDR, flag_ptr, sizeof(flags));
-
-        if (evutil_make_socket_nonblocking(sock) == -1) {
-            LOG_WARNING("Failed to make socket non-blocking: {}",
-                        cb_strerror(cb::net::get_socket_error()));
-            safe_close(sockets[0]);
-            safe_close(sockets[1]);
-            sockets[0] = sockets[1] = INVALID_SOCKET;
-            return false;
-        }
-    }
-    return true;
-}
-
-/*
- * Set up a thread's information.
- */
-static void setup_thread(FrontEndThread& me) {
-    /* Listen for notifications from other threads */
-    if ((event_assign(&me.notify_event,
-                      me.eventBase.getLibeventBase(),
-                      me.notify[0],
-                      EV_READ | EV_PERSIST,
-                      FrontEndThread::libevent_callback,
-                      &me) == -1) ||
-        (event_add(&me.notify_event, nullptr) == -1)) {
-        FATAL_ERROR(EXIT_FAILURE, "Can't monitor libevent notify pipe");
-    }
-}
-
-/*
- * Worker thread: main event loop
- */
+/// Worker thread: main event loop
 static void worker_libevent(void *arg) {
     auto& me = *reinterpret_cast<FrontEndThread*>(arg);
 
@@ -199,30 +115,6 @@ static void worker_libevent(void *arg) {
     me.running = false;
 }
 
-void drain_notification_channel(evutil_socket_t fd) {
-    /* Every time we want to notify a thread, we send 1 byte to its
-     * notification pipe. When the thread wakes up, it tries to drain
-     * it's notification channel before executing any other events.
-     * Other threads (listener and other background threads) may notify
-     * this thread up to 512 times since the last time we checked the
-     * notification pipe, before we'll start draining the it again.
-     */
-
-    ssize_t nread;
-    // Using a small size for devnull will avoid blowing up the stack
-    char devnull[512];
-
-    while ((nread = cb::net::recv(fd, devnull, sizeof(devnull), 0)) ==
-           (int)sizeof(devnull)) {
-        /* empty */
-    }
-
-    if (nread == -1) {
-        LOG_WARNING("Can't read from libevent pipe: {}",
-                    cb_strerror(cb::net::get_socket_error()));
-    }
-}
-
 void FrontEndThread::dispatch_new_connections() {
     std::vector<ConnectionQueue::Entry> connections;
     new_conn_queue.swap(connections);
@@ -237,67 +129,6 @@ void FrontEndThread::dispatch_new_connections() {
                 --stats.system_conns;
             }
             safe_close(entry.sock);
-        }
-    }
-}
-
-/*
- * Processes an incoming "handle a new connection" item. This is called when
- * input arrives on the libevent wakeup pipe.
- */
-void FrontEndThread::libevent_callback(evutil_socket_t fd, short, void* arg) {
-    // Start by draining the notification channel before doing any work.
-    // By doing so we know that we'll be notified again if someone
-    // tries to notify us while we're doing the work below (so we don't have
-    // to care about race conditions for stuff people try to notify us
-    // about.
-    drain_notification_channel(fd);
-
-    auto& me = *reinterpret_cast<FrontEndThread*>(arg);
-    me.libevent_callback();
-}
-
-void FrontEndThread::libevent_callback() {
-    if (is_memcached_shutting_down()) {
-        if (signal_idle_clients(*this, false) == 0) {
-            LOG_INFO("Stopping worker thread {}", index);
-            eventBase.terminateLoopSoon();
-            return;
-        }
-    }
-
-    dispatch_new_connections();
-
-    TRACE_LOCKGUARD_TIMED(mutex,
-                          "mutex",
-                          "thread_libevent_process::threadLock",
-                          SlowMutexThreshold);
-
-    std::vector<Connection*> toNotify;
-    notification.swap(toNotify);
-
-    // Notify the connections we haven't notified yet
-    for (auto& c : toNotify) {
-        c->triggerCallback();
-    }
-
-    if (is_memcached_shutting_down()) {
-        // Someone requested memcached to shut down. If we don't have
-        // any connections bound to this thread we can just shut down
-        time_t now = time(nullptr);
-        bool log = now > shutdown_next_log;
-        if (log) {
-            shutdown_next_log = now + 5;
-        }
-
-        auto connected = signal_idle_clients(*this, log);
-        if (connected == 0) {
-            LOG_INFO("Stopping worker thread {}", index);
-            eventBase.terminateLoopSoon();
-        } else if (log) {
-            LOG_INFO("Waiting for {} connected clients on worker thread {}",
-                     connected,
-                     index);
         }
     }
 }
@@ -395,12 +226,7 @@ void worker_threads_init() {
     }
 
     for (size_t ii = 0; ii < nthr; ii++) {
-        if (!create_nonblocking_socketpair(threads[ii].notify)) {
-            FATAL_ERROR(EXIT_FAILURE, "Cannot create notification pipe");
-        }
         threads[ii].index = ii;
-
-        setup_thread(threads[ii]);
     }
 
     /* Create threads after we've done all the libevent setup. */
@@ -419,7 +245,13 @@ void worker_threads_init() {
 void threads_shutdown() {
     // Notify all of the threads and let them shut down
     for (auto& thread : threads) {
-        notify_thread(thread);
+        thread.eventBase.runInEventBaseThread([&thread]() {
+            if (signal_idle_clients(thread, false) == 0) {
+                LOG_INFO("Stopping worker thread {}", thread.index);
+                thread.eventBase.terminateLoopSoon();
+                return;
+            }
+        });
     }
 
     // Wait for all of them to complete
@@ -429,7 +261,13 @@ void threads_shutdown() {
         // the control goes back to libevent. That means that some of the
         // connections could be "stuck" for another round in the event loop.
         while (thread.running) {
-            notify_thread(thread);
+            thread.eventBase.runInEventBaseThread([&thread]() {
+                if (signal_idle_clients(thread, false) == 0) {
+                    LOG_INFO("Stopping worker thread {}", thread.index);
+                    thread.eventBase.terminateLoopSoon();
+                    return;
+                }
+            });
             std::this_thread::sleep_for(std::chrono::microseconds(250));
         }
         cb_join_thread(thread.thread_id);
@@ -437,18 +275,4 @@ void threads_shutdown() {
     threads.clear();
 }
 
-FrontEndThread::~FrontEndThread() {
-    for (auto& sock : notify) {
-        if (sock != INVALID_SOCKET) {
-            safe_close(sock);
-        }
-    }
-}
-
-void notify_thread(FrontEndThread& thread) {
-    if (cb::net::send(thread.notify[1], "", 1, 0) != 1 &&
-        !cb::net::is_blocking(cb::net::get_socket_error())) {
-        LOG_WARNING("Failed to notify thread: {}",
-                    cb_strerror(cb::net::get_socket_error()));
-    }
-}
+FrontEndThread::~FrontEndThread() = default;

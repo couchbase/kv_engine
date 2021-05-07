@@ -799,10 +799,6 @@ bool Connection::executeCommandsCallback() {
 
         if (state == State::immediate_close) {
             disassociate_bucket(*this);
-
-            // Do the final cleanup of the connection:
-            thread.notification.remove(this);
-
             // delete the object
             return false;
         }
@@ -858,8 +854,6 @@ void Connection::rw_callback(bufferevent* bev, void* ctx) {
                           "Connection::rw_callback::threadLock",
                           SlowMutexThreshold);
 
-    // Remove the connection from the notification list if it's there
-    thread.notification.remove(&instance);
     if (!instance.executeCommandsCallback()) {
         conn_destroy(&instance);
     }
@@ -967,9 +961,6 @@ void Connection::event_callback(bufferevent* bev, short event, void* ctx) {
         //           client (and bufferevent performs the actual send/recv
         //           on the socket after the callback returned)
         instance.sendQueueInfo.term = true;
-
-        // Remove the connection from the notification list if it's there
-        thread.notification.remove(&instance);
 
         if (instance.state == State::running) {
             instance.shutdown();
