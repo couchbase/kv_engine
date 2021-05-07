@@ -352,8 +352,6 @@ CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
       base_ops(ops) {
     vbCompactionRunning =
             std::vector<std::atomic_bool>(configuration.getMaxVBuckets());
-    vbAbortCompaction =
-            std::vector<std::atomic_bool>(configuration.getMaxVBuckets());
     statCollectingFileOps = getCouchstoreStatsOps(fsStats, base_ops);
     statCollectingFileOpsCompaction =
             getCouchstoreStatsOps(fsStatsCompaction, base_ops);
@@ -361,6 +359,7 @@ CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
     // To save memory only allocate counters for the number of vBuckets that
     // this shard will have to deal with
     auto cacheSize = getCacheSize();
+    vbAbortCompaction = std::vector<std::atomic_bool>(cacheSize);
     cachedDeleteCount.assign(cacheSize, 0);
     cachedFileSize.assign(cacheSize, 0);
     cachedOnDiskPrepareSize.assign(cacheSize, 0);
@@ -1039,7 +1038,7 @@ bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
             ".compact";
 
     vbCompactionRunning[vbid] = true;
-    vbAbortCompaction[vbid] = false;
+    vbAbortCompaction[getCacheSlot(hook_ctx->vbid)] = false;
 
     auto status = CompactDBInternalStatus::Failed;
     try {
@@ -1087,7 +1086,7 @@ bool CouchKVStore::compactDB(std::unique_lock<std::mutex>& vbLock,
         vbLock.lock();
     }
     vbCompactionRunning[vbid] = false;
-    vbAbortCompaction[vbid] = false;
+    vbAbortCompaction[getCacheSlot(hook_ctx->vbid)] = false;
 
     return status == CompactDBInternalStatus::Success;
 }
@@ -1584,7 +1583,7 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
     vbLock.lock();
     for (int ii = 0; ii < 10; ++ii) {
         concurrentCompactionPostLockHook(compact_file);
-        if (vbAbortCompaction[vbid.get()]) {
+        if (vbAbortCompaction[getCacheSlot(vbid)]) {
             return CompactDBInternalStatus::Aborted;
         }
         if (tryToCatchUpDbFile(*sourceDb,
@@ -1602,7 +1601,7 @@ CouchKVStore::CompactDBInternalStatus CouchKVStore::compactDBInternal(
 
     concurrentCompactionPostLockHook(compact_file);
 
-    if (vbAbortCompaction[vbid.get()]) {
+    if (vbAbortCompaction[getCacheSlot(vbid)]) {
         return CompactDBInternalStatus::Aborted;
     }
 
@@ -3569,7 +3568,7 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
     // Note that this isn't racy as we'll hold the vbucket lock
     if (vbCompactionRunning[vbid.get()]) {
         // Set the flag so that the compactor aborts the compaction
-        vbAbortCompaction[vbid.get()] = true;
+        vbAbortCompaction[getCacheSlot(vbid)] = true;
     }
 
     DbHolder db(*this);
@@ -4162,7 +4161,7 @@ void CouchKVStore::abortCompactionIfRunning(
     // Note that this isn't racy as we'll hold the vbucket lock
     if (vbCompactionRunning[vbid.get()]) {
         // Set the flag so that the compactor aborts the compaction
-        vbAbortCompaction[vbid.get()] = true;
+        vbAbortCompaction[getCacheSlot(vbid)] = true;
     }
 }
 
