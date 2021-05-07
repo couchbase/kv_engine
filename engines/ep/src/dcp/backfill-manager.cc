@@ -285,7 +285,7 @@ backfill_status_t BackfillManager::backfill() {
     }
 
     if (kvBucket.isMemUsageAboveBackfillThreshold()) {
-        EP_LOG_INFO(
+        EP_LOG_INFO_RAW(
                 "DCP backfilling task temporarily suspended "
                 "because the current memory usage is too high");
         return backfill_snooze;

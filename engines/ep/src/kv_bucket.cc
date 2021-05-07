@@ -480,14 +480,14 @@ std::vector<ExTask> KVBucket::deinitialize() {
 }
 
 KVBucket::~KVBucket() {
-    EP_LOG_INFO("Deleting vb_mutexes");
-    EP_LOG_INFO("Deleting defragmenterTask");
+    EP_LOG_INFO_RAW("Deleting vb_mutexes");
+    EP_LOG_INFO_RAW("Deleting defragmenterTask");
     defragmenterTask.reset();
-    EP_LOG_INFO("Deleting itemCompressorTask");
+    EP_LOG_INFO_RAW("Deleting itemCompressorTask");
     itemCompressorTask.reset();
-    EP_LOG_INFO("Deleting itemFreqDecayerTask");
+    EP_LOG_INFO_RAW("Deleting itemFreqDecayerTask");
     itemFreqDecayerTask.reset();
-    EP_LOG_INFO("Deleted KvBucket.");
+    EP_LOG_INFO_RAW("Deleted KvBucket.");
 }
 
 const Flusher* KVBucket::getFlusher(uint16_t shardId) {
@@ -2031,7 +2031,7 @@ void KVBucket::reset() {
             EP_LOG_INFO("KVBucket::reset(): Successfully flushed {}", vbid);
         }
     }
-    EP_LOG_INFO("KVBucket::reset(): Successfully flushed bucket");
+    EP_LOG_INFO_RAW("KVBucket::reset(): Successfully flushed bucket");
 }
 
 bool KVBucket::isWarmingUp() {
@@ -2114,7 +2114,7 @@ void KVBucket::enableExpiryPager() {
                 &engine, stats, expiryPager.sleeptime);
         expiryPager.task = ExecutorPool::get()->schedule(expTask);
     } else {
-        EP_LOG_DEBUG("Expiry Pager already enabled!");
+        EP_LOG_DEBUG_RAW("Expiry Pager already enabled!");
     }
 }
 
@@ -2124,7 +2124,7 @@ void KVBucket::disableExpiryPager() {
         ExecutorPool::get()->cancel(expiryPager.task);
         expiryPager.enabled = false;
     } else {
-        EP_LOG_DEBUG("Expiry Pager already disabled!");
+        EP_LOG_DEBUG_RAW("Expiry Pager already disabled!");
     }
 }
 
@@ -2175,12 +2175,12 @@ void KVBucket::enableAccessScannerTask() {
                                                     true);
             accessScanner.task = ExecutorPool::get()->schedule(task);
         } else {
-            EP_LOG_INFO(
+            EP_LOG_INFO_RAW(
                     "Did not enable access scanner task, "
                     "as alog_sleep_time is set to zero!");
         }
     } else {
-        EP_LOG_DEBUG("Access scanner already enabled!");
+        EP_LOG_DEBUG_RAW("Access scanner already enabled!");
     }
 }
 
@@ -2191,7 +2191,7 @@ void KVBucket::disableAccessScannerTask() {
         accessScanner.sleeptime = 0;
         accessScanner.enabled = false;
     } else {
-        EP_LOG_DEBUG("Access scanner already disabled!");
+        EP_LOG_DEBUG_RAW("Access scanner already disabled!");
     }
 }
 

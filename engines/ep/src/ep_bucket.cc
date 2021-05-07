@@ -286,7 +286,7 @@ bool EPBucket::initialize() {
     enableItemPager();
 
     if (!startBgFetcher()) {
-        EP_LOG_CRITICAL(
+        EP_LOG_CRITICAL_RAW(
                 "EPBucket::initialize: Failed to create and start "
                 "bgFetchers");
         return false;
@@ -410,7 +410,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
     while (!rwUnderlying->begin(
             std::make_unique<EPTransactionContext>(stats, *vb))) {
         ++stats.beginFailed;
-        EP_LOG_WARN(
+        EP_LOG_WARN_RAW(
                 "Failed to start a transaction!!! "
                 "Retry in 1 sec ...");
         std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -977,7 +977,7 @@ bool EPBucket::startBgFetcher() {
 }
 
 void EPBucket::stopBgFetcher() {
-    EP_LOG_INFO("Stopping bg fetchers");
+    EP_LOG_INFO_RAW("Stopping bg fetchers");
 
     for (const auto& shard : vbMap.shards) {
         for (const auto vbid : shard->getVBuckets()) {
@@ -1662,7 +1662,7 @@ public:
             }
         } else if (preRbSeqnoGetValue.getStatus() ==
                    cb::engine_errc::no_such_key) {
-            EP_LOG_DEBUG(
+            EP_LOG_DEBUG_RAW(
                     "EPDiskRollbackCB: Item did not exist pre-rollback; "
                     "removing from VB");
 
@@ -2082,13 +2082,13 @@ void EPBucket::warmupCompleted() {
                 std::lock_guard<std::mutex> lh(accessScanner.mutex);
                 accessScanner.enabled = true;
             }
-            EP_LOG_INFO("Access Scanner task enabled");
+            EP_LOG_INFO_RAW("Access Scanner task enabled");
             size_t smin = engine.getConfiguration().getAlogSleepTime();
             setAccessScannerSleeptime(smin, true);
         } else {
             std::lock_guard<std::mutex> lh(accessScanner.mutex);
             accessScanner.enabled = false;
-            EP_LOG_INFO("Access Scanner task disabled");
+            EP_LOG_INFO_RAW("Access Scanner task disabled");
         }
 
         Configuration& config = engine.getConfiguration();

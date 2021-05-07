@@ -133,7 +133,7 @@ std::optional<Manifest> PersistManifestTask::tryAndLoad(
                 reinterpret_cast<const uint8_t*>(manifestRaw.data()),
                 manifestRaw.size());
         if (!v.VerifyBuffer<Collections::Persist::ManifestWithCrc>(nullptr)) {
-            EP_LOG_CRITICAL(
+            EP_LOG_CRITICAL_RAW(
                     "PersistManifestTask::tryAndLoad failed VerifyBuffer");
             return std::nullopt;
         }

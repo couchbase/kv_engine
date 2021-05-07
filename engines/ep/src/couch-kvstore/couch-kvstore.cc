@@ -878,7 +878,7 @@ static int time_purge_hook(Db* d,
              * expiry time
              */
             if (!exptime) {
-                EP_LOG_WARN(
+                EP_LOG_WARN_RAW(
                         "time_purge_hook: tombstone found with an"
                         " expiry time of 0");
             }
@@ -934,7 +934,7 @@ static int time_purge_hook(Db* d,
                 ret = notify_expired_item(
                         *info, *metadata, item, *ctx, currtime);
             } catch (const std::bad_alloc&) {
-                EP_LOG_WARN("time_purge_hook: memory allocation failed");
+                EP_LOG_WARN_RAW("time_purge_hook: memory allocation failed");
                 return COUCHSTORE_ERROR_ALLOC_FAIL;
             } catch (const std::exception& ex) {
                 EP_LOG_WARN("time_purge_hook: exception: {}", ex.what());
@@ -2137,7 +2137,7 @@ std::unique_ptr<BySeqnoScanContext> CouchKVStore::initBySeqnoScanContext(
 
     auto readVbStateResult = readVBState(db, vbid);
     if (readVbStateResult.status != ReadVBStateStatus::Success) {
-        EP_LOG_WARN(
+        EP_LOG_WARN_RAW(
                 "CouchKVStore::initBySeqnoScanContext:Failed to obtain vbState "
                 "for "
                 "the highCompletedSeqno");
@@ -2193,7 +2193,7 @@ std::unique_ptr<ByIdScanContext> CouchKVStore::initByIdScanContext(
 
     auto readVbStateResult = readVBState(db, vbid);
     if (readVbStateResult.status != ReadVBStateStatus::Success) {
-        EP_LOG_WARN(
+        EP_LOG_WARN_RAW(
                 "CouchKVStore::initByIdScanContext:Failed to obtain vbState "
                 "for "
                 "the highCompletedSeqno");

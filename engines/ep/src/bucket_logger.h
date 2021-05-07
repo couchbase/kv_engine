@@ -243,13 +243,22 @@ private:
 // spdlogger we create to respect runtime verbosity changes
 std::shared_ptr<BucketLogger>& getGlobalBucketLogger();
 
-// Convenience macros which call globalBucketLogger->log() with the given level
-// and arguments.
+// Various implementation details for the EP_LOG_<level> macros below.
+// End-users shouldn't use these directly, instead use EP_LOG_<level>.
+
 #define EP_LOG_FMT(severity, ...)                                \
     do {                                                         \
         if (getGlobalBucketLogger()->should_log(severity)) {     \
             getGlobalBucketLogger()->log(severity, __VA_ARGS__); \
         }                                                        \
+    } while (false)
+
+#define EP_LOG_RAW(severity, msg)               \
+    do {                                        \
+        auto& logger = getGlobalBucketLogger(); \
+        if (logger->should_log(severity)) {     \
+            logger->log(severity, msg);         \
+        }                                       \
     } while (false)
 
 #define EP_LOG_TRACE(...) \
@@ -268,5 +277,23 @@ std::shared_ptr<BucketLogger>& getGlobalBucketLogger();
 
 #define EP_LOG_CRITICAL(...) \
     EP_LOG_FMT(spdlog::level::level_enum::critical, __VA_ARGS__)
+
+// Convenience macros which call globalBucketLogger->log() with the given level,
+// and message.
+// @param msg Fixed string (implicitly convertible to `const char*`), or type
+//            which supports operator<<.
+//
+// For example:
+//
+//     EP_LOG_INFO("Starting flusher");
+//     EP_LOG_INFO(std:string{...});
+//
+#define EP_LOG_TRACE_RAW(msg) EP_LOG_RAW(spdlog::level::level_enum::trace, msg)
+#define EP_LOG_DEBUG_RAW(msg) EP_LOG_RAW(spdlog::level::level_enum::debug, msg)
+#define EP_LOG_INFO_RAW(msg) EP_LOG_RAW(spdlog::level::level_enum::info, msg)
+#define EP_LOG_WARN_RAW(msg) EP_LOG_RAW(spdlog::level::level_enum::warn, msg)
+#define EP_LOG_ERR_RAW(msg) EP_LOG_RAW(spdlog::level::level_enum::err, msg)
+#define EP_LOG_CRITICAL_RAW(msg) \
+    EP_LOG_RAW(spdlog::level::level_enum::critical, msg)
 
 #include "bucket_logger_impl.h"

@@ -78,28 +78,28 @@ void ValueChangedListener::stringValueChanged(const std::string& key,
 void ValueChangedValidator::validateBool(const std::string& key, bool) {
     std::string error = "Configuration error.. " + key +
                         " does not take a boolean parameter";
-    EP_LOG_DEBUG(error);
+    EP_LOG_DEBUG_RAW(error);
     throw std::runtime_error(error);
 }
 
 void ValueChangedValidator::validateSize(const std::string& key, size_t) {
     std::string error = "Configuration error.. " + key +
                         " does not take a size_t parameter";
-    EP_LOG_DEBUG(error);
+    EP_LOG_DEBUG_RAW(error);
     throw std::runtime_error(error);
 }
 
 void ValueChangedValidator::validateSSize(const std::string& key, ssize_t) {
     std::string error = "Configuration error.. " + key +
                         " does not take a ssize_t parameter";
-    EP_LOG_DEBUG(error);
+    EP_LOG_DEBUG_RAW(error);
     throw std::runtime_error(error);
 }
 
 void ValueChangedValidator::validateFloat(const std::string& key, float) {
     std::string error =
             "Configuration error.. " + key + " does not take a float parameter";
-    EP_LOG_DEBUG(error);
+    EP_LOG_DEBUG_RAW(error);
     throw std::runtime_error(error);
 }
 
@@ -107,7 +107,7 @@ void ValueChangedValidator::validateString(const std::string& key,
                                            const char*) {
     std::string error = "Configuration error.. " + key +
                         " does not take a string parameter";
-    EP_LOG_DEBUG(error);
+    EP_LOG_DEBUG_RAW(error);
     throw std::runtime_error(error);
 }
 

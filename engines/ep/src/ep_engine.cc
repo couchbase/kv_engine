@@ -605,7 +605,7 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             epStats.timingLog = nullptr;
             delete old;
             if (val == "off") {
-                EP_LOG_DEBUG("Disabled timing log.");
+                EP_LOG_DEBUG_RAW("Disabled timing log.");
             } else {
                 auto* tmp(new std::ofstream(val));
                 if (tmp->good()) {
@@ -1290,7 +1290,7 @@ cb::engine_errc EventuallyPersistentEngine::get_failover_log(
         auto* producer = dynamic_cast<DcpProducer*>(conn);
         // GetFailoverLog not supported for DcpConsumer
         if (!producer) {
-            EP_LOG_WARN(
+            EP_LOG_WARN_RAW(
                     "Disconnecting - This connection doesn't support the dcp "
                     "get "
                     "failover log API");
@@ -1361,7 +1361,7 @@ cb::engine_errc EventuallyPersistentEngine::mutation(
         cb::const_byte_buffer meta,
         uint8_t nru) {
     if (!mcbp::datatype::is_valid(datatype)) {
-        EP_LOG_WARN(
+        EP_LOG_WARN_RAW(
                 "Invalid value for datatype "
                 " (DCPMutation)");
         return cb::engine_errc::invalid_arguments;
@@ -1971,7 +1971,8 @@ cb::engine_errc EventuallyPersistentEngine::initialize(const char* config) {
             configuration.getMutationMemThreshold());
 
     if (configuration.getMaxSize() == 0) {
-        EP_LOG_WARN("Invalid configuration: max_size must be a non-zero value");
+        EP_LOG_WARN_RAW(
+                "Invalid configuration: max_size must be a non-zero value");
         return cb::engine_errc::failed;
     }
 
@@ -2128,7 +2129,7 @@ void EventuallyPersistentEngine::destroyInner(bool force) {
                 tasks.size());
         waitForTasks(tasks);
     }
-    EP_LOG_INFO(
+    EP_LOG_INFO_RAW(
             "EventuallyPersistentEngine::destroyInner(): Completed "
             "deinitialize.");
 }
@@ -2564,7 +2565,8 @@ bool EventuallyPersistentEngine::enableTraffic(bool enable) {
     bool bTrafficEnabled =
             trafficEnabled.compare_exchange_strong(inverse, enable);
     if (bTrafficEnabled) {
-        EP_LOG_INFO("EventuallyPersistentEngine::enableTraffic() result true");
+        EP_LOG_INFO_RAW(
+                "EventuallyPersistentEngine::enableTraffic() result true");
     }
     return bTrafficEnabled;
 }
@@ -3949,7 +3951,7 @@ cb::engine_errc EventuallyPersistentEngine::doKeyStats(
 
     if (fetchLookupResult(cookie, it)) {
         if (!validate) {
-            EP_LOG_DEBUG(
+            EP_LOG_DEBUG_RAW(
                     "Found lookup results for non-validating key "
                     "stat call. Would have leaked");
             it.reset();
@@ -4263,7 +4265,7 @@ void EventuallyPersistentEngine::addLookupResult(const void* cookie,
             EP_LOG_DEBUG("Cleaning up old lookup result for '{}'",
                          it->second->getKey().data());
         } else {
-            EP_LOG_DEBUG("Cleaning up old null lookup result");
+            EP_LOG_DEBUG_RAW("Cleaning up old null lookup result");
         }
         lookups.erase(it);
     }
@@ -4644,11 +4646,7 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
             std::forward_as_tuple(stats.getStatsCmdHisto),
             std::forward_as_tuple(cookie, cb::tracing::Code::GetStats));
 
-    if (key.empty()) {
-        EP_LOG_DEBUG("stats engine");
-    } else {
-        EP_LOG_DEBUG("stats {}", key);
-    }
+    EP_LOG_DEBUG("stats '{}'", key);
 
     // Some stats have been moved to using the stat collector interface,
     // while others have not. Depending on the key, this collector _may_
@@ -5828,7 +5826,7 @@ cb::engine_errc EventuallyPersistentEngine::handleTrafficControlCmd(
             return cb::engine_errc::failed;
         } else {
             if (enableTraffic(true)) {
-                EP_LOG_INFO(
+                EP_LOG_INFO_RAW(
                         "EventuallyPersistentEngine::handleTrafficControlCmd() "
                         "Data traffic to persistence engine is enabled");
                 setErrorContext(
@@ -6107,7 +6105,7 @@ void EventuallyPersistentEngine::setDCPPriority(const void* cookie,
 void EventuallyPersistentEngine::notifyIOComplete(const void* cookie,
                                                   cb::engine_errc status) {
     if (cookie == nullptr) {
-        EP_LOG_WARN("Tried to signal a NULL cookie!");
+        EP_LOG_WARN_RAW("Tried to signal a NULL cookie!");
     } else {
         HdrMicroSecBlockTimer bt(&stats.notifyIOHisto);
         NonBucketAllocationGuard guard;
@@ -6176,7 +6174,7 @@ cb::engine_errc EventuallyPersistentEngine::dcpOpen(
         if (flags & cb::mcbp::request::DcpOpenPayload::PiTR) {
             auto* store = getKVBucket()->getOneROUnderlying();
             if (!store || !store->supportsHistoricalSnapshots()) {
-                EP_LOG_WARN(
+                EP_LOG_WARN_RAW(
                         "Cannot open a DCP connection with PiTR as the "
                         "underlying kvstore don't support historical "
                         "snapshots");
@@ -6207,7 +6205,7 @@ cb::engine_errc EventuallyPersistentEngine::dcpOpen(
                     std::bitset<sizeof(flags) * 8>(flags).to_string(),
                     jsonValue.dump());
         } else {
-            EP_LOG_WARN(
+            EP_LOG_WARN_RAW(
                     "EventuallyPersistentEngine::dcpOpen: not opening new DCP "
                     "Consumer handler as EPEngine is still warming up");
             return cb::engine_errc::temporary_failure;
@@ -6215,7 +6213,7 @@ cb::engine_errc EventuallyPersistentEngine::dcpOpen(
     }
 
     if (handler == nullptr) {
-        EP_LOG_WARN("EPEngine::dcpOpen: failed to create a handler");
+        EP_LOG_WARN_RAW("EPEngine::dcpOpen: failed to create a handler");
         return cb::engine_errc::disconnect;
     }
 
@@ -6258,7 +6256,7 @@ void EventuallyPersistentEngine::handleDisconnect(const void *cookie) {
 
 void EventuallyPersistentEngine::initiate_shutdown() {
     auto eng = acquireEngine(this);
-    EP_LOG_INFO(
+    EP_LOG_INFO_RAW(
             "Shutting down all DCP connections in "
             "preparation for bucket deletion.");
     dcpConnMap_->shutdownAllConnections();
@@ -6275,7 +6273,7 @@ cb::mcbp::Status EventuallyPersistentEngine::stopFlusher(const char** msg,
     auto rv = cb::mcbp::Status::Success;
     *msg = nullptr;
     if (!kvBucket->pauseFlusher()) {
-        EP_LOG_DEBUG("Unable to stop flusher");
+        EP_LOG_DEBUG_RAW("Unable to stop flusher");
         *msg = "Flusher not running.";
         rv = cb::mcbp::Status::Einval;
     }
@@ -6288,7 +6286,7 @@ cb::mcbp::Status EventuallyPersistentEngine::startFlusher(const char** msg,
     auto rv = cb::mcbp::Status::Success;
     *msg = nullptr;
     if (!kvBucket->resumeFlusher()) {
-        EP_LOG_DEBUG("Unable to start flusher");
+        EP_LOG_DEBUG_RAW("Unable to start flusher");
         *msg = "Flusher not shut down.";
         rv = cb::mcbp::Status::Einval;
     }

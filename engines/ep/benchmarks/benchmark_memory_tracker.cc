@@ -54,14 +54,14 @@ void BenchmarkMemoryTracker::destroyInstance() {
 
 void BenchmarkMemoryTracker::connectHooks() {
     if (cb_add_new_hook(&NewHook)) {
-        EP_LOG_DEBUG("Registered add hook");
+        EP_LOG_DEBUG_RAW("Registered add hook");
         if (cb_add_delete_hook(&DeleteHook)) {
-            EP_LOG_DEBUG("Registered delete hook");
+            EP_LOG_DEBUG_RAW("Registered delete hook");
             return;
         }
         cb_remove_new_hook(&NewHook);
     }
-    EP_LOG_WARN("Failed to register allocator hooks");
+    EP_LOG_WARN_RAW("Failed to register allocator hooks");
 }
 void BenchmarkMemoryTracker::NewHook(const void* ptr, size_t) {
     if (ptr != nullptr) {

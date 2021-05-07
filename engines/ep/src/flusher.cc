@@ -141,7 +141,7 @@ const char* Flusher::stateName() const {
 }
 
 void Flusher::initialize() {
-    EP_LOG_DEBUG("Flusher::initialize: initializing");
+    EP_LOG_DEBUG_RAW("Flusher::initialize: initializing");
     transitionState(State::Running);
 }
 
@@ -215,10 +215,10 @@ bool Flusher::step(GlobalTask *task) {
         return true;
     }
     case State::Stopping:
-        EP_LOG_DEBUG(
+        EP_LOG_DEBUG_RAW(
                 "Flusher::step: stopping flusher (write of all dirty items)");
         completeFlush();
-        EP_LOG_DEBUG("Flusher::step: stopped");
+        EP_LOG_DEBUG_RAW("Flusher::step: stopped");
         transitionState(State::Stopped);
         return false;
 

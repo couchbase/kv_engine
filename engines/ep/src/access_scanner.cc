@@ -122,7 +122,7 @@ public:
                             std::chrono::steady_clock::now() - taskStart));
 
             if (num_items == 0) {
-                EP_LOG_INFO(
+                EP_LOG_INFO_RAW(
                         "The new access log file is empty. "
                         "Delete it without replacing the current access "
                         "log...");

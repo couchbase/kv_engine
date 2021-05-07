@@ -65,7 +65,7 @@ DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
 }
 
 DcpConnMap::~DcpConnMap() {
-    EP_LOG_INFO("Deleted dcpConnMap_");
+    EP_LOG_INFO_RAW("Deleted dcpConnMap_");
 }
 
 DcpConsumer* DcpConnMap::newConsumer(const void* cookie,
@@ -186,7 +186,7 @@ DcpProducer* DcpConnMap::newProducer(const void* cookie,
 }
 
 void DcpConnMap::shutdownAllConnections() {
-    EP_LOG_INFO("Shutting down dcp connections!");
+    EP_LOG_INFO_RAW("Shutting down dcp connections!");
 
     connNotifier->stop();
     manageConnections();
@@ -461,7 +461,7 @@ void DcpConnMap::decrNumRunningBackfills() {
             return;
         }
     }
-    EP_LOG_WARN("RunningBackfills already zero!!!");
+    EP_LOG_WARN_RAW("RunningBackfills already zero!!!");
 }
 
 void DcpConnMap::updateMaxRunningBackfills(size_t maxDataSize) {

@@ -270,14 +270,12 @@ MutationLog::MutationLog(std::string path, const size_t bs)
 }
 
 MutationLog::~MutationLog() {
-    std::stringstream ss;
-    ss << *this;
-    EP_LOG_INFO("{}", ss.str());
-    EP_LOG_INFO("MutationLog::~MutationLog flush");
+    EP_LOG_INFO("{}", *this);
+    EP_LOG_INFO_RAW("MutationLog::~MutationLog flush");
     flush();
-    EP_LOG_INFO("MutationLog::~MutationLog close");
+    EP_LOG_INFO_RAW("MutationLog::~MutationLog close");
     close();
-    EP_LOG_INFO("MutationLog::~MutationLog done");
+    EP_LOG_INFO_RAW("MutationLog::~MutationLog done");
 }
 
 void MutationLog::disable() {
@@ -634,7 +632,7 @@ bool MutationLog::flush() {
         } else {
             /* write to the mutation log failed. Disable the log */
             disabled = true;
-            EP_LOG_WARN("Disabling access log due to write failures");
+            EP_LOG_WARN_RAW("Disabling access log due to write failures");
             return false;
         }
     }

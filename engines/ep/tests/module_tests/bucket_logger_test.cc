@@ -116,7 +116,7 @@ TEST_F(BucketLoggerTest, CriticalMacro) {
 }
 
 /**
- * Test that the EP_LOG_TRACE Macro works correctly without formatting
+ * Test that the EP_LOG_TRACE_RAW macro works correctly without formatting
  */
 TEST_F(BucketLoggerTest, TraceRawMacro) {
     // Set up trace level logger
@@ -124,7 +124,7 @@ TEST_F(BucketLoggerTest, TraceRawMacro) {
     config.log_level = spdlog::level::level_enum::trace;
     setUpLogger();
 
-    EP_LOG_TRACE("rawtext");
+    EP_LOG_TRACE_RAW("rawtext");
     cb::logger::shutdown();
     files = cb::io::findFilesWithPrefix(config.filename);
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
@@ -132,10 +132,10 @@ TEST_F(BucketLoggerTest, TraceRawMacro) {
 }
 
 /**
- * Test that the EP_LOG_DEBUG Macro works correctly without formatting
+ * Test that the EP_LOG_DEBUG_RAW macro works correctly without formatting
  */
 TEST_F(BucketLoggerTest, DebugRawMacro) {
-    EP_LOG_DEBUG("rawtext");
+    EP_LOG_DEBUG_RAW("rawtext");
     cb::logger::shutdown();
     files = cb::io::findFilesWithPrefix(config.filename);
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
@@ -143,10 +143,10 @@ TEST_F(BucketLoggerTest, DebugRawMacro) {
 }
 
 /**
- * Test that the EP_LOG_INFO Macro works correctly without formatting
+ * Test that the EP_LOG_INFO macro works correctly without formatting
  */
 TEST_F(BucketLoggerTest, InfoRawMacro) {
-    EP_LOG_INFO("rawtext");
+    EP_LOG_INFO_RAW("rawtext");
     cb::logger::shutdown();
     files = cb::io::findFilesWithPrefix(config.filename);
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
@@ -154,10 +154,10 @@ TEST_F(BucketLoggerTest, InfoRawMacro) {
 }
 
 /**
- * Test that the EP_LOG_WARN Macro works correctly without formatting
+ * Test that the EP_LOG_WARN_RAW macro works correctly without formatting
  */
 TEST_F(BucketLoggerTest, WarnRawMacro) {
-    EP_LOG_WARN("rawtext");
+    EP_LOG_WARN_RAW("rawtext");
     cb::logger::shutdown();
     files = cb::io::findFilesWithPrefix(config.filename);
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
@@ -165,10 +165,10 @@ TEST_F(BucketLoggerTest, WarnRawMacro) {
 }
 
 /**
- * Test that the EP_LOG_CRITICAL Macro works correctly without formatting
+ * Test that the EP_LOG_CRITICAL_RAW macro works correctly without formatting
  */
 TEST_F(BucketLoggerTest, CriticalRawMacro) {
-    EP_LOG_CRITICAL("rawtext");
+    EP_LOG_CRITICAL_RAW("rawtext");
     cb::logger::shutdown();
     files = cb::io::findFilesWithPrefix(config.filename);
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";

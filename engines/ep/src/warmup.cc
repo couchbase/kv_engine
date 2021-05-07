@@ -749,18 +749,19 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                 if (retry == 2) {
                     if (hasPurged) {
                         if (++stats.warmOOM == 1) {
-                            EP_LOG_WARN(
+                            EP_LOG_WARN_RAW(
                                     "Warmup dataload failure: max_size too "
                                     "low.");
                         }
                     } else {
-                        EP_LOG_WARN(
+                        EP_LOG_WARN_RAW(
                                 "Emergency startup purge to free space for "
                                 "load.");
                         purge();
                     }
                 } else {
-                    EP_LOG_WARN("Cannot store an item after emergency purge.");
+                    EP_LOG_WARN_RAW(
+                            "Cannot store an item after emergency purge.");
                     ++stats.warmOOM;
                 }
                 break;
@@ -819,7 +820,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
             epstore.warmupCompleted();
             logWarmupStats(epstore);
         }
-        EP_LOG_INFO(
+        EP_LOG_INFO_RAW(
                 "Engine warmup is complete, request to stop "
                 "loading remaining database");
         setStatus(cb::engine_errc::no_memory);
@@ -982,7 +983,7 @@ void Warmup::initialize() {
         // file.
         session_stats["ep_force_shutdown"] = "true";
         while (!store.getOneRWUnderlying()->snapshotStats(session_stats)) {
-            EP_LOG_ERR(
+            EP_LOG_ERR_RAW(
                     "Warmup::initialize(): failed to persist snapshotStats "
                     "setting ep_force_shutdown=true, sleeping for 1 sec before "
                     "retrying");
@@ -992,7 +993,7 @@ void Warmup::initialize() {
 
     if (!store.getCollectionsManager().warmupLoadManifest(
                 store.getEPEngine().getConfiguration().getDbname())) {
-        EP_LOG_CRITICAL(
+        EP_LOG_CRITICAL_RAW(
                 "Warmup::initialize aborting as manifest cannot be loaded");
         return;
     }

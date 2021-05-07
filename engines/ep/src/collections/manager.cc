@@ -126,7 +126,7 @@ cb::engine_error Collections::Manager::applyNewManifest(
         folly::Synchronized<Manifest>::UpgradeLockedPtr& current,
         std::unique_ptr<Manifest> newManifest) {
     if (newManifest->isForcedUpdate()) {
-        EP_LOG_WARN("Collections::Manager::update is being forced");
+        EP_LOG_WARN_RAW("Collections::Manager::update is being forced");
     }
 
     auto updated = updateAllVBuckets(bucket, *newManifest);
