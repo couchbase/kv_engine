@@ -14,7 +14,6 @@
 #include "spdlog/logger.h"
 
 #include <memcached/server_log_iface.h>
-#include <spdlog/fmt/ostr.h>
 
 class EventuallyPersistentEngine;
 
@@ -95,10 +94,9 @@ public:
      * @param fmt The format string to use (fmtlib style).
      * @param args Variable arguments to include in the format string.
      */
-    template <typename... Args>
-    void log(spdlog::level::level_enum lvl,
-             const char* fmt,
-             const Args&... args);
+    template <typename S, typename... Args>
+    void log(spdlog::level::level_enum lvl, const S& fmt, Args&&... args);
+
     template <typename... Args>
     void log(spdlog::level::level_enum lvl, const char* msg);
     template <typename T>
@@ -179,19 +177,16 @@ protected:
     /// Overriden flush_ method to flush via the ServerAPI logger.
     void flush_() override;
 
-    template <typename... Args>
     void logInner(spdlog::level::level_enum lvl,
-                  const char* fmt,
-                  const Args&... args);
-    template <typename T>
-    void logInner(spdlog::level::level_enum lvl, const T& msg);
+                  fmt::string_view fmt,
+                  fmt::format_args args);
 
     /**
      * Helper function which prefixes the string with the name of the
      * specified engine, or "No Engine" if engine is null.
      */
     std::string prefixStringWithBucketName(
-            const EventuallyPersistentEngine* engine, const char* fmt);
+            const EventuallyPersistentEngine* engine, fmt::string_view fmt);
 
     /**
      * Connection ID prefix that is printed if set (printed before any other
@@ -244,11 +239,21 @@ std::shared_ptr<BucketLogger>& getGlobalBucketLogger();
 // Various implementation details for the EP_LOG_<level> macros below.
 // End-users shouldn't use these directly, instead use EP_LOG_<level>.
 
-#define EP_LOG_FMT(severity, ...)                                \
-    do {                                                         \
-        if (getGlobalBucketLogger()->should_log(severity)) {     \
-            getGlobalBucketLogger()->log(severity, __VA_ARGS__); \
-        }                                                        \
+// Visual Studio prior to 2019 doens't correctly handle the constexpr
+// format string checking - see https://github.com/fmtlib/fmt/issues/2328.
+// As such, only apply the compile-time check for non-MSVC or VS 2019+
+#if FMT_MSC_VER && FMT_MSC_VER < 1920
+#define CHECK_FMT_STRING(fmt) fmt
+#else
+#define CHECK_FMT_STRING(fmt) FMT_STRING(fmt)
+#endif
+
+#define EP_LOG_FMT(severity, fmt, ...)                                 \
+    do {                                                               \
+        auto& logger = getGlobalBucketLogger();                        \
+        if (logger->should_log(severity)) {                            \
+            logger->log(severity, CHECK_FMT_STRING(fmt), __VA_ARGS__); \
+        }                                                              \
     } while (false)
 
 #define EP_LOG_RAW(severity, msg)               \
@@ -259,6 +264,23 @@ std::shared_ptr<BucketLogger>& getGlobalBucketLogger();
         }                                       \
     } while (false)
 
+// Convenience macros which call globalBucketLogger->log() with the given level,
+// format string and variadic arguments.
+// @param fmt Format string in fmtlib style (https://fmt.dev)
+// @param args Variable-length arguments, matching the number of placeholders
+//             ({}) specified in the format string.
+//
+// For example:
+//
+//     EP_LOG_INFO("Starting flusher on bucket:{} at {}", bucketName, now);
+//
+// Due to the combination of compile-time checking of format string (which must
+// be a string literal), these macros require both a format string and at least
+// one argument - i.e. you can't just pass a single element such as:
+//
+//     EP_LOG_INFO("Fixed message")
+//
+// Instead, see the EP_LOG_<LEVEL>_R (Raw) macros below.
 #define EP_LOG_TRACE(...) \
     EP_LOG_FMT(spdlog::level::level_enum::trace, __VA_ARGS__)
 

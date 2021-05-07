@@ -10,20 +10,20 @@
  */
 #pragma once
 
-#include "objectregistry.h"
+#include <spdlog/fmt/ostr.h>
 
 /*
  * Definitions of BucketLogger code which must be inline.
  */
 
-template <typename... Args>
+template <typename S, typename... Args>
 void BucketLogger::log(spdlog::level::level_enum lvl,
-                       const char* fmt,
-                       const Args&... args) {
+                       const S& fmt,
+                       Args&&... args) {
     if (!should_log(lvl)) {
         return;
     }
-    logInner(lvl, fmt, args...);
+    logInner(lvl, fmt, fmt::make_args_checked<Args...>(fmt, args...));
 }
 
 template <typename... Args>
@@ -31,7 +31,7 @@ void BucketLogger::log(spdlog::level::level_enum lvl, const char* msg) {
     if (!should_log(lvl)) {
         return;
     }
-    logInner(lvl, msg);
+    logInner(lvl, msg, {});
 }
 
 template <typename T>
@@ -39,7 +39,7 @@ void BucketLogger::log(spdlog::level::level_enum lvl, const T& msg) {
     if (!should_log(lvl)) {
         return;
     }
-    logInner(lvl, msg);
+    logInner(lvl, "{}", fmt::make_args_checked<T>("{}", msg));
 }
 
 template <typename... Args>
@@ -100,31 +100,4 @@ void BucketLogger::error(const T& msg) {
 template <typename T>
 void BucketLogger::critical(const T& msg) {
     log(spdlog::level::critical, msg);
-}
-
-template <typename... Args>
-void BucketLogger::logInner(spdlog::level::level_enum lvl,
-                            const char* fmt,
-                            const Args&... args) {
-    EventuallyPersistentEngine* engine = ObjectRegistry::getCurrentEngine();
-    // Disable memory tracking for the formatting and logging of the message.
-    // This is necessary because the message will be written to disk (and
-    // subsequently freed) by the shared background thread (as part of
-    // spdlog::async_logger) and hence we do not know which engine to associate
-    // the deallocation to.
-    // Instead account any log message memory to "NonBucket" (it is only
-    // transient and typically small - of the order of the log message length).
-    NonBucketAllocationGuard guard;
-    const auto prefixedFmt = prefixStringWithBucketName(engine, fmt);
-    spdlog::logger::log(lvl, prefixedFmt.c_str(), args...);
-}
-
-template <typename T>
-void BucketLogger::logInner(spdlog::level::level_enum lvl, const T& msg) {
-    EventuallyPersistentEngine* engine = ObjectRegistry::getCurrentEngine();
-    // See comment in above logInner overload for why NonBucketAllocationGuard
-    // is required.
-    NonBucketAllocationGuard guard;
-    const auto prefixedMsg = prefixStringWithBucketName(engine, "");
-    spdlog::logger::log(lvl, "{}{}", prefixedMsg.c_str(), msg);
 }

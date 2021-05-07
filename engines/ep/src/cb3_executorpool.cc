@@ -14,6 +14,7 @@
 #include "cb3_executorthread.h"
 #include "ep_engine.h"
 #include "ep_time.h"
+#include "objectregistry.h"
 #include "taskqueue.h"
 
 #include <nlohmann/json.hpp>

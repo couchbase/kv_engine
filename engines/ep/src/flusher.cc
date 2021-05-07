@@ -14,6 +14,7 @@
 #include "bucket_logger.h"
 #include "ep_bucket.h"
 #include "executorpool.h"
+#include "objectregistry.h"
 #include "tasks.h"
 
 #include <platform/timeutils.h>

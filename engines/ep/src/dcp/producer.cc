@@ -29,6 +29,7 @@
 #include "failover-table.h"
 #include "item_eviction.h"
 #include "kv_bucket.h"
+#include "objectregistry.h"
 #include "snappy-c.h"
 
 #include <memcached/server_cookie_iface.h>

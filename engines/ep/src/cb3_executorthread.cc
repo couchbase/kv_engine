@@ -13,6 +13,7 @@
 #include "bucket_logger.h"
 #include "cb3_executorpool.h"
 #include "globaltask.h"
+#include "objectregistry.h"
 #include "taskqueue.h"
 
 #include <folly/Portability.h>

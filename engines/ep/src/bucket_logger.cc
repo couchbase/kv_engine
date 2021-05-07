@@ -42,6 +42,22 @@ void BucketLogger::flush_() {
     spdLogger->flush();
 }
 
+void BucketLogger::logInner(spdlog::level::level_enum lvl,
+                            fmt::string_view fmt,
+                            fmt::format_args args) {
+    EventuallyPersistentEngine* engine = ObjectRegistry::getCurrentEngine();
+    // Disable memory tracking for the formatting and logging of the message.
+    // This is necessary because the message will be written to disk (and
+    // subsequently freed) by the shared background thread (as part of
+    // spdlog::async_logger) and hence we do not know which engine to associate
+    // the deallocation to.
+    // Instead account any log message memory to "NonBucket" (it is only
+    // transient and typically small - of the order of the log message length).
+    NonBucketAllocationGuard guard;
+    const auto prefixedFmt = prefixStringWithBucketName(engine, fmt);
+    spdlog::logger::log(lvl, fmt::vformat(prefixedFmt, args));
+}
+
 void BucketLogger::setLoggerAPI(ServerLogIface* api) {
     BucketLogger::loggerAPI.store(api, std::memory_order_relaxed);
 
@@ -78,7 +94,7 @@ void BucketLogger::unregister() {
 }
 
 std::string BucketLogger::prefixStringWithBucketName(
-        const EventuallyPersistentEngine* engine, const char* fmt) {
+        const EventuallyPersistentEngine* engine, fmt::string_view fmt) {
     std::string fmtString;
 
     // Append the id (if set)
@@ -99,7 +115,7 @@ std::string BucketLogger::prefixStringWithBucketName(
     }
 
     // Append the original format string
-    fmtString.append(fmt);
+    fmtString.append(fmt.begin(), fmt.end());
     return fmtString;
 }
 

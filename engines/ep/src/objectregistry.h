@@ -10,9 +10,6 @@
  */
 #pragma once
 
-#include <atomic>
-#include <cstddef>
-
 class EventuallyPersistentEngine;
 class Blob;
 class Item;

@@ -23,6 +23,7 @@
 #include "executorpool.h"
 #include "failover-table.h"
 #include "kv_bucket.h"
+#include "objectregistry.h"
 #include "replicationthrottle.h"
 
 #include <memcached/server_cookie_iface.h>

@@ -14,6 +14,7 @@
 #include "bucket_logger.h"
 #include "ep_time.h"
 #include "globaltask.h"
+#include "objectregistry.h"
 #include "taskable.h"
 
 #include <folly/executors/CPUThreadPoolExecutor.h>

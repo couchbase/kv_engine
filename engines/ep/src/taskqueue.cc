@@ -12,6 +12,7 @@
 #include "bucket_logger.h"
 #include "cb3_executorpool.h"
 #include "cb3_executorthread.h"
+#include "objectregistry.h"
 
 #include <cmath>
 
