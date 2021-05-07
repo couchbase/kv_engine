@@ -2234,7 +2234,8 @@ public:
         for (const auto& file :
              boost::filesystem::recursive_directory_iterator(dir)) {
             if (file.path().has_filename() &&
-                file.path().filename() == "stats.json") {
+                file.path().filename().string().find("stats.json") !=
+                        std::string::npos) {
                 continue;
             }
             return file.path();
