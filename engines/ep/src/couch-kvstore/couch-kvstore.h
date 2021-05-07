@@ -1022,10 +1022,11 @@ protected:
     /**
      * Construction helper method, creates the wrapped vector and resizes it
      *
-     * @param vbucketCount size of RevisionMap
+     * @param config The KVStore config
      * @returns An initialised RevisionMap accessed via the shared_ptr
      */
-    static std::shared_ptr<RevisionMap> makeRevisionMap(size_t vbucketCount);
+    static std::shared_ptr<RevisionMap> makeRevisionMap(
+            const CouchKVStoreConfig& config);
 
     /// Allow the unit tests to add a hook into compaction
     bool mb40415_regression_hook{false};

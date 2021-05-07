@@ -369,15 +369,15 @@ CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
 
 // Helper function to create and resize the 'locked' vector
 std::shared_ptr<CouchKVStore::RevisionMap> CouchKVStore::makeRevisionMap(
-        size_t vbucketCount) {
+        const CouchKVStoreConfig& config) {
     auto map = std::make_shared<RevisionMap>();
-    (*map->wlock()).resize(vbucketCount);
+    (*map->wlock()).resize(config.getCacheSize());
     return map;
 }
 
 CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
                            FileOpsInterface& ops)
-    : CouchKVStore(config, ops, makeRevisionMap(config.getMaxVBuckets())) {
+    : CouchKVStore(config, ops, makeRevisionMap(config)) {
     // 1) Create the data directory
     createDataDir(dbname);
 
@@ -2384,7 +2384,7 @@ void CouchKVStore::close() {
 
 void CouchKVStore::updateDbFileMap(Vbid vbucketId, uint64_t newFileRev) {
     try {
-        (*dbFileRevMap->wlock()).at(vbucketId.get()) = newFileRev;
+        (*dbFileRevMap->wlock()).at(getCacheSlot(vbucketId)) = newFileRev;
     } catch (std::out_of_range const&) {
         logger.warn(
                 "CouchKVStore::updateDbFileMap: Cannot update db file map "
@@ -2395,7 +2395,7 @@ void CouchKVStore::updateDbFileMap(Vbid vbucketId, uint64_t newFileRev) {
 }
 
 uint64_t CouchKVStore::getDbRevision(Vbid vbucketId) const {
-    return (*dbFileRevMap->rlock())[vbucketId.get()];
+    return (*dbFileRevMap->rlock())[getCacheSlot(vbucketId)];
 }
 
 couchstore_error_t CouchKVStore::openDB(Vbid vbucketId,
@@ -2406,7 +2406,7 @@ couchstore_error_t CouchKVStore::openDB(Vbid vbucketId,
     // serialises on this mutex so we can be sure the fileRev we read should
     // still be a valid file once we hit sys_open
     auto lockedRevMap = dbFileRevMap->rlock();
-    uint64_t fileRev = (*lockedRevMap)[vbucketId.get()];
+    uint64_t fileRev = (*lockedRevMap)[getCacheSlot(vbucketId)];
     return openSpecificDB(vbucketId, fileRev, db, options, ops);
 }
 
@@ -3838,7 +3838,7 @@ std::unique_ptr<KVFileHandle> CouchKVStore::makeFileHandle(Vbid vbid) const {
 }
 
 void CouchKVStore::prepareToCreateImpl(Vbid vbid) {
-    (*dbFileRevMap->wlock())[vbid.get()]++;
+    (*dbFileRevMap->wlock())[getCacheSlot(vbid)]++;
 }
 
 uint64_t CouchKVStore::prepareToDeleteImpl(Vbid vbid) {
@@ -4296,7 +4296,7 @@ std::optional<DbHolder> CouchKVStore::openOrCreate(Vbid vbid) noexcept {
     // Rename vbid.couch.boot into vbid.couch.rev
     {
         const auto lockedRevMap = dbFileRevMap->rlock();
-        const auto revision = (*lockedRevMap)[vbid.get()];
+        const auto revision = (*lockedRevMap)[getCacheSlot(vbid)];
         const auto newFile = getDBFileName(dbname, vbid, revision);
         if (rename(tempFile.c_str(), newFile.c_str()) != 0) {
             removeFileIfExists(tempFile);
