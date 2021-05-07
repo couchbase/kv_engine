@@ -17,7 +17,6 @@
 #include <memcached/protocol_binary.h>
 #include <memcached/rbac.h>
 #include <memcached/types.h>
-#include <platform/dynamic.h>
 #include <platform/socket.h>
 #include <optional>
 

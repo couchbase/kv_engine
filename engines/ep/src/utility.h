@@ -23,8 +23,6 @@
 
 #pragma once
 
-#include <platform/dynamic.h>
-
 #ifndef DISALLOW_COPY_AND_ASSIGN
 // A macro to disallow the copy constructor and operator= functions
 #define DISALLOW_COPY_AND_ASSIGN(TypeName)      \

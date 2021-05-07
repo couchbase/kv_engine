@@ -16,7 +16,6 @@
 #include "network_interface.h"
 
 #include <memcached/engine.h>
-#include <platform/dynamic.h>
 #include <relaxed_atomic.h>
 #include <utilities/breakpad_settings.h>
 
