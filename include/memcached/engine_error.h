@@ -10,8 +10,6 @@
  */
 #pragma once
 
-#include <platform/dynamic.h>
-
 #include <iosfwd>
 #include <system_error>
 
@@ -136,7 +134,7 @@ enum class engine_errc {
  *
  * @return The one and only instance of the error object
  */
-const std::error_category& engine_error_category() NOEXCEPT;
+const std::error_category& engine_error_category() noexcept;
 
 class engine_error : public std::system_error {
 public:

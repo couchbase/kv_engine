@@ -1430,7 +1430,7 @@ public:
     explicit engine_error(cb::engine_errc code_) : code(code_) {
     }
 
-    const char* what() const NOEXCEPT override {
+    const char* what() const noexcept override {
         return "engine_error";
     }
 

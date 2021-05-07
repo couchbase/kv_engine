@@ -10,8 +10,6 @@
  */
 #pragma once
 
-#include <platform/dynamic.h>
-
 #include <cstdint>
 #include <iosfwd>
 #include <string>
@@ -274,7 +272,7 @@ enum class Status : uint16_t {
     ReservedUserEnd = 0xffff
 };
 
-const std::error_category& error_category() NOEXCEPT;
+const std::error_category& error_category() noexcept;
 
 class error : public std::system_error {
 public:

@@ -88,7 +88,7 @@ bool isStatusSuccess(Status status) {
 
 class status_category : public std::error_category {
 public:
-    const char* name() const NOEXCEPT override {
+    const char* name() const noexcept override {
         return "MCBP status codes";
     }
 
@@ -96,13 +96,13 @@ public:
         return ::to_string(cb::mcbp::Status(code));
     }
 
-    std::error_condition default_error_condition(
-            int code) const NOEXCEPT override {
+    std::error_condition default_error_condition(int code) const
+            noexcept override {
         return std::error_condition(code, *this);
     }
 };
 
-const std::error_category& error_category() NOEXCEPT {
+const std::error_category& error_category() noexcept {
     static status_category category_instance;
     return category_instance;
 }
