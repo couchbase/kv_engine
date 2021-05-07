@@ -19,18 +19,17 @@
  */
 
 #include <memcached/engine.h>
-#include <platform/dynamic.h>
 #include <string>
 
-bool safe_strtoull(const char* str, uint64_t& out) CB_ATTR_NONNULL(1);
+bool safe_strtoull(const std::string& s, uint64_t& out);
 
-bool safe_strtoll(const char* str, int64_t& out) CB_ATTR_NONNULL(1);
+bool safe_strtoll(const std::string& s, int64_t& out);
 
-bool safe_strtoul(const char* str, uint32_t& out) CB_ATTR_NONNULL(1);
+bool safe_strtoul(const std::string& s, uint32_t& out);
 
-bool safe_strtol(const char* str, int32_t& out) CB_ATTR_NONNULL(1);
+bool safe_strtol(const std::string& s, int32_t& out);
 
-bool safe_strtof(const char* str, float& out) CB_ATTR_NONNULL(1);
+bool safe_strtof(const std::string& s, float& out);
 
 /**
  * Get a textual representation of the given bucket compression mode

@@ -753,7 +753,7 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             getConfiguration().setCompressionMode(val);
         } else if (key == "min_compression_ratio") {
             float min_comp_ratio;
-            if (safe_strtof(val.c_str(), min_comp_ratio)) {
+            if (safe_strtof(val, min_comp_ratio)) {
                 getConfiguration().setMinCompressionRatio(min_comp_ratio);
             } else {
                 rv = cb::engine_errc::invalid_arguments;
@@ -776,42 +776,42 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             getConfiguration().setPitrEnabled(cb_stob(val));
         } else if (key == "pitr_max_history_age") {
             uint32_t value;
-            if (safe_strtoul(val.c_str(), value)) {
+            if (safe_strtoul(val, value)) {
                 getConfiguration().setPitrMaxHistoryAge(value);
             } else {
                 rv = cb::engine_errc::invalid_arguments;
             }
         } else if (key == "pitr_granularity") {
             uint32_t value;
-            if (safe_strtoul(val.c_str(), value)) {
+            if (safe_strtoul(val, value)) {
                 getConfiguration().setPitrGranularity(value);
             } else {
                 rv = cb::engine_errc::invalid_arguments;
             }
         } else if (key == "magma_fragmentation_percentage") {
             float value;
-            if (safe_strtof(val.c_str(), value)) {
+            if (safe_strtof(val, value)) {
                 getConfiguration().setMagmaFragmentationPercentage(value);
             } else {
                 rv = cb::engine_errc::invalid_arguments;
             }
         } else if (key == "persistent_metadata_purge_age") {
             uint32_t value;
-            if (safe_strtoul(val.c_str(), value)) {
+            if (safe_strtoul(val, value)) {
                 getConfiguration().setPersistentMetadataPurgeAge(value);
             } else {
                 rv = cb::engine_errc::invalid_arguments;
             }
         } else if (key == "magma_flusher_thread_percentage") {
             uint32_t value;
-            if (safe_strtoul(val.c_str(), value)) {
+            if (safe_strtoul(val, value)) {
                 getConfiguration().setMagmaFlusherThreadPercentage(value);
             } else {
                 rv = cb::engine_errc::invalid_arguments;
             }
         } else if (key == "couchstore_file_cache_max_size") {
             uint32_t value;
-            if (safe_strtoul(val.c_str(), value)) {
+            if (safe_strtoul(val, value)) {
                 getConfiguration().setCouchstoreFileCacheMaxSize(value);
             } else {
                 rv = cb::engine_errc::invalid_arguments;

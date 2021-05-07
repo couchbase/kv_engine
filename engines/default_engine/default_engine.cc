@@ -819,7 +819,7 @@ cb::engine_errc default_engine::setParameter(gsl::not_null<const void*> cookie,
         } else if (key == "min_compression_ratio") {
             std::string value_str{value};
             float min_comp_ratio;
-            if (!safe_strtof(value_str.c_str(), min_comp_ratio)) {
+            if (!safe_strtof(value_str, min_comp_ratio)) {
                 return cb::engine_errc::invalid_arguments;
             }
             config.min_compression_ratio = min_comp_ratio;

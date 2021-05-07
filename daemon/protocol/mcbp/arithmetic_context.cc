@@ -149,7 +149,7 @@ cb::engine_errc ArithmeticCommandContext::allocateNewItem() {
     const std::string payload(ptr, oldsize - xattrsize);
 
     uint64_t oldval;
-    if (!safe_strtoull(payload.c_str(), oldval)) {
+    if (!safe_strtoull(payload, oldval)) {
         return cb::engine_errc::delta_badval;
     }
 

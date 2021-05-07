@@ -569,7 +569,7 @@ static int parseStorageThreadConfigSpec(const std::string& variable,
     }
 
     uint64_t val;
-    if (!safe_strtoull(spec.c_str(), val)) {
+    if (!safe_strtoull(spec, val)) {
         throw std::invalid_argument(
                 variable +
                 R"( must be specified as a numeric value or "default")");

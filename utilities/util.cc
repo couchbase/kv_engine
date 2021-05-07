@@ -23,7 +23,8 @@
 /* Avoid warnings on solaris, where isspace() is an index into an array, and gcc uses signed chars */
 #define xisspace(c) isspace((unsigned char)c)
 
-bool safe_strtoull(const char* str, uint64_t& out) {
+bool safe_strtoull(const std::string& s, uint64_t& out) {
+    const auto* str = s.c_str();
     char *endptr;
     uint64_t ull;
 
@@ -50,7 +51,8 @@ bool safe_strtoull(const char* str, uint64_t& out) {
     return false;
 }
 
-bool safe_strtoll(const char* str, int64_t& out) {
+bool safe_strtoll(const std::string& s, int64_t& out) {
+    const auto* str = s.c_str();
     char *endptr;
     int64_t ll;
 
@@ -68,7 +70,8 @@ bool safe_strtoll(const char* str, int64_t& out) {
     return false;
 }
 
-bool safe_strtoul(const char* str, uint32_t& out) {
+bool safe_strtoul(const std::string& s, uint32_t& out) {
+    const auto* str = s.c_str();
     char *endptr = nullptr;
     unsigned long l = 0;
     out = 0;
@@ -95,7 +98,8 @@ bool safe_strtoul(const char* str, uint32_t& out) {
     return false;
 }
 
-bool safe_strtol(const char* str, int32_t& out) {
+bool safe_strtol(const std::string& s, int32_t& out) {
+    const auto* str = s.c_str();
     char *endptr;
     long l;
     errno = 0;
@@ -112,7 +116,8 @@ bool safe_strtol(const char* str, int32_t& out) {
     return false;
 }
 
-bool safe_strtof(const char* str, float& out) {
+bool safe_strtof(const std::string& s, float& out) {
+    const auto* str = s.c_str();
 #ifdef WIN32
     /* Check for illegal charachters */
     const char *ptr = str;
