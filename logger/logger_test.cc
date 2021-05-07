@@ -67,11 +67,11 @@ protected:
  * Test if the hooks appear in each file.
  */
 TEST_F(FileRotationTest, MultipleFilesTest) {
-    const char* message =
-            "This is a textual log message that we want to repeat a number of "
-            "times: {}";
     for (auto ii = 0; ii < 100; ii++) {
-        LOG_DEBUG(message, ii);
+        LOG_DEBUG(
+                "This is a textual log message that we want to repeat a "
+                "number of times: {}",
+                ii);
     }
     cb::logger::shutdown();
 
@@ -111,7 +111,7 @@ TEST_F(FileRotationTest, HandleOpenFileErrors) {
     return;
 #endif
 
-    LOG_DEBUG("Hey, this is a test");
+    LOG_DEBUG_RAW("Hey, this is a test");
     cb::logger::flush();
     files = cb::io::findFilesWithPrefix(config.filename);
     EXPECT_EQ(1, files.size());
@@ -136,14 +136,14 @@ TEST_F(FileRotationTest, HandleOpenFileErrors) {
     EXPECT_EQ(EMFILE, errno);
 
     // Keep on logging. This should cause the files to wrap
-    const char* message =
-            "This is a textual log message that we want to repeat a number of "
-            "times {}";
     for (auto ii = 0; ii < 100; ii++) {
-        LOG_DEBUG(message, ii);
+        LOG_DEBUG(
+                "This is a textual log message that we want to repeat a number "
+                "of times {}",
+                ii);
     }
 
-    LOG_DEBUG("HandleOpenFileErrors");
+    LOG_DEBUG_RAW("HandleOpenFileErrors");
     cb::logger::flush();
 
     // We've just flushed the data to the file, so it should be possible
@@ -171,7 +171,7 @@ TEST_F(FileRotationTest, HandleOpenFileErrors) {
     EXPECT_EQ(1, files.size());
 
     // Add a log entry, and we should get a new file
-    LOG_DEBUG("Logging to the next file");
+    LOG_DEBUG_RAW("Logging to the next file");
     cb::logger::flush();
 
     files = cb::io::findFilesWithPrefix(config.filename);
@@ -223,12 +223,12 @@ TEST_F(SpdloggerTest, ShutdownRace) {
     for (int i = 0; i < 100; i++) {
         // Post messages to the async logger - doesn't actually perform a flush,
         // but queues one on the async logger
-        LOG_CRITICAL("a message");
+        LOG_CRITICAL_RAW("a message");
         cb::logger::flush();
     }
 
-    LOG_CRITICAL("We should see this msg");
-    LOG_CRITICAL("and this one");
+    LOG_CRITICAL_RAW("We should see this msg");
+    LOG_CRITICAL_RAW("and this one");
     // And this very long one
     auto str = std::string(50000, 'a');
     LOG_CRITICAL("{}", str);

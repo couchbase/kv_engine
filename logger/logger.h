@@ -143,11 +143,28 @@ bool isInitialized();
 
 } // namespace cb::logger
 
-#define CB_LOG_ENTRY(severity, ...)                       \
+// Visual Studio prior to 2019 doesn't correctly handle the constexpr
+// format string checking - see https://github.com/fmtlib/fmt/issues/2328.
+// As such, only apply the compile-time check for non-MSVC or VS 2019+
+#if FMT_MSC_VER && FMT_MSC_VER < 1920
+#define CHECK_FMT_STRING(fmt) fmt
+#else
+#define CHECK_FMT_STRING(fmt) FMT_STRING(fmt)
+#endif
+
+#define CB_LOG_ENTRY(severity, fmt, ...)                                 \
+    do {                                                                 \
+        auto _logger_ = cb::logger::get();                               \
+        if (_logger_ && _logger_->should_log(severity)) {                \
+            _logger_->log(severity, CHECK_FMT_STRING(fmt), __VA_ARGS__); \
+        }                                                                \
+    } while (false)
+
+#define CB_LOG_RAW(severity, msg)                         \
     do {                                                  \
         auto _logger_ = cb::logger::get();                \
         if (_logger_ && _logger_->should_log(severity)) { \
-            _logger_->log(severity, __VA_ARGS__);         \
+            _logger_->log(severity, msg);                 \
         }                                                 \
     } while (false)
 
@@ -161,3 +178,21 @@ bool isInitialized();
 #define LOG_ERROR(...) CB_LOG_ENTRY(spdlog::level::level_enum::err, __VA_ARGS__)
 #define LOG_CRITICAL(...) \
     CB_LOG_ENTRY(spdlog::level::level_enum::critical, __VA_ARGS__)
+
+// Convenience macros which log with the given level, and message, if the given
+// level is currently enabled.
+// @param msg Fixed string (implicitly convertible to `const char*`), or type
+//            which supports operator<<.
+//
+// For example:
+//
+//     LOG_INFO("Starting flusher");
+//     LOG_INFO(std:string{...});
+//
+#define LOG_TRACE_RAW(msg) CB_LOG_RAW(spdlog::level::level_enum::trace, msg)
+#define LOG_DEBUG_RAW(msg) CB_LOG_RAW(spdlog::level::level_enum::debug, msg)
+#define LOG_INFO_RAW(msg) CB_LOG_RAW(spdlog::level::level_enum::info, msg)
+#define LOG_WARNING_RAW(msg) CB_LOG_RAW(spdlog::level::level_enum::warn, msg)
+#define LOG_ERROR_RAW(msg) CB_LOG_RAW(spdlog::level::level_enum::err, msg)
+#define LOG_CRITICAL_RAW(msg) \
+    CB_LOG_RAW(spdlog::level::level_enum::critical, msg)

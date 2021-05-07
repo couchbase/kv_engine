@@ -354,7 +354,7 @@ public:
     }
 
     void release(gsl::not_null<ItemIface*> item) override {
-        LOG_DEBUG("EWB_Engine: release");
+        LOG_DEBUG_RAW("EWB_Engine: release");
         if (dynamic_cast<EwbDcpMutationItem*>(item.get())) {
             delete item.get();
         } else {
@@ -682,7 +682,7 @@ public:
 
     bool get_item_info(gsl::not_null<const ItemIface*> item,
                        gsl::not_null<item_info*> item_info) override {
-        LOG_DEBUG("EWB_Engine: get_item_info");
+        LOG_DEBUG_RAW("EWB_Engine: get_item_info");
 
         // This function cannot return EWOULDBLOCK - just chain to the real
         // engine's function, unless it is a request for our special DCP item.

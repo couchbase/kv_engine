@@ -72,7 +72,7 @@ protected:
 BENCHMARK_DEFINE_F(LoggerBench, LogToLoggerWithDisabledLogLevel)
 (benchmark::State& state) {
     while (state.KeepRunning()) {
-        LOG_TRACE("Foo");
+        LOG_TRACE_RAW("Foo");
     }
 }
 
@@ -89,7 +89,7 @@ BENCHMARK_DEFINE_F(LoggerBench, LogToLoggerWithEnabledLogLevel)
         cb::logger::get()->set_level(spdlog::level::level_enum::trace);
     }
     while (state.KeepRunning()) {
-        LOG_TRACE("Foo");
+        LOG_TRACE_RAW("Foo");
     }
 }
 

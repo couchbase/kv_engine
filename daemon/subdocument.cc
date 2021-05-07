@@ -448,7 +448,7 @@ static cb::mcbp::Status subdoc_operate_one_path(
         // TODO: handle remaining errors.
         LOG_DEBUG("Unexpected response from subdoc: {} ({:x})",
                   subdoc_res.description(),
-                  subdoc_res.code());
+                  int(subdoc_res.code()));
         return cb::mcbp::Status::Einternal;
     }
 }
@@ -1035,7 +1035,7 @@ static cb::engine_errc subdoc_update(SubdocCmdContext& context,
     auto& cookie = context.cookie;
 
     if (context.getCurrentPhase() == SubdocCmdContext::Phase::XATTR) {
-        LOG_WARNING(
+        LOG_WARNING_RAW(
                 "Internal error: We should not reach subdoc_update in the "
                 "xattr phase");
         return cb::engine_errc::failed;

@@ -135,7 +135,7 @@ void OpenTelemetry::shutdown() {
         return;
     }
 
-    LOG_INFO("Shutting down OpenTelemetry");
+    LOG_INFO_RAW("Shutting down OpenTelemetry");
     auto thread = dynamic_cast<OpenTelemetryThread*>(instance.get());
     if (thread == nullptr) {
         throw std::runtime_error(

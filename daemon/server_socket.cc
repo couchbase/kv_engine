@@ -109,7 +109,7 @@ void LibeventServerSocketImpl::listen_event_handler(evutil_socket_t,
     if (is_memcached_shutting_down()) {
         // Someone requested memcached to shut down. The listen thread should
         // be stopped immediately to avoid new connections
-        LOG_INFO("Stopping listen thread");
+        LOG_INFO_RAW("Stopping listen thread");
         event_base_loopbreak(event_get_base(c.ev.get()));
         return;
     }
@@ -195,7 +195,7 @@ void LibeventServerSocketImpl::acceptNewClient() {
 
     stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
     if (cb::net::set_socket_noblocking(client) == -1) {
-        LOG_WARNING("Failed to make socket non-blocking. closing it");
+        LOG_WARNING_RAW("Failed to make socket non-blocking. closing it");
         safe_close(client);
         return;
     }
@@ -299,7 +299,7 @@ void LibeventServerSocketImpl::updateSSL(const std::string& key,
     if (!interface->tag.empty()) {
         ss << " (" << interface->tag << ")";
     }
-    LOG_INFO(ss.str());
+    LOG_INFO_RAW(ss.str());
     interface = std::make_shared<ListeningPort>(interface->tag,
                                                 interface->host,
                                                 interface->port,

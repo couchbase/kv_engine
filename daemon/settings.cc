@@ -621,7 +621,7 @@ static void handle_num_storage_threads(Settings& s, const nlohmann::json& obj) {
 }
 
 static void handle_extensions(Settings& s, const nlohmann::json& obj) {
-    LOG_INFO("Extensions ignored");
+    LOG_INFO_RAW("Extensions ignored");
 }
 
 static void handle_logger(Settings& s, const nlohmann::json& obj) {
@@ -882,9 +882,9 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     if (other.has.always_collect_trace_info) {
         if (other.alwaysCollectTraceInfo() != alwaysCollectTraceInfo()) {
             if (other.alwaysCollectTraceInfo()) {
-                LOG_INFO("Always collect trace information");
+                LOG_INFO_RAW("Always collect trace information");
             } else {
-                LOG_INFO(
+                LOG_INFO_RAW(
                         "Only collect trace information if the client asks for "
                         "it");
             }
@@ -1271,7 +1271,7 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                 LOG_INFO("Change prometheus port to IPv6 port {}", nval.first);
                 break;
             default:
-                LOG_INFO("Disable prometheus port");
+                LOG_INFO_RAW("Disable prometheus port");
                 nval.first = 0;
                 nval.second = 0;
             }

@@ -266,7 +266,7 @@ static void assoc_maintenance_thread(void *arg) {
                 global_assoc->expanding = false;
                 global_assoc->old_hashtable.resize(0);
                 global_assoc->old_hashtable.shrink_to_fit();
-                LOG_INFO("Hash table expansion done");
+                LOG_INFO_RAW("Hash table expansion done");
             }
         }
         if (!global_assoc->expanding) {

@@ -463,7 +463,7 @@ Bucket& BucketManager::at(size_t idx) {
 }
 
 void BucketManager::destroyAll() {
-    LOG_INFO("Stop all buckets");
+    LOG_INFO_RAW("Stop all buckets");
 
     // Start at one (not zero) because zero is reserved for "no bucket".
     // The "no bucket" has a state of Bucket::State::Ready but no name.

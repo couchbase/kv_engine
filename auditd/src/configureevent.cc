@@ -20,7 +20,7 @@ bool ConfigureEvent::process(AuditImpl& audit) {
         return true;
     }
 
-    LOG_WARNING("Audit: error performing configuration");
+    LOG_WARNING_RAW("Audit: error performing configuration");
     audit.notify_io_complete(cookie, cb::engine_errc::failed);
     return false;
 }

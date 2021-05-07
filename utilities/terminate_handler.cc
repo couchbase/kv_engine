@@ -43,13 +43,13 @@ static void log_handled_exception() {
                 "Caught unhandled std::exception-derived exception. what(): {}",
                 e.what());
         if (const auto* backtrace = cb::getBacktrace(e)) {
-            LOG_CRITICAL("Exception thrown from:");
+            LOG_CRITICAL_RAW("Exception thrown from:");
             print_backtrace_frames(*backtrace, [](const char* frame) {
                 LOG_CRITICAL("    {}", frame);
             });
         }
     } catch (...) {
-        LOG_CRITICAL("Caught unknown/unhandled exception.");
+        LOG_CRITICAL_RAW("Caught unknown/unhandled exception.");
     }
 }
 
@@ -66,14 +66,15 @@ static void log_backtrace() {
         fprintf(stderr, format_str, "");
         print_backtrace_to_file(stderr);
         fflush(stderr);
-        LOG_CRITICAL("Call stack exceeds 4k");
+        LOG_CRITICAL_RAW("Call stack exceeds 4k");
     }
 }
 
 // Replacement terminate_handler which prints the exception's what() and a
 // backtrace of the current stack before chaining to the default handler.
 static void backtrace_terminate_handler() {
-    LOG_CRITICAL("*** Fatal error encountered during exception handling ***");
+    LOG_CRITICAL_RAW(
+            "*** Fatal error encountered during exception handling ***");
 
     log_handled_exception();
 

@@ -171,7 +171,7 @@ void ExternalAuthManagerThread::processRequestQueue() {
             auto* getAuthz = dynamic_cast<GetAuthorizationTask*>(
                     incomingRequests.front());
             if (getAuthz == nullptr) {
-                LOG_CRITICAL(
+                LOG_CRITICAL_RAW(
                         "ExternalAuthManagerThread::processRequestQueue(): "
                         "Invalid entry found in request queue!");
                 incomingRequests.pop();
@@ -262,7 +262,7 @@ void ExternalAuthManagerThread::processResponseQueue() {
 void ExternalAuthManagerThread::purgePendingDeadConnections() {
     auto pending = std::move(pendingRemoveConnection);
     for (const auto& connection : pending) {
-        LOG_WARNING(
+        LOG_WARNING_RAW(
                 "External authentication manager died. Expect "
                 "authentication failures");
         const std::string msg =

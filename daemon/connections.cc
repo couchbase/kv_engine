@@ -70,11 +70,11 @@ Connection* conn_new(SOCKET sfd,
         c = ret.release();
         stats.total_conns++;
     } catch (const std::bad_alloc&) {
-        LOG_WARNING("Failed to allocate memory for connection");
+        LOG_WARNING_RAW("Failed to allocate memory for connection");
     } catch (const std::exception& error) {
         LOG_WARNING("Failed to create connection: {}", error.what());
     } catch (...) {
-        LOG_WARNING("Failed to create connection");
+        LOG_WARNING_RAW("Failed to create connection");
     }
 
     // We failed to create the connection (or failed to insert it into

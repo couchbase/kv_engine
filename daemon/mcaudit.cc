@@ -193,7 +193,7 @@ void audit_dcp_open(Cookie& cookie) {
     }
     auto& c = cookie.getConnection();
     if (c.isInternal()) {
-        LOG_INFO("Open DCP stream with admin credentials");
+        LOG_INFO_RAW("Open DCP stream with admin credentials");
     } else {
         auto root = create_memcached_audit_object(c, c.getUser(), {});
         root["bucket"] = c.getBucket().name;

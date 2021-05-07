@@ -80,7 +80,7 @@ static void write_to_logger(void* ctx, const char* frame) {
 }
 
 static void dump_stack() {
-    LOG_CRITICAL("Stack backtrace of crashed thread:");
+    LOG_CRITICAL_RAW("Stack backtrace of crashed thread:");
     print_backtrace(write_to_logger, nullptr);
     cb::logger::flush();
 }
@@ -178,7 +178,7 @@ void cb::breakpad::initialize(const cb::breakpad::Settings& settings) {
         // If breakpad is off, then at least print the backtrace via
         // terminate_handler.
         set_terminate_handler_print_backtrace(true);
-        LOG_INFO("Breakpad disabled");
+        LOG_INFO_RAW("Breakpad disabled");
     }
 }
 
@@ -189,7 +189,7 @@ void cb::breakpad::initialize(const std::string& directory) {
 
     if (directory.empty()) {
         // No directory provided
-        LOG_INFO("Breakpad disabled");
+        LOG_INFO_RAW("Breakpad disabled");
         return;
     }
 

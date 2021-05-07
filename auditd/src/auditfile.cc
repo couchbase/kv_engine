@@ -227,7 +227,7 @@ bool AuditFile::write_event_to_disk(nlohmann::json& output) {
             ret = flush();
         }
     } catch (const std::bad_alloc&) {
-        LOG_WARNING(
+        LOG_WARNING_RAW(
                 "Audit: memory allocation error for writing audit event to "
                 "disk");
         // Failed to write event to disk.
@@ -256,6 +256,7 @@ void AuditFile::set_log_directory(const std::string &new_directory) {
         // it. This is not a fatal error, but it does mean that the
         // node won't be able to do any auditing
         LOG_WARNING(R"(Audit: failed to create audit directory "{}": {})",
+                    new_directory,
                     error.what());
     }
 }

@@ -26,7 +26,7 @@ std::unique_ptr<NetworkInterfaceManager> networkInterfaceManager;
 
 NetworkInterfaceManager::NetworkInterfaceManager(folly::EventBase& base)
     : eventBase(base) {
-    LOG_INFO("Enable port(s)");
+    LOG_INFO_RAW("Enable port(s)");
     for (auto& interf : Settings::instance().getInterfaces()) {
         if (!createInterface(interf.tag,
                              interf.host,

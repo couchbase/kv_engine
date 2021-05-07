@@ -31,7 +31,7 @@ UniqueAuditPtr create_audit_daemon(const std::string& config_file,
     } catch (std::runtime_error& err) {
         LOG_WARNING("{}", err.what());
     } catch (std::bad_alloc&) {
-        LOG_WARNING("Failed to start audit: Out of memory");
+        LOG_WARNING_RAW("Failed to start audit: Out of memory");
     }
 
     return {};

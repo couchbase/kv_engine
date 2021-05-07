@@ -111,7 +111,7 @@ bool AuditImpl::add_event_descriptor(const nlohmann::json& json) {
                 entry->getId(), std::move(entry)));
         return true;
     } catch (const std::bad_alloc&) {
-        LOG_WARNING(
+        LOG_WARNING_RAW(
                 "Audit::add_event_descriptor: Failed to allocate "
                 "memory");
     } catch (const nlohmann::json::exception& e) {
@@ -153,7 +153,7 @@ bool AuditImpl::process_module_descriptor(const nlohmann::json& json) {
             }
             break;
         default:
-            LOG_WARNING(
+            LOG_WARNING_RAW(
                     "Audit:process_module_descriptor \"events\" field is not"
                     " integer or array");
             return false;
@@ -201,7 +201,7 @@ bool AuditImpl::configure() {
                 cb::UserDataView(configuration));
         failure = true;
     } catch (...) {
-        LOG_WARNING("Audit::configure: Invalid input");
+        LOG_WARNING_RAW("Audit::configure: Invalid input");
         failure = true;
     }
     if (failure) {

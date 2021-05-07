@@ -281,7 +281,7 @@ static void prometheus_init() {
             FATAL_ERROR(EXIT_FAILURE, "{}", exception.what());
         }
     } else {
-        LOG_WARNING("Prometheus config not specified");
+        LOG_WARNING_RAW("Prometheus config not specified");
     }
 
     Settings::instance().addChangeListener("prometheus_config",
@@ -723,12 +723,12 @@ static bool install_signal_handlers() {
     sigterm_event = evsignal_new(
             main_base->getLibeventBase(), SIGTERM, sigterm_handler, nullptr);
     if (!sigterm_event) {
-        LOG_WARNING("Failed to allocate SIGTERM handler");
+        LOG_WARNING_RAW("Failed to allocate SIGTERM handler");
         return false;
     }
 
     if (event_add(sigterm_event, nullptr) < 0) {
-        LOG_WARNING("Failed to install SIGTERM handler");
+        LOG_WARNING_RAW("Failed to install SIGTERM handler");
         return false;
     }
 
@@ -752,11 +752,11 @@ void shutdown_server() {
     std::unique_lock<std::mutex> lk(shutdown_cv_mutex);
     if (!memcached_can_shutdown) {
         // log and proceed to wait shutdown
-        LOG_INFO("shutdown_server waiting for can_shutdown signal");
+        LOG_INFO_RAW("shutdown_server waiting for can_shutdown signal");
         shutdown_cv.wait(lk, []{return memcached_can_shutdown;});
     }
     memcached_shutdown = true;
-    LOG_INFO("Received shutdown request");
+    LOG_INFO_RAW("Received shutdown request");
     main_base->terminateLoopSoon();
 }
 
@@ -913,10 +913,10 @@ int memcached_main(int argc, char** argv) {
     /* Logging available now extensions have been loaded. */
     LOG_INFO("Couchbase version {} starting.", get_server_version());
 #ifdef ADDRESS_SANITIZER
-    LOG_INFO("Address sanitizer enabled");
+    LOG_INFO_RAW("Address sanitizer enabled");
 #endif
 #ifdef THREAD_SANITIZER
-    LOG_INFO("Thread sanitizer enabled");
+    LOG_INFO_RAW("Thread sanitizer enabled");
 #endif
 
 #if defined(__x86_64__) || defined(_M_X64)
@@ -953,7 +953,7 @@ int memcached_main(int argc, char** argv) {
     LOG_INFO("Using SLA configuration: {}", cb::mcbp::sla::to_json().dump());
 
     if (Settings::instance().isStdinListenerEnabled()) {
-        LOG_INFO("Enable standard input listener");
+        LOG_INFO_RAW("Enable standard input listener");
         start_stdin_listener(shutdown_server);
     }
 
@@ -992,7 +992,7 @@ int memcached_main(int argc, char** argv) {
 
     prometheus_init();
 
-    LOG_INFO("Starting external authentication manager");
+    LOG_INFO_RAW("Starting external authentication manager");
     externalAuthManager = std::make_unique<ExternalAuthManagerThread>();
     externalAuthManager->setPushActiveUsersInterval(
             Settings::instance().getActiveExternalUsersPushInterval());
@@ -1009,7 +1009,7 @@ int memcached_main(int argc, char** argv) {
         create_crash_instance();
     }
 
-    LOG_INFO("Initialize bucket manager");
+    LOG_INFO_RAW("Initialize bucket manager");
     BucketManager::instance();
 
     initialize_sasl();
@@ -1066,81 +1066,81 @@ int memcached_main(int argc, char** argv) {
     {
         const int parent = Settings::instance().getParentIdentifier();
         if (parent != -1) {
-            LOG_INFO("Starting parent monitor");
+            LOG_INFO_RAW("Starting parent monitor");
             parent_monitor = std::make_unique<ParentMonitor>(parent);
         }
     }
 
     if (!memcached_shutdown) {
         /* enter the event loop */
-        LOG_INFO("Initialization complete. Accepting clients.");
+        LOG_INFO_RAW("Initialization complete. Accepting clients.");
         main_base->loopForever();
     }
 
-    LOG_INFO("Initiating graceful shutdown.");
+    LOG_INFO_RAW("Initiating graceful shutdown.");
     BucketManager::instance().destroyAll();
 
     if (parent_monitor) {
-        LOG_INFO("Shutting down parent monitor");
+        LOG_INFO_RAW("Shutting down parent monitor");
         parent_monitor.reset();
     }
 
-    LOG_INFO("Shutting down Prometheus exporter");
+    LOG_INFO_RAW("Shutting down Prometheus exporter");
     cb::prometheus::shutdown();
 
-    LOG_INFO("Shutting down audit daemon");
+    LOG_INFO_RAW("Shutting down audit daemon");
     shutdown_audit();
 
-    LOG_INFO("Shutting down client worker threads");
+    LOG_INFO_RAW("Shutting down client worker threads");
     threads_shutdown();
 
-    LOG_INFO("Releasing server sockets");
+    LOG_INFO_RAW("Releasing server sockets");
     networkInterfaceManager.reset();
 
-    LOG_INFO("Releasing bucket resources");
+    LOG_INFO_RAW("Releasing bucket resources");
     cleanup_buckets();
 
-    LOG_INFO("Shutting down RBAC subsystem");
+    LOG_INFO_RAW("Shutting down RBAC subsystem");
     cb::rbac::destroy();
 
-    LOG_INFO("Shutting down executor pool");
+    LOG_INFO_RAW("Shutting down executor pool");
     cb::executor::shutdown();
 
-    LOG_INFO("Releasing signal handlers");
+    LOG_INFO_RAW("Releasing signal handlers");
     release_signal_handlers();
 
-    LOG_INFO("Shutting down external authentication service");
+    LOG_INFO_RAW("Shutting down external authentication service");
     externalAuthManager->shutdown();
     externalAuthManager->waitForState(Couchbase::ThreadState::Zombie);
     externalAuthManager.reset();
 
-    LOG_INFO("Release cached SSL contexts");
+    LOG_INFO_RAW("Release cached SSL contexts");
     invalidateSslCache();
 
-    LOG_INFO("Shutting down SASL server");
+    LOG_INFO_RAW("Shutting down SASL server");
     cb::sasl::server::shutdown();
 
-    LOG_INFO("Deinitialising tracing");
+    LOG_INFO_RAW("Deinitialising tracing");
     deinitializeTracing();
 
-    LOG_INFO("Shutting down all engines");
+    LOG_INFO_RAW("Shutting down all engines");
     shutdown_all_engines();
 
-    LOG_INFO("Removing breakpad");
+    LOG_INFO_RAW("Removing breakpad");
     cb::breakpad::destroy();
 
-    LOG_INFO("Shutting down OpenSSL");
+    LOG_INFO_RAW("Shutting down OpenSSL");
     shutdown_openssl();
 
-    LOG_INFO("Shutting down event base");
+    LOG_INFO_RAW("Shutting down event base");
     main_base.reset();
 
     if (OpenTelemetry::isEnabled()) {
-        LOG_INFO("Shutting down OpenTelemetry");
+        LOG_INFO_RAW("Shutting down OpenTelemetry");
         OpenTelemetry::shutdown();
     }
 
-    LOG_INFO("Shutting down logger extension");
+    LOG_INFO_RAW("Shutting down logger extension");
     cb::logger::shutdown();
 
     return EXIT_SUCCESS;
