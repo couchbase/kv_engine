@@ -23,7 +23,9 @@ LabelledStatCollector LabelledStatCollector::withLabels(Labels&& labels) const {
     Labels mergedLabels{labels.begin(), labels.end()};
     // add in the labels stored in this collector
     // (will not overwrite labels passed as parameters)
-    mergedLabels.insert(defaultLabels.begin(), defaultLabels.end());
+    for (const auto& label : defaultLabels) {
+        mergedLabels.emplace(label.first.c_str(), label.second);
+    }
 
     // create a LabelledStatCollector directly wrapping the parent collector,
     // with the merged set of labels. This avoids chaining through multiple

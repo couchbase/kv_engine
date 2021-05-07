@@ -144,7 +144,17 @@ class BucketStatCollector;
  */
 class StatCollector {
 public:
-    using Labels = std::unordered_map<std::string_view, std::string_view>;
+    /**
+     * Map of label name -> value associated with a stat. Key is const char*
+     * as fmt::arg() requires const char* for the key.
+     * To ensure that we correctly perform a "deep" compare on 'const char*'
+     * and not just comparing pointers; use std::hash and std::equal_to from
+     * std::string_view.
+     */
+    using Labels = std::unordered_map<const char*,
+                                      std::string_view,
+                                      std::hash<std::string_view>,
+                                      std::equal_to<std::string_view>>;
 
     /*
      * Create a collector tracking stats for a specific bucket. The new

@@ -320,19 +320,6 @@ TEST_F(StatTest, CollectorForBucketScopeCollection) {
     auto key = cb::stats::Key::bg_wait;
     auto value = 12345.0;
 
-    // helper to check that addStat was called with a particular set of labels
-    auto expectAddStatWithLabels =
-            [&collector, &key, &value](
-                    const std::unordered_map<std::string_view,
-                                             std::string_view>& labels) {
-                // explicitly specified matcher required to disabiguate the
-                // addStat method
-                EXPECT_CALL(collector,
-                            addStat(_,
-                                    Matcher<double>(value),
-                                    ContainerEq(labels)));
-            };
-
     auto scopeName = "scope-bar";
     auto collectionName = "collection-baz";
 
@@ -344,30 +331,40 @@ TEST_F(StatTest, CollectorForBucketScopeCollection) {
     InSequence s;
 
     // base collector has not been modified, adds no labels
-    expectAddStatWithLabels({});
+    EXPECT_CALL(collector, addStat(_, Matcher<double>(value), ElementsAre()));
     collector.addStat(key, value);
 
     // adds bucket label
-    expectAddStatWithLabels({{"bucket", "foo"}});
+    EXPECT_CALL(collector,
+                addStat(_,
+                        Matcher<double>(value),
+                        UnorderedElementsAre(Pair("bucket"sv, "foo"))));
     bucket.addStat(key, value);
 
-    auto scopeNameKey = ScopeStatCollector::scopeNameKey;
-    auto scopeIDKey = ScopeStatCollector::scopeIDKey;
-    auto collectionNameKey = ColStatCollector::collectionNameKey;
-    auto collectionIDKey = ColStatCollector::collectionIDKey;
+    std::string_view scopeNameKey = ScopeStatCollector::scopeNameKey;
+    std::string_view scopeIDKey = ScopeStatCollector::scopeIDKey;
+    std::string_view collectionNameKey = ColStatCollector::collectionNameKey;
+    std::string_view collectionIDKey = ColStatCollector::collectionIDKey;
 
     // adds scope label
-    expectAddStatWithLabels({{"bucket", "foo"},
-                             {scopeNameKey, scopeName},
-                             {scopeIDKey, "0x0"}});
+    EXPECT_CALL(collector,
+                addStat(_,
+                        Matcher<double>(value),
+                        UnorderedElementsAre(Pair("bucket"sv, "foo"),
+                                             Pair(scopeNameKey, scopeName),
+                                             Pair(scopeIDKey, "0x0"))));
     scope.addStat(key, value);
 
     // adds collection label
-    expectAddStatWithLabels({{"bucket", "foo"},
-                             {scopeNameKey, scopeName},
-                             {scopeIDKey, "0x0"},
-                             {collectionNameKey, collectionName},
-                             {collectionIDKey, "0x8"}});
+    EXPECT_CALL(collector,
+                addStat(_,
+                        Matcher<double>(value),
+                        UnorderedElementsAre(
+                                Pair("bucket"sv, "foo"),
+                                Pair(scopeNameKey, scopeName),
+                                Pair(scopeIDKey, "0x0"),
+                                Pair(collectionNameKey, collectionName),
+                                Pair(collectionIDKey, "0x8"))));
     collection.addStat(key, value);
 }
 

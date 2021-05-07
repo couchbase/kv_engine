@@ -77,7 +77,7 @@ public:
  * all stats have been transitioned to stats.def.h.
  */
 struct StatDef {
-    using Labels = std::unordered_map<std::string_view, std::string_view>;
+    using Labels = std::unordered_map<const char*, std::string_view>;
     /**
      * Construct from char* to minimize code change while migrating to
      * the StatCollector interface.

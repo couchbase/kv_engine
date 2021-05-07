@@ -33,6 +33,7 @@
 
 #include <memcached/server_cookie_iface.h>
 #include <nlohmann/json.hpp>
+#include <spdlog/fmt/fmt.h>
 #include <statistics/cbstat_collector.h>
 
 const std::chrono::seconds DcpProducer::defaultDcpNoopTxInterval(20);
@@ -1181,7 +1182,7 @@ bool DcpProducer::handleResponse(const cb::mcbp::Response& response) {
         auto stream = find_if2(streamFindFn);
         std::string streamInfo("null");
         if (stream) {
-            streamInfo = fmt::format(fmt("stream name:{}, {}, state:{}"),
+            streamInfo = fmt::format(FMT_STRING("stream name:{}, {}, state:{}"),
                                      stream->getName(),
                                      stream->getVBucket(),
                                      stream->getStateName());

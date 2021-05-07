@@ -123,7 +123,9 @@ protected:
         Labels allLabels{labels.begin(), labels.end()};
         // add in the "default" labels stored in this collector
         // (will not overwrite labels passed as parameters)
-        allLabels.insert(defaultLabels.begin(), defaultLabels.end());
+        for (const auto& label : defaultLabels) {
+            allLabels.emplace(label.first.c_str(), label.second);
+        }
 
         parent.addStat(k, v, allLabels);
     }
@@ -167,8 +169,8 @@ public:
     [[nodiscard]] ColStatCollector forCollection(
             std::string_view collectionName, CollectionID collection) const;
 
-    static constexpr std::string_view scopeNameKey{"scope"};
-    static constexpr std::string_view scopeIDKey{"scope_id"};
+    static constexpr const char* scopeNameKey{"scope"};
+    static constexpr const char* scopeIDKey{"scope_id"};
 };
 
 /**
@@ -182,6 +184,6 @@ public:
                      std::string_view collectionName,
                      CollectionID collection);
 
-    static constexpr std::string_view collectionNameKey{"collection"};
-    static constexpr std::string_view collectionIDKey{"collection_id"};
+    static constexpr const char* collectionNameKey{"collection"};
+    static constexpr const char* collectionIDKey{"collection_id"};
 };

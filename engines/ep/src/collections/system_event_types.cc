@@ -16,36 +16,38 @@
 namespace Collections {
 
 std::string to_string(const CreateEventData& event) {
-    return fmt::format(
-            fmt("CreateCollection{{uid:{:#x} scopeID:{} collectionID:{} "
-                "name:'"
-                "{}' maxTTLEnabled:{} maxTTL:{}}}"),
-            event.manifestUid.load(),
-            event.metaData.sid.to_string(),
-            event.metaData.cid.to_string(),
-            event.metaData.name,
-            event.metaData.maxTtl.has_value(),
-            event.metaData.maxTtl.has_value() ? event.metaData.maxTtl->count()
-                                              : 0);
+    return fmt::format(FMT_STRING("CreateCollection{{uid:{:#x} scopeID:{} "
+                                  "collectionID:{} name:'{}' "
+                                  "maxTTLEnabled:{} maxTTL:{}}}"),
+                       event.manifestUid.load(),
+                       event.metaData.sid.to_string(),
+                       event.metaData.cid.to_string(),
+                       event.metaData.name,
+                       event.metaData.maxTtl.has_value(),
+                       event.metaData.maxTtl.has_value()
+                               ? event.metaData.maxTtl->count()
+                               : 0);
 }
 
 std::string to_string(const DropEventData& event) {
     return fmt::format(
-            fmt("DropCollection{{uid:{:#x} scopeID:{} collectionID:{}}}"),
+            FMT_STRING(
+                    "DropCollection{{uid:{:#x} scopeID:{} collectionID:{}}}"),
             event.manifestUid.load(),
             event.sid.to_string(),
             event.cid.to_string());
 }
 
 std::string to_string(const CreateScopeEventData& event) {
-    return fmt::format(fmt("CreateScope{{uid:{:#x} scopeID:{} name:'{}'}}"),
-                       event.manifestUid.load(),
-                       event.metaData.sid.to_string(),
-                       event.metaData.name);
+    return fmt::format(
+            FMT_STRING("CreateScope{{uid:{:#x} scopeID:{} name:'{}'}}"),
+            event.manifestUid.load(),
+            event.metaData.sid.to_string(),
+            event.metaData.name);
 }
 
 std::string to_string(const DropScopeEventData& event) {
-    return fmt::format(fmt("DropScope{{uid:{:#x} scopeID:{}}}"),
+    return fmt::format(FMT_STRING("DropScope{{uid:{:#x} scopeID:{}}}"),
                        event.manifestUid.load(),
                        event.sid.to_string());
 }

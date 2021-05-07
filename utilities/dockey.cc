@@ -83,14 +83,14 @@ std::string DocKey::to_string() const {
             // Get the string view to the remaining string part of the key
             remainingKey = {reinterpret_cast<const char*>(keySuffix.data()),
                             keySuffix.size()};
-            return fmt::format(fmt("cid:{:#x}:{:#x}:{:#x}:{}"),
+            return fmt::format(FMT_STRING("cid:{:#x}:{:#x}:{:#x}:{}"),
                                cid,
                                systemEventID,
                                cidOrSid,
                                remainingKey);
         }
     }
-    return fmt::format(fmt("cid:{:#x}:{}"), cid, remainingKey);
+    return fmt::format(FMT_STRING("cid:{:#x}:{}"), cid, remainingKey);
 }
 
 CollectionID DocKey::getCollectionID() const {
