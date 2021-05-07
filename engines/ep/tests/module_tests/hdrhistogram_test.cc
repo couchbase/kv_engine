@@ -109,9 +109,9 @@ TEST(HdrHistogramTest, logIteratorBaseTwoTest) {
 
     uint64_t countSum = 0;
     uint64_t bucketIndex = 0;
-    while (auto result = iter.getNextValueAndCount()) {
+    for (; iter != histogram.end(); ++iter) {
         // Check that the values of the buckets increase exponentially
-        EXPECT_EQ(pow(iteratorBase, bucketIndex), result->first);
+        EXPECT_EQ(pow(iteratorBase, bucketIndex), iter->upper_bound);
         // Check that the width of the bucket is the same number as the count
         // as we added values in a linear matter
         auto expectedCount = iter.value_iterated_to - iter.value_iterated_from;
@@ -119,9 +119,9 @@ TEST(HdrHistogramTest, logIteratorBaseTwoTest) {
             // the first bucket will include the values at 0 _and_ at 1.
             expectedCount++;
         }
-        EXPECT_EQ(expectedCount, result->second);
+        EXPECT_EQ(expectedCount, iter->count);
         bucketIndex++;
-        countSum += result->second;
+        countSum += iter->count;
     }
     // check we count as many counts as we added
     EXPECT_EQ(maxValue + 1, countSum);
@@ -147,9 +147,9 @@ TEST(HdrHistogramTest, logIteratorBaseFiveTest) {
 
     uint64_t countSum = 0;
     uint64_t bucketIndex = 0;
-    while (auto result = iter.getNextValueAndCount()) {
+    for (; iter != histogram.end(); ++iter) {
         // Check that the values of the buckets increase exponentially
-        EXPECT_EQ(pow(iteratorBase, bucketIndex), result->first);
+        EXPECT_EQ(pow(iteratorBase, bucketIndex), iter->upper_bound);
         // Check that the width of the bucket is the same number as the count
         // as we added values in a linear matter
         auto expectedCount = iter.value_iterated_to - iter.value_iterated_from;
@@ -157,9 +157,9 @@ TEST(HdrHistogramTest, logIteratorBaseFiveTest) {
             // the first bucket will include the values at 0 _and_ at 1.
             expectedCount++;
         }
-        EXPECT_EQ(expectedCount, result->second);
+        EXPECT_EQ(expectedCount, iter->count);
         bucketIndex++;
-        countSum += result->second;
+        countSum += iter->count;
     }
     // check we count as many counts as we added
     EXPECT_EQ(maxValue + 1, countSum);
@@ -545,4 +545,36 @@ TEST(HdrHistogramTest, ResetItoratorInfLoop) {
     // wait for resetThread() to complete
     thread.join();
     EXPECT_EQ(histogram.getValueCount(), 0);
+}
+
+/**
+ * Test that a ranged-based for loop iterates over the histogram using the
+ * default iteration mode.
+ */
+TEST(HdrHistogramTest, RangeBasedForLoop) {
+    HdrHistogram histogram(1, 100, 3, HdrHistogram::Iterator::IterMode::Linear);
+    for (int i = 1; i <= 100; i++) {
+        histogram.addValue(i);
+    }
+
+    auto referenceItr = histogram.getHistogramsIterator();
+    auto bucketCounter = 0;
+    for (const auto& bucket : histogram) {
+        auto refValue = referenceItr.getNextBucketLowHighAndCount();
+        EXPECT_TRUE(refValue.has_value());
+        EXPECT_EQ(
+                *refValue,
+                std::make_tuple(
+                        bucket.lower_bound, bucket.upper_bound, bucket.count));
+
+        // just in case, let's check the exact expected values
+        EXPECT_EQ(bucketCounter * 5, bucket.lower_bound);
+        EXPECT_EQ((bucketCounter + 1) * 5, bucket.upper_bound);
+        EXPECT_EQ(5, bucket.count);
+
+        ++bucketCounter;
+    }
+
+    // reference iterator also exhausted
+    EXPECT_FALSE(referenceItr.getNextBucketLowHighAndCount().has_value());
 }

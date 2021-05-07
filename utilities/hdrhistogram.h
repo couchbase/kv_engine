@@ -14,6 +14,7 @@
 #include <folly/Synchronized.h>
 #include <nlohmann/json_fwd.hpp>
 #include <chrono>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -50,7 +51,33 @@ class HdrHistogram {
     using WHistoLockedPtr = SyncHdrHistogramPtr::WLockedPtr;
 
 public:
+    /**
+     * Class representing a single histogram bucket.
+     *
+     * This is the type returned when dereferencing an Iterator.
+     */
+    struct Bucket {
+        uint64_t lower_bound = 0;
+        uint64_t upper_bound = 0;
+        uint64_t count = 0;
+        std::optional<double> percentile = {};
+
+        bool operator==(const Bucket& other) const {
+            return lower_bound == other.lower_bound &&
+                   upper_bound == other.upper_bound && count == other.count &&
+                   percentile == other.percentile;
+        }
+    };
     struct Iterator : public hdr_iter {
+        using iterator_category = std::input_iterator_tag;
+        using value_type = Bucket;
+        using difference_type = std::ptrdiff_t;
+        using pointer = value_type*;
+        using reference = value_type&;
+        // tag type, used to test if `itr == end()`. Histogram iterators do not
+        // attempt to meet LegacyBidirectionalIterator so do not need to support
+        // `--end()`.
+        struct EndSentinel {};
         /**
          * Enum to state the method of iteration the iterator is using
          */
@@ -124,6 +151,26 @@ public:
          */
         std::string dumpValues();
 
+        Iterator& operator++();
+
+        const Bucket& operator*() const {
+            return bucket;
+        }
+
+        const Bucket* operator->() const {
+            return &bucket;
+        }
+
+        bool operator==(const Iterator& other) const;
+        bool operator==(const EndSentinel&) const;
+
+        bool operator!=(const Iterator& other) const {
+            return !(*this == other);
+        }
+        bool operator!=(const EndSentinel& other) const {
+            return !(*this == other);
+        }
+
         IterMode type;
         uint64_t lastVal = 0;
         uint64_t lastCumulativeCount = 0;
@@ -137,6 +184,15 @@ public:
          * data structure.
          */
         ConstRHistoLockedPtr histoRLockPtr;
+
+        // container for the iterated values, accessible through
+        // *itr or itr->foo.
+        Bucket bucket;
+
+        // the underlying C iterator is exhausted when hdr_iter_next returns
+        // a falsy value, this state needs to be tracked here to support
+        // `itr == end()` checks.
+        bool finished = false;
     };
 
     /**
@@ -272,6 +328,26 @@ public:
      * data in this histogram
      */
     Iterator getHistogramsIterator() const;
+
+    /**
+     * Get an Iterator which will traverse this histogram with the mode set in
+     * `defaultIterationMode`.
+     *
+     * @return a HdrHistogram::Iterator that can be used to iterate over
+     * data in this histogram
+     */
+    Iterator begin() const;
+
+    /**
+     * Returns a sentinel value that HdrHistogram::Iterator instances may
+     * be compared to.
+     *
+     * When iter == end(), the underlying C style iterator has finished;
+     * all recorded values have been seen.
+     */
+    Iterator::EndSentinel end() const {
+        return {};
+    }
 
     /**
      * prints the histogram counts by percentiles to stdout

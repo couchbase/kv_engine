@@ -120,7 +120,11 @@ HdrHistogram::Iterator HdrHistogram::makeLinearIterator(
         int64_t valueUnitsPerBucket) const {
     HdrHistogram::Iterator itr(histogram, Iterator::IterMode::Linear);
     hdr_iter_linear_init(&itr, itr.histoRLockPtr->get(), valueUnitsPerBucket);
-    return itr;
+    // hdr_histogram requires hdr_iter_next to be called before reading any
+    // values, but C++ input iterators should start pointing to the first value
+    // (or end() if empty). Advance the underlying iterator to valid data
+    // immediately.
+    return std::move(++itr);
 }
 
 HdrHistogram::Iterator HdrHistogram::makeLogIterator(int64_t firstBucketWidth,
@@ -128,20 +132,23 @@ HdrHistogram::Iterator HdrHistogram::makeLogIterator(int64_t firstBucketWidth,
     HdrHistogram::Iterator itr(histogram, Iterator::IterMode::Log);
     hdr_iter_log_init(
             &itr, itr.histoRLockPtr->get(), firstBucketWidth, log_base);
-    return itr;
+
+    return std::move(++itr);
 }
 
 HdrHistogram::Iterator HdrHistogram::makePercentileIterator(
         uint32_t ticksPerHalfDist) const {
     HdrHistogram::Iterator itr(histogram, Iterator::IterMode::Percentiles);
     hdr_iter_percentile_init(&itr, itr.histoRLockPtr->get(), ticksPerHalfDist);
-    return itr;
+
+    return std::move(++itr);
 }
 
 HdrHistogram::Iterator HdrHistogram::makeRecordedIterator() const {
     HdrHistogram::Iterator itr(histogram, Iterator::IterMode::Recorded);
     hdr_iter_recorded_init(&itr, itr.histoRLockPtr->get());
-    return itr;
+
+    return std::move(++itr);
 }
 
 HdrHistogram::Iterator HdrHistogram::makeIterator(
@@ -168,57 +175,45 @@ HdrHistogram::Iterator HdrHistogram::getHistogramsIterator() const {
     return makeIterator(defaultIterationMode);
 }
 
+HdrHistogram::Iterator HdrHistogram::begin() const {
+    return getHistogramsIterator();
+}
+
 std::optional<std::pair<uint64_t, uint64_t>>
 HdrHistogram::Iterator::getNextValueAndCount() {
-    std::optional<std::pair<uint64_t, uint64_t>> valueAndCount;
-    if (hdr_iter_next(this)) {
-        auto value = static_cast<uint64_t>(this->value);
-        uint64_t count = 0;
-        switch (type) {
-        case Iterator::IterMode::Log:
-            count = specifics.log.count_added_in_this_iteration_step;
-            break;
-        case Iterator::IterMode::Linear:
-            count = specifics.linear.count_added_in_this_iteration_step;
-            break;
-        case Iterator::IterMode::Percentiles:
-            value = highest_equivalent_value;
-            count = cumulative_count - lastCumulativeCount;
-            lastCumulativeCount = cumulative_count;
-            break;
-        case Iterator::IterMode::Recorded:
-            count = this->count;
-            break;
-        }
-
-        return valueAndCount = std::make_pair(value, count);
-    } else {
-        return valueAndCount;
+    if (*this == EndSentinel{}) {
+        return {};
     }
+    auto value = std::make_pair(bucket.upper_bound, bucket.count);
+    // advance the iterator
+    ++(*this);
+    return {value};
 }
 
 std::optional<std::tuple<uint64_t, uint64_t, uint64_t>>
 HdrHistogram::Iterator::getNextBucketLowHighAndCount() {
-    std::optional<std::tuple<uint64_t, uint64_t, uint64_t>> bucketHighLowCount;
-    auto valueAndCount = getNextValueAndCount();
-    if (valueAndCount.has_value()) {
-        bucketHighLowCount = {
-                lastVal, valueAndCount->first, valueAndCount->second};
-        lastVal = valueAndCount->first;
+    if (*this == EndSentinel{}) {
+        return {};
     }
-    return bucketHighLowCount;
+    auto value = std::make_tuple(
+            bucket.lower_bound, bucket.upper_bound, bucket.count);
+    // advance the iterator
+    ++(*this);
+    return {value};
 }
 
 std::optional<std::pair<uint64_t, double>>
 HdrHistogram::Iterator::getNextValueAndPercentile() {
-    std::optional<std::pair<uint64_t, double>> valueAndPer;
-    if (type == Iterator::IterMode::Percentiles) {
-        if (hdr_iter_next(this)) {
-            valueAndPer = {highest_equivalent_value,
-                           specifics.percentiles.percentile};
-        }
+    if (*this == EndSentinel{}) {
+        return {};
     }
-    return valueAndPer;
+    if (!bucket.percentile.has_value()) {
+        return {};
+    }
+    auto value = std::make_pair(bucket.upper_bound, *bucket.percentile);
+    // advance the iterator
+    ++(*this);
+    return {value};
 }
 
 std::string HdrHistogram::Iterator::dumpValues() {
@@ -247,6 +242,49 @@ void HdrHistogram::dumpLogValues(int64_t firstBucketWidth,
                                  double log_base) const {
     HdrHistogram::Iterator itr = makeLogIterator(firstBucketWidth, log_base);
     fmt::print(stdout, itr.dumpValues());
+}
+
+HdrHistogram::Iterator& HdrHistogram::Iterator::operator++() {
+    if (!hdr_iter_next(this)) {
+        // underlying iterator at end, track this to support `itr == end()`
+        finished = true;
+        return *this;
+    }
+
+    // advance the bucket boundaries, the (exclusive) lower bound
+    // is advance to the old (inclusive) upper bound
+    bucket.lower_bound = bucket.upper_bound;
+    bucket.upper_bound = static_cast<uint64_t>(this->value);
+
+    switch (type) {
+    case Iterator::IterMode::Log:
+        bucket.count = specifics.log.count_added_in_this_iteration_step;
+        break;
+    case Iterator::IterMode::Linear:
+        bucket.count = specifics.linear.count_added_in_this_iteration_step;
+        break;
+    case Iterator::IterMode::Percentiles:
+        bucket.upper_bound = highest_equivalent_value;
+        bucket.count = cumulative_count - lastCumulativeCount;
+        lastCumulativeCount = cumulative_count;
+        bucket.percentile = specifics.percentiles.percentile;
+        break;
+    case Iterator::IterMode::Recorded:
+        bucket.count = this->count;
+        break;
+    }
+
+    return *this;
+}
+
+bool HdrHistogram::Iterator::operator==(const Iterator& other) const {
+    // ptr comparison of histograms, value comparison of current bucket
+    return *histoRLockPtr == *other.histoRLockPtr && bucket == other.bucket;
+}
+
+bool HdrHistogram::Iterator::operator==(const EndSentinel&) const {
+    // check if underlying iterator has reached the end.
+    return finished;
 }
 
 nlohmann::json HdrHistogram::to_json() const {
