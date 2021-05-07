@@ -621,22 +621,9 @@ cb::engine_error Manifest::isSuccessor(const Manifest& successor) const {
         return cb::engine_error(cb::engine_errc::success, "forced update");
     }
 
-    // else must be a > uid with sane changes or equal uid and no changes
+    // else must be a > uid and any changes must be valid or equal uid with no
+    // changes
     if (successor.getUid() > uid) {
-        // First check that the successor introduces a change in state. There
-        // is a special case if current is uid:0 in that we cannot do this check
-        // if the successor is > 1, as the successor could legitimately be equal
-        // So the isEqualContent check only applies for a change of
-        // * uid 0 to uid 1
-        // * uid n to uid m where n > 0 and m > n
-        if ((uid == 0 && successor.getUid() == 1) || uid > 0) {
-            if (isEqualContent(successor)) {
-                return cb::engine_error(
-                        cb::engine_errc::cannot_apply_collections_manifest,
-                        "uid changed but no changes");
-            }
-        }
-
         // For each scope-id in this is it in successor?
         for (const auto& [sid, scope] : scopes) {
             auto itr = successor.findScope(sid);

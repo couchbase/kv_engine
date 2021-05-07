@@ -887,14 +887,6 @@ TEST(ManifestTest, isNotSuccesor) {
     Collections::Manifest current{std::string{cm}};
 
     {
-        // Make an epoch manifest and change to uid:1, going from 0 to 1 expect
-        // something changed
-        CollectionsManifest cm2;
-        cm2.updateUid(1);
-        Collections::Manifest incoming{std::string{cm2}};
-        EXPECT_NE(cb::engine_errc::success, epoch.isSuccessor(incoming).code());
-    }
-    {
         // switch the name of the scope and test
         CollectionsManifest cm2 = cm;
         cm2.rename(ScopeEntry::shop1, "some_shop");
@@ -938,9 +930,11 @@ TEST(ManifestTest, isNotSuccesor) {
         // prove that the uid shift results in error
         EXPECT_EQ(cb::engine_errc::success,
                   current.isSuccessor(incoming1).code());
+
+        // But we can accept a new uid as the only change
         cm2.updateUid(cm2.getUid() + 1);
         Collections::Manifest incoming2{std::string{cm2}};
-        EXPECT_NE(cb::engine_errc::success,
+        EXPECT_EQ(cb::engine_errc::success,
                   current.isSuccessor(incoming2).code());
     }
 

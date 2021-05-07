@@ -3125,12 +3125,8 @@ void CollectionsDcpParameterizedTest::replicateForcedUpdate(uint64_t newUid,
     flushVBucketToDiskIfPersistent(replicaVB, 2);
 
     // Final part of this test is to force push a new manifest (new uid) that
-    // does nothing will this ever happen? If forced it will not fail
+    // does "nothing", no collection added or removed etc...
     cm.updateUid(cm.getUid() + 1);
-    cm.setForce(false);
-    setCollections(
-            cookie, cm, cb::engine_errc::cannot_apply_collections_manifest);
-    cm.setForce(true);
     setCollections(cookie, cm);
 
     replica.reset();
