@@ -517,7 +517,7 @@ CouchKVStore::~CouchKVStore() {
     close();
 }
 
-void CouchKVStore::set(queued_item item) {
+void CouchKVStore::set(TransactionContext& txnCtx, queued_item item) {
     if (!inTransaction) {
         throw std::invalid_argument(
                 "CouchKVStore::set: inTransaction must be "
@@ -762,7 +762,7 @@ void CouchKVStore::getRange(Vbid vb,
     }
 }
 
-void CouchKVStore::del(queued_item item) {
+void CouchKVStore::del(TransactionContext& txnCtx, queued_item item) {
     if (!inTransaction) {
         throw std::invalid_argument(
                 "CouchKVStore::del: inTransaction must be "
@@ -2805,7 +2805,7 @@ static int byIdScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     return int(status);
 }
 
-bool CouchKVStore::commit(VB::Commit& commitData) {
+bool CouchKVStore::commit(TransactionContext& txnCtx, VB::Commit& commitData) {
     if (!inTransaction) {
         logger.warn("CouchKVStore::commit: called not in transaction");
         return true;
@@ -2816,7 +2816,7 @@ bool CouchKVStore::commit(VB::Commit& commitData) {
         return true;
     }
 
-    const auto vbid = transactionCtx->vbid;
+    const auto vbid = txnCtx.vbid;
 
     TRACE_EVENT2("CouchKVStore",
                  "commit",
@@ -2842,7 +2842,7 @@ bool CouchKVStore::commit(VB::Commit& commitData) {
 
     postFlushHook();
 
-    commitCallback(pendingReqsQ, kvctx, errCode);
+    commitCallback(txnCtx, pendingReqsQ, kvctx, errCode);
 
     pendingReqsQ.clear();
 
@@ -2854,7 +2854,6 @@ bool CouchKVStore::commit(VB::Commit& commitData) {
         updateCachedVBState(vbid, commitData.proposedVBState);
 
         inTransaction = false;
-        transactionCtx.reset();
     } else {
         logger.warn(
                 "CouchKVStore::commit: saveDocs error:{}, "
@@ -3116,7 +3115,8 @@ couchstore_error_t CouchKVStore::saveDocs(Vbid vbid,
     return errCode;
 }
 
-void CouchKVStore::commitCallback(PendingRequestQueue& committedReqs,
+void CouchKVStore::commitCallback(TransactionContext& txnCtx,
+                                  PendingRequestQueue& committedReqs,
                                   kvstats_ctx& kvctx,
                                   couchstore_error_t errCode) {
     const auto flushSuccess = (errCode == COUCHSTORE_SUCCESS);
@@ -3142,7 +3142,7 @@ void CouchKVStore::commitCallback(PendingRequestQueue& committedReqs,
                 ++st.numDelFailure;
             }
 
-            transactionCtx->deleteCallback(committed.getItem(), state);
+            txnCtx.deleteCallback(committed.getItem(), state);
         } else {
             FlushStateMutation state;
             if (flushSuccess) {
@@ -3160,7 +3160,7 @@ void CouchKVStore::commitCallback(PendingRequestQueue& committedReqs,
                 ++st.numSetFailure;
             }
 
-            transactionCtx->setCallback(committed.getItem(), state);
+            txnCtx.setCallback(committed.getItem(), state);
         }
     }
 }

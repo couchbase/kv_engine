@@ -32,12 +32,14 @@ public:
         return MagmaKVStore::readVBStateFromDisk(vbid, snapshot);
     }
 
-    int saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) override {
+    int saveDocs(TransactionContext& txnCtx,
+                 VB::Commit& commitData,
+                 kvstats_ctx& kvctx) override {
         if (saveDocsErrorInjector) {
             return saveDocsErrorInjector(commitData, kvctx);
         }
 
-        return MagmaKVStore::saveDocs(commitData, kvctx);
+        return MagmaKVStore::saveDocs(txnCtx, commitData, kvctx);
     }
 
     magma::Status addLocalDoc(Vbid vbid,

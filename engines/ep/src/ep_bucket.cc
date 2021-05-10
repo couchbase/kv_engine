@@ -410,8 +410,8 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
     std::optional<snapshot_range_t> range;
     KVStore* rwUnderlying = getRWUnderlying(vb->getId());
 
-    while (!rwUnderlying->begin(
-            std::make_unique<EPTransactionContext>(stats, *vb))) {
+    auto ctx = std::make_unique<EPTransactionContext>(stats, *vb);
+    while (!rwUnderlying->begin(*ctx)) {
         ++stats.beginFailed;
         EP_LOG_WARN_RAW(
                 "Failed to start a transaction!!! "
@@ -609,7 +609,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
                 proposedVBState.mightContainXattrs = true;
             }
 
-            flushOneDelOrSet(item, vb.getVB());
+            flushOneDelOrSet(*ctx, item, vb.getVB());
 
             maxSeqno = std::max(maxSeqno, (uint64_t)item->getBySeqno());
 
@@ -788,7 +788,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
     }
 
     // Persist the flush-batch.
-    if (!commit(vbid, *rwUnderlying, commitData)) {
+    if (!commit(*rwUnderlying, *ctx, commitData)) {
         flushFailureEpilogue(*vb, toFlush);
 
         return {MoreAvailable::Yes, 0, WakeCkptRemover::No};
@@ -908,14 +908,16 @@ size_t EPBucket::getFlusherBatchSplitTrigger() {
     return flusherBatchSplitTrigger;
 }
 
-bool EPBucket::commit(Vbid vbid, KVStore& kvstore, VB::Commit& commitData) {
+bool EPBucket::commit(KVStore& kvstore,
+                      TransactionContext& txnCtx,
+                      VB::Commit& commitData) {
     HdrMicroSecBlockTimer timer(
             &stats.diskCommitHisto, "disk_commit", stats.timingLog);
     const auto commit_start = std::chrono::steady_clock::now();
 
-    const auto res = kvstore.commit(commitData);
+    const auto res = kvstore.commit(txnCtx, commitData);
     if (!res) {
-        EP_LOG_WARN("KVBucket::commit: kvstore.commit failed {}", vbid);
+        EP_LOG_WARN("KVBucket::commit: kvstore.commit failed {}", txnCtx.vbid);
     }
 
     const auto commit_time =
@@ -1110,7 +1112,9 @@ cb::engine_errc EPBucket::cancelCompaction(Vbid vbid) {
     return cb::engine_errc::success;
 }
 
-void EPBucket::flushOneDelOrSet(const queued_item& qi, VBucketPtr& vb) {
+void EPBucket::flushOneDelOrSet(TransactionContext& txnCtx,
+                                const queued_item& qi,
+                                VBucketPtr& vb) {
     if (!vb) {
         --stats.diskQueueSize;
         return;
@@ -1136,17 +1140,17 @@ void EPBucket::flushOneDelOrSet(const queued_item& qi, VBucketPtr& vb) {
                 bySeqno == -1 ? "disk_insert" : "disk_update",
                 stats.timingLog);
         if (qi->isSystemEvent()) {
-            rwUnderlying->setSystemEvent(qi);
+            rwUnderlying->setSystemEvent(txnCtx, qi);
         } else {
-            rwUnderlying->set(qi);
+            rwUnderlying->set(txnCtx, qi);
         }
     } else {
         HdrMicroSecBlockTimer timer(
                 &stats.diskDelHisto, "disk_delete", stats.timingLog);
         if (qi->isSystemEvent()) {
-            rwUnderlying->delSystemEvent(qi);
+            rwUnderlying->delSystemEvent(txnCtx, qi);
         } else {
-            rwUnderlying->del(qi);
+            rwUnderlying->del(txnCtx, qi);
         }
     }
 }

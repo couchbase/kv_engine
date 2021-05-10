@@ -217,7 +217,7 @@ public:
      *
      * Returns false if the commit fails.
      */
-    bool commit(VB::Commit& commitData) override;
+    bool commit(TransactionContext& txnCtx, VB::Commit& commitData) override;
 
     /**
      * Rollback a transaction (unless not currently in one).
@@ -242,7 +242,7 @@ public:
     /**
      * Adds a request to a queue for batch processing at commit()
      */
-    void set(queued_item itm) override;
+    void set(TransactionContext& ctx, queued_item itm) override;
 
     GetValue get(const DiskDocKey& key,
                  Vbid vb,
@@ -262,7 +262,7 @@ public:
                   ValueFilter filter,
                   const GetRangeCb& cb) const override;
 
-    void del(queued_item itm) override;
+    void del(TransactionContext& txnCtx, queued_item itm) override;
 
     void delVBucket(Vbid vbucket, uint64_t kvstoreRev) override;
 
@@ -722,9 +722,11 @@ protected:
                           const magma::Slice& valueSlice,
                           ValueFilter filter) const;
 
-    virtual int saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx);
+    virtual int saveDocs(TransactionContext& txnCtx, VB::Commit& commitData, kvstats_ctx& kvctx);
 
-    void commitCallback(int status, kvstats_ctx& kvctx);
+    void commitCallback(TransactionContext& txnCtx,
+                        int status,
+                        kvstats_ctx& kvctx);
 
     static cb::engine_errc magmaErr2EngineErr(magma::Status::Code err,
                                               bool found = true);

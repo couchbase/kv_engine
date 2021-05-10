@@ -131,7 +131,7 @@ public:
      *
      * Returns false if the commit fails.
      */
-    bool commit(VB::Commit& commitData) override;
+    bool commit(TransactionContext& txnCtx, VB::Commit& commitData) override;
 
     /**
      * Rollback a transaction (unless not currently in one).
@@ -160,7 +160,7 @@ public:
     /**
      * Overrides set().
      */
-    void set(queued_item item) override;
+    void set(TransactionContext& txnCtx, queued_item item) override;
 
     GetValue get(const DiskDocKey& key,
                  Vbid vb,
@@ -182,7 +182,7 @@ public:
     /**
      * Overrides del().
      */
-    void del(queued_item item) override;
+    void del(TransactionContext& txnCtx, queued_item item) override;
 
     // This is a blocking call. The function waits until other threads have
     // finished processing on a VBucket DB (e.g., 'commit') before deleting
@@ -471,7 +471,8 @@ private:
                                            rocksdb::WriteBatch& batch,
                                            const RocksRequest& request);
 
-    void commitCallback(rocksdb::Status status,
+    void commitCallback(TransactionContext& txnCtx,
+                        rocksdb::Status status,
                         const PendingRequestQueue& commitBatch);
 
     int64_t readHighSeqnoFromDisk(const VBHandle& db) const;

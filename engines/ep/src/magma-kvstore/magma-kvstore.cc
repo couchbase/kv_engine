@@ -593,7 +593,7 @@ std::string MagmaKVStore::getVBDBSubdir(Vbid vbid) {
     return magmaPath + std::to_string(vbid.get());
 }
 
-bool MagmaKVStore::commit(VB::Commit& commitData) {
+bool MagmaKVStore::commit(TransactionContext& txnCtx, VB::Commit& commitData) {
     // This behaviour is to replicate the one in Couchstore.
     // If `commit` is called when not in transaction, just return true.
     if (!inTransaction) {
@@ -610,7 +610,7 @@ bool MagmaKVStore::commit(VB::Commit& commitData) {
     bool success = true;
 
     // Flush all documents to disk
-    auto errCode = saveDocs(commitData, kvctx);
+    auto errCode = saveDocs(txnCtx, commitData, kvctx);
     if (errCode != static_cast<int>(cb::engine_errc::success)) {
         logger->warn("MagmaKVStore::commit: saveDocs {} errCode:{}",
                      pendingReqs->front().getVbID(),
@@ -620,14 +620,13 @@ bool MagmaKVStore::commit(VB::Commit& commitData) {
 
     postFlushHook();
 
-    commitCallback(errCode, kvctx);
+    commitCallback(txnCtx, errCode, kvctx);
 
     // This behaviour is to replicate the one in Couchstore.
     // Set `in_transanction = false` only if `commit` is successful.
     if (success) {
-        updateCachedVBState(transactionCtx->vbid, commitData.proposedVBState);
+        updateCachedVBState(txnCtx.vbid, commitData.proposedVBState);
         inTransaction = false;
-        transactionCtx.reset();
     }
 
     pendingReqs->clear();
@@ -636,7 +635,9 @@ bool MagmaKVStore::commit(VB::Commit& commitData) {
     return success;
 }
 
-void MagmaKVStore::commitCallback(int errCode, kvstats_ctx&) {
+void MagmaKVStore::commitCallback(TransactionContext& txnCtx,
+                                  int errCode,
+                                  kvstats_ctx&) {
     const auto flushSuccess = (errCode == Status::Code::Ok);
     for (const auto& req : *pendingReqs) {
         size_t mutationSize =
@@ -671,7 +672,7 @@ void MagmaKVStore::commitCallback(int errCode, kvstats_ctx&) {
                         to_string(state));
             }
 
-            transactionCtx->deleteCallback(req.getItem(), state);
+            txnCtx.deleteCallback(req.getItem(), state);
         } else {
             FlushStateMutation state;
             if (flushSuccess) {
@@ -700,7 +701,7 @@ void MagmaKVStore::commitCallback(int errCode, kvstats_ctx&) {
                         to_string(state));
             }
 
-            transactionCtx->setCallback(req.getItem(), state);
+            txnCtx.setCallback(req.getItem(), state);
         }
     }
 }
@@ -708,7 +709,6 @@ void MagmaKVStore::commitCallback(int errCode, kvstats_ctx&) {
 void MagmaKVStore::rollback() {
     if (inTransaction) {
         inTransaction = false;
-        transactionCtx.reset();
     }
 }
 
@@ -742,7 +742,7 @@ std::vector<vbucket_state*> MagmaKVStore::listPersistedVbuckets() {
     return result;
 }
 
-void MagmaKVStore::set(queued_item item) {
+void MagmaKVStore::set(TransactionContext& txnCtx, queued_item item) {
     if (!inTransaction) {
         throw std::logic_error(
                 "MagmaKVStore::set: inTransaction must be true to perform a "
@@ -944,7 +944,7 @@ void MagmaKVStore::getRange(Vbid vbid,
     }
 }
 
-void MagmaKVStore::del(queued_item item) {
+void MagmaKVStore::del(TransactionContext& txnCtx, queued_item item) {
     if (!inTransaction) {
         throw std::logic_error(
                 "MagmaKVStore::del: inTransaction must be true to perform a "
@@ -1084,10 +1084,12 @@ GetValue MagmaKVStore::makeGetValue(Vbid vb,
                     false);
 }
 
-int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
+int MagmaKVStore::saveDocs(TransactionContext& txnCtx, VB::Commit& commitData,
+                           kvstats_ctx& kvctx) {
     uint64_t ninserts = 0;
     uint64_t ndeletes = 0;
-    auto vbid = transactionCtx->vbid;
+
+    auto vbid = txnCtx.vbid;
 
     auto writeDocsCB = [this, &commitData, &kvctx, &ninserts, &ndeletes, vbid](
                                const Magma::WriteOperation& op,

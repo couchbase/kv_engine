@@ -546,7 +546,8 @@ std::string RocksDBKVStore::getDBSubdir() {
            std::to_string(configuration.getShardId());
 }
 
-bool RocksDBKVStore::commit(VB::Commit& commitData) {
+bool RocksDBKVStore::commit(TransactionContext& txnCtx,
+                            VB::Commit& commitData) {
     // This behaviour is to replicate the one in Couchstore.
     // If `commit` is called when not in transaction, just return true.
     if (!inTransaction) {
@@ -567,7 +568,7 @@ bool RocksDBKVStore::commit(VB::Commit& commitData) {
     }
 
     bool success = true;
-    auto vbid = transactionCtx->vbid;
+    auto vbid = txnCtx.vbid;
 
     // Flush all documents to disk
     auto status = saveDocs(vbid, commitData, commitBatch);
@@ -582,20 +583,20 @@ bool RocksDBKVStore::commit(VB::Commit& commitData) {
 
     postFlushHook();
 
-    commitCallback(status, commitBatch);
+    commitCallback(txnCtx, status, commitBatch);
 
     // This behaviour is to replicate the one in Couchstore.
     // Set `in_transanction = false` only if `commit` is successful.
     if (success) {
         updateCachedVBState(vbid, commitData.proposedVBState);
         inTransaction = false;
-        transactionCtx.reset();
     }
 
     return success;
 }
 
-void RocksDBKVStore::commitCallback(rocksdb::Status status,
+void RocksDBKVStore::commitCallback(TransactionContext& txnCtx,
+                                    rocksdb::Status status,
                                     const PendingRequestQueue& commitBatch) {
     const auto flushSuccess = (status.code() == rocksdb::Status::Code::kOk);
     for (const auto& request : commitBatch) {
@@ -620,7 +621,7 @@ void RocksDBKVStore::commitCallback(rocksdb::Status status,
                 state = FlushStateDeletion::Failed;
                 ++st.numDelFailure;
             }
-            transactionCtx->deleteCallback(request.getItem(), state);
+            txnCtx.deleteCallback(request.getItem(), state);
         } else {
             FlushStateMutation state;
             if (flushSuccess) {
@@ -636,7 +637,7 @@ void RocksDBKVStore::commitCallback(rocksdb::Status status,
                 state = FlushStateMutation::Failed;
                 ++st.numSetFailure;
             }
-            transactionCtx->setCallback(request.getItem(), state);
+            txnCtx.setCallback(request.getItem(), state);
         }
     }
 }
@@ -659,7 +660,6 @@ size_t RocksDBKVStore::getItemCount(Vbid vbid) {
 void RocksDBKVStore::rollback() {
     if (inTransaction) {
         inTransaction = false;
-        transactionCtx.reset();
     }
 }
 
@@ -671,7 +671,7 @@ std::vector<vbucket_state*> RocksDBKVStore::listPersistedVbuckets() {
     return result;
 }
 
-void RocksDBKVStore::set(queued_item item) {
+void RocksDBKVStore::set(TransactionContext& txnCtx, queued_item item) {
     if (!inTransaction) {
         throw std::logic_error(
                 "RocksDBKVStore::set: inTransaction must be true to perform a "
@@ -768,7 +768,7 @@ void RocksDBKVStore::getRange(Vbid vb,
     Expects(it->status().ok());
 }
 
-void RocksDBKVStore::del(queued_item item) {
+void RocksDBKVStore::del(TransactionContext& txnCtx, queued_item item) {
     if (!item->isDeleted()) {
         throw std::invalid_argument(
                 "RocksDBKVStore::del item to delete is not marked as deleted.");
@@ -1350,7 +1350,7 @@ rocksdb::Status RocksDBKVStore::addRequestToWriteBatch(
         const VBHandle& vbh,
         rocksdb::WriteBatch& batch,
         const RocksRequest& request) {
-    Vbid vbid = transactionCtx->vbid;
+    Vbid vbid = vbh.vbid;
 
     rocksdb::Slice keySlice = getKeySlice(request.getKey());
     rocksdb::SliceParts keySliceParts(&keySlice, 1);

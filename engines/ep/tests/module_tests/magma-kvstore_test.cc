@@ -71,14 +71,15 @@ TEST_F(MagmaKVStoreRollbackTest, Rollback) {
     uint64_t seqno = 1;
 
     for (int i = 0; i < 2; i++) {
-        kvstore->begin(std::make_unique<TransactionContext>(vbid));
+        auto ctx = std::make_unique<TransactionContext>(vbid);
+        kvstore->begin(*ctx);
         for (int j = 0; j < 5; j++) {
             auto key = makeStoredDocKey("key" + std::to_string(seqno));
             auto qi = makeCommittedItem(key, "value");
             qi->setBySeqno(seqno++);
-            kvstore->set(qi);
+            kvstore->set(*ctx, qi);
         }
-        kvstore->commit(flush);
+        kvstore->commit(*ctx, flush);
     }
 
     auto rv = kvstore->get(makeDiskDocKey("key5"), Vbid(0));
@@ -113,14 +114,15 @@ TEST_F(MagmaKVStoreRollbackTest, RollbackNoValidCheckpoint) {
     // Create maxCheckpoints+2 checkpoints
     // Magma may internally retain +1 additional checkpoint for crash recovery
     for (int i = 0; i < int(maxCheckpoints) + 2; i++) {
-        kvstore->begin(std::make_unique<TransactionContext>(vbid));
+        auto ctx = std::make_unique<TransactionContext>(vbid);
+        kvstore->begin(*ctx);
         for (int j = 0; j < 5; j++) {
             auto key = makeStoredDocKey("key" + std::to_string(seqno));
             auto qi = makeCommittedItem(key, "value");
             qi->setBySeqno(seqno++);
-            kvstore->set(qi);
+            kvstore->set(*ctx, qi);
         }
-        kvstore->commit(flush);
+        kvstore->commit(*ctx, flush);
     }
 
     auto rollbackResult =
@@ -242,11 +244,12 @@ TEST_F(MagmaKVStoreTest, setMaxDataSize) {
     uint64_t seqno{1};
 
     // Magma's memory quota is recalculated on each commit batch.
-    kvstore->begin(std::make_unique<TransactionContext>(Vbid{0}));
+    auto ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
     auto qi = makeCommittedItem(makeStoredDocKey("key"), "value");
     qi->setBySeqno(seqno++);
-    kvstore->set(qi);
-    kvstore->commit(flush);
+    kvstore->set(*ctx, qi);
+    kvstore->commit(*ctx, flush);
 
     size_t memQuota;
     ASSERT_TRUE(kvstore->getStat("memory_quota", memQuota));
@@ -256,10 +259,11 @@ TEST_F(MagmaKVStoreTest, setMaxDataSize) {
     kvstore->setMaxDataSize(memQuota / 10);
 
     // Magma's memory quota is recalculated on each commit batch.
-    kvstore->begin(std::make_unique<TransactionContext>(Vbid{0}));
+    ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
     qi->setBySeqno(seqno++);
-    kvstore->set(qi);
-    kvstore->commit(flush);
+    kvstore->set(*ctx, qi);
+    kvstore->commit(*ctx, flush);
 
     size_t memQuotaAfter;
     ASSERT_TRUE(kvstore->getStat("memory_quota", memQuotaAfter));
@@ -271,27 +275,22 @@ TEST_F(MagmaKVStoreTest, setMaxDataSize) {
 }
 
 TEST_F(MagmaKVStoreTest, badSetRequest) {
-    // Grab a pointer to our MockTransactionContext so that we can establish
-    // expectations on it throughout the test. We consume our unique_ptr to it
-    // in KVStore::begin but our raw pointer will remain.
-    std::unique_ptr<TransactionContext> tc =
+    std::unique_ptr<MockTransactionContext> tc =
             std::make_unique<MockTransactionContext>(Vbid(0));
-    auto* mockTC = dynamic_cast<MockTransactionContext*>(tc.get());
-
-    kvstore->begin(std::move(tc));
+    kvstore->begin(*tc);
     auto key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "value");
     qi->setBySeqno(1);
-    kvstore->set(qi);
+    kvstore->set(*tc, qi);
 
     kvstore->saveDocsErrorInjector = [](VB::Commit& cmt,
                                         kvstats_ctx& ctx) -> int {
         return magma::Status::IOError;
     };
 
-    EXPECT_CALL(*mockTC, setCallback(_, KVStore::FlushStateMutation::Failed))
+    EXPECT_CALL(*tc, setCallback(_, KVStore::FlushStateMutation::Failed))
             .Times(1);
-    EXPECT_FALSE(kvstore->commit(flush));
+    EXPECT_FALSE(kvstore->commit(*tc, flush));
 }
 
 TEST_F(MagmaKVStoreTest, badDelRequest) {
@@ -302,12 +301,12 @@ TEST_F(MagmaKVStoreTest, badDelRequest) {
             std::make_unique<MockTransactionContext>(Vbid(0));
     auto* mockTC = dynamic_cast<MockTransactionContext*>(tc.get());
 
-    kvstore->begin(std::move(tc));
+    kvstore->begin(*tc);
     auto key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "value");
     qi->setBySeqno(1);
     qi->setDeleted(DeleteSource::Explicit);
-    kvstore->set(qi);
+    kvstore->set(*tc, qi);
 
     kvstore->saveDocsErrorInjector = [](VB::Commit& cmt,
                                         kvstats_ctx& ctx) -> int {
@@ -316,7 +315,7 @@ TEST_F(MagmaKVStoreTest, badDelRequest) {
 
     EXPECT_CALL(*mockTC, deleteCallback(_, KVStore::FlushStateDeletion::Failed))
             .Times(1);
-    EXPECT_FALSE(kvstore->commit(flush));
+    EXPECT_FALSE(kvstore->commit(*tc, flush));
 }
 
 TEST_F(MagmaKVStoreTest, initializeWithHeaderButNoVBState) {

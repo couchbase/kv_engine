@@ -137,17 +137,18 @@ public:
 
 // Rocks doesn't support returning compressed values.
 TEST_P(KVStoreParamTestSkipRocks, CompressedTest) {
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    auto ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
 
     for (int i = 1; i <= 5; i++) {
         std::string key("key" + std::to_string(i));
         auto qi = makeCommittedItem(makeStoredDocKey(key), COMPRESSIBLE_VALUE);
         qi->setBySeqno(5);
-        kvstore->set(qi);
+        kvstore->set(*ctx, qi);
     }
     // Ensure a valid vbstate is committed
     flush.proposedVBState.lastSnapEnd = 5;
-    kvstore->commit(flush);
+    kvstore->commit(*ctx, flush);
 
     auto scanCtx = kvstore->initBySeqnoScanContext(
             std::make_unique<GetCallback>(true /*expectcompressed*/),
@@ -182,15 +183,16 @@ MATCHER(IsValueValid,
 // Check that when deleted docs with no value are fetched from disk, they
 // do not have snappy bit set (zero length should not be compressed).
 TEST_P(KVStoreParamTestSkipRocks, ZeroSizeValueNotCompressed) {
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    auto ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
 
     auto qi = makeDeletedItem(makeStoredDocKey("key"));
     qi->setBySeqno(1);
-    kvstore->del(qi);
+    kvstore->del(*ctx, qi);
 
     // Ensure a valid vbstate is committed
     flush.proposedVBState.lastSnapEnd = 1;
-    kvstore->commit(flush);
+    kvstore->commit(*ctx, flush);
 
     auto mockGetCb = std::make_unique<MockGetValueCallback>();
     EXPECT_CALL(
@@ -302,13 +304,14 @@ public:
 
 // Test basic set / get of a document
 TEST_P(KVStoreParamTest, BasicTest) {
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    auto ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
     StoredDocKey key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "value");
     qi->setBySeqno(1);
-    kvstore->set(qi);
+    kvstore->set(*ctx, qi);
 
-    EXPECT_TRUE(kvstore->commit(flush));
+    EXPECT_TRUE(kvstore->commit(*ctx, flush));
 
     GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
     checkGetValue(gv, cb::engine_errc::success);
@@ -316,13 +319,14 @@ TEST_P(KVStoreParamTest, BasicTest) {
 
 // Test different modes of get()
 TEST_P(KVStoreParamTest, GetModes) {
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    auto ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
     StoredDocKey key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "value");
     qi->setBySeqno(1);
-    kvstore->set(qi);
+    kvstore->set(*ctx, qi);
 
-    EXPECT_TRUE(kvstore->commit(flush));
+    EXPECT_TRUE(kvstore->commit(*ctx, flush));
 
     auto gv = kvstore->get(
             DiskDocKey{key}, Vbid(0), ValueFilter::VALUES_COMPRESSED);
@@ -389,18 +393,19 @@ TEST_P(KVStoreParamTest, GetRangeMissNumGetFailure) {
 }
 
 TEST_P(KVStoreParamTest, SaveDocsHisto) {
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    auto ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
     StoredDocKey key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "value");
     qi->setBySeqno(1);
-    kvstore->set(qi);
+    kvstore->set(*ctx, qi);
 
     StoredDocKey key1 = makeStoredDocKey("key1");
     auto qi1 = makeCommittedItem(key, "value");
     qi1->setBySeqno(2);
-    kvstore->set(qi1);
+    kvstore->set(*ctx, qi1);
 
-    EXPECT_TRUE(kvstore->commit(flush));
+    EXPECT_TRUE(kvstore->commit(*ctx, flush));
 
     auto& stats = kvstore->getKVStoreStat();
 
@@ -414,18 +419,19 @@ TEST_P(KVStoreParamTest, SaveDocsHisto) {
 }
 
 TEST_P(KVStoreParamTest, BatchSizeHisto) {
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    auto ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
     StoredDocKey key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "value");
     qi->setBySeqno(1);
-    kvstore->set(qi);
+    kvstore->set(*ctx, qi);
 
     StoredDocKey key1 = makeStoredDocKey("key1");
     auto qi1 = makeCommittedItem(key, "value");
     qi1->setBySeqno(2);
-    kvstore->set(qi1);
+    kvstore->set(*ctx, qi1);
 
-    EXPECT_TRUE(kvstore->commit(flush));
+    EXPECT_TRUE(kvstore->commit(*ctx, flush));
 
     auto& stats = kvstore->getKVStoreStat();
 
@@ -434,20 +440,22 @@ TEST_P(KVStoreParamTest, BatchSizeHisto) {
 }
 
 TEST_P(KVStoreParamTest, DocsCommittedStat) {
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    auto ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
     StoredDocKey key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "value");
     qi->setBySeqno(1);
-    kvstore->set(qi);
+    kvstore->set(*ctx, qi);
 
-    EXPECT_TRUE(kvstore->commit(flush));
+    EXPECT_TRUE(kvstore->commit(*ctx, flush));
 
     auto& stats = kvstore->getKVStoreStat();
     EXPECT_EQ(1, stats.docsCommitted);
 }
 
 void KVStoreParamTest::testBgFetchDocsReadGet(bool deleted) {
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    auto ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
     StoredDocKey key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "value");
     qi->setBySeqno(1);
@@ -456,9 +464,9 @@ void KVStoreParamTest::testBgFetchDocsReadGet(bool deleted) {
         qi->setDeleted();
     }
 
-    kvstore->set(qi);
+    kvstore->set(*ctx, qi);
 
-    EXPECT_TRUE(kvstore->commit(flush));
+    EXPECT_TRUE(kvstore->commit(*ctx, flush));
 
     GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
     checkGetValue(gv);
@@ -612,7 +620,8 @@ TEST_P(KVStoreParamTest,
 }
 
 queued_item KVStoreParamTest::storeDocument(bool deleted) {
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    auto ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
     StoredDocKey key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "valuevaluevaluevaluevalue");
     qi->setBySeqno(1);
@@ -621,9 +630,9 @@ queued_item KVStoreParamTest::storeDocument(bool deleted) {
         qi->setDeleted();
     }
 
-    kvstore->set(qi);
+    kvstore->set(*ctx, qi);
 
-    EXPECT_TRUE(kvstore->commit(flush));
+    EXPECT_TRUE(kvstore->commit(*ctx, flush));
     return qi;
 }
 
@@ -636,7 +645,7 @@ TEST_P(KVStoreParamTest, TestPersistenceCallbacksForSet) {
     auto mutationStatus = KVStore::FlushStateMutation::Insert;
     auto* mockTC = dynamic_cast<MockTransactionContext*>(tc.get());
 
-    kvstore->begin(std::move(tc));
+    kvstore->begin(*tc);
 
     // Expect that the SET callback will not be called just after `set`
     EXPECT_CALL(*mockTC, setCallback(_, mutationStatus)).Times(0);
@@ -644,12 +653,12 @@ TEST_P(KVStoreParamTest, TestPersistenceCallbacksForSet) {
     auto key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "value");
     qi->setBySeqno(1);
-    kvstore->set(qi);
+    kvstore->set(*tc, qi);
 
     // Expect that the SET callback will be called once after `commit`
     EXPECT_CALL(*mockTC, setCallback(_, mutationStatus)).Times(1);
 
-    EXPECT_TRUE(kvstore->commit(flush));
+    EXPECT_TRUE(kvstore->commit(*tc, flush));
 }
 
 // This test does not work under RocksDB because we assume that every
@@ -659,9 +668,11 @@ TEST_P(KVStoreParamTestSkipRocks, TestPersistenceCallbacksForDel) {
     auto key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "value");
     qi->setBySeqno(1);
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
-    kvstore->set(qi);
-    kvstore->commit(flush);
+
+    auto ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
+    kvstore->set(*ctx, qi);
+    kvstore->commit(*ctx, flush);
 
     // Grab a pointer to our MockTransactionContext so that we can establish
     // expectations on it throughout the test. We consume our unique_ptr to it
@@ -670,19 +681,19 @@ TEST_P(KVStoreParamTestSkipRocks, TestPersistenceCallbacksForDel) {
             std::make_unique<MockTransactionContext>(Vbid(0));
     auto* mockTC = dynamic_cast<MockTransactionContext*>(tc.get());
 
-    kvstore->begin(std::move(tc));
+    kvstore->begin(*tc);
     // Expect that the DEL callback will not be called just after `del`
     auto status = KVStore::FlushStateDeletion::Delete;
     EXPECT_CALL(*mockTC, deleteCallback(_, status)).Times(0);
 
     qi->setDeleted();
     qi->setBySeqno(2);
-    kvstore->del(qi);
+    kvstore->del(*tc, qi);
 
     // Expect that the DEL callback will be called once after `commit`
     EXPECT_CALL(*mockTC, deleteCallback(_, status)).Times(1);
 
-    EXPECT_TRUE(kvstore->commit(flush));
+    EXPECT_TRUE(kvstore->commit(*tc, flush));
 }
 
 TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
@@ -698,12 +709,13 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
 
     // Store an item into each VBucket
     for (auto vbid : vbids) {
-        kvstore->begin(std::make_unique<TransactionContext>(vbid));
+        auto ctx = std::make_unique<TransactionContext>(vbid);
+        kvstore->begin(*ctx);
         auto key = makeStoredDocKey("key-" + std::to_string(vbid.get()));
         auto qi = makeCommittedItem(key, value);
         qi->setBySeqno(seqno++);
-        kvstore->set(qi);
-        kvstore->commit(flush);
+        kvstore->set(*ctx, qi);
+        kvstore->commit(*ctx, flush);
     }
 
     // Check that each item has been stored in the right VBucket
@@ -722,18 +734,19 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
 
 /// Verify that deleting a vBucket while a Scan is open is handled correctly.
 TEST_P(KVStoreParamTest, DelVBucketWhileScanning) {
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    auto ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
 
     // Store some documents.
     for (int i = 1; i <= 5; i++) {
         std::string key("key" + std::to_string(i));
         auto qi = makeCommittedItem(makeStoredDocKey(key), COMPRESSIBLE_VALUE);
         qi->setBySeqno(i);
-        kvstore->set(qi);
+        kvstore->set(*ctx, qi);
     }
     // Ensure a valid vbstate is committed
     flush.proposedVBState.lastSnapEnd = 5;
-    ASSERT_TRUE(kvstore->commit(flush));
+    ASSERT_TRUE(kvstore->commit(*ctx, flush));
 
     // Setup the mock GetValue callback. We want to perform the scan in two
     // parts, to allow us to delete the vBucket while the scan is in progress.
@@ -801,11 +814,12 @@ TEST_P(KVStoreParamTestSkipRocks, DelVBucketConcurrentOperationsTest) {
     auto set = [&] {
         int64_t seqno = 1;
         while (!stop.load()) {
-            kvstore->begin(std::make_unique<TransactionContext>(vbid));
+            auto ctx = std::make_unique<TransactionContext>(vbid);
+            kvstore->begin(*ctx);
             auto qi = makeCommittedItem(makeStoredDocKey("key"), "value");
             qi->setBySeqno(seqno++);
-            kvstore->set(qi);
-            auto ok = kvstore->commit(flush);
+            kvstore->set(*ctx, qi);
+            auto ok = kvstore->commit(*ctx, flush);
 
             // Everytime we get a successful commit, that
             // means we have a vbucket we can drop.
@@ -875,14 +889,15 @@ TEST_P(KVStoreParamTestSkipRocks, DelVBucketConcurrentOperationsTest) {
 // the current view of the fileMap causing scan to fail.
 TEST_P(KVStoreParamTest, CompactAndScan) {
     for (int i = 1; i < 10; i++) {
-        kvstore->begin(std::make_unique<TransactionContext>(vbid));
+        auto ctx = std::make_unique<TransactionContext>(vbid);
+        kvstore->begin(*ctx);
         auto key = makeStoredDocKey(std::string(i, 'k'));
         auto qi = makeCommittedItem(key, "value");
         qi->setBySeqno(i);
-        kvstore->set(qi);
+        kvstore->set(*ctx, qi);
         // Ensure a valid vbstate is committed
         flush.proposedVBState.lastSnapEnd = i;
-        kvstore->commit(flush);
+        kvstore->commit(*ctx, flush);
     }
 
     ThreadGate tg(3);
@@ -936,15 +951,16 @@ TEST_P(KVStoreParamTest, HighSeqnoCorrectlyStoredForCommitBatch) {
     // Upsert an item 10 times in a single transaction (we want to test that
     // the VBucket state is updated with the highest seqno found in a commit
     // batch)
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    auto ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
     for (int i = 1; i <= 10; i++) {
         auto qi = makeCommittedItem(key, value);
         qi->setBySeqno(i);
-        kvstore->set(qi);
+        kvstore->set(*ctx, qi);
     }
     // Ensure a valid vbstate is committed
     flush.proposedVBState.lastSnapEnd = 10;
-    kvstore->commit(flush);
+    kvstore->commit(*ctx, flush);
 
     GetValue gv = kvstore->get(DiskDocKey{key}, vbid);
     checkGetValue(gv);
@@ -953,15 +969,16 @@ TEST_P(KVStoreParamTest, HighSeqnoCorrectlyStoredForCommitBatch) {
 
 void KVStoreParamTest::testGetRange(ValueFilter filter) {
     // Setup: store 5 keys, a, b, c, d, e (with matching values)
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    auto ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
     int64_t seqno = 1;
     for (char k = 'a'; k < 'f'; k++) {
         auto item = makeCommittedItem(makeStoredDocKey({k}),
                                       "value_"s + std::string{k});
         item->setBySeqno(seqno++);
-        kvstore->set(item);
+        kvstore->set(*ctx, item);
     }
-    kvstore->commit(flush);
+    kvstore->commit(*ctx, flush);
 
     // Test: Ask for keys in the range [b,d]. Should return b & c.
     std::vector<GetValue> results;
@@ -1016,25 +1033,27 @@ TEST_P(KVStoreParamTest, GetRangeKeys) {
 TEST_P(KVStoreParamTest, GetRangeDeleted) {
     // Setup: 1) store 8 keys, a, b, c, d, e, f, g (with matching values)
     //        2) delete 3 of them (b, d, f)
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    auto ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
     int64_t seqno = 1;
     for (char k = 'a'; k < 'h'; k++) {
         auto item = makeCommittedItem(makeStoredDocKey({k}),
                                       "value_"s + std::string{k});
         item->setBySeqno(seqno++);
-        kvstore->set(item);
+        kvstore->set(*ctx, item);
     }
-    kvstore->commit(flush);
+    kvstore->commit(*ctx, flush);
 
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
     for (char k = 'b'; k < 'g'; k += 2) {
         auto item = makeCommittedItem(makeStoredDocKey({k}),
                                       "value_"s + std::string{k});
         item->setDeleted(DeleteSource::Explicit);
         item->setBySeqno(seqno++);
-        kvstore->del(item);
+        kvstore->del(*ctx, item);
     }
-    kvstore->commit(flush);
+    kvstore->commit(*ctx, flush);
 
     // Test: Ask for keys in the range [b,f]. Should return c and e.
     std::vector<GetValue> results;
@@ -1056,9 +1075,10 @@ TEST_P(KVStoreParamTest, Durability_PersistPrepare) {
     auto qi = makePendingItem(key, "value");
     qi->setBySeqno(1);
 
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
-    kvstore->set(qi);
-    kvstore->commit(flush);
+    auto ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
+    kvstore->set(*ctx, qi);
+    kvstore->commit(*ctx, flush);
 
     GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
     EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
@@ -1077,9 +1097,10 @@ TEST_P(KVStoreParamTest, Durability_PersistAbort) {
     qi->setPrepareSeqno(999);
     qi->setBySeqno(1);
 
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
-    kvstore->del(qi);
-    kvstore->commit(flush);
+    auto ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
+    kvstore->del(*ctx, qi);
+    kvstore->commit(*ctx, flush);
 
     GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
     EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
@@ -1117,14 +1138,15 @@ TEST_P(KVStoreParamTest, GetItemCount) {
     ASSERT_EQ(0, kvstore->getItemCount(vbid));
 
     // Setup: store 3 keys, a, b, c
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    auto ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
     int64_t seqno = 1;
     for (char k = 'a'; k <= 'c'; k++) {
         auto item = makeCommittedItem(makeStoredDocKey({k}), "value");
         item->setBySeqno(seqno++);
-        kvstore->set(item);
+        kvstore->set(*ctx, item);
     }
-    kvstore->commit(flush);
+    kvstore->commit(*ctx, flush);
 
     EXPECT_EQ(3, kvstore->getItemCount(vbid));
 }
@@ -1136,16 +1158,17 @@ TEST_P(KVStoreParamTest, GetItemCountInvalidVBucket) {
 }
 
 TEST_P(KVStoreParamTestSkipRocks, GetAllKeysSanity) {
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    auto ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
     int keys = 20;
     for (int i = 0; i < keys; i++) {
         std::string key("key" + std::to_string(i));
         auto qi = makeCommittedItem(makeStoredDocKey(key), "value");
         qi->setBySeqno(5);
-        kvstore->set(qi);
+        kvstore->set(*ctx, qi);
     }
 
-    kvstore->commit(flush);
+    kvstore->commit(*ctx, flush);
     auto cb(std::make_shared<CustomCallback<const DiskDocKey&>>());
     DiskDocKey start(nullptr, 0);
     kvstore->getAllKeys(Vbid(0), start, 20, cb);
@@ -1165,12 +1188,13 @@ TEST_P(KVStoreParamTestSkipRocks, GetCollectionStatsNoStats) {
 
 TEST_P(KVStoreParamTestSkipRocks, GetCollectionStats) {
     CollectionID cid;
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    auto ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
     int64_t seqno = 1;
     auto item = makeCommittedItem(makeStoredDocKey("mykey", cid), "value");
     item->setBySeqno(seqno++);
-    kvstore->set(item);
-    kvstore->commit(flush);
+    kvstore->set(*ctx, item);
+    kvstore->commit(*ctx, flush);
 
     auto kvHandle = kvstore->makeFileHandle(vbid);
     EXPECT_TRUE(kvHandle);
@@ -1216,12 +1240,13 @@ TEST_P(KVStoreParamTestSkipRocks, GetCollectionStatsFailed) {
     }
 
     CollectionID cid;
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    auto ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
     int64_t seqno = 1;
     auto item = makeCommittedItem(makeStoredDocKey("mykey", cid), "value");
     item->setBySeqno(seqno++);
-    kvstore->set(item);
-    kvstore->commit(flush);
+    kvstore->set(*ctx, item);
+    kvstore->commit(*ctx, flush);
 
     auto kvHandle = kvstore->makeFileHandle(vbid);
     EXPECT_TRUE(kvHandle);
@@ -1273,17 +1298,18 @@ private:
 TEST_P(KVStoreParamTest, reuseSeqIterator) {
     uint64_t seqno = 1;
 
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    auto ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
     for (int j = 0; j < 2; j++) {
         auto key = makeStoredDocKey("key" + std::to_string(j));
         auto qi = makeCommittedItem(key, "value");
         qi->setBySeqno(seqno++);
-        kvstore->set(qi);
+        kvstore->set(*ctx, qi);
     }
     // Need a valid snap end for couchstore
     flush.proposedVBState.lastSnapEnd = seqno - 1;
 
-    kvstore->commit(flush);
+    kvstore->commit(*ctx, flush);
 
     auto cb = std::make_unique<ReuseSnapshotCallback>(1, 2, 2);
     auto cl = std::make_unique<KVStoreTestCacheCallback>(1, 2, vbid);
@@ -1301,14 +1327,15 @@ TEST_P(KVStoreParamTest, reuseSeqIterator) {
     kvstore->scan(*scanCtx);
     ASSERT_EQ(callback->nItems, 1);
 
-    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
     for (int j = 0; j < 2; j++) {
         auto key = makeStoredDocKey("key" + std::to_string(j));
         auto qi = makeCommittedItem(key, "value");
         qi->setBySeqno(seqno++);
-        kvstore->set(qi);
+        kvstore->set(*ctx, qi);
     }
-    kvstore->commit(flush);
+    kvstore->commit(*ctx, flush);
 
     CompactionConfig compactionConfig;
     compactionConfig.purge_before_seq = 0;
@@ -1334,17 +1361,18 @@ TEST_P(KVStoreParamTest, reuseSeqIterator) {
 // currently doesn't set the purge seqno correctly and is hence skipped.
 TEST_P(KVStoreParamTestSkipRocks, purgeSeqnoAfterCompaction) {
     uint64_t seqno = 1;
-    ASSERT_TRUE(kvstore->begin(std::make_unique<TransactionContext>(vbid)));
+    auto ctx = std::make_unique<TransactionContext>(vbid);
+    kvstore->begin(*ctx);
     auto key = makeStoredDocKey("key");
     auto qi = makeCommittedItem(key, "value");
     qi->setBySeqno(seqno++);
     qi->setDeleted();
-    kvstore->del(qi);
+    kvstore->del(*ctx, qi);
     auto key2 = makeStoredDocKey("key2");
     auto qi2 = makeCommittedItem(key2, "value");
     qi2->setBySeqno(seqno++);
-    kvstore->set(qi2);
-    ASSERT_TRUE(kvstore->commit(flush));
+    kvstore->set(*ctx, qi2);
+    ASSERT_TRUE(kvstore->commit(*ctx, flush));
 
     CompactionConfig compactionConfig;
     compactionConfig.drop_deletes = true;

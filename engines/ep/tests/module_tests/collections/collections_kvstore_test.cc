@@ -77,7 +77,9 @@ public:
                 << "getEventsFromCheckpoint: no events in " << vbucket.getId();
     }
 
-    void applyEvents(VB::Commit& commitData, const CollectionsManifest& cm) {
+    void applyEvents(TransactionContext& txnCtx,
+                     VB::Commit& commitData,
+                     const CollectionsManifest& cm) {
         manifest.update(vbucket, makeManifest(cm));
 
         std::vector<queued_item> events;
@@ -86,15 +88,16 @@ public:
         for (auto& ev : events) {
             commitData.collections.recordSystemEvent(*ev);
             if (ev->isDeleted()) {
-                kvstore->delSystemEvent(ev);
+                kvstore->delSystemEvent(txnCtx, ev);
             } else {
-                kvstore->setSystemEvent(ev);
+                kvstore->setSystemEvent(txnCtx, ev);
             }
         }
     }
 
-    void applyEvents(const CollectionsManifest& cm) {
-        applyEvents(flush, cm);
+    void applyEvents(TransactionContext& txnCtx,
+                     const CollectionsManifest& cm) {
+        applyEvents(txnCtx, flush, cm);
     }
 
     void checkUid(const Collections::KVStore::Manifest& md,
@@ -197,9 +200,10 @@ public:
     void applyAndCheck(const CollectionsManifest& cm,
                        std::vector<CollectionID> expectedDropped = {}) {
         VB::Commit commitData(manifest);
-        kvstore->begin(std::make_unique<TransactionContext>(vbucket.getId()));
-        applyEvents(commitData, cm);
-        kvstore->commit(commitData);
+        auto ctx = std::make_unique<TransactionContext>(vbucket.getId());
+        kvstore->begin(*ctx);
+        applyEvents(*ctx, commitData, cm);
+        kvstore->commit(*ctx, commitData);
         auto [status, md] = kvstore->getCollectionsManifest(Vbid(0));
         EXPECT_TRUE(status);
         checkUid(md, cm);
@@ -370,19 +374,21 @@ void CollectionsKVStoreTest::failForDuplicate() {
 
     // Drive the KVStore so that we flush the same collection twice with no
     // drop, this would attempt to create it twice in the metadata
-    kvstore->begin(std::make_unique<TransactionContext>(vbucket.getId()));
+    auto ctx = std::make_unique<TransactionContext>(vbucket.getId());
+    kvstore->begin(*ctx);
     flush.collections.recordSystemEvent(*event);
     EXPECT_FALSE(event->isDeleted());
-    kvstore->setSystemEvent(event);
-    kvstore->commit(flush);
+    kvstore->setSystemEvent(*ctx, event);
+    kvstore->commit(*ctx, flush);
 
-    kvstore->begin(std::make_unique<TransactionContext>(vbucket.getId()));
+    ctx = std::make_unique<TransactionContext>(vbucket.getId());
+    kvstore->begin(*ctx);
     event->setBySeqno(event->getBySeqno() + 1);
     flush.collections.recordSystemEvent(*event);
-    kvstore->setSystemEvent(event);
+    kvstore->setSystemEvent(*ctx, event);
 
     // The attempt to commit fails
-    EXPECT_THROW(kvstore->commit(flush), std::logic_error);
+    EXPECT_THROW(kvstore->commit(*ctx, flush), std::logic_error);
 }
 
 TEST_P(CollectionsKVStoreTest, failForDuplicateCollection) {
@@ -486,37 +492,41 @@ public:
     // runs a flush batch that will leave the target collection in open state
     void openCollection() {
         cm.add(target);
-        kvstore->begin(std::make_unique<TransactionContext>(vbucket.getId()));
-        applyEvents(cm);
-        kvstore->commit(flush);
+        auto ctx = std::make_unique<TransactionContext>(vbucket.getId());
+        kvstore->begin(*ctx);
+        applyEvents(*ctx, cm);
+        kvstore->commit(*ctx, flush);
     }
 
     // runs a flush batch that will leave the target collection in dropped state
     void dropCollection() {
         openCollection();
         cm.remove(target);
-        kvstore->begin(std::make_unique<TransactionContext>(vbucket.getId()));
-        applyEvents(cm);
-        kvstore->commit(flush);
+        auto ctx = std::make_unique<TransactionContext>(vbucket.getId());
+        kvstore->begin(*ctx);
+        applyEvents(*ctx, cm);
+        kvstore->commit(*ctx, flush);
     }
 
     // runs a flush batch that will leave the target collection in open state
     void openScopeOpenCollection() {
-        kvstore->begin(std::make_unique<TransactionContext>(vbucket.getId()));
+        auto ctx = std::make_unique<TransactionContext>(vbucket.getId());
+        kvstore->begin(*ctx);
         cm.add(targetScope);
-        applyEvents(cm);
+        applyEvents(*ctx, cm);
         cm.add(target, targetScope);
-        applyEvents(cm);
-        kvstore->commit(flush);
+        applyEvents(*ctx, cm);
+        kvstore->commit(*ctx, flush);
     }
 
     // runs a flush batch that will leave the target collection in dropped state
     void dropScope() {
         openScopeOpenCollection();
         cm.remove(targetScope);
-        kvstore->begin(std::make_unique<TransactionContext>(vbucket.getId()));
-        applyEvents(cm);
-        kvstore->commit(flush);
+        auto ctx = std::make_unique<TransactionContext>(vbucket.getId());
+        kvstore->begin(*ctx);
+        applyEvents(*ctx, cm);
+        kvstore->commit(*ctx, flush);
     }
 
     void resurectionTest();
@@ -541,10 +551,11 @@ void CollectionRessurectionKVStoreTest::resurectionTest() {
     // The test will run cycles of create/drop, so that the collection
     // has multiple generations within a single flush batch, we can then verify
     // that the meta-data stored by commit is correct
-    kvstore->begin(std::make_unique<TransactionContext>(vbucket.getId()));
+    auto ctx = std::make_unique<TransactionContext>(vbucket.getId());
+    kvstore->begin(*ctx);
     if (!cm.exists(target)) {
         cm.add(target);
-        applyEvents(cm);
+        applyEvents(*ctx, cm);
     }
 
     CollectionEntry::Entry collection = target;
@@ -552,21 +563,21 @@ void CollectionRessurectionKVStoreTest::resurectionTest() {
     // iterate cycles of remove/add
     for (int ii = 0; ii < getCycles(); ii++) {
         cm.remove(collection);
-        applyEvents(cm);
+        applyEvents(*ctx, cm);
 
         if (resurectWithNewName()) {
             collection.name = target.name + "_" + std::to_string(ii);
         }
 
         cm.add(collection);
-        applyEvents(cm);
+        applyEvents(*ctx, cm);
     }
 
     if (dropCollectionAtEnd()) {
         cm.remove(collection);
-        applyEvents(cm);
+        applyEvents(*ctx, cm);
     }
-    kvstore->commit(flush);
+    kvstore->commit(*ctx, flush);
 
     // Now validate
     auto [status, md] = kvstore->getCollectionsManifest(Vbid(0));
@@ -624,12 +635,13 @@ void CollectionRessurectionKVStoreTest::resurectionScopesTest() {
     // The test will run cycles of create/drop, so that the collection
     // has multiple generations within a single flush batch, we can then verify
     // that the meta-data stored by commit is correct
-    kvstore->begin(std::make_unique<TransactionContext>(vbucket.getId()));
+    auto ctx = std::make_unique<TransactionContext>(vbucket.getId());
+    kvstore->begin(*ctx);
     if (!cm.exists(targetScope)) {
         cm.add(targetScope);
-        applyEvents(cm);
+        applyEvents(*ctx, cm);
         cm.add(target, targetScope);
-        applyEvents(cm);
+        applyEvents(*ctx, cm);
     }
 
     std::string expectedName = target.name;
@@ -638,23 +650,23 @@ void CollectionRessurectionKVStoreTest::resurectionScopesTest() {
     // iterate cycles of remove/add
     for (int ii = 0; ii < getCycles(); ii++) {
         cm.remove(scope);
-        applyEvents(cm);
+        applyEvents(*ctx, cm);
 
         if (resurectWithNewName()) {
             expectedName = target.name + "_" + std::to_string(ii);
             scope.name = targetScope.name + "_" + std::to_string(ii);
         }
         cm.add(scope);
-        applyEvents(cm);
+        applyEvents(*ctx, cm);
         cm.add({expectedName, target.uid}, scope);
-        applyEvents(cm);
+        applyEvents(*ctx, cm);
     }
 
     if (dropCollectionAtEnd()) {
         cm.remove(scope);
-        applyEvents(cm);
+        applyEvents(*ctx, cm);
     }
-    kvstore->commit(flush);
+    kvstore->commit(*ctx, flush);
 
     // Now validate
     auto [status, md] = kvstore->getCollectionsManifest(Vbid(0));

@@ -85,12 +85,14 @@ public:
     /**
      * Persist whatever flush-batch previously queued into KVStore.
      *
-     * @param vbid
      * @param kvstore
+     * @param txnCtx context for the current transaction
      * @param [out] commitData
      * @return true if flush succeeds, false otherwise
      */
-    bool commit(Vbid vbid, KVStore& kvstore, VB::Commit& commitData);
+    bool commit(KVStore& kvstore,
+                TransactionContext& txnCtx,
+                VB::Commit& commitData);
 
     /// Start the Flusher for all shards in this bucket.
     void startFlusher();
@@ -288,7 +290,16 @@ protected:
 
     class ValueChangedListener;
 
-    void flushOneDelOrSet(const queued_item& qi, VBucketPtr& vb);
+    /**
+     * Add the given queued_item to the flush batch
+     *
+     * @param txnCtx context for the transaction (flush batch)
+     * @param qi item to add
+     * @param vb vBucket
+     */
+    void flushOneDelOrSet(TransactionContext& txnCtx,
+                          const queued_item& qi,
+                          VBucketPtr& vb);
 
     /**
      * Compaction of a database file

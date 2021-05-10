@@ -665,16 +665,17 @@ public:
      *
      * @return false if we cannot begin a transaction
      */
-    bool begin(std::unique_ptr<TransactionContext> txCtx);
+    bool begin(TransactionContext& txCtx);
 
     /**
      * Commit a transaction (unless not currently in one).
      *
+     * @param txnCtx context for the current transaction
      * @param commitData a reference to a VB::Commit object which is required
      *        for persisted metadata updates and collection item counting
      * @return false if the commit fails
      */
-    virtual bool commit(VB::Commit& commitData) = 0;
+    virtual bool commit(TransactionContext& txnCtx, VB::Commit& commitData) = 0;
 
     /**
      * Rollback the current transaction.
@@ -689,11 +690,10 @@ public:
     /**
      * Set an item into the kv store. cc
      *
+     * @param txnCtx context for the transaction
      * @param item The item to store
-     * @param cb Callback object which will be invoked when the set() has been
-     *        persisted to disk.
      */
-    virtual void set(queued_item item) = 0;
+    virtual void set(TransactionContext& txnCtx, queued_item item) = 0;
 
     /**
      * Get an item from the kv store.
@@ -780,9 +780,10 @@ public:
     /**
      * Delete an item from the kv store.
      *
+     * @param txnCtx context for the transaction
      * @param item The item to delete
      */
-    virtual void del(queued_item item) = 0;
+    virtual void del(TransactionContext& txnCtx, queued_item item) = 0;
 
     /**
      * Delete a given vbucket database instance from underlying storage
@@ -1091,13 +1092,13 @@ public:
      * Set a system event into the KVStore.
      * @param item The Item representing the event
      */
-    void setSystemEvent(const queued_item);
+    void setSystemEvent(TransactionContext& txnCtx, const queued_item);
 
     /**
      * delete a system event in the KVStore.
      * @param item The Item representing the event
      */
-    void delSystemEvent(const queued_item);
+    void delSystemEvent(TransactionContext& txnCtx, const queued_item);
 
     /**
      * Return data that EPBucket requires for the creation of a
@@ -1228,8 +1229,6 @@ protected:
     //      - set() / del() xN
     //      - commit()
     bool inTransaction{false};
-
-    std::unique_ptr<TransactionContext> transactionCtx;
 
     // Test-only. If set, this is executed after the a flush-batch is committed
     // to disk but before we call back into the PersistenceCallback.

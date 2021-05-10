@@ -78,9 +78,9 @@ public:
         return static_cast<MockCouchRequest*>(&pendingReqsQ.back());
     }
 
-    bool commit(VB::Commit& commitData) override {
+    bool commit(TransactionContext& txnCtx, VB::Commit& commitData) override {
         preCommitHook();
-        return CouchKVStore::commit(commitData);
+        return CouchKVStore::commit(txnCtx, commitData);
     }
 
     /**

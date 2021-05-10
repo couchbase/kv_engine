@@ -163,13 +163,7 @@ public:
      */
     ~CouchKVStore() override;
 
-    /**
-     * Commit a transaction (unless not currently in one).
-     *
-     * @param flushData - see KVStore::commit
-     * @return true if the commit is completed successfully.
-     */
-    bool commit(VB::Commit& commitData) override;
+    bool commit(TransactionContext& txnCtx, VB::Commit& commitData) override;
 
     /**
      * Rollback a transaction (unless not currently in one).
@@ -177,7 +171,6 @@ public:
     void rollback() override {
         if (inTransaction) {
             inTransaction = false;
-            transactionCtx.reset();
         }
     }
 
@@ -188,7 +181,7 @@ public:
      */
     StorageProperties getStorageProperties() const override;
 
-    void set(queued_item item) override;
+    void set(TransactionContext& txnCtx, queued_item item) override;
 
     GetValue get(const DiskDocKey& key,
                  Vbid vb,
@@ -220,7 +213,7 @@ public:
                   ValueFilter filter,
                   const KVStore::GetRangeCb& cb) const override;
 
-    void del(queued_item item) override;
+    void del(TransactionContext& txnCtx, queued_item item) override;
 
     /**
      * Delete a given vbucket database instance from underlying storage
@@ -552,7 +545,8 @@ protected:
                                 const std::vector<void*>& kvReqs,
                                 kvstats_ctx& kvctx);
 
-    void commitCallback(PendingRequestQueue& committedReqs,
+    void commitCallback(TransactionContext& txnCtx,
+                        PendingRequestQueue& committedReqs,
                         kvstats_ctx& kvctx,
                         couchstore_error_t errCode);
 

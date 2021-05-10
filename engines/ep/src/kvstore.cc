@@ -471,20 +471,18 @@ void KVStore::resetCachedVBState(Vbid vbid) {
     }
 }
 
-void KVStore::setSystemEvent(const queued_item item) {
-    set(item);
+void KVStore::setSystemEvent(TransactionContext& txnCtx,
+                             const queued_item item) {
+    set(txnCtx, item);
 }
 
-void KVStore::delSystemEvent(const queued_item item) {
-    del(item);
+void KVStore::delSystemEvent(TransactionContext& txnCtx,
+                             const queued_item item) {
+    del(txnCtx, item);
 }
 
-bool KVStore::begin(std::unique_ptr<TransactionContext> txCtx) {
-    if (!txCtx) {
-        throw std::invalid_argument("KVStore::begin: txCtx is null");
-    }
+bool KVStore::begin(TransactionContext& txCtx) {
     inTransaction = true;
-    transactionCtx = std::move(txCtx);
     return inTransaction;
 }
 

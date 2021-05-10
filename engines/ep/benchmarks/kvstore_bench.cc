@@ -123,18 +123,19 @@ protected:
         const std::string key = "key";
         std::string value = "value";
         Vbid vbid = Vbid(0);
-        kvstore->begin(std::make_unique<TransactionContext>(vbid));
+        auto ctx = std::make_unique<TransactionContext>(vbid);
+        kvstore->begin(*ctx);
         for (int i = 1; i <= numItems; i++) {
             auto docKey = makeStoredDocKey(key + std::to_string(i));
             auto qi = makeCommittedItem(docKey, value);
             qi->setBySeqno(i);
-            kvstore->set(qi);
+            kvstore->set(*ctx, qi);
         }
 
         Collections::VB::Manifest m{std::make_shared<Collections::Manager>()};
         VB::Commit f(m);
 
-        kvstore->commit(f);
+        kvstore->commit(*ctx, f);
         // Just check that the VBucket High Seqno has been updated correctly
         EXPECT_EQ(kvstore->getCachedVBucketState(vbid)->highSeqno, numItems);
     }
