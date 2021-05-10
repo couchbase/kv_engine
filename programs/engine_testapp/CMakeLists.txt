@@ -26,7 +26,7 @@ add_library(engine_testapp OBJECT engine_testapp.cc
         ${Memcached_SOURCE_DIR}/daemon/enginemap.h
         ${Memcached_SOURCE_DIR}/include/memcached/bucket_type.h
 )
-target_link_libraries(engine_testapp PUBLIC Folly::headers)
+target_link_libraries(engine_testapp PUBLIC Folly::headers platform)
 
 # An object library will not propagate dependencies
 # https://gitlab.kitware.com/cmake/cmake/issues/18090

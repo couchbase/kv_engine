@@ -70,13 +70,9 @@ include_directories(BEFORE
                     ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 include_directories(AFTER SYSTEM
-                    ${Platform_SOURCE_DIR}/include
                     ${phosphor_SOURCE_DIR}/include
                     ${gsl_lite_SOURCE_DIR}/include
                     ${spdlog_SOURCE_DIR}/include
-                    ${gtest_SOURCE_DIR}/include
-                    ${gmock_SOURCE_DIR}/include
-                    ${subjson_SOURCE_DIR}
                     ${LIBEVENT_INCLUDE_DIR}
                     ${OPENSSL_INCLUDE_DIR}
                     ${BOOST_INCLUDE_DIR})
