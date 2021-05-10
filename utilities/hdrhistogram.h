@@ -115,39 +115,6 @@ public:
         Iterator(Iterator&& itr) = default;
 
         /**
-         * Gets the next value and corresponding count from the histogram
-         * Returns an optional pair, comprising of:
-         * 1) value
-         * 2) count associated with the value
-         * The pair is optional because iterating past the last value in the
-         * histogram will return no result.
-         */
-        std::optional<std::pair<uint64_t, uint64_t>> getNextValueAndCount();
-
-        /**
-         * Gets the next value and corresponding percentile from the histogram
-         * Returns an optional pair, comprising of:
-         * 1) highest equivalent value
-         * 2) next percentile that the iterator moves to
-         * The pair is optional because iterating past the last value in the
-         * histogram will return no result.
-         */
-        std::optional<std::pair<uint64_t, double>> getNextValueAndPercentile();
-
-        /**
-         * Method used to get buckets from the histogram with the widths defined
-         * by the iteration method being used by the iterator. The starting and
-         * end values of the bucket is returned as a string in the format
-         * low,high e.g. 10,20. The count of this bucket is returned as uint64_t
-         * value.
-         * @return the bucket data, first part of the pair containing a string
-         * of the low and high values of the bucket. The second part of the pair
-         * containing the count as a uint64_t for the bucket.
-         */
-        std::optional<std::tuple<uint64_t, uint64_t, uint64_t>>
-        getNextBucketLowHighAndCount();
-
-        /**
          * Dumps the histograms count data to a string
          * @return a string containing the histogram dump
          */

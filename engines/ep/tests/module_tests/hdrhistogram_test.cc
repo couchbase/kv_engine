@@ -494,13 +494,12 @@ TEST(HdrHistogramTest, int64MaxSizeTest) {
     // unfortunately with no way of knowing that they're garbage.
 }
 
-static std::vector<std::optional<std::pair<uint64_t, double>>> getAllValues(
+static std::vector<HdrHistogram::Bucket> getAllValues(
         const HdrHistogram& histo, HdrHistogram::Iterator& iter) {
-    std::vector<std::optional<std::pair<uint64_t, double>>> values;
-    while (auto pair = iter.getNextValueAndPercentile()) {
-        if (!pair.has_value())
-            break;
-        values.push_back(pair);
+    std::vector<HdrHistogram::Bucket> values;
+    while (iter != histo.end()) {
+        values.push_back(*iter);
+        ++iter;
     }
     return values;
 }
@@ -561,26 +560,14 @@ TEST(HdrHistogramTest, RangeBasedForLoop) {
         histogram.addValue(i);
     }
 
-    auto referenceItr = histogram.linearView(5).begin();
     auto bucketCounter = 0;
     for (const auto& bucket : histogram) {
-        auto refValue = referenceItr.getNextBucketLowHighAndCount();
-        EXPECT_TRUE(refValue.has_value());
-        EXPECT_EQ(
-                *refValue,
-                std::make_tuple(
-                        bucket.lower_bound, bucket.upper_bound, bucket.count));
-
-        // just in case, let's check the exact expected values
         EXPECT_EQ(bucketCounter * 5, bucket.lower_bound);
         EXPECT_EQ((bucketCounter + 1) * 5, bucket.upper_bound);
         EXPECT_EQ(5, bucket.count);
 
         ++bucketCounter;
     }
-
-    // reference iterator also exhausted
-    EXPECT_FALSE(referenceItr.getNextBucketLowHighAndCount().has_value());
 }
 
 /**

@@ -179,51 +179,15 @@ HdrHistogram::Iterator HdrHistogram::begin() const {
     return getHistogramsIterator();
 }
 
-std::optional<std::pair<uint64_t, uint64_t>>
-HdrHistogram::Iterator::getNextValueAndCount() {
-    if (*this == EndSentinel{}) {
-        return {};
-    }
-    auto value = std::make_pair(bucket.upper_bound, bucket.count);
-    // advance the iterator
-    ++(*this);
-    return {value};
-}
-
-std::optional<std::tuple<uint64_t, uint64_t, uint64_t>>
-HdrHistogram::Iterator::getNextBucketLowHighAndCount() {
-    if (*this == EndSentinel{}) {
-        return {};
-    }
-    auto value = std::make_tuple(
-            bucket.lower_bound, bucket.upper_bound, bucket.count);
-    // advance the iterator
-    ++(*this);
-    return {value};
-}
-
-std::optional<std::pair<uint64_t, double>>
-HdrHistogram::Iterator::getNextValueAndPercentile() {
-    if (*this == EndSentinel{}) {
-        return {};
-    }
-    if (!bucket.percentile.has_value()) {
-        return {};
-    }
-    auto value = std::make_pair(bucket.upper_bound, *bucket.percentile);
-    // advance the iterator
-    ++(*this);
-    return {value};
-}
-
 std::string HdrHistogram::Iterator::dumpValues() {
     fmt::memory_buffer dump;
-    while (auto pair = getNextValueAndCount()) {
+    while (*this != EndSentinel{}) {
         fmt::format_to(dump,
                        "Value[{}-{}]\tCount:{}\t\n",
                        value_iterated_from,
                        value_iterated_to,
-                       pair->second);
+                       bucket.count);
+        ++(*this);
     }
     fmt::format_to(dump, "Total:\t{}\n", total_count);
     return {dump.data(), dump.size()};
@@ -299,14 +263,9 @@ nlohmann::json HdrHistogram::to_json() const {
     rootObj["bucketsLow"] = itr.value_iterated_from;
     nlohmann::json dataArr;
 
-    int64_t lastval = 0;
-    while (auto pair = itr.getNextValueAndPercentile()) {
-        if (!pair.has_value())
-            break;
-
-        dataArr.push_back(
-                {pair->first, itr.cumulative_count - lastval, pair->second});
-        lastval = itr.cumulative_count;
+    while (itr != end()) {
+        dataArr.push_back({itr->upper_bound, itr->count, *itr->percentile});
+        ++itr;
     }
     rootObj["data"] = dataArr;
 
