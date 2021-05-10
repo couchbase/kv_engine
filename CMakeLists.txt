@@ -57,10 +57,6 @@ add_definitions(-DOBJECT_ROOT="${Memcached_BINARY_DIR}")
 add_definitions(-D_FILE_OFFSET_BITS=64)
 add_definitions(-DGOOGLE_GLOG_DLL_DECL=)
 
-if(HAVE_MALLOC_USABLE_SIZE)
-  ADD_DEFINITIONS(-DHAVE_MALLOC_USABLE_SIZE)
-endif()
-
 if (WIN32)
    # 'conversion' conversion from 'type1' to 'type2', possible loss of data
    add_definitions(/wd4244)
