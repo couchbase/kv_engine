@@ -2001,7 +2001,8 @@ cb::engine_errc EventuallyPersistentEngine::initialize(const char* config) {
             std::make_unique<EpEngineValueChangeListener>(*this));
 
     auto numShards = configuration.getMaxNumShards();
-    workload = new WorkLoadPolicy(configuration.getMaxNumWorkers(), numShards);
+    workload = std::make_unique<WorkLoadPolicy>(
+            configuration.getMaxNumWorkers(), numShards);
 
     const auto& confResMode = configuration.getConflictResolutionType();
     if (!setConflictResolutionMode(confResMode)) {
@@ -2031,7 +2032,7 @@ cb::engine_errc EventuallyPersistentEngine::initialize(const char* config) {
         dcpFlowControlManager_ = std::make_unique<DcpFlowControlManager>(*this);
     }
 
-    checkpointConfig = new CheckpointConfig(*this);
+    checkpointConfig = std::make_unique<CheckpointConfig>(*this);
     CheckpointConfig::addConfigChangeListener(*this);
 
     kvBucket = makeBucket(configuration);
@@ -6581,8 +6582,8 @@ EventuallyPersistentEngine::~EventuallyPersistentEngine() {
         waitForTasks(tasks);
     }
     EP_LOG_INFO("~EPEngine: Completed deinitialize.");
-    delete workload;
-    delete checkpointConfig;
+    workload.reset();
+    checkpointConfig.reset();
 
     // Engine going away, tell ArenaMalloc to unregister
     cb::ArenaMalloc::unregisterClient(arena);
