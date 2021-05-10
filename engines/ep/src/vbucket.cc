@@ -3817,8 +3817,6 @@ std::map<const void*, cb::engine_errc> VBucket::getHighPriorityNotifications(
             continue;
         }
 
-        std::string logStr(to_string(notifyType));
-
         auto wall_time = std::chrono::steady_clock::now() - entry->start;
         auto spent =
                 std::chrono::duration_cast<std::chrono::seconds>(wall_time);
@@ -3831,24 +3829,26 @@ std::map<const void*, cb::engine_errc> VBucket::getHighPriorityNotifications(
             EP_LOG_INFO(
                     "Notified the completion of {} for {} Check for: {}, "
                     "Persisted upto: {}, cookie {}",
-                    logStr,
+                    to_string(notifyType),
                     getId(),
                     entry->id,
                     idNum,
                     entry->cookie);
             entry = hpVBReqs.erase(entry);
-        } else if (spent > getCheckpointFlushTimeout()) {
+        } else if (auto limit = getCheckpointFlushTimeout(); spent > limit) {
             adjustCheckpointFlushTimeout(spent);
             engine.storeEngineSpecific(entry->cookie, nullptr);
             toNotify[entry->cookie] = cb::engine_errc::temporary_failure;
             EP_LOG_WARN(
                     "Notified the timeout on {} for {} Check for: {}, "
-                    "Persisted upto: {}, cookie {}",
-                    logStr,
+                    "Persisted upto: {}, cookie {}, spent:{}s > limit:{}s ",
+                    to_string(notifyType),
                     getId(),
                     entry->id,
                     idNum,
-                    entry->cookie);
+                    entry->cookie,
+                    spent.count(),
+                    limit.count());
             entry = hpVBReqs.erase(entry);
         } else {
             ++entry;
