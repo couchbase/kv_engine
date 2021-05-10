@@ -57,11 +57,6 @@ add_definitions(-DOBJECT_ROOT="${Memcached_BINARY_DIR}")
 add_definitions(-D_FILE_OFFSET_BITS=64)
 add_definitions(-DGOOGLE_GLOG_DLL_DECL=)
 
-CHECK_SYMBOL_EXISTS(memalign malloc.h HAVE_MEMALIGN)
-if (HAVE_MEMALIGN)
-  add_definitions(-DHAVE_MEMALIGN=1)
-endif()
-
 if(HAVE_MALLOC_USABLE_SIZE)
   ADD_DEFINITIONS(-DHAVE_MALLOC_USABLE_SIZE)
 endif()
