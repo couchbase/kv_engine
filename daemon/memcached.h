@@ -9,16 +9,9 @@
  */
 #pragma once
 
-#include <event.h>
 #include <memcached/engine_error.h>
-#include <memcached/types.h>
 #include <platform/socket.h>
-#include <subdoc/operations.h>
-#include <gsl/gsl>
-
-#include <mutex>
-#include <queue>
-#include <unordered_map>
+#include <functional>
 #include <vector>
 
 /** \file

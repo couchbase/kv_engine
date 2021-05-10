@@ -37,9 +37,9 @@
 #include "executorpool.h"
 #include "memcached.h"
 
+#include <event.h>
 #include <logger/logger.h>
 #include <platform/platform_time.h>
-
 #include <atomic>
 
 /*
