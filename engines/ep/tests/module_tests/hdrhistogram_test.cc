@@ -11,8 +11,11 @@
 #include "hdrhistogram.h"
 #include "thread_gate.h"
 
+#include <folly/lang/Assume.h>
 #include <folly/portability/GTest.h>
 #include <gmock/gmock-matchers.h>
+#include <spdlog/fmt/fmt.h>
+#include <spdlog/fmt/ostr.h>
 
 #include <cmath>
 #include <memory>
@@ -597,3 +600,166 @@ TEST(HdrHistogramTest, LogView) {
         ++bucketCounter;
     }
 }
+
+// enum param for test indicating the desired initial state of the histogram
+// before testing the iterator ranges.
+enum class HistogramInitialPopulation {
+    Empty,
+    Partial,
+    Full,
+};
+
+std::ostream& operator<<(std::ostream& os,
+                         const HistogramInitialPopulation& p) {
+    switch (p) {
+    case HistogramInitialPopulation::Empty:
+        return os << "Empty";
+    case HistogramInitialPopulation::Partial:
+        return os << "Partial";
+    case HistogramInitialPopulation::Full:
+        return os << "Full";
+    }
+    folly::assume_unreachable();
+}
+
+class HdrHistogramItrTest : public ::testing::TestWithParam<
+                                    std::tuple<HistogramInitialPopulation,
+                                               HdrHistogram::Iterator::IterMode,
+                                               size_t>> {
+public:
+    static HdrHistogram emptyHistogram(size_t maxRepresentable) {
+        return HdrHistogram(1,
+                            maxRepresentable,
+                            3,
+                            HdrHistogram::Iterator::IterMode::Linear);
+    }
+
+    static HdrHistogram partiallyPopulatedHistogram(size_t maxRepresentable) {
+        auto histogram = emptyHistogram(maxRepresentable);
+        auto halfMax = histogram.getMaxTrackableValue() / 2;
+        for (int i = 1; i <= halfMax; i++) {
+            histogram.addValue(i);
+        }
+        return histogram;
+    }
+
+    static HdrHistogram fullyPopulatedHistogram(size_t maxRepresentable) {
+        auto histogram = emptyHistogram(maxRepresentable);
+        auto halfMax = histogram.getMaxTrackableValue();
+        for (int i = 1; i <= halfMax; i++) {
+            histogram.addValue(i);
+        }
+        return histogram;
+    }
+
+    static HdrHistogram makeHistogram(HistogramInitialPopulation pop,
+                                      size_t maxRepresentable) {
+        switch (pop) {
+        case HistogramInitialPopulation::Empty:
+            return emptyHistogram(maxRepresentable);
+        case HistogramInitialPopulation::Partial:
+            return partiallyPopulatedHistogram(maxRepresentable);
+        case HistogramInitialPopulation::Full:
+            return fullyPopulatedHistogram(maxRepresentable);
+        }
+        folly::assume_unreachable();
+    }
+
+    static void finishPopulation(HdrHistogram& histogram) {
+        auto maxRepresentable = histogram.getMaxTrackableValue();
+        for (int i = histogram.getMaxValue() + 1; i <= maxRepresentable; i++) {
+            histogram.addValue(i);
+        }
+    }
+
+    template <class Range>
+    static std::vector<std::pair<uint64_t, uint64_t>> getAllBuckets(
+            Range&& range) {
+        std::vector<std::pair<uint64_t, uint64_t>> buckets;
+
+        for (const auto& bucket : range) {
+            buckets.emplace_back(bucket.lower_bound, bucket.upper_bound);
+        }
+
+        return buckets;
+    }
+};
+
+/**
+ * Test that the extended iiterator ranges exposes the expected set of
+ * log buckets for a histogram, when iterating past the end of the recorded
+ * values.
+ *
+ * The buckets should continue up to the max representable value, and should
+ * be the same as the histogram would generate if it actually had a value
+ * recorded at max representable.
+ */
+TEST_P(HdrHistogramItrTest, ExtendedView) {
+    auto [initialPopulation, iterMode, maxRepresentable] = GetParam();
+    // start with some initial population. The iterator will be taken beyond
+    // the highest recorded value, so we want to check lots buckets past
+    // that point up to max representable to verify the buckets are computed
+    // correctly.
+    auto histogram = makeHistogram(initialPopulation, maxRepresentable);
+
+    // Only used by log iterators
+    auto base = 2.0;
+    // Only used by linear iterators
+    auto valueUnitsPerBucket = 10000;
+    // vectors of bucket boundaries that should be equal
+    std::vector<std::pair<uint64_t, uint64_t>> computed;
+    std::vector<std::pair<uint64_t, uint64_t>> actual;
+
+    // get the bucket boundaries up to max representable, this will include
+    // some "computed" buckets the C hdr_histogram did not expose because
+    // they were higher than any recorded value
+    if (iterMode == HdrHistogram::Iterator::IterMode::Log) {
+        computed = getAllBuckets(histogram.logViewRepresentable(1, base));
+    } else {
+        computed = getAllBuckets(
+                histogram.linearViewRepresentable(valueUnitsPerBucket));
+    }
+
+    // add values up to the max representable, then get all the buckets again.
+    // This time, C hdr_histogram will actually generate all the buckets up to
+    // the max representable
+    finishPopulation(histogram);
+
+    if (iterMode == HdrHistogram::Iterator::IterMode::Log) {
+        actual = getAllBuckets(histogram.logView(1, base));
+    } else {
+        actual = getAllBuckets(histogram.linearView(valueUnitsPerBucket));
+    }
+
+    EXPECT_THAT(computed, testing::ContainerEq(actual));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+        LogAndLinearItrRangeTest,
+        HdrHistogramItrTest,
+        ::testing::Combine(
+                ::testing::Values(HistogramInitialPopulation::Empty,
+                                  HistogramInitialPopulation::Partial,
+                                  HistogramInitialPopulation::Full),
+                ::testing::Values(HdrHistogram::Iterator::IterMode::Log,
+                                  HdrHistogram::Iterator::IterMode::Linear),
+                // max representable value, somewhat arbitrary values
+                ::testing::Values(
+                        // small
+                        2,
+                        // near a log boundary
+                        127,
+                        128,
+                        129,
+                        // near a linear boundary
+                        9999,
+                        10000,
+                        10001,
+                        // bigger
+                        100000)),
+        [](const auto& info) {
+            return fmt::format("{}_{}_{}",
+                               std::get<0>(info.param),
+                               std::get<1>(info.param),
+                               std::get<2>(info.param));
+        });

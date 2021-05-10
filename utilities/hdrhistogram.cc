@@ -17,6 +17,7 @@
 #include <spdlog/fmt/fmt.h>
 #include <iostream>
 #include <optional>
+#include <type_traits>
 
 // Custom deleter for the hdr_histogram struct.
 void HdrHistogram::HdrDeleter::operator()(struct hdr_histogram* val) {
@@ -208,11 +209,17 @@ void HdrHistogram::dumpLogValues(int64_t firstBucketWidth,
     fmt::print(stdout, itr.dumpValues());
 }
 
-HdrHistogram::Iterator& HdrHistogram::Iterator::operator++() {
+bool HdrHistogram::Iterator::incrementUnderlyingIterator() {
+    if (state != IterState::ReadingRecordedValues) {
+        // the underlying C iterator has already been exhausted
+        return false;
+    }
+
     if (!hdr_iter_next(this)) {
-        // underlying iterator at end, track this to support `itr == end()`
-        finished = true;
-        return *this;
+        // underlying iterator is now at end, iterator needs to "manually"
+        // compute any remaining buckets up to the max representable.
+        state = IterState::ComputingRemainingBuckets;
+        return false;
     }
 
     // advance the bucket boundaries, the (exclusive) lower bound
@@ -238,6 +245,101 @@ HdrHistogram::Iterator& HdrHistogram::Iterator::operator++() {
         break;
     }
 
+    return true;
+}
+
+// helper for static_assert in constexpr if to get a dependent false value.
+// static_assert(false,...) even in a constexpr branch makes the program
+// ill-formed. By making the value dependent (even though it is always false)
+// then:
+//    if constexpr (foo_v) {
+//        static_assert(false_v<bar>);
+//    }
+// works as desired, failing compilation iff foo_v
+
+template <typename...>
+inline constexpr bool false_v = false;
+
+template <class Specifics>
+void HdrHistogram::Iterator::advanceToNextBucket(Specifics& specifics) {
+    if (bucket.upper_bound >=
+        uint64_t(hdr_lowest_equivalent_value(
+                h, HdrHistogram::getMaxTrackableValue(histoRLockPtr)))) {
+        state = IterState::Finished;
+        return;
+    }
+    // this is a recreation of a section of _{log,linear}_iter_next from
+    // hdr_histogram.c - this is rather hacky but to avoid this would
+    // require a hacky change to the underlying C library.
+    // advance the buckets in the same manner the underlying iterator would.
+    // It might seem that the bounds could be directly calculated
+    // e.g., newFoo = foo*log_base
+    // but this does not reach the same values hdr_histogram would.
+    // It's possible this could be made correct by considering equivalent value
+    // ranges and other quirks, but for simplicity and reliability the values
+    // are calculated here just as in the C iterator, by incrementing
+    // counts_index.
+
+    // computed buckets are always empty, they are past the highest recorded
+    // value.
+    bucket.count = 0;
+
+    // previous inclusive upper bound is the new exclusive lower bound
+    bucket.lower_bound = bucket.upper_bound;
+
+    // if the histogram contains nothing, counts_index may be -1.
+    counts_index = std::max(0, counts_index);
+
+    while (counts_index < h->counts_len &&
+           bucket.upper_bound <
+                   uint64_t(
+                           specifics
+                                   .next_value_reporting_level_lowest_equivalent)) {
+        bucket.upper_bound = hdr_value_at_index(h, counts_index);
+        ++counts_index;
+    }
+
+    if constexpr (std::is_same_v<Specifics, hdr_iter_log>) {
+        specifics.next_value_reporting_level *= specifics.log_base;
+    } else if constexpr (std::is_same_v<Specifics, hdr_iter_linear>) {
+        specifics.next_value_reporting_level +=
+                specifics.value_units_per_bucket;
+    } else {
+        static_assert(
+                false_v<Specifics>,
+                "Only log or linear iterators can compute buckets beyond the "
+                "recorded values");
+    }
+
+    specifics.next_value_reporting_level_lowest_equivalent =
+            hdr_lowest_equivalent_value(h,
+                                        specifics.next_value_reporting_level);
+}
+
+HdrHistogram::Iterator& HdrHistogram::Iterator::operator++() {
+    if (state == IterState::Finished) {
+        return *this;
+    }
+    if (!incrementUnderlyingIterator()) {
+        // the underlying C iterator has reached the end of the recorded values
+        // and has stopped, but the caller may wish to iterate over all buckets
+        // up to the max representable value.
+        // Log and Linear iterators can compute the remaining buckets.
+        switch (type) {
+        case Iterator::IterMode::Percentiles:
+        case Iterator::IterMode::Recorded:
+            // nothing to do for these iteration modes, it's not meaningful
+            // to go past the highest representable value.
+            state = IterState::Finished;
+            break;
+        case Iterator::IterMode::Log:
+            advanceToNextBucket(specifics.log);
+            break;
+        case Iterator::IterMode::Linear:
+            advanceToNextBucket(specifics.linear);
+            break;
+        }
+    }
     return *this;
 }
 
@@ -246,9 +348,14 @@ bool HdrHistogram::Iterator::operator==(const Iterator& other) const {
     return *histoRLockPtr == *other.histoRLockPtr && bucket == other.bucket;
 }
 
-bool HdrHistogram::Iterator::operator==(const EndSentinel&) const {
+bool HdrHistogram::Iterator::operator==(const EndSentinel& sentinel) const {
     // check if underlying iterator has reached the end.
-    return finished;
+    if (sentinel == EndSentinel::HighestRecorded) {
+        // if the iterator is no longer reading buckets from the underlying
+        // C iterator, then the highest recorded value has been seen.
+        return state != IterState::ReadingRecordedValues;
+    }
+    return state == IterState::Finished;
 }
 
 nlohmann::json HdrHistogram::to_json() const {
@@ -323,4 +430,19 @@ void HdrHistogram::resize(WHistoLockedPtr& histoLockPtr,
     }
 
     histoLockPtr->reset(hist);
+}
+
+std::ostream& operator<<(std::ostream& os,
+                         const HdrHistogram::Iterator::IterMode& mode) {
+    switch (mode) {
+    case HdrHistogram::Iterator::IterMode::Log:
+        return os << "Log";
+    case HdrHistogram::Iterator::IterMode::Linear:
+        return os << "Linear";
+    case HdrHistogram::Iterator::IterMode::Recorded:
+        return os << "Recorded";
+    case HdrHistogram::Iterator::IterMode::Percentiles:
+        return os << "Percentiles";
+    }
+    folly::assume_unreachable();
 }

@@ -76,10 +76,13 @@ public:
         using difference_type = std::ptrdiff_t;
         using pointer = value_type*;
         using reference = value_type&;
-        // tag type, used to test if `itr == end()`. Histogram iterators do not
+        // Sentinel used to test if `itr == end()`. Histogram iterators do not
         // attempt to meet LegacyBidirectionalIterator so do not need to support
         // `--end()`.
-        struct EndSentinel {};
+        enum class EndSentinel : uint8_t {
+            HighestRecorded,
+            HighestRepresentable,
+        };
         /**
          * Enum to state the method of iteration the iterator is using
          */
@@ -131,7 +134,7 @@ public:
         }
 
         bool operator==(const Iterator& other) const;
-        bool operator==(const EndSentinel&) const;
+        bool operator==(const EndSentinel& sentinel) const;
 
         bool operator!=(const Iterator& other) const {
             return !(*this == other);
@@ -145,6 +148,30 @@ public:
         uint64_t lastCumulativeCount = 0;
 
     private:
+        /**
+         * Advance the underlying C iterator with hdr_iter_next, and update
+         * bucket values based on the new data.
+         *
+         * @return true if the underlying iterator was advanced, and is now
+         *         pointing at a new bucket. False indicates end of iteration.
+         */
+        bool incrementUnderlyingIterator();
+
+        /**
+         * "Manually" move to the next bucket of a log or linear iterator. This
+         * is used to iterate over buckets beyond the highest recorded value,
+         * which the underlying C iterator will not do.
+         *
+         * If the next bucket is past the max representable value, marks the
+         * iterator as finished.
+         *
+         * @tparam Specifics hdr_iter_log or hdr_iter_linear
+         * @param specifics specifics.log or specifics.linear, based on iterator
+         *                  type
+         */
+        template <class Specifics>
+        void advanceToNextBucket(Specifics& specifics);
+
         // allow HdrHistogram to access histoRLockPtr
         friend class HdrHistogram;
         /**
@@ -158,10 +185,19 @@ public:
         // *itr or itr->foo.
         Bucket bucket;
 
-        // the underlying C iterator is exhausted when hdr_iter_next returns
-        // a falsy value, this state needs to be tracked here to support
-        // `itr == end()` checks.
-        bool finished = false;
+        // Enum tracking what the iterator is currently doing
+        enum class IterState : uint8_t {
+            // Advancing the underlying C iterator and reading buckets for
+            // which values have actually been recorded
+            ReadingRecordedValues,
+            // The highest recorded value has been passed, the iterator is
+            // now "manually" calculating bucket boundaries up to the max
+            // representable value
+            ComputingRemainingBuckets,
+            // Done
+            Finished,
+        };
+        IterState state = IterState::ReadingRecordedValues;
     };
 
     /**
@@ -280,6 +316,20 @@ public:
         return cb::move_only_iterator_range(
                 makeLinearIterator(valueUnitsPerBucket), end());
     }
+    /**
+     * Returns a iterator range iterating over linear buckets covering the
+     * entire representable range of the histogram.
+     *
+     * The bucket boundaries are independent of the values recorded in the
+     * histogram, and are stable for the lifetime of the histogram.
+     *
+     * @param valueUnitsPerBucket  the number of values to be grouped into
+     *        a single bucket
+     */
+    auto linearViewRepresentable(int64_t valueUnitsPerBucket) const {
+        return cb::move_only_iterator_range(
+                makeLinearIterator(valueUnitsPerBucket), representableEnd());
+    }
 
     /**
      * Returns a iterator range exposing log buckets from the histogram
@@ -290,6 +340,11 @@ public:
     auto logView(int64_t firstBucketWidth, double log_base) const {
         return cb::move_only_iterator_range(
                 makeLogIterator(firstBucketWidth, log_base), end());
+    }
+    auto logViewRepresentable(int64_t firstBucketWidth, double log_base) const {
+        return cb::move_only_iterator_range(
+                makeLogIterator(firstBucketWidth, log_base),
+                representableEnd());
     }
 
     /**
@@ -338,9 +393,24 @@ public:
      *
      * When iter == end(), the underlying C style iterator has finished;
      * all recorded values have been seen.
+     *
+     * This is the normally expected behaviour.
      */
     Iterator::EndSentinel end() const {
-        return {};
+        return Iterator::EndSentinel::HighestRecorded;
+    }
+
+    /**
+     * Returns a sentinel value that HdrHistogram::Iterator instances may
+     * be compared to.
+     *
+     * When iter == representableEnd(), every bucket the histogram may ever
+     * contain has been seen by the iterator. That is, the underlying C style
+     * iterator has finished AND any buckets past that point up to the
+     * maximum representable value of the histogram have been iterated over.
+     */
+    Iterator::EndSentinel representableEnd() const {
+        return Iterator::EndSentinel::HighestRepresentable;
     }
 
     /**
@@ -494,6 +564,9 @@ private:
      */
     SyncHdrHistogramPtr histogram;
 };
+
+std::ostream& operator<<(std::ostream&,
+                         const HdrHistogram::Iterator::IterMode& mode);
 
 /** Histogram to store counts for microsecond intervals
  *  Can hold a range of 0us to 60000000us (60 seconds) with a
