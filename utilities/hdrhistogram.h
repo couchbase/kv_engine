@@ -19,6 +19,8 @@
 #include <optional>
 #include <utility>
 
+#include "iterator_range.h"
+
 // hdr_histogram.h emits a warning on windows
 #ifdef WIN32
 #pragma warning(push, 0)
@@ -292,42 +294,67 @@ public:
     uint64_t getValueAtPercentile(double percentage) const;
 
     /**
-     * Returns a linear iterator for the histogram
+     * Returns a iterator range iterating over linear buckets from the
+     * histogram.
+     *
+     * Convenient to use with a range-based for loop:
+     *
+     *  for (const auto& bucket: histogram.linearView()) {...}
+     *
      * @param valueUnitsPerBucket  the number of values to be grouped into
      *        a single bucket
      */
-    Iterator makeLinearIterator(int64_t valueUnitsPerBucket) const;
+    auto linearView(int64_t valueUnitsPerBucket) const {
+        // make*Iterator returns an iterator pointing to the first bucket
+        // for a given iteration mode (here, linear).
+        // Comparing the iterator to end() sentinel checks if the underlying
+        // (hdr_histogram C code) iterator has reached the end of the recorded
+        // values.
+        return cb::move_only_iterator_range(
+                makeLinearIterator(valueUnitsPerBucket), end());
+    }
 
     /**
-     * Returns a log iterator for the histogram
+     * Returns a iterator range exposing log buckets from the histogram
      * @param firstBucketWidth  the number of values to be grouped into
      *        the first bucket bucket
      * @param log_base base of the logarithm of iterator
      */
-    Iterator makeLogIterator(int64_t firstBucketWidth, double log_base) const;
+    auto logView(int64_t firstBucketWidth, double log_base) const {
+        return cb::move_only_iterator_range(
+                makeLogIterator(firstBucketWidth, log_base), end());
+    }
 
     /**
-     * Returns a percentile iterator for the histogram
+     * Returns a iterator range exposing percentile buckets from the histogram
      * @param ticksPerHalfDist The number iteration steps per
      * half-distance to 100%.
-     * @return iterator that moves over the histogram as percentiles
+     * @return iterator range that moves over the histogram as percentiles
      */
-    Iterator makePercentileIterator(uint32_t ticksPerHalfDist) const;
+    auto percentileView(uint32_t ticksPerHalfDist) const {
+        return cb::move_only_iterator_range(
+                makePercentileIterator(ticksPerHalfDist), end());
+    }
 
     /**
-     * Returns a recorded iterator fpr the histogram
-     * @return iterator that moves over the histogram by every value in its
-     * recordable range.
+     * Returns a iterator range exposing raw recorded buckets from the histogram
+     * @return iterator range that moves over the histogram by every value in
+     * its recordable range.
      */
-    Iterator makeRecordedIterator() const;
+    auto recordedView() const {
+        return cb::move_only_iterator_range(makeRecordedIterator(), end());
+    }
 
     /**
-     * Method to get the default iterator used to iterate over data for
-     * this histogram
-     * @return a HdrHistogram::Iterator that can be used to iterate over
+     * Method to get an iterator range, iterating with the default mode set at
+     * histogram construction.
+     *
+     * @return an iterator range that can be used to iterate over
      * data in this histogram
      */
-    Iterator getHistogramsIterator() const;
+    auto defaultView(int64_t valueUnitsPerBucket) const {
+        return cb::move_only_iterator_range(begin(), end());
+    }
 
     /**
      * Get an Iterator which will traverse this histogram with the mode set in
@@ -451,6 +478,44 @@ private:
      * @return an iterator of the specified mode
      */
     Iterator makeIterator(Iterator::IterMode mode) const;
+
+    /**
+     * Returns a linear iterator for the histogram
+     * @param valueUnitsPerBucket  the number of values to be grouped into
+     *        a single bucket
+     */
+    Iterator makeLinearIterator(int64_t valueUnitsPerBucket) const;
+
+    /**
+     * Returns a log iterator for the histogram
+     * @param firstBucketWidth  the number of values to be grouped into
+     *        the first bucket bucket
+     * @param log_base base of the logarithm of iterator
+     */
+    Iterator makeLogIterator(int64_t firstBucketWidth, double log_base) const;
+
+    /**
+     * Returns a percentile iterator for the histogram
+     * @param ticksPerHalfDist The number iteration steps per
+     * half-distance to 100%.
+     * @return iterator that moves over the histogram as percentiles
+     */
+    Iterator makePercentileIterator(uint32_t ticksPerHalfDist) const;
+
+    /**
+     * Returns a recorded iterator fpr the histogram
+     * @return iterator that moves over the histogram by every value in its
+     * recordable range.
+     */
+    Iterator makeRecordedIterator() const;
+
+    /**
+     * Method to get the default iterator used to iterate over data for
+     * this histogram
+     * @return a HdrHistogram::Iterator that can be used to iterate over
+     * data in this histogram
+     */
+    Iterator getHistogramsIterator() const;
 
     /**
      * Variable used to store the default iteration mode of a given histogram.

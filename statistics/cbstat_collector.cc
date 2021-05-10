@@ -101,16 +101,14 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
         histData.mean = std::round(v.getMean());
         histData.sampleCount = v.getValueCount();
 
-        HdrHistogram::Iterator iter{v.getHistogramsIterator()};
-        while (auto result = iter.getNextBucketLowHighAndCount()) {
-            auto [lower, upper, count] = *result;
-
-            histData.buckets.push_back({lower, upper, count});
+        for (const auto& bucket : v) {
+            histData.buckets.push_back(
+                    {bucket.lower_bound, bucket.upper_bound, bucket.count});
 
             // TODO: HdrHistogram doesn't track the sum of all added values. but
             //  For now just approximate it from bucket counts.
-            auto avgBucketValue = (lower + upper) / 2;
-            histData.sampleSum += avgBucketValue * count;
+            auto avgBucketValue = (bucket.lower_bound + bucket.upper_bound) / 2;
+            histData.sampleSum += avgBucketValue * bucket.count;
         }
         addStat(k, histData, labels);
     }

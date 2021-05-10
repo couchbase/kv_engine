@@ -24,9 +24,8 @@
 static std::vector<std::pair<uint64_t, uint64_t>> getValuesOnePerBucket(
         HdrHistogram& histo) {
     std::vector<std::pair<uint64_t, uint64_t>> values;
-    auto iter = histo.makeLinearIterator(/* valueUnitsPerBucket */ 1);
-    while (auto pair = iter.getNextValueAndCount()) {
-        values.push_back(*pair);
+    for (const auto& bucket : histo.linearView(/* valueUnitsPerBucket */ 1)) {
+        values.emplace_back(bucket.upper_bound, bucket.count);
     }
     return values;
 }
@@ -104,12 +103,16 @@ TEST(HdrHistogramTest, logIteratorBaseTwoTest) {
 
     // Need to create the iterator after we have added the data
     const double iteratorBase = 2.0;
-    HdrHistogram::Iterator iter{
-            histogram.makeLogIterator(initBucketWidth, iteratorBase)};
 
     uint64_t countSum = 0;
     uint64_t bucketIndex = 0;
-    for (; iter != histogram.end(); ++iter) {
+
+    // this test needs access to members of the iterator, can't use
+    // a range based for loop here.
+    auto view = histogram.logView(initBucketWidth, iteratorBase);
+    auto iter = view.begin();
+    auto end = view.end();
+    for (; iter != end; ++iter) {
         // Check that the values of the buckets increase exponentially
         EXPECT_EQ(pow(iteratorBase, bucketIndex), iter->upper_bound);
         // Check that the width of the bucket is the same number as the count
@@ -142,12 +145,16 @@ TEST(HdrHistogramTest, logIteratorBaseFiveTest) {
 
     // Need to create the iterator after we have added the data
     const double iteratorBase = 5.0;
-    HdrHistogram::Iterator iter{
-            histogram.makeLogIterator(initBucketWidth, iteratorBase)};
 
     uint64_t countSum = 0;
     uint64_t bucketIndex = 0;
-    for (; iter != histogram.end(); ++iter) {
+
+    // this test needs access to members of the iterator, can't use
+    // a range based for loop here.
+    auto view = histogram.logView(initBucketWidth, iteratorBase);
+    auto iter = view.begin();
+    auto end = view.end();
+    for (; iter != end; ++iter) {
         // Check that the values of the buckets increase exponentially
         EXPECT_EQ(pow(iteratorBase, bucketIndex), iter->upper_bound);
         // Check that the width of the bucket is the same number as the count
@@ -433,11 +440,10 @@ TEST(HdrHistogramTest, int32MaxSizeTest) {
     EXPECT_EQ(0, histogram.getMinValue());
 
     { // iter read lock scope
-        HdrHistogram::Iterator iter{histogram.getHistogramsIterator()};
-        auto res = iter.getNextBucketLowHighAndCount();
-        EXPECT_TRUE(res);
-        // The 3rd field [2] of the returned tuple is the count
-        EXPECT_EQ(limit, std::get<2>(*res));
+        auto iter = histogram.begin();
+        EXPECT_FALSE(iter == histogram.end());
+
+        EXPECT_EQ(limit, iter->count);
     }
 
     // Add 1 more count (previously this would overflow the total_count field
@@ -451,11 +457,10 @@ TEST(HdrHistogramTest, int32MaxSizeTest) {
     EXPECT_EQ(0, histogram.getMinValue());
 
     { // iter2 read lock scope
-        HdrHistogram::Iterator iter2{histogram.getHistogramsIterator()};
-        auto res2 = iter2.getNextBucketLowHighAndCount();
-        EXPECT_TRUE(res2);
-        // The 3rd field [2] of the returned tuple is the count
-        EXPECT_EQ(limit, std::get<2>(*res2));
+        auto iter = histogram.begin();
+        EXPECT_FALSE(iter == histogram.end());
+
+        EXPECT_EQ(limit, iter->count);
     }
 }
 
@@ -480,11 +485,10 @@ TEST(HdrHistogramTest, int64MaxSizeTest) {
     EXPECT_EQ(0, histogram.getValueAtPercentile(100.0));
     EXPECT_EQ(0, histogram.getMinValue());
 
-    HdrHistogram::Iterator iter{histogram.getHistogramsIterator()};
-    auto res = iter.getNextBucketLowHighAndCount();
-    EXPECT_TRUE(res);
-    // The 3rd field [2] of the returned tuple is the count
-    EXPECT_EQ(limit, std::get<2>(*res));
+    auto iter = histogram.begin();
+    EXPECT_FALSE(iter == histogram.end());
+
+    EXPECT_EQ(limit, iter->count);
 
     // Testing any higher than this gives us garbage results back but
     // unfortunately with no way of knowing that they're garbage.
@@ -519,7 +523,7 @@ TEST(HdrHistogramTest, ResetItoratorInfLoop) {
         histogram.addValue(i);
     }
     {
-        auto iter = histogram.getHistogramsIterator();
+        auto iter = histogram.begin();
         auto values = getAllValues(histogram, iter);
         EXPECT_EQ(values.size(), 20);
     }
@@ -527,7 +531,7 @@ TEST(HdrHistogramTest, ResetItoratorInfLoop) {
     std::thread thread;
     ThreadGate tg(2);
     { // Scope that holds read lock for iterator
-        auto iter2 = histogram.getHistogramsIterator();
+        auto iter2 = histogram.begin();
         /**
          * Create thread this should start running resetThread() at some point
          * int time will be blocked at HdrHistogram::reset() till this scope is
@@ -557,7 +561,7 @@ TEST(HdrHistogramTest, RangeBasedForLoop) {
         histogram.addValue(i);
     }
 
-    auto referenceItr = histogram.getHistogramsIterator();
+    auto referenceItr = histogram.linearView(5).begin();
     auto bucketCounter = 0;
     for (const auto& bucket : histogram) {
         auto refValue = referenceItr.getNextBucketLowHighAndCount();
@@ -577,4 +581,32 @@ TEST(HdrHistogramTest, RangeBasedForLoop) {
 
     // reference iterator also exhausted
     EXPECT_FALSE(referenceItr.getNextBucketLowHighAndCount().has_value());
+}
+
+/**
+ * Test that the log "view" iterator range exposes the expected set of log
+ * buckets for a histogram.
+ */
+TEST(HdrHistogramTest, LogView) {
+    HdrHistogram histogram(1, 100, 3, HdrHistogram::Iterator::IterMode::Log);
+    for (int i = 1; i <= 128; i++) {
+        histogram.addValue(i);
+    }
+
+    auto base = 2.0;
+
+    auto bucketCounter = 0;
+    for (const auto& bucket : histogram.logView(1, base)) {
+        auto expectedLower =
+                bucketCounter == 0 ? 0 : std::pow(base, bucketCounter - 1);
+        auto expectedUpper = std::pow(base, bucketCounter);
+        // each value was inserted once, so there should be the same number of
+        // values recorded as integer values within the bounds.
+        auto expectedCount = expectedUpper - expectedLower;
+        EXPECT_EQ(expectedLower, bucket.lower_bound);
+        EXPECT_EQ(expectedUpper, bucket.upper_bound);
+        EXPECT_EQ(expectedCount, bucket.count);
+
+        ++bucketCounter;
+    }
 }

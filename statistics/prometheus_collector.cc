@@ -56,17 +56,16 @@ void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
         histData.sampleCount = v.getValueCount();
     }
 
-    auto iter = v.makeLogIterator(1 /*firstBucketWidth*/, 2 /* logBase */);
-    while (auto result = iter.getNextBucketLowHighAndCount()) {
-        auto [lower, upper, count] = *result;
-
-        histData.buckets.push_back({lower, upper, count});
+    for (const auto& bucket :
+         v.logView(1 /*firstBucketWidth*/, 2 /* logBase */)) {
+        histData.buckets.push_back(
+                {bucket.lower_bound, bucket.upper_bound, bucket.count});
 
         // TODO: HdrHistogram doesn't track the sum of all added values but
         //  prometheus requires that value. For now just approximate it
         //  from bucket counts.
-        auto avgBucketValue = (lower + upper) / 2;
-        histData.sampleSum += avgBucketValue * count;
+        auto avgBucketValue = (bucket.lower_bound + bucket.upper_bound) / 2;
+        histData.sampleSum += avgBucketValue * bucket.count;
     }
 
     // ns_server may rely on some stats being present in prometheus,
