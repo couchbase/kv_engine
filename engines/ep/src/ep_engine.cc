@@ -1903,10 +1903,8 @@ cb::HlcTime EventuallyPersistentEngine::getVBucketHlcNow(Vbid vbucket) {
 EventuallyPersistentEngine::EventuallyPersistentEngine(
         GET_SERVER_API get_server_api)
     : kvBucket(nullptr),
-      workload(NULL),
       workloadPriority(NO_BUCKET_PRIORITY),
       getServerApiFunc(get_server_api),
-      checkpointConfig(NULL),
       trafficEnabled(false),
       startupTime(0),
       taskable(this),
@@ -2146,7 +2144,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             std::make_unique<EpEngineValueChangeListener>(*this));
 
     auto numShards = configuration.getMaxNumShards();
-    workload = new WorkLoadPolicy(configuration.getMaxNumWorkers(), numShards);
+    workload = std::make_unique<WorkLoadPolicy>(
+            configuration.getMaxNumWorkers(), numShards);
     if ((unsigned int)workload->getNumShards() >
                                               configuration.getMaxVbuckets()) {
         EP_LOG_WARN(
@@ -2174,7 +2173,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         dcpFlowControlManager_ = std::make_unique<DcpFlowControlManager>(*this);
     }
 
-    checkpointConfig = new CheckpointConfig(*this);
+    checkpointConfig = std::make_unique<CheckpointConfig>(*this);
     CheckpointConfig::addConfigChangeListener(*this);
 
     kvBucket = makeBucket(configuration);
@@ -6631,8 +6630,8 @@ EventuallyPersistentEngine::~EventuallyPersistentEngine() {
         kvBucket.reset();
     }
     EP_LOG_INFO("~EPEngine: Completed deinitialize.");
-    delete workload;
-    delete checkpointConfig;
+    workload.reset();
+    checkpointConfig.reset();
 
     // About to destruct EPStats object, after which it won't be possible
     // to record memory tracking (as tracking requires a valid EPStats object).

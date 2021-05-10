@@ -60,13 +60,13 @@ SynchronousEPEngine::SynchronousEPEngine(std::string extra_config)
     // workload is needed by EPStore's constructor (to construct the
     // VBucketMap).
     auto shards = configuration.getMaxNumShards();
-    workload = new WorkLoadPolicy(/*workers*/ 1, shards);
+    workload = std::make_unique<WorkLoadPolicy>(/*workers*/ 1, shards);
 
     // dcpConnMap_ is needed by EPStore's constructor.
     dcpConnMap_ = std::make_unique<MockDcpConnMap>(*this);
 
     // checkpointConfig is needed by CheckpointManager (via EPStore).
-    checkpointConfig = new CheckpointConfig(*this);
+    checkpointConfig = std::make_unique<CheckpointConfig>(*this);
 
     dcpFlowControlManager_ = std::make_unique<DcpFlowControlManager>(*this);
 

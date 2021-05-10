@@ -1136,7 +1136,7 @@ protected:
      */
     Configuration configuration;
     std::unique_ptr<KVBucket> kvBucket;
-    WorkLoadPolicy *workload;
+    std::unique_ptr<WorkLoadPolicy> workload;
     bucket_priority_t workloadPriority;
 
     std::map<const void*, std::unique_ptr<Item>> lookups;
@@ -1146,7 +1146,7 @@ protected:
 
     std::unique_ptr<DcpFlowControlManager> dcpFlowControlManager_;
     std::unique_ptr<DcpConnMap> dcpConnMap_;
-    CheckpointConfig *checkpointConfig;
+    std::unique_ptr<CheckpointConfig> checkpointConfig;
     std::string name;
     size_t maxItemSize;
     size_t maxItemPrivilegedBytes;
