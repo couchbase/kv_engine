@@ -57,7 +57,7 @@ void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
     }
 
     for (const auto& bucket :
-         v.logView(1 /*firstBucketWidth*/, 2 /* logBase */)) {
+         v.logViewRepresentable(1 /*firstBucketWidth*/, 2 /* logBase */)) {
         histData.buckets.push_back(
                 {bucket.lower_bound, bucket.upper_bound, bucket.count});
 
