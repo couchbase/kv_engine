@@ -62,8 +62,6 @@ add_library(memcached_daemon STATIC
             network_interface_manager.h
             opentelemetry.cc
             opentelemetry.h
-            parent_monitor.cc
-            parent_monitor.h
             protocol/mcbp/adjust_timeofday_executor.cc
             protocol/mcbp/appendprepend_context.cc
             protocol/mcbp/appendprepend_context.h

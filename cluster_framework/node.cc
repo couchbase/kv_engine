@@ -13,12 +13,10 @@
 #include <folly/portability/Unistd.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
+#include <platform/process_monitor.h>
 #include <platform/strerror.h>
 #include <protocol/connection/client_connection_map.h>
-#ifndef WIN32
-#include <sys/wait.h>
-#include <csignal>
-#endif
+#include <atomic>
 #include <chrono>
 #include <fstream>
 #include <iostream>
@@ -49,6 +47,8 @@ protected:
     nlohmann::json config;
     ConnectionMap connectionMap;
     const std::string id;
+    std::unique_ptr<ProcessMonitor> child;
+    std::atomic_bool allow_child_death{false};
 };
 
 NodeImpl::NodeImpl(boost::filesystem::path directory, std::string id)
@@ -59,10 +59,11 @@ NodeImpl::NodeImpl(boost::filesystem::path directory, std::string id)
     const auto errmaps =
             source_root / "etc" / "couchbase" / "kv" / "error_maps";
     const auto rbac = source_root / "tests" / "testapp_cluster" / "rbac.json";
-    const auto log_filename = NodeImpl::directory / "memcached_log";
+    const auto log_filename = NodeImpl::directory / "log" / "memcached_log";
     const auto portnumber_file = NodeImpl::directory / "memcached.ports.json";
     const auto minidump_dir = NodeImpl::directory / "crash";
     create_directories(minidump_dir);
+    create_directories(log_filename.parent_path());
 
     config = {{"max_connections", 1000},
               {"system_connections", 250},
@@ -104,108 +105,71 @@ NodeImpl::NodeImpl(boost::filesystem::path directory, std::string id)
 }
 
 void NodeImpl::startMemcachedServer() {
-#ifdef WIN32
-    STARTUPINFO sinfo{};
-    PROCESS_INFORMATION pinfo{};
-    sinfo.cb = sizeof(sinfo);
-
-    char commandline[1024];
-    sprintf(commandline,
-            "memcached.exe -C %s",
-            configfile.generic_string().c_str());
-    if (!CreateProcess("memcached.exe", // lpApplicationName
-                       commandline, // lpCommandLine
-                       nullptr, // lpProcessAttributes
-                       nullptr, // lpThreadAttributes
-                       false, // bInheritHandles
-                       0, // dwCreationFlags
-                       nullptr, // lpEnvironment
-                       nullptr, // lpCurrentDirectory
-                       &sinfo, // lpStartupInfo
-                       &pinfo)) { // lpProcessInfoqrmation
-        throw std::system_error(GetLastError(),
-                                std::system_category(),
-                                "Failed to execute memcached");
+    boost::filesystem::path exe{boost::filesystem::current_path() /
+                                "memcached"};
+    exe = exe.generic_path();
+    if (!boost::filesystem::exists(exe)) {
+        exe = exe.generic_string() + ".exe";
+        if (!boost::filesystem::exists(exe)) {
+            throw std::runtime_error(
+                    "NodeImpl::startMemcachedServer(): Failed to locate "
+                    "memcached");
+        }
     }
+    std::vector<std::string> argv = {
+            {exe.generic_string(), "-C", configfile.generic_string()}};
+    child = ProcessMonitor::create(argv, [this](const auto& ec) {
+        if (!allow_child_death) {
+            std::cerr << "memcached process on " << directory.generic_string()
+                      << " terminated: " << ec.to_string() << std::endl;
+            std::cerr << "Terminating process" << std::endl;
+            std::_Exit(EXIT_FAILURE);
+        }
+    });
 
-    child = pinfo.hProcess;
-#else
-    child = fork();
-    if (child == -1) {
-        throw std::system_error(
-                errno, std::system_category(), "Failed to start client");
+    if (getenv("MEMCACHED_UNIT_TESTS")) {
+        // The test _SHOULD_ complete under 60 seconds..
+        child->setTimeoutHander(std::chrono::seconds{60}, [this]() {
+            static std::mutex mutex;
+            std::lock_guard<std::mutex> guard(mutex);
+            std::cerr << "memcached process on " << directory.generic_string()
+                      << " might be stuck." << std::endl;
+
+            // We've set the cycle size to be 200M so we should expect
+            // only a single log file (but for simplicity just iterate
+            // over them all and print the last 8k of each file
+            std::cerr << "Last 8k of the log files" << std::endl
+                      << "========================" << std::endl;
+            for (const auto& p :
+                 boost::filesystem::directory_iterator(directory / "log")) {
+                if (is_regular_file(p)) {
+                    auto content = cb::io::loadFile(p.path().generic_string());
+                    if (content.size() > 8192) {
+                        content = content.substr(
+                                content.find('\n', content.size() - 8192));
+                    }
+                    std::cerr << p.path().generic_string() << std::endl
+                              << content << std::endl
+                              << "-----------------------------" << std::endl;
+                }
+            }
+            // Wait 2 secs before terminating so that the other nodes also
+            // may have their timouts fire and dump the logs..
+            std::this_thread::sleep_for(std::chrono::seconds{2});
+            std::exit(EXIT_FAILURE);
+        });
     }
-
-    if (child == 0) {
-        std::string binary(OBJECT_ROOT);
-        const auto memcached_json = configfile.generic_string();
-        binary.append("/memcached");
-
-        std::vector<const char*> argv;
-        argv.emplace_back(binary.c_str());
-        argv.emplace_back("-C");
-        argv.emplace_back(memcached_json.c_str());
-        argv.emplace_back(nullptr);
-        execvp(argv[0], const_cast<char**>(argv.data()));
-        throw std::system_error(
-                errno, std::system_category(), "Failed to execute memcached");
-    }
-#endif
-
     // wait and read the portnumber file
     parsePortnumberFile();
 }
 
 NodeImpl::~NodeImpl() {
-    if (isRunning()) {
-#ifdef WIN32
-        // @todo This should be made a bit more robust
-        if (!TerminateProcess(child, 0)) {
-            std::cerr << "TerminateProcess failed!" << std::endl;
-            std::cerr.flush();
-            _exit(EXIT_FAILURE);
-        }
-        DWORD status;
-        if ((status = WaitForSingleObject(child, 60000)) != WAIT_OBJECT_0) {
-            std::cerr << "Unexpected return value from WaitForSingleObject: "
-                      << status << std::endl;
-            std::cerr.flush();
-            _exit(EXIT_FAILURE);
-        }
-        if (!GetExitCodeProcess(child, &status)) {
-            std::cerr << "GetExitCodeProcess failed: " << GetLastError()
-                      << std::endl;
-            std::cerr.flush();
-            _exit(EXIT_FAILURE);
-        }
-#else
-        // Start by giving it a slow and easy start...
-        const auto timeout =
-                std::chrono::steady_clock::now() + std::chrono::seconds(15);
-        kill(child, SIGTERM);
-
-        do {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        } while (isRunning() && std::chrono::steady_clock::now() < timeout);
-
-        if (isRunning()) {
-            // no mercy!
-            kill(child, SIGKILL);
-
-            int status;
-            pid_t ret;
-            while (true) {
-                ret = waitpid(child, &status, 0);
-                if (ret == reinterpret_cast<pid_t>(-1) && errno == EINTR) {
-                    // Just loop again
-                    continue;
-                }
-                break;
-            }
-        }
-#endif
+    if (child) {
+        allow_child_death = true;
+        child->terminate();
     }
-
+    // make sure we reap the thread
+    child.reset();
     if (!configfile.empty()) {
         try {
             remove(configfile);
@@ -221,54 +185,6 @@ void NodeImpl::parsePortnumberFile() {
             config["portnumber_file"], std::chrono::minutes{5})));
     cb::io::rmrf(config["portnumber_file"]);
 }
-
-#ifdef WIN32
-bool Node::isRunning() const {
-    if (child != INVALID_HANDLE_VALUE) {
-        DWORD status;
-
-        if (!GetExitCodeProcess(child, &status)) {
-            throw std::system_error(
-                    GetLastError(),
-                    std::system_category(),
-                    "NodeImpl::isRunning: GetExitCodeProcess failed");
-
-            std::cerr << "GetExitCodeProcess: failed: " << cb_strerror()
-                      << std::endl;
-            exit(EXIT_FAILURE);
-        }
-
-        if (status == STILL_ACTIVE) {
-            return true;
-        }
-
-        CloseHandle(child);
-        child = INVALID_HANDLE_VALUE;
-    }
-    return false;
-}
-#else
-bool Node::isRunning() const {
-    if (child != 0) {
-        int status;
-        auto next = waitpid(child, &status, WNOHANG);
-        if (next == static_cast<pid_t>(-1)) {
-            throw std::system_error(errno,
-                                    std::system_category(),
-                                    "NodeImpl::isRunning: waitpid failed");
-        }
-
-        if (next == child) {
-            child = 0;
-            return false;
-        }
-
-        return true;
-    }
-
-    return false;
-}
-#endif
 
 std::unique_ptr<MemcachedConnection> NodeImpl::getConnection() const {
     auto ret = connectionMap.getConnection().clone();

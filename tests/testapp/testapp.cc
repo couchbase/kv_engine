@@ -10,6 +10,7 @@
 #include "testapp.h"
 
 #include <JSON_checker.h>
+#include <boost/filesystem.hpp>
 #include <cbsasl/client.h>
 #include <folly/portability/GTest.h>
 #include <folly/portability/Stdlib.h>
@@ -24,6 +25,7 @@
 #include <platform/cbassert.h>
 #include <platform/compress.h>
 #include <platform/dirutils.h>
+#include <platform/process_monitor.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>
 #include <platform/string_hex.h>
@@ -35,7 +37,9 @@
 
 std::unique_ptr<McdEnvironment> mcd_env;
 
-pid_t server_pid = -1;
+std::atomic_bool expectMemcachedTermination{false};
+std::unique_ptr<ProcessMonitor> memcachedProcess;
+
 in_port_t port = -1;
 SOCKET sock = INVALID_SOCKET;
 static time_t server_start_time = 0;
@@ -151,7 +155,7 @@ void TestappTest::TearDownTestCase() {
         enabled_hello_features.clear();
     }
 
-    if (server_pid != -1) {
+    if (memcachedProcess && memcachedProcess->isRunning()) {
         DeleteTestBucket();
     }
     stop_memcached_server();
@@ -404,43 +408,10 @@ void TestappTest::verify_server_running() {
         return;
     }
 
-    if (-1 == server_pid) {
-        std::cerr << "Server not running (server_pid == -1)" << std::endl;
+    if (!(memcachedProcess && memcachedProcess->isRunning())) {
+        std::cerr << "Server not running" << std::endl;
         mcd_env->terminate(EXIT_FAILURE);
     }
-
-#ifdef WIN32
-    DWORD status;
-
-    if (!GetExitCodeProcess(pidTToHandle(server_pid), &status)) {
-        std::cerr << "GetExitCodeProcess: failed: " << cb_strerror()
-                  << std::endl;
-        mcd_env->terminate(EXIT_FAILURE);
-    }
-    if (status != STILL_ACTIVE) {
-        std::cerr << "memcached process is not active: Exit code " << status
-                  << "(" << cb::to_hex(uint32_t(status)) << ")" << std::endl;
-        mcd_env->terminate(EXIT_FAILURE);
-    }
-#else
-    int status;
-    pid_t ret = waitpid(server_pid, &status, WNOHANG);
-
-    if (ret == static_cast<pid_t>(-1)) {
-        std::cerr << "waitpid() failed with: " << strerror(errno) << std::endl;
-        mcd_env->terminate(EXIT_FAILURE);
-    }
-
-    if (server_pid == ret) {
-        std::cerr << "waitpid status     : " << status << std::endl
-                  << "WIFEXITED(status)  : " << WIFEXITED(status) << std::endl
-                  << "WEXITSTATUS(status): " << WEXITSTATUS(status) << std::endl
-                  << "WIFSIGNALED(status): " << WIFSIGNALED(status) << std::endl
-                  << "WTERMSIG(status)   : " << WTERMSIG(status) << std::endl
-                  << "WCOREDUMP(status)  : " << WCOREDUMP(status) << std::endl;
-        mcd_env->terminate(EXIT_FAILURE);
-    }
-#endif
 }
 
 void TestappTest::parse_portnumber_file() {
@@ -516,73 +487,35 @@ void TestappTest::spawn_embedded_server() {
 }
 
 void TestappTest::start_external_server() {
-#ifdef WIN32
-    STARTUPINFO sinfo;
-    PROCESS_INFORMATION pinfo;
-    memset(&sinfo, 0, sizeof(sinfo));
-    memset(&pinfo, 0, sizeof(pinfo));
-    sinfo.cb = sizeof(sinfo);
-
-    char commandline[1024];
-    sprintf(commandline,
-            "memcached.exe -C %s",
-            mcd_env->getConfigurationFile().c_str());
-
-    if (!CreateProcess("memcached.exe",
-                       commandline,
-                       NULL,
-                       NULL,
-                       /*bInheritHandles*/ FALSE,
-                       0,
-                       NULL,
-                       NULL,
-                       &sinfo,
-                       &pinfo)) {
-        std::cerr << "Failed to start process: " << cb_strerror() << std::endl;
-        mcd_env->terminate(EXIT_FAILURE);
+    boost::filesystem::path exe{boost::filesystem::current_path() /
+                                "memcached"};
+    exe = exe.generic_path();
+    if (!boost::filesystem::exists(exe)) {
+        exe = exe.generic_string() + ".exe";
+        if (!boost::filesystem::exists(exe)) {
+            throw std::runtime_error(
+                    "start_external_server(): Failed to locate memcached");
+        }
     }
 
-    server_pid = handleToPidT(pinfo.hProcess);
-#else
-    server_pid = fork();
-    ASSERT_NE(reinterpret_cast<pid_t>(-1), server_pid);
-
-    if (server_pid == 0) {
-        /* Child */
-        const char* argv[20];
-        int arg = 0;
-
-        const auto config = mcd_env->getConfigurationFile();
-
-        if (getenv("RUN_UNDER_VALGRIND") != nullptr) {
-            argv[arg++] = "valgrind";
-            argv[arg++] = "--log-file=valgrind.%p.log";
-            argv[arg++] = "--leak-check=full";
-#if defined(__APPLE__)
-            /* Needed to ensure debugging symbols are up-to-date. */
-            argv[arg++] = "--dsymutil=yes";
-#endif
-        }
-
-        if (getenv("RUN_UNDER_PERF") != nullptr) {
-            argv[arg++] = "perf";
-            argv[arg++] = "record";
-            argv[arg++] = "--call-graph";
-            argv[arg++] = "dwarf";
-        }
-
-        argv[arg++] = "./memcached";
-        argv[arg++] = "-C";
-        argv[arg++] = config.c_str();
-
-        argv[arg++] = nullptr;
-        execvp(argv[0], const_cast<char**>(argv));
-        // execvp only returns on erro and set errno to the reason
-        std::cerr << "Failed to start memcached server: " << strerror(errno)
-                  << std::endl;
-        abort();
+    std::vector<std::string> argv;
+    if (getenv("RUN_UNDER_PERF") != nullptr) {
+        argv.emplace_back("perf");
+        argv.emplace_back("record");
+        argv.emplace_back("--call-graph");
+        argv.emplace_back("dwarf");
     }
-#endif // !WIN32
+    argv.emplace_back(exe.generic_string());
+    argv.emplace_back("-C");
+    argv.emplace_back(mcd_env->getConfigurationFile());
+    expectMemcachedTermination.store(false);
+    memcachedProcess = ProcessMonitor::create(argv, [](const auto& ec) {
+        if (!expectMemcachedTermination) {
+            std::cerr << "memcached process terminated: "
+                      << ec.to_json().dump(2) << std::endl;
+            std::_Exit(EXIT_FAILURE);
+        }
+    });
 }
 
 SOCKET connect_to_server_plain() {
@@ -818,40 +751,11 @@ void set_xerror_feature(bool enable) {
 }
 
 void TestappTest::waitForShutdown(bool killed) {
-#ifdef WIN32
-    DWORD exit_code = 0;
-    do {
-        ASSERT_EQ(WAIT_OBJECT_0,
-                  WaitForSingleObject(pidTToHandle(server_pid), 60000));
-        EXPECT_NE(0, GetExitCodeProcess(pidTToHandle(server_pid), &exit_code));
-    } while (exit_code == STILL_ACTIVE);
-    EXPECT_EQ(0, exit_code) << "This is probably an exception value: "
-                            << cb::to_hex(uint32_t(exit_code));
-#else
-    int status;
-    pid_t ret;
-    while (true) {
-        ret = waitpid(server_pid, &status, 0);
-        if (ret == reinterpret_cast<pid_t>(-1) && errno == EINTR) {
-            // Just loop again
-            continue;
+    if (memcachedProcess) {
+        while (memcachedProcess->isRunning()) {
+            std::this_thread::sleep_for(std::chrono::microseconds{10});
         }
-        break;
     }
-    ASSERT_NE(reinterpret_cast<pid_t>(-1), ret)
-            << "waitpid failed: " << strerror(errno);
-    bool correctShutdown = killed ? WIFSIGNALED(status) : WIFEXITED(status);
-    EXPECT_TRUE(correctShutdown)
-            << "waitpid status     : " << status << std::endl
-            << "WIFEXITED(status)  : " << WIFEXITED(status) << std::endl
-            << "WEXITSTATUS(status): " << WEXITSTATUS(status) << std::endl
-            << "WIFSIGNALED(status): " << WIFSIGNALED(status) << std::endl
-            << "WTERMSIG(status)   : " << WTERMSIG(status) << " ("
-            << strsignal(WTERMSIG(status)) << ")" << std::endl
-            << "WCOREDUMP(status)  : " << WCOREDUMP(status) << std::endl;
-    EXPECT_EQ(0, WEXITSTATUS(status));
-#endif
-    server_pid = pid_t(-1);
 }
 
 void TestappTest::stop_memcached_server() {
@@ -866,15 +770,11 @@ void TestappTest::stop_memcached_server() {
         memcached_server_thread.join();
     }
 
-    if (server_pid != pid_t(-1)) {
-#ifdef WIN32
-        TerminateProcess(pidTToHandle(server_pid), 0);
-        waitForShutdown();
-#else
-        if (kill(server_pid, SIGTERM) == 0) {
-            waitForShutdown();
-        }
-#endif
+    if (memcachedProcess) {
+        // We don't need it to do a graceful stop
+        expectMemcachedTermination.store(true);
+        memcachedProcess->terminate(false);
+        memcachedProcess.reset();
     }
 }
 

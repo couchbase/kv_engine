@@ -30,8 +30,6 @@ class Node {
 public:
     virtual ~Node();
 
-    bool isRunning() const;
-
     virtual std::unique_ptr<MemcachedConnection> getConnection() const = 0;
 
     const boost::filesystem::path directory;
@@ -57,12 +55,6 @@ public:
 
 protected:
     explicit Node(boost::filesystem::path dir);
-
-#ifdef WIN32
-    mutable HANDLE child = INVALID_HANDLE_VALUE;
-#else
-    mutable pid_t child = 0;
-#endif
 };
 
 } // namespace cb::test

@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015-Present Couchbase, Inc.
  *
@@ -9,10 +8,11 @@
  *   the file licenses/APL2.txt.
  */
 #include "testapp_shutdown.h"
+#include <platform/process_monitor.h>
 
 void ShutdownTest::SetUp() {
     TestappTest::SetUpTestCase();
-    if (server_pid == pid_t(-1)) {
+    if (!memcachedProcess->isRunning()) {
         std::cerr << "memcached not running. Terminate test execution"
                   << std::endl;
         mcd_env->terminate(EXIT_FAILURE);
@@ -29,6 +29,7 @@ void ShutdownTest::SetUp() {
 }
 
 TEST_F(ShutdownTest, ShutdownAllowed) {
+    expectMemcachedTermination.store(true);
     auto& conn = getAdminConnection();
     BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Shutdown);
     cmd.setCas(token);

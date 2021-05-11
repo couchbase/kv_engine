@@ -24,6 +24,7 @@
 #include <protocol/connection/client_mcbp_commands.h>
 
 #include <sys/types.h>
+#include <atomic>
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
@@ -56,7 +57,10 @@ std::string to_string(ClientSnappySupport s);
 // Needed by subdocument tests in seperate .cc file.
 extern SOCKET sock;
 extern in_port_t port;
-extern pid_t server_pid;
+
+class ProcessMonitor;
+extern std::atomic_bool expectMemcachedTermination;
+extern std::unique_ptr<ProcessMonitor> memcachedProcess;
 
 // Set of HELLO features which are currently enabled.
 extern std::set<cb::mcbp::Feature> enabled_hello_features;

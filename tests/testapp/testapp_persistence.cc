@@ -9,6 +9,7 @@
  *   the file licenses/APL2.txt.
  */
 #include <platform/dirutils.h>
+#include <platform/process_monitor.h>
 #include <csignal>
 
 #include "testapp_shutdown.h"
@@ -75,16 +76,11 @@ protected:
     void shutdownMemcached(ShutdownMode mode) {
         switch (mode) {
         case ShutdownMode::Unclean:
-#ifdef WIN32
-            // There's no direct equivalent of SIGKILL for Windows;
-            // TerminateProcess() behaves like SIGTERM - it allows pending IO
-            // to complete; however it's the best we have...
-            TerminateProcess(pidTToHandle(server_pid), 0);
-#else
-            kill(server_pid, SIGKILL);
-#endif
+            expectMemcachedTermination.store(true);
+            memcachedProcess->terminate(false);
             break;
         case ShutdownMode::Clean: {
+            expectMemcachedTermination.store(true);
             auto& admin = getAdminConnection();
             BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Shutdown);
             cmd.setCas(token);

@@ -28,7 +28,6 @@
 #include "network_interface_manager.h"
 #include "nobucket_taskable.h"
 #include "opentelemetry.h"
-#include "parent_monitor.h"
 #include "protocol/mcbp/engine_wrapper.h"
 #include "runtime.h"
 #include "server_core_api.h"
@@ -53,6 +52,7 @@
 #include <platform/backtrace.h>
 #include <platform/dirutils.h>
 #include <platform/interrupt.h>
+#include <platform/process_monitor.h>
 #include <platform/scope_timer.h>
 #include <platform/strerror.h>
 #include <platform/sysinfo.h>
@@ -855,7 +855,7 @@ int memcached_main(int argc, char** argv) {
     environment.max_file_descriptors = cb::io::maximizeFileDescriptors(
             std::numeric_limits<uint32_t>::max());
 
-    std::unique_ptr<ParentMonitor> parent_monitor;
+    std::unique_ptr<ProcessMonitor> parent_monitor;
 
     try {
         cb::logger::createConsoleLogger();
@@ -1077,7 +1077,15 @@ int memcached_main(int argc, char** argv) {
         const int parent = Settings::instance().getParentIdentifier();
         if (parent != -1) {
             LOG_INFO_RAW("Starting parent monitor");
-            parent_monitor = std::make_unique<ParentMonitor>(parent);
+            parent_monitor = ProcessMonitor::create(
+                    parent,
+                    [parent](auto&) {
+                        std::cerr << "Parent process " << parent
+                                  << " died. Exiting" << std::endl;
+                        std::cerr.flush();
+                        std::_Exit(EXIT_FAILURE);
+                    },
+                    "mc:parent_mon");
         }
     }
 
