@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 #     Copyright 2015 Couchbase, Inc
 #
@@ -24,7 +24,6 @@
 #  * GDB can read various useful information from the core dump.
 
 
-from __future__ import print_function
 import json
 import logging
 import os
@@ -35,7 +34,6 @@ import subprocess
 import sys
 import tempfile
 import time
-import threading
 
 logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s',
                     datefmt='%Y-%m-%dT%H:%M:%S',
@@ -66,8 +64,10 @@ def invoke_gdb(gdb_exe, program, core_file, commands=[]):
         args += ['--eval-command='+c]
 
     logging.debug("GDB args:" + ', '.join(args))
-    gdb = subprocess.Popen(args, stdout=subprocess.PIPE,
-                           stderr=subprocess.PIPE)
+    gdb = subprocess.Popen(args,
+                           stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE,
+                           universal_newlines=True)
     gdb.wait()
     return gdb.stdout.read()
 
@@ -92,20 +92,15 @@ class Subprocess(object):
                 else:
                     raise
 
-        def target():
-            self.process = subprocess.Popen(self.args, stderr=subprocess.PIPE,
-                                            env = os.environ,
-                                            preexec_fn=set_core_file_ulimit)
-            (_, self.stderrdata) = self.process.communicate()
+        self.process = subprocess.Popen(self.args, stderr=subprocess.PIPE,
+                                        env = os.environ,
+                                        universal_newlines=True,
+                                        preexec_fn=set_core_file_ulimit)
 
-        thread = threading.Thread(target=target)
-        thread.start()
-
-        thread.join(timeout)
-        if thread.is_alive():
-            logging.error("Timeout - terminating process " + self.args[0])
-            self.process.terminate()
-            thread.join()
+        try:
+            (_, self.stderrdata) = self.process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            logging.error("Timeout waiting for process to finish " + self.args[0])
         return (self.process.returncode, self.stderrdata)
 
 
@@ -125,7 +120,7 @@ minidump_dir = tempfile.mkdtemp(prefix='breakpad_test_tmp.')
 logging.debug("Using minidump_dir=" + minidump_dir)
 
 rbac_data = {}
-rbac_file = tempfile.NamedTemporaryFile(delete=False)
+rbac_file = tempfile.NamedTemporaryFile(mode='w', delete=False)
 rbac_file.write(json.dumps(rbac_data))
 rbac_file.close()
 
@@ -136,6 +131,7 @@ config = {"interfaces": [{"tag":"plain",
           "breakpad": { "enabled": True,
                         "minidump_dir" : minidump_dir
                       },
+          "stdin_listener": False,
           "verbosity" : 2,
           "rbac_file" : os.path.abspath(rbac_file.name)}
 config_json = json.dumps(config)
@@ -143,7 +139,7 @@ config_json = json.dumps(config)
 # Need a temporary file which can be opened (a second time) by memcached,
 # therefore use NamedTemporaryFile(delete=False) and manually unlink
 # when no longer needed.
-config_file = tempfile.NamedTemporaryFile(delete=False)
+config_file = tempfile.NamedTemporaryFile(mode='w', delete=False)
 config_file.write(config_json)
 config_file.close()
 

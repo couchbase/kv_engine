@@ -127,17 +127,17 @@ IF (BREAKPAD_FOUND)
         FIND_PROGRAM(GDB_EXECUTABLE gdb)
         IF (GDB_EXECUTABLE)
             # Three tests - crashing via segfault, std::exception and unknown exception
-            ADD_TEST(memcached-breakpad-test-segfault ${PYTHON_EXECUTABLE}
+            ADD_TEST(memcached-breakpad-test-segfault
                      ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
                      ${Memcached_BINARY_DIR}/memcached segfault ${MINIDUMP2CORE}
                      ${GDB_EXECUTABLE})
 
-            ADD_TEST(memcached-breakpad-test-std-exception ${PYTHON_EXECUTABLE}
+            ADD_TEST(memcached-breakpad-test-std-exception
                      ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
                      ${Memcached_BINARY_DIR}/memcached std_exception ${MINIDUMP2CORE}
                      ${GDB_EXECUTABLE})
 
-            ADD_TEST(memcached-breakpad-test-unknown-exception ${PYTHON_EXECUTABLE}
+            ADD_TEST(memcached-breakpad-test-unknown-exception
                      ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
                      ${Memcached_BINARY_DIR}/memcached unknown_exception ${MINIDUMP2CORE}
                      ${GDB_EXECUTABLE})
