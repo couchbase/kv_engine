@@ -105,7 +105,7 @@ IF (UNIX AND COUCHBASE_KV_BUILD_UNIT_TESTS)
         list(APPEND test_extra_args --gdb_exe=${GDB_EXECUTABLE})
     endif()
     function(add_breakpad_test VARIANT)
-        add_test(memcached-breakpad-test-${VARIANT} ${PYTHON_EXECUTABLE}
+        add_test(memcached-breakpad-test-${VARIANT}
              ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
              ${Memcached_BINARY_DIR}/memcached ${VARIANT} ${test_extra_args})
     endfunction()
