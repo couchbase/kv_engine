@@ -1314,10 +1314,10 @@ static void subdoc_single_response(Cookie& cookie, SubdocCmdContext& context) {
         context.response_val_len = value.size();
     }
 
-    if (context.traits.is_mutator) {
-        cb::audit::document::add(cookie,
-                                 cb::audit::document::Operation::Modify);
-    } else {
+    // Record a Document Read audit event for non-mutator operations (mutators
+    // will have already recorded a Docuemnt Modify event when they called
+    // bucket_store.
+    if (!context.traits.is_mutator) {
         cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
     }
 
@@ -1367,9 +1367,6 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
     // Calculate total body size to encode into the header.
     size_t iov_len = 0;
     if (context.overall_status == cb::mcbp::Status::Success) {
-        cb::audit::document::add(cookie,
-                                 cb::audit::document::Operation::Modify);
-
         // on success, one per each non-zero length result.
         for (auto phase : phases) {
             for (const auto& op : context.getOperations(phase)) {

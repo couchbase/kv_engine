@@ -74,6 +74,15 @@ public:
                 {"domain", to_string(cb::rbac::Domain::Local)},
                 {"user", "MB33603"}};
 
+        json["event_states"]
+            [std::to_string(MEMCACHED_AUDIT_SESSION_TERMINATED)] = "enabled";
+        json["event_states"][std::to_string(MEMCACHED_AUDIT_DOCUMENT_READ)] =
+                "enabled";
+        json["event_states"][std::to_string(MEMCACHED_AUDIT_DOCUMENT_MODIFY)] =
+                "enabled";
+        json["event_states"][std::to_string(MEMCACHED_AUDIT_DOCUMENT_DELETE)] =
+                "enabled";
+
         try {
             mcd_env->rewriteAuditConfig();
         } catch (std::exception& e) {
@@ -101,6 +110,8 @@ public:
      * @param callback the callback containing the audit event
      */
     void iterate(const std::function<bool(const nlohmann::json&)>& callback);
+
+    int getAuditCount(const std::vector<nlohmann::json>& entries, int id);
 
 protected:
     std::string descriptor_file;
@@ -224,6 +235,14 @@ bool AuditTest::searchAuditLogForID(int id,
     });
 
     return ret;
+}
+
+int AuditTest::getAuditCount(const std::vector<nlohmann::json>& entries,
+                             int id) {
+    return std::count_if(
+            entries.begin(), entries.end(), [id](const auto& entry) {
+                return entry.at("id").template get<int>() == id;
+            });
 }
 
 /**
@@ -374,6 +393,107 @@ TEST_P(AuditTest, AuditSelectBucket) {
 
     ASSERT_TRUE(searchAuditLogForID(
             MEMCACHED_AUDIT_SELECT_BUCKET, "@admin", "bucket-1"));
+}
+
+// Each subdoc single-lookup should log one (and only one) DOCUMENT_READ
+// event.
+TEST_P(AuditTest, AuditSubdocLookup) {
+    auto& conn = getConnection();
+    conn.store("doc", Vbid(0), "{\"foo\": 1}");
+    BinprotSubdocCommand cmd(cb::mcbp::ClientOpcode::SubdocGet,
+                             "doc",
+                             "foo",
+                             "",
+                             SUBDOC_FLAG_NONE);
+    ASSERT_EQ(cb::mcbp::Status::Success, conn.execute(cmd).getStatus());
+
+    // Cleanup document; this also gives us a sentinel audit event to know that
+    // all previous document audit events we are interested in have been
+    // writen to disk.
+    conn.remove("doc", Vbid(0));
+    ASSERT_TRUE(searchAuditLogForID(MEMCACHED_AUDIT_DOCUMENT_DELETE));
+
+    // Should have one DOCUMENT_MODIFY (from initial create) and one
+    // DOCUMENT_READ event.
+    const auto entries = readAuditData();
+    EXPECT_EQ(1, getAuditCount(entries, MEMCACHED_AUDIT_DOCUMENT_READ));
+    EXPECT_EQ(1, getAuditCount(entries, MEMCACHED_AUDIT_DOCUMENT_MODIFY));
+}
+
+// Each subdoc single-mutation should log one (and only one) DOCUMENT_MODIFY
+// event.
+TEST_P(AuditTest, AuditSubdocMutation) {
+    auto& conn = getConnection();
+    BinprotSubdocCommand cmd(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                             "doc",
+                             "foo",
+                             "\"bar\"",
+                             SUBDOC_FLAG_NONE,
+                             mcbp::subdoc::doc_flag::Mkdoc);
+    ASSERT_EQ(cb::mcbp::Status::Success, conn.execute(cmd).getStatus());
+
+    // Cleanup document; this also gives us a sentinel audit event to know that
+    // all previous document audit events we are interested in have been
+    // writen to disk.
+    conn.remove("doc", Vbid(0));
+    ASSERT_TRUE(searchAuditLogForID(MEMCACHED_AUDIT_DOCUMENT_DELETE));
+
+    // Should have one DOCUMENT_MODIFY event and no DOCUMENT_READ events.
+    const auto entries = readAuditData();
+    EXPECT_EQ(1, getAuditCount(entries, MEMCACHED_AUDIT_DOCUMENT_MODIFY));
+    EXPECT_EQ(0, getAuditCount(entries, MEMCACHED_AUDIT_DOCUMENT_READ));
+}
+
+// Each subdoc multi-mutation should log one (and only one) DOCUMENT_MODIFY
+// event.
+TEST_P(AuditTest, AuditSubdocMultiMutation) {
+    auto& conn = getConnection();
+    BinprotSubdocMultiMutationCommand cmd(
+            "doc",
+            {{cb::mcbp::ClientOpcode::SubdocDictUpsert,
+              SUBDOC_FLAG_NONE,
+              "foo",
+              "\"bar\""},
+             {cb::mcbp::ClientOpcode::SubdocDictUpsert,
+              SUBDOC_FLAG_NONE,
+              "foo2",
+              "\"baz\""}},
+            mcbp::subdoc::doc_flag::Mkdoc);
+
+    ASSERT_EQ(cb::mcbp::Status::Success, conn.execute(cmd).getStatus());
+
+    // Cleanup document; this also gives us a sentinel audit event to know that
+    // all previous document audit events we are interested in have been
+    // writen to disk.
+    conn.remove("doc", Vbid(0));
+    ASSERT_TRUE(searchAuditLogForID(MEMCACHED_AUDIT_DOCUMENT_DELETE));
+
+    // Should have one DOCUMENT_MODIFY event and no DOCUMENT_READ events.
+    const auto entries = readAuditData();
+    EXPECT_EQ(1, getAuditCount(entries, MEMCACHED_AUDIT_DOCUMENT_MODIFY));
+    EXPECT_EQ(0, getAuditCount(entries, MEMCACHED_AUDIT_DOCUMENT_READ));
+}
+
+// Check that a delete via subdoc is audited correctly.
+TEST_P(AuditTest, AuditSubdocMultiMutationDelete) {
+    auto& conn = getConnection();
+    conn.store("doc", Vbid(0), "foo");
+
+    BinprotSubdocMultiMutationCommand cmd(
+            "doc",
+            {{cb::mcbp::ClientOpcode::Delete, SUBDOC_FLAG_NONE, {}, {}}},
+            mcbp::subdoc::doc_flag::None);
+
+    ASSERT_EQ(cb::mcbp::Status::Success, conn.execute(cmd).getStatus());
+
+    // Should have one DOCUMENT_MODIFY (when initial document was stored) and
+    // one DOCUMENT_DELETE event.
+    // Delete is last, so search / wait for that; then check entire contents.
+    EXPECT_TRUE(searchAuditLogForID(MEMCACHED_AUDIT_DOCUMENT_DELETE));
+    const auto entries = readAuditData();
+    EXPECT_EQ(0, getAuditCount(entries, MEMCACHED_AUDIT_DOCUMENT_READ));
+    EXPECT_EQ(1, getAuditCount(entries, MEMCACHED_AUDIT_DOCUMENT_MODIFY));
+    EXPECT_EQ(1, getAuditCount(entries, MEMCACHED_AUDIT_DOCUMENT_DELETE));
 }
 
 TEST_P(AuditTest, AuditConfigReload) {
