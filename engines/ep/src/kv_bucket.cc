@@ -861,9 +861,9 @@ void KVBucket::releaseRegisteredSyncWrites() {
 
         auto cookies = vb->getCookiesForInFlightSyncWrites();
         if (!cookies.empty()) {
-            EP_LOG_INFO("Cancel {} blocked durability requests in {}",
-                        cookies.size(),
-                        vb);
+            EP_LOG_INFO("{} Cancel {} blocked durability requests",
+                        vb->getId(),
+                        cookies.size());
             ExTask notifyTask = std::make_shared<RespondAmbiguousNotification>(
                     engine, vb, std::move(cookies));
             ExecutorPool::get()->schedule(notifyTask);
