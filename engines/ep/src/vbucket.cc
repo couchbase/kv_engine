@@ -3214,7 +3214,18 @@ std::pair<MutationStatus, std::optional<VBNotifyCtx>> VBucket::processSet(
             return {MutationStatus::IsPendingSyncWrite, {}};
         }
 
-        Expects(itm.isCommitted());
+        if (!itm.isCommitted()) {
+            // We always expect that the item we are trying to store is in the
+            // committed namespace here because we complete associated prepares.
+            throw std::logic_error(
+                    fmt::format("VBucket::processSet: {} expected a complete "
+                                "item but the item is a prepare {} with "
+                                "seqno:{}. Existing prepare has seqno:{}",
+                                getId(),
+                                cb::UserData(itm.getKey().to_string()),
+                                itm.getBySeqno(),
+                                v->getBySeqno()));
+        }
         getPassiveDM().completeSyncWrite(
                 itm.getKey(),
                 PassiveDurabilityMonitor::Resolution::Commit,
