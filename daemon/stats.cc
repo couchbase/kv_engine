@@ -154,9 +154,10 @@ void server_bucket_timing_stats(const BucketStatCollector& collector,
         // If the histogram has not been created, add an empty histogram
         // to the stat collector.
 
-        const auto& histogram = histPtr ? *histPtr : Hdr1sfMicroSecHistogram();
-        collector.withLabels({{"opcode", to_string(ClientOpcode(opcode))}})
-                .addStat(cb::stats::Key::cmd_duration, histogram);
+        if (histPtr && histPtr->getValueCount() > 0) {
+            collector.withLabels({{"opcode", to_string(ClientOpcode(opcode))}})
+                    .addStat(cb::stats::Key::cmd_duration, *histPtr);
+        }
     }
 }
 

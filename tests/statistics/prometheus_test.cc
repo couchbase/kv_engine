@@ -61,15 +61,20 @@ TEST_F(PrometheusStatTest, auditStatsNotPerBucket) {
 }
 
 TEST_F(PrometheusStatTest, EmptyOpTimingHistograms) {
-    // Check that empty cmd_duration per-op histograms are exposed if
+    // Check that empty cmd_duration per-op histograms are not exposed if
     // memcached has not processed any occurrences of that operation
     // (and thus has no timing data for it)
     using namespace cb::stats;
     using namespace ::testing;
+    using namespace std::chrono_literals;
 
     auto metricName = "cmd_duration_seconds";
 
     Timings dummyTimings;
+
+    // Add a fake tining record for a set op. This histogram should then be
+    // present, but all others should be absent.
+    dummyTimings.collect(cb::mcbp::ClientOpcode::Set, 10ms);
 
     StatMap stats;
 
@@ -81,28 +86,30 @@ TEST_F(PrometheusStatTest, EmptyOpTimingHistograms) {
 
     const auto& metricFamily = stats[metricName];
 
-    // there should be multiple instances in this metricFamily family, one
-    // per exposed op. Check that 133 or more are present to allow
-    // for future additions
-    EXPECT_THAT(metricFamily.metric, SizeIs(Ge(133)));
+    // Only the one instance should be present, for set.
+    // ASSERT as later expectations are not necessarily valid if this is not
+    // true.
+    ASSERT_THAT(metricFamily.metric, SizeIs(1));
 
-    // check a specific instance, doesn't really matter which so check GAT
+    // Check that the set histogram has the correct range of buckets
     auto expectedLabel = prometheus::ClientMetric::Label();
-    expectedLabel.name = "op";
-    expectedLabel.value = "GAT";
+    expectedLabel.name = "opcode";
+    expectedLabel.value = "SET";
 
-    // find the right metric instance
-    for (const auto& instance : metricFamily.metric) {
-        if (std::find(instance.label.begin(),
-                      instance.label.end(),
-                      expectedLabel) != instance.label.end()) {
-            const auto& histogram = instance.histogram;
+    auto clientMetric = metricFamily.metric.front();
+    const auto& histogram = clientMetric.histogram;
 
-            EXPECT_EQ(0, histogram.sample_count);
-            EXPECT_EQ(0.0, histogram.sample_sum);
-            EXPECT_THAT(histogram.bucket, SizeIs(0));
+    EXPECT_EQ(1, histogram.sample_count);
 
-            break;
-        }
-    }
+    auto maxTrackable =
+            dummyTimings
+                    .get_timing_histogram(uint8_t(cb::mcbp::ClientOpcode::Set))
+                    ->getMaxTrackableValue();
+
+    auto expectedBuckets = int(std::ceil(std::log2(maxTrackable))) + 1;
+    // plus one for the lowest bucket [0,1], log2(2) == 1 but
+    // a histogram with maxTrackable==2 would be expected to have two
+    // buckets.
+
+    EXPECT_THAT(histogram.bucket, SizeIs(expectedBuckets));
 }
