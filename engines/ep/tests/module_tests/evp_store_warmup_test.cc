@@ -29,6 +29,7 @@
 #include "vbucket_state.h"
 #include "warmup.h"
 #include <boost/filesystem.hpp>
+#include <engines/ep/src/tasks.h>
 #include <folly/synchronization/Baton.h>
 
 class WarmupTest : public SingleThreadedKVBucketTest {
@@ -2502,6 +2503,49 @@ TEST_F(WarmupTest, DontStartFlushersUntilPopulateVBucketMap) {
 
     // Finish warmup or the test gets stuck
     runReadersUntilWarmedUp();
+}
+
+TEST_F(WarmupTest, OnlyShutdownPersistsForceShutdownStat) {
+    // Hook to run
+    std::function<void()> stopDestructionEarly = [this]() {
+        // Run StatSnap manually
+        auto statSnap = StatSnap(engine.get());
+        statSnap.run();
+
+        // throw so we exit the destroy method early
+        throw std::runtime_error("Stop destruction");
+    };
+    engine->epDestroyFailureHook = stopDestructionEarly;
+
+    // Gotta create our vb
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    //  Check that our first failover entry is 0
+    const auto initFailoverEntry = *getLatestFailoverTableEntry();
+    ASSERT_EQ(0, initFailoverEntry.by_seqno);
+
+    // Start an unclean shutdown
+    engine->epDestroyFailureHook = stopDestructionEarly;
+    try {
+        engine->destroy(false);
+        FAIL() << "We should have thrown so we didn't run destroy() in "
+                  "full";
+    } catch (const std::runtime_error& e) {
+        // catch the exception thrown by stopDestructionEarly() so we clean
+        // up the thread nicely and check it was the exception we where
+        // expecting
+        EXPECT_EQ(std::string_view{"Stop destruction"}, e.what());
+    }
+
+    // Tidy up for warmup
+    engine->epDestroyFailureHook = []() -> void {};
+    tidyUpAbortedShutdown();
+    initialiseAndWarmupFully();
+
+    // If StatSnap had run and persisted "ep_force_shutdown"="false" during
+    // the shutdown then the failover table entries here would be the same
+    const auto failoverEntryAfterKill = *getLatestFailoverTableEntry();
+    EXPECT_NE(initFailoverEntry, failoverEntryAfterKill);
 }
 
 TEST_F(WarmupTest, MB_45756_CrashDuringEPDestruction) {

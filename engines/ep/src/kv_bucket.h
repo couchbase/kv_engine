@@ -197,7 +197,7 @@ public:
     bool resumeFlusher() override;
     void wakeUpFlusher() override;
 
-    void snapshotStats() override;
+    void snapshotStats(bool shuttingDown) override;
 
     void getAggregatedVBucketStats(
             const BucketStatCollector& collector) override;

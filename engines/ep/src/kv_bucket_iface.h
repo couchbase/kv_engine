@@ -358,8 +358,10 @@ public:
 
     /**
      * Takes a snapshot of the current stats and persists them to disk.
+     *
+     * @param shuttingDown is the bucket shutting down?
      */
-    virtual void snapshotStats() = 0;
+    virtual void snapshotStats(bool shuttingDown) = 0;
 
     /**
      * Get summarized vBucket stats for this bucket - total for all

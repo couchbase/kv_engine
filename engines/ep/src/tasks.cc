@@ -126,7 +126,7 @@ CompactionConfig CompactTask::runCompactionWithConfig(
 
 bool StatSnap::run() {
     TRACE_EVENT0("ep-engine/task", "StatSnap");
-    engine->getKVBucket()->snapshotStats();
+    engine->getKVBucket()->snapshotStats(false /*shuttingDown*/);
     ExecutorPool::get()->snooze(uid, 60);
     return true;
 }

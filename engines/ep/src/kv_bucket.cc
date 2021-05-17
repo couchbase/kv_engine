@@ -1185,7 +1185,7 @@ static void snapshot_add_stat(std::string_view key,
             std::string{value.data(), value.size()}));
 }
 
-void KVBucket::snapshotStats() {
+void KVBucket::snapshotStats(bool shuttingDown) {
     snapshot_add_stat_cookie snap;
     bool rv = engine.getStats(&snap, {}, {}, snapshot_add_stat) ==
                       cb::engine_errc::success &&
@@ -1193,7 +1193,7 @@ void KVBucket::snapshotStats() {
                       cb::engine_errc::success;
 
     nlohmann::json snapshotStats(snap.smap);
-    if (rv && stats.isShutdown) {
+    if (rv && shuttingDown) {
         snapshotStats["ep_force_shutdown"] =
                 stats.forceShutdown ? "true" : "false";
         snapshotStats["ep_shutdown_time"] = fmt::format("{}", ep_real_time());
