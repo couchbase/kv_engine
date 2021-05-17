@@ -290,12 +290,15 @@ void EPBucket::deinitialize() {
     stopBgFetcher();
     stopWarmup();
 
+    KVBucket::deinitialize();
+
     // Perform a snapshot of the stats before shutting down so we can
     // persist the type of shutdown (stats.forceShutdown), and consequently
     // on the next warmup can determine is there was a clean shutdown - see
-    // Warmup::cleanShutdown
-    snapshotStats();
-    KVBucket::deinitialize();
+    // Warmup::cleanShutdown. This must be called after KVBucket::deinitialize()
+    // to prevent a race condition with the StatSnap task as the deinitialize
+    // function will cancel all running tasks.
+    snapshotStats(true /*shuttingDown*/);
 }
 
 /**

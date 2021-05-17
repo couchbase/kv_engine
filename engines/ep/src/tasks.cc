@@ -69,7 +69,7 @@ bool CompactTask::run() {
 
 bool StatSnap::run() {
     TRACE_EVENT0("ep-engine/task", "StatSnap");
-    engine->getKVBucket()->snapshotStats();
+    engine->getKVBucket()->snapshotStats(false /*shuttingDown*/);
     if (runOnce) {
         return false;
     }

@@ -199,7 +199,7 @@ public:
     bool resumeFlusher() override;
     void wakeUpFlusher() override;
 
-    void snapshotStats() override;
+    void snapshotStats(bool shuttingDown) override;
 
     void getAggregatedVBucketStats(const void* cookie,
                                    const AddStatFn& add_stat) override;
