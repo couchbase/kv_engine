@@ -368,8 +368,10 @@ public:
           audit_file_name(test_directory / "audit.cfg"),
           audit_log_dir(test_directory / "audittrail"),
           minidump_dir(test_directory / "crash"),
+          log_dir(test_directory / "log"),
           manageSSL(manageSSL_) {
         create_directories(minidump_dir);
+        create_directories(log_dir);
 
         if (manageSSL) {
             initialize_openssl();
@@ -438,6 +440,31 @@ public:
         unsetenv("MEMCACHED_UNIT_TESTS");
         unsetenv("MEMCACHED_TOP_KEYS");
         unsetenv("CBSASL_PWFILE");
+
+        // If exit-code != EXIT_SUCCESS it means that we had at least one
+        // failure. When running on the CV machines we might have information
+        // in the log files so lets dump the last 8k of the log file to give
+        // the user more information
+        if (exitcode != EXIT_SUCCESS) {
+            // We've set the cycle size to be 200M so we should expect
+            // only a single log file (but for simplicity just iterate
+            // over them all and print the last 8k of each file
+            std::cerr << "Last 8k of the log files" << std::endl
+                      << "========================" << std::endl;
+            for (const auto& p :
+                 boost::filesystem::directory_iterator(log_dir)) {
+                if (is_regular_file(p)) {
+                    auto content = cb::io::loadFile(p.path().generic_string());
+                    if (content.size() > 8192) {
+                        content = content.substr(
+                                content.find('\n', content.size() - 8192));
+                    }
+                    std::cerr << p.path().generic_string() << std::endl
+                              << content << std::endl
+                              << "-----------------------------" << std::endl;
+                }
+            }
+        }
 
         bool cleanup = true;
         for (const auto& p :
@@ -521,6 +548,14 @@ public:
         return minidump_dir.generic_string();
     }
 
+    std::string getLogDir() const override {
+        return log_dir.generic_string();
+    }
+
+    std::string getLogFilePattern() const override {
+        return (log_dir / "memcached").generic_string();
+    }
+
 private:
     const boost::filesystem::path test_directory;
     const boost::filesystem::path isasl_file_name;
@@ -530,6 +565,7 @@ private:
     const boost::filesystem::path audit_file_name;
     const boost::filesystem::path audit_log_dir;
     const boost::filesystem::path minidump_dir;
+    const boost::filesystem::path log_dir;
     const bool manageSSL;
 
     nlohmann::json audit_config;

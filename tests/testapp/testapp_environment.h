@@ -191,6 +191,10 @@ public:
     virtual std::string getPortnumberFile() const = 0;
 
     virtual std::string getMinidumpDir() const = 0;
+
+    virtual std::string getLogDir() const = 0;
+
+    virtual std::string getLogFilePattern() const = 0;
 };
 
 extern std::unique_ptr<McdEnvironment> mcd_env;

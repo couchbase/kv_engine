@@ -426,7 +426,10 @@ nlohmann::json TestappTest::generate_config() {
              {{"version", 1},
               {"EWB_CTL", {{"slow", 50}}},
               {"default", {{"slow", 500}}}}},
-            {"logger", {{"unit_test", true}}},
+            {"logger",
+             {{"unit_test", true},
+              {"filename", mcd_env->getLogFilePattern()},
+              {"cyclesize", 200 * 1024 * 1024}}},
             {"portnumber_file", mcd_env->getPortnumberFile()},
             {"prometheus", {{"port", 0}, {"family", "inet"}}},
     };
