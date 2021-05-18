@@ -649,7 +649,7 @@ TEST(ManifestTest, toJson) {
 #endif // !defined(__clang_major__) || __clang_major__ > 7
 
 TEST(ManifestTest, badNames) {
-    for (char c = 127; c >= 0; c--) {
+    for (int8_t c = 127; c >= 0; c--) {
         std::string name(1, c);
         CollectionsManifest cm({name, 8});
 
