@@ -43,9 +43,10 @@ add_library(mcd_util STATIC
 set_property(TARGET mcd_util PROPERTY POSITION_INDEPENDENT_CODE 1)
 if (BREAKPAD_FOUND)
   target_include_directories(mcd_util SYSTEM PRIVATE ${BREAKPAD_INCLUDE_DIR})
+  target_link_libraries(mcd_util ${BREAKPAD_LIBRARIES})
 endif()
 target_link_libraries(mcd_util memcached_logger engine_utilities
-                      hdr_histogram_static platform ${BREAKPAD_LIBRARIES} ${OPENSSL_LIBRARIES})
+                      hdr_histogram_static platform ${OPENSSL_LIBRARIES})
 add_sanitizers(mcd_util)
 
 add_library(mcd_test_util STATIC test_manifest.h test_manifest.cc)
