@@ -2306,8 +2306,6 @@ private:
                                             QueueBgFetch queueBgFetch,
                                             const StoredValue& v) = 0;
 
-    void adjustCheckpointFlushTimeout(std::chrono::seconds wall_time);
-
     /**
      * Given a StoredValue with XATTRs - prune the user keys so only system keys
      * remain.
@@ -2505,8 +2503,6 @@ private:
     // I.e., adding to Queue and adding into the DM must be an atomic operation,
     // which is what this mutex is used for.
     std::mutex dmQueueMutex;
-
-    static cb::AtomicDuration<> chkFlushTimeout;
 
     static double mutationMemThreshold;
 

@@ -54,12 +54,7 @@
 
 using namespace std::string_literals;
 
-/* Macros */
-const auto MIN_CHK_FLUSH_TIMEOUT = std::chrono::seconds(10);
-const auto MAX_CHK_FLUSH_TIMEOUT = std::chrono::seconds(30);
-
 /* Statics definitions */
-cb::AtomicDuration<> VBucket::chkFlushTimeout(MIN_CHK_FLUSH_TIMEOUT);
 double VBucket::mutationMemThreshold = 0.9;
 
 VBucketFilter VBucketFilter::filter_diff(const VBucketFilter& other) const {
@@ -3836,7 +3831,6 @@ std::map<const void*, cb::engine_errc> VBucket::getHighPriorityNotifications(
             stats.chkPersistenceHisto.add(
                     std::chrono::duration_cast<std::chrono::microseconds>(
                             wall_time));
-            adjustCheckpointFlushTimeout(spent);
             EP_LOG_INFO(
                     "Notified the completion of {} for {} Check for: {}, "
                     "Persisted upto: {}, cookie {}",
@@ -3847,7 +3841,6 @@ std::map<const void*, cb::engine_errc> VBucket::getHighPriorityNotifications(
                     entry->cookie);
             entry = hpVBReqs.erase(entry);
         } else if (auto limit = getCheckpointFlushTimeout(); spent > limit) {
-            adjustCheckpointFlushTimeout(spent);
             engine.storeEngineSpecific(entry->cookie, nullptr);
             toNotify[entry->cookie] = cb::engine_errc::temporary_failure;
             EP_LOG_WARN(
@@ -3884,21 +3877,8 @@ std::map<const void*, cb::engine_errc> VBucket::tmpFailAndGetAllHpNotifies(
     return toNotify;
 }
 
-void VBucket::adjustCheckpointFlushTimeout(std::chrono::seconds wall_time) {
-    auto middle = (MIN_CHK_FLUSH_TIMEOUT + MAX_CHK_FLUSH_TIMEOUT) / 2;
-
-    if (wall_time <= MIN_CHK_FLUSH_TIMEOUT) {
-        chkFlushTimeout = MIN_CHK_FLUSH_TIMEOUT;
-    } else if (wall_time <= middle) {
-        chkFlushTimeout = middle;
-    } else {
-        chkFlushTimeout = MAX_CHK_FLUSH_TIMEOUT;
-    }
-}
-
 std::chrono::seconds VBucket::getCheckpointFlushTimeout() {
-    return std::chrono::duration_cast<std::chrono::seconds>(
-            chkFlushTimeout.load());
+    return std::chrono::seconds(30);
 }
 
 std::unique_ptr<Item> VBucket::pruneXattrDocument(
