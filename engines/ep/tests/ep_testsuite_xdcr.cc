@@ -2835,7 +2835,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
     itemMeta.flags = 0xdeadbeef;
 
     // Watson (4.6) accepts valid encodings, but ignores them
-    std::vector<char> junkMeta = {-2,-1,2,3};
+    std::vector<char> junkMeta = {'\xfe', '\xff', '\2', '\3'};
 
     int force = 0;
 
