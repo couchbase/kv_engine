@@ -116,6 +116,26 @@ void NodeImpl::startMemcachedServer() {
         if (!allow_child_death) {
             std::cerr << "memcached process on " << directory.generic_string()
                       << " terminated: " << ec.to_string() << std::endl;
+
+            // We've set the cycle size to be 200M so we should expect
+            // only a single log file (but for simplicity just iterate
+            // over them all and print the last 8k of each file
+            std::cerr << "Last 8k of the log files" << std::endl
+                      << "========================" << std::endl;
+            for (const auto& p :
+                 boost::filesystem::directory_iterator(directory / "log")) {
+                if (is_regular_file(p)) {
+                    auto content = cb::io::loadFile(p.path().generic_string());
+                    if (content.size() > 8192) {
+                        content = content.substr(
+                                content.find('\n', content.size() - 8192));
+                    }
+                    std::cerr << p.path().generic_string() << std::endl
+                              << content << std::endl
+                              << "-----------------------------" << std::endl;
+                }
+            }
+
             std::cerr << "Terminating process" << std::endl;
             std::_Exit(EXIT_FAILURE);
         }
@@ -162,6 +182,7 @@ NodeImpl::~NodeImpl() {
         allow_child_death = true;
         child->terminate();
     }
+
     // make sure we reap the thread
     child.reset();
     if (!configfile.empty()) {

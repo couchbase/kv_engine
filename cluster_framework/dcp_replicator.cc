@@ -20,6 +20,7 @@
 #include <platform/strerror.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <atomic>
+#include <iostream>
 #include <thread>
 
 #ifndef WIN32
@@ -115,11 +116,17 @@ void DcpReplicatorImpl::thread_main(DcpReplicatorImpl& instance) {
         instance.run();
     } catch (const std::exception& e) {
         if (!instance.shutdown) {
-            // If we just rethrew the exception then we would lose the message
-            // and just throw a std::exception. Create a runtime_error to at
-            // least preserve the message (although we will lose the exception
-            // type).
-            throw std::runtime_error{e.what()};
+            // Wait 5 secs before throwing the exception because the
+            // error is probably caused by one of the memcached process
+            // terminating and we want the monitor to be able to catch
+            // the death and dump the logic before this thread goes
+            // ahead and crash the process by no one catching the
+            // exception.
+            std::cerr << "Received exception: " << e.what()
+                      << ". wait 5 sec before throwing the exception"
+                      << std::endl;
+            std::this_thread::sleep_for(std::chrono::seconds{5});
+            throw;
         }
     }
 }
