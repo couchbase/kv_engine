@@ -13,7 +13,8 @@
 
 #include <memory>
 
-#if (defined(__x86_64__) || defined(_M_X64) || defined(__s390x__))
+#if (defined(__x86_64__) || defined(_M_X64) || defined(__s390x__) || \
+     defined(__aarch64__))
 
 class TaggedPtrBase {
 public:
