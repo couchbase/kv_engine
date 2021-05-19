@@ -50,6 +50,8 @@ TEST_P(RegressionTest, MB_26196) {
         FAIL() << "Non-xerror aware clients should be disconnected";
     } catch (const std::system_error& e) {
         EXPECT_EQ(std::errc::connection_reset, std::errc(e.code().value()));
+    } catch (const std::exception& e) {
+        FAIL() << "Expected system error to be thrown. got: " << e.what();
     } catch (...) {
         FAIL() << "Expected system error to be thrown";
     }

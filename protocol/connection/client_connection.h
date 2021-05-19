@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015-Present Couchbase, Inc.
  *
@@ -11,20 +10,19 @@
 #pragma once
 
 #include <engines/ewouldblock_engine/ewouldblock_engine.h>
+#include <folly/io/async/AsyncSocket.h>
+#include <folly/io/async/EventBase.h>
 #include <memcached/bucket_type.h>
 #include <memcached/engine_error.h>
-#include <memcached/openssl.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/rbac.h>
 #include <memcached/types.h>
-#include <platform/socket.h>
-#include <optional>
-
 #include <nlohmann/json.hpp>
-
+#include <platform/socket.h>
 #include <chrono>
 #include <cstdlib>
 #include <functional>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <unordered_set>
@@ -35,6 +33,8 @@ class FrameInfo;
 
 using FrameInfoVector = std::vector<std::unique_ptr<FrameInfo>>;
 using GetFrameInfoFunction = std::function<FrameInfoVector()>;
+
+class AsyncReadCallback;
 
 /**
  * The Frame class is used to represent all of the data included in the
@@ -557,7 +557,9 @@ public:
      *
      * @param frame the frame to send to the server
      */
-    void sendFrame(const Frame& frame);
+    void sendFrame(const Frame& frame) {
+        sendBuffer({frame.payload.data(), frame.payload.size()});
+    }
 
     /** Send part of the given frame over this connection. Upon success,
      * the frame's payload will be modified such that the sent bytes are
@@ -900,20 +902,8 @@ public:
             cb::mcbp::request::AdjustTimePayload::TimeType timeType);
 
 protected:
-    void read(Frame& frame, size_t bytes);
-
-    void readPlain(Frame& frame, size_t bytes);
-
-    void readSsl(Frame& frame, size_t bytes);
-
     void sendBuffer(const std::vector<iovec>& buf);
     void sendBuffer(cb::const_byte_buffer buf);
-
-    void sendBufferPlain(cb::const_byte_buffer buf);
-    void sendBufferPlain(const std::vector<iovec>& list);
-
-    void sendBufferSsl(cb::const_byte_buffer buf);
-    void sendBufferSsl(const std::vector<iovec>& list);
 
     void applyFrameInfos(BinprotCommand& command, GetFrameInfoFunction& fi);
 
@@ -946,9 +936,9 @@ protected:
             "GCM_SHA256"};
     std::string ssl_cert_file;
     std::string ssl_key_file;
-    SSL_CTX* context = nullptr;
-    BIO* bio = nullptr;
-    SOCKET sock = INVALID_SOCKET;
+    std::unique_ptr<AsyncReadCallback> asyncReadCallback;
+    folly::AsyncSocket::UniquePtr asyncSocket;
+    folly::EventBase eventBase;
     std::string tag;
     nlohmann::json agentInfo;
     std::string name;
@@ -993,32 +983,4 @@ namespace cb::net {
  *
  */
 SOCKET new_socket(const std::string& host, in_port_t port, sa_family_t family);
-
-/**
- * Create a new socket and connect it to the given host
- *
- * @param host The name of the host to try to connect to. If
- *             empty (or set to localhost) it'll be replaced
- *             with "127.0.0.1" or "::1" depending on the value
- *             of family
- * @param port The port number to connect to
- * @param family The socket family to create (AF_INET/AF_INET6/AF_UNSPEC)
- * @param setup_ssl_ctx callback to configure the SSL context
- * @return Tuple with:
- *             SOCKET The connected socket or INVALID_SOCKET if we failed
- *                    to connect to the socket
- *             SSL_CTX The ssl context in use
- *             BIO The BIO to use.
- *
- * The caller takes ownership of the socket, ssl_ctx and bio and must
- * release the resources when done using them.
- *
- * @throws std::exception for SSL related problems
- */
-std::tuple<SOCKET, SSL_CTX*, BIO*> new_ssl_socket(
-        const std::string& host,
-        in_port_t port,
-        sa_family_t family,
-        std::function<void(SSL_CTX*)> setup_ssl_ctx);
-
 } // namespace cb::net

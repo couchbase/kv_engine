@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015-Present Couchbase, Inc.
  *
@@ -13,6 +12,7 @@
 #include "frameinfo.h"
 
 #include <cbsasl/client.h>
+#include <folly/io/async/AsyncSSLSocket.h>
 #include <mcbp/mcbp.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <memcached/protocol_binary.h>
@@ -20,25 +20,123 @@
 #include <platform/compress.h>
 #include <platform/dirutils.h>
 #include <platform/socket.h>
-#include <platform/strerror.h>
+#include <platform/string_hex.h>
 
 #include <cerrno>
 #include <functional>
-#include <gsl/gsl>
 #include <iostream>
-#include <limits>
 #include <memory>
 #ifndef WIN32
 #include <netdb.h>
 #include <netinet/tcp.h> // For TCP_NODELAY etc
 #endif
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <system_error>
 #include <thread>
 
 static const bool packet_dump = getenv("COUCHBASE_PACKET_DUMP") != nullptr;
+
+/**
+ * When using folly we install a ReadCallback which gets called when
+ * folly detects that it may read data from the network. Whenever the
+ * callback is registered it monitors for incoming data.
+ *
+ * In theory we could have forced folly to read out frame by frame from
+ * the underlying network by first returning a buffer which is big enough
+ * to contain the header, then return a buffer which is big enough to contain
+ * the rest of the packet and finally break out. We'll probably get better
+ * performance by just giving it a bigger buffer break out of the read loop
+ * once we have at least one full frame. It does however mean that we need
+ * to check if we've got data _before_ we try to install the callback
+ * and enter the loop.
+ */
+class AsyncReadCallback : public folly::AsyncReader::ReadCallback {
+public:
+    AsyncReadCallback(folly::EventBase& base) : base(base), backing(1024) {
+    }
+
+    ~AsyncReadCallback() override = default;
+
+    void getReadBuffer(void** bufReturn, size_t* lenReturn) override {
+        if ((backing.size() - available) == 0) {
+            backing.resize(backing.size() * 2);
+        }
+
+        *bufReturn = static_cast<void*>(backing.data() + available);
+        *lenReturn = backing.size() - available;
+    }
+
+    void readDataAvailable(size_t len) noexcept override {
+        available += len;
+        try {
+            if (getNextFrame()) {
+                // We have received at least one full packet
+                base.terminateLoopSoon();
+            }
+        } catch (const std::exception&) {
+            // There is a something wrong with the packet on the stream
+            // We'll throw the exception once we return from folly
+            base.terminateLoopSoon();
+        }
+    }
+
+    void readEOF() noexcept override {
+        eof = true;
+        base.terminateLoopSoon();
+    }
+
+    void readErr(const folly::AsyncSocketException& ex) noexcept override {
+        exception = ex;
+        base.terminateLoopSoon();
+    }
+
+    /**
+     * Try to get the next memcached frame from the input buffer
+     *
+     * @return The next frame if available or nullptr if we don't have
+     *         the full frame available
+     * @throws std::runtime_error if there is a format error on the
+     *                            header of the packet
+     */
+    cb::mcbp::Header* getNextFrame() {
+        if (available < sizeof(cb::mcbp::Header)) {
+            return nullptr;
+        }
+
+        auto* hdr = reinterpret_cast<cb::mcbp::Header*>(backing.data());
+        if (!hdr->isValid()) {
+            throw std::runtime_error("Invalid header received!");
+        }
+
+        if (available < (sizeof(cb::mcbp::Header) + hdr->getBodylen())) {
+            return nullptr;
+        }
+        return hdr;
+    }
+
+    /// Drain a number of bytes from the backing store
+    void drain(size_t nb) {
+        // This isn't the most efficient thing, but most of the commands
+        // in memcached returns a single response so this won't be called
+        // that often
+        if ((available - nb) > 0) {
+            std::memmove(backing.data(), backing.data() + nb, available - nb);
+        }
+        available -= nb;
+    }
+
+    /// Set to true once we see EOF
+    bool eof = false;
+    /// Contains the exception if we encountered a read error
+    std::optional<folly::AsyncSocketException> exception;
+    /// The EventBase we're bound to so that we can jump out of the loop
+    folly::EventBase& base;
+    /// The memory buffer we're currently using
+    std::vector<uint8_t> backing;
+    /// The number of bytes currently available in backing
+    size_t available = 0;
+};
 
 ::std::ostream& operator<<(::std::ostream& os, const DocumentInfo& info) {
     return os << "id:" << info.id << " flags:" << info.flags
@@ -92,23 +190,9 @@ MemcachedConnection::~MemcachedConnection() {
 }
 
 void MemcachedConnection::close() {
-    effective_features.clear();
-    if (ssl) {
-        if (bio != nullptr) {
-            BIO_free_all(bio);
-            bio = nullptr;
-        }
-        if (context != nullptr) {
-            SSL_CTX_free(context);
-            context = nullptr;
-        }
-    }
-
-    if (sock != INVALID_SOCKET) {
-        cb::net::shutdown(sock, SHUT_RDWR);
-        cb::net::closesocket(sock);
-        sock = INVALID_SOCKET;
-    }
+    asyncSocket.reset();
+    eventBase.loop();
+    asyncReadCallback.reset();
 }
 
 SOCKET try_connect_socket(struct addrinfo* next,
@@ -122,23 +206,6 @@ SOCKET try_connect_socket(struct addrinfo* next,
                                 "socket() failed (" + hostname + " " +
                                         std::to_string(port) + ")");
     }
-
-#ifdef WIN32
-    // BIO_new_socket pass the socket as an int, but it is a SOCKET on
-    // Windows.. On windows a socket is an unsigned value, and may
-    // get an overflow inside openssl (I don't know the exact width of
-    // the SOCKET, and how openssl use the value internally). This
-    // class is mostly used from the test framework so let's throw
-    // an exception instead and treat it like a test failure (to be
-    // on the safe side). We'll be refactoring to SCHANNEL in the
-    // future anyway.
-    if (sfd > std::numeric_limits<int>::max()) {
-        cb::net::closesocket(sfd);
-        throw std::runtime_error(
-                "Socket value too big "
-                "(may trigger behavior openssl)");
-    }
-#endif
 
     // When running unit tests on our Windows CV system we somtimes
     // see connect fail with WSAEADDRINUSE. For a client socket
@@ -249,50 +316,48 @@ SOCKET cb::net::new_socket(const std::string& host,
     return INVALID_SOCKET;
 }
 
-std::tuple<SOCKET, SSL_CTX*, BIO*> cb::net::new_ssl_socket(
-        const std::string& host,
-        in_port_t port,
-        sa_family_t family,
-        std::function<void(SSL_CTX*)> setup_ssl_ctx) {
-    auto sock = cb::net::new_socket(host, port, family);
-    if (sock == INVALID_SOCKET) {
-        return std::tuple<SOCKET, SSL_CTX*, BIO*>{
-                INVALID_SOCKET, nullptr, nullptr};
-    }
-
-    /* we're connected */
-    auto* context = SSL_CTX_new(SSLv23_client_method());
-    if (context == nullptr) {
-        throw std::runtime_error("Failed to create openssl client context");
-    }
-
-    if (setup_ssl_ctx) {
-        setup_ssl_ctx(context);
-    }
-
-    // Ensure read/write operations only return after the
-    // handshake and successful completion.
-    SSL_CTX_set_mode(context, SSL_MODE_AUTO_RETRY);
-
-    BIO* bio = BIO_new_ssl(context, 1);
-    BIO_push(bio, BIO_new_socket(gsl::narrow<int>(sock), 0));
-
-    if (BIO_do_handshake(bio) <= 0) {
-        BIO_free_all(bio);
-        SSL_CTX_free(context);
-        throw std::runtime_error("Failed to do SSL handshake!");
-    }
-
-    return std::tuple<SOCKET, SSL_CTX*, BIO*>{sock, context, bio};
-}
-
 SOCKET MemcachedConnection::releaseSocket() {
     if (ssl) {
-        throw std::runtime_error("releaseSocket: Can't release SSL socket");
+        throw std::runtime_error(
+                "MemcachedConnection::releaseSocket: Can't release SSL socket");
     }
-    auto ret = sock;
-    sock = INVALID_SOCKET;
+
+    if (!asyncSocket) {
+        throw std::runtime_error(
+                "MemcachedConnection::releaseSocket: Socket not connected");
+    }
+
+    auto ns = asyncSocket->detachNetworkSocket();
+
+#ifdef WIN32
+    DWORD imode = 0;
+    // For some reason toFd doesn't return the real socket (or at least
+    // the unit tests failed with "not a socket" when trying to use it for
+    // ioctlsocket so we need to use ns.data instead (which is a SOCKET)
+    auto st = ioctlsocket(ns.data, FIONBIO, &imode);
+    if (st != 0) {
+        if (st == SOCKET_ERROR) {
+            throw std::system_error(
+                    WSAGetLastError(), std::system_category(), "ioctlsocket");
+        }
+        throw std::system_error(st, std::system_category(), "ioctlsocket");
+    }
+    return ns.data;
+#else
+    auto ret = ns.toFd();
+    int flags = fcntl(ret, F_GETFL, 0);
+    if (flags == -1) {
+        throw std::system_error(
+                errno, std::system_category(), "fcntl(F_GETFL)");
+    }
+
+    flags &= ~O_NONBLOCK;
+    if (fcntl(ret, F_SETFL, flags) == -1) {
+        throw std::system_error(
+                errno, std::system_category(), "fcntl(F_SETFL)");
+    }
     return ret;
+#endif
 }
 
 intptr_t MemcachedConnection::getServerConnectionId() {
@@ -329,69 +394,12 @@ long tls_protocol_to_options(const std::string& protocol) {
 }
 
 void MemcachedConnection::connect() {
-    if (bio != nullptr) {
-        BIO_free_all(bio);
-        bio = nullptr;
+    if (asyncSocket) {
+        // drop the previous one
+        asyncSocket.reset();
     }
 
-    if (context != nullptr) {
-        SSL_CTX_free(context);
-    }
-
-    if (sock != INVALID_SOCKET) {
-        cb::net::shutdown(sock, SHUT_RDWR);
-        cb::net::closesocket(sock);
-        sock = INVALID_SOCKET;
-    }
-
-    if (ssl) {
-        std::tie(sock, context, bio) = cb::net::new_ssl_socket(
-                host, port, family, [this](SSL_CTX* context) {
-                    if (!tls_protocol.empty()) {
-                        SSL_CTX_set_options(
-                                context, tls_protocol_to_options(tls_protocol));
-                    }
-
-                    if (SSL_CTX_set_ciphersuites(context,
-                                                 tls13_ciphers.c_str()) == 0 &&
-                        !tls13_ciphers.empty()) {
-                        throw std::runtime_error(
-                                "Failed to select a cipher suite from: " +
-                                tls13_ciphers);
-                    }
-
-                    if (SSL_CTX_set_cipher_list(context,
-                                                tls12_ciphers.c_str()) == 0 &&
-                        !tls12_ciphers.empty()) {
-                        throw std::runtime_error(
-                                "Failed to select a cipher suite from: " +
-                                tls12_ciphers);
-                    }
-
-                    if (!ssl_cert_file.empty() && !ssl_key_file.empty()) {
-                        if (!SSL_CTX_use_certificate_file(context,
-                                                          ssl_cert_file.c_str(),
-                                                          SSL_FILETYPE_PEM) ||
-                            !SSL_CTX_use_PrivateKey_file(context,
-                                                         ssl_key_file.c_str(),
-                                                         SSL_FILETYPE_PEM) ||
-                            !SSL_CTX_check_private_key(context)) {
-                            std::vector<char> ssl_err(1024);
-                            ERR_error_string_n(ERR_get_error(),
-                                               ssl_err.data(),
-                                               ssl_err.size());
-                            SSL_CTX_free(context);
-                            throw std::runtime_error(
-                                    std::string("Failed to use SSL cert and "
-                                                "key: ") +
-                                    ssl_err.data());
-                        }
-                    }
-                });
-    } else {
-        sock = cb::net::new_socket(host, port, family);
-    }
-
+    auto sock = cb::net::new_socket(host, port, family);
     if (sock == INVALID_SOCKET) {
         auto error = cb::net::get_socket_error();
         std::string msg("Failed to connect to: ");
@@ -410,6 +418,87 @@ void MemcachedConnection::connect() {
         }
         msg.append(std::to_string(port));
         throw std::system_error(error, std::system_category(), msg);
+    }
+
+    if (cb::net::set_socket_noblocking(sock) == -1) {
+        throw std::runtime_error("Failed to make socket nonblocking");
+    }
+
+    if (ssl) {
+        auto* context = SSL_CTX_new(SSLv23_client_method());
+        if (context == nullptr) {
+            throw std::runtime_error("Failed to create openssl client context");
+        }
+
+        // Ensure read/write operations only return after the
+        // handshake and successful completion.
+        SSL_CTX_set_mode(context, SSL_MODE_AUTO_RETRY);
+        if (!tls_protocol.empty()) {
+            SSL_CTX_set_options(context, tls_protocol_to_options(tls_protocol));
+        }
+
+        if (SSL_CTX_set_ciphersuites(context, tls13_ciphers.c_str()) == 0 &&
+            !tls13_ciphers.empty()) {
+            throw std::runtime_error("Failed to select a cipher suite from: " +
+                                     tls13_ciphers);
+        }
+
+        if (SSL_CTX_set_cipher_list(context, tls12_ciphers.c_str()) == 0 &&
+            !tls12_ciphers.empty()) {
+            throw std::runtime_error("Failed to select a cipher suite from: " +
+                                     tls12_ciphers);
+        }
+
+        if (!ssl_cert_file.empty() && !ssl_key_file.empty()) {
+            if (!SSL_CTX_use_certificate_file(
+                        context, ssl_cert_file.c_str(), SSL_FILETYPE_PEM) ||
+                !SSL_CTX_use_PrivateKey_file(
+                        context, ssl_key_file.c_str(), SSL_FILETYPE_PEM) ||
+                !SSL_CTX_check_private_key(context)) {
+                std::vector<char> ssl_err(1024);
+                ERR_error_string_n(
+                        ERR_get_error(), ssl_err.data(), ssl_err.size());
+                SSL_CTX_free(context);
+                throw std::runtime_error(
+                        std::string("Failed to use SSL cert and "
+                                    "key: ") +
+                        ssl_err.data());
+            }
+        }
+
+        auto ctx = std::make_shared<folly::SSLContext>(context);
+        SSL_CTX_free(context);
+
+        auto* ss = new folly::AsyncSSLSocket(
+                ctx, &eventBase, folly::NetworkSocket(sock), false);
+        asyncSocket.reset(ss);
+
+        class HandshakeHandler : public folly::AsyncSSLSocket::HandshakeCB {
+        public:
+            ~HandshakeHandler() override = default;
+            void handshakeSuc(folly::AsyncSSLSocket* sock) noexcept override {
+            }
+            void handshakeErr(
+                    folly::AsyncSSLSocket* sock,
+                    const folly::AsyncSocketException& ex) noexcept override {
+                error = ex.what();
+            }
+            std::string error;
+        } handler;
+
+        ss->sslConn(&handler);
+        eventBase.loop();
+        if (!handler.error.empty()) {
+            throw std::runtime_error("SSL handshake failed: " + handler.error);
+        }
+    } else {
+        asyncSocket = folly::AsyncSocket::newSocket(&eventBase,
+                                                    folly::NetworkSocket(sock));
+    }
+
+    if (!asyncSocket) {
+        cb::net::closesocket(sock);
+        throw std::runtime_error("Failed to create folly async socket");
     }
 
     bool unitTests = getenv("MEMCACHED_UNIT_TESTS") != nullptr;
@@ -432,183 +521,64 @@ void MemcachedConnection::connect() {
         // appear to be happy with having the underlying socket closed
         // immediately; I suspect due to the additional out-of-band
         // messages SSL may send/recv in addition to normal traffic.
-        struct linger sl {};
+        linger sl{};
         sl.l_onoff = 1;
         sl.l_linger = 0;
-        cb::net::setsockopt(sock,
-                            SOL_SOCKET,
-                            SO_LINGER,
-                            reinterpret_cast<const void*>(&sl),
-                            sizeof(sl));
-    }
-}
-
-void MemcachedConnection::sendBufferSsl(cb::const_byte_buffer buf) {
-    const auto* data = reinterpret_cast<const char*>(buf.data());
-    cb::const_byte_buffer::size_type nbytes = buf.size();
-    cb::const_byte_buffer::size_type offset = 0;
-
-    while (offset < nbytes) {
-        int nw = BIO_write(
-                bio, data + offset, gsl::narrow<int>(nbytes - offset));
-        if (nw <= 0) {
-            if (BIO_should_retry(bio) == 0) {
-                throw std::runtime_error(
-                        "Failed to write data, BIO_write returned " +
-                        std::to_string(nw));
-            }
-        } else {
-            offset += nw;
-        }
-    }
-}
-
-void MemcachedConnection::sendBufferSsl(const std::vector<iovec>& list) {
-    for (auto buf : list) {
-        sendBufferSsl({reinterpret_cast<uint8_t*>(buf.iov_base), buf.iov_len});
-    }
-}
-
-void MemcachedConnection::sendBufferPlain(cb::const_byte_buffer buf) {
-    const auto* data = reinterpret_cast<const char*>(buf.data());
-    cb::const_byte_buffer::size_type nbytes = buf.size();
-    cb::const_byte_buffer::size_type offset = 0;
-
-    while (offset < nbytes) {
-        auto nw = cb::net::send(sock, data + offset, nbytes - offset, 0);
-        if (nw <= 0) {
-            throw std::system_error(
-                    cb::net::get_socket_error(),
-                    std::system_category(),
-                    "MemcachedConnection::sendFramePlain: failed to send data");
-        } else {
-            offset += nw;
-        }
-    }
-}
-
-void MemcachedConnection::sendBufferPlain(const std::vector<iovec>& iov) {
-    // Calculate total size.
-    int bytes_remaining = 0;
-    for (const auto& io : iov) {
-        bytes_remaining += int(io.iov_len);
+        asyncSocket->setSockOpt<linger>(SOL_SOCKET, SO_LINGER, &sl);
     }
 
-    // Encode sendmsg() message header.
-    msghdr msg{};
-    // sendmsg() doesn't actually change the value of msg_iov; but as
-    // it's a C API it doesn't have a const modifier. Therefore need
-    // to cast away const.
-    msg.msg_iov = const_cast<iovec*>(iov.data());
-    msg.msg_iovlen = int(iov.size());
+    asyncReadCallback = std::make_unique<AsyncReadCallback>(eventBase);
+}
 
-    // repeatedly call sendmsg() until the complete payload has been
-    // transmitted.
-    for (;;) {
-        auto bytes_sent = cb::net::sendmsg(sock, &msg, 0);
-        if (bytes_sent < 0) {
-            throw std::system_error(cb::net::get_socket_error(),
-                                    std::system_category(),
-                                    "MemcachedConnection::sendBufferPlain: "
-                                    "sendmsg() failed to send data");
-        }
-
-        bytes_remaining -= bytes_sent;
-        if (bytes_remaining == 0) {
-            // All data sent.
-            return;
-        }
-
-        // Partial send. Remove the completed iovec entries from the
-        // list of pending writes.
-        while ((msg.msg_iovlen > 0) &&
-               (bytes_sent >= ssize_t(msg.msg_iov->iov_len))) {
-            // Complete element consumed; update msg_iov / iovlen to next
-            // element.
-            bytes_sent -= (ssize_t)msg.msg_iov->iov_len;
-            msg.msg_iovlen--;
-            msg.msg_iov++;
-        }
-
-        // Might have written just part of the last iovec entry;
-        // adjust it so the next write will do the rest.
-        if (bytes_sent > 0) {
-            msg.msg_iov->iov_base =
-                    (void*)((unsigned char*)msg.msg_iov->iov_base + bytes_sent);
-            msg.msg_iov->iov_len -= bytes_sent;
-        }
+/// Terminate the loop once we've sent all of the data
+class WriteCallback : public folly::AsyncWriter::WriteCallback {
+public:
+    WriteCallback(folly::EventBase& base) : base(base) {
     }
-}
-
-void MemcachedConnection::readSsl(Frame& frame, size_t bytes) {
-    Frame::size_type offset = frame.payload.size();
-    frame.payload.resize(bytes + offset);
-    char* data = reinterpret_cast<char*>(frame.payload.data()) + offset;
-
-    size_t total = 0;
-
-    while (total < bytes) {
-        int nr = BIO_read(bio, data + total, gsl::narrow<int>(bytes - total));
-        if (nr <= 0) {
-            if (BIO_should_retry(bio) == 0) {
-                throw std::runtime_error(
-                        "Failed to read data, BIO_read returned " +
-                        std::to_string(nr));
-            }
-        } else {
-            total += nr;
-        }
+    ~WriteCallback() override = default;
+    void writeSuccess() noexcept override {
+        base.terminateLoopSoon();
     }
-}
-
-void MemcachedConnection::readPlain(Frame& frame, size_t bytes) {
-    Frame::size_type offset = frame.payload.size();
-    frame.payload.resize(bytes + offset);
-    char* data = reinterpret_cast<char*>(frame.payload.data()) + offset;
-
-    size_t total = 0;
-
-    while (total < bytes) {
-        auto nr = cb::net::recv(sock, data + total, bytes - total, 0);
-        if (nr <= 0) {
-            auto error = cb::net::get_socket_error();
-            if (nr == 0) {
-                // nr == 0 means that the other end closed the connection.
-                // Given that we expected to read more data, let's throw
-                // an connection reset exception
-                error = ECONNRESET;
-            }
-
-            throw std::system_error(error, std::system_category(),
-                                    "MemcachedConnection::readPlain: failed to read data");
-        } else {
-            total += nr;
-        }
+    void writeErr(size_t bytesWritten,
+                  const folly::AsyncSocketException& ex) noexcept override {
+        exception = ex;
+        base.terminateLoopSoon();
     }
-}
 
-void MemcachedConnection::sendFrame(const Frame& frame) {
-    sendBuffer({frame.payload.data(), frame.payload.size()});
-}
+    folly::EventBase& base;
+    std::optional<folly::AsyncSocketException> exception;
+};
 
 void MemcachedConnection::sendBuffer(const std::vector<iovec>& list) {
-    if (packet_dump) {
-        std::vector<uint8_t> blob;
-        for (auto& entry : list) {
-            const auto* ptr = static_cast<const uint8_t*>(entry.iov_base);
-            std::copy(ptr, ptr + entry.iov_len, std::back_inserter(blob));
+    if (packet_dump || true) {
+        for (const auto& entry : list) {
+            sendBuffer({reinterpret_cast<const uint8_t*>(entry.iov_base),
+                        entry.iov_len});
         }
-        try {
-            cb::mcbp::dumpStream({blob.data(), blob.size()}, std::cerr);
-        } catch (const std::exception&) {
-            // ignore..
-        }
-    }
-
-    if (ssl) {
-        sendBufferSsl(list);
     } else {
-        sendBufferPlain(list);
+        WriteCallback writeCallback(eventBase);
+        asyncSocket->writev(&writeCallback, list.data(), list.size());
+        if (!eventBase.loop()) {
+            throw std::runtime_error(
+                    "MemcachedConnection::sendBuffer(): Failed running the "
+                    "event "
+                    "pump");
+        }
+        if (writeCallback.exception) {
+            if (writeCallback.exception->getType() ==
+                folly::AsyncSocketException::END_OF_FILE) {
+                throw std::system_error(int(std::errc::connection_reset),
+                                        std::system_category(),
+                                        "network error");
+            }
+            if (writeCallback.exception->getType() ==
+                folly::AsyncSocketException::NETWORK_ERROR) {
+                throw std::system_error(writeCallback.exception->getErrno(),
+                                        std::system_category(),
+                                        "network error");
+            }
+            throw *writeCallback.exception;
+        }
     }
 }
 
@@ -620,10 +590,17 @@ void MemcachedConnection::sendBuffer(cb::const_byte_buffer buf) {
             // ignore..
         }
     }
-    if (ssl) {
-        sendBufferSsl(buf);
-    } else {
-        sendBufferPlain(buf);
+
+    WriteCallback writeCallback(eventBase);
+    asyncSocket->write(&writeCallback, buf.data(), buf.size());
+    // Running loop here will terminate once we've sent the data..
+    if (!eventBase.loop()) {
+        throw std::runtime_error(
+                "MemcachedConnection::sendBuffer(): Failed running the event "
+                "pump");
+    }
+    if (writeCallback.exception) {
+        throw *writeCallback.exception;
     }
 }
 
@@ -641,14 +618,6 @@ void MemcachedConnection::sendPartialFrame(Frame& frame,
 
     // Swap the old payload with the remainder.
     frame.payload.swap(remainder);
-}
-
-void MemcachedConnection::read(Frame& frame, size_t bytes) {
-    if (ssl) {
-        readSsl(frame, bytes);
-    } else {
-        readPlain(frame, bytes);
-    }
 }
 
 nlohmann::json MemcachedConnection::stats(const std::string& subcommand,
@@ -733,22 +702,49 @@ std::unique_ptr<MemcachedConnection> MemcachedConnection::clone(
 
 void MemcachedConnection::recvFrame(Frame& frame) {
     frame.reset();
-    // A memcached packet starts with a fixed header
-    MemcachedConnection::read(frame, sizeof(cb::mcbp::Header));
 
-    auto magic = cb::mcbp::Magic(frame.payload.at(0));
-    if (magic != cb::mcbp::Magic::ClientRequest &&
-        magic != cb::mcbp::Magic::ClientResponse &&
-        magic != cb::mcbp::Magic::ServerRequest &&
-        magic != cb::mcbp::Magic::ServerResponse &&
-        magic != cb::mcbp::Magic::AltClientResponse) {
-        throw std::runtime_error("Invalid magic received: " +
-                                 std::to_string(frame.payload.at(0)));
+    if (!asyncReadCallback) {
+        throw std::runtime_error(
+                "MemcachedConnection::recvFrame(): Not connected");
     }
 
-    const auto* header =
-            reinterpret_cast<const cb::mcbp::Header*>(frame.payload.data());
-    MemcachedConnection::read(frame, header->getBodylen());
+    if (!asyncReadCallback->getNextFrame()) {
+        if (asyncReadCallback->eof) {
+            throw std::system_error(int(std::errc::connection_reset),
+                                    std::system_category(),
+                                    "EOF");
+        }
+        if (asyncReadCallback->exception) {
+            throw *asyncReadCallback->exception;
+        }
+        asyncSocket->setReadCB(asyncReadCallback.get());
+        if (!eventBase.loop()) {
+            throw std::runtime_error(
+                    "MemcachedConnection::recvFrame(): Failed running the "
+                    "event loop");
+        }
+        asyncSocket->setReadCB(nullptr);
+    }
+
+    const auto* next = asyncReadCallback->getNextFrame();
+    if (next == nullptr) {
+        if (asyncReadCallback->eof) {
+            throw std::system_error(int(std::errc::connection_reset),
+                                    std::system_category(),
+                                    "EOF");
+        }
+        if (asyncReadCallback->exception) {
+            throw *asyncReadCallback->exception;
+        }
+
+        throw std::runtime_error(
+                "MemcachedConnection::recvFrame: Failed to fetch next frame");
+    }
+
+    auto blob = next->getFrame();
+    std::copy(blob.begin(), blob.end(), std::back_inserter(frame.payload));
+    asyncReadCallback->drain(blob.size());
+
     if (packet_dump) {
         cb::mcbp::dump(frame.payload.data(), std::cerr);
     }
