@@ -1694,6 +1694,7 @@ void Warmup::checkForAccessLog()
 
     if (store.maybeEnableTraffic()) {
         transition(WarmupState::State::Done);
+        return;
     }
 
     size_t accesslogs = 0;
