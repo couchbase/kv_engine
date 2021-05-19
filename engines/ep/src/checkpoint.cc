@@ -245,17 +245,17 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi,
         // Check if this checkpoint already has an item for the same key
         // and the item has not been expelled.
         if (it != keyIndex.end()) {
-            if (it->second.mutation_id > highestExpelledSeqno) {
+            const auto currMutationId = it->second.getMutationId();
+            if (currMutationId > highestExpelledSeqno) {
                 // Normal path - we haven't expelled the item. We have a valid
                 // cursor position to read the item and make our de-dupe checks.
-                const auto oldPos = it->second.position;
-                const auto& oldItem = (*it->second.position);
+                const auto oldPos = it->second.getPosition();
+                const auto& oldItem = *oldPos;
                 if (!(canDedup(oldItem, qi))) {
                     return {QueueDirtyStatus::FailureDuplicateItem, 0};
                 }
 
                 rv.status = QueueDirtyStatus::SuccessExistingItem;
-                const int64_t currMutationId{it->second.mutation_id};
 
                 // Given the key already exists, need to check all cursors in
                 // this Checkpoint and see if the existing item for this key is
@@ -353,12 +353,11 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi,
                     // get PersistAgain from the above code then we'd just
                     // increment/decrement the stat again so no adjustment is
                     // necessary.
-                    qi->setQueuedTime((*it->second.position)->getQueuedTime());
+                    qi->setQueuedTime(oldItem->getQueuedTime());
 
                     // If we're changing the item size we need to pass that back
                     // to update the dirtyQueuePendingWrites size also
-                    rv.successExistingByteDiff =
-                            qi->size() - (*it->second.position)->size();
+                    rv.successExistingByteDiff = qi->size() - oldItem->size();
                 }
 
                 addItemToCheckpoint(qi);
@@ -415,7 +414,7 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi,
     if (qi->getKey().size() > 0 && !isDiskCheckpoint()) {
         ChkptQueueIterator last = end();
         // --last is okay as the list is not empty now.
-        index_entry entry = {--last, qi->getBySeqno()};
+        const auto entry = IndexEntry(--last, qi->getBySeqno());
         // Set the index of the key to the new item that is pushed back into
         // the list.
         if (qi->isCheckPointMetaItem()) {
@@ -437,7 +436,7 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi,
         }
 
         if (rv.status == QueueDirtyStatus::SuccessNewItem) {
-            auto indexKeyUsage = qi->getKey().size() + sizeof(index_entry);
+            auto indexKeyUsage = qi->getKey().size() + sizeof(IndexEntry);
             /**
              * Calculate as best we can the memory overhead of adding the new
              * item to the queue (toWrite).  This is approximated to the
@@ -535,7 +534,7 @@ CheckpointQueue Checkpoint::expelItems(
 
                 auto itr = keyIndex.find(makeIndexKey(toExpel));
                 Expects(itr != keyIndex.end());
-                Expects(itr->second.position == expelItr);
+                Expects(itr->second.getPosition() == expelItr);
                 itr->second.invalidate(end());
 
                 Ensures(toExpel->isAnySyncWriteOp() ==
@@ -597,7 +596,7 @@ int64_t Checkpoint::getMutationId(const CheckpointCursor& cursor) const {
                     std::to_string((*cursor.currentPos)->getBySeqno()) +
                     "for cursor:" + cursor.name + " in current checkpoint.");
         }
-        return cursor_item_idx->second.mutation_id;
+        return cursor_item_idx->second.getMutationId();
     }
 
     auto& keyIndex = (*cursor.currentPos)->isCommitted() ? committedKeyIndex
@@ -611,7 +610,7 @@ int64_t Checkpoint::getMutationId(const CheckpointCursor& cursor) const {
                 " seqno:" + std::to_string((*cursor.currentPos)->getBySeqno()) +
                 "for cursor:" + cursor.name + " in current checkpoint.");
     }
-    return cursor_item_idx->second.mutation_id;
+    return cursor_item_idx->second.getMutationId();
 }
 
 void Checkpoint::addStats(const AddStatFn& add_stat, const void* cookie) {

@@ -59,10 +59,12 @@ using CheckpointQueue =
 // queue type (CheckpointQueue).
 using ChkptQueueIterator = CheckpointIterator<CheckpointQueue>;
 
-/**
- * A checkpoint index entry.
- */
-struct index_entry {
+class IndexEntry {
+public:
+    IndexEntry(ChkptQueueIterator it, int64_t mutId)
+        : position(it), mutationId(mutId) {
+    }
+
     /**
      * Invalidate the given index_entry (as part of expelling) to ensure that
      * we use it correctly if we were expelling from the open checkpoint.
@@ -73,26 +75,32 @@ struct index_entry {
         if ((*position)->isAnySyncWriteOp()) {
             // Set this to be a "SyncWrite" item (even though it is
             // invalidated) so that we know if we can de-dupe it or not
-            mutation_id = 0;
+            mutationId = 0;
         }
         position = itr;
     }
 
     bool isSyncWrite() const {
-        return mutation_id == 0;
+        return mutationId == 0;
     }
 
+    ChkptQueueIterator getPosition() const {
+        return position;
+    }
+
+    int64_t getMutationId() const {
+        return mutationId;
+    }
+
+private:
     ChkptQueueIterator position;
 
     /**
-     * The mutation_id is generally the bySeqno of the item. However, if this is
-     * a SyncWrite expelled from the open checkpoint then the mutation_id is set
+     * This is generally the bySeqno of the item. However, if this is a
+     * SyncWrite expelled from the open checkpoint then the mutation_id is set
      * to 0 so that we can make our de-dupe checks
-     * This value is initialised to -1 as it should always be assigned a
-     * non-negative number. Thus, buy setting its default value to -1 we should
-     * be able to detect when this assignment has not occurred.
      */
-    int64_t mutation_id = -1;
+    int64_t mutationId;
 };
 
 /**
@@ -100,11 +108,11 @@ struct index_entry {
  */
 using CheckpointIndexKeyType = StoredDocKeyT<MemoryTrackingAllocator>;
 using CheckpointIndexValueType =
-        std::pair<const CheckpointIndexKeyType, index_entry>;
+        std::pair<const CheckpointIndexKeyType, IndexEntry>;
 
 using checkpoint_index =
         std::unordered_map<CheckpointIndexKeyType,
-                           index_entry,
+                           IndexEntry,
                            std::hash<CheckpointIndexKeyType>,
                            std::equal_to<>,
                            MemoryTrackingAllocator<CheckpointIndexValueType>>;

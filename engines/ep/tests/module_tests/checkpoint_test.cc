@@ -1485,7 +1485,7 @@ TEST_P(CheckpointTest, checkpointMemoryTest) {
                     *(this->manager))
                     .front()
                     ->begin();
-    index_entry entry{iterator, 0};
+    IndexEntry entry{iterator, 0};
 
     // Create a queued_item with a 'small' value
     std::string value("value");
@@ -1613,7 +1613,7 @@ TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadTest) {
                     *(this->manager))
                     .front()
                     ->begin();
-    index_entry entry{iterator, 0};
+    IndexEntry entry{iterator, 0};
 
     // Create a queued_item
     std::string value("value");
