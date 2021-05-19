@@ -193,7 +193,7 @@ private:
 
 // Generate the maximum value that can be encoded in nbytes
 #define MAX_LEB128(nbytes) \
-    ((0x7full << (nbytes - 1) * 7) | ((1ull << (nbytes - 1) * 7) - 1ull))
+    ((0x7full << ((nbytes - 1) * 7)) | ((1ull << ((nbytes - 1) * 7)) - 1ull))
 
 template <>
 inline bool unsigned_leb128<uint8_t>::is_canonical(uint64_t value,
