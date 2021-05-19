@@ -157,7 +157,7 @@ private:
 };
 static_assert(sizeof(ArithmeticPayload) == 20, "Unexpected struct size");
 
-class SetClusterConfigPayload {
+class DeprecatedSetClusterConfigPayload {
 public:
     int32_t getRevision() const {
         return ntohl(revision);
@@ -174,7 +174,36 @@ public:
 protected:
     int32_t revision{};
 };
-static_assert(sizeof(SetClusterConfigPayload) == 4, "Unexpected struct size");
+static_assert(sizeof(DeprecatedSetClusterConfigPayload) == 4,
+              "Unexpected struct size");
+
+class SetClusterConfigPayload {
+public:
+    int64_t getEpoch() const {
+        return ntohll(epoch);
+    }
+
+    void setEpoch(int64_t ep) {
+        epoch = htonll(ep);
+    }
+
+    int64_t getRevision() const {
+        return ntohll(revision);
+    }
+
+    void setRevision(int64_t rev) {
+        revision = htonll(rev);
+    }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
+protected:
+    int64_t epoch{0};
+    int64_t revision{0};
+};
+static_assert(sizeof(SetClusterConfigPayload) == 16, "Unexpected struct size");
 
 class VerbosityPayload {
 public:

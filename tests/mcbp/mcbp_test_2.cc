@@ -135,8 +135,14 @@ public:
 
     void SetUp() override {
         ValidatorTest::SetUp();
-        req.setExtlen(4);
-        req.setBodylen(32);
+        cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
+        cb::mcbp::request::SetClusterConfigPayload extras;
+        extras.setEpoch(1);
+        extras.setRevision(1);
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(cb::mcbp::ClientOpcode::SetClusterConfig);
+        builder.setExtras(extras.getBuffer());
+        builder.setValue(R"({"rev":0})");
     }
 
 protected:
@@ -154,7 +160,8 @@ TEST_P(SetClusterConfigValidatorTest, CorrectMessage) {
 TEST_P(SetClusterConfigValidatorTest, WithRevision) {
     cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
     cb::mcbp::request::SetClusterConfigPayload extras;
-    extras.setRevision(0);
+    extras.setEpoch(1);
+    extras.setRevision(1);
     builder.setMagic(cb::mcbp::Magic::ClientRequest);
     builder.setOpcode(cb::mcbp::ClientOpcode::SetClusterConfig);
     builder.setExtras(extras.getBuffer());
@@ -165,6 +172,7 @@ TEST_P(SetClusterConfigValidatorTest, WithRevision) {
 TEST_P(SetClusterConfigValidatorTest, InvalidRevisionNumber) {
     cb::mcbp::RequestBuilder builder({blob, sizeof(blob)});
     cb::mcbp::request::SetClusterConfigPayload extras;
+    extras.setEpoch(-1);
     extras.setRevision(-1);
     builder.setMagic(cb::mcbp::Magic::ClientRequest);
     builder.setOpcode(cb::mcbp::ClientOpcode::SetClusterConfig);

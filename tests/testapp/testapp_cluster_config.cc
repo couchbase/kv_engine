@@ -24,10 +24,10 @@ protected:
 
     BinprotResponse setClusterConfig(uint64_t token,
                                      const std::string& config,
-                                     int revision) {
+                                     int64_t revision) {
         auto& conn = getAdminConnection();
         return conn.execute(BinprotSetClusterConfigCommand{
-                token, config, revision, "default"});
+                token, config, 1, revision, "default"});
     }
 
     void test_MB_17506(bool dedupe);
@@ -104,7 +104,7 @@ TEST_P(ClusterConfigTest, GetClusterConfig) {
     BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::GetClusterConfig, "", ""};
     auto& conn = getConnection();
     const auto response = conn.execute(cmd);
-    EXPECT_TRUE(response.isSuccess());
+    EXPECT_TRUE(response.isSuccess()) << to_string(response.getStatus());
     const auto value = response.getDataString();
     EXPECT_EQ(config, value);
     EXPECT_TRUE(hasCorrectDatatype(expectedJSONDatatype(),
@@ -155,9 +155,10 @@ TEST_P(ClusterConfigTest, CccpPushNotification) {
     second->setDuplexSupport(true);
     second->setClustermapChangeNotification(true);
 
-    ASSERT_TRUE(conn.execute(BinprotSetClusterConfigCommand{
-                                     token, R"({"rev":666})", 666, "default"})
-                        .isSuccess());
+    ASSERT_TRUE(
+            conn.execute(BinprotSetClusterConfigCommand{
+                                 token, R"({"rev":666})", 1, 666, "default"})
+                    .isSuccess());
 
     Frame frame;
 
@@ -170,12 +171,12 @@ TEST_P(ClusterConfigTest, CccpPushNotification) {
 
     EXPECT_EQ(cb::mcbp::ServerOpcode::ClustermapChangeNotification,
               request->getServerOpcode());
-    EXPECT_EQ(4, request->getExtlen());
+    using cb::mcbp::request::SetClusterConfigPayload;
+    EXPECT_EQ(sizeof(SetClusterConfigPayload), request->getExtlen());
     auto extras = request->getExtdata();
-    uint32_t revno;
-    std::copy(extras.begin(), extras.end(), reinterpret_cast<uint8_t*>(&revno));
-    revno = ntohl(revno);
-    EXPECT_EQ(666, revno);
+    auto* ver = reinterpret_cast<const SetClusterConfigPayload*>(extras.data());
+    EXPECT_EQ(666, ver->getRevision());
+    EXPECT_EQ(1, ver->getEpoch());
 
     auto key = request->getKey();
     const std::string bucket{reinterpret_cast<const char*>(key.data()),
@@ -195,7 +196,7 @@ TEST_P(ClusterConfigTest, SetGlobalClusterConfig) {
     auto& conn = getAdminConnection();
     // Set the global config
     auto rsp = conn.execute(BinprotSetClusterConfigCommand{
-            token, R"({"foo" : "bar"})", 100, ""});
+            token, R"({"foo" : "bar"})", 1, 100, ""});
     ASSERT_TRUE(rsp.isSuccess()) << rsp.getDataString();
     conn.reconnect();
     conn.authenticate("@admin", "password", "PLAIN");

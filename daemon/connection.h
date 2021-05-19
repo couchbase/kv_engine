@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include "cluster_config.h"
 #include "datatype_filter.h"
 #include "sendbuffer.h"
 #include "ssl_utils.h"
@@ -189,7 +190,7 @@ public:
      */
     cb::engine_errc dropPrivilege(cb::rbac::Privilege privilege);
 
-    int getBucketIndex() const {
+    unsigned int getBucketIndex() const {
         return bucketIndex.load(std::memory_order_relaxed);
     }
 
@@ -199,12 +200,12 @@ public:
 
     EngineIface& getBucketEngine() const;
 
-    int getClustermapRevno() const {
-        return clustermap_revno;
+    ClustermapVersion getPushedClustermapRevno() const {
+        return pushed_clustermap;
     }
 
-    void setClustermapRevno(int revno) {
-        clustermap_revno = revno;
+    void setPushedClustermapRevno(ClustermapVersion version) {
+        pushed_clustermap = version;
     }
 
     /**
@@ -965,10 +966,10 @@ protected:
     const SOCKET socketDescriptor;
 
     /// The index of the connected bucket
-    std::atomic_int bucketIndex{0};
+    std::atomic<unsigned int> bucketIndex{0};
 
     /// The cluster map revision used by this client
-    int clustermap_revno{-2};
+    ClustermapVersion pushed_clustermap;
 
     /// Listening port that creates this connection instance
     const in_port_t parent_port{0};

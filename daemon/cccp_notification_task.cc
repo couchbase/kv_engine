@@ -20,75 +20,113 @@
 #include <memory>
 #include <string>
 
-CccpNotificationTask::CccpNotificationTask(Bucket& bucket_, int revision_)
-    : Task(), bucket(bucket_), revision(revision_) {
+CccpNotificationTask::CccpNotificationTask(unsigned int bucketIndex,
+                                           const ClustermapVersion& version)
+    : Task(), bucketIndex(bucketIndex), version(version) {
     // Bump a reference so the bucket can't be deleted while we're in the
     // middle of pushing configurations (we're already bound to the bucket)
-    bucket.clients++;
+    all_buckets[bucketIndex].clients++;
 }
 
 CccpNotificationTask::~CccpNotificationTask() {
-    disconnect_bucket(bucket, nullptr);
+    disconnect_bucket(all_buckets[bucketIndex], nullptr);
 }
 
 class CccpPushNotificationServerEvent : public ServerEvent {
 public:
+    explicit CccpPushNotificationServerEvent(unsigned int index)
+        : bucketIndex(index) {
+    }
+
     std::string getDescription() const override {
         return "CccpPushNotificationServerEvent";
     }
 
     bool execute(Connection& connection) override {
-        auto& bucket = connection.getBucket();
-        auto payload = bucket.clusterConfiguration.getConfiguration();
-        if (payload.first < connection.getClustermapRevno()) {
-            // Ignore.. we've already sent a newer cluster config
+        if (bucketIndex != 0 && bucketIndex != connection.getBucketIndex()) {
+            // This isn't the global configuration or the selected bucket
+            // so we shouldn't push the configuration
             return true;
         }
 
-        connection.setClustermapRevno(payload.first);
-        LOG_INFO("{}: Sending Cluster map revision {}",
-                 connection.getId(),
-                 payload.first);
+        std::unique_ptr<ClusterConfiguration::Configuration> active;
 
-        std::string name = bucket.name;
+        if (bucketIndex == 0) {
+            active = all_buckets[0].clusterConfiguration.maybeGetConfiguration(
+                    {});
+        } else {
+            auto& bucket = connection.getBucket();
+            auto pushed = connection.getPushedClustermapRevno();
+            active = bucket.clusterConfiguration.maybeGetConfiguration(pushed);
+        }
+
+        if (!active) {
+            // We've already pushed the latest version we've got
+            return true;
+        }
+
+        std::string name;
+        {
+            std::lock_guard<std::mutex> guard(all_buckets[bucketIndex].mutex);
+            if (all_buckets[bucketIndex].state == Bucket::State::Ready) {
+                name = all_buckets[bucketIndex].name;
+            } else {
+                // The bucket is no longer online
+                return true;
+            }
+        }
+
+        if (bucketIndex == 0) {
+            LOG_INFO("{}: Sending global Cluster map revision: {}",
+                     connection.getId(),
+                     active->version);
+        } else {
+            connection.setPushedClustermapRevno(active->version);
+            LOG_INFO("{}: Sending Cluster map for bucket:{} revision: {}",
+                     connection.getId(),
+                     name,
+                     active->version);
+        }
 
         using namespace cb::mcbp;
+        cb::mcbp::request::SetClusterConfigPayload version;
+        version.setEpoch(active->version.getEpoch());
+        version.setRevision(active->version.getRevno());
         size_t needed = sizeof(Request) + // packet header
-                        4 + // rev number in extdata
+                        sizeof(version) + // rev data in extdata
                         name.size() + // the name of the bucket
-                        payload.second->size(); // The actual payload
+                        active->config.size(); // The actual payload
         std::string buffer;
         buffer.resize(needed);
         RequestBuilder builder(buffer);
         builder.setMagic(Magic::ServerRequest);
         builder.setDatatype(cb::mcbp::Datatype::JSON);
         builder.setOpcode(ServerOpcode::ClustermapChangeNotification);
-
-        // The extras contains the cluster revision number as an uint32_t
-        const uint32_t rev = htonl(payload.first);
-        builder.setExtras(
-                {reinterpret_cast<const uint8_t*>(&rev), sizeof(rev)});
+        builder.setExtras(version.getBuffer());
         builder.setKey(
                 {reinterpret_cast<const uint8_t*>(name.data()), name.size()});
         builder.setValue(
-                {reinterpret_cast<const uint8_t*>(payload.second->data()),
-                 payload.second->size()});
+                {reinterpret_cast<const uint8_t*>(active->config.data()),
+                 active->config.size()});
 
         // Inject our packet into the stream!
         connection.copyToOutputStream(builder.getFrame()->getFrame());
         return true;
     }
+
+    const unsigned int bucketIndex;
 };
 
 Task::Status CccpNotificationTask::execute() {
-    if (bucket.type == BucketType::NoBucket) {
-        LOG_INFO("Pushing new global cluster config - revision:[{}]", revision);
+    if (bucketIndex == 0) {
+        LOG_INFO("Pushing new global cluster config - revision:[{}]", version);
     } else {
         LOG_INFO("Pushing new cluster config for bucket:[{}] revision:[{}]",
-                 bucket.name,
-                 revision);
+                 all_buckets[bucketIndex].name,
+                 version);
     }
-    auto rev = revision;
+
+    auto index = bucketIndex;
 
     // This feels a bit dirty, but the problem is that when we had
     // the task being created we did hold the FrontEndThread mutex
@@ -100,27 +138,14 @@ Task::Status CccpNotificationTask::execute() {
     // No one is using this task so we can safely release the lock
     getMutex().unlock();
     try {
-        iterate_all_connections([rev](Connection& connection) -> void {
+        iterate_all_connections([index](Connection& connection) -> void {
             if (!connection.isClustermapChangeNotificationSupported()) {
                 // The client hasn't asked to be notified
                 return;
             }
 
-            if (rev <= connection.getClustermapRevno()) {
-                LOG_INFO("{}: Client is using {}, no need to push {}",
-                         connection.getId(),
-                         connection.getClustermapRevno(),
-                         rev);
-                return;
-            }
-
-            LOG_INFO("{}: Client is using {}. Push {}",
-                     connection.getId(),
-                     connection.getClustermapRevno(),
-                     rev);
-
             connection.enqueueServerEvent(
-                    std::make_unique<CccpPushNotificationServerEvent>());
+                    std::make_unique<CccpPushNotificationServerEvent>(index));
             connection.signalIfIdle();
         });
     } catch (const std::exception& e) {
@@ -128,6 +153,5 @@ Task::Status CccpNotificationTask::execute() {
                     e.what());
     }
     getMutex().lock();
-
     return Status::Finished;
 }

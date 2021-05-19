@@ -231,9 +231,21 @@ void Cookie::setEwouldblock(bool value) {
 }
 
 void Cookie::sendNotMyVBucket() {
-    auto pair = connection.getBucket().clusterConfiguration.getConfiguration();
-    if (pair.first == -1 || (pair.first == connection.getClustermapRevno() &&
-                             Settings::instance().isDedupeNmvbMaps())) {
+    auto pushed = connection.getPushedClustermapRevno();
+    auto config =
+            connection.getBucket().clusterConfiguration.maybeGetConfiguration(
+                    pushed, Settings::instance().isDedupeNmvbMaps());
+
+    if (config) {
+        connection.sendResponse(*this,
+                                cb::mcbp::Status::NotMyVbucket,
+                                {},
+                                {},
+                                {config->config.data(), config->config.size()},
+                                PROTOCOL_BINARY_DATATYPE_JSON,
+                                {});
+        connection.setPushedClustermapRevno(config->version);
+    } else {
         // We don't have a vbucket map, or we've already sent it to the
         // client
         connection.sendResponse(*this,
@@ -243,18 +255,7 @@ void Cookie::sendNotMyVBucket() {
                                 {},
                                 PROTOCOL_BINARY_RAW_BYTES,
                                 {});
-        return;
     }
-
-    // Send the new payload
-    connection.sendResponse(*this,
-                            cb::mcbp::Status::NotMyVbucket,
-                            {},
-                            {},
-                            {pair.second->data(), pair.second->size()},
-                            PROTOCOL_BINARY_DATATYPE_JSON,
-                            {});
-    connection.setClustermapRevno(pair.first);
 }
 
 void Cookie::sendResponse(cb::mcbp::Status status) {

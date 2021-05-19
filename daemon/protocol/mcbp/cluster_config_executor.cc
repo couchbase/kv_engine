@@ -56,17 +56,17 @@ void get_cluster_config_executor(Cookie& cookie) {
         return;
     }
 
-    auto pair = bucket.clusterConfiguration.getConfiguration();
-    if (pair.first == ClusterConfiguration::NoConfiguration) {
-        cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
-    } else {
+    auto active = bucket.clusterConfiguration.maybeGetConfiguration({});
+    if (active) {
         cookie.sendResponse(cb::mcbp::Status::Success,
                             {},
                             {},
-                            {pair.second->data(), pair.second->size()},
+                            {active->config.data(), active->config.size()},
                             cb::mcbp::Datatype::JSON,
                             0);
-        connection.setClustermapRevno(pair.first);
+        connection.setPushedClustermapRevno(active->version);
+    } else {
+        cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
     }
 }
 
@@ -75,13 +75,7 @@ void set_cluster_config_executor(Cookie& cookie) {
     const auto& req = cookie.getRequest();
     auto& connection = cookie.getConnection();
 
-    int revision;
     int bucketIndex = -1;
-    auto payload = req.getValue();
-    std::string_view clustermap = {
-            reinterpret_cast<const char*>(payload.data()), payload.size()};
-
-    auto extras = req.getExtdata();
     // Locate bucket to operate
     auto key = req.getKey();
     const auto bucketname =
@@ -95,9 +89,6 @@ void set_cluster_config_executor(Cookie& cookie) {
             bucketIndex = int(ii);
         }
     }
-    const auto& ext = *reinterpret_cast<
-            const cb::mcbp::request::SetClusterConfigPayload*>(extras.data());
-    revision = ext.getRevision();
 
     if (bucketIndex == -1) {
         cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
@@ -112,17 +103,40 @@ void set_cluster_config_executor(Cookie& cookie) {
         return;
     }
 
+    ClustermapVersion version;
+
+    // Is this a new or an old-style message
+    auto extras = req.getExtdata();
+    using cb::mcbp::request::DeprecatedSetClusterConfigPayload;
+    using cb::mcbp::request::SetClusterConfigPayload;
+    if (extras.size() == sizeof(DeprecatedSetClusterConfigPayload)) {
+        // @todo remove once ns_server is up to date!
+        const auto& ext = *reinterpret_cast<
+                const cb::mcbp::request::DeprecatedSetClusterConfigPayload*>(
+                extras.data());
+        version = {0, ext.getRevision()};
+    } else {
+        const auto& ext = *reinterpret_cast<
+                const cb::mcbp::request::SetClusterConfigPayload*>(
+                extras.data());
+        version = {ext.getEpoch(), ext.getRevision()};
+    }
+
     bool failed = false;
     try {
+        auto payload = req.getValue();
+        std::string_view clustermap = {
+                reinterpret_cast<const char*>(payload.data()), payload.size()};
         all_buckets[bucketIndex].clusterConfiguration.setConfiguration(
-                clustermap, revision);
+                std::make_unique<ClusterConfiguration::Configuration>(
+                        version, clustermap));
         if (bucketIndex == 0) {
             LOG_INFO(
                     "{}: {} Updated global cluster configuration. New "
                     "revision: {}",
                     connection.getId(),
                     connection.getDescription(),
-                    revision);
+                    version);
         } else {
             LOG_INFO(
                     "{}: {} Updated cluster configuration for bucket [{}]. New "
@@ -130,7 +144,7 @@ void set_cluster_config_executor(Cookie& cookie) {
                     connection.getId(),
                     connection.getDescription(),
                     all_buckets[bucketIndex].name,
-                    revision);
+                    version);
         }
         cookie.setCas(cas);
         cookie.sendResponse(cb::mcbp::Status::Success);
@@ -150,8 +164,7 @@ void set_cluster_config_executor(Cookie& cookie) {
             // Start an executor job to walk through the connections and tell
             // them to push new clustermaps
             std::shared_ptr<Task> task;
-            task = std::make_shared<CccpNotificationTask>(
-                    all_buckets.at(bucketIndex), revision);
+            task = std::make_shared<CccpNotificationTask>(bucketIndex, version);
             std::lock_guard<std::mutex> guard(task->getMutex());
             executorPool->schedule(task, true);
         } catch (const std::exception& e) {

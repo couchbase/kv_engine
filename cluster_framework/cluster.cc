@@ -68,8 +68,8 @@ public:
                                      cb::mcbp::Feature::SELECT_BUCKET,
                                      cb::mcbp::Feature::JSON,
                                      cb::mcbp::Feature::SNAPPY});
-            auto rsp = connection->execute(
-                    BinprotSetClusterConfigCommand{0, globalmap, 0, ""});
+            auto rsp = connection->execute(BinprotSetClusterConfigCommand{
+                    0, globalmap, epoch, revno.load(), ""});
             if (!rsp.isSuccess()) {
                 std::cerr << "Failed to set global CCCP version: "
                           << rsp.getDataString() << std::endl;
@@ -126,6 +126,8 @@ protected:
     AuthProviderService authProviderService;
     const std::string uuid;
     nlohmann::json manifest;
+    std::atomic<int64_t> revno{1};
+    static constexpr int64_t epoch = 1;
 };
 
 std::shared_ptr<Bucket> ClusterImpl::createBucket(
@@ -176,6 +178,7 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
         }
     }
 
+    revno++;
     auto bucket = std::make_shared<Bucket>(
             *this, name, vbuckets, replicas, packet_filter);
     const auto& vbucketmap = bucket->getVbucketMap();
@@ -248,7 +251,11 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
             }
 
             rsp = connection->execute(BinprotSetClusterConfigCommand{
-                    0, bucket->getManifest().dump(2), 1, name});
+                    0,
+                    bucket->getManifest().dump(2),
+                    epoch,
+                    revno.load(),
+                    name});
             if (!rsp.isSuccess()) {
                 throw ConnectionError("Failed to push CCCP", rsp.getStatus());
             }

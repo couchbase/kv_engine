@@ -10,9 +10,8 @@
  */
 #pragma once
 
+#include "cluster_config.h"
 #include "task.h"
-
-class Bucket;
 
 /**
  * The CccpNotificationTask is responsible for walking all of the connections
@@ -24,7 +23,8 @@ public:
     CccpNotificationTask() = delete;
     CccpNotificationTask(const CccpNotificationTask&) = delete;
 
-    CccpNotificationTask(Bucket& bucket_, int revision_);
+    CccpNotificationTask(unsigned int bucketIndex,
+                         const ClustermapVersion& revision);
 
     ~CccpNotificationTask() override;
 
@@ -32,8 +32,8 @@ public:
 
 protected:
     /// The bucket we're operating on
-    Bucket& bucket;
+    const unsigned int bucketIndex;
 
-    /// The revision of the new config
-    const int revision;
+    /// The version of the new config
+    const ClustermapVersion version;
 };

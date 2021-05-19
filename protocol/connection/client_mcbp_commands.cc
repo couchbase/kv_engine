@@ -1631,22 +1631,23 @@ BinprotSetControlTokenCommand::BinprotSetControlTokenCommand(uint64_t token_,
 }
 
 void BinprotSetClusterConfigCommand::encode(std::vector<uint8_t>& buf) const {
-    if (revision < 0) {
-        // Use the old-style message
-        writeHeader(buf, config.size(), 0);
-    } else {
-        writeHeader(buf, config.size(), sizeof(revision));
-        append(buf, uint32_t(revision));
-    }
+    writeHeader(buf, config.size(), sizeof(revision) + sizeof(epoch));
+    append(buf, uint64_t(epoch));
+    append(buf, uint64_t(revision));
     buf.insert(buf.end(), key.begin(), key.end());
     buf.insert(buf.end(), config.begin(), config.end());
 }
 
 BinprotSetClusterConfigCommand::BinprotSetClusterConfigCommand(
-        uint64_t token_, std::string config, int revision, std::string bucket)
+        uint64_t token_,
+        std::string config,
+        int64_t epoch,
+        int64_t revision,
+        std::string bucket)
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetClusterConfig,
                             std::move(bucket)),
       config(std::move(config)),
+      epoch(epoch),
       revision(revision) {
     setCas(token_);
 }

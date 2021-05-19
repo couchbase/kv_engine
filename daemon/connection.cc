@@ -150,12 +150,7 @@ nlohmann::json Connection::toJSON() const {
 
     ret["thread"] = getThread().index;
     ret["priority"] = to_string(priority);
-
-    if (clustermap_revno == -2) {
-        ret["clustermap_revno"] = "unknown";
-    } else {
-        ret["clustermap_revno"] = clustermap_revno;
-    }
+    ret["clustermap"] = pushed_clustermap.to_json();
 
     ret["total_cpu_time"] = std::to_string(total_cpu_time.count());
     ret["min_sched_time"] = std::to_string(min_sched_time.count());
