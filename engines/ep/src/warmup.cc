@@ -999,6 +999,12 @@ void Warmup::initialize() {
     }
 
     populateShardVbStates();
+
+    for (uint16_t i = 0; i < store.vbMap.getNumShards(); i++) {
+        accessLog.emplace_back(config.getAlogPath() + "." + std::to_string(i),
+                               config.getAlogBlockSize());
+    }
+
     transition(WarmupState::State::CreateVBuckets);
 }
 
@@ -1413,8 +1419,8 @@ void Warmup::checkForAccessLog()
 
     size_t accesslogs = 0;
     for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
-        std::string curr = store.accessLog[i].getLogFile();
-        std::string old = store.accessLog[i].getLogFile();
+        std::string curr = accessLog[i].getLogFile();
+        std::string old = accessLog[i].getLogFile();
         old.append(".old");
         if (cb::io::isFile(curr) || cb::io::isFile(old)) {
             accesslogs++;
@@ -1446,12 +1452,11 @@ void Warmup::loadingAccessLog(uint16_t shardId)
     LoadStorageKVPairCallback load_cb(store, true, state.getState());
     bool success = false;
     auto stTime = std::chrono::steady_clock::now();
-    if (store.accessLog[shardId].exists()) {
+    if (accessLog[shardId].exists()) {
         try {
-            store.accessLog[shardId].open();
-            if (doWarmup(store.accessLog[shardId],
-                         shardVbStates[shardId],
-                         load_cb) != (size_t)-1) {
+            accessLog[shardId].open();
+            if (doWarmup(accessLog[shardId], shardVbStates[shardId], load_cb) !=
+                (size_t)-1) {
                 success = true;
             }
         } catch (MutationLog::ReadException &e) {
@@ -1462,7 +1467,7 @@ void Warmup::loadingAccessLog(uint16_t shardId)
 
     if (!success) {
         // Do we have the previous file?
-        std::string nm = store.accessLog[shardId].getLogFile();
+        std::string nm = accessLog[shardId].getLogFile();
         nm.append(".old");
         MutationLog old(nm);
         if (old.exists()) {

@@ -859,7 +859,6 @@ protected:
     /* Vector of mutexes for each vbucket
      * Used by flush operations: flushVB, deleteVB, compactVB, snapshotVB */
     std::vector<std::mutex>       vb_mutexes;
-    std::deque<MutationLog>       accessLog;
 
     std::mutex vbsetMutex;
     double backfillMemoryThreshold;

@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "mutation_log.h"
 #include "utilities/testing_hook.h"
 #include "utility.h"
 #include "vbucket_fwd.h"
@@ -464,6 +465,8 @@ private:
      * removed at the PopulateVBucketMap phase
      */
     folly::AtomicHashMap<uint16_t, VBucketPtr> warmedUpVbuckets;
+
+    std::deque<MutationLog> accessLog;
 
     // To avoid making a number of methods on Warmup public; grant friendship
     // to the various Tasks which run the stages of warmup.

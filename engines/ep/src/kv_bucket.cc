@@ -290,12 +290,6 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     cachedResidentRatio.replicaRatio.store(0);
 
     Configuration &config = engine.getConfiguration();
-    const auto numShards = engine.workload->getNumShards();
-    for (uint16_t i = 0; i < numShards; i++) {
-        accessLog.emplace_back(
-                config.getAlogPath() + "." + std::to_string(i),
-                config.getAlogBlockSize());
-    }
 
     const size_t size = GlobalTask::allTaskIds.size();
     stats.schedulingHisto.resize(size);
