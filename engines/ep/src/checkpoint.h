@@ -689,17 +689,6 @@ private:
      */
     CheckpointIndexKeyType makeIndexKey(const queued_item& item) const;
 
-    /**
-     * When checking if the existing item has already been processed by the
-     * persistence cursor we use the mutation_id field in the index_entry (the
-     * value that we map to in keyIndex and metaKeyIndex) to determine if we
-     * need to persist the item again.
-     *
-     * @param item CheckpointCursor pointing to the existing item.
-     * @return the index_entry.mutation_id for the item at the CheckpointCursor.
-     */
-    int64_t getMutationId(const CheckpointCursor& item) const;
-
     EPStats& stats;
     uint64_t                       checkpointId;
     uint64_t                       snapStartSeqno;

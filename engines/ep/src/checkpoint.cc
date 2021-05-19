@@ -285,8 +285,8 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi,
                         continue;
                     }
 
-                    int64_t cursor_mutation_id = getMutationId(*cursor.second);
-                    queued_item& cursor_item = *(cursor.second->currentPos);
+                    const auto& cursor_item = *(cursor.second->currentPos);
+                    auto cursorSeqno = cursor_item->getBySeqno();
                     // If the cursor item is non-meta, then we need to return
                     // persist again if the existing item is either before or on
                     // the cursor - as the cursor points to the "last processed"
@@ -295,10 +295,10 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi,
                     // strictly less than the cursor, as meta-items can share a
                     // seqno with a non-meta item but are logically before them.
                     if (cursor_item->isCheckPointMetaItem()) {
-                        --cursor_mutation_id;
+                        --cursorSeqno;
                     }
 
-                    if (currMutationId > cursor_mutation_id) {
+                    if (currMutationId > cursorSeqno) {
                         decrCursorIfSameKey();
 
                         // New mutation comes after the cursor, nothing else to
@@ -581,36 +581,6 @@ CheckpointQueue Checkpoint::expelItems(
 
 CheckpointIndexKeyType Checkpoint::makeIndexKey(const queued_item& item) const {
     return CheckpointIndexKeyType(item->getKey(), keyIndexKeyTrackingAllocator);
-}
-
-int64_t Checkpoint::getMutationId(const CheckpointCursor& cursor) const {
-    if ((*cursor.currentPos)->isCheckPointMetaItem()) {
-        auto cursor_item_idx =
-                metaKeyIndex.find(makeIndexKey(*cursor.currentPos));
-        if (cursor_item_idx == metaKeyIndex.end()) {
-            throw std::logic_error(
-                    "Checkpoint::getMutationId: Unable "
-                    "to find key in metaKeyIndex with op:" +
-                    to_string((*cursor.currentPos)->getOperation()) +
-                    " seqno:" +
-                    std::to_string((*cursor.currentPos)->getBySeqno()) +
-                    "for cursor:" + cursor.name + " in current checkpoint.");
-        }
-        return cursor_item_idx->second.getMutationId();
-    }
-
-    auto& keyIndex = (*cursor.currentPos)->isCommitted() ? committedKeyIndex
-                                                         : preparedKeyIndex;
-    auto cursor_item_idx = keyIndex.find(makeIndexKey(*cursor.currentPos));
-    if (cursor_item_idx == keyIndex.end()) {
-        throw std::logic_error(
-                "Checkpoint::getMutationId: Unable "
-                "to find key in keyIndex with op:" +
-                to_string((*cursor.currentPos)->getOperation()) +
-                " seqno:" + std::to_string((*cursor.currentPos)->getBySeqno()) +
-                "for cursor:" + cursor.name + " in current checkpoint.");
-    }
-    return cursor_item_idx->second.getMutationId();
 }
 
 void Checkpoint::addStats(const AddStatFn& add_stat, const void* cookie) {
