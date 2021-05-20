@@ -81,56 +81,23 @@ void set_cluster_config_executor(Cookie& cookie) {
     std::string_view clustermap = {
             reinterpret_cast<const char*>(payload.data()), payload.size()};
 
-    // Is this a new or an old-style message
     auto extras = req.getExtdata();
-    if (extras.empty()) {
-        // This is an old style command
-        auto& bucket = connection.getBucket();
-        if (bucket.type == BucketType::NoBucket) {
-            if (connection.isXerrorSupport()) {
-                cookie.setErrorContext("No bucket selected");
-                cookie.sendResponse(cb::mcbp::Status::NoBucket);
-            } else {
-                LOG_WARNING(
-                        "{}: Can't set cluster configuration without "
-                        "selecting a bucket. Disconnecting {}",
-                        connection.getId(),
-                        connection.getDescription());
-                connection.shutdown();
-                connection.setTerminationReason("XError not enabled");
-            }
-            return;
+    // Locate bucket to operate
+    auto key = req.getKey();
+    const auto bucketname =
+            std::string{reinterpret_cast<const char*>(key.data()), key.size()};
+    for (size_t ii = 0; ii < all_buckets.size() && bucketIndex == -1; ++ii) {
+        Bucket& b = all_buckets.at(ii);
+        std::lock_guard<std::mutex> guard(b.mutex);
+        if (b.state == Bucket::State::Ready &&
+            strcmp(b.name, bucketname.c_str()) == 0) {
+            b.clients++;
+            bucketIndex = int(ii);
         }
-        bucketIndex = connection.getBucketIndex();
-        revision = ClusterConfiguration::getRevisionNumber(clustermap);
-        if (revision < 0) {
-            cookie.setErrorContext(
-                    "Revision must be specified as a positive number");
-            cookie.sendResponse(cb::mcbp::Status::Einval);
-            return;
-        }
-        auto& b = connection.getBucket();
-        b.clients++;
-    } else {
-        // Locate bucket to operate
-        auto key = req.getKey();
-        const auto bucketname = std::string{
-                reinterpret_cast<const char*>(key.data()), key.size()};
-        for (size_t ii = 0; ii < all_buckets.size() && bucketIndex == -1;
-             ++ii) {
-            Bucket& b = all_buckets.at(ii);
-            std::lock_guard<std::mutex> guard(b.mutex);
-            if (b.state == Bucket::State::Ready &&
-                strcmp(b.name, bucketname.c_str()) == 0) {
-                b.clients++;
-                bucketIndex = int(ii);
-            }
-        }
-        const auto& ext = *reinterpret_cast<
-                const cb::mcbp::request::SetClusterConfigPayload*>(
-                extras.data());
-        revision = ext.getRevision();
     }
+    const auto& ext = *reinterpret_cast<
+            const cb::mcbp::request::SetClusterConfigPayload*>(extras.data());
+    revision = ext.getRevision();
 
     if (bucketIndex == -1) {
         cookie.sendResponse(cb::mcbp::Status::KeyEnoent);

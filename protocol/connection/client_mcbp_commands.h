@@ -989,8 +989,8 @@ class BinprotSetClusterConfigCommand : public BinprotGenericCommand {
 public:
     BinprotSetClusterConfigCommand(uint64_t token_,
                                    std::string config,
-                                   int revision = -1,
-                                   const std::string& bucket = {});
+                                   int revision,
+                                   std::string bucket);
 
     void encode(std::vector<uint8_t>& buf) const override;
 

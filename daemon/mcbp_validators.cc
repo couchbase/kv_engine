@@ -1053,39 +1053,28 @@ static Status get_cluster_config_validator(Cookie& cookie) {
 }
 
 static Status set_cluster_config_validator(Cookie& cookie) {
-    // As of Mad Hatter (6.5.0) the message may contain:
-    // key - Name of the bucket to update
-    // extras - the revision number for the configuration
     auto& header = cookie.getHeader();
-    uint8_t extlen = header.getExtlen();
     auto status = McbpValidator::verify_header(
             cookie,
-            extlen,
+            sizeof(uint32_t),
             ExpectedKeyLen::Any,
             ExpectedValueLen::NonZero,
             ExpectedCas::Any,
             PROTOCOL_BINARY_RAW_BYTES | PROTOCOL_BINARY_DATATYPE_JSON);
 
-    if (status != Status::Success || extlen == 0) {
+    if (status != Status::Success) {
         return status;
     }
 
     using cb::mcbp::request::SetClusterConfigPayload;
-
-    if (extlen == sizeof(SetClusterConfigPayload)) {
-        auto extdata = header.getExtdata();
-        const auto& payload = *reinterpret_cast<const SetClusterConfigPayload*>(
-                extdata.data());
-        if (payload.getRevision() < 0) {
-            cookie.setErrorContext("Revision number must not be less than 0");
-            return Status::Einval;
-        }
-        return Status::Success;
+    auto extdata = header.getExtdata();
+    const auto& payload =
+            *reinterpret_cast<const SetClusterConfigPayload*>(extdata.data());
+    if (payload.getRevision() < 0) {
+        cookie.setErrorContext("Revision number must not be less than 0");
+        return Status::Einval;
     }
-
-    cookie.setErrorContext(
-            "Revision number should be specified as 4 byte integer");
-    return Status::Einval;
+    return Status::Success;
 }
 
 static Status verbosity_validator(Cookie& cookie) {
