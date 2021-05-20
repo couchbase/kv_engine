@@ -4404,6 +4404,63 @@ TEST_P(DurabilityBucketTest, PrepareDoesNotExpire) {
     EXPECT_EQ(DeleteSource::TTL, res.storedValue->getDeletionSource());
 }
 
+TEST_P(DurabilityBucketTest, MB_46272) {
+    using namespace cb::durability;
+    setVBucketToActiveWithValidTopology();
+
+    auto vb = store->getVBucket(vbid);
+    auto& adm = VBucketTestIntrospector::public_getActiveDM(*vb);
+
+    // 1. Two writes, one to abort after 5 seconds, one to abort after 10
+    auto keyA = makeStoredDocKey("keyA");
+    ASSERT_EQ(
+            ENGINE_SYNC_WRITE_PENDING,
+            store->set(*makePendingItem(
+                               keyA, "value", {Level::Majority, Timeout(4000)}),
+                       cookie));
+    auto keyB = makeStoredDocKey("keyB");
+    ASSERT_EQ(
+            ENGINE_SYNC_WRITE_PENDING,
+            store->set(*makePendingItem(
+                               keyB, "value", {Level::Majority, Timeout(9000)}),
+                       cookie));
+    // 2. Flush the two prepares
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // 3. timeout keyA which should generate an abort
+    adm.processTimeout(std::chrono::steady_clock::now() +
+                       std::chrono::seconds(5));
+    // 4. cancel the inflight sync-writes returning to the client as ambiguous
+    engine->cancel_all_operations_in_ewb_state();
+    // Now check that logically we would be in a consistent state if the
+    // durability timeout or completion tasks where to run
+
+    // 5. Timeout keyB which should generate an abort
+    adm.processTimeout(std::chrono::steady_clock::now() +
+                       std::chrono::seconds(10));
+    // 6. Process resolved sync-writes this should cause us to add two aborts
+    //    to the checkpoint manager first for keyA then keyB
+    vb->processResolvedSyncWrites();
+    const auto& ckptList =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    *vb->checkpointManager);
+    const auto& ckpt = *ckptList.back();
+    auto it = ckpt.begin();
+    it++; // skip the empty-item
+    it++; // skip checkpoint_start
+    // 7. Check keyA's abort
+    EXPECT_EQ(keyA, (*it)->getKey());
+    EXPECT_EQ(queue_op::abort_sync_write, (*it)->getOperation());
+    EXPECT_EQ(3, (*it)->getBySeqno());
+    it++; // move to keyB's abort
+    // 8. Check keyB's abort
+    EXPECT_EQ(keyB, (*it)->getKey());
+    EXPECT_EQ(4, (*it)->getBySeqno());
+    EXPECT_EQ(queue_op::abort_sync_write, (*it)->getOperation());
+    // 9. Flush the two aborts to disk
+    flushVBucketToDiskIfPersistent(vbid, 2);
+}
+
 // Test cases which run against couchstore
 INSTANTIATE_TEST_CASE_P(AllBackends,
                         DurabilityCouchstoreBucketTest,

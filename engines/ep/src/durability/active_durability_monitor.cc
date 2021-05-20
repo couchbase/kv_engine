@@ -894,19 +894,30 @@ ActiveDurabilityMonitor::prepareTransitionAwayFromActive() {
 std::vector<const void*>
 ActiveDurabilityMonitor::getCookiesForInFlightSyncWrites() {
     auto vec = std::vector<const void*>();
-    {
-        std::lock_guard<ResolvedQueue::ConsumerLock> lock(
-                resolvedQueue->getConsumerLock());
-        while (auto write = resolvedQueue->try_dequeue(lock)) {
-            auto* cookie = write->getCookie();
-            if (cookie) {
-                vec.push_back(cookie);
-                write->clearCookie();
-            }
+
+    std::lock_guard<ResolvedQueue::ConsumerLock> lock(
+            resolvedQueue->getConsumerLock());
+    // Take a write lock on the state now as we don't want trackedWrites being
+    // completed and being placed on the resolvedQueue while we pop all the
+    // SyncWrites from the resolvedQueue and then re-push them.
+    auto s = state.wlock();
+    std::vector<ActiveSyncWrite> resolvedSwToBeRePushed;
+    while (auto write = resolvedQueue->try_dequeue(lock)) {
+        auto* cookie = write->getCookie();
+        if (cookie) {
+            vec.push_back(cookie);
+            write->clearCookie();
         }
+        resolvedSwToBeRePushed.push_back(*write);
+    }
+    // "reset" the queue, this just sets the value of highEnqueuedSeqno back
+    // to 0 and ensures that the queue is empty. No memory management is
+    // performed by the method.
+    resolvedQueue->reset(lock);
+    for (auto& sw : resolvedSwToBeRePushed) {
+        resolvedQueue->enqueue(*s, std::move(sw));
     }
 
-    auto s = state.wlock();
     for (auto& write : s->trackedWrites) {
         auto* cookie = write.getCookie();
         if (cookie) {
