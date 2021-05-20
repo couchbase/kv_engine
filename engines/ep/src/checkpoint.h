@@ -61,7 +61,7 @@ using ChkptQueueIterator = CheckpointIterator<CheckpointQueue>;
 
 class IndexEntry {
 public:
-    IndexEntry(ChkptQueueIterator it, int64_t mutId)
+    IndexEntry(const CheckpointQueue::iterator& it, int64_t mutId)
         : position(it), mutationId(mutId) {
     }
 
@@ -71,20 +71,20 @@ public:
      *
      * @param itr Checkpoint::end()
      */
-    void invalidate(const ChkptQueueIterator& itr) {
+    void invalidate(const CheckpointQueue::iterator& it) {
         if ((*position)->isAnySyncWriteOp()) {
             // Set this to be a "SyncWrite" item (even though it is
             // invalidated) so that we know if we can de-dupe it or not
             mutationId = 0;
         }
-        position = itr;
+        position = it;
     }
 
     bool isSyncWrite() const {
         return mutationId == 0;
     }
 
-    ChkptQueueIterator getPosition() const {
+    CheckpointQueue::iterator getPosition() const {
         return position;
     }
 
@@ -93,7 +93,7 @@ public:
     }
 
 private:
-    ChkptQueueIterator position;
+    CheckpointQueue::iterator position;
 
     /**
      * This is generally the bySeqno of the item. However, if this is a
@@ -410,6 +410,8 @@ std::string to_string(QueueDirtyStatus value);
  * creation/destruction or when queuing new items.
  */
 class Checkpoint {
+    friend class CheckpointManagerTestIntrospector;
+
 public:
     Checkpoint(EPStats& st,
                uint64_t id,

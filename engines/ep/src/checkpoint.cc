@@ -271,7 +271,8 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi,
                     auto decrCursorIfSameKey = [&cursor, &oldPos]() {
                         // If a cursor points to the existing item for the same
                         // key, shift it left by 1
-                        if (cursor.second->currentPos == oldPos) {
+                        if (cursor.second->currentPos.getUnderlyingIterator() ==
+                            oldPos) {
                             cursor.second->decrPos();
                         }
                     };
@@ -412,9 +413,8 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi,
      * on the replica node that we have received a valid Checkpoint.
      */
     if (qi->getKey().size() > 0 && !isDiskCheckpoint()) {
-        ChkptQueueIterator last = end();
-        // --last is okay as the list is not empty now.
-        const auto entry = IndexEntry(--last, qi->getBySeqno());
+        // --toWrite.end() is okay as the list is not empty now.
+        const auto entry = IndexEntry(--toWrite.end(), qi->getBySeqno());
         // Set the index of the key to the new item that is pushed back into
         // the list.
         if (qi->isCheckPointMetaItem()) {
@@ -534,8 +534,9 @@ CheckpointQueue Checkpoint::expelItems(
 
                 auto itr = keyIndex.find(makeIndexKey(toExpel));
                 Expects(itr != keyIndex.end());
-                Expects(itr->second.getPosition() == expelItr);
-                itr->second.invalidate(end());
+                Expects(itr->second.getPosition() ==
+                        expelItr.getUnderlyingIterator());
+                itr->second.invalidate(toWrite.end());
 
                 Ensures(toExpel->isAnySyncWriteOp() ==
                         itr->second.isSyncWrite());

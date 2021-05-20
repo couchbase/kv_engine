@@ -23,6 +23,11 @@ public:
             const CheckpointManager& checkpointManager) {
         return checkpointManager.checkpointList;
     }
+
+    static CheckpointQueue& public_getOpenCheckpointQueue(
+            const CheckpointManager& checkpointManager) {
+        return checkpointManager.checkpointList.back()->toWrite;
+    }
 };
 
 /**

@@ -1480,11 +1480,10 @@ TEST_P(CheckpointTest, checkpointMemoryTest) {
     // std::unordered_map allocated 200 bytes.
     const auto initialKeyIndexSize =
             keyIndex.get_allocator().getBytesAllocated();
-    ChkptQueueIterator iterator =
-            CheckpointManagerTestIntrospector::public_getCheckpointList(
-                    *(this->manager))
-                    .front()
-                    ->begin();
+    const auto iterator =
+            CheckpointManagerTestIntrospector::public_getOpenCheckpointQueue(
+                    *this->manager)
+                    .begin();
     IndexEntry entry{iterator, 0};
 
     // Create a queued_item with a 'small' value
@@ -1608,11 +1607,10 @@ TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadTest) {
     const auto initialKeyIndexSize =
             keyIndex.get_allocator().getBytesAllocated();
 
-    ChkptQueueIterator iterator =
-            CheckpointManagerTestIntrospector::public_getCheckpointList(
-                    *(this->manager))
-                    .front()
-                    ->begin();
+    const auto iterator =
+            CheckpointManagerTestIntrospector::public_getOpenCheckpointQueue(
+                    *this->manager)
+                    .begin();
     IndexEntry entry{iterator, 0};
 
     // Create a queued_item

@@ -120,11 +120,10 @@ TEST_F(CheckpointRemoverEPTest, CheckpointManagerMemoryUsage) {
     // determine the number of bytes that should be allocated during its use.
     checkpoint_index committedKeyIndex(memoryTrackingAllocator);
     checkpoint_index preparedKeyIndex(memoryTrackingAllocator);
-    ChkptQueueIterator iterator =
-            CheckpointManagerTestIntrospector::public_getCheckpointList(
+    const auto iterator =
+            CheckpointManagerTestIntrospector::public_getOpenCheckpointQueue(
                     *checkpointManager)
-                    .front()
-                    ->begin();
+                    .begin();
     IndexEntry entry{iterator, 0};
 
     // Check that the expected memory usage of the checkpoints is correct
@@ -279,11 +278,10 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
     // std::unordered_map allocated 200 bytes.
     const auto initialKeyIndexSize =
             keyIndex.get_allocator().getBytesAllocated();
-    ChkptQueueIterator iterator =
-            CheckpointManagerTestIntrospector::public_getCheckpointList(
+    const auto iterator =
+            CheckpointManagerTestIntrospector::public_getOpenCheckpointQueue(
                     *checkpointManager)
-                    .front()
-                    ->begin();
+                    .begin();
     IndexEntry entry{iterator, 0};
 
     auto expectedFreedMemoryFromItems = initialSize;

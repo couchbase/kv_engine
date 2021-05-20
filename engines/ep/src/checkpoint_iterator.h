@@ -142,6 +142,10 @@ public:
         return iter;
     }
 
+    auto getUnderlyingIterator() const {
+        return iter;
+    }
+
 private:
     /// Is the iterator currently pointing to the "end" element.
     bool isAtEnd() const {
