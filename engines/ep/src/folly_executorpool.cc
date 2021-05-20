@@ -946,7 +946,7 @@ bool FollyExecutorPool::cancel(size_t taskId, bool eraseTask) {
     bool found = false;
     eventBase->runInEventBaseThreadAndWait(
             [&found, state = state.get(), taskId] {
-                state->cancelTask(taskId);
+                found = state->cancelTask(taskId);
             });
     return found;
 }
