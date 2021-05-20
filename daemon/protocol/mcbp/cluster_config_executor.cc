@@ -103,24 +103,11 @@ void set_cluster_config_executor(Cookie& cookie) {
         return;
     }
 
-    ClustermapVersion version;
-
-    // Is this a new or an old-style message
     auto extras = req.getExtdata();
-    using cb::mcbp::request::DeprecatedSetClusterConfigPayload;
     using cb::mcbp::request::SetClusterConfigPayload;
-    if (extras.size() == sizeof(DeprecatedSetClusterConfigPayload)) {
-        // @todo remove once ns_server is up to date!
-        const auto& ext = *reinterpret_cast<
-                const cb::mcbp::request::DeprecatedSetClusterConfigPayload*>(
-                extras.data());
-        version = {0, ext.getRevision()};
-    } else {
-        const auto& ext = *reinterpret_cast<
-                const cb::mcbp::request::SetClusterConfigPayload*>(
-                extras.data());
-        version = {ext.getEpoch(), ext.getRevision()};
-    }
+    const auto& ext = *reinterpret_cast<
+            const cb::mcbp::request::SetClusterConfigPayload*>(extras.data());
+    const ClustermapVersion version = {ext.getEpoch(), ext.getRevision()};
 
     bool failed = false;
     try {

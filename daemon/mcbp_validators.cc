@@ -1053,19 +1053,13 @@ static Status get_cluster_config_validator(Cookie& cookie) {
 }
 
 static Status set_cluster_config_validator(Cookie& cookie) {
-    // @todo until ns_server supports the new format we need backward
-    //       compat
     auto& header = cookie.getHeader();
-    uint8_t extlen = header.getExtlen();
 
-    using cb::mcbp::request::DeprecatedSetClusterConfigPayload;
     using cb::mcbp::request::SetClusterConfigPayload;
 
-    // @todo extlen should be set to sizeof(SetClusterConfigPayload) once
-    //       ns_server adds support for it
     auto status = McbpValidator::verify_header(
             cookie,
-            extlen,
+            sizeof(SetClusterConfigPayload),
             ExpectedKeyLen::Any,
             ExpectedValueLen::NonZero,
             ExpectedCas::Any,
@@ -1075,37 +1069,18 @@ static Status set_cluster_config_validator(Cookie& cookie) {
         return status;
     }
 
-    // @todo remove when ns_server supports the format
-    if (extlen == sizeof(DeprecatedSetClusterConfigPayload)) {
-        auto extdata = header.getExtdata();
-        const auto& payload =
-                *reinterpret_cast<const DeprecatedSetClusterConfigPayload*>(
-                        extdata.data());
-        if (payload.getRevision() < 0) {
-            cookie.setErrorContext("Revision number must not be less than 0");
-            return Status::Einval;
-        }
-        return Status::Success;
+    auto extdata = header.getExtdata();
+    const auto& payload =
+            *reinterpret_cast<const SetClusterConfigPayload*>(extdata.data());
+    if (payload.getRevision() < 1) {
+        cookie.setErrorContext("Revision number must not be less than 1");
+        return Status::Einval;
     }
-
-    if (extlen == sizeof(SetClusterConfigPayload)) {
-        auto extdata = header.getExtdata();
-        const auto& payload = *reinterpret_cast<const SetClusterConfigPayload*>(
-                extdata.data());
-        if (payload.getRevision() < 1) {
-            cookie.setErrorContext("Revision number must not be less than 1");
-            return Status::Einval;
-        }
-        if (payload.getEpoch() < 1) {
-            cookie.setErrorContext("Epoch must not be less than 1");
-            return Status::Einval;
-        }
-        return Status::Success;
+    if (payload.getEpoch() < 1) {
+        cookie.setErrorContext("Epoch must not be less than 1");
+        return Status::Einval;
     }
-
-    cookie.setErrorContext(
-            "Extras should contain 64 bit Epoch and 64 bit Revision");
-    return Status::Einval;
+    return Status::Success;
 }
 
 static Status verbosity_validator(Cookie& cookie) {
