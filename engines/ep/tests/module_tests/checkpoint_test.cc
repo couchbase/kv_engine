@@ -1484,7 +1484,7 @@ TEST_P(CheckpointTest, checkpointMemoryTest) {
             CheckpointManagerTestIntrospector::public_getOpenCheckpointQueue(
                     *this->manager)
                     .begin();
-    IndexEntry entry{iterator, 0};
+    IndexEntry entry{iterator};
 
     // Create a queued_item with a 'small' value
     std::string value("value");
@@ -1611,7 +1611,7 @@ TEST_P(CheckpointTest, checkpointTrackingMemoryOverheadTest) {
             CheckpointManagerTestIntrospector::public_getOpenCheckpointQueue(
                     *this->manager)
                     .begin();
-    IndexEntry entry{iterator, 0};
+    IndexEntry entry{iterator};
 
     // Create a queued_item
     std::string value("value");

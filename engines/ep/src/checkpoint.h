@@ -62,46 +62,25 @@ using ChkptQueueIterator = CheckpointIterator<CheckpointQueue>;
 
 class IndexEntry {
 public:
-    IndexEntry(const CheckpointQueue::iterator& it, int64_t mutId)
-        : position(it), mutationId(mutId) {
+    IndexEntry(const CheckpointQueue::iterator& it) : position(it) {
     }
 
     /**
-     * Invalidate the given index_entry (as part of expelling) to ensure that
-     * we use it correctly if we were expelling from the open checkpoint.
+     * Invalidate this index entry (as part of expelling) by pointing the
+     * internal iterator to some special position provided by the user.
      *
-     * @param itr Checkpoint::end()
+     * @param it The new position pointed by this index entry.
      */
     void invalidate(const CheckpointQueue::iterator& it) {
-        if ((*position)->isAnySyncWriteOp()) {
-            // Set this to be a "SyncWrite" item (even though it is
-            // invalidated) so that we know if we can de-dupe it or not
-            mutationId = 0;
-        }
         position = it;
-    }
-
-    bool isSyncWrite() const {
-        return mutationId == 0;
     }
 
     CheckpointQueue::iterator getPosition() const {
         return position;
     }
 
-    int64_t getMutationId() const {
-        return mutationId;
-    }
-
 private:
     CheckpointQueue::iterator position;
-
-    /**
-     * This is generally the bySeqno of the item. However, if this is a
-     * SyncWrite expelled from the open checkpoint then the mutation_id is set
-     * to 0 so that we can make our de-dupe checks
-     */
-    int64_t mutationId;
 };
 
 /**

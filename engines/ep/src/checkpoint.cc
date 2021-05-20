@@ -241,13 +241,40 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi,
             maxDeletedRevSeqno = qi->getRevSeqno();
         }
 
-        // Check if this checkpoint already has an item for the same key
-        // and the item has not been expelled.
         if (it != keyIndex.end()) {
-            const auto currMutationId = it->second.getMutationId();
-            if (currMutationId > highestExpelledSeqno) {
-                // Normal path - we haven't expelled the item. We have a valid
-                // cursor position to read the item and make our de-dupe checks.
+            // Case: key is in the index, need to execute the de-dup path
+
+            const auto& indexEntry = it->second;
+
+            if (indexEntry.getPosition() == toWrite.begin() ||
+                qi->getOperation() == queue_op::commit_sync_write) {
+                // Case: sync mutation expelled or new item is a Commit
+
+                // If the previous op was a syncWrite and we hit this code
+                // then we know that the new op (regardless of what it is)
+                // must be placed in a new checkpoint (as it is for the same
+                // key).
+                //
+                // If the new op is a commit (which would typically de-dupe
+                // a mutation) then we must also place the op in a new
+                // checkpoint.
+                return {QueueDirtyStatus::FailureDuplicateItem, 0};
+            } else if (indexEntry.getPosition() == toWrite.end()) {
+                // Case: normal mutation expelled
+
+                // Always return PersistAgain because if the old item has been
+                // expelled so all cursors must have passed it.
+                rv.status = QueueDirtyStatus::SuccessPersistAgain;
+                addItemToCheckpoint(qi);
+            } else {
+                // Case: item not expelled, normal path
+
+                // Note: In this case the index entry points to a valid position
+                // in toWrite, so we can make our de-dup checks.
+                const auto existingSeqno =
+                        (*indexEntry.getPosition())->getBySeqno();
+                Expects(highestExpelledSeqno < existingSeqno);
+
                 const auto oldPos = it->second.getPosition();
                 const auto& oldItem = *oldPos;
                 if (!(canDedup(oldItem, qi))) {
@@ -298,10 +325,10 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi,
                         --cursorSeqno;
                     }
 
-                    if (currMutationId > cursorSeqno) {
+                    if (existingSeqno > cursorSeqno) {
                         decrCursorIfSameKey();
 
-                        // New mutation comes after the cursor, nothing else to
+                        // Old mutation comes after the cursor, nothing else to
                         // do here
                         continue;
                     }
@@ -334,7 +361,7 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi,
                     auto backupPCursorSeqno =
                             (*(*backupPCursor->second).currentPos)
                                     ->getBySeqno();
-                    if (backupPCursorSeqno <= currMutationId) {
+                    if (backupPCursorSeqno <= existingSeqno) {
                         // Pass the oldItem in. When we return and update
                         // the stats we'll use the new item and the flush
                         // will pick up the new item too so we have to match
@@ -368,34 +395,14 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi,
                 // Remove the existing item for the same key from the list.
                 toWrite.erase(
                         ChkptQueueIterator::const_underlying_iterator{oldPos});
-            } else {
-                // The old item has been expelled, but we can continue to use
-                // this checkpoint in most cases. If the previous op was a
-                // syncWrite and we hit this code then we know that the new op
-                // (regardless of what it is) must be placed in a new
-                // checkpoint (as it is for the same key). If the new op is a
-                // commit (which would typically de-dupe a mutation) then we
-                // must also place the op in a new checkpoint. We can't use the
-                // cursor position as we normally would as we have expelled the
-                // queued_item and freed the memory. The index_entry has the
-                // information we need though to tell us if this item was a
-                // SyncWrite.
-                if (it->second.isSyncWrite() ||
-                    qi->getOperation() == queue_op::commit_sync_write) {
-                    return {QueueDirtyStatus::FailureDuplicateItem, 0};
-                }
-
-                // Always return PersistAgain because if the old item has been
-                // expelled then the persistence cursor MUST have passed it.
-                rv.status = QueueDirtyStatus::SuccessPersistAgain;
-
-                addItemToCheckpoint(qi);
             }
 
             // Reduce the number of items because addItemToCheckpoint will
             // increase the number by one.
             --numItems;
         } else {
+            // Case: key is not in the index, just queue the new item.
+
             rv.status = QueueDirtyStatus::SuccessNewItem;
             addItemToCheckpoint(qi);
         }
@@ -418,7 +425,7 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi,
     if (!qi->isCheckPointMetaItem() && qi->getKey().size() > 0 &&
         !isDiskCheckpoint()) {
         // --toWrite.end() is okay as the list is not empty now.
-        const auto entry = IndexEntry(--toWrite.end(), qi->getBySeqno());
+        const auto entry = IndexEntry(--toWrite.end());
         // Set the index of the key to the new item that is pushed back into
         // the list.
         auto& keyIndex =
@@ -517,7 +524,14 @@ CheckpointQueue Checkpoint::expelItems(const ChkptQueueIterator& last) {
 
                 auto it = keyIndex.find(makeIndexKey(expelled));
                 Expects(it != keyIndex.end());
-                it->second.invalidate(toWrite.end());
+
+                // An IndexEntry is invalidated by placing the underlying
+                // iterator to one of the following special positions:
+                // - toWrite::end(), if the expelled item is a normal mutation
+                // - toWrite::begin(), if the expelled item is sync mutation
+                it->second.invalidate(expelled->isAnySyncWriteOp()
+                                              ? toWrite.begin()
+                                              : toWrite.end());
             }
 
             queuedItemsMemUsage -= expelled->size();

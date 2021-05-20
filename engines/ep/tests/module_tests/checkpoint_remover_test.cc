@@ -127,7 +127,7 @@ TEST_F(CheckpointRemoverEPTest, CheckpointManagerMemoryUsage) {
             CheckpointManagerTestIntrospector::public_getOpenCheckpointQueue(
                     *checkpointManager)
                     .begin();
-    IndexEntry entry{iterator, 0};
+    IndexEntry entry{iterator};
 
     // Check that the expected memory usage of the checkpoints is correct
     size_t expected_size = 0;
@@ -267,7 +267,7 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
             CheckpointManagerTestIntrospector::public_getOpenCheckpointQueue(
                     *checkpointManager)
                     .begin();
-    IndexEntry entry{iterator, 0};
+    IndexEntry entry{iterator};
 
     auto expectedFreedMemoryFromItems = initialSize;
     for (size_t i = 0; i < getMaxCheckpointItems(*vb); i++) {
