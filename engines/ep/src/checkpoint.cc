@@ -176,7 +176,6 @@ Checkpoint::Checkpoint(
       toWrite(trackingAllocator),
       committedKeyIndex(keyIndexTrackingAllocator),
       preparedKeyIndex(keyIndexTrackingAllocator),
-      metaKeyIndex(keyIndexTrackingAllocator),
       keyIndexMemUsage(0),
       queuedItemsMemUsage(0),
       checkpointType(checkpointType),
@@ -402,6 +401,10 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi,
         }
     }
 
+    if (rv.status == QueueDirtyStatus::SuccessNewItem) {
+        stats.coreLocal.get()->memOverhead.fetch_add(sizeof(queued_item));
+    }
+
     /**
      * We only add keys to the indexes of Memory Checkpoints. We don't add them
      * to the indexes of Disk Checkpoints as these grow at a O(n) rate and this
@@ -412,43 +415,25 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi,
      * allow us to perform de-duplication correctly on the active node and check
      * on the replica node that we have received a valid Checkpoint.
      */
-    if (qi->getKey().size() > 0 && !isDiskCheckpoint()) {
+    if (!qi->isCheckPointMetaItem() && qi->getKey().size() > 0 &&
+        !isDiskCheckpoint()) {
         // --toWrite.end() is okay as the list is not empty now.
         const auto entry = IndexEntry(--toWrite.end(), qi->getBySeqno());
         // Set the index of the key to the new item that is pushed back into
         // the list.
-        if (qi->isCheckPointMetaItem()) {
-            // Insert the new entry into the metaKeyIndex
-            auto result = metaKeyIndex.emplace(makeIndexKey(qi), entry);
-            if (!result.second) {
-                // Did not manage to insert - so update the value directly
-                result.first->second = entry;
-            }
-        } else {
-            // Insert the new entry into the keyIndex
-            auto& keyIndex =
-                    qi->isCommitted() ? committedKeyIndex : preparedKeyIndex;
-            auto result = keyIndex.emplace(makeIndexKey(qi), entry);
-            if (!result.second) {
-                // Did not manage to insert - so update the value directly
-                result.first->second = entry;
-            }
+        auto& keyIndex =
+                qi->isCommitted() ? committedKeyIndex : preparedKeyIndex;
+        auto result = keyIndex.emplace(makeIndexKey(qi), entry);
+        if (!result.second) {
+            // Did not manage to insert - so update the value directly
+            result.first->second = entry;
         }
 
         if (rv.status == QueueDirtyStatus::SuccessNewItem) {
-            auto indexKeyUsage = qi->getKey().size() + sizeof(IndexEntry);
-            /**
-             * Calculate as best we can the memory overhead of adding the new
-             * item to the queue (toWrite).  This is approximated to the
-             * addition to metaKeyIndex / keyIndex plus sizeof(queued_item).
-             */
-            stats.coreLocal.get()->memOverhead.fetch_add(indexKeyUsage +
-                                                         sizeof(queued_item));
-            /**
-             *  Update the total metaKeyIndex / keyIndex memory usage which is
-             *  used when the checkpoint is destructed to manually account
-             *  for the freed memory.
-             */
+            const auto indexKeyUsage = qi->getKey().size() + sizeof(IndexEntry);
+            stats.coreLocal.get()->memOverhead.fetch_add(indexKeyUsage);
+            // Update the total keyIndex memory usage which is used when the
+            // checkpoint is destructed to manually account for the freed mem.
             keyIndexMemUsage += indexKeyUsage;
         }
     }

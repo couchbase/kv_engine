@@ -738,9 +738,6 @@ private:
     checkpoint_index committedKeyIndex;
     checkpoint_index preparedKeyIndex;
 
-    /* Index for meta keys like "dummy_key" */
-    checkpoint_index metaKeyIndex;
-
     // Record the memory overhead of maintaining the keyIndex and metaKeyIndex.
     // This includes each item's key size and sizeof(index_entry).
     cb::NonNegativeCounter<size_t> keyIndexMemUsage;
