@@ -370,9 +370,19 @@ size)
 
 === num_reader_threads and num_writer_threads
 
-Specifies the number of reader or writer threads, respectively.
-If 0 means that memcached should use the default number of reader or writer
-threads, which is computed based on the number of cores.
+Specifies the number of reader or writer threads, respectively. The value
+can be encoded either a string specifying a mode which memcached will interpret
+to calculate the number of threads, of as a unsigned number specifying the exact
+number. Possible values:
+
+"default" or 0:: Configure the number of threads based on the properties of the
+running system (currently logical CPU core count, capped at conservative values).
+
+"disk_io_optimized":: Configure the number of for optimized disk throughput /
+latency based on the properties of the running system (currently logical CPU
+core count, with higher caps than `"default"`).
+
+<positive integer>:: Use the exact number of threads specified.
 
 === num_storage_threads
 
