@@ -283,7 +283,7 @@ void Manifest::completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
         auto uid = changeset.empty() ? changeset.uid : manifestUid;
         dropScope(wHandle,
                   vb,
-                  changeset.uid,
+                  uid,
                   *finalScopeForceDrop,
                   OptionalSeqno{/*no-seqno*/},
                   changeset.forced);
