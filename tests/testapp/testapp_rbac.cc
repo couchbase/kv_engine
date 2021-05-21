@@ -162,7 +162,7 @@ public:
         auto& conn = getAdminConnection();
         conn.createBucket("rbac_test", "", BucketType::Memcached);
 
-        conn = getConnection();
+        conn.reconnect();
         smith_holder = conn.clone();
         jones_holder = conn.clone();
         larry_holder = conn.clone();
@@ -296,7 +296,9 @@ TEST_P(RbacRoleTest, Arithmetic) {
     }
 
     // reset the connection to get back the privilege
-    rw = getRWConnection();
+    rw.reconnect();
+    rw.authenticate("larry", "larrypassword", "PLAIN");
+    prepare(rw);
     // With upsert it should be allowed to create the key
     rw.arithmetic(name, 0, 0);
 
@@ -379,7 +381,9 @@ TEST_P(RbacRoleTest, MutationTest_WriteOnly) {
     }
 
     // Reset privilege set
-    wo = getWOConnection();
+    wo.reconnect();
+    wo.authenticate("jones", "jonespassword", "PLAIN");
+    prepare(wo);
 
     // If we drop the Upsert privilege we should only be allowed to do add
     wo.dropPrivilege(cb::rbac::Privilege::Upsert);
@@ -517,6 +521,6 @@ TEST_P(RbacRoleTest, DontAutoselectBucket) {
     conn.recvResponse(resp);
     EXPECT_EQ(cb::mcbp::Status::NoBucket, resp.getStatus());
 
-    conn = getAdminConnection();
+    conn.authenticate("@admin", "password", "PLAIN");
     conn.deleteBucket("larry");
 }

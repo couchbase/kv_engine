@@ -304,13 +304,12 @@ TEST_P(BucketTest, TestNoAutoSelectOfBucketForNormalUser) {
     auto& conn = getAdminConnection();
     conn.createBucket("rbac_test", "", BucketType::Memcached);
 
-    conn = getConnection();
-    conn.authenticate("smith", "smithpassword", "PLAIN");
-    auto response = conn.execute(
+    auto clone = conn.clone();
+    clone->authenticate("smith", "smithpassword", "PLAIN");
+    auto response = clone->execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::Get, name});
     EXPECT_EQ(cb::mcbp::Status::NoBucket, response.getStatus());
 
-    conn = getAdminConnection();
     conn.deleteBucket("rbac_test");
 }
 
@@ -326,12 +325,11 @@ TEST_P(BucketTest, TestListSomeBuckets) {
     EXPECT_EQ(all_buckets, conn.listBuckets());
 
     // Reconnect and authenticate as a user with access to only one of them
-    conn = getConnection();
-    conn.authenticate("smith", "smithpassword", "PLAIN");
+    auto clone = conn.clone();
+    clone->authenticate("smith", "smithpassword", "PLAIN");
     const std::vector<std::string> expected = {"rbac_test"};
-    EXPECT_EQ(expected, conn.listBuckets());
+    EXPECT_EQ(expected, clone->listBuckets());
 
-    conn = getAdminConnection();
     conn.deleteBucket("bucket-1");
     conn.deleteBucket("bucket-2");
     conn.deleteBucket("rbac_test");
@@ -357,11 +355,12 @@ TEST_P(BucketTest, TestBucketIsolationAndMaxBuckets) {
 
     if (totalBuckets == cb::limits::TotalBuckets) {
         try {
+            auto clone = connection.clone();
+            clone->authenticate("@admin", "password", "PLAIN");
             GetTestBucket().createBucket("BucketShouldFail", "", connection);
             FAIL() << "It should not be possible to test more than "
                    << cb::limits::TotalBuckets << "buckets";
         } catch (ConnectionError&) {
-            connection = getAdminConnection();
         }
     }
 
@@ -380,7 +379,6 @@ TEST_P(BucketTest, TestBucketIsolationAndMaxBuckets) {
         connection.mutate(doc, Vbid(0), MutationType::Add);
     }
 
-    connection = getAdminConnection();
     // Delete all buckets
     for (std::size_t ii = 1; ii < totalBuckets; ++ii) {
         std::stringstream ss;

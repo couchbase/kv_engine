@@ -229,7 +229,8 @@ TEST_P(ClusterConfigTest, MB35395) {
 
     // Recreate the bucket, and the cluster config should be gone!
     CreateTestBucket();
-    conn = getAdminConnection();
+    conn.reconnect();
+    conn.authenticate("@admin", "password", "PLAIN");
     conn.selectBucket("default");
     auto rsp = conn.execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::GetClusterConfig});

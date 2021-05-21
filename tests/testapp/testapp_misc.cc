@@ -113,7 +113,7 @@ TEST_P(MiscTest, GetRbacDatabase) {
     ASSERT_TRUE(response.isSuccess());
     ASSERT_FALSE(response.getDataString().empty());
 
-    conn = getConnection();
+    prepare(conn);
     response = conn.execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::IoctlGet, "rbac.db.dump?domain=external"});
     ASSERT_FALSE(response.isSuccess());

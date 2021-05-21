@@ -264,7 +264,7 @@ TEST_P(SaslTest, TestDisablePLAIN) {
     // It should not be possible to select any other mechanisms:
     for (const auto& mech : mechanisms) {
         // get a fresh connection
-        conn = getConnection();
+        conn.reconnect();
         if (mech == "SCRAM-SHA1") {
             // This should work
             conn.authenticate(bucket1, password1, mech);

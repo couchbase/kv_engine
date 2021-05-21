@@ -291,23 +291,24 @@ TEST_P(ExternalAuthTest, TestExternalAuthServiceDying) {
 
 TEST_P(ExternalAuthTest, TestReloadRbacDbDontNukeExternalUsers) {
     // Do one authentication so that we know that the user is there
-    auto& conn = getConnection();
+    {
+        auto& conn = getConnection();
 
-    BinprotSaslAuthCommand saslAuthCommand;
-    saslAuthCommand.setChallenge({"\0osbourne\0password", 18});
-    saslAuthCommand.setMechanism("PLAIN");
-    conn.sendCommand(saslAuthCommand);
+        BinprotSaslAuthCommand saslAuthCommand;
+        saslAuthCommand.setChallenge({"\0osbourne\0password", 18});
+        saslAuthCommand.setMechanism("PLAIN");
+        conn.sendCommand(saslAuthCommand);
 
-    stepAuthProvider();
+        stepAuthProvider();
 
-    // Now read out the response from the client
-    BinprotResponse response;
-    conn.recvResponse(response);
-    EXPECT_TRUE(response.isSuccess()) << "Failed to authenticate";
-
+        // Now read out the response from the client
+        BinprotResponse response;
+        conn.recvResponse(response);
+        EXPECT_TRUE(response.isSuccess()) << "Failed to authenticate";
+    }
     // Now lets's reload the RBAC database
-    conn = getAdminConnection();
-    response = conn.execute(BinprotRbacRefreshCommand{});
+    auto& conn = getAdminConnection();
+    auto response = conn.execute(BinprotRbacRefreshCommand{});
     EXPECT_TRUE(response.isSuccess()) << "Failed to refresh DB";
 
     // Verify that the user is still there...

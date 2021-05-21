@@ -132,7 +132,7 @@ TEST_P(RegressionTest, MB_26828_SetIsFixed) {
 
     EXPECT_TRUE(resp.isSuccess());
     // Reset connection to make sure we're not affected by any ewb logic
-    conn = getConnection();
+    conn.reconnect();
     resp = conn.execute(cmd);
     EXPECT_TRUE(resp.isSuccess());
 }

@@ -41,7 +41,7 @@ void RemoveTest::verify_MB_22553(const std::string& config) {
     mcd_env->getTestBucket().setUpBucket(bucketName, config, conn);
 
     // Create a document with an XATTR.
-    conn = getConnection();
+    conn.reconnect();
     setBodyAndXattr(
             conn, "foobar", {{"_rbac", R"({"attribute": "read-only"})"}});
 
