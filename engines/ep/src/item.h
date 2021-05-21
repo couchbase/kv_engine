@@ -583,6 +583,14 @@ public:
         preserveTtl = enable;
     }
 
+    bool isEmptyItem() const {
+        return op == queue_op::empty;
+    }
+
+    bool isCheckpointStart() const {
+        return op == queue_op::checkpoint_start;
+    }
+
 private:
     /**
      * Set the item's data. This is only used by constructors, so we

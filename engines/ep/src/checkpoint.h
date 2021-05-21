@@ -647,11 +647,11 @@ public:
 
     /**
      * Expel those items in the checkpoint where all cursors have passed.
-     * @param expelUpToAndIncluding  a cursor pointing where we will expel
-     *                               upto and including.
-     * @return  a CheckpointQueue of items that have been expelled.
+     *
+     * @param lastToExpel Iterator to the last item to expel (inclusive)
+     * @return a CheckpointQueue of items that have been expelled.
      */
-    CheckpointQueue expelItems(CheckpointCursor& expelUpToAndIncluding);
+    CheckpointQueue expelItems(ChkptQueueIterator& lastToExpel);
 
     /// @return true if this is a disk checkpoint (replica streaming from disk)
     bool isDiskCheckpoint() const {

@@ -638,17 +638,18 @@ TEST_F(CheckpointRemoverEPTest, expelsOnlyIfOldestCheckpointIsReferenced) {
     // can now expel the 4 items before the above cursor
     auto result = cm->expelUnreferencedCheckpointItems();
 
-    EXPECT_EQ(expellItemCount, result.expelCount);
+    EXPECT_EQ(3, result.expelCount);
 
     /* items in first checkpoint
      *
      *   dummy
+     *   key_2
      *   key_3
      */
 
     afterCount = getItemsWithCursor("Cursor4", 0, true).size();
 
-    EXPECT_EQ(beforeCount - expellItemCount, afterCount);
+    EXPECT_EQ(beforeCount - 3, afterCount);
 }
 
 TEST_F(CheckpointRemoverEPTest, earliestCheckpointSelectedCorrectly) {

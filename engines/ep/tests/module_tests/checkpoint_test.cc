@@ -1774,21 +1774,24 @@ void CheckpointTest::testExpelCheckpointItems() {
 
     CheckpointManager::ExpelResult expelResult =
             this->manager->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(itemCount, expelResult.expelCount);
+    EXPECT_EQ(2, expelResult.expelCount);
     EXPECT_LT(0, expelResult.estimateOfFreeMemory);
-    EXPECT_EQ(itemCount, this->global_stats.itemsExpelledFromCheckpoints);
+    EXPECT_EQ(2, this->global_stats.itemsExpelledFromCheckpoints);
 
     /*
      * After expelling checkpoint now looks as follows:
-     * 1000 - dummy Item <<<<<<< persistenceCursor
+     * 1000 - dummy Item
+     * 1002 - 2nd item (key1) <<<<<<< persistenceCursor
      * 1003 - 3rd item (key 2)
      */
+    if (persistent()) {
+        EXPECT_EQ(1002, (*manager->getPersistenceCursorPos())->getBySeqno());
+    }
 
     /*
      * We have expelled:
      * 1001 - checkpoint start
      * 1001 - 1st item (key 0)
-     * 1002 - 2nd item (key 1)
      */
 
     // The full checkpoint still contains the 3 items added.
@@ -1798,17 +1801,17 @@ void CheckpointTest::testExpelCheckpointItems() {
     std::string dcp_cursor1(DCP_CURSOR_PREFIX + std::to_string(1));
     CursorRegResult regResult =
             this->manager->registerCursorBySeqno(dcp_cursor1.c_str(), 1001);
-    EXPECT_EQ(1003, regResult.seqno);
+    EXPECT_EQ(1002, regResult.seqno);
     EXPECT_TRUE(regResult.tryBackfill);
 
-    // Try to register a DCP replication cursor from 1002 - the dummy item.
+    // Try to register a DCP replication cursor from 1002 - the first valid
+    // in-checkpoint item.
     std::string dcp_cursor2(DCP_CURSOR_PREFIX + std::to_string(2));
     regResult = this->manager->registerCursorBySeqno(dcp_cursor2.c_str(), 1002);
     EXPECT_EQ(1003, regResult.seqno);
-    EXPECT_TRUE(regResult.tryBackfill);
+    EXPECT_FALSE(regResult.tryBackfill);
 
-    // Try to register a DCP replication cursor from 1003 - the first
-    // valid in-checkpoint item.
+    // Try to register a DCP replication cursor from 1003
     std::string dcp_cursor3(DCP_CURSOR_PREFIX + std::to_string(3));
     regResult = this->manager->registerCursorBySeqno(dcp_cursor3.c_str(), 1003);
     EXPECT_EQ(1004, regResult.seqno);
@@ -1846,15 +1849,22 @@ TEST_P(CheckpointTest, expelCheckpointItemsWithDuplicateTest) {
 
     CheckpointManager::ExpelResult expelResult =
             this->manager->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(itemCount, expelResult.expelCount);
+    EXPECT_EQ(2, expelResult.expelCount);
     EXPECT_LT(0, expelResult.estimateOfFreeMemory);
-    EXPECT_EQ(itemCount, this->global_stats.itemsExpelledFromCheckpoints);
+    EXPECT_EQ(2, this->global_stats.itemsExpelledFromCheckpoints);
+
+    // Item count doens't change
+    EXPECT_EQ(3, this->manager->getNumOpenChkItems());
 
     /*
      * After expelling checkpoint now looks as follows:
-     * 1000 - dummy Item <<<<<<< persistenceCursor
-     * 1003 - 3rd item (key2)
+     * 1000 - dummy Item
+     * 1002 - 2nd item (key1) <<<<<<< persistenceCursor
+     * 1003 - 3rd item (key 2)
      */
+    if (persistent()) {
+        EXPECT_EQ(1002, (*manager->getPersistenceCursorPos())->getBySeqno());
+    }
 
     // Add another item which has been expelled.
     // Should not find the duplicate and so will re-add.
@@ -1862,7 +1872,8 @@ TEST_P(CheckpointTest, expelCheckpointItemsWithDuplicateTest) {
 
     /*
      * Checkpoint now looks as follows:
-     * 1000 - dummy Item <<<<<<< persistenceCursor
+     * 1000 - dummy Item
+     * 1002 - 2nd item (key1) <<<<<<< persistenceCursor
      * 1003 - 3rd item (key2)
      * 1004 - 4th item (key0)  << The New item added >>
      */
@@ -1871,7 +1882,7 @@ TEST_P(CheckpointTest, expelCheckpointItemsWithDuplicateTest) {
     // add for key0 de-dupes the first for key0 so we don't bump the count. This
     // mimics normal behaviour for an item de-duping an earlier one in a
     // checkpoint when there is no expelling going on.
-    EXPECT_EQ(itemCount, this->manager->getNumOpenChkItems());
+    EXPECT_EQ(3, this->manager->getNumOpenChkItems());
 }
 
 // Test that when the first cursor we come across is pointing to the last
@@ -2161,15 +2172,18 @@ void CheckpointTest::testExpelCheckpointItemsMemoryRecovered() {
 
     /*
      * After expelling checkpoint now looks as follows:
-     * 1000 - dummy Item <<<<<<< Cursor
+     * 1000 - dummy Item
+     * 1002 - 2nd item (key 1) <<<<<<< Cursor
      * 1003 - 3rd item (key 2)
      */
+    if (persistent()) {
+        EXPECT_EQ(1002, (*manager->getPersistenceCursorPos())->getBySeqno());
+    }
 
     /*
      * We have expelled:
      * 1001 - checkpoint start
      * 1001 - 1st item (key 0)
-     * 1002 - 2nd item (key 1)
      */
 
     // Get the memory usage after expelling
@@ -2196,16 +2210,16 @@ void CheckpointTest::testExpelCheckpointItemsMemoryRecovered() {
     const auto& checkpointStartItem =
             this->manager->public_createCheckpointItem(
                     0, Vbid(0), queue_op::checkpoint_start);
-    const size_t queuedItemSaving =
-            checkpointStartItem->size() + (sizeOfItem * (itemCount - 1));
+    // Expelled checkpoint_start + 1 mutation
+    const size_t queuedItemSaving = checkpointStartItem->size() + sizeOfItem;
     const size_t expectedMemoryRecovered =
             checkpointListSaving + queuedItemSaving;
 
-    EXPECT_EQ(3, expelResult.expelCount);
+    EXPECT_EQ(2, expelResult.expelCount);
     EXPECT_EQ(expectedMemoryRecovered,
               expelResult.estimateOfFreeMemory - extra);
     EXPECT_EQ(expectedMemoryRecovered, reductionInCheckpointMemoryUsage);
-    EXPECT_EQ(3, this->global_stats.itemsExpelledFromCheckpoints);
+    EXPECT_EQ(2, this->global_stats.itemsExpelledFromCheckpoints);
 }
 
 TEST_P(CheckpointTest, testExpelCheckpointItemsMemoryRecoveredMemory) {
