@@ -483,48 +483,44 @@ void Checkpoint::addItemToCheckpoint(const queued_item& qi) {
     }
 }
 
-CheckpointQueue Checkpoint::expelItems(ChkptQueueIterator& lastToExpel) {
+CheckpointQueue Checkpoint::expelItems(const ChkptQueueIterator& last) {
     CheckpointQueue expelledItems(toWrite.get_allocator());
+
+    // Record the seqno of the last item to be expelled.
+    highestExpelledSeqno = (*last)->getBySeqno();
+
+    // The last item to be expelled is not expected to be a meta-item.
+    Expects(!(*last)->isCheckPointMetaItem());
 
     // @todo: MB-45026 - don't expel checkpoint_start
     // Expel from the the first item after the empty item (included) to 'last'
     // (included).
     auto dummy = begin();
     Expects((*dummy)->isEmptyItem());
-    const auto firstToExpel = std::next(dummy);
+    const auto first = std::next(dummy);
 
-    // Record the seqno of the last item to be expelled.
-    highestExpelledSeqno = (*lastToExpel)->getBySeqno();
+    expelledItems.splice(
+            ChkptQueueIterator::const_underlying_iterator{
+                    expelledItems.begin()},
+            toWrite,
+            ChkptQueueIterator::const_underlying_iterator{first},
+            ChkptQueueIterator::const_underlying_iterator{std::next(last)});
 
+    // Note: No key-index in disk checkpoints
     if (getState() == CHECKPOINT_OPEN && !isDiskCheckpoint()) {
-        // If the checkpoint is open, for every item which will be expelled
-        // the corresponding keyIndex entry must be invalidated. The items
-        // to expel start /after/ the dummy item, and /include/ the item
-        // pointed to by lastToExpel.
-        // NB: This must occur *before* swapping the dummy value to its
-        // new position, as invalidate(...) dereferences the entry's
-        // iterator and reads the value it finds. Swapping the dummy first
-        // would lead to it reading the dummy value instead.
-        for (auto it = firstToExpel; it != std::next(lastToExpel); ++it) {
-            const auto& toExpel = *it;
+        // If the checkpoint is open, for every expelled the corresponding
+        // keyIndex entry must be invalidated.
+        for (const auto& expelled : expelledItems) {
+            if (!expelled->isCheckPointMetaItem()) {
+                auto& keyIndex = expelled->isCommitted() ? committedKeyIndex
+                                                         : preparedKeyIndex;
 
-            // We don't put keys in the indexes for disk checkpoints so we:
-            //     a) can't test that the key is in the index
-            //     b) can't invalidate the index entry as it does not exist
-            if (!toExpel->isCheckPointMetaItem()) {
-                auto& keyIndex = toExpel->isCommitted() ? committedKeyIndex
-                                                        : preparedKeyIndex;
-
-                auto indexIt = keyIndex.find(makeIndexKey(toExpel));
-                Expects(indexIt != keyIndex.end());
-                auto& entry = indexIt->second;
-                Expects(entry.getPosition() == it.getUnderlyingIterator());
-                entry.invalidate(toWrite.end());
-
-                Ensures(toExpel->isAnySyncWriteOp() == entry.isSyncWrite());
+                auto it = keyIndex.find(makeIndexKey(expelled));
+                Expects(it != keyIndex.end());
+                it->second.invalidate(toWrite.end());
             }
 
-            queuedItemsMemUsage -= toExpel->size();
+            queuedItemsMemUsage -= expelled->size();
         }
     } else {
         /*
@@ -535,29 +531,9 @@ CheckpointQueue Checkpoint::expelItems(ChkptQueueIterator& lastToExpel) {
             return a + qi->size();
         };
         queuedItemsMemUsage -= std::accumulate(
-                firstToExpel, std::next(lastToExpel), 0, addSize);
+                expelledItems.begin(), expelledItems.end(), 0, addSize);
     }
 
-    // The item to be swapped with the dummy is not expected to be a
-    // meta-data item.
-    Expects(!(*lastToExpel)->isCheckPointMetaItem());
-
-    // Swap the item pointed to by our iterator with the dummy item
-    lastToExpel->swap(*dummy);
-
-    /*
-     * Move from (and including) the first item in the checkpoint queue upto
-     * (but not including) the item pointed to by iterator.  The item pointed
-     * to by iterator is now the new dummy item for the checkpoint queue.
-     */
-    expelledItems.splice(
-            ChkptQueueIterator::const_underlying_iterator{
-                    expelledItems.begin()},
-            toWrite,
-            ChkptQueueIterator::const_underlying_iterator{begin()},
-            ChkptQueueIterator::const_underlying_iterator{lastToExpel});
-
-    // Return the items that have been expelled in a separate queue.
     return expelledItems;
 }
 

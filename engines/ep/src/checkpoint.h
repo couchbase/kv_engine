@@ -651,7 +651,7 @@ public:
      * @param lastToExpel Iterator to the last item to expel (inclusive)
      * @return a CheckpointQueue of items that have been expelled.
      */
-    CheckpointQueue expelItems(ChkptQueueIterator& lastToExpel);
+    CheckpointQueue expelItems(const ChkptQueueIterator& lastToExpel);
 
     /// @return true if this is a disk checkpoint (replica streaming from disk)
     bool isDiskCheckpoint() const {
