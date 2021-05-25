@@ -66,7 +66,7 @@ void ConnectionMap::addPorts(const nlohmann::json& ports) {
         auto host = cb::jsonGet<std::string>(obj, "host");
         auto port = static_cast<in_port_t>(cb::jsonGet<size_t>(obj, "port"));
         if (port == in_port_t(-1)) {
-            throw std::runtime_error("port cannot be -1");
+            throw std::runtime_error("port cannot be -1: " + obj.dump());
         }
 
         auto fam = cb::jsonGet<std::string>(obj, "family");
