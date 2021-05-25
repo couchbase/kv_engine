@@ -1584,7 +1584,7 @@ void ActiveDurabilityMonitor::State::updateHighCompletedSeqno() {
                 adm.vb.getId(),
                 (void*)&adm,
                 *this,
-                *adm.resolvedQueue);
+                std::ref(*adm.resolvedQueue));
         throw e;
     }
 }

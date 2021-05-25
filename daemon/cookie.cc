@@ -36,6 +36,7 @@
 #include <platform/uuid.h>
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/logtags.h>
+#include <cctype>
 #include <chrono>
 
 nlohmann::json Cookie::toJSON() const {
