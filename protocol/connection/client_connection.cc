@@ -174,6 +174,18 @@ MemcachedConnection::MemcachedConnection(std::string host,
                                          sa_family_t family,
                                          bool ssl)
     : host(std::move(host)), port(port), family(family), ssl(ssl) {
+
+    if (getenv("MEMCACHED_UNIT_TESTS") == nullptr) {
+        // None of the command line commands we had used to have a timeout
+        // specified so lets bump it to 30 minutes to make sure that
+        // for instance 'mcstat connections' starts to fail on a busy
+        // cluster
+        timeout = std::chrono::minutes{30};
+    } else {
+        // When running in unit tests we want it to fail fast
+        timeout = std::chrono::seconds{2};
+    }
+
     if (ssl) {
         char* env = getenv("COUCHBASE_SSL_CLIENT_CERT_PATH");
         if (env != nullptr) {
@@ -700,7 +712,9 @@ std::unique_ptr<MemcachedConnection> MemcachedConnection::clone(
     return ret;
 }
 
-void MemcachedConnection::recvFrame(Frame& frame) {
+void MemcachedConnection::recvFrame(Frame& frame,
+                                    cb::mcbp::ClientOpcode opcode,
+                                    std::chrono::milliseconds readTimeout) {
     frame.reset();
 
     if (!asyncReadCallback) {
@@ -717,13 +731,50 @@ void MemcachedConnection::recvFrame(Frame& frame) {
         if (asyncReadCallback->exception) {
             throw *asyncReadCallback->exception;
         }
+
+        // Create a timeout
+        class Timeout : public folly::AsyncTimeout {
+        public:
+            Timeout(folly::EventBase& base) : AsyncTimeout(&base), base(base) {
+            }
+
+            void timeoutExpired() noexcept override {
+                base.terminateLoopSoon();
+                fired = true;
+            }
+
+            folly::EventBase& base;
+            bool fired{false};
+        } tmo(eventBase);
+
+        if (readTimeout.count() == 0) {
+            // none specified, use default
+            tmo.scheduleTimeout(timeout.count(), {});
+        } else {
+            tmo.scheduleTimeout(readTimeout.count(), {});
+        }
         asyncSocket->setReadCB(asyncReadCallback.get());
         if (!eventBase.loop()) {
+            tmo.cancelTimeout();
             throw std::runtime_error(
                     "MemcachedConnection::recvFrame(): Failed running the "
                     "event loop");
         }
         asyncSocket->setReadCB(nullptr);
+        tmo.cancelTimeout();
+        if (tmo.fired) {
+            if (opcode == cb::mcbp::ClientOpcode::Invalid) {
+                throw TimeoutException(
+                        "MemcachedConnection::recvFrame(): Timed out after waiting "
+                                + std::to_string(readTimeout.count()) + "ms for a response",
+                                opcode, readTimeout);
+            } else {
+                throw TimeoutException(
+                        "MemcachedConnection::recvFrame(): Timed out after waiting "
+                                + std::to_string(readTimeout.count()) + "ms for a response for "
+                                + ::to_string(opcode), opcode, readTimeout);
+            }
+        }
     }
 
     const auto* next = asyncReadCallback->getNextFrame();
@@ -784,10 +835,12 @@ void MemcachedConnection::sendCommand(const BinprotCommand& command) {
     sendBuffer(message);
 }
 
-void MemcachedConnection::recvResponse(BinprotResponse& response) {
+void MemcachedConnection::recvResponse(BinprotResponse& response,
+                                       cb::mcbp::ClientOpcode opcode,
+                                       std::chrono::milliseconds readTimeout) {
     Frame frame;
     traceData.reset();
-    recvFrame(frame);
+    recvFrame(frame, opcode, readTimeout);
     response.assign(std::move(frame.payload));
     traceData = response.getTracingData();
 }
@@ -855,32 +908,37 @@ static std::string bucketTypeToModule(BucketType type) {
                              std::to_string(int(type)));
 }
 
-void MemcachedConnection::createBucket(const std::string& name,
+void MemcachedConnection::createBucket(const std::string& bucketName,
                                        const std::string& config,
                                        BucketType type) {
-    BinprotCreateBucketCommand command(name.c_str());
+    BinprotCreateBucketCommand command(bucketName.c_str());
     command.setConfig(bucketTypeToModule(type), config);
 
-    const auto response = execute(command);
+    const auto response = execute(
+            command, std::max(std::chrono::milliseconds{20000}, timeout));
     if (!response.isSuccess()) {
         throw ConnectionError("Create bucket failed", response);
     }
 }
 
-void MemcachedConnection::deleteBucket(const std::string& name) {
-    BinprotGenericCommand command(cb::mcbp::ClientOpcode::DeleteBucket, name);
-    const auto response = execute(command);
+void MemcachedConnection::deleteBucket(const std::string& bucketName) {
+    BinprotGenericCommand command(cb::mcbp::ClientOpcode::DeleteBucket,
+                                  bucketName);
+    const auto response = execute(
+            command, std::max(std::chrono::milliseconds{20000}, timeout));
     if (!response.isSuccess()) {
         throw ConnectionError("Delete bucket failed", response);
     }
 }
 
-void MemcachedConnection::selectBucket(const std::string& name) {
-    BinprotGenericCommand command(cb::mcbp::ClientOpcode::SelectBucket, name);
+void MemcachedConnection::selectBucket(const std::string& bucketName) {
+    BinprotGenericCommand command(cb::mcbp::ClientOpcode::SelectBucket,
+                                  bucketName);
     const auto response = execute(command);
     if (!response.isSuccess()) {
         throw ConnectionError(
-                std::string{"Select bucket [" + name + "] failed"}, response);
+                std::string{"Select bucket [" + bucketName + "] failed"},
+                response);
     }
 }
 
@@ -1112,27 +1170,15 @@ void MemcachedConnection::configureEwouldBlockEngine(const EWBEngineMode& mode,
     payload.setMode(uint32_t(mode));
     payload.setValue(uint32_t(value));
     payload.setInjectError(uint32_t(err_code));
+    auto buf = payload.getBuffer();
 
-    std::vector<uint8_t> buffer(sizeof(cb::mcbp::Request) +
-                                sizeof(cb::mcbp::request::EWB_Payload) +
-                                key.size());
-    cb::mcbp::RequestBuilder builder({buffer.data(), buffer.size()});
-    builder.setMagic(cb::mcbp::Magic::ClientRequest);
-    builder.setOpcode(cb::mcbp::ClientOpcode::EwouldblockCtl);
-    builder.setExtras(
-            {reinterpret_cast<const uint8_t*>(&payload), sizeof(payload)});
-    builder.setKey({reinterpret_cast<const uint8_t*>(key.data()), key.size()});
+    BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::EwouldblockCtl, key};
+    cmd.setExtras({reinterpret_cast<const char*>(buf.data()), buf.size()});
 
-    Frame frame;
-    frame.payload = std::move(buffer);
-
-    auto response = execute(frame);
-    auto* bytes = response.payload.data();
-    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(bytes);
-    auto& header = rsp->message.header.response;
-    if (header.getStatus() != cb::mcbp::Status::Success) {
+    auto response = execute(cmd);
+    if (!response.isSuccess()) {
         throw ConnectionError("Failed to configure ewouldblock engine",
-                              header.getStatus());
+                              response);
     }
 }
 
@@ -1613,63 +1659,71 @@ void MemcachedConnection::setUnorderedExecutionMode(ExecutionMode mode) {
     throw std::invalid_argument("setUnorderedExecutionMode: Invalid mode");
 }
 
-BinprotResponse MemcachedConnection::execute(const BinprotCommand &command) {
+BinprotResponse MemcachedConnection::execute(
+        const BinprotCommand& command, std::chrono::milliseconds readTimeout) {
     BinprotResponse response;
-    backoff_execute([&command, &response, this]() -> bool {
-        sendCommand(command);
-        recvResponse(response);
-        return !(auto_retry_tmpfail &&
-                 response.getStatus() == cb::mcbp::Status::Etmpfail);
-    });
-    return response;
-}
-
-Frame MemcachedConnection::execute(const Frame& frame) {
-    Frame response;
-    backoff_execute([&frame, &response, this]() -> bool {
-        sendFrame(frame);
-        recvFrame(response);
-        return !(auto_retry_tmpfail && response.getResponse()->getStatus() ==
-                                               cb::mcbp::Status::Etmpfail);
-    });
+    std::string context;
+    try {
+        // we have unit tests which test invalid opcodes..
+        context = ::to_string(command.getOp());
+    } catch (const std::exception& e) {
+        context = e.what();
+    }
+    backoff_execute(
+            [&command, &response, &readTimeout, this]() -> bool {
+                sendCommand(command);
+                recvResponse(response, command.getOp(), readTimeout);
+                return !(auto_retry_tmpfail &&
+                         response.getStatus() == cb::mcbp::Status::Etmpfail);
+            },
+            context);
     return response;
 }
 
 void MemcachedConnection::backoff_execute(std::function<bool()> executor,
+                                          const std::string& context,
                                           std::chrono::milliseconds backoff,
-                                          std::chrono::seconds timeout) {
+                                          std::chrono::seconds executeTimeout) {
     using std::chrono::steady_clock;
-    const auto wait_timeout = steady_clock::now() + timeout;
+    const auto wait_timeout = steady_clock::now() + executeTimeout;
     do {
         if (executor()) {
             return;
         }
         std::this_thread::sleep_for(backoff);
     } while (steady_clock::now() < wait_timeout);
-    throw std::runtime_error(
+    throw TimeoutException(
             "MemcachedConnection::backoff_executor: Timed out after waiting "
             "more than " +
-            std::to_string(timeout.count()) + " seconds");
+                    std::to_string(executeTimeout.count()) + " seconds for " +
+                    context,
+            cb::mcbp::ClientOpcode::Invalid,
+            executeTimeout);
 }
 
 void MemcachedConnection::evict(const std::string& key,
                                 Vbid vbucket,
                                 GetFrameInfoFunction getFrameInfo) {
-    backoff_execute([this, &key, &vbucket]() -> bool {
-        BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::EvictKey, key);
-        cmd.setVBucket(vbucket);
-        const auto rsp = execute(cmd);
-        if (rsp.isSuccess()) {
-            // Evicted
-            return true;
-        }
-        if (rsp.getStatus() == cb::mcbp::Status::KeyEexists) {
-            return false;
-        }
+    auto context = "evict " + key;
+    backoff_execute(
+            [this, &key, &vbucket]() -> bool {
+                BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::EvictKey,
+                                          key);
+                cmd.setVBucket(vbucket);
+                const auto rsp = execute(cmd);
+                if (rsp.isSuccess()) {
+                    // Evicted
+                    return true;
+                }
+                if (rsp.getStatus() == cb::mcbp::Status::KeyEexists) {
+                    return false;
+                }
 
-        throw ConnectionError("evict: Failed to evict key \"" + key + "\"",
-                              rsp.getStatus());
-    });
+                throw ConnectionError(
+                        "evict: Failed to evict key \"" + key + "\"",
+                        rsp.getStatus());
+            },
+            context);
 }
 
 void MemcachedConnection::setVbucket(Vbid vbid,

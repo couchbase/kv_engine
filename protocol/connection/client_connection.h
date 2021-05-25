@@ -217,6 +217,19 @@ struct ValidationError : public std::runtime_error {
     }
 };
 
+/// Exception thrown when the timer for receiving data from the network times
+/// out
+struct TimeoutException : public std::runtime_error {
+    TimeoutException(const std::string& msg,
+                     cb::mcbp::ClientOpcode op,
+                     std::chrono::milliseconds ms)
+        : std::runtime_error(msg), opcode(op), timeout(ms) {
+    }
+
+    const cb::mcbp::ClientOpcode opcode;
+    const std::chrono::milliseconds timeout;
+};
+
 /**
  * The execution mode represents the mode the server executes commands
  * retrieved over the network. In an Ordered mode (that's the default mode
@@ -576,20 +589,32 @@ public:
      * Receive the next frame on the connection
      *
      * @param frame the frame object to populate with the next frame
+     * @param opcode the opcode we're waiting for (Only used in the timeout
+     *               exception, as the same method is used for receiving
+     *               server commands in some unit tests.. I should provide
+     *               another method for that...)
+     * @param readTimeout the number of ms we should wait for the server
+     *                    to reply before timing out
      */
-    void recvFrame(Frame& frame);
+    void recvFrame(
+            Frame& frame,
+            cb::mcbp::ClientOpcode opcode = cb::mcbp::ClientOpcode::Invalid,
+            std::chrono::milliseconds readTimeout = {});
 
     void sendCommand(const BinprotCommand& command);
 
-    void recvResponse(BinprotResponse& response);
+    void recvResponse(
+            BinprotResponse& response,
+            cb::mcbp::ClientOpcode opcode = cb::mcbp::ClientOpcode::Invalid,
+            std::chrono::milliseconds readTimeout = {});
 
     /**
      * Execute a command on the server and return the raw response packet.
      */
-    BinprotResponse execute(const BinprotCommand& command);
+    BinprotResponse execute(
+            const BinprotCommand& command,
+            std::chrono::milliseconds readTimeout = {});
 
-    /// Execute a command on the server and return the response
-    Frame execute(const Frame& frame);
     /**
      * Get a textual representation of this connection
      *
@@ -915,14 +940,16 @@ protected:
      * the provided number of seconds the method throws an exception.
      *
      * @param executor The function to call until it returns true
+     * @param context A context to be put in the exception message
      * @param backoff The number of milliseconds to back off
-     * @param timeout The number of seconds until an exception is thrown
+     * @param executeTimeout The number of seconds until an exception is thrown
      * @throws std::runtime_error for timeouts
      */
     void backoff_execute(
             std::function<bool()> executor,
+            const std::string& context,
             std::chrono::milliseconds backoff = std::chrono::milliseconds(10),
-            std::chrono::seconds timeout = std::chrono::seconds(30));
+            std::chrono::seconds executeTimeout = std::chrono::seconds(30));
 
     std::string host;
     in_port_t port;
@@ -939,6 +966,7 @@ protected:
     std::unique_ptr<AsyncReadCallback> asyncReadCallback;
     folly::AsyncSocket::UniquePtr asyncSocket;
     folly::EventBase eventBase;
+    std::chrono::milliseconds timeout;
     std::string tag;
     nlohmann::json agentInfo;
     std::string name;
