@@ -12,6 +12,7 @@
 #pragma once
 
 #include "spdlog/logger.h"
+
 #include <memcached/server_log_iface.h>
 #include <spdlog/fmt/ostr.h>
 
@@ -86,9 +87,6 @@ const std::string globalBucketLoggerName = "globalBucketLogger";
  */
 class BucketLogger : public spdlog::logger {
 public:
-    /// Unregister this BucketLogger on destruction
-    ~BucketLogger() override;
-
     /**
      * Record a log message for the bucket currently associated with the calling
      * thread. Log message will have the bucket name prepended (assuming a
@@ -176,7 +174,7 @@ public:
 
 protected:
     /// Overriden sink_it_ method to log via ServerAPI logger.
-    void sink_it_(spdlog::details::log_msg& msg) override;
+    void sink_it_(const spdlog::details::log_msg& msg) override;
 
     /// Overriden flush_ method to flush via the ServerAPI logger.
     void flush_() override;

@@ -115,9 +115,9 @@ TEST_F(ObjectRegistrySpdlogTest, SpdlogMemoryTrackedCorrectly) {
             ::testing::UnitTest::GetInstance()->current_test_info()->name();
 
     // const char* - uses the single argument overload of warn().
+    auto logger = BucketLogger::createBucketLogger(testName);
     auto baselineMemory = engine->getEpStats().getPreciseTotalMemoryUsed();
     {
-        auto logger = BucketLogger::createBucketLogger(testName);
         logger->log(spdlog::level::warn, "const char* message");
         logger->flush();
     }
@@ -134,9 +134,8 @@ TEST_F(ObjectRegistrySpdlogTest, SpdlogMemoryTrackedCorrectly) {
     // should be the SIZE template parameter but we don't have access to that
     // so estimate as 50% of the object size.
     spdlog::details::async_msg msg;
-    const auto asyncMsgCapacity = sizeof(msg.raw) / 2;
+    const auto asyncMsgCapacity = sizeof(msg.payload) / 2;
     {
-        auto logger = BucketLogger::createBucketLogger(testName);
         logger->warn("short+variable ({}) {} ",
                      asyncMsgCapacity,
                      std::string(asyncMsgCapacity, 's'));
@@ -147,7 +146,6 @@ TEST_F(ObjectRegistrySpdlogTest, SpdlogMemoryTrackedCorrectly) {
     // As previous, but looping with multiple warn() calls - check that we
     // correctly account even when multiple messages are created & destroyed.
     {
-        auto logger = BucketLogger::createBucketLogger(testName);
         auto afterLoggerMemory =
                 engine->getEpStats().getPreciseTotalMemoryUsed();
 
@@ -168,7 +166,6 @@ TEST_F(ObjectRegistrySpdlogTest, SpdlogMemoryTrackedCorrectly) {
     // thread, which will not be freed until the message is flushed by the
     // background thread.
     {
-        auto logger = BucketLogger::createBucketLogger(testName);
         logger->warn("long+variable ({}) {}",
                      asyncMsgCapacity * 2,
                      std::string(asyncMsgCapacity * 2, 'x'));
@@ -179,7 +176,6 @@ TEST_F(ObjectRegistrySpdlogTest, SpdlogMemoryTrackedCorrectly) {
     // Multiple log messages; each with a log string - check that we correctly
     // account even when multiple messages are created & destroyed.
     {
-        auto logger = BucketLogger::createBucketLogger(testName);
         auto afterLoggerMemory =
                 engine->getEpStats().getPreciseTotalMemoryUsed();
 

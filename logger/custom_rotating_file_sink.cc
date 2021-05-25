@@ -22,6 +22,7 @@
 
 #include "custom_rotating_file_sink.h"
 
+#include <gsl/gsl-lite.hpp>
 #include <platform/dirutils.h>
 #include <spdlog/details/file_helper.h>
 #include <spdlog/details/fmt_helper.h>
@@ -79,8 +80,8 @@ custom_rotating_file_sink<Mutex>::custom_rotating_file_sink(
 template <class Mutex>
 void custom_rotating_file_sink<Mutex>::sink_it_(
         const spdlog::details::log_msg& msg) {
-    _current_size += msg.raw.size();
-    fmt::memory_buffer formatted;
+    _current_size += msg.payload.size();
+    spdlog::memory_buf_t formatted;
     formatter->format(msg, formatted);
     _file_helper->write(formatted);
 
@@ -113,16 +114,16 @@ void custom_rotating_file_sink<Mutex>::addHook(const std::string& hook) {
     msg.time = spdlog::details::os::now();
     msg.level = spdlog::level::info;
 
-    // Append the hook to the msg
-    spdlog::details::fmt_helper::append_str(hook, msg.raw);
-
+    std::string hookToAdd = hook;
     if (hook == openingLogfile) {
-        spdlog::details::fmt_helper::append_str(
-                std::string(_file_helper->filename().data(),
-                            _file_helper->filename().size()),
-                msg.raw);
+        hookToAdd.append(_file_helper->filename());
     }
-    fmt::memory_buffer formatted;
+
+    // Payload shouldn't contain anything yet, overwrite it
+    Expects(msg.payload.size() == 0);
+    msg.payload = hook;
+
+    spdlog::memory_buf_t formatted;
     formatter->format(msg, formatted);
     _current_size += formatted.size();
 

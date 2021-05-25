@@ -54,7 +54,5 @@ int main(int argc, char** argv) {
      */
     auto result = ::benchmark::RunSpecifiedBenchmarks();
 
-    getGlobalBucketLogger().reset();
-
     return result == 0 ? 1 : 0;
 }

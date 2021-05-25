@@ -156,7 +156,4 @@ int main(int argc, char** argv) {
         VB::Commit commit(manifest);
         kvstore.rw->commit(commit);
     }
-
-    // Teardown
-    getGlobalBucketLogger().reset();
 }

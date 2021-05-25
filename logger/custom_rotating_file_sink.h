@@ -22,6 +22,9 @@
 
 #pragma once
 
+#include <mutex>
+
+#include <spdlog/pattern_formatter.h>
 #include <spdlog/sinks/base_sink.h>
 
 namespace spdlog {

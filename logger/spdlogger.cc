@@ -14,12 +14,13 @@
 #include "logger_config.h"
 
 #include <memcached/engine.h>
+
 #include <spdlog/async.h>
 #include <spdlog/async_logger.h>
 #include <spdlog/sinks/dist_sink.h>
 #include <spdlog/sinks/null_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
-#include <spdlog/sinks/stdout_sinks.h>
+#include <spdlog/spdlog.h>
 #include <chrono>
 #include <cstdio>
 static const std::string logger_name{"spdlog_file_logger"};
@@ -65,8 +66,8 @@ void cb::logger::shutdown() {
      * If the logger is running in unit test mode (synchronous) then this is a
      * no-op.
      */
-    spdlog::details::registry::instance().shutdown();
     file_logger.reset();
+    spdlog::details::registry::instance().shutdown();
 }
 
 bool cb::logger::isInitialized() {
@@ -245,7 +246,7 @@ void cb::logger::setLogLevels(spdlog::level::level_enum level) {
             l->warn("Exception caught when attempting to change the verbosity "
                     "of logger {} to spdlog level {}. e.what()={}",
                     l->name(),
-                    to_c_str(level),
+                    to_short_c_str(level),
                     e.what());
         }
     });

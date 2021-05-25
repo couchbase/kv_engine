@@ -48,7 +48,7 @@ protected:
     // bundled in the log_msg object. Beware, msg.raw is not null terminated.
     // In these test cases however we just search for a substring within the log
     // message so this is okay.
-    void sink_it_(spdlog::details::log_msg& msg) override {
-        mlog(msg.level, msg.raw.data());
+    void sink_it_(const spdlog::details::log_msg& msg) override {
+        mlog(msg.level, msg.payload.data());
     }
 };

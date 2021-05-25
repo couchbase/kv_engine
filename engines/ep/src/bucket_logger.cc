@@ -30,15 +30,11 @@ BucketLogger::BucketLogger(const std::string& name, std::string p)
     set_level(spdLogger->level());
 }
 
-BucketLogger::~BucketLogger() {
-    unregister();
-}
-
-void BucketLogger::sink_it_(spdlog::details::log_msg& msg) {
+void BucketLogger::sink_it_(const spdlog::details::log_msg& msg) {
     // Use the underlying ServerAPI spdlogger to log.
     // Ideally we'd directly call spdLogger->sink_it() but it's protected so
     // instead call log() which will call sink_it_() itself.
-    std::string msgString(msg.raw.begin(), msg.raw.end());
+    std::string msgString(msg.payload.begin(), msg.payload.end());
     spdLogger->log(msg.level, msgString);
 }
 
