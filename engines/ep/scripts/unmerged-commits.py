@@ -54,7 +54,8 @@ sequences = {
         [('couchbase/spock', 'couchbase/vulcan'),
          ('couchbase/vulcan', 'couchbase/alice'),
          ('couchbase/alice', 'couchbase/mad-hatter'),
-         ('couchbase/mad-hatter', 'couchbase/master')], ],
+         ('couchbase/mad-hatter', 'couchbase/cheshire-cat')
+         ('couchbase/cheshire-cat', 'couchbase/master')], ],
 
     'kv_engine': [
         # main kv_engine release train sequence
@@ -69,6 +70,8 @@ sequences = {
          ('couchbase/alice',
           'couchbase/mad-hatter'),
          ('couchbase/mad-hatter',
+          'couchbase/cheshire-cat')
+         ('couchbase/cheshire-cat',
           'couchbase/master')],
         # kv_engine 6.5.x release train; merging into 6.6.x ('mad-hatter') branch
         [('couchbase/6.5.0',
@@ -86,7 +89,8 @@ sequences = {
         [('couchbase/spock', 'couchbase/vulcan'),
          ('couchbase/vulcan', 'couchbase/alice'),
          ('couchbase/alice', 'couchbase/mad-hatter'),
-         ('couchbase/mad-hatter', 'couchbase/master')], ]
+         ('couchbase/mad-hatter', 'couchbase/cheshire-cat')
+         ('couchbase/cheshire-cat', 'couchbase/master')], ]
 }
 
 
