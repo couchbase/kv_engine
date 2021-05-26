@@ -162,34 +162,76 @@ std::ostream& operator<<(std::ostream& os, const DcpResponse& r) {
     return os;
 }
 
-CommitSyncWrite::CommitSyncWrite(uint32_t opaque,
-                                 Vbid vbucket,
-                                 uint64_t preparedSeqno,
-                                 uint64_t commitSeqno,
-                                 const DocKey& key)
+CommitSyncWriteConsumer::CommitSyncWriteConsumer(uint32_t opaque,
+                                                 Vbid vbucket,
+                                                 uint64_t preparedSeqno,
+                                                 uint64_t commitSeqno,
+                                                 const DocKey& key)
     : DcpResponse(Event::Commit, opaque, cb::mcbp::DcpStreamId{}),
       vbucket(vbucket),
       key(key),
       payload(preparedSeqno, commitSeqno) {
 }
 
-uint32_t CommitSyncWrite::getMessageSize() const {
-    return commitBaseMsgBytes + key.size();
+uint32_t CommitSyncWriteConsumer::getMessageSize() const {
+    throw std::logic_error(
+            "CommitSyncWriteConsumer::getMessageSize should not be called");
 }
 
-AbortSyncWrite::AbortSyncWrite(uint32_t opaque,
-                               Vbid vbucket,
-                               const DocKey& key,
-                               uint64_t preparedSeqno,
-                               uint64_t abortSeqno)
+CommitSyncWrite::CommitSyncWrite(uint32_t opaque,
+                                 Vbid vbucket,
+                                 uint64_t preparedSeqno,
+                                 uint64_t commitSeqno,
+                                 const DocKey& key,
+                                 DocKeyEncodesCollectionId includeCollectionID)
+    : CommitSyncWriteConsumer(opaque, vbucket, preparedSeqno, commitSeqno, key),
+      includeCollectionID(includeCollectionID) {
+}
+
+uint32_t CommitSyncWrite::getMessageSize() const {
+    auto size = commitBaseMsgBytes;
+    if (includeCollectionID == DocKeyEncodesCollectionId::Yes) {
+        size += key.size();
+    } else {
+        size += key.makeDocKeyWithoutCollectionID().size();
+    }
+    return size;
+}
+
+AbortSyncWriteConsumer::AbortSyncWriteConsumer(uint32_t opaque,
+                                               Vbid vbucket,
+                                               const DocKey& key,
+                                               uint64_t preparedSeqno,
+                                               uint64_t abortSeqno)
     : DcpResponse(Event::Abort, opaque, cb::mcbp::DcpStreamId{}),
       vbucket(vbucket),
       key(key),
       payload(preparedSeqno, abortSeqno) {
 }
 
+uint32_t AbortSyncWriteConsumer::getMessageSize() const {
+    throw std::logic_error(
+            "AbortSyncWriteConsumer::getMessageSize should not be called");
+}
+
+AbortSyncWrite::AbortSyncWrite(uint32_t opaque,
+                               Vbid vbucket,
+                               const DocKey& key,
+                               uint64_t preparedSeqno,
+                               uint64_t abortSeqno,
+                               DocKeyEncodesCollectionId includeCollectionID)
+    : AbortSyncWriteConsumer(opaque, vbucket, key, preparedSeqno, abortSeqno),
+      includeCollectionID(includeCollectionID) {
+}
+
 uint32_t AbortSyncWrite::getMessageSize() const {
-    return abortBaseMsgBytes + key.size();
+    auto size = abortBaseMsgBytes;
+    if (includeCollectionID == DocKeyEncodesCollectionId::Yes) {
+        size += key.size();
+    } else {
+        size += key.makeDocKeyWithoutCollectionID().size();
+    }
+    return size;
 }
 
 uint32_t SnapshotMarker::getMessageSize() const {

@@ -349,10 +349,11 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
                 break;
             case DcpResponse::Event::Commit:
                 ret = processCommit(
-                        static_cast<CommitSyncWrite&>(*dcpResponse));
+                        static_cast<CommitSyncWriteConsumer&>(*dcpResponse));
                 break;
             case DcpResponse::Event::Abort:
-                ret = processAbort(dynamic_cast<AbortSyncWrite&>(*dcpResponse));
+                ret = processAbort(
+                        dynamic_cast<AbortSyncWriteConsumer&>(*dcpResponse));
                 break;
             case DcpResponse::Event::SnapshotMarker:
                 processMarker(static_cast<SnapshotMarker*>(dcpResponse.get()));
@@ -768,7 +769,8 @@ std::string PassiveStream::to_string(StreamState st) {
                                 std::to_string(int(st)));
 }
 
-ENGINE_ERROR_CODE PassiveStream::processCommit(const CommitSyncWrite& commit) {
+ENGINE_ERROR_CODE PassiveStream::processCommit(
+        const CommitSyncWriteConsumer& commit) {
     VBucketPtr vb = engine->getVBucket(vb_);
 
     if (!vb) {
@@ -792,7 +794,8 @@ ENGINE_ERROR_CODE PassiveStream::processCommit(const CommitSyncWrite& commit) {
     return rv;
 }
 
-ENGINE_ERROR_CODE PassiveStream::processAbort(const AbortSyncWrite& abort) {
+ENGINE_ERROR_CODE PassiveStream::processAbort(
+        const AbortSyncWriteConsumer& abort) {
     VBucketPtr vb = engine->getVBucket(vb_);
 
     if (!vb) {

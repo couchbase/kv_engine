@@ -635,21 +635,20 @@ private:
 };
 
 /**
- * Represents the Commit of a prepared SyncWrite.
+ * Represents the Commit of a prepared SyncWrite, consumer side. Cannot call
+ * getMessageSize
  */
-class CommitSyncWrite : public DcpResponse {
+class CommitSyncWriteConsumer : public DcpResponse {
 public:
-    CommitSyncWrite(uint32_t opaque,
-                    Vbid vbucket,
-                    uint64_t preparedSeqno,
-                    uint64_t commitSeqno,
-                    const DocKey& key);
+    CommitSyncWriteConsumer(uint32_t opaque,
+                            Vbid vbucket,
+                            uint64_t preparedSeqno,
+                            uint64_t commitSeqno,
+                            const DocKey& key);
 
     OptionalSeqno getBySeqno() const override {
         return OptionalSeqno{payload.getCommitSeqno()};
     }
-
-    uint32_t getMessageSize() const override;
 
     const StoredDocKey& getKey() const {
         return key;
@@ -666,27 +665,48 @@ public:
     uint64_t getCommitSeqno() const {
         return payload.getCommitSeqno();
     }
+    uint32_t getMessageSize() const override;
 
-    static constexpr uint32_t commitBaseMsgBytes =
-            sizeof(protocol_binary_request_header) +
-            sizeof(cb::mcbp::request::DcpCommitPayload);
-
-private:
+protected:
     Vbid vbucket;
     StoredDocKey key;
     cb::mcbp::request::DcpCommitPayload payload;
 };
 
 /**
- * Represents the Abort of a prepared SyncWrite.
+ * Represents the Commit of a prepared SyncWrite, producer side. Provides
+ * getMessageSize
  */
-class AbortSyncWrite : public DcpResponse {
+class CommitSyncWrite : public CommitSyncWriteConsumer {
 public:
-    AbortSyncWrite(uint32_t opaque,
-                   Vbid vbucket,
-                   const DocKey& key,
-                   uint64_t preparedSeqno,
-                   uint64_t abortSeqno);
+    CommitSyncWrite(uint32_t opaque,
+                    Vbid vbucket,
+                    uint64_t preparedSeqno,
+                    uint64_t commitSeqno,
+                    const DocKey& key,
+                    DocKeyEncodesCollectionId includeCollectionID);
+
+public:
+    static constexpr uint32_t commitBaseMsgBytes =
+            sizeof(protocol_binary_request_header) +
+            sizeof(cb::mcbp::request::DcpCommitPayload);
+    uint32_t getMessageSize() const override;
+
+private:
+    DocKeyEncodesCollectionId includeCollectionID;
+};
+
+/**
+ * Represents the Abort of a prepared SyncWrite. Consumer side, cannot call
+ * getMessageSize
+ */
+class AbortSyncWriteConsumer : public DcpResponse {
+public:
+    AbortSyncWriteConsumer(uint32_t opaque,
+                           Vbid vbucket,
+                           const DocKey& key,
+                           uint64_t preparedSeqno,
+                           uint64_t abortSeqno);
 
     Vbid getVbucket() const {
         return vbucket;
@@ -714,10 +734,33 @@ public:
 
     uint32_t getMessageSize() const override;
 
-private:
+protected:
     Vbid vbucket;
     StoredDocKey key;
     cb::mcbp::request::DcpAbortPayload payload;
+};
+
+/**
+ * Represents the Abort of a prepared SyncWrite. Producer side, can call
+ * getMessageSize
+ */
+class AbortSyncWrite : public AbortSyncWriteConsumer {
+public:
+    AbortSyncWrite(uint32_t opaque,
+                   Vbid vbucket,
+                   const DocKey& key,
+                   uint64_t preparedSeqno,
+                   uint64_t abortSeqno,
+                   DocKeyEncodesCollectionId includeCollectionID);
+
+    static constexpr uint32_t abortBaseMsgBytes =
+            sizeof(protocol_binary_request_header) +
+            sizeof(cb::mcbp::request::DcpAbortPayload);
+
+    uint32_t getMessageSize() const override;
+
+private:
+    DocKeyEncodesCollectionId includeCollectionID;
 };
 
 /**

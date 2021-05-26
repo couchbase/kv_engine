@@ -24,9 +24,9 @@
 #include <engines/ep/src/collections/collections_types.h>
 #include <memcached/engine_error.h>
 
-class AbortSyncWrite;
+class AbortSyncWriteConsumer;
 class BucketLogger;
-class CommitSyncWrite;
+class CommitSyncWriteConsumer;
 class CreateCollectionEvent;
 class CreateScopeEvent;
 class DropCollectionEvent;
@@ -159,10 +159,10 @@ protected:
     ENGINE_ERROR_CODE processPrepare(MutationConsumerMessage* expiration);
 
     /// Process an incoming commit of a SyncWrite.
-    ENGINE_ERROR_CODE processCommit(const CommitSyncWrite& commit);
+    ENGINE_ERROR_CODE processCommit(const CommitSyncWriteConsumer& commit);
 
     /// Process an incoming abort of a SyncWrite.
-    ENGINE_ERROR_CODE processAbort(const AbortSyncWrite& abort);
+    ENGINE_ERROR_CODE processAbort(const AbortSyncWriteConsumer& abort);
 
     /**
      * Handle DCP system events against this stream.
