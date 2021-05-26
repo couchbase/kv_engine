@@ -1391,10 +1391,12 @@ void KVBucket::appendAggregatedVBucketStats(
         //  but there's not yet support for "templated" unique names.
         //  The alternative would be to list every permutation of
         //  datatypes and vbucket states in stats.def.h.
-        StatDef def({uniqueName},
-                    units::count,
-                    "datatype_count",
-                    {{"datatype", datatypeStr}, {"vbucket_state", "active"}});
+        StatDef def(
+                {uniqueName},
+                units::count,
+                "datatype_count",
+                StatDef::Labels{{"datatype", std::string_view{datatypeStr}},
+                                {"vbucket_state", std::string_view{"active"}}});
         collector.addStat(def, active.getDatatypeCount(ii));
     }
 
@@ -1407,7 +1409,9 @@ void KVBucket::appendAggregatedVBucketStats(
         StatDef def({uniqueName},
                     units::count,
                     "datatype_count",
-                    {{"datatype", datatypeStr}, {"vbucket_state", "replica"}});
+                    StatDef::Labels{
+                            {"datatype", std::string_view{datatypeStr}},
+                            {"vbucket_state", std::string_view{"replica"}}});
         collector.addStat(def, replica.getDatatypeCount(ii));
     }
 }
