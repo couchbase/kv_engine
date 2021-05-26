@@ -327,6 +327,4 @@ public:
     bool getCurSnapshotPrepare() const {
         return cur_snapshot_prepare.load(std::memory_order_relaxed);
     }
-
-    uint32_t responseMessageSize;
 };

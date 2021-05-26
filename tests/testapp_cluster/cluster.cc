@@ -93,7 +93,12 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
                            {"ht_locks", 47},
                            {"compression_mode", "off"},
                            {"failpartialwarmup", false},
-                           {"max_num_shards", 4}};
+                           {"max_num_shards", 4},
+                           // flow control static with 1 byte. This will force
+                           // acking of every message and improve our ability to
+                           // catch issues with mismatched acking.
+                           {"dcp_flow_control_policy", "static"},
+                           {"dcp_conn_buffer_size","1"}};
 
     json.update(attributes);
 

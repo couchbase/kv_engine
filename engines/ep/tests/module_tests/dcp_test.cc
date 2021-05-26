@@ -2794,7 +2794,7 @@ TEST_P(ConnectionTest, test_mb24424_deleteResponse) {
     auto messageSize = MutationResponse::deletionBaseMsgBytes + key.size() +
                        sizeof(extMeta);
 
-    EXPECT_EQ(messageSize, stream->responseMessageSize);
+    EXPECT_EQ(messageSize, consumer->getFlowControl().getFreedBytes());
 
     /* Close stream before deleting the connection */
     ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(/*opaque*/0, vbid));
@@ -2848,7 +2848,7 @@ TEST_P(ConnectionTest, test_mb24424_mutationResponse) {
     auto messageSize = MutationResponse::mutationBaseMsgBytes +
             key.size() + data.size() + sizeof(extMeta);
 
-    EXPECT_EQ(messageSize, stream->responseMessageSize);
+    EXPECT_EQ(messageSize, consumer->getFlowControl().getFreedBytes());
 
     /* Close stream before deleting the connection */
     ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(/*opaque*/0, vbid));

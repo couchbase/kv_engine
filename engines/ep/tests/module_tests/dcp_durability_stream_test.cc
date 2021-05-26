@@ -351,8 +351,9 @@ void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
     // + 24 (header)
     // + 8  (prepare seqno)
     // + 8 (Commit/Abort seqno)
-    // + key size
-    EXPECT_EQ(24 + 8 + 8 + key.size(), producer->getBytesOutstanding());
+    // + key size (without the collection-ID)
+    EXPECT_EQ(24 + 8 + 8 + key.makeDocKeyWithoutCollectionID().size(),
+              producer->getBytesOutstanding());
 
     // readyQ empty now
     EXPECT_EQ(0, stream->public_readyQSize());
@@ -1295,7 +1296,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
 
     // receive an abort (seqno 4) for a deduped prepare (seqno 3)
     EXPECT_EQ(ENGINE_SUCCESS,
-              stream->messageReceived(std::make_unique<AbortSyncWrite>(
+              stream->messageReceived(std::make_unique<AbortSyncWriteConsumer>(
                       stream->getOpaque(),
                       vbid,
                       makeStoredDocKey("abortKey"),
@@ -1734,7 +1735,7 @@ TEST_P(DurabilityPassiveStreamTest,
 
     EXPECT_EQ(
             ENGINE_SUCCESS,
-            stream->messageReceived(std::make_unique<AbortSyncWrite>(
+            stream->messageReceived(std::make_unique<AbortSyncWriteConsumer>(
                     opaque, vbid, key, 3 /*prepareSeqno*/, 4 /*abortSeqno*/)));
 }
 
@@ -2213,7 +2214,7 @@ void DurabilityPassiveStreamTest::testReceiveDuplicateDcpPrepare(
     stream->processMarker(&marker);
 
     ASSERT_EQ(ENGINE_SUCCESS,
-              stream->messageReceived(std::make_unique<CommitSyncWrite>(
+              stream->messageReceived(std::make_unique<CommitSyncWriteConsumer>(
                       opaque, vbid, prepareSeqno, commitSeqno, key)));
 }
 
@@ -2327,8 +2328,9 @@ void DurabilityPassiveStreamTest::testReceiveMultipleDuplicateDcpPrepares() {
     seqno = 10;
     for (const auto& key : keys) {
         ASSERT_EQ(ENGINE_SUCCESS,
-                  stream->messageReceived(std::make_unique<CommitSyncWrite>(
-                          opaque, vbid, prepareSeqno++, seqno++, key)));
+                  stream->messageReceived(
+                          std::make_unique<CommitSyncWriteConsumer>(
+                                  opaque, vbid, prepareSeqno++, seqno++, key)));
     }
 }
 
@@ -2433,7 +2435,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
             {} /*streamId*/);
     stream->processMarker(&marker);
     stream->messageReceived(
-            std::make_unique<AbortSyncWrite>(opaque, vbid, key, 1, 2));
+            std::make_unique<AbortSyncWriteConsumer>(opaque, vbid, key, 1, 2));
 
     EXPECT_EQ(1, dm.getNumTracked());
 
@@ -2534,7 +2536,7 @@ void DurabilityPassiveStreamPersistentTest::
         // Replica receives logical CMT
         std::unique_ptr<DcpResponse> cmtMsg;
         if (type == CheckpointType::Memory) {
-            cmtMsg = std::make_unique<CommitSyncWrite>(
+            cmtMsg = std::make_unique<CommitSyncWriteConsumer>(
                     opaque,
                     vbid,
                     snapStart /*prepareSeqno*/,
@@ -2779,7 +2781,7 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepareCommit() {
 
     // Now simulate the Consumer receiving Commit for that Prepare
     ASSERT_EQ(ENGINE_SUCCESS,
-              stream->messageReceived(std::make_unique<CommitSyncWrite>(
+              stream->messageReceived(std::make_unique<CommitSyncWriteConsumer>(
                       opaque, vbid, prepareSeqno, commitSeqno, key)));
 
     // Ephemeral keeps the prepare in the hash table whilst ep modifies the
@@ -2877,7 +2879,7 @@ void DurabilityPassiveStreamTest::testReceiveDcpAbort() {
     auto abortReceived = [this, opaque, &key](
                                  uint64_t prepareSeqno,
                                  uint64_t abortSeqno) -> ENGINE_ERROR_CODE {
-        return stream->messageReceived(std::make_unique<AbortSyncWrite>(
+        return stream->messageReceived(std::make_unique<AbortSyncWriteConsumer>(
                 opaque, vbid, key, prepareSeqno, abortSeqno));
     };
 
@@ -2987,7 +2989,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveAbortWithoutPrepare) {
     auto prepareSeqno = 1;
     auto abortSeqno = 2;
     EXPECT_EQ(ENGINE_EINVAL,
-              stream->messageReceived(std::make_unique<AbortSyncWrite>(
+              stream->messageReceived(std::make_unique<AbortSyncWriteConsumer>(
                       opaque, vbid, key, prepareSeqno, abortSeqno)));
 }
 
@@ -3013,7 +3015,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveAbortWithoutPrepareFromDisk) {
 
     auto key = makeStoredDocKey("key1");
     EXPECT_EQ(ENGINE_SUCCESS,
-              stream->messageReceived(std::make_unique<AbortSyncWrite>(
+              stream->messageReceived(std::make_unique<AbortSyncWriteConsumer>(
                       opaque, vbid, key, prepareSeqno, abortSeqno)));
 }
 
@@ -3065,7 +3067,7 @@ TEST_P(DurabilityPassiveStreamTest,
     // 3) And abort
     auto key = makeStoredDocKey("key1");
     EXPECT_EQ(ENGINE_SUCCESS,
-              stream->messageReceived(std::make_unique<AbortSyncWrite>(
+              stream->messageReceived(std::make_unique<AbortSyncWriteConsumer>(
                       opaque, vbid, key, prepareSeqno, abortSeqno)));
 }
 
@@ -3119,7 +3121,7 @@ TEST_P(DurabilityPassiveStreamTest, HandleSnapshotEndOnCommit) {
     auto prepareSeqno = 1;
     auto commitSeqno = prepareSeqno + 2;
     ASSERT_EQ(ENGINE_SUCCESS,
-              stream->messageReceived(std::make_unique<CommitSyncWrite>(
+              stream->messageReceived(std::make_unique<CommitSyncWriteConsumer>(
                       opaque, vbid, prepareSeqno, commitSeqno, key)));
 
     // We should have unset (acked the second prepare) the bool flag if we
@@ -3135,7 +3137,7 @@ TEST_P(DurabilityPassiveStreamTest, HandleSnapshotEndOnAbort) {
     // Abort the original prepare
     auto abortSeqno = 3;
     ASSERT_EQ(ENGINE_SUCCESS,
-              stream->messageReceived(std::make_unique<AbortSyncWrite>(
+              stream->messageReceived(std::make_unique<AbortSyncWriteConsumer>(
                       opaque, vbid, key, 1 /*prepareSeqno*/, abortSeqno)));
 
     // We should have unset (acked the second prepare) the bool flag if we
@@ -3225,7 +3227,7 @@ TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
     // 3) Send commit - should not throw
     auto commitSeqno = pending->getBySeqno() + 1;
     ASSERT_EQ(ENGINE_SUCCESS,
-              stream->messageReceived(std::make_unique<CommitSyncWrite>(
+              stream->messageReceived(std::make_unique<CommitSyncWriteConsumer>(
                       opaque, vbid, pending->getBySeqno(), commitSeqno, key)));
     flushVBucketToDiskIfPersistent(vbid, 2);
     ASSERT_EQ(0, pdm.getNumTracked());
@@ -3261,7 +3263,7 @@ TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
     commitSeqno = pending->getBySeqno() + 1;
 
     EXPECT_EQ(ENGINE_SUCCESS,
-              stream->messageReceived(std::make_unique<CommitSyncWrite>(
+              stream->messageReceived(std::make_unique<CommitSyncWriteConsumer>(
                       opaque, vbid, pending->getBySeqno(), commitSeqno, key)));
     EXPECT_EQ(0, pdm.getNumTracked());
 }
@@ -3708,7 +3710,7 @@ TEST_P(DurabilityPassiveStreamTest,
     // 3) Receive commit
     ASSERT_EQ(
             ENGINE_SUCCESS,
-            stream->messageReceived(std::make_unique<CommitSyncWrite>(
+            stream->messageReceived(std::make_unique<CommitSyncWriteConsumer>(
                     opaque, vbid, 1 /*prepareSeqno*/, 2 /*commitSeqno*/, key)));
 
     // 4) Receive memory snapshot marker
@@ -3852,12 +3854,12 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
     std::unique_ptr<DcpResponse> msg;
     switch (res) {
     case Resolution::Commit: {
-        msg = std::make_unique<CommitSyncWrite>(
+        msg = std::make_unique<CommitSyncWriteConsumer>(
                 opaque, vbid, prepareSeqno, completeSeqno, key);
         break;
     }
     case Resolution::Abort: {
-        msg = std::make_unique<AbortSyncWrite>(
+        msg = std::make_unique<AbortSyncWriteConsumer>(
                 opaque, vbid, key, prepareSeqno, completeSeqno);
         break;
     }
@@ -3932,12 +3934,12 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
     // Note: This throws before the fix for MB-36735 if !flush, read comment
     // above.
     ASSERT_EQ(ENGINE_EINVAL,
-              stream->messageReceived(
-                      std::make_unique<AbortSyncWrite>(opaque,
-                                                       vbid,
-                                                       key,
-                                                       10 /*prepareSeqno*/,
-                                                       11 /*abortSeqno*/)));
+              stream->messageReceived(std::make_unique<AbortSyncWriteConsumer>(
+                      opaque,
+                      vbid,
+                      key,
+                      10 /*prepareSeqno*/,
+                      11 /*abortSeqno*/)));
 
     // Now Replica receives a disk snapshot
     marker = SnapshotMarker(opaque,
@@ -3952,7 +3954,7 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
 
     auto abortSeqno = 16;
     ASSERT_EQ(ENGINE_SUCCESS,
-              stream->messageReceived(std::make_unique<AbortSyncWrite>(
+              stream->messageReceived(std::make_unique<AbortSyncWriteConsumer>(
                       opaque, vbid, key, 15 /*prepareSeqno*/, abortSeqno)));
 
     {
@@ -5544,7 +5546,7 @@ void DurabilityPassiveStreamEphemeralTest::
     auto key = makeStoredDocKey("key");
     uint64_t cas = 0;
     uint64_t seqno = 2;
-    stream->messageReceived(std::make_unique<AbortSyncWrite>(
+    stream->messageReceived(std::make_unique<AbortSyncWriteConsumer>(
             0 /*opaque*/, vbid, key, 1, seqno++));
     makeAndReceiveCommittedItem(key, cas, seqno, deleted);
 
