@@ -102,7 +102,6 @@ public:
           exp_mutations(0),
           exp_deletions(0),
           exp_expirations(0),
-          exp_markers(0),
           extra_takeover_ops(0),
           exp_disk_snapshot(false),
           exp_conflict_res(0),
@@ -136,7 +135,7 @@ public:
     /* Number of expiries expected (for verification) */
     size_t exp_expirations;
     /* Number of snapshot markers expected (for verification) */
-    size_t exp_markers;
+    std::optional<size_t> exp_markers;
     /* Extra front end mutations as part of takeover */
     size_t extra_takeover_ops;
     /* Flag - expect disk snapshot or not */
@@ -616,7 +615,8 @@ void TestDcpConsumer::run(bool openConn) {
                     // Hard to predict exact number of markers to be received
                     // if in case of a live parallel front end load
                     if (!ctx.live_frontend_client) {
-                        checkle(stats.num_snapshot_markers, ctx.exp_markers,
+                        checkle(stats.num_snapshot_markers,
+                                ctx.exp_markers.value(),
                                 "Invalid number of markers");
                     }
                     checkle(stats.num_mutations, ctx.exp_mutations,
@@ -643,8 +643,9 @@ void TestDcpConsumer::run(bool openConn) {
                                     stats.num_snapshot_markers,
                                     "Snapshot marker count can't be zero");
                         }
-                    } else {
-                        checkeq(ctx.exp_markers, stats.num_snapshot_markers,
+                    } else if (ctx.exp_markers) {
+                        checkeq(ctx.exp_markers.value(),
+                                stats.num_snapshot_markers,
                                 "Unexpected number of snapshot markers");
                     }
                 }
@@ -3186,7 +3187,6 @@ static test_result test_dcp_takeover(EngineIface* h) {
     ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {0, 1000};
     ctx.exp_mutations = 20;
-    ctx.exp_markers = 2;
     ctx.extra_takeover_ops = 10;
 
     TestDcpConsumer tdc("unittest", cookie, h);
