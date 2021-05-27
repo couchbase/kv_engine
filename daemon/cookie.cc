@@ -14,7 +14,6 @@
 #include "buckets.h"
 #include "connection.h"
 #include "cookie_trace_context.h"
-#include "executorpool.h"
 #include "external_auth_manager_thread.h"
 #include "get_authorization_task.h"
 #include "mcaudit.h"
@@ -23,6 +22,7 @@
 #include "opentelemetry.h"
 #include "settings.h"
 
+#include <executor/executor.h>
 #include <logger/logger.h>
 #include <mcbp/mcbp.h>
 #include <mcbp/protocol/framebuilder.h>
@@ -760,8 +760,9 @@ bool Cookie::fetchEuidPrivilegeSet() {
         } else if (!externalAuthManager->haveRbacEntryForUser(euid->name)) {
             getAuthorizationTask =
                     std::make_shared<GetAuthorizationTask>(*this, *euid);
-            std::lock_guard<std::mutex> guard(getAuthorizationTask->getMutex());
-            executorPool->schedule(getAuthorizationTask, true);
+            cb::executor::get().add([this]() {
+                externalAuthManager->enqueueRequest(*getAuthorizationTask);
+            });
             ewouldblock = true;
             return true;
         }

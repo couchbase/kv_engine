@@ -24,7 +24,7 @@
 class Connection;
 class CommandContext;
 struct CookieTraceContext;
-class Task;
+class GetAuthorizationTask;
 namespace cb::mcbp {
 class Header;
 class Request;
@@ -731,7 +731,7 @@ protected:
 
     /// A shared pointer to the task if we want to fetch authorizations
     /// from the external auth service;
-    std::shared_ptr<Task> getAuthorizationTask;
+    std::shared_ptr<GetAuthorizationTask> getAuthorizationTask;
 
     /// If the request came in with the impersonate frame info set, this
     /// is the privilege context for that user (which we'll also test)

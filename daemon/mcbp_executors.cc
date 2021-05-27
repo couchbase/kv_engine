@@ -35,12 +35,12 @@
 #include "protocol/mcbp/mutation_context.h"
 #include "protocol/mcbp/rbac_reload_command_context.h"
 #include "protocol/mcbp/remove_context.h"
-#include "protocol/mcbp/sasl_auth_command_context.h"
 #include "protocol/mcbp/sasl_refresh_command_context.h"
+#include "protocol/mcbp/sasl_start_command_context.h"
+#include "protocol/mcbp/sasl_step_command_context.h"
 #include "protocol/mcbp/session_validated_command_context.h"
 #include "protocol/mcbp/stats_context.h"
 #include "protocol/mcbp/unlock_context.h"
-#include "sasl_tasks.h"
 #include "session_cas.h"
 #include "settings.h"
 #include "ssl_utils.h"
@@ -276,7 +276,11 @@ static void sasl_list_mech_executor(Cookie& cookie) {
 }
 
 static void sasl_auth_executor(Cookie& cookie) {
-    cookie.obtainContext<SaslAuthCommandContext>(cookie).drive();
+    cookie.obtainContext<SaslStartCommandContext>(cookie).drive();
+}
+
+static void sasl_step_executor(Cookie& cookie) {
+    cookie.obtainContext<SaslStepCommandContext>(cookie).drive();
 }
 
 static void noop_executor(Cookie& cookie) {
@@ -735,7 +739,7 @@ void initialize_mbcp_lookup_map() {
     setup_handler(cb::mcbp::ClientOpcode::SaslListMechs,
                   sasl_list_mech_executor);
     setup_handler(cb::mcbp::ClientOpcode::SaslAuth, sasl_auth_executor);
-    setup_handler(cb::mcbp::ClientOpcode::SaslStep, sasl_auth_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SaslStep, sasl_step_executor);
     setup_handler(cb::mcbp::ClientOpcode::Noop, noop_executor);
     setup_handler(cb::mcbp::ClientOpcode::Flush, flush_executor);
     setup_handler(cb::mcbp::ClientOpcode::Flushq, flush_executor);

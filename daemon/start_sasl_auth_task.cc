@@ -13,6 +13,7 @@
 #include "connection.h"
 #include "cookie.h"
 #include "external_auth_manager_thread.h"
+#include "memcached.h"
 #include "settings.h"
 #include <cbsasl/mechanism.h>
 #include <cbsasl/server.h>
@@ -22,69 +23,13 @@
 StartSaslAuthTask::StartSaslAuthTask(
         Cookie& cookie_,
         cb::sasl::server::ServerContext& serverContext_,
-        const std::string& mechanism_,
-        const std::string& challenge_)
-    : SaslAuthTask(cookie_, serverContext_, mechanism_, challenge_) {
-    // No extra initialization needed
-}
-
-Task::Status StartSaslAuthTask::execute() {
-    if (internal) {
-        return internal_auth();
-    }
-
-    return external_auth();
-}
-
-Task::Status StartSaslAuthTask::internal_auth() {
-    auto& server = serverContext;
-
-    try {
-        if (cookie.getConnection().isSslEnabled()) {
-            response = server.start(mechanism,
-                                    Settings::instance().getSslSaslMechanisms(),
-                                    challenge);
-        } else {
-            response = server.start(mechanism,
-                                    Settings::instance().getSaslMechanisms(),
-                                    challenge);
-        }
-    } catch (const cb::sasl::unknown_mechanism&) {
-        response.first = cb::sasl::Error::NO_MECH;
-    } catch (const std::bad_alloc&) {
-        LOG_WARNING("{}: StartSaslAuthTask::execute(): std::bad_alloc",
-                    cookie.getConnection().getId());
-        response.first = cb::sasl::Error::NO_MEM;
-    } catch (const std::exception& exception) {
-        // If we generated an error as part of SASL, we should
-        // return that back to the client
-        if (server.containsUuid()) {
-            cookie.setEventId(server.getUuid());
-        }
-        LOG_WARNING(
-                "{}: StartSaslAuthTask::execute(): UUID:[{}] An exception "
-                "occurred: {}",
-                cookie.getConnection().getId(),
-                cookie.getEventId(),
-                exception.what());
-        cookie.setErrorContext("An exception occurred");
-        response.first = cb::sasl::Error::FAIL;
-    }
-
-    if (response.first == cb::sasl::Error::NO_USER &&
-        Settings::instance().isExternalAuthServiceEnabled() &&
-        mechanism == "PLAIN") {
-        // We can't hold this lock when we're trying to enqueue the
-        // request
-        internal = false;
-        externalAuthManager->enqueueRequest(*this);
-    }
-
-    return internal ? Status::Finished : Status::Continue;
-}
-
-Task::Status StartSaslAuthTask::external_auth() {
-    return Status::Finished;
+        std::string mechanism_,
+        std::string challenge_)
+    : cookie(cookie_),
+      serverContext(serverContext_),
+      mechanism(std::move(mechanism_)),
+      challenge(std::move(challenge_)) {
+    // no more init needed
 }
 
 std::string StartSaslAuthTask::getUsername() const {
@@ -93,20 +38,18 @@ std::string StartSaslAuthTask::getUsername() const {
 
 void StartSaslAuthTask::externalResponse(cb::mcbp::Status status,
                                          const std::string& payload) {
-    std::lock_guard<std::mutex> guard(getMutex());
-
     if (status == cb::mcbp::Status::Success) {
         successfull_external_auth();
     } else {
         unsuccessfull_external_auth(status, payload);
     }
 
-    makeRunnable();
+    ::notifyIoComplete(cookie, cb::engine_errc::success);
 }
 
 void StartSaslAuthTask::successfull_external_auth() {
     try {
-        response.first = cb::sasl::Error::OK;
+        error = cb::sasl::Error::OK;
         externalAuthManager->login(serverContext.getUsername());
         serverContext.setDomain(cb::sasl::Domain::External);
     } catch (const std::exception& e) {
@@ -114,24 +57,24 @@ void StartSaslAuthTask::successfull_external_auth() {
                     cookie.getConnection().getId(),
                     cookie.getEventId(),
                     e.what());
-        response.first = cb::sasl::Error::FAIL;
+        error = cb::sasl::Error::FAIL;
     }
 }
 
 void StartSaslAuthTask::unsuccessfull_external_auth(
         cb::mcbp::Status status, const std::string& payload) {
-    // The paylaod should contain an error message
+    // The payload should contain an error message
     try {
         if (status == cb::mcbp::Status::AuthError) {
-            response.first = cb::sasl::Error::NO_RBAC_PROFILE;
+            error = cb::sasl::Error::NO_RBAC_PROFILE;
         } else if (status == cb::mcbp::Status::KeyEnoent) {
-            response.first = cb::sasl::Error::NO_USER;
+            error = cb::sasl::Error::NO_USER;
         } else if (status == cb::mcbp::Status::KeyEexists) {
-            response.first = cb::sasl::Error::PASSWORD_ERROR;
+            error = cb::sasl::Error::PASSWORD_ERROR;
         } else if (status == cb::mcbp::Status::Etmpfail) {
-            response.first = cb::sasl::Error::AUTH_PROVIDER_DIED;
+            error = cb::sasl::Error::AUTH_PROVIDER_DIED;
         } else {
-            response.first = cb::sasl::Error::FAIL;
+            error = cb::sasl::Error::FAIL;
         }
 
         if (!payload.empty()) {
@@ -151,6 +94,6 @@ void StartSaslAuthTask::unsuccessfull_external_auth(
                     cookie.getConnection().getId(),
                     cookie.getEventId(),
                     e.what());
-        response.first = cb::sasl::Error::FAIL;
+        error = cb::sasl::Error::FAIL;
     }
 }

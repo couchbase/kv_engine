@@ -11,26 +11,45 @@
 
 #pragma once
 
-#include "sasl_tasks.h"
-
 #include <mcbp/protocol/status.h>
 
+#include "authn_authz_service_task.h"
+#include <cbsasl/server.h>
+#include <string>
+
+class Connection;
+class Cookie;
+
+namespace cb::sasl::server {
+class ServerContext;
+} // namespace cb::sasl::server
+
 /**
- * The StartSaslAuthTask is used to handle the initial SASL
- * authentication message
+ * The SaslAuthTask is the abstract base class used during SASL
+ * authentication (which is being run by the executor service)
  */
-class StartSaslAuthTask : public SaslAuthTask {
+class StartSaslAuthTask : public AuthnAuthzServiceTask {
 public:
-    StartSaslAuthTask() = delete;
-
-    StartSaslAuthTask(const StartSaslAuthTask&) = delete;
-
     StartSaslAuthTask(Cookie& cookie_,
                       cb::sasl::server::ServerContext& serverContext_,
-                      const std::string& mechanism_,
-                      const std::string& challenge_);
+                      std::string mechanism_,
+                      std::string challenge_);
 
-    Status execute() override;
+    cb::sasl::Error getError() const {
+        return error;
+    }
+
+    const std::string& getMechanism() const {
+        return mechanism;
+    }
+
+    const std::string& getChallenge() const {
+        return challenge;
+    }
+
+    cb::rbac::UserIdent getUser() const {
+        return serverContext.getUser();
+    }
 
     void externalResponse(cb::mcbp::Status status,
                           const std::string& payload) override;
@@ -38,13 +57,13 @@ public:
     std::string getUsername() const;
 
 protected:
-    Status internal_auth();
-    Status external_auth();
-
     void successfull_external_auth();
     void unsuccessfull_external_auth(cb::mcbp::Status status,
                                      const std::string& payload);
 
-    // Is this phase for internal or external auth
-    bool internal = true;
+    Cookie& cookie;
+    cb::sasl::server::ServerContext& serverContext;
+    std::string mechanism;
+    std::string challenge;
+    cb::sasl::Error error = cb::sasl::Error::FAIL;
 };

@@ -134,6 +134,10 @@ add_library(memcached_daemon STATIC
             protocol/mcbp/remove_context.h
             protocol/mcbp/sasl_auth_command_context.cc
             protocol/mcbp/sasl_auth_command_context.h
+            protocol/mcbp/sasl_start_command_context.cc
+            protocol/mcbp/sasl_start_command_context.h
+            protocol/mcbp/sasl_step_command_context.cc
+            protocol/mcbp/sasl_step_command_context.h
             protocol/mcbp/sasl_refresh_command_context.cc
             protocol/mcbp/sasl_refresh_command_context.h
             protocol/mcbp/select_bucket_executor.cc
@@ -148,8 +152,6 @@ add_library(memcached_daemon STATIC
             protocol/mcbp/utilities.h
             runtime.cc
             runtime.h
-            sasl_tasks.cc
-            sasl_tasks.h
             sendbuffer.cc
             sendbuffer.h
             server_api.cc
@@ -165,8 +167,6 @@ add_library(memcached_daemon STATIC
             stats.h
             stats_tasks.cc
             stats_tasks.h
-            step_sasl_auth_task.cc
-            step_sasl_auth_task.h
             stdin_check.cc
             subdocument.cc
             subdocument.h

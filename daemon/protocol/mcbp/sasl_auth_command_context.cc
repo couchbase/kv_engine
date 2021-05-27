@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -13,13 +12,10 @@
 
 #include <daemon/buckets.h>
 #include <daemon/connection.h>
-#include <daemon/executorpool.h>
 #include <daemon/mcaudit.h>
 #include <daemon/memcached.h>
 #include <daemon/settings.h>
-#include <daemon/start_sasl_auth_task.h>
 #include <daemon/stats.h>
-#include <daemon/step_sasl_auth_task.h>
 #include <logger/logger.h>
 #include <utilities/logtags.h>
 
@@ -34,66 +30,21 @@ std::string getMechanism(cb::const_byte_buffer k) {
     return mechanism;
 }
 
+std::string getChallenge(cb::const_byte_buffer value) {
+    return std::string{reinterpret_cast<const char*>(value.data()),
+                       value.size()};
+}
 SaslAuthCommandContext::SaslAuthCommandContext(Cookie& cookie)
     : SteppableCommandContext(cookie),
       request(cookie.getRequest()),
       mechanism(getMechanism(request.getKey())),
+      challenge(getChallenge(request.getValue())),
       state(State::Initial) {
 }
 
-cb::engine_errc SaslAuthCommandContext::initial() {
-    if (!connection.isSaslAuthEnabled()) {
-        return cb::engine_errc::not_supported;
-    }
-
-    auto v = request.getValue();
-    std::string challenge(reinterpret_cast<const char*>(v.data()), v.size());
-
-    LOG_DEBUG("{}: SASL auth with mech: '{}' with {} bytes of data",
-              connection.getId(),
-              mechanism,
-              v.size());
-
-    if (request.getClientOpcode() == cb::mcbp::ClientOpcode::SaslAuth) {
-        if (connection.getSaslServerContext()) {
-            cookie.setErrorContext(
-                    R"(Logic error: The server expects SASL STEP after returning CONTINUE from SASL START)");
-            return cb::engine_errc::invalid_arguments;
-        }
-
-        connection.createSaslServerContext();
-        connection.restartAuthentication();
-        task = std::make_shared<StartSaslAuthTask>(
-                cookie,
-                *connection.getSaslServerContext(),
-                mechanism,
-                challenge);
-    } else if (request.getClientOpcode() == cb::mcbp::ClientOpcode::SaslStep) {
-        if (!connection.getSaslServerContext()) {
-            cookie.setErrorContext(
-                    R"(Logic error: The server expects the client to start with SASL_START before sending SASL STEP)");
-            return cb::engine_errc::invalid_arguments;
-        }
-        task = std::make_shared<StepSaslAuthTask>(
-                cookie,
-                *connection.getSaslServerContext(),
-                mechanism,
-                challenge);
-    } else {
-        throw std::logic_error(
-            "SaslAuthCommandContext() used with illegal opcode");
-    }
-
-    std::lock_guard<std::mutex> guard(task->getMutex());
-    executorPool->schedule(task, true);
-
-    state = State::HandleSaslAuthTaskResult;
-    return cb::engine_errc::would_block;
-}
-
-cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk() {
+cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk(
+        std::string_view payload) {
     auto& serverContext = *connection.getSaslServerContext();
-    auto auth_task = reinterpret_cast<SaslAuthTask*>(task.get());
     std::pair<cb::rbac::PrivilegeContext, bool> context{
             cb::rbac::PrivilegeContext{cb::sasl::Domain::Local}, false};
 
@@ -109,7 +60,7 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk() {
                 cb::UserDataView(serverContext.getUser().name),
                 mechanism,
                 cookie.getEventId());
-        authFailure();
+        authFailure(cb::sasl::Error::NO_RBAC_PROFILE);
         return cb::engine_errc::success;
     }
 
@@ -146,7 +97,6 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk() {
         }
     }
 
-    auto payload = auth_task->getResponse();
     cookie.sendResponse(cb::mcbp::Status::Success,
                         {},
                         {},
@@ -159,34 +109,33 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk() {
 }
 
 cb::engine_errc SaslAuthCommandContext::doHandleSaslAuthTaskResult(
-        SaslAuthTask* auth_task) {
-    auto& serverContext = *connection.getSaslServerContext();
-
+        cb::sasl::Error error, std::string_view payload) {
     // If CBSASL generated a UUID, we should continue to use that UUID
+    auto& serverContext = *connection.getSaslServerContext();
     if (serverContext.containsUuid()) {
         cookie.setEventId(serverContext.getUuid());
     }
 
     // Perform the appropriate logging for each error code
-    switch (auth_task->getError()) {
+    switch (error) {
     case cb::sasl::Error::OK:
-        return tryHandleSaslOk();
+        return tryHandleSaslOk(payload);
 
     case cb::sasl::Error::CONTINUE:
         LOG_DEBUG("{}: SASL CONTINUE", connection.getId());
-        return authContinue();
+        return authContinue(payload);
 
     case cb::sasl::Error::BAD_PARAM:
         return authBadParameters();
 
     case cb::sasl::Error::FAIL:
     case cb::sasl::Error::NO_MEM:
-        return authFailure();
+        return authFailure(error);
 
     case cb::sasl::Error::NO_MECH:
         cookie.setErrorContext("Requested mechanism \"" + mechanism +
                                "\" is not supported");
-        return authFailure();
+        return authFailure(error);
 
     case cb::sasl::Error::NO_USER:
         LOG_WARNING("{}: User [{}] not found. Mechanism:[{}], UUID:[{}]",
@@ -196,7 +145,7 @@ cb::engine_errc SaslAuthCommandContext::doHandleSaslAuthTaskResult(
                     cookie.getEventId());
         audit_auth_failure(
                 connection, serverContext.getUser(), "Unknown user", &cookie);
-        return authFailure();
+        return authFailure(error);
 
     case cb::sasl::Error::PASSWORD_ERROR:
         LOG_WARNING(
@@ -211,7 +160,7 @@ cb::engine_errc SaslAuthCommandContext::doHandleSaslAuthTaskResult(
                            "Incorrect password",
                            &cookie);
 
-        return authFailure();
+        return authFailure(error);
 
     case cb::sasl::Error::NO_RBAC_PROFILE:
         LOG_WARNING(
@@ -221,30 +170,18 @@ cb::engine_errc SaslAuthCommandContext::doHandleSaslAuthTaskResult(
                 cb::UserDataView(connection.getUser().name),
                 mechanism,
                 cookie.getEventId());
-        return authFailure();
+        return authFailure(error);
 
     case cb::sasl::Error::AUTH_PROVIDER_DIED:
         LOG_WARNING("{}: Auth provider closed the connection. UUID:[{}]",
                     connection.getId(),
                     cookie.getEventId());
-        return authFailure();
+        return authFailure(error);
     }
 
     throw std::logic_error(
             "SaslAuthCommandContext::handleSaslAuthTaskResult: Unknown sasl "
             "error");
-}
-
-cb::engine_errc SaslAuthCommandContext::handleSaslAuthTaskResult() {
-    auto auth_task = reinterpret_cast<SaslAuthTask*>(task.get());
-    auto error = auth_task->getError();
-    auto ret = doHandleSaslAuthTaskResult(auth_task);
-    if (error != cb::sasl::Error::CONTINUE) {
-        // we should _ONLY_ preserve the sasl server context if the underlying
-        // sasl backend returns CONTINUE
-        connection.releaseSaslServerContext();
-    }
-    return ret;
 }
 
 cb::engine_errc SaslAuthCommandContext::step() {
@@ -266,13 +203,12 @@ cb::engine_errc SaslAuthCommandContext::step() {
     return ret;
 }
 
-cb::engine_errc SaslAuthCommandContext::authContinue() {
-    auto auth_task = reinterpret_cast<SaslAuthTask*>(task.get());
-    auto payload = auth_task->getResponse();
+cb::engine_errc SaslAuthCommandContext::authContinue(
+        std::string_view challenge) {
     cookie.sendResponse(cb::mcbp::Status::AuthContinue,
                         {},
                         {},
-                        payload,
+                        challenge,
                         cb::mcbp::Datatype::Raw,
                         0);
     state = State::Done;
@@ -287,10 +223,9 @@ cb::engine_errc SaslAuthCommandContext::authBadParameters() {
     return cb::engine_errc::invalid_arguments;
 }
 
-cb::engine_errc SaslAuthCommandContext::authFailure() {
+cb::engine_errc SaslAuthCommandContext::authFailure(cb::sasl::Error error) {
     state = State::Done;
-    auto auth_task = reinterpret_cast<SaslAuthTask*>(task.get());
-    if (auth_task->getError() == cb::sasl::Error::AUTH_PROVIDER_DIED) {
+    if (error == cb::sasl::Error::AUTH_PROVIDER_DIED) {
         cookie.sendResponse(cb::mcbp::Status::Etmpfail);
     } else {
         if (Settings::instance().isExternalAuthServiceEnabled()) {

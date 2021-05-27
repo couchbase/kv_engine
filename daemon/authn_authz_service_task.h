@@ -9,7 +9,6 @@
  */
 #pragma once
 
-#include "task.h"
 #include <string>
 
 namespace cb::mcbp {
@@ -23,8 +22,10 @@ enum class Status : uint16_t;
  * This allows for a common API for injecting messages to the external
  * authentication/authorization service.
  */
-class AuthnAuthzServiceTask : public Task {
+class AuthnAuthzServiceTask {
 public:
+    virtual ~AuthnAuthzServiceTask() = default;
+
     /**
      * The external auth service received a response from the provider
      *

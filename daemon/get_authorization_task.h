@@ -22,15 +22,12 @@ class Cookie;
  */
 class GetAuthorizationTask : public AuthnAuthzServiceTask {
 public:
-    explicit GetAuthorizationTask(Cookie& cookie,
-                                  const cb::rbac::UserIdent& user)
+    GetAuthorizationTask(Cookie& cookie, const cb::rbac::UserIdent& user)
         : cookie(cookie), user(user) {
     }
 
-    Status execute() override;
     void externalResponse(cb::mcbp::Status status,
                           const std::string& payload) override;
-    void notifyExecutionComplete() override;
 
     std::string getUsername() const {
         return user.name;
@@ -43,6 +40,5 @@ public:
 protected:
     Cookie& cookie;
     const cb::rbac::UserIdent& user;
-    bool requestSent = false;
     cb::sasl::Error status{cb::sasl::Error::FAIL};
 };

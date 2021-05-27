@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -14,16 +13,9 @@
 
 #include <cbsasl/error.h>
 #include <daemon/cookie.h>
-#include <daemon/task.h>
-
-class SaslAuthTask;
 
 /**
- * SaslAuthCommandContext is responsible for handling the
- * SASL auth and SASL continue commands. Due to the fact that they may
- * generate various iterative hashes they may consume a fair amount of
- * CPU time so it'll offload the task to another thread to do the
- * actual work which notifies the command cookie when it's done.
+ * Base abstract class used handle SASL AUTH and SASL STEP.
  */
 class SaslAuthCommandContext : public SteppableCommandContext {
 public:
@@ -41,17 +33,33 @@ public:
 protected:
     cb::engine_errc step() override;
 
-    cb::engine_errc initial();
-    cb::engine_errc handleSaslAuthTaskResult();
-    cb::engine_errc doHandleSaslAuthTaskResult(SaslAuthTask* auth_task);
-    cb::engine_errc tryHandleSaslOk();
-    cb::engine_errc authContinue();
-    cb::engine_errc authBadParameters();
-    cb::engine_errc authFailure();
+    /// Verify the input and start SASL authentication. If everything
+    /// is OK it should set the state to HandleSaslAuthTaskResult
+    virtual cb::engine_errc initial() = 0;
+    /// Called by the state machine and the underlying implementation
+    /// should call doHandleSaslAuthTaskResult with the appropriate
+    /// error code and status and set the state to Done.
+    virtual cb::engine_errc handleSaslAuthTaskResult() = 0;
 
-private:
+    /**
+     * Perform the correct action for a SASL authentication (build
+     * response messages and perform the appropriate audit / logging)
+     *
+     * @param error The error code returned from SASL
+     * @param payload The payload SASL provided that we should send to
+     *                the client
+     */
+    cb::engine_errc doHandleSaslAuthTaskResult(cb::sasl::Error error,
+                                               std::string_view payload);
+
     const cb::mcbp::Request& request;
     const std::string mechanism;
+    const std::string challenge;
     State state;
-    std::shared_ptr<Task> task;
+
+private:
+    cb::engine_errc tryHandleSaslOk(std::string_view payload);
+    cb::engine_errc authContinue(std::string_view challenge);
+    cb::engine_errc authBadParameters();
+    cb::engine_errc authFailure(cb::sasl::Error error);
 };

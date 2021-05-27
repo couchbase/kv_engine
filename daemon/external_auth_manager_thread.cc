@@ -46,19 +46,7 @@ void ExternalAuthManagerThread::remove(Connection& connection) {
 }
 
 void ExternalAuthManagerThread::enqueueRequest(AuthnAuthzServiceTask& request) {
-    // We need to make sure that the lock ordering for these
-    // mutexes is the same. Let's unlock the task (and the executor thread
-    // is currently blocked waiting for this method to return. It won't
-    // touch the mutex until we return.
-    // Then we'll grab the external auth manager mutex and get our mutex
-    // back (no one else knows about that mutex yet so it should never
-    // block). Then we'll just release the external auth manager lock,
-    // and the external auth thread may start processing these events,
-    // but it'll have to wait until we release the request mutex
-    // before it may signal the task.
-    request.getMutex().unlock();
     std::lock_guard<std::mutex> guard(mutex);
-    request.getMutex().lock();
     incomingRequests.push(&request);
     condition_variable.notify_all();
 }

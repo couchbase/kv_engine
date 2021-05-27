@@ -17,8 +17,6 @@
 
 void GetAuthorizationTask::externalResponse(cb::mcbp::Status statusCode,
                                             const std::string& payload) {
-    std::lock_guard<std::mutex> guard(getMutex());
-
     if (statusCode == cb::mcbp::Status::Success) {
         status = cb::sasl::Error::OK;
     } else {
@@ -52,20 +50,5 @@ void GetAuthorizationTask::externalResponse(cb::mcbp::Status statusCode,
             status = cb::sasl::Error::FAIL;
         }
     }
-
-    makeRunnable();
-}
-
-Task::Status GetAuthorizationTask::execute() {
-    if (!requestSent) {
-        externalAuthManager->enqueueRequest(*this);
-        requestSent = true;
-        return Status::Continue;
-    }
-
-    return Status::Finished;
-}
-
-void GetAuthorizationTask::notifyExecutionComplete() {
     ::notifyIoComplete(cookie, cb::engine_errc::success);
 }
