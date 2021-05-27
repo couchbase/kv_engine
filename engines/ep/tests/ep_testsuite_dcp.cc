@@ -6256,12 +6256,12 @@ static enum test_result test_dcp_persistence_seqno_backfillItems(
     /* unlock the mutex */
     testHarness->unlock_cookie(cookie);
 
+    /* wait for the writer thread to complete */
+    backfillWriter.join();
+
     /* delete the cookies created */
     testHarness->destroy_cookie(consumerCookie);
     testHarness->destroy_cookie(cookie);
-
-    /* wait for the writer thread to complete */
-    backfillWriter.join();
 
     return SUCCESS;
 }
