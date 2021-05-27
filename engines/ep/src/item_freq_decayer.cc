@@ -51,7 +51,7 @@ bool ItemFreqDecayerTask::run() {
     }
 
     // Print start status.
-    if (globalBucketLogger->should_log(spdlog::level::debug)) {
+    if (getGlobalBucketLogger()->should_log(spdlog::level::debug)) {
         std::stringstream ss;
         ss << getDescription() << " for bucket '" << engine->getName() << "'";
         if (epstore_position == engine->getKVBucket()->startPosition()) {
@@ -80,7 +80,7 @@ bool ItemFreqDecayerTask::run() {
     completed = (epstore_position == engine->getKVBucket()->endPosition());
 
     // Print status.
-    if (globalBucketLogger->should_log(spdlog::level::debug)) {
+    if (getGlobalBucketLogger()->should_log(spdlog::level::debug)) {
         std::stringstream ss;
         ss << getDescription() << " for bucket '" << engine->getName() << "'";
         if (completed) {

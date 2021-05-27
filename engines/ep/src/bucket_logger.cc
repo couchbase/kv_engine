@@ -16,6 +16,8 @@
 #include "ep_engine.h"
 #include "objectregistry.h"
 
+std::mutex BucketLogger::initGuard;
+
 // Construct the base logger with a nullptr for the sinks as they will never be
 // used. Requires a unique name for registry
 BucketLogger::BucketLogger(const std::string& name, std::string p)
@@ -47,9 +49,10 @@ void BucketLogger::flush_() {
 void BucketLogger::setLoggerAPI(ServerLogIface* api) {
     BucketLogger::loggerAPI.store(api, std::memory_order_relaxed);
 
-    if (globalBucketLogger == nullptr) {
+    std::unique_lock<std::mutex> lh(initGuard);
+    if (getGlobalBucketLogger() == nullptr) {
         // Create the global BucketLogger
-        globalBucketLogger = createBucketLogger(globalBucketLoggerName);
+        getGlobalBucketLogger() = createBucketLogger(globalBucketLoggerName);
     }
 }
 
@@ -110,4 +113,7 @@ ServerLogIface* BucketLogger::getServerLogIface() {
 
 std::atomic<ServerLogIface*> BucketLogger::loggerAPI;
 
-std::shared_ptr<BucketLogger> globalBucketLogger;
+std::shared_ptr<BucketLogger>& getGlobalBucketLogger() {
+    static std::shared_ptr<BucketLogger> logger = {};
+    return logger;
+}

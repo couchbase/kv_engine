@@ -174,7 +174,7 @@ int main(int argc, char **argv) {
 
     auto ret = RUN_ALL_TESTS();
 
-    globalBucketLogger.reset();
+    getGlobalBucketLogger().reset();
 
     return ret;
 }

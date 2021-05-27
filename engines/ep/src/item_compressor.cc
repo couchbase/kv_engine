@@ -38,7 +38,7 @@ bool ItemCompressorTask::run() {
         }
 
         // Print start status.
-        if (globalBucketLogger->should_log(spdlog::level::debug)) {
+        if (getGlobalBucketLogger()->should_log(spdlog::level::debug)) {
             std::stringstream ss;
             ss << getDescription() << " for bucket '" << engine->getName()
                << "'";
@@ -77,7 +77,7 @@ bool ItemCompressorTask::run() {
                 (epstore_position == engine->getKVBucket()->endPosition());
 
         // Print status.
-        if (globalBucketLogger->should_log(spdlog::level::debug)) {
+        if (getGlobalBucketLogger()->should_log(spdlog::level::debug)) {
             std::stringstream ss;
             ss << getDescription() << " for bucket '" << engine->getName()
                << "'";

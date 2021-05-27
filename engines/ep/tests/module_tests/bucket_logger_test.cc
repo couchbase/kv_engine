@@ -22,13 +22,13 @@
 
 void BucketLoggerTest::SetUp() {
     // Store the oldLogLevel for tearDown
-    oldLogLevel = globalBucketLogger->level();
+    oldLogLevel = getGlobalBucketLogger()->level();
 
-    if (globalBucketLogger) {
-        globalBucketLogger->unregister();
+    if (getGlobalBucketLogger()) {
+        getGlobalBucketLogger()->unregister();
     }
     SpdloggerTest::SetUp();
-    globalBucketLogger =
+    getGlobalBucketLogger() =
             BucketLogger::createBucketLogger(globalBucketLoggerName);
 }
 
@@ -41,16 +41,16 @@ void BucketLoggerTest::TearDown() {
     cb::logger::createConsoleLogger();
     get_mock_server_api()->log->set_level(oldLogLevel);
     get_mock_server_api()->log->get_spdlogger()->set_level(oldLogLevel);
-    globalBucketLogger =
+    getGlobalBucketLogger() =
             BucketLogger::createBucketLogger(globalBucketLoggerName);
-    globalBucketLogger->set_level(oldLogLevel);
+    getGlobalBucketLogger()->set_level(oldLogLevel);
 }
 
 void BucketLoggerTest::setUpLogger() {
     SpdloggerTest::setUpLogger();
-    globalBucketLogger =
+    getGlobalBucketLogger() =
             BucketLogger::createBucketLogger(globalBucketLoggerName);
-    globalBucketLogger->set_level(config.log_level);
+    getGlobalBucketLogger()->set_level(config.log_level);
 }
 
 /**

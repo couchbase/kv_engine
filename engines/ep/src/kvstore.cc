@@ -57,7 +57,7 @@ ScanContext::ScanContext(
       valFilter(valFilter),
       callback(std::move(cb)),
       lookup(std::move(cl)),
-      logger(globalBucketLogger.get()),
+      logger(getGlobalBucketLogger().get()),
       collectionsContext(droppedCollections),
       maxSeqno(maxSeqno) {
     Expects(callback != nullptr);

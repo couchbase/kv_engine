@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
     // defer the API setup then we won't be able to get to the registry to cause
     // the abort.
     BucketLogger::setLoggerAPI(get_mock_server_api()->log);
-    globalBucketLogger->set_level(spdlog::level::level_enum::critical);
+    getGlobalBucketLogger()->set_level(spdlog::level::level_enum::critical);
 
     /*
      * Run the benchmarks. From benchmark.cc, 0 gets returned if
@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
      */
     auto result = ::benchmark::RunSpecifiedBenchmarks();
 
-    globalBucketLogger.reset();
+    getGlobalBucketLogger().reset();
 
     return result == 0 ? 1 : 0;
 }

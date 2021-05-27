@@ -1630,7 +1630,7 @@ cb::engine_errc create_ep_engine_instance(GET_SERVER_API get_server_api,
 */
 void destroy_ep_engine() {
     ExecutorPool::shutdown();
-    globalBucketLogger.reset();
+    getGlobalBucketLogger().reset();
 }
 
 bool EventuallyPersistentEngine::get_item_info(

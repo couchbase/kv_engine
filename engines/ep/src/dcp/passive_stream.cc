@@ -1250,8 +1250,8 @@ void PassiveStream::log(spdlog::level::level_enum severity,
     if (consumer) {
         consumer->getLogger().log(severity, fmt, args...);
     } else {
-        if (globalBucketLogger->should_log(severity)) {
-            globalBucketLogger->log(
+        if (getGlobalBucketLogger()->should_log(severity)) {
+            getGlobalBucketLogger()->log(
                     severity,
                     std::string{passiveStreamLoggingPrefix}.append(fmt).data(),
                     args...);

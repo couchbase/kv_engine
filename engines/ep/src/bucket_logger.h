@@ -232,21 +232,24 @@ private:
      * logger will log messages to various sinks after we format it.
      */
     spdlog::logger* spdLogger;
+
+    // Mutex guarding globalBucketLogger creation
+    static std::mutex initGuard;
 };
 
 // Global BucketLogger declaration for use in macros
 // This is a shared_ptr (not a unique_ptr as one might expect) as
 // the spdlog registry only deals with weak_ptrs, and we must register each
 // spdlogger we create to respect runtime verbosity changes
-extern std::shared_ptr<BucketLogger> globalBucketLogger;
+std::shared_ptr<BucketLogger>& getGlobalBucketLogger();
 
 // Convenience macros which call globalBucketLogger->log() with the given level
 // and arguments.
-#define EP_LOG_FMT(severity, ...)                           \
-    do {                                                    \
-        if (globalBucketLogger->should_log(severity)) {     \
-            globalBucketLogger->log(severity, __VA_ARGS__); \
-        }                                                   \
+#define EP_LOG_FMT(severity, ...)                                \
+    do {                                                         \
+        if (getGlobalBucketLogger()->should_log(severity)) {     \
+            getGlobalBucketLogger()->log(severity, __VA_ARGS__); \
+        }                                                        \
     } while (false)
 
 #define EP_LOG_TRACE(...) \
