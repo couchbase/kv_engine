@@ -69,6 +69,7 @@
 
 #include <map>
 #include <set>
+#include <vector>
 
 // Forward decl
 class TaskQueue;

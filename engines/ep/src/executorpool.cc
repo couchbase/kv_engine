@@ -16,6 +16,8 @@
 #include "folly_executorpool.h"
 #include "objectregistry.h"
 
+#include <vector>
+
 std::mutex ExecutorPool::initGuard;
 
 static const size_t EP_MIN_NONIO_THREADS = 2;
