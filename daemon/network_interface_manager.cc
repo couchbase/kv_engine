@@ -20,11 +20,7 @@
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
-
-namespace cb::prometheus {
-// forward declaration
-std::pair<in_port_t, sa_family_t> getRunningConfig();
-} // namespace cb::prometheus
+#include <statistics/prometheus.h>
 
 std::unique_ptr<NetworkInterfaceManager> networkInterfaceManager;
 

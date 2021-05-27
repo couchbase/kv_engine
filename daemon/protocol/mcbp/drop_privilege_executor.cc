@@ -9,6 +9,8 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "executors.h"
+
 #include <daemon/connection.h>
 #include <daemon/cookie.h>
 #include <mcbp/protocol/request.h>
