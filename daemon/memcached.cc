@@ -336,7 +336,7 @@ static void prometheus_init() {
 }
 
 struct thread_stats* get_thread_stats(Connection* c) {
-    auto& independent_stats = all_buckets[c->getBucketIndex()].stats;
+    auto& independent_stats = c->getBucket().stats;
     return &independent_stats.at(c->getThread().index);
 }
 

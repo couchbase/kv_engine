@@ -151,11 +151,11 @@ static cb::engine_errc stat_reset_executor(const std::string& arg,
         stats_reset(cookie);
         bucket_reset_stats(cookie);
         all_buckets[0].timings.reset();
-        all_buckets[cookie.getConnection().getBucketIndex()].timings.reset();
+        cookie.getConnection().getBucket().timings.reset();
         return cb::engine_errc::success;
     } else if (arg == "timings") {
         // Nuke the command timings section for the connected bucket
-        all_buckets[cookie.getConnection().getBucketIndex()].timings.reset();
+        cookie.getConnection().getBucket().timings.reset();
         return cb::engine_errc::success;
     } else {
         return cb::engine_errc::invalid_arguments;
@@ -313,7 +313,7 @@ static cb::engine_errc stat_histogram_executor(
             json_str = aggregated.to_string();
         } else {
             // Timings for a specific bucket.
-            auto& bucket = all_buckets[cookie.getConnection().getBucketIndex()];
+            auto& bucket = cookie.getConnection().getBucket();
             json_str = (bucket.*histogram).to_string();
         }
         append_stats({}, json_str, &cookie);
@@ -345,7 +345,7 @@ static cb::engine_errc stat_json_validate_executor(const std::string& arg,
 static cb::engine_errc stat_topkeys_executor(const std::string& arg,
                                              Cookie& cookie) {
     if (arg.empty()) {
-        auto& bucket = all_buckets[cookie.getConnection().getBucketIndex()];
+        auto& bucket = cookie.getConnection().getBucket();
         if (bucket.topkeys == nullptr) {
             return cb::engine_errc::no_bucket;
         }
@@ -370,7 +370,7 @@ static cb::engine_errc stat_topkeys_json_executor(const std::string& arg,
 
         nlohmann::json topkeys_doc;
 
-        auto& bucket = all_buckets[cookie.getConnection().getBucketIndex()];
+        auto& bucket = cookie.getConnection().getBucket();
         if (bucket.topkeys == nullptr) {
             return cb::engine_errc::no_bucket;
         }
