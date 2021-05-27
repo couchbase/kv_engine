@@ -16,15 +16,9 @@
 
 #include <platform/cb_malloc.h>
 #include <statistics/labelled_collector.h>
-
-#ifdef AUTOCONF_BUILD
-#include "generated_configuration.cc"
-#endif
-
 #include <memcached/config_parser.h>
 #include <memcached/server_core_iface.h>
 #include <statistics/cbstat_collector.h>
-
 #include <sstream>
 
 // Used to get a name from a type to use in logging
