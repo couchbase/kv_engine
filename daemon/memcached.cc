@@ -26,7 +26,6 @@
 #include "mcbp_executors.h"
 #include "mcbp_topkeys.h"
 #include "mcbp_validators.h"
-#include "mcbpdestroybuckettask.h"
 #include "network_interface.h"
 #include "network_interface_manager.h"
 #include "opentelemetry.h"
@@ -63,14 +62,15 @@
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/openssl_utils.h>
 
+#include <executor/executor.h>
 #include <chrono>
-#include <memory>
-#include <thread>
 #include <csignal>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <memory>
+#include <thread>
 #include <vector>
 
 #if HAVE_LIBNUMA
@@ -770,33 +770,6 @@ void enable_shutdown() {
     shutdown_cv.notify_all();
 }
 
-/* BUCKET FUNCTIONS */
-void CreateBucketThread::create() {
-    result = BucketManager::instance().create(cookie, name, config, type);
-}
-
-void CreateBucketThread::run()
-{
-    setRunning();
-    // Perform the task without having any locks. The task should be
-    // scheduled in a pending state so the executor won't try to touch
-    // the object until we're telling it that it is runnable
-    create();
-    std::lock_guard<std::mutex> guard(task->getMutex());
-    task->makeRunnable();
-}
-
-void DestroyBucketThread::destroy() {
-    result = BucketManager::instance().destroy(cookie, name, force);
-}
-
-void DestroyBucketThread::run() {
-    setRunning();
-    destroy();
-    std::lock_guard<std::mutex> guard(task->getMutex());
-    task->makeRunnable();
-}
-
 void cleanup_buckets() {
     for (auto &bucket : all_buckets) {
         bool waiting;
@@ -1074,8 +1047,16 @@ int memcached_main(int argc, char** argv) {
     /* start up worker threads if MT mode */
     worker_threads_init();
 
+    // MB-46604: We want to migrate off the homegrown ExecutorPool and
+    //           replace that with folly's thread pool. To avoid a big
+    //           jumbopatch which rewrites all of the tasks to use folly
+    //           we run with both executors while we migrate the various
+    //           tasks over. It will double the number of threads, but
+    //           we'll probably only keep the same number of threads
+    //           working (as the total load will be the same).
     executorPool = std::make_unique<cb::ExecutorPool>(
             Settings::instance().getNumWorkerThreads());
+    cb::executor::create(Settings::instance().getNumWorkerThreads());
 
     LOG_INFO(R"(Starting Phosphor tracing with config: "{}")",
              Settings::instance().getPhosphorConfig());
@@ -1137,6 +1118,7 @@ int memcached_main(int argc, char** argv) {
 
     LOG_INFO("Shutting down executor pool");
     executorPool.reset();
+    cb::executor::shutdown();
 
     LOG_INFO("Releasing signal handlers");
     release_signal_handlers();

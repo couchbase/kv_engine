@@ -1,5 +1,4 @@
-ADD_LIBRARY(memcached_daemon STATIC
-            bucket_threads.h
+add_library(memcached_daemon STATIC
             bucket_type.cc
             buckets.cc
             buckets.h
@@ -60,7 +59,6 @@ ADD_LIBRARY(memcached_daemon STATIC
             mcbp_topkeys.h
             mcbp_validators.cc
             mcbp_validators.h
-            mcbpdestroybuckettask.h
             memcached.cc
             network_interface.cc
             network_interface.h
@@ -210,6 +208,7 @@ TARGET_LINK_LIBRARIES(memcached_daemon
                       default_engine
                       ep
                       ewouldblock_engine
+                      executor
                       mcd_util
                       mcd_tracing
                       mcbp

@@ -10,41 +10,11 @@
  */
 #include "create_remove_bucket_command_context.h"
 
+#include <daemon/connection.h>
 #include <daemon/enginemap.h>
-#include <daemon/executorpool.h>
-#include <daemon/mcbpdestroybuckettask.h>
+#include <executor/executor.h>
+#include <logger/logger.h>
 #include <memcached/config_parser.h>
-
-/**
- * Override the CreateBucketTask so that we can have our own notification
- * mechanism to kickstart the clients thread
- */
-class McbpCreateBucketTask : public Task {
-public:
-    McbpCreateBucketTask(const std::string& name_,
-                         const std::string& config_,
-                         const BucketType& type_,
-                         Cookie& cookie_)
-        : thread(name_, config_, type_, cookie_, this), cookie(cookie_) {
-    }
-
-    // start the bucket deletion
-    // May throw std::bad_alloc if we're failing to start the thread
-    void start() {
-        thread.start();
-    }
-
-    Status execute() override {
-        return Status::Finished;
-    }
-
-    void notifyExecutionComplete() override {
-        ::notifyIoComplete(cookie, thread.getResult());
-    }
-
-    CreateBucketThread thread;
-    Cookie& cookie;
-};
 
 cb::engine_errc CreateRemoveBucketCommandContext::initial() {
     if (request.getClientOpcode() == cb::mcbp::ClientOpcode::CreateBucket) {
@@ -71,12 +41,25 @@ cb::engine_errc CreateRemoveBucketCommandContext::create() {
         value.resize(marker);
     }
 
-    std::string errors;
     auto type = module_to_bucket_type(value);
-    task = std::make_shared<McbpCreateBucketTask>(name, config, type, cookie);
-    std::lock_guard<std::mutex> guard(task->getMutex());
-    reinterpret_cast<McbpCreateBucketTask*>(task.get())->start();
-    executorPool->schedule(task, false);
+
+    cb::executor::get().add([client = &cookie,
+                             nm = std::move(name),
+                             cfg = std::move(config),
+                             t = type]() {
+        auto& connection = client->getConnection();
+        cb::engine_errc status;
+        try {
+            status = BucketManager::instance().create(*client, nm, cfg, t);
+        } catch (const std::runtime_error& error) {
+            LOG_WARNING("{}: An error occurred while creating bucket [{}]: {}",
+                        connection.getId(),
+                        nm,
+                        error.what());
+            status = cb::engine_errc::failed;
+        }
+        ::notifyIoComplete(*client, status);
+    });
 
     state = State::Done;
     return cb::engine_errc::would_block;
@@ -100,10 +83,22 @@ cb::engine_errc CreateRemoveBucketCommandContext::remove() {
         return cb::engine_errc::invalid_arguments;
     }
 
-    task = std::make_shared<McbpDestroyBucketTask>(name, force, &cookie);
-    std::lock_guard<std::mutex> guard(task->getMutex());
-    reinterpret_cast<McbpDestroyBucketTask*>(task.get())->start();
-    executorPool->schedule(task, false);
+    cb::executor::get().add([client = &cookie,
+                             nm = std::move(name),
+                             f = force]() {
+        auto& connection = client->getConnection();
+        cb::engine_errc status;
+        try {
+            status = BucketManager::instance().destroy(client, nm, f);
+        } catch (const std::runtime_error& error) {
+            LOG_WARNING("{}: An error occurred while deleting bucket [{}]: {}",
+                        connection.getId(),
+                        nm,
+                        error.what());
+            status = cb::engine_errc::failed;
+        }
+        ::notifyIoComplete(*client, status);
+    });
 
     state = State::Done;
     return cb::engine_errc::would_block;

@@ -14,7 +14,6 @@
 
 #include <daemon/cookie.h>
 #include <daemon/memcached.h>
-#include <daemon/task.h>
 
 /**
  * CreateBucketCommandContext is responsible for handling the
@@ -47,5 +46,4 @@ protected:
 private:
     const cb::mcbp::Request& request;
     State state;
-    std::shared_ptr<Task> task;
 };

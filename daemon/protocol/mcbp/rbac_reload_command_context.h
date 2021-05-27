@@ -12,8 +12,6 @@
 
 #include "steppable_command_context.h"
 
-#include <daemon/task.h>
-
 /**
  * RbacReloadCommandContext is responsible for handling the
  * rbac reload command. Due to the fact that this involves disk IO
@@ -50,5 +48,4 @@ protected:
 
 private:
     State state = State::Reload;
-    std::shared_ptr<Task> task;
 };
