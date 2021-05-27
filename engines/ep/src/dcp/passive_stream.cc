@@ -730,7 +730,7 @@ cb::engine_errc PassiveStream::processPrepare(
     auto result = processMessage(prepare, MessageType::Prepare);
     if (result == cb::engine_errc::success) {
         Expects(prepare->getItem()->getBySeqno() ==
-                engine->getVBucket(vb_)->getHighSeqno())
+                engine->getVBucket(vb_)->getHighSeqno());
     }
     return result;
 }
