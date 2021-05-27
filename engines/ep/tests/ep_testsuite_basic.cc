@@ -1684,7 +1684,7 @@ static enum test_result test_get_delete_missing_file(EngineIface* h) {
     // the item is still in the memory
     checkeq(cb::engine_errc::success, ret.first, "Expected success for get");
 
-    evict_key(h, key);
+    evict_key(h, key, Vbid(0), "Ejected." /*expected_msg*/);
     ret = get(h, nullptr, key, Vbid(0));
 
     // ep engine must be now aware of the ill-fated db file where

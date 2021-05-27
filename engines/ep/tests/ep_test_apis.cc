@@ -74,7 +74,7 @@ CouchstoreFileAccessGuard::CouchstoreFileAccessGuard(
     if (mode == Mode::DenyAll) {
         hFile = CreateFileA(filename.c_str(),
                             GENERIC_WRITE,
-                            0,
+                            0 /*exclusive*/,
                             nullptr,
                             OPEN_EXISTING,
                             0,
