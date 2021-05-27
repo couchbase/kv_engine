@@ -394,7 +394,7 @@ uint64_t get_histo_stat(EngineIface* h,
                         const char* statkey,
                         const Histo_stat_info histo_info);
 
-typedef std::map<std::string, std::string> statistic_map;
+using statistic_map = std::map<std::string, std::string>;
 
 /* Returns a map of all statistics for the given statistic set.
  * @param statset The set of statistics to fetch. May be nullptr, in which case

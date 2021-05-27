@@ -490,27 +490,28 @@ cb::engine_errc del_with_meta(EngineIface* h,
                               protocol_binary_datatype_t datatype,
                               const std::vector<char>& value) {
     size_t blen = 24;
-    std::unique_ptr<char[]> ext(new char[30]);
-    std::unique_ptr<ExtendedMetaData> emd;
+    std::array<char, 30> ext;
 
-    encodeWithMetaExt(ext.get(), itemMeta);
+    encodeWithMetaExt(ext.data(), itemMeta);
 
     if (options) {
         uint32_t optionsSwapped = htonl(options);
-        memcpy(ext.get() + blen, (char*)&optionsSwapped, sizeof(optionsSwapped));
+        memcpy(ext.data() + blen,
+               (char*)&optionsSwapped,
+               sizeof(optionsSwapped));
         blen += sizeof(uint32_t);
     }
 
     if (!nmeta.empty()) {
         uint16_t nmetaSize = htons(nmeta.size());
-        memcpy(ext.get() + blen, (char*)&nmetaSize, sizeof(nmetaSize));
+        memcpy(ext.data() + blen, (char*)&nmetaSize, sizeof(nmetaSize));
         blen += sizeof(uint16_t);
     }
 
     auto pkt = createPacket(cb::mcbp::ClientOpcode::DelWithMeta,
                             vb,
                             cas_for_delete,
-                            {ext.get(), blen},
+                            {ext.data(), blen},
                             {key, keylen},
                             {value.data(), value.size()},
                             datatype,
@@ -573,10 +574,12 @@ cb::engine_errc seqnoPersistence(EngineIface* h,
                                  Vbid vbucket,
                                  uint64_t seqno) {
     seqno = htonll(seqno);
-    char buffer[8];
-    memcpy(buffer, &seqno, sizeof(uint64_t));
-    auto request = createPacket(
-            cb::mcbp::ClientOpcode::SeqnoPersistence, vbucket, 0, {buffer, 8});
+    std::array<char, 8> buffer;
+    memcpy(buffer.data(), &seqno, sizeof(uint64_t));
+    auto request = createPacket(cb::mcbp::ClientOpcode::SeqnoPersistence,
+                                vbucket,
+                                0,
+                                {buffer.data(), buffer.size()});
     return h->unknown_command(cookie, *request, add_response);
 }
 
@@ -769,20 +772,21 @@ bool get_all_vb_seqnos(EngineIface* h,
             return false;
         }
 
-        char ext[sizeof(vbucket_state_t) + sizeof(CollectionIDType)];
-        encodeExt(ext, static_cast<uint32_t>(*state));
-        encodeExt(ext, *collection, sizeof(vbucket_state_t));
+        std::array<char, sizeof(vbucket_state_t) + sizeof(CollectionIDType)>
+                ext;
+        encodeExt(ext.data(), static_cast<uint32_t>(*state));
+        encodeExt(ext.data(), *collection, sizeof(vbucket_state_t));
         pkt = createPacket(cb::mcbp::ClientOpcode::GetAllVbSeqnos,
                            Vbid(0),
                            0,
-                           {ext,sizeof(vbucket_state_t) + sizeof(CollectionIDType)});
+                           {ext.data(), ext.size()});
     } else if (state) {
-        char ext[sizeof(vbucket_state_t)];
-        encodeExt(ext, static_cast<uint32_t>(*state));
+        std::array<char, sizeof(vbucket_state_t)> ext;
+        encodeExt(ext.data(), static_cast<uint32_t>(*state));
         pkt = createPacket(cb::mcbp::ClientOpcode::GetAllVbSeqnos,
                            Vbid(0),
                            0,
-                           {ext, sizeof(vbucket_state_t)});
+                           std::string_view{ext.data(), ext.size()});
     } else {
         pkt = createPacket(cb::mcbp::ClientOpcode::GetAllVbSeqnos);
     }
@@ -851,27 +855,29 @@ static cb::engine_errc store_with_meta(EngineIface* h,
                                        cb::tracing::Traceable* cookie,
                                        const std::vector<char>& nmeta) {
     size_t blen = 24;
-    std::unique_ptr<char[]> ext(new char[30]);
+    std::array<char, 30> ext;
     std::unique_ptr<ExtendedMetaData> emd;
 
-    encodeWithMetaExt(ext.get(), itemMeta);
+    encodeWithMetaExt(ext.data(), itemMeta);
 
     if (options) {
         uint32_t optionsSwapped = htonl(options);
-        memcpy(ext.get() + blen, (char*)&optionsSwapped, sizeof(optionsSwapped));
+        memcpy(ext.data() + blen,
+               (char*)&optionsSwapped,
+               sizeof(optionsSwapped));
         blen += sizeof(uint32_t);
     }
 
     if (!nmeta.empty()) {
         uint16_t nmetaSize = htons(nmeta.size());
-        memcpy(ext.get() + blen, (char*)&nmetaSize, sizeof(nmetaSize));
+        memcpy(ext.data() + blen, (char*)&nmetaSize, sizeof(nmetaSize));
         blen += sizeof(uint16_t);
     }
 
     auto request = createPacket(cmd,
                                 vb,
                                 cas_for_store,
-                                {ext.get(), blen},
+                                {ext.data(), blen},
                                 {key, keylen},
                                 {val, vallen},
                                 datatype,
