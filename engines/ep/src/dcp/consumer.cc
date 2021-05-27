@@ -326,7 +326,7 @@ cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
                                vb_manifest_uid);
     registerStream(stream);
 
-    LockHolder lh(readyMutex);
+    std::lock_guard<std::mutex> lh(readyMutex);
     ready.push_back(vbucket);
     opaqueMap_[new_opaque] = std::make_pair(opaque, vbucket);
     pendingAddStream = false;
@@ -1303,7 +1303,7 @@ std::string DcpConsumer::getProcessorTaskStatusStr() const {
 }
 
 std::unique_ptr<DcpResponse> DcpConsumer::getNextItem() {
-    LockHolder lh(readyMutex);
+    std::lock_guard<std::mutex> lh(readyMutex);
 
     unPause();
     while (!ready.empty()) {

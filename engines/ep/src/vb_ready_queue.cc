@@ -11,20 +11,18 @@
 
 #include "vb_ready_queue.h"
 
-#include "locks.h"
-
 #include <statistics/cbstat_collector.h>
 
 VBReadyQueue::VBReadyQueue(size_t maxVBuckets) : queuedValues(maxVBuckets) {
 }
 
 bool VBReadyQueue::exists(Vbid vbucket) {
-    LockHolder lh(lock);
+    std::lock_guard<std::mutex> lh(lock);
     return queuedValues.test(vbucket.get());
 }
 
 bool VBReadyQueue::popFront(Vbid& frontValue) {
-    LockHolder lh(lock);
+    std::lock_guard<std::mutex> lh(lock);
     if (!readyQueue.empty()) {
         frontValue = readyQueue.front();
         readyQueue.pop();
@@ -35,7 +33,7 @@ bool VBReadyQueue::popFront(Vbid& frontValue) {
 }
 
 void VBReadyQueue::pop() {
-    LockHolder lh(lock);
+    std::lock_guard<std::mutex> lh(lock);
     if (!readyQueue.empty()) {
         queuedValues.reset(readyQueue.front().get());
         readyQueue.pop();
@@ -45,7 +43,7 @@ void VBReadyQueue::pop() {
 bool VBReadyQueue::pushUnique(Vbid vbucket) {
     bool wasEmpty;
     {
-        LockHolder lh(lock);
+        std::lock_guard<std::mutex> lh(lock);
         wasEmpty = readyQueue.empty();
         const bool wasSet = queuedValues.test_set(vbucket.get());
         if (!wasSet) {
@@ -56,17 +54,17 @@ bool VBReadyQueue::pushUnique(Vbid vbucket) {
 }
 
 size_t VBReadyQueue::size() const {
-    LockHolder lh(lock);
+    std::lock_guard<std::mutex> lh(lock);
     return readyQueue.size();
 }
 
 bool VBReadyQueue::empty() {
-    LockHolder lh(lock);
+    std::lock_guard<std::mutex> lh(lock);
     return readyQueue.empty();
 }
 
 void VBReadyQueue::clear() {
-    LockHolder lh(lock);
+    std::lock_guard<std::mutex> lh(lock);
     while (!readyQueue.empty()) {
         readyQueue.pop();
     }
@@ -74,7 +72,7 @@ void VBReadyQueue::clear() {
 }
 
 std::queue<Vbid> VBReadyQueue::swap() {
-    LockHolder lh(lock);
+    std::lock_guard<std::mutex> lh(lock);
     std::queue<Vbid> result;
     readyQueue.swap(result);
     queuedValues.reset();
@@ -89,7 +87,7 @@ void VBReadyQueue::addStats(const std::string& prefix,
     std::queue<Vbid> qCopy;
     boost::dynamic_bitset<> qMapCopy;
     {
-        LockHolder lh(lock);
+        std::lock_guard<std::mutex> lh(lock);
         qCopy = readyQueue;
         qMapCopy = queuedValues;
     }

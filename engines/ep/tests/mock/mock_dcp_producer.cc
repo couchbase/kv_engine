@@ -110,7 +110,7 @@ std::shared_ptr<ActiveStream> MockDcpProducer::findStream(Vbid vbid) {
 
 ActiveStreamCheckpointProcessorTask*
 MockDcpProducer::getCheckpointSnapshotTask() const {
-    LockHolder guard(checkpointCreator->mutex);
+    std::lock_guard<std::mutex> guard(checkpointCreator->mutex);
     return static_cast<ActiveStreamCheckpointProcessorTask*>(
             checkpointCreator->task.get());
 }

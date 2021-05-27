@@ -315,8 +315,8 @@ public:
      *                 post a failover and/or rebalance
      * @param notify_dcp indicates whether we must consider closing DCP streams
      *                    associated with the vbucket
-     * @param vbset LockHolder acquiring the 'vbsetMutex' lock in the
-     *              EventuallyPersistentStore class
+     * @param vbset std::lock_guard<std::mutex> acquiring the 'vbsetMutex' lock
+     * in the EventuallyPersistentStore class
      * @param vbStateLock WriterLockHolder of 'stateLock' in the vbucket
      *                    class.
      */
@@ -334,8 +334,8 @@ public:
      * @param vbid vbucket id
      * @param state desired state of the vbucket
      * @param meta optional meta information to apply alongside the state
-     * @param vbset LockHolder acquiring the 'vbsetMutex' lock in the
-     *              EventuallyPersistentStore class
+     * @param vbset std::lock_guard<std::mutex> acquiring the 'vbsetMutex' lock
+     * in the EventuallyPersistentStore class
      *
      * @return status of the operation
      */
@@ -463,7 +463,7 @@ public:
     }
 
     size_t getExpiryPagerSleeptime() override {
-        LockHolder lh(expiryPager.mutex);
+        std::lock_guard<std::mutex> lh(expiryPager.mutex);
         return expiryPager.sleeptime;
     }
 
@@ -612,12 +612,12 @@ public:
     void setCursorDroppingLowerUpperThresholds(size_t maxSize) override;
 
     bool isAccessScannerEnabled() override {
-        LockHolder lh(accessScanner.mutex);
+        std::lock_guard<std::mutex> lh(accessScanner.mutex);
         return accessScanner.enabled;
     }
 
     bool isExpPagerEnabled() override {
-        LockHolder lh(expiryPager.mutex);
+        std::lock_guard<std::mutex> lh(expiryPager.mutex);
         return expiryPager.enabled;
     }
 

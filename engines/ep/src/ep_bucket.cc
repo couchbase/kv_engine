@@ -2079,14 +2079,14 @@ void EPBucket::warmupCompleted() {
     if (engine.getConfiguration().getAlogPath().length() > 0) {
         if (engine.getConfiguration().isAccessScannerEnabled()) {
             {
-                LockHolder lh(accessScanner.mutex);
+                std::lock_guard<std::mutex> lh(accessScanner.mutex);
                 accessScanner.enabled = true;
             }
             EP_LOG_INFO("Access Scanner task enabled");
             size_t smin = engine.getConfiguration().getAlogSleepTime();
             setAccessScannerSleeptime(smin, true);
         } else {
-            LockHolder lh(accessScanner.mutex);
+            std::lock_guard<std::mutex> lh(accessScanner.mutex);
             accessScanner.enabled = false;
             EP_LOG_INFO("Access Scanner task disabled");
         }

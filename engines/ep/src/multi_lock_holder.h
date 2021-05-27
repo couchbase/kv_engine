@@ -14,14 +14,11 @@
 #include <mutex>
 #include <vector>
 
-using LockHolder = std::lock_guard<std::mutex>;
-
 /**
  * RAII lock holder over multiple locks.
  */
 class MultiLockHolder {
 public:
-
     /**
      * Acquire a series of locks.
      *
@@ -59,4 +56,5 @@ private:
     DISALLOW_COPY_AND_ASSIGN(MultiLockHolder);
 };
 #define MultiLockHolder(x) \
-    static_assert(false, "MultiLockHolder: missing variable name for scoped lock.")
+    static_assert(false,   \
+                  "MultiLockHolder: missing variable name for scoped lock.")

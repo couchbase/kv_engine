@@ -36,8 +36,6 @@ class VBucket;
 template <typename... RV>
 class Callback;
 
-using LockHolder = std::lock_guard<std::mutex>;
-
 /**
  * snapshot_range_t + a HCS for flushing to disk from Disk checkpoints which
  * is required as we can't work out a correct PCS on a replica due to de-dupe.
@@ -529,17 +527,20 @@ protected:
      */
     bool incrCursor(CheckpointCursor& cursor);
 
-    uint64_t getOpenCheckpointId_UNLOCKED(const LockHolder& lh);
+    uint64_t getOpenCheckpointId_UNLOCKED(
+            const std::lock_guard<std::mutex>& lh);
 
-    uint64_t getLastClosedCheckpointId_UNLOCKED(const LockHolder& lh);
+    uint64_t getLastClosedCheckpointId_UNLOCKED(
+            const std::lock_guard<std::mutex>& lh);
 
     // Helper method for queueing methods - update the global and per-VBucket
     // stats after queueing a new item to a checkpoint.
     // Must be called with queueLock held (LockHolder passed in as argument to
     // 'prove' this).
-    void updateStatsForNewQueuedItem_UNLOCKED(const LockHolder& lh,
-                                              VBucket& vb,
-                                              const queued_item& qi);
+    void updateStatsForNewQueuedItem_UNLOCKED(
+            const std::lock_guard<std::mutex>& lh,
+            VBucket& vb,
+            const queued_item& qi);
 
     /**
      * function to invoke whenever memory usage changes due to a new
@@ -560,9 +561,10 @@ protected:
      */
     bool removeCursor_UNLOCKED(CheckpointCursor* cursor);
 
-    CursorRegResult registerCursorBySeqno_UNLOCKED(const LockHolder& lh,
-                                                   const std::string& name,
-                                                   uint64_t startBySeqno);
+    CursorRegResult registerCursorBySeqno_UNLOCKED(
+            const std::lock_guard<std::mutex>& lh,
+            const std::string& name,
+            uint64_t startBySeqno);
 
     /**
      * Called by getItemsForCursor() for registering a copy of the persistence
@@ -575,7 +577,7 @@ protected:
      * @param lh Lock to CM::queueLock
      * @throws logic_error if the user attempts to overwrite the backup pcursor
      */
-    void registerBackupPersistenceCursor(const LockHolder& lh);
+    void registerBackupPersistenceCursor(const std::lock_guard<std::mutex>& lh);
 
     size_t getNumItemsForCursor_UNLOCKED(const CheckpointCursor* cursor) const;
 
@@ -584,7 +586,8 @@ protected:
     /*
      * @return a reference to the open checkpoint
      */
-    Checkpoint& getOpenCheckpoint_UNLOCKED(const LockHolder& lh) const;
+    Checkpoint& getOpenCheckpoint_UNLOCKED(
+            const std::lock_guard<std::mutex>& lh) const;
 
     /*
      * Closes the current open checkpoint and adds a new open checkpoint to
@@ -647,14 +650,14 @@ protected:
      * @param timeBound is to indicate if time bound should be considered in creating a new
      * checkpoint.
      */
-    void checkOpenCheckpoint_UNLOCKED(const LockHolder& lh,
+    void checkOpenCheckpoint_UNLOCKED(const std::lock_guard<std::mutex>& lh,
                                       bool forceCreation,
                                       bool timeBound);
 
     bool isLastMutationItemInCheckpoint(CheckpointCursor &cursor);
 
-    bool isCheckpointCreationForHighMemUsage_UNLOCKED(const LockHolder& lh,
-                                                      const VBucket& vbucket);
+    bool isCheckpointCreationForHighMemUsage_UNLOCKED(
+            const std::lock_guard<std::mutex>& lh, const VBucket& vbucket);
 
     void resetCursors();
 

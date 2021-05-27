@@ -44,7 +44,7 @@ CheckpointManager::CheckpointManager(EPStats& st,
       lastBySeqno(lastSeqno),
       maxVisibleSeqno(maxVisibleSeqno),
       flusherCB(std::move(cb)) {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
 
     lastBySeqno.setLabel("CheckpointManager(" + vbucketId.to_string() +
                          ")::lastBySeqno");
@@ -68,28 +68,29 @@ CheckpointManager::CheckpointManager(EPStats& st,
     }
 }
 
-uint64_t CheckpointManager::getOpenCheckpointId_UNLOCKED(const LockHolder& lh) {
+uint64_t CheckpointManager::getOpenCheckpointId_UNLOCKED(
+        const std::lock_guard<std::mutex>& lh) {
     return getOpenCheckpoint_UNLOCKED(lh).getId();
 }
 
 uint64_t CheckpointManager::getOpenCheckpointId() {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
     return getOpenCheckpointId_UNLOCKED(lh);
 }
 
 uint64_t CheckpointManager::getLastClosedCheckpointId_UNLOCKED(
-        const LockHolder& lh) {
+        const std::lock_guard<std::mutex>& lh) {
     auto id = getOpenCheckpointId_UNLOCKED(lh);
     return id > 0 ? (id - 1) : 0;
 }
 
 uint64_t CheckpointManager::getLastClosedCheckpointId() {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
     return getLastClosedCheckpointId_UNLOCKED(lh);
 }
 
 Checkpoint& CheckpointManager::getOpenCheckpoint_UNLOCKED(
-        const LockHolder&) const {
+        const std::lock_guard<std::mutex>&) const {
     // During its lifetime, the checkpointList can only be in one of the
     // following states:
     //
@@ -232,12 +233,14 @@ void CheckpointManager::addOpenCheckpoint(
 
 CursorRegResult CheckpointManager::registerCursorBySeqno(
         const std::string& name, uint64_t startBySeqno) {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
     return registerCursorBySeqno_UNLOCKED(lh, name, startBySeqno);
 }
 
 CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
-        const LockHolder& lh, const std::string& name, uint64_t startBySeqno) {
+        const std::lock_guard<std::mutex>& lh,
+        const std::string& name,
+        uint64_t startBySeqno) {
     const auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
     if (openCkpt.getHighSeqno() < startBySeqno) {
         throw std::invalid_argument(
@@ -316,7 +319,8 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
     return result;
 }
 
-void CheckpointManager::registerBackupPersistenceCursor(const LockHolder& lh) {
+void CheckpointManager::registerBackupPersistenceCursor(
+        const std::lock_guard<std::mutex>& lh) {
     // Preconditions: pCursor exists and copy does not
     Expects(persistenceCursor);
     if (cursors.find(backupPCursorName) != cursors.end()) {
@@ -334,12 +338,12 @@ void CheckpointManager::registerBackupPersistenceCursor(const LockHolder& lh) {
 bool CheckpointManager::removeCursor(CheckpointCursor* cursor) {
     removeCursorPreLockHook();
 
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
     return removeCursor_UNLOCKED(cursor);
 }
 
 void CheckpointManager::removeBackupPersistenceCursor() {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
     const auto res = removeCursor_UNLOCKED(cursors.at(backupPCursorName).get());
     Expects(res);
 
@@ -349,7 +353,7 @@ void CheckpointManager::removeBackupPersistenceCursor() {
 }
 
 VBucket::AggregatedFlushStats CheckpointManager::resetPersistenceCursor() {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
 
     // Note: the logic here relies on the existing cursor copy-ctor and
     //  CM::removeCursor function for getting the checkpoint num-cursors
@@ -421,7 +425,7 @@ bool CheckpointManager::removeCursor_UNLOCKED(CheckpointCursor* cursor) {
 }
 
 bool CheckpointManager::isCheckpointCreationForHighMemUsage_UNLOCKED(
-        const LockHolder& lh, const VBucket& vbucket) {
+        const std::lock_guard<std::mutex>& lh, const VBucket& vbucket) {
     bool forceCreation = false;
     auto memoryUsed = static_cast<double>(stats.getEstimatedTotalMemoryUsed());
 
@@ -449,7 +453,7 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
     // returns).
     CheckpointList unrefCheckpointList;
     {
-        LockHolder lh(queueLock);
+        std::lock_guard<std::mutex> lh(queueLock);
         bool canCreateNewCheckpoint = false;
         if (checkpointList.size() < checkpointConfig.getMaxCheckpoints() ||
             (checkpointList.size() == checkpointConfig.getMaxCheckpoints() &&
@@ -543,7 +547,7 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
     });
     CheckpointQueue expelledItems;
     {
-        LockHolder lh(queueLock);
+        std::lock_guard<std::mutex> lh(queueLock);
 
         Checkpoint* oldestCheckpoint = checkpointList.front().get();
 
@@ -679,7 +683,7 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
 }
 
 std::vector<Cursor> CheckpointManager::getListOfCursorsToDrop() {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
 
     Checkpoint* persistentCheckpoint =
             (persistenceCursor == nullptr)
@@ -732,7 +736,7 @@ std::vector<Cursor> CheckpointManager::getListOfCursorsToDrop() {
 }
 
 bool CheckpointManager::hasClosedCheckpointWhichCanBeRemoved() const {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
     // Check oldest checkpoint; if closed and contains no cursors then
     // we can remove it (and possibly additional old-but-not-oldest
     // checkpoints).
@@ -742,7 +746,7 @@ bool CheckpointManager::hasClosedCheckpointWhichCanBeRemoved() const {
 }
 
 bool CheckpointManager::isEligibleForCheckpointRemovalAfterPersistence() const {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
 
     const auto& oldestCkpt = checkpointList.front();
 
@@ -779,7 +783,9 @@ bool CheckpointManager::isEligibleForCheckpointRemovalAfterPersistence() const {
 }
 
 void CheckpointManager::updateStatsForNewQueuedItem_UNLOCKED(
-        const LockHolder& lh, VBucket& vb, const queued_item& qi) {
+        const std::lock_guard<std::mutex>& lh,
+        VBucket& vb,
+        const queued_item& qi) {
     ++stats.totalEnqueued;
     if (checkpointConfig.isPersistenceEnabled()) {
         ++stats.diskQueueSize;
@@ -794,7 +800,7 @@ bool CheckpointManager::queueDirty(
         const GenerateCas generateCas,
         PreLinkDocumentContext* preLinkDocumentContext,
         std::function<void(int64_t)> assignedSeqnoCallback) {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
 
     bool canCreateNewCheckpoint = false;
     if (checkpointList.size() < checkpointConfig.getMaxCheckpoints() ||
@@ -914,7 +920,7 @@ void CheckpointManager::queueSetVBState(VBucket& vb) {
     auto vbstate = vb.getTransitionState();
 
     // Take lock to serialize use of {lastBySeqno} and to queue op.
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
 
     // Create the setVBState operation, and enqueue it.
     queued_item item = createCheckpointItem(/*id*/0, vbucketId,
@@ -962,7 +968,7 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
         size_t approxLimit) {
     Expects(approxLimit > 0);
 
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
     if (!cursorPtr) {
         EP_LOG_WARN("getItemsForCursor(): Caller had a null cursor {}",
                     vbucketId);
@@ -1119,18 +1125,18 @@ void CheckpointManager::notifyFlusher() {
 }
 
 int64_t CheckpointManager::getHighSeqno() const {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
     return lastBySeqno;
 }
 
 uint64_t CheckpointManager::getMaxVisibleSeqno() const {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
     return maxVisibleSeqno;
 }
 
 std::shared_ptr<CheckpointCursor>
 CheckpointManager::getBackupPersistenceCursor() {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
     const auto exists = cursors.find(backupPCursorName) != cursors.end();
     return exists ? cursors[backupPCursorName] : nullptr;
 }
@@ -1140,7 +1146,7 @@ void CheckpointManager::dump() const {
 }
 
 void CheckpointManager::clear(VBucket& vb, uint64_t seqno) {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
     clear_UNLOCKED(vb.getState(), seqno);
 
     // Reset the disk write queue size stat for the vbucket
@@ -1213,13 +1219,14 @@ bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
 }
 
 size_t CheckpointManager::getNumOpenChkItems() const {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
     return getOpenCheckpoint_UNLOCKED(lh).getNumItems();
 }
 
-void CheckpointManager::checkOpenCheckpoint_UNLOCKED(const LockHolder& lh,
-                                                     bool forceCreation,
-                                                     bool timeBound) {
+void CheckpointManager::checkOpenCheckpoint_UNLOCKED(
+        const std::lock_guard<std::mutex>& lh,
+        bool forceCreation,
+        bool timeBound) {
     const auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
 
     timeBound = timeBound && (ep_real_time() - openCkpt.getCreationTime()) >=
@@ -1241,7 +1248,7 @@ void CheckpointManager::checkOpenCheckpoint_UNLOCKED(const LockHolder& lh,
 
 size_t CheckpointManager::getNumItemsForCursor(
         const CheckpointCursor* cursor) const {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
     return getNumItemsForCursor_UNLOCKED(cursor);
 }
 
@@ -1268,7 +1275,7 @@ size_t CheckpointManager::getNumItemsForCursor_UNLOCKED(
 }
 
 void CheckpointManager::clear(vbucket_state_t vbState) {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
     clear_UNLOCKED(vbState, lastBySeqno);
 }
 
@@ -1296,7 +1303,7 @@ void CheckpointManager::createSnapshot(
         Expects(highCompletedSeqno.has_value());
     }
 
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
 
     auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
     const auto openCkptId = openCkpt.getId();
@@ -1320,7 +1327,7 @@ void CheckpointManager::createSnapshot(
 
 void CheckpointManager::extendOpenCheckpoint(uint64_t snapEnd,
                                              uint64_t visibleSnapEnd) {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
     auto& ckpt = getOpenCheckpoint_UNLOCKED(lh);
 
     if (ckpt.getCheckpointType() == CheckpointType::Disk) {
@@ -1333,7 +1340,7 @@ void CheckpointManager::extendOpenCheckpoint(uint64_t snapEnd,
 }
 
 snapshot_info_t CheckpointManager::getSnapshotInfo() {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
 
     const auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
 
@@ -1358,7 +1365,7 @@ snapshot_info_t CheckpointManager::getSnapshotInfo() {
 }
 
 uint64_t CheckpointManager::getOpenSnapshotStartSeqno() const {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
     const auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
 
     return openCkpt.getSnapshotStartSeqno();
@@ -1366,7 +1373,7 @@ uint64_t CheckpointManager::getOpenSnapshotStartSeqno() const {
 
 uint64_t CheckpointManager::getVisibleSnapshotEndSeqno() const {
     // Follow what getSnapshotInfo does, but only for visible end-seqno
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
     const auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
 
     // This clause is also in getSnapshotInfo, if we have no items for the open
@@ -1420,7 +1427,7 @@ queued_item CheckpointManager::createCheckpointItem(uint64_t id,
 }
 
 uint64_t CheckpointManager::createNewCheckpoint(bool force) {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
 
     const auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
 
@@ -1449,12 +1456,12 @@ size_t CheckpointManager::getMemoryOverhead_UNLOCKED() const {
 }
 
 size_t CheckpointManager::getMemoryUsage() const {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
     return getMemoryUsage_UNLOCKED();
 }
 
 size_t CheckpointManager::getMemoryUsageOfUnrefCheckpoints() const {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
 
     size_t memUsage = 0;
     for (const auto& checkpoint : checkpointList) {
@@ -1468,13 +1475,13 @@ size_t CheckpointManager::getMemoryUsageOfUnrefCheckpoints() const {
 }
 
 size_t CheckpointManager::getMemoryOverhead() const {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
     return getMemoryOverhead_UNLOCKED();
 }
 
 void CheckpointManager::addStats(const AddStatFn& add_stat,
                                  const void* cookie) {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
     std::array<char, 256> buf;
 
     try {
@@ -1602,7 +1609,7 @@ bool CheckpointManager::isOpenCheckpointDisk() {
 
 void CheckpointManager::updateStatsForStateChange(vbucket_state_t from,
                                                   vbucket_state_t to) {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
     if (from == vbucket_state_replica && to != vbucket_state_replica) {
         // vbucket is changing state away from replica, it's memory usage
         // should no longer be accounted for as a replica.
@@ -1616,7 +1623,7 @@ void CheckpointManager::updateStatsForStateChange(vbucket_state_t from,
 
 void CheckpointManager::setOverheadChangedCallback(
         std::function<void(int64_t delta)> callback) {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
     overheadChangedCallback = std::move(callback);
 
     overheadChangedCallback(getMemoryOverhead_UNLOCKED());
@@ -1624,7 +1631,7 @@ void CheckpointManager::setOverheadChangedCallback(
 
 std::function<void(int64_t delta)>
 CheckpointManager::getOverheadChangedCallback() const {
-    LockHolder lh(queueLock);
+    std::lock_guard<std::mutex> lh(queueLock);
     return overheadChangedCallback;
 }
 

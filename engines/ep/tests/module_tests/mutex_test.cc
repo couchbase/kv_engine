@@ -11,15 +11,13 @@
 
 #include "common.h"
 #include "lock_timer.h"
-#include "locks.h"
 #include <folly/portability/GTest.h>
-#include <iostream>
 #include <thread>
 
 TEST(LockTimerTest, LockHolder) {
     std::mutex m;
     {
-        LockTimer<LockHolder, 1, 1> lh(m, "LockHolder");
+        LockTimer<std::lock_guard<std::mutex>, 1, 1> lh(m, "LockHolder");
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
 }

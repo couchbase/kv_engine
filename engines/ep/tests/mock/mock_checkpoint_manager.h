@@ -46,7 +46,7 @@ public:
      * @return the next item to be sent to a given connection.
      */
     queued_item nextItem(CheckpointCursor* cursor, bool& isLastMutationItem) {
-        LockHolder lh(queueLock);
+        std::lock_guard<std::mutex> lh(queueLock);
         static StoredDocKey emptyKey("", CollectionID::System);
         if (!cursor) {
             queued_item qi(
@@ -71,12 +71,12 @@ public:
     }
 
     size_t getNumOfCursors() const {
-        LockHolder lh(queueLock);
+        std::lock_guard<std::mutex> lh(queueLock);
         return cursors.size();
     }
 
     size_t getNumCheckpoints() const {
-        LockHolder lh(queueLock);
+        std::lock_guard<std::mutex> lh(queueLock);
         return checkpointList.size();
     }
 
@@ -87,7 +87,7 @@ public:
     queued_item public_createCheckpointItem(uint64_t id,
                                             Vbid vbid,
                                             queue_op checkpoint_op) {
-        LockHolder lh(queueLock);
+        std::lock_guard<std::mutex> lh(queueLock);
         return createCheckpointItem(id, vbid, checkpoint_op);
     }
 
@@ -96,7 +96,7 @@ public:
     }
 
     void forceNewCheckpoint() {
-        LockHolder lh(queueLock);
+        std::lock_guard<std::mutex> lh(queueLock);
         checkOpenCheckpoint_UNLOCKED(lh, true, false);
     }
 
@@ -105,12 +105,12 @@ public:
     }
 
     CheckpointType getOpenCheckpointType() const {
-        LockHolder lh(queueLock);
+        std::lock_guard<std::mutex> lh(queueLock);
         return getOpenCheckpoint_UNLOCKED(lh).getCheckpointType();
     }
 
     auto getPersistenceCursorPos() const {
-        LockHolder lh(queueLock);
+        std::lock_guard<std::mutex> lh(queueLock);
         return getPersistenceCursor()->currentPos;
     }
 };

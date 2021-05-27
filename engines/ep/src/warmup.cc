@@ -923,12 +923,12 @@ Warmup::Warmup(EPBucket& st, Configuration& config_)
 Warmup::~Warmup() = default;
 
 void Warmup::addToTaskSet(size_t taskId) {
-    LockHolder lh(taskSetMutex);
+    std::lock_guard<std::mutex> lh(taskSetMutex);
     taskSet.insert(taskId);
 }
 
 void Warmup::removeFromTaskSet(size_t taskId) {
-    LockHolder lh(taskSetMutex);
+    std::lock_guard<std::mutex> lh(taskSetMutex);
     taskSet.erase(taskId);
 }
 
@@ -947,7 +947,7 @@ void Warmup::start() {
 
 void Warmup::stop() {
     {
-        LockHolder lh(taskSetMutex);
+        std::lock_guard<std::mutex> lh(taskSetMutex);
         if(taskSet.empty()) {
             return;
         }

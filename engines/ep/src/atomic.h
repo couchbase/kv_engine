@@ -10,11 +10,11 @@
  */
 #pragma once
 
-#include "locks.h"
 #include "utility.h"
 #include <atomic>
 #include <iostream>
 #include <memory>
+#include <mutex>
 
 template <typename T>
 void atomic_setIfBigger(std::atomic<T> &obj, const T &newValue) {

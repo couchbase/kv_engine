@@ -118,7 +118,7 @@ public:
     std::unique_ptr<DcpResponse> next(DcpProducer& producer);
 
     void setActive() override {
-        LockHolder lh(streamMutex);
+        std::lock_guard<std::mutex> lh(streamMutex);
         if (isPending()) {
             transitionState(StreamState::Backfilling);
         }
@@ -398,7 +398,7 @@ protected:
      * @param streamMutex Lock
      */
     void processItems(OutstandingItemsResult& outstandingItemsResult,
-                      const LockHolder& streamMutex);
+                      const std::lock_guard<std::mutex>& streamMutex);
 
     /**
      * Should the given item be sent out across this stream?
@@ -461,7 +461,7 @@ protected:
      * streamMutex and pass a reference to it
      * @param streamMutex reference to lockholder
      */
-    void nextCheckpointItemTask(const LockHolder& streamMutex);
+    void nextCheckpointItemTask(const std::lock_guard<std::mutex>& streamMutex);
 
     bool supportSyncReplication() const {
         return syncReplication == SyncReplication::SyncReplication;

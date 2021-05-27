@@ -130,7 +130,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
         /* streamMutex lock needs to be acquired because endStream
          * potentially makes call to pushToReadyQueue.
          */
-        LockHolder lh(streamMutex);
+        std::lock_guard<std::mutex> lh(streamMutex);
         endStream(cb::mcbp::DcpStreamEndStatus::Ok);
         itemsReady.store(true);
         // lock is released on leaving the scope
@@ -470,7 +470,7 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
 
 void ActiveStream::completeBackfill() {
     {
-        LockHolder lh(streamMutex);
+        std::lock_guard<std::mutex> lh(streamMutex);
 
         // backfills can be scheduled and return nothing, leaving
         // lastBackfilledSeqno to be behind lastReadSeqno. Only update when
@@ -526,7 +526,7 @@ void ActiveStream::completeBackfill() {
 
 void ActiveStream::completeOSOBackfill() {
     {
-        LockHolder lh(streamMutex);
+        std::lock_guard<std::mutex> lh(streamMutex);
 
         // backfills can be scheduled and return nothing (e.g. collection
         // dropped), leaving lastBackfilledSeqno to be behind lastReadSeqno.
@@ -837,7 +837,7 @@ void ActiveStream::addStats(const AddStatFn& add_stat, const void* c) {
 void ActiveStream::addTakeoverStats(const AddStatFn& add_stat,
                                     const void* cookie,
                                     const VBucket& vb) {
-    LockHolder lh(streamMutex);
+    std::lock_guard<std::mutex> lh(streamMutex);
 
     add_casted_stat("name", name_, add_stat, cookie);
     if (!isActive()) {
@@ -943,11 +943,12 @@ bool ActiveStream::nextCheckpointItem(DcpProducer& producer) {
 
 void ActiveStream::nextCheckpointItemTask() {
     // MB-29369: Obtain stream mutex here
-    LockHolder lh(streamMutex);
+    std::lock_guard<std::mutex> lh(streamMutex);
     nextCheckpointItemTask(lh);
 }
 
-void ActiveStream::nextCheckpointItemTask(const LockHolder& streamMutex) {
+void ActiveStream::nextCheckpointItemTask(
+        const std::lock_guard<std::mutex>& streamMutex) {
     VBucketPtr vbucket = engine->getVBucket(vb_);
     if (vbucket) {
         auto producer = producerPtr.lock();
@@ -1172,8 +1173,9 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
     return SystemEventProducerMessage::make(opaque_, item, sid);
 }
 
-void ActiveStream::processItems(OutstandingItemsResult& outstandingItemsResult,
-                                const LockHolder& streamMutex) {
+void ActiveStream::processItems(
+        OutstandingItemsResult& outstandingItemsResult,
+        const std::lock_guard<std::mutex>& streamMutex) {
     if (!outstandingItemsResult.items.empty()) {
         // Transform the sequence of items from the CheckpointManager into
         // a sequence of DCP messages which this stream should receive. There
@@ -1429,7 +1431,7 @@ void ActiveStream::snapshot(CheckpointType checkpointType,
 
 void ActiveStream::setDeadInner(cb::mcbp::DcpStreamEndStatus status) {
     {
-        LockHolder lh(streamMutex);
+        std::lock_guard<std::mutex> lh(streamMutex);
         endStream(status);
     }
 
@@ -1766,7 +1768,7 @@ void ActiveStream::notifyEmptyBackfill_UNLOCKED(uint64_t lastSeenSeqno) {
 }
 
 bool ActiveStream::handleSlowStream() {
-    LockHolder lh(streamMutex);
+    std::lock_guard<std::mutex> lh(streamMutex);
     log(spdlog::level::level_enum::info,
         "{} Handling slow stream; "
         "state_ : {}, "
@@ -2057,7 +2059,7 @@ cb::engine_errc ActiveStream::seqnoAck(const std::string& consumerName,
         // Locked with the streamMutex to ensure that we cannot race with a
         // stream end
         {
-            LockHolder lh(streamMutex);
+            std::lock_guard<std::mutex> lh(streamMutex);
 
             // We cannot ack something on a dead stream.
             if (!isActive()) {

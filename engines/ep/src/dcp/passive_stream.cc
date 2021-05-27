@@ -61,7 +61,7 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
       cur_snapshot_ack(false),
       cur_snapshot_prepare(false),
       vb_manifest_uid(vb_manifest_uid) {
-    LockHolder lh(streamMutex);
+    std::lock_guard<std::mutex> lh(streamMutex);
     streamRequest_UNLOCKED(vb_uuid);
     itemsReady.store(true);
 }
@@ -129,7 +129,7 @@ uint32_t PassiveStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
     uint32_t unackedBytes = clearBuffer_UNLOCKED();
     bool killed = false;
 
-    LockHolder slh(streamMutex);
+    std::lock_guard<std::mutex> slh(streamMutex);
     if (transitionState(StreamState::Dead)) {
         killed = true;
     }
@@ -234,7 +234,7 @@ void PassiveStream::reconnectStream(VBucketPtr& vb,
     auto stream_req_value = createStreamReqValue();
 
     {
-        LockHolder lh(streamMutex);
+        std::lock_guard<std::mutex> lh(streamMutex);
 
         snap_start_seqno_ = info.range.getStart();
         start_seqno_ = info.start;
@@ -358,7 +358,7 @@ cb::engine_errc PassiveStream::messageReceived(
                         static_cast<SetVBucketState*>(dcpResponse.get()));
                 break;
             case DcpResponse::Event::StreamEnd: {
-                LockHolder lh(streamMutex);
+                std::lock_guard<std::mutex> lh(streamMutex);
                 transitionState(StreamState::Dead);
             } break;
             case DcpResponse::Event::SystemEvent: {
@@ -478,7 +478,7 @@ process_items_error_t PassiveStream::processBufferedMessages(
                     static_cast<SetVBucketState*>(response.get()));
             break;
         case DcpResponse::Event::StreamEnd: {
-            LockHolder slh(streamMutex);
+            std::lock_guard<std::mutex> slh(streamMutex);
             transitionState(StreamState::Dead);
         } break;
         case DcpResponse::Event::SystemEvent: {
@@ -750,7 +750,7 @@ void PassiveStream::seqnoAck(int64_t seqno) {
     }
 
     {
-        LockHolder lh(streamMutex);
+        std::lock_guard<std::mutex> lh(streamMutex);
         if (!isActive()) {
             return;
         }
@@ -1037,7 +1037,7 @@ void PassiveStream::processSetVBucketState(SetVBucketState* state) {
     engine->getKVBucket()->setVBucketState(
             vb_, state->getState(), {}, TransferVB::Yes);
     {
-        LockHolder lh(streamMutex);
+        std::lock_guard<std::mutex> lh(streamMutex);
         pushToReadyQ(std::make_unique<SetVBucketStateResponse>(
                 opaque_, cb::mcbp::Status::Success));
     }
@@ -1052,7 +1052,7 @@ void PassiveStream::handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno) {
 
         if (cur_snapshot_ack) {
             {
-                LockHolder lh(streamMutex);
+                std::lock_guard<std::mutex> lh(streamMutex);
                 pushToReadyQ(std::make_unique<SnapshotMarkerResponse>(
                         opaque_, cb::mcbp::Status::Success));
             }
@@ -1162,7 +1162,7 @@ void PassiveStream::addStats(const AddStatFn& add_stat, const void* c) {
 }
 
 std::unique_ptr<DcpResponse> PassiveStream::next() {
-    LockHolder lh(streamMutex);
+    std::lock_guard<std::mutex> lh(streamMutex);
 
     if (readyQ.empty()) {
         itemsReady.store(false);
@@ -1286,7 +1286,7 @@ PassiveStream::Buffer::Buffer() : bytes(0) {
 PassiveStream::Buffer::~Buffer() = default;
 
 bool PassiveStream::Buffer::empty() const {
-    LockHolder lh(bufMutex);
+    std::lock_guard<std::mutex> lh(bufMutex);
     return messages.empty();
 }
 

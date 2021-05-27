@@ -16,7 +16,7 @@
 #include <memory>
 
 void MockExecutorPool::replaceExecutorPoolWithMock() {
-    LockHolder lh(initGuard);
+    std::lock_guard<std::mutex> lh(initGuard);
     auto& executor = getInstance();
     if (executor) {
         executor->shutdown();
@@ -28,7 +28,7 @@ void MockExecutorPool::replaceExecutorPoolWithMock() {
 
 bool MockExecutorPool::isTaskScheduled(const task_type_t queueType,
                                        const std::string& taskName) {
-    LockHolder lh(tMutex);
+    std::lock_guard<std::mutex> lh(tMutex);
     for (const auto& it : taskLocator) {
         const auto& taskQueuePair = it.second;
         if (taskName == taskQueuePair.first->getDescription() &&

@@ -40,7 +40,7 @@ public:
      * This *must* be called before the normal ExecutorPool is created.
      */
     static void replaceExecutorPoolWithFake() {
-        LockHolder lh(initGuard);
+        std::lock_guard<std::mutex> lh(initGuard);
         auto& instance = getInstance();
         if (instance) {
             throw std::runtime_error("replaceExecutorPoolWithFake: "
@@ -77,7 +77,7 @@ public:
      * Mark all tasks as cancelled and remove the from the locator.
      */
     void cancelAndClearAll() {
-        LockHolder lh(tMutex);
+        std::lock_guard<std::mutex> lh(tMutex);
         cancelAll_UNLOCKED();
         taskLocator.clear();
     }
@@ -86,7 +86,7 @@ public:
      * Mark all tasks as cancelled and remove the from the locator.
      */
     void cancelAll() {
-        LockHolder lh(tMutex);
+        std::lock_guard<std::mutex> lh(tMutex);
         cancelAll_UNLOCKED();
     }
 
@@ -94,7 +94,7 @@ public:
      * Cancel all tasks with a matching name
      */
     void cancelByName(std::string_view name) {
-        LockHolder lh(tMutex);
+        std::lock_guard<std::mutex> lh(tMutex);
         for (auto& it : taskLocator) {
             if (name == it.second.first->getDescription().c_str()) {
                 it.second.first->cancel();
@@ -108,7 +108,7 @@ public:
      * Check if task with given name exists
      */
     bool isTaskScheduled(task_type_t queueType, std::string_view name) {
-        LockHolder lh(tMutex);
+        std::lock_guard<std::mutex> lh(tMutex);
         for (auto& it : taskLocator) {
             auto description = it.second.first->getDescription();
             if (name != std::string_view(description.c_str())) {

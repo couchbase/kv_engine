@@ -107,7 +107,7 @@ uint64_t Stream::getReadyQueueMemory() {
 
 void Stream::addStats(const AddStatFn& add_stat, const void* c) {
     try {
-        LockHolder lh(streamMutex);
+        std::lock_guard<std::mutex> lh(streamMutex);
 
         const int bsize = 1024;
         char buffer[bsize];

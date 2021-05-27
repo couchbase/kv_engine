@@ -124,7 +124,7 @@ BackfillManager::BackfillManager(KVBucket& kvBucket,
 void BackfillManager::addStats(DcpProducer& conn,
                                const AddStatFn& add_stat,
                                const void* c) {
-    LockHolder lh(lock);
+    std::lock_guard<std::mutex> lh(lock);
     conn.addStat("backfill_buffer_bytes_read", buffer.bytesRead, add_stat, c);
     conn.addStat(
             "backfill_buffer_next_read_size", buffer.nextReadSize, add_stat, c);
@@ -183,7 +183,7 @@ void BackfillManager::setBackfillOrder(BackfillManager::ScheduleOrder order) {
 
 BackfillManager::ScheduleResult BackfillManager::schedule(
         UniqueDCPBackfillPtr backfill) {
-    LockHolder lh(lock);
+    std::lock_guard<std::mutex> lh(lock);
     ScheduleResult result;
     if (backfillTracker.canAddBackfillToActiveQ()) {
         initializingBackfills.push_back(std::move(backfill));
@@ -204,7 +204,7 @@ BackfillManager::ScheduleResult BackfillManager::schedule(
 }
 
 bool BackfillManager::bytesCheckAndRead(size_t bytes) {
-    LockHolder lh(lock);
+    std::lock_guard<std::mutex> lh(lock);
 
     // Note: For both backfill/scan buffers, the logic allows reading bytes when
     // 'bytesRead == 0'. That is for ensuring that we allow DCP streaming in a
@@ -237,7 +237,7 @@ bool BackfillManager::bytesCheckAndRead(size_t bytes) {
 }
 
 void BackfillManager::bytesSent(size_t bytes) {
-    LockHolder lh(lock);
+    std::lock_guard<std::mutex> lh(lock);
     if (bytes > buffer.bytesRead) {
         throw std::invalid_argument(
                 "BackfillManager::bytesSent: bytes "
@@ -418,7 +418,7 @@ BackfillManager::dequeueNextBackfill(std::unique_lock<std::mutex>&) {
 }
 
 void BackfillManager::wakeUpTask() {
-    LockHolder lh(lock);
+    std::lock_guard<std::mutex> lh(lock);
     if (managerTask) {
         ExecutorPool::get()->wake(managerTask->getId());
     }

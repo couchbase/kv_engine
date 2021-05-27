@@ -11,7 +11,6 @@
 #pragma once
 
 #include "dcp/stream.h"
-#include "locks.h"
 #include "spdlog/common.h"
 #include "utilities/testing_hook.h"
 #include "vbucket_fwd.h"

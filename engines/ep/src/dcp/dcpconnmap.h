@@ -99,7 +99,7 @@ public:
     void shutdownAllConnections();
 
     bool isDeadConnectionsEmpty() override {
-        LockHolder lh(connsLock);
+        std::lock_guard<std::mutex> lh(connsLock);
         return deadConnections.empty();
     }
 

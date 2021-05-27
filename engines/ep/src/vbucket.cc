@@ -1018,7 +1018,7 @@ void VBucket::sendSeqnoAck(int64_t seqno) {
 }
 
 bool VBucket::addPendingOp(const void* cookie) {
-    LockHolder lh(pendingOpLock);
+    std::lock_guard<std::mutex> lh(pendingOpLock);
     if (state != vbucket_state_pending) {
         // State transitioned while we were waiting.
         return false;
@@ -1058,7 +1058,7 @@ void VBucket::createFilter(size_t key_count, double probability) {
     // scenarios:
     //      - Bucket creation
     //      - Rebalance
-    LockHolder lh(bfMutex);
+    std::lock_guard<std::mutex> lh(bfMutex);
     if (bFilter == nullptr && tempFilter == nullptr) {
         bFilter = std::make_unique<BloomFilter>(key_count, probability,
                                         BFILTER_ENABLED);
@@ -1071,7 +1071,7 @@ void VBucket::initTempFilter(size_t key_count, double probability) {
     // Create a temp bloom filter with status as COMPACTING,
     // if the main filter is found to exist, set its state to
     // COMPACTING as well.
-    LockHolder lh(bfMutex);
+    std::lock_guard<std::mutex> lh(bfMutex);
     tempFilter = std::make_unique<BloomFilter>(key_count, probability,
                                      BFILTER_COMPACTING);
     if (bFilter) {
@@ -1080,7 +1080,7 @@ void VBucket::initTempFilter(size_t key_count, double probability) {
 }
 
 void VBucket::addToFilter(const DocKey& key) {
-    LockHolder lh(bfMutex);
+    std::lock_guard<std::mutex> lh(bfMutex);
     if (bFilter) {
         bFilter->addKey(key);
     }
@@ -1096,7 +1096,7 @@ void VBucket::addToFilter(const DocKey& key) {
 }
 
 bool VBucket::maybeKeyExistsInFilter(const DocKey& key) {
-    LockHolder lh(bfMutex);
+    std::lock_guard<std::mutex> lh(bfMutex);
     if (bFilter) {
         return bFilter->maybeKeyExists(key);
     } else {
@@ -1106,7 +1106,7 @@ bool VBucket::maybeKeyExistsInFilter(const DocKey& key) {
 }
 
 bool VBucket::isTempFilterAvailable() {
-    LockHolder lh(bfMutex);
+    std::lock_guard<std::mutex> lh(bfMutex);
     if (tempFilter &&
         (tempFilter->getStatus() == BFILTER_COMPACTING ||
          tempFilter->getStatus() == BFILTER_ENABLED)) {
@@ -1119,7 +1119,7 @@ bool VBucket::isTempFilterAvailable() {
 void VBucket::addToTempFilter(const DocKey& key) {
     // Keys will be added to only the temp filter during
     // compaction.
-    LockHolder lh(bfMutex);
+    std::lock_guard<std::mutex> lh(bfMutex);
     if (tempFilter) {
         tempFilter->addKey(key);
     }
@@ -1137,7 +1137,7 @@ void VBucket::swapFilter() {
     // bloom filter will be made available after the next
     // compaction.
 
-    LockHolder lh(bfMutex);
+    std::lock_guard<std::mutex> lh(bfMutex);
     if (tempFilter) {
         bFilter.reset();
 
@@ -1151,13 +1151,13 @@ void VBucket::swapFilter() {
 }
 
 void VBucket::clearFilter() {
-    LockHolder lh(bfMutex);
+    std::lock_guard<std::mutex> lh(bfMutex);
     bFilter.reset();
     tempFilter.reset();
 }
 
 void VBucket::setFilterStatus(bfilter_status_t to) {
-    LockHolder lh(bfMutex);
+    std::lock_guard<std::mutex> lh(bfMutex);
     if (bFilter) {
         bFilter->setStatus(to);
     }
@@ -1167,7 +1167,7 @@ void VBucket::setFilterStatus(bfilter_status_t to) {
 }
 
 std::string VBucket::getFilterStatusString() {
-    LockHolder lh(bfMutex);
+    std::lock_guard<std::mutex> lh(bfMutex);
     if (bFilter) {
         return bFilter->getStatusString();
     } else if (tempFilter) {
@@ -1178,7 +1178,7 @@ std::string VBucket::getFilterStatusString() {
 }
 
 size_t VBucket::getFilterSize() {
-    LockHolder lh(bfMutex);
+    std::lock_guard<std::mutex> lh(bfMutex);
     if (bFilter) {
         return bFilter->getFilterSize();
     } else {
@@ -1187,7 +1187,7 @@ size_t VBucket::getFilterSize() {
 }
 
 size_t VBucket::getNumOfKeysInFilter() {
-    LockHolder lh(bfMutex);
+    std::lock_guard<std::mutex> lh(bfMutex);
     if (bFilter) {
         return bFilter->getNumOfKeysInFilter();
     } else {
@@ -3866,7 +3866,7 @@ std::map<const void*, cb::engine_errc> VBucket::tmpFailAndGetAllHpNotifies(
         EventuallyPersistentEngine& engine) {
     std::map<const void*, cb::engine_errc> toNotify;
 
-    LockHolder lh(hpVBReqsMutex);
+    std::lock_guard<std::mutex> lh(hpVBReqsMutex);
 
     for (auto& entry : hpVBReqs) {
         toNotify[entry.cookie] = cb::engine_errc::temporary_failure;

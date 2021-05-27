@@ -182,7 +182,7 @@ void CB3ExecutorPool::doneWork(task_type_t taskType) {
 }
 
 ExTask CB3ExecutorPool::_cancel(size_t taskId, bool remove) {
-    LockHolder lh(tMutex);
+    std::lock_guard<std::mutex> lh(tMutex);
     auto itr = taskLocator.find(taskId);
     if (itr == taskLocator.end()) {
         EP_LOG_DEBUG("Task id {} not found", uint64_t(taskId));
@@ -249,7 +249,7 @@ bool CB3ExecutorPool::cancel(size_t taskId, bool remove) {
 }
 
 bool CB3ExecutorPool::_wake(size_t taskId) {
-    LockHolder lh(tMutex);
+    std::lock_guard<std::mutex> lh(tMutex);
     auto itr = taskLocator.find(taskId);
     if (itr != taskLocator.end()) {
         itr->second.second->wake(itr->second.first);
@@ -265,7 +265,7 @@ bool CB3ExecutorPool::wakeAndWait(size_t taskId) {
 }
 
 bool CB3ExecutorPool::_snooze(size_t taskId, double toSleep) {
-    LockHolder lh(tMutex);
+    std::lock_guard<std::mutex> lh(tMutex);
     auto itr = taskLocator.find(taskId);
     if (itr != taskLocator.end()) {
         itr->second.second->snooze(itr->second.first, toSleep);
@@ -347,7 +347,7 @@ TaskQueue* CB3ExecutorPool::_getTaskQueue(const Taskable& t, task_type_t qidx) {
 }
 
 size_t CB3ExecutorPool::_schedule(ExTask task) {
-    LockHolder lh(tMutex);
+    std::lock_guard<std::mutex> lh(tMutex);
     const size_t taskId = task->getId();
 
     TaskQueue* q = _getTaskQueue(task->getTaskable(),
@@ -395,7 +395,7 @@ void CB3ExecutorPool::_registerTaskable(Taskable& taskable) {
     }
 
     {
-        LockHolder lh(tMutex);
+        std::lock_guard<std::mutex> lh(tMutex);
 
         if (!(*whichQset)) {
             taskQ->reserve(numTaskSets);
@@ -429,7 +429,7 @@ void CB3ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
 
     {
         // Lock mutex, we are modifying threadQ
-        LockHolder lh(tMutex);
+        std::lock_guard<std::mutex> lh(tMutex);
 
         // How many threads performing this task type there are currently
         numItems = std::count_if(
@@ -738,7 +738,7 @@ void CB3ExecutorPool::doWorkerStat(Taskable& taskable,
     }
 
     NonBucketAllocationGuard guard;
-    LockHolder lh(tMutex);
+    std::lock_guard<std::mutex> lh(tMutex);
     // TODO: implement tracking per engine stats ..
     for (auto& tidx : threadQ) {
         addWorkerStats(tidx->getName().c_str(), *tidx, cookie, add_stat);
@@ -759,7 +759,7 @@ void CB3ExecutorPool::doTasksStat(Taskable& taskable,
     {
         // Holding this lock will block scheduling new tasks and cancelling
         // tasks, but threads can still take up work other than this
-        LockHolder lh(tMutex);
+        std::lock_guard<std::mutex> lh(tMutex);
 
         // Copy taskLocator
         taskLocatorCopy = taskLocator;

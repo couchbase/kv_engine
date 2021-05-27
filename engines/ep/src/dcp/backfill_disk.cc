@@ -125,7 +125,7 @@ DCPBackfillDisk::DCPBackfillDisk(KVBucket& bucket) : bucket(bucket) {
 DCPBackfillDisk::~DCPBackfillDisk() = default;
 
 backfill_status_t DCPBackfillDisk::run() {
-    LockHolder lh(lock);
+    std::lock_guard<std::mutex> lh(lock);
     switch (state) {
     case backfill_state_init:
         return create();
@@ -143,7 +143,7 @@ backfill_status_t DCPBackfillDisk::run() {
 }
 
 void DCPBackfillDisk::cancel() {
-    LockHolder lh(lock);
+    std::lock_guard<std::mutex> lh(lock);
     if (state != backfill_state_done) {
         complete(true);
     }

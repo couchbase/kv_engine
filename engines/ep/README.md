@@ -19,10 +19,9 @@ A condition-variable is also available called `SyncObject`
 [syncobject.h](./src/syncobject.h). `SyncObject` glues a `std::mutex` and
 `std::condition_variable` together in one object.
 
-These primitives are managed via RAII wrappers - [locks.h](./src/locks.h).
+These primitives are managed via RAII wrappers - [multi_lock_holder.h](./src/multi_lock_holder.h).
 
-1. `LockHolder` - a deprecated alias for std::lock_guard
-2. `MultiLockHolder` - for acquiring a reference to a vector of `std::mutex`
+1. `MultiLockHolder` - for acquiring a reference to a vector of `std::mutex`
                        or `SyncObject`.
 
 ### Mutex
@@ -52,8 +51,9 @@ void example2() {
 ```
 
 A `MultiLockHolder` allows a vector of locks to be conveniently acquired and
-released, and similarly to `LockHolder` the caller can choose to manually
-lock/unlock at any time (with all locks locked/unlocked via one call).
+released, and similarly to `std::lock_guard<std::mutex>` the caller can choose
+to manually lock/unlock at any time (with all locks locked/unlocked via
+one call).
 
 ```c++
 std::mutex mutexes[10];
@@ -94,7 +94,8 @@ void foo2() {
 
 ### SyncObject
 
-`SyncObject` inherits from `std::mutex` and is thus managed via a `LockHolder` or
+`SyncObject` inherits from `std::mutex` and is thus managed via a
+`std::lock_guard<std::mutex>` or
 `MultiLockHolder`. The `SyncObject` provides the conditional-variable
 synchronisation primitive enabling threads to block and be woken.
 
@@ -144,7 +145,7 @@ void Object::doStuff_UNLOCKED() {
 }
 
 void Object::run() {
-    LockHolder lockHolder(&mutex);
+    std::lock_guard<std::mutex> lockHolder(&mutex);
     doStuff_UNLOCKED();
     return;
 }

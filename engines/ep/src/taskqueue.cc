@@ -29,12 +29,12 @@ const std::string TaskQueue::getName() const {
 }
 
 size_t TaskQueue::getReadyQueueSize() {
-    LockHolder lh(mutex);
+    std::lock_guard<std::mutex> lh(mutex);
     return readyQueue.size();
 }
 
 size_t TaskQueue::getFutureQueueSize() {
-    LockHolder lh(mutex);
+    std::lock_guard<std::mutex> lh(mutex);
     return futureQueue.size();
 }
 
@@ -46,7 +46,7 @@ ExTask TaskQueue::_popReadyTask() {
 }
 
 void TaskQueue::doWake(size_t &numToWake) {
-    LockHolder lh(mutex);
+    std::lock_guard<std::mutex> lh(mutex);
     _doWake_UNLOCKED(numToWake);
 }
 
@@ -176,7 +176,7 @@ size_t TaskQueue::_moveReadyTasks(
 }
 
 std::chrono::steady_clock::time_point TaskQueue::_reschedule(ExTask& task) {
-    LockHolder lh(mutex);
+    std::lock_guard<std::mutex> lh(mutex);
 
     futureQueue.push(task);
     return futureQueue.top()->getWaketime();
@@ -193,7 +193,7 @@ void TaskQueue::_schedule(ExTask &task) {
     size_t numToWake = 1;
 
     {
-        LockHolder lh(mutex);
+        std::lock_guard<std::mutex> lh(mutex);
 
         // If we are rescheduling a previously cancelled task, we should reset
         // the task state to the initial value of running.
@@ -226,7 +226,7 @@ void TaskQueue::_wake(ExTask &task) {
     // One task is being made ready regardless of the queue it's in.
     size_t readyCount = 1;
     {
-        LockHolder lh(mutex);
+        std::lock_guard<std::mutex> lh(mutex);
         EP_LOG_DEBUG("{}: Wake a task \"{}\" id {}",
                      name,
                      task->getDescription(),

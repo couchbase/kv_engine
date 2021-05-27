@@ -46,7 +46,7 @@ public:
     }
 
     void public_processItems(OutstandingItemsResult& result) {
-        LockHolder lh(streamMutex);
+        std::lock_guard<std::mutex> lh(streamMutex);
         processItems(result, lh);
     }
 
@@ -59,7 +59,7 @@ public:
     }
 
     size_t public_readyQSize() {
-        LockHolder lh(streamMutex);
+        std::lock_guard<std::mutex> lh(streamMutex);
         return readyQ.size();
     }
 
@@ -167,7 +167,7 @@ public:
     }
 
     uint64_t getLastBackfilledSeqno() const {
-        LockHolder lh(streamMutex);
+        std::lock_guard<std::mutex> lh(streamMutex);
         return lastBackfilledSeqno;
     }
 
@@ -305,7 +305,7 @@ public:
     }
 
     size_t getNumBufferItems() const {
-        LockHolder lh(buffer.bufMutex);
+        std::lock_guard<std::mutex> lh(buffer.bufMutex);
         return buffer.messages.size();
     }
 

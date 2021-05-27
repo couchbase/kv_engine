@@ -176,7 +176,7 @@ public:
                      const AddStatFn& add_stat) override;
 
     size_t getNumWorkersStat() override {
-        LockHolder lh(tMutex);
+        std::lock_guard<std::mutex> lh(tMutex);
         return threadQ.size();
     }
 

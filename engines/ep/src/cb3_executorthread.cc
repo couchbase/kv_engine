@@ -178,7 +178,7 @@ void CB3ExecutorThread::run() {
 }
 
 void CB3ExecutorThread::setCurrentTask(ExTask newTask) {
-    LockHolder lh(currentTaskMutex);
+    std::lock_guard<std::mutex> lh(currentTaskMutex);
     currentTask = newTask;
 }
 
@@ -190,7 +190,7 @@ void CB3ExecutorThread::setCurrentTask(ExTask newTask) {
 void CB3ExecutorThread::resetCurrentTask() {
     ExTask resetThisObject;
     {
-        LockHolder lh(currentTaskMutex);
+        std::lock_guard<std::mutex> lh(currentTaskMutex);
         // move currentTask so we 'steal' the pointer and ensure currentTask
         // owns nothing.
         resetThisObject = std::move(currentTask);
@@ -204,7 +204,7 @@ void CB3ExecutorThread::resetCurrentTask() {
 }
 
 std::string CB3ExecutorThread::getTaskName() {
-    LockHolder lh(currentTaskMutex);
+    std::lock_guard<std::mutex> lh(currentTaskMutex);
     if (currentTask) {
         return currentTask->getDescription();
     } else {
@@ -213,7 +213,7 @@ std::string CB3ExecutorThread::getTaskName() {
 }
 
 const std::string CB3ExecutorThread::getTaskableName() {
-    LockHolder lh(currentTaskMutex);
+    std::lock_guard<std::mutex> lh(currentTaskMutex);
     if (currentTask) {
         return currentTask->getTaskable().getName();
     } else {

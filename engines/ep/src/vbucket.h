@@ -216,12 +216,12 @@ public:
     }
 
     void setPersistedSnapshot(const snapshot_range_t& range) {
-        LockHolder lh(snapshotMutex);
+        std::lock_guard<std::mutex> lh(snapshotMutex);
         persistedRange = range;
     }
 
     snapshot_range_t getPersistedSnapshot() const {
-        LockHolder lh(snapshotMutex);
+        std::lock_guard<std::mutex> lh(snapshotMutex);
         return persistedRange;
     }
 

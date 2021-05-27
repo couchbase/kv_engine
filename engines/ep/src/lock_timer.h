@@ -31,11 +31,11 @@
  * To debug a single lock holder - wrap the class with a LockTimer<>, adding
  * a lock name as an additional argument - e.g.
  *
- *   LockHolder lh(mutex)
+ *   std::lock_guard<std::mutex> lh(mutex)
  *
  * becomes:
  *
- *   LockTimer<LockHolder> lh(mutex, "my_func_lockholder")
+ *   LockTimer<std::lock_guard<std::mutex>> lh(mutex, "my_func_lockholder")
  *
  */
 template <typename T, size_t ACQUIRE_MS = 100, size_t HELD_MS = 100>

@@ -26,7 +26,7 @@ static const size_t EP_MAX_NONIO_THREADS = 8;
 ExecutorPool *ExecutorPool::get() {
     auto* tmp = getInstance().get();
     if (tmp == nullptr) {
-        LockHolder lh(initGuard);
+        std::lock_guard<std::mutex> lh(initGuard);
         tmp = getInstance().get();
         if (tmp == nullptr) {
             // Double-checked locking if instance is null - ensure two threads

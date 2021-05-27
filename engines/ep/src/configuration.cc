@@ -12,7 +12,6 @@
 #include "configuration.h"
 #include "bucket_logger.h"
 #include "configuration_impl.h"
-#include "locks.h"
 
 #include <platform/cb_malloc.h>
 #include <statistics/labelled_collector.h>
@@ -189,7 +188,7 @@ void Configuration::setParameter<const char*>(const std::string& key,
 
 template <class T>
 T Configuration::getParameter(const std::string& key) const {
-    LockHolder lh(mutex);
+    std::lock_guard<std::mutex> lh(mutex);
 
     const auto iter = attributes.find(key);
     if (iter == attributes.end()) {
@@ -217,7 +216,7 @@ template std::string Configuration::getParameter<std::string>(
         const std::string& key) const;
 
 std::ostream& operator<<(std::ostream& out, const Configuration& config) {
-    LockHolder lh(config.mutex);
+    std::lock_guard<std::mutex> lh(config.mutex);
     for (const auto& attribute : config.attributes) {
         std::stringstream line;
         line << attribute.first.c_str() << " = ["
@@ -234,7 +233,7 @@ void Configuration::addAlias(const std::string& key, const std::string& alias) {
 
 void Configuration::addValueChangedListener(
         const std::string& key, std::unique_ptr<ValueChangedListener> val) {
-    LockHolder lh(mutex);
+    std::lock_guard<std::mutex> lh(mutex);
     if (attributes.find(key) == attributes.end()) {
         throw std::invalid_argument(
                 "Configuration::addValueChangedListener: No such config key '" +
@@ -246,7 +245,7 @@ void Configuration::addValueChangedListener(
 ValueChangedValidator *Configuration::setValueValidator(const std::string &key,
                                             ValueChangedValidator *validator) {
     ValueChangedValidator *ret = nullptr;
-    LockHolder lh(mutex);
+    std::lock_guard<std::mutex> lh(mutex);
     if (attributes.find(key) != attributes.end()) {
         ret = attributes[key]->validator.release();
         attributes[key]->validator.reset(validator);
@@ -258,7 +257,7 @@ ValueChangedValidator *Configuration::setValueValidator(const std::string &key,
 Requirement* Configuration::setRequirements(const std::string& key,
                                             Requirement* requirement) {
     Requirement* ret = nullptr;
-    LockHolder lh(mutex);
+    std::lock_guard<std::mutex> lh(mutex);
     if (attributes.find(key) != attributes.end()) {
         ret = attributes[key]->requirement.release();
         attributes[key]->requirement.reset(requirement);
@@ -284,7 +283,7 @@ bool Configuration::requirementsMet(const value_t& value) const {
     return true;
 }
 void Configuration::requirementsMetOrThrow(const std::string& key) const {
-    LockHolder lh(mutex);
+    std::lock_guard<std::mutex> lh(mutex);
     auto itr = attributes.find(key);
     if (itr != attributes.end()) {
         if (!requirementsMet(*(itr->second))) {
@@ -295,7 +294,7 @@ void Configuration::requirementsMetOrThrow(const std::string& key) const {
 }
 
 void Configuration::addStats(const BucketStatCollector& collector) const {
-    LockHolder lh(mutex);
+    std::lock_guard<std::mutex> lh(mutex);
 
     const auto lookupAttr = [this](const std::string& keyStr) {
         // remove the "ep_" prefix from the stat key

@@ -293,13 +293,13 @@ void EPVBucket::completeCompactionExpiryBgFetch(
 
 vb_bgfetch_queue_t EPVBucket::getBGFetchItems() {
     vb_bgfetch_queue_t fetches;
-    LockHolder lh(pendingBGFetchesLock);
+    std::lock_guard<std::mutex> lh(pendingBGFetchesLock);
     fetches.swap(pendingBGFetches);
     return fetches;
 }
 
 bool EPVBucket::hasPendingBGFetchItems() {
-    LockHolder lh(pendingBGFetchesLock);
+    std::lock_guard<std::mutex> lh(pendingBGFetchesLock);
     return !pendingBGFetches.empty();
 }
 
@@ -337,7 +337,7 @@ void EPVBucket::notifyAllPendingConnsFailed(EventuallyPersistentEngine& e) {
 
     // Add all the pendingBGFetches to the toNotify map
     {
-        LockHolder lh(pendingBGFetchesLock);
+        std::lock_guard<std::mutex> lh(pendingBGFetchesLock);
         size_t num_of_deleted_pending_fetches = 0;
         for (auto& bgf : pendingBGFetches) {
             vb_bgfetch_item_ctx_t& bg_itm_ctx = bgf.second;
@@ -596,7 +596,7 @@ size_t EPVBucket::queueBGFetchItem(const DocKey& key,
     // we don't allow bgfetching from Prepared namespace - so just construct
     // DiskDocKey with pending unconditionally false.
     DiskDocKey diskKey{key, /*pending*/ false};
-    LockHolder lh(pendingBGFetchesLock);
+    std::lock_guard<std::mutex> lh(pendingBGFetchesLock);
     vb_bgfetch_item_ctx_t& bgfetch_itm_ctx = pendingBGFetches[diskKey];
     bgfetch_itm_ctx.addBgFetch(std::move(fetch));
 

@@ -4256,7 +4256,7 @@ void EventuallyPersistentEngine::addSeqnoVbStats(const void* cookie,
 
 void EventuallyPersistentEngine::addLookupResult(const void* cookie,
                                                  std::unique_ptr<Item> result) {
-    LockHolder lh(lookupMutex);
+    std::lock_guard<std::mutex> lh(lookupMutex);
     auto it = lookups.find(cookie);
     if (it != lookups.end()) {
         if (!it->second) {
@@ -4274,7 +4274,7 @@ bool EventuallyPersistentEngine::fetchLookupResult(const void* cookie,
                                                    std::unique_ptr<Item>& itm) {
     // This will return *and erase* the lookup result for a connection.
     // You look it up, you own it.
-    LockHolder lh(lookupMutex);
+    std::lock_guard<std::mutex> lh(lookupMutex);
     auto it = lookups.find(cookie);
     if (it != lookups.end()) {
         itm = std::move(it->second);
@@ -4344,7 +4344,7 @@ cb::engine_errc EventuallyPersistentEngine::doSeqnoStats(
 
 void EventuallyPersistentEngine::addLookupAllKeys(const void* cookie,
                                                   cb::engine_errc err) {
-    LockHolder lh(lookupMutex);
+    std::lock_guard<std::mutex> lh(lookupMutex);
     allKeysLookups[cookie] = err;
 }
 
@@ -6042,7 +6042,7 @@ cb::engine_errc EventuallyPersistentEngine::getAllKeys(
     }
 
     {
-        LockHolder lh(lookupMutex);
+        std::lock_guard<std::mutex> lh(lookupMutex);
         auto it = allKeysLookups.find(cookie);
         if (it != allKeysLookups.end()) {
             cb::engine_errc err = it->second;

@@ -35,7 +35,6 @@
 #include "item_freq_decayer.h"
 #include "kvshard.h"
 #include "kvstore.h"
-#include "locks.h"
 #include "replicationthrottle.h"
 #include "rollback_result.h"
 #include "tasks.h"
@@ -2071,7 +2070,7 @@ void KVBucket::setBackfillMemoryThreshold(double threshold) {
 }
 
 void KVBucket::setExpiryPagerSleeptime(size_t val) {
-    LockHolder lh(expiryPager.mutex);
+    std::lock_guard<std::mutex> lh(expiryPager.mutex);
 
     ExecutorPool::get()->cancel(expiryPager.task);
 
@@ -2090,7 +2089,7 @@ void KVBucket::setExpiryPagerSleeptime(size_t val) {
 }
 
 void KVBucket::setExpiryPagerTasktime(ssize_t val) {
-    LockHolder lh(expiryPager.mutex);
+    std::lock_guard<std::mutex> lh(expiryPager.mutex);
     if (expiryPager.enabled) {
         ExecutorPool::get()->cancel(expiryPager.task);
         ExTask expTask = std::make_shared<ExpiredItemPager>(
@@ -2106,7 +2105,7 @@ void KVBucket::setExpiryPagerTasktime(ssize_t val) {
 }
 
 void KVBucket::enableExpiryPager() {
-    LockHolder lh(expiryPager.mutex);
+    std::lock_guard<std::mutex> lh(expiryPager.mutex);
     if (!expiryPager.enabled) {
         expiryPager.enabled = true;
 
@@ -2120,7 +2119,7 @@ void KVBucket::enableExpiryPager() {
 }
 
 void KVBucket::disableExpiryPager() {
-    LockHolder lh(expiryPager.mutex);
+    std::lock_guard<std::mutex> lh(expiryPager.mutex);
     if (expiryPager.enabled) {
         ExecutorPool::get()->cancel(expiryPager.task);
         expiryPager.enabled = false;
@@ -2130,7 +2129,7 @@ void KVBucket::disableExpiryPager() {
 }
 
 void KVBucket::wakeUpExpiryPager() {
-    LockHolder lh(expiryPager.mutex);
+    std::lock_guard<std::mutex> lh(expiryPager.mutex);
     if (expiryPager.enabled) {
         ExecutorPool::get()->wake(expiryPager.task);
     }
@@ -2157,7 +2156,7 @@ void KVBucket::wakeItemFreqDecayerTask() {
 }
 
 void KVBucket::enableAccessScannerTask() {
-    LockHolder lh(accessScanner.mutex);
+    std::lock_guard<std::mutex> lh(accessScanner.mutex);
     if (!accessScanner.enabled) {
         accessScanner.enabled = true;
 
@@ -2186,7 +2185,7 @@ void KVBucket::enableAccessScannerTask() {
 }
 
 void KVBucket::disableAccessScannerTask() {
-    LockHolder lh(accessScanner.mutex);
+    std::lock_guard<std::mutex> lh(accessScanner.mutex);
     if (accessScanner.enabled) {
         ExecutorPool::get()->cancel(accessScanner.task);
         accessScanner.sleeptime = 0;
@@ -2197,7 +2196,7 @@ void KVBucket::disableAccessScannerTask() {
 }
 
 void KVBucket::setAccessScannerSleeptime(size_t val, bool useStartTime) {
-    LockHolder lh(accessScanner.mutex);
+    std::lock_guard<std::mutex> lh(accessScanner.mutex);
 
     if (accessScanner.enabled) {
         if (accessScanner.sleeptime != 0) {
@@ -2219,7 +2218,7 @@ void KVBucket::setAccessScannerSleeptime(size_t val, bool useStartTime) {
 }
 
 void KVBucket::resetAccessScannerStartTime() {
-    LockHolder lh(accessScanner.mutex);
+    std::lock_guard<std::mutex> lh(accessScanner.mutex);
 
     if (accessScanner.enabled) {
         if (accessScanner.sleeptime != 0) {
@@ -2607,7 +2606,7 @@ void KVBucket::notifyReplication(const Vbid vbid,
 
 void KVBucket::initializeExpiryPager(Configuration& config) {
     {
-        LockHolder elh(expiryPager.mutex);
+        std::lock_guard<std::mutex> elh(expiryPager.mutex);
         expiryPager.enabled = config.isExpPagerEnabled();
     }
 
@@ -2637,7 +2636,7 @@ cb::engine_error KVBucket::setCollections(std::string_view manifest,
     }
 
     // Inhibit VB state changes whilst updating the vbuckets
-    LockHolder lh(vbsetMutex);
+    std::lock_guard<std::mutex> lh(vbsetMutex);
 
     auto status = collectionsManager->update(*this, manifest, cookie);
     if (status.code() != cb::engine_errc::success &&

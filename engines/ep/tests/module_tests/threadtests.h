@@ -10,7 +10,6 @@
  */
 #pragma once
 
-#include "locks.h"
 #include "syncobject.h"
 #include "utility.h"
 

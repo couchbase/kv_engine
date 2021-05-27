@@ -154,7 +154,7 @@ void Flusher::schedule_UNLOCKED() {
 }
 
 void Flusher::start() {
-    LockHolder lh(taskMutex);
+    std::lock_guard<std::mutex> lh(taskMutex);
     if (taskId) {
         EP_LOG_WARN("Flusher::start: double start in flusher task id {}: {}",
                     uint64_t(taskId.load()),

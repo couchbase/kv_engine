@@ -13,6 +13,7 @@
 
 #include "ep_time.h"
 #include "item.h"
+#include "multi_lock_holder.h"
 #include "stats.h"
 #include "stored_value_factories.h"
 
@@ -1155,7 +1156,7 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
         for (int i = l; i < static_cast<int>(size); i+= mutexes.size()) {
             // (re)acquire mutex on each HashBucket, to minimise any impact
             // on front-end threads.
-            LockHolder lh(mutexes[l]);
+            std::lock_guard<std::mutex> lh(mutexes[l]);
 
             size_t depth = 0;
             StoredValue* p = values[i].get().get();

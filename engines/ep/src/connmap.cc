@@ -123,7 +123,7 @@ void ConnMap::notifyPausedConnection(const std::shared_ptr<ConnHandler>& conn) {
     }
 
     {
-        LockHolder rlh(releaseLock);
+        std::lock_guard<std::mutex> rlh(releaseLock);
         if (conn.get() && conn->isPaused() && conn->isReserved()) {
             engine.scheduleDcpStep(conn->getCookie());
         }
