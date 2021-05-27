@@ -11,9 +11,9 @@
 #include "mcbp_test.h"
 
 #include <daemon/cookie.h>
+#include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/datatype.h>
 #include <mcbp/protocol/framebuilder.h>
-#include <gsl/gsl>
 #include <memory>
 
 namespace mcbp::test {

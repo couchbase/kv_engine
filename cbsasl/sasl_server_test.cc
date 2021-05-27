@@ -13,12 +13,12 @@
 #include <cbsasl/server.h>
 #include <folly/portability/GTest.h>
 
+#include <gsl/gsl-lite.hpp>
 #include <algorithm>
 #include <array>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <gsl/gsl>
 
 char envptr[1024]{"CBSASL_PWFILE=" SOURCE_ROOT "/cbsasl/sasl_server_test.json"};
 

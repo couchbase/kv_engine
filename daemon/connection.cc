@@ -27,6 +27,7 @@
 
 #include <event2/bufferevent.h>
 #include <event2/bufferevent_ssl.h>
+#include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
 #include <mcbp/codec/dcp_snapshot_marker.h>
 #include <mcbp/mcbp.h>
@@ -44,7 +45,6 @@
 #include <platform/string_hex.h>
 #include <platform/timeutils.h>
 #include <utilities/logtags.h>
-#include <gsl/gsl>
 
 #include <exception>
 #ifndef WIN32

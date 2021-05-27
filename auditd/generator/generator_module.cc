@@ -16,8 +16,8 @@
 #include <nlohmann/json.hpp>
 #include <utilities/json_utilities.h>
 
+#include <gsl/gsl-lite.hpp>
 #include <fstream>
-#include <gsl/gsl>
 #include <memory>
 #include <sstream>
 #include <system_error>

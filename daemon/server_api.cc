@@ -20,6 +20,7 @@
 #include "server_core_api.h"
 #include "settings.h"
 #include "tracing.h"
+#include <gsl/gsl-lite.hpp>
 #include <memcached/engine.h>
 #include <memcached/rbac/privileges.h>
 #include <memcached/server_bucket_iface.h>
@@ -28,7 +29,6 @@
 #include <memcached/server_log_iface.h>
 #include <phosphor/phosphor.h>
 #include <utilities/engine_errc_2_mcbp.h>
-#include <gsl/gsl>
 
 static Cookie& getCookie(gsl::not_null<const void*> void_cookie) {
     auto* ccookie = reinterpret_cast<const Cookie*>(void_cookie.get());

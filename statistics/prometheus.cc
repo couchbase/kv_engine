@@ -16,11 +16,11 @@
 #include <daemon/settings.h>
 #include <daemon/stats.h>
 #include <folly/SynchronizedPtr.h>
+#include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/uuid.h>
 #include <prometheus/exposer.h>
-#include <gsl/gsl>
 #include <utility>
 
 namespace cb::prometheus {

@@ -14,8 +14,8 @@
 #include "evp_engine_test.h"
 #include "evp_store_single_threaded_test.h"
 #include "vbucket_fwd.h"
+#include <gsl/gsl-lite.hpp>
 #include <memcached/engine_error.h>
-#include <gsl/gsl>
 
 class Item;
 class MockDcpProducer;

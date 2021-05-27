@@ -26,12 +26,12 @@
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
+#include <gsl/gsl-lite.hpp>
 #include <array>
 #include <atomic>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
-#include <gsl/gsl>
 #include <iostream>
 #include <list>
 #include <mutex>

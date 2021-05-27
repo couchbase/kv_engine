@@ -10,9 +10,9 @@
  */
 #pragma once
 
+#include <gsl/gsl-lite.hpp>
 #include <platform/sized_buffer.h>
 #include <array>
-#include <gsl/gsl>
 #include <optional>
 #include <type_traits>
 

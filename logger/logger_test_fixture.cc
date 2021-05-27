@@ -11,7 +11,7 @@
 
 #include "logger_test_fixture.h"
 
-#include <gsl/gsl>
+#include <gsl/gsl-lite.hpp>
 
 SpdloggerTest::SpdloggerTest() {
     // Use default values from cb::logger::Config, apart from:

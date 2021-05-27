@@ -16,10 +16,10 @@
 #include <daemon/cookie.h>
 #include <daemon/mcaudit.h>
 #include <daemon/sendbuffer.h>
+#include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
 #include <memcached/durability_spec.h>
 #include <xattr/utils.h>
-#include <gsl/gsl>
 
 uint32_t GatCommandContext::getExptime(Cookie& cookie) {
     auto extras = cookie.getRequest().getExtdata();

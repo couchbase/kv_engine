@@ -10,10 +10,10 @@
 
 #pragma once
 
+#include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/status.h>
 #include <cstdint>
 #include <functional>
-#include <gsl/gsl>
 
 struct EngineIface;
 

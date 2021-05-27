@@ -11,8 +11,8 @@
 #include "generator_event.h"
 #include "generator_utilities.h"
 
+#include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
-#include <gsl/gsl>
 #include <sstream>
 
 Event::Event(const nlohmann::json& json) {

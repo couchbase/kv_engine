@@ -16,7 +16,7 @@
 
 #include "subdoc_encoder.h"
 
-#include <gsl/gsl>
+#include <gsl/gsl-lite.hpp>
 #include <iterator>
 
 std::vector<char> SubdocMultiLookupCmd::encode() const {

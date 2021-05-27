@@ -13,7 +13,7 @@
 #include "mc_time.h"
 #include "memcached.h"
 #include <folly/portability/GTest.h>
-#include <gsl/gsl>
+#include <gsl/gsl-lite.hpp>
 #include <memory>
 
 class McTimeTest : public ::testing::Test {

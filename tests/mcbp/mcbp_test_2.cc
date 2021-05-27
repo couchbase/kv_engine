@@ -13,10 +13,10 @@
 #include <daemon/cookie.h>
 #include <daemon/settings.h>
 #include <event2/event.h>
+#include <gsl/gsl-lite.hpp>
 #include <include/mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/protocol_binary.h>
-#include <gsl/gsl>
 #include <memory>
 
 /**

@@ -1,12 +1,12 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include <errno.h>
 #include <fcntl.h>
+#include <gsl/gsl-lite.hpp>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <gsl/gsl>
 
 #include "default_engine_internal.h"
 #include "engine_manager.h"

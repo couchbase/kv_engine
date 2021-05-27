@@ -11,11 +11,11 @@
 
 #include "user.h"
 
+#include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
 #include <platform/base64.h>
 #include <platform/random.h>
 #include <atomic>
-#include <gsl/gsl>
 #include <iterator>
 #include <memory>
 #include <mutex>

@@ -17,7 +17,7 @@
 #include <unordered_set>
 #include <utility>
 
-#include <gsl/gsl>
+#include <gsl/gsl-lite.hpp>
 #include <optional>
 
 #include <memcached/visibility.h>

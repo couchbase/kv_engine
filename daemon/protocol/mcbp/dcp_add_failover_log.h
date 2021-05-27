@@ -10,10 +10,10 @@
  */
 #pragma once
 
+#include <gsl/gsl-lite.hpp>
 #include <memcached/engine_error.h>
 #include <memcached/types.h>
 #include <memcached/vbucket.h>
-#include <gsl/gsl>
 
 class Cookie;
 /** Callback from the engine adding the response */

@@ -15,10 +15,10 @@
 #include <platform/dirutils.h>
 #include <platform/timeutils.h>
 
+#include <gsl/gsl-lite.hpp>
 #include <algorithm>
 #include <cstring>
 #include <fstream>
-#include <gsl/gsl>
 #include <system_error>
 
 #include "log_macros.h"

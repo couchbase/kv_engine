@@ -10,9 +10,9 @@
 
 #include "dockey.h"
 
+#include <gsl/gsl-lite.hpp>
 #include <memcached/vbucket.h>
 #include <platform/socket.h>
-#include <gsl/gsl>
 
 #ifndef WIN32
 #include <arpa/inet.h>

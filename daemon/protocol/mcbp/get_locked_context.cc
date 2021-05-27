@@ -16,9 +16,9 @@
 #include <daemon/memcached.h>
 #include <daemon/sendbuffer.h>
 #include <daemon/stats.h>
+#include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
 #include <xattr/utils.h>
-#include <gsl/gsl>
 
 cb::engine_errc GetLockedCommandContext::getAndLockItem() {
     auto ret = bucket_get_locked(

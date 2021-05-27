@@ -28,13 +28,13 @@
 #include "vbucket_state.h"
 
 #include <JSON_checker.h>
+#include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/compress.h>
 #include <platform/dirutils.h>
-#include <gsl/gsl>
 
 #include <charconv>
 #include <memory>

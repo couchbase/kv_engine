@@ -10,8 +10,8 @@
  */
 
 #include "testapp_client_test.h"
+#include <gsl/gsl-lite.hpp>
 #include <protocol/mcbp/ewb_encode.h>
-#include <gsl/gsl>
 
 class StatsTest : public TestappClientTest {
 public:

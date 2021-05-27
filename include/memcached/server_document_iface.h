@@ -14,7 +14,7 @@
 #include "engine_error.h"
 #include "types.h"
 
-#include <gsl/gsl>
+#include <gsl/gsl-lite.hpp>
 
 namespace cb::audit::document {
 enum class Operation;

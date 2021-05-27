@@ -17,9 +17,9 @@
 #include <daemon/mcaudit.h>
 #include <daemon/memcached.h>
 #include <daemon/sendbuffer.h>
+#include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
 #include <xattr/utils.h>
-#include <gsl/gsl>
 
 cb::engine_errc GetCommandContext::getItem() {
     const auto key = cookie.getRequestKey();

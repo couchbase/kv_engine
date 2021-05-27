@@ -27,13 +27,13 @@
 #include "xattr/key_validator.h"
 #include "xattr/utils.h"
 
+#include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
 #include <memcached/durability_spec.h>
 #include <memcached/types.h>
 #include <platform/histogram.h>
 #include <utilities/engine_errc_2_mcbp.h>
 #include <xattr/blob.h>
-#include <gsl/gsl>
 
 static const std::array<SubdocCmdContext::Phase, 2> phases{{SubdocCmdContext::Phase::XATTR,
                                                             SubdocCmdContext::Phase::Body}};

@@ -58,11 +58,11 @@
 #include "ewouldblock_engine.h"
 #include "ewouldblock_engine_public.h"
 
+#include <gsl/gsl-lite.hpp>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstring>
-#include <gsl/gsl>
 #include <iostream>
 #include <map>
 #include <memory>

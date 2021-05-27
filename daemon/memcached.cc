@@ -45,6 +45,7 @@
 #include <cbsasl/mechanism.h>
 #include <folly/CpuId.h>
 #include <folly/io/async/EventBase.h>
+#include <gsl/gsl-lite.hpp>
 #include <mcbp/mcbp.h>
 #include <memcached/rbac.h>
 #include <memcached/server_core_iface.h>
@@ -61,7 +62,6 @@
 #include <utilities/breakpad.h>
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/openssl_utils.h>
-#include <gsl/gsl>
 
 #include <chrono>
 #include <memory>

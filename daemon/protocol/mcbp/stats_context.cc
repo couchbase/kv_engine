@@ -24,6 +24,7 @@
 #include <daemon/stats.h>
 #include <daemon/stats_tasks.h>
 #include <daemon/topkeys.h>
+#include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
 #include <nlohmann/json.hpp>
@@ -33,7 +34,6 @@
 #include <platform/checked_snprintf.h>
 #include <statistics/cbstat_collector.h>
 #include <utilities/engine_errc_2_mcbp.h>
-#include <gsl/gsl>
 
 #include <cinttypes>
 

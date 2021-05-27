@@ -11,10 +11,10 @@
 
 #include "doc_pre_expiry.h"
 #include <folly/portability/GTest.h>
+#include <gsl/gsl-lite.hpp>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
 #include <xattr/blob.h>
-#include <gsl/gsl>
 
 TEST(PreExpiry, EmptyDocument) {
     item_info info{};

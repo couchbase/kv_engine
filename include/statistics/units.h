@@ -12,7 +12,7 @@
 #pragma once
 
 #include <folly/lang/Assume.h>
-#include <gsl/gsl>
+#include <gsl/gsl-lite.hpp>
 
 #include <array>
 #include <ratio>

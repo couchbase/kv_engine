@@ -17,6 +17,7 @@
 #include "subdocument_parser.h"
 #include "subdocument_validators.h"
 
+#include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
 #include <platform/crc32c.h>
 #include <platform/string_hex.h>
@@ -25,7 +26,6 @@
 #include <utilities/string_utilities.h>
 #include <xattr/blob.h>
 #include <xattr/key_validator.h>
-#include <gsl/gsl>
 #include <iomanip>
 #include <random>
 #include <sstream>

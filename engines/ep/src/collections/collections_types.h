@@ -14,8 +14,8 @@
 #include "atomic.h"
 #include "monotonic.h"
 
+#include <gsl/gsl-lite.hpp>
 #include <memcached/types.h>
-#include <gsl/gsl>
 
 #include <functional>
 #include <unordered_map>

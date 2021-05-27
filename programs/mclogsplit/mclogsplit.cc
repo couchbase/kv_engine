@@ -13,9 +13,9 @@
 #include <platform/dirutils.h>
 #include <utilities/terminate_handler.h>
 
+#include <gsl/gsl-lite.hpp>
 #include <cstdio>
 #include <cstring>
-#include <gsl/gsl>
 #include <iomanip>
 #include <iostream>
 #include <sstream>

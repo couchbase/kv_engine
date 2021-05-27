@@ -11,12 +11,12 @@
 
 #pragma once
 
+#include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/response.h>
 #include <mcbp/protocol/status.h>
 #include <nlohmann/json_fwd.hpp>
 #include <platform/thread.h>
 #include <chrono>
-#include <gsl/gsl>
 #include <mutex>
 #include <queue>
 #include <unordered_map>

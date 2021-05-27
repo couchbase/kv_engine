@@ -13,11 +13,11 @@
 #include "settings.h"
 
 #include <folly/concurrency/CacheLocality.h>
+#include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
 #include <platform/sysinfo.h>
 #include <algorithm>
 #include <cinttypes>
-#include <gsl/gsl>
 #include <stdexcept>
 #include <utility>
 

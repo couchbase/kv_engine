@@ -16,7 +16,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <gsl/gsl>
 #include <memory>
 
 const char* cbpwfile = "cbsasl_test.pw";

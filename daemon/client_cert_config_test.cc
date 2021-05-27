@@ -13,11 +13,11 @@
 #include <folly/portability/GTest.h>
 #include <memcached/openssl.h>
 
+#include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
 #include <openssl/conf.h>
 #include <openssl/engine.h>
 #include <platform/dirutils.h>
-#include <gsl/gsl>
 
 using namespace cb::x509;
 

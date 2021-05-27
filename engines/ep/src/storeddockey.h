@@ -15,8 +15,8 @@
 
 #include "ep_types.h"
 
+#include <gsl/gsl-lite.hpp>
 #include <memcached/dockey.h>
-#include <gsl/gsl>
 #include <limits>
 #include <string>
 #include <type_traits>

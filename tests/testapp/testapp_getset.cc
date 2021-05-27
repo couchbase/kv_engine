@@ -12,11 +12,11 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
+#include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <memcached/limits.h>
 #include <platform/compress.h>
 #include <algorithm>
-#include <gsl/gsl>
 
 class GetSetTest : public TestappXattrClientTest {
 protected:

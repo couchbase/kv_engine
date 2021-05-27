@@ -8,10 +8,10 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
+#include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <cstdlib>
-#include <gsl/gsl>
 #include <iostream>
 #include <map>
 

@@ -11,9 +11,9 @@
 #include "mcbp_test.h"
 #include "protocol/connection/client_mcbp_commands.h"
 
+#include <gsl/gsl-lite.hpp>
 #include <memcached/protocol_binary.h>
 #include <algorithm>
-#include <gsl/gsl>
 #include <vector>
 
 namespace mcbp::test {

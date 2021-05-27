@@ -14,11 +14,11 @@
 #include "cbsasl/util.h"
 
 #include <cbsasl/logging.h>
+#include <gsl/gsl-lite.hpp>
 #include <platform/base64.h>
 #include <platform/random.h>
 #include <platform/string_hex.h>
 #include <cstring>
-#include <gsl/gsl>
 #include <iomanip>
 #include <iostream>
 #include <map>

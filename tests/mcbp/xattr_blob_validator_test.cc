@@ -9,8 +9,8 @@
  *   the file licenses/APL2.txt.
  */
 #include <folly/portability/GTest.h>
+#include <gsl/gsl-lite.hpp>
 #include <xattr/utils.h>
-#include <gsl/gsl>
 #ifdef WIN32
 #include <winsock2.h>
 #else

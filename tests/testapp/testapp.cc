@@ -15,6 +15,7 @@
 #include <folly/portability/Stdlib.h>
 #include <folly/portability/SysTypes.h>
 #include <getopt.h>
+#include <gsl/gsl-lite.hpp>
 #include <include/memcached/protocol_binary.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <nlohmann/json.hpp>
@@ -31,7 +32,6 @@
 #include <chrono>
 #include <csignal>
 #include <fstream>
-#include <gsl/gsl>
 
 std::unique_ptr<McdEnvironment> mcd_env;
 

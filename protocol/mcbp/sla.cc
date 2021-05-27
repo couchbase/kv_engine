@@ -16,11 +16,11 @@
 #include <platform/dirutils.h>
 #include <platform/timeutils.h>
 
+#include <gsl/gsl-lite.hpp>
 #include <algorithm>
 #include <array>
 #include <atomic>
 #include <cctype>
-#include <gsl/gsl>
 #include <iostream>
 #include <unordered_map>
 

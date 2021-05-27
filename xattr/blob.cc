@@ -8,9 +8,9 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
+#include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
 #include <xattr/blob.h>
-#include <gsl/gsl>
 
 #ifdef WIN32
 #include <winsock2.h>

@@ -13,9 +13,9 @@
 
 #include <nlohmann/json.hpp>
 
+#include <gsl/gsl-lite.hpp>
 #include <atomic>
 #include <chrono>
-#include <gsl/gsl>
 #include <string>
 
 TimingHistogram::TimingHistogram() {

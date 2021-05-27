@@ -15,7 +15,7 @@
 #include <mcbp/protocol/response.h>
 #include <mcbp/protocol/status.h>
 
-#include <gsl/gsl>
+#include <gsl/gsl-lite.hpp>
 
 namespace cb::mcbp {
 

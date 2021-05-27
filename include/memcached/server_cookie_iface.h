@@ -16,9 +16,9 @@
 #include "rbac.h"
 #include "types.h"
 
+#include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/opcode.h>
 #include <nlohmann/json_fwd.hpp>
-#include <gsl/gsl>
 #include <string>
 
 namespace cb::mcbp {

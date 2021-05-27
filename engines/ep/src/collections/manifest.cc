@@ -20,12 +20,12 @@
 
 #include <json_utilities.h>
 
+#include <gsl/gsl-lite.hpp>
 #include <memcached/engine_error.h>
 #include <nlohmann/json.hpp>
 #include <platform/checked_snprintf.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/labelled_collector.h>
-#include <gsl/gsl>
 
 #include <cctype>
 #include <cstring>

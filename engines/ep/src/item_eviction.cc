@@ -12,7 +12,7 @@
 #include "item_eviction.h"
 #include "item.h"
 
-#include <gsl/gsl>
+#include <gsl/gsl-lite.hpp>
 
 ItemEviction::ItemEviction() {
 }
