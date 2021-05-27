@@ -656,13 +656,15 @@ void Connection::logExecutionException(const std::string_view where,
                     e.what(),
                     array.dump());
         }
-    } catch (const std::bad_alloc&) {
+    } catch (const std::exception& exception2) {
         try {
             LOG_ERROR(
-                    "{}: Exception occurred during {}. Closing connection: {}",
+                    "{}: Second exception occurred during {}. Closing "
+                    "connection: e:{} exception2:{}",
                     getId(),
                     where,
-                    e.what());
+                    e.what(),
+                    exception2.what());
             if (const auto* backtrace = cb::getBacktrace(e)) {
                 LOG_ERROR("{}: Exception thrown from:", getId());
                 print_backtrace_frames(*backtrace, [this](const char* frame) {
@@ -672,6 +674,8 @@ void Connection::logExecutionException(const std::string_view where,
         } catch (const std::bad_alloc&) {
             // Logging failed.
         }
+    } catch (...) {
+        // catch all, defensive as possible
     }
 }
 
