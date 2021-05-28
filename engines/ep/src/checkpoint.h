@@ -18,6 +18,7 @@
 #include "monotonic.h"
 
 #include <folly/Synchronized.h>
+#include <folly/container/F14Map.h>
 #include <memcached/engine_common.h>
 #include <platform/non_negative_counter.h>
 #include <utilities/memory_tracking_allocator.h>
@@ -111,11 +112,11 @@ using CheckpointIndexValueType =
         std::pair<const CheckpointIndexKeyType, IndexEntry>;
 
 using checkpoint_index =
-        std::unordered_map<CheckpointIndexKeyType,
-                           IndexEntry,
-                           std::hash<CheckpointIndexKeyType>,
-                           std::equal_to<>,
-                           MemoryTrackingAllocator<CheckpointIndexValueType>>;
+        folly::F14NodeMap<CheckpointIndexKeyType,
+                          IndexEntry,
+                          std::hash<CheckpointIndexKeyType>,
+                          std::equal_to<>,
+                          MemoryTrackingAllocator<CheckpointIndexValueType>>;
 
 class Checkpoint;
 class CheckpointManager;
