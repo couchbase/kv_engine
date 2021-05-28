@@ -10,7 +10,6 @@
  */
 #pragma once
 
-#include "task.h"
 #include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
 
@@ -22,15 +21,16 @@ class Cookie;
  * Background LIBEVENT tasks which can be run as part of the StatsCommandContext
  * execution.
  */
-class StatsTask : public Task {
+class StatsTask {
 public:
-    StatsTask() = delete;
+    virtual ~StatsTask() = default;
 
+    StatsTask() = delete;
     StatsTask(const StatsTask&) = delete;
 
     explicit StatsTask(Cookie& cookie);
 
-    void notifyExecutionComplete() override;
+    virtual void execute() = 0;
 
     cb::engine_errc getCommandError() const {
         return command_error;
@@ -55,7 +55,7 @@ public:
 
     StatsTaskConnectionStats(Cookie& cookie, int64_t fd);
 
-    Status execute() override;
+    void execute() override;
 
 protected:
     const int64_t fd;

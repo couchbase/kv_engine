@@ -14,7 +14,6 @@
 #include "sendbuffer.h"
 #include "ssl_utils.h"
 #include "stats.h"
-#include "task.h"
 
 #include <cbsasl/client.h>
 #include <cbsasl/server.h>

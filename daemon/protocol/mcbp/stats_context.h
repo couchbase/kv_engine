@@ -13,7 +13,7 @@
 #include "steppable_command_context.h"
 
 #include <daemon/cookie.h>
-class Task;
+class StatsTask;
 
 /**
  * The StatsCommandContext is responsible for implementing all of the
@@ -41,7 +41,7 @@ public:
 
     explicit StatsCommandContext(Cookie& cookie);
 
-    void setTask(std::shared_ptr<Task> t) {
+    void setTask(std::shared_ptr<StatsTask> t) {
         task = t;
     }
 
@@ -77,5 +77,5 @@ private:
      */
     cb::engine_errc command_exit_code;
 
-    std::shared_ptr<Task> task;
+    std::shared_ptr<StatsTask> task;
 };

@@ -20,7 +20,7 @@ StatsTaskConnectionStats::StatsTaskConnectionStats(Cookie& cookie, int64_t fd)
     : StatsTask(cookie), fd(fd) {
 }
 
-Task::Status StatsTaskConnectionStats::execute() {
+void StatsTaskConnectionStats::execute() {
     try {
         iterate_all_connections([this](Connection& c) -> void {
             if (fd == -1 || c.getId() == fd) {
@@ -38,12 +38,8 @@ Task::Status StatsTaskConnectionStats::execute() {
         command_error = cb::engine_errc::failed;
     }
 
-    return Task::Status::Finished;
+    notifyIoComplete(cookie, cb::engine_errc::success);
 }
 
 StatsTask::StatsTask(Cookie& cookie) : cookie(cookie) {
-}
-
-void StatsTask::notifyExecutionComplete() {
-    notifyIoComplete(cookie, cb::engine_errc::success);
 }

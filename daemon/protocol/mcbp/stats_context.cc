@@ -15,7 +15,6 @@
 
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
-#include <daemon/executorpool.h>
 #include <daemon/mc_time.h>
 #include <daemon/mcaudit.h>
 #include <daemon/memcached.h>
@@ -24,6 +23,7 @@
 #include <daemon/stats.h>
 #include <daemon/stats_tasks.h>
 #include <daemon/topkeys.h>
+#include <executor/executor.h>
 #include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
@@ -34,7 +34,6 @@
 #include <platform/checked_snprintf.h>
 #include <statistics/cbstat_collector.h>
 #include <utilities/engine_errc_2_mcbp.h>
-
 #include <cinttypes>
 
 using namespace std::string_view_literals;
@@ -284,12 +283,10 @@ static cb::engine_errc stat_connections_executor(const std::string& arg,
         }
     }
 
-    std::shared_ptr<Task> task =
+    std::shared_ptr<StatsTask> task =
             std::make_shared<StatsTaskConnectionStats>(cookie, fd);
     cookie.obtainContext<StatsCommandContext>(cookie).setTask(task);
-    std::lock_guard<std::mutex> guard(task->getMutex());
-    executorPool->schedule(task, true);
-
+    cb::executor::get().add([task]() { task->execute(); });
     return cb::engine_errc::would_block;
 }
 
