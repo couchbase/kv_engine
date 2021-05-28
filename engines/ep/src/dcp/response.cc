@@ -139,30 +139,30 @@ std::ostream& operator<<(std::ostream& os, const DcpResponse& r) {
     return os;
 }
 
-CommitSyncWriteConsumer::CommitSyncWriteConsumer(uint32_t opaque,
-                                                 Vbid vbucket,
-                                                 uint64_t preparedSeqno,
-                                                 uint64_t commitSeqno,
-                                                 const DocKey& key)
-    : DcpResponse(Event::Commit, opaque, cb::mcbp::DcpStreamId{}),
-      vbucket(vbucket),
-      key(key),
-      payload(preparedSeqno, commitSeqno) {
-}
-
-uint32_t CommitSyncWriteConsumer::getMessageSize() const {
-    throw std::logic_error(
-            "CommitSyncWriteConsumer::getMessageSize should not be called");
-}
-
 CommitSyncWrite::CommitSyncWrite(uint32_t opaque,
                                  Vbid vbucket,
                                  uint64_t preparedSeqno,
                                  uint64_t commitSeqno,
                                  const DocKey& key,
                                  DocKeyEncodesCollectionId includeCollectionID)
-    : CommitSyncWriteConsumer(opaque, vbucket, preparedSeqno, commitSeqno, key),
+    : DcpResponse(Event::Commit, opaque, cb::mcbp::DcpStreamId{}),
+      vbucket(vbucket),
+      key(key),
+      payload(preparedSeqno, commitSeqno),
       includeCollectionID(includeCollectionID) {
+}
+
+CommitSyncWriteConsumer::CommitSyncWriteConsumer(uint32_t opaque,
+                                                 Vbid vbucket,
+                                                 uint64_t preparedSeqno,
+                                                 uint64_t commitSeqno,
+                                                 const DocKey& key)
+    : CommitSyncWrite(opaque,
+                      vbucket,
+                      preparedSeqno,
+                      commitSeqno,
+                      key,
+                      key.getEncoding()) {
 }
 
 uint32_t CommitSyncWrite::getMessageSize() const {
@@ -175,30 +175,30 @@ uint32_t CommitSyncWrite::getMessageSize() const {
     return size;
 }
 
-AbortSyncWriteConsumer::AbortSyncWriteConsumer(uint32_t opaque,
-                                               Vbid vbucket,
-                                               const DocKey& key,
-                                               uint64_t preparedSeqno,
-                                               uint64_t abortSeqno)
-    : DcpResponse(Event::Abort, opaque, cb::mcbp::DcpStreamId{}),
-      vbucket(vbucket),
-      key(key),
-      payload(preparedSeqno, abortSeqno) {
-}
-
-uint32_t AbortSyncWriteConsumer::getMessageSize() const {
-    throw std::logic_error(
-            "AbortSyncWriteConsumer::getMessageSize should not be called");
-}
-
 AbortSyncWrite::AbortSyncWrite(uint32_t opaque,
                                Vbid vbucket,
                                const DocKey& key,
                                uint64_t preparedSeqno,
                                uint64_t abortSeqno,
                                DocKeyEncodesCollectionId includeCollectionID)
-    : AbortSyncWriteConsumer(opaque, vbucket, key, preparedSeqno, abortSeqno),
+    : DcpResponse(Event::Abort, opaque, cb::mcbp::DcpStreamId{}),
+      vbucket(vbucket),
+      key(key),
+      payload(preparedSeqno, abortSeqno),
       includeCollectionID(includeCollectionID) {
+}
+
+AbortSyncWriteConsumer::AbortSyncWriteConsumer(uint32_t opaque,
+                                               Vbid vbucket,
+                                               const DocKey& key,
+                                               uint64_t preparedSeqno,
+                                               uint64_t abortSeqno)
+    : AbortSyncWrite(opaque,
+                     vbucket,
+                     key,
+                     preparedSeqno,
+                     abortSeqno,
+                     key.getEncoding()) {
 }
 
 uint32_t AbortSyncWrite::getMessageSize() const {

@@ -466,10 +466,12 @@ process_items_error_t PassiveStream::processBufferedMessages(
                     static_cast<MutationConsumerMessage*>(response.get()));
             break;
         case DcpResponse::Event::Commit:
-            ret = processCommit(static_cast<CommitSyncWrite&>(*response));
+            ret = processCommit(
+                    static_cast<CommitSyncWriteConsumer&>(*response));
             break;
         case DcpResponse::Event::Abort:
-            ret = processAbort(dynamic_cast<AbortSyncWrite&>(*response));
+            ret = processAbort(
+                    dynamic_cast<AbortSyncWriteConsumer&>(*response));
             break;
         case DcpResponse::Event::SnapshotMarker:
             processMarker(static_cast<SnapshotMarker*>(response.get()));
