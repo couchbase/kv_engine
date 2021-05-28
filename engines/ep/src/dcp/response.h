@@ -635,17 +635,20 @@ private:
 };
 
 /**
- * Represents the Commit of a prepared SyncWrite, consumer side. Cannot call
- * getMessageSize
+ * Represents the Commit of a prepared SyncWrite, producer side.  Producer side
+ * requires the collection mode of the producer to determine how keys are
+ * encoded.
  */
-class CommitSyncWriteConsumer : public DcpResponse {
+class CommitSyncWrite : public DcpResponse {
 public:
-    CommitSyncWriteConsumer(uint32_t opaque,
-                            Vbid vbucket,
-                            uint64_t preparedSeqno,
-                            uint64_t commitSeqno,
-                            const DocKey& key);
+    CommitSyncWrite(uint32_t opaque,
+                    Vbid vbucket,
+                    uint64_t preparedSeqno,
+                    uint64_t commitSeqno,
+                    const DocKey& key,
+                    DocKeyEncodesCollectionId includeCollectionID);
 
+public:
     OptionalSeqno getBySeqno() const override {
         return OptionalSeqno{payload.getCommitSeqno()};
     }
@@ -665,48 +668,44 @@ public:
     uint64_t getCommitSeqno() const {
         return payload.getCommitSeqno();
     }
-    uint32_t getMessageSize() const override;
 
-protected:
-    Vbid vbucket;
-    StoredDocKey key;
-    cb::mcbp::request::DcpCommitPayload payload;
-};
-
-/**
- * Represents the Commit of a prepared SyncWrite, producer side. Provides
- * getMessageSize
- */
-class CommitSyncWrite : public CommitSyncWriteConsumer {
-public:
-    CommitSyncWrite(uint32_t opaque,
-                    Vbid vbucket,
-                    uint64_t preparedSeqno,
-                    uint64_t commitSeqno,
-                    const DocKey& key,
-                    DocKeyEncodesCollectionId includeCollectionID);
-
-public:
     static constexpr uint32_t commitBaseMsgBytes =
             sizeof(protocol_binary_request_header) +
             sizeof(cb::mcbp::request::DcpCommitPayload);
     uint32_t getMessageSize() const override;
 
 private:
+    Vbid vbucket;
+    StoredDocKey key;
+    cb::mcbp::request::DcpCommitPayload payload;
     DocKeyEncodesCollectionId includeCollectionID;
 };
 
 /**
- * Represents the Abort of a prepared SyncWrite. Consumer side, cannot call
- * getMessageSize
+ * Represents the Commit of a prepared SyncWrite, consumer side. The key will
+ * define how getMessageSize calculates the 'ack' size
  */
-class AbortSyncWriteConsumer : public DcpResponse {
+class CommitSyncWriteConsumer : public CommitSyncWrite {
 public:
-    AbortSyncWriteConsumer(uint32_t opaque,
-                           Vbid vbucket,
-                           const DocKey& key,
-                           uint64_t preparedSeqno,
-                           uint64_t abortSeqno);
+    CommitSyncWriteConsumer(uint32_t opaque,
+                            Vbid vbucket,
+                            uint64_t preparedSeqno,
+                            uint64_t commitSeqno,
+                            const DocKey& key);
+};
+
+/**
+ * Represents the Abort of a prepared SyncWrite. Producer side requires
+ * the collection mode of the producer to determine how keys are encoded.
+ */
+class AbortSyncWrite : public DcpResponse {
+public:
+    AbortSyncWrite(uint32_t opaque,
+                   Vbid vbucket,
+                   const DocKey& key,
+                   uint64_t preparedSeqno,
+                   uint64_t abortSeqno,
+                   DocKeyEncodesCollectionId includeCollectionID);
 
     Vbid getVbucket() const {
         return vbucket;
@@ -734,33 +733,27 @@ public:
 
     uint32_t getMessageSize() const override;
 
-protected:
+private:
     Vbid vbucket;
     StoredDocKey key;
     cb::mcbp::request::DcpAbortPayload payload;
+    DocKeyEncodesCollectionId includeCollectionID;
 };
 
 /**
- * Represents the Abort of a prepared SyncWrite. Producer side, can call
- * getMessageSize
+ * Represents the Abort of a prepared SyncWrite.
  */
-class AbortSyncWrite : public AbortSyncWriteConsumer {
+class AbortSyncWriteConsumer : public AbortSyncWrite {
 public:
-    AbortSyncWrite(uint32_t opaque,
-                   Vbid vbucket,
-                   const DocKey& key,
-                   uint64_t preparedSeqno,
-                   uint64_t abortSeqno,
-                   DocKeyEncodesCollectionId includeCollectionID);
+    AbortSyncWriteConsumer(uint32_t opaque,
+                           Vbid vbucket,
+                           const DocKey& key,
+                           uint64_t preparedSeqno,
+                           uint64_t abortSeqno);
 
     static constexpr uint32_t abortBaseMsgBytes =
             sizeof(protocol_binary_request_header) +
             sizeof(cb::mcbp::request::DcpAbortPayload);
-
-    uint32_t getMessageSize() const override;
-
-private:
-    DocKeyEncodesCollectionId includeCollectionID;
 };
 
 /**
