@@ -11,13 +11,13 @@
 
 #include "executors.h"
 #include <daemon/buckets.h>
-#include <daemon/cccp_notification_task.h>
 #include <daemon/cookie.h>
-#include <daemon/executorpool.h>
 #include <daemon/mcaudit.h>
 #include <daemon/memcached.h>
 #include <daemon/session_cas.h>
+#include <executor/executor.h>
 #include <logger/logger.h>
+#include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/request.h>
 #include <memcached/protocol_binary.h>
 
@@ -68,6 +68,95 @@ void get_cluster_config_executor(Cookie& cookie) {
                             0);
         connection.setClustermapRevno(pair.first);
     }
+}
+
+/// Push the configuration fot the provided bucket to all clients
+/// bound to the bucket and subscribe to notifications
+/// @param bucketIndex index into the bucket array
+/// @param revision the revision which triggered the callback
+///                 (used for logging only.. we'll always push the latest
+///                  version if there is a "race" where ns_server updates
+///                  the clustermap while we're pushing a version)
+static void push_cluster_config(int bucketIndex, int revision) {
+    // We've got a reference to the bucket so we need to disassociate
+    // when we're done!
+    auto& bucket = BucketManager::instance().at(bucketIndex);
+    bool isAlive = false;
+
+    {
+        std::lock_guard<std::mutex> guard(bucket.mutex);
+        isAlive = bucket.state == Bucket::State::Ready;
+        if (isAlive) {
+            // Bump a reference so the bucket can't be deleted while
+            // we're in the middle of pushing configurations
+            bucket.clients++;
+        }
+    }
+
+    if (!isAlive) {
+        return;
+    }
+
+    if (bucket.type == BucketType::NoBucket) {
+        LOG_INFO("Pushing new global cluster config - revision:[{}]", revision);
+    } else {
+        LOG_INFO(
+                "Pushing new cluster config for bucket:[{}] "
+                "revision:[{}]",
+                bucket.name,
+                revision);
+    }
+    try {
+        iterate_all_connections([](Connection& connection) -> void {
+            if (!connection.isClustermapChangeNotificationSupported()) {
+                // The client hasn't asked to be notified
+                return;
+            }
+
+            auto& b = connection.getBucket();
+            auto payload = b.clusterConfiguration.getConfiguration();
+            if (payload.first < connection.getClustermapRevno()) {
+                // The client has a newer revision map, ignore this one
+                return;
+            }
+
+            connection.setClustermapRevno(payload.first);
+            LOG_INFO("{}: Sending Cluster map revision {}",
+                     connection.getId(),
+                     payload.first);
+
+            std::string name = b.name;
+            size_t needed = sizeof(cb::mcbp::Request) + // packet header
+                            4 + // rev number in extdata
+                            name.size() + // the name of the bucket
+                            payload.second->size(); // The actual payload
+            std::string buffer;
+            buffer.resize(needed);
+            cb::mcbp::RequestBuilder builder(buffer);
+            builder.setMagic(cb::mcbp::Magic::ServerRequest);
+            builder.setDatatype(cb::mcbp::Datatype::JSON);
+            builder.setOpcode(
+                    cb::mcbp::ServerOpcode::ClustermapChangeNotification);
+
+            // The extras contains the cluster revision number as an
+            // uint32_t
+            const uint32_t rev = htonl(payload.first);
+            builder.setExtras(
+                    {reinterpret_cast<const uint8_t*>(&rev), sizeof(rev)});
+            builder.setKey({reinterpret_cast<const uint8_t*>(name.data()),
+                            name.size()});
+            builder.setValue(
+                    {reinterpret_cast<const uint8_t*>(payload.second->data()),
+                     payload.second->size()});
+
+            // Inject our packet into the stream!
+            connection.copyToOutputStream(builder.getFrame()->getFrame());
+        });
+    } catch (const std::exception& e) {
+        LOG_WARNING("Failed to push cluster config. Received exception: {}",
+                    e.what());
+    }
+    disconnect_bucket(bucket, nullptr);
 }
 
 void set_cluster_config_executor(Cookie& cookie) {
@@ -179,23 +268,9 @@ void set_cluster_config_executor(Cookie& cookie) {
     }
 
     if (!failed) {
-        try {
-            // Start an executor job to walk through the connections and tell
-            // them to push new clustermaps
-            std::shared_ptr<Task> task;
-            task = std::make_shared<CccpNotificationTask>(
-                    all_buckets.at(bucketIndex), revision);
-            std::lock_guard<std::mutex> guard(task->getMutex());
-            executorPool->schedule(task, true);
-        } catch (const std::exception& e) {
-            LOG_WARNING(
-                    "{}: {} Failed to push cluster notifications for bucket "
-                    "[{}] - {}",
-                    connection.getId(),
-                    connection.getDescription(),
-                    all_buckets[bucketIndex].name,
-                    e.what());
-        }
+        cb::executor::get().add([bucketIndex, revision]() {
+            push_cluster_config(bucketIndex, revision);
+        });
     }
 
     session_cas.decrement_session_counter();
