@@ -8,10 +8,7 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-#include "executor.h"
-#include "executorpool.h"
 #include "mc_time.h"
-#include "memcached.h"
 #include <folly/portability/GTest.h>
 #include <gsl/gsl-lite.hpp>
 #include <memory>
@@ -19,7 +16,6 @@
 class McTimeTest : public ::testing::Test {
 public:
     static void SetUpTestCase() {
-        executorPool = std::make_unique<cb::ExecutorPool>(0);
         mc_time_init_epoch();
     }
 

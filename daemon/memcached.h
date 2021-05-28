@@ -81,16 +81,6 @@ bool associate_bucket(Connection& connection,
 void disassociate_bucket(Connection& connection, Cookie* cookie = nullptr);
 void disconnect_bucket(Bucket& bucket, Cookie* cookie);
 
-/**
- * The executor pool used to pick up the result for requests spawn by the
- * client io threads and dispatched over to a background thread (in order
- * to allow for out of order replies).
- */
-namespace cb {
-class ExecutorPool;
-}
-extern std::unique_ptr<cb::ExecutorPool> executorPool;
-
 /// Iterate over all of the connections and call the provided callback in
 /// the context of the front end thread it is bound to. This means
 /// that the function cannot be called in one of the front end context

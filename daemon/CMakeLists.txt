@@ -30,10 +30,6 @@ add_library(memcached_daemon STATIC
             enginemap.cc
             enginemap.h
             environment.cc
-            executor.cc
-            executor.h
-            executorpool.cc
-            executorpool.h
             front_end_thread.h
             get_authorization_task.cc
             get_authorization_task.h
@@ -174,8 +170,6 @@ add_library(memcached_daemon STATIC
             subdocument_traits.h
             subdocument_validators.cc
             subdocument_validators.h
-            task.h
-            task.cc
             thread.cc
             timing_histogram.cc
             timing_histogram.h
@@ -186,8 +180,7 @@ add_library(memcached_daemon STATIC
             topkeys.cc
             topkeys.h
             tracing.cc
-            tracing.h
-            tracing_types.h)
+            tracing.h)
 
 if (NUMA_FOUND)
     target_include_directories(memcached_daemon

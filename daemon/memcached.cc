@@ -14,8 +14,6 @@
 #include "cookie.h"
 #include "enginemap.h"
 #include "environment.h"
-#include "executor.h"
-#include "executorpool.h"
 #include "external_auth_manager_thread.h"
 #include "front_end_thread.h"
 #include "libevent_locking.h"
@@ -86,8 +84,6 @@ std::atomic<bool> memcached_shutdown;
 bool is_memcached_shutting_down() {
     return memcached_shutdown;
 }
-
-std::unique_ptr<cb::ExecutorPool> executorPool;
 
 /*
  * forward declarations
@@ -1047,15 +1043,6 @@ int memcached_main(int argc, char** argv) {
     /* start up worker threads if MT mode */
     worker_threads_init();
 
-    // MB-46604: We want to migrate off the homegrown ExecutorPool and
-    //           replace that with folly's thread pool. To avoid a big
-    //           jumbopatch which rewrites all of the tasks to use folly
-    //           we run with both executors while we migrate the various
-    //           tasks over. It will double the number of threads, but
-    //           we'll probably only keep the same number of threads
-    //           working (as the total load will be the same).
-    executorPool = std::make_unique<cb::ExecutorPool>(
-            Settings::instance().getNumWorkerThreads());
     cb::executor::create(Settings::instance().getNumWorkerThreads());
 
     LOG_INFO(R"(Starting Phosphor tracing with config: "{}")",
@@ -1117,7 +1104,6 @@ int memcached_main(int argc, char** argv) {
     cb::rbac::destroy();
 
     LOG_INFO("Shutting down executor pool");
-    executorPool.reset();
     cb::executor::shutdown();
 
     LOG_INFO("Releasing signal handlers");

@@ -17,7 +17,6 @@
 #include <chrono>
 
 class Cookie;
-struct DumpContext;
 namespace cb::mcbp {
 enum class Datatype : uint8_t;
 } // namespace cb::mcbp

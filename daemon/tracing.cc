@@ -12,14 +12,16 @@
 #include "tracing.h"
 
 #include "cookie.h"
-#include "executorpool.h"
 #include "memcached.h"
 #include "settings.h"
-#include "task.h"
-#include "tracing_types.h"
 
 #include <daemon/protocol/mcbp/command_context.h>
+#include <phosphor/phosphor.h>
+#include <phosphor/tools/export.h>
+#include <platform/uuid.h>
 
+#include <executor/executor.h>
+#include <logger/logger.h>
 #include <chrono>
 #include <memory>
 #include <mutex>
@@ -61,16 +63,54 @@ void erase_if(ContainerT& items, const PredicateT& predicate) {
     }
 }
 
-Task::Status StaleTraceDumpRemover::periodicExecute() {
-    const auto now = std::chrono::steady_clock::now();
-    std::lock_guard<std::mutex> lh(traceDumps.mutex);
+/**
+ * DumpContext holds all the information required for an ongoing
+ * trace dump
+ */
+struct DumpContext {
+    explicit DumpContext(std::string content)
+        : content(std::move(content)),
+          last_touch(std::chrono::steady_clock::now()) {
+    }
 
-    using value_type = decltype(TraceDumps::dumps)::value_type;
-    erase_if(traceDumps.dumps, [now, this](const value_type& dump) {
-        return (dump.second.last_touch + std::chrono::seconds(max_age)) <= now;
-    });
-    return Status::Continue; // always repeat
-}
+    const std::string content;
+    const std::chrono::steady_clock::time_point last_touch;
+};
+
+/**
+ * Aggregate object to hold a map of dumps and a mutex protecting them
+ */
+struct TraceDumps {
+    std::map<cb::uuid::uuid_t, DumpContext> dumps;
+    std::mutex mutex;
+};
+
+/**
+ * StaleTraceDumpRemover is a periodic task that removes old dumps
+ */
+class StaleTraceDumpRemover {
+public:
+    StaleTraceDumpRemover(TraceDumps& traceDumps,
+                          std::chrono::seconds, // interval (not used)
+                          std::chrono::seconds max_age)
+        : traceDumps(traceDumps), max_age(max_age) {
+    }
+
+    void periodicExecute() {
+        const auto now = std::chrono::steady_clock::now();
+        std::lock_guard<std::mutex> lh(traceDumps.mutex);
+
+        using value_type = decltype(TraceDumps::dumps)::value_type;
+        erase_if(traceDumps.dumps, [now, this](const value_type& dump) {
+            return (dump.second.last_touch + std::chrono::seconds(max_age)) <=
+                   now;
+        });
+    }
+
+protected:
+    TraceDumps& traceDumps;
+    const std::chrono::seconds max_age;
+};
 
 static TraceDumps traceDumps;
 static std::shared_ptr<StaleTraceDumpRemover> dump_remover;
@@ -79,13 +119,10 @@ void initializeTracing(const std::string& traceConfig,
                        std::chrono::seconds interval,
                        std::chrono::seconds max_age) {
     // Currently just creating the stale dump remover periodic task
+    // @todo install as a snoozing task once we have the executor from
+    //       ep-engine available in the core
     dump_remover = std::make_shared<StaleTraceDumpRemover>(
             traceDumps, interval, max_age);
-    std::shared_ptr<Task> task = dump_remover;
-    {
-        std::lock_guard<std::mutex> lg(task->getMutex());
-        executorPool->schedule(task);
-    }
 
     setTraceConfig(traceConfig);
     // and begin tracing.
@@ -108,27 +145,29 @@ void deinitializeTracing() {
 }
 
 /// Task to run on the executor pool to convert the TraceContext to JSON
-class TraceFormatterTask : public Task {
+class TraceFormatterTask {
 public:
     TraceFormatterTask(Cookie& cookie, phosphor::TraceContext&& context)
-        : Task(), cookie(cookie), context(std::move(context)) {
+        : cookie(cookie), context(std::move(context)) {
     }
 
-    Status execute() override {
-        phosphor::tools::JSONExport exporter(context);
-        static const std::size_t chunksize = 1024 * 1024;
-        size_t last_wrote;
-        do {
-            formatted.resize(formatted.size() + chunksize);
-            last_wrote = exporter.read(&formatted[formatted.size() - chunksize],
-                                       chunksize);
-        } while (!exporter.done());
-        formatted.resize(formatted.size() - (chunksize - last_wrote));
-        return Status::Finished;
-    }
-
-    void notifyExecutionComplete() override {
-        notifyIoComplete(cookie, cb::engine_errc::success);
+    void execute() {
+        try {
+            phosphor::tools::JSONExport exporter(context);
+            static const std::size_t chunksize = 1024 * 1024;
+            size_t last_wrote;
+            do {
+                formatted.resize(formatted.size() + chunksize);
+                last_wrote = exporter.read(
+                        &formatted[formatted.size() - chunksize], chunksize);
+            } while (!exporter.done());
+            formatted.resize(formatted.size() - (chunksize - last_wrote));
+            notifyIoComplete(cookie, cb::engine_errc::success);
+        } catch (const std::exception& e) {
+            LOG_WARNING("TraceFormatterTask::execute: Received exception: {}",
+                        e.what());
+            notifyIoComplete(cookie, cb::engine_errc::failed);
+        }
     }
 
     Cookie& cookie;
@@ -173,10 +212,7 @@ cb::engine_errc ioctlGetTracingBeginDump(Cookie& cookie,
         cookie.setCommandContext(new TraceFormatterContext{task});
 
         cookie.setEwouldblock(true);
-        std::lock_guard<std::mutex> guard(task->getMutex());
-        std::shared_ptr<Task> basicTask = task;
-        executorPool->schedule(basicTask, true);
-
+        cb::executor::get().add([task]() { task->execute(); });
         return cb::engine_errc::would_block;
     }
 
@@ -201,6 +237,9 @@ cb::engine_errc ioctlGetTraceDump(Cookie& cookie,
                                   const StrToStrMap& arguments,
                                   std::string& value,
                                   cb::mcbp::Datatype& datatype) {
+    // @todo once we have the snoozed task we can stop this..
+    dump_remover->periodicExecute();
+
     auto id = arguments.find("id");
     if (id == arguments.end()) {
         cookie.setErrorContext("Dump ID must be specified as a key argument");

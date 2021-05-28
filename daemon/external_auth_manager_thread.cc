@@ -13,14 +13,13 @@
 #include "connection.h"
 #include "front_end_thread.h"
 #include "get_authorization_task.h"
-#include "memcached.h"
 #include "start_sasl_auth_task.h"
-#include "tracing.h"
-#include "tracing_types.h"
+#include "tracing.h" // SlowMutexThreshold
 
 #include <logger/logger.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <nlohmann/json.hpp>
+#include <phosphor/phosphor.h>
 #include <platform/base64.h>
 #include <algorithm>
 
