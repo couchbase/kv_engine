@@ -219,3 +219,5 @@ public:
 };
 
 class STPassiveStreamCouchstoreTest : public STPassiveStreamPersistentTest {};
+
+class STPassiveStreamMagmaTest : public STPassiveStreamPersistentTest {};

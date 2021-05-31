@@ -7182,7 +7182,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
                          stream_opaque,
                          Vbid(0),
                          /*start*/ 0,
-                         /*end*/ 3,
+                         /*end*/ 2,
                          /*flags*/ 2,
                          /*HCS*/ 0,
                          /*maxVisibleSeqno*/ {});
@@ -7218,6 +7218,18 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
     // Delete one of them (to allow us to test DCP deletion).
     const std::string delete_key{prefix + "0"};
     const DocKey docKey{delete_key, DocKeyEncodesCollectionId::No};
+
+    // Stream the delete in a new snapshot since a snapshot cannot have
+    // duplicate items.
+    dcp->snapshot_marker(*cookie,
+                         stream_opaque,
+                         Vbid(0),
+                         /*start*/ 3,
+                         /*end*/ 3,
+                         /*flags*/ 2,
+                         /*HCS*/ 0,
+                         /*maxVisibleSeqno*/ {});
+
     checkeq(cb::engine_errc::success,
             dcp->deletion(*cookie,
                           stream_opaque,

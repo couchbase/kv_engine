@@ -32,13 +32,20 @@ public:
      * Create the commit object to reference the given manifest and carry the
      * given vbucket_state. The  vbucket_state use a default parameter for test
      * code which just wants to all kvstore::commit
+     *
+     * @param writeOp Type of write operation to be issued for items in this
+     * commit.
      */
     explicit Commit(Collections::VB::Manifest& manifest,
+                    WriteOperation writeOp = WriteOperation::Upsert,
                     vbucket_state vbs = {},
                     SysErrorCallback sysErrorCallback = {});
 
     /// Object for updating the collection's meta-data during commit
     Collections::VB::Flush collections;
+
+    /// Type of write operation to be issued for items in this commit.
+    WriteOperation writeOp;
 
     /**
      * state to be used by the commit if successful, written to the KVStore

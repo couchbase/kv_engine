@@ -451,7 +451,18 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
         return true;
     };
 
-    VB::Commit commitData(vb->getManifest(), vbstate, callback);
+    WriteOperation writeOp = WriteOperation::Upsert;
+
+    // A disk snapshot has unique items and if we're receiving a vbucket from
+    // the start (seqno 0), we can issue Insert operations. This benefits some
+    // KVStore implementations since a lookup isn't needed. This scenario
+    // commonly occurs in rebalance where a vbucket is taken over by a new node.
+    if (toFlush.checkpointType == CheckpointType::Disk &&
+        toFlush.ranges.size() == 1 && toFlush.ranges[0].getStart() == 0) {
+        writeOp = WriteOperation::Insert;
+    }
+
+    VB::Commit commitData(vb->getManifest(), writeOp, vbstate, callback);
 
     vbucket_state& proposedVBState = commitData.proposedVBState;
 

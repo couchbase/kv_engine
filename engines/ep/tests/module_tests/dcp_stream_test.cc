@@ -4418,6 +4418,74 @@ void STPassiveStreamPersistentTest::SetUp() {
     ASSERT_TRUE(consumer->isSyncReplicationEnabled());
 }
 
+#ifdef EP_USE_MAGMA
+// Test that we issue Magma insert operations for items streamed in initial disk
+// snapshot.
+TEST_P(STPassiveStreamMagmaTest, InsertOpForInitialDiskSnapshot) {
+    const std::string value("value");
+
+    // Receive initial disk snapshot. Expect inserts for items in this snapshot.
+    SnapshotMarker marker(0 /*opaque*/,
+                          vbid,
+                          0 /*snapStart*/,
+                          3 /*snapEnd*/,
+                          dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+                          0 /*HCS*/,
+                          {} /*maxVisibleSeqno*/,
+                          {}, // timestamp
+                          {} /*streamId*/);
+
+    stream->processMarker(&marker);
+    auto vb = engine->getVBucket(vbid);
+    ASSERT_TRUE(vb->isReceivingInitialDiskSnapshot());
+
+    for (uint64_t seqno = 1; seqno <= 3; seqno++) {
+        auto ret = stream->messageReceived(
+                makeMutationConsumerMessage(seqno, vbid, value, 0));
+        ASSERT_EQ(cb::engine_errc::success, ret);
+    }
+
+    flushVBucketToDiskIfPersistent(vbid, 3);
+
+    size_t inserts = 0;
+    size_t upserts = 0;
+    store->getKVStoreStat("magma_NInserts", inserts);
+    store->getKVStoreStat("magma_NSets", upserts);
+    EXPECT_EQ(inserts, 3);
+    EXPECT_EQ(upserts, 0);
+
+    // Receive next disk snapshot. Expect upserts for items in this snapshot.
+    marker = SnapshotMarker(
+            0 /*opaque*/,
+            vbid,
+            4 /*snapStart*/,
+            6 /*snapEnd*/,
+            dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+            0 /*HCS*/,
+            {} /*maxVisibleSeqno*/,
+            {}, // timestamp
+            {} /*streamId*/);
+
+    stream->processMarker(&marker);
+    ASSERT_FALSE(vb->isReceivingInitialDiskSnapshot());
+
+    for (uint64_t seqno = 4; seqno <= 6; seqno++) {
+        auto ret = stream->messageReceived(
+                makeMutationConsumerMessage(seqno, vbid, value, 0));
+        ASSERT_EQ(cb::engine_errc::success, ret);
+    }
+
+    flushVBucketToDiskIfPersistent(vbid, 3);
+
+    inserts = 0;
+    upserts = 0;
+    store->getKVStoreStat("magma_NInserts", inserts);
+    store->getKVStoreStat("magma_NSets", upserts);
+    EXPECT_EQ(inserts, 3);
+    EXPECT_EQ(upserts, 3);
+}
+#endif /*EP_USE_MAGMA*/
+
 /**
  * The test checks that we do not lose any SnapRange information when at Replica
  * we re-attempt the flush of Disk Snapshot after a storage failure.
@@ -4699,3 +4767,10 @@ INSTANTIATE_TEST_SUITE_P(Persistent,
                          STPassiveStreamCouchstoreTest,
                          STParameterizedBucketTest::couchstoreConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
+
+#ifdef EP_USE_MAGMA
+INSTANTIATE_TEST_SUITE_P(Persistent,
+                         STPassiveStreamMagmaTest,
+                         STParameterizedBucketTest::magmaConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+#endif /*EP_USE_MAGMA*/

@@ -45,6 +45,17 @@ enum class IsDeleted : char { No, Yes };
 enum class IsCommitted : char { No, Yes };
 enum class WantsDropped : char { No, Yes };
 
+/// Types of write operations that can be issued to a KVStore.
+enum class WriteOperation : char {
+    /// Upsert first does a lookup and accordingly either updates or inserts an
+    /// item.
+    Upsert,
+    /// Insert always inserts an item without checking if it already exists.
+    /// This improves write performance for some KVStore implementations (e.g.
+    /// Magma).
+    Insert
+};
+
 enum class CheckpointType : char {
     /**
      * Disk checkpoints are received from disk snapshots from active nodes but

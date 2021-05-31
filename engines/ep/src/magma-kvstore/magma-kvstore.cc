@@ -1257,11 +1257,25 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
         if (req.getDocMeta().bySeqno > lastSeqno) {
             lastSeqno = req.getDocMeta().bySeqno;
         }
-        writeOps.emplace_back(Magma::WriteOperation::NewDocUpsert(
-                {req.getRawKey(), req.getRawKeyLen()},
-                {reinterpret_cast<char*>(&docMeta), sizeof(magmakv::MetaData)},
-                valSlice,
-                &req));
+
+        switch (commitData.writeOp) {
+        case WriteOperation::Insert:
+            writeOps.emplace_back(Magma::WriteOperation::NewDocInsert(
+                    {req.getRawKey(), req.getRawKeyLen()},
+                    {reinterpret_cast<char*>(&docMeta),
+                     sizeof(magmakv::MetaData)},
+                    valSlice,
+                    &req));
+            break;
+        case WriteOperation::Upsert:
+            writeOps.emplace_back(Magma::WriteOperation::NewDocUpsert(
+                    {req.getRawKey(), req.getRawKeyLen()},
+                    {reinterpret_cast<char*>(&docMeta),
+                     sizeof(magmakv::MetaData)},
+                    valSlice,
+                    &req));
+            break;
+        }
     }
 
     auto [getDroppedStatus, dropped] = getDroppedCollections(vbid);
@@ -2604,6 +2618,7 @@ GetStatsMap MagmaKVStore::getStats(
     fill("magma_NReadBytesGet", magmaStats.NReadBytesGet);
     fill("magma_NGets", magmaStats.NGets);
     fill("magma_NSets", magmaStats.NSets);
+    fill("magma_NInserts", magmaStats.NInserts);
     fill("magma_NReadIO", magmaStats.NReadIOs);
     fill("magma_NReadBytesCompact", magmaStats.NReadBytesCompact);
     fill("magma_BytesIncoming", magmaStats.BytesIncoming);
