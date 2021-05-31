@@ -192,6 +192,7 @@ bool Request::isQuiet() const {
         case ClientOpcode::NotifyVbucketUpdate_Unsupported:
         case ClientOpcode::EnableTraffic:
         case ClientOpcode::DisableTraffic:
+        case ClientOpcode::Ifconfig:
         case ClientOpcode::ChangeVbFilter_Unsupported:
         case ClientOpcode::CheckpointPersistence_Unsupported:
         case ClientOpcode::ReturnMeta:

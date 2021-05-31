@@ -58,6 +58,8 @@ add_library(memcached_daemon STATIC
             memcached.cc
             network_interface.cc
             network_interface.h
+            network_interface_description.cc
+            network_interface_description.h
             network_interface_manager.cc
             network_interface_manager.h
             opentelemetry.cc
@@ -119,6 +121,8 @@ add_library(memcached_daemon STATIC
             protocol/mcbp/get_meta_context.cc
             protocol/mcbp/get_meta_context.h
             protocol/mcbp/hello_packet_executor.cc
+            protocol/mcbp/ifconfig_context.cc
+            protocol/mcbp/ifconfig_context.h
             protocol/mcbp/list_bucket_executor.cc
             protocol/mcbp/mutation_context.cc
             protocol/mcbp/mutation_context.h
@@ -177,6 +181,8 @@ add_library(memcached_daemon STATIC
             timing_interval.h
             timings.cc
             timings.h
+            tls_configuration.cc
+            tls_configuration.h
             topkeys.cc
             topkeys.h
             tracing.cc
@@ -270,8 +276,10 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    doc_pre_expiry_test.cc
                    function_chain_test.cc
                    mc_time_test.cc
+                   network_interface_description_test.cc
                    settings_test.cc
                    ssl_utils_test.cc)
+    cb_enable_unity_build(memcached_unit_tests)
     add_sanitizers(memcached_unit_tests)
     target_link_libraries(memcached_unit_tests
                           memcached_daemon

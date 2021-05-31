@@ -141,6 +141,7 @@ bool is_valid_opcode(ClientOpcode opcode) {
     case ClientOpcode::NotifyVbucketUpdate_Unsupported:
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
+    case ClientOpcode::Ifconfig:
     case ClientOpcode::ChangeVbFilter_Unsupported:
     case ClientOpcode::CheckpointPersistence_Unsupported:
     case ClientOpcode::ReturnMeta:
@@ -297,6 +298,7 @@ bool is_supported_opcode(ClientOpcode opcode) {
     case ClientOpcode::CreateCheckpoint:
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
+    case ClientOpcode::Ifconfig:
     case ClientOpcode::CheckpointPersistence_Unsupported:
     case ClientOpcode::ReturnMeta:
     case ClientOpcode::CompactDb:
@@ -511,6 +513,7 @@ bool is_durability_supported(ClientOpcode opcode) {
     case ClientOpcode::NotifyVbucketUpdate_Unsupported:
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
+    case ClientOpcode::Ifconfig:
     case ClientOpcode::ChangeVbFilter_Unsupported:
     case ClientOpcode::CheckpointPersistence_Unsupported:
     case ClientOpcode::ReturnMeta:
@@ -693,6 +696,7 @@ bool is_reorder_supported(ClientOpcode opcode) {
     case ClientOpcode::NotifyVbucketUpdate_Unsupported:
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
+    case ClientOpcode::Ifconfig:
     case ClientOpcode::ChangeVbFilter_Unsupported:
     case ClientOpcode::CheckpointPersistence_Unsupported:
     case ClientOpcode::ReturnMeta:
@@ -877,6 +881,7 @@ bool is_collection_command(ClientOpcode opcode) {
     case ClientOpcode::NotifyVbucketUpdate_Unsupported:
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
+    case ClientOpcode::Ifconfig:
     case ClientOpcode::ChangeVbFilter_Unsupported:
     case ClientOpcode::CheckpointPersistence_Unsupported:
     case ClientOpcode::CompactDb:
@@ -1041,6 +1046,7 @@ bool is_deprecated(ClientOpcode opcode) {
     case ClientOpcode::NotifyVbucketUpdate_Unsupported:
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
+    case ClientOpcode::Ifconfig:
     case ClientOpcode::ChangeVbFilter_Unsupported:
     case ClientOpcode::CheckpointPersistence_Unsupported:
     case ClientOpcode::ReturnMeta:
@@ -1225,6 +1231,7 @@ bool is_preserve_ttl_supported(ClientOpcode opcode) {
     case ClientOpcode::NotifyVbucketUpdate_Unsupported:
     case ClientOpcode::EnableTraffic:
     case ClientOpcode::DisableTraffic:
+    case ClientOpcode::Ifconfig:
     case ClientOpcode::ChangeVbFilter_Unsupported:
     case ClientOpcode::CheckpointPersistence_Unsupported:
     case ClientOpcode::ReturnMeta:
@@ -1514,6 +1521,8 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "ENABLE_TRAFFIC";
     case ClientOpcode::DisableTraffic:
         return "DISABLE_TRAFFIC";
+    case ClientOpcode::Ifconfig:
+        return "IFCONFIG";
     case ClientOpcode::ChangeVbFilter_Unsupported:
         return "CHANGE_VB_FILTER";
     case ClientOpcode::CheckpointPersistence_Unsupported:

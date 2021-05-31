@@ -203,6 +203,10 @@ enum class ClientOpcode : uint8_t {
      * Command to disable data traffic temporarily
      */
     DisableTraffic = 0xae,
+
+    /// Perform interface control
+    Ifconfig = 0xaf,
+
     /**
      * Command to change the vbucket filter for a given producer.
      */

@@ -27,6 +27,7 @@ A controlling process could implement the logic by doing something like:
     nlohmann::json tls_properties = {
         {"private key", "/opt/couchbase/var/lib/couchbase/etc/private.pem"},
         {"certificate chain", "/opt/couchbase/var/lib/couchbase/etc/certificate.cert"},
+        {"CA file", "/opt/couchbase/var/lib/couchbase/etc/CAfile.pem"},
         {"password", cb::base64::encode("This is the passphrase")},
         {"minimum version", "tlsv1"},
         {"cipher list",
@@ -231,6 +232,7 @@ described as a JSON object with the following layout:
     {
        "private key": "/path/to/file/containing/private/key",
        "certificate chain": "/path/to/file/containing/certificate/chain",
+       "CA file", "/opt/couchbase/var/lib/couchbase/etc/CAfile.pem",
        "password" : "base64-encoded version of the password to decrypt private key",
        "minimum version" "TLS 1.2",
        "cipher list" : {

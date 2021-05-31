@@ -11,10 +11,12 @@
 #include "listening_port.h"
 #include "log_macros.h"
 #include "memcached.h"
+#include "network_interface_description.h"
 #include "server_socket.h"
 #include "settings.h"
 #include "ssl_utils.h"
 #include "stats.h"
+#include "tls_configuration.h"
 
 #include <folly/io/async/EventBase.h>
 #include <nlohmann/json.hpp>
@@ -24,8 +26,9 @@
 
 std::unique_ptr<NetworkInterfaceManager> networkInterfaceManager;
 
-NetworkInterfaceManager::NetworkInterfaceManager(folly::EventBase& base)
-    : eventBase(base) {
+NetworkInterfaceManager::NetworkInterfaceManager(
+        folly::EventBase& base, cb::prometheus::AuthCallback authCB)
+    : eventBase(base), authCallback(std::move(authCB)) {
     LOG_INFO_RAW("Enable port(s)");
     for (auto& interf : Settings::instance().getInterfaces()) {
         if (!createInterface(interf.tag,
@@ -46,10 +49,10 @@ NetworkInterfaceManager::NetworkInterfaceManager(folly::EventBase& base)
 }
 
 void NetworkInterfaceManager::signal() {
-    eventBase.runInEventBaseThread([this]() { updateInterfaces(); });
+    eventBase.runInEventBaseThread([this]() { updateDeprecatedInterfaces(); });
 }
 
-void NetworkInterfaceManager::updateInterfaces() {
+void NetworkInterfaceManager::updateDeprecatedInterfaces() {
     invalidateSslCache();
 
     bool changes = false;
@@ -507,4 +510,214 @@ bool NetworkInterfaceManager::createInterface(const std::string& tag,
     // Return success as long as we managed to create a listening port
     // for all non-optional protocols.
     return !required_proto_missing;
+}
+
+std::pair<nlohmann::json, nlohmann::json>
+NetworkInterfaceManager::createInterface(
+        const NetworkInterfaceDescription& description) {
+    SOCKET sfd;
+    addrinfo hints = {};
+
+    hints.ai_flags = AI_PASSIVE;
+    hints.ai_protocol = IPPROTO_TCP;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_family = description.getFamily();
+
+    const char* host_buf = nullptr;
+    const auto host = description.getHost();
+    if (!host.empty() && host != "*") {
+        host_buf = host.c_str();
+    }
+
+    struct addrinfo* ai;
+    int error = getaddrinfo(host_buf,
+                            std::to_string(description.getPort()).c_str(),
+                            &hints,
+                            &ai);
+    if (error != 0) {
+#ifdef WIN32
+        throw std::system_error(
+                GetLastError(), std::system_category(), "getaddrinfo()");
+#else
+        if (error != EAI_SYSTEM) {
+            throw std::runtime_error(std::string("getaddrinfo(): ") +
+                                     gai_strerror(error));
+        } else {
+            throw std::system_error(
+                    errno, std::system_category(), "getaddrinfo");
+        }
+#endif
+    }
+
+    nlohmann::json errors = nlohmann::json::array();
+    nlohmann::json ret = nlohmann::json::array();
+
+    // getaddrinfo may return multiple entries for a given name/port pair.
+    // Iterate over all of them and try to set up a listen object.
+    // We need at least _one_ entry per requested configuration (IPv4/6) in
+    // order to call it a success.
+    for (struct addrinfo* next = ai; next; next = next->ai_next) {
+        if (next->ai_addr->sa_family != AF_INET &&
+            next->ai_addr->sa_family != AF_INET6) {
+            // Ignore unsupported address families
+            continue;
+        }
+
+        if ((sfd = new_server_socket(next)) == INVALID_SOCKET) {
+            // getaddrinfo can return "junk" addresses,
+            continue;
+        }
+
+        if (bind(sfd, next->ai_addr, (socklen_t)next->ai_addrlen) ==
+            SOCKET_ERROR) {
+            const auto bind_error = cb::net::get_socket_error();
+            auto name = cb::net::to_string(
+                    reinterpret_cast<sockaddr_storage*>(next->ai_addr),
+                    static_cast<socklen_t>(next->ai_addrlen));
+            errors.push_back("Failed to bind to " + name + " - " +
+                             cb_strerror(bind_error));
+            safe_close(sfd);
+            continue;
+        }
+
+        auto inter = std::make_shared<ListeningPort>(
+                description.getTag(),
+                host,
+                cb::net::getSockNameAsJson(sfd)["port"].get<in_port_t>(),
+                next->ai_addr->sa_family,
+                description.isSystem(),
+                "",
+                "");
+        listen_conn.emplace_back(ServerSocket::create(sfd, eventBase, inter));
+        stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
+        ret.push_back(listen_conn.back()->toJson());
+    }
+
+    freeaddrinfo(ai);
+    return std::make_pair<nlohmann::json, nlohmann::json>(std::move(ret),
+                                                          std::move(errors));
+}
+
+std::pair<cb::mcbp::Status, std::string>
+NetworkInterfaceManager::doDefineInterface(const nlohmann::json& spec) {
+    auto descr = NetworkInterfaceDescription(spec);
+
+    if (descr.isTls()) {
+        // @todo needs the refactor to get off multiple ssl files
+        return {cb::mcbp::Status::NotSupported, {}};
+    }
+
+    if (descr.getType() == NetworkInterfaceDescription::Type::Prometheus) {
+        const auto prometheus = cb::prometheus::getRunningConfigAsJson();
+        if (!prometheus.empty()) {
+            return {cb::mcbp::Status::KeyEexists, {}};
+        }
+        try {
+            const auto port = cb::prometheus::initialize(
+                    {descr.getPort(), descr.getFamily()},
+                    server_prometheus_stats,
+                    authCallback);
+            nlohmann::json json;
+            json["errors"] = nlohmann::json::array();
+            json["ports"].push_back(port);
+            return {cb::mcbp::Status::Success, json.dump(2)};
+        } catch (const std::exception& e) {
+            return {cb::mcbp::Status::Einternal, e.what()};
+        }
+        // not reached
+    }
+
+    // I need to handle any for interface.. I'm tempted to drop that!
+    if (descr.getPort() != 0) {
+        // We can't add the port if it already exist with the same address
+        for (const auto& c : listen_conn) {
+            const auto& d = c->getInterfaceDescription();
+            if (d.port == descr.getPort() && d.family == descr.getFamily() &&
+                d.getHostname() == descr.getHostname()) {
+                return {cb::mcbp::Status::KeyEexists, {}};
+            }
+        }
+    }
+
+    try {
+        auto [result, errors] = createInterface(descr);
+        if (result.empty()) {
+            nlohmann::json json;
+            json["error"]["context"] = "Failed to create any ports";
+            json["error"]["errors"] = std::move(errors);
+            return {cb::mcbp::Status::KeyEnoent, json.dump(2)};
+        }
+
+        nlohmann::json json;
+        json["ports"] = std::move(result);
+        json["errors"] = std::move(errors);
+        writeInterfaceFile(false);
+        return {cb::mcbp::Status::Success, json.dump()};
+    } catch (const std::exception& exception) {
+        return {cb::mcbp::Status::Einternal, exception.what()};
+    }
+}
+
+std::pair<cb::mcbp::Status, std::string>
+NetworkInterfaceManager::doDeleteInterface(const std::string& uuid) {
+    for (auto iter = listen_conn.begin(); iter != listen_conn.end(); iter++) {
+        if (iter->get()->getUuid() == uuid) {
+            if (listen_conn.size() == 1) {
+                nlohmann::json json;
+                json["error"]["context"] = "Can't delete the last interface";
+                return {cb::mcbp::Status::Eaccess, json.dump()};
+            }
+
+            listen_conn.erase(iter);
+            writeInterfaceFile(false);
+            return {cb::mcbp::Status::Success, {}};
+        }
+    }
+
+    const auto prometheus = cb::prometheus::getRunningConfigAsJson();
+    if (!prometheus.empty() && prometheus["uuid"] == uuid) {
+        cb::prometheus::shutdown();
+        writeInterfaceFile(false);
+        return {cb::mcbp::Status::Success, {}};
+    }
+
+    return {cb::mcbp::Status::KeyEnoent, {}};
+}
+
+std::pair<cb::mcbp::Status, std::string>
+NetworkInterfaceManager::doListInterface() {
+    nlohmann::json ret = nlohmann::json::array();
+
+    for (const auto& connection : listen_conn) {
+        ret.push_back(connection->toJson());
+    }
+
+    auto prometheus = cb::prometheus::getRunningConfigAsJson();
+    if (!prometheus.empty()) {
+        ret.push_back(std::move(prometheus));
+    }
+
+    return {cb::mcbp::Status::Success, ret.dump(2)};
+}
+
+std::pair<cb::mcbp::Status, std::string>
+NetworkInterfaceManager::doTlsReconfigure(const nlohmann::json& spec) {
+    try {
+        auto next = std::make_unique<TlsConfiguration>(spec);
+        auto desc = next->to_json().dump(2);
+        tlsConfiguration.wlock()->swap(next);
+        return {cb::mcbp::Status::Success, std::move(desc)};
+    } catch (const std::exception& e) {
+        return {cb::mcbp::Status::Einternal, e.what()};
+    }
+}
+
+uniqueSslPtr NetworkInterfaceManager::createClientSslHandle() {
+    uniqueSslPtr ret;
+    tlsConfiguration.withRLock([&ret](auto& config) {
+        if (config) {
+            ret = config->createClientSslHandle();
+        }
+    });
+    return ret;
 }

@@ -144,6 +144,7 @@ const std::map<cb::mcbp::ClientOpcode, std::string> client_blueprint = {
           "NOTIFY_VBUCKET_UPDATE"},
          {ClientOpcode::EnableTraffic, "ENABLE_TRAFFIC"},
          {ClientOpcode::DisableTraffic, "DISABLE_TRAFFIC"},
+         {ClientOpcode::Ifconfig, "IFCONFIG"},
          {ClientOpcode::ChangeVbFilter_Unsupported, "CHANGE_VB_FILTER"},
          {ClientOpcode::CheckpointPersistence_Unsupported,
           "CHECKPOINT_PERSISTENCE"},

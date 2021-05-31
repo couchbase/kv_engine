@@ -7,6 +7,7 @@
 set -e
 
 openssl genrsa -out testapp.pem 1024
+openssl rsa -passout file:passphrase.txt -des3 -in testapp.pem -out encrypted-testapp.pem
 openssl req -new -x509  -days 3650 -sha256 -key testapp.pem -out testapp.cert \
         -subj '/C=NO/O=Couchbase Inc/OU=kv eng/CN=Root CA'
 openssl genrsa -out client.key 1024

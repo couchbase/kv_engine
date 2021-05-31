@@ -234,6 +234,8 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
      */
     setup(cb::mcbp::ClientOpcode::DisableTraffic,
           require<Privilege::NodeManagement>);
+    /// Command to manage interfaces
+    setup(cb::mcbp::ClientOpcode::Ifconfig, require<Privilege::NodeManagement>);
     /**
      * Command that returns meta data for typical memcached ops
      */

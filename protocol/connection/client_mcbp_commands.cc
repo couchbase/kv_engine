@@ -422,6 +422,13 @@ std::string BinprotResponse::getDataString() const {
     return {reinterpret_cast<const char*>(buf.data()), buf.size()};
 }
 
+nlohmann::json BinprotResponse::getDataJson() const {
+    const auto buf = getData();
+    const auto view = std::string_view{
+            reinterpret_cast<const char*>(buf.data()), buf.size()};
+    return nlohmann::json::parse(view);
+}
+
 const cb::mcbp::Response& BinprotResponse::getResponse() const {
     return getHeader().getResponse();
 }

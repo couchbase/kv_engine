@@ -15,6 +15,7 @@
 #include "cookie.h"
 #include "enginemap.h"
 #include "memcached.h"
+#include "network_interface_description.h"
 #include "subdocument_validators.h"
 #include "xattr/utils.h"
 #include <logger/logger.h>
@@ -2050,6 +2051,60 @@ static Status enable_disable_traffic_validator(Cookie& cookie) {
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
+static Status ifconfig_validator(Cookie& cookie) {
+    const auto status =
+            McbpValidator::verify_header(cookie,
+                                         0,
+                                         ExpectedKeyLen::NonZero,
+                                         ExpectedValueLen::Any,
+                                         ExpectedCas::NotSet,
+                                         PROTOCOL_BINARY_DATATYPE_JSON);
+    if (status != Status::Success) {
+        return status;
+    }
+
+    const auto& req = cookie.getRequest();
+
+    const auto keybuf = req.getKey();
+    const std::string_view key{reinterpret_cast<const char*>(keybuf.data()),
+                               keybuf.size()};
+    const auto value = req.getValue();
+    if (key == "list") {
+        if (!value.empty()) {
+            cookie.setErrorContext("Request must not include value");
+            return Status::Einval;
+        }
+        return Status::Success;
+    }
+
+    if (value.empty()) {
+        cookie.setErrorContext("Request must include value");
+        return Status::Einval;
+    }
+
+    if (key == "define") {
+        try {
+            const auto descr =
+                    NetworkInterfaceDescription(nlohmann::json::parse(value));
+        } catch (const std::invalid_argument& e) {
+            cookie.setErrorContext(e.what());
+            return Status::Einval;
+        } catch (const std::exception&) {
+            cookie.setErrorContext("value is not valid JSON");
+            return Status::Einval;
+        }
+
+        return Status::Success;
+    }
+
+    if (key == "delete" || key == "tls") {
+        return Status::Success;
+    }
+
+    cookie.setErrorContext(R"(Key must be "define", "delete", "list", "tls")");
+    return Status::Einval;
+}
+
 static Status get_keys_validator(Cookie& cookie) {
     const auto extlen = cookie.getHeader().getExtlen();
     auto status = McbpValidator::verify_header(cookie,
@@ -2375,6 +2430,7 @@ McbpValidator::McbpValidator() {
           enable_disable_traffic_validator);
     setup(cb::mcbp::ClientOpcode::DisableTraffic,
           enable_disable_traffic_validator);
+    setup(cb::mcbp::ClientOpcode::Ifconfig, ifconfig_validator);
     setup(cb::mcbp::ClientOpcode::GetKeys, get_keys_validator);
     setup(cb::mcbp::ClientOpcode::SetParam, set_param_validator);
     setup(cb::mcbp::ClientOpcode::GetReplica, get_validator);

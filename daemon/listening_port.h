@@ -42,6 +42,13 @@ public:
 
     ListeningPort(const ListeningPort& other) = default;
 
+    std::string getHostname() const {
+        if (host == "*") {
+            return family == AF_INET ? "0.0.0.0" : "::";
+        }
+        return host;
+    }
+
     /// The tag provided by the user to identify the port. It is possible
     /// to use ephemeral ports in the system, and if we want to change
     /// such ports at runtime the system needs a way to find the correct

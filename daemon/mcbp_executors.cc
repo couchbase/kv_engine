@@ -32,6 +32,7 @@
 #include "protocol/mcbp/get_context.h"
 #include "protocol/mcbp/get_locked_context.h"
 #include "protocol/mcbp/get_meta_context.h"
+#include "protocol/mcbp/ifconfig_context.h"
 #include "protocol/mcbp/mutation_context.h"
 #include "protocol/mcbp/rbac_reload_command_context.h"
 #include "protocol/mcbp/remove_context.h"
@@ -91,6 +92,10 @@ static void unlock_executor(Cookie& cookie) {
 
 static void gat_executor(Cookie& cookie) {
     cookie.obtainContext<GatCommandContext>(cookie).drive();
+}
+
+static void ifconfig_executor(Cookie& cookie) {
+    cookie.obtainContext<IfconfigCommandContext>(cookie).drive();
 }
 
 /**
@@ -841,6 +846,7 @@ void initialize_mbcp_lookup_map() {
     setup_handler(cb::mcbp::ClientOpcode::SetVbucket, set_vbucket_executor);
     setup_handler(cb::mcbp::ClientOpcode::DelVbucket, delete_vbucket_executor);
     setup_handler(cb::mcbp::ClientOpcode::CompactDb, compact_db_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Ifconfig, ifconfig_executor);
 }
 
 static cb::engine_errc getEngineErrorCode(

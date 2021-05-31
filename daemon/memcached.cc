@@ -1032,8 +1032,9 @@ int memcached_main(int argc, char** argv) {
     }
 #endif
 
-    networkInterfaceManager =
-            std::make_unique<NetworkInterfaceManager>(*main_base);
+    LOG_INFO_RAW("Starting network interface manager");
+    networkInterfaceManager = std::make_unique<NetworkInterfaceManager>(
+            *main_base, prometheus_auth_callback);
 
     /* start up worker threads if MT mode */
     worker_threads_init();

@@ -12,6 +12,22 @@
 
 #include "network_interface.h"
 #include "server_socket.h"
+#include "ssl_utils.h"
+#include "tls_configuration.h"
+
+#include <folly/Synchronized.h>
+#include <nlohmann/json_fwd.hpp>
+#include <platform/socket.h>
+#include <statistics/prometheus.h>
+#include <array>
+#include <atomic>
+#include <queue>
+
+class NetworkInterfaceDescription;
+
+namespace cb::mcbp {
+enum class Status : uint16_t;
+}
 
 namespace folly {
 class EventBase;
@@ -31,13 +47,24 @@ public:
      * Create a new instance and bind it to a given event base (the same
      * base as all of the listening sockets use)
      */
-    explicit NetworkInterfaceManager(folly::EventBase& base);
+    NetworkInterfaceManager(folly::EventBase& base,
+                            cb::prometheus::AuthCallback authCB);
 
     /**
      * Signal the network interface from any other thread (by sending
      * a message over the notification pipe)
      */
     void signal();
+
+    std::pair<cb::mcbp::Status, std::string> doTlsReconfigure(
+            const nlohmann::json& spec);
+    std::pair<cb::mcbp::Status, std::string> doDefineInterface(
+            const nlohmann::json& spec);
+    std::pair<cb::mcbp::Status, std::string> doDeleteInterface(
+            const std::string& uuid);
+    std::pair<cb::mcbp::Status, std::string> doListInterface();
+
+    uniqueSslPtr createClientSslHandle();
 
 protected:
     /**
@@ -64,12 +91,23 @@ protected:
                          NetworkInterface::Protocol iv4,
                          NetworkInterface::Protocol iv6);
 
+    /**
+     * Create a new interface by using the provided attributes
+     *
+     * @return a JSON description of the define ports and all of the errors
+     * @throws std::system_error if an error occurs
+     */
+    std::pair<nlohmann::json, nlohmann::json> createInterface(
+            const NetworkInterfaceDescription& description);
+
     /// Update the active interface list
-    void updateInterfaces();
+    void updateDeprecatedInterfaces();
 
     folly::EventBase& eventBase;
+    const cb::prometheus::AuthCallback authCallback;
     std::vector<std::unique_ptr<ServerSocket>> listen_conn;
     std::pair<in_port_t, sa_family_t> prometheus_conn;
+    folly::Synchronized<std::unique_ptr<TlsConfiguration>> tlsConfiguration;
 };
 
 /// The one and only instance of the network interface manager.
