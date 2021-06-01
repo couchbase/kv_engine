@@ -11,8 +11,7 @@ ADD_LIBRARY(ep_testsuite_objs OBJECT
         ep_request_utils.cc
         ep_testsuite_common.cc
         ep_test_apis.cc
-        ${EventuallyPersistentEngine_SOURCE_DIR}/src/ext_meta_parser.cc
-        ${EventuallyPersistentEngine_SOURCE_DIR}/src/storeddockey.cc)
+        $<TARGET_OBJECTS:ep_objs>)
 SET_PROPERTY(TARGET ep_testsuite_objs PROPERTY POSITION_INDEPENDENT_CODE 1)
 add_sanitizers(ep_testsuite_objs)
 target_link_libraries(ep_testsuite_objs PUBLIC platform)
