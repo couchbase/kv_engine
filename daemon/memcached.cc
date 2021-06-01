@@ -480,8 +480,6 @@ static void settings_init() {
                 }
             });
 
-    NetworkInterface default_interface;
-    settings.addInterface(default_interface);
     settings.setVerbose(0);
     settings.setNumWorkerThreads(get_number_of_worker_threads());
 
@@ -1013,6 +1011,7 @@ int memcached_main(int argc, char** argv) {
     LOG_INFO_RAW("Starting network interface manager");
     networkInterfaceManager = std::make_unique<NetworkInterfaceManager>(
             *main_base, prometheus_auth_callback);
+    networkInterfaceManager->createBootstrapInterface();
 
     /* start up worker threads if MT mode */
     worker_threads_init();

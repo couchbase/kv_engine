@@ -21,13 +21,10 @@ public:
     static void SetUpTestCase() {
         token = 0xdeadbeef;
         memcached_cfg = generate_config();
-        memcached_cfg["interfaces"].clear();
-        memcached_cfg["interfaces"].push_back({{"system", true},
-                                               {"port", 0},
-                                               {"ipv4", "required"},
-                                               {"ipv6", "off"},
-                                               {"host", "127.0.0.1"},
-                                               {"tag", "bootstrap"}});
+        auto iter = memcached_cfg.find("interfaces");
+        if (iter != memcached_cfg.end()) {
+            memcached_cfg.erase(iter);
+        }
         start_memcached_server();
         if (HasFailure()) {
             std::cerr << "Error in InterfacesTest::SetUpTestCase, terminating "
@@ -103,10 +100,20 @@ TEST_P(InterfacesTest, NoAccessTest) {
 TEST_P(InterfacesTest, ListInterfaces) {
     auto& conn = getAdminConnection();
     auto json = getInterfaces(conn);
+    auto [ipv4, ipv6] = cb::net::getIpAddresses(false);
+    int total = 2; // prometheus and the ipv4 interface
+    (void)ipv4;
+    if (!ipv6.empty()) {
+        ++total;
+    }
+
     // We should have the bootstrap interface and the prometheus one
-    ASSERT_EQ(2, json.size()) << json.dump(2);
-    ASSERT_EQ("mcbp", json[0]["type"]);
-    ASSERT_EQ("prometheus", json[1]["type"]);
+    ASSERT_EQ(total, json.size()) << json.dump(2);
+    ASSERT_EQ("mcbp", json.front()["type"]);
+    if (total == 3) {
+        ASSERT_EQ("mcbp", json[1]["type"]);
+    }
+    ASSERT_EQ("prometheus", json.back()["type"]);
 }
 
 TEST_P(InterfacesTest, Prometheus) {
@@ -136,7 +143,14 @@ TEST_P(InterfacesTest, Prometheus) {
             << "The interface should be deleted";
     // And no longer part of list interfaces
     interfaces = getInterfaces(conn);
-    ASSERT_EQ(1, interfaces.size());
+    auto [ipv4, ipv6] = cb::net::getIpAddresses(false);
+    int total = 1;
+    (void)ipv4;
+    if (!ipv6.empty()) {
+        ++total;
+    }
+
+    ASSERT_EQ(total, interfaces.size());
     ASSERT_EQ("mcbp", interfaces.back()["type"]);
 
     rsp = conn.execute(cmd);
@@ -253,15 +267,15 @@ TEST_P(InterfacesTest, Mcbp) {
         }
     }
 
-    interfaces = getInterfaces(conn);
-    // We should only have the bootstrap interface left
-    ASSERT_EQ(2, interfaces.size());
-
+    // Test if we cannot resolve the hostname
     descr["host"] = "This-name-should-not-resolve";
     cmd.setValue(descr.dump());
     rsp = conn.execute(cmd);
     ASSERT_EQ(cb::mcbp::Status::Einternal, rsp.getStatus())
             << rsp.getDataString();
+
+    // We should be back to how it looked initially
+    InterfacesTest_ListInterfaces_Test();
 }
 
 TEST_P(InterfacesTest, TlsProperties) {

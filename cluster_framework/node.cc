@@ -92,13 +92,7 @@ NodeImpl::NodeImpl(boost::filesystem::path directory, std::string id)
                 {"minidump_dir", minidump_dir.generic_string()},
                 {"content", "default"}}},
               {"portnumber_file", portnumber_file.generic_string()},
-              {"parent_identifier", (int)getpid()},
-              {"prometheus", {{"port", 0}, {"family", "inet"}}}};
-    config["interfaces"][0] = {{"tag", "plain"},
-                               {"system", true},
-                               {"port", 0},
-                               {"ipv4", "required"},
-                               {"host", "*"}};
+              {"parent_identifier", (int)getpid()}};
     std::ofstream out(configfile.generic_string());
     out << config.dump(2);
     out.close();

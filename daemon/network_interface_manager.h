@@ -50,6 +50,9 @@ public:
     NetworkInterfaceManager(folly::EventBase& base,
                             cb::prometheus::AuthCallback authCB);
 
+    /// Create the bootstrap interface for external users to connect to
+    void createBootstrapInterface();
+
     /**
      * Signal the network interface from any other thread (by sending
      * a message over the notification pipe)

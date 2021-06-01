@@ -29,18 +29,53 @@ std::unique_ptr<NetworkInterfaceManager> networkInterfaceManager;
 NetworkInterfaceManager::NetworkInterfaceManager(
         folly::EventBase& base, cb::prometheus::AuthCallback authCB)
     : eventBase(base), authCallback(std::move(authCB)) {
-    LOG_INFO_RAW("Enable port(s)");
-    for (auto& interf : Settings::instance().getInterfaces()) {
-        if (!createInterface(interf.tag,
-                             interf.host,
-                             interf.port,
-                             interf.system,
-                             !interf.ssl.key.empty(),
-                             interf.ipv4,
-                             interf.ipv6)) {
-            FATAL_ERROR(EXIT_FAILURE,
-                        "Failed to create required listening socket(s). "
-                        "Terminating.");
+}
+
+void NetworkInterfaceManager::createBootstrapInterface() {
+    auto [ipv4, ipv6] = cb::net::getIpAddresses(false);
+    auto& settings = Settings::instance();
+    if (settings.has.interfaces) {
+        LOG_INFO_RAW("Enable port(s)");
+        for (auto& interf : settings.getInterfaces()) {
+            if (!createInterface(interf.tag,
+                                 interf.host,
+                                 interf.port,
+                                 interf.system,
+                                 !interf.ssl.key.empty(),
+                                 interf.ipv4,
+                                 interf.ipv6)) {
+                FATAL_ERROR(EXIT_FAILURE,
+                            "Failed to create required listening socket(s). "
+                            "Terminating.");
+            }
+        }
+    } else {
+        auto createfunc = [this](sa_family_t fam) {
+            const std::string hostname = fam == AF_INET ? "127.0.0.1" : "::1";
+            const std::string family = fam == AF_INET ? "inet" : "inet6";
+            NetworkInterfaceDescription bootstrap({{"host", hostname},
+                                                   {"port", 0},
+                                                   {"family", family},
+                                                   {"system", true},
+                                                   {"type", "mcbp"},
+                                                   {"tag", "bootstrap"}});
+            auto [ifc, errors] = createInterface(bootstrap);
+            if (ifc.empty()) {
+                FATAL_ERROR(EXIT_FAILURE,
+                            "Failed to create a {} bootstrap interface: {}",
+                            family,
+                            errors.dump());
+            }
+        };
+
+        LOG_INFO_RAW("Enable bootstrap port(s)");
+        if (!ipv4.empty()) {
+            // Create an IPv4 bootstrap interface
+            createfunc(AF_INET);
+        }
+        if (!ipv6.empty()) {
+            // Create an IPv4 bootstrap interface
+            createfunc(AF_INET6);
         }
     }
 
@@ -48,6 +83,16 @@ NetworkInterfaceManager::NetworkInterfaceManager(
     if (!tls.empty()) {
         LOG_INFO("TLS configuration: {}", tls.dump());
         doTlsReconfigure(tls);
+    }
+
+    if (settings.has.prometheus_config) {
+        cb::prometheus::initialize(settings.getPrometheusConfig(),
+                                   server_prometheus_stats,
+                                   authCallback);
+    } else {
+        cb::prometheus::initialize({0, ipv4.empty() ? AF_INET6 : AF_INET},
+                                   server_prometheus_stats,
+                                   authCallback);
     }
 
     writeInterfaceFile(true);
