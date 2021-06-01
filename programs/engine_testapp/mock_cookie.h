@@ -9,6 +9,7 @@
  */
 #pragma once
 
+#include <memcached/cookie_iface.h>
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 #include <memcached/tracer.h>
@@ -22,7 +23,7 @@
 
 class DcpConnHandlerIface;
 
-struct MockCookie : cb::tracing::Traceable {
+struct MockCookie : public CookieIface {
     /**
      * Create a new cookie which isn't bound to an engine. This cookie won't
      * notify the engine when it disconnects.

@@ -12,6 +12,7 @@
 
 #include <mcbp/protocol/datatype.h>
 #include <mcbp/protocol/status.h>
+#include <memcached/cookie_iface.h>
 #include <memcached/dockey.h>
 #include <memcached/engine_error.h>
 #include <memcached/rbac.h>
@@ -45,7 +46,7 @@ class Buffer;
  * know what the argument is and provide it's own logic depending on
  * which field is set
  */
-class Cookie : public cb::tracing::Traceable {
+class Cookie : public CookieIface {
 public:
     explicit Cookie(Connection& conn);
 
