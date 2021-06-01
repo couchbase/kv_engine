@@ -138,7 +138,7 @@ TEST_F(MagmaKVStoreTest, prepareToCreate) {
 }
 
 TEST_F(MagmaKVStoreTest, getStats) {
-    constexpr std::array<std::string_view, 34> statNames = {{
+    constexpr std::array<std::string_view, 35> statNames = {{
             "magma_NCompacts",
             "magma_NFlushes",
             "magma_NTTLCompacts",
@@ -148,6 +148,7 @@ TEST_F(MagmaKVStoreTest, getStats) {
             "magma_NReadBytes",
             "magma_NReadBytesGet",
             "magma_NGets",
+            "magma_NSets",
             "magma_NReadIO",
             "magma_NReadBytesCompact",
             "magma_BytesIncoming",
@@ -189,6 +190,8 @@ TEST_F(MagmaKVStoreTest, getStat) {
     ASSERT_FALSE(kvstore->getStat("foobar", value));
     ASSERT_TRUE(kvstore->getStat("memory_quota", value));
 
+    ASSERT_TRUE(kvstore->getStat("magma_NSets", value));
+    ASSERT_TRUE(kvstore->getStat("magma_NGets", value));
     // Compaction counters
     ASSERT_TRUE(kvstore->getStat("magma_NCompacts", value));
     ASSERT_TRUE(kvstore->getStat("magma_NFlushes", value));

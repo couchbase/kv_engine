@@ -2735,7 +2735,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
         const BucketStatCollector& collector) {
     using namespace cb::stats;
     auto divide = [](double a, double b) { return b ? a / b : 0; };
-    constexpr std::array<std::string_view, 33> statNames = {
+    constexpr std::array<std::string_view, 34> statNames = {
             {"magma_NCompacts",
              "magma_NFlushes",
              "magma_NTTLCompacts",
@@ -2745,6 +2745,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
              "magma_NReadBytes",
              "magma_NReadBytesGet",
              "magma_NGets",
+             "magma_NSets",
              "magma_NReadIO",
              "magma_NReadBytesCompact",
              "magma_BytesIncoming",
@@ -2790,6 +2791,9 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
             collector.addStat(key, value);
         }
     };
+
+    addStat(Key::ep_magma_sets, "magma_NSets");
+    addStat(Key::ep_magma_gets, "magma_NGets");
 
     // Compaction counter stats.
     addStat(Key::ep_magma_compactions, "magma_NCompacts");

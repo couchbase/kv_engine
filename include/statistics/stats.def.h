@@ -288,6 +288,8 @@ STAT(ep_io_bg_fetch_read_count, , count, , )
 STAT(ep_bg_fetch_avg_read_amplification, , ratio, , )
 
 // Magma stats
+STAT(ep_magma_sets, , count, , )
+STAT(ep_magma_gets, , count, , )
 // Compaction.
 STAT(ep_magma_compactions, , count, , )
 STAT(ep_magma_flushes, , count, , )
