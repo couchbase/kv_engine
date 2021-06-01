@@ -13,9 +13,9 @@
 #include <stdexcept>
 #include <string>
 
-using namespace cb::mcbp;
+namespace cb::mcbp {
 
-std::string cb::mcbp::to_string(DcpStreamEndStatus status) {
+std::string to_string(DcpStreamEndStatus status) {
     switch (status) {
     case DcpStreamEndStatus::Ok:
         return "The stream ended due to all items being streamed";
@@ -42,3 +42,4 @@ std::string cb::mcbp::to_string(DcpStreamEndStatus status) {
             "to_string(cb::mcbp::DcpStreamEndStatus): unknown status:" +
             std::to_string(uint32_t(status)));
 }
+} // end namespace cb::mcbp
