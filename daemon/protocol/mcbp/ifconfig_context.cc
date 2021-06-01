@@ -54,6 +54,9 @@ cb::engine_errc IfconfigCommandContext::scheduleTask() {
                     ::notifyIoComplete(cookie, cb::engine_errc::success);
                 }));
     } else if (key == "tls") {
+        // @todo remove as part of dropping support TLS props from
+        // memcached.json
+        networkInterfaceManager->disallowTlsSettingsInConfigFile();
         ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
                 TaskId::Core_Ifconfig,
                 "Ifconfig set TLS configuration",

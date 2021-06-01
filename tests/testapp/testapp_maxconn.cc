@@ -10,22 +10,29 @@
  */
 #include "testapp_client_test.h"
 
-static const int MAX_CONNECTIONS = 20;
+static const int USER_CONNECTIONS = 15;
 static const int SYSTEM_CONNECTIONS = 10;
 
 class MaxConnectionTest : public TestappTest {
 protected:
     void SetUp() override {
-        memcached_cfg["max_connections"] = MAX_CONNECTIONS;
+        memcached_cfg["max_connections"] =
+                USER_CONNECTIONS + SYSTEM_CONNECTIONS;
         memcached_cfg["system_connections"] = SYSTEM_CONNECTIONS;
         reconfigure();
+
+        admin = connectionMap.getConnection().clone();
+        admin->authenticate("@admin", "password", "PLAIN");
+        admin->selectBucket("default");
+        user = connectionMap.getConnection("ssl").clone();
     }
 
-    std::pair<int, int> getConnectionCounts(MemcachedConnection& connection) {
+    /// Return the number of "user" connections and "system" connections
+    std::pair<int, int> getConnectionCounts() {
         int current = -1;
         int system = -1;
-        connection.stats([&current, &system](const std::string& key,
-                                             const std::string& value) -> void {
+        admin->stats([&current, &system](const std::string& key,
+                                         const std::string& value) -> void {
             if (key == "curr_connections") {
                 current = std::stoi(value);
             } else if (key == "system_connections") {
@@ -38,54 +45,53 @@ protected:
                     R"(Failed to locate "current" or "system")");
         }
 
-        return {current, system};
+        return {current - system, system};
     }
+
+    std::unique_ptr<MemcachedConnection> admin;
+    std::unique_ptr<MemcachedConnection> user;
 
     std::vector<std::unique_ptr<MemcachedConnection>> connections;
 };
 
 TEST_F(MaxConnectionTest, MaxUserConnectionsConnection) {
-    const auto limit = MAX_CONNECTIONS - SYSTEM_CONNECTIONS;
-    auto& connection = getAdminConnection();
-    connection.selectBucket("default");
-    auto current = getConnectionCounts(connection);
-    while (current.first < limit) {
-        connections.emplace_back(connection.clone());
-        current = getConnectionCounts(connection);
+    auto current = getConnectionCounts();
+    // Consume all of the user connections
+    while (current.first < USER_CONNECTIONS) {
+        connections.emplace_back(user->clone());
+        connections.back()->getSaslMechanisms();
+        current = getConnectionCounts();
     }
 
     try {
-        auto c = connection.clone();
+        auto c = user->clone();
+        c->getSaslMechanisms();
         FAIL() << "All connections should be consumed so connecting one more "
                   "should fail";
     } catch (const std::exception&) {
     }
 
     // But I should be able to create a system connection
-    auto& c = prepare(connectionMap.getConnection("ssl"));
-    c.authenticate("@admin", "password", "PLAIN");
+    auto c = admin->clone();
+    c->authenticate("@admin", "password", "PLAIN");
 }
 
 TEST_F(MaxConnectionTest, SystemConnection) {
-    // Locate the interface tagged as admin
-    auto& connection = prepare(connectionMap.getConnection("ssl"));
-    connection.authenticate("@admin", "password", "PLAIN");
-
-    connection.selectBucket("default");
-    auto current = getConnectionCounts(connection);
+    auto current = getConnectionCounts();
     while (current.second < SYSTEM_CONNECTIONS) {
-        connections.emplace_back(connection.clone());
-        current = getConnectionCounts(connection);
+        connections.emplace_back(admin->clone());
+        connections.back()->getSaslMechanisms();
+        current = getConnectionCounts();
     }
 
     try {
-        auto c = connection.clone();
+        auto c = admin->clone();
         FAIL() << "All connections should be consumed so connecting one more "
                   "should fail";
     } catch (const std::exception&) {
     }
 
     // But I should be able to create a normal connection
-    auto& conn = getConnection();
-    conn.getSaslMechanisms();
+    auto c = user->clone();
+    c->getSaslMechanisms();
 }

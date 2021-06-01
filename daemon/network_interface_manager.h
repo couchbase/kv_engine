@@ -69,6 +69,15 @@ public:
 
     uniqueSslPtr createClientSslHandle();
 
+    /// @todo Remove once we don't allow TLS properties in memcached.json
+    bool allowTlsSettingsInConfigFile() const {
+        return allowMemcachedJsonTlsProps;
+    }
+
+    void disallowTlsSettingsInConfigFile() {
+        allowMemcachedJsonTlsProps.store(false);
+    }
+
 protected:
     /**
      * Create the file containing all of the interfaces we're currently
@@ -110,6 +119,10 @@ protected:
     std::vector<std::unique_ptr<ServerSocket>> listen_conn;
     std::pair<in_port_t, sa_family_t> prometheus_conn;
     folly::Synchronized<std::unique_ptr<TlsConfiguration>> tlsConfiguration;
+
+    // @todo remove me once we don't need to automatically update
+    //       tls config from settings (people use the TLS command)
+    std::atomic_bool allowMemcachedJsonTlsProps = true;
 };
 
 /// The one and only instance of the network interface manager.

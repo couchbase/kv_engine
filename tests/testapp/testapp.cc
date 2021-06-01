@@ -132,8 +132,13 @@ TestBucketImpl& TestappTest::GetTestBucket() {
 // Per-test-case set-up.
 // Called before the first test in this test case.
 void TestappTest::SetUpTestCase() {
+    doSetUpTestCaseWithConfiguration(generate_config());
+}
+
+void TestappTest::doSetUpTestCaseWithConfiguration(nlohmann::json config) {
     token = 0xdeadbeef;
-    memcached_cfg = generate_config();
+    memcached_cfg = std::move(config);
+    remove(mcd_env->getPortnumberFile().c_str());
     start_memcached_server();
 
     if (HasFailure()) {
@@ -143,6 +148,90 @@ void TestappTest::SetUpTestCase() {
         mcd_env->terminate(EXIT_FAILURE);
     } else {
         CreateTestBucket();
+    }
+
+    // The connection map should only contain the bootstrap interfaces
+    bool error = false;
+    connectionMap.iterate([&error](const MemcachedConnection& c) {
+        if (c.getTag() != "bootstrap") {
+            std::cerr << "ERROR: Did not expect user interfaces to be created "
+                         "at this time: "
+                      << c.to_string() << std::endl;
+            error = true;
+        }
+    });
+
+    if (error) {
+        std::exit(EXIT_FAILURE);
+    }
+
+    auto createInterface = [](MemcachedConnection& conn,
+                              const std::string& host,
+                              const std::string& family) {
+        // Create the SSL interface to use
+        BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Ifconfig);
+        cmd.setKey("define");
+        nlohmann::json descr = {{"host", host},
+                                {"port", 0},
+                                {"family", family},
+                                {"system", false},
+                                {"type", "mcbp"},
+                                {"tls", true},
+                                {"tag", "ssl"}};
+        cmd.setValue(descr.dump());
+        auto rsp = conn.execute(cmd);
+        if (!rsp.isSuccess()) {
+            std::cerr << "Failed to define interface: " << host << " " + family
+                      << ": " << to_string(rsp.getStatus()) << std::endl
+                      << rsp.getDataString() << std::endl;
+            std::exit(EXIT_FAILURE);
+        }
+
+        TestappTest::connectionMap.add(rsp.getDataJson());
+        remove(mcd_env->getPortnumberFile().c_str());
+    };
+
+    try {
+        auto conn = connectionMap.getConnection().clone();
+        conn->connect();
+        conn->authenticate("@admin", "password", "PLAIN");
+
+        tls_properties = {
+                {"private key", SOURCE_ROOT "/tests/cert/testapp.pem"},
+                {"certificate chain", SOURCE_ROOT "/tests/cert/testapp.cert"},
+                {"minimum version", "TLS 1"},
+                {"cipher list",
+                 {{"TLS 1.2", "HIGH"},
+                  {"TLS 1.3",
+                   "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_"
+                   "AES_"
+                   "128_GCM_SHA256:TLS_AES_128_CCM_8_SHA256:TLS_AES_128_CCM_"
+                   "SHA256"}}},
+                {"cipher order", true},
+                {"client cert auth", "disabled"}};
+
+        BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Ifconfig);
+        cmd.setKey("tls");
+        cmd.setValue(tls_properties.dump());
+        auto rsp = conn->execute(cmd);
+        if (!rsp.isSuccess()) {
+            std::cerr << "Failed to set TLS properties: "
+                      << to_string(rsp.getStatus()) << std::endl
+                      << rsp.getDataString() << std::endl;
+            std::exit(EXIT_FAILURE);
+        }
+
+        auto [ipv4, ipv6] = cb::net::getIpAddresses(false);
+        if (!ipv4.empty()) {
+            createInterface(*conn, "127.0.0.1", "inet");
+        }
+        if (!ipv6.empty()) {
+            createInterface(*conn, "::1", "inet6");
+        }
+    } catch (const std::exception& exception) {
+        std::cerr << "Failed to define SSL bootstrap interfaces: "
+                  << exception.what() << std::endl;
+        std::exit(EXIT_FAILURE);
     }
 }
 
@@ -170,6 +259,7 @@ void TestappTest::reconfigure_client_cert_auth(const std::string& state,
     memcached_cfg["client_cert_auth"]["path"] = path;
     memcached_cfg["client_cert_auth"]["prefix"] = prefix;
     memcached_cfg["client_cert_auth"]["delimiter"] = delimiter;
+    tls_properties["client cert auth"] = state;
     // update the server to use this!
     reconfigure();
 }
@@ -302,18 +392,11 @@ std::string McdTestappTest::PrintToStringCombinedName(
            to_string(::testing::get<1>(info.param));
 }
 
-static std::string get_certificate_path(const std::string& file) {
-    return cb::io::sanitizePath(SOURCE_ROOT "/tests/cert/" + file);
-}
-
 static std::string get_errmaps_dir() {
     return cb::io::sanitizePath(SOURCE_ROOT "/etc/couchbase/kv/error_maps");
 }
 
 nlohmann::json TestappTest::generate_config() {
-    const std::string pem_path = get_certificate_path("testapp.pem");
-    const std::string cert_path = get_certificate_path("testapp.cert");
-
     nlohmann::json ret = {
             {"always_collect_trace_info", true},
             {"max_connections", Testapp::MAX_CONNECTIONS},
@@ -357,23 +440,6 @@ nlohmann::json TestappTest::generate_config() {
     } else {
         ret["verbosity"] = memcached_verbose - 1;
     }
-
-    // For simplicity in the test to check for max connections we mark the
-    // SSL port as an admin port
-    ret["interfaces"][0] = {{"tag", "plain"},
-                            {"system", false},
-                            {"port", 0},
-                            {"ipv4", "required"},
-                            {"ipv6", "required"},
-                            {"host", "*"}};
-
-    ret["interfaces"][1] = {{"tag", "ssl"},
-                            {"system", true},
-                            {"port", 0},
-                            {"ipv4", "required"},
-                            {"ipv6", "required"},
-                            {"host", "*"},
-                            {"ssl", {{"key", pem_path}, {"cert", cert_path}}}};
 
     return ret;
 }
@@ -1009,6 +1075,19 @@ void TestappTest::reconfigure() {
     ASSERT_FALSE(network_failure)
             << "Failed to tell the server to reload the configuration";
     ASSERT_TRUE(response.isSuccess()) << response.getDataString();
+
+    BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Ifconfig);
+    cmd.setKey("tls");
+    cmd.setValue(tls_properties.dump());
+    auto& conn = getAdminConnection();
+    auto rsp = conn.execute(cmd);
+    if (!rsp.isSuccess()) {
+        std::cerr << "Failed to set TLS properties: "
+                  << to_string(rsp.getStatus()) << std::endl
+                  << rsp.getDataString() << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
+    conn.reconnect();
 }
 
 void TestappTest::runCreateXattr(MemcachedConnection& connection,
@@ -1186,6 +1265,7 @@ void adjust_memcached_clock(
 }
 
 nlohmann::json TestappTest::memcached_cfg;
+nlohmann::json TestappTest::tls_properties;
 ConnectionMap TestappTest::connectionMap;
 uint64_t TestappTest::token;
 std::thread TestappTest::memcached_server_thread;

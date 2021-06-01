@@ -255,10 +255,10 @@ TlsConfiguration::ClientCertMode from_string(std::string_view view) {
     if (view == "mandatory") {
         return TlsConfiguration::ClientCertMode::Mandatory;
     }
-    if (view == "enabled") {
+    if (view == "enabled" || view == "enable") {
         return TlsConfiguration::ClientCertMode::Enabled;
     }
-    if (view == "disabled") {
+    if (view == "disabled" || view == "disable") {
         return TlsConfiguration::ClientCertMode::Disabled;
     }
     throw std::invalid_argument("from_string: Unknown Client Cert Mode: " +

@@ -23,20 +23,9 @@
 class BucketTest : public TestappClientTest {
 public:
     static void SetUpTestCase() {
-        memcached_cfg = generate_config();
-        // Change the number of worker threads to one so we guarantee that
-        // multiple connections are handled by a single worker.
-        memcached_cfg["threads"] = 1;
-        start_memcached_server();
-
-        if (HasFailure()) {
-            std::cerr << "Error in BucketTest::SetUpTestCase, "
-                         "terminating process"
-                      << std::endl;
-            mcd_env->terminate(EXIT_FAILURE);
-        } else {
-            CreateTestBucket();
-        }
+        auto config = generate_config();
+        config["threads"] = 1;
+        TestappTest::doSetUpTestCaseWithConfiguration(config);
     }
 };
 

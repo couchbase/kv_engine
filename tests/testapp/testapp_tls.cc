@@ -20,27 +20,35 @@ class TlsTests : public TestappClientTest {
 protected:
     void SetUp() override {
         TestappTest::SetUp();
-        memcached_cfg["ssl_cipher_list"]["tls 1.2"] = "HIGH";
-        memcached_cfg["ssl_cipher_list"]["tls 1.3"] =
-                "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_"
-                "128_GCM_SHA256";
+        tls = {{"private key", SOURCE_ROOT "/tests/cert/testapp.pem"},
+               {"certificate chain", SOURCE_ROOT "/tests/cert/testapp.cert"},
+               {"minimum version", "TLS 1"},
+               {"cipher list",
+                {{"TLS 1.2", "HIGH"},
+                 {"TLS 1.3",
+                  "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_"
+                  "AES_"
+                  "128_GCM_SHA256:TLS_AES_128_CCM_8_SHA256:TLS_AES_128_CCM_"
+                  "SHA256"}}},
+               {"cipher order", true},
+               {"client cert auth", "disabled"}};
         reloadConfig();
-        setTlsMinimumSpec("tlsv1");
         connection = connectionMap.getConnection(true, AF_INET).clone();
     }
 
     void reloadConfig() {
-        write_config_to_file(memcached_cfg.dump(2));
+        BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Ifconfig);
+        cmd.setKey("tls");
+        cmd.setValue(tls.dump());
         auto& conn = prepare(connectionMap.getConnection(false, AF_INET));
         conn.authenticate("@admin", "password", "PLAIN");
-        auto rsp = conn.execute(
-                BinprotGenericCommand(cb::mcbp::ClientOpcode::ConfigReload));
+        auto rsp = conn.execute(cmd);
         ASSERT_TRUE(rsp.isSuccess())
-                << "Failed to reload config: " << rsp.getDataString();
+                << "Failed to set TLS properties: " << rsp.getDataString();
     }
 
     void setTlsMinimumSpec(const std::string& version) {
-        memcached_cfg["ssl_minimum_protocol"] = version;
+        tls["minimum version"] = version;
         reloadConfig();
     }
 
@@ -65,6 +73,7 @@ protected:
         }
     }
 
+    nlohmann::json tls;
     std::unique_ptr<MemcachedConnection> connection;
 };
 
@@ -74,7 +83,7 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          ::testing::PrintToStringParamName());
 
 TEST_P(TlsTests, Minimum_Tls1) {
-    setTlsMinimumSpec("tlsv1");
+    setTlsMinimumSpec("TLS 1");
 
     shouldPass("tlsv1");
     shouldPass("tlsv1_1");
@@ -83,7 +92,7 @@ TEST_P(TlsTests, Minimum_Tls1) {
 }
 
 TEST_P(TlsTests, Minimum_Tls1_1) {
-    setTlsMinimumSpec("tlsv1_1");
+    setTlsMinimumSpec("TLS 1.1");
 
     shouldFail("tlsv1");
     shouldPass("tlsv1_1");
@@ -92,7 +101,8 @@ TEST_P(TlsTests, Minimum_Tls1_1) {
 }
 
 TEST_P(TlsTests, Minimum_Tls1_2) {
-    setTlsMinimumSpec("tlsv1_2");
+    setTlsMinimumSpec("TLS 1.2");
+
     shouldFail("tlsv1");
     shouldFail("tlsv1_1");
     shouldPass("tlsv1_2");
@@ -100,7 +110,8 @@ TEST_P(TlsTests, Minimum_Tls1_2) {
 }
 
 TEST_P(TlsTests, Minimum_Tls1_3) {
-    setTlsMinimumSpec("tlsv1_3");
+    setTlsMinimumSpec("TLS 1.3");
+
     shouldFail("tlsv1");
     shouldFail("tlsv1_1");
     shouldFail("tlsv1_2");
@@ -109,7 +120,7 @@ TEST_P(TlsTests, Minimum_Tls1_3) {
 
 TEST_P(TlsTests, TLS12_Ciphers) {
     // Disable all TLS v1 ciphers
-    memcached_cfg["ssl_cipher_list"]["tls 1.2"] = "HIGH:!TLSv1";
+    tls["cipher list"]["TLS 1.2"] = "HIGH:!TLSv1";
     reloadConfig();
 
     // We should be able to pick one of the other ciphers
@@ -124,7 +135,7 @@ TEST_P(TlsTests, TLS12_Ciphers) {
     shouldFail("tlsv1_2");
 
     // TLS 1.1. did not introduce any new ciphers
-    memcached_cfg["ssl_cipher_list"]["tls 1.2"] = "HIGH:!TLSv1:!TLSv1.2";
+    tls["cipher list"]["TLS 1.2"] = "HIGH:!TLSv1:!TLSv1.2";
     reloadConfig();
     connection->setTls12Ciphers("TLSv1.2");
     shouldFail("tlsv1");
@@ -133,7 +144,7 @@ TEST_P(TlsTests, TLS12_Ciphers) {
 }
 
 TEST_P(TlsTests, TLS13_Ciphers) {
-    memcached_cfg["ssl_cipher_list"]["tls 1.3"] = "TLS_AES_256_GCM_SHA384";
+    tls["cipher list"]["TLS 1.3"] = "TLS_AES_256_GCM_SHA384";
     reloadConfig();
 
     shouldPass("tlsv1_3");
@@ -145,8 +156,8 @@ TEST_P(TlsTests, TLS13_Ciphers) {
 // In the weird case you've configured the system to not accept any ciphers
 // at all
 TEST_P(TlsTests, No_Ciphers) {
-    memcached_cfg["ssl_cipher_list"]["tls 1.2"] = "";
-    memcached_cfg["ssl_cipher_list"]["tls 1.3"] = "";
+    tls["cipher list"]["TLS 1.2"] = "";
+    tls["cipher list"]["TLS 1.3"] = "";
     reloadConfig();
     shouldFail("tlsv1");
     shouldFail("tlsv1_1");
@@ -155,15 +166,15 @@ TEST_P(TlsTests, No_Ciphers) {
 }
 
 TEST_P(TlsTests, ECDHE_RSA_AES256_GCM_SHA384) {
-    memcached_cfg["ssl_cipher_list"]["tls 1.2"] = "ECDHE-RSA-AES256-GCM-SHA384";
-    memcached_cfg["ssl_cipher_list"]["tls 1.3"] = "";
+    tls["cipher list"]["TLS 1.2"] = "ECDHE-RSA-AES256-GCM-SHA384";
+    tls["cipher list"]["TLS 1.3"] = "";
     reloadConfig();
     shouldPass("tlsv1_2");
 }
 
 TEST_P(TlsTests, DHE_RSA_AES256_SHA256) {
-    memcached_cfg["ssl_cipher_list"]["tls 1.2"] = "DHE-RSA-AES256-SHA256";
-    memcached_cfg["ssl_cipher_list"]["tls 1.3"] = "";
+    tls["cipher list"]["TLS 1.2"] = "DHE-RSA-AES256-SHA256";
+    tls["cipher list"]["TLS 1.3"] = "";
     reloadConfig();
     shouldPass("tlsv1_2");
 }

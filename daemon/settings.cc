@@ -1294,7 +1294,9 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     // Until we've got everyone moved over to the new ifconfig interface!
     auto tls = getTlsConfiguration();
     if (!tls.empty() && networkInterfaceManager) {
-        networkInterfaceManager->doTlsReconfigure(tls);
+        if (networkInterfaceManager->allowTlsSettingsInConfigFile()) {
+            networkInterfaceManager->doTlsReconfigure(tls);
+        }
     }
 }
 
