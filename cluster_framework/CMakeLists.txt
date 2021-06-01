@@ -11,4 +11,4 @@ target_link_libraries(cluster_framework PUBLIC
                       mcd_test_util
                       platform
                       gtest)
-
+cb_enable_unity_build(cluster_framework)

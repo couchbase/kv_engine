@@ -27,6 +27,7 @@ add_library(engine_testapp OBJECT engine_testapp.cc
         ${Memcached_SOURCE_DIR}/include/memcached/bucket_type.h
 )
 target_link_libraries(engine_testapp PUBLIC Folly::headers memcached_logger)
+cb_enable_unity_build(engine_testapp)
 
 # An object library will not propagate dependencies
 # https://gitlab.kitware.com/cmake/cmake/issues/18090

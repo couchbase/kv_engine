@@ -41,6 +41,8 @@ add_library(mcd_util STATIC
             util.cc
             vbucket.cc )
 set_property(TARGET mcd_util PROPERTY POSITION_INDEPENDENT_CODE 1)
+cb_enable_unity_build(mcd_util)
+
 if (BREAKPAD_FOUND)
   target_include_directories(mcd_util SYSTEM PRIVATE ${BREAKPAD_INCLUDE_DIR})
   target_link_libraries(mcd_util ${BREAKPAD_LIBRARIES})

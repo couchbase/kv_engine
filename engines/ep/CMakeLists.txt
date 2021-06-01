@@ -375,6 +375,7 @@ ADD_LIBRARY(ep_objs OBJECT
             ${MAGMA_KVSTORE_SOURCE}
             ${COLLECTIONS_SOURCE})
 SET_PROPERTY(TARGET ep_objs PROPERTY POSITION_INDEPENDENT_CODE 1)
+cb_enable_unity_build(ep_objs)
 add_sanitizers(ep_objs)
 target_link_libraries(ep_objs PUBLIC platform spdlog ${EP_STORAGE_LIBS})
 
@@ -438,6 +439,7 @@ if (NOT EP_BYPASS_TESTS)
     set_property(TARGET ep_mocks PROPERTY POSITION_INDEPENDENT_CODE 1)
     target_link_libraries(ep_mocks PUBLIC platform spdlog)
     add_sanitizers(ep_mocks)
+    cb_enable_unity_build(ep_mocks)
 
     # While ep_perfsuite is arguably a "test" and hence should live under
     # tests/, we *don't* want optimizations disabled for it hence keep in
@@ -502,6 +504,7 @@ if (NOT EP_BYPASS_TESTS)
                                ${Couchstore_SOURCE_DIR})
 
     add_sanitizers(ep_engine_benchmarks)
+    cb_enable_unity_build(ep_engine_benchmarks)
 
     ADD_EXECUTABLE(ep-engine_sizes src/sizes.cc
                    $<TARGET_OBJECTS:ep_objs>)

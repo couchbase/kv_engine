@@ -97,6 +97,7 @@ target_link_libraries(memcached_testapp
     ${COUCHBASE_NETWORK_LIBS})
 add_dependencies(memcached_testapp memcached)
 add_sanitizers(memcached_testapp)
+cb_enable_unity_build(memcached_testapp)
 
 # All tests should have a test timeout to avoid blocking our CI infrastructure
 # if there is a bug in the code causing it to hang forever. The test timeout

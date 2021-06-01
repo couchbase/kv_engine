@@ -20,6 +20,7 @@ add_executable(memcached_mcbp_test
                ${PROJECT_SOURCE_DIR}/protocol/connection/client_mcbp_commands.cc)
 target_link_libraries(memcached_mcbp_test memcached_daemon platform gtest)
 add_sanitizers(memcached_mcbp_test)
+cb_enable_unity_build(memcached_mcbp_test)
 
 add_test(NAME memcached_mcbp_test COMMAND memcached_mcbp_test)
 

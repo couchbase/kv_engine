@@ -27,6 +27,7 @@ add_library(mcbp STATIC
 
 target_link_libraries(mcbp mcd_util platform)
 set_property(TARGET mcbp PROPERTY POSITION_INDEPENDENT_CODE 1)
+cb_enable_unity_build(mcbp)
 
 add_executable(mcbp_packet_printer mcbp_packet_printer.cc)
 target_link_libraries(mcbp_packet_printer mcbp platform)
@@ -51,4 +52,5 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
              COMMAND mcbp_unit_tests)
     add_sanitizers(mcbp_unit_tests)
+    cb_enable_unity_build(mcbp_unit_tests)
 endif ()

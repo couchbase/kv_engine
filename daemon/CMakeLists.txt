@@ -189,6 +189,7 @@ if (NUMA_FOUND)
 endif()
 
 target_include_directories(memcached_daemon PRIVATE ${Memcached_BINARY_DIR})
+cb_enable_unity_build(memcached_daemon)
 
 ADD_DEPENDENCIES(memcached_daemon generate_audit_descriptors)
 

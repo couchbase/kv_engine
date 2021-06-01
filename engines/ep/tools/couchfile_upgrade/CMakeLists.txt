@@ -9,5 +9,6 @@ add_executable(couchfile_upgrade couchfile_upgrade.cc
 target_link_libraries(couchfile_upgrade couchstore mcd_util platform
         ep-engine_collections)
 add_sanitizers(couchfile_upgrade)
+cb_enable_unity_build(couchfile_upgrade)
 
 install(TARGETS couchfile_upgrade RUNTIME DESTINATION bin)
