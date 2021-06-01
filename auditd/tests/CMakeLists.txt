@@ -3,7 +3,6 @@ add_executable(memcached_audit_test
                auditfile_test.cc
                auditconfig_test.cc
                eventdescriptor_test.cc
-               ${Memcached_SOURCE_DIR}/auditd/src/eventdescriptor.cc
                ${Memcached_SOURCE_DIR}/auditd/src/eventdescriptor.h
                ${Memcached_SOURCE_DIR}/include/memcached/isotime.h)
 target_link_libraries(memcached_audit_test
