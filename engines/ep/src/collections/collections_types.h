@@ -107,7 +107,12 @@ static inline ManifestUid makeUid(const std::string& uid) {
  */
 static inline CollectionID makeCollectionID(const char* uid) {
     // CollectionID is 8 characters max and smaller than a ManifestUid
-    return gsl::narrow_cast<CollectionID>(makeUid(uid, 8));
+    try {
+        return gsl::narrow<CollectionIDType>(makeUid(uid, 8));
+    } catch (const gsl::narrowing_error& e) {
+        throw std::invalid_argument("Cannot narrow uid:'" + std::string(uid) +
+                                    "' to a CollectionID");
+    }
 }
 
 /**
@@ -127,11 +132,16 @@ static inline CollectionID makeCollectionID(const std::string& uid) {
  * A valid CollectionID is a std::string where each character satisfies
  * std::isxdigit and can be converted to a CollectionID by std::strtoul
  * @param uid C-string uid
- * @return std::invalid_argument if uid is invalid
+ * @throws std::invalid_argument if uid is invalid
  */
 static inline ScopeID makeScopeID(const char* uid) {
-    // ScopeId is 8 characters max and smaller than a ManifestUid
-    return gsl::narrow_cast<ScopeID>(makeUid(uid, 8));
+    try {
+        // ScopeId is 8 characters max and smaller than a ManifestUid
+        return gsl::narrow<ScopeIDType>(makeUid(uid, 8));
+    } catch (const gsl::narrowing_error& e) {
+        throw std::invalid_argument("Cannot narrow uid:'" + std::string(uid) +
+                                    "' to a ScopeID");
+    }
 }
 
 /**
