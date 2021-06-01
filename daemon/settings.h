@@ -838,6 +838,8 @@ public:
         return std::string{*phosphor_config.rlock()};
     }
 
+    nlohmann::json getTlsConfiguration() const;
+
 protected:
     /// Should the server always collect trace information for commands
     std::atomic_bool always_collect_trace_info{false};

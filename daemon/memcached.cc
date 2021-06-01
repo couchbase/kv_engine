@@ -551,28 +551,6 @@ static void settings_init() {
                         },
                         nullptr);
             });
-
-    // We need to invalidate the SSL cache whenever some of the settings change
-    settings.addChangeListener("client_cert_auth",
-                               [](const std::string&, Settings&) -> void {
-                                   invalidateSslCache();
-                               });
-    settings.addChangeListener("ssl_cipher_order",
-                               [](const std::string&, Settings&) -> void {
-                                   invalidateSslCache();
-                               });
-    settings.addChangeListener("ssl_cipher_list",
-                               [](const std::string&, Settings&) -> void {
-                                   invalidateSslCache();
-                               });
-    settings.addChangeListener("ssl_cipher_suites",
-                               [](const std::string&, Settings&) -> void {
-                                   invalidateSslCache();
-                               });
-    settings.addChangeListener("ssl_minimum_protocol",
-                               [](const std::string&, Settings&) -> void {
-                                   invalidateSslCache();
-                               });
 }
 
 /**
@@ -1128,9 +1106,6 @@ int memcached_main(int argc, char** argv) {
     externalAuthManager->shutdown();
     externalAuthManager->waitForState(Couchbase::ThreadState::Zombie);
     externalAuthManager.reset();
-
-    LOG_INFO_RAW("Release cached SSL contexts");
-    invalidateSslCache();
 
     LOG_INFO_RAW("Shutting down SASL server");
     cb::sasl::server::shutdown();

@@ -29,15 +29,13 @@ public:
                   in_port_t port,
                   sa_family_t family,
                   bool system,
-                  std::string key,
-                  std::string cert)
+                  bool tls)
         : tag(std::move(tag)),
           host(std::move(host)),
           port(port),
           family(family),
           system(system),
-          sslKey(std::move(key)),
-          sslCert(std::move(cert)) {
+          tls(tls) {
     }
 
     ListeningPort(const ListeningPort& other) = default;
@@ -74,15 +72,6 @@ public:
     /// Is this an interface used for system traffic
     const bool system;
 
-    // SSL related properties for the port. Both key and certificate must
-    // be set
-
-    /// The name of the file containing the SSL key
-    const std::string sslKey;
-    /// The name of the file containing the certificate
-    const std::string sslCert;
-
-    bool isSslPort() const {
-        return !sslKey.empty() && !sslCert.empty();
-    }
+    /// Is this port set up for TLS
+    const bool tls;
 };

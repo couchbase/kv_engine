@@ -22,6 +22,7 @@
 #include <system_error>
 
 #include "log_macros.h"
+#include "network_interface_manager.h"
 #include "settings.h"
 #include "ssl_utils.h"
 
@@ -1296,6 +1297,49 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             setPhosphorConfig(o);
         }
     }
+
+    // Until we've got everyone moved over to the new ifconfig interface!
+    auto tls = getTlsConfiguration();
+    if (!tls.empty() && networkInterfaceManager) {
+        networkInterfaceManager->doTlsReconfigure(tls);
+    }
+}
+
+// Until we've got everyone moved over to the new ifconfig interface!
+nlohmann::json Settings::getTlsConfiguration() const {
+    nlohmann::json tls;
+    if (has.interfaces) {
+        interfaces.withRLock([&tls](auto& interf) {
+            for (const auto& i : interf) {
+                if (!i.ssl.key.empty()) {
+                    tls = {{"private key", i.ssl.key},
+                           {"certificate chain", i.ssl.cert}};
+                    return;
+                }
+            }
+        });
+    }
+
+    if (!tls.empty()) {
+        tls["minimum version"] = getSslMinimumProtocol();
+        tls["cipher order"] = isSslCipherOrder();
+        tls["cipher list"]["tls 1.2"] = getSslCipherList();
+        tls["cipher list"]["tls 1.3"] = getSslCipherSuites();
+
+        switch (client_cert_mapper.getMode()) {
+        case cb::x509::Mode::Disabled:
+            tls["client cert auth"] = "disabled";
+            break;
+        case cb::x509::Mode::Enabled:
+            tls["client cert auth"] = "enabled";
+            break;
+        case cb::x509::Mode::Mandatory:
+            tls["client cert auth"] = "mandatory";
+            break;
+        }
+    }
+
+    return tls;
 }
 
 /**

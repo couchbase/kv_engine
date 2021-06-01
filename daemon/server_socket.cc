@@ -14,6 +14,7 @@
 #include "front_end_thread.h"
 #include "listening_port.h"
 #include "memcached.h"
+#include "network_interface_manager.h"
 #include "settings.h"
 #include "stats.h"
 
@@ -60,9 +61,6 @@ public:
     const ListeningPort& getInterfaceDescription() const override {
         return *interface;
     }
-
-    /// Update the interface description to use the provided SSL info
-    void updateSSL(const std::string& key, const std::string& cert) override;
 
     /**
      * Get the details for this connection to put in the portnumber
@@ -234,9 +232,9 @@ void LibeventServerSocketImpl::acceptNewClient() {
 
     uniqueSslPtr ssl;
     bool failed = false;
-    if (interface->isSslPort()) {
+    if (interface->tls) {
         try {
-            ssl = createSslStructure(*interface);
+            ssl = networkInterfaceManager->createClientSslHandle();
             if (!ssl) {
                 failed = true;
             }
@@ -274,39 +272,13 @@ nlohmann::json LibeventServerSocketImpl::toJson() const {
         ret["family"] = "inet6";
     }
 
-    ret["tls"] = interface->isSslPort();
+    ret["tls"] = interface->tls;
     ret["system"] = interface->system;
     ret["tag"] = interface->tag;
     ret["type"] = "mcbp";
     ret["uuid"] = uuid;
 
     return ret;
-}
-
-void LibeventServerSocketImpl::updateSSL(const std::string& key,
-                                         const std::string& cert) {
-    std::stringstream ss;
-    ss << sfd << ": Update interface properties for IPv";
-    if (interface->family == AF_INET) {
-        ss << "4";
-    } else {
-        ss << "6";
-    }
-    ss << ": " << sockname << " ";
-    if (!key.empty()) {
-        ss << "SSL: key: " << key << " cert: " << cert;
-    }
-    if (!interface->tag.empty()) {
-        ss << " (" << interface->tag << ")";
-    }
-    LOG_INFO_RAW(ss.str());
-    interface = std::make_shared<ListeningPort>(interface->tag,
-                                                interface->host,
-                                                interface->port,
-                                                interface->family,
-                                                interface->system,
-                                                key,
-                                                cert);
 }
 
 std::unique_ptr<ServerSocket> ServerSocket::create(

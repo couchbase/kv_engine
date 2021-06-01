@@ -86,8 +86,7 @@ protected:
                          const std::string& host,
                          in_port_t port,
                          bool system_port,
-                         const std::string& sslkey,
-                         const std::string& sslcert,
+                         bool tls,
                          NetworkInterface::Protocol iv4,
                          NetworkInterface::Protocol iv6);
 

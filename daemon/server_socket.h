@@ -43,9 +43,6 @@ public:
 
     virtual const ListeningPort& getInterfaceDescription() const = 0;
 
-    /// Update the interface description to use the provided SSL info
-    virtual void updateSSL(const std::string& key, const std::string& cert) = 0;
-
     /**
      * Get the details for this connection to put in the portnumber
      * file so that the test framework may pick up the port numbers

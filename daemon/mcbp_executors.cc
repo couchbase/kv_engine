@@ -193,9 +193,8 @@ static void isasl_refresh_executor(Cookie& cookie) {
 }
 
 static void ssl_certs_refresh_executor(Cookie& cookie) {
-    // MB-22464 - We don't cache the SSL certificates in memory
-    invalidateSslCache();
-    cookie.sendResponse(cb::mcbp::Status::Success);
+    // You need to use the ifconfig command to do this
+    cookie.sendResponse(cb::mcbp::Status::NotSupported);
 }
 
 static void verbosity_executor(Cookie& cookie) {

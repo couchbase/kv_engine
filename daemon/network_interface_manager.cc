@@ -35,14 +35,19 @@ NetworkInterfaceManager::NetworkInterfaceManager(
                              interf.host,
                              interf.port,
                              interf.system,
-                             interf.ssl.key,
-                             interf.ssl.cert,
+                             !interf.ssl.key.empty(),
                              interf.ipv4,
                              interf.ipv6)) {
             FATAL_ERROR(EXIT_FAILURE,
                         "Failed to create required listening socket(s). "
                         "Terminating.");
         }
+    }
+
+    auto tls = Settings::instance().getTlsConfiguration();
+    if (!tls.empty()) {
+        LOG_INFO("TLS configuration: {}", tls.dump());
+        doTlsReconfigure(tls);
     }
 
     writeInterfaceFile(true);
@@ -53,8 +58,6 @@ void NetworkInterfaceManager::signal() {
 }
 
 void NetworkInterfaceManager::updateDeprecatedInterfaces() {
-    invalidateSslCache();
-
     bool changes = false;
     auto interfaces = Settings::instance().getInterfaces();
 
@@ -91,8 +94,7 @@ void NetworkInterfaceManager::updateDeprecatedInterfaces() {
                                        interface.host,
                                        interface.port,
                                        interface.system,
-                                       interface.ssl.key,
-                                       interface.ssl.cert,
+                                       !interface.ssl.key.empty(),
                                        interface.ipv4,
                                        NetworkInterface::Protocol::Off);
         }
@@ -104,8 +106,7 @@ void NetworkInterfaceManager::updateDeprecatedInterfaces() {
                                        interface.host,
                                        interface.port,
                                        interface.system,
-                                       interface.ssl.key,
-                                       interface.ssl.cert,
+                                       !interface.ssl.key.empty(),
                                        NetworkInterface::Protocol::Off,
                                        interface.ipv6);
         }
@@ -140,13 +141,6 @@ void NetworkInterfaceManager::updateDeprecatedInterfaces() {
                 }
 
                 drop = false;
-                if (descr.sslKey != interface.ssl.key ||
-                    descr.sslCert != interface.ssl.cert) {
-                    // change the associated description
-                    connection->updateSSL(interface.ssl.key,
-                                          interface.ssl.cert);
-                }
-
                 break;
             }
             if (drop) {
@@ -345,8 +339,7 @@ bool NetworkInterfaceManager::createInterface(const std::string& tag,
                                               const std::string& host,
                                               in_port_t port,
                                               bool system_port,
-                                              const std::string& sslkey,
-                                              const std::string& sslcert,
+                                              bool tls,
                                               NetworkInterface::Protocol iv4,
                                               NetworkInterface::Protocol iv6) {
     SOCKET sfd;
@@ -468,8 +461,7 @@ bool NetworkInterfaceManager::createInterface(const std::string& tag,
                                                      listenport,
                                                      next->ai_addr->sa_family,
                                                      system_port,
-                                                     sslkey,
-                                                     sslcert);
+                                                     tls);
         listen_conn.emplace_back(ServerSocket::create(sfd, eventBase, inter));
         stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
     }
@@ -586,8 +578,7 @@ NetworkInterfaceManager::createInterface(
                 cb::net::getSockNameAsJson(sfd)["port"].get<in_port_t>(),
                 next->ai_addr->sa_family,
                 description.isSystem(),
-                "",
-                "");
+                description.isTls());
         listen_conn.emplace_back(ServerSocket::create(sfd, eventBase, inter));
         stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
         ret.push_back(listen_conn.back()->toJson());
@@ -601,11 +592,6 @@ NetworkInterfaceManager::createInterface(
 std::pair<cb::mcbp::Status, std::string>
 NetworkInterfaceManager::doDefineInterface(const nlohmann::json& spec) {
     auto descr = NetworkInterfaceDescription(spec);
-
-    if (descr.isTls()) {
-        // @todo needs the refactor to get off multiple ssl files
-        return {cb::mcbp::Status::NotSupported, {}};
-    }
 
     if (descr.getType() == NetworkInterfaceDescription::Type::Prometheus) {
         const auto prometheus = cb::prometheus::getRunningConfigAsJson();
