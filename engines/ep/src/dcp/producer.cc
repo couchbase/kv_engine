@@ -130,6 +130,14 @@ void DcpProducer::BufferLog::acknowledge(size_t bytes) {
         ackedBytes += bytes;
 
         if (state == Full) {
+            EP_LOG_INFO(
+                    "{} Notifying paused connection now that "
+                    "DcpProducer::BufferLog is no longer full; ackedBytes:{}"
+                    ", bytesSent:{}, maxBytes:{}",
+                    producer.logHeader(),
+                    ackedBytes,
+                    uint64_t(bytesOutstanding),
+                    uint64_t(maxBytes));
             producer.scheduleNotify();
         }
     }
