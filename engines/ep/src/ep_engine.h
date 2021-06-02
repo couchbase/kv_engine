@@ -954,7 +954,28 @@ protected:
 
     bool enableTraffic(bool enable);
 
+    /**
+     * Collect all low and high cardinality Engine stats.
+     *
+     * Used to generate the cbstats "empty key" group.
+     */
     cb::engine_errc doEngineStats(const BucketStatCollector& collector);
+    /**
+     * Collect a smaller number of engine stats which are of higher importance,
+     * or specifically need to be collected frequently.
+     */
+    cb::engine_errc doEngineStatsLowCardinality(
+            const BucketStatCollector& collector);
+    /**
+     * Collect engine stats which are any of:
+     *  1) Numerous (e.g., per collection, per vbucket)
+     *  2) Expensive to gather
+     *  3) Not necessary to record with very fine temporal granularity
+     *     (e.g., rarely changing, not of critical debugging value)
+     */
+    cb::engine_errc doEngineStatsHighCardinality(
+            const BucketStatCollector& collector);
+
     cb::engine_errc doMemoryStats(const void* cookie,
                                   const AddStatFn& add_stat);
     cb::engine_errc doVBucketStats(const void* cookie,
