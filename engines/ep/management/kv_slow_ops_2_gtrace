@@ -36,20 +36,26 @@ for line in fileinput.input():
         common['ph'] = 'X'
         # cid = "connectionID/opaque"
         cid = slow_op['cid']
-        (connection_id, opaque) = slow_op['cid'].rsplit('/', 1)
+        (connection_id, opaque) = cid.rsplit('/', 1)
         common['pid'] = connection_id
 
         # Build a trace event from each span in the slow op.
         for span in slow_op['trace'].split():
             (name, value) = span.split('=')
             (start_us, dur) = value.split(':')
-            event = common
+            event = dict()
+            event.update(common)
             event['name'] = name
             event['ts'] = int(start_us) / 1000
             event['dur'] = dur
-            event['args'] = {'opaque': opaque,
-                             'fd': fd,
-                             'peer': slow_op['peer']}
+            # For the top-level 'request' event, include additional request
+            # details (redundant to repeat for every event).
+            if name == 'request':
+                event['args'] = {'opaque': opaque,
+                                 'fd': fd,
+                                 'peer': slow_op['peer']}
+                event['args']['key'] = slow_op['packet']['key']
+                event['args']['vbucket'] = slow_op['packet']['vbucket']
             if not first:
                 print(',', end=' ')
             first = False
