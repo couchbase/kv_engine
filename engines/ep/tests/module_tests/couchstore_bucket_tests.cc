@@ -32,7 +32,6 @@ using WakeCkptRemover = EPBucket::WakeCkptRemover;
 
 class STParamCouchstoreBucketTest : public STParamPersistentBucketTest {};
 
-
 /**
  * We flush if we have at least:
  *  1) one non-meta item
@@ -827,8 +826,6 @@ INSTANTIATE_TEST_SUITE_P(STParamCouchstoreBucketTest,
                          STParameterizedBucketTest::couchstoreConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
-
-
 TEST_P(STParamCouchstoreBucketTest, FlusherMarksCleanBySeqno) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
@@ -1035,7 +1032,6 @@ TEST_P(STParamCouchstoreBucketTest, CompactionUpdatesBloomFilter) {
     }
     EXPECT_EQ(expected, vb->getFilterSize());
 }
-
 
 TEST_P(STParamCouchstoreBucketTest,
        RollbackCompletionCallbackStateAfterCompletionCallbackFailure) {
@@ -1330,10 +1326,10 @@ TEST_P(STParamCouchstoreBucketTest,
     EXPECT_CALL(ops, pwrite(_, _, _, _, _))
             .Times(2)
             .WillRepeatedly(Return(COUCHSTORE_ERROR_WRITE));
-    auto *kvstore = dynamic_cast<CouchKVStore *>(store->getRWUnderlying(vbid));
+    auto* kvstore = dynamic_cast<CouchKVStore*>(store->getRWUnderlying(vbid));
     ASSERT_TRUE(kvstore);
 
-    const auto &stats = engine->getEpStats();
+    const auto& stats = engine->getEpStats();
     ASSERT_EQ(0, stats.commitFailed);
     ASSERT_EQ(0, stats.flusherCommits);
 
@@ -1345,7 +1341,7 @@ TEST_P(STParamCouchstoreBucketTest,
         bool fileNotFound = false;
         try {
             kvstore->getPersistedVBucketState(vbid);
-        } catch (const std::logic_error &e) {
+        } catch (const std::logic_error& e) {
             ASSERT_THAT(e.what(), HasSubstr("openDB error:no such file"));
             fileNotFound = true;
         }
@@ -1359,7 +1355,7 @@ TEST_P(STParamCouchstoreBucketTest,
     verifyNoFile();
 
     // Flush fails
-    auto &ep = dynamic_cast<EPBucket &>(*store);
+    auto& ep = dynamic_cast<EPBucket&>(*store);
     const auto res = ep.flushVBucket(vbid);
     EXPECT_EQ(MoreAvailable::Yes, res.moreAvailable);
     EXPECT_EQ(0, res.numFlushed);
@@ -1393,13 +1389,13 @@ TEST_P(STParamCouchstoreBucketTest,
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
-        SCOPED_TRACE("");
-        store_item(vbid,
-                   makeStoredDocKey("keyA"),
-                   "value",
-                   0 /*exptime*/,
-                   {cb::engine_errc::success} /*expected*/,
-                   PROTOCOL_BINARY_RAW_BYTES);
+    SCOPED_TRACE("");
+    store_item(vbid,
+               makeStoredDocKey("keyA"),
+               "value",
+               0 /*exptime*/,
+               {cb::engine_errc::success} /*expected*/,
+               PROTOCOL_BINARY_RAW_BYTES);
 
     const auto& vb = *engine->getKVBucket()->getVBucket(vbid);
     auto& manager = *vb.checkpointManager;

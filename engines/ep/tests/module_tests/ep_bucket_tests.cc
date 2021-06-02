@@ -71,52 +71,52 @@ TEST_F(SingleThreadedEPBucketTest, FlusherBatchSizeLimitWritersChange) {
  */
 TEST_F(SingleThreadedEPBucketTest, MB22421_backfilling_but_task_finished) {
     // Make vbucket active.
-     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
-     auto vb = store->getVBuckets().getBucket(vbid);
-     ASSERT_NE(nullptr, vb.get());
-     auto& ckpt_mgr = *(
-             static_cast<MockCheckpointManager*>(vb->checkpointManager.get()));
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto vb = store->getVBuckets().getBucket(vbid);
+    ASSERT_NE(nullptr, vb.get());
+    auto& ckpt_mgr =
+            *(static_cast<MockCheckpointManager*>(vb->checkpointManager.get()));
 
-     // Create a Mock Dcp producer
-     auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                       cookie,
-                                                       "test_producer",
-                                                       /*notifyOnly*/ false);
-     // Create a Mock Active Stream
-     auto mock_stream = std::make_shared<MockActiveStream>(
-             static_cast<EventuallyPersistentEngine*>(engine.get()),
-             producer,
-             /*flags*/ 0,
-             /*opaque*/ 0,
-             *vb,
-             /*st_seqno*/ 0,
-             /*en_seqno*/ ~0,
-             /*vb_uuid*/ 0xabcd,
-             /*snap_start_seqno*/ 0,
-             /*snap_end_seqno*/ ~0,
-             IncludeValue::Yes,
-             IncludeXattrs::Yes);
+    // Create a Mock Dcp producer
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      "test_producer",
+                                                      /*notifyOnly*/ false);
+    // Create a Mock Active Stream
+    auto mock_stream = std::make_shared<MockActiveStream>(
+            static_cast<EventuallyPersistentEngine*>(engine.get()),
+            producer,
+            /*flags*/ 0,
+            /*opaque*/ 0,
+            *vb,
+            /*st_seqno*/ 0,
+            /*en_seqno*/ ~0,
+            /*vb_uuid*/ 0xabcd,
+            /*snap_start_seqno*/ 0,
+            /*snap_end_seqno*/ ~0,
+            IncludeValue::Yes,
+            IncludeXattrs::Yes);
 
-     mock_stream->transitionStateToBackfilling();
-     ASSERT_TRUE(mock_stream->isInMemory())
-         << "stream state should have transitioned to InMemory";
-     // Have a persistence cursor and DCP cursor
-     ASSERT_EQ(2, ckpt_mgr.getNumOfCursors());
-     // Set backfilling task to true so can transition to Backfilling State
-     mock_stream->public_setBackfillTaskRunning(true);
-     mock_stream->transitionStateToBackfilling();
-     ASSERT_TRUE(mock_stream->isBackfilling())
+    mock_stream->transitionStateToBackfilling();
+    ASSERT_TRUE(mock_stream->isInMemory())
+            << "stream state should have transitioned to InMemory";
+    // Have a persistence cursor and DCP cursor
+    ASSERT_EQ(2, ckpt_mgr.getNumOfCursors());
+    // Set backfilling task to true so can transition to Backfilling State
+    mock_stream->public_setBackfillTaskRunning(true);
+    mock_stream->transitionStateToBackfilling();
+    ASSERT_TRUE(mock_stream->isBackfilling())
             << "stream state should not have transitioned to Backfilling";
-     // Set backfilling task to false for test
-     mock_stream->public_setBackfillTaskRunning(false);
-     mock_stream->handleSlowStream();
-     // The call to handleSlowStream should result in setting pendingBackfill
-     // flag to true and the DCP cursor being dropped
-     EXPECT_TRUE(mock_stream->public_getPendingBackfill());
-     EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
+    // Set backfilling task to false for test
+    mock_stream->public_setBackfillTaskRunning(false);
+    mock_stream->handleSlowStream();
+    // The call to handleSlowStream should result in setting pendingBackfill
+    // flag to true and the DCP cursor being dropped
+    EXPECT_TRUE(mock_stream->public_getPendingBackfill());
+    EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
 
-     // Stop Producer checkpoint processor task
-     producer->cancelCheckpointCreatorTask();
+    // Stop Producer checkpoint processor task
+    producer->cancelCheckpointCreatorTask();
 }
 
 /*
@@ -135,8 +135,8 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_reregister_cursor) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
     ASSERT_NE(nullptr, vb.get());
-    auto& ckpt_mgr = *(
-            static_cast<MockCheckpointManager*>(vb->checkpointManager.get()));
+    auto& ckpt_mgr =
+            *(static_cast<MockCheckpointManager*>(vb->checkpointManager.get()));
 
     // Create a Mock Dcp producer
     auto producer = std::make_shared<MockDcpProducer>(*engine,
@@ -160,14 +160,14 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_reregister_cursor) {
 
     mock_stream->transitionStateToBackfilling();
     EXPECT_TRUE(mock_stream->isInMemory())
-        << "stream state should have transitioned to StreamInMemory";
+            << "stream state should have transitioned to StreamInMemory";
     // Have a persistence cursor and DCP cursor
     EXPECT_EQ(2, ckpt_mgr.getNumOfCursors());
 
     mock_stream->public_setBackfillTaskRunning(true);
     mock_stream->transitionStateToBackfilling();
     EXPECT_TRUE(mock_stream->isBackfilling())
-           << "stream state should not have transitioned to StreamBackfilling";
+            << "stream state should not have transitioned to StreamBackfilling";
     mock_stream->handleSlowStream();
     // The call to handleSlowStream should result in setting pendingBackfill
     // flag to true and the DCP cursor being dropped
@@ -176,7 +176,7 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_reregister_cursor) {
 
     mock_stream->public_setBackfillTaskRunning(false);
 
-    //schedule a backfill
+    // schedule a backfill
     mock_stream->next(*producer);
     // Calling scheduleBackfill_UNLOCKED(reschedule == true) will not actually
     // schedule a backfill task because backfillStart (is lastReadSeqno + 1) is
@@ -187,7 +187,6 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_reregister_cursor) {
     // Stop Producer checkpoint processor task
     producer->cancelCheckpointCreatorTask();
 }
-
 
 TEST_F(SingleThreadedEPBucketTest, ReadyQueueMaintainsWakeTimeOrder) {
     class TestTask : public GlobalTask {
@@ -283,7 +282,6 @@ TEST_F(SingleThreadedEPBucketTest, MB20235_wake_and_work_count) {
  * working on a large enough buffer size.
  */
 TEST_F(SingleThreadedEPBucketTest, MB18452_yield_dcp_processor) {
-
     // We need a replica VB
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
@@ -299,12 +297,17 @@ TEST_F(SingleThreadedEPBucketTest, MB18452_yield_dcp_processor) {
     // processBufferedMessages return 'more_to_process' 'n' times and then
     // 'all_processed' once.
     const int n = 4;
-    const int yield = engine->getConfiguration().getDcpConsumerProcessBufferedMessagesYieldLimit();
-    const int batchSize = engine->getConfiguration().getDcpConsumerProcessBufferedMessagesBatchSize();
+    const int yield =
+            engine->getConfiguration()
+                    .getDcpConsumerProcessBufferedMessagesYieldLimit();
+    const int batchSize =
+            engine->getConfiguration()
+                    .getDcpConsumerProcessBufferedMessagesBatchSize();
     const int messages = n * (batchSize * yield);
 
     // Force the stream to buffer rather than process messages immediately
-    const ssize_t queueCap = engine->getEpStats().replicationThrottleWriteQueueCap;
+    const ssize_t queueCap =
+            engine->getEpStats().replicationThrottleWriteQueueCap;
     engine->getEpStats().replicationThrottleWriteQueueCap = 0;
 
     // 1. Add the first message, a snapshot marker.
@@ -322,7 +325,7 @@ TEST_F(SingleThreadedEPBucketTest, MB18452_yield_dcp_processor) {
         const DocKey docKey{key, DocKeyEncodesCollectionId::No};
         std::string value = "value";
 
-        consumer->mutation(1/*opaque*/,
+        consumer->mutation(1 /*opaque*/,
                            docKey,
                            {(const uint8_t*)value.c_str(), value.length()},
                            0, // privileged bytes
@@ -342,7 +345,8 @@ TEST_F(SingleThreadedEPBucketTest, MB18452_yield_dcp_processor) {
     engine->getEpStats().replicationThrottleWriteQueueCap = queueCap;
 
     // Get our target stream ready.
-    static_cast<MockDcpConsumer*>(consumer.get())->public_notifyVbucketReady(vbid);
+    static_cast<MockDcpConsumer*>(consumer.get())
+            ->public_notifyVbucketReady(vbid);
 
     // 3. processBufferedItems returns more_to_process n times
     for (int ii = 0; ii < n; ii++) {
@@ -353,7 +357,7 @@ TEST_F(SingleThreadedEPBucketTest, MB18452_yield_dcp_processor) {
     EXPECT_EQ(all_processed, consumer->processBufferedItems());
 
     // Drop the stream
-    consumer->closeStream(/*opaque*/0, vbid);
+    consumer->closeStream(/*opaque*/ 0, vbid);
 }
 
 /*
@@ -372,7 +376,8 @@ TEST_F(SingleThreadedEPBucketTest, MB18953_taskWake) {
                                                TaskId::DefragmenterTask);
     task_executor->schedule(lpTask);
 
-    runNextTask(lpNonioQ, "TestTask PendingOpsNotification"); // hptask goes first
+    runNextTask(lpNonioQ,
+                "TestTask PendingOpsNotification"); // hptask goes first
     // Ensure that a wake to the hpTask doesn't mean the lpTask gets ignored
     lpNonioQ.wake(hpTask);
 
@@ -384,7 +389,8 @@ TEST_F(SingleThreadedEPBucketTest, MB18953_taskWake) {
 
     // Run the tasks again to check that coming from ::reschedule our
     // expectations are still met.
-    runNextTask(lpNonioQ, "TestTask PendingOpsNotification"); // hptask goes first
+    runNextTask(lpNonioQ,
+                "TestTask PendingOpsNotification"); // hptask goes first
 
     // Ensure that a wake to the hpTask doesn't mean the lpTask gets ignored
     lpNonioQ.wake(hpTask);
@@ -420,8 +426,8 @@ TEST_F(SingleThreadedEPBucketTest, MB20735_rescheduleWaketime) {
 
     std::chrono::steady_clock::time_point waketime =
             runNextTask(lpNonioQ, "TestTask PendingOpsNotification");
-    EXPECT_EQ(waketime, task->getWaketime()) <<
-                           "Rescheduled to much later time!";
+    EXPECT_EQ(waketime, task->getWaketime())
+            << "Rescheduled to much later time!";
 }
 
 /*
@@ -463,7 +469,7 @@ TEST_F(SingleThreadedEPBucketTest, stream_from_active_vbucket_only) {
 
         if (it.second) {
             EXPECT_EQ(cb::engine_errc::success, err) << "Unexpected error code";
-            producer->closeStream(/*opaque*/0, /*vbucket*/vbid);
+            producer->closeStream(/*opaque*/ 0, /*vbucket*/ vbid);
         } else {
             EXPECT_EQ(cb::engine_errc::not_my_vbucket, err)
                     << "Unexpected error code";
@@ -683,18 +689,13 @@ TEST_F(SingleThreadedEPBucketTest, MB_32724) {
     EXPECT_TRUE(p->handleResponse(message));
 }
 
-
 void SingleThreadedEPBucketTest::producerReadyQLimitOnBackfill(
         const BackfillBufferLimit limitType) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
 
     auto producer = std::make_shared<MockDcpProducer>(
-            *engine,
-            cookie,
-            "test-producer",
-            0 /*flags*/,
-            false /*startTask*/);
+            *engine, cookie, "test-producer", 0 /*flags*/, false /*startTask*/);
 
     auto stream = std::make_shared<MockActiveStream>(
             engine.get(),
