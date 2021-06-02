@@ -81,49 +81,6 @@
 #include <Winbase.h> // For SetDllDirectory
 #endif
 
-/**
- * All of the buckets in couchbase is stored in this array.
- */
-static std::mutex buckets_lock;
-std::array<Bucket, cb::limits::TotalBuckets + 1> all_buckets;
-
-void bucketsForEach(std::function<bool(Bucket&, void*)> fn, void *arg) {
-    std::lock_guard<std::mutex> all_bucket_lock(buckets_lock);
-    for (Bucket& bucket : all_buckets) {
-        bool do_break = false;
-        if (bucket.state == Bucket::State::Ready) {
-            // MB-44827: We don't want to hold the bucket mutex for the
-            //           entire time of the callback as it would block
-            //           other threads to associate / leave the bucket,
-            //           and we don't know how slow the callback is going
-            //           to be. To make sure that the bucket won't get
-            //           killed while we run the callback we'll bump
-            //           the client reference and release it once
-            //           we're done with the callback
-            bool ready = true;
-            {
-                std::lock_guard<std::mutex> guard(bucket.mutex);
-                if (bucket.state == Bucket::State::Ready) {
-                    bucket.clients++;
-                } else {
-                    ready = false;
-                }
-            }
-            if (ready) {
-                if (!fn(bucket, arg)) {
-                    do_break = true;
-                }
-                // disconnect from the bucket (remove the client reference
-                // we added earlier
-                disconnect_bucket(bucket, nullptr);
-                if (do_break) {
-                    break;
-                }
-            }
-        }
-    }
-}
-
 std::atomic<bool> memcached_shutdown;
 
 bool is_memcached_shutting_down() {
@@ -574,7 +531,7 @@ static void settings_init() {
             "num_reader_threads", [](const std::string&, Settings& s) -> void {
                 auto val =
                         ThreadPoolConfig::ThreadCount(s.getNumReaderThreads());
-                bucketsForEach(
+                BucketManager::instance().forEach(
                         [val](Bucket& b, void*) -> bool {
                             b.getEngine().set_num_reader_threads(val);
                             return true;
@@ -585,7 +542,7 @@ static void settings_init() {
             "num_writer_threads", [](const std::string&, Settings& s) -> void {
                 auto val =
                         ThreadPoolConfig::ThreadCount(s.getNumWriterThreads());
-                bucketsForEach(
+                BucketManager::instance().forEach(
                         [val](Bucket& b, void*) -> bool {
                             b.getEngine().set_num_writer_threads(val);
                             return true;
@@ -596,7 +553,7 @@ static void settings_init() {
             "num_storage_threads", [](const std::string&, Settings& s) -> void {
                 auto val = ThreadPoolConfig::StorageThreadCount(
                         s.getNumStorageThreads());
-                bucketsForEach(
+                BucketManager::instance().forEach(
                         [val](Bucket& b, void*) -> bool {
                             b.getEngine().set_num_storage_threads(val);
                             return true;
@@ -712,7 +669,7 @@ static nlohmann::json get_bucket_details_UNLOCKED(const Bucket& bucket,
 }
 
 nlohmann::json get_bucket_details(size_t idx) {
-    Bucket& bucket = all_buckets.at(idx);
+    Bucket& bucket = BucketManager::instance().at(idx);
     std::lock_guard<std::mutex> guard(bucket.mutex);
 
     return get_bucket_details_UNLOCKED(bucket, idx);
@@ -815,131 +772,7 @@ void enable_shutdown() {
 
 /* BUCKET FUNCTIONS */
 void CreateBucketThread::create() {
-    LOG_INFO("{}: Create bucket [{}]", connection.getId(), name);
-
-    size_t ii;
-    size_t first_free = all_buckets.size();
-    bool found = false;
-
-    std::unique_lock<std::mutex> all_bucket_lock(buckets_lock);
-    for (ii = 0; ii < all_buckets.size() && !found; ++ii) {
-        std::lock_guard<std::mutex> guard(all_buckets[ii].mutex);
-        if (first_free == all_buckets.size() &&
-            all_buckets[ii].state == Bucket::State::None) {
-            first_free = ii;
-        }
-        if (name == all_buckets[ii].name) {
-            found = true;
-        }
-    }
-
-    if (found) {
-        result = cb::engine_errc::key_already_exists;
-        LOG_ERROR("{}: Create bucket [{}] failed - Already exists",
-                  connection.getId(),
-                  name);
-    } else if (first_free == all_buckets.size()) {
-        result = cb::engine_errc::too_big;
-        LOG_ERROR("{}: Create bucket [{}] failed - Too many buckets",
-                  connection.getId(),
-                  name);
-    } else {
-        result = cb::engine_errc::success;
-        ii = first_free;
-        /*
-         * split the creation of the bucket in two... so
-         * we can release the global lock..
-         */
-        std::lock_guard<std::mutex> guard(all_buckets[ii].mutex);
-        all_buckets[ii].state = Bucket::State::Creating;
-        all_buckets[ii].type = type;
-        strcpy(all_buckets[ii].name, name.c_str());
-        try {
-            all_buckets[ii].topkeys = std::make_unique<TopKeys>(
-                    Settings::instance().getTopkeysSize());
-        } catch (const std::bad_alloc &) {
-            result = cb::engine_errc::no_memory;
-            LOG_ERROR("{}: Create bucket [{}] failed - out of memory",
-                      connection.getId(),
-                      name);
-        }
-    }
-    all_bucket_lock.unlock();
-
-    if (result != cb::engine_errc::success) {
-        return;
-    }
-
-    auto &bucket = all_buckets[ii];
-
-    // People aren't allowed to use the engine in this state,
-    // so we can do stuff without locking..
-    try {
-        bucket.setEngine(new_engine_instance(type, get_server_api));
-    } catch (const cb::engine_error& exception) {
-        bucket.reset();
-        LOG_ERROR("{}: Failed to create bucket [{}]: {}",
-                  connection.getId(),
-                  name,
-                  exception.what());
-        result = cb::engine_errc(exception.code().value());
-        return;
-    }
-
-    auto& engine = bucket.getEngine();
-    {
-        std::lock_guard<std::mutex> guard(bucket.mutex);
-        bucket.state = Bucket::State::Initializing;
-    }
-
-    try {
-        result = engine.initialize(config.c_str());
-    } catch (const std::runtime_error& e) {
-        LOG_ERROR("{}: Failed to create bucket [{}]: {}",
-                  connection.getId(),
-                  name,
-                  e.what());
-        result = cb::engine_errc::failed;
-    } catch (const std::bad_alloc& e) {
-        LOG_ERROR("{}: Failed to create bucket [{}]: {}",
-                  connection.getId(),
-                  name,
-                  e.what());
-        result = cb::engine_errc::no_memory;
-    }
-
-    if (result == cb::engine_errc::success) {
-        // We don't pass the storage threads down in the config like we do for
-        // readers and writers because that evolved over time to be duplicated
-        // in both configs. Instead, we just inform the engine of the number
-        // of threads.
-        auto* serverCoreApi =
-                dynamic_cast<ServerCoreApi*>(get_server_api()->core);
-        if (!serverCoreApi) {
-            throw std::runtime_error("Server core API is unexpected type");
-        }
-        engine.set_num_storage_threads(ThreadPoolConfig::StorageThreadCount(
-                Settings::instance().getNumStorageThreads()));
-
-        {
-            std::lock_guard<std::mutex> guard(bucket.mutex);
-            bucket.state = Bucket::State::Ready;
-        }
-        LOG_INFO("{}: Bucket [{}] created successfully",
-                 connection.getId(),
-                 name);
-        bucket.max_document_size = engine.getMaxItemSize();
-        bucket.supportedFeatures = engine.getFeatures();
-    } else {
-        {
-            std::lock_guard<std::mutex> guard(bucket.mutex);
-            bucket.state = Bucket::State::Destroying;
-        }
-
-        bucket.reset();
-
-        result = cb::engine_errc::not_stored;
-    }
+    result = BucketManager::instance().create(cookie, name, config, type);
 }
 
 void CreateBucketThread::run()
@@ -954,166 +787,7 @@ void CreateBucketThread::run()
 }
 
 void DestroyBucketThread::destroy() {
-    cb::engine_errc ret = cb::engine_errc::no_such_key;
-    std::unique_lock<std::mutex> all_bucket_lock(buckets_lock);
-
-    Connection* connection = nullptr;
-    if (cookie != nullptr) {
-        connection = &cookie->getConnection();
-    }
-
-    /*
-     * The destroy function will have access to a connection if the
-     * McbpDestroyBucketTask originated from delete_bucket_executor().
-     * However if we are in the process of shuting down and the
-     * McbpDestroyBucketTask originated from main() then connection
-     * will be set to nullptr.
-     */
-    const std::string connection_id{(connection == nullptr)
-            ? "<none>"
-            : std::to_string(connection->getId())};
-
-    size_t idx = 0;
-    for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
-        std::lock_guard<std::mutex> guard(all_buckets[ii].mutex);
-        if (name == all_buckets[ii].name) {
-            idx = ii;
-            if (all_buckets[ii].state == Bucket::State::Ready) {
-                ret = cb::engine_errc::success;
-                all_buckets[ii].state = Bucket::State::Destroying;
-            } else {
-                ret = cb::engine_errc::key_already_exists;
-            }
-        }
-        if (ret != cb::engine_errc::no_such_key) {
-            break;
-        }
-    }
-    all_bucket_lock.unlock();
-
-    if (ret != cb::engine_errc::success) {
-        auto code = cb::mcbp::to_status(cb::engine_errc(ret));
-        LOG_INFO("{}: Delete bucket [{}]: {}",
-                 connection_id,
-                 name,
-                 to_string(code));
-        result = ret;
-        return;
-    }
-
-    LOG_INFO("{}: Delete bucket [{}]. Notifying engine", connection_id, name);
-
-    all_buckets[idx].getEngine().initiate_shutdown();
-    all_buckets[idx].getEngine().cancel_all_operations_in_ewb_state();
-
-    LOG_INFO("{}: Delete bucket [{}]. Engine ready for shutdown",
-             connection_id,
-             name);
-
-    /* If this thread is connected to the requested bucket... release it */
-    if (connection != nullptr && idx == size_t(connection->getBucketIndex())) {
-        disassociate_bucket(*connection, cookie);
-    }
-
-    // Wait until all users disconnected...
-    auto& bucket = all_buckets[idx];
-    {
-        std::unique_lock<std::mutex> guard(bucket.mutex);
-        if (bucket.clients > 0) {
-            LOG_INFO(
-                    "{}: Delete bucket [{}]. Wait for {} clients to disconnect",
-                    connection_id,
-                    name,
-                    bucket.clients);
-
-            // Signal clients bound to the bucket before waiting
-            guard.unlock();
-            iterate_all_connections([&bucket](Connection& connection) {
-                if (&connection.getBucket() == &bucket) {
-                    connection.signalIfIdle();
-                }
-            });
-            guard.lock();
-        }
-
-        using std::chrono::minutes;
-        using std::chrono::seconds;
-        using std::chrono::steady_clock;
-
-        // We need to disconnect all of the clients before we can delete the
-        // bucket. We log pending connections that are blocking bucket deletion.
-        auto nextLog = steady_clock::now() + minutes(2);
-        while (bucket.clients > 0) {
-            bucket.cond.wait_for(guard, seconds(1), [&bucket] {
-                return bucket.clients == 0;
-            });
-
-            if (bucket.clients == 0) {
-                break;
-            }
-
-            if (steady_clock::now() < nextLog) {
-                guard.unlock();
-                iterate_all_connections([&bucket](Connection& connection) {
-                    if (&connection.getBucket() == &bucket) {
-                        connection.signalIfIdle();
-                    }
-                });
-                bucket.getEngine().cancel_all_operations_in_ewb_state();
-                guard.lock();
-                continue;
-            }
-
-            nextLog = steady_clock::now() + minutes(1);
-
-            // drop the lock and notify the worker threads
-            guard.unlock();
-
-            nlohmann::json currConns;
-            iterate_all_connections([&bucket, &currConns](Connection& conn) {
-                if (&conn.getBucket() == &bucket) {
-                    conn.signalIfIdle();
-                    currConns[std::to_string(conn.getId())] = conn.toJSON();
-                }
-            });
-
-            LOG_INFO(
-                    R"({}: Delete bucket [{}]. Still waiting: {} clients connected: {})",
-                    connection_id,
-                    name,
-                    bucket.clients,
-                    currConns.dump());
-
-            guard.lock();
-        }
-    }
-
-    auto num = bucket.items_in_transit.load();
-    int counter = 0;
-    while (num != 0) {
-        if (++counter % 100 == 0) {
-            LOG_INFO(
-                    R"({}: Delete bucket [{}]. Still waiting: {} items still stuck in transfer.)",
-                    connection_id,
-                    name,
-                    num);
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds{10});
-        num = bucket.items_in_transit.load();
-    }
-
-    LOG_INFO("{}: Delete bucket [{}]. Shut down the bucket",
-             connection_id,
-             name);
-    bucket.destroyEngine(force);
-
-    LOG_INFO("{}: Delete bucket [{}]. Clean up allocated resources ",
-             connection_id,
-             name);
-    bucket.reset();
-
-    LOG_INFO("{}: Delete bucket [{}] complete", connection_id, name);
-    result = cb::engine_errc::success;
+    result = BucketManager::instance().destroy(cookie, name, force);
 }
 
 void DestroyBucketThread::run() {
@@ -1121,29 +795,6 @@ void DestroyBucketThread::run() {
     destroy();
     std::lock_guard<std::mutex> guard(task->getMutex());
     task->makeRunnable();
-}
-
-void initialize_buckets() {
-    size_t numthread = Settings::instance().getNumWorkerThreads() + 1;
-    for (auto &b : all_buckets) {
-        b.stats.resize(numthread);
-    }
-
-    // To make the life easier for us in the code, index 0
-    // in the array is "no bucket"
-    auto &nobucket = all_buckets.at(0);
-    try {
-        nobucket.setEngine(
-                new_engine_instance(BucketType::NoBucket, get_server_api));
-    } catch (const std::exception& exception) {
-        FATAL_ERROR(EXIT_FAILURE,
-                    "Failed to create the internal bucket \"No bucket\": {}",
-                    exception.what());
-    }
-    nobucket.max_document_size = nobucket.getEngine().getMaxItemSize();
-    nobucket.supportedFeatures = nobucket.getEngine().getFeatures();
-    nobucket.type = BucketType::NoBucket;
-    nobucket.state = Bucket::State::Ready;
 }
 
 void cleanup_buckets() {
@@ -1176,75 +827,6 @@ void cleanup_buckets() {
             bucket.reset();
         }
     }
-}
-
-void delete_all_buckets() {
-    /*
-     * Delete all of the buckets one by one by using the executor.
-     * We could in theory schedule all of them in parallel, but they
-     * probably have some dirty items they need to write to disk so
-     * instead of having all of the buckets step on the underlying IO
-     * in parallel we'll do them sequentially.
-     */
-
-    /**
-     * Create a specialized task I may use that just holds the
-     * DeleteBucketThread object.
-     */
-    class DestroyBucketTask : public Task {
-    public:
-        explicit DestroyBucketTask(const std::string& name_)
-            : thread(name_, false, nullptr, this)
-        {
-            // empty
-        }
-
-        // start the bucket deletion
-        // May throw std::bad_alloc if we're failing to start the thread
-        void start() {
-            thread.start();
-        }
-
-        Status execute() override {
-            return Status::Finished;
-        }
-
-        DestroyBucketThread thread;
-    };
-
-    LOG_INFO("Stop all buckets");
-    bool done;
-    do {
-        done = true;
-        std::shared_ptr<Task> task;
-        std::string name;
-
-        std::unique_lock<std::mutex> all_bucket_lock(buckets_lock);
-        /*
-         * Start at one (not zero) because zero is reserved for "no bucket".
-         * The "no bucket" has a state of Bucket::State::Ready but no name.
-         */
-        for (size_t ii = 1; ii < all_buckets.size() && done; ++ii) {
-            std::lock_guard<std::mutex> bucket_guard(all_buckets[ii].mutex);
-            if (all_buckets[ii].state == Bucket::State::Ready) {
-                name.assign(all_buckets[ii].name);
-                LOG_INFO("Scheduling delete for bucket {}", name);
-                task = std::make_shared<DestroyBucketTask>(name);
-                std::lock_guard<std::mutex> guard(task->getMutex());
-                dynamic_cast<DestroyBucketTask&>(*task).start();
-                executorPool->schedule(task, false);
-                done = false;
-            }
-        }
-        all_bucket_lock.unlock();
-
-        if (task) {
-            auto& dbt = dynamic_cast<DestroyBucketTask&>(*task);
-            LOG_INFO("Waiting for delete of {} to complete", name);
-            dbt.thread.waitForState(Couchbase::ThreadState::Zombie);
-            LOG_INFO("Bucket {} deleted", name);
-        }
-    } while (!done);
 }
 
 /**
@@ -1458,8 +1040,8 @@ int memcached_main(int argc, char** argv) {
         create_crash_instance();
     }
 
-    /* Initialize bucket engine */
-    initialize_buckets();
+    LOG_INFO("Initialize bucket manager");
+    BucketManager::instance();
 
     initialize_sasl();
 
@@ -1528,7 +1110,7 @@ int memcached_main(int argc, char** argv) {
     }
 
     LOG_INFO("Initiating graceful shutdown.");
-    delete_all_buckets();
+    BucketManager::instance().destroyAll();
 
     if (parent_monitor) {
         LOG_INFO("Shutting down parent monitor");

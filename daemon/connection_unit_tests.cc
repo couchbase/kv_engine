@@ -33,7 +33,9 @@ public:
 
     static void SetUpTestCase() {
         cb::logger::createBlackholeLogger();
-        initialize_buckets();
+        // Make sure that we have the buckets submodule initialized and
+        // have no-bucket available.
+        BucketManager::instance();
     }
 
     static void TearDownTestCase() {

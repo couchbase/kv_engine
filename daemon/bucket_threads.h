@@ -39,13 +39,13 @@ public:
     CreateBucketThread(std::string name_,
                        std::string config_,
                        const BucketType type_,
-                       Connection& connection_,
+                       Cookie& cookie_,
                        Task* task_)
         : Couchbase::Thread("mc:bucket_add"),
           name(std::move(name_)),
           config(std::move(config_)),
           type(type_),
-          connection(connection_),
+          cookie(cookie_),
           task(task_),
           result(cb::engine_errc::disconnect) {
         // Empty
@@ -53,10 +53,6 @@ public:
 
     ~CreateBucketThread() override {
         waitForState(Couchbase::ThreadState::Zombie);
-    }
-
-    Connection& getConnection() const {
-        return connection;
     }
 
     cb::engine_errc getResult() const {
@@ -79,7 +75,7 @@ private:
     const std::string name;
     const std::string config;
     BucketType type;
-    Connection& connection;
+    Cookie& cookie;
     Task* task;
     cb::engine_errc result;
     std::string error;

@@ -184,7 +184,7 @@ cb::engine_errc server_prometheus_stats(
             server_global_stats(collector);
             stats_audit(collector);
         }
-        bucketsForEach(
+        BucketManager::instance().forEach(
                 [&collector, cardinality](Bucket& bucket, void*) {
                     if (std::string_view(bucket.name).empty()) {
                         // skip the initial bucket with aggregated stats

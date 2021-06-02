@@ -188,17 +188,6 @@ std::string to_string(Bucket::State state);
  */
 extern std::array<Bucket, cb::limits::TotalBuckets + 1> all_buckets;
 
-/**
- * Call a function on each ready bucket.
- * @param fn Function to call for each bucket. Should return false if iteration
- * should stop.
- * @param arg argument passed to each invocation
- * @note Buckets which are not yet in a ready state will not be passed to
- * the function.
- *
- */
-void bucketsForEach(std::function<bool(Bucket&, void*)> fn, void *arg);
-
 nlohmann::json get_bucket_details(size_t idx);
 
 /**
@@ -226,3 +215,56 @@ std::string validateBucketName(std::string_view name);
 
 /// May the user connected to this cookie access the specified bucket?
 bool mayAccessBucket(Cookie& cookie, const std::string& bucket);
+
+/// The bucket manager is a singleton with provides the ability to
+/// perform bucket management tasks like create and delete buckets,
+/// but also iterate over all buckets
+class BucketManager {
+public:
+    static BucketManager& instance();
+
+    /**
+     * Create a bucket
+     *
+     * @param cookie The cookie requested bucket creation
+     * @param name The name of the bucket
+     * @param config The configuration for the bucket
+     * @param type The type of bucket to create
+     * @return Status for the operation
+     */
+    cb::engine_errc create(Cookie& cookie,
+                           const std::string name,
+                           const std::string config,
+                           BucketType type);
+
+    /**
+     * Destroy a bucket
+     *
+     * @param cookie The cookie requested bucket deletion
+     * @param name The name of the bucket to delete
+     * @param force If set to true the underlying engine should not try to
+     *              persist pending items etc
+     * @return Status for the operation
+     */
+    cb::engine_errc destroy(Cookie* cookie, const std::string name, bool force);
+
+    /// Destroy all of the buckets
+    void destroyAll();
+
+    /// Get the bucket with the given index
+    Bucket& at(size_t idx);
+
+    /**
+     * Call a function on each ready bucket.
+     * @param fn Function to call for each bucket. Should return false if
+     * iteration should stop.
+     * @param arg argument passed to each invocation
+     * @note Buckets which are not yet in a ready state will not be passed to
+     * the function.
+     *
+     */
+    void forEach(std::function<bool(Bucket&, void*)> fn, void* arg);
+
+protected:
+    BucketManager();
+};

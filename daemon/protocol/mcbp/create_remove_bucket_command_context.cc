@@ -25,8 +25,7 @@ public:
                          const std::string& config_,
                          const BucketType& type_,
                          Cookie& cookie_)
-        : thread(name_, config_, type_, cookie_.getConnection(), this),
-          cookie(cookie_) {
+        : thread(name_, config_, type_, cookie_, this), cookie(cookie_) {
     }
 
     // start the bucket deletion
