@@ -3193,6 +3193,8 @@ TEST_P(CollectionsDcpParameterizedTest, force_update_multiple_changes) {
     cm1.add(ScopeEntry::Entry{"scope-bar", 22});
     cm1.add(CollectionEntry::Entry{"collection-bar", 23},
             ScopeEntry::Entry{"scope-bar", 22});
+    // bump the uid so we can easily test which manifest's uid is visible
+    cm1.updateUid(999);
 
     setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 2);
@@ -3202,6 +3204,7 @@ TEST_P(CollectionsDcpParameterizedTest, force_update_multiple_changes) {
     EXPECT_EQ(mcbp::systemevent::id::CreateScope, producers->last_system_event);
     EXPECT_EQ("scope-foo", producers->last_key);
     EXPECT_EQ(22, producers->last_scope_id);
+    EXPECT_EQ(0, producers->last_collection_manifest_uid);
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
@@ -3210,6 +3213,7 @@ TEST_P(CollectionsDcpParameterizedTest, force_update_multiple_changes) {
     EXPECT_EQ("collection-foo", producers->last_key);
     EXPECT_EQ(22, producers->last_scope_id);
     EXPECT_EQ(23, producers->last_collection_id);
+    EXPECT_EQ(cm.getUid(), producers->last_collection_manifest_uid);
 
     cm1.setForce(true);
     setCollections(cookie, cm1);
@@ -3222,11 +3226,16 @@ TEST_P(CollectionsDcpParameterizedTest, force_update_multiple_changes) {
     EXPECT_EQ(mcbp::systemevent::id::DeleteCollection,
               producers->last_system_event);
     EXPECT_EQ(23, producers->last_collection_id);
+    // the new UID should not be exposed until the last change
+    // the updated manifest caused
+    EXPECT_EQ(cm.getUid(), producers->last_collection_manifest_uid);
 
     // Then the scope
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
     EXPECT_EQ(mcbp::systemevent::id::DropScope, producers->last_system_event);
     EXPECT_EQ(22, producers->last_scope_id);
+    // still old UID - MB-46447: new uid was exposed too early
+    EXPECT_EQ(cm.getUid(), producers->last_collection_manifest_uid);
 
     // Now the scope is recreated (new-name)
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
@@ -3234,6 +3243,8 @@ TEST_P(CollectionsDcpParameterizedTest, force_update_multiple_changes) {
     EXPECT_EQ(mcbp::systemevent::id::CreateScope, producers->last_system_event);
     EXPECT_EQ("scope-bar", producers->last_key);
     EXPECT_EQ(22, producers->last_scope_id);
+    // still old UID
+    EXPECT_EQ(cm.getUid(), producers->last_collection_manifest_uid);
 
     // And the collection
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
@@ -3243,6 +3254,8 @@ TEST_P(CollectionsDcpParameterizedTest, force_update_multiple_changes) {
     EXPECT_EQ("collection-bar", producers->last_key);
     EXPECT_EQ(22, producers->last_scope_id);
     EXPECT_EQ(23, producers->last_collection_id);
+    // _Now_ the new manifest UID should be seen
+    EXPECT_EQ(cm1.getUid(), producers->last_collection_manifest_uid);
 
     flushVBucketToDiskIfPersistent(replicaVB, 2);
 }

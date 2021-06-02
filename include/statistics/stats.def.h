@@ -361,12 +361,12 @@ PSTAT(cmd_duration, microseconds, )
 
 STAT(bg_wait, , microseconds, , )
 STAT(bg_load, , microseconds, , )
-STAT(pending_ops, , microseconds, , )
-STAT(access_scanner, , microseconds, , )
-STAT(checkpoint_remover, , microseconds, , )
-STAT(item_pager, , microseconds, , )
-STAT(expiry_pager, , microseconds, , )
-STAT(storage_age, , microseconds, , )
+CBSTAT(pending_ops, , microseconds)
+CBSTAT(access_scanner, , microseconds)
+CBSTAT(checkpoint_remover, , microseconds)
+CBSTAT(item_pager, , microseconds)
+CBSTAT(expiry_pager, , microseconds)
+CBSTAT(storage_age, , microseconds)
 CBSTAT(set_with_meta, , microseconds)
 CBSTAT(get_cmd, , microseconds)
 CBSTAT(store_cmd, , microseconds)
@@ -376,7 +376,7 @@ CBSTAT(get_vb_cmd, , microseconds)
 CBSTAT(set_vb_cmd, , microseconds)
 CBSTAT(del_vb_cmd, , microseconds)
 CBSTAT(chk_persistence_cmd, , microseconds)
-STAT(notify_io, , microseconds, , )
+CBSTAT(notify_io, , microseconds)
 STAT(disk_insert, , microseconds, disk, LABEL(op, insert))
 STAT(disk_update, , microseconds, disk, LABEL(op, update))
 STAT(disk_del, , microseconds, disk, LABEL(op, del))
@@ -390,16 +390,8 @@ STAT(bg_batch_size,
      ,
      count,
      , ) // TODO: this is not timing related but is in doTimingStats
-STAT(persistence_cursor_get_all_items,
-     ,
-     microseconds,
-     cursor_get_all_items_time,
-     LABEL(cursor_type, persistence))
-STAT(dcp_cursors_get_all_items,
-     ,
-     microseconds,
-     cursor_get_all_items_time,
-     LABEL(cursor_type, dcp))
+CBSTAT(persistence_cursor_get_all_items, , microseconds)
+CBSTAT(dcp_cursors_get_all_items, , microseconds)
 STAT(sync_write_commit_majority,
      ,
      microseconds,
