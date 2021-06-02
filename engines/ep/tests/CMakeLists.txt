@@ -65,6 +65,7 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
         module_tests/dcp_utils.cc
         module_tests/diskdockey_test.cc
         module_tests/durability_monitor_test.cc
+        module_tests/ep_bucket_tests.cc
         module_tests/ep_unit_tests_main.cc
         module_tests/ephemeral_bucket_test.cc
         module_tests/ephemeral_vb_test.cc
