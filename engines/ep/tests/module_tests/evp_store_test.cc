@@ -1808,7 +1808,7 @@ TEST_P(EPBucketTestCouchstore, CompactionWithPurgeOptions) {
     }
 }
 
-struct PrintToStringCombinedName {
+struct BFilterPrintToStringCombinedName {
     std::string
     operator()(const ::testing::TestParamInfo<
                ::testing::tuple<std::string, std::string, bool>>& info) const {
@@ -1848,7 +1848,7 @@ INSTANTIATE_TEST_SUITE_P(
         FullAndValueEvictionBloomOnOff,
         EPBucketBloomFilterParameterizedTest,
         EPBucketBloomFilterParameterizedTest::allConfigValues(),
-        PrintToStringCombinedName());
+        BFilterPrintToStringCombinedName());
 
 INSTANTIATE_TEST_SUITE_P(EPBucketTestNoRocksDb,
                          EPBucketTestNoRocksDb,
