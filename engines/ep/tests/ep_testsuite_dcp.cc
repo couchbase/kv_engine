@@ -1545,7 +1545,7 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(EngineIface* h) {
 static enum test_result test_dcp_consumer_flow_control_aggressive(
         EngineIface* h) {
     const auto max_conns = 6;
-    std::vector<cb::tracing::Traceable*> cookie(max_conns);
+    std::vector<CookieIface*> cookie(max_conns);
     const auto flow_ctl_buf_max = 52428800;
     const auto flow_ctl_buf_min = 10485760;
     const auto ep_max_size = 1200000000;
@@ -2953,7 +2953,7 @@ static test_result test_dcp_agg_stats(EngineIface* h) {
     wait_for_flusher_to_settle(h);
     verify_curr_items(h, num_items, "Wrong amount of items");
 
-    std::vector<cb::tracing::Traceable*> cookie(5);
+    std::vector<CookieIface*> cookie(5);
 
     uint64_t total_bytes = 0;
     for (int j = 0; j < 5; ++j) {

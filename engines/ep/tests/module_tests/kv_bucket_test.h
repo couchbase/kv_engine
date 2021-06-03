@@ -29,6 +29,7 @@
 
 #include <memory>
 
+class CookieIface;
 class CouchKVStoreConfig;
 class FileOpsInterface;
 class ItemMetaData;
@@ -37,10 +38,6 @@ class MagmaKVStoreConfig;
 
 namespace Collections {
 class Manager;
-}
-
-namespace cb::tracing {
-class Traceable;
 }
 
 /**
@@ -293,5 +290,5 @@ public:
     KVBucket* store;
 
     // The (mock) server cookie.
-    cb::tracing::Traceable* cookie = nullptr;
+    CookieIface* cookie = nullptr;
 };

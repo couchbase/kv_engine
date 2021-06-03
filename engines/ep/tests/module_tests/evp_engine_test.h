@@ -21,9 +21,7 @@
 #include <memcached/durability_spec.h>
 #include <memcached/vbucket.h>
 
-namespace cb::tracing {
-class Traceable;
-}
+class CookieIface;
 
 struct EngineIface;
 class EventuallyPersistentEngine;
@@ -98,7 +96,7 @@ protected:
      */
     int numShards = 2;
 
-    cb::tracing::Traceable* cookie = nullptr;
+    CookieIface* cookie = nullptr;
 };
 
 /* Tests parameterised over ephemeral and persistent buckets

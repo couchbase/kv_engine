@@ -30,11 +30,11 @@ void MockCookie::validate() const {
     }
 }
 
-cb::tracing::Traceable* create_mock_cookie(EngineIface* engine) {
+CookieIface* create_mock_cookie(EngineIface* engine) {
     return new MockCookie(engine);
 }
 
-void destroy_mock_cookie(cb::tracing::Traceable* cookie) {
+void destroy_mock_cookie(CookieIface* cookie) {
     if (cookie == nullptr) {
         return;
     }

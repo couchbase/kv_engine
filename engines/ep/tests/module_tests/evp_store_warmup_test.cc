@@ -265,7 +265,7 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
     auto* statsCookie3 = create_mock_cookie(engine.get());
     auto* delVbCookie = create_mock_cookie(engine.get());
 
-    std::unordered_map<cb::tracing::Traceable*, int> notifications;
+    std::unordered_map<CookieIface*, int> notifications;
     notifications[setVBStateCookie] =
             get_number_of_mock_cookie_io_notifications(setVBStateCookie);
     notifications[setVBStateCookie] =

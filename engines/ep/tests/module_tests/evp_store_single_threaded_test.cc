@@ -2940,7 +2940,7 @@ public:
                                           ~0); // snap_end_seqno
     }
 
-    cb::tracing::Traceable* cookie = nullptr;
+    CookieIface* cookie = nullptr;
     std::shared_ptr<MockDcpProducer> producer;
     std::unique_ptr<MockDcpMessageProducers> producers;
 };

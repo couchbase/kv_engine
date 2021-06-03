@@ -20,10 +20,8 @@
 
 #include <folly/portability/GTest.h>
 
+class CookieIface;
 class VBucket;
-namespace cb::tracing {
-class Traceable;
-}
 
 /**
  * Dummy callback to replace the flusher callback.
@@ -148,7 +146,7 @@ protected:
     EPStats global_stats;
     CheckpointConfig checkpoint_config;
     Configuration config;
-    cb::tracing::Traceable* cookie = nullptr;
+    CookieIface* cookie = nullptr;
     const uint64_t lastSeqno{1000};
     snapshot_range_t range{5, lastSeqno};
 };

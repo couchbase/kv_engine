@@ -394,7 +394,7 @@ cb::engine_errc del(EngineIface* h,
                     const char* key,
                     uint64_t cas,
                     Vbid vbucket,
-                    cb::tracing::Traceable* cookie) {
+                    CookieIface* cookie) {
     mutation_descr_t mut_info{};
     return del(h, key, &cas, vbucket, cookie, &mut_info);
 }
@@ -403,7 +403,7 @@ cb::engine_errc del(EngineIface* h,
                     const char* key,
                     uint64_t* cas,
                     Vbid vbucket,
-                    cb::tracing::Traceable* cookie,
+                    CookieIface* cookie,
                     mutation_descr_t* mut_info) {
     bool create_cookie = false;
     if (cookie == nullptr) {
@@ -428,7 +428,7 @@ cb::engine_errc del(EngineIface* h,
  * a delete with a value.
  */
 cb::engine_errc delete_with_value(EngineIface* h,
-                                  cb::tracing::Traceable* cookie,
+                                  CookieIface* cookie,
                                   uint64_t cas,
                                   const char* key,
                                   std::string_view value,
@@ -457,7 +457,7 @@ cb::engine_errc del_with_meta(EngineIface* h,
                               ItemMetaData* itemMeta,
                               uint64_t cas_for_delete,
                               uint32_t options,
-                              cb::tracing::Traceable* cookie,
+                              CookieIface* cookie,
                               const std::vector<char>& nmeta,
                               protocol_binary_datatype_t datatype,
                               const std::vector<char>& value) {
@@ -485,7 +485,7 @@ cb::engine_errc del_with_meta(EngineIface* h,
                               RawItemMetaData* itemMeta,
                               uint64_t cas_for_delete,
                               uint32_t options,
-                              cb::tracing::Traceable* cookie,
+                              CookieIface* cookie,
                               const std::vector<char>& nmeta,
                               protocol_binary_datatype_t datatype,
                               const std::vector<char>& value) {
@@ -570,7 +570,7 @@ void evict_key(EngineIface* h,
 }
 
 cb::engine_errc seqnoPersistence(EngineIface* h,
-                                 cb::tracing::Traceable* cookie,
+                                 CookieIface* cookie,
                                  Vbid vbucket,
                                  uint64_t seqno) {
     seqno = htonll(seqno);
@@ -617,7 +617,7 @@ bool get_item_info(EngineIface* h, item_info* info, const char* key, Vbid vb) {
 }
 
 cb::EngineErrorItemPair getl(EngineIface* h,
-                             cb::tracing::Traceable* cookie,
+                             CookieIface* cookie,
                              const char* key,
                              Vbid vb,
                              uint32_t lock_timeout) {
@@ -637,7 +637,7 @@ cb::EngineErrorItemPair getl(EngineIface* h,
     return ret;
 }
 
-bool get_meta(EngineIface* h, const char* key, cb::tracing::Traceable* cookie) {
+bool get_meta(EngineIface* h, const char* key, CookieIface* cookie) {
     cb::EngineErrorMetadataPair out;
 
     return get_meta(h, key, out, cookie);
@@ -646,7 +646,7 @@ bool get_meta(EngineIface* h, const char* key, cb::tracing::Traceable* cookie) {
 bool get_meta(EngineIface* h,
               const char* key,
               cb::EngineErrorMetadataPair& out,
-              cb::tracing::Traceable* cookie) {
+              CookieIface* cookie) {
     DocKey docKey(key, DocKeyEncodesCollectionId::No);
     bool cookie_create = false;
     if (cookie == nullptr) {
@@ -757,7 +757,7 @@ bool set_vbucket_state(EngineIface* h,
 
 bool get_all_vb_seqnos(EngineIface* h,
                        std::optional<RequestedVBState> state,
-                       cb::tracing::Traceable* cookie,
+                       CookieIface* cookie,
                        std::optional<CollectionIDType> collection,
                        cb::engine_errc expectedStatus) {
     unique_request_ptr pkt;
@@ -852,7 +852,7 @@ static cb::engine_errc store_with_meta(EngineIface* h,
                                        uint64_t cas_for_store,
                                        uint32_t options,
                                        uint8_t datatype,
-                                       cb::tracing::Traceable* cookie,
+                                       CookieIface* cookie,
                                        const std::vector<char>& nmeta) {
     size_t blen = 24;
     std::array<char, 30> ext;
@@ -902,7 +902,7 @@ cb::engine_errc set_with_meta(EngineIface* h,
                               uint64_t cas_for_set,
                               uint32_t options,
                               uint8_t datatype,
-                              cb::tracing::Traceable* cookie,
+                              CookieIface* cookie,
                               const std::vector<char>& nmeta) {
     return store_with_meta(h,
                            cb::mcbp::ClientOpcode::SetWithMeta,
@@ -929,7 +929,7 @@ cb::engine_errc add_with_meta(EngineIface* h,
                               uint64_t cas_for_add,
                               uint32_t options,
                               uint8_t datatype,
-                              cb::tracing::Traceable* cookie,
+                              CookieIface* cookie,
                               const std::vector<char>& nmeta) {
     return store_with_meta(h,
                            cb::mcbp::ClientOpcode::AddWithMeta,
@@ -957,7 +957,7 @@ static cb::engine_errc return_meta(EngineIface* h,
                                    const uint32_t exp,
                                    cb::mcbp::request::ReturnMetaType type,
                                    uint8_t datatype,
-                                   cb::tracing::Traceable* cookie) {
+                                   CookieIface* cookie) {
     cb::mcbp::request::ReturnMetaPayload meta;
     meta.setMutationType(type);
     meta.setFlags(flags);
@@ -990,7 +990,7 @@ cb::engine_errc set_ret_meta(EngineIface* h,
                              const uint32_t flags,
                              const uint32_t exp,
                              uint8_t datatype,
-                             cb::tracing::Traceable* cookie) {
+                             CookieIface* cookie) {
     return return_meta(h,
                        key,
                        keylen,
@@ -1015,7 +1015,7 @@ cb::engine_errc add_ret_meta(EngineIface* h,
                              const uint32_t flags,
                              const uint32_t exp,
                              uint8_t datatype,
-                             cb::tracing::Traceable* cookie) {
+                             CookieIface* cookie) {
     return return_meta(h,
                        key,
                        keylen,
@@ -1035,7 +1035,7 @@ cb::engine_errc del_ret_meta(EngineIface* h,
                              const size_t keylen,
                              const Vbid vb,
                              const uint64_t cas,
-                             cb::tracing::Traceable* cookie) {
+                             CookieIface* cookie) {
     return return_meta(h,
                        key,
                        keylen,
@@ -1113,7 +1113,7 @@ void stop_persistence(EngineIface* h) {
 
 cb::engine_errc store(
         EngineIface* h,
-        cb::tracing::Traceable* cookie,
+        CookieIface* cookie,
         StoreSemantics op,
         const char* key,
         const char* value,
@@ -1144,7 +1144,7 @@ cb::engine_errc store(
 }
 
 cb::engine_errc storeCasOut(EngineIface* h,
-                            cb::tracing::Traceable* cookie,
+                            CookieIface* cookie,
                             Vbid vb,
                             const std::string& key,
                             const std::string& value,
@@ -1180,7 +1180,7 @@ cb::engine_errc storeCasOut(EngineIface* h,
 
 cb::EngineErrorItemPair storeCasVb11(
         EngineIface* h,
-        cb::tracing::Traceable* cookie,
+        CookieIface* cookie,
         StoreSemantics op,
         const char* key,
         const char* value,
@@ -1224,7 +1224,7 @@ cb::EngineErrorItemPair storeCasVb11(
 }
 
 cb::engine_errc replace(EngineIface* h,
-                        cb::tracing::Traceable* cookie,
+                        CookieIface* cookie,
                         const char* key,
                         const char* value,
                         uint32_t flags,
@@ -1290,7 +1290,7 @@ cb::engine_errc touch(EngineIface* h, const char* key, Vbid vb, uint32_t exp) {
 }
 
 cb::engine_errc unl(EngineIface* h,
-                    cb::tracing::Traceable* cookie,
+                    CookieIface* cookie,
                     const char* key,
                     Vbid vb,
                     uint64_t cas) {
@@ -1349,12 +1349,11 @@ cb::engine_errc verify_key(EngineIface* h, const char* key, Vbid vbucket) {
     return cb::engine_errc(rv.first);
 }
 
-std::pair<cb::engine_errc, std::string> get_value(
-        EngineIface* h,
-        cb::tracing::Traceable* cookie,
-        const char* key,
-        Vbid vbucket,
-        DocStateFilter state) {
+std::pair<cb::engine_errc, std::string> get_value(EngineIface* h,
+                                                  CookieIface* cookie,
+                                                  const char* key,
+                                                  Vbid vbucket,
+                                                  DocStateFilter state) {
     auto rv = get(h, cookie, key, vbucket, state);
     if (rv.first != cb::engine_errc::success) {
         return {cb::engine_errc(rv.first), ""};
@@ -1873,7 +1872,7 @@ uint64_t get_CAS(EngineIface* h, const std::string& key) {
 }
 
 cb::EngineErrorItemPair allocate(EngineIface* h,
-                                 cb::tracing::Traceable* cookie,
+                                 CookieIface* cookie,
                                  const std::string& key,
                                  size_t nbytes,
                                  int flags,
@@ -1910,7 +1909,7 @@ cb::EngineErrorItemPair allocate(EngineIface* h,
 }
 
 cb::EngineErrorItemPair get(EngineIface* h,
-                            cb::tracing::Traceable* cookie,
+                            CookieIface* cookie,
                             const std::string& key,
                             Vbid vb,
                             DocStateFilter documentStateFilter) {

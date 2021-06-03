@@ -1682,7 +1682,7 @@ TEST_P(CollectionsEraserPersistentOnly, DropManyCompactOnce) {
 
     // Test extended to cover MB-43199
     const int nCookies = 3;
-    std::vector<cb::tracing::Traceable*> cookies;
+    std::vector<CookieIface*> cookies;
     for (int ii = 0; ii < nCookies; ii++) {
         cookies.push_back(create_mock_cookie());
         cookie_to_mock_cookie(cookies.back())->status = cb::engine_errc::failed;

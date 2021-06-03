@@ -59,7 +59,7 @@ public:
     }
 
 protected:
-    cb::tracing::Traceable* cookie;
+    CookieIface* cookie;
     // unique ptr to allow easy reset
     std::unique_ptr<FakeManifest> vbManifest;
 };

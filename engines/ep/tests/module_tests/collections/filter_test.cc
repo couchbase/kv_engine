@@ -82,7 +82,7 @@ public:
                             {"name2", ScopeUid::shop1, {}}),
                     0);
 
-    cb::tracing::Traceable* cookie = nullptr;
+    CookieIface* cookie = nullptr;
 };
 
 /**

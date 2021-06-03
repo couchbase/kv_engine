@@ -2301,7 +2301,7 @@ public:
 
 private:
     int callbacks;
-    cb::tracing::Traceable* cookie = nullptr;
+    CookieIface* cookie = nullptr;
 };
 
 
@@ -2474,7 +2474,7 @@ public:
                                                               *producers);
     }
 
-    cb::tracing::Traceable* cookie;
+    CookieIface* cookie;
     std::unique_ptr<MockDcpMessageProducers> producers;
     std::shared_ptr<MockDcpProducer> producer;
     const Vbid vbid = Vbid(0);
