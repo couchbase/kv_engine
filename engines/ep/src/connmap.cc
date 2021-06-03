@@ -26,7 +26,7 @@
 #include "dcp/backfill-manager.h"
 #include "dcp/consumer.h"
 #include "dcp/producer.h"
-#include "executorpool.h"
+#include <executor/executorpool.h>
 
 /**
  * A task to manage connections.

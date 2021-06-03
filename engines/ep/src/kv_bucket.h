@@ -17,10 +17,10 @@
 #include "mutation_log.h"
 #include "stored-value.h"
 #include "storeddockey.h"
-#include "task_type.h"
 #include "utility.h"
 #include "vbucket.h"
 #include "vbucketmap.h"
+#include <executor/task_type.h>
 
 #include <cstdlib>
 #include <deque>

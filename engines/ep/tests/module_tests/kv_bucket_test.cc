@@ -31,9 +31,7 @@
 #include "ep_vb.h"
 #include "evp_store_single_threaded_test.h"
 #include "failover-table.h"
-#include "fakes/fake_executorpool.h"
 #include "flusher.h"
-#include "globaltask.h"
 #include "kv_bucket.h"
 #include "lambda_task.h"
 #include "replicationthrottle.h"
@@ -43,6 +41,8 @@
 #include "tests/module_tests/test_helpers.h"
 #include "vbucketdeletiontask.h"
 #include "warmup.h"
+#include <executor/fake_executorpool.h>
+#include <executor/globaltask.h>
 
 #ifdef EP_USE_MAGMA
 #include "../mock/mock_magma_kvstore.h"

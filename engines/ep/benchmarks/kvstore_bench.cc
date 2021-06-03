@@ -24,7 +24,7 @@
 #include "vbucket_state.h"
 
 #include <benchmark/benchmark.h>
-#include <engines/ep/src/workload.h>
+#include <executor/workload.h>
 #include <folly/portability/GTest.h>
 #include <platform/dirutils.h>
 #include <programs/engine_testapp/mock_server.h>

@@ -17,8 +17,8 @@
 #include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"
 #include "ep_time.h"
-#include "executorpool.h"
 #include "kv_bucket.h"
+#include <executor/executorpool.h>
 
 #include <phosphor/phosphor.h>
 

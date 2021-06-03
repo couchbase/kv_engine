@@ -21,7 +21,6 @@
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "ep_vb.h"
-#include "executorpool.h"
 #include "failover-table.h"
 #include "flusher.h"
 #include "item.h"
@@ -33,6 +32,7 @@
 #include "vb_visitors.h"
 #include "vbucket_state.h"
 #include "warmup.h"
+#include <executor/executorpool.h>
 
 #include <platform/timeutils.h>
 #include <statistics/cbstat_collector.h>

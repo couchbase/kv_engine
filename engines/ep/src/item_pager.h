@@ -10,7 +10,7 @@
  */
 #pragma once
 
-#include "globaltask.h"
+#include <executor/globaltask.h>
 
 #include <memcached/types.h> // for ssize_t
 

@@ -27,11 +27,9 @@
 
 #include "globaltask.h"
 
-template <class C = std::deque<ExTask>,
-          class Compare = CompareByDueDate>
+template <class C = std::deque<ExTask>, class Compare = CompareByDueDate>
 class FutureQueue {
 public:
-
     void push(ExTask task) {
         std::lock_guard<std::mutex> lock(queueMutex);
         queue.push(task);
@@ -91,7 +89,6 @@ public:
     }
 
 protected:
-
     /*
      * HeapifiableQueue exposes a method to maintain the heap ordering
      * of the underlying queue.
@@ -110,13 +107,9 @@ protected:
             // if the task exists, rebuild
             if (exists(task)) {
                 if (this->c.back()->getId() == task->getId()) {
-                    std::push_heap(this->c.begin(),
-                                   this->c.end(),
-                                   this->comp);
+                    std::push_heap(this->c.begin(), this->c.end(), this->comp);
                 } else {
-                    std::make_heap(this->c.begin(),
-                                   this->c.end(),
-                                   this->comp);
+                    std::make_heap(this->c.begin(), this->c.end(), this->comp);
                 }
                 return true;
             } else {

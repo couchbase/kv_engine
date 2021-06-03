@@ -17,7 +17,7 @@
 #include "programs/engine_testapp/mock_server.h"
 #include "test_helpers.h"
 #include "thread_gate.h"
-#include "workload.h"
+#include <executor/workload.h>
 
 using namespace std::string_literals;
 using namespace testing;

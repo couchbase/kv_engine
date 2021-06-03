@@ -10,8 +10,8 @@
  */
 #pragma once
 
-#include "cb3_executorpool.h"
-#include "task_type.h"
+#include <executor/cb3_executorpool.h>
+#include <executor/task_type.h>
 
 /*
  * Wrapper to ExecutorPool, exposes protected members for testing.

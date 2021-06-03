@@ -16,9 +16,9 @@
 #include "permitted_vb_states.h"
 #include "stats.h"
 #include "storeddockey.h"
-#include "taskable.h"
 #include "vbucket_fwd.h"
 
+#include <executor/taskable.h>
 #include <memcached/dcp.h>
 #include <memcached/engine.h>
 #include <platform/cb_arena_malloc_client.h>

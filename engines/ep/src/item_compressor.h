@@ -10,8 +10,8 @@
  */
 #pragma once
 
-#include "globaltask.h"
 #include "kv_bucket_iface.h"
+#include <executor/globaltask.h>
 
 class ItemCompressorVisitor;
 class EPStats;

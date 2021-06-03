@@ -11,8 +11,8 @@
 
 #include "conn_notifier.h"
 #include "connmap.h"
-#include "executorpool.h"
-#include "globaltask.h"
+#include <executor/executorpool.h>
+#include <executor/globaltask.h>
 
 #include <chrono>
 

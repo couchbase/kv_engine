@@ -20,11 +20,11 @@
 #include "dcp/response.h"
 #include "ep_engine.h"
 #include "ep_time.h"
-#include "executorpool.h"
 #include "failover-table.h"
 #include "kv_bucket.h"
 #include "objectregistry.h"
 #include "replicationthrottle.h"
+#include <executor/executorpool.h>
 
 #include <memcached/server_cookie_iface.h>
 #include <phosphor/phosphor.h>

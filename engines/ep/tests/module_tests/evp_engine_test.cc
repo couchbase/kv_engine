@@ -21,8 +21,8 @@
 #include "objectregistry.h"
 #include "programs/engine_testapp/mock_cookie.h"
 #include "programs/engine_testapp/mock_server.h"
-#include "taskqueue.h"
 #include "tests/module_tests/test_helpers.h"
+#include <executor/taskqueue.h>
 
 #include <boost/algorithm/string/join.hpp>
 #include <configuration_impl.h>

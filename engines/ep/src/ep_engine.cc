@@ -30,7 +30,6 @@
 #include "ep_engine_public.h"
 #include "ep_vb.h"
 #include "ephemeral_bucket.h"
-#include "executorpool.h"
 #include "ext_meta_parser.h"
 #include "failover-table.h"
 #include "flusher.h"
@@ -45,6 +44,7 @@
 #include "trace_helpers.h"
 #include "vb_count_visitor.h"
 #include "warmup.h"
+#include <executor/executorpool.h>
 
 #include <JSON_checker.h>
 #include <boost/algorithm/string/classification.hpp>

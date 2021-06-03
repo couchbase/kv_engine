@@ -19,7 +19,6 @@
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "ephemeral_tombstone_purger.h"
-#include "executorpool.h"
 #include "failover-table.h"
 #include "item.h"
 #include "linked_list.h"
@@ -27,6 +26,7 @@
 #include "vbucket_bgfetch_item.h"
 #include "vbucket_queue_item_ctx.h"
 #include "vbucketdeletiontask.h"
+#include <executor/executorpool.h>
 #include <folly/lang/Assume.h>
 
 EphemeralVBucket::EphemeralVBucket(

@@ -14,9 +14,9 @@
 #include "bucket_logger.h"
 #include "defragmenter_visitor.h"
 #include "ep_engine.h"
-#include "executorpool.h"
 #include "kv_bucket.h"
 #include "stored-value.h"
+#include <executor/executorpool.h>
 #include <phosphor/phosphor.h>
 #include <platform/cb_arena_malloc.h>
 #include <cinttypes>

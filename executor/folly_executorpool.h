@@ -18,7 +18,7 @@
 namespace folly {
 class CPUThreadPoolExecutor;
 class IOThreadPoolExecutor;
-}
+} // namespace folly
 
 /**
  * ExecutorPool implemented using folly Executors.

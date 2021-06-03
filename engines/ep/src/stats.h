@@ -11,8 +11,6 @@
 
 #pragma once
 
-#include "hdrhistogram.h"
-
 #include <folly/Synchronized.h>
 #include <folly/container/F14Map.h>
 #include <folly/lang/Aligned.h>
@@ -23,6 +21,7 @@
 #include <platform/non_negative_counter.h>
 #include <platform/platform_time.h>
 #include <relaxed_atomic.h>
+#include <utilities/hdrhistogram.h>
 
 #include <algorithm>
 #include <array>

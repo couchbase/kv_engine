@@ -17,9 +17,9 @@
 
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "../mock/mock_taskable.h"
-#include "executorpool.h"
-#include "fakes/fake_executorpool.h"
 #include "thread_gate.h"
+#include <executor/executorpool.h>
+#include <executor/fake_executorpool.h>
 #include <folly/portability/GTest.h>
 #include <thread>
 

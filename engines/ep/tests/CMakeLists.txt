@@ -132,6 +132,7 @@ TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests
         cbcompress
         engine_utilities
         ep-engine_collections
+        mcd_executor
         gtest
         gmock
         hdr_histogram_static

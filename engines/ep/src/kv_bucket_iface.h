@@ -11,12 +11,12 @@
 
 #pragma once
 
-#include "globaltask.h"
 #include "kvstore_fwd.h"
 #include "permitted_vb_states.h"
 #include "rollback_result.h"
 #include "vbucket_fwd.h"
 #include "vbucket_notify_context.h"
+#include <executor/globaltask.h>
 #include <folly/SharedMutex.h>
 #include <memcached/engine.h>
 #include <nlohmann/json_fwd.hpp>

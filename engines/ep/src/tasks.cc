@@ -13,9 +13,9 @@
 #include "bucket_logger.h"
 #include "ep_bucket.h"
 #include "ep_engine.h"
-#include "executorpool.h"
 #include "flusher.h"
 #include "warmup.h"
+#include <executor/executorpool.h>
 
 #include <climits>
 #include <type_traits>

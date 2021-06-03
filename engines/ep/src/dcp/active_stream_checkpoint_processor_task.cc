@@ -13,7 +13,7 @@
 
 #include "dcp/producer.h"
 #include "ep_engine.h"
-#include "executorpool.h"
+#include <executor/executorpool.h>
 
 #include <statistics/cbstat_collector.h>
 

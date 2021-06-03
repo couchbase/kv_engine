@@ -21,7 +21,6 @@
 #include "ep_bucket.h"
 #include "ep_engine.h"
 #include "ep_vb.h"
-#include "executorpool.h"
 #include "failover-table.h"
 #include "flusher.h"
 #include "item.h"
@@ -30,6 +29,7 @@
 #include "vb_visitors.h"
 #include "vbucket_bgfetch_item.h"
 #include "vbucket_state.h"
+#include <executor/executorpool.h>
 
 #include <phosphor/phosphor.h>
 #include <platform/dirutils.h>

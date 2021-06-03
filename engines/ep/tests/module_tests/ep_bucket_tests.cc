@@ -21,11 +21,11 @@
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/response.h"
-#include "executorpool.h"
 #include "failover-table.h"
-#include "globaltask.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/test_task.h"
+#include <executor/executorpool.h>
+#include <executor/globaltask.h>
 
 TEST_F(SingleThreadedEPBucketTest, FlusherBatchSizeLimitLimitChange) {
     auto& bucket = getEPBucket();

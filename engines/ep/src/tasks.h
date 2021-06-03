@@ -11,9 +11,9 @@
 
 #pragma once
 
-#include "globaltask.h"
 #include "kvstore.h"
 #include "storeddockey.h"
+#include <executor/globaltask.h>
 
 #include <array>
 #include <chrono>

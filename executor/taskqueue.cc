@@ -9,11 +9,11 @@
  *   the file licenses/APL2.txt.
  */
 #include "taskqueue.h"
-#include "bucket_logger.h"
 #include "cb3_executorpool.h"
 #include "cb3_executorthread.h"
-#include "objectregistry.h"
 
+#include <engines/ep/src/bucket_logger.h>
+#include <engines/ep/src/objectregistry.h>
 #include <cmath>
 
 TaskQueue::TaskQueue(CB3ExecutorPool* m, task_type_t t, const char* nm)
@@ -46,13 +46,13 @@ ExTask TaskQueue::_popReadyTask() {
     return t;
 }
 
-void TaskQueue::doWake(size_t &numToWake) {
+void TaskQueue::doWake(size_t& numToWake) {
     std::lock_guard<std::mutex> lh(mutex);
     _doWake_UNLOCKED(numToWake);
 }
 
-void TaskQueue::_doWake_UNLOCKED(size_t &numToWake) {
-    if (sleepers && numToWake)  {
+void TaskQueue::_doWake_UNLOCKED(size_t& numToWake) {
+    if (sleepers && numToWake) {
         if (numToWake < sleepers) {
             for (; numToWake; --numToWake) {
                 mutex.notify_one(); // cond_signal 1
@@ -189,7 +189,7 @@ std::chrono::steady_clock::time_point TaskQueue::reschedule(ExTask& task) {
     return rv;
 }
 
-void TaskQueue::_schedule(ExTask &task) {
+void TaskQueue::_schedule(ExTask& task) {
     TaskQueue* sleepQ;
     size_t numToWake = 1;
 
@@ -215,12 +215,12 @@ void TaskQueue::_schedule(ExTask &task) {
     }
 }
 
-void TaskQueue::schedule(ExTask &task) {
+void TaskQueue::schedule(ExTask& task) {
     NonBucketAllocationGuard guard;
     _schedule(task);
 }
 
-void TaskQueue::_wake(ExTask &task) {
+void TaskQueue::_wake(ExTask& task) {
     const std::chrono::steady_clock::time_point now =
             std::chrono::steady_clock::now();
     TaskQueue* sleepQ;
@@ -244,7 +244,7 @@ void TaskQueue::_wake(ExTask &task) {
     }
 }
 
-void TaskQueue::wake(ExTask &task) {
+void TaskQueue::wake(ExTask& task) {
     NonBucketAllocationGuard guard;
     _wake(task);
 }

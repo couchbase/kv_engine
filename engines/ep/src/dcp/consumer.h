@@ -16,8 +16,8 @@
 #include "dcp/dcp-types.h"
 #include "dcp/flow-control.h"
 #include "ep_types.h"
-#include "globaltask.h"
 #include "vb_ready_queue.h"
+#include <executor/globaltask.h>
 
 #include <collections/collections_types.h>
 #include <memcached/dcp_stream_id.h>

@@ -11,9 +11,9 @@
 
 #include <folly/portability/GTest.h>
 
-#include "futurequeue.h"
 #include "tests/module_tests/executorpool_test.h"
 #include "tests/module_tests/test_task.h"
+#include <executor/futurequeue.h>
 
 class FutureQueueTest : public ::testing::TestWithParam<std::string> {
 public:

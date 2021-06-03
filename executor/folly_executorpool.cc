@@ -10,13 +10,12 @@
  */
 
 #include "folly_executorpool.h"
-
-#include "bucket_logger.h"
-#include "ep_time.h"
 #include "globaltask.h"
-#include "objectregistry.h"
 #include "taskable.h"
 
+#include <engines/ep/src/bucket_logger.h>
+#include <engines/ep/src/ep_time.h>
+#include <engines/ep/src/objectregistry.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/IOThreadPoolExecutor.h>
 #include <folly/executors/thread_factory/PriorityThreadFactory.h>
@@ -154,7 +153,7 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
         scheduledOnCpuPool = true;
 
         // Perform work on the appropriate CPU pool.
-        cpuPool.add([& proxy = *this] {
+        cpuPool.add([&proxy = *this] {
             Expects(proxy.task.get());
 
             EP_LOG_TRACE("FollyExecutorPool: Run task \"{}\" id {}",
@@ -898,7 +897,7 @@ std::vector<ExTask> FollyExecutorPool::unregisterTaskable(Taskable& taskable,
 
     // Finally, remove entry for the unregistered Taskable.
     eventBase->runInEventBaseThreadAndWait(
-            [& state = this->state, &taskable]() mutable {
+            [&state = this->state, &taskable]() mutable {
                 state->removeTaskable(taskable);
             });
 

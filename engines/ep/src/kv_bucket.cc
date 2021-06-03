@@ -25,7 +25,6 @@
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "ep_vb.h"
-#include "executorpool.h"
 #include "ext_meta_parser.h"
 #include "failover-table.h"
 #include "flusher.h"
@@ -43,6 +42,7 @@
 #include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
 #include "vbucketdeletiontask.h"
+#include <executor/executorpool.h>
 
 #include <memcached/server_document_iface.h>
 #include <nlohmann/json.hpp>

@@ -37,12 +37,10 @@
 #include "ephemeral_tombstone_purger.h"
 #include "ephemeral_vb.h"
 #include "failover-table.h"
-#include "fakes/fake_executorpool.h"
 #include "flusher.h"
 #include "item_freq_decayer_visitor.h"
 #include "programs/engine_testapp/mock_cookie.h"
 #include "programs/engine_testapp/mock_server.h"
-#include "taskqueue.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/test_task.h"
@@ -51,11 +49,12 @@
 #include "vb_commit.h"
 #include "vbucket_state.h"
 #include "warmup.h"
-#include <utilities/test_manifest.h>
-
+#include <executor/fake_executorpool.h>
+#include <executor/task_type.h>
 #include <folly/synchronization/Baton.h>
 #include <platform/dirutils.h>
 #include <string_utilities.h>
+#include <utilities/test_manifest.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 

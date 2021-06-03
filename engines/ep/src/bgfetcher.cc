@@ -11,12 +11,11 @@
 
 #include "bgfetcher.h"
 #include "bucket_logger.h"
-#include "cb3_executorthread.h"
 #include "ep_engine.h"
-#include "executorpool.h"
 #include "kv_bucket.h"
 #include "tasks.h"
 #include "vbucket_bgfetch_item.h"
+#include <executor/executorpool.h>
 #include <phosphor/phosphor.h>
 #include <algorithm>
 #include <climits>

@@ -11,8 +11,7 @@
 
 #pragma once
 
-#include "globaltask.h"
-
+#include <executor/globaltask.h>
 #include <string>
 
 class KVBucketIface;

@@ -14,12 +14,12 @@
 #include "collections/manager.h"
 #include "collections/vbucket_manifest.h"
 #include "ep_engine.h"
-#include "executorpool.h"
 #include "failover-table.h"
 #include "kvstore.h"
 #include "mock_checkpoint_manager.h"
 #include "mock_item_freq_decayer.h"
 #include "mock_replicationthrottle.h"
+#include <executor/executorpool.h>
 
 MockEPBucket::MockEPBucket(EventuallyPersistentEngine& theEngine)
     : EPBucket(theEngine) {

@@ -200,7 +200,7 @@ TARGET_LINK_LIBRARIES(memcached_daemon
                       default_engine
                       ep
                       ewouldblock_engine
-                      executor
+                      mcd_executor
                       mcd_util
                       mcd_tracing
                       mcbp

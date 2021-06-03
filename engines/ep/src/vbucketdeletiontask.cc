@@ -12,9 +12,9 @@
 #include "vbucketdeletiontask.h"
 #include "ep_engine.h"
 #include "ep_vb.h"
-#include "executorpool.h"
 #include "kvshard.h"
 #include "kvstore.h"
+#include <executor/executorpool.h>
 #include <phosphor/phosphor.h>
 #include <platform/histogram.h>
 #include <chrono>

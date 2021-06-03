@@ -17,18 +17,16 @@
 #include "checkpoint_manager.h"
 #include "engine_fixture.h"
 #include "ep_bucket.h"
-#include "fakes/fake_executorpool.h"
 #include "item.h"
 #include "kv_bucket.h"
 #include "stored_value_factories.h"
 
 #include "../tests/module_tests/thread_gate.h"
 
+#include <executor/fake_executorpool.h>
+#include <folly/portability/GTest.h>
 #include <mock/mock_synchronous_ep_engine.h>
 #include <programs/engine_testapp/mock_server.h>
-
-#include <folly/portability/GTest.h>
-
 #include <algorithm>
 #include <thread>
 

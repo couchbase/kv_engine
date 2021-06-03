@@ -22,7 +22,6 @@
 #include "ep_bucket.h"
 #include "ep_engine.h"
 #include "ep_time.h"
-#include "executorpool.h"
 #include "failover-table.h"
 #include "item.h"
 #include "kvshard.h"
@@ -32,6 +31,7 @@
 #include "vbucket_queue_item_ctx.h"
 #include "vbucket_state.h"
 #include "vbucketdeletiontask.h"
+#include <executor/executorpool.h>
 #include <folly/lang/Assume.h>
 #include <platform/histogram.h>
 

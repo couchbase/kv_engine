@@ -12,8 +12,8 @@
 #pragma once
 
 #include "dcp/active_stream.h"
-#include "globaltask.h"
 #include "vb_ready_queue.h"
+#include <executor/globaltask.h>
 
 #include <memcached/engine_common.h>
 

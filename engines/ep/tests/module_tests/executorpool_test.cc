@@ -15,11 +15,11 @@
 
 #include "executorpool_test.h"
 #include "../mock/mock_add_stat_fn.h"
-#include "folly_executorpool.h"
 #include "lambda_task.h"
 #include "test_helpers.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "thread_gate.h"
+#include <executor/folly_executorpool.h>
 
 #include <folly/portability/GMock.h>
 #include <folly/synchronization/Baton.h>

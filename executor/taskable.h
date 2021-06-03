@@ -82,5 +82,5 @@ public:
     virtual bool isShutdown() = 0;
 
 protected:
-    virtual ~Taskable() {}
+    virtual ~Taskable() = default;
 };

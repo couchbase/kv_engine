@@ -13,13 +13,12 @@
 // Benchmarks for ExecutorPool / Task scheduling and execution.
 //
 
-#include "executorpool.h"
-#include "folly_executorpool.h"
 #include "tests/mock/mock_taskable.h"
 #include "tests/module_tests/executorpool_test.h"
 #include "tests/module_tests/lambda_task.h"
-
 #include <benchmark/benchmark.h>
+#include <executor/executorpool.h>
+#include <executor/folly_executorpool.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/IOThreadPoolExecutor.h>
 #include <folly/futures/Future.h>

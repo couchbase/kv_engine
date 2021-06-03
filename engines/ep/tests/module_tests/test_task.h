@@ -10,7 +10,7 @@
  */
 #pragma once
 
-#include "globaltask.h"
+#include <executor/globaltask.h>
 
 class TestTask : public GlobalTask {
 public:

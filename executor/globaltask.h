@@ -13,7 +13,6 @@
 
 #include "task_type.h"
 #include <platform/atomic.h>
-
 #include <platform/processclock.h>
 #include <array>
 
@@ -37,7 +36,7 @@ enum class TaskId : int {
     TASK_COUNT
 };
 
-typedef int queue_priority_t;
+using queue_priority_t = int;
 
 enum class TaskPriority : int {
 #define TASK(name, type, prio) name = prio,
@@ -53,14 +52,14 @@ class GlobalTask {
     friend class CompareByDueDate;
     friend class CompareByPriority;
     friend class CB3ExecutorPool;
-public:
 
+public:
     GlobalTask(Taskable& t,
                TaskId taskId,
                double sleeptime = 0,
                bool completeBeforeShutdown = true);
 
-    GlobalTask(EventuallyPersistentEngine *e,
+    GlobalTask(EventuallyPersistentEngine* e,
                TaskId taskId,
                double sleeptime = 0,
                bool completeBeforeShutdown = true);
@@ -108,10 +107,9 @@ public:
     /**
      * test if a task is dead
      */
-     bool isdead() {
+    bool isdead() {
         return (state == TASK_DEAD);
-     }
-
+    }
 
     /**
      * Cancels this task by marking it dead.
@@ -130,7 +128,9 @@ public:
      *
      * @return A unique task id number.
      */
-    size_t getId() const { return uid; }
+    size_t getId() const {
+        return uid;
+    }
 
     /**
      * Returns the id of this task.
@@ -146,7 +146,9 @@ public:
      *
      * @returns A handle to the engine
      */
-    EventuallyPersistentEngine* getEngine() { return engine; }
+    EventuallyPersistentEngine* getEngine() {
+        return engine;
+    }
 
     task_state_t getState() {
         return state.load();
@@ -278,11 +280,13 @@ protected:
     const size_t uid;
     const TaskId taskId;
     TaskPriority priority;
-    EventuallyPersistentEngine *engine;
+    EventuallyPersistentEngine* engine;
     Taskable& taskable;
 
     static std::atomic<size_t> task_id_counter;
-    static size_t nextTaskId() { return task_id_counter.fetch_add(1); }
+    static size_t nextTaskId() {
+        return task_id_counter.fetch_add(1);
+    }
 
     atomic_duration totalRuntime;
     atomic_duration previousRuntime;
@@ -311,7 +315,7 @@ typedef std::shared_ptr<GlobalTask> ExTask;
  */
 class CompareByPriority {
 public:
-    bool operator()(ExTask &t1, ExTask &t2) {
+    bool operator()(ExTask& t1, ExTask& t2) {
         return (t1->priority == t2->priority)
                        ? (t1->waketime > t2->waketime)
                        : (t1->getQueuePriority() > t2->getQueuePriority());
@@ -324,7 +328,7 @@ public:
  */
 class CompareByDueDate {
 public:
-    bool operator()(ExTask &t1, ExTask &t2) {
+    bool operator()(ExTask& t1, ExTask& t2) {
         return t2->waketime < t1->waketime;
     }
 };

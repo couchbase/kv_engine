@@ -14,12 +14,12 @@
 #include <string>
 
 enum task_type_t {
-    NO_TASK_TYPE=-1,
-    WRITER_TASK_IDX=0,
-    READER_TASK_IDX=1,
-    AUXIO_TASK_IDX=2,
-    NONIO_TASK_IDX=3,
-    NUM_TASK_GROUPS=4 // keep this as last element of the enum
+    NO_TASK_TYPE = -1,
+    WRITER_TASK_IDX = 0,
+    READER_TASK_IDX = 1,
+    AUXIO_TASK_IDX = 2,
+    NONIO_TASK_IDX = 3,
+    NUM_TASK_GROUPS = 4 // keep this as last element of the enum
 };
 
 static inline std::string to_string(const task_type_t type) {

@@ -15,8 +15,7 @@
 
 #pragma once
 
-#include "../mock/mock_executor_pool.h"
-
+#include <executor/mock_executor_pool.h>
 #include <folly/portability/GTest.h>
 #include <memcached/durability_spec.h>
 #include <memcached/vbucket.h>

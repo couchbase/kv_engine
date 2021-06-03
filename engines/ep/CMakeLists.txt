@@ -112,6 +112,7 @@ target_link_libraries(kvstore_gen
         engine_utilities
         ep-engine_collections
         hdr_histogram_static
+        mcd_executor
         mcbp
         mcd_time
         mcd_tracing
@@ -258,8 +259,6 @@ ADD_LIBRARY(ep_objs OBJECT
             src/bloomfilter.cc
             src/bucket_logger.cc
             src/callbacks.cc
-            src/cb3_executorpool.cc
-            src/cb3_executorthread.cc
             src/checkpoint.cc
             src/checkpoint_config.cc
             src/checkpoint_manager.cc
@@ -313,13 +312,10 @@ ADD_LIBRARY(ep_objs OBJECT
             src/ephemeral_vb.cc
             src/ephemeral_vb_count_visitor.cc
             src/environment.cc
-            src/executorpool.cc
             src/ext_meta_parser.cc
             src/failover-table.cc
-            src/folly_executorpool.cc
             src/flusher.cc
             src/getkeys.cc
-            src/globaltask.cc
             src/hash_table.cc
             src/hlc.cc
             src/htresizer.cc
@@ -357,7 +353,6 @@ ADD_LIBRARY(ep_objs OBJECT
             src/stored_value_factories.h
             src/systemevent_factory.cc
             src/tasks.cc
-            src/taskqueue.cc
             src/vb_commit.cc
             src/vb_count_visitor.cc
             src/vb_visitors.cc
@@ -385,7 +380,7 @@ set_source_files_properties(src/dcp/producer.cc
 endif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 
 add_sanitizers(ep_objs)
-target_link_libraries(ep_objs PUBLIC platform spdlog ${EP_STORAGE_LIBS})
+target_link_libraries(ep_objs PUBLIC mcd_executor platform spdlog ${EP_STORAGE_LIBS})
 
 ADD_LIBRARY(ep STATIC $<TARGET_OBJECTS:ep_objs>)
 
@@ -398,7 +393,7 @@ if (NOT WIN32)
 endif(NOT WIN32)
 
 TARGET_LINK_LIBRARIES(ep JSON_checker ${EP_STORAGE_LIBS}
-                      engine_utilities ep-engine_collections cbcompress
+                      engine_utilities ep-engine_collections mcd_executor cbcompress
                       hdr_histogram_static mcbp mcd_util mcd_time platform phosphor
                       xattr mcd_tracing statistics ${LIBEVENT_LIBRARIES})
 add_sanitizers(ep)
@@ -420,6 +415,7 @@ if (NOT EP_BYPASS_TESTS)
         cbcompress
         engine_testapp_dependencies
         engine_utilities
+        mcd_executor
         mcbp
         mcd_util
         platform
@@ -438,7 +434,6 @@ if (NOT EP_BYPASS_TESTS)
             tests/mock/mock_ep_bucket.cc
             tests/mock/mock_ephemeral_bucket.cc
             tests/mock/mock_ephemeral_vb.cc
-            tests/mock/mock_executor_pool.cc
             tests/mock/mock_replicationthrottle.cc
             tests/mock/mock_stream.cc
             tests/mock/mock_synchronous_ep_engine.cc
@@ -487,6 +482,7 @@ if (NOT EP_BYPASS_TESTS)
             cbcompress
             engine_utilities
             ep-engine_collections
+            mcd_executor
             gtest
             gmock
             hdr_histogram_static
@@ -518,6 +514,7 @@ if (NOT EP_BYPASS_TESTS)
                    $<TARGET_OBJECTS:ep_objs>)
     TARGET_LINK_LIBRARIES(ep-engine_sizes JSON_checker hdr_histogram_static
                           engine_utilities ep-engine_collections ${EP_STORAGE_LIBS}
+                          mcd_executor
                           cbcompress platform mcbp mcd_util mcd_time
                           mcd_tracing phosphor statistics xattr
                           ${LIBEVENT_LIBRARIES})

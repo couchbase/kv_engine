@@ -21,7 +21,6 @@
 #include "dcp_utils.h"
 #include "ep_bucket.h"
 #include "ep_time.h"
-#include "executorpool.h"
 #include "failover-table.h"
 #include "kv_bucket.h"
 #include "kvstore.h"
@@ -31,6 +30,7 @@
 #include "tests/test_fileops.h"
 #include "thread_gate.h"
 #include "vbucket_state.h"
+#include <executor/executorpool.h>
 
 #include "../couchstore/src/internal.h"
 #include "../mock/mock_checkpoint_manager.h"

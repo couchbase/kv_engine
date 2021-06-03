@@ -16,16 +16,12 @@
 #include <string>
 
 enum bucket_priority_t {
-    HIGH_BUCKET_PRIORITY=6,
-    LOW_BUCKET_PRIORITY=2,
-    NO_BUCKET_PRIORITY=0
+    HIGH_BUCKET_PRIORITY = 6,
+    LOW_BUCKET_PRIORITY = 2,
+    NO_BUCKET_PRIORITY = 0
 };
 
-enum workload_pattern_t {
-    READ_HEAVY,
-    WRITE_HEAVY,
-    MIXED
-};
+enum workload_pattern_t { READ_HEAVY, WRITE_HEAVY, MIXED };
 
 /**
  * Workload optimization policy
@@ -84,7 +80,6 @@ public:
     }
 
 private:
-
     int maxNumWorkers;
     int maxNumShards;
     std::atomic<workload_pattern_t> workloadPattern;

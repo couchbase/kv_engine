@@ -10,12 +10,12 @@
  */
 
 #include "cb3_executorthread.h"
-#include "bucket_logger.h"
 #include "cb3_executorpool.h"
 #include "globaltask.h"
-#include "objectregistry.h"
 #include "taskqueue.h"
 
+#include <engines/ep/src/bucket_logger.h>
+#include <engines/ep/src/objectregistry.h>
 #include <folly/Portability.h>
 #include <folly/portability/SysResource.h>
 #include <platform/timeutils.h>

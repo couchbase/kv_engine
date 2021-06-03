@@ -30,12 +30,10 @@
 #include "thread_gate.h"
 #include "vbucket_bgfetch_item.h"
 #include "vbucket_state.h"
-#include "workload.h"
-
+#include <boost/filesystem.hpp>
+#include <executor/workload.h>
 #include <folly/portability/GTest.h>
 #include <platform/dirutils.h>
-
-#include <boost/filesystem.hpp>
 #include <thread>
 #include <unordered_map>
 #include <utility>

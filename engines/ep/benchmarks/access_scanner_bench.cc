@@ -14,7 +14,7 @@
  */
 
 #include <access_scanner.h>
-#include <fakes/fake_executorpool.h>
+#include <executor/fake_executorpool.h>
 #include <mock/mock_synchronous_ep_engine.h>
 #include <programs/engine_testapp/mock_server.h>
 

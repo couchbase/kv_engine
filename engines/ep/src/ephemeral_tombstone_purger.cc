@@ -16,9 +16,9 @@
 #include "ep_time.h"
 #include "ephemeral_bucket.h"
 #include "ephemeral_vb.h"
-#include "executorpool.h"
 #include "seqlist.h"
 
+#include <executor/executorpool.h>
 #include <climits>
 
 EphemeralVBucket::HTTombstonePurger::HTTombstonePurger(rel_time_t purgeAge)

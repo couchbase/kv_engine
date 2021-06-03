@@ -10,13 +10,11 @@
 
 #include "engine_fixture.h"
 
-#include <fakes/fake_executorpool.h>
+#include <benchmark/benchmark.h>
+#include <executor/fake_executorpool.h>
+#include <folly/portability/GTest.h>
 #include <kv_bucket.h>
 #include <paging_visitor.h>
-
-#include <benchmark/benchmark.h>
-#include <folly/portability/GTest.h>
-
 #include <random>
 
 /**

@@ -24,14 +24,13 @@
 
 #include "cb3_executorpool.h"
 #include "cb3_executorthread.h"
-#include "objectregistry.h"
 #include "taskqueue.h"
 
+#include <engines/ep/src/objectregistry.h>
 #include <memory>
 
 class SingleThreadedExecutorPool : public CB3ExecutorPool {
 public:
-
     /* Registers an instance of this class as "the" executorpool (i.e. what
      * you get when you call ExecutorPool::get()).
      *
@@ -41,11 +40,13 @@ public:
         std::lock_guard<std::mutex> lh(initGuard);
         auto& instance = getInstance();
         if (instance) {
-            throw std::runtime_error("replaceExecutorPoolWithFake: "
-                    "ExecutorPool instance already created - cowardly refusing to continue!");
+            throw std::runtime_error(
+                    "replaceExecutorPoolWithFake: "
+                    "ExecutorPool instance already created - cowardly refusing "
+                    "to continue!");
         }
 
-        EventuallyPersistentEngine *epe =
+        EventuallyPersistentEngine* epe =
                 ObjectRegistry::onSwitchThread(nullptr, true);
         instance = std::make_unique<SingleThreadedExecutorPool>();
         ObjectRegistry::onSwitchThread(epe);
@@ -80,7 +81,7 @@ public:
         taskLocator.clear();
     }
 
-       /*
+    /*
      * Mark all tasks as cancelled and remove the from the locator.
      */
     void cancelAll() {
@@ -170,7 +171,8 @@ public:
 
         // Configure a checker to run, some tasks are subtly different
         if (getTaskName() == "Snapshotting vbucket states" ||
-            getTaskName() == "Removing closed unreferenced checkpoints from memory" ||
+            getTaskName() ==
+                    "Removing closed unreferenced checkpoints from memory" ||
             getTaskName() == "Paging expired items." ||
             getTaskName() == "Adjusting hash table sizes." ||
             getTaskName() == "Generating access log") {
@@ -227,7 +229,6 @@ public:
     }
 
 private:
-
     /*
      * Performs checks based on the assumption that one task executes and can
      * as part of that execution

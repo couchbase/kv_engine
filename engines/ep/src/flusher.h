@@ -10,10 +10,10 @@
  */
 #pragma once
 
-#include "cb3_executorthread.h"
 #include "utilities/testing_hook.h"
 #include "utility.h"
 #include "vb_ready_queue.h"
+#include <executor/cb3_executorthread.h>
 
 #include <memcached/vbucket.h>
 

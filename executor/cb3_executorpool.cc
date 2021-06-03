@@ -10,13 +10,13 @@
  */
 
 #include "cb3_executorpool.h"
-#include "bucket_logger.h"
 #include "cb3_executorthread.h"
-#include "ep_engine.h"
-#include "ep_time.h"
-#include "objectregistry.h"
 #include "taskqueue.h"
 
+#include <engines/ep/src/bucket_logger.h>
+#include <engines/ep/src/ep_engine.h>
+#include <engines/ep/src/ep_time.h>
+#include <engines/ep/src/objectregistry.h>
 #include <nlohmann/json.hpp>
 #include <platform/checked_snprintf.h>
 #include <platform/string_hex.h>

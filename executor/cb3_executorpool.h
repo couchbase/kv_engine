@@ -63,10 +63,8 @@
 #include "executorpool.h"
 #include "task_type.h"
 #include "taskable.h"
-#include <platform/syncobject.h>
-
 #include <memcached/thread_pool_config.h>
-
+#include <platform/syncobject.h>
 #include <map>
 #include <set>
 #include <vector>

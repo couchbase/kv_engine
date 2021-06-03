@@ -12,8 +12,8 @@
 #include "durability_completion_task.h"
 
 #include "ep_engine.h"
-#include "executorpool.h"
 #include "vbucket.h"
+#include <executor/executorpool.h>
 
 #include <climits>
 

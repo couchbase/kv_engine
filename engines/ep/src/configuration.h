@@ -176,7 +176,11 @@ public:
     ~Configuration();
 
     // Include the generated prototypes for the member functions
-#include "generated_configuration.h" // NOLINT(*)
+    // The build includes -I${CMAKE_CURRENT_BINARY_DIR}/include
+    // and now that we also use the file from executor (we'll get
+    // rid of that at some point) locate the generated configuration
+    // by the relative path
+#include "../engines/ep/src/generated_configuration.h" // NOLINT(*)
 
     /**
      * Parse a configuration string and set the local members

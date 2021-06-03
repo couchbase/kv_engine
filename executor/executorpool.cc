@@ -11,10 +11,11 @@
 
 #include "executorpool.h"
 #include "cb3_executorpool.h"
-#include "configuration.h"
-#include "ep_engine.h"
 #include "folly_executorpool.h"
-#include "objectregistry.h"
+
+#include <engines/ep/src/configuration.h>
+#include <engines/ep/src/ep_engine.h>
+#include <engines/ep/src/objectregistry.h>
 
 #include <vector>
 
@@ -25,7 +26,7 @@ static const size_t EP_MIN_NONIO_THREADS = 2;
 static const size_t EP_MAX_AUXIO_THREADS = 8;
 static const size_t EP_MAX_NONIO_THREADS = 8;
 
-ExecutorPool *ExecutorPool::get() {
+ExecutorPool* ExecutorPool::get() {
     auto* tmp = getInstance().get();
     if (tmp == nullptr) {
         std::lock_guard<std::mutex> lh(initGuard);
@@ -34,8 +35,8 @@ ExecutorPool *ExecutorPool::get() {
             // Double-checked locking if instance is null - ensure two threads
             // don't both create an instance.
 
-            Configuration &config =
-                ObjectRegistry::getCurrentEngine()->getConfiguration();
+            Configuration& config =
+                    ObjectRegistry::getCurrentEngine()->getConfiguration();
             NonBucketAllocationGuard guard;
             if (config.getExecutorPoolBackend() == "cb3") {
                 tmp = new CB3ExecutorPool(config.getMaxThreads(),

@@ -67,7 +67,7 @@ argParser.add_argument('--rootdir',
                             'the current working directory.',
                        default=[os.getcwd()])
 argParser.add_argument('--exclude',
-                       metavar='engines/ep/src/tasks.def.h',
+                       metavar='executor/tasks.def.h',
                        type=str, nargs='+',
                        help='List of files to exclude from checking, ' +
                             'defined by their path within --rootdir or ' +

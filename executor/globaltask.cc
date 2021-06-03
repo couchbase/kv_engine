@@ -9,11 +9,11 @@
  *   the file licenses/APL2.txt.
  */
 
-#include <limits.h>
-
-#include "ep_engine.h"
 #include "globaltask.h"
-#include "objectregistry.h"
+
+#include <engines/ep/src/ep_engine.h>
+#include <engines/ep/src/objectregistry.h>
+#include <climits>
 
 // These static_asserts previously were in priority_test.cc
 static_assert(TaskPriority::VKeyStatBGFetchTask < TaskPriority::FlusherTask,
@@ -94,19 +94,20 @@ void GlobalTask::wakeUp() {
  * stringified value of the task's name.
  */
 const char* GlobalTask::getTaskName(TaskId id) {
-    switch(id) {
+    switch (id) {
 #define TASK(name, type, prio) \
     case TaskId::name: {       \
         return #name;          \
     }
 #include "tasks.def.h"
 #undef TASK
-        case TaskId::TASK_COUNT: {
-            throw std::invalid_argument("GlobalTask::getTaskName(TaskId::TASK_COUNT) called.");
-        }
+    case TaskId::TASK_COUNT: {
+        throw std::invalid_argument(
+                "GlobalTask::getTaskName(TaskId::TASK_COUNT) called.");
+    }
     }
     throw std::logic_error("GlobalTask::getTaskName() unknown id " +
-                          std::to_string(static_cast<int>(id)));
+                           std::to_string(static_cast<int>(id)));
     return nullptr;
 }
 
@@ -114,16 +115,17 @@ const char* GlobalTask::getTaskName(TaskId id) {
  * Generate a switch statement from tasks.def.h that maps TaskId to priority
  */
 TaskPriority GlobalTask::getTaskPriority(TaskId id) {
-   switch(id) {
+    switch (id) {
 #define TASK(name, type, prio)     \
     case TaskId::name: {           \
         return TaskPriority::name; \
     }
 #include "tasks.def.h"
 #undef TASK
-        case TaskId::TASK_COUNT: {
-            throw std::invalid_argument("GlobalTask::getTaskPriority(TaskId::TASK_COUNT) called.");
-        }
+    case TaskId::TASK_COUNT: {
+        throw std::invalid_argument(
+                "GlobalTask::getTaskPriority(TaskId::TASK_COUNT) called.");
+    }
     }
     throw std::logic_error("GlobalTask::getTaskPriority() unknown id " +
                            std::to_string(static_cast<int>(id)));
@@ -150,11 +152,12 @@ task_type_t GlobalTask::getTaskType(TaskId id) {
                            std::to_string(static_cast<int>(id)));
 }
 
-std::array<TaskId, static_cast<int>(TaskId::TASK_COUNT)> GlobalTask::allTaskIds = {{
+std::array<TaskId, static_cast<int>(TaskId::TASK_COUNT)>
+        GlobalTask::allTaskIds = {{
 #define TASK(name, type, prio) TaskId::name,
 #include "tasks.def.h"
 #undef TASK
-}};
+        }};
 
 std::string to_string(task_state_t state) {
     switch (state) {

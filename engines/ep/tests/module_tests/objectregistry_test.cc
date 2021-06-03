@@ -15,12 +15,12 @@
 
 #include "bucket_logger.h"
 #include "bucket_logger_test.h"
-#include "fakes/fake_executorpool.h"
 #include "item.h"
 #include "objectregistry.h"
 #include "test_helpers.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 
+#include <executor/fake_executorpool.h>
 #include <spdlog/async.h>
 
 class ObjectRegistryTest : virtual public ::testing::Test {
