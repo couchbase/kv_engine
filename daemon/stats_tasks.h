@@ -12,6 +12,7 @@
 
 #include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
+#include <vector>
 
 class Connection;
 
