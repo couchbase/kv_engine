@@ -1631,6 +1631,10 @@ cb::engine_errc create_ep_engine_instance(GET_SERVER_API get_server_api,
     Global clean-up should be performed from this method.
 */
 void destroy_ep_engine() {
+    // The executor pool was already shut down by the front end thread
+    // before we get here, but the tests in ep_testsuite* don't use the
+    // "main" from memcached so we need to explicitly shut it down here.
+    // Note that it is safe to call shutdown multiple times :)
     ExecutorPool::shutdown();
 }
 

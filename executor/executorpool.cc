@@ -11,7 +11,9 @@
 
 #include "executorpool.h"
 #include "cb3_executorpool.h"
+#include "fake_executorpool.h"
 #include "folly_executorpool.h"
+#include "mock_executor_pool.h"
 
 #include <engines/ep/src/configuration.h>
 #include <engines/ep/src/ep_engine.h>
@@ -25,6 +27,32 @@ static const size_t EP_MIN_NONIO_THREADS = 2;
 
 static const size_t EP_MAX_AUXIO_THREADS = 8;
 static const size_t EP_MAX_NONIO_THREADS = 8;
+
+void ExecutorPool::create(Backend backend,
+                          size_t maxThreads,
+                          ThreadPoolConfig::ThreadCount maxReaders,
+                          ThreadPoolConfig::ThreadCount maxWriters,
+                          size_t maxAuxIO,
+                          size_t maxNonIO) {
+    switch (backend) {
+    case Backend::Folly:
+        getInstance() = std::make_unique<FollyExecutorPool>(
+                maxThreads, maxReaders, maxWriters, maxAuxIO, maxNonIO);
+        return;
+    case Backend::CB3:
+        getInstance() = std::make_unique<CB3ExecutorPool>(
+                maxThreads, maxReaders, maxWriters, maxAuxIO, maxNonIO);
+        return;
+    case Backend::Fake:
+        getInstance() = std::make_unique<SingleThreadedExecutorPool>();
+        return;
+    case Backend::Mock:
+        getInstance() = std::make_unique<MockExecutorPool>();
+        return;
+    }
+
+    throw std::runtime_error("ExecutorPool::create(): Unknown backend");
+}
 
 ExecutorPool* ExecutorPool::get() {
     auto* tmp = getInstance().get();
@@ -67,7 +95,6 @@ ExecutorPool* ExecutorPool::get() {
 }
 
 void ExecutorPool::shutdown() {
-    std::lock_guard<std::mutex> lock(initGuard);
     NonBucketAllocationGuard guard;
     getInstance().reset();
 }

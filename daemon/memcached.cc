@@ -61,6 +61,7 @@
 #include <utilities/openssl_utils.h>
 
 #include <executor/executor.h>
+#include <executor/executorpool.h>
 #include <chrono>
 #include <csignal>
 #include <cstddef>
@@ -1043,6 +1044,15 @@ int memcached_main(int argc, char** argv) {
     /* start up worker threads if MT mode */
     worker_threads_init();
 
+    LOG_INFO_RAW("Start executor pool");
+    ExecutorPool::create(ExecutorPool::Backend::Folly,
+                         0,
+                         ThreadPoolConfig::ThreadCount(
+                                 Settings::instance().getNumReaderThreads()),
+                         ThreadPoolConfig::ThreadCount(
+                                 Settings::instance().getNumWriterThreads()));
+
+    LOG_INFO_RAW("Start memcached core executor pool");
     cb::executor::create(Settings::instance().getNumWorkerThreads());
 
     LOG_INFO(R"(Starting Phosphor tracing with config: "{}")",
@@ -1103,8 +1113,11 @@ int memcached_main(int argc, char** argv) {
     LOG_INFO_RAW("Shutting down RBAC subsystem");
     cb::rbac::destroy();
 
-    LOG_INFO_RAW("Shutting down executor pool");
+    LOG_INFO_RAW("Shutting down memcached core executor pool");
     cb::executor::shutdown();
+
+    LOG_INFO_RAW("Shutting down executor pool");
+    ExecutorPool::shutdown();
 
     LOG_INFO_RAW("Releasing signal handlers");
     release_signal_handlers();

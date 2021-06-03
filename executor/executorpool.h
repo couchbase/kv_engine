@@ -24,6 +24,28 @@ using ExTask = std::shared_ptr<GlobalTask>;
 
 class ExecutorPool {
 public:
+    enum class Backend {
+        /// The Folly backend is the one currently in use by Couchbase server
+        Folly,
+        /// The CB3 is the backend previously used by Couchbase Server
+        CB3,
+        /// The Fake backend is a single threaded one which ignores
+        /// all thread settings provided in the constructor. It is
+        /// only used by unit tests
+        Fake,
+        /// The Mock backend is used by unit testing
+        Mock
+    };
+
+    static void create(Backend backend = Backend::Folly,
+                       size_t maxThreads = 0,
+                       ThreadPoolConfig::ThreadCount maxReaders =
+                               ThreadPoolConfig::ThreadCount::Default,
+                       ThreadPoolConfig::ThreadCount maxWriters =
+                               ThreadPoolConfig::ThreadCount::Default,
+                       size_t maxAuxIO = 0,
+                       size_t maxNonIO = 0);
+
     /**
      * @returns the singleton instance of ExecutorPool, creating it if not
      * already exists.
