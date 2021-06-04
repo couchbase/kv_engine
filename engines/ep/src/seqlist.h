@@ -19,15 +19,15 @@
 
 #pragma once
 
-#include <mutex>
-#include <vector>
-
 #include "collections/collections_types.h"
 #include "collections/eraser_context.h"
 #include "memcached/engine_error.h"
 #include "stored-value.h"
 
+#include <iostream>
+#include <mutex>
 #include <optional>
+#include <vector>
 
 /* [EPHE TODO]: Check if uint64_t can be used instead */
 using seqno_t = int64_t;

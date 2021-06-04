@@ -13,7 +13,7 @@
 
 #include <chrono>
 
-#include "atomic.h"
+#include <platform/atomic.h>
 
 #include <memcached/engine.h>
 #include <memcached/engine_common.h>

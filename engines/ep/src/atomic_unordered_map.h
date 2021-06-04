@@ -91,8 +91,6 @@
 
 #pragma once
 
-#include "atomic.h"
-
 #include <folly/lang/Aligned.h>
 #include <platform/rwlock.h>
 

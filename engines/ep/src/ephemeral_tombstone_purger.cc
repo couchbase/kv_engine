@@ -11,7 +11,6 @@
 
 #include "ephemeral_tombstone_purger.h"
 
-#include "atomic.h"
 #include "bucket_logger.h"
 #include "ep_engine.h"
 #include "ep_time.h"

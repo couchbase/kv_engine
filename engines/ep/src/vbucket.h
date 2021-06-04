@@ -28,6 +28,7 @@
 #include <platform/non_negative_counter.h>
 #include <relaxed_atomic.h>
 #include <atomic>
+#include <iostream>
 #include <list>
 #include <queue>
 

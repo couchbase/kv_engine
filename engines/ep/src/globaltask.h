@@ -11,8 +11,8 @@
 
 #pragma once
 
-#include "atomic.h"
 #include "task_type.h"
+#include <platform/atomic.h>
 
 #include <platform/processclock.h>
 #include <array>

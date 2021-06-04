@@ -10,7 +10,6 @@
  */
 
 #include "vbucket.h"
-#include "atomic.h"
 #include "bgfetcher.h"
 #include "bucket_logger.h"
 #include "checkpoint.h"
@@ -35,6 +34,7 @@
 #include "vb_filter.h"
 #include "vbucket_queue_item_ctx.h"
 #include "vbucket_state.h"
+#include <platform/atomic.h>
 
 #include <folly/lang/Assume.h>
 #include <memcached/protocol_binary.h>

@@ -12,9 +12,9 @@
 #include "vb_ready_queue.h"
 
 #include <benchmark/benchmark.h>
-#include <engines/ep/src/syncobject.h>
 #include <folly/Random.h>
 #include <folly/portability/GTest.h>
+#include <platform/syncobject.h>
 #include <platform/sysinfo.h>
 #include <vbucket.h>
 

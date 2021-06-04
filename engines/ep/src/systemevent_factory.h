@@ -11,7 +11,6 @@
 
 #pragma once
 
-#include "atomic.h"
 #include "collections/flush.h"
 #include "ep_types.h"
 #include "storeddockey_fwd.h"

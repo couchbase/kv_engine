@@ -16,11 +16,11 @@
 
 #pragma once
 
-#include "atomic.h"
 #include "monotonic.h"
 #include "range_lock_manager.h"
 #include "seqlist.h"
 #include "stored-value.h"
+#include <platform/atomic.h>
 
 #include <boost/intrusive/list.hpp>
 #include <folly/Synchronized.h>

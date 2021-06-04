@@ -61,9 +61,9 @@
  */
 
 #include "executorpool.h"
-#include "syncobject.h"
 #include "task_type.h"
 #include "taskable.h"
+#include <platform/syncobject.h>
 
 #include <memcached/thread_pool_config.h>
 

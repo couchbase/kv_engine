@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "atomic.h"
+#include <platform/atomic.h>
 
 #include <exception>
 #include <unordered_map>

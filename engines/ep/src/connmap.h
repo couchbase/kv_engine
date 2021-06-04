@@ -11,7 +11,6 @@
 
 #pragma once
 
-#include "atomic.h"
 #include "atomicqueue.h"
 #include "conn_store_fwd.h"
 #include "dcp/dcp-types.h"

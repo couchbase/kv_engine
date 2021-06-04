@@ -13,8 +13,8 @@
  * Benchmarks relating to the CheckpointIterator class.
  */
 
-#include "atomic.h"
 #include "checkpoint_iterator.h"
+#include <platform/atomic.h>
 
 #include <benchmark/benchmark.h>
 #include <list>

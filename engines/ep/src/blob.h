@@ -11,8 +11,9 @@
 
 #pragma once
 
-#include "atomic.h"
 #include "tagged_ptr.h"
+#include "utility.h"
+#include <platform/atomic.h>
 
 /**
  * A blob is a minimal sized storage for data up to 2^32 bytes long.

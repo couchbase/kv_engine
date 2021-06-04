@@ -10,8 +10,8 @@
 #pragma once
 
 #include "futurequeue.h"
-#include "syncobject.h"
 #include "task_type.h"
+#include <platform/syncobject.h>
 
 #include <chrono>
 #include <list>

@@ -10,10 +10,10 @@
  */
 #pragma once
 
-#include "atomic.h"
 #include "memcached/engine.h"
 
 #include <relaxed_atomic.h>
+#include <mutex>
 
 class DcpConsumer;
 class EventuallyPersistentEngine;

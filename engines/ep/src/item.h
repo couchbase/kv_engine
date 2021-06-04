@@ -11,11 +11,11 @@
 
 #pragma once
 
-#include "atomic.h"
 #include "blob.h"
 #include "dcp/dcp-types.h"
 #include "queue_op.h"
 #include "storeddockey.h"
+#include <platform/atomic.h>
 
 #include <mcbp/protocol/datatype.h>
 #include <memcached/durability_spec.h>

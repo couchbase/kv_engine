@@ -10,9 +10,9 @@
  */
 #include "atomic_unordered_map.h"
 
-#include <thread>
-
 #include <folly/portability/GTest.h>
+#include <platform/atomic.h>
+#include <thread>
 
 /* Test class which inherits from RCValue */
 struct DummyValue : public RCValue {

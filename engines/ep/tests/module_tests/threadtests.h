@@ -10,8 +10,8 @@
  */
 #pragma once
 
-#include "syncobject.h"
 #include "utility.h"
+#include <platform/syncobject.h>
 
 #include <platform/cbassert.h>
 #include <platform/platform_thread.h>

@@ -14,7 +14,6 @@
  * interesting properties.
  */
 
-#include "atomic.h"
 #include "bucket_logger.h"
 #include "collections/manager.h"
 #include "collections/vbucket_manifest.h"
@@ -25,6 +24,7 @@
 #include "kvstore_config.h"
 #include "vbucket_state.h"
 #include <logger/logger.h>
+#include <platform/atomic.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <spdlog/fmt/fmt.h>
 

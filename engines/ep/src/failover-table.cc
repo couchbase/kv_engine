@@ -11,7 +11,6 @@
 
 #include "failover-table.h"
 
-#include "atomic.h"
 #include "bucket_logger.h"
 
 #include <nlohmann/json.hpp>

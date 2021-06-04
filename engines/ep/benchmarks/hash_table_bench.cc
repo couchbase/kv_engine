@@ -17,8 +17,8 @@
 #include "stored_value_factories.h"
 
 #include <benchmark/benchmark.h>
-#include <engines/ep/src/syncobject.h>
 #include <folly/portability/GTest.h>
+#include <platform/syncobject.h>
 #include <spdlog/fmt/fmt.h>
 
 // Benchmarks inserting items into a HashTable
