@@ -8685,7 +8685,7 @@ BaseTestCase testsuite_testcases[] = {
                  "max_num_shards=5;max_threads=10",
                  prepare,
                  cleanup),
-        TestCase("ep workload stats",
+        TestCase("ep max workload stats",
                  test_max_workload_stats,
                  test_setup,
                  teardown,
