@@ -11,8 +11,8 @@
 
 #include "cb3_executorthread.h"
 #include "cb3_executorpool.h"
+#include "cb3_taskqueue.h"
 #include "globaltask.h"
-#include "taskqueue.h"
 
 #include <engines/ep/src/bucket_logger.h>
 #include <engines/ep/src/objectregistry.h>

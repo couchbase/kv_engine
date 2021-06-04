@@ -10,9 +10,9 @@
  */
 
 #include "mock_executor_pool.h"
+#include "cb3_taskqueue.h"
 
 #include <engines/ep/src/objectregistry.h>
-#include <executor/taskqueue.h>
 #include <memory>
 
 void MockExecutorPool::replaceExecutorPoolWithMock() {

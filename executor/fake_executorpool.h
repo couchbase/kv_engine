@@ -24,7 +24,7 @@
 
 #include "cb3_executorpool.h"
 #include "cb3_executorthread.h"
-#include "taskqueue.h"
+#include "cb3_taskqueue.h"
 
 #include <engines/ep/src/objectregistry.h>
 #include <memory>

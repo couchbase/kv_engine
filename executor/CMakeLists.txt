@@ -16,8 +16,8 @@ add_library(mcd_executor STATIC
             mock_executor_pool.cc
             mock_executor_pool.h
             taskable.h
-            taskqueue.cc
-            taskqueue.h
+            cb3_taskqueue.cc
+            cb3_taskqueue.h
             tasks.def.h
             workload.h
             )
