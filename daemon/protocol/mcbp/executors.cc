@@ -7,6 +7,9 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
+
+#include "executors.h"
+
 #include "engine_wrapper.h"
 #include "utilities.h"
 #include <memcached/protocol_binary.h>
