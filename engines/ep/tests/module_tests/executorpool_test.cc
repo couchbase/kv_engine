@@ -1281,6 +1281,14 @@ ExecutorPoolEpEngineTest<FollyExecutorPool>::ExecutorPoolEpEngineTest() {
 
 template <typename T>
 void ExecutorPoolEpEngineTest<T>::SetUp() {
+    if (config.find("cb3") != std::string::npos) {
+        ExecutorPool::create(ExecutorPool::Backend::CB3);
+    } else if (config.find("folly") != std::string::npos) {
+        ExecutorPool::create(ExecutorPool::Backend::Folly);
+    } else {
+        throw std::runtime_error(
+                "ExecutorPoolEpEngineTest<T>::SetUp(): Unknown backend");
+    }
     engine = SynchronousEPEngine::build(config);
     ExecutorPoolTest<T>::SetUp();
 }
@@ -1411,7 +1419,6 @@ TYPED_TEST(ExecutorPoolEpEngineTest, cancel_can_schedule) {
     // ExecutorPoolTest) as we need an EPEngine object for testing memory
     // tracking, and EpEngine will create theglobal ExecutorPool if it doesn't
     // already exist. We don't want two different pools in action...
-
     auto* pool = ExecutorPool::get();
     // Config: Require only 1 NonIO thread as we want ScheduleOnDestructTask and
     // StopTask to be serialised with respect to each other.

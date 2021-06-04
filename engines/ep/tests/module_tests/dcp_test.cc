@@ -1691,6 +1691,8 @@ TEST_P(ConnectionTest, ConsumerWithConsumerNameEnablesSyncRepl) {
 class DcpConnMapTest : public ::testing::Test {
 protected:
     void SetUp() override {
+        ExecutorPool::create();
+
         const auto dbname = dbnameFromCurrentGTestInfo();
         removePathIfExists(dbname);
 

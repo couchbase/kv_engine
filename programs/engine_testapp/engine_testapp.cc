@@ -14,6 +14,8 @@
 #include "utilities/terminate_handler.h"
 
 #include <daemon/enginemap.h>
+#include <executor/executorpool.h>
+#include <folly/ScopeGuard.h>
 #include <getopt.h>
 #include <logger/logger.h>
 #include <memcached/dcp.h>
@@ -25,7 +27,7 @@
 #include <platform/cbassert.h>
 #include <platform/dirutils.h>
 #include <platform/socket.h>
-
+#include <utilities/string_utilities.h>
 #include <chrono>
 #include <cinttypes>
 #include <cstdlib>
@@ -297,6 +299,9 @@ test_result try_run_test(std::function<test_result()> testFunc) noexcept {
 static test_result execute_test(engine_test_t test,
                                 const char* engine,
                                 const char* default_cfg) {
+    auto executorBoarderGuard =
+            folly::makeGuard([] { ExecutorPool::shutdown(); });
+
     enum test_result ret = PENDING;
     cb_assert(test.tfun != nullptr || test.api_v2.tfun != nullptr);
     bool test_api_1 = test.tfun != nullptr;
@@ -339,6 +344,7 @@ static test_result execute_test(engine_test_t test,
     } else if (default_cfg != nullptr) {
         test.cfg = default_cfg;
     }
+
     // Necessary configuration to run tests under RocksDB.
     if (!test.cfg.empty()) {
         cfg.assign(test.cfg);
@@ -377,6 +383,33 @@ static test_result execute_test(engine_test_t test,
             test.cfg = std::move(cfg);
         }
     }
+
+    auto executorBackend = ExecutorPool::Backend::Default;
+    int executorNumMaxThread = 0;
+    int executorNumAuxIo = 0;
+    int executorNumNonIo = 0;
+    auto options = split_string(test.cfg, ";");
+    for (auto& o : options) {
+        auto kv = split_string(o, "=");
+        if (kv.front() == "executor_pool_backend") {
+            if (kv.back() == "cb3") {
+                executorBackend = ExecutorPool::Backend::CB3;
+            }
+        } else if (kv.front() == "max_threads") {
+            executorNumMaxThread = std::stoi(kv.back());
+        } else if (kv.front() == "num_auxio_threads") {
+            executorNumAuxIo = std::stoi(kv.back());
+        } else if (kv.front() == "num_nonio_threads") {
+            executorNumNonIo = std::stoi(kv.back());
+        }
+    }
+
+    ExecutorPool::create(executorBackend,
+                         executorNumMaxThread,
+                         ThreadPoolConfig::ThreadCount(0),
+                         ThreadPoolConfig::ThreadCount(0),
+                         executorNumAuxIo,
+                         executorNumNonIo);
 
     harness.set_current_testcase(&test);
     if (test.prepare != nullptr) {

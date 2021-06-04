@@ -83,7 +83,10 @@ std::chrono::steady_clock::time_point SingleThreadedKVBucketTest::runNextTask(
 }
 
 void SingleThreadedKVBucketTest::SetUp() {
-    SingleThreadedExecutorPool::replaceExecutorPoolWithFake();
+    {
+        NonBucketAllocationGuard guard;
+        ExecutorPool::create(ExecutorPool::Backend::Fake);
+    }
 
     // Disable warmup - we don't want to have to run/wait for the Warmup tasks
     // to complete (and there's nothing to warmup from anyways).

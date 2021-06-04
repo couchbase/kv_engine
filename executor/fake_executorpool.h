@@ -31,27 +31,6 @@
 
 class SingleThreadedExecutorPool : public CB3ExecutorPool {
 public:
-    /* Registers an instance of this class as "the" executorpool (i.e. what
-     * you get when you call ExecutorPool::get()).
-     *
-     * This *must* be called before the normal ExecutorPool is created.
-     */
-    static void replaceExecutorPoolWithFake() {
-        std::lock_guard<std::mutex> lh(initGuard);
-        auto& instance = getInstance();
-        if (instance) {
-            throw std::runtime_error(
-                    "replaceExecutorPoolWithFake: "
-                    "ExecutorPool instance already created - cowardly refusing "
-                    "to continue!");
-        }
-
-        EventuallyPersistentEngine* epe =
-                ObjectRegistry::onSwitchThread(nullptr, true);
-        instance = std::make_unique<SingleThreadedExecutorPool>();
-        ObjectRegistry::onSwitchThread(epe);
-    }
-
     explicit SingleThreadedExecutorPool()
         : CB3ExecutorPool(/*threads*/ 0,
                           ThreadPoolConfig::ThreadCount::Default,

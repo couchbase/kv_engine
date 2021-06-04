@@ -116,7 +116,7 @@ class DurabilityTest : public EventuallyPersistentEngineTest,
                        public ::testing::WithParamInterface<std::string> {
     void SetUp() override {
         bucketType = GetParam();
-        MockExecutorPool::replaceExecutorPoolWithMock();
+        ExecutorPool::create(ExecutorPool::Backend::Mock);
         EventuallyPersistentEngineTest::SetUp();
     }
 };

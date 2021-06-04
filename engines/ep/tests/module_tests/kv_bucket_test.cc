@@ -74,6 +74,9 @@ void KVBucketTest::SetUp() {
         }
     }
 
+    if (!ExecutorPool::exists()) {
+        ExecutorPool::create();
+    }
     initialise(config_string);
 
     if (completeWarmup && engine->getKVBucket()->getWarmup()) {

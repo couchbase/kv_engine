@@ -45,6 +45,11 @@ void EventuallyPersistentEngineTest::SetUp() {
         }
     }
 
+    // Create an ExecutorPool unless its already created by SetUp in a subclass
+    if (!ExecutorPool::exists()) {
+        ExecutorPool::create();
+    }
+
     // Setup an engine with a single active vBucket.
     EXPECT_EQ(cb::engine_errc::success,
               create_ep_engine_instance(get_mock_server_api, &handle))

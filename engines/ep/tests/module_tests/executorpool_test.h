@@ -69,7 +69,10 @@ protected:
 class SingleThreadedExecutorPoolTest : public ::testing::Test {
 public:
     void SetUp() override {
-        SingleThreadedExecutorPool::replaceExecutorPoolWithFake();
+        {
+            NonBucketAllocationGuard guard;
+            ExecutorPool::create(ExecutorPool::Backend::Fake);
+        }
         pool = ExecutorPool::get();
         pool->registerTaskable(taskable);
     }

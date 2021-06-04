@@ -34,10 +34,11 @@ public:
         /// only used by unit tests
         Fake,
         /// The Mock backend is used by unit testing
-        Mock
+        Mock,
+        Default = Folly
     };
 
-    static void create(Backend backend = Backend::Folly,
+    static void create(Backend backend = Backend::Default,
                        size_t maxThreads = 0,
                        ThreadPoolConfig::ThreadCount maxReaders =
                                ThreadPoolConfig::ThreadCount::Default,
@@ -45,6 +46,9 @@ public:
                                ThreadPoolConfig::ThreadCount::Default,
                        size_t maxAuxIO = 0,
                        size_t maxNonIO = 0);
+
+    /// Is the ExecutorPool created or not
+    static bool exists();
 
     /**
      * @returns the singleton instance of ExecutorPool, creating it if not
@@ -244,9 +248,6 @@ protected:
 
     // Return a reference to the singleton ExecutorPool.
     static std::unique_ptr<ExecutorPool>& getInstance();
-
-    // Singleton creation
-    static std::mutex initGuard;
 
     /**
      * Maximum number of threads of any given class (Reader, Writer, AuxIO,

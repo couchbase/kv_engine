@@ -24,7 +24,10 @@
 
 void EngineFixture::SetUp(const benchmark::State& state) {
     if (state.thread_index == 0) {
-        SingleThreadedExecutorPool::replaceExecutorPoolWithFake();
+        {
+            NonBucketAllocationGuard guard;
+            ExecutorPool::create(ExecutorPool::Backend::Fake);
+        }
         executorPool = reinterpret_cast<SingleThreadedExecutorPool*>(
                 ExecutorPool::get());
         std::string config = "dbname=benchmarks-test;ht_locks=47;" + varConfig;

@@ -15,13 +15,9 @@
 #include "folly_executorpool.h"
 #include "mock_executor_pool.h"
 
-#include <engines/ep/src/configuration.h>
-#include <engines/ep/src/ep_engine.h>
 #include <engines/ep/src/objectregistry.h>
-
+#include <folly/lang/Assume.h>
 #include <vector>
-
-std::mutex ExecutorPool::initGuard;
 
 static const size_t EP_MIN_NONIO_THREADS = 2;
 
@@ -34,6 +30,10 @@ void ExecutorPool::create(Backend backend,
                           ThreadPoolConfig::ThreadCount maxWriters,
                           size_t maxAuxIO,
                           size_t maxNonIO) {
+    if (getInstance()) {
+        throw std::logic_error("ExecutorPool::create() Pool already created");
+    }
+
     switch (backend) {
     case Backend::Folly:
         getInstance() = std::make_unique<FollyExecutorPool>(
@@ -54,42 +54,14 @@ void ExecutorPool::create(Backend backend,
     throw std::runtime_error("ExecutorPool::create(): Unknown backend");
 }
 
+bool ExecutorPool::exists() {
+    return getInstance().get() != nullptr;
+}
+
 ExecutorPool* ExecutorPool::get() {
     auto* tmp = getInstance().get();
     if (tmp == nullptr) {
-        std::lock_guard<std::mutex> lh(initGuard);
-        tmp = getInstance().get();
-        if (tmp == nullptr) {
-            // Double-checked locking if instance is null - ensure two threads
-            // don't both create an instance.
-
-            Configuration& config =
-                    ObjectRegistry::getCurrentEngine()->getConfiguration();
-            NonBucketAllocationGuard guard;
-            if (config.getExecutorPoolBackend() == "cb3") {
-                tmp = new CB3ExecutorPool(config.getMaxThreads(),
-                                          ThreadPoolConfig::ThreadCount(
-                                                  config.getNumReaderThreads()),
-                                          ThreadPoolConfig::ThreadCount(
-                                                  config.getNumWriterThreads()),
-                                          config.getNumAuxioThreads(),
-                                          config.getNumNonioThreads());
-            } else if (config.getExecutorPoolBackend() == "folly") {
-                tmp = new FollyExecutorPool(
-                        config.getMaxThreads(),
-                        ThreadPoolConfig::ThreadCount(
-                                config.getNumReaderThreads()),
-                        ThreadPoolConfig::ThreadCount(
-                                config.getNumWriterThreads()),
-                        config.getNumAuxioThreads(),
-                        config.getNumNonioThreads());
-            } else {
-                throw std::invalid_argument(
-                        "ExecutorPool::get() Invalid executor_pool_backend '" +
-                        config.getExecutorPoolBackend() + "'");
-            }
-            getInstance().reset(tmp);
-        }
+        throw std::logic_error("ExecutorPool::get(): Pool not created");
     }
     return tmp;
 }

@@ -24,7 +24,10 @@
 class FlusherTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        SingleThreadedExecutorPool::replaceExecutorPoolWithFake();
+        {
+            NonBucketAllocationGuard guard;
+            ExecutorPool::create(ExecutorPool::Backend::Fake);
+        }
         engine = SynchronousEPEngine::build({});
         task_executor = reinterpret_cast<SingleThreadedExecutorPool*>(
                 ExecutorPool::get());

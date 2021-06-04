@@ -27,12 +27,6 @@ public:
     }
 
     /**
-     * Replaces the ExecutorPool instance with a MockExecutorPool one.
-     * Useful for checking the internal state of ExecutorPool.
-     */
-    static void replaceExecutorPoolWithMock();
-
-    /**
      * @param queueType
      * @param taskName
      * @return true if the given task (of the given type) is scheduled,

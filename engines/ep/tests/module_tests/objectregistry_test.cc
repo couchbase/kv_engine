@@ -29,7 +29,11 @@ protected:
         const auto dbname = dbnameFromCurrentGTestInfo();
         removePathIfExists(dbname);
 
-        SingleThreadedExecutorPool::replaceExecutorPoolWithFake();
+        {
+            NonBucketAllocationGuard guard;
+            ExecutorPool::create(ExecutorPool::Backend::Fake);
+        }
+
         const auto extraConfig = "dbname=" + dbname;
         engine = SynchronousEPEngine::build(extraConfig);
     }

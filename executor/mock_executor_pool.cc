@@ -12,19 +12,7 @@
 #include "mock_executor_pool.h"
 #include "cb3_taskqueue.h"
 
-#include <engines/ep/src/objectregistry.h>
 #include <memory>
-
-void MockExecutorPool::replaceExecutorPoolWithMock() {
-    std::lock_guard<std::mutex> lh(initGuard);
-    auto& executor = getInstance();
-    if (executor) {
-        executor->shutdown();
-    }
-    auto* epEngine = ObjectRegistry::onSwitchThread(nullptr, true);
-    executor = std::make_unique<MockExecutorPool>();
-    ObjectRegistry::onSwitchThread(epEngine);
-}
 
 bool MockExecutorPool::isTaskScheduled(const task_type_t queueType,
                                        const std::string& taskName) {
