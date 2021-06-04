@@ -1259,7 +1259,7 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
         if (req.getDocMeta().bySeqno > lastSeqno) {
             lastSeqno = req.getDocMeta().bySeqno;
         }
-        writeOps.emplace_back(Magma::WriteOperation::NewDocUpdate(
+        writeOps.emplace_back(Magma::WriteOperation::NewDocUpsert(
                 {req.getRawKey(), req.getRawKeyLen()},
                 {reinterpret_cast<char*>(&docMeta), sizeof(magmakv::MetaData)},
                 valSlice,
