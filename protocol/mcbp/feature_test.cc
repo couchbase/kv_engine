@@ -12,7 +12,7 @@
 #include <mcbp/protocol/feature.h>
 #include <stdexcept>
 
-const std::map<cb::mcbp::Feature, std::string> blueprint = {
+const std::map<cb::mcbp::Feature, std::string> featureBlueprint = {
         {{cb::mcbp::Feature::Invalid, "Invalid"},
          {cb::mcbp::Feature::Invalid2, "Invalid2"},
          {cb::mcbp::Feature::TLS, "TLS"},
@@ -43,7 +43,7 @@ const std::map<cb::mcbp::Feature, std::string> blueprint = {
           "SubdocReplaceBodyWithXattr"}}};
 
 TEST(to_string, LegalValues) {
-    for (const auto& entry : blueprint) {
+    for (const auto& entry : featureBlueprint) {
         EXPECT_EQ(entry.second, to_string(entry.first));
     }
 }
@@ -57,7 +57,7 @@ TEST(to_string, IllegalValues) {
     auto end = uint32_t(std::numeric_limits<uint16_t>::max()) + 1;
     for (uint32_t ii = 0; ii < end; ++ii) {
         auto feature = cb::mcbp::Feature(ii);
-        if (blueprint.find(feature) == blueprint.end()) {
+        if (featureBlueprint.find(feature) == featureBlueprint.end()) {
             EXPECT_THROW(to_string(feature), std::invalid_argument);
         }
     }

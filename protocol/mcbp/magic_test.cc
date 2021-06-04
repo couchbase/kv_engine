@@ -17,7 +17,7 @@
 #include <map>
 #include <stdexcept>
 
-const std::map<cb::mcbp::Magic, std::string> blueprint = {
+const std::map<cb::mcbp::Magic, std::string> magicBlueprint = {
         {{cb::mcbp::Magic::ClientRequest, "ClientRequest"},
          {cb::mcbp::Magic::AltClientRequest, "AltClientRequest"},
          {cb::mcbp::Magic::ClientResponse, "ClientResponse"},
@@ -28,8 +28,8 @@ const std::map<cb::mcbp::Magic, std::string> blueprint = {
 TEST(Magic, to_string) {
     for (int ii = 0; ii < 0x100; ++ii) {
         auto magic = cb::mcbp::Magic(ii);
-        auto entry = blueprint.find(magic);
-        if (entry == blueprint.end()) {
+        auto entry = magicBlueprint.find(magic);
+        if (entry == magicBlueprint.end()) {
             EXPECT_THROW(to_string(magic), std::invalid_argument);
         } else {
             EXPECT_EQ(entry->second, to_string(entry->first));
@@ -41,7 +41,7 @@ TEST(Magic, is_legal) {
     for (int ii = 0; ii < 0x100; ++ii) {
         auto magic = cb::mcbp::Magic(ii);
         // If it isn't in the map it shouldn't be legal
-        EXPECT_NE(blueprint.find(magic) == blueprint.end(),
+        EXPECT_NE(magicBlueprint.find(magic) == magicBlueprint.end(),
                   cb::mcbp::is_legal(magic));
     }
 }
