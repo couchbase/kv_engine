@@ -27,8 +27,6 @@
 #include "objectregistry.h"
 #include "taskqueue.h"
 
-#include <folly/portability/GTest.h>
-
 #include <memory>
 
 class SingleThreadedExecutorPool : public CB3ExecutorPool {
@@ -193,7 +191,15 @@ public:
     }
 
     void runCurrentTask(std::string_view expectedTask) {
-        EXPECT_EQ(expectedTask, getTaskName());
+        if (expectedTask != getTaskName()) {
+            std::string message =
+                    "CheckedExecutor::runCurrentTask(): Expected task: \"";
+            message.append(expectedTask);
+            message.append("\" got \"");
+            message.append(getTaskName());
+            message.append("\"");
+            throw std::runtime_error(message);
+        }
         run();
     }
 
@@ -244,10 +250,22 @@ private:
 
         // there should now be _at least_ minExpectedToBeScheduled extra
         // tasks
-        EXPECT_GE(actual, expected + minExpectedToBeScheduled);
+
+        if (actual < expected + minExpectedToBeScheduled) {
+            throw std::runtime_error(
+                    "CheckedExecutor::oneExecutes(): Expected " +
+                    std::to_string(actual) + " >= " +
+                    std::to_string(expected + minExpectedToBeScheduled));
+        }
+
         // there should now be _no more than_ maxExpectedToBeScheduled extra
         // tasks
-        EXPECT_LE(actual, expected + maxExpectedToBeScheduled);
+        if (actual > expected + maxExpectedToBeScheduled) {
+            throw std::runtime_error(
+                    "CheckedExecutor::oneExecutes(): Expected " +
+                    std::to_string(actual) + " <= " +
+                    std::to_string(expected + maxExpectedToBeScheduled));
+        }
     }
 
     void oneExecutes(bool rescheduled, int expectedToBeScheduled) {
