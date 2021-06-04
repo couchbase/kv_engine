@@ -400,6 +400,7 @@ void TestDcpConsumer::run(bool openConn) {
     uint64_t all_bytes = 0;
     uint64_t total_acked_bytes = 0;
     uint64_t ack_limit = flow_control_buf_size / 2;
+    std::vector<std::pair<cb::mcbp::ClientOpcode, size_t>> history;
 
     bool delay_buffer_acking = false;
     if (simulate_cursor_dropping) {
@@ -420,7 +421,26 @@ void TestDcpConsumer::run(bool openConn) {
                 std::this_thread::sleep_for(std::chrono::seconds(2));
                 delay_buffer_acking = false;
             }
-            dcp->buffer_acknowledgement(cookie, ++opaque, Vbid(0), bytes_read);
+            try {
+                history.emplace_back(
+                        cb::mcbp::ClientOpcode::DcpBufferAcknowledgement,
+                        bytes_read);
+                dcp->buffer_acknowledgement(
+                        cookie, ++opaque, Vbid(0), bytes_read);
+            } catch (const std::exception& e) {
+                std::cerr << "buffer_acknowledgement exception caught"
+                          << std::endl;
+                std::cerr << "e.what():" << e.what() << std::endl;
+                std::cerr << "bytes_read:" << bytes_read << std::endl;
+                std::cerr << "total_acked_bytes:" << total_acked_bytes
+                          << std::endl;
+                std::cerr << "DCP history:" << std::endl;
+                for (auto entry : history) {
+                    std::cerr << entry.first << " " << entry.second
+                              << std::endl;
+                }
+                check(false, "Aborting");
+            }
             total_acked_bytes += bytes_read;
             bytes_read = 0;
         }
@@ -430,6 +450,7 @@ void TestDcpConsumer::run(bool openConn) {
         } else {
             const Vbid vbid = producers.last_vbucket;
             auto& stats = vb_stats[vbid];
+            history.emplace_back(producers.last_op, producers.last_packet_size);
             switch (producers.last_op) {
             case cb::mcbp::ClientOpcode::DcpMutation:
                 cb_assert(vbid != static_cast<Vbid>(-1));
