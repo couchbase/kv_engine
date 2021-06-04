@@ -229,8 +229,7 @@ void SingleThreadedKVBucketTest::resetEngineAndWarmup(std::string new_config,
 }
 
 std::shared_ptr<MockDcpProducer> SingleThreadedKVBucketTest::createDcpProducer(
-        const void* cookie,
-        IncludeDeleteTime deleteTime) {
+        const CookieIface* cookie, IncludeDeleteTime deleteTime) {
     int flags = cb::mcbp::request::DcpOpenPayload::IncludeXattrs;
     if (deleteTime == IncludeDeleteTime::Yes) {
         flags |= cb::mcbp::request::DcpOpenPayload::IncludeDeleteTimes;
@@ -440,7 +439,7 @@ SingleThreadedKVBucketTest::getLatestFailoverTableEntry() const {
 }
 
 cb::engine_errc SingleThreadedKVBucketTest::setCollections(
-        const void* c,
+        const CookieIface* c,
         const CollectionsManifest& manifest,
         cb::engine_errc status1) {
     std::string json{manifest};
@@ -869,7 +868,7 @@ cb::engine_errc STParameterizedBucketTest::checkKeyExists(
 }
 
 cb::engine_errc STParameterizedBucketTest::setItem(Item& itm,
-                                                   const void* cookie) {
+                                                   const CookieIface* cookie) {
     auto rc = store->set(itm, cookie);
     if (needBGFetch(rc)) {
         rc = store->set(itm, cookie);
@@ -878,7 +877,7 @@ cb::engine_errc STParameterizedBucketTest::setItem(Item& itm,
 }
 
 cb::engine_errc STParameterizedBucketTest::addItem(Item& itm,
-                                                   const void* cookie) {
+                                                   const CookieIface* cookie) {
     auto rc = store->add(itm, cookie);
     if (needBGFetch(rc)) {
         rc = store->add(itm, cookie);
@@ -1958,7 +1957,10 @@ TEST_P(STParamPersistentBucketTest, MB19815_doDcpVbTakeoverStats) {
     // the callback don't use the cookie "at all" we can just use the key
     // as the cookie
     EXPECT_NO_THROW(engine->public_doDcpVbTakeoverStats(
-            static_cast<const void*>(key.c_str()), dummy_cb, key, vbid));
+            reinterpret_cast<const CookieIface*>(key.c_str()),
+            dummy_cb,
+            key,
+            vbid));
 
     // Cleanup - run flusher.
     EXPECT_EQ(FlushResult(MoreAvailable::No, 0, WakeCkptRemover::No),

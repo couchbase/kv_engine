@@ -275,7 +275,7 @@ static void do_slabs_free(struct default_engine *engine, void *ptr, const size_t
     return;
 }
 
-void add_statistics(const void* cookie,
+void add_statistics(const CookieIface* cookie,
                     const AddStatFn& add_stats,
                     const char* prefix,
                     int num,
@@ -327,7 +327,7 @@ void add_statistics(const void* cookie,
 /*@null@*/
 static void do_slabs_stats(struct default_engine* engine,
                            const AddStatFn& add_stats,
-                           const void* cookie) {
+                           const CookieIface* cookie) {
     unsigned int i;
     unsigned int total = 0;
 
@@ -407,7 +407,7 @@ void slabs_free(struct default_engine *engine, void *ptr, size_t size, unsigned 
 
 void slabs_stats(struct default_engine* engine,
                  const AddStatFn& add_stats,
-                 const void* c) {
+                 const CookieIface* c) {
     std::lock_guard<std::mutex> guard(engine->slabs.lock);
     do_slabs_stats(engine, add_stats, c);
 }

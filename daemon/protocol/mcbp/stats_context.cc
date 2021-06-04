@@ -737,7 +737,9 @@ cb::engine_errc StatsCommandContext::getTaskResult() {
     command_exit_code = stats_task.getCommandError();
     if (command_exit_code == cb::engine_errc::success) {
         for (const auto& s : stats_task.getStats()) {
-            append_stats(s.first, s.second, static_cast<const void*>(&cookie));
+            append_stats(s.first,
+                         s.second,
+                         static_cast<const CookieIface*>(&cookie));
         }
     }
     return cb::engine_errc::success;
@@ -746,7 +748,7 @@ cb::engine_errc StatsCommandContext::getTaskResult() {
 cb::engine_errc StatsCommandContext::commandComplete() {
     switch (command_exit_code) {
     case cb::engine_errc::success:
-        append_stats({}, {}, static_cast<void*>(&cookie));
+        append_stats({}, {}, static_cast<CookieIface*>(&cookie));
 
         // We just want to record this once rather than for each packet sent
         ++connection.getBucket()

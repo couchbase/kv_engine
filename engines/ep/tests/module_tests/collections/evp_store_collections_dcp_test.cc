@@ -2161,7 +2161,7 @@ public:
 
     void setNoAccess(CollectionID noaccess) {
         mock_set_check_privilege_function(
-                [noaccess](gsl::not_null<const void*>,
+                [noaccess](gsl::not_null<const CookieIface*>,
                            cb::rbac::Privilege priv,
                            std::optional<ScopeID> sid,
                            std::optional<CollectionID> cid)

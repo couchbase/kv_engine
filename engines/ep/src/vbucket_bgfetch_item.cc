@@ -20,7 +20,7 @@
 FrontEndBGFetchItem::FrontEndBGFetchItem(
         std::chrono::steady_clock::time_point initTime,
         ValueFilter filter,
-        const void* cookie)
+        const CookieIface* cookie)
     : BGFetchItem(initTime), cookie(cookie), filter(filter) {
     auto* traceable = cookie2traceable(cookie);
     if (traceable && traceable->isTracingEnabled()) {
@@ -43,7 +43,7 @@ void FrontEndBGFetchItem::complete(
 void FrontEndBGFetchItem::abort(
         EventuallyPersistentEngine& engine,
         cb::engine_errc status,
-        std::map<const void*, cb::engine_errc>& toNotify) const {
+        std::map<const CookieIface*, cb::engine_errc>& toNotify) const {
     toNotify[cookie] = status;
     engine.storeEngineSpecific(cookie, nullptr);
 }
@@ -61,7 +61,7 @@ void CompactionBGFetchItem::complete(
 void CompactionBGFetchItem::abort(
         EventuallyPersistentEngine& engine,
         cb::engine_errc status,
-        std::map<const void*, cb::engine_errc>& toNotify) const {
+        std::map<const CookieIface*, cb::engine_errc>& toNotify) const {
     // Do nothing. If we abort a CompactionBGFetch then an item that we may have
     // expire simply won't be expired. The next op/compaction can expire the
     // item if still required.

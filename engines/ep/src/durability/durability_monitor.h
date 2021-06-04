@@ -13,6 +13,8 @@
 #include "memcached/engine_common.h"
 #include <list>
 
+class CookieIface;
+
 /*
  * Base (abstract) class for DurabilityMonitor.
  */
@@ -27,7 +29,7 @@ public:
      * @param cookie
      */
     virtual void addStats(const AddStatFn& addStat,
-                          const void* cookie) const = 0;
+                          const CookieIface* cookie) const = 0;
 
     /// @return the high_prepared_seqno.
     virtual int64_t getHighPreparedSeqno() const = 0;

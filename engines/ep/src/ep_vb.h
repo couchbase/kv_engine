@@ -72,7 +72,7 @@ public:
 
     HighPriorityVBReqStatus checkAddHighPriorityVBEntry(
             uint64_t seqnoOrChkId,
-            const void* cookie,
+            const CookieIface* cookie,
             HighPriorityVBNotify reqType) override;
 
     void notifyHighPriorityRequests(EventuallyPersistentEngine& engine,
@@ -96,7 +96,7 @@ public:
     size_t getNumSystemItems() const override;
 
     cb::engine_errc statsVKey(const DocKey& key,
-                              const void* cookie,
+                              const CookieIface* cookie,
                               EventuallyPersistentEngine& engine) override;
 
     void completeStatsVKey(const DocKey& key, const GetValue& gcb) override;
@@ -118,7 +118,7 @@ public:
 
     void addStats(VBucketStatsDetailLevel detail,
                   const AddStatFn& add_stat,
-                  const void* c) override;
+                  const CookieIface* c) override;
 
     KVShard* getShard() override {
         return shard;
@@ -151,7 +151,7 @@ public:
      *
      * @param cookie A cookie to notify when the deletion task completes.
      */
-    void setupDeferredDeletion(const void* cookie) override;
+    void setupDeferredDeletion(const CookieIface* cookie) override;
 
     /**
      * @return the file revision to be unlinked by the deferred deletion task
@@ -311,13 +311,13 @@ private:
                             int64_t abortSeqno) override;
 
     void bgFetch(const DocKey& key,
-                 const void* cookie,
+                 const CookieIface* cookie,
                  EventuallyPersistentEngine& engine,
                  bool isMeta = false) override;
 
     cb::engine_errc addTempItemAndBGFetch(HashTable::HashBucketLock& hbl,
                                           const DocKey& key,
-                                          const void* cookie,
+                                          const CookieIface* cookie,
                                           EventuallyPersistentEngine& engine,
                                           bool metadataOnly) override;
 
@@ -337,7 +337,7 @@ private:
                        const std::chrono::steady_clock::time_point stop);
 
     GetValue getInternalNonResident(const DocKey& key,
-                                    const void* cookie,
+                                    const CookieIface* cookie,
                                     EventuallyPersistentEngine& engine,
                                     QueueBgFetch queueBgFetch,
                                     const StoredValue& v) override;

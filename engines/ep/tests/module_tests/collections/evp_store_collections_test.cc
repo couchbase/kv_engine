@@ -3117,7 +3117,7 @@ public:
     }
     std::set<CollectionID> noAccessCids;
 
-    CheckPrivilegeFunction checkPriv = [this](gsl::not_null<const void*>,
+    CheckPrivilegeFunction checkPriv = [this](gsl::not_null<const CookieIface*>,
                                               cb::rbac::Privilege priv,
                                               std::optional<ScopeID> sid,
                                               std::optional<CollectionID> cid)

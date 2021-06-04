@@ -57,8 +57,7 @@ struct slabs {
    std::mutex lock;
 };
 
-
-
+class CookieIface;
 
 /** Init the subsystem. 1st argument is the limit on no. of bytes to allocate,
     0 if no limit. 2nd argument is the growth factor; each slab will use a chunk
@@ -92,9 +91,9 @@ void slabs_adjust_mem_requested(struct default_engine *engine, unsigned int id, 
 /** Fill buffer with stats */ /*@null@*/
 void slabs_stats(struct default_engine* engine,
                  const AddStatFn& add_stats,
-                 const void* c);
+                 const CookieIface* c);
 
-void add_statistics(const void* cookie,
+void add_statistics(const CookieIface* cookie,
                     const AddStatFn& add_stats,
                     const char* prefix,
                     int num,

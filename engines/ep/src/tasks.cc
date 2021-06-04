@@ -31,7 +31,7 @@ bool FlusherTask::run() {
 CompactTask::CompactTask(EPBucket& bucket,
                          Vbid vbid,
                          std::optional<CompactionConfig> config,
-                         const void* ck,
+                         const CookieIface* ck,
                          bool completeBeforeShutdown)
     : GlobalTask(&bucket.getEPEngine(),
                  TaskId::CompactVBucketTask,
@@ -86,7 +86,7 @@ bool CompactTask::isRescheduleRequired() const {
     return compaction.rlock()->rescheduleRequired;
 }
 
-bool CompactTask::isTaskDone(const std::vector<const void*>& cookies) {
+bool CompactTask::isTaskDone(const std::vector<const CookieIface*>& cookies) {
     auto handle = compaction.wlock();
     bool value = handle->rescheduleRequired;
     handle->rescheduleRequired = false;
@@ -100,7 +100,7 @@ CompactionConfig CompactTask::getCurrentConfig() const {
     return compaction.rlock()->config;
 }
 
-std::pair<CompactionConfig, std::vector<const void*>>
+std::pair<CompactionConfig, std::vector<const CookieIface*>>
 CompactTask::preDoCompact() {
     auto lockedState = compaction.wlock();
     lockedState->rescheduleRequired = false;
@@ -112,7 +112,7 @@ CompactTask::preDoCompact() {
 }
 
 CompactionConfig CompactTask::runCompactionWithConfig(
-        std::optional<CompactionConfig> config, const void* cookie) {
+        std::optional<CompactionConfig> config, const CookieIface* cookie) {
     auto lockedState = compaction.wlock();
     if (config) {
         lockedState->config.merge(config.value());

@@ -72,6 +72,7 @@
 #include <vector>
 
 // Forward decl
+class CookieIface;
 class TaskQueue;
 class CB3ExecutorThread;
 
@@ -161,7 +162,7 @@ public:
     }
 
     void doWorkerStat(Taskable& taskable,
-                      const void* cookie,
+                      const CookieIface* cookie,
                       const AddStatFn& add_stat) override;
 
     /**
@@ -169,11 +170,11 @@ public:
      * cbstats tasks.
      */
     void doTasksStat(Taskable& taskable,
-                     const void* cookie,
+                     const CookieIface* cookie,
                      const AddStatFn& add_stat) override;
 
     void doTaskQStat(Taskable& taskable,
-                     const void* cookie,
+                     const CookieIface* cookie,
                      const AddStatFn& add_stat) override;
 
     size_t getNumWorkersStat() override {

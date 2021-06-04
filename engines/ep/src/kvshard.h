@@ -61,6 +61,7 @@
  *     1023               3
  */
 class Configuration;
+class CookieIface;
 class EPBucket;
 class EventuallyPersistentEngine;
 class Flusher;
@@ -122,7 +123,8 @@ public:
      * @param cookie Optional connection cookie, this cookie will be notified
      *        when the deletion task is completed.
      */
-    void dropVBucketAndSetupDeferredDeletion(Vbid id, const void* cookie);
+    void dropVBucketAndSetupDeferredDeletion(Vbid id,
+                                             const CookieIface* cookie);
 
     KVShard::id_type getId() const {
         return kvConfig->getShardId();

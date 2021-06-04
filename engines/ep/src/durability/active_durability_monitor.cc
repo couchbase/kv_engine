@@ -274,7 +274,7 @@ bool ActiveDurabilityMonitor::isDurabilityPossible() const {
            (!s->secondChain || s->secondChain->isDurabilityPossible());
 }
 
-void ActiveDurabilityMonitor::addSyncWrite(const void* cookie,
+void ActiveDurabilityMonitor::addSyncWrite(const CookieIface* cookie,
                                            queued_item item) {
     auto durReq = item->getDurabilityReqs();
 
@@ -356,7 +356,7 @@ void ActiveDurabilityMonitor::notifyLocalPersistence() {
 }
 
 void ActiveDurabilityMonitor::addStats(const AddStatFn& addStat,
-                                       const void* cookie) const {
+                                       const CookieIface* cookie) const {
     try {
         const auto vbid = vb.getId().get();
 
@@ -415,7 +415,7 @@ void ActiveDurabilityMonitor::addStats(const AddStatFn& addStat,
 
 void ActiveDurabilityMonitor::addStatsForChain(
         const AddStatFn& addStat,
-        const void* cookie,
+        const CookieIface* cookie,
         const ReplicationChain& chain) const {
     fmt::memory_buffer buff;
     const auto vbid = vb.getId().get();
@@ -987,7 +987,7 @@ void ActiveDurabilityMonitor::eraseSyncWrite(const DocKey& key, int64_t seqno) {
     s->trackedWrites.erase(toErase);
 }
 
-std::vector<const void*>
+std::vector<const CookieIface*>
 ActiveDurabilityMonitor::prepareTransitionAwayFromActive() {
     // Put everything in the resolvedQueue back into trackedWrites. This is
     // necessary as we may have decided to resolve something that our new active
@@ -1000,9 +1000,9 @@ ActiveDurabilityMonitor::prepareTransitionAwayFromActive() {
     return getCookiesForInFlightSyncWrites();
 }
 
-std::vector<const void*>
+std::vector<const CookieIface*>
 ActiveDurabilityMonitor::getCookiesForInFlightSyncWrites() {
-    auto vec = std::vector<const void*>();
+    auto vec = std::vector<const CookieIface*>();
 
     std::lock_guard<ResolvedQueue::ConsumerLock> lock(
             resolvedQueue->getConsumerLock());
@@ -1439,7 +1439,7 @@ void ActiveDurabilityMonitor::State::cleanUpTrackedWritesPostTopologyChange(
     }
 }
 
-void ActiveDurabilityMonitor::State::addSyncWrite(const void* cookie,
+void ActiveDurabilityMonitor::State::addSyncWrite(const CookieIface* cookie,
                                                   queued_item item) {
     Expects(firstChain.get());
     const auto seqno = item->getBySeqno();

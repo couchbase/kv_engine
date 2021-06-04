@@ -231,7 +231,7 @@ public:
         return snappyEnabled == SnappyEnabled::Yes;
     }
 
-    void addStats(const AddStatFn& add_stat, const void* c) override;
+    void addStats(const AddStatFn& add_stat, const CookieIface* c) override;
 
     void addTakeoverStats(const AddStatFn& add_stat,
                           const void* c,

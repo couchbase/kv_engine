@@ -129,7 +129,7 @@ public:
          * @return The ConnHandler or a nullptr
          */
         std::shared_ptr<ConnHandler> findConnHandlerByCookie(
-                const void* cookie);
+                const CookieIface* cookie);
 
         /**
          * Get the ConnHandler reference from the cookieToConn map for the given
@@ -149,7 +149,7 @@ public:
          * @param consumer reference to a ConnHandler
          * @throws runtime_error if a connection already exists for this cookie
          */
-        void addConnByCookie(const void* cookie,
+        void addConnByCookie(const CookieIface* cookie,
                              std::shared_ptr<ConnHandler> conn);
 
         /**
@@ -158,7 +158,7 @@ public:
          *
          * @param cookie the cookie mapping to the ConnHandler
          */
-        void removeConnByCookie(const void* cookie);
+        void removeConnByCookie(const CookieIface* cookie);
 
         /**
          * @return a copy of cookieToConn so that users can call functions
@@ -213,7 +213,7 @@ public:
      * @param cookie cookie of the ConnHandler
      * @return True if the ConnHandler exists
      */
-    bool doesVbConnExist(Vbid vbid, const void* cookie);
+    bool doesVbConnExist(Vbid vbid, const CookieIface* cookie);
 
     /**
      * Add a reference to vbToConns for the given ConnHandler.
@@ -229,7 +229,7 @@ public:
      * @param vbid the vBucket that the ConnHandler no longer serves
      * @param cookie the cookie mapping to the ConnHandler
      */
-    void removeVBConnByVbid(Vbid vbid, const void* cookie);
+    void removeVBConnByVbid(Vbid vbid, const CookieIface* cookie);
 
 protected:
     VBToConnsMap::value_type::iterator getVBToConnsItr(
@@ -237,7 +237,9 @@ protected:
             Vbid vbid,
             const ConnHandler& conn);
     VBToConnsMap::value_type::iterator getVBToConnsItr(
-            std::unique_lock<std::mutex>& lock, Vbid vbid, const void* cookie);
+            std::unique_lock<std::mutex>& lock,
+            Vbid vbid,
+            const CookieIface* cookie);
     VBToConnsMap::value_type::iterator getVBToConnsItr(
             std::unique_lock<std::mutex>& lock,
             Vbid vbid,

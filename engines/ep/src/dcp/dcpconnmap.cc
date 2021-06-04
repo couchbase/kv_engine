@@ -69,7 +69,7 @@ DcpConnMap::~DcpConnMap() {
     EP_LOG_INFO_RAW("Deleted dcpConnMap_");
 }
 
-DcpConsumer* DcpConnMap::newConsumer(const void* cookie,
+DcpConsumer* DcpConnMap::newConsumer(const CookieIface* cookie,
                                      const std::string& name,
                                      const std::string& consumerName) {
     std::string conn_name("eq_dcpq:");
@@ -90,8 +90,8 @@ DcpConsumer* DcpConnMap::newConsumer(const void* cookie,
                 "{} Disconnecting existing Dcp Consumer {} as it has the "
                 "same name as a new connection {}",
                 connForName->logHeader(),
-                connForName->getCookie(),
-                cookie);
+                static_cast<const void*>(connForName->getCookie()),
+                static_cast<const void*>(cookie));
         connForName->setDisconnect();
     }
 
@@ -101,7 +101,7 @@ DcpConsumer* DcpConnMap::newConsumer(const void* cookie,
 
 std::shared_ptr<DcpConsumer> DcpConnMap::makeConsumer(
         EventuallyPersistentEngine& engine,
-        const void* cookie,
+        const CookieIface* cookie,
         const std::string& connName,
         const std::string& consumerName) const {
     return std::make_shared<DcpConsumer>(
@@ -143,7 +143,7 @@ cb::engine_errc DcpConnMap::addPassiveStream(ConnHandler& conn,
     return conn.addStream(opaque, vbucket, flags);
 }
 
-DcpProducer* DcpConnMap::newProducer(const void* cookie,
+DcpProducer* DcpConnMap::newProducer(const CookieIface* cookie,
                                      const std::string& name,
                                      uint32_t flags) {
     std::string conn_name("eq_dcpq:");
@@ -170,8 +170,8 @@ DcpProducer* DcpConnMap::newProducer(const void* cookie,
                 "{} Disconnecting existing Dcp Producer {} as it has the "
                 "same name as a new connection {}",
                 connForName->logHeader(),
-                connForName->getCookie(),
-                cookie);
+                static_cast<const void*>(connForName->getCookie()),
+                static_cast<const void*>(cookie));
         connForName->flagDisconnect();
 
         // Note: I thought that we need to 'map_.erase(oldCookie)'
@@ -285,7 +285,7 @@ void DcpConnMap::cancelTasks(CookieToConnectionMap& map) {
     }
 }
 
-void DcpConnMap::disconnect(const void *cookie) {
+void DcpConnMap::disconnect(const CookieIface* cookie) {
     // Move the connection matching this cookie from the map_
     // data structure (under connsLock).
     std::shared_ptr<ConnHandler> conn;
@@ -304,8 +304,9 @@ void DcpConnMap::disconnect(const void *cookie) {
                     connForCookie->getLogger().info("Removing connection {}",
                                                     conn_desc);
                 } else {
-                    connForCookie->getLogger().info("Removing connection {}",
-                                                    cookie);
+                    connForCookie->getLogger().info(
+                            "Removing connection {}",
+                            static_cast<const void*>(cookie));
                 }
                 ObjectRegistry::onSwitchThread(epe);
                 // MB-36557: Just flag the connection as disconnected, defer
@@ -482,7 +483,7 @@ void DcpConnMap::updateMaxRunningBackfills(size_t maxDataSize) {
     EP_LOG_DEBUG("Max running backfills set to {}", newMaxActive);
 }
 
-void DcpConnMap::addStats(const AddStatFn& add_stat, const void* c) {
+void DcpConnMap::addStats(const AddStatFn& add_stat, const CookieIface* c) {
     std::lock_guard<std::mutex> lh(connsLock);
     add_casted_stat("ep_dcp_dead_conn_count", deadConnections.size(), add_stat,
                     c);

@@ -228,7 +228,7 @@ class RespondAmbiguousNotification : public GlobalTask {
 public:
     RespondAmbiguousNotification(EventuallyPersistentEngine& e,
                                  VBucketPtr& vb,
-                                 std::vector<const void*>&& cookies_)
+                                 std::vector<const CookieIface*>&& cookies_)
         : GlobalTask(&e, TaskId::RespondAmbiguousNotification, 0, false),
           weakVb(vb),
           cookies(std::move(cookies_)),
@@ -273,7 +273,7 @@ public:
 
 private:
     std::weak_ptr<VBucket> weakVb;
-    std::vector<const void*> cookies;
+    std::vector<const CookieIface*> cookies;
     const std::string description;
 };
 
@@ -675,7 +675,7 @@ void KVBucket::logRunTime(const GlobalTask& task,
 }
 
 cb::engine_errc KVBucket::set(Item& itm,
-                              const void* cookie,
+                              const CookieIface* cookie,
                               cb::StoreIfPredicate predicate) {
     VBucketPtr vb = getVBucket(itm.getVBucketId());
     if (!vb) {
@@ -730,7 +730,7 @@ cb::engine_errc KVBucket::set(Item& itm,
     return result;
 }
 
-cb::engine_errc KVBucket::add(Item& itm, const void* cookie) {
+cb::engine_errc KVBucket::add(Item& itm, const CookieIface* cookie) {
     VBucketPtr vb = getVBucket(itm.getVBucketId());
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -787,7 +787,7 @@ cb::engine_errc KVBucket::add(Item& itm, const void* cookie) {
 }
 
 cb::engine_errc KVBucket::replace(Item& itm,
-                                  const void* cookie,
+                                  const CookieIface* cookie,
                                   cb::StoreIfPredicate predicate) {
     VBucketPtr vb = getVBucket(itm.getVBucketId());
     if (!vb) {
@@ -835,14 +835,14 @@ cb::engine_errc KVBucket::replace(Item& itm,
 
 GetValue KVBucket::get(const DocKey& key,
                        Vbid vbucket,
-                       const void* cookie,
+                       const CookieIface* cookie,
                        get_options_t options) {
     return getInternal(key, vbucket, cookie, ForGetReplicaOp::No, options);
 }
 
 GetValue KVBucket::getReplica(const DocKey& key,
                               Vbid vbucket,
-                              const void* cookie,
+                              const CookieIface* cookie,
                               get_options_t options) {
     return getInternal(key, vbucket, cookie, ForGetReplicaOp::Yes, options);
 }
@@ -874,7 +874,7 @@ cb::engine_errc KVBucket::setVBucketState(Vbid vbid,
                                           vbucket_state_t to,
                                           const nlohmann::json* meta,
                                           TransferVB transfer,
-                                          const void* cookie) {
+                                          const CookieIface* cookie) {
     // MB-25197: we shouldn't process setVBState if warmup hasn't yet loaded
     // the vbucket state data.
     if (cookie && maybeWaitForVBucketWarmup(cookie)) {
@@ -884,7 +884,7 @@ cb::engine_errc KVBucket::setVBucketState(Vbid vbid,
                 vbid,
                 VBucket::toString(to),
                 transfer,
-                cookie);
+                static_cast<const void*>(cookie));
         return cb::engine_errc::would_block;
     }
 
@@ -1090,7 +1090,7 @@ void KVBucket::scheduleVBStatePersist(Vbid vbid) {
     vb->checkpointManager->queueSetVBState(*vb);
 }
 
-cb::engine_errc KVBucket::deleteVBucket(Vbid vbid, const void* c) {
+cb::engine_errc KVBucket::deleteVBucket(Vbid vbid, const CookieIface* c) {
     // Lock to prevent a race condition between a failed update and add
     // (and delete).
     VBucketPtr vb = vbMap.getBucket(vbid);
@@ -1423,7 +1423,7 @@ void KVBucket::completeBGFetchMulti(
                         std::chrono::steady_clock::now().time_since_epoch())
                         .count());
     } else {
-        std::map<const void*, cb::engine_errc> toNotify;
+        std::map<const CookieIface*, cb::engine_errc> toNotify;
         for (const auto& item : fetchedItems) {
             item.second->abort(
                     engine, cb::engine_errc::not_my_vbucket, toNotify);
@@ -1441,7 +1441,7 @@ void KVBucket::completeBGFetchMulti(
 
 GetValue KVBucket::getInternal(const DocKey& key,
                                Vbid vbucket,
-                               const void* cookie,
+                               const CookieIface* cookie,
                                const ForGetReplicaOp getReplicaItem,
                                get_options_t options) {
     VBucketPtr vb = getVBucket(vbucket);
@@ -1508,7 +1508,7 @@ GetValue KVBucket::getInternal(const DocKey& key,
     }
 }
 
-GetValue KVBucket::getRandomKey(CollectionID cid, const void* cookie) {
+GetValue KVBucket::getRandomKey(CollectionID cid, const CookieIface* cookie) {
     size_t max = vbMap.getSize();
     const Vbid::id_type start = labs(getRandom()) % max;
     Vbid::id_type curr = start;
@@ -1550,7 +1550,7 @@ GetValue KVBucket::getRandomKey(CollectionID cid, const void* cookie) {
 
 cb::engine_errc KVBucket::getMetaData(const DocKey& key,
                                       Vbid vbucket,
-                                      const void* cookie,
+                                      const CookieIface* cookie,
                                       ItemMetaData& metadata,
                                       uint32_t& deleted,
                                       uint8_t& datatype) {
@@ -1584,7 +1584,7 @@ cb::engine_errc KVBucket::getMetaData(const DocKey& key,
 cb::engine_errc KVBucket::setWithMeta(Item& itm,
                                       uint64_t cas,
                                       uint64_t* seqno,
-                                      const void* cookie,
+                                      const CookieIface* cookie,
                                       PermittedVBStates permittedVBStates,
                                       CheckConflicts checkConflicts,
                                       bool allowExisting,
@@ -1649,7 +1649,7 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
     return rv;
 }
 
-cb::engine_errc KVBucket::prepare(Item& itm, const void* cookie) {
+cb::engine_errc KVBucket::prepare(Item& itm, const CookieIface* cookie) {
     VBucketPtr vb = getVBucket(itm.getVBucketId());
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -1700,7 +1700,7 @@ cb::engine_errc KVBucket::prepare(Item& itm, const void* cookie) {
 
 GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
                                    Vbid vbucket,
-                                   const void* cookie,
+                                   const CookieIface* cookie,
                                    time_t exptime) {
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb) {
@@ -1747,7 +1747,7 @@ GetValue KVBucket::getLocked(const DocKey& key,
                              Vbid vbucket,
                              rel_time_t currentTime,
                              uint32_t lockTimeout,
-                             const void* cookie) {
+                             const CookieIface* cookie) {
     auto vb = getVBucket(vbucket);
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -1779,7 +1779,7 @@ cb::engine_errc KVBucket::unlockKey(const DocKey& key,
                                     Vbid vbucket,
                                     uint64_t cas,
                                     rel_time_t currentTime,
-                                    const void* cookie) {
+                                    const CookieIface* cookie) {
     auto vb = getVBucket(vbucket);
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -1837,7 +1837,7 @@ cb::engine_errc KVBucket::unlockKey(const DocKey& key,
 
 cb::engine_errc KVBucket::getKeyStats(const DocKey& key,
                                       Vbid vbucket,
-                                      const void* cookie,
+                                      const CookieIface* cookie,
                                       struct key_stats& kstats,
                                       WantsDeleted wantsDeleted) {
     auto vb = getVBucket(vbucket);
@@ -1894,7 +1894,7 @@ cb::engine_errc KVBucket::deleteItem(
         const DocKey& key,
         uint64_t& cas,
         Vbid vbucket,
-        const void* cookie,
+        const CookieIface* cookie,
         std::optional<cb::durability::Requirements> durability,
         ItemMetaData* itemMeta,
         mutation_descr_t& mutInfo) {
@@ -1947,7 +1947,7 @@ cb::engine_errc KVBucket::deleteWithMeta(const DocKey& key,
                                          uint64_t& cas,
                                          uint64_t* seqno,
                                          Vbid vbucket,
-                                         const void* cookie,
+                                         const CookieIface* cookie,
                                          PermittedVBStates permittedVBStates,
                                          CheckConflicts checkConflicts,
                                          const ItemMetaData& itemMeta,
@@ -2035,7 +2035,7 @@ bool KVBucket::hasWarmupSetVbucketStateFailed() const {
     return false;
 }
 
-bool KVBucket::maybeWaitForVBucketWarmup(const void* cookie) {
+bool KVBucket::maybeWaitForVBucketWarmup(const CookieIface* cookie) {
     return false;
 }
 
@@ -2361,7 +2361,7 @@ void KVBucket::resetUnderlyingStats()
 }
 
 void KVBucket::addKVStoreStats(const AddStatFn& add_stat,
-                               const void* cookie,
+                               const CookieIface* cookie,
                                const std::string& args) {
     for (auto& shard : vbMap.shards) {
         /* Add the different KVStore instances into a set and then
@@ -2381,7 +2381,7 @@ void KVBucket::addKVStoreStats(const AddStatFn& add_stat,
 }
 
 void KVBucket::addKVStoreTimingStats(const AddStatFn& add_stat,
-                                     const void* cookie) {
+                                     const CookieIface* cookie) {
     for (auto& shard : vbMap.shards) {
         std::set<KVStore*> underlyingSet;
         underlyingSet.insert(shard->getRWUnderlying());
@@ -2613,13 +2613,13 @@ void KVBucket::initializeExpiryPager(Configuration& config) {
 }
 
 cb::engine_error KVBucket::setCollections(std::string_view manifest,
-                                          const void* cookie) {
+                                          const CookieIface* cookie) {
     // Only allow a new manifest once warmup has progressed past vbucket warmup
     // 1) This means any prior manifest has been loaded
     // 2) All vbuckets can have the new manifest applied
     if (cookie && maybeWaitForVBucketWarmup(cookie)) {
         EP_LOG_INFO("KVBucket::setCollections blocking for warmup cookie:{}",
-                    cookie);
+                    static_cast<const void*>(cookie));
         return cb::engine_error(cb::engine_errc::would_block,
                                 "KVBucket::setCollections waiting for warmup");
     }
@@ -2719,7 +2719,7 @@ SyncWriteResolvedCallback KVBucket::makeSyncWriteResolvedCB() {
 }
 
 SyncWriteCompleteCallback KVBucket::makeSyncWriteCompleteCB() {
-    return [&engine = this->engine](const void* cookie,
+    return [&engine = this->engine](const CookieIface* cookie,
                                     cb::engine_errc status) {
         if (status != cb::engine_errc::success) {
             // For non-success status codes clear the cookie's engine_specific;

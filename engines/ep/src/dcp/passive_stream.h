@@ -94,7 +94,7 @@ public:
     virtual cb::engine_errc messageReceived(
             std::unique_ptr<DcpResponse> response);
 
-    void addStats(const AddStatFn& add_stat, const void* c) override;
+    void addStats(const AddStatFn& add_stat, const CookieIface* c) override;
 
     /**
      * Push a SeqnoAck message over this stream.

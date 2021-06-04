@@ -28,13 +28,13 @@ public:
     void TearDown() override;
 
 protected:
-    std::shared_ptr<ConnHandler> addConnHandler(const void* cookie,
+    std::shared_ptr<ConnHandler> addConnHandler(const CookieIface* cookie,
                                                 const std::string& name);
 
-    void removeConnHandler(const void* cookie);
+    void removeConnHandler(const CookieIface* cookie);
 
     void addVbConn(Vbid vb, ConnHandler& conn);
-    void removeVbConn(Vbid vb, const void* cookie);
+    void removeVbConn(Vbid vb, const CookieIface* cookie);
 
     std::unique_ptr<MockConnStore> connStore;
 };

@@ -1480,7 +1480,7 @@ size_t CheckpointManager::getMemoryOverhead() const {
 }
 
 void CheckpointManager::addStats(const AddStatFn& add_stat,
-                                 const void* cookie) {
+                                 const CookieIface* cookie) {
     std::lock_guard<std::mutex> lh(queueLock);
     std::array<char, 256> buf;
 

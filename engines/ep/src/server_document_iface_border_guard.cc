@@ -18,7 +18,7 @@ ServerDocumentIfaceBorderGuard::ServerDocumentIfaceBorderGuard(
 }
 
 cb::engine_errc ServerDocumentIfaceBorderGuard::pre_link(
-        gsl::not_null<const void*> cookie, item_info& info) {
+        gsl::not_null<const CookieIface*> cookie, item_info& info) {
     NonBucketAllocationGuard guard;
     return guarded.pre_link(cookie, info);
 }
@@ -30,7 +30,7 @@ std::string ServerDocumentIfaceBorderGuard::pre_expiry(
 }
 
 void ServerDocumentIfaceBorderGuard::audit_document_access(
-        gsl::not_null<const void*> cookie,
+        gsl::not_null<const CookieIface*> cookie,
         cb::audit::document::Operation operation) {
     NonBucketAllocationGuard guard;
     guarded.audit_document_access(cookie, operation);

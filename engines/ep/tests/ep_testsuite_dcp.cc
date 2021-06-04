@@ -46,7 +46,7 @@ static gsl::not_null<DcpIface*> requireDcpIface(EngineIface* engine) {
 }
 
 static void dcp_step(EngineIface* h,
-                     const void* cookie,
+                     const CookieIface* cookie,
                      MockDcpMessageProducers& producers) {
     auto dcp = requireDcpIface(h);
     cb::engine_errc err = dcp->step(cookie, producers);
@@ -59,7 +59,7 @@ static void dcp_step(EngineIface* h,
 }
 
 static void dcpHandleResponse(EngineIface* h,
-                              const void* cookie,
+                              const CookieIface* cookie,
                               const cb::mcbp::Response& response,
                               MockDcpMessageProducers& producers) {
     auto dcp = requireDcpIface(h);
@@ -184,7 +184,9 @@ class TestDcpConsumer {
  * messages from it.
  */
 public:
-    TestDcpConsumer(std::string _name, const void* _cookie, EngineIface* h)
+    TestDcpConsumer(std::string _name,
+                    const CookieIface* _cookie,
+                    EngineIface* h)
         : name(std::move(_name)),
           cookie(_cookie),
           opaque(0),
@@ -300,7 +302,7 @@ private:
     /* Connection name */
     const std::string name;
     /* Connection cookie */
-    const void *cookie;
+    const CookieIface* cookie;
     /* Vector containing information of streams */
     std::vector<DcpStreamCtx> stream_ctxs;
     /* Opaque value in the connection */
@@ -912,7 +914,7 @@ cb::engine_errc TestDcpConsumer::closeStreams(bool fClear) {
 }
 
 static void dcp_stream_to_replica(EngineIface* h,
-                                  const void* cookie,
+                                  const CookieIface* cookie,
                                   uint32_t opaque,
                                   Vbid vbucket,
                                   uint32_t flags,
@@ -970,7 +972,7 @@ static void dcp_stream_to_replica(EngineIface* h,
    Currently this supports only streaming mutations, but can be extend to stream
    deletion etc */
 static void dcp_stream_from_producer_conn(EngineIface* h,
-                                          const void* cookie,
+                                          const CookieIface* cookie,
                                           uint32_t opaque,
                                           uint64_t start,
                                           uint64_t end,
@@ -1052,7 +1054,7 @@ static void dcp_stream_from_producer_conn(EngineIface* h,
 }
 
 static void dcp_stream_expiries_to_replica(EngineIface* h,
-                                           const void* cookie,
+                                           const CookieIface* cookie,
                                            uint32_t opaque,
                                            Vbid vbucket,
                                            uint32_t flags,
@@ -1126,7 +1128,7 @@ struct continuous_dcp_ctx {
 
 //Forward declaration required for dcp_thread_func
 static uint32_t add_stream_for_consumer(EngineIface* h,
-                                        const void* cookie,
+                                        const CookieIface* cookie,
                                         uint32_t opaque,
                                         Vbid vbucket,
                                         uint32_t flags,
@@ -1266,7 +1268,7 @@ extern "C" {
    Note: the exp_mutations is cumulative across all streams in the DCP
          connection */
 static void dcp_waiting_step(EngineIface* h,
-                             const void* cookie,
+                             const CookieIface* cookie,
                              uint32_t opaque,
                              uint64_t exp_mutations,
                              MockDcpMessageProducers& producers) {
@@ -3334,7 +3336,7 @@ static test_result test_dcp_takeover_no_items(EngineIface* h) {
  */
 static void simulateProdRespToDcpControlBlockingNegotiation(
         EngineIface* engine,
-        const void* cookie,
+        const CookieIface* cookie,
         MockDcpMessageProducers& producers) {
     cb::mcbp::Response resp{};
     resp.setMagic(cb::mcbp::Magic::ClientResponse);
@@ -3345,7 +3347,7 @@ static void simulateProdRespToDcpControlBlockingNegotiation(
 }
 
 static uint32_t add_stream_for_consumer(EngineIface* h,
-                                        const void* cookie,
+                                        const CookieIface* cookie,
                                         uint32_t opaque,
                                         Vbid vbucket,
                                         uint32_t flags,
@@ -4146,7 +4148,7 @@ static enum test_result test_rollback_to_zero(EngineIface* h) {
  * @param producers The MockDcpMessageProducers used by the Consumer
  */
 static void drainDcpControl(EngineIface* engine,
-                            const void* cookie,
+                            const CookieIface* cookie,
                             MockDcpMessageProducers& producers) {
     do {
         dcp_step(engine, cookie, producers);
@@ -7667,7 +7669,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
 
     // Priv checking
     mock_set_check_privilege_function(
-            [](gsl::not_null<const void*> c,
+            [](gsl::not_null<const CookieIface*> c,
                cb::rbac::Privilege priv,
                std::optional<ScopeID> sid,
                std::optional<CollectionID> cid) -> cb::rbac::PrivilegeAccess {
@@ -7680,7 +7682,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
             h, RequestedVBState::Active, cookie, 8, cb::engine_errc::no_access);
     get_all_vb_seqnos(h, RequestedVBState::Active, cookie, 9);
     mock_set_check_privilege_function(
-            [](gsl::not_null<const void*> c,
+            [](gsl::not_null<const CookieIface*> c,
                cb::rbac::Privilege priv,
                std::optional<ScopeID> sid,
                std::optional<CollectionID> cid) -> cb::rbac::PrivilegeAccess {

@@ -66,7 +66,7 @@ public:
      *        Replication).
      */
     DcpConsumer(EventuallyPersistentEngine& e,
-                const void* cookie,
+                const CookieIface* cookie,
                 const std::string& name,
                 std::string consumerName);
 
@@ -251,7 +251,7 @@ public:
      */
     void seqnoAckStream(Vbid vbid, int64_t seqno);
 
-    void addStats(const AddStatFn& add_stat, const void* c) override;
+    void addStats(const AddStatFn& add_stat, const CookieIface* c) override;
 
     void aggregateQueueStats(ConnCounter& aggregator) const override;
 

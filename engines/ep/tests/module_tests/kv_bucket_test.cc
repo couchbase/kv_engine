@@ -290,7 +290,7 @@ void KVBucketTest::evict_key(Vbid vbid, const DocKey& key) {
 
 GetValue KVBucketTest::getInternal(const DocKey& key,
                                    Vbid vbucket,
-                                   const void* cookie,
+                                   const CookieIface* cookie,
                                    const ForGetReplicaOp getReplicaItem,
                                    get_options_t options) {
     return store->getInternal(key, vbucket, cookie, getReplicaItem, options);
@@ -1082,7 +1082,7 @@ void KVBucketTest::storeAndDeleteItem(Vbid vbid,
 
 cb::engine_errc KVBucketTest::getMeta(Vbid vbid,
                                       const DocKey key,
-                                      const void* cookie,
+                                      const CookieIface* cookie,
                                       ItemMetaData& itemMeta,
                                       uint32_t& deleted,
                                       uint8_t& datatype,

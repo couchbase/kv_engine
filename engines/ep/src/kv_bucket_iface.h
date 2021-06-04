@@ -117,7 +117,7 @@ public:
      * @return the result of the store operation
      */
     virtual cb::engine_errc set(Item& item,
-                                const void* cookie,
+                                const CookieIface* cookie,
                                 cb::StoreIfPredicate predicate = {}) = 0;
 
     /**
@@ -126,7 +126,7 @@ public:
      * @param cookie the cookie representing the client to store the item
      * @return the result of the operation
      */
-    virtual cb::engine_errc add(Item& item, const void* cookie) = 0;
+    virtual cb::engine_errc add(Item& item, const CookieIface* cookie) = 0;
 
     /**
      * Replace an item in the store.
@@ -138,7 +138,7 @@ public:
      * @return the result of the operation
      */
     virtual cb::engine_errc replace(Item& item,
-                                    const void* cookie,
+                                    const CookieIface* cookie,
                                     cb::StoreIfPredicate predicate = {}) = 0;
 
     /**
@@ -153,7 +153,7 @@ public:
      */
     virtual GetValue get(const DocKey& key,
                          Vbid vbucket,
-                         const void* cookie,
+                         const CookieIface* cookie,
                          get_options_t options) = 0;
 
     /**
@@ -163,7 +163,8 @@ public:
      * @param cookie the connection cookie
      * @return a GetValue representing the value retrieved
      */
-    virtual GetValue getRandomKey(CollectionID cid, const void* cookie) = 0;
+    virtual GetValue getRandomKey(CollectionID cid,
+                                  const CookieIface* cookie) = 0;
 
     /**
      * Retrieve a value from a vbucket in replica state.
@@ -178,7 +179,7 @@ public:
     virtual GetValue getReplica(
             const DocKey& key,
             Vbid vbucket,
-            const void* cookie,
+            const CookieIface* cookie,
             get_options_t options = static_cast<get_options_t>(
                     QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE |
                     DELETE_TEMP | HIDE_LOCKED_CAS)) = 0;
@@ -195,7 +196,7 @@ public:
      */
     virtual cb::engine_errc getMetaData(const DocKey& key,
                                         Vbid vbucket,
-                                        const void* cookie,
+                                        const CookieIface* cookie,
                                         ItemMetaData& metadata,
                                         uint32_t& deleted,
                                         uint8_t& datatype) = 0;
@@ -219,7 +220,7 @@ public:
             Item& item,
             uint64_t cas,
             uint64_t* seqno,
-            const void* cookie,
+            const CookieIface* cookie,
             PermittedVBStates permittedVBStates,
             CheckConflicts checkConflicts,
             bool allowExisting,
@@ -234,7 +235,7 @@ public:
      *
      * @return the result of the store operation
      */
-    virtual cb::engine_errc prepare(Item& item, const void* cookie) = 0;
+    virtual cb::engine_errc prepare(Item& item, const CookieIface* cookie) = 0;
 
     /**
      * Retrieve a value, but update its TTL first
@@ -248,7 +249,7 @@ public:
      */
     virtual GetValue getAndUpdateTtl(const DocKey& key,
                                      Vbid vbucket,
-                                     const void* cookie,
+                                     const CookieIface* cookie,
                                      time_t exptime) = 0;
 
     /**
@@ -263,9 +264,9 @@ public:
      */
     virtual cb::engine_errc statsVKey(const DocKey& key,
                                       Vbid vbucket,
-                                      const void* cookie) = 0;
+                                      const CookieIface* cookie) = 0;
 
-    virtual void completeStatsVKey(const void* cookie,
+    virtual void completeStatsVKey(const CookieIface* cookie,
                                    const DocKey& key,
                                    Vbid vbid,
                                    uint64_t bySeqNum) = 0;
@@ -291,7 +292,7 @@ public:
             const DocKey& key,
             uint64_t& cas,
             Vbid vbucket,
-            const void* cookie,
+            const CookieIface* cookie,
             std::optional<cb::durability::Requirements> durability,
             ItemMetaData* itemMeta,
             mutation_descr_t& mutInfo) = 0;
@@ -323,7 +324,7 @@ public:
                                            uint64_t& cas,
                                            uint64_t* seqno,
                                            Vbid vbucket,
-                                           const void* cookie,
+                                           const CookieIface* cookie,
                                            PermittedVBStates permittedVBStates,
                                            CheckConflicts checkConflicts,
                                            const ItemMetaData& itemMeta,
@@ -392,7 +393,7 @@ public:
      * available from the store.
      */
     virtual cb::engine_errc getPerVBucketDiskStats(
-            const void* cookie, const AddStatFn& add_stat) = 0;
+            const CookieIface* cookie, const AddStatFn& add_stat) = 0;
 
     /**
      * Complete a batch of background fetch of a non resident value or metadata.
@@ -430,7 +431,7 @@ public:
      *          to notify the connection of operation completion.
      */
     virtual cb::engine_errc deleteVBucket(Vbid vbid,
-                                          const void* c = nullptr) = 0;
+                                          const CookieIface* c = nullptr) = 0;
 
     /**
      * Check for the existence of a vbucket in the case of couchstore.
@@ -450,7 +451,7 @@ public:
     virtual cb::engine_errc scheduleCompaction(
             Vbid vbid,
             const CompactionConfig& c,
-            const void* ck,
+            const CookieIface* ck,
             std::chrono::milliseconds delay) = 0;
 
     /**
@@ -555,7 +556,7 @@ public:
      */
     virtual cb::engine_errc getKeyStats(const DocKey& key,
                                         Vbid vbucket,
-                                        const void* cookie,
+                                        const CookieIface* cookie,
                                         key_stats& kstats,
                                         WantsDeleted wantsDeleted) = 0;
 
@@ -567,13 +568,13 @@ public:
                                Vbid vbucket,
                                rel_time_t currentTime,
                                uint32_t lockTimeout,
-                               const void* cookie) = 0;
+                               const CookieIface* cookie) = 0;
 
     virtual cb::engine_errc unlockKey(const DocKey& key,
                                       Vbid vbucket,
                                       uint64_t cas,
                                       rel_time_t currentTime,
-                                      const void* cookie) = 0;
+                                      const CookieIface* cookie) = 0;
 
     virtual KVStore* getRWUnderlying(Vbid vbId) = 0;
 
@@ -674,11 +675,11 @@ public:
     virtual bool isMemUsageAboveBackfillThreshold() = 0;
 
     virtual void addKVStoreStats(const AddStatFn& add_stat,
-                                 const void* cookie,
+                                 const CookieIface* cookie,
                                  const std::string& args) = 0;
 
     virtual void addKVStoreTimingStats(const AddStatFn& add_stat,
-                                       const void* cookie) = 0;
+                                       const CookieIface* cookie) = 0;
 
     /**
      * The following options will be used to identify
@@ -781,7 +782,7 @@ public:
     /// Check if any of the vbucket set state failed during warmup
     virtual bool hasWarmupSetVbucketStateFailed() const = 0;
 
-    virtual bool maybeWaitForVBucketWarmup(const void* cookie) = 0;
+    virtual bool maybeWaitForVBucketWarmup(const CookieIface* cookie) = 0;
 
     virtual size_t getActiveResidentRatio() const = 0;
 
@@ -842,7 +843,7 @@ public:
      * @return true if a task was scheduled
      */
     virtual bool maybeScheduleManifestPersistence(
-            const void* cookie,
+            const CookieIface* cookie,
             std::unique_ptr<Collections::Manifest>& newManifest) = 0;
 
     /**
@@ -869,7 +870,7 @@ protected:
      */
     virtual GetValue getInternal(const DocKey& key,
                                  Vbid vbucket,
-                                 const void* cookie,
+                                 const CookieIface* cookie,
                                  ForGetReplicaOp getReplicaItem,
                                  get_options_t options = TRACK_REFERENCE) = 0;
 

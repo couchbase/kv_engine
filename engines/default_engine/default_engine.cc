@@ -231,7 +231,7 @@ void destroy_engine_instance(struct default_engine* engine) {
 }
 
 std::pair<cb::unique_item_ptr, item_info> default_engine::allocateItem(
-        gsl::not_null<const void*> cookie,
+        gsl::not_null<const CookieIface*> cookie,
         const DocKey& key,
         size_t nbytes,
         size_t priv_nbytes,
@@ -291,7 +291,7 @@ std::pair<cb::unique_item_ptr, item_info> default_engine::allocateItem(
 }
 
 cb::engine_errc default_engine::remove(
-        gsl::not_null<const void*> cookie,
+        gsl::not_null<const CookieIface*> cookie,
         const DocKey& key,
         uint64_t& cas,
         Vbid vbucket,
@@ -375,7 +375,7 @@ void default_engine::release(gsl::not_null<ItemIface*> item) {
 }
 
 cb::EngineErrorItemPair default_engine::get(
-        gsl::not_null<const void*> cookie,
+        gsl::not_null<const CookieIface*> cookie,
         const DocKey& key,
         Vbid vbucket,
         DocStateFilter documentStateFilter) {
@@ -400,7 +400,7 @@ cb::EngineErrorItemPair default_engine::get(
 }
 
 cb::EngineErrorItemPair default_engine::get_if(
-        gsl::not_null<const void*> cookie,
+        gsl::not_null<const CookieIface*> cookie,
         const DocKey& key,
         Vbid vbucket,
         std::function<bool(const item_info&)> filter) {
@@ -435,7 +435,7 @@ cb::EngineErrorItemPair default_engine::get_if(
 }
 
 cb::EngineErrorItemPair default_engine::get_and_touch(
-        gsl::not_null<const void*> cookie,
+        gsl::not_null<const CookieIface*> cookie,
         const DocKey& key,
         Vbid vbucket,
         uint32_t expiry_time,
@@ -462,7 +462,7 @@ cb::EngineErrorItemPair default_engine::get_and_touch(
 }
 
 cb::EngineErrorItemPair default_engine::get_locked(
-        gsl::not_null<const void*> cookie,
+        gsl::not_null<const CookieIface*> cookie,
         const DocKey& key,
         Vbid vbucket,
         uint32_t lock_timeout) {
@@ -494,7 +494,9 @@ cb::EngineErrorItemPair default_engine::get_locked(
 }
 
 cb::EngineErrorMetadataPair default_engine::get_meta(
-        gsl::not_null<const void*> cookie, const DocKey& key, Vbid vbucket) {
+        gsl::not_null<const CookieIface*> cookie,
+        const DocKey& key,
+        Vbid vbucket) {
     if (!handled_vbucket(this, vbucket)) {
         return std::make_pair(cb::engine_errc::not_my_vbucket, item_info());
     }
@@ -522,7 +524,7 @@ cb::EngineErrorMetadataPair default_engine::get_meta(
     return std::make_pair(cb::engine_errc::success, info);
 }
 
-cb::engine_errc default_engine::unlock(gsl::not_null<const void*> cookie,
+cb::engine_errc default_engine::unlock(gsl::not_null<const CookieIface*> cookie,
                                        const DocKey& key,
                                        Vbid vbucket,
                                        uint64_t cas) {
@@ -534,10 +536,11 @@ cb::engine_errc default_engine::unlock(gsl::not_null<const void*> cookie,
     return item_unlock(this, cookie, key, cas);
 }
 
-cb::engine_errc default_engine::get_stats(gsl::not_null<const void*> cookie,
-                                          std::string_view key,
-                                          std::string_view value,
-                                          const AddStatFn& add_stat) {
+cb::engine_errc default_engine::get_stats(
+        gsl::not_null<const CookieIface*> cookie,
+        std::string_view key,
+        std::string_view value,
+        const AddStatFn& add_stat) {
     cb::engine_errc ret = cb::engine_errc::success;
 
     if (key.empty()) {
@@ -601,7 +604,7 @@ void default_engine::do_engine_stats(const StatCollector& collector) const {
 }
 
 cb::engine_errc default_engine::store(
-        gsl::not_null<const void*> cookie,
+        gsl::not_null<const CookieIface*> cookie,
         gsl::not_null<ItemIface*> item,
         uint64_t& cas,
         StoreSemantics operation,
@@ -628,7 +631,7 @@ cb::engine_errc default_engine::store(
 }
 
 cb::EngineErrorCasPair default_engine::store_if(
-        gsl::not_null<const void*> cookie,
+        gsl::not_null<const CookieIface*> cookie,
         gsl::not_null<ItemIface*> item,
         uint64_t cas,
         StoreSemantics operation,
@@ -685,13 +688,14 @@ cb::EngineErrorCasPair default_engine::store_if(
     return {cb::engine_errc(status), cas};
 }
 
-cb::engine_errc default_engine::flush(gsl::not_null<const void*> cookie) {
+cb::engine_errc default_engine::flush(
+        gsl::not_null<const CookieIface*> cookie) {
     item_flush_expired(get_handle(this));
 
     return cb::engine_errc::success;
 }
 
-void default_engine::reset_stats(gsl::not_null<const void*> cookie) {
+void default_engine::reset_stats(gsl::not_null<const CookieIface*> cookie) {
     item_stats_reset(this);
 
     stats.evictions.store(0);
@@ -784,7 +788,7 @@ static cb::engine_errc initalize_configuration(struct default_engine* se,
 }
 
 static bool scrub_cmd(struct default_engine* e,
-                      const void* cookie,
+                      const CookieIface* cookie,
                       const AddResponseFn& response) {
     auto res = cb::mcbp::Status::Success;
     if (!item_start_scrub(e)) {
@@ -794,11 +798,12 @@ static bool scrub_cmd(struct default_engine* e,
     return response({}, {}, {}, PROTOCOL_BINARY_RAW_BYTES, res, 0, cookie);
 }
 
-cb::engine_errc default_engine::setParameter(gsl::not_null<const void*> cookie,
-                                             EngineParamCategory category,
-                                             std::string_view key,
-                                             std::string_view value,
-                                             Vbid) {
+cb::engine_errc default_engine::setParameter(
+        gsl::not_null<const CookieIface*> cookie,
+        EngineParamCategory category,
+        std::string_view key,
+        std::string_view value,
+        Vbid) {
     switch (category) {
     case EngineParamCategory::Flush:
         if (key == "xattr_enabled") {
@@ -837,7 +842,7 @@ cb::engine_errc default_engine::setParameter(gsl::not_null<const void*> cookie,
 }
 
 cb::engine_errc default_engine::unknown_command(
-        const void* cookie,
+        const CookieIface* cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
     bool sent;
@@ -980,13 +985,14 @@ size_t default_engine::getMaxItemSize() {
 
 // Cannot set the manifest on the default engine
 cb::engine_errc default_engine::set_collection_manifest(
-        gsl::not_null<const void*> cookie, std::string_view json) {
+        gsl::not_null<const CookieIface*> cookie, std::string_view json) {
     return cb::engine_errc::not_supported;
 }
 
 // always return the "epoch" manifest, default collection/scope only
 cb::engine_errc default_engine::get_collection_manifest(
-        gsl::not_null<const void*> cookie, const AddResponseFn& response) {
+        gsl::not_null<const CookieIface*> cookie,
+        const AddResponseFn& response) {
     static std::string default_manifest =
             R"({"uid" : "0",
         "scopes" : [{"name":"_default", "uid":"0",
@@ -1005,7 +1011,7 @@ static std::string_view default_scope_path{"_default."};
 
 // permit lookup of the default collection only
 cb::EngineErrorGetCollectionIDResult default_engine::get_collection_id(
-        gsl::not_null<const void*> cookie, std::string_view path) {
+        gsl::not_null<const CookieIface*> cookie, std::string_view path) {
     if (std::count(path.begin(), path.end(), '.') == 1) {
         cb::engine_errc error = cb::engine_errc::unknown_scope;
         if (path == "_default._default" || path == "._default" || path == "." ||
@@ -1025,7 +1031,7 @@ cb::EngineErrorGetCollectionIDResult default_engine::get_collection_id(
 
 // permit lookup of the default scope only
 cb::EngineErrorGetScopeIDResult default_engine::get_scope_id(
-        gsl::not_null<const void*> cookie, std::string_view path) {
+        gsl::not_null<const CookieIface*> cookie, std::string_view path) {
     auto dotCount = std::count(path.begin(), path.end(), '.');
     if (dotCount <= 1) {
         // only care about everything before .
@@ -1044,7 +1050,7 @@ cb::EngineErrorGetScopeIDResult default_engine::get_scope_id(
 
 // permit lookup of the default scope only
 cb::EngineErrorGetScopeIDResult default_engine::get_scope_id(
-        gsl::not_null<const void*> cookie,
+        gsl::not_null<const CookieIface*> cookie,
         const DocKey& key,
         std::optional<Vbid> vbid) const {
     if (key.getCollectionID().isDefaultCollection()) {
@@ -1054,19 +1060,19 @@ cb::EngineErrorGetScopeIDResult default_engine::get_scope_id(
 }
 
 void default_engine::generate_unknown_collection_response(
-        const void* cookie) const {
+        const CookieIface* cookie) const {
     // Default engine does not support collection changes, so is always
     // reporting 'unknown collection' against the epoch manifest (uid 0)
     server.cookie->set_unknown_collection_error_context(
-            const_cast<void*>(cookie), 0);
+            const_cast<CookieIface*>(cookie), 0);
 }
 
 std::pair<cb::engine_errc, vbucket_state_t> default_engine::getVBucket(
-        gsl::not_null<const void*>, Vbid vbid) {
+        gsl::not_null<const CookieIface*>, Vbid vbid) {
     return {cb::engine_errc::success, get_vbucket_state(this, vbid)};
 }
 
-cb::engine_errc default_engine::setVBucket(gsl::not_null<const void*>,
+cb::engine_errc default_engine::setVBucket(gsl::not_null<const CookieIface*>,
                                            Vbid vbid,
                                            uint64_t,
                                            vbucket_state_t state,
@@ -1075,7 +1081,7 @@ cb::engine_errc default_engine::setVBucket(gsl::not_null<const void*>,
     return cb::engine_errc::success;
 }
 
-cb::engine_errc default_engine::deleteVBucket(gsl::not_null<const void*>,
+cb::engine_errc default_engine::deleteVBucket(gsl::not_null<const CookieIface*>,
                                               Vbid vbid,
                                               bool) {
     set_vbucket_state(this, vbid, vbucket_state_dead);

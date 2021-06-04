@@ -29,16 +29,16 @@ static hash_item *do_item_alloc(struct default_engine *engine,
 static hash_item* do_item_get(struct default_engine* engine,
                               const hash_key* key,
                               const DocStateFilter document_state);
-static int do_item_link(struct default_engine *engine,
-                        const void* cookie,
-                        hash_item *it);
+static int do_item_link(struct default_engine* engine,
+                        const CookieIface* cookie,
+                        hash_item* it);
 static void do_item_unlink(struct default_engine *engine, hash_item *it);
 static cb::engine_errc do_safe_item_unlink(struct default_engine* engine,
                                            hash_item* it);
 static void do_item_release(struct default_engine *engine, hash_item *it);
 static void do_item_update(struct default_engine *engine, hash_item *it);
 static int do_item_replace(struct default_engine* engine,
-                           const void* cookie,
+                           const CookieIface* cookie,
                            hash_item* it,
                            hash_item* new_it);
 static void item_free(struct default_engine *engine, hash_item *it);
@@ -289,9 +289,9 @@ static void item_unlink_q(struct default_engine *engine, hash_item *it) {
     return;
 }
 
-int do_item_link(struct default_engine *engine,
-                 const void* cookie,
-                 hash_item *it) {
+int do_item_link(struct default_engine* engine,
+                 const CookieIface* cookie,
+                 hash_item* it) {
     const hash_key* key = item_get_key(it);
     cb_assert((it->iflag & (ITEM_LINKED|ITEM_SLABBED)) == 0);
     it->iflag |= ITEM_LINKED;
@@ -401,10 +401,10 @@ void do_item_update(struct default_engine *engine, hash_item *it) {
     }
 }
 
-int do_item_replace(struct default_engine *engine,
-                    const void* cookie,
-                    hash_item *it,
-                    hash_item *new_it) {
+int do_item_replace(struct default_engine* engine,
+                    const CookieIface* cookie,
+                    hash_item* it,
+                    hash_item* new_it) {
     cb_assert((it->iflag & ITEM_SLABBED) == 0);
 
     do_item_unlink(engine, it);
@@ -413,7 +413,7 @@ int do_item_replace(struct default_engine *engine,
 
 static void do_item_stats(struct default_engine* engine,
                           const AddStatFn& add_stats,
-                          const void* c) {
+                          const CookieIface* c) {
     int i;
     rel_time_t current_time = engine->server.core->get_current_time();
     for (i = 0; i < POWER_LARGEST; i++) {
@@ -463,7 +463,7 @@ static void do_item_stats(struct default_engine* engine,
 /*@null@*/
 static void do_item_stats_sizes(struct default_engine* engine,
                                 const AddStatFn& add_stats,
-                                const void* c) {
+                                const CookieIface* c) {
     /* max 1MB object, divided into 32 bytes size buckets */
     const int num_buckets = 32768;
     auto* histogram = static_cast<unsigned int*>
@@ -556,7 +556,7 @@ hash_item* do_item_get(struct default_engine* engine,
 static cb::engine_errc do_store_item(struct default_engine* engine,
                                      hash_item* it,
                                      StoreSemantics operation,
-                                     const void* cookie,
+                                     const CookieIface* cookie,
                                      hash_item** stored_item,
                                      bool preserveTtl) {
     const hash_key* key = item_get_key(it);
@@ -639,7 +639,7 @@ hash_item* item_alloc(struct default_engine* engine,
                       int flags,
                       rel_time_t exptime,
                       int nbytes,
-                      const void* cookie,
+                      const CookieIface* cookie,
                       uint8_t datatype) {
     hash_item *it;
     hash_key hkey;
@@ -661,7 +661,7 @@ hash_item* item_alloc(struct default_engine* engine,
  * lazy-expiring as needed.
  */
 hash_item* item_get(struct default_engine* engine,
-                    const void* cookie,
+                    const CookieIface* cookie,
                     const DocKey& key,
                     DocStateFilter document_state) {
     hash_item *it;
@@ -679,7 +679,7 @@ hash_item* item_get(struct default_engine* engine,
  * lazy-expiring as needed.
  */
 hash_item* item_get(struct default_engine* engine,
-                    const void* cookie,
+                    const CookieIface* cookie,
                     const hash_key& key,
                     const DocStateFilter state) {
     std::lock_guard<std::mutex> guard(engine->items.lock);
@@ -715,7 +715,7 @@ cb::engine_errc store_item(struct default_engine* engine,
                            hash_item* item,
                            uint64_t* cas,
                            StoreSemantics operation,
-                           const void* cookie,
+                           const CookieIface* cookie,
                            const DocumentState document_state,
                            bool preserveTtl) {
     cb::engine_errc ret;
@@ -736,7 +736,7 @@ cb::engine_errc store_item(struct default_engine* engine,
 }
 
 cb::engine_errc do_item_get_locked(struct default_engine* engine,
-                                   const void* cookie,
+                                   const CookieIface* cookie,
                                    hash_item** it,
                                    const hash_key* hkey,
                                    rel_time_t locktime) {
@@ -832,7 +832,7 @@ cb::engine_errc do_item_get_locked(struct default_engine* engine,
 }
 
 cb::engine_errc item_get_locked(struct default_engine* engine,
-                                const void* cookie,
+                                const CookieIface* cookie,
                                 hash_item** it,
                                 const DocKey& key,
                                 rel_time_t locktime) {
@@ -853,7 +853,7 @@ cb::engine_errc item_get_locked(struct default_engine* engine,
 }
 
 static cb::engine_errc do_item_unlock(struct default_engine* engine,
-                                      const void* cookie,
+                                      const CookieIface* cookie,
                                       const hash_key* hkey,
                                       uint64_t cas) {
     hash_item* item = do_item_get(engine, hkey, DocStateFilter::Alive);
@@ -903,7 +903,7 @@ static cb::engine_errc do_item_unlock(struct default_engine* engine,
 }
 
 cb::engine_errc item_unlock(struct default_engine* engine,
-                            const void* cookie,
+                            const CookieIface* cookie,
                             const DocKey& key,
                             uint64_t cas) {
     hash_key hkey;
@@ -923,7 +923,7 @@ cb::engine_errc item_unlock(struct default_engine* engine,
 }
 
 cb::engine_errc do_item_get_and_touch(struct default_engine* engine,
-                                      const void* cookie,
+                                      const CookieIface* cookie,
                                       hash_item** it,
                                       const hash_key* hkey,
                                       rel_time_t exptime) {
@@ -979,7 +979,7 @@ cb::engine_errc do_item_get_and_touch(struct default_engine* engine,
 }
 
 cb::engine_errc item_get_and_touch(struct default_engine* engine,
-                                   const void* cookie,
+                                   const CookieIface* cookie,
                                    hash_item** it,
                                    const DocKey& key,
                                    rel_time_t exptime) {
@@ -1035,14 +1035,14 @@ void item_flush_expired(struct default_engine *engine) {
 
 void item_stats(struct default_engine* engine,
                 const AddStatFn& add_stat,
-                const void* cookie) {
+                const CookieIface* cookie) {
     std::lock_guard<std::mutex> guard(engine->items.lock);
     do_item_stats(engine, add_stat, cookie);
 }
 
 void item_stats_sizes(struct default_engine* engine,
                       const AddStatFn& add_stat,
-                      const void* cookie) {
+                      const CookieIface* cookie) {
     std::lock_guard<std::mutex> guard(engine->items.lock);
     do_item_stats_sizes(engine, add_stat, cookie);
 }

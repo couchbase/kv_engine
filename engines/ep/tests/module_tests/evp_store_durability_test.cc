@@ -377,7 +377,7 @@ protected:
     // inserted and the BGFetcher needs to run to get that item accepted.
     // Then, we need to come back to the original item and push that out
     // with the BGFetch before the pending item is accepted.
-    cb::engine_errc addPendingItem(Item& itm, const void* cookie) {
+    cb::engine_errc addPendingItem(Item& itm, const CookieIface* cookie) {
         auto rc = store->add(itm, cookie);
         if (rc == cb::engine_errc::would_block && persistent() &&
             fullEviction()) {
@@ -2094,7 +2094,7 @@ void DurabilityBucketTest::testTakeoverDestinationHandlesPreparedSyncWrites(
 
 TEST_P(DurabilityBucketTest, SetDurabilityInvalidLevel) {
     auto op = [this](queued_item pending,
-                     const void* cookie) -> cb::engine_errc {
+                     const CookieIface* cookie) -> cb::engine_errc {
         return store->set(*pending, cookie);
     };
     testDurabilityInvalidLevel(op);
@@ -2102,7 +2102,7 @@ TEST_P(DurabilityBucketTest, SetDurabilityInvalidLevel) {
 
 TEST_P(DurabilityBucketTest, AddDurabilityInvalidLevel) {
     auto op = [this](queued_item pending,
-                     const void* cookie) -> cb::engine_errc {
+                     const CookieIface* cookie) -> cb::engine_errc {
         return store->add(*pending, cookie);
     };
     testDurabilityInvalidLevel(op);
@@ -2110,7 +2110,7 @@ TEST_P(DurabilityBucketTest, AddDurabilityInvalidLevel) {
 
 TEST_P(DurabilityBucketTest, ReplaceDurabilityInvalidLevel) {
     auto op = [this](queued_item pending,
-                     const void* cookie) -> cb::engine_errc {
+                     const CookieIface* cookie) -> cb::engine_errc {
         return store->replace(*pending, cookie);
     };
     testDurabilityInvalidLevel(op);

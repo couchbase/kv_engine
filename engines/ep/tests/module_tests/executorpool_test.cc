@@ -25,6 +25,7 @@
 #include <folly/synchronization/Baton.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
+#include <programs/engine_testapp/mock_cookie.h>
 
 using namespace std::chrono_literals;
 using namespace std::string_literals;
@@ -1735,8 +1736,9 @@ TYPED_TEST(ExecutorPoolEpEngineTest, TaskStats_MemAccounting) {
     // Test: Call doTasksStat, which should cause the mock to cancel the
     // task while it's running. Then check memory usage is same as before
     // task created.
+    MockCookie cookie;
     ExecutorPool::get()->doTasksStat(
-            taskable, this, mockAddStat.asStdFunction());
+            taskable, &cookie, mockAddStat.asStdFunction());
 
     // Poll for 10s waiting for memory usage to return to initial.
     size_t memoryPostCancel;

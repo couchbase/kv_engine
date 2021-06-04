@@ -109,7 +109,7 @@ void TopKeys::updateKey(const void* key,
     }
 }
 
-cb::engine_errc TopKeys::stats(const void* cookie,
+cb::engine_errc TopKeys::stats(const CookieIface* cookie,
                                rel_time_t current_time,
                                const AddStatFn& add_stat) {
     if (Settings::instance().isTopkeysEnabled()) {
@@ -220,7 +220,7 @@ struct tk_context {
     using CallbackFn = void (*)(const std::string&,
                                 const topkey_item_t&,
                                 void*);
-    tk_context(const void* c,
+    tk_context(const CookieIface* c,
                AddStatFn a,
                rel_time_t t,
                nlohmann::json* arr,
@@ -233,7 +233,7 @@ struct tk_context {
         // empty
     }
 
-    const void* cookie;
+    const CookieIface* cookie;
     AddStatFn add_stat;
     rel_time_t current_time;
     nlohmann::json* array;
@@ -305,7 +305,7 @@ static void tk_aggregate_func(const TopKeys::topkey_t& it, void* arg) {
     }
 }
 
-cb::engine_errc TopKeys::doStats(const void* cookie,
+cb::engine_errc TopKeys::doStats(const CookieIface* cookie,
                                  rel_time_t current_time,
                                  const AddStatFn& add_stat) {
     struct tk_context context(

@@ -22,6 +22,8 @@
 
 #include <statistics/cbstat_collector.h>
 
+class CookieIface;
+
 const char* to_string(enum checkpoint_state s) {
     switch (s) {
         case CHECKPOINT_OPEN: return "CHECKPOINT_OPEN";
@@ -555,7 +557,8 @@ CheckpointIndexKeyType Checkpoint::makeIndexKey(const queued_item& item) const {
     return CheckpointIndexKeyType(item->getKey(), keyIndexKeyTrackingAllocator);
 }
 
-void Checkpoint::addStats(const AddStatFn& add_stat, const void* cookie) {
+void Checkpoint::addStats(const AddStatFn& add_stat,
+                          const CookieIface* cookie) {
     std::array<char, 256> buf;
 
     checked_snprintf(buf.data(),

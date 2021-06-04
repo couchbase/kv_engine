@@ -67,7 +67,7 @@ public:
      */
     void addVBConnByVBId(ConnHandler& conn, Vbid vbid);
 
-    void removeVBConnByVBId(const void* connCookie, Vbid vbid);
+    void removeVBConnByVBId(const CookieIface* connCookie, Vbid vbid);
 
     /**
      * Checks (by pointer comparison) whether a ConnHandler is already

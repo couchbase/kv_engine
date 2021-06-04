@@ -63,7 +63,7 @@ public:
 
     void updateKey(const void* key, size_t nkey, rel_time_t operation_time);
 
-    cb::engine_errc stats(const void* cookie,
+    cb::engine_errc stats(const CookieIface* cookie,
                           rel_time_t current_time,
                           const AddStatFn& add_stat);
 
@@ -87,7 +87,7 @@ protected:
     void doUpdateKey(const void* key, size_t nkey, rel_time_t operation_time);
 
     void doStatsInner(const tk_context& stat_context);
-    cb::engine_errc doStats(const void* cookie,
+    cb::engine_errc doStats(const CookieIface* cookie,
                             rel_time_t current_time,
                             const AddStatFn& add_stat);
 

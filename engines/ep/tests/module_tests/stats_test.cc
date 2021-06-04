@@ -55,10 +55,10 @@ std::map<std::string, std::string> StatTest::get_stat(const char* statkey) {
         std::string v(value.data(), value.size());
         stats[k] = v;
     };
-    cb::tracing::Traceable traceable;
+    MockCookie cookie;
     EXPECT_EQ(
             cb::engine_errc::success,
-            engine->get_stats(&traceable,
+            engine->get_stats(&cookie,
                               {statkey, statkey == NULL ? 0 : strlen(statkey)},
                               {},
                               add_stats))
@@ -137,9 +137,9 @@ TEST_F(StatTest, HashStatsMemUsed) {
         // be assigned to the current thread.
         EXPECT_FALSE(ObjectRegistry::getCurrentEngine());
     };
-    cb::tracing::Traceable traceable;
+    MockCookie cookie;
     ASSERT_EQ(cb::engine_errc::success,
-              engine->get_stats(&traceable, key, {}, callback));
+              engine->get_stats(&cookie, key, {}, callback));
 
     // Sanity check - should have had at least 1 call to ADD_STATS (otherwise
     // the test isn't valid).
@@ -634,9 +634,10 @@ TEST_P(DatatypeStatTest, datatypesInitiallyZero) {
 }
 
 void setDatatypeItem(KVBucket* store,
-                     const void* cookie,
+                     const CookieIface* cookie,
                      protocol_binary_datatype_t datatype,
-                     std::string name, std::string val = "[0]") {
+                     std::string name,
+                     std::string val = "[0]") {
     Item item(make_item(
             Vbid(0), {name, DocKeyEncodesCollectionId::No}, val, 0, datatype));
     store->set(item, cookie);

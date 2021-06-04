@@ -33,7 +33,7 @@ Collections::Manager::Manager() {
 
 cb::engine_error Collections::Manager::update(KVBucket& bucket,
                                               std::string_view manifestString,
-                                              const void* cookie) {
+                                              const CookieIface* cookie) {
     auto lockedUpdateCookie = updateInProgress.wlock();
     if (*lockedUpdateCookie != nullptr && *lockedUpdateCookie != cookie) {
         // log this as it's very unexpected, only ever 1 manager
@@ -55,7 +55,7 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
                     "Collections::Manager::update aborted as we have found a "
                     "manifest:{} but updateInProgress:{}",
                     manifest,
-                    *lockedUpdateCookie);
+                    static_cast<const void*>(*lockedUpdateCookie));
             return cb::engine_error(cb::engine_errc::failed,
                                     "Collections::Manager::update failure");
         }
@@ -115,7 +115,7 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
 cb::engine_error Collections::Manager::updateFromIOComplete(
         KVBucket& bucket,
         std::unique_ptr<Manifest> newManifest,
-        const void* cookie) {
+        const CookieIface* cookie) {
     auto current = currentManifest.ulock(); // Will update to newManifest
     return applyNewManifest(bucket, current, std::move(newManifest));
 }
@@ -185,7 +185,7 @@ std::optional<Vbid> Collections::Manager::updateAllVBuckets(
 
 void Collections::Manager::updatePersistManifestTaskDone(
         EventuallyPersistentEngine& engine,
-        const void* cookie,
+        const CookieIface* cookie,
         cb::engine_errc status) {
     // If !success the command will return to the caller, so must clean-up
     // ready for any further task.

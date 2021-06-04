@@ -17,6 +17,7 @@
 #include <optional>
 #include <variant>
 
+class CookieIface;
 class PreLinkDocumentContext;
 
 /**
@@ -35,7 +36,7 @@ struct DurabilityItemCtx {
      * The client cookie associated with the Durability operation. If non-null
      * then notifyIOComplete will be called on it when operation is committed.
      */
-    const void* cookie = nullptr;
+    const CookieIface* cookie = nullptr;
 };
 
 /**

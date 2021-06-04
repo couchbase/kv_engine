@@ -124,7 +124,7 @@ PassiveDurabilityMonitor::PassiveDurabilityMonitor(
 PassiveDurabilityMonitor::~PassiveDurabilityMonitor() = default;
 
 void PassiveDurabilityMonitor::addStats(const AddStatFn& addStat,
-                                        const void* cookie) const {
+                                        const CookieIface* cookie) const {
     try {
         const auto vbid = vb.getId().get();
         add_casted_stat(fmt::format("vb_{}:state", vbid),

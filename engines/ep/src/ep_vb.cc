@@ -305,7 +305,7 @@ bool EPVBucket::hasPendingBGFetchItems() {
 
 HighPriorityVBReqStatus EPVBucket::checkAddHighPriorityVBEntry(
         uint64_t seqnoOrChkId,
-        const void* cookie,
+        const CookieIface* cookie,
         HighPriorityVBNotify reqType) {
     if (shard) {
         ++shard->highPriorityCount;
@@ -402,7 +402,7 @@ size_t EPVBucket::getNumSystemItems() const {
 }
 
 cb::engine_errc EPVBucket::statsVKey(const DocKey& key,
-                                     const void* cookie,
+                                     const CookieIface* cookie,
                                      EventuallyPersistentEngine& engine) {
     auto readHandle = lockCollections(key);
     if (!readHandle.valid()) {
@@ -494,7 +494,7 @@ bool EPVBucket::areDeletedItemsAlwaysResident() const {
 
 void EPVBucket::addStats(VBucketStatsDetailLevel detail,
                          const AddStatFn& add_stat,
-                         const void* c) {
+                         const CookieIface* c) {
     _addStats(detail, add_stat, c);
 
     if (detail == VBucketStatsDetailLevel::Full) {
@@ -728,7 +728,7 @@ VBNotifyCtx EPVBucket::addNewAbort(const HashTable::HashBucketLock& hbl,
 }
 
 void EPVBucket::bgFetch(const DocKey& key,
-                        const void* cookie,
+                        const CookieIface* cookie,
                         EventuallyPersistentEngine& engine,
                         const bool isMeta) {
     // @TODO could the BgFetcher ever not be there? It should probably be a
@@ -750,7 +750,7 @@ void EPVBucket::bgFetch(const DocKey& key,
 cb::engine_errc EPVBucket::addTempItemAndBGFetch(
         HashTable::HashBucketLock& hbl,
         const DocKey& key,
-        const void* cookie,
+        const CookieIface* cookie,
         EventuallyPersistentEngine& engine,
         bool metadataOnly) {
     auto rv = addTempStoredValue(hbl, key);
@@ -806,7 +806,7 @@ void EPVBucket::updateBGStats(
 }
 
 GetValue EPVBucket::getInternalNonResident(const DocKey& key,
-                                           const void* cookie,
+                                           const CookieIface* cookie,
                                            EventuallyPersistentEngine& engine,
                                            QueueBgFetch queueBgFetch,
                                            const StoredValue& v) {
@@ -817,11 +817,11 @@ GetValue EPVBucket::getInternalNonResident(const DocKey& key,
             nullptr, cb::engine_errc::would_block, v.getBySeqno(), true);
 }
 
-void EPVBucket::setupDeferredDeletion(const void* cookie) {
+void EPVBucket::setupDeferredDeletion(const CookieIface* cookie) {
     setDeferredDeletionCookie(cookie);
     auto revision = getShard()->getRWUnderlying()->prepareToDelete(getId());
     EP_LOG_INFO("EPVBucket::setupDeferredDeletion({}) {}, revision:{}",
-                cookie,
+                static_cast<const void*>(cookie),
                 getId(),
                 revision);
     deferredDeletionFileRevision.store(revision);

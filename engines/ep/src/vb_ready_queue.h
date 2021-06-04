@@ -22,6 +22,8 @@
 #include <queue>
 #include <unordered_set>
 
+class CookieIface;
+
 /**
  * VBReadyQueue is a queue of vbuckets that are ready for some task to process.
  * The queue does not allow duplicates and the push_unique method enforces this.
@@ -64,7 +66,7 @@ public:
 
     void addStats(const std::string& prefix,
                   const AddStatFn& add_stat,
-                  const void* c) const;
+                  const CookieIface* c) const;
 
     /**
      * Testing hooks for testing things... Lock free is HARD so sanity checks

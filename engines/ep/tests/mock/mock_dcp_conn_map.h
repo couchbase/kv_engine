@@ -39,9 +39,9 @@ public:
         // We do not schedule any ConnManager task.
     }
 
-    void addConn(const void* cookie, std::shared_ptr<ConnHandler> conn);
+    void addConn(const CookieIface* cookie, std::shared_ptr<ConnHandler> conn);
 
-    bool removeConn(const void* cookie);
+    bool removeConn(const CookieIface* cookie);
 
     /// return if the named handler exists for the vbid in the vbToConns
     /// structure
@@ -58,7 +58,7 @@ protected:
      */
     std::shared_ptr<DcpConsumer> makeConsumer(
             EventuallyPersistentEngine& engine,
-            const void* cookie,
+            const CookieIface* cookie,
             const std::string& connName,
             const std::string& consumerName) const override;
 };

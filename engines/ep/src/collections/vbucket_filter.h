@@ -23,6 +23,7 @@
 #include <string>
 #include <unordered_map>
 
+class CookieIface;
 class EventuallyPersistentEngine;
 class SystemEventMessage;
 
@@ -93,7 +94,7 @@ public:
      */
     Filter(std::optional<std::string_view> jsonFilter,
            const ::Collections::VB::Manifest& manifest,
-           gsl::not_null<const void*> cookie,
+           gsl::not_null<const CookieIface*> cookie,
            const EventuallyPersistentEngine& engine);
 
     /**
@@ -153,14 +154,14 @@ public:
      * of the revision and then evaluate the required privileges.
      * @return engine status - success/no_access/unknown_scope|collection
      */
-    cb::engine_errc checkPrivileges(gsl::not_null<const void*> cookie,
+    cb::engine_errc checkPrivileges(gsl::not_null<const CookieIface*> cookie,
                                     const EventuallyPersistentEngine& engine);
 
     /**
      * Add statistics for this filter, currently just depicts the object's state
      */
     void addStats(const AddStatFn& add_stat,
-                  const void* c,
+                  const CookieIface* c,
                   const std::string& prefix,
                   Vbid vb) const;
 

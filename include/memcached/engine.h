@@ -40,6 +40,7 @@ namespace cb::prometheus {
 enum class Cardinality;
 } // namespace cb::prometheus
 
+class CookieIface;
 class BucketStatCollector;
 class StatCollector;
 
@@ -179,7 +180,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
     virtual void destroy(bool force) = 0;
 
     /// Callback that a cookie will be disconnected
-    virtual void disconnect(gsl::not_null<const void*> cookie){};
+    virtual void disconnect(gsl::not_null<const CookieIface*> cookie){};
 
     /**
      * Initiate the bucket shutdown logic (disconnect clients etc)
@@ -267,7 +268,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      *                                 back off and try again.
      */
     virtual std::pair<cb::unique_item_ptr, item_info> allocateItem(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             const DocKey& key,
             size_t nbytes,
             size_t priv_nbytes,
@@ -290,7 +291,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @return cb::engine_errc::success if all goes well
      */
     virtual cb::engine_errc remove(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             const DocKey& key,
             uint64_t& cas,
             Vbid vbucket,
@@ -319,10 +320,11 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      *
      * @return cb::engine_errc::success if all goes well
      */
-    virtual cb::EngineErrorItemPair get(gsl::not_null<const void*> cookie,
-                                        const DocKey& key,
-                                        Vbid vbucket,
-                                        DocStateFilter documentStateFilter) = 0;
+    virtual cb::EngineErrorItemPair get(
+            gsl::not_null<const CookieIface*> cookie,
+            const DocKey& key,
+            Vbid vbucket,
+            DocStateFilter documentStateFilter) = 0;
 
     /**
      * Optionally retrieve an item. Only non-deleted items may be fetched
@@ -341,7 +343,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @return A pair of the error code and (optionally) the item
      */
     virtual cb::EngineErrorItemPair get_if(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             const DocKey& key,
             Vbid vbucket,
             std::function<bool(const item_info&)> filter) = 0;
@@ -356,7 +358,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @return  Pair (cb::engine_errc::success, Metadata) if all goes well
      */
     virtual cb::EngineErrorMetadataPair get_meta(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             const DocKey& key,
             Vbid vbucket) = 0;
 
@@ -372,7 +374,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @return A pair of the error code and (optionally) the item
      */
     virtual cb::EngineErrorItemPair get_locked(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             const DocKey& key,
             Vbid vbucket,
             uint32_t lock_timeout) = 0;
@@ -387,7 +389,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      *
      * @return cb::engine_errc::success if all goes well
      */
-    virtual cb::engine_errc unlock(gsl::not_null<const void*> cookie,
+    virtual cb::engine_errc unlock(gsl::not_null<const CookieIface*> cookie,
                                    const DocKey& key,
                                    Vbid vbucket,
                                    uint64_t cas) = 0;
@@ -403,7 +405,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @return A pair of the error code and (optionally) the item
      */
     virtual cb::EngineErrorItemPair get_and_touch(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             const DocKey& key,
             Vbid vbucket,
             uint32_t expirytime,
@@ -429,7 +431,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @return cb::engine_errc::success if all goes well
      */
     virtual cb::engine_errc store(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             gsl::not_null<ItemIface*> item,
             uint64_t& cas,
             StoreSemantics semantics,
@@ -471,7 +473,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @return a std::pair containing the engine_error code and new CAS
      */
     virtual cb::EngineErrorCasPair store_if(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             gsl::not_null<ItemIface*> item,
             uint64_t cas,
             StoreSemantics semantics,
@@ -490,7 +492,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @param cookie The cookie provided by the frontend
      * @return cb::engine_errc::success if all goes well
      */
-    virtual cb::engine_errc flush(gsl::not_null<const void*> cookie) {
+    virtual cb::engine_errc flush(gsl::not_null<const CookieIface*> cookie) {
         return cb::engine_errc::not_supported;
     }
 
@@ -508,7 +510,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      *
      * @return cb::engine_errc::success if all goes well
      */
-    virtual cb::engine_errc get_stats(gsl::not_null<const void*> cookie,
+    virtual cb::engine_errc get_stats(gsl::not_null<const CookieIface*> cookie,
                                       std::string_view key,
                                       std::string_view value,
                                       const AddStatFn& add_stat) = 0;
@@ -532,7 +534,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      *
      * @param cookie The cookie provided by the frontend
      */
-    virtual void reset_stats(gsl::not_null<const void*> cookie) = 0;
+    virtual void reset_stats(gsl::not_null<const CookieIface*> cookie) = 0;
 
     /**
      * Any unknown command will be considered engine specific.
@@ -543,7 +545,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      *
      * @return cb::engine_errc::success if all goes well
      */
-    virtual cb::engine_errc unknown_command(const void* cookie,
+    virtual cb::engine_errc unknown_command(const CookieIface* cookie,
                                             const cb::mcbp::Request& request,
                                             const AddResponseFn& response) {
         return cb::engine_errc::not_supported;
@@ -580,7 +582,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * the engine(s) that support them.
      */
     virtual cb::engine_errc set_collection_manifest(
-            gsl::not_null<const void*> cookie, std::string_view json) {
+            gsl::not_null<const CookieIface*> cookie, std::string_view json) {
         return cb::engine_errc::not_supported;
     }
 
@@ -588,18 +590,19 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * Retrieve the last manifest set using set_manifest (a JSON document)
      */
     virtual cb::engine_errc get_collection_manifest(
-            gsl::not_null<const void*> cookie, const AddResponseFn& response) {
+            gsl::not_null<const CookieIface*> cookie,
+            const AddResponseFn& response) {
         return cb::engine_errc::not_supported;
     }
 
     virtual cb::EngineErrorGetCollectionIDResult get_collection_id(
-            gsl::not_null<const void*> cookie, std::string_view path) {
+            gsl::not_null<const CookieIface*> cookie, std::string_view path) {
         return cb::EngineErrorGetCollectionIDResult{
                 cb::engine_errc::not_supported};
     }
 
     virtual cb::EngineErrorGetScopeIDResult get_scope_id(
-            gsl::not_null<const void*> cookie, std::string_view path) {
+            gsl::not_null<const CookieIface*> cookie, std::string_view path) {
         return cb::EngineErrorGetScopeIDResult{cb::engine_errc::not_supported};
     }
 
@@ -612,7 +615,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      *              belongs.
      */
     virtual cb::EngineErrorGetScopeIDResult get_scope_id(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             const DocKey& key,
             std::optional<Vbid> vbid = std::nullopt) const {
         return cb::EngineErrorGetScopeIDResult(cb::engine_errc::not_supported);
@@ -670,11 +673,12 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      *                the vbucket sub group)
      * @return The standard engine codes
      */
-    virtual cb::engine_errc setParameter(gsl::not_null<const void*> cookie,
-                                         EngineParamCategory category,
-                                         std::string_view key,
-                                         std::string_view value,
-                                         Vbid vbucket) {
+    virtual cb::engine_errc setParameter(
+            gsl::not_null<const CookieIface*> cookie,
+            EngineParamCategory category,
+            std::string_view key,
+            std::string_view value,
+            Vbid vbucket) {
         return cb::engine_errc::not_supported;
     }
 
@@ -688,11 +692,12 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @param drop_deletes Set to true if deletes should be dropped
      * @return The standard engine codes
      */
-    virtual cb::engine_errc compactDatabase(gsl::not_null<const void*> cookie,
-                                            Vbid vbid,
-                                            uint64_t purge_before_ts,
-                                            uint64_t purge_before_seq,
-                                            bool drop_deletes) {
+    virtual cb::engine_errc compactDatabase(
+            gsl::not_null<const CookieIface*> cookie,
+            Vbid vbid,
+            uint64_t purge_before_ts,
+            uint64_t purge_before_seq,
+            bool drop_deletes) {
         return cb::engine_errc::not_supported;
     }
 
@@ -705,7 +710,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      *         and the second is the state when the status is success.
      */
     virtual std::pair<cb::engine_errc, vbucket_state_t> getVBucket(
-            gsl::not_null<const void*> cookie, Vbid vbid) {
+            gsl::not_null<const CookieIface*> cookie, Vbid vbid) {
         return {cb::engine_errc::not_supported, vbucket_state_dead};
     }
 
@@ -720,7 +725,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      *             none is provided)
      * @return The standard engine codes
      */
-    virtual cb::engine_errc setVBucket(gsl::not_null<const void*> cookie,
+    virtual cb::engine_errc setVBucket(gsl::not_null<const CookieIface*> cookie,
                                        Vbid vbid,
                                        uint64_t cas,
                                        vbucket_state_t state,
@@ -738,9 +743,8 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      *             mode.
      * @return The standard engine codes
      */
-    virtual cb::engine_errc deleteVBucket(gsl::not_null<const void*> cookie,
-                                          Vbid vbid,
-                                          bool sync) {
+    virtual cb::engine_errc deleteVBucket(
+            gsl::not_null<const CookieIface*> cookie, Vbid vbid, bool sync) {
         return cb::engine_errc::not_supported;
     }
 };

@@ -791,7 +791,7 @@ bool ActiveStream::isCompressionEnabled() const {
     return false;
 }
 
-void ActiveStream::addStats(const AddStatFn& add_stat, const void* c) {
+void ActiveStream::addStats(const AddStatFn& add_stat, const CookieIface* c) {
     Stream::addStats(add_stat, c);
 
     try {

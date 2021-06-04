@@ -20,6 +20,8 @@ namespace cb::audit::document {
 enum class Operation;
 } // namespace cb::audit::document
 
+class CookieIface;
+
 struct ServerDocumentIface {
     virtual ~ServerDocumentIface() = default;
 
@@ -47,7 +49,7 @@ struct ServerDocumentIface {
      *                        error codes means that the engine should
      *                        *NOT* link the item
      */
-    virtual cb::engine_errc pre_link(gsl::not_null<const void*> cookie,
+    virtual cb::engine_errc pre_link(gsl::not_null<const CookieIface*> cookie,
                                      item_info& info) = 0;
 
     /**
@@ -72,6 +74,6 @@ struct ServerDocumentIface {
      * @param operation The type of access for the operation
      */
     virtual void audit_document_access(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             cb::audit::document::Operation operation) = 0;
 };

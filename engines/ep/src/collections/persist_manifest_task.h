@@ -16,6 +16,7 @@
 
 #include <optional>
 
+class CookieIface;
 class EPBucket;
 
 namespace Collections {
@@ -28,7 +29,7 @@ class PersistManifestTask : public ::GlobalTask {
 public:
     PersistManifestTask(EPBucket& bucket,
                         std::unique_ptr<Collections::Manifest> manifest,
-                        const void* cookie);
+                        const CookieIface* cookie);
 
     std::string getDescription() const override;
 
@@ -58,7 +59,7 @@ private:
      * for destruction on failure.
      */
     std::unique_ptr<Collections::Manifest> manifest;
-    const void* cookie;
+    const CookieIface* cookie;
 };
 
 } // namespace Collections

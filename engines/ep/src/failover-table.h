@@ -151,7 +151,9 @@ public:
      * @param vbid the vbucket id to use in the stats output
      * @param add_stat the callback used to add stats
      */
-    void addStats(const void* cookie, Vbid vbid, const AddStatFn& add_stat);
+    void addStats(const CookieIface* cookie,
+                  Vbid vbid,
+                  const AddStatFn& add_stat);
 
     /**
      * Returns a vector with the current failover table entries.

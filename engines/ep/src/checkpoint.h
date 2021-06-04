@@ -101,6 +101,7 @@ class Checkpoint;
 class CheckpointManager;
 class CheckpointConfig;
 class CheckpointCursorIntrospector;
+class CookieIface;
 class Cursor;
 class EPStats;
 class PreLinkDocumentContext;
@@ -662,7 +663,7 @@ public:
         return queuedItemsMemUsage;
     }
 
-    void addStats(const AddStatFn& add_stat, const void* cookie);
+    void addStats(const AddStatFn& add_stat, const CookieIface* cookie);
 
 private:
     /**

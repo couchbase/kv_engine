@@ -2488,7 +2488,7 @@ static enum test_result test_key_stats_eaccess(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
 
     mock_set_check_privilege_function(
-            [](gsl::not_null<const void*>,
+            [](gsl::not_null<const CookieIface*>,
                cb::rbac::Privilege,
                std::optional<ScopeID>,
                std::optional<CollectionID>) -> cb::rbac::PrivilegeAccess {

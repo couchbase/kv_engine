@@ -23,7 +23,7 @@
 extern cb::mcbp::ClientOpcode last_op;
 
 MockDcpProducer::MockDcpProducer(EventuallyPersistentEngine& theEngine,
-                                 const void* cookie,
+                                 const CookieIface* cookie,
                                  const std::string& name,
                                  uint32_t flags,
                                  bool startTask)

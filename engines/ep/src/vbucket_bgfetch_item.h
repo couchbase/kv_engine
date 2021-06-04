@@ -20,6 +20,7 @@
 #include <list>
 #include <unordered_map>
 
+class CookieIface;
 enum class ValueFilter;
 
 /**
@@ -56,7 +57,7 @@ public:
     virtual void abort(
             EventuallyPersistentEngine& engine,
             cb::engine_errc status,
-            std::map<const void*, cb::engine_errc>& toNotify) const = 0;
+            std::map<const CookieIface*, cb::engine_errc>& toNotify) const = 0;
 
     /// @returns The ValueFilter for this request.
     virtual ValueFilter getValueFilter() const = 0;
@@ -75,14 +76,14 @@ public:
  */
 class FrontEndBGFetchItem : public BGFetchItem {
 public:
-    FrontEndBGFetchItem(const void* cookie, ValueFilter filter)
+    FrontEndBGFetchItem(const CookieIface* cookie, ValueFilter filter)
         : FrontEndBGFetchItem(
                   std::chrono::steady_clock::now(), filter, cookie) {
     }
 
     FrontEndBGFetchItem(std::chrono::steady_clock::time_point initTime,
                         ValueFilter filter,
-                        const void* cookie);
+                        const CookieIface* cookie);
 
     void complete(EventuallyPersistentEngine& engine,
                   VBucketPtr& vb,
@@ -91,13 +92,14 @@ public:
 
     void abort(EventuallyPersistentEngine& engine,
                cb::engine_errc status,
-               std::map<const void*, cb::engine_errc>& toNotify) const override;
+               std::map<const CookieIface*, cb::engine_errc>& toNotify)
+            const override;
 
     ValueFilter getValueFilter() const override {
         return filter;
     }
 
-    const void* cookie;
+    const CookieIface* cookie;
     cb::tracing::SpanId traceSpanId;
     ValueFilter filter;
 };
@@ -119,7 +121,8 @@ public:
 
     void abort(EventuallyPersistentEngine& engine,
                cb::engine_errc status,
-               std::map<const void*, cb::engine_errc>& toNotify) const override;
+               std::map<const CookieIface*, cb::engine_errc>& toNotify)
+            const override;
 
     ValueFilter getValueFilter() const override;
 

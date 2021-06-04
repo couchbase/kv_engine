@@ -59,8 +59,8 @@ void VBucketMap::enablePersistence(EPBucket& ep) {
     }
 }
 
-void VBucketMap::dropVBucketAndSetupDeferredDeletion(Vbid id,
-                                                     const void* cookie) {
+void VBucketMap::dropVBucketAndSetupDeferredDeletion(
+        Vbid id, const CookieIface* cookie) {
     if (id.get() < size) {
         getShardByVbId(id)->dropVBucketAndSetupDeferredDeletion(id, cookie);
     }

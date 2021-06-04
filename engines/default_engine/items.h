@@ -8,6 +8,8 @@
 #include <cstddef>
 #include <cstring>
 
+class CookieIface;
+
 /*
  * You should not try to acquire any of the item locks before calling these
  * functions.
@@ -172,7 +174,7 @@ hash_item* item_alloc(struct default_engine* engine,
                       int flags,
                       rel_time_t exptime,
                       int nbytes,
-                      const void* cookie,
+                      const CookieIface* cookie,
                       uint8_t datatype);
 
 /**
@@ -185,7 +187,7 @@ hash_item* item_alloc(struct default_engine* engine,
  * @return pointer to the item if it exists or NULL otherwise
  */
 hash_item* item_get(struct default_engine* engine,
-                    const void* cookie,
+                    const CookieIface* cookie,
                     const DocKey& key,
                     const DocStateFilter state);
 
@@ -199,7 +201,7 @@ hash_item* item_get(struct default_engine* engine,
  * @return pointer to the item if it exists or NULL otherwise
  */
 hash_item* item_get(struct default_engine* engine,
-                    const void* cookie,
+                    const CookieIface* cookie,
                     const hash_key& key,
                     const DocStateFilter state);
 
@@ -214,7 +216,7 @@ hash_item* item_get(struct default_engine* engine,
  * @return cb::engine_errc::success for success
  */
 cb::engine_errc item_get_locked(struct default_engine* engine,
-                                const void* cookie,
+                                const CookieIface* cookie,
                                 hash_item** it,
                                 const DocKey& key,
                                 rel_time_t locktime);
@@ -230,7 +232,7 @@ cb::engine_errc item_get_locked(struct default_engine* engine,
  * @return cb::engine_errc::success for success
  */
 cb::engine_errc item_get_and_touch(struct default_engine* engine,
-                                   const void* cookie,
+                                   const CookieIface* cookie,
                                    hash_item** it,
                                    const DocKey& key,
                                    rel_time_t exptime);
@@ -245,7 +247,7 @@ cb::engine_errc item_get_and_touch(struct default_engine* engine,
  * @return cb::engine_errc::success for success
  */
 cb::engine_errc item_unlock(struct default_engine* engine,
-                            const void* cookie,
+                            const CookieIface* cookie,
                             const DocKey& key,
                             uint64_t cas);
 
@@ -264,7 +266,7 @@ void item_stats_reset(struct default_engine *engine);
  */
 void item_stats(struct default_engine* engine,
                 const AddStatFn& add_stat,
-                const void* cookie);
+                const CookieIface* cookie);
 
 /**
  * Get detaild item statitistics
@@ -275,7 +277,7 @@ void item_stats(struct default_engine* engine,
  */
 void item_stats_sizes(struct default_engine* engine,
                       const AddStatFn& add_stat,
-                      const void* cookie);
+                      const CookieIface* cookie);
 
 /**
  * Flush expired items from the cache
@@ -327,7 +329,7 @@ cb::engine_errc store_item(struct default_engine* engine,
                            hash_item* item,
                            uint64_t* cas,
                            StoreSemantics operation,
-                           const void* cookie,
+                           const CookieIface* cookie,
                            const DocumentState document_state,
                            bool preserveTtl);
 

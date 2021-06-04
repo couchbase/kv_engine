@@ -83,8 +83,9 @@ public:
      * @return true if success (and the cookie will be signalled when
      * reconfigure is complete)
      */
-    virtual bool configure_auditdaemon(const std::string& config,
-                                       gsl::not_null<const void*> cookie) = 0;
+    virtual bool configure_auditdaemon(
+            const std::string& config,
+            gsl::not_null<const CookieIface*> cookie) = 0;
 
 protected:
     Audit() = default;

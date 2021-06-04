@@ -64,7 +64,7 @@ struct MockCookie : public CookieIface {
     void disconnect() {
         references--;
         if (engine) {
-            engine->disconnect(static_cast<const void*>(this));
+            engine->disconnect(static_cast<const CookieIface*>(this));
         }
     }
 
@@ -79,27 +79,27 @@ CookieIface* create_mock_cookie(EngineIface* engine = nullptr);
 
 void destroy_mock_cookie(CookieIface* cookie);
 
-void mock_set_ewouldblock_handling(const void* cookie, bool enable);
+void mock_set_ewouldblock_handling(const CookieIface* cookie, bool enable);
 
-void mock_set_mutation_extras_handling(const void* cookie, bool enable);
+void mock_set_mutation_extras_handling(const CookieIface* cookie, bool enable);
 
-void mock_set_collections_support(const void* cookie, bool enable);
+void mock_set_collections_support(const CookieIface* cookie, bool enable);
 
-bool mock_is_collections_supported(const void* cookie);
+bool mock_is_collections_supported(const CookieIface* cookie);
 
-void mock_set_datatype_support(const void* cookie,
+void mock_set_datatype_support(const CookieIface* cookie,
                                protocol_binary_datatype_t datatypes);
 
-void lock_mock_cookie(const void* cookie);
+void lock_mock_cookie(const CookieIface* cookie);
 
-void unlock_mock_cookie(const void* cookie);
+void unlock_mock_cookie(const CookieIface* cookie);
 
-void waitfor_mock_cookie(const void* cookie);
+void waitfor_mock_cookie(const CookieIface* cookie);
 
 void disconnect_all_mock_connections();
 
-int get_number_of_mock_cookie_references(const void* cookie);
+int get_number_of_mock_cookie_references(const CookieIface* cookie);
 
-size_t get_number_of_mock_cookie_io_notifications(const void* cookie);
+size_t get_number_of_mock_cookie_io_notifications(const CookieIface* cookie);
 
-MockCookie* cookie_to_mock_cookie(const void* cookie);
+MockCookie* cookie_to_mock_cookie(const CookieIface* cookie);

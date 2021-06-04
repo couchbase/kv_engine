@@ -1077,7 +1077,7 @@ void PassiveStream::handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno) {
     }
 }
 
-void PassiveStream::addStats(const AddStatFn& add_stat, const void* c) {
+void PassiveStream::addStats(const AddStatFn& add_stat, const CookieIface* c) {
     Stream::addStats(add_stat, c);
 
     try {

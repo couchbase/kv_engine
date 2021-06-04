@@ -65,7 +65,7 @@ public:
      *        creation.
      */
     DcpProducer(EventuallyPersistentEngine& e,
-                const void* cookie,
+                const CookieIface* cookie,
                 const std::string& n,
                 uint32_t flags,
                 bool startTask);
@@ -115,10 +115,10 @@ public:
      */
     bool handleResponse(const cb::mcbp::Response& resp) override;
 
-    void addStats(const AddStatFn& add_stat, const void* c) override;
+    void addStats(const AddStatFn& add_stat, const CookieIface* c) override;
 
     void addTakeoverStats(const AddStatFn& add_stat,
-                          const void* c,
+                          const CookieIface* c,
                           const VBucket& vb);
 
     void aggregateQueueStats(ConnCounter& aggregator) const override;
@@ -296,7 +296,7 @@ public:
          */
         void setBufferSize(size_t maxBytes);
 
-        void addStats(const AddStatFn& add_stat, const void* c);
+        void addStats(const AddStatFn& add_stat, const CookieIface* c);
 
         /**
          * Insert N bytes into the buffer.
@@ -468,7 +468,8 @@ protected:
      * @param a status safe for the client
      */
     cb::mcbp::DcpStreamEndStatus mapEndStreamStatus(
-            const void* cookie, cb::mcbp::DcpStreamEndStatus status) const;
+            const CookieIface* cookie,
+            cb::mcbp::DcpStreamEndStatus status) const;
 
     /*
      * deletionV1OrV2 unifies the code where a choice is made between triggering

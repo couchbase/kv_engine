@@ -32,7 +32,7 @@ void ConnStoreTest::TearDown() {
 }
 
 std::shared_ptr<ConnHandler> ConnStoreTest::addConnHandler(
-        const void* cookie, const std::string& name) {
+        const CookieIface* cookie, const std::string& name) {
     // ConnHandler is abstract, so just use a DcpConsumer
     auto consumer = std::make_shared<DcpConsumer>(
             *engine, cookie, name, "" /* consumerName*/);
@@ -41,7 +41,7 @@ std::shared_ptr<ConnHandler> ConnStoreTest::addConnHandler(
     return consumer;
 }
 
-void ConnStoreTest::removeConnHandler(const void* cookie) {
+void ConnStoreTest::removeConnHandler(const CookieIface* cookie) {
     auto handle = connStore->getCookieToConnectionMapHandle();
     int startSize = handle->copyCookieToConn().size();
     handle->removeConnByCookie(cookie);
@@ -76,7 +76,7 @@ void ConnStoreTest::addVbConn(Vbid vb, ConnHandler& conn) {
     }
 }
 
-void ConnStoreTest::removeVbConn(Vbid vb, const void* cookie) {
+void ConnStoreTest::removeVbConn(Vbid vb, const CookieIface* cookie) {
     // We are assuming that the cookie and vbid are valid
     auto& map = connStore->getVBToConnsMap();
     auto& list = map[vb.get()];

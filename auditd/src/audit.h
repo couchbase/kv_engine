@@ -34,8 +34,9 @@ public:
             cb::audit::EventStateListener listener) override;
     void notify_all_event_states() override;
     void stats(const StatCollector& collector) override;
-    bool configure_auditdaemon(const std::string& config,
-                               gsl::not_null<const void*> cookie) override;
+    bool configure_auditdaemon(
+            const std::string& config,
+            gsl::not_null<const CookieIface*> cookie) override;
     // End public API
 
     explicit AuditImpl(std::string config_file,
@@ -59,7 +60,7 @@ public:
      */
     bool configure();
 
-    void notify_io_complete(gsl::not_null<const void*> cookie,
+    void notify_io_complete(gsl::not_null<const CookieIface*> cookie,
                             cb::engine_errc status);
 
     /**

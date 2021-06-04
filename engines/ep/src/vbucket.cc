@@ -340,7 +340,7 @@ void VBucket::fireAllOps(EventuallyPersistentEngine& engine,
     atomic_setIfBigger(stats.pendingOpsMax, pendingOps.size());
 
     while (!pendingOps.empty()) {
-        const void *pendingOperation = pendingOps.back();
+        const auto* pendingOperation = pendingOps.back();
         pendingOps.pop_back();
         // We don't want to hold the pendingOpLock when
         // calling notifyIOComplete.
@@ -365,11 +365,11 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine) {
     }
 }
 
-std::vector<const void*> VBucket::getCookiesForInFlightSyncWrites() {
+std::vector<const CookieIface*> VBucket::getCookiesForInFlightSyncWrites() {
     return getActiveDM().getCookiesForInFlightSyncWrites();
 }
 
-std::vector<const void*> VBucket::prepareTransitionAwayFromActive() {
+std::vector<const CookieIface*> VBucket::prepareTransitionAwayFromActive() {
     return getActiveDM().prepareTransitionAwayFromActive();
 }
 
@@ -764,7 +764,7 @@ template <typename T>
 void VBucket::addStat(const char* nm,
                       const T& val,
                       const AddStatFn& add_stat,
-                      const void* c) {
+                      const CookieIface* c) {
     std::string stat = statPrefix;
     if (nm != nullptr) {
         add_prefixed_stat(statPrefix, nm, val, add_stat, c);
@@ -814,7 +814,7 @@ cb::engine_errc VBucket::commit(
         uint64_t prepareSeqno,
         std::optional<int64_t> commitSeqno,
         const Collections::VB::CachingReadHandle& cHandle,
-        const void* cookie) {
+        const CookieIface* cookie) {
     Expects(cHandle.valid());
     auto res = ht.findForUpdate(key);
     if (!res.pending) {
@@ -891,7 +891,7 @@ cb::engine_errc VBucket::abort(
         uint64_t prepareSeqno,
         std::optional<int64_t> abortSeqno,
         const Collections::VB::CachingReadHandle& cHandle,
-        const void* cookie) {
+        const CookieIface* cookie) {
     Expects(cHandle.valid());
     auto htRes = ht.findForUpdate(key);
 
@@ -998,12 +998,12 @@ void VBucket::notifyActiveDMOfLocalSyncWrite() {
     getActiveDM().checkForCommit();
 }
 
-void VBucket::notifyClientOfSyncWriteComplete(const void* cookie,
+void VBucket::notifyClientOfSyncWriteComplete(const CookieIface* cookie,
                                               cb::engine_errc result) {
     EP_LOG_DEBUG(
             "VBucket::notifyClientOfSyncWriteComplete ({}) cookie:{} result:{}",
             id,
-            cookie,
+            static_cast<const void*>(cookie),
             result);
     Expects(cookie);
     syncWriteCompleteCb(cookie, result);
@@ -1018,7 +1018,7 @@ void VBucket::sendSeqnoAck(int64_t seqno) {
     seqnoAckCb(getId(), seqno);
 }
 
-bool VBucket::addPendingOp(const void* cookie) {
+bool VBucket::addPendingOp(const CookieIface* cookie) {
     std::lock_guard<std::mutex> lh(pendingOpLock);
     if (state != vbucket_state_pending) {
         // State transitioned while we were waiting.
@@ -1530,7 +1530,7 @@ cb::StoreIfStatus VBucket::callPredicate(cb::StoreIfPredicate predicate,
 
 cb::engine_errc VBucket::set(
         Item& itm,
-        const void* cookie,
+        const CookieIface* cookie,
         EventuallyPersistentEngine& engine,
         cb::StoreIfPredicate predicate,
         const Collections::VB::CachingReadHandle& cHandle) {
@@ -1650,7 +1650,7 @@ cb::engine_errc VBucket::set(
 
 cb::engine_errc VBucket::replace(
         Item& itm,
-        const void* cookie,
+        const CookieIface* cookie,
         EventuallyPersistentEngine& engine,
         cb::StoreIfPredicate predicate,
         const Collections::VB::CachingReadHandle& cHandle) {
@@ -1774,7 +1774,7 @@ cb::engine_errc VBucket::replace(
 }
 
 void VBucket::addDurabilityMonitorStats(const AddStatFn& addStat,
-                                        const void* cookie) const {
+                                        const CookieIface* cookie) const {
     durabilityMonitor->addStats(addStat, cookie);
 }
 
@@ -1828,7 +1828,7 @@ cb::engine_errc VBucket::prepare(
         Item& itm,
         uint64_t cas,
         uint64_t* seqno,
-        const void* cookie,
+        const CookieIface* cookie,
         EventuallyPersistentEngine& engine,
         CheckConflicts checkConflicts,
         bool allowExisting,
@@ -1930,7 +1930,7 @@ cb::engine_errc VBucket::setWithMeta(
         Item& itm,
         uint64_t cas,
         uint64_t* seqno,
-        const void* cookie,
+        const CookieIface* cookie,
         EventuallyPersistentEngine& engine,
         CheckConflicts checkConflicts,
         bool allowExisting,
@@ -2067,7 +2067,7 @@ cb::engine_errc VBucket::setWithMeta(
 
 cb::engine_errc VBucket::deleteItem(
         uint64_t& cas,
-        const void* cookie,
+        const CookieIface* cookie,
         EventuallyPersistentEngine& engine,
         std::optional<cb::durability::Requirements> durability,
         ItemMetaData* itemMeta,
@@ -2230,7 +2230,7 @@ cb::engine_errc VBucket::deleteItem(
 cb::engine_errc VBucket::deleteWithMeta(
         uint64_t& cas,
         uint64_t* seqno,
-        const void* cookie,
+        const CookieIface* cookie,
         EventuallyPersistentEngine& engine,
         CheckConflicts checkConflicts,
         const ItemMetaData& itemMeta,
@@ -2517,7 +2517,7 @@ void VBucket::deleteExpiredItem(const Item& it,
 
 cb::engine_errc VBucket::add(
         Item& itm,
-        const void* cookie,
+        const CookieIface* cookie,
         EventuallyPersistentEngine& engine,
         const Collections::VB::CachingReadHandle& cHandle) {
     auto ret = checkDurabilityRequirements(itm);
@@ -2673,7 +2673,7 @@ std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
 }
 
 GetValue VBucket::getAndUpdateTtl(
-        const void* cookie,
+        const CookieIface* cookie,
         EventuallyPersistentEngine& engine,
         time_t exptime,
         const Collections::VB::CachingReadHandle& cHandle) {
@@ -2708,7 +2708,7 @@ GetValue VBucket::getAndUpdateTtl(
     folly::assume_unreachable();
 }
 
-GetValue VBucket::getInternal(const void* cookie,
+GetValue VBucket::getInternal(const CookieIface* cookie,
                               EventuallyPersistentEngine& engine,
                               get_options_t options,
                               GetKeyOnly getKeyOnly,
@@ -2823,7 +2823,7 @@ GetValue VBucket::getInternal(const void* cookie,
 }
 
 cb::engine_errc VBucket::getMetaData(
-        const void* cookie,
+        const CookieIface* cookie,
         EventuallyPersistentEngine& engine,
         const Collections::VB::CachingReadHandle& cHandle,
         ItemMetaData& metadata,
@@ -2888,7 +2888,7 @@ cb::engine_errc VBucket::getMetaData(
 }
 
 cb::engine_errc VBucket::getKeyStats(
-        const void* cookie,
+        const CookieIface* cookie,
         EventuallyPersistentEngine& engine,
         struct key_stats& kstats,
         WantsDeleted wantsDeleted,
@@ -2944,7 +2944,7 @@ cb::engine_errc VBucket::getKeyStats(
 
 GetValue VBucket::getLocked(rel_time_t currentTime,
                             uint32_t lockTimeout,
-                            const void* cookie,
+                            const CookieIface* cookie,
                             EventuallyPersistentEngine& engine,
                             const Collections::VB::CachingReadHandle& cHandle) {
     auto res = fetchValueForWrite(cHandle, QueueExpired::Yes);
@@ -3086,7 +3086,7 @@ bool VBucket::hasMemoryForStoredValue(
 
 void VBucket::_addStats(VBucketStatsDetailLevel detail,
                         const AddStatFn& add_stat,
-                        const void* c) {
+                        const CookieIface* c) {
     switch (detail) {
     case VBucketStatsDetailLevel::Full: {
         size_t numItems = getNumItems();
@@ -3792,7 +3792,7 @@ void VBucket::updateRevSeqNoOfNewStoredValue(StoredValue& v) {
 }
 
 void VBucket::addHighPriorityVBEntry(uint64_t seqnoOrChkId,
-                                     const void* cookie,
+                                     const CookieIface* cookie,
                                      HighPriorityVBNotify reqType) {
     std::unique_lock<std::mutex> lh(hpVBReqsMutex);
     hpVBReqs.emplace_back(cookie, seqnoOrChkId, reqType);
@@ -3806,15 +3806,15 @@ void VBucket::addHighPriorityVBEntry(uint64_t seqnoOrChkId,
             seqnoOrChkId,
             getHighSeqno(),
             getPersistenceSeqno(),
-            cookie);
+            static_cast<const void*>(cookie));
 }
 
-std::map<const void*, cb::engine_errc> VBucket::getHighPriorityNotifications(
-        EventuallyPersistentEngine& engine,
-        uint64_t idNum,
-        HighPriorityVBNotify notifyType) {
+std::map<const CookieIface*, cb::engine_errc>
+VBucket::getHighPriorityNotifications(EventuallyPersistentEngine& engine,
+                                      uint64_t idNum,
+                                      HighPriorityVBNotify notifyType) {
     std::unique_lock<std::mutex> lh(hpVBReqsMutex);
-    std::map<const void*, cb::engine_errc> toNotify;
+    std::map<const CookieIface*, cb::engine_errc> toNotify;
 
     auto entry = hpVBReqs.begin();
 
@@ -3839,7 +3839,7 @@ std::map<const void*, cb::engine_errc> VBucket::getHighPriorityNotifications(
                     getId(),
                     entry->id,
                     idNum,
-                    entry->cookie);
+                    static_cast<const void*>(entry->cookie));
             entry = hpVBReqs.erase(entry);
         } else if (auto limit = getCheckpointFlushTimeout(); spent > limit) {
             engine.storeEngineSpecific(entry->cookie, nullptr);
@@ -3851,7 +3851,7 @@ std::map<const void*, cb::engine_errc> VBucket::getHighPriorityNotifications(
                     getId(),
                     entry->id,
                     idNum,
-                    entry->cookie,
+                    static_cast<const void*>(entry->cookie),
                     spent.count(),
                     limit.count());
             entry = hpVBReqs.erase(entry);
@@ -3863,9 +3863,9 @@ std::map<const void*, cb::engine_errc> VBucket::getHighPriorityNotifications(
     return toNotify;
 }
 
-std::map<const void*, cb::engine_errc> VBucket::tmpFailAndGetAllHpNotifies(
-        EventuallyPersistentEngine& engine) {
-    std::map<const void*, cb::engine_errc> toNotify;
+std::map<const CookieIface*, cb::engine_errc>
+VBucket::tmpFailAndGetAllHpNotifies(EventuallyPersistentEngine& engine) {
+    std::map<const CookieIface*, cb::engine_errc> toNotify;
 
     std::lock_guard<std::mutex> lh(hpVBReqsMutex);
 

@@ -232,7 +232,7 @@ void EphemeralBucket::attemptToFreeMemory() {
 cb::engine_errc EphemeralBucket::scheduleCompaction(
         Vbid vbid,
         const CompactionConfig& c,
-        const void* ck,
+        const CookieIface* ck,
         std::chrono::milliseconds delay) {
     return cb::engine_errc::not_supported;
 }
@@ -300,7 +300,7 @@ VBucketPtr EphemeralBucket::makeVBucket(
     return VBucketPtr(vb, VBucket::DeferredDeleter(engine));
 }
 
-void EphemeralBucket::completeStatsVKey(const void* cookie,
+void EphemeralBucket::completeStatsVKey(const CookieIface* cookie,
                                         const DocKey& key,
                                         Vbid vbid,
                                         uint64_t bySeqNum) {
@@ -436,7 +436,7 @@ EphemeralBucket::NotifyHighPriorityReqTask::NotifyHighPriorityReqTask(
 }
 
 bool EphemeralBucket::NotifyHighPriorityReqTask::run() {
-    std::map<const void*, cb::engine_errc> notifyQ;
+    std::map<const CookieIface*, cb::engine_errc> notifyQ;
     {
         /* It is necessary that the toNotifyLock is not held while
            actually notifying. */
@@ -447,7 +447,7 @@ bool EphemeralBucket::NotifyHighPriorityReqTask::run() {
     for (auto& notify : notifyQ) {
         EP_LOG_INFO("{} for cookie :{} and status {}",
                     getDescription(),
-                    notify.first,
+                    static_cast<const void*>(notify.first),
                     notify.second);
         engine->notifyIOComplete(notify.first, notify.second);
     }
@@ -486,7 +486,7 @@ EphemeralBucket::NotifyHighPriorityReqTask::maxExpectedDuration() const {
 }
 
 void EphemeralBucket::NotifyHighPriorityReqTask::wakeup(
-        std::map<const void*, cb::engine_errc> notifies) {
+        std::map<const CookieIface*, cb::engine_errc> notifies) {
     {
         /* Add the connections to be notified */
         std::lock_guard<std::mutex> lg(toNotifyLock);
@@ -499,7 +499,7 @@ void EphemeralBucket::NotifyHighPriorityReqTask::wakeup(
 }
 
 bool EphemeralBucket::maybeScheduleManifestPersistence(
-        const void* cookie,
+        const CookieIface* cookie,
         std::unique_ptr<Collections::Manifest>& newManifest) {
     return false; // newManifest not taken
 }

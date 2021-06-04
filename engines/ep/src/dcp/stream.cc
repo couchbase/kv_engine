@@ -105,7 +105,7 @@ uint64_t Stream::getReadyQueueMemory() {
     return readyQueueMemory.load(std::memory_order_relaxed);
 }
 
-void Stream::addStats(const AddStatFn& add_stat, const void* c) {
+void Stream::addStats(const AddStatFn& add_stat, const CookieIface* c) {
     try {
         std::lock_guard<std::mutex> lh(streamMutex);
 

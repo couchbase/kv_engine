@@ -14,7 +14,7 @@
 #include "mock_stream.h"
 
 MockDcpConsumer::MockDcpConsumer(EventuallyPersistentEngine& theEngine,
-                                 const void* cookie,
+                                 const CookieIface* cookie,
                                  const std::string& name,
                                  const std::string& consumerName)
     : DcpConsumer(theEngine, cookie, name, consumerName) {

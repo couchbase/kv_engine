@@ -158,42 +158,46 @@ public:
         destroy_mock_cookie(cookie);
     }
 
-    void set_ewouldblock_handling(const void* cookie, bool enable) override {
+    void set_ewouldblock_handling(const CookieIface* cookie,
+                                  bool enable) override {
         mock_set_ewouldblock_handling(cookie, enable);
     }
 
-    void set_mutation_extras_handling(const void* cookie,
+    void set_mutation_extras_handling(const CookieIface* cookie,
                                       bool enable) override {
         mock_set_mutation_extras_handling(cookie, enable);
     }
 
-    void set_datatype_support(const void* cookie,
+    void set_datatype_support(const CookieIface* cookie,
                               protocol_binary_datatype_t datatypes) override {
         mock_set_datatype_support(cookie, datatypes);
     }
 
-    void set_collections_support(const void* cookie, bool enable) override {
+    void set_collections_support(const CookieIface* cookie,
+                                 bool enable) override {
         mock_set_collections_support(cookie, enable);
     }
 
-    void lock_cookie(const void* cookie) override {
+    void lock_cookie(const CookieIface* cookie) override {
         lock_mock_cookie(cookie);
     }
 
-    void unlock_cookie(const void* cookie) override {
+    void unlock_cookie(const CookieIface* cookie) override {
         unlock_mock_cookie(cookie);
     }
 
-    void waitfor_cookie(const void* cookie) override {
+    void waitfor_cookie(const CookieIface* cookie) override {
         waitfor_mock_cookie(cookie);
     }
 
-    void store_engine_specific(const void* cookie, void* engine_data) override {
+    void store_engine_specific(const CookieIface* cookie,
+                               CookieIface* engine_data) override {
         get_mock_server_api()->cookie->store_engine_specific(cookie,
                                                              engine_data);
     }
 
-    int get_number_of_mock_cookie_references(const void* cookie) override {
+    int get_number_of_mock_cookie_references(
+            const CookieIface* cookie) override {
         return ::get_number_of_mock_cookie_references(cookie);
     }
     void set_pre_link_function(PreLinkFunction function) override {
@@ -259,7 +263,7 @@ public:
         currentEngineHandle = *h = create_bucket(init, cfg);
     }
 
-    void notify_io_complete(const void* cookie,
+    void notify_io_complete(const CookieIface* cookie,
                             cb::engine_errc status) override {
         get_mock_server_api()->cookie->notify_io_complete(cookie, status);
     }

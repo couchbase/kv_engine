@@ -86,7 +86,7 @@ void ActiveStreamCheckpointProcessorTask::schedule(
 
 void ActiveStreamCheckpointProcessorTask::addStats(const std::string& name,
                                                    const AddStatFn& add_stat,
-                                                   const void* c) const {
+                                                   const CookieIface* c) const {
     auto prefix = name + ":ckpt_processor_queue_";
     queue.addStats(prefix, add_stat, c);
 

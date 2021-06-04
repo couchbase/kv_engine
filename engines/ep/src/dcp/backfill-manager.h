@@ -110,6 +110,7 @@
 #include <mutex>
 
 class Configuration;
+class CookieIface;
 struct BackfillTrackingIface;
 class DcpProducer;
 class GlobalTask;
@@ -158,7 +159,9 @@ public:
 
     virtual ~BackfillManager();
 
-    void addStats(DcpProducer& conn, const AddStatFn& add_stat, const void* c);
+    void addStats(DcpProducer& conn,
+                  const AddStatFn& add_stat,
+                  const CookieIface* c);
 
     /// The scheduling order for DCPBackfills
     enum class ScheduleOrder {

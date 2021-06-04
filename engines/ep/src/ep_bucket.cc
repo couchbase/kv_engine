@@ -1001,7 +1001,7 @@ void EPBucket::stopBgFetcher() {
 cb::engine_errc EPBucket::scheduleCompaction(
         Vbid vbid,
         std::optional<CompactionConfig> config,
-        const void* cookie,
+        const CookieIface* cookie,
         std::chrono::milliseconds delay) {
     cb::engine_errc errCode = checkForDBExistence(vbid);
     if (errCode != cb::engine_errc::success) {
@@ -1075,14 +1075,14 @@ cb::engine_errc EPBucket::scheduleCompaction(
 
 cb::engine_errc EPBucket::scheduleCompaction(Vbid vbid,
                                              const CompactionConfig& config,
-                                             const void* cookie,
+                                             const CookieIface* cookie,
                                              std::chrono::milliseconds delay) {
     return scheduleCompaction(
             vbid, std::optional<CompactionConfig>{config}, cookie, delay);
 }
 
 cb::engine_errc EPBucket::scheduleCompaction(Vbid vbid,
-                                             const void* cookie,
+                                             const CookieIface* cookie,
                                              std::chrono::milliseconds delay) {
     return scheduleCompaction(
             vbid, std::optional<CompactionConfig>{}, cookie, delay);
@@ -1297,7 +1297,7 @@ void EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {
 // Running on WriterTask - CompactTask
 bool EPBucket::doCompact(Vbid vbid,
                          CompactionConfig& config,
-                         std::vector<const void*>& cookies) {
+                         std::vector<const CookieIface*>& cookies) {
     cb::engine_errc err = cb::engine_errc::success;
 
     auto vb = getLockedVBucket(vbid, std::try_to_lock);
@@ -1387,11 +1387,11 @@ cb::engine_errc EPBucket::getFileStats(const BucketStatCollector& collector) {
     return cb::engine_errc::success;
 }
 
-cb::engine_errc EPBucket::getPerVBucketDiskStats(const void* cookie,
+cb::engine_errc EPBucket::getPerVBucketDiskStats(const CookieIface* cookie,
                                                  const AddStatFn& add_stat) {
     class DiskStatVisitor : public VBucketVisitor {
     public:
-        DiskStatVisitor(const void* c, AddStatFn a)
+        DiskStatVisitor(const CookieIface* c, AddStatFn a)
             : cookie(c), add_stat(std::move(a)) {
         }
 
@@ -1426,7 +1426,7 @@ cb::engine_errc EPBucket::getPerVBucketDiskStats(const void* cookie,
         }
 
     private:
-        const void* cookie;
+        const CookieIface* cookie;
         AddStatFn add_stat;
     };
 
@@ -1501,7 +1501,7 @@ VBucketPtr EPBucket::makeVBucket(
 
 cb::engine_errc EPBucket::statsVKey(const DocKey& key,
                                     Vbid vbucket,
-                                    const void* cookie) {
+                                    const CookieIface* cookie) {
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb) {
         return cb::engine_errc::not_my_vbucket;
@@ -1510,7 +1510,7 @@ cb::engine_errc EPBucket::statsVKey(const DocKey& key,
     return vb->statsVKey(key, cookie, engine);
 }
 
-void EPBucket::completeStatsVKey(const void* cookie,
+void EPBucket::completeStatsVKey(const CookieIface* cookie,
                                  const DocKey& key,
                                  Vbid vbid,
                                  uint64_t bySeqNum) {
@@ -1961,7 +1961,8 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
     return {storageCB.itemsVisited, numPrepares, true};
 }
 
-ValueFilter EPBucket::getValueFilterForCompressionMode(const void* cookie) {
+ValueFilter EPBucket::getValueFilterForCompressionMode(
+        const CookieIface* cookie) {
     auto compressionMode = engine.getCompressionMode();
     auto filter = ValueFilter::VALUES_COMPRESSED;
     if (compressionMode == BucketCompressionMode::Off) {
@@ -1999,7 +2000,7 @@ bool EPBucket::hasWarmupSetVbucketStateFailed() const {
     return warmupTask && warmupTask->hasSetVbucketStateFailure();
 }
 
-bool EPBucket::maybeWaitForVBucketWarmup(const void* cookie) {
+bool EPBucket::maybeWaitForVBucketWarmup(const CookieIface* cookie) {
     if (warmupTask) {
         return warmupTask->maybeWaitForVBucketWarmup(cookie);
     }
@@ -2148,10 +2149,10 @@ bool EPBucket::isValidBucketDurabilityLevel(cb::durability::Level level) const {
 
 // task does not own the manifest, cookie does
 bool EPBucket::maybeScheduleManifestPersistence(
-        const void* cookie,
+        const CookieIface* cookie,
         std::unique_ptr<Collections::Manifest>& newManifest) {
     getEPEngine().storeEngineSpecific(
-            cookie, reinterpret_cast<void*>(newManifest.get()));
+            cookie, reinterpret_cast<CookieIface*>(newManifest.get()));
 
     ExTask task = std::make_shared<Collections::PersistManifestTask>(
             *this, std::move(newManifest), cookie);

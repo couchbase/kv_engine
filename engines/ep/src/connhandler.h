@@ -86,7 +86,7 @@ public:
             size_t(PausedReason::Unknown) + 1;
 
     ConnHandler(EventuallyPersistentEngine& engine,
-                const void* c,
+                const CookieIface* c,
                 std::string name);
 
     ~ConnHandler() override;
@@ -262,7 +262,7 @@ public:
                  const AddStatFn& add_stat,
                  const void* c) const;
 
-    virtual void addStats(const AddStatFn& add_stat, const void* c);
+    virtual void addStats(const AddStatFn& add_stat, const CookieIface* c);
 
     virtual void aggregateQueueStats(ConnCounter& stats_aggregator) const {
         // Empty
@@ -301,7 +301,7 @@ public:
         return reserved;
     }
 
-    const void *getCookie() const {
+    const CookieIface* getCookie() const {
         return cookie.load();
     }
 
@@ -383,7 +383,7 @@ private:
     std::string name;
 
     //! The cookie representing this connection (provided by the memcached code)
-    std::atomic<void*> cookie;
+    std::atomic<CookieIface*> cookie;
 
     //! Whether or not the connection is reserved in the memcached layer
     std::atomic<bool> reserved;

@@ -118,7 +118,7 @@ public:
     cb::engine_errc scheduleCompaction(
             Vbid vbid,
             const CompactionConfig& c,
-            const void* ck,
+            const CookieIface* ck,
             std::chrono::milliseconds delay) override;
 
     /**
@@ -128,7 +128,7 @@ public:
      * takes effect.
      */
     cb::engine_errc scheduleCompaction(Vbid vbid,
-                                       const void* cookie,
+                                       const CookieIface* cookie,
                                        std::chrono::milliseconds delay);
 
     cb::engine_errc cancelCompaction(Vbid vbid) override;
@@ -147,7 +147,7 @@ public:
      */
     bool doCompact(Vbid vbid,
                    CompactionConfig& config,
-                   std::vector<const void*>& cookies);
+                   std::vector<const CookieIface*>& cookies);
 
     /**
      * After compaction completes the task can be removed if no further
@@ -160,7 +160,7 @@ public:
 
     cb::engine_errc getFileStats(const BucketStatCollector& collector) override;
 
-    cb::engine_errc getPerVBucketDiskStats(const void* cookie,
+    cb::engine_errc getPerVBucketDiskStats(const CookieIface* cookie,
                                            const AddStatFn& add_stat) override;
 
     size_t getPageableMemCurrent() const override;
@@ -189,9 +189,9 @@ public:
 
     cb::engine_errc statsVKey(const DocKey& key,
                               Vbid vbucket,
-                              const void* cookie) override;
+                              const CookieIface* cookie) override;
 
-    void completeStatsVKey(const void* cookie,
+    void completeStatsVKey(const CookieIface* cookie,
                            const DocKey& key,
                            Vbid vbid,
                            uint64_t bySeqNum) override;
@@ -211,7 +211,8 @@ public:
      *        doesn't support Snappy compression then ValueFilter will not
      *        return compressed data.
      */
-    ValueFilter getValueFilterForCompressionMode(const void* cookie = nullptr);
+    ValueFilter getValueFilterForCompressionMode(
+            const CookieIface* cookie = nullptr);
 
     void notifyNewSeqno(const Vbid vbid, const VBNotifyCtx& notifyCtx) override;
 
@@ -244,7 +245,7 @@ public:
      * @return true if the cookie was stored for later notification, false if
      *         not.
      */
-    bool maybeWaitForVBucketWarmup(const void* cookie) override;
+    bool maybeWaitForVBucketWarmup(const CookieIface* cookie) override;
 
     /**
      * Creates a warmup task if the engine configuration has "warmup=true"
@@ -271,7 +272,7 @@ public:
     }
 
     bool maybeScheduleManifestPersistence(
-            const void* cookie,
+            const CookieIface* cookie,
             std::unique_ptr<Collections::Manifest>& newManifest) override;
 
     BgFetcher& getBgFetcher(Vbid vbid);
@@ -356,7 +357,7 @@ protected:
 
     cb::engine_errc scheduleCompaction(Vbid vbid,
                                        std::optional<CompactionConfig> config,
-                                       const void* cookie,
+                                       const CookieIface* cookie,
                                        std::chrono::milliseconds delay);
 
     /**

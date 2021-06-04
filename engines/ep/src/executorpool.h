@@ -17,6 +17,7 @@
 #include <memory>
 #include <mutex>
 
+class CookieIface;
 class GlobalTask;
 class Taskable;
 using ExTask = std::shared_ptr<GlobalTask>;
@@ -168,7 +169,7 @@ public:
      * @returns statistics about worker threads.
      */
     virtual void doWorkerStat(Taskable& taskable,
-                              const void* cookie,
+                              const CookieIface* cookie,
                               const AddStatFn& add_stat) = 0;
 
     /**
@@ -176,14 +177,14 @@ public:
      * cbstats tasks.
      */
     virtual void doTasksStat(Taskable& taskable,
-                             const void* cookie,
+                             const CookieIface* cookie,
                              const AddStatFn& add_stat) = 0;
 
     /**
      * Generates stats regarding queued tasks.
      */
     virtual void doTaskQStat(Taskable& taskable,
-                             const void* cookie,
+                             const CookieIface* cookie,
                              const AddStatFn& add_stat) = 0;
 
     virtual ~ExecutorPool() = default;

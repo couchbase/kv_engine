@@ -313,7 +313,7 @@ class CollectionsTestFilter : public Collections::VB::Filter {
 public:
     CollectionsTestFilter(std::optional<std::string_view> jsonFilter,
                           const Collections::VB::Manifest& manifest,
-                          const void* cookie,
+                          const CookieIface* cookie,
                           EventuallyPersistentEngine& engine)
         : Collections::VB::Filter(jsonFilter, manifest, cookie, engine) {
     }
@@ -1236,7 +1236,7 @@ class CollectionsVBFilterAccessControlTest : public CollectionsVBFilterTest {
 
 TEST_F(CollectionsVBFilterAccessControlTest, no_privilege_for_passthrough) {
     mock_set_check_privilege_function(
-            [](gsl::not_null<const void*>,
+            [](gsl::not_null<const CookieIface*>,
                cb::rbac::Privilege priv,
                std::optional<ScopeID> sid,
                std::optional<CollectionID> cid) -> cb::rbac::PrivilegeAccess {
@@ -1266,7 +1266,7 @@ TEST_F(CollectionsVBFilterAccessControlTest, no_privilege_for_passthrough) {
 
 TEST_F(CollectionsVBFilterAccessControlTest, privilege_for_passthrough) {
     mock_set_check_privilege_function(
-            [](gsl::not_null<const void*>,
+            [](gsl::not_null<const CookieIface*>,
                cb::rbac::Privilege priv,
                std::optional<ScopeID> sid,
                std::optional<CollectionID> cid) -> cb::rbac::PrivilegeAccess {
@@ -1296,7 +1296,7 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_check_for_collection) {
     CollectionID noAccessTo = CollectionEntry::fruit.getId();
 
     mock_set_check_privilege_function(
-            [noAccessTo](gsl::not_null<const void*>,
+            [noAccessTo](gsl::not_null<const CookieIface*>,
                          cb::rbac::Privilege priv,
                          std::optional<ScopeID> sid,
                          std::optional<CollectionID> cid)
@@ -1337,7 +1337,7 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_check_for_collections) {
     // privilege.
     CollectionID noAccessTo = CollectionEntry::fruit.getId();
     mock_set_check_privilege_function(
-            [noAccessTo](gsl::not_null<const void*>,
+            [noAccessTo](gsl::not_null<const CookieIface*>,
                          cb::rbac::Privilege priv,
                          std::optional<ScopeID> sid,
                          std::optional<CollectionID> cid)
@@ -1376,7 +1376,7 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_check_for_scope) {
     ScopeID noAccessTo = ScopeEntry::shop1.getId();
 
     mock_set_check_privilege_function(
-            [noAccessTo](gsl::not_null<const void*>,
+            [noAccessTo](gsl::not_null<const CookieIface*>,
                          cb::rbac::Privilege priv,
                          std::optional<ScopeID> sid,
                          std::optional<CollectionID> cid)

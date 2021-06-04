@@ -35,6 +35,7 @@
 
 /* Forward declarations */
 class BucketLogger;
+class CookieIface;
 class DiskDocKey;
 class Item;
 class KVStore;
@@ -676,7 +677,8 @@ public:
      * @param add_stat the callback function to add statistics
      * @param c the cookie to pass to the callback function
      */
-    virtual void addTimingStats(const AddStatFn& add_stat, const void* c);
+    virtual void addTimingStats(const AddStatFn& add_stat,
+                                const CookieIface* c);
 
     /**
      * Resets kvstore specific stats

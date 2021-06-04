@@ -67,7 +67,8 @@ public:
      * @param cookie Optional connection cookie, this cookie will be notified
      *        when the deletion task is completed.
      */
-    void dropVBucketAndSetupDeferredDeletion(Vbid id, const void* cookie);
+    void dropVBucketAndSetupDeferredDeletion(Vbid id,
+                                             const CookieIface* cookie);
     VBucketPtr getBucket(Vbid id) const;
 
     // Returns the size of the map, i.e. the total number of VBuckets it can

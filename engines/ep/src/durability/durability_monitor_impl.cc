@@ -14,6 +14,8 @@
 #include <utilities/logtags.h>
 #include <utility>
 
+class CookieIface;
+
 /// Helper function to determine the expiry time for a SyncWrite from the
 /// durability requirements.
 static std::optional<std::chrono::steady_clock::time_point>
@@ -48,7 +50,7 @@ cb::durability::Requirements DurabilityMonitor::SyncWrite::getDurabilityReqs()
 }
 
 DurabilityMonitor::ActiveSyncWrite::ActiveSyncWrite(
-        const void* cookie,
+        const CookieIface* cookie,
         queued_item item,
         std::chrono::milliseconds defaultTimeout,
         const ActiveDurabilityMonitor::ReplicationChain* firstChain,
@@ -60,7 +62,7 @@ DurabilityMonitor::ActiveSyncWrite::ActiveSyncWrite(
 }
 
 DurabilityMonitor::ActiveSyncWrite::ActiveSyncWrite(
-        const void* cookie,
+        const CookieIface* cookie,
         queued_item item,
         const ActiveDurabilityMonitor::ReplicationChain* firstChain,
         const ActiveDurabilityMonitor::ReplicationChain* secondChain,
@@ -108,7 +110,7 @@ void DurabilityMonitor::ActiveSyncWrite::resetChains() {
     this->secondChain.reset(nullptr, 0 /*ackCount*/);
 }
 
-const void* DurabilityMonitor::ActiveSyncWrite::getCookie() const {
+const CookieIface* DurabilityMonitor::ActiveSyncWrite::getCookie() const {
     return cookie;
 }
 

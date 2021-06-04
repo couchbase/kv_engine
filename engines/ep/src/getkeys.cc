@@ -64,7 +64,7 @@ void AllKeysCallback::callback(const DiskDocKey& key) {
 }
 
 FetchAllKeysTask::FetchAllKeysTask(EventuallyPersistentEngine* e,
-                                   const void* c,
+                                   const CookieIface* c,
                                    AddResponseFn resp,
                                    const DocKey start_key_,
                                    Vbid vbucket,

@@ -106,10 +106,11 @@ static cb::engine_errc call_engine_and_handle_EWOULDBLOCK(
  * Helper function to return a mock_connstruct, either a new one or
  * an existng one.
  **/
-MockCookie* get_or_create_mock_connstruct(const void* cookie,
+MockCookie* get_or_create_mock_connstruct(const CookieIface* cookie,
                                           EngineIface* engine) {
     if (cookie == nullptr) {
-        return cookie_to_mock_cookie(create_mock_cookie(engine));
+        return cookie_to_mock_cookie(
+                static_cast<CookieIface*>(create_mock_cookie(engine)));
     }
     return cookie_to_mock_cookie(cookie);
 }
@@ -118,7 +119,8 @@ MockCookie* get_or_create_mock_connstruct(const void* cookie,
  * Helper function to destroy a mock_connstruct if get_or_create_mock_connstruct
  * created one.
  **/
-void check_and_destroy_mock_connstruct(MockCookie* c, const void* cookie) {
+void check_and_destroy_mock_connstruct(MockCookie* c,
+                                       const CookieIface* cookie) {
     if (c != cookie) {
         destroy_mock_cookie(c);
     }
@@ -141,7 +143,7 @@ void MockEngine::destroy(const bool force) {
 }
 
 std::pair<cb::unique_item_ptr, item_info> MockEngine::allocateItem(
-        gsl::not_null<const void*> cookie,
+        gsl::not_null<const CookieIface*> cookie,
         const DocKey& key,
         size_t nbytes,
         size_t priv_nbytes,
@@ -172,7 +174,7 @@ std::pair<cb::unique_item_ptr, item_info> MockEngine::allocateItem(
 }
 
 cb::engine_errc MockEngine::remove(
-        gsl::not_null<const void*> cookie,
+        gsl::not_null<const CookieIface*> cookie,
         const DocKey& key,
         uint64_t& cas,
         Vbid vbucket,
@@ -196,10 +198,11 @@ void MockEngine::release(gsl::not_null<ItemIface*> item) {
     the_engine->release(item);
 }
 
-cb::EngineErrorItemPair MockEngine::get(gsl::not_null<const void*> cookie,
-                                        const DocKey& key,
-                                        Vbid vbucket,
-                                        DocStateFilter documentStateFilter) {
+cb::EngineErrorItemPair MockEngine::get(
+        gsl::not_null<const CookieIface*> cookie,
+        const DocKey& key,
+        Vbid vbucket,
+        DocStateFilter documentStateFilter) {
     auto engine_fn = [this,
                       c = std::cref(cookie),
                       k = std::cref(key),
@@ -213,7 +216,7 @@ cb::EngineErrorItemPair MockEngine::get(gsl::not_null<const void*> cookie,
 }
 
 cb::EngineErrorItemPair MockEngine::get_if(
-        gsl::not_null<const void*> cookie,
+        gsl::not_null<const CookieIface*> cookie,
         const DocKey& key,
         Vbid vbucket,
         std::function<bool(const item_info&)> filter) {
@@ -229,7 +232,7 @@ cb::EngineErrorItemPair MockEngine::get_if(
 }
 
 cb::EngineErrorItemPair MockEngine::get_and_touch(
-        gsl::not_null<const void*> cookie,
+        gsl::not_null<const CookieIface*> cookie,
         const DocKey& key,
         Vbid vbucket,
         uint32_t expiryTime,
@@ -248,7 +251,7 @@ cb::EngineErrorItemPair MockEngine::get_and_touch(
 }
 
 cb::EngineErrorItemPair MockEngine::get_locked(
-        gsl::not_null<const void*> cookie,
+        gsl::not_null<const CookieIface*> cookie,
         const DocKey& key,
         Vbid vbucket,
         uint32_t lock_timeout) {
@@ -265,7 +268,9 @@ cb::EngineErrorItemPair MockEngine::get_locked(
 }
 
 cb::EngineErrorMetadataPair MockEngine::get_meta(
-        gsl::not_null<const void*> cookie, const DocKey& key, Vbid vbucket) {
+        gsl::not_null<const CookieIface*> cookie,
+        const DocKey& key,
+        Vbid vbucket) {
     auto engine_fn =
             [this, c = std::cref(cookie), k = std::cref(key), vbucket]() {
                 return the_engine->get_meta(c, k, vbucket);
@@ -275,7 +280,7 @@ cb::EngineErrorMetadataPair MockEngine::get_meta(
     return do_blocking_engine_call<item_info>(construct, engine_fn);
 }
 
-cb::engine_errc MockEngine::unlock(gsl::not_null<const void*> cookie,
+cb::engine_errc MockEngine::unlock(gsl::not_null<const CookieIface*> cookie,
                                    const DocKey& key,
                                    Vbid vbucket,
                                    uint64_t cas) {
@@ -288,7 +293,7 @@ cb::engine_errc MockEngine::unlock(gsl::not_null<const void*> cookie,
     return call_engine_and_handle_EWOULDBLOCK(construct, engine_fn);
 }
 
-cb::engine_errc MockEngine::get_stats(gsl::not_null<const void*> cookie,
+cb::engine_errc MockEngine::get_stats(gsl::not_null<const CookieIface*> cookie,
                                       std::string_view key,
                                       std::string_view value,
                                       const AddStatFn& add_stat) {
@@ -305,7 +310,7 @@ cb::engine_errc MockEngine::get_stats(gsl::not_null<const void*> cookie,
 }
 
 cb::engine_errc MockEngine::store(
-        gsl::not_null<const void*> cookie,
+        gsl::not_null<const CookieIface*> cookie,
         gsl::not_null<ItemIface*> item,
         uint64_t& cas,
         StoreSemantics operation,
@@ -330,7 +335,7 @@ cb::engine_errc MockEngine::store(
 }
 
 cb::EngineErrorCasPair MockEngine::store_if(
-        gsl::not_null<const void*> cookie,
+        gsl::not_null<const CookieIface*> cookie,
         gsl::not_null<ItemIface*> item,
         uint64_t cas,
         StoreSemantics operation,
@@ -354,7 +359,7 @@ cb::EngineErrorCasPair MockEngine::store_if(
     return call_engine_and_handle_EWOULDBLOCK(mockCookie, engine_fn);
 }
 
-cb::engine_errc MockEngine::flush(gsl::not_null<const void*> cookie) {
+cb::engine_errc MockEngine::flush(gsl::not_null<const CookieIface*> cookie) {
     auto engine_fn = [this, c = std::cref(cookie)]() {
         return the_engine->flush(c);
     };
@@ -363,11 +368,11 @@ cb::engine_errc MockEngine::flush(gsl::not_null<const void*> cookie) {
     return call_engine_and_handle_EWOULDBLOCK(construct, engine_fn);
 }
 
-void MockEngine::reset_stats(gsl::not_null<const void*> cookie) {
+void MockEngine::reset_stats(gsl::not_null<const CookieIface*> cookie) {
     the_engine->reset_stats(cookie);
 }
 
-cb::engine_errc MockEngine::unknown_command(const void* cookie,
+cb::engine_errc MockEngine::unknown_command(const CookieIface* cookie,
                                             const cb::mcbp::Request& request,
                                             const AddResponseFn& response) {
     auto* c = get_or_create_mock_connstruct(cookie, this);
@@ -398,7 +403,7 @@ bool MockEngine::get_item_info(gsl::not_null<const ItemIface*> item,
 }
 
 cb::engine_errc MockEngine::set_collection_manifest(
-        gsl::not_null<const void*> cookie, std::string_view json) {
+        gsl::not_null<const CookieIface*> cookie, std::string_view json) {
     auto* c = get_or_create_mock_connstruct(cookie, this);
 
     auto engine_fn = [this, c = std::cref(cookie), json]() {
@@ -409,33 +414,34 @@ cb::engine_errc MockEngine::set_collection_manifest(
     return status;
 }
 cb::engine_errc MockEngine::get_collection_manifest(
-        gsl::not_null<const void*> cookie, const AddResponseFn& response) {
+        gsl::not_null<const CookieIface*> cookie,
+        const AddResponseFn& response) {
     return the_engine->get_collection_manifest(cookie, response);
 }
 
 cb::EngineErrorGetCollectionIDResult MockEngine::get_collection_id(
-        gsl::not_null<const void*> cookie, std::string_view path) {
+        gsl::not_null<const CookieIface*> cookie, std::string_view path) {
     return the_engine->get_collection_id(cookie, path);
 }
 
 cb::EngineErrorGetScopeIDResult MockEngine::get_scope_id(
-        gsl::not_null<const void*> cookie, std::string_view path) {
+        gsl::not_null<const CookieIface*> cookie, std::string_view path) {
     return the_engine->get_scope_id(cookie, path);
 }
 
 cb::EngineErrorGetScopeIDResult MockEngine::get_scope_id(
-        gsl::not_null<const void*> cookie,
+        gsl::not_null<const CookieIface*> cookie,
         const DocKey& key,
         std::optional<Vbid> vbid) const {
     return the_engine->get_scope_id(cookie, key, vbid);
 }
 
-cb::engine_errc MockEngine::step(gsl::not_null<const void*> cookie,
+cb::engine_errc MockEngine::step(gsl::not_null<const CookieIface*> cookie,
                                  DcpMessageProducersIface& producers) {
     return the_engine_dcp->step(cookie, producers);
 }
 
-cb::engine_errc MockEngine::open(gsl::not_null<const void*> cookie,
+cb::engine_errc MockEngine::open(gsl::not_null<const CookieIface*> cookie,
                                  uint32_t opaque,
                                  uint32_t seqno,
                                  uint32_t flags,
@@ -444,7 +450,7 @@ cb::engine_errc MockEngine::open(gsl::not_null<const void*> cookie,
     return the_engine_dcp->open(cookie, opaque, seqno, flags, name, value);
 }
 
-cb::engine_errc MockEngine::add_stream(gsl::not_null<const void*> cookie,
+cb::engine_errc MockEngine::add_stream(gsl::not_null<const CookieIface*> cookie,
                                        uint32_t opaque,
                                        Vbid vbucket,
                                        uint32_t flags) {
@@ -456,14 +462,15 @@ cb::engine_errc MockEngine::add_stream(gsl::not_null<const void*> cookie,
     return call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
 }
 
-cb::engine_errc MockEngine::close_stream(gsl::not_null<const void*> cookie,
-                                         uint32_t opaque,
-                                         Vbid vbucket,
-                                         cb::mcbp::DcpStreamId sid) {
+cb::engine_errc MockEngine::close_stream(
+        gsl::not_null<const CookieIface*> cookie,
+        uint32_t opaque,
+        Vbid vbucket,
+        cb::mcbp::DcpStreamId sid) {
     return the_engine_dcp->close_stream(cookie, opaque, vbucket, sid);
 }
 
-cb::engine_errc MockEngine::stream_req(gsl::not_null<const void*> cookie,
+cb::engine_errc MockEngine::stream_req(gsl::not_null<const CookieIface*> cookie,
                                        uint32_t flags,
                                        uint32_t opaque,
                                        Vbid vbucket,
@@ -489,14 +496,15 @@ cb::engine_errc MockEngine::stream_req(gsl::not_null<const void*> cookie,
                                       json);
 }
 
-cb::engine_errc MockEngine::get_failover_log(gsl::not_null<const void*> cookie,
-                                             uint32_t opaque,
-                                             Vbid vbucket,
-                                             dcp_add_failover_log cb) {
+cb::engine_errc MockEngine::get_failover_log(
+        gsl::not_null<const CookieIface*> cookie,
+        uint32_t opaque,
+        Vbid vbucket,
+        dcp_add_failover_log cb) {
     return the_engine_dcp->get_failover_log(cookie, opaque, vbucket, cb);
 }
 
-cb::engine_errc MockEngine::stream_end(gsl::not_null<const void*> cookie,
+cb::engine_errc MockEngine::stream_end(gsl::not_null<const CookieIface*> cookie,
                                        uint32_t opaque,
                                        Vbid vbucket,
                                        cb::mcbp::DcpStreamEndStatus status) {
@@ -504,7 +512,7 @@ cb::engine_errc MockEngine::stream_end(gsl::not_null<const void*> cookie,
 }
 
 cb::engine_errc MockEngine::snapshot_marker(
-        gsl::not_null<const void*> cookie,
+        gsl::not_null<const CookieIface*> cookie,
         uint32_t opaque,
         Vbid vbucket,
         uint64_t start_seqno,
@@ -522,7 +530,7 @@ cb::engine_errc MockEngine::snapshot_marker(
                                            max_visible_seqno);
 }
 
-cb::engine_errc MockEngine::mutation(gsl::not_null<const void*> cookie,
+cb::engine_errc MockEngine::mutation(gsl::not_null<const CookieIface*> cookie,
                                      uint32_t opaque,
                                      const DocKey& key,
                                      cb::const_byte_buffer value,
@@ -574,7 +582,7 @@ cb::engine_errc MockEngine::mutation(gsl::not_null<const void*> cookie,
     return call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
 }
 
-cb::engine_errc MockEngine::deletion(gsl::not_null<const void*> cookie,
+cb::engine_errc MockEngine::deletion(gsl::not_null<const CookieIface*> cookie,
                                      uint32_t opaque,
                                      const DocKey& key,
                                      cb::const_byte_buffer value,
@@ -614,7 +622,7 @@ cb::engine_errc MockEngine::deletion(gsl::not_null<const void*> cookie,
     return call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
 }
 
-cb::engine_errc MockEngine::expiration(gsl::not_null<const void*> cookie,
+cb::engine_errc MockEngine::expiration(gsl::not_null<const CookieIface*> cookie,
                                        uint32_t opaque,
                                        const DocKey& key,
                                        cb::const_byte_buffer value,
@@ -654,19 +662,20 @@ cb::engine_errc MockEngine::expiration(gsl::not_null<const void*> cookie,
     return call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
 }
 
-cb::engine_errc MockEngine::set_vbucket_state(gsl::not_null<const void*> cookie,
-                                              uint32_t opaque,
-                                              Vbid vbucket,
-                                              vbucket_state_t state) {
+cb::engine_errc MockEngine::set_vbucket_state(
+        gsl::not_null<const CookieIface*> cookie,
+        uint32_t opaque,
+        Vbid vbucket,
+        vbucket_state_t state) {
     return the_engine_dcp->set_vbucket_state(cookie, opaque, vbucket, state);
 }
 
-cb::engine_errc MockEngine::noop(gsl::not_null<const void*> cookie,
+cb::engine_errc MockEngine::noop(gsl::not_null<const CookieIface*> cookie,
                                  uint32_t opaque) {
     return the_engine_dcp->noop(cookie, opaque);
 }
 
-cb::engine_errc MockEngine::control(gsl::not_null<const void*> cookie,
+cb::engine_errc MockEngine::control(gsl::not_null<const CookieIface*> cookie,
                                     uint32_t opaque,
                                     std::string_view key,
                                     std::string_view value) {
@@ -674,7 +683,7 @@ cb::engine_errc MockEngine::control(gsl::not_null<const void*> cookie,
 }
 
 cb::engine_errc MockEngine::buffer_acknowledgement(
-        gsl::not_null<const void*> cookie,
+        gsl::not_null<const CookieIface*> cookie,
         uint32_t opaque,
         Vbid vbucket,
         uint32_t buffer_bytes) {
@@ -683,23 +692,25 @@ cb::engine_errc MockEngine::buffer_acknowledgement(
 }
 
 cb::engine_errc MockEngine::response_handler(
-        gsl::not_null<const void*> cookie, const cb::mcbp::Response& response) {
+        gsl::not_null<const CookieIface*> cookie,
+        const cb::mcbp::Response& response) {
     return the_engine_dcp->response_handler(cookie, response);
 }
 
-cb::engine_errc MockEngine::system_event(gsl::not_null<const void*> cookie,
-                                         uint32_t opaque,
-                                         Vbid vbucket,
-                                         mcbp::systemevent::id event,
-                                         uint64_t bySeqno,
-                                         mcbp::systemevent::version version,
-                                         cb::const_byte_buffer key,
-                                         cb::const_byte_buffer eventData) {
+cb::engine_errc MockEngine::system_event(
+        gsl::not_null<const CookieIface*> cookie,
+        uint32_t opaque,
+        Vbid vbucket,
+        mcbp::systemevent::id event,
+        uint64_t bySeqno,
+        mcbp::systemevent::version version,
+        cb::const_byte_buffer key,
+        cb::const_byte_buffer eventData) {
     return the_engine_dcp->system_event(
             cookie, opaque, vbucket, event, bySeqno, version, key, eventData);
 }
 
-cb::engine_errc MockEngine::prepare(gsl::not_null<const void*> cookie,
+cb::engine_errc MockEngine::prepare(gsl::not_null<const CookieIface*> cookie,
                                     uint32_t opaque,
                                     const DocKey& key,
                                     cb::const_byte_buffer value,
@@ -734,7 +745,7 @@ cb::engine_errc MockEngine::prepare(gsl::not_null<const void*> cookie,
 }
 
 cb::engine_errc MockEngine::seqno_acknowledged(
-        gsl::not_null<const void*> cookie,
+        gsl::not_null<const CookieIface*> cookie,
         uint32_t opaque,
         Vbid vbucket,
         uint64_t prepared_seqno) {
@@ -742,7 +753,7 @@ cb::engine_errc MockEngine::seqno_acknowledged(
             cookie, opaque, vbucket, prepared_seqno);
 }
 
-cb::engine_errc MockEngine::commit(gsl::not_null<const void*> cookie,
+cb::engine_errc MockEngine::commit(gsl::not_null<const CookieIface*> cookie,
                                    uint32_t opaque,
                                    Vbid vbucket,
                                    const DocKey& key,
@@ -752,7 +763,7 @@ cb::engine_errc MockEngine::commit(gsl::not_null<const void*> cookie,
             cookie, opaque, vbucket, key, prepared_seqno, commit_seqno);
 }
 
-cb::engine_errc MockEngine::abort(gsl::not_null<const void*> cookie,
+cb::engine_errc MockEngine::abort(gsl::not_null<const CookieIface*> cookie,
                                   uint32_t opaque,
                                   Vbid vbucket,
                                   const DocKey& key,
@@ -762,15 +773,16 @@ cb::engine_errc MockEngine::abort(gsl::not_null<const void*> cookie,
             cookie, opaque, vbucket, key, prepared_seqno, abort_seqno);
 }
 
-void MockEngine::disconnect(gsl::not_null<const void*> cookie) {
+void MockEngine::disconnect(gsl::not_null<const CookieIface*> cookie) {
     the_engine->disconnect(cookie);
 }
 
-cb::engine_errc MockEngine::setParameter(gsl::not_null<const void*> cookie,
-                                         EngineParamCategory category,
-                                         std::string_view key,
-                                         std::string_view value,
-                                         Vbid vbucket) {
+cb::engine_errc MockEngine::setParameter(
+        gsl::not_null<const CookieIface*> cookie,
+        EngineParamCategory category,
+        std::string_view key,
+        std::string_view value,
+        Vbid vbucket) {
     auto* c = cookie_to_mock_cookie(cookie);
     auto engine_fn =
             [this, c = std::cref(cookie), category, key, value, vbucket]() {
@@ -781,11 +793,12 @@ cb::engine_errc MockEngine::setParameter(gsl::not_null<const void*> cookie,
     return call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
 }
 
-cb::engine_errc MockEngine::compactDatabase(gsl::not_null<const void*> cookie,
-                                            Vbid vbid,
-                                            uint64_t purge_before_ts,
-                                            uint64_t purge_before_seq,
-                                            bool drop_deletes) {
+cb::engine_errc MockEngine::compactDatabase(
+        gsl::not_null<const CookieIface*> cookie,
+        Vbid vbid,
+        uint64_t purge_before_ts,
+        uint64_t purge_before_seq,
+        bool drop_deletes) {
     auto* c = cookie_to_mock_cookie(cookie);
     auto engine_fn = [this,
                       c = std::cref(cookie),
@@ -801,11 +814,11 @@ cb::engine_errc MockEngine::compactDatabase(gsl::not_null<const void*> cookie,
 }
 
 std::pair<cb::engine_errc, vbucket_state_t> MockEngine::getVBucket(
-        gsl::not_null<const void*> cookie, Vbid vbid) {
+        gsl::not_null<const CookieIface*> cookie, Vbid vbid) {
     return the_engine->getVBucket(cookie, vbid);
 }
 
-cb::engine_errc MockEngine::setVBucket(gsl::not_null<const void*> cookie,
+cb::engine_errc MockEngine::setVBucket(gsl::not_null<const CookieIface*> cookie,
                                        Vbid vbid,
                                        uint64_t cas,
                                        vbucket_state_t state,
@@ -818,9 +831,8 @@ cb::engine_errc MockEngine::setVBucket(gsl::not_null<const void*> cookie,
     return call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
 }
 
-cb::engine_errc MockEngine::deleteVBucket(gsl::not_null<const void*> cookie,
-                                          Vbid vbid,
-                                          bool sync) {
+cb::engine_errc MockEngine::deleteVBucket(
+        gsl::not_null<const CookieIface*> cookie, Vbid vbid, bool sync) {
     auto* c = cookie_to_mock_cookie(cookie);
     auto engine_fn = [this, c = std::cref(cookie), vbid, sync]() {
         return the_engine->deleteVBucket(c, vbid, sync);

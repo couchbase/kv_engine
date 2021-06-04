@@ -25,6 +25,7 @@
 #include <string>
 
 class CheckpointCursor;
+class CookieIface;
 class DcpResponse;
 class EventuallyPersistentEngine;
 class MutationResponse;
@@ -74,7 +75,7 @@ public:
 
     uint64_t getSnapEndSeqno() { return snap_end_seqno_; }
 
-    virtual void addStats(const AddStatFn& add_stat, const void* c);
+    virtual void addStats(const AddStatFn& add_stat, const CookieIface* c);
 
     virtual uint32_t setDead(cb::mcbp::DcpStreamEndStatus status) = 0;
 

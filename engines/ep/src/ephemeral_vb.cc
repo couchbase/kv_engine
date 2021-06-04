@@ -171,7 +171,7 @@ bool EphemeralVBucket::areDeletedItemsAlwaysResident() const {
 
 void EphemeralVBucket::addStats(VBucketStatsDetailLevel detail,
                                 const AddStatFn& add_stat,
-                                const void* c) {
+                                const CookieIface* c) {
     // Include base class statistics:
     _addStats(detail, add_stat, c);
 
@@ -250,7 +250,7 @@ bool EphemeralVBucket::hasPendingBGFetchItems() {
 
 HighPriorityVBReqStatus EphemeralVBucket::checkAddHighPriorityVBEntry(
         uint64_t seqnoOrChkId,
-        const void* cookie,
+        const CookieIface* cookie,
         HighPriorityVBNotify reqType) {
     if (reqType == HighPriorityVBNotify::ChkPersistence) {
         return HighPriorityVBReqStatus::NotSupported;
@@ -848,7 +848,7 @@ void EphemeralVBucket::updateSeqListPostAbort(
 }
 
 void EphemeralVBucket::bgFetch(const DocKey& key,
-                               const void* cookie,
+                               const CookieIface* cookie,
                                EventuallyPersistentEngine& engine,
                                const bool isMeta) {
     throw std::logic_error(
@@ -860,7 +860,7 @@ void EphemeralVBucket::bgFetch(const DocKey& key,
 cb::engine_errc EphemeralVBucket::addTempItemAndBGFetch(
         HashTable::HashBucketLock& hbl,
         const DocKey& key,
-        const void* cookie,
+        const CookieIface* cookie,
         EventuallyPersistentEngine& engine,
         bool metadataOnly) {
     /* [EPHE TODO]: Just return error code and make all the callers handle it */
@@ -882,7 +882,7 @@ void EphemeralVBucket::bgFetchForCompactionExpiry(const DocKey& key,
 
 GetValue EphemeralVBucket::getInternalNonResident(
         const DocKey& key,
-        const void* cookie,
+        const CookieIface* cookie,
         EventuallyPersistentEngine& engine,
         QueueBgFetch queueBgFetch,
         const StoredValue& v) {
@@ -895,7 +895,7 @@ size_t EphemeralVBucket::estimateNewMemoryUsage(EPStats& st, const Item& item) {
            OrderedStoredValue::getRequiredStorage(item.getKey());
 }
 
-void EphemeralVBucket::setupDeferredDeletion(const void* cookie) {
+void EphemeralVBucket::setupDeferredDeletion(const CookieIface* cookie) {
     setDeferredDeletionCookie(cookie);
     setDeferredDeletion(true);
 }

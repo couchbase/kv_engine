@@ -33,7 +33,7 @@ public:
     cb::engine_errc scheduleCompaction(
             Vbid vbid,
             const CompactionConfig& c,
-            const void* ck,
+            const CookieIface* ck,
             std::chrono::milliseconds delay) override;
 
     cb::engine_errc cancelCompaction(Vbid vbid) override;
@@ -53,7 +53,7 @@ public:
     }
 
     /// Disk stats not supported for Ephemeral buckets.
-    cb::engine_errc getPerVBucketDiskStats(const void* cookie,
+    cb::engine_errc getPerVBucketDiskStats(const CookieIface* cookie,
                                            const AddStatFn& add_stat) override {
         return cb::engine_errc::no_such_key;
     }
@@ -90,11 +90,11 @@ public:
 
     cb::engine_errc statsVKey(const DocKey& key,
                               Vbid vbucket,
-                              const void* cookie) override {
+                              const CookieIface* cookie) override {
         return cb::engine_errc::not_supported;
     }
 
-    void completeStatsVKey(const void* cookie,
+    void completeStatsVKey(const CookieIface* cookie,
                            const DocKey& key,
                            Vbid vbid,
                            uint64_t bySeqNum) override;
@@ -138,7 +138,7 @@ public:
     }
 
     bool maybeScheduleManifestPersistence(
-            const void* cookie,
+            const CookieIface* cookie,
             std::unique_ptr<Collections::Manifest>& newManifest) override;
 
     // Static methods /////////////////////////////////////////////////////////
@@ -193,11 +193,11 @@ private:
          *
          * @param notifies Map of connections to be notified
          */
-        void wakeup(std::map<const void*, cb::engine_errc> notifies);
+        void wakeup(std::map<const CookieIface*, cb::engine_errc> notifies);
 
     private:
         /* All the notifications to be called by the task */
-        std::map<const void*, cb::engine_errc> toNotify;
+        std::map<const CookieIface*, cb::engine_errc> toNotify;
 
         /* Serialize access to write/read of toNotify */
         std::mutex toNotifyLock;

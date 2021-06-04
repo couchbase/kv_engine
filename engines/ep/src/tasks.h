@@ -67,7 +67,7 @@ public:
     CompactTask(EPBucket& bucket,
                 Vbid vbid,
                 std::optional<CompactionConfig> config,
-                const void* ck,
+                const CookieIface* ck,
                 bool completeBeforeShutdown = false);
 
     bool run() override;
@@ -105,7 +105,7 @@ public:
      *         config) is returned.
      */
     CompactionConfig runCompactionWithConfig(
-            std::optional<CompactionConfig> config, const void* cookie);
+            std::optional<CompactionConfig> config, const CookieIface* cookie);
 
     /**
      * @return true if a reschedule is required
@@ -129,7 +129,7 @@ private:
     /**
      * @return a copy of the current config and clear rescheduleRequired
      */
-    std::pair<CompactionConfig, std::vector<const void*>> preDoCompact();
+    std::pair<CompactionConfig, std::vector<const CookieIface*>> preDoCompact();
 
     /**
      * Using the input cookies and current "Compaction" state, determine if
@@ -142,14 +142,14 @@ private:
      *
      * @return true if the task reschedule for a future run.
      */
-    bool isTaskDone(const std::vector<const void*>& cookies);
+    bool isTaskDone(const std::vector<const CookieIface*>& cookies);
 
     EPBucket& bucket;
     Vbid vbid;
 
     struct Compaction {
         CompactionConfig config{};
-        std::vector<const void*> cookiesWaiting;
+        std::vector<const CookieIface*> cookiesWaiting;
         bool rescheduleRequired{false};
     };
 
@@ -224,7 +224,7 @@ public:
                         const DocKey& k,
                         Vbid vbid,
                         uint64_t s,
-                        const void* c,
+                        const CookieIface* c,
                         int sleeptime = 0,
                         bool completeBeforeShutdown = false)
         : GlobalTask(e,
@@ -259,7 +259,7 @@ private:
     const StoredDocKey key;
     const Vbid vbucket;
     uint64_t                         bySeqNum;
-    const void                      *cookie;
+    const CookieIface* cookie;
     const std::string description;
 };
 

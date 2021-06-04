@@ -18,6 +18,7 @@
 #include <memcached/engine_common.h>
 #include <optional>
 
+class CookieIface;
 class EventuallyPersistentEngine;
 
 enum class AllKeysCallbackStatus {
@@ -68,7 +69,7 @@ private:
 class FetchAllKeysTask : public GlobalTask {
 public:
     FetchAllKeysTask(EventuallyPersistentEngine* e,
-                     const void* c,
+                     const CookieIface* c,
                      AddResponseFn resp,
                      const DocKey start_key_,
                      Vbid vbucket,
@@ -88,7 +89,7 @@ public:
     bool run() override;
 
 private:
-    const void* cookie;
+    const CookieIface* cookie;
     const std::string description;
     AddResponseFn response;
     DiskDocKey start_key;

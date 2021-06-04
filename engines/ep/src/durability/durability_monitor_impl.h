@@ -123,7 +123,7 @@ public:
      *     Requirements.
      */
     ActiveSyncWrite(
-            const void* cookie,
+            const CookieIface* cookie,
             queued_item item,
             std::chrono::milliseconds defaultTimeout,
             const ActiveDurabilityMonitor::ReplicationChain* firstChain,
@@ -146,7 +146,7 @@ public:
      */
     struct InfiniteTimeout {};
     explicit ActiveSyncWrite(
-            const void* cookie,
+            const CookieIface* cookie,
             queued_item item,
             const ActiveDurabilityMonitor::ReplicationChain* firstChain,
             const ActiveDurabilityMonitor::ReplicationChain* secondChain,
@@ -159,7 +159,7 @@ public:
      */
     explicit ActiveSyncWrite(SyncWrite&& write);
 
-    const void* getCookie() const;
+    const CookieIface* getCookie() const;
 
     void clearCookie();
 
@@ -243,7 +243,7 @@ private:
 
     // Client cookie associated with this SyncWrite request, to be notified
     // when the SyncWrite completes.
-    const void* cookie;
+    const CookieIface* cookie;
 
     /**
      * Holds all the information required for a SyncWrite to determine if it
@@ -437,7 +437,7 @@ struct ActiveDurabilityMonitor::State {
      * @param cookie Connection to notify on completion
      * @param item The prepare
      */
-    void addSyncWrite(const void* cookie, queued_item item);
+    void addSyncWrite(const CookieIface* cookie, queued_item item);
 
     /**
      * Returns the next position for a node iterator.

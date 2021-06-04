@@ -143,7 +143,7 @@ private:
 };
 
 DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
-                         const void* cookie,
+                         const CookieIface* cookie,
                          const std::string& name,
                          std::string consumerName_)
     : ConnHandler(engine, cookie, name),
@@ -1151,7 +1151,7 @@ void DcpConsumer::seqnoAckStream(Vbid vbid, int64_t seqno) {
     stream->seqnoAck(seqno);
 }
 
-void DcpConsumer::addStats(const AddStatFn& add_stat, const void* c) {
+void DcpConsumer::addStats(const AddStatFn& add_stat, const CookieIface* c) {
     ConnHandler::addStats(add_stat, c);
 
     // Make a copy of all valid streams (under lock), and then call addStats

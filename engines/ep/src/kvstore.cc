@@ -470,7 +470,7 @@ void KVStore::addStats(const AddStatFn& add_stat,
                       c);
 }
 
-void KVStore::addTimingStats(const AddStatFn& add_stat, const void* c) {
+void KVStore::addTimingStats(const AddStatFn& add_stat, const CookieIface* c) {
     const auto prefix = getStatsPrefix();
 
     add_prefixed_stat(prefix, "commit", st.commitHisto, add_stat, c);

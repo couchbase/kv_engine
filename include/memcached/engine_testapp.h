@@ -65,7 +65,7 @@ struct test_harness {
      * @param cookie the cookie to notify
      * @param status the status code to set for the cookie
      */
-    virtual void notify_io_complete(const void* cookie,
+    virtual void notify_io_complete(const CookieIface* cookie,
                                     cb::engine_errc status) = 0;
 
     /**
@@ -81,48 +81,51 @@ struct test_harness {
     /**
      * Set the ewouldblock mode for the specified cookie
      */
-    virtual void set_ewouldblock_handling(const void* cookie, bool enable) = 0;
+    virtual void set_ewouldblock_handling(const CookieIface* cookie,
+                                          bool enable) = 0;
 
     /**
      * Set if mutations_extra's should be handled for the specified cookie
      */
-    virtual void set_mutation_extras_handling(const void* cookie,
+    virtual void set_mutation_extras_handling(const CookieIface* cookie,
                                               bool enable) = 0;
     /**
      * Set the datatypes the cookie should support
      */
-    virtual void set_datatype_support(const void* cookie,
+    virtual void set_datatype_support(const CookieIface* cookie,
                                       protocol_binary_datatype_t datatypes) = 0;
     /**
      * Set if collections is enabled for the specified cookie
      */
-    virtual void set_collections_support(const void* cookie, bool enable) = 0;
+    virtual void set_collections_support(const CookieIface* cookie,
+                                         bool enable) = 0;
 
     /**
      * Lock the specified cookie
      */
-    virtual void lock_cookie(const void* cookie) = 0;
+    virtual void lock_cookie(const CookieIface* cookie) = 0;
 
     /**
      * Unlock the specified cookie
      */
-    virtual void unlock_cookie(const void* cookie) = 0;
+    virtual void unlock_cookie(const CookieIface* cookie) = 0;
 
     /**
      * Wait for a cookie to be notified
      */
-    virtual void waitfor_cookie(const void* cookie) = 0;
+    virtual void waitfor_cookie(const CookieIface* cookie) = 0;
 
     /**
      * Store the specified pointer in the specified cookie
      */
-    virtual void store_engine_specific(const void* cookie,
-                                       void* engine_data) = 0;
+    virtual void store_engine_specific(const CookieIface* cookie,
+                                       CookieIface* engine_data) = 0;
 
     /**
      * Get the number of references for the specified cookie
      */
-    virtual int get_number_of_mock_cookie_references(const void* cookie) = 0;
+    virtual int get_number_of_mock_cookie_references(
+            const CookieIface* cookie) = 0;
 
     /**
      * Add the specified offset (in seconds) to the internal clock. (Adding

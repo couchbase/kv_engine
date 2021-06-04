@@ -22,7 +22,7 @@
 class MockDcpConsumer: public DcpConsumer {
 public:
     MockDcpConsumer(EventuallyPersistentEngine& theEngine,
-                    const void* cookie,
+                    const CookieIface* cookie,
                     const std::string& name,
                     const std::string& consumerName = {});
 

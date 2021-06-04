@@ -54,8 +54,7 @@ public:
      * @param deleteTime yes/no - enable/disable delete times
      */
     std::shared_ptr<MockDcpProducer> createDcpProducer(
-            const void* cookie,
-            IncludeDeleteTime deleteTime);
+            const CookieIface* cookie, IncludeDeleteTime deleteTime);
 
     /*
      * DCP helper.
@@ -177,7 +176,7 @@ public:
      *        usually would_block
      */
     cb::engine_errc setCollections(
-            const void* cookie,
+            const CookieIface* cookie,
             const CollectionsManifest& manifest,
             cb::engine_errc status1 = cb::engine_errc::would_block);
 
@@ -550,7 +549,7 @@ public:
      * @param cookie mock cookie
      * @return cb::engine_errc return status of SET call
      */
-    cb::engine_errc setItem(Item& itm, const void* cookie);
+    cb::engine_errc setItem(Item& itm, const CookieIface* cookie);
 
     /**
      * Call kvstore ADD.
@@ -560,7 +559,7 @@ public:
      * @param cookie mock cookie
      * @return cb::engine_errc return status of ADD call
      */
-    cb::engine_errc addItem(Item& itm, const void* cookie);
+    cb::engine_errc addItem(Item& itm, const CookieIface* cookie);
 
     /**
      * When persistent + full eviction + no bloom filters, don't

@@ -14,10 +14,11 @@
 #include <memory>
 #include <unordered_map>
 
+class CookieIface;
 class ConnHandler;
 
 // Not part of ConnStore as some consumers of the class will need this type.
 using CookieToConnectionMap =
-        std::unordered_map<const void*, std::shared_ptr<ConnHandler>>;
+        std::unordered_map<const CookieIface*, std::shared_ptr<ConnHandler>>;
 
 class ConnStore;

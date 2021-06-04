@@ -173,7 +173,7 @@ struct MockServerLogApi : public ServerLogIface {
 };
 
 struct MockServerDocumentApi : public ServerDocumentIface {
-    cb::engine_errc pre_link(gsl::not_null<const void*> cookie,
+    cb::engine_errc pre_link(gsl::not_null<const CookieIface*> cookie,
                              item_info& info) override {
         if (pre_link_function) {
             pre_link_function(info);
@@ -187,7 +187,7 @@ struct MockServerDocumentApi : public ServerDocumentIface {
     }
 
     void audit_document_access(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             cb::audit::document::Operation operation) override {
         // empty
     }
@@ -212,31 +212,32 @@ uint32_t mock_get_privilege_context_revision() {
 }
 
 struct MockServerCookieApi : public ServerCookieIface {
-    void setDcpConnHandler(gsl::not_null<const void*> cookie,
+    void setDcpConnHandler(gsl::not_null<const CookieIface*> cookie,
                            DcpConnHandlerIface* handler) override {
         auto* c = cookie_to_mock_cookie(cookie.get());
         c->connHandlerIface = handler;
     }
     DcpConnHandlerIface* getDcpConnHandler(
-            gsl::not_null<const void*> cookie) override {
+            gsl::not_null<const CookieIface*> cookie) override {
         auto* c = cookie_to_mock_cookie(cookie.get());
         return c->connHandlerIface;
     }
-    void setDcpFlowControlBufferSize(gsl::not_null<const void*> cookie,
+    void setDcpFlowControlBufferSize(gsl::not_null<const CookieIface*> cookie,
                                      std::size_t size) override {
     }
-    void store_engine_specific(gsl::not_null<const void*> cookie,
+    void store_engine_specific(gsl::not_null<const CookieIface*> cookie,
                                void* engine_data) override {
         auto* c = cookie_to_mock_cookie(cookie.get());
         c->engine_data = engine_data;
     }
 
-    void* get_engine_specific(gsl::not_null<const void*> cookie) override {
+    void* get_engine_specific(
+            gsl::not_null<const CookieIface*> cookie) override {
         const auto* c = cookie_to_mock_cookie(cookie.get());
         return c->engine_data;
     }
 
-    bool is_datatype_supported(gsl::not_null<const void*> cookie,
+    bool is_datatype_supported(gsl::not_null<const CookieIface*> cookie,
                                protocol_binary_datatype_t datatype) override {
         const auto* c = cookie_to_mock_cookie(cookie.get());
         std::bitset<8> in(datatype);
@@ -244,29 +245,30 @@ struct MockServerCookieApi : public ServerCookieIface {
     }
 
     bool is_mutation_extras_supported(
-            gsl::not_null<const void*> cookie) override {
+            gsl::not_null<const CookieIface*> cookie) override {
         const auto* c = cookie_to_mock_cookie(cookie.get());
         return c->handle_mutation_extras;
     }
 
-    bool is_collections_supported(gsl::not_null<const void*> cookie) override {
+    bool is_collections_supported(
+            gsl::not_null<const CookieIface*> cookie) override {
         const auto* c = cookie_to_mock_cookie(cookie.get());
         return c->handle_collections_support;
     }
 
     cb::mcbp::ClientOpcode get_opcode_if_ewouldblock_set(
-            gsl::not_null<const void*> cookie) override {
+            gsl::not_null<const CookieIface*> cookie) override {
         (void)cookie_to_mock_cookie(cookie.get()); // validate cookie
         return cb::mcbp::ClientOpcode::Invalid;
     }
 
-    void reserve(gsl::not_null<const void*> cookie) override {
+    void reserve(gsl::not_null<const CookieIface*> cookie) override {
         std::lock_guard<std::mutex> guard(mock_server_cookie_mutex);
         auto* c = cookie_to_mock_cookie(cookie.get());
         c->references++;
     }
 
-    void release(gsl::not_null<const void*> cookie) override {
+    void release(gsl::not_null<const CookieIface*> cookie) override {
         std::lock_guard<std::mutex> guard(mock_server_cookie_mutex);
         auto* c = cookie_to_mock_cookie(cookie.get());
 
@@ -276,24 +278,25 @@ struct MockServerCookieApi : public ServerCookieIface {
         }
     }
 
-    void set_priority(gsl::not_null<const void*> cookie,
+    void set_priority(gsl::not_null<const CookieIface*> cookie,
                       ConnectionPriority) override {
         (void)cookie_to_mock_cookie(cookie.get()); // validate cookie
     }
 
     ConnectionPriority get_priority(
-            gsl::not_null<const void*> cookie) override {
+            gsl::not_null<const CookieIface*> cookie) override {
         (void)cookie_to_mock_cookie(cookie.get()); // validate cookie
         return ConnectionPriority::Medium;
     }
 
-    uint64_t get_connection_id(gsl::not_null<const void*> cookie) override {
+    uint64_t get_connection_id(
+            gsl::not_null<const CookieIface*> cookie) override {
         auto* c = cookie_to_mock_cookie(cookie.get());
         return c->sfd;
     }
 
     cb::rbac::PrivilegeAccess check_privilege(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             cb::rbac::Privilege privilege,
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) override {
@@ -304,7 +307,7 @@ struct MockServerCookieApi : public ServerCookieIface {
         return cb::rbac::PrivilegeAccessOk;
     }
     cb::rbac::PrivilegeAccess test_privilege(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             cb::rbac::Privilege privilege,
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) override {
@@ -316,11 +319,11 @@ struct MockServerCookieApi : public ServerCookieIface {
     }
 
     uint32_t get_privilege_context_revision(
-            gsl::not_null<const void*> cookie) override {
+            gsl::not_null<const CookieIface*> cookie) override {
         return privilege_context_revision;
     }
 
-    cb::mcbp::Status engine_error2mcbp(gsl::not_null<const void*> cookie,
+    cb::mcbp::Status engine_error2mcbp(gsl::not_null<const CookieIface*> cookie,
                                        cb::engine_errc code) override {
         if (code == cb::engine_errc::disconnect) {
             return cb::mcbp::Status(cb::engine_errc(-1));
@@ -330,37 +333,38 @@ struct MockServerCookieApi : public ServerCookieIface {
     }
 
     std::pair<uint32_t, std::string> get_log_info(
-            gsl::not_null<const void*> cookie) override {
+            gsl::not_null<const CookieIface*> cookie) override {
         // The DCP test suite don't use a real cookie, and until we've
         // fixed that we can't try to use the provided cookie
         return std::make_pair(uint32_t(0xdead), std::string{"[you - me]"});
     }
 
     std::string get_authenticated_user(
-            gsl::not_null<const void*> cookie) override {
+            gsl::not_null<const CookieIface*> cookie) override {
         auto* c = cookie_to_mock_cookie(cookie.get());
         return c->authenticatedUser;
     }
 
-    in_port_t get_connected_port(gsl::not_null<const void*> cookie) override {
+    in_port_t get_connected_port(
+            gsl::not_null<const CookieIface*> cookie) override {
         auto* c = cookie_to_mock_cookie(cookie.get());
         return c->parent_port;
     }
 
-    void set_error_context(gsl::not_null<void*> cookie,
+    void set_error_context(gsl::not_null<CookieIface*> cookie,
                            std::string_view message) override {
     }
 
-    void set_error_json_extras(gsl::not_null<void*> cookie,
+    void set_error_json_extras(gsl::not_null<CookieIface*> cookie,
                                const nlohmann::json& json) override {
     }
 
-    void set_unknown_collection_error_context(gsl::not_null<void*> cookie,
-                                              uint64_t manifestUid) override {
+    void set_unknown_collection_error_context(
+            gsl::not_null<CookieIface*> cookie, uint64_t manifestUid) override {
     }
 
     std::string_view get_inflated_payload(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             const cb::mcbp::Request& request) override {
         if (!mcbp::datatype::is_snappy(uint8_t(request.getDatatype()))) {
             return {};
@@ -380,7 +384,7 @@ struct MockServerCookieApi : public ServerCookieIface {
                 "data");
     }
 
-    void notify_io_complete(gsl::not_null<const void*> cookie,
+    void notify_io_complete(gsl::not_null<const CookieIface*> cookie,
                             cb::engine_errc status) override {
         auto* c = cookie_to_mock_cookie(cookie.get());
         std::lock_guard<std::mutex> guard(c->mutex);
@@ -389,7 +393,7 @@ struct MockServerCookieApi : public ServerCookieIface {
         c->cond.notify_all();
     }
 
-    void scheduleDcpStep(gsl::not_null<const void*> cookie) override {
+    void scheduleDcpStep(gsl::not_null<const CookieIface*> cookie) override {
         notify_io_complete(cookie, cb::engine_errc::success);
     }
 };

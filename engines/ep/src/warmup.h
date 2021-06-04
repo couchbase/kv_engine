@@ -29,6 +29,7 @@
 #include <unordered_set>
 #include <vector>
 
+class CookieIface;
 class Configuration;
 class EPStats;
 class EPBucket;
@@ -228,7 +229,7 @@ public:
 
     size_t getEstimatedItemCount() const;
 
-    void addStats(const AddStatFn& add_stat, const void* c) const;
+    void addStats(const AddStatFn& add_stat, const CookieIface* c) const;
 
     std::chrono::steady_clock::duration getTime() {
         return warmup.load();
@@ -262,7 +263,7 @@ public:
      * @return true if the cookie was stored for later notification, false if
      *         not.
      */
-    bool maybeWaitForVBucketWarmup(const void* cookie);
+    bool maybeWaitForVBucketWarmup(const CookieIface* cookie);
 
     /**
      * Perform any notifications to any pending setVBState operations and mark
@@ -450,7 +451,7 @@ private:
             std::numeric_limits<size_t>::max()};
 
     /// All of the cookies which need notifying when create-vbuckets is done
-    std::deque<const void*> pendingCookies;
+    std::deque<const CookieIface*> pendingCookies;
     /// flag to mark once warmup is passed createVbuckets
     bool createVBucketsComplete{false};
     /// A mutex which gives safe access to the cookies and state flag

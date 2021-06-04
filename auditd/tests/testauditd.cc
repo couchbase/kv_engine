@@ -42,114 +42,118 @@ static bool ready = false;
 
 class AuditMockServerCookieApi : public ServerCookieIface {
 public:
-    void setDcpConnHandler(gsl::not_null<const void*> cookie,
+    void setDcpConnHandler(gsl::not_null<const CookieIface*> cookie,
                            DcpConnHandlerIface* handler) override {
         throw std::runtime_error("Not implemented");
     }
     DcpConnHandlerIface* getDcpConnHandler(
-            gsl::not_null<const void*> cookie) override {
+            gsl::not_null<const CookieIface*> cookie) override {
         throw std::runtime_error("Not implemented");
     }
-    void setDcpFlowControlBufferSize(gsl::not_null<const void*> cookie,
+    void setDcpFlowControlBufferSize(gsl::not_null<const CookieIface*> cookie,
                                      std::size_t size) override {
     }
-    void store_engine_specific(gsl::not_null<const void*> cookie,
+    void store_engine_specific(gsl::not_null<const CookieIface*> cookie,
                                void* engine_data) override {
         throw std::runtime_error("Not implemented");
     }
-    void* get_engine_specific(gsl::not_null<const void*> cookie) override {
+    void* get_engine_specific(
+            gsl::not_null<const CookieIface*> cookie) override {
         throw std::runtime_error("Not implemented");
     }
-    bool is_datatype_supported(gsl::not_null<const void*> cookie,
+    bool is_datatype_supported(gsl::not_null<const CookieIface*> cookie,
                                protocol_binary_datatype_t datatype) override {
         throw std::runtime_error("Not implemented");
     }
     bool is_mutation_extras_supported(
-            gsl::not_null<const void*> cookie) override {
+            gsl::not_null<const CookieIface*> cookie) override {
         throw std::runtime_error("Not implemented");
     }
-    bool is_collections_supported(gsl::not_null<const void*> cookie) override {
+    bool is_collections_supported(
+            gsl::not_null<const CookieIface*> cookie) override {
         throw std::runtime_error("Not implemented");
     }
     cb::mcbp::ClientOpcode get_opcode_if_ewouldblock_set(
-            gsl::not_null<const void*> cookie) override {
+            gsl::not_null<const CookieIface*> cookie) override {
         throw std::runtime_error("Not implemented");
     }
-    void notify_io_complete(gsl::not_null<const void*> cookie,
+    void notify_io_complete(gsl::not_null<const CookieIface*> cookie,
                             cb::engine_errc status) override {
         std::lock_guard<std::mutex> lock(mutex);
         ready = true;
         cond.notify_one();
     }
-    void scheduleDcpStep(gsl::not_null<const void*> cookie) override {
+    void scheduleDcpStep(gsl::not_null<const CookieIface*> cookie) override {
         throw std::runtime_error("Not implemented");
     }
 
-    void reserve(gsl::not_null<const void*> cookie) override {
+    void reserve(gsl::not_null<const CookieIface*> cookie) override {
         throw std::runtime_error("Not implemented");
     }
-    void release(gsl::not_null<const void*> cookie) override {
+    void release(gsl::not_null<const CookieIface*> cookie) override {
         throw std::runtime_error("Not implemented");
     }
-    void set_priority(gsl::not_null<const void*> cookie,
+    void set_priority(gsl::not_null<const CookieIface*> cookie,
                       ConnectionPriority priority) override {
         throw std::runtime_error("Not implemented");
     }
     ConnectionPriority get_priority(
-            gsl::not_null<const void*> cookie) override {
+            gsl::not_null<const CookieIface*> cookie) override {
         throw std::runtime_error("Not implemented");
     }
-    uint64_t get_connection_id(gsl::not_null<const void*> cookie) override {
+    uint64_t get_connection_id(
+            gsl::not_null<const CookieIface*> cookie) override {
         throw std::runtime_error("Not implemented");
     }
     cb::rbac::PrivilegeAccess check_privilege(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             cb::rbac::Privilege privilege,
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) override {
         throw std::runtime_error("Not implemented");
     }
     cb::rbac::PrivilegeAccess test_privilege(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             cb::rbac::Privilege privilege,
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) override {
         throw std::runtime_error("Not implemented");
     }
     uint32_t get_privilege_context_revision(
-            gsl::not_null<const void*> cookie) override {
+            gsl::not_null<const CookieIface*> cookie) override {
         throw std::runtime_error("Not implemented");
     }
-    cb::mcbp::Status engine_error2mcbp(gsl::not_null<const void*> cookie,
+    cb::mcbp::Status engine_error2mcbp(gsl::not_null<const CookieIface*> cookie,
                                        cb::engine_errc code) override {
         throw std::runtime_error("Not implemented");
     }
     std::pair<uint32_t, std::string> get_log_info(
-            gsl::not_null<const void*> cookie) override {
+            gsl::not_null<const CookieIface*> cookie) override {
         throw std::runtime_error("Not implemented");
     }
     std::string get_authenticated_user(
-            gsl::not_null<const void*> cookie) override {
+            gsl::not_null<const CookieIface*> cookie) override {
         throw std::runtime_error("Not implemented");
     }
-    in_port_t get_connected_port(gsl::not_null<const void*> cookie) override {
+    in_port_t get_connected_port(
+            gsl::not_null<const CookieIface*> cookie) override {
         throw std::runtime_error("Not implemented");
     }
-    void set_error_context(gsl::not_null<void*> cookie,
+    void set_error_context(gsl::not_null<CookieIface*> cookie,
                            std::string_view message) override {
         throw std::runtime_error("Not implemented");
     }
-    void set_error_json_extras(gsl::not_null<void*> cookie,
+    void set_error_json_extras(gsl::not_null<CookieIface*> cookie,
                                const nlohmann::json& json) override {
         throw std::runtime_error("set_error_json_extras not implemented");
     }
-    void set_unknown_collection_error_context(gsl::not_null<void*> cookie,
-                                              uint64_t manifestUid) override {
+    void set_unknown_collection_error_context(
+            gsl::not_null<CookieIface*> cookie, uint64_t manifestUid) override {
         throw std::runtime_error(
                 "set_unknown_collection_error_context not implemented");
     }
     std::string_view get_inflated_payload(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             const cb::mcbp::Request& request) override {
         throw std::runtime_error("get_inflated_payload not implemented");
     }
@@ -201,7 +205,7 @@ protected:
         // We don't have a real cookie, but configure_auditdaemon won't call
         // notify_io_complete unless it's set to a non-null value..
         // just pass on the ready variable
-        const void* cookie = (const void*)&ready;
+        const auto* cookie = (const CookieIface*)&ready;
         if (auditHandle->configure_auditdaemon(fname, cookie)) {
             {
                 // we have to wait

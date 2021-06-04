@@ -49,7 +49,7 @@ public:
 
     /* Allow us to call normally protected methods */
 
-    cb::engine_errc public_doDcpVbTakeoverStats(const void* cookie,
+    cb::engine_errc public_doDcpVbTakeoverStats(const CookieIface* cookie,
                                                 const AddStatFn& add_stat,
                                                 std::string& key,
                                                 Vbid vbid) {
@@ -72,7 +72,7 @@ public:
                                        protocol_binary_datatype_t datatype,
                                        uint64_t& cas,
                                        uint64_t* seqno,
-                                       const void* cookie,
+                                       const CookieIface* cookie,
                                        PermittedVBStates permittedVBStates,
                                        CheckConflicts checkConflicts,
                                        bool allowExisting,
@@ -80,7 +80,7 @@ public:
                                        GenerateCas genCas,
                                        cb::const_byte_buffer emd);
 
-    DocKey public_makeDocKey(const void* cookie, const std::string& key);
+    DocKey public_makeDocKey(const CookieIface* cookie, const std::string& key);
 
     bool public_enableTraffic(bool enable) {
         return enableTraffic(enable);

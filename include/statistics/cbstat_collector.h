@@ -19,6 +19,7 @@
 #include <string>
 #include <string_view>
 
+class CookieIface;
 struct ServerApi;
 /**
  * StatCollector implementation for exposing stats via CMD_STAT.
@@ -35,7 +36,7 @@ public:
      * @param cookie passed to addStatFn for each call
      */
     CBStatCollector(AddStatFn addStatFn,
-                    const void* cookie,
+                    const CookieIface* cookie,
                     ServerApi* serverApi)
         : addStatFn(std::move(addStatFn)),
           cookie(cookie),
@@ -76,7 +77,7 @@ public:
      * Get the wrapped cookie and addStatFn. Useful while code is
      * being transitioned to the StatCollector interface.
      */
-    std::pair<const void*, const AddStatFn&> getCookieAndAddFn() const {
+    std::pair<const CookieIface*, const AddStatFn&> getCookieAndAddFn() const {
         return {cookie, addStatFn};
     }
 
@@ -112,7 +113,7 @@ private:
     std::string formatKey(std::string_view key, const Labels& labels) const;
 
     const AddStatFn addStatFn;
-    const void* cookie;
+    const CookieIface* cookie;
 
     ServerApi* serverApi;
 };
@@ -126,7 +127,8 @@ void add_casted_stat(std::string_view k,
                      const void* cookie) {
     // the collector is used _immediately_ for addStat and then destroyed,
     // so testPrivilegeForStat is never called, so the server api can be null
-    CBStatCollector collector(add_stat, cookie, nullptr);
+    CBStatCollector collector(
+            add_stat, static_cast<const CookieIface*>(cookie), nullptr);
     collector.addStat(k, std::forward<T>(v));
 }
 

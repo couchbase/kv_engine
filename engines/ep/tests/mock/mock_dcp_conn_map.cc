@@ -17,19 +17,19 @@
 
 std::shared_ptr<DcpConsumer> MockDcpConnMap::makeConsumer(
         EventuallyPersistentEngine& engine,
-        const void* cookie,
+        const CookieIface* cookie,
         const std::string& connName,
         const std::string& consumerName) const {
     return std::make_shared<MockDcpConsumer>(
             engine, cookie, connName, consumerName);
 }
 
-void MockDcpConnMap::addConn(const void* cookie,
+void MockDcpConnMap::addConn(const CookieIface* cookie,
                              std::shared_ptr<ConnHandler> conn) {
     connStore->getCookieToConnectionMapHandle()->addConnByCookie(cookie, conn);
 }
 
-bool MockDcpConnMap::removeConn(const void* cookie) {
+bool MockDcpConnMap::removeConn(const CookieIface* cookie) {
     connStore->getCookieToConnectionMapHandle()->removeConnByCookie(cookie);
     return true;
 }

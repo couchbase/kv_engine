@@ -112,7 +112,8 @@ void KVShard::setBucket(VBucketPtr vb) {
     getElement(vb->getId()).set(vb);
 }
 
-void KVShard::dropVBucketAndSetupDeferredDeletion(Vbid id, const void* cookie) {
+void KVShard::dropVBucketAndSetupDeferredDeletion(Vbid id,
+                                                  const CookieIface* cookie) {
     VBucketPtr vbPtr;
 
     {

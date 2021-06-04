@@ -136,7 +136,7 @@ public:
     /// Exposes the normally-protected getInternal method from the store.
     GetValue getInternal(const DocKey& key,
                          Vbid vbucket,
-                         const void* cookie,
+                         const CookieIface* cookie,
                          ForGetReplicaOp getReplicaItem,
                          get_options_t options);
 
@@ -156,7 +156,7 @@ public:
      */
     cb::engine_errc getMeta(Vbid vbid,
                             const DocKey key,
-                            const void* cookie,
+                            const CookieIface* cookie,
                             ItemMetaData& itemMeta,
                             uint32_t& deleted,
                             uint8_t& datatype,

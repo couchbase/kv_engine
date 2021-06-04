@@ -165,7 +165,7 @@ public:
 
     void addStats(const std::string& prefix,
                   const AddStatFn& add_stat,
-                  const void* c) const;
+                  const CookieIface* c) const;
 
     void resetStats();
 

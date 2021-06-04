@@ -54,7 +54,7 @@ public:
     /// Outputs statistics related to this task via the given callback.
     void addStats(const std::string& name,
                   const AddStatFn& add_stat,
-                  const void* c) const;
+                  const CookieIface* c) const;
 
 private:
     std::shared_ptr<StreamContainer<std::shared_ptr<ActiveStream>>> queuePop();

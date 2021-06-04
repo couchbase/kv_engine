@@ -121,30 +121,30 @@ public:
     std::vector<ExTask> deinitialize() override;
 
     cb::engine_errc set(Item& item,
-                        const void* cookie,
+                        const CookieIface* cookie,
                         cb::StoreIfPredicate predicate = {}) override;
 
-    cb::engine_errc add(Item& item, const void* cookie) override;
+    cb::engine_errc add(Item& item, const CookieIface* cookie) override;
 
     cb::engine_errc replace(Item& item,
-                            const void* cookie,
+                            const CookieIface* cookie,
                             cb::StoreIfPredicate predicate = {}) override;
 
     GetValue get(const DocKey& key,
                  Vbid vbucket,
-                 const void* cookie,
+                 const CookieIface* cookie,
                  get_options_t options) override;
 
-    GetValue getRandomKey(CollectionID cid, const void* cookie) override;
+    GetValue getRandomKey(CollectionID cid, const CookieIface* cookie) override;
 
     GetValue getReplica(const DocKey& key,
                         Vbid vbucket,
-                        const void* cookie,
+                        const CookieIface* cookie,
                         get_options_t options) override;
 
     cb::engine_errc getMetaData(const DocKey& key,
                                 Vbid vbucket,
-                                const void* cookie,
+                                const CookieIface* cookie,
                                 ItemMetaData& metadata,
                                 uint32_t& deleted,
                                 uint8_t& datatype) override;
@@ -153,7 +153,7 @@ public:
             Item& item,
             uint64_t cas,
             uint64_t* seqno,
-            const void* cookie,
+            const CookieIface* cookie,
             PermittedVBStates permittedVBStates,
             CheckConflicts checkConflicts,
             bool allowExisting,
@@ -161,18 +161,18 @@ public:
             GenerateCas genCas = GenerateCas::No,
             ExtendedMetaData* emd = nullptr) override;
 
-    cb::engine_errc prepare(Item& item, const void* cookie) override;
+    cb::engine_errc prepare(Item& item, const CookieIface* cookie) override;
 
     GetValue getAndUpdateTtl(const DocKey& key,
                              Vbid vbucket,
-                             const void* cookie,
+                             const CookieIface* cookie,
                              time_t exptime) override;
 
     cb::engine_errc deleteItem(
             const DocKey& key,
             uint64_t& cas,
             Vbid vbucket,
-            const void* cookie,
+            const CookieIface* cookie,
             std::optional<cb::durability::Requirements> durability,
             ItemMetaData* itemMeta,
             mutation_descr_t& mutInfo) override;
@@ -181,7 +181,7 @@ public:
                                    uint64_t& cas,
                                    uint64_t* seqno,
                                    Vbid vbucket,
-                                   const void* cookie,
+                                   const CookieIface* cookie,
                                    PermittedVBStates permittedVBStates,
                                    CheckConflicts checkConflicts,
                                    const ItemMetaData& itemMeta,
@@ -303,7 +303,7 @@ public:
                                     vbucket_state_t state,
                                     const nlohmann::json* meta = {},
                                     TransferVB transfer = TransferVB::No,
-                                    const void* cookie = nullptr);
+                                    const CookieIface* cookie = nullptr);
 
     /**
      * Sets the vbucket to the desired state
@@ -350,7 +350,8 @@ public:
         return vbsetMutex;
     }
 
-    cb::engine_errc deleteVBucket(Vbid vbid, const void* c = nullptr) override;
+    cb::engine_errc deleteVBucket(Vbid vbid,
+                                  const CookieIface* c = nullptr) override;
 
     cb::engine_errc checkForDBExistence(Vbid db_file_id) override;
 
@@ -376,7 +377,7 @@ public:
 
     cb::engine_errc getKeyStats(const DocKey& key,
                                 Vbid vbucket,
-                                const void* cookie,
+                                const CookieIface* cookie,
                                 key_stats& kstats,
                                 WantsDeleted wantsDeleted) override;
 
@@ -386,13 +387,13 @@ public:
                        Vbid vbucket,
                        rel_time_t currentTime,
                        uint32_t lockTimeout,
-                       const void* cookie) override ;
+                       const CookieIface* cookie) override;
 
     cb::engine_errc unlockKey(const DocKey& key,
                               Vbid vbucket,
                               uint64_t cas,
                               rel_time_t currentTime,
-                              const void* cookie) override;
+                              const CookieIface* cookie) override;
 
     KVStore* getRWUnderlying(Vbid vbId) override {
         return vbMap.getShardByVbId(vbId)->getRWUnderlying();
@@ -559,11 +560,11 @@ public:
     void checkAndMaybeFreeMemory();
 
     void addKVStoreStats(const AddStatFn& add_stat,
-                         const void* cookie,
+                         const CookieIface* cookie,
                          const std::string& args) override;
 
     void addKVStoreTimingStats(const AddStatFn& add_stat,
-                               const void* cookie) override;
+                               const CookieIface* cookie) override;
 
     GetStatsMap getKVStoreStats(gsl::span<const std::string_view> keys,
                                 KVSOption option) override;
@@ -636,7 +637,7 @@ public:
      * @return true if the cookie was stored for later notification, false if
      *         not.
      */
-    bool maybeWaitForVBucketWarmup(const void* cookie) override;
+    bool maybeWaitForVBucketWarmup(const CookieIface* cookie) override;
 
     size_t getActiveResidentRatio() const override;
 
@@ -666,7 +667,8 @@ public:
      * @param json a buffer containing a JSON manifest to apply to the bucket
      * @param cookie for the caller (i/o complete requirement)
      */
-    cb::engine_error setCollections(std::string_view json, const void* cookie);
+    cb::engine_error setCollections(std::string_view json,
+                                    const CookieIface* cookie);
 
     /**
      * Method to handle get_collections commands
@@ -755,7 +757,7 @@ public:
 protected:
     GetValue getInternal(const DocKey& key,
                          Vbid vbucket,
-                         const void* cookie,
+                         const CookieIface* cookie,
                          ForGetReplicaOp getReplicaItem,
                          get_options_t options) override;
 

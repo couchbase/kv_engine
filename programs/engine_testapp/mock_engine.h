@@ -20,9 +20,9 @@ struct MockEngine : public EngineIface, public DcpIface {
 
     cb::engine_errc initialize(const char* config_str) override;
     void destroy(bool force) override;
-    void disconnect(gsl::not_null<const void*> cookie) override;
+    void disconnect(gsl::not_null<const CookieIface*> cookie) override;
     std::pair<cb::unique_item_ptr, item_info> allocateItem(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             const DocKey& key,
             size_t nbytes,
             size_t priv_nbytes,
@@ -32,7 +32,7 @@ struct MockEngine : public EngineIface, public DcpIface {
             Vbid vbucket) override;
 
     cb::engine_errc remove(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             const DocKey& key,
             uint64_t& cas,
             Vbid vbucket,
@@ -41,32 +41,33 @@ struct MockEngine : public EngineIface, public DcpIface {
 
     void release(gsl::not_null<ItemIface*> item) override;
 
-    cb::EngineErrorItemPair get(gsl::not_null<const void*> cookie,
+    cb::EngineErrorItemPair get(gsl::not_null<const CookieIface*> cookie,
                                 const DocKey& key,
                                 Vbid vbucket,
                                 DocStateFilter documentStateFilter) override;
     cb::EngineErrorItemPair get_if(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             const DocKey& key,
             Vbid vbucket,
             std::function<bool(const item_info&)> filter) override;
 
-    cb::EngineErrorMetadataPair get_meta(gsl::not_null<const void*> cookie,
-                                         const DocKey& key,
-                                         Vbid vbucket) override;
+    cb::EngineErrorMetadataPair get_meta(
+            gsl::not_null<const CookieIface*> cookie,
+            const DocKey& key,
+            Vbid vbucket) override;
 
-    cb::EngineErrorItemPair get_locked(gsl::not_null<const void*> cookie,
+    cb::EngineErrorItemPair get_locked(gsl::not_null<const CookieIface*> cookie,
                                        const DocKey& key,
                                        Vbid vbucket,
                                        uint32_t lock_timeout) override;
 
-    cb::engine_errc unlock(gsl::not_null<const void*> cookie,
+    cb::engine_errc unlock(gsl::not_null<const CookieIface*> cookie,
                            const DocKey& key,
                            Vbid vbucket,
                            uint64_t cas) override;
 
     cb::EngineErrorItemPair get_and_touch(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             const DocKey& key,
             Vbid vbucket,
             uint32_t expiryTime,
@@ -74,7 +75,7 @@ struct MockEngine : public EngineIface, public DcpIface {
             override;
 
     cb::engine_errc store(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             gsl::not_null<ItemIface*> item,
             uint64_t& cas,
             StoreSemantics operation,
@@ -83,7 +84,7 @@ struct MockEngine : public EngineIface, public DcpIface {
             bool preserveTtl) override;
 
     cb::EngineErrorCasPair store_if(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             gsl::not_null<ItemIface*> item,
             uint64_t cas,
             StoreSemantics operation,
@@ -92,16 +93,16 @@ struct MockEngine : public EngineIface, public DcpIface {
             DocumentState document_state,
             bool preserveTtl) override;
 
-    cb::engine_errc flush(gsl::not_null<const void*> cookie) override;
+    cb::engine_errc flush(gsl::not_null<const CookieIface*> cookie) override;
 
-    cb::engine_errc get_stats(gsl::not_null<const void*> cookie,
+    cb::engine_errc get_stats(gsl::not_null<const CookieIface*> cookie,
                               std::string_view key,
                               std::string_view value,
                               const AddStatFn& add_stat) override;
 
-    void reset_stats(gsl::not_null<const void*> cookie) override;
+    void reset_stats(gsl::not_null<const CookieIface*> cookie) override;
 
-    cb::engine_errc unknown_command(const void* cookie,
+    cb::engine_errc unknown_command(const CookieIface* cookie,
                                     const cb::mcbp::Request& request,
                                     const AddResponseFn& response) override;
 
@@ -113,21 +114,24 @@ struct MockEngine : public EngineIface, public DcpIface {
     bool get_item_info(gsl::not_null<const ItemIface*> item,
                        gsl::not_null<item_info*> item_info) override;
 
-    cb::engine_errc set_collection_manifest(gsl::not_null<const void*> cookie,
-                                            std::string_view json) override;
+    cb::engine_errc set_collection_manifest(
+            gsl::not_null<const CookieIface*> cookie,
+            std::string_view json) override;
 
     cb::engine_errc get_collection_manifest(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             const AddResponseFn& response) override;
 
     cb::EngineErrorGetCollectionIDResult get_collection_id(
-            gsl::not_null<const void*> cookie, std::string_view path) override;
+            gsl::not_null<const CookieIface*> cookie,
+            std::string_view path) override;
 
     cb::EngineErrorGetScopeIDResult get_scope_id(
-            gsl::not_null<const void*> cookie, std::string_view path) override;
+            gsl::not_null<const CookieIface*> cookie,
+            std::string_view path) override;
 
     cb::EngineErrorGetScopeIDResult get_scope_id(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             const DocKey& key,
             std::optional<Vbid> vbid) const override;
 
@@ -157,27 +161,27 @@ struct MockEngine : public EngineIface, public DcpIface {
 
     // DcpIface implementation ////////////////////////////////////////////////
 
-    cb::engine_errc step(gsl::not_null<const void*> cookie,
+    cb::engine_errc step(gsl::not_null<const CookieIface*> cookie,
                          DcpMessageProducersIface& producers) override;
 
-    cb::engine_errc open(gsl::not_null<const void*> cookie,
+    cb::engine_errc open(gsl::not_null<const CookieIface*> cookie,
                          uint32_t opaque,
                          uint32_t seqno,
                          uint32_t flags,
                          std::string_view name,
                          std::string_view value) override;
 
-    cb::engine_errc add_stream(gsl::not_null<const void*> cookie,
+    cb::engine_errc add_stream(gsl::not_null<const CookieIface*> cookie,
                                uint32_t opaque,
                                Vbid vbucket,
                                uint32_t flags) override;
 
-    cb::engine_errc close_stream(gsl::not_null<const void*> cookie,
+    cb::engine_errc close_stream(gsl::not_null<const CookieIface*> cookie,
                                  uint32_t opaque,
                                  Vbid vbucket,
                                  cb::mcbp::DcpStreamId sid) override;
 
-    cb::engine_errc stream_req(gsl::not_null<const void*> cookie,
+    cb::engine_errc stream_req(gsl::not_null<const CookieIface*> cookie,
                                uint32_t flags,
                                uint32_t opaque,
                                Vbid vbucket,
@@ -190,18 +194,18 @@ struct MockEngine : public EngineIface, public DcpIface {
                                dcp_add_failover_log callback,
                                std::optional<std::string_view> json) override;
 
-    cb::engine_errc get_failover_log(gsl::not_null<const void*> cookie,
+    cb::engine_errc get_failover_log(gsl::not_null<const CookieIface*> cookie,
                                      uint32_t opaque,
                                      Vbid vbucket,
                                      dcp_add_failover_log cb) override;
 
-    cb::engine_errc stream_end(gsl::not_null<const void*> cookie,
+    cb::engine_errc stream_end(gsl::not_null<const CookieIface*> cookie,
                                uint32_t opaque,
                                Vbid vbucket,
                                cb::mcbp::DcpStreamEndStatus status) override;
 
     cb::engine_errc snapshot_marker(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             uint32_t opaque,
             Vbid vbucket,
             uint64_t start_seqno,
@@ -209,7 +213,7 @@ struct MockEngine : public EngineIface, public DcpIface {
             uint32_t flags,
             std::optional<uint64_t> high_completed_seqno,
             std::optional<uint64_t> max_visible_seqno) override;
-    cb::engine_errc mutation(gsl::not_null<const void*> cookie,
+    cb::engine_errc mutation(gsl::not_null<const CookieIface*> cookie,
                              uint32_t opaque,
                              const DocKey& key,
                              cb::const_byte_buffer value,
@@ -225,7 +229,7 @@ struct MockEngine : public EngineIface, public DcpIface {
                              cb::const_byte_buffer meta,
                              uint8_t nru) override;
 
-    cb::engine_errc deletion(gsl::not_null<const void*> cookie,
+    cb::engine_errc deletion(gsl::not_null<const CookieIface*> cookie,
                              uint32_t opaque,
                              const DocKey& key,
                              cb::const_byte_buffer value,
@@ -237,7 +241,7 @@ struct MockEngine : public EngineIface, public DcpIface {
                              uint64_t rev_seqno,
                              cb::const_byte_buffer meta) override;
 
-    cb::engine_errc expiration(gsl::not_null<const void*> cookie,
+    cb::engine_errc expiration(gsl::not_null<const CookieIface*> cookie,
                                uint32_t opaque,
                                const DocKey& key,
                                cb::const_byte_buffer value,
@@ -249,29 +253,30 @@ struct MockEngine : public EngineIface, public DcpIface {
                                uint64_t rev_seqno,
                                uint32_t deleteTime) override;
 
-    cb::engine_errc set_vbucket_state(gsl::not_null<const void*> cookie,
+    cb::engine_errc set_vbucket_state(gsl::not_null<const CookieIface*> cookie,
                                       uint32_t opaque,
                                       Vbid vbucket,
                                       vbucket_state_t state) override;
 
-    cb::engine_errc noop(gsl::not_null<const void*> cookie,
+    cb::engine_errc noop(gsl::not_null<const CookieIface*> cookie,
                          uint32_t opaque) override;
 
-    cb::engine_errc buffer_acknowledgement(gsl::not_null<const void*> cookie,
-                                           uint32_t opaque,
-                                           Vbid vbucket,
-                                           uint32_t buffer_bytes) override;
+    cb::engine_errc buffer_acknowledgement(
+            gsl::not_null<const CookieIface*> cookie,
+            uint32_t opaque,
+            Vbid vbucket,
+            uint32_t buffer_bytes) override;
 
-    cb::engine_errc control(gsl::not_null<const void*> cookie,
+    cb::engine_errc control(gsl::not_null<const CookieIface*> cookie,
                             uint32_t opaque,
                             std::string_view key,
                             std::string_view value) override;
 
     cb::engine_errc response_handler(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             const cb::mcbp::Response& response) override;
 
-    cb::engine_errc system_event(gsl::not_null<const void*> cookie,
+    cb::engine_errc system_event(gsl::not_null<const CookieIface*> cookie,
                                  uint32_t opaque,
                                  Vbid vbucket,
                                  mcbp::systemevent::id event,
@@ -279,7 +284,7 @@ struct MockEngine : public EngineIface, public DcpIface {
                                  mcbp::systemevent::version version,
                                  cb::const_byte_buffer key,
                                  cb::const_byte_buffer eventData) override;
-    cb::engine_errc prepare(gsl::not_null<const void*> cookie,
+    cb::engine_errc prepare(gsl::not_null<const CookieIface*> cookie,
                             uint32_t opaque,
                             const DocKey& key,
                             cb::const_byte_buffer value,
@@ -295,41 +300,41 @@ struct MockEngine : public EngineIface, public DcpIface {
                             uint8_t nru,
                             DocumentState document_state,
                             cb::durability::Level level) override;
-    cb::engine_errc seqno_acknowledged(gsl::not_null<const void*> cookie,
+    cb::engine_errc seqno_acknowledged(gsl::not_null<const CookieIface*> cookie,
                                        uint32_t opaque,
                                        Vbid vbucket,
                                        uint64_t prepared_seqno) override;
-    cb::engine_errc commit(gsl::not_null<const void*> cookie,
+    cb::engine_errc commit(gsl::not_null<const CookieIface*> cookie,
                            uint32_t opaque,
                            Vbid vbucket,
                            const DocKey& key,
                            uint64_t prepared_seqno,
                            uint64_t commit_seqno) override;
-    cb::engine_errc abort(gsl::not_null<const void*> cookie,
+    cb::engine_errc abort(gsl::not_null<const CookieIface*> cookie,
                           uint32_t opaque,
                           Vbid vbucket,
                           const DocKey& key,
                           uint64_t prepared_seqno,
                           uint64_t abort_seqno) override;
 
-    cb::engine_errc setParameter(gsl::not_null<const void*> cookie,
+    cb::engine_errc setParameter(gsl::not_null<const CookieIface*> cookie,
                                  EngineParamCategory category,
                                  std::string_view key,
                                  std::string_view value,
                                  Vbid vbucket) override;
-    cb::engine_errc compactDatabase(gsl::not_null<const void*> cookie,
+    cb::engine_errc compactDatabase(gsl::not_null<const CookieIface*> cookie,
                                     Vbid vbid,
                                     uint64_t purge_before_ts,
                                     uint64_t purge_before_seq,
                                     bool drop_deletes) override;
     std::pair<cb::engine_errc, vbucket_state_t> getVBucket(
-            gsl::not_null<const void*> cookie, Vbid vbid) override;
-    cb::engine_errc setVBucket(gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie, Vbid vbid) override;
+    cb::engine_errc setVBucket(gsl::not_null<const CookieIface*> cookie,
                                Vbid vbid,
                                uint64_t cas,
                                vbucket_state_t state,
                                nlohmann::json* meta) override;
-    cb::engine_errc deleteVBucket(gsl::not_null<const void*> cookie,
+    cb::engine_errc deleteVBucket(gsl::not_null<const CookieIface*> cookie,
                                   Vbid vbid,
                                   bool sync) override;
     unique_engine_ptr the_engine;

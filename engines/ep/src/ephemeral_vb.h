@@ -58,7 +58,7 @@ public:
 
     HighPriorityVBReqStatus checkAddHighPriorityVBEntry(
             uint64_t seqnoOrChkId,
-            const void* cookie,
+            const CookieIface* cookie,
             HighPriorityVBNotify reqType) override;
 
     void notifyHighPriorityRequests(EventuallyPersistentEngine& engine,
@@ -76,7 +76,7 @@ public:
     size_t getNumSystemItems() const override;
 
     cb::engine_errc statsVKey(const DocKey& key,
-                              const void* cookie,
+                              const CookieIface* cookie,
                               EventuallyPersistentEngine& engine) override {
         return cb::engine_errc::not_supported;
     }
@@ -109,7 +109,7 @@ public:
 
     void addStats(VBucketStatsDetailLevel detail,
                   const AddStatFn& add_stat,
-                  const void* c) override;
+                  const CookieIface* c) override;
 
     KVShard* getShard() override {
         return nullptr;
@@ -191,7 +191,7 @@ public:
     size_t purgeStaleItems(
             std::function<bool()> shouldPauseCbk = []() { return false; });
 
-    void setupDeferredDeletion(const void* cookie) override;
+    void setupDeferredDeletion(const CookieIface* cookie) override;
 
     /**
      * Schedule a VBucketMemoryDeletionTask to delete this object.
@@ -325,13 +325,13 @@ private:
                                 int64_t prepareSeqno);
 
     void bgFetch(const DocKey& key,
-                 const void* cookie,
+                 const CookieIface* cookie,
                  EventuallyPersistentEngine& engine,
                  bool isMeta = false) override;
 
     cb::engine_errc addTempItemAndBGFetch(HashTable::HashBucketLock& hbl,
                                           const DocKey& key,
-                                          const void* cookie,
+                                          const CookieIface* cookie,
                                           EventuallyPersistentEngine& engine,
                                           bool metadataOnly) override;
 
@@ -339,7 +339,7 @@ private:
                                     const Item& item) override;
 
     GetValue getInternalNonResident(const DocKey& key,
-                                    const void* cookie,
+                                    const CookieIface* cookie,
                                     EventuallyPersistentEngine& engine,
                                     QueueBgFetch queueBgFetch,
                                     const StoredValue& v) override;

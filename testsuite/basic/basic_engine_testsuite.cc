@@ -38,7 +38,7 @@ protected:
 
     static cb::EngineErrorItemPair allocateItem(
             EngineIface& engine,
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             const DocKey& key,
             size_t nbytes,
             int flags,

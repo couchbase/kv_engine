@@ -13,6 +13,8 @@
 
 #include <memcached/server_document_iface.h>
 
+class CookieIface;
+
 /**
  * A class which wraps a given instance of the server document interface,
  * and "guards" calls to all methods of that instance by switching away from
@@ -25,11 +27,11 @@
 class ServerDocumentIfaceBorderGuard : public ServerDocumentIface {
 public:
     explicit ServerDocumentIfaceBorderGuard(ServerDocumentIface& guarded);
-    cb::engine_errc pre_link(gsl::not_null<const void*> cookie,
+    cb::engine_errc pre_link(gsl::not_null<const CookieIface*> cookie,
                              item_info& info) override;
     std::string pre_expiry(const item_info& itm_info) override;
     void audit_document_access(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             cb::audit::document::Operation operation) override;
 
 protected:

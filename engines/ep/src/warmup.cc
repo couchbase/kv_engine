@@ -1128,7 +1128,7 @@ void Warmup::processCreateVBucketsComplete() {
                 "Warmup::processCreateVBucketsComplete unblocking {} cookie(s)",
                 pendingCookies.size());
         while (!pendingCookies.empty()) {
-            const void* c = pendingCookies.front();
+            const CookieIface* c = pendingCookies.front();
             pendingCookies.pop_front();
             // drop lock to avoid lock inversion
             lock.unlock();
@@ -1138,7 +1138,7 @@ void Warmup::processCreateVBucketsComplete() {
     }
 }
 
-bool Warmup::maybeWaitForVBucketWarmup(const void* cookie) {
+bool Warmup::maybeWaitForVBucketWarmup(const CookieIface* cookie) {
     std::lock_guard<std::mutex> lg(pendingCookiesMutex);
     if (!createVBucketsComplete) {
         pendingCookies.push_back(cookie);
@@ -1711,7 +1711,7 @@ template <typename T>
 void addStat(const char* nm,
              const T& val,
              const AddStatFn& add_stat,
-             const void* c) {
+             const CookieIface* c) {
     std::string name = "ep_warmup";
     if (nm != nullptr) {
         name.append("_");
@@ -1723,7 +1723,7 @@ void addStat(const char* nm,
     add_casted_stat(name.data(), value.str().data(), add_stat, c);
 }
 
-void Warmup::addStats(const AddStatFn& add_stat, const void* c) const {
+void Warmup::addStats(const AddStatFn& add_stat, const CookieIface* c) const {
     using namespace std::chrono;
 
     EPStats& stats = store.getEPEngine().getEpStats();

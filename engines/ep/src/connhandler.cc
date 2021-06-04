@@ -37,12 +37,12 @@ std::string to_string(ConnHandler::PausedReason r) {
 }
 
 ConnHandler::ConnHandler(EventuallyPersistentEngine& e,
-                         const void* c,
+                         const CookieIface* c,
                          std::string n)
     : engine_(e),
       stats(engine_.getEpStats()),
       name(std::move(n)),
-      cookie(const_cast<void*>(c)),
+      cookie(const_cast<CookieIface*>(c)),
       reserved(false),
       created(ep_current_time()),
       disconnect(false),
@@ -344,7 +344,7 @@ void ConnHandler::releaseReference()
     }
 }
 
-void ConnHandler::addStats(const AddStatFn& add_stat, const void* c) {
+void ConnHandler::addStats(const AddStatFn& add_stat, const CookieIface* c) {
     using namespace std::chrono;
 
     addStat("type", getType(), add_stat, c);

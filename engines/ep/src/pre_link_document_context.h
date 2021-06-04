@@ -12,6 +12,7 @@
 
 #include <cstdint>
 
+class CookieIface;
 class EventuallyPersistentEngine;
 class Item;
 
@@ -37,7 +38,7 @@ public:
      * @param item_ The document to operate on
      */
     PreLinkDocumentContext(EventuallyPersistentEngine& engine_,
-                           const void* cookie_,
+                           const CookieIface* cookie_,
                            Item* item_)
         : engine(engine_), cookie(cookie_), item(item_) {
     }
@@ -57,6 +58,6 @@ public:
 
 protected:
     EventuallyPersistentEngine& engine;
-    const void* cookie;
+    const CookieIface* cookie;
     const Item* item;
 };

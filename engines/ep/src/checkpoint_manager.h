@@ -364,7 +364,7 @@ public:
         return checkpointConfig;
     }
 
-    void addStats(const AddStatFn& add_stat, const void* cookie);
+    void addStats(const AddStatFn& add_stat, const CookieIface* cookie);
 
     /**
      * Create a new open checkpoint by force.

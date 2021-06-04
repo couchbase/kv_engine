@@ -108,7 +108,7 @@ public:
     }
 
     std::pair<cb::unique_item_ptr, item_info> allocateItem(
-            gsl::not_null<const void*>,
+            gsl::not_null<const CookieIface*>,
             const DocKey&,
             size_t,
             size_t,
@@ -119,7 +119,7 @@ public:
         throw cb::engine_error{cb::engine_errc::failed, "crash_engine"};
     }
 
-    cb::engine_errc remove(gsl::not_null<const void*>,
+    cb::engine_errc remove(gsl::not_null<const CookieIface*>,
                            const DocKey&,
                            uint64_t&,
                            Vbid,
@@ -131,7 +131,7 @@ public:
     void release(gsl::not_null<ItemIface*> item) override {
     }
 
-    cb::EngineErrorItemPair get(gsl::not_null<const void*>,
+    cb::EngineErrorItemPair get(gsl::not_null<const CookieIface*>,
                                 const DocKey&,
                                 Vbid,
                                 DocStateFilter) override {
@@ -139,27 +139,27 @@ public:
     }
 
     cb::EngineErrorItemPair get_if(
-            gsl::not_null<const void*>,
+            gsl::not_null<const CookieIface*>,
             const DocKey&,
             Vbid,
             std::function<bool(const item_info&)>) override {
         return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
     }
 
-    cb::EngineErrorMetadataPair get_meta(gsl::not_null<const void*>,
+    cb::EngineErrorMetadataPair get_meta(gsl::not_null<const CookieIface*>,
                                          const DocKey&,
                                          Vbid) override {
         return {cb::engine_errc::failed, {}};
     }
 
-    cb::EngineErrorItemPair get_locked(gsl::not_null<const void*>,
+    cb::EngineErrorItemPair get_locked(gsl::not_null<const CookieIface*>,
                                        const DocKey&,
                                        Vbid,
                                        uint32_t) override {
         return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
     }
 
-    cb::engine_errc unlock(gsl::not_null<const void*>,
+    cb::engine_errc unlock(gsl::not_null<const CookieIface*>,
                            const DocKey&,
                            Vbid,
                            uint64_t) override {
@@ -167,7 +167,7 @@ public:
     }
 
     cb::EngineErrorItemPair get_and_touch(
-            gsl::not_null<const void*>,
+            gsl::not_null<const CookieIface*>,
             const DocKey&,
             Vbid,
             uint32_t,
@@ -175,7 +175,7 @@ public:
         return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
     }
 
-    cb::engine_errc store(gsl::not_null<const void*>,
+    cb::engine_errc store(gsl::not_null<const CookieIface*>,
                           gsl::not_null<ItemIface*>,
                           uint64_t&,
                           StoreSemantics,
@@ -185,14 +185,14 @@ public:
         return cb::engine_errc::failed;
     }
 
-    cb::engine_errc get_stats(gsl::not_null<const void*>,
+    cb::engine_errc get_stats(gsl::not_null<const CookieIface*>,
                               std::string_view,
                               std::string_view,
                               const AddStatFn&) override {
         return cb::engine_errc::failed;
     }
 
-    void reset_stats(gsl::not_null<const void*>) override {
+    void reset_stats(gsl::not_null<const CookieIface*>) override {
     }
 
     void item_set_cas(gsl::not_null<ItemIface*>, uint64_t) override {

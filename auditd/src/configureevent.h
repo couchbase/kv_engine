@@ -13,13 +13,14 @@
 #include "event.h"
 
 class AuditImpl;
+class CookieIface;
 
 class ConfigureEvent : public Event {
 public:
-    const void *cookie;
+    const CookieIface* cookie;
     const std::string file;
 
-    ConfigureEvent(std::string configfile, const void* c)
+    ConfigureEvent(std::string configfile, const CookieIface* c)
         : cookie(c), file(std::move(configfile)) {
     }
 

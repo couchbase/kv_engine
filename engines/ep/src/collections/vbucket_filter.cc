@@ -28,7 +28,7 @@ namespace Collections::VB {
 
 Filter::Filter(std::optional<std::string_view> jsonFilter,
                const Collections::VB::Manifest& manifest,
-               gsl::not_null<const void*> cookie,
+               gsl::not_null<const CookieIface*> cookie,
                const EventuallyPersistentEngine& engine) {
     cb::engine_errc status = cb::engine_errc::success;
     uint64_t manifestUid{0};
@@ -373,7 +373,7 @@ void Filter::disableDefaultCollection() {
 }
 
 void Filter::addStats(const AddStatFn& add_stat,
-                      const void* c,
+                      const CookieIface* c,
                       const std::string& prefix,
                       Vbid vb) const {
     try {
@@ -444,7 +444,7 @@ void Filter::addStats(const AddStatFn& add_stat,
 }
 
 cb::engine_errc Filter::checkPrivileges(
-        gsl::not_null<const void*> cookie,
+        gsl::not_null<const CookieIface*> cookie,
         const EventuallyPersistentEngine& engine) {
     const auto rev = engine.getPrivilegeRevision(cookie);
     if (!lastCheckedPrivilegeRevision ||

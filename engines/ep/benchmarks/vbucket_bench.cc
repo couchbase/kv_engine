@@ -145,7 +145,7 @@ protected:
 
     void TearDown(const benchmark::State& state) override {
         if (state.thread_index == 0) {
-            engine->getKVBucket()->deleteVBucket(vbid, this);
+            engine->getKVBucket()->deleteVBucket(vbid, nullptr);
         }
         EngineFixture::TearDown(state);
     }

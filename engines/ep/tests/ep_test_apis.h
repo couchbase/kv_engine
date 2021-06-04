@@ -346,7 +346,7 @@ bool verify_vbucket_state(EngineIface* h,
                           bool mute = false);
 
 void sendDcpAck(EngineIface* h,
-                const void* cookie,
+                const CookieIface* cookie,
                 cb::mcbp::ClientOpcode opcode,
                 cb::mcbp::Status status,
                 uint32_t opaque);

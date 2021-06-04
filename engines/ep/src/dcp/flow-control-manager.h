@@ -16,6 +16,7 @@
 #include <map>
 #include <mutex>
 
+class CookieIface;
 class DcpConsumer;
 class EventuallyPersistentEngine;
 
@@ -121,7 +122,7 @@ private:
     /* Mutex to ensure dcpConsumersMap is thread safe */
     std::mutex dcpConsumersMapMutex;
     /* All DCP Consumers with flow control buffer */
-    std::map<const void*, DcpConsumer*> dcpConsumersMap;
+    std::map<const CookieIface*, DcpConsumer*> dcpConsumersMap;
     /* Fraction of memQuota for all dcp consumer connection buffers */
     std::atomic<double> dcpConnBufferSizeAggrFrac;
 };

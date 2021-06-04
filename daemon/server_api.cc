@@ -30,7 +30,7 @@
 #include <phosphor/phosphor.h>
 #include <utilities/engine_errc_2_mcbp.h>
 
-static Cookie& getCookie(gsl::not_null<const void*> void_cookie) {
+static Cookie& getCookie(gsl::not_null<const CookieIface*> void_cookie) {
     auto* ccookie = reinterpret_cast<const Cookie*>(void_cookie.get());
     return *const_cast<Cookie*>(ccookie);
 }
@@ -81,12 +81,12 @@ struct ServerLogApi : public ServerLogIface {
 };
 
 struct ServerDocumentApi : public ServerDocumentIface {
-    cb::engine_errc pre_link(gsl::not_null<const void*> void_cookie,
+    cb::engine_errc pre_link(gsl::not_null<const CookieIface*> void_cookie,
                              item_info& info) override {
         // Sanity check that people aren't calling the method with a bogus
         // cookie
-        auto* cookie =
-                reinterpret_cast<Cookie*>(const_cast<void*>(void_cookie.get()));
+        auto* cookie = reinterpret_cast<Cookie*>(
+                const_cast<CookieIface*>(void_cookie.get()));
 
         auto* context = cookie->getCommandContext();
         if (context != nullptr) {
@@ -100,62 +100,63 @@ struct ServerDocumentApi : public ServerDocumentIface {
         return document_pre_expiry(itm_info);
     }
     void audit_document_access(
-            gsl::not_null<const void*> void_cookie,
+            gsl::not_null<const CookieIface*> void_cookie,
             cb::audit::document::Operation operation) override {
-        auto* cookie =
-                reinterpret_cast<Cookie*>(const_cast<void*>(void_cookie.get()));
+        auto* cookie = reinterpret_cast<Cookie*>(
+                const_cast<CookieIface*>(void_cookie.get()));
         cb::audit::document::add(*cookie, operation);
     }
 };
 
 struct ServerCookieApi : public ServerCookieIface {
-    void setDcpConnHandler(gsl::not_null<const void*> cookie,
+    void setDcpConnHandler(gsl::not_null<const CookieIface*> cookie,
                            DcpConnHandlerIface* handler) override {
         getCookie(cookie).getConnection().setDcpConnHandlerIface(handler);
     }
 
     DcpConnHandlerIface* getDcpConnHandler(
-            gsl::not_null<const void*> cookie) override {
+            gsl::not_null<const CookieIface*> cookie) override {
         return getCookie(cookie).getConnection().getDcpConnHandlerIface();
     }
 
-    void setDcpFlowControlBufferSize(gsl::not_null<const void*> cookie,
+    void setDcpFlowControlBufferSize(gsl::not_null<const CookieIface*> cookie,
                                      std::size_t size) override {
         getCookie(cookie).getConnection().setDcpFlowControlBufferSize(size);
     }
 
-    void store_engine_specific(gsl::not_null<const void*> void_cookie,
+    void store_engine_specific(gsl::not_null<const CookieIface*> void_cookie,
                                void* engine_data) override {
         const auto* cc = reinterpret_cast<const Cookie*>(void_cookie.get());
         auto* cookie = const_cast<Cookie*>(cc);
         cookie->setEngineStorage(engine_data);
     }
 
-    void* get_engine_specific(gsl::not_null<const void*> void_cookie) override {
+    void* get_engine_specific(
+            gsl::not_null<const CookieIface*> void_cookie) override {
         auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
         return cookie->getEngineStorage();
     }
 
-    bool is_datatype_supported(gsl::not_null<const void*> void_cookie,
+    bool is_datatype_supported(gsl::not_null<const CookieIface*> void_cookie,
                                protocol_binary_datatype_t datatype) override {
         auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
         return cookie->getConnection().isDatatypeEnabled(datatype);
     }
 
     bool is_mutation_extras_supported(
-            gsl::not_null<const void*> void_cookie) override {
+            gsl::not_null<const CookieIface*> void_cookie) override {
         auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
         return cookie->getConnection().isSupportsMutationExtras();
     }
 
     bool is_collections_supported(
-            gsl::not_null<const void*> void_cookie) override {
+            gsl::not_null<const CookieIface*> void_cookie) override {
         auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
         return cookie->getConnection().isCollectionsSupported();
     }
 
     cb::mcbp::ClientOpcode get_opcode_if_ewouldblock_set(
-            gsl::not_null<const void*> void_cookie) override {
+            gsl::not_null<const CookieIface*> void_cookie) override {
         auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
 
         cb::mcbp::ClientOpcode opcode = cb::mcbp::ClientOpcode::Invalid;
@@ -170,20 +171,20 @@ struct ServerCookieApi : public ServerCookieIface {
         return opcode;
     }
 
-    void notify_io_complete(gsl::not_null<const void*> cookie,
+    void notify_io_complete(gsl::not_null<const CookieIface*> cookie,
                             cb::engine_errc status) override {
         notifyIoComplete(getCookie(cookie), status);
     }
 
-    void scheduleDcpStep(gsl::not_null<const void*> cookie) override {
+    void scheduleDcpStep(gsl::not_null<const CookieIface*> cookie) override {
         ::scheduleDcpStep(getCookie(cookie));
     }
 
-    void reserve(gsl::not_null<const void*> void_cookie) override {
+    void reserve(gsl::not_null<const CookieIface*> void_cookie) override {
         getCookie(void_cookie).incrementRefcount();
     }
 
-    void release(gsl::not_null<const void*> void_cookie) override {
+    void release(gsl::not_null<const CookieIface*> void_cookie) override {
         auto& cookie = getCookie(void_cookie);
         auto& connection = cookie.getConnection();
         connection.getThread().eventBase.runInEventBaseThread([&cookie]() {
@@ -196,25 +197,25 @@ struct ServerCookieApi : public ServerCookieIface {
         });
     }
 
-    void set_priority(gsl::not_null<const void*> cookie,
+    void set_priority(gsl::not_null<const CookieIface*> cookie,
                       ConnectionPriority priority) override {
         getCookie(cookie).getConnection().setPriority(priority);
     }
 
     ConnectionPriority get_priority(
-            gsl::not_null<const void*> void_cookie) override {
+            gsl::not_null<const CookieIface*> void_cookie) override {
         auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
         return cookie->getConnection().getPriority();
     }
 
     uint64_t get_connection_id(
-            gsl::not_null<const void*> void_cookie) override {
+            gsl::not_null<const CookieIface*> void_cookie) override {
         auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
         return uint64_t(&cookie->getConnection());
     }
 
     cb::rbac::PrivilegeAccess check_privilege(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             cb::rbac::Privilege privilege,
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) override {
@@ -222,7 +223,7 @@ struct ServerCookieApi : public ServerCookieIface {
     }
 
     cb::rbac::PrivilegeAccess test_privilege(
-            gsl::not_null<const void*> cookie,
+            gsl::not_null<const CookieIface*> cookie,
             cb::rbac::Privilege privilege,
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) override {
@@ -230,11 +231,12 @@ struct ServerCookieApi : public ServerCookieIface {
     }
 
     uint32_t get_privilege_context_revision(
-            gsl::not_null<const void*> cookie) override {
+            gsl::not_null<const CookieIface*> cookie) override {
         return getCookie(cookie).getPrivilegeContext().getGeneration();
     }
-    cb::mcbp::Status engine_error2mcbp(gsl::not_null<const void*> void_cookie,
-                                       cb::engine_errc code) override {
+    cb::mcbp::Status engine_error2mcbp(
+            gsl::not_null<const CookieIface*> void_cookie,
+            cb::engine_errc code) override {
         const auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
         auto& connection = cookie->getConnection();
 
@@ -250,38 +252,40 @@ struct ServerCookieApi : public ServerCookieIface {
     }
 
     std::pair<uint32_t, std::string> get_log_info(
-            gsl::not_null<const void*> void_cookie) override {
+            gsl::not_null<const CookieIface*> void_cookie) override {
         auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
         return std::make_pair(cookie->getConnection().getId(),
                               cookie->getConnection().getDescription());
     }
 
     std::string get_authenticated_user(
-            gsl::not_null<const void*> cookie) override {
+            gsl::not_null<const CookieIface*> cookie) override {
         return getCookie(cookie).getConnection().getUser().name;
     }
 
-    in_port_t get_connected_port(gsl::not_null<const void*> cookie) override {
+    in_port_t get_connected_port(
+            gsl::not_null<const CookieIface*> cookie) override {
         return getCookie(cookie).getConnection().getParentPort();
     }
 
-    void set_error_context(gsl::not_null<void*> cookie,
+    void set_error_context(gsl::not_null<CookieIface*> cookie,
                            std::string_view message) override {
         getCookie(cookie).setErrorContext(std::string{message});
     }
 
-    void set_error_json_extras(gsl::not_null<void*> cookie,
+    void set_error_json_extras(gsl::not_null<CookieIface*> cookie,
                                const nlohmann::json& json) override {
         getCookie(cookie).setErrorJsonExtras(json);
     }
 
-    void set_unknown_collection_error_context(gsl::not_null<void*> cookie,
-                                              uint64_t manifestUid) override {
+    void set_unknown_collection_error_context(
+            gsl::not_null<CookieIface*> cookie, uint64_t manifestUid) override {
         getCookie(cookie).setUnknownCollectionErrorContext(manifestUid);
     }
 
-    std::string_view get_inflated_payload(gsl::not_null<const void*> cookie,
-                                          const cb::mcbp::Request&) override {
+    std::string_view get_inflated_payload(
+            gsl::not_null<const CookieIface*> cookie,
+            const cb::mcbp::Request&) override {
         return getCookie(cookie).getInflatedInputPayload();
     }
 };
