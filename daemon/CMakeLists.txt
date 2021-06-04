@@ -230,6 +230,15 @@ ADD_EXECUTABLE(memcached main.cc)
 TARGET_LINK_LIBRARIES(memcached memcached_daemon)
 add_sanitizers(memcached)
 kv_enable_pch(memcached)
+# Allow 'memcached' to export symbols - i.e. symbols marked as
+# MEMCACHED_PUBLIC_API / MEMCACHED_PUBLIC_CLASS should marked as externally
+# visible in the symbol table.
+# We don't strictly _need_ this setting, memcached is now statically linked
+# and hence no symbols need to be visible externally for the product, however
+# we do still mark a test function (recursive_crash_function in crash_engine)
+# As MEMCACHED_PUBLIC_API to verify Breakpad is working correctly and it's
+# valuble to still be able to see that symbol.
+set_target_properties(memcached PROPERTIES ENABLE_EXPORTS TRUE)
 
 INSTALL(TARGETS memcached
         RUNTIME DESTINATION bin)
