@@ -105,6 +105,8 @@ public:
     static size_t getMaxValueSize();
 
 private:
+    /// Main function called from run when defragmenter is enabled
+    void defrag();
 
     /// Duration (in seconds) defragmenter should sleep for between iterations.
     double getSleepTime() const;

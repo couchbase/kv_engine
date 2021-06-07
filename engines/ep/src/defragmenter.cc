@@ -31,112 +31,108 @@ DefragmenterTask::DefragmenterTask(EventuallyPersistentEngine* e,
 bool DefragmenterTask::run() {
     TRACE_EVENT0("ep-engine/task", "DefragmenterTask");
     if (engine->getConfiguration().isDefragmenterEnabled()) {
-        // Get our pause/resume visitor. If we didn't finish the previous pass,
-        // then resume from where we last were, otherwise create a new visitor
-        // starting from the beginning.
-        if (!prAdapter) {
-            auto visitor =
-                    std::make_unique<DefragmentVisitor>(getMaxValueSize());
-
-            prAdapter =
-                    std::make_unique<PauseResumeVBAdapter>(std::move(visitor));
-            epstore_position = engine->getKVBucket()->startPosition();
-        }
-
-        // Print start status.
-        if (getGlobalBucketLogger()->should_log(spdlog::level::debug)) {
-            std::stringstream ss;
-            ss << getDescription() << " for bucket '" << engine->getName()
-               << "'";
-            if (epstore_position == engine->getKVBucket()->startPosition()) {
-                ss << " starting. ";
-            } else {
-                ss << " resuming from " << epstore_position << ", ";
-                ss << prAdapter->getHashtablePosition() << ".";
-            }
-            auto fragStats = cb::ArenaMalloc::getFragmentationStats(
-                    engine->getArenaMallocClient());
-            ss << " Using chunk_duration=" << getChunkDuration().count()
-               << " ms."
-               << " mem_used=" << stats.getEstimatedTotalMemoryUsed() << ", "
-               << fragStats;
-            EP_LOG_DEBUG("{}", ss.str());
-        }
-
-        // Disable thread-caching (as we are about to defragment, and hence don't
-        // want any of the new Blobs in tcache).
-        cb::ArenaMalloc::switchToClient(engine->getArenaMallocClient(),
-                                        false /* no tcache*/);
-
-        // Prepare the underlying visitor.
-        auto& visitor = getDefragVisitor();
-        const auto start = std::chrono::steady_clock::now();
-        const auto deadline = start + getChunkDuration();
-        visitor.setDeadline(deadline);
-        visitor.setBlobAgeThreshold(getAgeThreshold());
-        // Only defragment StoredValues of persistent buckets because the
-        // HashTable defrag method doesn't yet know how to maintain the
-        // ephemeral seqno linked-list
-        if (engine->getConfiguration().getBucketType() == "persistent") {
-            visitor.setStoredValueAgeThreshold(getStoredValueAgeThreshold());
-        }
-        visitor.clearStats();
-
-        // Do it - set off the visitor.
-        epstore_position = engine->getKVBucket()->pauseResumeVisit(
-                *prAdapter, epstore_position);
-        const auto end = std::chrono::steady_clock::now();
-
-        // Defrag complete. Restore thread caching.
-        cb::ArenaMalloc::switchToClient(engine->getArenaMallocClient(),
-                                        true /* tcache*/);
-
-        updateStats(visitor);
-
-        // Release any free memory we now have in the allocator back to the OS.
-        // TODO: Benchmark this - is it necessary? How much of a slowdown does it
-        // add? How much memory does it return?
-        cb::ArenaMalloc::releaseMemory(engine->getArenaMallocClient());
-
-        // Check if the visitor completed a full pass.
-        bool completed = (epstore_position ==
-                                    engine->getKVBucket()->endPosition());
-
-        // Print status.
-        if (getGlobalBucketLogger()->should_log(spdlog::level::debug)) {
-            std::stringstream ss;
-            ss << getDescription() << " for bucket '" << engine->getName()
-               << "'";
-            if (completed) {
-                ss << " finished.";
-            } else {
-                ss << " paused at position " << epstore_position << ".";
-            }
-            std::chrono::microseconds duration =
-                    std::chrono::duration_cast<std::chrono::microseconds>(
-                            end - start);
-            auto fragStats = cb::ArenaMalloc::getFragmentationStats(
-                    engine->getArenaMallocClient());
-            ss << " Took " << duration.count() << " us."
-               << " moved " << visitor.getDefragCount() << "/"
-               << visitor.getVisitedCount() << " visited documents."
-               << " mem_used=" << stats.getEstimatedTotalMemoryUsed() << ", "
-               << fragStats << ". Sleeping for " << getSleepTime()
-               << " seconds.";
-            EP_LOG_DEBUG("{}", ss.str());
-        }
-
-        // Delete(reset) visitor if it finished.
-        if (completed) {
-            prAdapter.reset();
-        }
+        defrag();
     }
-
     snooze(getSleepTime());
     if (engine->getEpStats().isShutdown) {
-            return false;
+        return false;
     }
     return true;
+}
+
+void DefragmenterTask::defrag() {
+    // Get our pause/resume visitor. If we didn't finish the previous pass,
+    // then resume from where we last were, otherwise create a new visitor
+    // starting from the beginning.
+    if (!prAdapter) {
+        auto visitor = std::make_unique<DefragmentVisitor>(getMaxValueSize());
+
+        prAdapter = std::make_unique<PauseResumeVBAdapter>(std::move(visitor));
+        epstore_position = engine->getKVBucket()->startPosition();
+    }
+
+    // Print start status.
+    if (getGlobalBucketLogger()->should_log(spdlog::level::debug)) {
+        std::stringstream ss;
+        ss << getDescription() << " for bucket '" << engine->getName() << "'";
+        if (epstore_position == engine->getKVBucket()->startPosition()) {
+            ss << " starting. ";
+        } else {
+            ss << " resuming from " << epstore_position << ", ";
+            ss << prAdapter->getHashtablePosition() << ".";
+        }
+        auto fragStats = cb::ArenaMalloc::getFragmentationStats(
+                engine->getArenaMallocClient());
+        ss << " Using chunk_duration=" << getChunkDuration().count() << " ms."
+           << " mem_used=" << stats.getEstimatedTotalMemoryUsed() << ", "
+           << fragStats;
+        EP_LOG_DEBUG("{}", ss.str());
+    }
+
+    // Disable thread-caching (as we are about to defragment, and hence don't
+    // want any of the new Blobs in tcache).
+    cb::ArenaMalloc::switchToClient(engine->getArenaMallocClient(),
+                                    false /* no tcache*/);
+
+    // Prepare the underlying visitor.
+    auto& visitor = getDefragVisitor();
+    const auto start = std::chrono::steady_clock::now();
+    const auto deadline = start + getChunkDuration();
+    visitor.setDeadline(deadline);
+    visitor.setBlobAgeThreshold(getAgeThreshold());
+    // Only defragment StoredValues of persistent buckets because the
+    // HashTable defrag method doesn't yet know how to maintain the
+    // ephemeral seqno linked-list
+    if (engine->getConfiguration().getBucketType() == "persistent") {
+        visitor.setStoredValueAgeThreshold(getStoredValueAgeThreshold());
+    }
+    visitor.clearStats();
+
+    // Do it - set off the visitor.
+    epstore_position = engine->getKVBucket()->pauseResumeVisit(
+            *prAdapter, epstore_position);
+    const auto end = std::chrono::steady_clock::now();
+
+    // Defrag complete. Restore thread caching.
+    cb::ArenaMalloc::switchToClient(engine->getArenaMallocClient(),
+                                    true /* tcache*/);
+
+    updateStats(visitor);
+
+    // Release any free memory we now have in the allocator back to the OS.
+    // TODO: Benchmark this - is it necessary? How much of a slowdown does it
+    // add? How much memory does it return?
+    cb::ArenaMalloc::releaseMemory(engine->getArenaMallocClient());
+
+    // Check if the visitor completed a full pass.
+    bool completed = (epstore_position == engine->getKVBucket()->endPosition());
+
+    // Print status.
+    if (getGlobalBucketLogger()->should_log(spdlog::level::debug)) {
+        std::stringstream ss;
+        ss << getDescription() << " for bucket '" << engine->getName() << "'";
+        if (completed) {
+            ss << " finished.";
+        } else {
+            ss << " paused at position " << epstore_position << ".";
+        }
+        std::chrono::microseconds duration =
+                std::chrono::duration_cast<std::chrono::microseconds>(end -
+                                                                      start);
+        auto fragStats = cb::ArenaMalloc::getFragmentationStats(
+                engine->getArenaMallocClient());
+        ss << " Took " << duration.count() << " us."
+           << " moved " << visitor.getDefragCount() << "/"
+           << visitor.getVisitedCount() << " visited documents."
+           << " mem_used=" << stats.getEstimatedTotalMemoryUsed() << ", "
+           << fragStats << ". Sleeping for " << getSleepTime() << " seconds.";
+        EP_LOG_DEBUG("{}", ss.str());
+    }
+
+    // Delete(reset) visitor if it finished.
+    if (completed) {
+        prAdapter.reset();
+    }
 }
 
 void DefragmenterTask::stop() {
