@@ -691,6 +691,8 @@ TEST_P(StreamTest, MB17653_ItemsRemaining) {
 
     setup_dcp_stream();
 
+    ASSERT_TRUE(stream->isInMemory());
+
     // Should start with one item remaining.
     EXPECT_EQ(1, stream->getItemsRemaining())
             << "Unexpected initial stream item count";

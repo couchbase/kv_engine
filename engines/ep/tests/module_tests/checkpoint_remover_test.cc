@@ -624,32 +624,32 @@ TEST_F(CheckpointRemoverEPTest, expelsOnlyIfOldestCheckpointIsReferenced) {
      *   dummy     << cursor starts here
      *   chk start    |
      *   vb state     |
-     *   key_1        V
-     *   key_2     << advance to here
-     *   key_3
+     *   key_0        V
+     *   key_1     << advance to here
+     *   key_2
+     *   chk end
      */
 
-    size_t expellItemCount = 4;
-
-    for (size_t i = 0; i < expellItemCount; i++) {
+    while (cursor->getKey().to_string() != "cid:0x0:key_1") {
         cm->incrCursor(*cursor);
     }
 
-    // can now expel the 4 items before the above cursor
+    // Can now expel the 2 items in (ckpt_start, cursor)
     auto result = cm->expelUnreferencedCheckpointItems();
 
-    EXPECT_EQ(3, result.expelCount);
+    EXPECT_EQ(2, result.expelCount);
 
     /* items in first checkpoint
      *
      *   dummy
+     *   chk start
+     *   key_1
      *   key_2
-     *   key_3
      */
 
     afterCount = getItemsWithCursor("Cursor4", 0, true).size();
 
-    EXPECT_EQ(beforeCount - 3, afterCount);
+    EXPECT_EQ(beforeCount - 2, afterCount);
 }
 
 TEST_F(CheckpointRemoverEPTest, earliestCheckpointSelectedCorrectly) {
@@ -746,7 +746,7 @@ TEST_F(CheckpointRemoverEPTest, NewSyncWriteCreatesNewCheckpointIfCantDedupe) {
     flushVBucketToDiskIfPersistent(vbid, 3);
 
     auto result = cm->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(3, result.expelCount);
+    EXPECT_EQ(2, result.expelCount);
 
     EXPECT_EQ(cb::engine_errc::success,
               vb->commit(prepareKey,
@@ -788,7 +788,7 @@ TEST_F(CheckpointRemoverEPTest, UseOpenCheckpointIfCanDedupeAfterExpel) {
     flushVBucketToDiskIfPersistent(vbid, 3);
 
     auto result = cm->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(3, result.expelCount);
+    EXPECT_EQ(2, result.expelCount);
 
     store_item(vbid, makeStoredDocKey("key_2"), "value");
 
@@ -850,7 +850,7 @@ TEST_F(CheckpointRemoverEPTest,
     // expel from the checkpoint. This will invalidate keyIndex entries
     // for all expelled items.
     auto result = cm->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(3, result.expelCount);
+    EXPECT_EQ(2, result.expelCount);
 
     EXPECT_EQ(1, cm->getNumCheckpoints());
 

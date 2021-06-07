@@ -1774,25 +1774,23 @@ void CheckpointTest::testExpelCheckpointItems() {
 
     CheckpointManager::ExpelResult expelResult =
             this->manager->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(2, expelResult.expelCount);
+    EXPECT_EQ(1, expelResult.expelCount);
     EXPECT_LT(0, expelResult.estimateOfFreeMemory);
-    EXPECT_EQ(2, this->global_stats.itemsExpelledFromCheckpoints);
+    EXPECT_EQ(1, this->global_stats.itemsExpelledFromCheckpoints);
 
     /*
-     * After expelling checkpoint now looks as follows:
+     * We have expelled:
+     * 1001 - 1st item (key 0)
+     *
+     * Now the checkpoint looks as follows:
      * 1000 - dummy Item
+     * 1001 - checkpoint start
      * 1002 - 2nd item (key1) <<<<<<< persistenceCursor
      * 1003 - 3rd item (key 2)
      */
     if (persistent()) {
         EXPECT_EQ(1002, (*manager->getPersistenceCursorPos())->getBySeqno());
     }
-
-    /*
-     * We have expelled:
-     * 1001 - checkpoint start
-     * 1001 - 1st item (key 0)
-     */
 
     // The full checkpoint still contains the 3 items added.
     EXPECT_EQ(itemCount, this->manager->getNumOpenChkItems());
@@ -1849,9 +1847,9 @@ TEST_P(CheckpointTest, expelCheckpointItemsWithDuplicateTest) {
 
     CheckpointManager::ExpelResult expelResult =
             this->manager->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(2, expelResult.expelCount);
+    EXPECT_EQ(1, expelResult.expelCount);
     EXPECT_LT(0, expelResult.estimateOfFreeMemory);
-    EXPECT_EQ(2, this->global_stats.itemsExpelledFromCheckpoints);
+    EXPECT_EQ(1, this->global_stats.itemsExpelledFromCheckpoints);
 
     // Item count doens't change
     EXPECT_EQ(3, this->manager->getNumOpenChkItems());
@@ -1859,6 +1857,7 @@ TEST_P(CheckpointTest, expelCheckpointItemsWithDuplicateTest) {
     /*
      * After expelling checkpoint now looks as follows:
      * 1000 - dummy Item
+     * 1000 - checkpoint_start
      * 1002 - 2nd item (key1) <<<<<<< persistenceCursor
      * 1003 - 3rd item (key 2)
      */
@@ -1873,6 +1872,7 @@ TEST_P(CheckpointTest, expelCheckpointItemsWithDuplicateTest) {
     /*
      * Checkpoint now looks as follows:
      * 1000 - dummy Item
+     * 1000 - checkpoint_start
      * 1002 - 2nd item (key1) <<<<<<< persistenceCursor
      * 1003 - 3rd item (key2)
      * 1004 - 4th item (key0)  << The New item added >>
@@ -1915,20 +1915,20 @@ void CheckpointTest::testExpelCursorPointingToLastItem() {
     /*
      * Checkpoint now looks as follows:
      * 1000 - dummy item
-     * 1001 - checkpoint start
+     * 1000 - checkpoint start
      * 1001 - 1st item
      * 1002 - 2nd item  <<<<<<< persistenceCursor
      */
 
-    // Only expel seqno 1001 and earlier - the cursor points to item that
+    // Only expel seqno 1001 - the cursor points to item that
     // has the highest seqno for the checkpoint so we move the expel point back
     // one. That item isn't a metadata item nor is it's successor item
     // (1002) the same seqno as itself (1001) so can expel from there.
     CheckpointManager::ExpelResult expelResult =
             this->manager->expelUnreferencedCheckpointItems();
-    EXPECT_EQ(2, expelResult.expelCount);
+    EXPECT_EQ(1, expelResult.expelCount);
     EXPECT_GT(expelResult.estimateOfFreeMemory, 0);
-    EXPECT_EQ(2, this->global_stats.itemsExpelledFromCheckpoints);
+    EXPECT_EQ(1, this->global_stats.itemsExpelledFromCheckpoints);
 }
 
 TEST_P(CheckpointTest, testExpelCursorPointingToLastItemMemory) {
@@ -2155,6 +2155,7 @@ void CheckpointTest::testExpelCheckpointItemsMemoryRecovered() {
     }
 
     /*
+     *
      * Checkpoint now looks as follows:
      * 1000 - dummy item
      * 1001 - checkpoint start
@@ -2167,24 +2168,23 @@ void CheckpointTest::testExpelCheckpointItemsMemoryRecovered() {
     const auto checkpointMemoryUsageBeforeExpel =
             this->manager->getMemoryUsage();
 
-    CheckpointManager::ExpelResult expelResult =
-            this->manager->expelUnreferencedCheckpointItems();
+    const auto expelResult = manager->expelUnreferencedCheckpointItems();
+    EXPECT_EQ(1, expelResult.expelCount);
+    EXPECT_EQ(1, global_stats.itemsExpelledFromCheckpoints);
 
     /*
-     * After expelling checkpoint now looks as follows:
+     * We have expelled:
+     * 1001 - 1st item (key 0)
+     *
+     * Checkpoint now looks as follows:
      * 1000 - dummy Item
+     * 1001 - checkpoint start
      * 1002 - 2nd item (key 1) <<<<<<< Cursor
      * 1003 - 3rd item (key 2)
      */
     if (persistent()) {
         EXPECT_EQ(1002, (*manager->getPersistenceCursorPos())->getBySeqno());
     }
-
-    /*
-     * We have expelled:
-     * 1001 - checkpoint start
-     * 1001 - 1st item (key 0)
-     */
 
     // Get the memory usage after expelling
     auto checkpointMemoryUsageAfterExpel = this->manager->getMemoryUsage();
@@ -2207,19 +2207,12 @@ void CheckpointTest::testExpelCheckpointItemsMemoryRecovered() {
             checkpointMemoryUsageBeforeExpel - checkpointMemoryUsageAfterExpel;
     const size_t checkpointListSaving =
             (perElementOverhead * expelResult.expelCount);
-    const auto& checkpointStartItem =
-            this->manager->public_createCheckpointItem(
-                    0, Vbid(0), queue_op::checkpoint_start);
-    // Expelled checkpoint_start + 1 mutation
-    const size_t queuedItemSaving = checkpointStartItem->size() + sizeOfItem;
-    const size_t expectedMemoryRecovered =
-            checkpointListSaving + queuedItemSaving;
+    // List saving + 1 mutation
+    const size_t expectedMemoryRecovered = checkpointListSaving + sizeOfItem;
 
-    EXPECT_EQ(2, expelResult.expelCount);
     EXPECT_EQ(expectedMemoryRecovered,
               expelResult.estimateOfFreeMemory - extra);
     EXPECT_EQ(expectedMemoryRecovered, reductionInCheckpointMemoryUsage);
-    EXPECT_EQ(2, this->global_stats.itemsExpelledFromCheckpoints);
 }
 
 TEST_P(CheckpointTest, testExpelCheckpointItemsMemoryRecoveredMemory) {

@@ -169,6 +169,10 @@ public:
         return isValid;
     }
 
+    const StoredDocKey& getKey() const {
+        return (*currentPos)->getKey();
+    }
+
 private:
     /**
      * Move the cursor's iterator back one if it is not currently pointing to
@@ -495,15 +499,16 @@ public:
     bool canDedup(const queued_item& existing, const queued_item& in) const;
 
     /**
-     * Returns the seqno of a non-expelled (and non-dummy) item that has the
-     * lowest seqno.
+     * Returns the first seqno available in this checkpoint for a cursor to pick
+     * up. Used for registering cursors at the right position.
+     * Logically the returned seqno is a different quantity depending on whether
+     * expelling has modified the checkpoint queue:
+     *
+     * 1. Expel hasn't run -> that's the seqno of checkpoint_start
+     * 2. Expel has run -> that's the seqno of the first item after the
+     *    checkpoint_start
      */
-    uint64_t getLowSeqno() const {
-        auto pos = begin();
-        // Skip passed the dummy item
-        ++pos;
-        return (*pos)->getBySeqno();
-    }
+    uint64_t getMinimumCursorSeqno() const;
 
     uint64_t getHighSeqno() const {
         auto pos = end();

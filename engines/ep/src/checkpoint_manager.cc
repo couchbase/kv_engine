@@ -131,7 +131,7 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(
             "snapEnd:{}]",
             vbucketId,
             oldOpenCkpt.getId(),
-            oldOpenCkpt.getLowSeqno(),
+            oldOpenCkpt.getMinimumCursorSeqno(),
             oldOpenCkpt.getHighSeqno());
     queued_item qi = createCheckpointItem(
             oldOpenCkpt.getId(), vbucketId, queue_op::checkpoint_end);
@@ -268,7 +268,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
     auto itr = checkpointList.begin();
     for (; itr != checkpointList.end(); ++itr) {
         uint64_t en = (*itr)->getHighSeqno();
-        uint64_t st = (*itr)->getLowSeqno();
+        uint64_t st = (*itr)->getMinimumCursorSeqno();
 
         if (startBySeqno < st) {
             // Requested sequence number is before the start of this
@@ -583,7 +583,7 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
                << ") lowest found cursor is not in the oldest "
                   "checkpoint. Oldest checkpoint ID: "
                << oldestCheckpoint->getId()
-               << " lowSeqno: " << oldestCheckpoint->getLowSeqno()
+               << " lowSeqno: " << oldestCheckpoint->getMinimumCursorSeqno()
                << " highSeqno: " << oldestCheckpoint->getHighSeqno()
                << " snapStart: " << oldestCheckpoint->getSnapshotStartSeqno()
                << " snapEnd: " << oldestCheckpoint->getSnapshotEndSeqno()

@@ -591,6 +591,10 @@ public:
         return op == queue_op::checkpoint_start;
     }
 
+    bool isCheckpointEnd() const {
+        return op == queue_op::checkpoint_end;
+    }
+
 private:
     /**
      * Set the item's data. This is only used by constructors, so we
