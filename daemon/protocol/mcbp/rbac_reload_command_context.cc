@@ -13,40 +13,46 @@
 #include <daemon/connection.h>
 #include <daemon/external_auth_manager_thread.h>
 #include <daemon/memcached.h>
+#include <daemon/one_shot_task.h>
 #include <daemon/settings.h>
-#include <executor/executor.h>
+#include <executor/executorpool.h>
 #include <logger/logger.h>
 
 cb::engine_errc RbacReloadCommandContext::reload() {
     state = State::Done;
 
-    cb::executor::get().add([client = &cookie]() {
-        auto& connection = client->getConnection();
-        auto status = cb::engine_errc::success;
-        try {
-            LOG_INFO("{}: Loading RBAC configuration from [{}]",
-                     connection.getId(),
-                     Settings::instance().getRbacFile());
-            cb::rbac::loadPrivilegeDatabase(Settings::instance().getRbacFile());
-            LOG_INFO("{}: RBAC configuration updated {}",
-                     connection.getId(),
-                     connection.getDescription());
+    ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
+            TaskId::Core_RbacReloadTask,
+            "Refresh RBAC database",
+            [client = &cookie]() {
+                auto& connection = client->getConnection();
+                auto status = cb::engine_errc::success;
+                try {
+                    LOG_INFO("{}: Loading RBAC configuration from [{}]",
+                             connection.getId(),
+                             Settings::instance().getRbacFile());
+                    cb::rbac::loadPrivilegeDatabase(
+                            Settings::instance().getRbacFile());
+                    LOG_INFO("{}: RBAC configuration updated {}",
+                             connection.getId(),
+                             connection.getDescription());
 
-            if (externalAuthManager) {
-                externalAuthManager->setRbacCacheEpoch(
-                        std::chrono::steady_clock::now());
-            }
-        } catch (const std::runtime_error& error) {
-            LOG_WARNING(
-                    "{}: RbacConfigReloadTask(): An error occurred while "
-                    "loading RBAC configuration from [{}]: {}",
-                    connection.getId(),
-                    Settings::instance().getRbacFile(),
-                    error.what());
-            status = cb::engine_errc::failed;
-        }
-        ::notifyIoComplete(*client, status);
-    });
+                    if (externalAuthManager) {
+                        externalAuthManager->setRbacCacheEpoch(
+                                std::chrono::steady_clock::now());
+                    }
+                } catch (const std::runtime_error& error) {
+                    LOG_WARNING(
+                            "{}: RbacConfigReloadTask(): An error occurred "
+                            "while "
+                            "loading RBAC configuration from [{}]: {}",
+                            connection.getId(),
+                            Settings::instance().getRbacFile(),
+                            error.what());
+                    status = cb::engine_errc::failed;
+                }
+                ::notifyIoComplete(*client, status);
+            }));
 
     return cb::engine_errc::would_block;
 }

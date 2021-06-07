@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -14,8 +13,9 @@
 #include <daemon/cookie.h>
 #include <daemon/mcaudit.h>
 #include <daemon/memcached.h>
+#include <daemon/one_shot_task.h>
 #include <daemon/session_cas.h>
-#include <executor/executor.h>
+#include <executor/executorpool.h>
 #include <logger/logger.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/request.h>
@@ -268,9 +268,12 @@ void set_cluster_config_executor(Cookie& cookie) {
     }
 
     if (!failed) {
-        cb::executor::get().add([bucketIndex, revision]() {
-            push_cluster_config(bucketIndex, revision);
-        });
+        ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
+                TaskId::Core_PushClustermapTask,
+                "Push clustermap",
+                [bucketIndex, revision]() {
+                    push_cluster_config(bucketIndex, revision);
+                }));
     }
 
     session_cas.decrement_session_counter();

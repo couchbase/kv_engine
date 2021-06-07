@@ -13,14 +13,19 @@
 #include "connection.h"
 #include "cookie.h"
 #include "memcached.h"
+#include "nobucket_taskable.h"
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
 
-StatsTaskConnectionStats::StatsTaskConnectionStats(Cookie& cookie, int64_t fd)
-    : StatsTask(cookie), fd(fd) {
+StatsTask::StatsTask(TaskId id, Cookie& cookie)
+    : GlobalTask(NoBucketTaskable::instance(), id), cookie(cookie) {
 }
 
-void StatsTaskConnectionStats::execute() {
+StatsTaskConnectionStats::StatsTaskConnectionStats(Cookie& cookie, int64_t fd)
+    : StatsTask(TaskId::Core_StatsConnectionTask, cookie), fd(fd) {
+}
+
+bool StatsTaskConnectionStats::run() {
     try {
         iterate_all_connections([this](Connection& c) -> void {
             if (fd == -1 || c.getId() == fd) {
@@ -39,7 +44,18 @@ void StatsTaskConnectionStats::execute() {
     }
 
     notifyIoComplete(cookie, cb::engine_errc::success);
+    return false;
 }
 
-StatsTask::StatsTask(Cookie& cookie) : cookie(cookie) {
+std::string StatsTaskConnectionStats::getDescription() const {
+    if (fd == -1) {
+        return "stats connections";
+    } else {
+        return "stats connection " + std::to_string(fd);
+    }
+}
+
+std::chrono::microseconds StatsTaskConnectionStats::maxExpectedDuration()
+        const {
+    return std::chrono::seconds(1);
 }

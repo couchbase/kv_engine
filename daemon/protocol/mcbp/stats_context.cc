@@ -23,7 +23,7 @@
 #include <daemon/stats.h>
 #include <daemon/stats_tasks.h>
 #include <daemon/topkeys.h>
-#include <executor/executor.h>
+#include <executor/executorpool.h>
 #include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
@@ -285,7 +285,7 @@ static cb::engine_errc stat_connections_executor(const std::string& arg,
     std::shared_ptr<StatsTask> task =
             std::make_shared<StatsTaskConnectionStats>(cookie, fd);
     cookie.obtainContext<StatsCommandContext>(cookie).setTask(task);
-    cb::executor::get().add([task]() { task->execute(); });
+    ExecutorPool::get()->schedule(task);
     return cb::engine_errc::would_block;
 }
 

@@ -14,9 +14,10 @@
 #include <daemon/connection.h>
 #include <daemon/external_auth_manager_thread.h>
 #include <daemon/memcached.h>
+#include <daemon/one_shot_task.h>
 #include <daemon/settings.h>
 #include <daemon/start_sasl_auth_task.h>
-#include <executor/executor.h>
+#include <executor/executorpool.h>
 #include <logger/logger.h>
 
 SaslStartCommandContext::SaslStartCommandContext(Cookie& cookie)
@@ -60,12 +61,14 @@ cb::engine_errc SaslStartCommandContext::initial() {
         return cb::engine_errc::success;
     }
 
-    cb::executor::get().add([this]() {
-        doSaslStart();
-        // We need to notify with success here to avoid having the framework
-        // report the error
-        ::notifyIoComplete(cookie, cb::engine_errc::success);
-    });
+    ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
+            TaskId::Core_SaslStartTask, "SASL Start", [this]() {
+                doSaslStart();
+                // We need to notify with success here to avoid having the
+                // framework report the error
+                ::notifyIoComplete(cookie, cb::engine_errc::success);
+            }));
+
     return cb::engine_errc::would_block;
 }
 

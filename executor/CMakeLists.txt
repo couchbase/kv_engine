@@ -3,8 +3,6 @@ add_library(mcd_executor STATIC
             cb3_executorpool.h
             cb3_executorthread.cc
             cb3_executorthread.h
-            executor.cc
-            executor.h
             executorpool.cc
             executorpool.h
             fake_executorpool.h

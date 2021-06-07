@@ -29,9 +29,10 @@ constexpr auto SlowMutexThreshold = std::chrono::milliseconds(10);
 /**
  * Initialises Tracing
  */
-void initializeTracing(const std::string& traceConfig,
-                       std::chrono::seconds interval,
-                       std::chrono::seconds max_age);
+void initializeTracing(const std::string& traceConfig);
+
+void startStaleTraceDumpRemover(std::chrono::seconds interval,
+                                std::chrono::seconds max_age);
 
 /**
  * Deinitialises Tracing

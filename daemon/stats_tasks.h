@@ -10,28 +10,19 @@
  */
 #pragma once
 
+#include <executor/globaltask.h>
 #include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
 #include <vector>
 
 class Connection;
-
 class Cookie;
 
-/**
- * Background LIBEVENT tasks which can be run as part of the StatsCommandContext
- * execution.
- */
-class StatsTask {
+/// Base class for tasks scheduled by the Stats Context
+class StatsTask : public GlobalTask {
 public:
-    virtual ~StatsTask() = default;
-
     StatsTask() = delete;
     StatsTask(const StatsTask&) = delete;
-
-    explicit StatsTask(Cookie& cookie);
-
-    virtual void execute() = 0;
 
     cb::engine_errc getCommandError() const {
         return command_error;
@@ -43,6 +34,7 @@ public:
     }
 
 protected:
+    StatsTask(TaskId id, Cookie& cookie);
     Cookie& cookie;
     cb::engine_errc command_error = cb::engine_errc::success;
     std::vector<std::pair<std::string, std::string>> stats;
@@ -50,14 +42,11 @@ protected:
 
 class StatsTaskConnectionStats : public StatsTask {
 public:
-    StatsTaskConnectionStats() = delete;
-
-    StatsTaskConnectionStats(const StatsTaskConnectionStats&) = delete;
-
     StatsTaskConnectionStats(Cookie& cookie, int64_t fd);
-
-    void execute() override;
+    std::string getDescription() const override;
+    std::chrono::microseconds maxExpectedDuration() const override;
 
 protected:
+    bool run() override;
     const int64_t fd;
 };

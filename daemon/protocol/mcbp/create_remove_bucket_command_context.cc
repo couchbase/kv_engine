@@ -12,7 +12,8 @@
 
 #include <daemon/connection.h>
 #include <daemon/enginemap.h>
-#include <executor/executor.h>
+#include <daemon/one_shot_task.h>
+#include <executor/executorpool.h>
 #include <logger/logger.h>
 #include <memcached/config_parser.h>
 
@@ -43,23 +44,31 @@ cb::engine_errc CreateRemoveBucketCommandContext::create() {
 
     auto type = module_to_bucket_type(value);
 
-    cb::executor::get().add([client = &cookie,
-                             nm = std::move(name),
-                             cfg = std::move(config),
-                             t = type]() {
-        auto& connection = client->getConnection();
-        cb::engine_errc status;
-        try {
-            status = BucketManager::instance().create(*client, nm, cfg, t);
-        } catch (const std::runtime_error& error) {
-            LOG_WARNING("{}: An error occurred while creating bucket [{}]: {}",
-                        connection.getId(),
-                        nm,
-                        error.what());
-            status = cb::engine_errc::failed;
-        }
-        ::notifyIoComplete(*client, status);
-    });
+    std::string taskname{"Create bucket [" + name + "]"};
+    ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
+            TaskId::Core_CreateBucketTask,
+            taskname,
+            [client = &cookie,
+             nm = std::move(name),
+             cfg = std::move(config),
+             t = type]() {
+                auto& connection = client->getConnection();
+                cb::engine_errc status;
+                try {
+                    status = BucketManager::instance().create(
+                            *client, nm, cfg, t);
+                } catch (const std::runtime_error& error) {
+                    LOG_WARNING(
+                            "{}: An error occurred while creating bucket [{}]: "
+                            "{}",
+                            connection.getId(),
+                            nm,
+                            error.what());
+                    status = cb::engine_errc::failed;
+                }
+                ::notifyIoComplete(*client, status);
+            },
+            std::chrono::seconds(10)));
 
     state = State::Done;
     return cb::engine_errc::would_block;
@@ -83,22 +92,27 @@ cb::engine_errc CreateRemoveBucketCommandContext::remove() {
         return cb::engine_errc::invalid_arguments;
     }
 
-    cb::executor::get().add([client = &cookie,
-                             nm = std::move(name),
-                             f = force]() {
-        auto& connection = client->getConnection();
-        cb::engine_errc status;
-        try {
-            status = BucketManager::instance().destroy(client, nm, f);
-        } catch (const std::runtime_error& error) {
-            LOG_WARNING("{}: An error occurred while deleting bucket [{}]: {}",
-                        connection.getId(),
-                        nm,
-                        error.what());
-            status = cb::engine_errc::failed;
-        }
-        ::notifyIoComplete(*client, status);
-    });
+    std::string taskname{"Delete bucket [" + name + "]"};
+    ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
+            TaskId::Core_DeleteBucketTask,
+            taskname,
+            [client = &cookie, nm = std::move(name), f = force]() {
+                auto& connection = client->getConnection();
+                cb::engine_errc status;
+                try {
+                    status = BucketManager::instance().destroy(client, nm, f);
+                } catch (const std::runtime_error& error) {
+                    LOG_WARNING(
+                            "{}: An error occurred while deleting bucket [{}]: "
+                            "{}",
+                            connection.getId(),
+                            nm,
+                            error.what());
+                    status = cb::engine_errc::failed;
+                }
+                ::notifyIoComplete(*client, status);
+            },
+            std::chrono::seconds(30)));
 
     state = State::Done;
     return cb::engine_errc::would_block;

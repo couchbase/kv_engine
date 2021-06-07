@@ -12,7 +12,9 @@
 
 #include <daemon/connection.h>
 #include <daemon/memcached.h>
-#include <executor/executor.h>
+#include <daemon/nobucket_taskable.h>
+#include <daemon/one_shot_task.h>
+#include <executor/executorpool.h>
 #include <logger/logger.h>
 
 SaslStepCommandContext::SaslStepCommandContext(Cookie& cookie)
@@ -31,12 +33,13 @@ cb::engine_errc SaslStepCommandContext::initial() {
     }
 
     state = State::HandleSaslAuthTaskResult;
-    cb::executor::get().add([this]() {
-        doSaslStep();
-        // We need to notify with success here to avoid having the framework
-        // report the error
-        ::notifyIoComplete(cookie, cb::engine_errc::success);
-    });
+    ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
+            TaskId::Core_SaslStepTask, "SASL Step", [this]() {
+                doSaslStep();
+                // We need to notify with success here to avoid having the
+                // framework report the error
+                ::notifyIoComplete(cookie, cb::engine_errc::success);
+            }));
     return cb::engine_errc::would_block;
 }
 

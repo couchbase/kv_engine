@@ -27,8 +27,6 @@ protected:
     cb::engine_errc handleSaslAuthTaskResult() override;
 
 private:
-    /// Run the SASL STEP (run in another thread from the folly executor
-    /// and update Error and Payload
     void doSaslStep();
 
     cb::sasl::Error error = cb::sasl::Error::FAIL;

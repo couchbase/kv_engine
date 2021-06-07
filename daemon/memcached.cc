@@ -26,6 +26,7 @@
 #include "mcbp_validators.h"
 #include "network_interface.h"
 #include "network_interface_manager.h"
+#include "nobucket_taskable.h"
 #include "opentelemetry.h"
 #include "parent_monitor.h"
 #include "protocol/mcbp/engine_wrapper.h"
@@ -60,7 +61,6 @@
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/openssl_utils.h>
 
-#include <executor/executor.h>
 #include <executor/executorpool.h>
 #include <chrono>
 #include <csignal>
@@ -1044,6 +1044,11 @@ int memcached_main(int argc, char** argv) {
     /* start up worker threads if MT mode */
     worker_threads_init();
 
+    LOG_INFO(R"(Starting Phosphor tracing with config: "{}")",
+             Settings::instance().getPhosphorConfig());
+    initializeTracing(Settings::instance().getPhosphorConfig());
+    TRACE_GLOBAL0("memcached", "Started");
+
     LOG_INFO_RAW("Start executor pool");
     ExecutorPool::create(ExecutorPool::Backend::Folly,
                          0,
@@ -1051,16 +1056,11 @@ int memcached_main(int argc, char** argv) {
                                  Settings::instance().getNumReaderThreads()),
                          ThreadPoolConfig::ThreadCount(
                                  Settings::instance().getNumWriterThreads()));
+    ExecutorPool::get()->registerTaskable(NoBucketTaskable::instance());
 
-    LOG_INFO_RAW("Start memcached core executor pool");
-    cb::executor::create(Settings::instance().getNumWorkerThreads());
-
-    LOG_INFO(R"(Starting Phosphor tracing with config: "{}")",
-             Settings::instance().getPhosphorConfig());
-    initializeTracing(Settings::instance().getPhosphorConfig(),
-                      std::chrono::minutes(1),
-                      std::chrono::minutes(5));
-    TRACE_GLOBAL0("memcached", "Started");
+    // Schedule the StaleTraceRemover
+    startStaleTraceDumpRemover(std::chrono::minutes(1),
+                               std::chrono::minutes(5));
 
     /*
      * MB-20034.
@@ -1113,10 +1113,9 @@ int memcached_main(int argc, char** argv) {
     LOG_INFO_RAW("Shutting down RBAC subsystem");
     cb::rbac::destroy();
 
-    LOG_INFO_RAW("Shutting down memcached core executor pool");
-    cb::executor::shutdown();
-
     LOG_INFO_RAW("Shutting down executor pool");
+    ExecutorPool::get()->unregisterTaskable(NoBucketTaskable::instance(),
+                                            false);
     ExecutorPool::shutdown();
 
     LOG_INFO_RAW("Releasing signal handlers");
