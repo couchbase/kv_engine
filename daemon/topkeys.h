@@ -58,8 +58,8 @@ public:
     };
 
     // Pair of the key's string and the statistics related to it.
-    typedef std::pair<KeyId, topkey_item_t> topkey_t;
-    typedef std::pair<std::string, topkey_item_t> topkey_stat_t;
+    using topkey_t = std::pair<KeyId, topkey_item_t>;
+    using topkey_stat_t = std::pair<std::string, topkey_item_t>;
 
     void updateKey(const void* key, size_t nkey, rel_time_t operation_time);
 
@@ -134,7 +134,7 @@ private:
                        size_t key_hash,
                        rel_time_t operation_time);
 
-        typedef void (*iterfunc_t)(const topkey_t& it, void* arg);
+        using iterfunc_t = void (*)(const topkey_t&, void*);
 
         /* For each key in this shard, invoke the given callback function.
          */
@@ -142,10 +142,10 @@ private:
 
     private:
         // An ordered list of topkey_t*, used for LRU.
-        typedef std::list<topkey_t*> key_history_t;
+        using key_history_t = std::list<topkey_t*>;
 
         // Vector topkey_t, used for actual topkey storage.
-        typedef std::vector<topkey_t> key_storage_t;
+        using key_storage_t = std::vector<topkey_t>;
 
         // Searches for the given key. If found returns a pointer to the
         // topkey_t, else returns NULL.

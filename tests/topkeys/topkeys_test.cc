@@ -18,7 +18,7 @@ class TopKeysTest : public ::testing::Test {
 protected:
     void SetUp() override {
         Settings::instance().setTopkeysEnabled(true);
-        topkeys.reset(new TopKeys(10));
+        topkeys = std::make_unique<TopKeys>(10);
     }
 
     void testWithNKeys(int numKeys);

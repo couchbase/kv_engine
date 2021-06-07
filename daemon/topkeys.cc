@@ -99,8 +99,7 @@ TopKeys::TopKeys(int mkeys)
     }
 }
 
-TopKeys::~TopKeys() {
-}
+TopKeys::~TopKeys() = default;
 
 void TopKeys::updateKey(const void* key,
                         size_t nkey,
