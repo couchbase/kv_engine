@@ -14,7 +14,6 @@
 #include "taskable.h"
 
 #include <engines/ep/src/bucket_logger.h>
-#include <engines/ep/src/ep_time.h>
 #include <engines/ep/src/objectregistry.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/IOThreadPoolExecutor.h>
@@ -1057,7 +1056,6 @@ void FollyExecutorPool::doTasksStat(Taskable& taskable,
                     to_ns_since_epoch(std::chrono::steady_clock::now()).count(),
                     add_stat,
                     cookie);
-    add_casted_stat("ep_tasks:uptime_s", ep_current_time(), add_stat, cookie);
 
     // It is possible that elements of `tasks` are now the last reference to
     // a GlobalTask, if the GlobalTask was cancelled while this function was

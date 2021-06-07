@@ -15,7 +15,6 @@
 
 #include <engines/ep/src/bucket_logger.h>
 #include <engines/ep/src/ep_engine.h>
-#include <engines/ep/src/ep_time.h>
 #include <engines/ep/src/objectregistry.h>
 #include <nlohmann/json.hpp>
 #include <platform/checked_snprintf.h>
@@ -806,9 +805,6 @@ void CB3ExecutorPool::doTasksStat(Taskable& taskable,
                     to_ns_since_epoch(std::chrono::steady_clock::now()).count(),
                     add_stat,
                     cookie);
-
-    checked_snprintf(statname.data(), statname.size(), "%s:uptime_s", prefix);
-    add_casted_stat(statname.data(), ep_current_time(), add_stat, cookie);
 
     // It is possible that elements of `tasks` are now the last reference to
     // a GlobalTask, if the GlobalTask was cancelled while this function was

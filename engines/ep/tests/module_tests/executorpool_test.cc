@@ -1033,7 +1033,6 @@ TYPED_TEST(ExecutorPoolTest, TaskStats) {
                          testing::ResultOf(tasksChecker, ""),
                          nullptr));
     EXPECT_CALL(mockAddStat, callback("ep_tasks:cur_time", _, nullptr));
-    EXPECT_CALL(mockAddStat, callback("ep_tasks:uptime_s", _, nullptr));
 
     this->pool->doTasksStat(bucket0, nullptr, mockAddStat.asStdFunction());
 
