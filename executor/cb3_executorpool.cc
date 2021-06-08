@@ -13,9 +13,9 @@
 #include "cb3_executorthread.h"
 #include "cb3_taskqueue.h"
 
-#include <engines/ep/src/bucket_logger.h>
 #include <engines/ep/src/ep_engine.h>
 #include <engines/ep/src/objectregistry.h>
+#include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/checked_snprintf.h>
 #include <platform/string_hex.h>
@@ -155,7 +155,7 @@ void CB3ExecutorPool::startWork(task_type_t taskType) {
                 std::to_string(taskType) + "}");
     } else {
         ++curWorkers[taskType];
-        EP_LOG_TRACE(
+        LOG_TRACE(
                 "Taking up work in task "
                 "type:{{{}}} "
                 "current:{{{}}}, max:{{{}}}",
@@ -175,9 +175,9 @@ void CB3ExecutorPool::doneWork(task_type_t taskType) {
     } else {
         --curWorkers[taskType];
         // Record that a thread is done working on a particular queue type
-        EP_LOG_TRACE("Done with task type:{{{}}} capacity:{{{}}}",
-                     taskType,
-                     numWorkers[taskType].load());
+        LOG_TRACE("Done with task type:{{{}}} capacity:{{{}}}",
+                  taskType,
+                  numWorkers[taskType].load());
     }
 }
 
@@ -185,16 +185,16 @@ ExTask CB3ExecutorPool::_cancel(size_t taskId, bool remove) {
     std::lock_guard<std::mutex> lh(tMutex);
     auto itr = taskLocator.find(taskId);
     if (itr == taskLocator.end()) {
-        EP_LOG_DEBUG("Task id {} not found", uint64_t(taskId));
+        LOG_DEBUG("Task id {} not found", uint64_t(taskId));
         return {};
     }
 
     ExTask task = itr->second.first;
-    EP_LOG_TRACE("Cancel task {} id {} on bucket {} {}",
-                 task->getDescription(),
-                 task->getId(),
-                 task->getTaskable().getName(),
-                 remove ? "removed task" : "");
+    LOG_TRACE("Cancel task {} id {} on bucket {} {}",
+              task->getDescription(),
+              task->getId(),
+              task->getTaskable().getName(),
+              remove ? "removed task" : "");
 
     task->cancel(); // must be idempotent, just set state to dead
 
@@ -297,10 +297,8 @@ TaskQueue* CB3ExecutorPool::_getTaskQueue(const Taskable& t, task_type_t qidx) {
     curNumThreads = threadQ.size();
 
     if (!bucketPriority) {
-        EP_LOG_WARN(
-                "Trying to schedule task for unregistered "
-                "bucket {}",
-                t.getName());
+        LOG_WARNING("Trying to schedule task for unregistered bucket {}",
+                    t.getName());
         return q;
     }
 
@@ -383,15 +381,15 @@ void CB3ExecutorPool::_registerTaskable(Taskable& taskable) {
         taskQ = &lpTaskQ;
         whichQset = &isLowPrioQset;
         queueName = "LowPrioQ_";
-        EP_LOG_INFO("Taskable {} registered with low priority",
-                    taskable.getName());
+        LOG_INFO("Taskable {} registered with low priority",
+                 taskable.getName());
     } else {
         taskable.setWorkloadPriority(HIGH_BUCKET_PRIORITY);
         taskQ = &hpTaskQ;
         whichQset = &isHiPrioQset;
         queueName = "HiPrioQ_";
-        EP_LOG_INFO("Taskable {} registered with high priority",
-                    taskable.getName());
+        LOG_INFO("Taskable {} registered with high priority",
+                 taskable.getName());
     }
 
     {
@@ -443,10 +441,10 @@ void CB3ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
             return;
         }
 
-        EP_LOG_INFO("Adjusting threads of type:{} from:{} to:{}",
-                    typeName,
-                    numItems,
-                    desiredNumItems);
+        LOG_INFO("Adjusting threads of type:{} from:{} to:{}",
+                 typeName,
+                 numItems,
+                 desiredNumItems);
 
         if (numItems < desiredNumItems) {
             // If we want to increase the number of threads, they must be
@@ -543,10 +541,10 @@ std::vector<ExTask> CB3ExecutorPool::_stopTaskGroup(
             ExTask& task = itr->second.first;
             TaskQueue* q = itr->second.second;
             if (task->getTaskable().getGID() == taskGID) {
-                EP_LOG_INFO("Stopping Task id {} {} {}",
-                            uint64_t(task->getId()),
-                            task->getTaskable().getName(),
-                            task->getDescription());
+                LOG_INFO("Stopping Task id {} {} {}",
+                         uint64_t(task->getId()),
+                         task->getTaskable().getName(),
+                         task->getDescription());
                 // If force flag is set during shutdown, cancel all tasks
                 // without considering the blockShutdown status of the task.
                 if (force || !task->blockShutdown) {
@@ -567,9 +565,9 @@ std::vector<ExTask> CB3ExecutorPool::_stopTaskGroup(
 
 std::vector<ExTask> CB3ExecutorPool::_unregisterTaskable(Taskable& taskable,
                                                          bool force) {
-    EP_LOG_INFO("Unregistering {} taskable {}",
-                (numTaskables == 1) ? "last" : "",
-                taskable.getName());
+    LOG_INFO("Unregistering {} taskable {}",
+             (numTaskables == 1) ? "last" : "",
+             taskable.getName());
 
     std::unique_lock<std::mutex> lh(tMutex);
 
@@ -680,7 +678,7 @@ void CB3ExecutorPool::doTaskQStat(Taskable& taskable,
             }
         }
     } catch (std::exception& error) {
-        EP_LOG_WARN("CB3ExecutorPool::doTaskQStat: Failed to build stats: {}",
+        LOG_WARNING("CB3ExecutorPool::doTaskQStat: Failed to build stats: {}",
                     error.what());
     }
 }
@@ -726,7 +724,7 @@ static void addWorkerStats(const char* prefix,
                         add_stat,
                         cookie);
     } catch (std::exception& error) {
-        EP_LOG_WARN("addWorkerStats: Failed to build stats: {}", error.what());
+        LOG_WARNING("addWorkerStats: Failed to build stats: {}", error.what());
     }
 }
 

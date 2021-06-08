@@ -13,11 +13,11 @@
 #include "globaltask.h"
 #include "taskable.h"
 
-#include <engines/ep/src/bucket_logger.h>
 #include <engines/ep/src/objectregistry.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/IOThreadPoolExecutor.h>
 #include <folly/executors/thread_factory/PriorityThreadFactory.h>
+#include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/string_hex.h>
@@ -106,18 +106,18 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
         // timeout has fired so should not be currently scheduled.
         Expects(!isScheduled());
 
-        EP_LOG_TRACE("TaskProxy::timeoutExpired() id:{} name:{}",
-                     task->getId(),
-                     GlobalTask::getTaskName(task->getTaskId()));
+        LOG_TRACE("TaskProxy::timeoutExpired() id:{} name:{}",
+                  task->getId(),
+                  GlobalTask::getTaskName(task->getTaskId()));
 
         scheduleViaCPUPool();
     }
 
     void callbackCanceled() noexcept override {
         // Callback cancelled. nothing to be done.
-        EP_LOG_TRACE("TaskProxy::timeoutCanceled() id:{} name{}",
-                     task->getId(),
-                     GlobalTask::getTaskName(task->getTaskId()));
+        LOG_TRACE("TaskProxy::timeoutCanceled() id:{} name{}",
+                  task->getId(),
+                  GlobalTask::getTaskName(task->getTaskId()));
     }
 
     /**
@@ -127,10 +127,10 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
     void scheduleViaCPUPool() {
         using namespace std::chrono;
 
-        EP_LOG_TRACE("TaskProxy::scheduleViaCPUPool() id:{} name:{} descr:{}",
-                     task->getId(),
-                     GlobalTask::getTaskName(task->getTaskId()),
-                     task->getDescription());
+        LOG_TRACE("TaskProxy::scheduleViaCPUPool() id:{} name:{} descr:{}",
+                  task->getId(),
+                  GlobalTask::getTaskName(task->getTaskId()),
+                  task->getDescription());
 
         // Mark that the task cannot be re-scheduled at this time - once the
         // task is enqueued onto its CPU pool then we cannot re-schedule it
@@ -155,9 +155,9 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
         cpuPool.add([&proxy = *this] {
             Expects(proxy.task.get());
 
-            EP_LOG_TRACE("FollyExecutorPool: Run task \"{}\" id {}",
-                         proxy.task->getDescription(),
-                         proxy.task->getId());
+            LOG_TRACE("FollyExecutorPool: Run task \"{}\" id {}",
+                      proxy.task->getDescription(),
+                      proxy.task->getId());
             bool runAgain = false;
             // Check if Task is still alive. If not don't run.
             if (!proxy.task->isdead()) {
@@ -219,7 +219,7 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
     void resetTaskPtrViaCpuPool() {
         using namespace std::chrono;
 
-        EP_LOG_TRACE(
+        LOG_TRACE(
                 "TaskProxy::resetTaskPtrViaCpuPool() id:{} name:{} descr:'{}' "
                 "enqueuing func to reset 'task' shared_ptr",
                 task->getId(),
@@ -228,7 +228,7 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
 
         // Move `task` from this object (leaving it as null)
         cpuPool.add([ptrToReset = std::move(task), &proxy = *this]() mutable {
-            EP_LOG_TRACE(
+            LOG_TRACE(
                     "FollyExecutorPool::resetTaskPtrViaCpuPool lambda() id:{} "
                     "name:{}",
                     ptrToReset->getId(),
@@ -414,7 +414,7 @@ struct FollyExecutorPool::State {
                       ExTask task) {
         auto& owner = taskOwners.at(&task->getTaskable());
         if (!owner.registered) {
-            EP_LOG_WARN(
+            LOG_WARNING(
                     "FollyExecutorPool::scheduleTask(): Attempting to schedule "
                     "task id:{} name:'{}' when Taskable '{}' is not "
                     "registered.",
@@ -533,7 +533,7 @@ struct FollyExecutorPool::State {
                 // canelTask() - skip.
                 continue;
             }
-            EP_LOG_DEBUG(
+            LOG_DEBUG(
                     "FollyExecutorPool::cancelTasksOwnedBy(): Stopping "
                     "Task id:{} taskable:{} description:'{}'",
                     tProxy->task->getId(),
@@ -573,7 +573,7 @@ struct FollyExecutorPool::State {
         for (auto& [owner, tasks] : taskOwners) {
             it = tasks.locator.find(taskId);
             if (it != tasks.locator.end()) {
-                EP_LOG_TRACE(
+                LOG_TRACE(
                         "FollyExecutorPool::cancelTask() id:{} found for "
                         "owner:'{}'",
                         taskId,
@@ -633,7 +633,7 @@ struct FollyExecutorPool::State {
         for (auto& [owner, tasks] : taskOwners) {
             auto it = tasks.locator.find(taskId);
             if (it != tasks.locator.end()) {
-                EP_LOG_TRACE(
+                LOG_TRACE(
                         "FollyExecutorPool::State::removeTask() erasing task "
                         "id:{} for "
                         "owner:'{}'",
@@ -824,12 +824,12 @@ void FollyExecutorPool::registerTaskable(Taskable& taskable) {
     if (taskable.getWorkLoadPolicy().getBucketPriority() <
         HIGH_BUCKET_PRIORITY) {
         taskable.setWorkloadPriority(LOW_BUCKET_PRIORITY);
-        EP_LOG_INFO("Taskable {} registered with low priority",
-                    taskable.getName());
+        LOG_INFO("Taskable {} registered with low priority",
+                 taskable.getName());
     } else {
         taskable.setWorkloadPriority(HIGH_BUCKET_PRIORITY);
-        EP_LOG_INFO("Taskable {} registered with high priority",
-                    taskable.getName());
+        LOG_INFO("Taskable {} registered with high priority",
+                 taskable.getName());
     }
 
     futurePool->getEventBase()->runInEventBaseThreadAndWait(
@@ -842,10 +842,9 @@ std::vector<ExTask> FollyExecutorPool::unregisterTaskable(Taskable& taskable,
                                                           bool force) {
     NonBucketAllocationGuard guard;
 
-    EP_LOG_TRACE(
-            "FollyExecutorPool::unregisterTaskable() taskable:'{}' force:{}",
-            taskable.getName(),
-            force);
+    LOG_TRACE("FollyExecutorPool::unregisterTaskable() taskable:'{}' force:{}",
+              taskable.getName(),
+              force);
 
     // We need to ensure that all tasks owned by this taskable have
     // stopped when this function returns. Tasks can be in one of three
@@ -917,12 +916,11 @@ size_t FollyExecutorPool::schedule(ExTask task) {
     NonBucketAllocationGuard guard;
 
     using namespace std::chrono;
-    EP_LOG_TRACE(
-            "FollyExecutorPool::schedule() id:{} name:{} type:{} wakeTime:{}",
-            task->getId(),
-            GlobalTask::getTaskName(task->getTaskId()),
-            GlobalTask::getTaskType(task->getTaskId()),
-            task->getWaketime().time_since_epoch().count());
+    LOG_TRACE("FollyExecutorPool::schedule() id:{} name:{} type:{} wakeTime:{}",
+              task->getId(),
+              GlobalTask::getTaskName(task->getTaskId()),
+              GlobalTask::getTaskType(task->getTaskId()),
+              task->getWaketime().time_since_epoch().count());
 
     auto* eventBase = futurePool->getEventBase();
     auto* pool = getPoolForTaskType(GlobalTask::getTaskType(task->getTaskId()));
@@ -937,9 +935,9 @@ size_t FollyExecutorPool::schedule(ExTask task) {
 bool FollyExecutorPool::cancel(size_t taskId, bool eraseTask) {
     NonBucketAllocationGuard guard;
 
-    EP_LOG_TRACE("FollyExecutorPool::cancel() id:{} eraseTask:{}",
-                 taskId,
-                 eraseTask);
+    LOG_TRACE("FollyExecutorPool::cancel() id:{} eraseTask:{}",
+              taskId,
+              eraseTask);
 
     auto* eventBase = futurePool->getEventBase();
     bool found = false;
@@ -953,7 +951,7 @@ bool FollyExecutorPool::cancel(size_t taskId, bool eraseTask) {
 void FollyExecutorPool::wake(size_t taskId) {
     NonBucketAllocationGuard guard;
 
-    EP_LOG_TRACE("FollyExecutorPool::wake() id:{}", taskId);
+    LOG_TRACE("FollyExecutorPool::wake() id:{}", taskId);
 
     auto* eventBase = futurePool->getEventBase();
     eventBase->runInEventBaseThread(
@@ -963,7 +961,7 @@ void FollyExecutorPool::wake(size_t taskId) {
 bool FollyExecutorPool::wakeAndWait(size_t taskId) {
     NonBucketAllocationGuard guard;
 
-    EP_LOG_TRACE("FollyExecutorPool::wakeAndWait() id:{}", taskId);
+    LOG_TRACE("FollyExecutorPool::wakeAndWait() id:{}", taskId);
 
     auto* eventBase = futurePool->getEventBase();
     bool found = false;
@@ -977,8 +975,7 @@ bool FollyExecutorPool::wakeAndWait(size_t taskId) {
 void FollyExecutorPool::snooze(size_t taskId, double toSleep) {
     NonBucketAllocationGuard guard;
     using namespace std::chrono;
-    EP_LOG_TRACE(
-            "FollyExecutorPool::snooze() id:{} toSleep:{}", taskId, toSleep);
+    LOG_TRACE("FollyExecutorPool::snooze() id:{} toSleep:{}", taskId, toSleep);
 
     futurePool->getEventBase()->runInEventBaseThread(
             [state = state.get(), taskId, toSleep] {
@@ -989,9 +986,9 @@ void FollyExecutorPool::snooze(size_t taskId, double toSleep) {
 bool FollyExecutorPool::snoozeAndWait(size_t taskId, double toSleep) {
     NonBucketAllocationGuard guard;
     using namespace std::chrono;
-    EP_LOG_TRACE("FollyExecutorPool::snoozeAndWait() id:{} toSleep:{}",
-                 taskId,
-                 toSleep);
+    LOG_TRACE("FollyExecutorPool::snoozeAndWait() id:{} toSleep:{}",
+              taskId,
+              toSleep);
 
     auto* eventBase = futurePool->getEventBase();
     bool found = false;
@@ -1149,7 +1146,7 @@ void FollyExecutorPool::rescheduleTaskAfterRun(TaskProxy& proxy) {
     auto* eventBase = futurePool->getEventBase();
     Expects(eventBase->inRunningEventBaseThread());
 
-    EP_LOG_TRACE(
+    LOG_TRACE(
             "FollyExecutorPool::rescheduleTaskAfterRun() id:{} name:{} "
             "descr:'{}' "
             "state:{}",
@@ -1204,11 +1201,11 @@ void FollyExecutorPool::rescheduleTaskAfterRun(TaskProxy& proxy) {
 }
 
 void FollyExecutorPool::removeTaskAfterRun(TaskProxy& proxy) {
-    EP_LOG_TRACE("TaskProxy::removeTaskAfterRun() id:{} name:{}",
-                 proxy.taskId,
-                 proxy.task ? ("RESURRECTED:"s +
-                               GlobalTask::getTaskName(proxy.task->getTaskId()))
-                            : "<null>"s);
+    LOG_TRACE("TaskProxy::removeTaskAfterRun() id:{} name:{}",
+              proxy.taskId,
+              proxy.task ? ("RESURRECTED:"s +
+                            GlobalTask::getTaskName(proxy.task->getTaskId()))
+                         : "<null>"s);
 
     if (proxy.task) {
         Expects(proxy.proxyReused);

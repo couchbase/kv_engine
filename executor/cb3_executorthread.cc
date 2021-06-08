@@ -14,10 +14,10 @@
 #include "cb3_taskqueue.h"
 #include "globaltask.h"
 
-#include <engines/ep/src/bucket_logger.h>
 #include <engines/ep/src/objectregistry.h>
 #include <folly/Portability.h>
 #include <folly/portability/SysResource.h>
+#include <logger/logger.h>
 #include <platform/timeutils.h>
 #include <chrono>
 #include <queue>
@@ -31,7 +31,7 @@ static void launch_executor_thread(void* arg) {
 }
 
 CB3ExecutorThread::~CB3ExecutorThread() {
-    EP_LOG_INFO("Executor killing {}", name);
+    LOG_INFO("Executor killing {}", name);
 }
 
 void CB3ExecutorThread::start() {
@@ -53,7 +53,7 @@ void CB3ExecutorThread::start() {
         throw std::runtime_error(ss.str().c_str());
     }
 
-    EP_LOG_DEBUG("{}: Started", name);
+    LOG_DEBUG("{}: Started", name);
 }
 
 void CB3ExecutorThread::stop(bool wait) {
@@ -64,15 +64,15 @@ void CB3ExecutorThread::stop(bool wait) {
     state = EXECUTOR_SHUTDOWN;
 
     if (!wait) {
-        EP_LOG_INFO("{}: Stopping", name);
+        LOG_INFO("{}: Stopping", name);
         return;
     }
     cb_join_thread(thread);
-    EP_LOG_INFO("{}: Stopped", name);
+    LOG_INFO("{}: Stopped", name);
 }
 
 void CB3ExecutorThread::run() {
-    EP_LOG_DEBUG("Thread {} running..", getName());
+    LOG_DEBUG("Thread {} running..", getName());
 
     // The run loop should not account to any bucket, only once inside a task
     // will accounting be back on. GlobalTask::execute will switch to the bucket
@@ -91,11 +91,11 @@ void CB3ExecutorThread::run() {
     if (setpriority(PRIO_PROCESS,
                     /*Current thread*/ 0,
                     ExecutorPool::getThreadPriority(taskType))) {
-        EP_LOG_WARN("Failed to set thread {} to background priority - {}",
-                    getName(),
-                    strerror(errno));
+        LOG_WARNING("Failed to set thread {} to background priority - {}",
+                 getName(),
+                 strerror(errno));
     } else {
-        EP_LOG_INFO("Set thread {} to background priority", getName());
+        LOG_INFO("Set thread {} to background priority", getName());
     }
 #endif
 
@@ -134,10 +134,10 @@ void CB3ExecutorThread::run() {
             updateTaskStart();
 
             const auto curTaskDescr = currentTask->getDescription();
-            EP_LOG_TRACE("{}: Run task \"{}\" id {}",
-                         getName(),
-                         curTaskDescr,
-                         currentTask->getId());
+            LOG_TRACE("{}: Run task \"{}\" id {}",
+                      getName(),
+                      curTaskDescr,
+                      currentTask->getId());
 
             // Now Run the Task ....
             currentTask->setState(TASK_RUNNING, TASK_SNOOZED);
@@ -162,7 +162,7 @@ void CB3ExecutorThread::run() {
                 // on it's waketime.
                 q->reschedule(currentTask);
 
-                EP_LOG_TRACE(
+                LOG_TRACE(
                         "{}: Reschedule a task"
                         " \"{}\" id:{} waketime:{}",
                         name,

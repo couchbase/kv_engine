@@ -12,8 +12,8 @@
 #include "cb3_executorpool.h"
 #include "cb3_executorthread.h"
 
-#include <engines/ep/src/bucket_logger.h>
 #include <engines/ep/src/objectregistry.h>
+#include <logger/logger.h>
 #include <cmath>
 
 TaskQueue::TaskQueue(CB3ExecutorPool* m, task_type_t t, const char* nm)
@@ -22,7 +22,7 @@ TaskQueue::TaskQueue(CB3ExecutorPool* m, task_type_t t, const char* nm)
 }
 
 TaskQueue::~TaskQueue() {
-    EP_LOG_DEBUG("Task Queue killing {}", name);
+    LOG_DEBUG("Task Queue killing {}", name);
 }
 
 const std::string TaskQueue::getName() const {
@@ -202,10 +202,10 @@ void TaskQueue::_schedule(ExTask& task) {
 
         futureQueue.push(task);
 
-        EP_LOG_TRACE("{}: Schedule a task \"{}\" id {}",
-                     name,
-                     task->getDescription(),
-                     task->getId());
+        LOG_TRACE("{}: Schedule a task \"{}\" id {}",
+                  name,
+                  task->getDescription(),
+                  task->getId());
 
         sleepQ = manager->getSleepQ(queueType);
         _doWake_UNLOCKED(numToWake);
@@ -228,10 +228,10 @@ void TaskQueue::_wake(ExTask& task) {
     size_t readyCount = 1;
     {
         std::lock_guard<std::mutex> lh(mutex);
-        EP_LOG_DEBUG("{}: Wake a task \"{}\" id {}",
-                     name,
-                     task->getDescription(),
-                     task->getId());
+        LOG_DEBUG("{}: Wake a task \"{}\" id {}",
+                  name,
+                  task->getDescription(),
+                  task->getId());
 
         futureQueue.updateWaketime(task, now);
         task->setState(TASK_RUNNING, TASK_SNOOZED);
