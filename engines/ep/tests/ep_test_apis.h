@@ -42,9 +42,7 @@ bool add_response(std::string_view key,
                   uint64_t cas,
                   const void* cookie);
 
-void add_stats(std::string_view key,
-               std::string_view value,
-               gsl::not_null<const void*> cookie);
+void add_stats(std::string_view key, std::string_view value, const void* ctx);
 
 const uint8_t dcp_stream_end_resp_base_msg_bytes = 28;
 const uint8_t dcp_snapshot_marker_base_msg_bytes = 44;

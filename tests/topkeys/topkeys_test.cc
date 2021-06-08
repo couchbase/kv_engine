@@ -26,13 +26,6 @@ protected:
     std::unique_ptr<TopKeys> topkeys;
 };
 
-static void dump_key(std::string_view,
-                     std::string_view,
-                     gsl::not_null<const void*> cookie) {
-    auto* count = static_cast<size_t*>(const_cast<void*>(cookie.get()));
-    (*count)++;
-}
-
 void TopKeysTest::testWithNKeys(int numKeys) {
     // build list of keys
     std::vector<std::string> keys;
@@ -53,7 +46,10 @@ void TopKeysTest::testWithNKeys(int numKeys) {
 
     // Verify that we return the correct number of top keys.
     size_t count = 0;
-    topkeys->stats(&count, 0, dump_key);
+    auto dump_key = [&count](std::string_view,
+                             std::string_view,
+                             const void* ctx) { count++; };
+    topkeys->stats(nullptr, 0, dump_key);
     EXPECT_EQ(expectedCount, count);
 }
 

@@ -501,7 +501,7 @@ TEST_F(BasicEngineTestsuite, ItemSetCas) {
 uint32_t evictions;
 static void eviction_stats_handler(std::string_view key,
                                    std::string_view value,
-                                   gsl::not_null<const void*>) {
+                                   const void*) {
     if (key == "evictions"sv) {
         std::string v{value.data(), value.size()};
         evictions = atoi(v.c_str());

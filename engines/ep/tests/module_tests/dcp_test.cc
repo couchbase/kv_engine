@@ -390,15 +390,11 @@ void DCPTest::runCheckpointProcessor(DcpMessageProducersIface& producers) {
  */
 TEST_F(DCPTest, MB30189_addStats) {
     create_dcp_producer();
-    class MockStats {
-    } mockStats;
     producer->addStats(
-            [](std::string_view key,
-               std::string_view val,
-               gsl::not_null<const void*> cookie) {
+            [](std::string_view key, std::string_view val, const void* ctx) {
                 // do nothing
             },
-            &mockStats);
+            nullptr);
 }
 
 TEST_F(DCPTest, MB34280) {
@@ -425,7 +421,7 @@ TEST_F(DCPTest, MB34280) {
     producer->addStats(
             [&name, validator](std::string_view key,
                                std::string_view value,
-                               gsl::not_null<const void*> cookie) {
+                               const void* ctx) {
                 validator(name, std::string{key.data(), key.size()});
             },
             cookie);
@@ -436,10 +432,9 @@ TEST_F(DCPTest, MB34280) {
     std::unique_ptr<DcpConsumer> consumer = std::make_unique<DcpConsumer>(
             *engine, cookie, consumer_name, consumer_name);
     consumer->addStats(
-            [name = consumer_name, validator](
-                    std::string_view key,
-                    std::string_view value,
-                    gsl::not_null<const void*> cookie) {
+            [name = consumer_name, validator](std::string_view key,
+                                              std::string_view value,
+                                              const void* ctx) {
                 validator(name, std::string{key.data(), key.size()});
             },
             cookie);
@@ -455,7 +450,7 @@ TEST_F(DCPTest, MB34280) {
     stream->addStats(
             [&name, &max](std::string_view key,
                           std::string_view value,
-                          gsl::not_null<const void*> cookie) {
+                          const void* ctx) {
                 std::string k{key.data(), key.size()};
                 auto idx = k.find(name);
                 ASSERT_EQ(0, idx) << "Key: [" << key
@@ -1515,12 +1510,10 @@ TEST_P(ConnectionTest, test_mb20645_stats_after_closeAllStreams) {
     connMap.disconnect(cookie);
 
     // Try to read stats. Shouldn't crash.
-    producer->addStats([](std::string_view key,
-                          std::string_view value,
-                          gsl::not_null<const void*> cookie) {},
-                       // Cookie is not being used in the callback, but the
-                       // API requires it. Pass in the producer as cookie
-                       static_cast<const void*>(producer));
+    producer->addStats(
+            [](std::string_view key, std::string_view value, const void* ctx) {
+            },
+            nullptr);
 
     destroy_mock_cookie(cookie);
 }
@@ -2129,7 +2122,7 @@ TEST_F(DcpConnMapTest, ConnAggStats) {
 
     auto addStat = [&statsOutput](std::string_view key,
                                   std::string_view value,
-                                  gsl::not_null<const void*> cookie) {
+                                  const void* ctx) {
         statsOutput.emplace(std::string(key), std::string(value));
     };
 

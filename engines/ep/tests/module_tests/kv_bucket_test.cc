@@ -1057,15 +1057,10 @@ TEST_F(KVBucketTest, DataRaceInDoWorkerStat) {
     // nop callback to serve as add_stat
     auto dummy_cb = [](std::string_view key,
                        std::string_view value,
-                       gsl::not_null<const void*> cookie) {};
+                       const void* ctx) {};
 
     for (uint64_t i = 0; i < 10; ++i) {
-        pool->doWorkerStat(engine->getTaskable(),
-                           // The callback don't use the cookie at all, but
-                           // the API requires it to be set.. use the pool
-                           // as the cookie
-                           static_cast<const void*>(pool),
-                           dummy_cb);
+        pool->doWorkerStat(engine->getTaskable(), nullptr, dummy_cb);
     }
 
     pool->cancel(task->getId());
@@ -1716,14 +1711,17 @@ TEST_P(KVBucketParamTest, MB_34346) {
 // flushed to disk doesn't throw an exception.
 // Regression test for MB-35560.
 TEST_P(KVBucketParamTest, VBucketDiskStatsENOENT) {
-    // Shouldn't see any stats calls if the vBucket doesn't exist.
-    auto mockStatFn = [](std::string_view key,
-                         std::string_view value,
-                         gsl::not_null<const void*> cookie) { ADD_FAILURE(); };
+    bool addStatsCalled = false;
+    auto mockStatFn = [&addStatsCalled](std::string_view key,
+                                        std::string_view value,
+                                        const void* ctx) {
+        addStatsCalled = true;
+    };
 
     auto expected = (isPersistent()) ? cb::engine_errc::success
                                      : cb::engine_errc::no_such_key;
     EXPECT_EQ(expected, store->getPerVBucketDiskStats({}, mockStatFn));
+    EXPECT_EQ(isPersistent(), addStatsCalled);
 }
 
 TEST_P(KVBucketParamTest, VbucketStateCounts) {

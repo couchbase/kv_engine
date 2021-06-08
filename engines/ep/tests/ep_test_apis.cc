@@ -281,9 +281,7 @@ bool add_response_ret_meta(std::string_view key,
     return add_response(key, extras, body, datatype, status, cas, cookie);
 }
 
-void add_stats(std::string_view key,
-               std::string_view value,
-               gsl::not_null<const void*>) {
+void add_stats(std::string_view key, std::string_view value, const void*) {
     std::string k(key.data(), key.size());
     std::string v(value.data(), value.size());
 
@@ -301,7 +299,7 @@ void add_stats(std::string_view key,
  */
 void add_individual_stat(std::string_view key,
                          std::string_view value,
-                         gsl::not_null<const void*>) {
+                         const void*) {
     if (get_stat_context.actual_stat_value.empty() &&
         get_stat_context.requested_stat_name.compare(
                 0,
@@ -315,7 +313,7 @@ void add_individual_stat(std::string_view key,
 
 void add_individual_histo_stat(std::string_view key,
                                std::string_view value,
-                               gsl::not_null<const void*> cookie) {
+                               const void* ctx) {
     /* Convert key to string */
     std::string key_str(key.data(), key.size());
     /* Exclude mean value keys e.g. backfill_tasks_mean */

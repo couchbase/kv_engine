@@ -47,32 +47,24 @@ void StatTest::SetUp() {
 }
 
 std::map<std::string, std::string> StatTest::get_stat(const char* statkey) {
-    // Define a lambda to use as the AddStatFn callback. Note we cannot use
-    // a capture for the statistics map (as it's a C-style callback), so
-    // instead pass via the cookie.
-    struct StatMap : cb::tracing::Traceable {
-        std::map<std::string, std::string> map;
-    };
-    StatMap stats;
-    auto add_stats = [](std::string_view key,
-                        std::string_view value,
-                        gsl::not_null<const void*> cookie) {
-        auto* stats =
-                reinterpret_cast<StatMap*>(const_cast<void*>(cookie.get()));
+    std::map<std::string, std::string> stats;
+    auto add_stats = [&stats](std::string_view key,
+                              std::string_view value,
+                              const void* ctx) {
         std::string k(key.data(), key.size());
         std::string v(value.data(), value.size());
-        stats->map[k] = v;
+        stats[k] = v;
     };
-
+    cb::tracing::Traceable traceable;
     EXPECT_EQ(
             cb::engine_errc::success,
-            engine->get_stats(&stats,
+            engine->get_stats(&traceable,
                               {statkey, statkey == NULL ? 0 : strlen(statkey)},
                               {},
                               add_stats))
             << "Failed to get stats.";
 
-    return stats.map;
+    return stats;
 }
 
 class DatatypeStatTest : public StatTest,
@@ -135,28 +127,23 @@ TEST_F(StatTest, HashStatsMemUsed) {
     ObjectRegistry::onSwitchThread(nullptr);
 
     std::string_view key{"_hash-dump 0"};
-    struct Cookie : public cb::tracing::Traceable {
-        int addStats_calls = 0;
-    } state;
-
-    auto callback = [](std::string_view key,
-                       std::string_view value,
-                       gsl::not_null<const void*> cookie) {
-        Cookie& state =
-                *reinterpret_cast<Cookie*>(const_cast<void*>(cookie.get()));
-        state.addStats_calls++;
+    int addStats_calls = 0;
+    auto callback = [&addStats_calls](std::string_view key,
+                                      std::string_view value,
+                                      const void* ctx) {
+        addStats_calls++;
 
         // This callback should run in the memcached-context so no engine should
         // be assigned to the current thread.
         EXPECT_FALSE(ObjectRegistry::getCurrentEngine());
     };
-
+    cb::tracing::Traceable traceable;
     ASSERT_EQ(cb::engine_errc::success,
-              engine->get_stats(&state, key, {}, callback));
+              engine->get_stats(&traceable, key, {}, callback));
 
     // Sanity check - should have had at least 1 call to ADD_STATS (otherwise
     // the test isn't valid).
-    ASSERT_GT(state.addStats_calls, 0);
+    ASSERT_GT(addStats_calls, 0);
 
     // Any temporary memory should have been freed by now, and accounted
     // correctly.
@@ -178,8 +165,8 @@ TEST_F(StatTest, HistogramStatExpansion) {
     using namespace testing;
     using namespace std::literals::string_view_literals;
 
-    NiceMock<MockFunction<void(
-            std::string_view, std::string_view, gsl::not_null<const void*>)>>
+    NiceMock<
+            MockFunction<void(std::string_view, std::string_view, const void*)>>
             cb;
 
     EXPECT_CALL(cb, Call("test_histogram_mean"sv, "2052741737"sv, _));
@@ -211,8 +198,8 @@ TEST_F(StatTest, HdrHistogramStatExpansion) {
     using namespace testing;
     using namespace std::literals::string_view_literals;
 
-    NiceMock<MockFunction<void(
-            std::string_view, std::string_view, gsl::not_null<const void*>)>>
+    NiceMock<
+            MockFunction<void(std::string_view, std::string_view, const void*)>>
             cb;
 
     EXPECT_CALL(cb, Call("test_histogram_mean"sv, "9544"sv, _));
@@ -523,8 +510,8 @@ TEST_F(StatTest, CBStatsScopeCollectionPrefix) {
     auto cookie = create_mock_cookie(engine.get());
 
     // mock addStatFn
-    NiceMock<MockFunction<void(
-            std::string_view, std::string_view, gsl::not_null<const void*>)>>
+    NiceMock<
+            MockFunction<void(std::string_view, std::string_view, const void*)>>
             cb;
 
     auto cbFunc = cb.AsStdFunction();
@@ -562,8 +549,8 @@ TEST_F(StatTest, CBStatsNameSeparateFromEnum) {
     auto cookie = create_mock_cookie(engine.get());
 
     // mock addStatFn
-    NiceMock<MockFunction<void(
-            std::string_view, std::string_view, gsl::not_null<const void*>)>>
+    NiceMock<
+            MockFunction<void(std::string_view, std::string_view, const void*)>>
             cb;
 
     auto cbFunc = cb.AsStdFunction();
@@ -597,8 +584,8 @@ TEST_F(StatTest, LegacyStatsAreNotFormatted) {
     auto cookie = create_mock_cookie(engine.get());
 
     // mock addStatFn
-    NiceMock<MockFunction<void(
-            std::string_view, std::string_view, gsl::not_null<const void*>)>>
+    NiceMock<
+            MockFunction<void(std::string_view, std::string_view, const void*)>>
             cb;
 
     auto cbFunc = cb.AsStdFunction();

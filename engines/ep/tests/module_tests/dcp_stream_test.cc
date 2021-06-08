@@ -1698,19 +1698,20 @@ TEST_P(SingleThreadedActiveStreamTest, DiskBackfillInitializingItemsRemaining) {
     EXPECT_FALSE(stream->getNumBackfillItemsRemaining());
 
     bool statusFound = false;
-    auto checkStatusFn = [&statusFound](std::string_view key,
-                                        std::string_view value,
-                                        gsl::not_null<const void*> cookie) {
+    std::string expectedKey;
+    auto checkStatusFn = [&statusFound, &expectedKey](std::string_view key,
+                                                      std::string_view value,
+                                                      const void* ctx) {
         if (key == "status"sv) {
-            EXPECT_EQ(std::string(reinterpret_cast<const char*>(cookie.get())),
-                      std::string(value.data(), value.size()));
+            EXPECT_EQ(expectedKey, std::string(value.data(), value.size()));
             statusFound = true;
         }
     };
 
     // Should report status == "calculating_item_count" before backfill
     // scan has occurred.
-    stream->addTakeoverStats(checkStatusFn, "calculating-item-count", *vb);
+    expectedKey = "calculating-item-count";
+    stream->addTakeoverStats(checkStatusFn, nullptr, *vb);
     EXPECT_TRUE(statusFound);
 
     // Run the backfill we scheduled when we transitioned to the backfilling
@@ -1720,14 +1721,16 @@ TEST_P(SingleThreadedActiveStreamTest, DiskBackfillInitializingItemsRemaining) {
     EXPECT_EQ(3, *stream->getNumBackfillItemsRemaining());
     // Should report status == "backfilling"
     statusFound = false;
-    stream->addTakeoverStats(checkStatusFn, "backfilling", *vb);
+    expectedKey = "backfilling";
+    stream->addTakeoverStats(checkStatusFn, nullptr, *vb);
     EXPECT_TRUE(statusFound);
 
     // Run again to actually scan (items remaining unchanged).
     bfm.backfill();
     EXPECT_EQ(3, *stream->getNumBackfillItemsRemaining());
     statusFound = false;
-    stream->addTakeoverStats(checkStatusFn, "backfilling", *vb);
+    expectedKey = "backfilling";
+    stream->addTakeoverStats(checkStatusFn, nullptr, *vb);
     EXPECT_TRUE(statusFound);
 
     // Finally run again to complete backfill (so it is shutdown in a clean
@@ -1739,7 +1742,8 @@ TEST_P(SingleThreadedActiveStreamTest, DiskBackfillInitializingItemsRemaining) {
     stream->consumeBackfillItems(*producer, 4);
     EXPECT_EQ(0, *stream->getNumBackfillItemsRemaining());
     statusFound = false;
-    stream->addTakeoverStats(checkStatusFn, "in-memory", *vb);
+    expectedKey = "in-memory";
+    stream->addTakeoverStats(checkStatusFn, nullptr, *vb);
     EXPECT_TRUE(statusFound);
 }
 

@@ -321,7 +321,7 @@ TEST_P(DurabilityTest, DurabilityStateStats) {
 
     auto dummyAddStats = [&stats](std::string_view key,
                                   std::string_view value,
-                                  gsl::not_null<const void*> cookie) {
+                                  const void* ctx) {
         stats[std::string(key.data(), key.size())] =
                 std::string(value.data(), value.size());
     };

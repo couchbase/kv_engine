@@ -789,25 +789,24 @@ TYPED_TEST(ExecutorPoolTest, TaskQStats) {
     MockAddStat mockAddStat;
 
     using ::testing::_;
-    const void* cookie = this;
     EXPECT_CALL(mockAddStat,
-                callback("ep_workload:LowPrioQ_Writer:InQsize", "3", cookie));
+                callback("ep_workload:LowPrioQ_Writer:InQsize", "3", nullptr));
     EXPECT_CALL(mockAddStat,
-                callback("ep_workload:LowPrioQ_Writer:OutQsize", "0", cookie));
+                callback("ep_workload:LowPrioQ_Writer:OutQsize", "0", nullptr));
     EXPECT_CALL(mockAddStat,
-                callback("ep_workload:LowPrioQ_Reader:InQsize", "2", cookie));
+                callback("ep_workload:LowPrioQ_Reader:InQsize", "2", nullptr));
     EXPECT_CALL(mockAddStat,
-                callback("ep_workload:LowPrioQ_Reader:OutQsize", "0", cookie));
+                callback("ep_workload:LowPrioQ_Reader:OutQsize", "0", nullptr));
     EXPECT_CALL(mockAddStat,
-                callback("ep_workload:LowPrioQ_AuxIO:InQsize", "1", cookie));
+                callback("ep_workload:LowPrioQ_AuxIO:InQsize", "1", nullptr));
     EXPECT_CALL(mockAddStat,
-                callback("ep_workload:LowPrioQ_AuxIO:OutQsize", "0", cookie));
+                callback("ep_workload:LowPrioQ_AuxIO:OutQsize", "0", nullptr));
     EXPECT_CALL(mockAddStat,
-                callback("ep_workload:LowPrioQ_NonIO:InQsize", "0", cookie));
+                callback("ep_workload:LowPrioQ_NonIO:InQsize", "0", nullptr));
     EXPECT_CALL(mockAddStat,
-                callback("ep_workload:LowPrioQ_NonIO:OutQsize", "0", cookie));
+                callback("ep_workload:LowPrioQ_NonIO:OutQsize", "0", nullptr));
 
-    this->pool->doTaskQStat(lowPriBucket, this, mockAddStat.asStdFunction());
+    this->pool->doTaskQStat(lowPriBucket, nullptr, mockAddStat.asStdFunction());
 
     // Set force==true to cancel all the pending tasks.
     this->pool->unregisterTaskable(lowPriBucket, true);
@@ -848,42 +847,41 @@ TYPED_TEST(ExecutorPoolTest, TaskQStatsMultiPriority) {
     MockAddStat mockAddStat;
 
     using ::testing::_;
-    const void* cookie = this;
     EXPECT_CALL(mockAddStat,
-                callback("ep_workload:LowPrioQ_Writer:InQsize", "0", cookie));
+                callback("ep_workload:LowPrioQ_Writer:InQsize", "0", nullptr));
     EXPECT_CALL(mockAddStat,
-                callback("ep_workload:LowPrioQ_Writer:OutQsize", "0", cookie));
+                callback("ep_workload:LowPrioQ_Writer:OutQsize", "0", nullptr));
     EXPECT_CALL(mockAddStat,
-                callback("ep_workload:LowPrioQ_Reader:InQsize", "2", cookie));
+                callback("ep_workload:LowPrioQ_Reader:InQsize", "2", nullptr));
     EXPECT_CALL(mockAddStat,
-                callback("ep_workload:LowPrioQ_Reader:OutQsize", "0", cookie));
+                callback("ep_workload:LowPrioQ_Reader:OutQsize", "0", nullptr));
     EXPECT_CALL(mockAddStat,
-                callback("ep_workload:LowPrioQ_AuxIO:InQsize", "0", cookie));
+                callback("ep_workload:LowPrioQ_AuxIO:InQsize", "0", nullptr));
     EXPECT_CALL(mockAddStat,
-                callback("ep_workload:LowPrioQ_AuxIO:OutQsize", "0", cookie));
+                callback("ep_workload:LowPrioQ_AuxIO:OutQsize", "0", nullptr));
     EXPECT_CALL(mockAddStat,
-                callback("ep_workload:LowPrioQ_NonIO:InQsize", "0", cookie));
+                callback("ep_workload:LowPrioQ_NonIO:InQsize", "0", nullptr));
     EXPECT_CALL(mockAddStat,
-                callback("ep_workload:LowPrioQ_NonIO:OutQsize", "0", cookie));
+                callback("ep_workload:LowPrioQ_NonIO:OutQsize", "0", nullptr));
 
     EXPECT_CALL(mockAddStat,
-                callback("ep_workload:HiPrioQ_Writer:InQsize", "3", cookie));
+                callback("ep_workload:HiPrioQ_Writer:InQsize", "3", nullptr));
     EXPECT_CALL(mockAddStat,
-                callback("ep_workload:HiPrioQ_Writer:OutQsize", "0", cookie));
+                callback("ep_workload:HiPrioQ_Writer:OutQsize", "0", nullptr));
     EXPECT_CALL(mockAddStat,
-                callback("ep_workload:HiPrioQ_Reader:InQsize", "0", cookie));
+                callback("ep_workload:HiPrioQ_Reader:InQsize", "0", nullptr));
     EXPECT_CALL(mockAddStat,
-                callback("ep_workload:HiPrioQ_Reader:OutQsize", "0", cookie));
+                callback("ep_workload:HiPrioQ_Reader:OutQsize", "0", nullptr));
     EXPECT_CALL(mockAddStat,
-                callback("ep_workload:HiPrioQ_AuxIO:InQsize", "1", cookie));
+                callback("ep_workload:HiPrioQ_AuxIO:InQsize", "1", nullptr));
     EXPECT_CALL(mockAddStat,
-                callback("ep_workload:HiPrioQ_AuxIO:OutQsize", "0", cookie));
+                callback("ep_workload:HiPrioQ_AuxIO:OutQsize", "0", nullptr));
     EXPECT_CALL(mockAddStat,
-                callback("ep_workload:HiPrioQ_NonIO:InQsize", "0", cookie));
+                callback("ep_workload:HiPrioQ_NonIO:InQsize", "0", nullptr));
     EXPECT_CALL(mockAddStat,
-                callback("ep_workload:HiPrioQ_NonIO:OutQsize", "0", cookie));
+                callback("ep_workload:HiPrioQ_NonIO:OutQsize", "0", nullptr));
 
-    this->pool->doTaskQStat(lowPriBucket, this, mockAddStat.asStdFunction());
+    this->pool->doTaskQStat(lowPriBucket, nullptr, mockAddStat.asStdFunction());
 
     // Set force==true to cancel all the pending tasks.
     this->pool->unregisterTaskable(lowPriBucket, true);
@@ -923,41 +921,42 @@ TYPED_TEST(ExecutorPoolTest, WorkerStats) {
     MockAddStat mockAddStat;
 
     using namespace testing;
-    const void* cookie = this;
-    EXPECT_CALL(mockAddStat, callback("Reader_worker_0:state", _, cookie));
-    EXPECT_CALL(mockAddStat, callback("Reader_worker_0:task", _, cookie));
-    EXPECT_CALL(mockAddStat, callback("Reader_worker_0:cur_time", _, cookie));
+    EXPECT_CALL(mockAddStat, callback("Reader_worker_0:state", _, nullptr));
+    EXPECT_CALL(mockAddStat, callback("Reader_worker_0:task", _, nullptr));
+    EXPECT_CALL(mockAddStat, callback("Reader_worker_0:cur_time", _, nullptr));
 
-    EXPECT_CALL(mockAddStat, callback("Writer_worker_0:state", _, cookie));
-    EXPECT_CALL(mockAddStat, callback("Writer_worker_0:task", _, cookie));
-    EXPECT_CALL(mockAddStat, callback("Writer_worker_0:cur_time", _, cookie));
+    EXPECT_CALL(mockAddStat, callback("Writer_worker_0:state", _, nullptr));
+    EXPECT_CALL(mockAddStat, callback("Writer_worker_0:task", _, nullptr));
+    EXPECT_CALL(mockAddStat, callback("Writer_worker_0:cur_time", _, nullptr));
 
-    EXPECT_CALL(mockAddStat, callback("AuxIO_worker_0:state", _, cookie));
-    EXPECT_CALL(mockAddStat, callback("AuxIO_worker_0:task", _, cookie));
-    EXPECT_CALL(mockAddStat, callback("AuxIO_worker_0:cur_time", _, cookie));
+    EXPECT_CALL(mockAddStat, callback("AuxIO_worker_0:state", _, nullptr));
+    EXPECT_CALL(mockAddStat, callback("AuxIO_worker_0:task", _, nullptr));
+    EXPECT_CALL(mockAddStat, callback("AuxIO_worker_0:cur_time", _, nullptr));
 
     // NonIO pool has the above ItemPager task running on it.
-    EXPECT_CALL(mockAddStat, callback("NonIO_worker_0:bucket", "bucket0", cookie));
-    EXPECT_CALL(mockAddStat, callback("NonIO_worker_0:state", "running", cookie));
     EXPECT_CALL(mockAddStat,
-                callback("NonIO_worker_0:task", "Lambda Task", cookie));
+                callback("NonIO_worker_0:bucket", "bucket0", nullptr));
+    EXPECT_CALL(mockAddStat,
+                callback("NonIO_worker_0:state", "running", nullptr));
+    EXPECT_CALL(mockAddStat,
+                callback("NonIO_worker_0:task", "Lambda Task", nullptr));
     // The 'runtime' stat is only reported if the thread is in state
     // EXECUTOR_RUNNING. Nominally it will only be in that state when actually
     // running a task, however it also briefly exists in that state when
     // first started, before it determines if there is a Task to run.
     // As such, allow 'runtime' to be reported, but it is optional for all but
     // the NonIO pool, where we *know* we have the above test task running.
-    EXPECT_CALL(mockAddStat, callback("Reader_worker_0:runtime", _, cookie))
+    EXPECT_CALL(mockAddStat, callback("Reader_worker_0:runtime", _, nullptr))
             .Times(AtMost(1));
-    EXPECT_CALL(mockAddStat, callback("Writer_worker_0:runtime", _, cookie))
+    EXPECT_CALL(mockAddStat, callback("Writer_worker_0:runtime", _, nullptr))
             .Times(AtMost(1));
-    EXPECT_CALL(mockAddStat, callback("AuxIO_worker_0:runtime", _, cookie))
+    EXPECT_CALL(mockAddStat, callback("AuxIO_worker_0:runtime", _, nullptr))
             .Times(AtMost(1));
 
-    EXPECT_CALL(mockAddStat, callback("NonIO_worker_0:runtime", _, cookie));
-    EXPECT_CALL(mockAddStat, callback("NonIO_worker_0:cur_time", _, cookie));
+    EXPECT_CALL(mockAddStat, callback("NonIO_worker_0:runtime", _, nullptr));
+    EXPECT_CALL(mockAddStat, callback("NonIO_worker_0:cur_time", _, nullptr));
 
-    this->pool->doWorkerStat(bucket0, this, mockAddStat.asStdFunction());
+    this->pool->doWorkerStat(bucket0, nullptr, mockAddStat.asStdFunction());
 
     // Set force==true to cancel all the pending tasks.
     this->pool->unregisterTaskable(bucket0, true);
@@ -993,7 +992,6 @@ TYPED_TEST(ExecutorPoolTest, TaskStats) {
     MockAddStat mockAddStat;
 
     using ::testing::_;
-    const void* cookie = this;
 
     // "ep_tasks:tasks" is returned as a JSON object.
     // To check it's value, use a function which decodes the JSON and checks
@@ -1032,11 +1030,11 @@ TYPED_TEST(ExecutorPoolTest, TaskStats) {
     EXPECT_CALL(mockAddStat,
                 callback("ep_tasks:tasks",
                          testing::ResultOf(tasksChecker, ""),
-                         cookie));
-    EXPECT_CALL(mockAddStat, callback("ep_tasks:cur_time", _, cookie));
-    EXPECT_CALL(mockAddStat, callback("ep_tasks:uptime_s", _, cookie));
+                         nullptr));
+    EXPECT_CALL(mockAddStat, callback("ep_tasks:cur_time", _, nullptr));
+    EXPECT_CALL(mockAddStat, callback("ep_tasks:uptime_s", _, nullptr));
 
-    this->pool->doTasksStat(bucket0, this, mockAddStat.asStdFunction());
+    this->pool->doTasksStat(bucket0, nullptr, mockAddStat.asStdFunction());
 
     // Set force==true to cancel all the pending tasks.
     this->pool->unregisterTaskable(bucket0, true);
@@ -1726,10 +1724,9 @@ TYPED_TEST(ExecutorPoolEpEngineTest, TaskStats_MemAccounting) {
     MockAddStat mockAddStat;
     auto& taskable = this->engine->getTaskable();
     EXPECT_CALL(mockAddStat, callback(_, _, _))
-            .WillOnce(
-                    [taskId, &taskable](std::string, std::string, const void*) {
-                        ExecutorPool::get()->cancel(taskId);
-                    })
+            .WillOnce([taskId](std::string, std::string, const void*) {
+                ExecutorPool::get()->cancel(taskId);
+            })
             .WillRepeatedly(Return());
 
     const auto memoryPostMock = getMemUsed(*this->engine);

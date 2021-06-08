@@ -1951,7 +1951,7 @@ TEST_P(STParamPersistentBucketTest, MB19815_doDcpVbTakeoverStats) {
     // Dummy callback to pass into the stats function below.
     auto dummy_cb = [](std::string_view key,
                        std::string_view value,
-                       gsl::not_null<const void*> cookie) {};
+                       const void* ctx) {};
     std::string key{"MB19815_doDCPVbTakeoverStats"};
 
     // We can't call stats with a nullptr as the cookie. Given that

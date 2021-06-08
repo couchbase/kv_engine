@@ -77,6 +77,12 @@ TEST_F(CouchKVStoreTest, StatsTest) {
 
     // Check statistics are correct.
     std::map<std::string, std::string> stats;
+    auto add_stat_callback = [&stats](std::string_view key,
+                                      std::string_view value,
+                                      const void* ctx) {
+        stats.insert(std::make_pair(std::string(key.data(), key.size()),
+                                    std::string(value.data(), value.size())));
+    };
     kvstore->addStats(add_stat_callback, &stats, "");
     EXPECT_EQ("1", stats["rw_0:io_num_write"]);
     const size_t io_write_bytes = stoul(stats["rw_0:io_document_write_bytes"]);
@@ -119,6 +125,12 @@ TEST_F(CouchKVStoreTest, CompactStatsTest) {
     }
     // Check statistics are correct.
     std::map<std::string, std::string> stats;
+    auto add_stat_callback = [&stats](std::string_view key,
+                                      std::string_view value,
+                                      const void* ctx) {
+        stats.insert(std::make_pair(std::string(key.data(), key.size()),
+                                    std::string(value.data(), value.size())));
+    };
     kvstore->addStats(add_stat_callback, &stats, "");
     EXPECT_EQ("1", stats["rw_0:io_num_write"]);
     const size_t io_write_bytes = stoul(stats["rw_0:io_document_write_bytes"]);
@@ -1203,6 +1215,12 @@ TEST_F(CouchKVStoreErrorInjectionTest, CompactFailedStatsTest) {
 
     // Check the fail compaction statistic is correct.
     std::map<std::string, std::string> stats;
+    auto add_stat_callback = [&stats](std::string_view key,
+                                      std::string_view value,
+                                      const void* ctx) {
+        stats.insert(std::make_pair(std::string(key.data(), key.size()),
+                                    std::string(value.data(), value.size())));
+    };
     kvstore->addStats(add_stat_callback, &stats, "");
 
     EXPECT_EQ("1", stats["rw_0:failure_compaction"]);

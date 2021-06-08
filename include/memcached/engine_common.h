@@ -18,15 +18,17 @@
 struct EngineIface;
 
 /**
- * Callback for any function producing stats.
+ * Callback for any function producing stats. To return data the function
+ * should use a lambda and close over a local variable. However, for legacy
+ * reasons we also allow a context to be passed to the function using a
+ * const void*
  *
  * @param key the stat's key
  * @param value the stat's value in an ascii form (e.g. text form of a number)
- * @param cookie magic callback cookie
+ * @param ctx pointer to user supplied ctx
  */
-using AddStatFn = std::function<void(std::string_view key,
-                                     std::string_view value,
-                                     gsl::not_null<const void*> cookie)>;
+using AddStatFn = std::function<void(
+        std::string_view key, std::string_view value, const void* ctx)>;
 
 /**
  * Callback for adding a response backet

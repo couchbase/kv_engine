@@ -1170,33 +1170,22 @@ bool KVBucket::resetVBucket_UNLOCKED(LockedVBucketPtr& vb,
     return rv;
 }
 
-/**
- * The getStats methods tries to Trace the time spent in the
- * stats calls so we need to provide a Cookie which is Traceable,
- * but what we really want is a map containing the kv pairs
- */
-struct snapshot_add_stat_cookie : cb::tracing::Traceable {
-    std::map<std::string, std::string> smap;
-};
-
-static void snapshot_add_stat(std::string_view key,
-                              std::string_view value,
-                              gsl::not_null<const void*> cookie) {
-    void* ptr = const_cast<void*>(cookie.get());
-    auto* snap = static_cast<snapshot_add_stat_cookie*>(ptr);
-    snap->smap.insert(std::pair<std::string, std::string>(
-            std::string{key.data(), key.size()},
-            std::string{value.data(), value.size()}));
-}
-
 void KVBucket::snapshotStats(bool shuttingDown) {
-    snapshot_add_stat_cookie snap;
-    bool rv = engine.getStats(&snap, {}, {}, snapshot_add_stat) ==
+    std::map<std::string, std::string> statsMap;
+    auto snapshot_add_stat = [&statsMap](std::string_view key,
+                                         std::string_view value,
+                                         const void* ctx) {
+        statsMap.insert(std::pair<std::string, std::string>(
+                std::string{key.data(), key.size()},
+                std::string{value.data(), value.size()}));
+    };
+    cb::tracing::Traceable traceable;
+    bool rv = engine.getStats(&traceable, {}, {}, snapshot_add_stat) ==
                       cb::engine_errc::success &&
-              engine.getStats(&snap, "dcp", {}, snapshot_add_stat) ==
+              engine.getStats(&traceable, "dcp", {}, snapshot_add_stat) ==
                       cb::engine_errc::success;
 
-    nlohmann::json snapshotStats(snap.smap);
+    nlohmann::json snapshotStats(statsMap);
     if (rv && shuttingDown) {
         snapshotStats["ep_force_shutdown"] =
                 stats.forceShutdown ? "true" : "false";

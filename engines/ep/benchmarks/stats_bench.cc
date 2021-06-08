@@ -27,9 +27,7 @@ public:
     using Collections::VB::Manifest::Manifest;
 };
 
-void dummyCallback(std::string_view,
-                   std::string_view,
-                   gsl::not_null<const void*>) {
+void dummyCallback(std::string_view, std::string_view, const void*) {
 }
 /**
  * Fixture for stat collection benchmarks

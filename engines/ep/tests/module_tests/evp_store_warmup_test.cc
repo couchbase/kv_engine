@@ -282,10 +282,9 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
             get_number_of_mock_cookie_io_notifications(statsCookie3);
     notifications[delVbCookie] = get_number_of_mock_cookie_io_notifications(delVbCookie);
 
-    auto dummyAddStats =
-            [](std::string_view, std::string_view, gsl::not_null<const void*>) {
+    auto dummyAddStats = [](std::string_view, std::string_view, const void*) {
 
-            };
+    };
 
     while (engine->getKVBucket()->maybeWaitForVBucketWarmup(cookie)) {
         CheckedExecutor executor(task_executor, readerQueue);

@@ -111,16 +111,6 @@ std::unique_ptr<KVStore> setup_kv_store(KVStoreConfig& config,
     return std::move(kvstore.rw);
 }
 
-void add_stat_callback(std::string_view key,
-                       std::string_view value,
-                       gsl::not_null<const void*> cookie) {
-    auto* map = reinterpret_cast<std::map<std::string, std::string>*>(
-            const_cast<void*>(cookie.get()));
-    ASSERT_NE(nullptr, map);
-    map->insert(std::make_pair(std::string(key.data(), key.size()),
-                               std::string(value.data(), value.size())));
-}
-
 KVStoreTest::KVStoreTest()
     : data_dir(dbnameFromCurrentGTestInfo()), flush(manifest) {
 }

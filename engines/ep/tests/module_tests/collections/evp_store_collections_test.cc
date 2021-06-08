@@ -2277,7 +2277,7 @@ TEST_F(CollectionsTest, CollectionStatsIncludesScope) {
     std::map<std::string, std::string> actual;
     const auto addStat = [&actual](std::string_view key,
                                    std::string_view value,
-                                   gsl::not_null<const void*> cookie) {
+                                   const void* ctx) {
         actual[std::string(key)] = value;
     };
 
@@ -2950,7 +2950,7 @@ TEST_F(CollectionsTest, GetAllKeysCollectionConnection) {
 static bool wasKeyStatsResponseHandlerCalled = false;
 bool getKeyStatsResponseHandler(std::string_view key,
                                 std::string_view value,
-                                gsl::not_null<const void*> cookie) {
+                                const void* ctx) {
     wasKeyStatsResponseHandlerCalled = true;
     return true;
 }
@@ -3360,7 +3360,7 @@ TEST_P(CollectionsParameterizedTest, ScopeIDIsValid) {
 
 static void append_stat(std::string_view key,
                         std::string_view value,
-                        gsl::not_null<const void*> void_cookie) {
+                        const void* ctx) {
 }
 
 TEST_P(CollectionsParameterizedTest, OneScopeStatsByIdParsing) {

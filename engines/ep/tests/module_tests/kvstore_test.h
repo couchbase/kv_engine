@@ -188,14 +188,6 @@ void initialize_kv_store(KVStore* kvstore, Vbid vbid = Vbid(0));
 std::unique_ptr<KVStore> setup_kv_store(KVStoreConfig& config,
                                         std::vector<Vbid> vbids = {Vbid(0)});
 
-/* Test callback for stats handling.
- * 'cookie' is a std::unordered_map<std::string, std::string) which stats
- * are accumulated in.
- */
-void add_stat_callback(std::string_view key,
-                       std::string_view value,
-                       gsl::not_null<const void*> cookie);
-
 class MockTransactionContext : public TransactionContext {
 public:
     MockTransactionContext(Vbid vb) : TransactionContext(vb) {
