@@ -106,6 +106,12 @@ public:
         double timestamp = duration_cast<duration<double>>(
                                    system_clock::now().time_since_epoch())
                                    .count();
+        // round to the nearest second. This makes the interval between samples
+        // stored in Prometheus more likely to be consistent to the millisecond.
+        // As a result of Prometheus' timestamp delta-of-delta encoding,
+        // this can reduce the disk space needed to store stats significantly.
+        // See MB-46675.
+        timestamp = std::round(timestamp);
 
         // convert to ms for prometheus-cpp
         auto timestampMs = int64_t(timestamp * 1000);
