@@ -77,20 +77,18 @@ struct DumpContext {
     const std::chrono::steady_clock::time_point last_touch;
 };
 
-/**
- * Aggregate object to hold a map of dumps and a mutex protecting them
- */
-struct TraceDumps {
-    std::map<cb::uuid::uuid_t, DumpContext> dumps;
-    std::mutex mutex;
-};
+/// The map to hold the trace dumps (needs synchronization as it is accessed
+/// from multiple threads)
+using TraceDumpMap =
+        folly::Synchronized<std::map<cb::uuid::uuid_t, DumpContext>,
+                            std::mutex>;
 
 /**
  * StaleTraceDumpRemover is a periodic task that removes old dumps
  */
 class StaleTraceDumpRemover {
 public:
-    StaleTraceDumpRemover(TraceDumps& traceDumps,
+    StaleTraceDumpRemover(TraceDumpMap& traceDumps,
                           std::chrono::seconds, // interval (not used)
                           std::chrono::seconds max_age)
         : traceDumps(traceDumps), max_age(max_age) {
@@ -98,21 +96,20 @@ public:
 
     void periodicExecute() {
         const auto now = std::chrono::steady_clock::now();
-        std::lock_guard<std::mutex> lh(traceDumps.mutex);
-
-        using value_type = decltype(TraceDumps::dumps)::value_type;
-        erase_if(traceDumps.dumps, [now, this](const value_type& dump) {
-            return (dump.second.last_touch + std::chrono::seconds(max_age)) <=
-                   now;
+        traceDumps.withLock([now, this](auto& map) {
+            erase_if(map, [now, this](const auto& dump) {
+                return (dump.second.last_touch +
+                        std::chrono::seconds(max_age)) <= now;
+            });
         });
     }
 
 protected:
-    TraceDumps& traceDumps;
+    TraceDumpMap& traceDumps;
     const std::chrono::seconds max_age;
 };
 
-static TraceDumps traceDumps;
+static TraceDumpMap traceDumps;
 static std::shared_ptr<StaleTraceDumpRemover> dump_remover;
 
 void initializeTracing(const std::string& traceConfig,
@@ -140,8 +137,7 @@ void initializeTracing(const std::string& traceConfig,
 void deinitializeTracing() {
     dump_remover.reset();
     phosphor::TraceLog::getInstance().stop();
-    std::lock_guard<std::mutex> guard(traceDumps.mutex);
-    traceDumps.dumps.clear();
+    traceDumps.lock()->clear();
 }
 
 /// Task to run on the executor pool to convert the TraceContext to JSON
@@ -222,12 +218,8 @@ cb::engine_errc ioctlGetTracingBeginDump(Cookie& cookie,
                 "ioctlGetTracingBeginDump: Unknown value for command context");
     }
     const auto uuid = cb::uuid::random();
-    {
-        std::lock_guard<std::mutex> guard(traceDumps.mutex);
-        traceDumps.dumps.emplace(uuid,
-                                 DumpContext{std::move(ctx->task->formatted)});
-    }
-
+    traceDumps.lock()->emplace(uuid,
+                               DumpContext{std::move(ctx->task->formatted)});
     value = to_string(uuid);
     cookie.setCommandContext();
     return cb::engine_errc::success;
@@ -254,19 +246,16 @@ cb::engine_errc ioctlGetTraceDump(Cookie& cookie,
         return cb::engine_errc::invalid_arguments;
     }
 
-    {
-        std::lock_guard<std::mutex> lh(traceDumps.mutex);
-        auto iter = traceDumps.dumps.find(uuid);
-        if (iter == traceDumps.dumps.end()) {
+    return traceDumps.withLock([&value, &uuid, &cookie](auto& map) {
+        auto iter = map.find(uuid);
+        if (iter == map.end()) {
             cookie.setErrorContext(
                     "Dump ID must correspond to an existing dump");
             return cb::engine_errc::no_such_key;
         }
-
         value.assign(iter->second.content);
-    }
-
-    return cb::engine_errc::success;
+        return cb::engine_errc::success;
+    });
 }
 
 cb::engine_errc ioctlSetTracingClearDump(Cookie& cookie,
@@ -280,19 +269,16 @@ cb::engine_errc ioctlSetTracingClearDump(Cookie& cookie,
         return cb::engine_errc::invalid_arguments;
     }
 
-    {
-        std::lock_guard<std::mutex> lh(traceDumps.mutex);
-        auto dump = traceDumps.dumps.find(uuid);
-        if (dump == traceDumps.dumps.end()) {
+    return traceDumps.withLock([&uuid, &cookie](auto& map) {
+        auto dump = map.find(uuid);
+        if (dump == map.end()) {
             cookie.setErrorContext(
                     "Dump ID must correspond to an existing dump");
             return cb::engine_errc::invalid_arguments;
         }
-
-        traceDumps.dumps.erase(dump);
-    }
-
-    return cb::engine_errc::success;
+        map.erase(dump);
+        return cb::engine_errc::success;
+    });
 }
 
 cb::engine_errc ioctlSetTracingConfig(Cookie& cookie,
@@ -332,11 +318,12 @@ cb::engine_errc ioctlGetTracingList(Cookie& cookie,
                                     const StrToStrMap& arguments,
                                     std::string& value,
                                     cb::mcbp::Datatype& datatype) {
-    std::lock_guard<std::mutex> lh(traceDumps.mutex);
     std::vector<std::string> uuids;
-    for (const auto& dump : traceDumps.dumps) {
-        uuids.emplace_back(to_string(dump.first));
-    }
+    traceDumps.withLock([&uuids](auto& map) {
+        for (const auto& dump : map) {
+            uuids.emplace_back(to_string(dump.first));
+        }
+    });
     nlohmann::json json(uuids);
     value = json.dump();
     datatype = cb::mcbp::Datatype::JSON;
