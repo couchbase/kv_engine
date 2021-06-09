@@ -78,9 +78,8 @@ void add_stat(Cookie& cookie,
 
 static void append_stats(std::string_view key,
                          std::string_view value,
-                         gsl::not_null<const void*> void_cookie) {
-    auto& cookie = *const_cast<Cookie*>(
-            reinterpret_cast<const Cookie*>(void_cookie.get()));
+                         const void* ctx) {
+    auto& cookie = *const_cast<Cookie*>(reinterpret_cast<const Cookie*>(ctx));
 
     cb::mcbp::Response header = {};
     header.setMagic(cb::mcbp::Magic::ClientResponse);
