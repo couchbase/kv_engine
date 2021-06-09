@@ -376,6 +376,14 @@ ADD_LIBRARY(ep_objs OBJECT
             ${COLLECTIONS_SOURCE})
 SET_PROPERTY(TARGET ep_objs PROPERTY POSITION_INDEPENDENT_CODE 1)
 cb_enable_unity_build(ep_objs)
+
+# MB-46833: Suspect a gcc bug where consumer.cc + producer.cc together fails.
+# Here we will build producer.cc alone and avoid the issue only on gcc
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+set_source_files_properties(src/dcp/producer.cc
+                            PROPERTIES SKIP_UNITY_BUILD_INCLUSION 1)
+endif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+
 add_sanitizers(ep_objs)
 target_link_libraries(ep_objs PUBLIC platform spdlog ${EP_STORAGE_LIBS})
 
