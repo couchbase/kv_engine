@@ -53,8 +53,7 @@ cb::engine_errc SaslStartCommandContext::initial() {
                     *connection.getSaslServerContext(),
                     mechanism,
                     challenge);
-            cb::executor::get().add(
-                    [this]() { externalAuthManager->enqueueRequest(*task); });
+            externalAuthManager->enqueueRequest(*task);
             return cb::engine_errc::would_block;
         }
 

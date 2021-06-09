@@ -22,7 +22,6 @@
 #include "opentelemetry.h"
 #include "settings.h"
 
-#include <executor/executor.h>
 #include <logger/logger.h>
 #include <mcbp/mcbp.h>
 #include <mcbp/protocol/framebuilder.h>
@@ -760,9 +759,7 @@ bool Cookie::fetchEuidPrivilegeSet() {
         } else if (!externalAuthManager->haveRbacEntryForUser(euid->name)) {
             getAuthorizationTask =
                     std::make_shared<GetAuthorizationTask>(*this, *euid);
-            cb::executor::get().add([this]() {
-                externalAuthManager->enqueueRequest(*getAuthorizationTask);
-            });
+            externalAuthManager->enqueueRequest(*getAuthorizationTask);
             ewouldblock = true;
             return true;
         }
