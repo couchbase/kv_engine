@@ -23,3 +23,4 @@ add_library(mcd_executor STATIC
             )
 target_include_directories(mcd_executor PRIVATE SYSTEM ${hdr_histogram_SOURCE_DIR}/src)
 target_link_libraries(mcd_executor PUBLIC Folly::folly platform spdlog statistics)
+cb_enable_unity_build(mcd_executor)
