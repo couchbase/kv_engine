@@ -79,7 +79,6 @@ set(memcached_testapp_SOURCES
     ${Memcached_SOURCE_DIR}/logger/logger_test_fixture.cc)
 
 add_executable(memcached_testapp ${memcached_testapp_SOURCES})
-target_compile_options(memcached_testapp PRIVATE ${CB_CXX_FLAGS_NO_OPTIMIZE})
 target_include_directories(memcached_testapp PRIVATE ${Memcached_BINARY_DIR})
 
 target_link_libraries(memcached_testapp

@@ -24,10 +24,6 @@ cb_enable_unity_build(memcached_mcbp_test)
 
 add_test(NAME memcached_mcbp_test COMMAND memcached_mcbp_test)
 
-# GTest can be slow to compile (due to all the template / macro
-# expansion).  Disabling optimization can speed up by ~30%.
-target_compile_options(memcached_mcbp_test PRIVATE ${CB_CXX_FLAGS_NO_OPTIMIZE})
-
 if(MSVC)
     # mcbp_test now too large for MSVC and requires bigobj
     target_compile_options(memcached_mcbp_test PRIVATE "/bigobj")
