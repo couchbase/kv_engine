@@ -34,21 +34,18 @@ enum class CrashMode {
     UncaughtUnknownException
 };
 
-static char dummy;
+static volatile char* death = nullptr;
 
 /**
  * Recursive functions which will crash using the given method after
  * 'depth' calls.
- * Note: mutates a dummy global variable to prevent optimization
- * removing the recursion.
  */
-MEMCACHED_PUBLIC_API
-char recursive_crash_function(char depth, CrashMode mode) {
+MEMCACHED_PUBLIC_API FOLLY_NOINLINE char recursive_crash_function(
+        char depth, CrashMode mode) {
     if (depth == 0) {
         switch (mode) {
         case CrashMode::SegFault: {
-            char* death = (char*)(uintptr_t)0xdeadcbdb;
-            return *death + dummy;
+            return *death;
         }
         case CrashMode::UncaughtStdException:
         case CrashMode::UncaughtStdExceptionViaStdThread:
@@ -64,7 +61,7 @@ char recursive_crash_function(char depth, CrashMode mode) {
         }
     }
     recursive_crash_function(depth - char(1), mode);
-    return dummy++;
+    return 0;
 }
 
 class CrashEngine : public EngineIface {
