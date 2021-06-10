@@ -197,6 +197,18 @@
             "dynamic": false,
             "type": "size_t"
         },
+        "checkpoint_memory_ratio": {
+            "default": "1.0",
+            "descr": "Max ration of the bucket quota that can be allocated in checkpoints",
+            "dynamic": false,
+            "type": "float",
+            "validator": {
+                "range": {
+                    "min": 0.0,
+                    "max": 1.0
+                }
+            }
+        },
         "collections_drop_compaction_delay" : {
             "default": "5000",
             "descr": "How many milliseconds before compaction runs following the drop of a collection",
