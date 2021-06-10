@@ -41,7 +41,7 @@ public:
               Configuration& config,
               EvictionPolicy evictionPolicy,
               std::unique_ptr<Collections::VB::Manifest> manifest,
-              EPBucket* bucket = nullptr,
+              KVBucket* bucket = nullptr,
               vbucket_state_t initState = vbucket_state_dead,
               uint64_t purgeSeqno = 0,
               uint64_t maxCas = 0,
@@ -376,11 +376,6 @@ private:
      * file revision we will unlink from disk.
      */
     std::atomic<uint64_t> deferredDeletionFileRevision;
-
-    /**
-     * Should replace KVShard
-     */
-    EPBucket* epBucket;
 
     friend class EPVBucketTest;
 };

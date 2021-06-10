@@ -52,7 +52,7 @@ EPVBucket::EPVBucket(Vbid i,
                      Configuration& config,
                      EvictionPolicy evictionPolicy,
                      std::unique_ptr<Collections::VB::Manifest> manifest,
-                     EPBucket* bucket,
+                     KVBucket* bucket,
                      vbucket_state_t initState,
                      uint64_t purgeSeqno,
                      uint64_t maxCas,
@@ -77,6 +77,7 @@ EPVBucket::EPVBucket(Vbid i,
               config,
               evictionPolicy,
               std::move(manifest),
+              bucket,
               initState,
               purgeSeqno,
               maxCas,
@@ -84,8 +85,7 @@ EPVBucket::EPVBucket(Vbid i,
               mightContainXattrs,
               replicationTopology,
               maxVisibleSeqno),
-      shard(kvshard),
-      epBucket(bucket) {
+      shard(kvshard) {
 }
 
 EPVBucket::~EPVBucket() {
@@ -737,7 +737,8 @@ void EPVBucket::bgFetch(const DocKey& key,
     // vbucket
     const auto filter =
             isMeta ? ValueFilter::KEYS_ONLY
-                   : epBucket->getValueFilterForCompressionMode(cookie);
+                   : dynamic_cast<EPBucket&>(*bucket)
+                             .getValueFilterForCompressionMode(cookie);
     size_t bgfetch_size = queueBGFetchItem(
             key,
             std::make_unique<FrontEndBGFetchItem>(cookie, filter),
@@ -1028,7 +1029,7 @@ void EPVBucket::processImplicitlyCompletedPrepare(
 }
 
 BgFetcher& EPVBucket::getBgFetcher() {
-    return epBucket->getBgFetcher(getId());
+    return dynamic_cast<EPBucket&>(*bucket).getBgFetcher(getId());
 }
 
 std::function<void(int64_t)> EPVBucket::getSaveDroppedCollectionCallback(

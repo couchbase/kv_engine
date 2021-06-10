@@ -46,7 +46,7 @@ class EPStats;
 class EventuallyPersistentEngine;
 class GetValue;
 class ItemMetaData;
-class KVStore;
+class KVBucket;
 class PassiveDurabilityMonitor;
 class PreLinkDocumentContext;
 class RollbackResult;
@@ -160,6 +160,7 @@ public:
             Configuration& config,
             EvictionPolicy evictionPolicy,
             std::unique_ptr<Collections::VB::Manifest> manifest,
+            KVBucket* bucket = nullptr,
             vbucket_state_t initState = vbucket_state_dead,
             uint64_t purgeSeqno = 0,
             uint64_t maxCas = 0,
@@ -2411,6 +2412,9 @@ public:
      * based on the vbucket's current state.
      */
     std::unique_ptr<CheckpointManager> checkpointManager;
+
+protected:
+    KVBucket* const bucket;
 
 private:
     /**

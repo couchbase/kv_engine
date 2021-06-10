@@ -280,6 +280,7 @@ VBucketPtr EphemeralBucket::makeVBucket(
                                     engine.getConfiguration(),
                                     eviction_policy,
                                     std::move(manifest),
+                                    this,
                                     initState,
                                     purgeSeqno,
                                     maxCas,
