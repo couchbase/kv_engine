@@ -422,7 +422,7 @@ set_source_files_properties(src/dcp/producer.cc
 endif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 
 add_sanitizers(ep_objs)
-target_link_libraries(ep_objs PUBLIC mcd_executor platform spdlog ${EP_STORAGE_LIBS})
+target_link_libraries(ep_objs PUBLIC mcd_executor platform spdlog::spdlog ${EP_STORAGE_LIBS})
 kv_enable_pch(ep_objs)
 
 ADD_LIBRARY(ep STATIC $<TARGET_OBJECTS:ep_objs>)
@@ -506,7 +506,7 @@ endif()
 
 add_library(ep_mocks OBJECT ${MOCK_SOURCE})
 set_property(TARGET ep_mocks PROPERTY POSITION_INDEPENDENT_CODE 1)
-target_link_libraries(ep_mocks PUBLIC platform spdlog GTest::gmock)
+target_link_libraries(ep_mocks PUBLIC platform spdlog::spdlog GTest::gmock)
 add_sanitizers(ep_mocks)
 cb_enable_unity_build(ep_mocks)
 kv_enable_pch(ep_mocks)

@@ -8,5 +8,5 @@ target_link_libraries(ewouldblock_engine PRIVATE
                       mcbp
                       mcd_util
                       platform
-                      spdlog
+                      spdlog::spdlog
                       xattr)

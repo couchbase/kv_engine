@@ -8,7 +8,7 @@ add_library(memcached_logger STATIC
             logger_test_fixture.h)
 kv_enable_pch(memcached_logger)
 
-target_link_libraries(memcached_logger PUBLIC platform spdlog)
+target_link_libraries(memcached_logger PUBLIC platform spdlog::spdlog)
 add_sanitizers(memcached_logger)
 
 cb_add_test_executable(memcached_logger_test

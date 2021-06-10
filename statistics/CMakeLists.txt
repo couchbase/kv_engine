@@ -20,6 +20,6 @@ target_link_libraries(statistics
         PRIVATE
                 Folly::headers
                 mcd_util
-                spdlog
+                spdlog::spdlog
                 prometheus-cpp::pull
                 )
