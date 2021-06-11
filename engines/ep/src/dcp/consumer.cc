@@ -1845,7 +1845,7 @@ cb::engine_errc DcpConsumer::commit(uint32_t opaque,
         return cb::engine_errc::invalid_arguments;
     }
 
-    auto msg = std::make_unique<CommitSyncWrite>(
+    auto msg = std::make_unique<CommitSyncWriteConsumer>(
             opaque, vbucket, prepare_seqno, commit_seqno, key);
     return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }
@@ -1864,7 +1864,7 @@ cb::engine_errc DcpConsumer::abort(uint32_t opaque,
         return cb::engine_errc::invalid_arguments;
     }
 
-    auto msg = std::make_unique<AbortSyncWrite>(
+    auto msg = std::make_unique<AbortSyncWriteConsumer>(
             opaque, vbucket, key, prepareSeqno, abortSeqno);
     return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }
