@@ -98,7 +98,7 @@ public:
     }
 
     /// set how many items this collection has stored
-    void setItemCount(uint64_t value) {
+    void setItemCount(uint64_t value) const {
         itemCount = value;
     }
 
