@@ -49,7 +49,7 @@ static void dcp_step(EngineIface* h,
                      const CookieIface* cookie,
                      MockDcpMessageProducers& producers) {
     auto dcp = requireDcpIface(h);
-    cb::engine_errc err = dcp->step(cookie, producers);
+    cb::engine_errc err = dcp->step(*cookie, producers);
     check(err == cb::engine_errc::success ||
                   err == cb::engine_errc::would_block,
           "Expected success or engine_ewouldblock");
@@ -63,7 +63,7 @@ static void dcpHandleResponse(EngineIface* h,
                               const cb::mcbp::Response& response,
                               MockDcpMessageProducers& producers) {
     auto dcp = requireDcpIface(h);
-    auto erroCode = dcp->response_handler(cookie, response);
+    auto erroCode = dcp->response_handler(*cookie, response);
     check(erroCode == cb::engine_errc::success ||
                   erroCode == cb::engine_errc::would_block,
           "Expected 'success' or 'engine_ewouldblock'");
@@ -347,7 +347,7 @@ private:
 
 cb::engine_errc TestDcpConsumer::sendControlMessage(const std::string& name,
                                                     const std::string& value) {
-    return dcp->control(cookie, ++opaque, name, value);
+    return dcp->control(*cookie, ++opaque, name, value);
 }
 
 void TestDcpConsumer::deleteOrExpireCase(TestDcpConsumer::VBStats& stats,
@@ -392,7 +392,7 @@ void TestDcpConsumer::run(bool openConn) {
 
     if (collectionFilter) {
         // Enable noop ops needed for collections
-        dcp->control(cookie, opaque, "enable_noop", "true");
+        dcp->control(*cookie, opaque, "enable_noop", "true");
     }
     /* Open streams in the above open connection */
     openStreams();
@@ -428,7 +428,7 @@ void TestDcpConsumer::run(bool openConn) {
                         cb::mcbp::ClientOpcode::DcpBufferAcknowledgement,
                         bytes_read);
                 dcp->buffer_acknowledgement(
-                        cookie, ++opaque, Vbid(0), bytes_read);
+                        *cookie, ++opaque, Vbid(0), bytes_read);
             } catch (const std::exception& e) {
                 std::cerr << "buffer_acknowledgement exception caught"
                           << std::endl;
@@ -446,7 +446,7 @@ void TestDcpConsumer::run(bool openConn) {
             total_acked_bytes += bytes_read;
             bytes_read = 0;
         }
-        cb::engine_errc err = dcp->step(cookie, producers);
+        cb::engine_errc err = dcp->step(*cookie, producers);
         if (err == cb::engine_errc::disconnect) {
             done = true;
         } else {
@@ -731,7 +731,7 @@ void TestDcpConsumer::openConnection(uint32_t flags) {
 
     /* Set up Producer at server */
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       ++opaque,
                       0,
                       flags,
@@ -742,7 +742,7 @@ void TestDcpConsumer::openConnection(uint32_t flags) {
     /* Set flow control buffer size */
     std::string flow_control_buf_sz(std::to_string(flow_control_buf_size));
     checkeq(cb::engine_errc::success,
-            dcp->control(cookie,
+            dcp->control(*cookie,
                          ++opaque,
                          "connection_buffer_size",
                          flow_control_buf_sz),
@@ -770,7 +770,7 @@ cb::engine_errc TestDcpConsumer::openStreams() {
 
         /* Initiate stream request */
         uint64_t rollback = 0;
-        cb::engine_errc rv = dcp->stream_req(cookie,
+        cb::engine_errc rv = dcp->stream_req(*cookie,
                                              ctx.flags,
                                              opaque,
                                              ctx.vbucket,
@@ -900,7 +900,7 @@ cb::engine_errc TestDcpConsumer::closeStreams(bool fClear) {
     cb::engine_errc err = cb::engine_errc::success;
     for (auto& ctx : stream_ctxs) {
         if (ctx.opaque > 0) {
-            err = dcp->close_stream(cookie, ctx.opaque, Vbid(0), {});
+            err = dcp->close_stream(*cookie, ctx.opaque, Vbid(0), {});
             if (cb::engine_errc::success != err) {
                 break;
             }
@@ -931,7 +931,7 @@ static void dcp_stream_to_replica(EngineIface* h,
     /* Send snapshot marker */
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->snapshot_marker(cookie,
+            dcp->snapshot_marker(*cookie,
                                  opaque,
                                  vbucket,
                                  snap_start_seqno,
@@ -947,7 +947,7 @@ static void dcp_stream_to_replica(EngineIface* h,
         const StoredDocKey docKey(key, cid);
         const cb::const_byte_buffer value{(uint8_t*)data.data(), data.size()};
         checkeq(cb::engine_errc::success,
-                dcp->mutation(cookie,
+                dcp->mutation(*cookie,
                               opaque,
                               docKey,
                               value,
@@ -990,11 +990,11 @@ static void dcp_stream_from_producer_conn(EngineIface* h,
         if (bytes_read > 512) {
             checkeq(cb::engine_errc::success,
                     dcp->buffer_acknowledgement(
-                            cookie, ++opaque, Vbid(0), bytes_read),
+                            *cookie, ++opaque, Vbid(0), bytes_read),
                     "Failed to get dcp buffer ack");
             bytes_read = 0;
         }
-        cb::engine_errc err = dcp->step(cookie, producers);
+        cb::engine_errc err = dcp->step(*cookie, producers);
         if (err == cb::engine_errc::disconnect) {
             done = true;
         } else {
@@ -1044,7 +1044,7 @@ static void dcp_stream_from_producer_conn(EngineIface* h,
     } while (!done);
 
     /* Do buffer ack of the outstanding bytes */
-    dcp->buffer_acknowledgement(cookie, ++opaque, Vbid(0), bytes_read);
+    dcp->buffer_acknowledgement(*cookie, ++opaque, Vbid(0), bytes_read);
     checkeq((end - start + 1), num_mutations, "Invalid number of mutations");
     if (expSnapStart) {
         checkge(last_snap_start_seqno,
@@ -1067,7 +1067,7 @@ static void dcp_stream_expiries_to_replica(EngineIface* h,
                                            uint8_t cas = 0x1) {
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->snapshot_marker(cookie,
+            dcp->snapshot_marker(*cookie,
                                  opaque,
                                  vbucket,
                                  snap_start_seqno,
@@ -1082,7 +1082,7 @@ static void dcp_stream_expiries_to_replica(EngineIface* h,
         const std::string key{"key" + std::to_string(i)};
         const DocKey docKey{key, DocKeyEncodesCollectionId::No};
         checkeq(cb::engine_errc::success,
-                dcp->expiration(cookie,
+                dcp->expiration(*cookie,
                                 opaque,
                                 docKey,
                                 {},
@@ -1166,7 +1166,7 @@ extern "C" {
               "Failed to set vbucket state.");
 
         // Open consumer connection
-        checkeq(ctx->dcp->open(cookie,
+        checkeq(ctx->dcp->open(*cookie,
                                opaque,
                                0,
                                flags,
@@ -1190,7 +1190,7 @@ extern "C" {
             ss << "kamakeey-" << i;
 
             // send mutations in single mutation snapshots to race more with compaction
-            ctx->dcp->snapshot_marker(cookie,
+            ctx->dcp->snapshot_marker(*cookie,
                                       stream_opaque,
                                       Vbid(0),
                                       ctx->items,
@@ -1201,7 +1201,7 @@ extern "C" {
 
             const std::string key = ss.str();
             const DocKey docKey{key, DocKeyEncodesCollectionId::No};
-            ctx->dcp->mutation(cookie,
+            ctx->dcp->mutation(*cookie,
                                stream_opaque,
                                docKey,
                                {(const uint8_t*)"value", 5},
@@ -1284,11 +1284,11 @@ static void dcp_waiting_step(EngineIface* h,
         if (bytes_read > 512) {
             checkeq(cb::engine_errc::success,
                     dcp->buffer_acknowledgement(
-                            cookie, ++opaque, Vbid(0), bytes_read),
+                            *cookie, ++opaque, Vbid(0), bytes_read),
                     "Failed to get dcp buffer ack");
             bytes_read = 0;
         }
-        cb::engine_errc err = dcp->step(cookie, producers);
+        cb::engine_errc err = dcp->step(*cookie, producers);
         if (err == cb::engine_errc::disconnect) {
             done = true;
         } else {
@@ -1344,7 +1344,7 @@ static void dcp_waiting_step(EngineIface* h,
     } while (!done);
 
     /* Do buffer ack of the outstanding bytes */
-    dcp->buffer_acknowledgement(cookie, ++opaque, Vbid(0), bytes_read);
+    dcp->buffer_acknowledgement(*cookie, ++opaque, Vbid(0), bytes_read);
 }
 
 // Testcases //////////////////////////////////////////////////////////////////
@@ -1376,7 +1376,7 @@ static enum test_result test_dcp_consumer_open(EngineIface* h) {
     auto dcp = requireDcpIface(h);
 
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie1,
+            dcp->open(*cookie1,
                       opaque,
                       seqno,
                       flags,
@@ -1395,7 +1395,7 @@ static enum test_result test_dcp_consumer_open(EngineIface* h) {
 
     auto* cookie2 = testHarness->create_cookie(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie2,
+            dcp->open(*cookie2,
                       opaque,
                       seqno,
                       flags,
@@ -1421,7 +1421,7 @@ static enum test_result test_dcp_consumer_flow_control_none(EngineIface* h) {
     auto dcp = requireDcpIface(h);
 
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie1,
+            dcp->open(*cookie1,
                       opaque,
                       seqno,
                       flags,
@@ -1448,7 +1448,7 @@ static enum test_result test_dcp_consumer_flow_control_static(EngineIface* h) {
     auto dcp = requireDcpIface(h);
 
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie1,
+            dcp->open(*cookie1,
                       opaque,
                       seqno,
                       flags,
@@ -1477,7 +1477,7 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(EngineIface* h) {
 
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie1,
+            dcp->open(*cookie1,
                       opaque,
                       seqno,
                       flags,
@@ -1497,7 +1497,7 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(EngineIface* h) {
     checkeq(2000000000, get_int_stat(h, "ep_max_size"), "Incorrect new size.");
 
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie2,
+            dcp->open(*cookie2,
                       opaque,
                       seqno,
                       flags,
@@ -1516,7 +1516,7 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(EngineIface* h) {
     for (auto count = 0; count < 10; count++) {
         auto* cookie = testHarness->create_cookie(h);
         checkeq(cb::engine_errc::success,
-                dcp->open(cookie,
+                dcp->open(*cookie,
                           opaque,
                           seqno,
                           flags,
@@ -1528,7 +1528,7 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(EngineIface* h) {
     /* By now mem used by flow control bufs would have crossed the threshold */
     auto* cookie3 = testHarness->create_cookie(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie3,
+            dcp->open(*cookie3,
                       opaque,
                       seqno,
                       flags,
@@ -1549,7 +1549,7 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(EngineIface* h) {
             "Incorrect new size.");
 
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie4,
+            dcp->open(*cookie4,
                       opaque,
                       seqno,
                       flags,
@@ -1599,7 +1599,7 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
     auto dcp = requireDcpIface(h);
 
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie[0],
+            dcp->open(*cookie[0],
                       opaque,
                       seqno,
                       flags,
@@ -1608,7 +1608,7 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
             "Failed dcp consumer open connection.");
 
     checkeq(cb::engine_errc::success,
-            dcp->add_stream(cookie[0], 0, vbuckets[0], 0),
+            dcp->add_stream(*cookie[0], 0, vbuckets[0], 0),
             "Failed to set up stream");
 
     /* Check the max limit */
@@ -1622,7 +1622,7 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
         cookie[count] = testHarness->create_cookie(h);
         const auto name2(namePrefix + std::to_string(count));
         checkeq(cb::engine_errc::success,
-                dcp->open(cookie[count],
+                dcp->open(*cookie[count],
                           opaque,
                           seqno,
                           flags,
@@ -1631,7 +1631,7 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
                 "Failed dcp consumer open connection.");
 
         checkeq(cb::engine_errc::success,
-                dcp->add_stream(cookie[count], 0, vbuckets[count], 0),
+                dcp->add_stream(*cookie[count], 0, vbuckets[count], 0),
                 "Failed to set up stream");
 
         for (auto i = 0; i <= count; i++) {
@@ -1649,7 +1649,7 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
     const auto name3(namePrefix + std::to_string(max_conns - 1));
     const auto stat_name2("eq_dcpq:" + name3 + ":max_buffer_bytes");
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie[max_conns - 1],
+            dcp->open(*cookie[max_conns - 1],
                       opaque,
                       seqno,
                       flags,
@@ -1659,7 +1659,7 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
 
     checkeq(cb::engine_errc::success,
             dcp->add_stream(
-                    cookie[max_conns - 1], 0, vbuckets[max_conns - 1], 0),
+                    *cookie[max_conns - 1], 0, vbuckets[max_conns - 1], 0),
             "Failed to set up stream");
 
     checkeq(flow_ctl_buf_min,
@@ -1687,7 +1687,7 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
     MockDcpMessageProducers producers;
     for (auto i = max_conns / 2; i < max_conns; i++) {
         checkeq(cb::engine_errc::success,
-                dcp->step(cookie[i], producers),
+                dcp->step(*cookie[i], producers),
                 "Pending flow control buffer change not processed");
         checkeq(cb::mcbp::ClientOpcode::DcpControl,
                 producers.last_op,
@@ -1716,7 +1716,7 @@ static enum test_result test_dcp_producer_open(EngineIface* h) {
     auto dcp = requireDcpIface(h);
 
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie1,
+            dcp->open(*cookie1,
                       opaque,
                       seqno,
                       cb::mcbp::request::DcpOpenPayload::Producer,
@@ -1734,7 +1734,7 @@ static enum test_result test_dcp_producer_open(EngineIface* h) {
 
     auto* cookie2 = testHarness->create_cookie(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie2,
+            dcp->open(*cookie2,
                       opaque,
                       seqno,
                       cb::mcbp::request::DcpOpenPayload::Producer,
@@ -1759,7 +1759,7 @@ static enum test_result test_dcp_noop(EngineIface* h) {
     MockDcpMessageProducers producers;
 
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       seqno,
                       cb::mcbp::request::DcpOpenPayload::Producer,
@@ -1769,19 +1769,19 @@ static enum test_result test_dcp_noop(EngineIface* h) {
     const std::string param1_name("connection_buffer_size");
     const std::string param1_value("1024");
     checkeq(cb::engine_errc::success,
-            dcp->control(cookie, ++opaque, param1_name, param1_value),
+            dcp->control(*cookie, ++opaque, param1_name, param1_value),
             "Failed to establish connection buffer");
     const std::string param2_name("enable_noop");
     const std::string param2_value("true");
     checkeq(cb::engine_errc::success,
-            dcp->control(cookie, ++opaque, param2_name, param2_value),
+            dcp->control(*cookie, ++opaque, param2_name, param2_value),
             "Failed to enable no-ops");
 
     testHarness->time_travel(201);
 
     auto done = false;
     while (!done) {
-        if (dcp->step(cookie, producers) == cb::engine_errc::disconnect) {
+        if (dcp->step(*cookie, producers) == cb::engine_errc::disconnect) {
             done = true;
         } else if (producers.last_op == cb::mcbp::ClientOpcode::DcpNoop) {
             done = true;
@@ -1819,7 +1819,7 @@ static enum test_result test_dcp_noop_fail(EngineIface* h) {
     auto dcp = requireDcpIface(h);
 
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       seqno,
                       cb::mcbp::request::DcpOpenPayload::Producer,
@@ -1829,18 +1829,18 @@ static enum test_result test_dcp_noop_fail(EngineIface* h) {
     const std::string param1_name("connection_buffer_size");
     const std::string param1_value("1024");
     checkeq(cb::engine_errc::success,
-            dcp->control(cookie, ++opaque, param1_name, param1_value),
+            dcp->control(*cookie, ++opaque, param1_name, param1_value),
             "Failed to establish connection buffer");
     const std::string param2_name("enable_noop");
     const std::string param2_value("true");
     checkeq(cb::engine_errc::success,
-            dcp->control(cookie, ++opaque, param2_name, param2_value),
+            dcp->control(*cookie, ++opaque, param2_name, param2_value),
             "Failed to enable no-ops");
 
     testHarness->time_travel(201);
 
     MockDcpMessageProducers producers;
-    while (dcp->step(cookie, producers) != cb::engine_errc::disconnect) {
+    while (dcp->step(*cookie, producers) != cb::engine_errc::disconnect) {
         if (producers.last_op == cb::mcbp::ClientOpcode::DcpNoop) {
             // Producer opaques are hard coded to start from 10M
             checkeq(10000001,
@@ -1873,7 +1873,7 @@ static enum test_result test_dcp_consumer_noop(EngineIface* h) {
 
     // Open consumer connection
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       seqno,
                       flags,
@@ -1886,14 +1886,14 @@ static enum test_result test_dcp_consumer_noop(EngineIface* h) {
     // No-op not recieved for 201 seconds. Should be ok.
     MockDcpMessageProducers producers;
     checkeq(cb::engine_errc::would_block,
-            dcp->step(cookie, producers),
+            dcp->step(*cookie, producers),
             "Expected engine would block");
 
     testHarness->time_travel(200);
 
     // Message not recieved for over 400 seconds. Should disconnect.
     checkeq(cb::engine_errc::disconnect,
-            dcp->step(cookie, producers),
+            dcp->step(*cookie, producers),
             "Expected engine disconnect");
     testHarness->destroy_cookie(cookie);
 
@@ -2552,7 +2552,7 @@ static enum test_result test_dcp_consumer_hotness_data(EngineIface* h) {
     // Open consumer connection
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -2572,7 +2572,7 @@ static enum test_result test_dcp_consumer_hotness_data(EngineIface* h) {
 
     // Snapshot marker indicating a mutation will follow
     checkeq(cb::engine_errc::success,
-            dcp->snapshot_marker(cookie,
+            dcp->snapshot_marker(*cookie,
                                  stream_opaque,
                                  vbid,
                                  0,
@@ -2584,7 +2584,7 @@ static enum test_result test_dcp_consumer_hotness_data(EngineIface* h) {
 
     const DocKey docKey("key", DocKeyEncodesCollectionId::No);
     checkeq(cb::engine_errc::success,
-            dcp->mutation(cookie,
+            dcp->mutation(*cookie,
                           stream_opaque,
                           docKey,
                           {(const uint8_t*)"value", 5},
@@ -2738,7 +2738,7 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
 
     /* Open an DCP consumer connection */
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       seqno,
                       flags,
@@ -2935,7 +2935,7 @@ static test_result test_dcp_producer_stream_req_nmvb(EngineIface* h) {
     auto dcp = requireDcpIface(h);
 
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie1,
+            dcp->open(*cookie1,
                       opaque,
                       seqno,
                       flags,
@@ -2947,7 +2947,7 @@ static test_result test_dcp_producer_stream_req_nmvb(EngineIface* h) {
     uint64_t rollback = 0;
 
     checkeq(cb::engine_errc::not_my_vbucket,
-            dcp->stream_req(cookie1,
+            dcp->stream_req(*cookie1,
                             0,
                             0,
                             req_vbucket,
@@ -3234,7 +3234,7 @@ static test_result test_dcp_takeover_no_items(EngineIface* h) {
     auto dcp = requireDcpIface(h);
 
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       ++opaque,
                       0,
                       cb::mcbp::request::DcpOpenPayload::Producer,
@@ -3252,7 +3252,7 @@ static test_result test_dcp_takeover_no_items(EngineIface* h) {
 
     uint64_t rollback = 0;
     checkeq(cb::engine_errc::success,
-            dcp->stream_req(cookie,
+            dcp->stream_req(*cookie,
                             flags,
                             ++opaque,
                             vbucket,
@@ -3274,7 +3274,7 @@ static test_result test_dcp_takeover_no_items(EngineIface* h) {
     int num_set_vbucket_active = 0;
 
     do {
-        cb::engine_errc err = dcp->step(cookie, producers);
+        cb::engine_errc err = dcp->step(*cookie, producers);
         if (err == cb::engine_errc::disconnect) {
             done = true;
         } else {
@@ -3358,7 +3358,7 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
 
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->add_stream(cookie, opaque, vbucket, flags),
+            dcp->add_stream(*cookie, opaque, vbucket, flags),
             "Add stream request failed");
 
     MockDcpMessageProducers producers;
@@ -3468,7 +3468,7 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
     }
 
     checkeq(cb::engine_errc::success,
-            dcp->response_handler(cookie, pkt->response),
+            dcp->response_handler(*cookie, pkt->response),
             "Expected success");
     dcp_step(h, cookie, producers);
     cb_free(pkt);
@@ -3496,7 +3496,7 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
         memcpy(pkt->bytes + headerlen + 8, &by_seqno, sizeof(uint64_t));
 
         checkeq(cb::engine_errc::success,
-                dcp->response_handler(cookie, pkt->response),
+                dcp->response_handler(*cookie, pkt->response),
                 "Expected success");
         dcp_step(h, cookie, producers);
 
@@ -3546,7 +3546,7 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
 
     // Open consumer connection
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -3560,7 +3560,7 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
     uint32_t stream_opaque =
             get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
     checkeq(cb::engine_errc::success,
-            dcp->snapshot_marker(cookie,
+            dcp->snapshot_marker(*cookie,
                                  stream_opaque,
                                  Vbid(0),
                                  0,
@@ -3574,7 +3574,7 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
         const std::string key{"key" + std::to_string(i)};
         const DocKey docKey(key, DocKeyEncodesCollectionId::No);
         checkeq(cb::engine_errc::success,
-                dcp->mutation(cookie,
+                dcp->mutation(*cookie,
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
@@ -3610,7 +3610,7 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
     cookie = testHarness->create_cookie(h);
 
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -3674,7 +3674,7 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h) {
     auto dcp = requireDcpIface(h);
     MockDcpMessageProducers producers;
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -3692,7 +3692,7 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h) {
     uint32_t stream_opaque =
             get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
 
-    dcp->snapshot_marker(cookie,
+    dcp->snapshot_marker(*cookie,
                          stream_opaque,
                          Vbid(0),
                          1,
@@ -3704,7 +3704,7 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h) {
         const std::string key{"key" + std::to_string(i)};
         const DocKey docKey(key, DocKeyEncodesCollectionId::No);
         checkeq(cb::engine_errc::success,
-                dcp->mutation(cookie,
+                dcp->mutation(*cookie,
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
@@ -3724,7 +3724,7 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h) {
 
     wait_for_flusher_to_settle(h);
 
-    dcp->snapshot_marker(cookie,
+    dcp->snapshot_marker(*cookie,
                          stream_opaque,
                          Vbid(0),
                          6,
@@ -3736,7 +3736,7 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h) {
         const std::string key{"key" + std::to_string(i)};
         const DocKey docKey(key, DocKeyEncodesCollectionId::No);
         checkeq(cb::engine_errc::success,
-                dcp->mutation(cookie,
+                dcp->mutation(*cookie,
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
@@ -3826,7 +3826,7 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h) {
     // Open consumer connection
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -3845,7 +3845,7 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h) {
             get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
 
     checkeq(cb::engine_errc::success,
-            dcp->snapshot_marker(cookie,
+            dcp->snapshot_marker(*cookie,
                                  stream_opaque,
                                  Vbid(0),
                                  num_items,
@@ -3858,7 +3858,7 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h) {
     wait_for_stat_to_be(h, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
 
     checkeq(cb::engine_errc::success,
-            dcp->close_stream(cookie, stream_opaque, Vbid(0), {}),
+            dcp->close_stream(*cookie, stream_opaque, Vbid(0), {}),
             "Expected success");
 
     // Simulating a failover scenario, where the replica vbucket will
@@ -3889,7 +3889,7 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h) {
     // Open consumer connection
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       0,
                       0,
@@ -3906,7 +3906,7 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h) {
 
     // Snapshot marker indicating 5 mutations will follow
     checkeq(cb::engine_errc::success,
-            dcp->snapshot_marker(cookie,
+            dcp->snapshot_marker(*cookie,
                                  stream_opaque,
                                  Vbid(0),
                                  0,
@@ -3922,7 +3922,7 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h) {
         const std::string key("key" + std::to_string(i));
         const DocKey docKey(key, DocKeyEncodesCollectionId::No);
         checkeq(cb::engine_errc::success,
-                dcp->mutation(cookie,
+                dcp->mutation(*cookie,
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
@@ -3959,7 +3959,7 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h) {
     const std::string key("key" + std::to_string(i));
     const DocKey docKey(key, DocKeyEncodesCollectionId::No);
     checkeq(cb::engine_errc::stream_not_found,
-            dcp->mutation(cookie,
+            dcp->mutation(*cookie,
                           stream_opaque,
                           docKey,
                           {(const uint8_t*)"value", 5},
@@ -3992,7 +3992,7 @@ static enum test_result test_dcp_add_stream(EngineIface* h) {
     // Open consumer connection
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -4035,7 +4035,7 @@ static enum test_result test_consumer_backoff_stat(EngineIface* h) {
     // Open consumer connection
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -4053,7 +4053,7 @@ static enum test_result test_consumer_backoff_stat(EngineIface* h) {
 
     uint32_t stream_opaque =
             get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
-    checkeq(dcp->snapshot_marker(cookie,
+    checkeq(dcp->snapshot_marker(*cookie,
                                  stream_opaque,
                                  Vbid(0),
                                  0,
@@ -4068,7 +4068,7 @@ static enum test_result test_consumer_backoff_stat(EngineIface* h) {
         const std::string key("key" + std::to_string(i));
         const DocKey docKey(key, DocKeyEncodesCollectionId::No);
         checkeq(cb::engine_errc::success,
-                dcp->mutation(cookie,
+                dcp->mutation(*cookie,
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
@@ -4110,7 +4110,7 @@ static enum test_result test_rollback_to_zero(EngineIface* h) {
     // Open consumer connection
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -4212,7 +4212,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h) {
     auto dcp = requireDcpIface(h);
     MockDcpMessageProducers producers;
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -4221,7 +4221,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h) {
             "Failed dcp Consumer open connection.");
 
     checkeq(cb::engine_errc::success,
-            dcp->add_stream(cookie, ++opaque, vbid, 0),
+            dcp->add_stream(*cookie, ++opaque, vbid, 0),
             "Add stream request failed");
 
     // When drainDcpControl stops producers.last_XXXX contains the value
@@ -4244,7 +4244,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h) {
     memcpy(pkt->bytes + 24, &rollbackSeqno, sizeof(uint64_t));
 
     checkeq(cb::engine_errc::success,
-            dcp->response_handler(cookie, pkt->response),
+            dcp->response_handler(*cookie, pkt->response),
             "Expected success");
 
     do {
@@ -4270,7 +4270,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h) {
     memcpy(pkt->bytes + 22, &by_seqno, sizeof(uint64_t));
 
     checkeq(cb::engine_errc::success,
-            dcp->response_handler(cookie, pkt->response),
+            dcp->response_handler(*cookie, pkt->response),
             "Expected success");
     dcp_step(h, cookie, producers);
     cb_free(pkt);
@@ -4313,7 +4313,7 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h) {
     auto dcp = requireDcpIface(h);
     MockDcpMessageProducers producers;
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -4322,7 +4322,7 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h) {
             "Failed dcp Consumer open connection.");
 
     checkeq(cb::engine_errc::success,
-            dcp->add_stream(cookie, opaque, Vbid(0), 0),
+            dcp->add_stream(*cookie, opaque, Vbid(0), 0),
             "Add stream request failed");
 
     // drainDcpControl keeps on consuming the messages via DCP step
@@ -4346,7 +4346,7 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h) {
     memcpy(pkt1->bytes + headerlen, &rollbackSeqno, bodylen);
 
     checkeq(cb::engine_errc::success,
-            dcp->response_handler(cookie, pkt1->response),
+            dcp->response_handler(*cookie, pkt1->response),
             "Expected Success after Rollback");
     wait_for_stat_to_be(h, "ep_rollback_count", 1);
     dcp_step(h, cookie, producers);
@@ -4370,7 +4370,7 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h) {
     memcpy(pkt2->bytes + headerlen + 8, &by_seqno, sizeof(uint64_t));
 
     checkeq(cb::engine_errc::success,
-            dcp->response_handler(cookie, pkt2->response),
+            dcp->response_handler(*cookie, pkt2->response),
             "Expected success");
 
     dcp_step(h, cookie, producers);
@@ -4437,7 +4437,7 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h) {
     auto dcp = requireDcpIface(h);
     MockDcpMessageProducers producers;
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -4446,7 +4446,7 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h) {
             "Failed dcp Consumer open connection.");
 
     checkeq(cb::engine_errc::success,
-            dcp->add_stream(cookie, opaque, Vbid(0), 0),
+            dcp->add_stream(*cookie, opaque, Vbid(0), 0),
             "Add stream request failed");
 
     // drainDcpControl keeps on consuming the messages via DCP step
@@ -4471,7 +4471,7 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h) {
     memcpy(pkt1->bytes + headerlen, &rollbackPt, bodylen);
 
     checkeq(cb::engine_errc::success,
-            dcp->response_handler(cookie, pkt1->response),
+            dcp->response_handler(*cookie, pkt1->response),
             "Expected Success after Rollback");
     wait_for_stat_to_be(h, "ep_rollback_count", 1);
     dcp_step(h, cookie, producers);
@@ -4492,7 +4492,7 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h) {
     memcpy(pkt2->bytes + headerlen + 8, &by_seqno, sizeof(uint64_t));
 
     checkeq(cb::engine_errc::success,
-            dcp->response_handler(cookie, pkt2->response),
+            dcp->response_handler(*cookie, pkt2->response),
             "Expected success");
     dcp_step(h, cookie, producers);
 
@@ -4544,7 +4544,7 @@ static enum test_result test_dcp_buffer_log_size(EngineIface* h) {
     // Open consumer connection
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -4553,7 +4553,7 @@ static enum test_result test_dcp_buffer_log_size(EngineIface* h) {
             "Failed dcp Consumer open connection.");
 
     checkeq(cb::engine_errc::success,
-            dcp->control(cookie, ++opaque, "connection_buffer_size", "0"),
+            dcp->control(*cookie, ++opaque, "connection_buffer_size", "0"),
             "Failed to establish connection buffer");
     snprintf(status_buffer, sizeof(status_buffer),
              "eq_dcpq:%s:flow_control", name);
@@ -4561,7 +4561,7 @@ static enum test_result test_dcp_buffer_log_size(EngineIface* h) {
     checkeq(0, status.compare("disabled"), "Flow control enabled!");
 
     checkeq(cb::engine_errc::success,
-            dcp->control(cookie, ++opaque, "connection_buffer_size", "512"),
+            dcp->control(*cookie, ++opaque, "connection_buffer_size", "512"),
             "Failed to establish connection buffer");
 
     snprintf(stats_buffer, sizeof(stats_buffer),
@@ -4572,7 +4572,7 @@ static enum test_result test_dcp_buffer_log_size(EngineIface* h) {
             "Buffer Size did not get set");
 
     checkeq(cb::engine_errc::success,
-            dcp->control(cookie, ++opaque, "connection_buffer_size", "1024"),
+            dcp->control(*cookie, ++opaque, "connection_buffer_size", "1024"),
             "Failed to establish connection buffer");
 
     checkeq(1024,
@@ -4581,7 +4581,7 @@ static enum test_result test_dcp_buffer_log_size(EngineIface* h) {
 
     /* Set flow control buffer size to zero which implies disable it */
     checkeq(cb::engine_errc::success,
-            dcp->control(cookie, ++opaque, "connection_buffer_size", "0"),
+            dcp->control(*cookie, ++opaque, "connection_buffer_size", "0"),
             "Failed to establish connection buffer");
     status = get_str_stat(h, status_buffer, "dcp");
     checkeq(0, status.compare("disabled"), "Flow control enabled!");
@@ -4648,7 +4648,7 @@ static enum test_result test_dcp_get_failover_log(EngineIface* h) {
     // Open consumer connection
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -4658,7 +4658,7 @@ static enum test_result test_dcp_get_failover_log(EngineIface* h) {
 
     checkeq(cb::engine_errc::success,
             dcp->get_failover_log(
-                    cookie, opaque, Vbid(0), mock_dcp_add_failover_log),
+                    *cookie, opaque, Vbid(0), mock_dcp_add_failover_log),
             "Failed to retrieve failover log");
 
     testHarness->destroy_cookie(cookie);
@@ -4700,7 +4700,7 @@ static enum test_result test_dcp_add_stream_exists(EngineIface* h) {
     /* Open consumer connection */
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -4710,12 +4710,12 @@ static enum test_result test_dcp_add_stream_exists(EngineIface* h) {
 
     /* Send add stream to consumer */
     checkeq(cb::engine_errc::success,
-            dcp->add_stream(cookie, ++opaque, vbucket, 0),
+            dcp->add_stream(*cookie, ++opaque, vbucket, 0),
             "Add stream request failed");
 
     /* Send add stream to consumer twice and expect failure */
     checkeq(cb::engine_errc::key_already_exists,
-            dcp->add_stream(cookie, ++opaque, Vbid(0), 0),
+            dcp->add_stream(*cookie, ++opaque, Vbid(0), 0),
             "Stream exists for this vbucket");
 
     /* Try adding another stream for the vbucket in another consumer conn */
@@ -4724,7 +4724,7 @@ static enum test_result test_dcp_add_stream_exists(EngineIface* h) {
     uint32_t opaque1 = 0xFFFF0000;
     std::string name1("unittest1");
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie1,
+            dcp->open(*cookie1,
                       opaque1,
                       0,
                       flags,
@@ -4734,7 +4734,7 @@ static enum test_result test_dcp_add_stream_exists(EngineIface* h) {
 
     /* Send add stream */
     checkeq(cb::engine_errc::key_already_exists,
-            dcp->add_stream(cookie1, ++opaque1, vbucket, 0),
+            dcp->add_stream(*cookie1, ++opaque1, vbucket, 0),
             "Stream exists for this vbucket");
 
     /* Just check that we can add passive stream for another vbucket in this
@@ -4744,7 +4744,7 @@ static enum test_result test_dcp_add_stream_exists(EngineIface* h) {
                     h, Vbid(vbucket.get() + 1), vbucket_state_replica),
             "Failed to set vbucket state.");
     checkeq(cb::engine_errc::success,
-            dcp->add_stream(cookie1, ++opaque1, Vbid(vbucket.get() + 1), 0),
+            dcp->add_stream(*cookie1, ++opaque1, Vbid(vbucket.get() + 1), 0),
             "Add stream request failed in the second conn");
     testHarness->destroy_cookie(cookie);
     testHarness->destroy_cookie(cookie1);
@@ -4763,7 +4763,7 @@ static enum test_result test_dcp_add_stream_nmvb(EngineIface* h) {
     // Open consumer connection
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -4774,7 +4774,7 @@ static enum test_result test_dcp_add_stream_nmvb(EngineIface* h) {
     // Send add stream to consumer for vbucket that doesn't exist
     opaque++;
     checkeq(cb::engine_errc::not_my_vbucket,
-            dcp->add_stream(cookie, opaque, Vbid(1), 0),
+            dcp->add_stream(*cookie, opaque, Vbid(1), 0),
             "Add stream expected not my vbucket");
     testHarness->destroy_cookie(cookie);
 
@@ -4793,7 +4793,7 @@ static enum test_result test_dcp_add_stream_prod_exists(EngineIface* h) {
     // Open consumer connection
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -4818,7 +4818,7 @@ static enum test_result test_dcp_add_stream_prod_nmvb(EngineIface* h) {
 
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -4840,7 +4840,7 @@ static enum test_result test_dcp_close_stream_no_stream(EngineIface* h) {
 
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -4849,7 +4849,7 @@ static enum test_result test_dcp_close_stream_no_stream(EngineIface* h) {
             "Failed dcp producer open connection.");
 
     checkeq(cb::engine_errc::no_such_key,
-            dcp->close_stream(cookie, opaque + 1, Vbid(0), {}),
+            dcp->close_stream(*cookie, opaque + 1, Vbid(0), {}),
             "Expected stream doesn't exist");
 
     testHarness->destroy_cookie(cookie);
@@ -4867,7 +4867,7 @@ static enum test_result test_dcp_close_stream(EngineIface* h) {
 
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -4885,7 +4885,7 @@ static enum test_result test_dcp_close_stream(EngineIface* h) {
     checkeq(0, state.compare("reading"), "Expected stream in reading state");
 
     checkeq(cb::engine_errc::success,
-            dcp->close_stream(cookie, stream_opaque, Vbid(0), {}),
+            dcp->close_stream(*cookie, stream_opaque, Vbid(0), {}),
             "Expected success");
 
     testHarness->destroy_cookie(cookie);
@@ -4904,7 +4904,7 @@ static enum test_result test_dcp_consumer_end_stream(EngineIface* h) {
 
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -4922,7 +4922,7 @@ static enum test_result test_dcp_consumer_end_stream(EngineIface* h) {
     checkeq(0, state.compare("reading"), "Expected stream in reading state");
 
     checkeq(cb::engine_errc::success,
-            dcp->stream_end(cookie,
+            dcp->stream_end(*cookie,
                             stream_opaque,
                             vbucket,
                             cb::mcbp::DcpStreamEndStatus::Ok),
@@ -4945,7 +4945,7 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
     // Open an DCP connection
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       seqno,
                       flags,
@@ -4979,7 +4979,7 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
     uint32_t lockTime = 0;
 
     checkeq(cb::engine_errc::success,
-            dcp->snapshot_marker(cookie,
+            dcp->snapshot_marker(*cookie,
                                  opaque,
                                  Vbid(0),
                                  10,
@@ -4999,7 +4999,7 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
     // Ensure that we don't accept invalid opaque values
     const DocKey docKey{key, DocKeyEncodesCollectionId::No};
     checkeq(cb::engine_errc::opaque_no_match,
-            dcp->mutation(cookie,
+            dcp->mutation(*cookie,
                           opaque + 1,
                           docKey,
                           {(const uint8_t*)data, dataLen},
@@ -5025,7 +5025,7 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
 
     // Send snapshot marker
     checkeq(cb::engine_errc::success,
-            dcp->snapshot_marker(cookie,
+            dcp->snapshot_marker(*cookie,
                                  opaque,
                                  Vbid(0),
                                  10,
@@ -5042,7 +5042,7 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
 
     // Consume an DCP mutation
     checkeq(cb::engine_errc::success,
-            dcp->mutation(cookie,
+            dcp->mutation(*cookie,
                           opaque,
                           docKey,
                           {(const uint8_t*)data, dataLen},
@@ -5101,7 +5101,7 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h) {
     // Open an DCP connection
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       seqno,
                       flags,
@@ -5118,7 +5118,7 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h) {
 
     int exp_unacked_bytes = dcp_snapshot_marker_base_msg_bytes;
     checkeq(cb::engine_errc::success,
-            dcp->snapshot_marker(cookie,
+            dcp->snapshot_marker(*cookie,
                                  opaque,
                                  Vbid(0),
                                  10,
@@ -5132,7 +5132,7 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h) {
     const DocKey docKey{key, DocKeyEncodesCollectionId::No};
     // verify that we don't accept invalid opaque id's
     checkeq(cb::engine_errc::opaque_no_match,
-            dcp->deletion(cookie,
+            dcp->deletion(*cookie,
                           opaque + 1,
                           docKey,
                           {},
@@ -5148,7 +5148,7 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h) {
 
     // Consume an DCP deletion
     checkeq(cb::engine_errc::success,
-            dcp->deletion(cookie,
+            dcp->deletion(*cookie,
                           opaque,
                           docKey,
                           {},
@@ -5196,7 +5196,7 @@ static enum test_result test_dcp_consumer_expire(EngineIface* h) {
     // Open an DCP connection
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       seqno,
                       flags,
@@ -5213,7 +5213,7 @@ static enum test_result test_dcp_consumer_expire(EngineIface* h) {
 
     int exp_unacked_bytes = dcp_snapshot_marker_base_msg_bytes;
     checkeq(cb::engine_errc::success,
-            dcp->snapshot_marker(cookie,
+            dcp->snapshot_marker(*cookie,
                                  opaque,
                                  Vbid(0),
                                  10,
@@ -5227,7 +5227,7 @@ static enum test_result test_dcp_consumer_expire(EngineIface* h) {
     const DocKey docKey{key, DocKeyEncodesCollectionId::No};
     // verify that we don't accept invalid opaque id's
     checkeq(cb::engine_errc::opaque_no_match,
-            dcp->expiration(cookie,
+            dcp->expiration(*cookie,
                             opaque + 1,
                             docKey,
                             {},
@@ -5243,7 +5243,7 @@ static enum test_result test_dcp_consumer_expire(EngineIface* h) {
 
     // Consume an DCP expiration
     checkeq(cb::engine_errc::success,
-            dcp->expiration(cookie,
+            dcp->expiration(*cookie,
                             opaque,
                             docKey,
                             {},
@@ -5284,7 +5284,7 @@ static enum test_result test_dcp_replica_stream_backfill(EngineIface* h) {
     /* Open an DCP consumer connection */
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       seqno,
                       flags,
@@ -5345,7 +5345,7 @@ static enum test_result test_dcp_replica_stream_backfill_MB_34173(
 
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       seqno,
                       flags,
@@ -5375,7 +5375,7 @@ static enum test_result test_dcp_replica_stream_backfill_MB_34173(
     opaque = 0xFFFF0000;
     dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       seqno,
                       flags,
@@ -5419,7 +5419,7 @@ static enum test_result test_dcp_replica_stream_in_memory(EngineIface* h) {
     /* Open an DCP consumer connection */
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       seqno,
                       flags,
@@ -5471,7 +5471,7 @@ static enum test_result test_dcp_replica_stream_all(EngineIface* h) {
     /* Open an DCP consumer connection */
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       seqno,
                       flags,
@@ -5575,7 +5575,7 @@ static enum test_result test_dcp_replica_stream_all_collection_enabled(
     /* Open an DCP consumer connection */
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       seqno,
                       flags,
@@ -5702,7 +5702,7 @@ static enum test_result test_dcp_replica_stream_one_collection_on_disk(
     /* Open an DCP consumer connection */
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       seqno,
                       flags,
@@ -5849,7 +5849,7 @@ static enum test_result test_dcp_replica_stream_one_collection(EngineIface* h) {
     /* Open an DCP consumer connection */
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       seqno,
                       flags,
@@ -5986,7 +5986,7 @@ static test_result test_dcp_replica_stream_expiries(
     /* Open an DCP consumer connection */
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       seqno,
                       flags,
@@ -6212,7 +6212,7 @@ static enum test_result test_dcp_persistence_seqno_backfillItems(
     /* Open an DCP consumer connection */
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(consumerCookie,
+            dcp->open(*consumerCookie,
                       opaque,
                       /*start_seqno*/ 0,
                       /*flags*/ 0,
@@ -6476,7 +6476,7 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
 
     auto dcp = requireDcpIface(h);
 
-    checkeq(dcp->open(cookie,
+    checkeq(dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -6490,7 +6490,7 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
     std::string opaqueStr("eq_dcpq:" + name + ":stream_0_opaque");
     uint32_t stream_opaque = get_int_stat(h, opaqueStr.c_str(), "dcp");
 
-    checkeq(dcp->snapshot_marker(cookie,
+    checkeq(dcp->snapshot_marker(*cookie,
                                  stream_opaque,
                                  Vbid(0),
                                  5,
@@ -6503,7 +6503,7 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
     for (int i = 5; i <= 10; i++) {
         const std::string key("key" + std::to_string(i));
         const DocKey docKey{key, DocKeyEncodesCollectionId::No};
-        checkeq(dcp->mutation(cookie,
+        checkeq(dcp->mutation(*cookie,
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
@@ -6524,7 +6524,7 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
 
     // Send a mutation and a deletion both out-of-sequence
     const DocKey key{(const uint8_t*)"key", 3, DocKeyEncodesCollectionId::No};
-    checkeq(dcp->mutation(cookie,
+    checkeq(dcp->mutation(*cookie,
                           stream_opaque,
                           key,
                           {(const uint8_t*)"val", 3},
@@ -6542,7 +6542,7 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
             cb::engine_errc::out_of_range,
             "Mutation should've returned ERANGE!");
     const DocKey key5{(const uint8_t*)"key5", 4, DocKeyEncodesCollectionId::No};
-    checkeq(dcp->deletion(cookie,
+    checkeq(dcp->deletion(*cookie,
                           stream_opaque,
                           key5,
                           {},
@@ -6562,7 +6562,7 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
 
     const DocKey docKey20{
             (const uint8_t*)"key20", 5, DocKeyEncodesCollectionId::No};
-    cb::engine_errc err = dcp->mutation(cookie,
+    cb::engine_errc err = dcp->mutation(*cookie,
                                         stream_opaque,
                                         docKey20,
                                         {(const uint8_t*)"val", 3},
@@ -6600,7 +6600,7 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
             get_int_stat(h, "vb_0:num_items", "vbucket-details 0"),
             "The last mutation should've been dropped!");
 
-    checkeq(dcp->close_stream(cookie, stream_opaque, Vbid(0), {}),
+    checkeq(dcp->close_stream(*cookie, stream_opaque, Vbid(0), {}),
             cb::engine_errc::success,
             "Expected to close stream!");
     testHarness->destroy_cookie(cookie);
@@ -6619,7 +6619,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
     std::string name("first_marker");
 
     auto dcp = requireDcpIface(h);
-    checkeq(dcp->open(cookie1,
+    checkeq(dcp->open(*cookie1,
                       opaque,
                       0,
                       flags,
@@ -6633,7 +6633,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
     std::string opaqueStr("eq_dcpq:" + name + ":stream_0_opaque");
     uint32_t stream_opaque = get_int_stat(h, opaqueStr.c_str(), "dcp");
 
-    checkeq(dcp->snapshot_marker(cookie1,
+    checkeq(dcp->snapshot_marker(*cookie1,
                                  stream_opaque,
                                  Vbid(0),
                                  1,
@@ -6646,7 +6646,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
     for (int i = 1; i <= 10; i++) {
         const std::string key("key" + std::to_string(i));
         const DocKey docKey{key, DocKeyEncodesCollectionId::No};
-        checkeq(dcp->mutation(cookie1,
+        checkeq(dcp->mutation(*cookie1,
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
@@ -6668,7 +6668,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
     std::string bufferItemsStr("eq_dcpq:" + name + ":stream_0_buffer_items");
     wait_for_stat_to_be(h, bufferItemsStr.c_str(), 0, "dcp");
 
-    checkeq(dcp->close_stream(cookie1, stream_opaque, Vbid(0), {}),
+    checkeq(dcp->close_stream(*cookie1, stream_opaque, Vbid(0), {}),
             cb::engine_errc::success,
             "Expected to close stream1!");
     testHarness->destroy_cookie(cookie1);
@@ -6677,7 +6677,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
     opaque = 0xFFFFF000;
     name.assign("second_marker");
 
-    checkeq(dcp->open(cookie2,
+    checkeq(dcp->open(*cookie2,
                       opaque,
                       0,
                       flags,
@@ -6692,7 +6692,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
     stream_opaque = get_int_stat(h, opaqueStr.c_str(), "dcp");
 
     // Send a snapshot marker that would be rejected
-    checkeq(dcp->snapshot_marker(cookie2,
+    checkeq(dcp->snapshot_marker(*cookie2,
                                  stream_opaque,
                                  Vbid(0),
                                  5,
@@ -6705,7 +6705,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
 
     // Send a snapshot marker that would be accepted, but a few of
     // the mutations that are part of this snapshot will be dropped
-    checkeq(dcp->snapshot_marker(cookie2,
+    checkeq(dcp->snapshot_marker(*cookie2,
                                  stream_opaque,
                                  Vbid(0),
                                  5,
@@ -6718,7 +6718,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
     for (int i = 5; i <= 15; i++) {
         const std::string key("key_" + std::to_string(i));
         const DocKey docKey(key, DocKeyEncodesCollectionId::No);
-        cb::engine_errc err = dcp->mutation(cookie2,
+        cb::engine_errc err = dcp->mutation(*cookie2,
                                             stream_opaque,
                                             docKey,
                                             {(const uint8_t*)"val", 3},
@@ -6742,7 +6742,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
         }
     }
 
-    checkeq(dcp->close_stream(cookie2, stream_opaque, Vbid(0), {}),
+    checkeq(dcp->close_stream(*cookie2, stream_opaque, Vbid(0), {}),
             cb::engine_errc::success,
             "Expected to close stream2!");
     testHarness->destroy_cookie(cookie2);
@@ -6761,7 +6761,7 @@ static enum test_result test_dcp_invalid_mutation_deletion(EngineIface* h) {
     std::string name("err_mutations");
 
     auto dcp = requireDcpIface(h);
-    checkeq(dcp->open(cookie,
+    checkeq(dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -6780,7 +6780,7 @@ static enum test_result test_dcp_invalid_mutation_deletion(EngineIface* h) {
     DocKey docKey{key, DocKeyEncodesCollectionId::No};
     cb::const_byte_buffer value{(const uint8_t*)"value", 5};
 
-    checkeq(dcp->mutation(cookie,
+    checkeq(dcp->mutation(*cookie,
                           stream_opaque,
                           docKey,
                           value,
@@ -6798,7 +6798,7 @@ static enum test_result test_dcp_invalid_mutation_deletion(EngineIface* h) {
             cb::engine_errc::invalid_arguments,
             "Mutation should have returned EINVAL!");
 
-    checkeq(dcp->deletion(cookie,
+    checkeq(dcp->deletion(*cookie,
                           stream_opaque,
                           docKey,
                           {},
@@ -6828,7 +6828,7 @@ static enum test_result test_dcp_invalid_snapshot_marker(EngineIface* h) {
     std::string name("unittest");
 
     auto dcp = requireDcpIface(h);
-    checkeq(dcp->open(cookie,
+    checkeq(dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -6842,7 +6842,7 @@ static enum test_result test_dcp_invalid_snapshot_marker(EngineIface* h) {
     std::string opaqueStr("eq_dcpq:" + name + ":stream_0_opaque");
     uint32_t stream_opaque = get_int_stat(h, opaqueStr.c_str(), "dcp");
 
-    checkeq(dcp->snapshot_marker(cookie,
+    checkeq(dcp->snapshot_marker(*cookie,
                                  stream_opaque,
                                  Vbid(0),
                                  1,
@@ -6856,7 +6856,7 @@ static enum test_result test_dcp_invalid_snapshot_marker(EngineIface* h) {
         const std::string key("key" + std::to_string(i));
         const DocKey docKey(key, DocKeyEncodesCollectionId::No);
         checkeq(cb::engine_errc::success,
-                dcp->mutation(cookie,
+                dcp->mutation(*cookie,
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
@@ -6878,7 +6878,7 @@ static enum test_result test_dcp_invalid_snapshot_marker(EngineIface* h) {
     wait_for_stat_to_be(h, bufferItemsStr.c_str(), 0, "dcp");
 
     // Invalid snapshot marker with end <= start
-    checkeq(dcp->snapshot_marker(cookie,
+    checkeq(dcp->snapshot_marker(*cookie,
                                  stream_opaque,
                                  Vbid(0),
                                  11,
@@ -6922,7 +6922,7 @@ static enum test_result test_dcp_early_termination(EngineIface* h) {
     uint32_t opaque = 1;
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       ++opaque,
                       0,
                       cb::mcbp::request::DcpOpenPayload::Producer,
@@ -6930,14 +6930,14 @@ static enum test_result test_dcp_early_termination(EngineIface* h) {
             "Failed dcp producer open connection.");
 
     checkeq(cb::engine_errc::success,
-            dcp->control(cookie, ++opaque, "connection_buffer_size", "1024"),
+            dcp->control(*cookie, ++opaque, "connection_buffer_size", "1024"),
             "Failed to establish connection buffer");
 
     MockDcpMessageProducers producers;
     for (int i = 0; i < streams; i++) {
         uint64_t rollback = 0;
         checkeq(cb::engine_errc::success,
-                dcp->stream_req(cookie,
+                dcp->stream_req(*cookie,
                                 DCP_ADD_STREAM_FLAG_DISKONLY,
                                 ++opaque,
                                 Vbid(i),
@@ -6950,7 +6950,7 @@ static enum test_result test_dcp_early_termination(EngineIface* h) {
                                 mock_dcp_add_failover_log,
                                 {}),
                 "Failed to initiate stream request");
-        dcp->step(cookie, producers);
+        dcp->step(*cookie, producers);
     }
 
     // Destroy the connection
@@ -7163,7 +7163,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
 
     // Open consumer connection
     auto dcp = requireDcpIface(h);
-    checkeq(dcp->open(cookie,
+    checkeq(dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -7178,7 +7178,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
     uint32_t stream_opaque = get_int_stat(
             h, ("eq_dcpq:" + name + ":stream_0_opaque").c_str(), "dcp");
 
-    dcp->snapshot_marker(cookie,
+    dcp->snapshot_marker(*cookie,
                          stream_opaque,
                          Vbid(0),
                          /*start*/ 0,
@@ -7194,7 +7194,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
         const std::string key{prefix + std::to_string(ii)};
         const DocKey docKey(key, DocKeyEncodesCollectionId::No);
         checkeq(cb::engine_errc::success,
-                dcp->mutation(cookie,
+                dcp->mutation(*cookie,
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)value.c_str(), value.size()},
@@ -7219,7 +7219,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
     const std::string delete_key{prefix + "0"};
     const DocKey docKey{delete_key, DocKeyEncodesCollectionId::No};
     checkeq(cb::engine_errc::success,
-            dcp->deletion(cookie,
+            dcp->deletion(*cookie,
                           stream_opaque,
                           docKey,
                           {},
@@ -7383,7 +7383,7 @@ static enum test_result test_dcp_consumer_processer_behavior(EngineIface* h) {
     // Open consumer connection
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -7411,7 +7411,7 @@ static enum test_result test_dcp_consumer_processer_behavior(EngineIface* h) {
 
         if (i % 20) {
             checkeq(cb::engine_errc::success,
-                    dcp->snapshot_marker(cookie,
+                    dcp->snapshot_marker(*cookie,
                                          stream_opaque,
                                          Vbid(0),
                                          i,
@@ -7424,7 +7424,7 @@ static enum test_result test_dcp_consumer_processer_behavior(EngineIface* h) {
         const std::string key("key" + std::to_string(i));
         const DocKey docKey(key, DocKeyEncodesCollectionId::No);
         checkeq(cb::engine_errc::success,
-                dcp->mutation(cookie,
+                dcp->mutation(*cookie,
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
@@ -7480,7 +7480,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
 
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -7494,7 +7494,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
     uint32_t stream_opaque = get_int_stat(h, opaqueStr.c_str(), "dcp");
 
     checkeq(cb::engine_errc::success,
-            dcp->snapshot_marker(cookie,
+            dcp->snapshot_marker(*cookie,
                                  stream_opaque,
                                  rep_vb_num,
                                  0,
@@ -7507,7 +7507,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
     const std::string key("key");
     const DocKey docKey(key, DocKeyEncodesCollectionId::No);
     checkeq(cb::engine_errc::success,
-            dcp->mutation(cookie,
+            dcp->mutation(*cookie,
                           stream_opaque,
                           docKey,
                           {(const uint8_t*)"value", 5},
@@ -7774,7 +7774,7 @@ static enum test_result test_mb19153(EngineIface* h) {
     // Setup a producer connection
     auto dcp = requireDcpIface(h);
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       ++opaque,
                       0,
                       flags,
@@ -7786,7 +7786,7 @@ static enum test_result test_mb19153(EngineIface* h) {
     uint64_t vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     uint64_t rollback = 0;
     checkeq(cb::engine_errc::success,
-            dcp->stream_req(cookie,
+            dcp->stream_req(*cookie,
                             0,
                             opaque,
                             Vbid(0),
@@ -7842,7 +7842,7 @@ static enum test_result test_mb19982(EngineIface* h) {
 
     // Open consumer connection
     auto dcp = requireDcpIface(h);
-    checkeq(dcp->open(cookie,
+    checkeq(dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -7866,7 +7866,7 @@ static enum test_result test_mb19982(EngineIface* h) {
             get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
 
     for (int i = 1; i <= num_items; i++) {
-        checkeq(dcp->snapshot_marker(cookie,
+        checkeq(dcp->snapshot_marker(*cookie,
                                      stream_opaque,
                                      Vbid(0),
                                      num_items,
@@ -7880,7 +7880,7 @@ static enum test_result test_mb19982(EngineIface* h) {
         const std::string key("key-" + std::to_string(i));
         const DocKey docKey(key, DocKeyEncodesCollectionId::No);
         checkeq(cb::engine_errc::success,
-                dcp->mutation(cookie,
+                dcp->mutation(*cookie,
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
@@ -7899,11 +7899,11 @@ static enum test_result test_mb19982(EngineIface* h) {
 
         // And flip VB state (this can have a lock inversion with stats)
         checkeq(dcp->set_vbucket_state(
-                        cookie, stream_opaque, Vbid(0), vbucket_state_active),
+                        *cookie, stream_opaque, Vbid(0), vbucket_state_active),
                 cb::engine_errc::success,
                 "failed to change to active");
         checkeq(dcp->set_vbucket_state(
-                        cookie, stream_opaque, Vbid(0), vbucket_state_replica),
+                        *cookie, stream_opaque, Vbid(0), vbucket_state_replica),
                 cb::engine_errc::success,
                 "failed to change to replica");
     }
@@ -7972,7 +7972,7 @@ static enum test_result test_MB_34634(EngineIface* h) {
     // 2) Create a DCP Consumer and add a stream so we can send DCP traffic to
     //    the victim
     checkeq(cb::engine_errc::success,
-            dcp->open(cookie,
+            dcp->open(*cookie,
                       opaque,
                       seqno,
                       0,
@@ -7988,7 +7988,7 @@ static enum test_result test_MB_34634(EngineIface* h) {
     //    b) commit(key)
     // The commit must be the high-seqno, i.e. last item of the snapshot
     checkeq(cb::engine_errc::success,
-            dcp->snapshot_marker(cookie,
+            dcp->snapshot_marker(*cookie,
                                  opaque,
                                  vb,
                                  0, // start-seq
@@ -7999,7 +7999,7 @@ static enum test_result test_MB_34634(EngineIface* h) {
             "snapshot_marker returned an error");
     const DocKey docKey1{"syncw", DocKeyEncodesCollectionId::No};
     checkeq(cb::engine_errc::success,
-            dcp->prepare(cookie,
+            dcp->prepare(*cookie,
                          opaque,
                          docKey1,
                          {/*empty value*/},
@@ -8018,7 +8018,7 @@ static enum test_result test_MB_34634(EngineIface* h) {
             "DCP consumer failed the prepare");
 
     checkeq(cb::engine_errc::success,
-            dcp->commit(cookie, opaque, vb, docKey1, 1, 2),
+            dcp->commit(*cookie, opaque, vb, docKey1, 1, 2),
             "DCP consumer failed the commit");
 
     wait_for_flusher_to_settle(h);
@@ -8027,13 +8027,13 @@ static enum test_result test_MB_34634(EngineIface* h) {
 
     // 4) Close the stream and proceed to takeover, resulting in an active VB
     checkeq(cb::engine_errc::success,
-            dcp->close_stream(cookie, opaque, vb, {}),
+            dcp->close_stream(*cookie, opaque, vb, {}),
             "DCP consumer failed the close_stream request");
 
     // 4.1) takeover stream, switch pending -> active
     opaque = 0xDDDD0000;
     checkeq(cb::engine_errc::success,
-            dcp->add_stream(cookie, opaque, vb, DCP_ADD_STREAM_FLAG_TAKEOVER),
+            dcp->add_stream(*cookie, opaque, vb, DCP_ADD_STREAM_FLAG_TAKEOVER),
             "Add stream request failed");
 
     dcp_step(h, cookie, producers);
@@ -8043,11 +8043,11 @@ static enum test_result test_MB_34634(EngineIface* h) {
             "Unexpected last_op");
 
     checkeq(cb::engine_errc::success,
-            dcp->set_vbucket_state(cookie, opaque, vb, vbucket_state_active),
+            dcp->set_vbucket_state(*cookie, opaque, vb, vbucket_state_active),
             "Add stream request failed");
 
     checkeq(cb::engine_errc::success,
-            dcp->close_stream(cookie, opaque, vb, {}),
+            dcp->close_stream(*cookie, opaque, vb, {}),
             "Expected success");
 
     // 5) Set the topology
@@ -8104,7 +8104,7 @@ static enum test_result test_MB_34664(EngineIface* h) {
 
     // Open consumer connection
     auto dcp = requireDcpIface(h);
-    checkeq(dcp->open(cookie,
+    checkeq(dcp->open(*cookie,
                       opaque,
                       0,
                       flags,
@@ -8119,7 +8119,7 @@ static enum test_result test_MB_34664(EngineIface* h) {
     uint32_t stream_opaque =
             get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
 
-    checkeq(dcp->snapshot_marker(cookie,
+    checkeq(dcp->snapshot_marker(*cookie,
                                  stream_opaque,
                                  Vbid(0),
                                  1,
@@ -8134,7 +8134,7 @@ static enum test_result test_MB_34664(EngineIface* h) {
         const std::string key("key-" + std::to_string(i));
         const DocKey docKey(key, DocKeyEncodesCollectionId::No);
         checkeq(cb::engine_errc::success,
-                dcp->mutation(cookie,
+                dcp->mutation(*cookie,
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
@@ -8155,7 +8155,7 @@ static enum test_result test_MB_34664(EngineIface* h) {
     wait_for_flusher_to_settle(h);
 
     checkeq(cb::engine_errc::success,
-            dcp->snapshot_marker(cookie,
+            dcp->snapshot_marker(*cookie,
                                  stream_opaque,
                                  Vbid(0),
                                  num_items + 1,
@@ -8169,7 +8169,7 @@ static enum test_result test_MB_34664(EngineIface* h) {
 
     // Close and switch to active
     checkeq(cb::engine_errc::success,
-            dcp->close_stream(cookie, opaque, Vbid(0), {}),
+            dcp->close_stream(*cookie, opaque, Vbid(0), {}),
             "DCP consumer failed the close_stream request");
 
     check(set_vbucket_state(h, Vbid(0), vbucket_state_active),

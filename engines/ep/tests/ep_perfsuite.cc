@@ -911,7 +911,7 @@ static void perf_dcp_client(EngineIface* h,
     uint32_t streamOpaque = opaque;
 
     auto& dcp = dynamic_cast<DcpIface&>(*h);
-    checkeq(dcp.open(cookie,
+    checkeq(dcp.open(*cookie,
                      ++streamOpaque,
                      0,
                      cb::mcbp::request::DcpOpenPayload::Producer,
@@ -920,12 +920,12 @@ static void perf_dcp_client(EngineIface* h,
             "Failed dcp producer open connection");
 
     checkeq(dcp.control(
-                    cookie, ++streamOpaque, "connection_buffer_size", "1024"),
+                    *cookie, ++streamOpaque, "connection_buffer_size", "1024"),
             cb::engine_errc::success,
             "Failed to establish connection buffer");
 
     if (retrieveCompressed) {
-        checkeq(dcp.control(cookie,
+        checkeq(dcp.control(*cookie,
                             ++streamOpaque,
                             "force_value_compression",
                             "true"),
@@ -936,7 +936,7 @@ static void perf_dcp_client(EngineIface* h,
     // We create a stream from 0 to MAX(seqno), and then rely on encountering the
     // sentinel document to know when to finish.
     uint64_t rollback = 0;
-    checkeq(dcp.stream_req(cookie,
+    checkeq(dcp.stream_req(*cookie,
                            0,
                            streamOpaque,
                            vbid,
@@ -962,11 +962,11 @@ static void perf_dcp_client(EngineIface* h,
         if (bytes_read > 512) {
             checkeq(cb::engine_errc::success,
                     dcp.buffer_acknowledgement(
-                            cookie, ++streamOpaque, vbid, bytes_read),
+                            *cookie, ++streamOpaque, vbid, bytes_read),
                     "Failed to acknowledge buffer");
             bytes_read = 0;
         }
-        cb::engine_errc err = dcp.step(cookie, producers);
+        cb::engine_errc err = dcp.step(*cookie, producers);
         switch (err) {
         case cb::engine_errc::would_block:
             // No data currently available - wait to be notified when
@@ -1210,7 +1210,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
     // Create a DCP Producer connection and add an active stream on vbid
     auto* activeCookie = testHarness->create_cookie(h);
     checkeq(cb::engine_errc::success,
-            dcp.open(activeCookie,
+            dcp.open(*activeCookie,
                      opaque,
                      0 /*seqno*/,
                      cb::mcbp::request::DcpOpenPayload::Producer /*flags*/,
@@ -1219,7 +1219,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
 
     uint64_t rollbackSeqno = 0;
     checkeq(cb::engine_errc::success,
-            dcp.stream_req(activeCookie,
+            dcp.stream_req(*activeCookie,
                            0 /*flags*/,
                            opaque,
                            vbid,
@@ -1239,14 +1239,14 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
     // Create a DCP Consumer connection and add a passive stream on vbid
     auto* passiveCookie = testHarness->create_cookie(h);
     checkeq(cb::engine_errc::success,
-            dcp.open(passiveCookie,
+            dcp.open(*passiveCookie,
                      opaque,
                      0 /*seqno*/,
                      0 /*flags*/,
                      "test_consumer"),
             "dcp.open failed");
     checkeq(cb::engine_errc::success,
-            dcp.add_stream(passiveCookie, opaque, vbid, 0 /*flags*/),
+            dcp.add_stream(*passiveCookie, opaque, vbid, 0 /*flags*/),
             "dcp.add_stream failed");
 
     std::vector<hrtime_t> timings;
@@ -1259,7 +1259,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
     for (size_t seqno = 1; seqno <= numItems; seqno++) {
         // 1) snapshot-marker
         checkeq(cb::engine_errc::success,
-                dcp.snapshot_marker(passiveCookie,
+                dcp.snapshot_marker(*passiveCookie,
                                     opaque,
                                     vbid,
                                     seqno /*snapStart*/,
@@ -1274,7 +1274,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
         // 2) snapshot-end mutation
         checkeq(cb::engine_errc::success,
                 dcp.mutation(
-                        passiveCookie,
+                        *passiveCookie,
                         opaque,
                         DocKey(key, DocKeyEncodesCollectionId::No),
                         cb::const_byte_buffer(

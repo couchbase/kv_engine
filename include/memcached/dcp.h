@@ -383,7 +383,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      *         cb::engine_errc::success if the engine don't have more messages
      *                        to send at this moment
      */
-    virtual cb::engine_errc step(gsl::not_null<const CookieIface*> cookie,
+    virtual cb::engine_errc step(const CookieIface& cookie,
                                  DcpMessageProducersIface& producers) = 0;
 
     /**
@@ -403,7 +403,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @return cb::engine_errc::success if the DCP connection was successfully
      * opened, otherwise error code indicating reason for the failure.
      */
-    virtual cb::engine_errc open(gsl::not_null<const CookieIface*> cookie,
+    virtual cb::engine_errc open(const CookieIface& cookie,
                                  uint32_t opaque,
                                  uint32_t seqno,
                                  uint32_t flags,
@@ -424,7 +424,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @return cb::engine_errc::success if the DCP stream was successfully
      * opened, otherwise error code indicating reason for the failure.
      */
-    virtual cb::engine_errc add_stream(gsl::not_null<const CookieIface*> cookie,
+    virtual cb::engine_errc add_stream(const CookieIface& cookie,
                                        uint32_t opaque,
                                        Vbid vbucket,
                                        uint32_t flags) = 0;
@@ -441,17 +441,16 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param sid The id of the stream to close (can be 0/none)
      * @return
      */
-    virtual cb::engine_errc close_stream(
-            gsl::not_null<const CookieIface*> cookie,
-            uint32_t opaque,
-            Vbid vbucket,
-            cb::mcbp::DcpStreamId sid) = 0;
+    virtual cb::engine_errc close_stream(const CookieIface& cookie,
+                                         uint32_t opaque,
+                                         Vbid vbucket,
+                                         cb::mcbp::DcpStreamId sid) = 0;
 
     /**
      * Callback to the engine that a Stream Request message was received
      */
     virtual cb::engine_errc stream_req(
-            gsl::not_null<const CookieIface*> cookie,
+            const CookieIface& cookie,
             uint32_t flags,
             uint32_t opaque,
             Vbid vbucket,
@@ -467,16 +466,15 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
     /**
      * Callback to the engine that a get failover log message was received
      */
-    virtual cb::engine_errc get_failover_log(
-            gsl::not_null<const CookieIface*> cookie,
-            uint32_t opaque,
-            Vbid vbucket,
-            dcp_add_failover_log callback) = 0;
+    virtual cb::engine_errc get_failover_log(const CookieIface& cookie,
+                                             uint32_t opaque,
+                                             Vbid vbucket,
+                                             dcp_add_failover_log callback) = 0;
 
     /**
      * Callback to the engine that a stream end message was received
      */
-    virtual cb::engine_errc stream_end(gsl::not_null<const CookieIface*> cookie,
+    virtual cb::engine_errc stream_end(const CookieIface& cookie,
                                        uint32_t opaque,
                                        Vbid vbucket,
                                        cb::mcbp::DcpStreamEndStatus status) = 0;
@@ -485,7 +483,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * Callback to the engine that a snapshot marker message was received
      */
     virtual cb::engine_errc snapshot_marker(
-            gsl::not_null<const CookieIface*> cookie,
+            const CookieIface& cookie,
             uint32_t opaque,
             Vbid vbucket,
             uint64_t start_seqno,
@@ -515,7 +513,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param nru The engine's NRU value
      * @return Standard engine error code.
      */
-    virtual cb::engine_errc mutation(gsl::not_null<const CookieIface*> cookie,
+    virtual cb::engine_errc mutation(const CookieIface& cookie,
                                      uint32_t opaque,
                                      const DocKey& key,
                                      cb::const_byte_buffer value,
@@ -548,7 +546,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param meta The documents meta
      * @return Standard engine error code.
      */
-    virtual cb::engine_errc deletion(gsl::not_null<const CookieIface*> cookie,
+    virtual cb::engine_errc deletion(const CookieIface& cookie,
                                      uint32_t opaque,
                                      const DocKey& key,
                                      cb::const_byte_buffer value,
@@ -577,18 +575,17 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param delete_time The time of the delete
      * @return Standard engine error code.
      */
-    virtual cb::engine_errc deletion_v2(
-            gsl::not_null<const CookieIface*> cookie,
-            uint32_t opaque,
-            const DocKey& key,
-            cb::const_byte_buffer value,
-            size_t priv_bytes,
-            uint8_t datatype,
-            uint64_t cas,
-            Vbid vbucket,
-            uint64_t by_seqno,
-            uint64_t rev_seqno,
-            uint32_t delete_time) {
+    virtual cb::engine_errc deletion_v2(const CookieIface& cookie,
+                                        uint32_t opaque,
+                                        const DocKey& key,
+                                        cb::const_byte_buffer value,
+                                        size_t priv_bytes,
+                                        uint8_t datatype,
+                                        uint64_t cas,
+                                        Vbid vbucket,
+                                        uint64_t by_seqno,
+                                        uint64_t rev_seqno,
+                                        uint32_t delete_time) {
         return cb::engine_errc::not_supported;
     }
 
@@ -609,7 +606,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param meta The documents meta
      * @return Standard engine error code.
      */
-    virtual cb::engine_errc expiration(gsl::not_null<const CookieIface*> cookie,
+    virtual cb::engine_errc expiration(const CookieIface& cookie,
                                        uint32_t opaque,
                                        const DocKey& key,
                                        cb::const_byte_buffer value,
@@ -624,26 +621,24 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
     /**
      * Callback to the engine that a set vbucket state message was received
      */
-    virtual cb::engine_errc set_vbucket_state(
-            gsl::not_null<const CookieIface*> cookie,
-            uint32_t opaque,
-            Vbid vbucket,
-            vbucket_state_t state) = 0;
+    virtual cb::engine_errc set_vbucket_state(const CookieIface& cookie,
+                                              uint32_t opaque,
+                                              Vbid vbucket,
+                                              vbucket_state_t state) = 0;
 
     /**
      * Callback to the engine that a NOOP message was received
      */
-    virtual cb::engine_errc noop(gsl::not_null<const CookieIface*> cookie,
+    virtual cb::engine_errc noop(const CookieIface& cookie,
                                  uint32_t opaque) = 0;
 
     /**
      * Callback to the engine that a buffer_ack message was received
      */
-    virtual cb::engine_errc buffer_acknowledgement(
-            gsl::not_null<const CookieIface*> cookie,
-            uint32_t opaque,
-            Vbid vbucket,
-            uint32_t buffer_bytes) = 0;
+    virtual cb::engine_errc buffer_acknowledgement(const CookieIface& cookie,
+                                                   uint32_t opaque,
+                                                   Vbid vbucket,
+                                                   uint32_t buffer_bytes) = 0;
 
     /**
      * Callback to the engine that a Control message was received.
@@ -654,7 +649,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param value The control message value
      * @return Standard engine error code.
      */
-    virtual cb::engine_errc control(gsl::not_null<const CookieIface*> cookie,
+    virtual cb::engine_errc control(const CookieIface& cookie,
                                     uint32_t opaque,
                                     std::string_view key,
                                     std::string_view value) = 0;
@@ -666,8 +661,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @return Standard engine error code.
      */
     virtual cb::engine_errc response_handler(
-            gsl::not_null<const CookieIface*> cookie,
-            const cb::mcbp::Response& response) = 0;
+            const CookieIface& cookie, const cb::mcbp::Response& response) = 0;
 
     /**
      * Callback to the engine that a system event message was received.
@@ -682,15 +676,14 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param eventData The event value.
      * @return Standard engine error code.
      */
-    virtual cb::engine_errc system_event(
-            gsl::not_null<const CookieIface*> cookie,
-            uint32_t opaque,
-            Vbid vbucket,
-            mcbp::systemevent::id event,
-            uint64_t bySeqno,
-            mcbp::systemevent::version version,
-            cb::const_byte_buffer key,
-            cb::const_byte_buffer eventData) = 0;
+    virtual cb::engine_errc system_event(const CookieIface& cookie,
+                                         uint32_t opaque,
+                                         Vbid vbucket,
+                                         mcbp::systemevent::id event,
+                                         uint64_t bySeqno,
+                                         mcbp::systemevent::version version,
+                                         cb::const_byte_buffer key,
+                                         cb::const_byte_buffer eventData) = 0;
 
     /**
      * Called by the core when it receives a DCP PREPARE message over the
@@ -701,7 +694,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param deleted Are we storing a deletion operation?
      * @param durability the durability specification for this item
      */
-    virtual cb::engine_errc prepare(gsl::not_null<const CookieIface*> cookie,
+    virtual cb::engine_errc prepare(const CookieIface& cookie,
                                     uint32_t opaque,
                                     const DocKey& key,
                                     cb::const_byte_buffer value,
@@ -731,11 +724,10 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param vbucket The vbucket which is being acknowledged.
      * @param prepared_seqno The seqno the replica has prepared up to.
      */
-    virtual cb::engine_errc seqno_acknowledged(
-            gsl::not_null<const CookieIface*> cookie,
-            uint32_t opaque,
-            Vbid vbucket,
-            uint64_t prepared_seqno) = 0;
+    virtual cb::engine_errc seqno_acknowledged(const CookieIface& cookie,
+                                               uint32_t opaque,
+                                               Vbid vbucket,
+                                               uint64_t prepared_seqno) = 0;
 
     /**
      * Called by the core when it receives a DCP COMMIT message over the
@@ -745,7 +737,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * It is only sent to DCP replicas, not GSI, FTS etc. It serves to inform
      * KV-Engine replicas of a committed Sync Write
      */
-    virtual cb::engine_errc commit(gsl::not_null<const CookieIface*> cookie,
+    virtual cb::engine_errc commit(const CookieIface& cookie,
                                    uint32_t opaque,
                                    Vbid vbucket,
                                    const DocKey& key,
@@ -757,7 +749,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      *
      * This is sent from the DCP Producer to the DCP Consumer.
      */
-    virtual cb::engine_errc abort(gsl::not_null<const CookieIface*> cookie,
+    virtual cb::engine_errc abort(const CookieIface& cookie,
                                   uint32_t opaque,
                                   Vbid vbucket,
                                   const DocKey& key,

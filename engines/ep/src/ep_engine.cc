@@ -1197,45 +1197,43 @@ void EventuallyPersistentEngine::item_set_datatype(
 }
 
 cb::engine_errc EventuallyPersistentEngine::step(
-        gsl::not_null<const CookieIface*> cookie,
-        DcpMessageProducersIface& producers) {
+        const CookieIface& cookie, DcpMessageProducersIface& producers) {
     auto engine = acquireEngine(this);
-    auto& conn = engine->getConnHandler(cookie);
+    auto& conn = engine->getConnHandler(&cookie);
     DcpMsgProducersBorderGuard guardedProducers(producers);
     return conn.step(guardedProducers);
 }
 
-cb::engine_errc EventuallyPersistentEngine::open(
-        gsl::not_null<const CookieIface*> cookie,
-        uint32_t opaque,
-        uint32_t seqno,
-        uint32_t flags,
-        std::string_view conName,
-        std::string_view value) {
+cb::engine_errc EventuallyPersistentEngine::open(const CookieIface& cookie,
+                                                 uint32_t opaque,
+                                                 uint32_t seqno,
+                                                 uint32_t flags,
+                                                 std::string_view conName,
+                                                 std::string_view value) {
     return acquireEngine(this)->dcpOpen(
-            cookie, opaque, seqno, flags, conName, value);
+            &cookie, opaque, seqno, flags, conName, value);
 }
 
 cb::engine_errc EventuallyPersistentEngine::add_stream(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         uint32_t opaque,
         Vbid vbucket,
         uint32_t flags) {
-    return acquireEngine(this)->dcpAddStream(cookie, opaque, vbucket, flags);
+    return acquireEngine(this)->dcpAddStream(&cookie, opaque, vbucket, flags);
 }
 
 cb::engine_errc EventuallyPersistentEngine::close_stream(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         uint32_t opaque,
         Vbid vbucket,
         cb::mcbp::DcpStreamId sid) {
     auto engine = acquireEngine(this);
-    auto& conn = engine->getConnHandler(cookie);
+    auto& conn = engine->getConnHandler(&cookie);
     return conn.closeStream(opaque, vbucket, sid);
 }
 
 cb::engine_errc EventuallyPersistentEngine::stream_req(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         uint32_t flags,
         uint32_t opaque,
         Vbid vbucket,
@@ -1248,7 +1246,7 @@ cb::engine_errc EventuallyPersistentEngine::stream_req(
         dcp_add_failover_log callback,
         std::optional<std::string_view> json) {
     auto engine = acquireEngine(this);
-    auto& conn = engine->getConnHandler(cookie);
+    auto& conn = engine->getConnHandler(&cookie);
     try {
         return conn.streamRequest(flags,
                                   opaque,
@@ -1268,7 +1266,7 @@ cb::engine_errc EventuallyPersistentEngine::stream_req(
 }
 
 cb::engine_errc EventuallyPersistentEngine::get_failover_log(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         uint32_t opaque,
         Vbid vbucket,
         dcp_add_failover_log callback) {
@@ -1281,11 +1279,11 @@ cb::engine_errc EventuallyPersistentEngine::get_failover_log(
     //     a regular MCBP connection).
     auto engine = acquireEngine(this);
 
-    if (getKVBucket()->maybeWaitForVBucketWarmup(cookie)) {
+    if (getKVBucket()->maybeWaitForVBucketWarmup(&cookie)) {
         return cb::engine_errc::would_block;
     }
 
-    auto* conn = engine->tryGetConnHandler(cookie);
+    auto* conn = engine->tryGetConnHandler(&cookie);
     // Note: (conn != nullptr) only if conn is a DCP connection
     if (conn) {
         auto* producer = dynamic_cast<DcpProducer*>(conn);
@@ -1317,16 +1315,16 @@ cb::engine_errc EventuallyPersistentEngine::get_failover_log(
 }
 
 cb::engine_errc EventuallyPersistentEngine::stream_end(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         uint32_t opaque,
         Vbid vbucket,
         cb::mcbp::DcpStreamEndStatus status) {
     auto engine = acquireEngine(this);
-    return engine->getConnHandler(cookie).streamEnd(opaque, vbucket, status);
+    return engine->getConnHandler(&cookie).streamEnd(opaque, vbucket, status);
 }
 
 cb::engine_errc EventuallyPersistentEngine::snapshot_marker(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         uint32_t opaque,
         Vbid vbucket,
         uint64_t start_seqno,
@@ -1335,7 +1333,7 @@ cb::engine_errc EventuallyPersistentEngine::snapshot_marker(
         std::optional<uint64_t> high_completed_seqno,
         std::optional<uint64_t> max_visible_seqno) {
     auto engine = acquireEngine(this);
-    auto& conn = engine->getConnHandler(cookie);
+    auto& conn = engine->getConnHandler(&cookie);
     return conn.snapshotMarker(opaque,
                                vbucket,
                                start_seqno,
@@ -1346,7 +1344,7 @@ cb::engine_errc EventuallyPersistentEngine::snapshot_marker(
 }
 
 cb::engine_errc EventuallyPersistentEngine::mutation(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         uint32_t opaque,
         const DocKey& key,
         cb::const_byte_buffer value,
@@ -1368,7 +1366,7 @@ cb::engine_errc EventuallyPersistentEngine::mutation(
         return cb::engine_errc::invalid_arguments;
     }
     auto engine = acquireEngine(this);
-    auto& conn = engine->getConnHandler(cookie);
+    auto& conn = engine->getConnHandler(&cookie);
     return conn.mutation(opaque,
                          key,
                          value,
@@ -1386,7 +1384,7 @@ cb::engine_errc EventuallyPersistentEngine::mutation(
 }
 
 cb::engine_errc EventuallyPersistentEngine::deletion(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         uint32_t opaque,
         const DocKey& key,
         cb::const_byte_buffer value,
@@ -1398,7 +1396,7 @@ cb::engine_errc EventuallyPersistentEngine::deletion(
         uint64_t rev_seqno,
         cb::const_byte_buffer meta) {
     auto engine = acquireEngine(this);
-    auto& conn = engine->getConnHandler(cookie);
+    auto& conn = engine->getConnHandler(&cookie);
     return conn.deletion(opaque,
                          key,
                          value,
@@ -1412,7 +1410,7 @@ cb::engine_errc EventuallyPersistentEngine::deletion(
 }
 
 cb::engine_errc EventuallyPersistentEngine::deletion_v2(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         uint32_t opaque,
         const DocKey& key,
         cb::const_byte_buffer value,
@@ -1424,7 +1422,7 @@ cb::engine_errc EventuallyPersistentEngine::deletion_v2(
         uint64_t rev_seqno,
         uint32_t delete_time) {
     auto engine = acquireEngine(this);
-    auto& conn = engine->getConnHandler(cookie);
+    auto& conn = engine->getConnHandler(&cookie);
     return conn.deletionV2(opaque,
                            key,
                            value,
@@ -1438,7 +1436,7 @@ cb::engine_errc EventuallyPersistentEngine::deletion_v2(
 }
 
 cb::engine_errc EventuallyPersistentEngine::expiration(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         uint32_t opaque,
         const DocKey& key,
         cb::const_byte_buffer value,
@@ -1450,7 +1448,7 @@ cb::engine_errc EventuallyPersistentEngine::expiration(
         uint64_t rev_seqno,
         uint32_t deleteTime) {
     auto engine = acquireEngine(this);
-    auto& conn = engine->getConnHandler(cookie);
+    auto& conn = engine->getConnHandler(&cookie);
     return conn.expiration(opaque,
                            key,
                            value,
@@ -1464,45 +1462,43 @@ cb::engine_errc EventuallyPersistentEngine::expiration(
 }
 
 cb::engine_errc EventuallyPersistentEngine::set_vbucket_state(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         uint32_t opaque,
         Vbid vbucket,
         vbucket_state_t state) {
     auto engine = acquireEngine(this);
-    auto& conn = engine->getConnHandler(cookie);
+    auto& conn = engine->getConnHandler(&cookie);
     return conn.setVBucketState(opaque, vbucket, state);
 }
 
-cb::engine_errc EventuallyPersistentEngine::noop(
-        gsl::not_null<const CookieIface*> cookie, uint32_t opaque) {
+cb::engine_errc EventuallyPersistentEngine::noop(const CookieIface& cookie,
+                                                 uint32_t opaque) {
     auto engine = acquireEngine(this);
-    return engine->getConnHandler(cookie).noop(opaque);
+    return engine->getConnHandler(&cookie).noop(opaque);
 }
 
 cb::engine_errc EventuallyPersistentEngine::buffer_acknowledgement(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         uint32_t opaque,
         Vbid vbucket,
         uint32_t buffer_bytes) {
     auto engine = acquireEngine(this);
-    auto& conn = engine->getConnHandler(cookie);
+    auto& conn = engine->getConnHandler(&cookie);
     return conn.bufferAcknowledgement(opaque, vbucket, buffer_bytes);
 }
 
-cb::engine_errc EventuallyPersistentEngine::control(
-        gsl::not_null<const CookieIface*> cookie,
-        uint32_t opaque,
-        std::string_view key,
-        std::string_view value) {
+cb::engine_errc EventuallyPersistentEngine::control(const CookieIface& cookie,
+                                                    uint32_t opaque,
+                                                    std::string_view key,
+                                                    std::string_view value) {
     auto engine = acquireEngine(this);
-    return engine->getConnHandler(cookie).control(opaque, key, value);
+    return engine->getConnHandler(&cookie).control(opaque, key, value);
 }
 
 cb::engine_errc EventuallyPersistentEngine::response_handler(
-        gsl::not_null<const CookieIface*> cookie,
-        const cb::mcbp::Response& response) {
+        const CookieIface& cookie, const cb::mcbp::Response& response) {
     auto engine = acquireEngine(this);
-    auto* conn = engine->tryGetConnHandler(cookie);
+    auto* conn = engine->tryGetConnHandler(&cookie);
     if (conn && conn->handleResponse(response)) {
         return cb::engine_errc::success;
     }
@@ -1510,7 +1506,7 @@ cb::engine_errc EventuallyPersistentEngine::response_handler(
 }
 
 cb::engine_errc EventuallyPersistentEngine::system_event(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         uint32_t opaque,
         Vbid vbucket,
         mcbp::systemevent::id event,
@@ -1519,13 +1515,13 @@ cb::engine_errc EventuallyPersistentEngine::system_event(
         cb::const_byte_buffer key,
         cb::const_byte_buffer eventData) {
     auto engine = acquireEngine(this);
-    auto& conn = engine->getConnHandler(cookie);
+    auto& conn = engine->getConnHandler(&cookie);
     return conn.systemEvent(
             opaque, vbucket, event, bySeqno, version, key, eventData);
 }
 
 cb::engine_errc EventuallyPersistentEngine::prepare(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         uint32_t opaque,
         const DocKey& key,
         cb::const_byte_buffer value,
@@ -1542,7 +1538,7 @@ cb::engine_errc EventuallyPersistentEngine::prepare(
         DocumentState document_state,
         cb::durability::Level level) {
     auto engine = acquireEngine(this);
-    auto& conn = engine->getConnHandler(cookie);
+    auto& conn = engine->getConnHandler(&cookie);
     return conn.prepare(opaque,
                         key,
                         value,
@@ -1561,36 +1557,34 @@ cb::engine_errc EventuallyPersistentEngine::prepare(
 }
 
 cb::engine_errc EventuallyPersistentEngine::seqno_acknowledged(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         uint32_t opaque,
         Vbid vbucket,
         uint64_t prepared_seqno) {
     auto engine = acquireEngine(this);
-    auto& conn = engine->getConnHandler(cookie);
+    auto& conn = engine->getConnHandler(&cookie);
     return conn.seqno_acknowledged(opaque, vbucket, prepared_seqno);
 }
 
-cb::engine_errc EventuallyPersistentEngine::commit(
-        gsl::not_null<const CookieIface*> cookie,
-        uint32_t opaque,
-        Vbid vbucket,
-        const DocKey& key,
-        uint64_t prepared_seqno,
-        uint64_t commit_seqno) {
+cb::engine_errc EventuallyPersistentEngine::commit(const CookieIface& cookie,
+                                                   uint32_t opaque,
+                                                   Vbid vbucket,
+                                                   const DocKey& key,
+                                                   uint64_t prepared_seqno,
+                                                   uint64_t commit_seqno) {
     auto engine = acquireEngine(this);
-    auto& conn = engine->getConnHandler(cookie);
+    auto& conn = engine->getConnHandler(&cookie);
     return conn.commit(opaque, vbucket, key, prepared_seqno, commit_seqno);
 }
 
-cb::engine_errc EventuallyPersistentEngine::abort(
-        gsl::not_null<const CookieIface*> cookie,
-        uint32_t opaque,
-        Vbid vbucket,
-        const DocKey& key,
-        uint64_t preparedSeqno,
-        uint64_t abortSeqno) {
+cb::engine_errc EventuallyPersistentEngine::abort(const CookieIface& cookie,
+                                                  uint32_t opaque,
+                                                  Vbid vbucket,
+                                                  const DocKey& key,
+                                                  uint64_t preparedSeqno,
+                                                  uint64_t abortSeqno) {
     auto engine = acquireEngine(this);
-    auto& conn = engine->getConnHandler(cookie);
+    auto& conn = engine->getConnHandler(&cookie);
     return conn.abort(opaque, vbucket, key, preparedSeqno, abortSeqno);
 }
 

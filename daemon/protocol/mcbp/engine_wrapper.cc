@@ -389,7 +389,7 @@ cb::engine_errc dcpAddStream(Cookie& cookie,
                              uint32_t flags) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->add_stream(&cookie, opaque, vbid, flags);
+    auto ret = dcp->add_stream(cookie, opaque, vbid, flags);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING(
                 "{}: {} dcp.add_stream returned cb::engine_errc::disconnect",
@@ -406,7 +406,7 @@ cb::engine_errc dcpBufferAcknowledgement(Cookie& cookie,
                                          uint32_t ackSize) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->buffer_acknowledgement(&cookie, opaque, vbid, ackSize);
+    auto ret = dcp->buffer_acknowledgement(cookie, opaque, vbid, ackSize);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING(
                 "{}: {} dcp.buffer_acknowledgement returned "
@@ -424,7 +424,7 @@ cb::engine_errc dcpCloseStream(Cookie& cookie,
                                cb::mcbp::DcpStreamId sid) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->close_stream(&cookie, opaque, vbid, sid);
+    auto ret = dcp->close_stream(cookie, opaque, vbid, sid);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING(
                 "{}: {} dcp.close_stream returned cb::engine_errc::disconnect",
@@ -441,7 +441,7 @@ cb::engine_errc dcpControl(Cookie& cookie,
                            std::string_view val) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->control(&cookie, opaque, key, val);
+    auto ret = dcp->control(cookie, opaque, key, val);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} dcp.control returned cb::engine_errc::disconnect",
                     connection.getId(),
@@ -464,7 +464,7 @@ cb::engine_errc dcpDeletion(Cookie& cookie,
                             cb::const_byte_buffer meta) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->deletion(&cookie,
+    auto ret = dcp->deletion(cookie,
                              opaque,
                              key,
                              value,
@@ -497,7 +497,7 @@ cb::engine_errc dcpDeletionV2(Cookie& cookie,
                               uint32_t deleteTime) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->deletion_v2(&cookie,
+    auto ret = dcp->deletion_v2(cookie,
                                 opaque,
                                 key,
                                 value,
@@ -531,7 +531,7 @@ cb::engine_errc dcpExpiration(Cookie& cookie,
                               uint32_t deleteTime) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->expiration(&cookie,
+    auto ret = dcp->expiration(cookie,
                                opaque,
                                key,
                                value,
@@ -558,7 +558,7 @@ cb::engine_errc dcpGetFailoverLog(Cookie& cookie,
                                   dcp_add_failover_log callback) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->get_failover_log(&cookie, opaque, vbucket, callback);
+    auto ret = dcp->get_failover_log(cookie, opaque, vbucket, callback);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING(
                 "{}: {} dcp.get_failover_log returned "
@@ -587,7 +587,7 @@ cb::engine_errc dcpMutation(Cookie& cookie,
                             uint8_t nru) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->mutation(&cookie,
+    auto ret = dcp->mutation(cookie,
                              opaque,
                              key,
                              value,
@@ -614,7 +614,7 @@ cb::engine_errc dcpMutation(Cookie& cookie,
 cb::engine_errc dcpNoop(Cookie& cookie, uint32_t opaque) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->noop(&cookie, opaque);
+    auto ret = dcp->noop(cookie, opaque);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} dcp.noop returned cb::engine_errc::disconnect",
                     connection.getId(),
@@ -632,7 +632,7 @@ cb::engine_errc dcpOpen(Cookie& cookie,
                         std::string_view value) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->open(&cookie, opaque, seqno, flags, name, value);
+    auto ret = dcp->open(cookie, opaque, seqno, flags, name, value);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} dcp.open returned cb::engine_errc::disconnect",
                     connection.getId(),
@@ -648,7 +648,7 @@ cb::engine_errc dcpSetVbucketState(Cookie& cookie,
                                    vbucket_state_t state) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->set_vbucket_state(&cookie, opaque, vbid, state);
+    auto ret = dcp->set_vbucket_state(cookie, opaque, vbid, state);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING(
                 "{}: {} dcp.set_vbucket_state returned "
@@ -670,7 +670,7 @@ cb::engine_errc dcpSnapshotMarker(Cookie& cookie,
                                   std::optional<uint64_t> maxVisibleSeqno) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->snapshot_marker(&cookie,
+    auto ret = dcp->snapshot_marker(cookie,
                                     opaque,
                                     vbid,
                                     startSeqno,
@@ -695,7 +695,7 @@ cb::engine_errc dcpStreamEnd(Cookie& cookie,
                              cb::mcbp::DcpStreamEndStatus status) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->stream_end(&cookie, opaque, vbucket, status);
+    auto ret = dcp->stream_end(cookie, opaque, vbucket, status);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING(
                 "{}: {} dcp.stream_end returned cb::engine_errc::disconnect",
@@ -720,7 +720,7 @@ cb::engine_errc dcpStreamReq(Cookie& cookie,
                              std::optional<std::string_view> json) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->stream_req(&cookie,
+    auto ret = dcp->stream_req(cookie,
                                flags,
                                opaque,
                                vbucket,
@@ -752,14 +752,8 @@ cb::engine_errc dcpSystemEvent(Cookie& cookie,
                                cb::const_byte_buffer eventData) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->system_event(&cookie,
-                                 opaque,
-                                 vbucket,
-                                 eventId,
-                                 bySeqno,
-                                 version,
-                                 key,
-                                 eventData);
+    auto ret = dcp->system_event(
+            cookie, opaque, vbucket, eventId, bySeqno, version, key, eventData);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING(
                 "{}: {} dcp.system_event returned cb::engine_errc::disconnect",
@@ -788,7 +782,7 @@ cb::engine_errc dcpPrepare(Cookie& cookie,
                            cb::durability::Level level) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->prepare(&cookie,
+    auto ret = dcp->prepare(cookie,
                             opaque,
                             key,
                             value,
@@ -819,8 +813,7 @@ cb::engine_errc dcpSeqnoAcknowledged(Cookie& cookie,
                                      uint64_t prepared_seqno) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret =
-            dcp->seqno_acknowledged(&cookie, opaque, vbucket, prepared_seqno);
+    auto ret = dcp->seqno_acknowledged(cookie, opaque, vbucket, prepared_seqno);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING(
                 "{}: {} dcp.seqno_acknowledged returned "
@@ -841,7 +834,7 @@ cb::engine_errc dcpCommit(Cookie& cookie,
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
     auto ret = dcp->commit(
-            &cookie, opaque, vbucket, key, prepared_seqno, commit_seqno);
+            cookie, opaque, vbucket, key, prepared_seqno, commit_seqno);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} dcp.commit returned cb::engine_errc::disconnect",
                     connection.getId(),
@@ -860,7 +853,7 @@ cb::engine_errc dcpAbort(Cookie& cookie,
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
     auto ret = dcp->abort(
-            &cookie, opaque, vbucket, key, prepared_seqno, abort_seqno);
+            cookie, opaque, vbucket, key, prepared_seqno, abort_seqno);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} dcp.abort returned cb::engine_errc::disconnect",
                     connection.getId(),

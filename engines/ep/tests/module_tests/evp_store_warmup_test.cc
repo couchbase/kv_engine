@@ -298,7 +298,7 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
                                          setVBStateCookie));
 
         EXPECT_EQ(cb::engine_errc::would_block,
-                  engine->get_failover_log(getFailoverCookie,
+                  engine->get_failover_log(*getFailoverCookie,
                                            1 /*opaque*/,
                                            vbid,
                                            fakeDcpAddFailoverLog));
@@ -336,7 +336,7 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
                                      setVBStateCookie));
 
     EXPECT_EQ(cb::engine_errc::success,
-              engine->get_failover_log(getFailoverCookie,
+              engine->get_failover_log(*getFailoverCookie,
                                        1 /*opaque*/,
                                        vbid,
                                        fakeDcpAddFailoverLog));
@@ -440,8 +440,9 @@ TEST_F(WarmupTest, MB_32577) {
     // Try and set a DCP connection, this should return
     // cb::engine_errc::temporary_failure as were in warm up but without the fix
     // for MB-32577 this will return cb::engine_errc::success
-    EXPECT_EQ(cb::engine_errc::temporary_failure,
-              engine->open(cookie, 0, 0 /*seqno*/, zeroFlags, "test_consumer"));
+    EXPECT_EQ(
+            cb::engine_errc::temporary_failure,
+            engine->open(*cookie, 0, 0 /*seqno*/, zeroFlags, "test_consumer"));
 
     // The core will block all DCP commands for non-DCP connections
 
@@ -457,16 +458,18 @@ TEST_F(WarmupTest, MB_32577) {
 
     // Try and set a DCP connection, this should return cb::engine_errc::success
     // as we have now warmed up.
-    EXPECT_EQ(cb::engine_errc::success,
-              engine->open(cookie, 0, 0 /*seqno*/, zeroFlags, "test_consumer"));
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            engine->open(*cookie, 0, 0 /*seqno*/, zeroFlags, "test_consumer"));
 
     // create a stream to send the delete request so we can send vbucket on the
     // consumer
-    EXPECT_EQ(cb::engine_errc::success, engine->add_stream(cookie, 0, vbid, 0));
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->add_stream(*cookie, 0, vbid, 0));
 
     // create snapshot so we can delete the document
     EXPECT_EQ(cb::engine_errc::success,
-              engine->snapshot_marker(cookie,
+              engine->snapshot_marker(*cookie,
                                       /*opaque*/ 1,
                                       vbid,
                                       /*start_seqno*/ 0,
@@ -482,7 +485,7 @@ TEST_F(WarmupTest, MB_32577) {
 
     // Try and delete the doc
     EXPECT_EQ(cb::engine_errc::success,
-              engine->deletion(cookie,
+              engine->deletion(*cookie,
                                /*opaque*/ 1,
                                /*key*/ docKey,
                                /*value*/ {},

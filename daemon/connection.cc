@@ -753,7 +753,7 @@ bool Connection::executeCommandsCallback() {
                 }
                 while (more && numEvents > 0) {
                     const auto ret = getBucket().getDcpIface()->step(
-                            cookies.front().get(), *this);
+                            *cookies.front().get(), *this);
                     switch (remapErrorCode(ret)) {
                     case cb::engine_errc::success:
                         more = (getSendQueueSize() < dcpMaxQSize);

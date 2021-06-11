@@ -2068,7 +2068,7 @@ TEST_P(STParamPersistentBucketTest, MB19892_BackfillNotDeleted) {
     // the engine_interface.
     EXPECT_EQ(cb::engine_errc::success,
               engine.get()->stream_req(
-                      cookie,
+                      *cookie,
                       /*flags*/ 0,
                       /*opaque*/ 0,
                       /*vbucket*/ vbid,
@@ -2445,7 +2445,7 @@ TEST_P(MB20054_SingleThreadedEPStoreTest,
     // Actual stream request method (EvpDcpStreamReq) is static, so access via
     // the engine_interface.
     EXPECT_EQ(cb::engine_errc::success,
-              engine->stream_req(cookie,
+              engine->stream_req(*cookie,
                                  /*flags*/ 0,
                                  /*opaque*/ 0,
                                  /*vbucket*/ vbid,

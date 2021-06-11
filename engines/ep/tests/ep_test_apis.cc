@@ -1424,7 +1424,7 @@ void sendDcpAck(EngineIface* h,
 
     auto& dcp = dynamic_cast<DcpIface&>(*h);
     checkeq(cb::engine_errc::success,
-            dcp.response_handler(cookie, pkt),
+            dcp.response_handler(*cookie, pkt),
             "Expected success");
 }
 

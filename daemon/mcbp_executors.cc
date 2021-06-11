@@ -611,7 +611,7 @@ static void process_bin_dcp_response(Cookie& cookie) {
         return;
     }
 
-    auto ret = dcp->response_handler(&cookie, cookie.getHeader().getResponse());
+    auto ret = dcp->response_handler(cookie, cookie.getHeader().getResponse());
     auto remapErr = c.remapErrorCode(ret);
 
     if (remapErr == cb::engine_errc::disconnect) {
