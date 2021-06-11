@@ -305,18 +305,18 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
 
         EXPECT_EQ(
                 cb::engine_errc::would_block,
-                engine->get_stats(statsCookie1, "vbucket", {}, dummyAddStats));
+                engine->get_stats(*statsCookie1, "vbucket", {}, dummyAddStats));
 
         EXPECT_EQ(cb::engine_errc::would_block,
                   engine->get_stats(
-                          statsCookie2, "vbucket-details", {}, dummyAddStats));
+                          *statsCookie2, "vbucket-details", {}, dummyAddStats));
 
         EXPECT_EQ(cb::engine_errc::would_block,
                   engine->get_stats(
-                          statsCookie3, "vbucket-seqno", {}, dummyAddStats));
+                          *statsCookie3, "vbucket-seqno", {}, dummyAddStats));
 
         EXPECT_EQ(cb::engine_errc::would_block,
-                  engine->deleteVBucket(delVbCookie, vbid, true));
+                  engine->deleteVBucket(*delVbCookie, vbid, true));
 
         executor.runCurrentTask();
     }
@@ -342,18 +342,18 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
                                        fakeDcpAddFailoverLog));
 
     EXPECT_EQ(cb::engine_errc::success,
-              engine->get_stats(statsCookie1, "vbucket", {}, dummyAddStats));
+              engine->get_stats(*statsCookie1, "vbucket", {}, dummyAddStats));
 
     EXPECT_EQ(cb::engine_errc::success,
               engine->get_stats(
-                      statsCookie2, "vbucket-details", {}, dummyAddStats));
+                      *statsCookie2, "vbucket-details", {}, dummyAddStats));
 
     EXPECT_EQ(cb::engine_errc::success,
               engine->get_stats(
-                      statsCookie3, "vbucket-seqno", {}, dummyAddStats));
+                      *statsCookie3, "vbucket-seqno", {}, dummyAddStats));
 
     EXPECT_EQ(cb::engine_errc::success,
-              engine->deleteVBucket(delVbCookie, vbid, false));
+              engine->deleteVBucket(*delVbCookie, vbid, false));
 
     // finish warmup so the test can exit
     while (engine->getKVBucket()->isWarmingUp()) {
@@ -2457,7 +2457,7 @@ TEST_F(WarmupDiskTest, readOnlyDataFileSetVbucketStateTest) {
     // Check that we can read the file we had written before warmup and the file
     // becoming read only
     auto [status, item] = engine->get(
-            cookie, makeStoredDocKey("key"), vbid, DocStateFilter::Alive);
+            *cookie, makeStoredDocKey("key"), vbid, DocStateFilter::Alive);
     EXPECT_EQ(cb::engine_errc::success, status);
     ASSERT_TRUE(item);
     EXPECT_EQ("value", item->getValueView());

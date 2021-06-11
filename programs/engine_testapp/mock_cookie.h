@@ -64,7 +64,7 @@ struct MockCookie : public CookieIface {
     void disconnect() {
         references--;
         if (engine) {
-            engine->disconnect(static_cast<const CookieIface*>(this));
+            engine->disconnect(*this);
         }
     }
 

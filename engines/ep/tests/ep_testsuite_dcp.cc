@@ -5687,7 +5687,7 @@ static enum test_result test_dcp_replica_stream_one_collection_on_disk(
 })");
 
     checkeq(cb::engine_errc::success,
-            h->set_collection_manifest(cookie, manifest),
+            h->set_collection_manifest(*cookie, manifest),
             "Failed to set collection manifest");
 
     check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
@@ -5833,7 +5833,7 @@ static enum test_result test_dcp_replica_stream_one_collection(EngineIface* h) {
    "uid":"1"
 })");
 
-    checkeq(h->set_collection_manifest(cookie, manifest),
+    checkeq(h->set_collection_manifest(*cookie, manifest),
             cb::engine_errc::success,
             "Failed to set collection manifest");
 
@@ -7535,7 +7535,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
     // cookie as DCP is on the other one.
     auto* admCookie = testHarness->create_cookie(h);
     checkeq(cb::engine_errc::success,
-            h->set_collection_manifest(admCookie, R"({
+            h->set_collection_manifest(*admCookie, R"({
   "uid": "1",
   "scopes": [
     {
@@ -8055,7 +8055,7 @@ static enum test_result test_MB_34634(EngineIface* h) {
         MockCookie mc;
         auto meta = R"({"topology":[["active"]]})"_json;
         checkeq(cb::engine_errc::success,
-                h->setVBucket(&mc,
+                h->setVBucket(mc,
                               vb,
                               mcbp::cas::Wildcard,
                               vbucket_state_active,

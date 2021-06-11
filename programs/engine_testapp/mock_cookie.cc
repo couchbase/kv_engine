@@ -20,7 +20,7 @@ MockCookie::MockCookie(EngineIface* e) : engine(e) {
 
 MockCookie::~MockCookie() {
     if (engine) {
-        engine->disconnect(static_cast<const CookieIface*>(this));
+        engine->disconnect(*this);
     }
 }
 
@@ -124,7 +124,7 @@ size_t get_number_of_mock_cookie_io_notifications(const CookieIface* cookie) {
 }
 
 MockCookie* cookie_to_mock_cookie(const CookieIface* cookie) {
-    auto* ret = reinterpret_cast<const MockCookie*>(cookie);
+    auto* ret = dynamic_cast<const MockCookie*>(cookie);
     ret->validate();
     return const_cast<MockCookie*>(ret);
 }

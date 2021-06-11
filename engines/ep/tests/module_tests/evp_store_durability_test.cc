@@ -2513,8 +2513,8 @@ TEST_P(DurabilityBucketTest, MutationAfterTimeoutCorrect) {
     auto pending = makePendingItem(key, "value");
     uint64_t cas;
     ASSERT_EQ(cb::engine_errc::would_block,
-              engine->store(cookie,
-                            pending.get(),
+              engine->store(*cookie,
+                            *pending.get(),
                             cas,
                             StoreSemantics::Set,
                             pending->getDurabilityReqs(),
@@ -2534,8 +2534,8 @@ TEST_P(DurabilityBucketTest, MutationAfterTimeoutCorrect) {
 
     // Test: Attempt another SyncWrite, which _should_ fail (in this case just
     // use replace against the same non-existent key).
-    auto rc = engine->store(cookie,
-                            pending.get(),
+    auto rc = engine->store(*cookie,
+                            *pending.get(),
                             cas,
                             StoreSemantics::Replace,
                             pending->getDurabilityReqs(),
@@ -2544,8 +2544,8 @@ TEST_P(DurabilityBucketTest, MutationAfterTimeoutCorrect) {
 
     if (rc == cb::engine_errc::would_block && persistent() && fullEviction()) {
         runBGFetcherTask();
-        rc = engine->store(cookie,
-                           pending.get(),
+        rc = engine->store(*cookie,
+                           *pending.get(),
                            cas,
                            StoreSemantics::Replace,
                            pending->getDurabilityReqs(),
@@ -2572,8 +2572,8 @@ TEST_P(DurabilityBucketTest, DurableEvictedSetWithCas) {
     auto committed = makeCommittedItem(key, "value-1");
     uint64_t cas = 0;
     EXPECT_EQ(cb::engine_errc::success,
-              engine->store(cookie,
-                            committed.get(),
+              engine->store(*cookie,
+                            *committed.get(),
                             cas,
                             StoreSemantics::Set,
                             {},
@@ -2590,8 +2590,8 @@ TEST_P(DurabilityBucketTest, DurableEvictedSetWithCas) {
     auto pending = makePendingItem(key, "value-2");
     pending->setCas(cas);
     EXPECT_EQ(cb::engine_errc::would_block,
-              engine->store(cookie,
-                            pending.get(),
+              engine->store(*cookie,
+                            *pending.get(),
                             cas,
                             StoreSemantics::Set,
                             pending->getDurabilityReqs(),
@@ -2604,8 +2604,8 @@ TEST_P(DurabilityBucketTest, DurableEvictedSetWithCas) {
     // Now the set is accepted and pending durability
     // Prior to the resolution of MB-35932 this was returning SUCCESS
     EXPECT_EQ(cb::engine_errc::would_block,
-              engine->store(cookie,
-                            pending.get(),
+              engine->store(*cookie,
+                            *pending.get(),
                             cas,
                             StoreSemantics::Set,
                             pending->getDurabilityReqs(),
@@ -4511,8 +4511,8 @@ void DurabilityBucketTest::testUpgradeToMinDurabilityLevel(
         const auto item = makeCommittedItem(key, "value");
         uint64_t cas = 0;
         ASSERT_EQ(cb::engine_errc::success,
-                  engine->store(cookie,
-                                item.get(),
+                  engine->store(*cookie,
+                                *item.get(),
                                 cas,
                                 StoreSemantics::Set,
                                 {} /*durReqs*/,
@@ -4545,8 +4545,8 @@ void DurabilityBucketTest::testUpgradeToMinDurabilityLevel(
     case EngineOp::Store: {
         uint64_t cas = 0;
         ASSERT_EQ(cb::engine_errc::would_block,
-                  engine->store(cookie,
-                                item.get(),
+                  engine->store(*cookie,
+                                *item.get(),
                                 cas,
                                 StoreSemantics::Set,
                                 reqs,
@@ -4559,8 +4559,8 @@ void DurabilityBucketTest::testUpgradeToMinDurabilityLevel(
                 [](const std::optional<item_info>&, cb::vbucket_info) {
                     return cb::StoreIfStatus::Continue;
                 };
-        const auto res = engine->store_if(cookie,
-                                          item.get(),
+        const auto res = engine->store_if(*cookie,
+                                          *item.get(),
                                           0 /*cas*/,
                                           StoreSemantics::Set,
                                           predicate,
@@ -4574,7 +4574,7 @@ void DurabilityBucketTest::testUpgradeToMinDurabilityLevel(
         uint64_t cas = 0;
         mutation_descr_t info;
         ASSERT_EQ(cb::engine_errc::would_block,
-                  engine->remove(cookie, key, cas, vbid, reqs, info));
+                  engine->remove(*cookie, key, cas, vbid, reqs, info));
         break;
     }
     }
@@ -4721,8 +4721,8 @@ TEST_P(DurabilityBucketTest, PrepareDoesNotExpire) {
     item->setPreparedMaybeVisible();
     uint64_t cas = 0;
     ASSERT_EQ(cb::engine_errc::would_block,
-              engine->store(cookie,
-                            item.get(),
+              engine->store(*cookie,
+                            *item.get(),
                             cas,
                             StoreSemantics::Set,
                             item->getDurabilityReqs(),

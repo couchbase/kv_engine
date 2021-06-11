@@ -935,7 +935,7 @@ TEST_P(STParamCouchstoreBucketTest, FlusherMarksCleanBySeqno) {
     ASSERT_EQ(1, vb.getPersistenceSeqno());
 
     // Try a get, it must fetch s:2 from the HashTable
-    const auto res = engine->get(cookie, docKey, vbid, DocStateFilter::Alive);
+    const auto res = engine->get(*cookie, docKey, vbid, DocStateFilter::Alive);
     // Note: Before the fix we get EWOULDBLOCK as s:2 would be evicted
     ASSERT_EQ(cb::engine_errc::success, res.first);
     const auto* it = reinterpret_cast<const Item*>(res.second.get());

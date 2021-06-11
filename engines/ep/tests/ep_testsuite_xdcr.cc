@@ -79,7 +79,7 @@ static enum test_result test_get_meta(EngineIface* h) {
     temp = get_int_stat(h, "ep_num_ops_get_meta");
     checkeq(1, temp, "Expect one getMeta op");
 
-    h->release(i);
+    h->release(*i);
     return SUCCESS;
 }
 
@@ -106,7 +106,7 @@ static enum test_result test_get_meta_with_extras(EngineIface* h) {
     // check the stat again
     temp = get_int_stat(h, "ep_num_ops_get_meta");
     checkeq(1, temp, "Expect one getMeta op");
-    h->release(i);
+    h->release(*i);
 
     if (isWarmupEnabled(h)) {
         // restart
@@ -164,7 +164,7 @@ static enum test_result test_get_meta_deleted(EngineIface* h) {
     temp = get_int_stat(h, "ep_num_ops_get_meta");
     checkeq(1, temp, "Expect one getMeta op");
 
-    h->release(i);
+    h->release(*i);
     return SUCCESS;
 }
 
@@ -1738,7 +1738,7 @@ static enum test_result test_delete_with_meta_xattr(EngineIface* h) {
     auto ret = get(h, nullptr, key1, Vbid(0), DocStateFilter::AliveOrDeleted);
     checkeq(cb::engine_errc::success, ret.first, "Failed to get(key1)");
 
-    check(h->get_item_info(ret.second.get(), &info),
+    check(h->get_item_info(*ret.second.get(), info),
           "Failed get_item_info of key1");
 
     checkeq(data.size(), info.value[0].iov_len, "Value length mismatch");
@@ -2242,9 +2242,9 @@ static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h) {
             store(h, nullptr, StoreSemantics::Set, "key", "somevalue", &i),
             "Failed set.");
 
-    h->get_item_info(i, &info);
+    h->get_item_info(*i, info);
     wait_for_flusher_to_settle(h);
-    h->release(i);
+    h->release(*i);
 
     // put some random metadata
     ItemMetaData itemMeta;
@@ -2335,7 +2335,7 @@ static enum test_result test_getMeta_with_item_eviction(EngineIface* h) {
                           it->getFlags(), it->getExptime());
     verifyMetaData(metadata, errorMetaPair.second);
 
-    h->release(i);
+    h->release(*i);
     return SUCCESS;
 }
 

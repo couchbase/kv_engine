@@ -19,7 +19,7 @@
 void collections_get_manifest_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     const auto ret = connection.getBucketEngine().get_collection_manifest(
-            &cookie, mcbpResponseHandlerFn);
+            cookie, mcbpResponseHandlerFn);
     if (ret != cb::engine_errc::success) {
         Expects(ret != cb::engine_errc::would_block);
         handle_executor_status(cookie, ret);

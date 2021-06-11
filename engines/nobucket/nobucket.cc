@@ -38,7 +38,7 @@ public:
     }
 
     std::pair<cb::unique_item_ptr, item_info> allocateItem(
-            gsl::not_null<const CookieIface*> cookie,
+            const CookieIface& cookie,
             const DocKey& key,
             size_t nbytes,
             size_t priv_nbytes,
@@ -50,7 +50,7 @@ public:
     }
 
     cb::engine_errc remove(
-            gsl::not_null<const CookieIface*>,
+            const CookieIface&,
             const DocKey&,
             uint64_t&,
             Vbid,
@@ -59,13 +59,13 @@ public:
         return cb::engine_errc::no_bucket;
     }
 
-    void release(gsl::not_null<ItemIface*>) override {
+    void release(ItemIface&) override {
         throw std::logic_error(
                 "NoBucket::item_release: no items should have"
                 " been allocated from this engine");
     }
 
-    cb::EngineErrorItemPair get(gsl::not_null<const CookieIface*>,
+    cb::EngineErrorItemPair get(const CookieIface&,
                                 const DocKey&,
                                 Vbid,
                                 DocStateFilter) override {
@@ -73,28 +73,27 @@ public:
     }
 
     cb::EngineErrorItemPair get_if(
-            gsl::not_null<const CookieIface*>,
+            const CookieIface&,
             const DocKey&,
             Vbid,
             std::function<bool(const item_info&)>) override {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
-    cb::EngineErrorMetadataPair get_meta(
-            gsl::not_null<const CookieIface*> cookie,
-            const DocKey& key,
-            Vbid vbucket) override {
+    cb::EngineErrorMetadataPair get_meta(const CookieIface& cookie,
+                                         const DocKey& key,
+                                         Vbid vbucket) override {
         return cb::EngineErrorMetadataPair(cb::engine_errc::no_bucket, {});
     }
 
-    cb::EngineErrorItemPair get_locked(gsl::not_null<const CookieIface*>,
+    cb::EngineErrorItemPair get_locked(const CookieIface&,
                                        const DocKey&,
                                        Vbid,
                                        uint32_t) override {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
-    cb::engine_errc unlock(gsl::not_null<const CookieIface*>,
+    cb::engine_errc unlock(const CookieIface&,
                            const DocKey&,
                            Vbid,
                            uint64_t) override {
@@ -102,7 +101,7 @@ public:
     }
 
     cb::EngineErrorItemPair get_and_touch(
-            gsl::not_null<const CookieIface*> cookie,
+            const CookieIface& cookie,
             const DocKey&,
             Vbid,
             uint32_t,
@@ -110,8 +109,8 @@ public:
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
-    cb::engine_errc store(gsl::not_null<const CookieIface*>,
-                          gsl::not_null<ItemIface*>,
+    cb::engine_errc store(const CookieIface&,
+                          ItemIface&,
                           uint64_t&,
                           StoreSemantics,
                           const std::optional<cb::durability::Requirements>&,
@@ -121,8 +120,8 @@ public:
     }
 
     cb::EngineErrorCasPair store_if(
-            gsl::not_null<const CookieIface*>,
-            gsl::not_null<ItemIface*>,
+            const CookieIface&,
+            ItemIface&,
             uint64_t,
             StoreSemantics,
             const cb::StoreIfPredicate&,
@@ -132,18 +131,18 @@ public:
         return {cb::engine_errc::no_bucket, 0};
     }
 
-    cb::engine_errc flush(gsl::not_null<const CookieIface*>) override {
+    cb::engine_errc flush(const CookieIface&) override {
         return cb::engine_errc::no_bucket;
     }
 
-    cb::engine_errc get_stats(gsl::not_null<const CookieIface*>,
+    cb::engine_errc get_stats(const CookieIface&,
                               std::string_view,
                               std::string_view,
                               const AddStatFn&) override {
         return cb::engine_errc::no_bucket;
     }
 
-    void reset_stats(gsl::not_null<const CookieIface*> cookie) override {
+    void reset_stats(const CookieIface& cookie) override {
     }
 
     cb::engine_errc unknown_command(const CookieIface*,
@@ -152,21 +151,19 @@ public:
         return cb::engine_errc::no_bucket;
     }
 
-    void item_set_cas(gsl::not_null<ItemIface*>, uint64_t) override {
+    void item_set_cas(ItemIface&, uint64_t) override {
         throw std::logic_error(
                 "NoBucket::item_set_cas: no items should have"
                 " been allocated from this engine");
     }
 
-    void item_set_datatype(gsl::not_null<ItemIface*>,
-                           protocol_binary_datatype_t) override {
+    void item_set_datatype(ItemIface&, protocol_binary_datatype_t) override {
         throw std::logic_error(
                 "NoBucket::item_set_datatype: no items should have"
                 " been allocated from this engine");
     }
 
-    bool get_item_info(gsl::not_null<const ItemIface*>,
-                       gsl::not_null<item_info*>) override {
+    bool get_item_info(const ItemIface&, item_info&) override {
         throw std::logic_error(
                 "NoBucket::get_item_info: no items should have"
                 " been allocated from this engine");
@@ -396,32 +393,28 @@ public:
         return {};
     }
 
-    cb::engine_errc set_collection_manifest(
-            gsl::not_null<const CookieIface*> cookie,
-            std::string_view json) override {
+    cb::engine_errc set_collection_manifest(const CookieIface& cookie,
+                                            std::string_view json) override {
         return cb::engine_errc::no_bucket;
     }
 
     cb::engine_errc get_collection_manifest(
-            gsl::not_null<const CookieIface*> cookie,
-            const AddResponseFn& response) override {
+            const CookieIface& cookie, const AddResponseFn& response) override {
         return cb::engine_errc::no_bucket;
     }
 
     cb::EngineErrorGetCollectionIDResult get_collection_id(
-            gsl::not_null<const CookieIface*> cookie,
-            std::string_view path) override {
+            const CookieIface& cookie, std::string_view path) override {
         return cb::EngineErrorGetCollectionIDResult{cb::engine_errc::no_bucket};
     }
 
     cb::EngineErrorGetScopeIDResult get_scope_id(
-            gsl::not_null<const CookieIface*> cookie,
-            std::string_view path) override {
+            const CookieIface& cookie, std::string_view path) override {
         return cb::EngineErrorGetScopeIDResult{cb::engine_errc::no_bucket};
     }
 
     cb::EngineErrorGetScopeIDResult get_scope_id(
-            gsl::not_null<const CookieIface*> cookie,
+            const CookieIface& cookie,
             const DocKey& key,
             std::optional<Vbid> vbid) const override {
         return cb::EngineErrorGetScopeIDResult(cb::engine_errc::no_bucket);

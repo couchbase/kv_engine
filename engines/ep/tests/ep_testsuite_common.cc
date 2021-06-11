@@ -507,7 +507,7 @@ void check_key_value(EngineIface* h,
             getResult.first,
             "Failed to fetch document");
     item_info info;
-    check(h->get_item_info(getResult.second.get(), &info),
+    check(h->get_item_info(*getResult.second.get(), info),
           "Failed to get_item_info");
 
     std::string_view payload;

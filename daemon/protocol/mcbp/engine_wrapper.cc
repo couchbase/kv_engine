@@ -40,24 +40,24 @@ cb::engine_errc bucket_unknown_command(Cookie& cookie,
 void bucket_item_set_cas(Connection& c,
                          gsl::not_null<ItemIface*> it,
                          uint64_t cas) {
-    c.getBucketEngine().item_set_cas(it, cas);
+    c.getBucketEngine().item_set_cas(*it, cas);
 }
 
 void bucket_item_set_datatype(Connection& c,
                               gsl::not_null<ItemIface*> it,
                               protocol_binary_datatype_t datatype) {
-    c.getBucketEngine().item_set_datatype(it, datatype);
+    c.getBucketEngine().item_set_datatype(*it, datatype);
 }
 
 void bucket_reset_stats(Cookie& cookie) {
     auto& c = cookie.getConnection();
-    c.getBucketEngine().reset_stats(&cookie);
+    c.getBucketEngine().reset_stats(cookie);
 }
 
 bool bucket_get_item_info(Connection& c,
                           gsl::not_null<const ItemIface*> item_,
                           gsl::not_null<item_info*> item_info_) {
-    auto ret = c.getBucketEngine().get_item_info(item_, item_info_);
+    auto ret = c.getBucketEngine().get_item_info(*item_, *item_info_);
 
     LOG_TRACE("bucket_get_item_info() item:{} -> {}", *item_, ret);
 
@@ -74,7 +74,7 @@ cb::EngineErrorMetadataPair bucket_get_meta(Cookie& cookie,
                                             const DocKey& key,
                                             Vbid vbucket) {
     auto& c = cookie.getConnection();
-    auto ret = c.getBucketEngine().get_meta(&cookie, key, vbucket);
+    auto ret = c.getBucketEngine().get_meta(cookie, key, vbucket);
     if (ret.first == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} bucket_get_meta return cb::engine_errc::disconnect",
                     c.getId(),
@@ -94,8 +94,8 @@ cb::engine_errc bucket_store(
         DocumentState document_state,
         bool preserveTtl) {
     auto& c = cookie.getConnection();
-    auto ret = c.getBucketEngine().store(&cookie,
-                                         item_,
+    auto ret = c.getBucketEngine().store(cookie,
+                                         *item_,
                                          cas,
                                          operation,
                                          durability,
@@ -137,8 +137,8 @@ cb::EngineErrorCasPair bucket_store_if(
         DocumentState document_state,
         bool preserveTtl) {
     auto& c = cookie.getConnection();
-    auto ret = c.getBucketEngine().store_if(&cookie,
-                                            item_,
+    auto ret = c.getBucketEngine().store_if(cookie,
+                                            *item_,
                                             cas,
                                             operation,
                                             predicate,
@@ -169,7 +169,7 @@ cb::engine_errc bucket_remove(
         mutation_descr_t& mut_info) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine().remove(
-            &cookie, key, cas, vbucket, durability, mut_info);
+            cookie, key, cas, vbucket, durability, mut_info);
     if (ret == cb::engine_errc::success) {
         cb::audit::document::add(cookie,
                                  cb::audit::document::Operation::Delete);
@@ -188,7 +188,7 @@ cb::EngineErrorItemPair bucket_get(Cookie& cookie,
                                    DocStateFilter documentStateFilter) {
     auto& c = cookie.getConnection();
     auto ret =
-            c.getBucketEngine().get(&cookie, key, vbucket, documentStateFilter);
+            c.getBucketEngine().get(cookie, key, vbucket, documentStateFilter);
     if (ret.first == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} bucket_get return cb::engine_errc::disconnect",
                     c.getId(),
@@ -220,7 +220,7 @@ cb::EngineErrorItemPair bucket_get_if(
         Vbid vbucket,
         std::function<bool(const item_info&)> filter) {
     auto& c = cookie.getConnection();
-    auto ret = c.getBucketEngine().get_if(&cookie, key, vbucket, filter);
+    auto ret = c.getBucketEngine().get_if(cookie, key, vbucket, filter);
 
     if (ret.first == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} bucket_get_if return cb::engine_errc::disconnect",
@@ -239,7 +239,7 @@ cb::EngineErrorItemPair bucket_get_and_touch(
         std::optional<cb::durability::Requirements> durability) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine().get_and_touch(
-            &cookie, key, vbucket, expiration, durability);
+            cookie, key, vbucket, expiration, durability);
 
     if (ret.first == cb::engine_errc::disconnect) {
         LOG_WARNING(
@@ -258,7 +258,7 @@ cb::EngineErrorItemPair bucket_get_locked(Cookie& cookie,
                                           uint32_t lock_timeout) {
     auto& c = cookie.getConnection();
     auto ret =
-            c.getBucketEngine().get_locked(&cookie, key, vbucket, lock_timeout);
+            c.getBucketEngine().get_locked(cookie, key, vbucket, lock_timeout);
 
     if (ret.first == cb::engine_errc::success) {
         cb::audit::document::add(cookie, cb::audit::document::Operation::Lock);
@@ -282,7 +282,7 @@ cb::engine_errc bucket_unlock(Cookie& cookie,
                               Vbid vbucket,
                               uint64_t cas) {
     auto& c = cookie.getConnection();
-    auto ret = c.getBucketEngine().unlock(&cookie, key, vbucket, cas);
+    auto ret = c.getBucketEngine().unlock(cookie, key, vbucket, cas);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} bucket_unlock return cb::engine_errc::disconnect",
                     c.getId(),
@@ -330,7 +330,7 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(
                 datatype,
                 vbucket);
 
-        return c.getBucketEngine().allocateItem(&cookie,
+        return c.getBucketEngine().allocateItem(cookie,
                                                 key,
                                                 nbytes,
                                                 priv_nbytes,
@@ -353,7 +353,7 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(
 
 cb::engine_errc bucket_flush(Cookie& cookie) {
     auto& c = cookie.getConnection();
-    auto ret = c.getBucketEngine().flush(&cookie);
+    auto ret = c.getBucketEngine().flush(cookie);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} bucket_flush return cb::engine_errc::disconnect",
                     c.getId(),
@@ -369,7 +369,7 @@ cb::engine_errc bucket_get_stats(Cookie& cookie,
                                  const AddStatFn& add_stat) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine().get_stats(
-            &cookie,
+            cookie,
             key,
             {reinterpret_cast<const char*>(value.data()), value.size()},
             add_stat);
@@ -870,7 +870,7 @@ cb::engine_errc bucket_set_parameter(Cookie& cookie,
                                      Vbid vbucket) {
     auto& connection = cookie.getConnection();
     auto ret = connection.getBucket().getEngine().setParameter(
-            &cookie, category, key, value, vbucket);
+            cookie, category, key, value, vbucket);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING(
                 "{}: {} setParameter() returned cb::engine_errc::disconnect",
@@ -891,7 +891,7 @@ cb::engine_errc bucket_compact_database(Cookie& cookie) {
                     extras.data());
 
     auto ret = connection.getBucket().getEngine().compactDatabase(
-            &cookie,
+            cookie,
             req.getVBucket(),
             payload->getPurgeBeforeTs(),
             payload->getPurgeBeforeSeq(),
@@ -909,7 +909,7 @@ cb::engine_errc bucket_compact_database(Cookie& cookie) {
 std::pair<cb::engine_errc, vbucket_state_t> bucket_get_vbucket(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     const auto& req = cookie.getRequest();
-    auto ret = connection.getBucket().getEngine().getVBucket(&cookie,
+    auto ret = connection.getBucket().getEngine().getVBucket(cookie,
                                                              req.getVBucket());
     if (ret.first == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} getVBucket() returned cb::engine_errc::disconnect",
@@ -927,7 +927,7 @@ cb::engine_errc bucket_set_vbucket(Cookie& cookie,
     const auto& req = cookie.getRequest();
     auto& connection = cookie.getConnection();
     auto ret = connection.getBucket().getEngine().setVBucket(
-            &cookie,
+            cookie,
             req.getVBucket(),
             req.getCas(),
             state,
@@ -945,7 +945,7 @@ cb::engine_errc bucket_set_vbucket(Cookie& cookie,
 cb::engine_errc bucket_delete_vbucket(Cookie& cookie, Vbid vbid, bool sync) {
     auto& connection = cookie.getConnection();
     auto ret = connection.getBucket().getEngine().deleteVBucket(
-            &cookie, vbid, sync);
+            cookie, vbid, sync);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING(
                 "{}: {} deleteVBucket() returned cb::engine_errc::disconnect",

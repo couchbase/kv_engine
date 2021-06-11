@@ -104,19 +104,18 @@ public:
         delete this;
     }
 
-    std::pair<cb::unique_item_ptr, item_info> allocateItem(
-            gsl::not_null<const CookieIface*>,
-            const DocKey&,
-            size_t,
-            size_t,
-            int,
-            rel_time_t,
-            uint8_t,
-            Vbid) override {
+    std::pair<cb::unique_item_ptr, item_info> allocateItem(const CookieIface&,
+                                                           const DocKey&,
+                                                           size_t,
+                                                           size_t,
+                                                           int,
+                                                           rel_time_t,
+                                                           uint8_t,
+                                                           Vbid) override {
         throw cb::engine_error{cb::engine_errc::failed, "crash_engine"};
     }
 
-    cb::engine_errc remove(gsl::not_null<const CookieIface*>,
+    cb::engine_errc remove(const CookieIface&,
                            const DocKey&,
                            uint64_t&,
                            Vbid,
@@ -125,10 +124,10 @@ public:
         return cb::engine_errc::failed;
     }
 
-    void release(gsl::not_null<ItemIface*> item) override {
+    void release(ItemIface& item) override {
     }
 
-    cb::EngineErrorItemPair get(gsl::not_null<const CookieIface*>,
+    cb::EngineErrorItemPair get(const CookieIface&,
                                 const DocKey&,
                                 Vbid,
                                 DocStateFilter) override {
@@ -136,27 +135,27 @@ public:
     }
 
     cb::EngineErrorItemPair get_if(
-            gsl::not_null<const CookieIface*>,
+            const CookieIface&,
             const DocKey&,
             Vbid,
             std::function<bool(const item_info&)>) override {
         return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
     }
 
-    cb::EngineErrorMetadataPair get_meta(gsl::not_null<const CookieIface*>,
+    cb::EngineErrorMetadataPair get_meta(const CookieIface&,
                                          const DocKey&,
                                          Vbid) override {
         return {cb::engine_errc::failed, {}};
     }
 
-    cb::EngineErrorItemPair get_locked(gsl::not_null<const CookieIface*>,
+    cb::EngineErrorItemPair get_locked(const CookieIface&,
                                        const DocKey&,
                                        Vbid,
                                        uint32_t) override {
         return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
     }
 
-    cb::engine_errc unlock(gsl::not_null<const CookieIface*>,
+    cb::engine_errc unlock(const CookieIface&,
                            const DocKey&,
                            Vbid,
                            uint64_t) override {
@@ -164,7 +163,7 @@ public:
     }
 
     cb::EngineErrorItemPair get_and_touch(
-            gsl::not_null<const CookieIface*>,
+            const CookieIface&,
             const DocKey&,
             Vbid,
             uint32_t,
@@ -172,8 +171,8 @@ public:
         return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
     }
 
-    cb::engine_errc store(gsl::not_null<const CookieIface*>,
-                          gsl::not_null<ItemIface*>,
+    cb::engine_errc store(const CookieIface&,
+                          ItemIface&,
                           uint64_t&,
                           StoreSemantics,
                           const std::optional<cb::durability::Requirements>&,
@@ -182,25 +181,23 @@ public:
         return cb::engine_errc::failed;
     }
 
-    cb::engine_errc get_stats(gsl::not_null<const CookieIface*>,
+    cb::engine_errc get_stats(const CookieIface&,
                               std::string_view,
                               std::string_view,
                               const AddStatFn&) override {
         return cb::engine_errc::failed;
     }
 
-    void reset_stats(gsl::not_null<const CookieIface*>) override {
+    void reset_stats(const CookieIface&) override {
     }
 
-    void item_set_cas(gsl::not_null<ItemIface*>, uint64_t) override {
+    void item_set_cas(ItemIface&, uint64_t) override {
     }
 
-    void item_set_datatype(gsl::not_null<ItemIface*>,
-                           protocol_binary_datatype_t) override {
+    void item_set_datatype(ItemIface&, protocol_binary_datatype_t) override {
     }
 
-    bool get_item_info(gsl::not_null<const ItemIface*>,
-                       gsl::not_null<item_info*>) override {
+    bool get_item_info(const ItemIface&, item_info&) override {
         return false;
     }
 

@@ -3248,8 +3248,8 @@ void SingleThreadedActiveStreamTest::testProducerIncludesUserXattrsInDelete(
     const auto expectedStoreRes =
             durReqs ? cb::engine_errc::would_block : cb::engine_errc::success;
     ASSERT_EQ(expectedStoreRes,
-              engine->store(cookie,
-                            item.get(),
+              engine->store(*cookie,
+                            *item.get(),
                             cas,
                             StoreSemantics::Set,
                             durReqs,
@@ -3413,8 +3413,8 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
     const auto expectedStoreRes =
             durReqs ? cb::engine_errc::would_block : cb::engine_errc::success;
     ASSERT_EQ(expectedStoreRes,
-              engine->store(cookie,
-                            item.get(),
+              engine->store(*cookie,
+                            *item.get(),
                             cas,
                             StoreSemantics::Set,
                             durReqs,

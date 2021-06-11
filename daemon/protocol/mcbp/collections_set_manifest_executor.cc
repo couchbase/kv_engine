@@ -30,7 +30,7 @@ void collections_set_manifest_executor(Cookie& cookie) {
         std::string_view jsonBuffer{reinterpret_cast<const char*>(val.data()),
                                     val.size()};
         auto status = connection.getBucketEngine().set_collection_manifest(
-                &cookie, jsonBuffer);
+                cookie, jsonBuffer);
         handle_executor_status(cookie, status);
     } else {
         handle_executor_status(cookie, ret);

@@ -58,7 +58,7 @@ std::map<std::string, std::string> StatTest::get_stat(const char* statkey) {
     MockCookie cookie;
     EXPECT_EQ(
             cb::engine_errc::success,
-            engine->get_stats(&cookie,
+            engine->get_stats(cookie,
                               {statkey, statkey == NULL ? 0 : strlen(statkey)},
                               {},
                               add_stats))
@@ -139,7 +139,7 @@ TEST_F(StatTest, HashStatsMemUsed) {
     };
     MockCookie cookie;
     ASSERT_EQ(cb::engine_errc::success,
-              engine->get_stats(&cookie, key, {}, callback));
+              engine->get_stats(cookie, key, {}, callback));
 
     // Sanity check - should have had at least 1 call to ADD_STATS (otherwise
     // the test isn't valid).

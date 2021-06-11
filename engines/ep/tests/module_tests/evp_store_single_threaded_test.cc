@@ -446,7 +446,7 @@ cb::engine_errc SingleThreadedKVBucketTest::setCollections(
         cb::engine_errc status1) {
     std::string json{manifest};
 
-    auto status = engine->set_collection_manifest(c, json);
+    auto status = engine->set_collection_manifest(*c, json);
     if (!isPersistent()) {
         return status;
     }
@@ -465,7 +465,7 @@ cb::engine_errc SingleThreadedKVBucketTest::setCollections(
     // Cookie now success
     EXPECT_EQ(cb::engine_errc::success, cookie_to_mock_cookie(c)->status);
 
-    status = engine->set_collection_manifest(c, json);
+    status = engine->set_collection_manifest(*c, json);
     EXPECT_EQ(cb::engine_errc::success, status);
     return status;
 }
@@ -4209,8 +4209,8 @@ void STParameterizedBucketTest::testValidateDatatypeForEmptyPayload(
         uint64_t cas = 0;
         switch (op) {
         case EngineOp::Store: {
-            engine->store(cookie,
-                          &item,
+            engine->store(*cookie,
+                          item,
                           cas,
                           StoreSemantics::Set,
                           {},
@@ -4223,8 +4223,8 @@ void STParameterizedBucketTest::testValidateDatatypeForEmptyPayload(
                     [](const std::optional<item_info>&, cb::vbucket_info) {
                         return cb::StoreIfStatus::Continue;
                     };
-            engine->store_if(cookie,
-                             &item,
+            engine->store_if(*cookie,
+                             item,
                              0 /*cas*/,
                              StoreSemantics::Set,
                              predicate,

@@ -256,7 +256,7 @@ TEST_P(CollectionsManifestUpdatePersistent, update_fail_persist) {
     cm.add(CollectionEntry::fruit);
 
     EXPECT_EQ(cb::engine_errc::would_block,
-              engine->set_collection_manifest(cookie, std::string{cm}));
+              engine->set_collection_manifest(*cookie, std::string{cm}));
 
     // Remove the datadir, persistence will fail and be detected, command then
     // fails

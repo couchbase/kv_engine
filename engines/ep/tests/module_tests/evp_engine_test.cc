@@ -337,7 +337,7 @@ TEST_P(DurabilityTest, DurabilityStateStats) {
     // get stats for all vbs
     EXPECT_EQ(cb::engine_errc::success,
               engine->get_stats(
-                      cookie, "vbucket-durability-state", {}, dummyAddStats));
+                      *cookie, "vbucket-durability-state", {}, dummyAddStats));
 
     // 4 stats, 3 vbs, 12 total
     EXPECT_EQ(12, stats.size());
@@ -353,7 +353,7 @@ TEST_P(DurabilityTest, DurabilityStateStats) {
     // get stats for vb 1
     EXPECT_EQ(
             cb::engine_errc::success,
-            engine->get_stats(cookie,
+            engine->get_stats(*cookie,
                               "vbucket-durability-state " + std::to_string(vb),
                               {},
                               dummyAddStats));

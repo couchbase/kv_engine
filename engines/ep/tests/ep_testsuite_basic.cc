@@ -444,7 +444,7 @@ static enum test_result test_getl_delete_with_cas(EngineIface* h) {
             ret.first,
             "Expected getl to succeed on key");
     item_info info;
-    check(h->get_item_info(ret.second.get(), &info), "Failed to get item info");
+    check(h->get_item_info(*ret.second.get(), info), "Failed to get item info");
 
     checkeq(cb::engine_errc::success,
             del(h, "key", info.cas, Vbid(0)),
@@ -538,7 +538,7 @@ static enum test_result test_getl(EngineIface* h) {
             "Expected to be able to getl on first try");
 
     item_info info;
-    check(h->get_item_info(ret.second.get(), &info), "Failed to get item info");
+    check(h->get_item_info(*ret.second.get(), info), "Failed to get item info");
 
     checkeq(std::string{"{\"lock\":\"data\"}"},
             std::string((const char*)info.value[0].iov_base,
@@ -592,7 +592,7 @@ static enum test_result test_getl(EngineIface* h) {
     checkeq(cb::engine_errc::success,
             ret.first,
             "Acquire lock should have succeeded");
-    check(h->get_item_info(ret.second.get(), &info), "Failed to get item info");
+    check(h->get_item_info(*ret.second.get(), info), "Failed to get item info");
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_RAW_BYTES), info.datatype,
             "Expected datatype to be RAW BYTES");
 
@@ -648,13 +648,13 @@ static enum test_result test_getl(EngineIface* h) {
                    Vbid(0));
     checkeq(cb::engine_errc::success, ret.first, "Allocation Failed");
 
-    check(h->get_item_info(ret.second.get(), &info), "Failed to get item info");
+    check(h->get_item_info(*ret.second.get(), info), "Failed to get item info");
 
     memcpy(info.value[0].iov_base, edata, strlen(edata));
 
     checkeq(cb::engine_errc::success,
-            h->store(cookie,
-                     ret.second.get(),
+            h->store(*cookie,
+                     *ret.second.get(),
                      cas,
                      StoreSemantics::Set,
                      {},
@@ -738,7 +738,7 @@ static enum test_result test_unl(EngineIface* h) {
             "Expected to be able to getl on first try");
     item_info info;
     checkeq(true,
-            h->get_item_info(ret.second.get(), &info),
+            h->get_item_info(*ret.second.get(), info),
             "failed to get item info");
     uint64_t cas = info.cas;
 
@@ -811,8 +811,8 @@ static enum test_result test_set_with_cas_non_existent(EngineIface* h) {
 
     uint64_t cas = 0;
     checkeq(cb::engine_errc::no_such_key,
-            h->store(cookie,
-                     ret.second.get(),
+            h->store(*cookie,
+                     *ret.second.get(),
                      cas,
                      StoreSemantics::Set,
                      {},
@@ -893,7 +893,7 @@ static enum test_result test_add_add_with_cas(EngineIface* h) {
             "Failed set.");
     check_key_value(h, "key", "somevalue", 9);
     item_info info;
-    check(h->get_item_info(i, &info), "Should be able to get info");
+    check(h->get_item_info(*i, info), "Should be able to get info");
 
     checkeq(cb::engine_errc::key_already_exists,
             store(h,
@@ -905,7 +905,7 @@ static enum test_result test_add_add_with_cas(EngineIface* h) {
                   info.cas),
             "Should not be able to add the key two times");
 
-    h->release(i);
+    h->release(*i);
     return SUCCESS;
 }
 
@@ -922,7 +922,7 @@ static enum test_result test_cas(EngineIface* h) {
     checkeq(cb::engine_errc::success, ret.first, "Failed to get value.");
 
     item_info info;
-    check(h->get_item_info(ret.second.get(), &info),
+    check(h->get_item_info(*ret.second.get(), info),
           "Failed to get item info.");
 
     checkeq(cb::engine_errc::success,
@@ -1107,7 +1107,7 @@ static enum test_result test_gat(EngineIface* h) {
     checkeq(cb::engine_errc::success, cb::engine_errc(ret.first), "gat mykey");
 
     item_info info;
-    check(h->get_item_info(ret.second.get(), &info),
+    check(h->get_item_info(*ret.second.get(), info),
           "Getting item info failed");
 
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
@@ -1168,7 +1168,7 @@ static enum test_result test_touch_locked(EngineIface* h) {
     checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "key", "value", &itm),
             "Failed to set key");
-    h->release(itm);
+    h->release(*itm);
 
     checkeq(cb::engine_errc::success,
             getl(h, nullptr, "key", Vbid(0), 15).first,
@@ -1409,9 +1409,9 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
             "Failed set");
 
     item_info info;
-    check(h->get_item_info(i, &info), "Getting item info failed");
+    check(h->get_item_info(*i, info), "Getting item info failed");
 
-    h->release(i);
+    h->release(*i);
 
     check(get_meta(h, "key2", errorMetaPair), "Get meta failed");
 
@@ -1458,13 +1458,13 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
 
     wait_for_flusher_to_settle(h);
 
-    check(h->get_item_info(i, &info), "Getting item info failed");
+    check(h->get_item_info(*i, info), "Getting item info failed");
     checkeq(int(DocumentState::Deleted),
             int(info.document_state),
             "Incorrect DocState for deleted item");
     checkne(uint64_t(0), info.cas, "Expected non-zero CAS for deleted item");
 
-    h->release(i);
+    h->release(*i);
 
     check(get_meta(h, "key2", errorMetaPair), "Get meta failed");
 
@@ -1516,7 +1516,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
             curr_revseqno + 1,
             "rev seqno should have incremented");
 
-    check(h->get_item_info(ret.second.get(), &info),
+    check(h->get_item_info(*ret.second.get(), info),
           "Getting item info failed");
     checkeq(int(DocumentState::Deleted),
             int(info.document_state),
@@ -1550,7 +1550,7 @@ static enum test_result test_delete(EngineIface* h) {
             "Failed set.");
     Item *it = reinterpret_cast<Item*>(i);
     uint64_t orig_cas = it->getCas();
-    h->release(i);
+    h->release(*i);
     check_key_value(h, "key", "somevalue", 9);
 
     uint64_t cas = 0;
@@ -1574,7 +1574,7 @@ static enum test_result test_delete(EngineIface* h) {
     checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "key", "somevalue", &i),
             "Failed set.");
-    h->release(i);
+    h->release(*i);
     testHarness->time_travel(3617);
     checkeq(cb::engine_errc::no_such_key,
             del(h, "key", 0, Vbid(0)),
@@ -1609,8 +1609,8 @@ static enum test_result test_set_delete_invalid_cas(EngineIface* h) {
             "Failed set.");
     check_key_value(h, "key", "somevalue", 9);
     item_info info;
-    check(h->get_item_info(i, &info), "Should be able to get info");
-    h->release(i);
+    check(h->get_item_info(*i, info), "Should be able to get info");
+    h->release(*i);
 
     checkeq(cb::engine_errc::key_already_exists,
             del(h, "key", info.cas + 1, Vbid(0)),
@@ -1983,7 +1983,7 @@ static test_result pre_link_document(EngineIface* h) {
     // Fetch the value and verify that the callback was called!
     auto ret = get(h, nullptr, "key", Vbid(0));
     checkeq(cb::engine_errc::success, ret.first, "get failed");
-    check(h->get_item_info(ret.second.get(), &info),
+    check(h->get_item_info(*ret.second.get(), info),
           "Failed to get item info.");
     checkeq(0, memcmp(info.value[0].iov_base, "valuesome", 9),
            "Expected value to be modified");
@@ -2008,19 +2008,19 @@ static test_result get_if(EngineIface* h) {
     }
 
     auto* cookie = testHarness->create_cookie(h);
-    auto doc = h->get_if(cookie,
+    auto doc = h->get_if(*cookie,
                          DocKey(key, DocKeyEncodesCollectionId::No),
                          Vbid(0),
                          [](const item_info&) { return true; });
     check(doc.second, "document should be found");
 
-    doc = h->get_if(cookie,
+    doc = h->get_if(*cookie,
                     DocKey(key, DocKeyEncodesCollectionId::No),
                     Vbid(0),
                     [](const item_info&) { return false; });
     check(!doc.second, "document should not be found");
 
-    doc = h->get_if(cookie,
+    doc = h->get_if(*cookie,
                     DocKey("no", DocKeyEncodesCollectionId::No),
                     Vbid(0),
                     [](const item_info&) { return true; });
@@ -2030,7 +2030,7 @@ static test_result get_if(EngineIface* h) {
             del(h, key.c_str(), 0, Vbid(0)),
             "Failed remove with value");
 
-    doc = h->get_if(cookie,
+    doc = h->get_if(*cookie,
                     DocKey(key, DocKeyEncodesCollectionId::No),
                     Vbid(0),
                     [](const item_info&) { return true; });

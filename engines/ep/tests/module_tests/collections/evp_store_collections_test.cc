@@ -1257,7 +1257,7 @@ TEST_F(CollectionsWarmupTest, MB_38125) {
     CollectionsManifest cm(CollectionEntry::fruit);
 
     // Cannot set the manifest yet - command follows ewouldblock pattern
-    auto status = engine->set_collection_manifest(cookie, std::string{cm});
+    auto status = engine->set_collection_manifest(*cookie, std::string{cm});
     EXPECT_EQ(cb::engine_errc::would_block, status);
     cookie_to_mock_cookie(cookie)->status = cb::engine_errc::failed;
 
@@ -2045,7 +2045,7 @@ TEST_P(CollectionsParameterizedTest,
         EXPECT_FALSE(ObjectRegistry::getCurrentEngine());
         return true;
     };
-    engine->get_collection_manifest(cookie, addResponseFn);
+    engine->get_collection_manifest(*cookie, addResponseFn);
 }
 
 class CollectionsExpiryLimitTest : public CollectionsTest,
@@ -2625,12 +2625,12 @@ TEST_F(CollectionsTest, GetScopeIdForGivenKeyAndVbucket) {
     StoredDocKey keyDairy{"dairy:milk", CollectionEntry::dairy};
     StoredDocKey keyMeat{"meat:beef", CollectionEntry::meat};
 
-    auto result = engine->get_scope_id(cookie, keyDairy, vbid);
+    auto result = engine->get_scope_id(*cookie, keyDairy, vbid);
     EXPECT_EQ(cb::engine_errc::success, result.result);
     EXPECT_EQ(cmDairyVb.getUid(), result.getManifestId());
     EXPECT_EQ(ScopeID(ScopeEntry::shop1), result.getScopeId());
 
-    result = engine->get_scope_id(cookie, keyMeat, vbid);
+    result = engine->get_scope_id(*cookie, keyMeat, vbid);
     EXPECT_EQ(cb::engine_errc::unknown_collection, result.result);
     EXPECT_EQ(0, result.getManifestId());
 
@@ -2642,7 +2642,7 @@ TEST_F(CollectionsTest, GetScopeIdForGivenKeyAndVbucket) {
               store->setVBucketState(meatVbid, vbucket_state_replica));
     auto replicaVb = store->getVBucket(meatVbid);
 
-    result = engine->get_scope_id(cookie, keyDairy, meatVbid);
+    result = engine->get_scope_id(*cookie, keyDairy, meatVbid);
     EXPECT_EQ(cb::engine_errc::unknown_collection, result.result);
     EXPECT_EQ(0, result.getManifestId());
 
@@ -2659,17 +2659,17 @@ TEST_F(CollectionsTest, GetScopeIdForGivenKeyAndVbucket) {
     // Trigger a flush to disk. Flushes the dairy create event.
     flush_vbucket_to_disk(meatVbid, 2);
 
-    result = engine->get_scope_id(cookie, keyMeat, meatVbid);
+    result = engine->get_scope_id(*cookie, keyMeat, meatVbid);
     EXPECT_EQ(cb::engine_errc::success, result.result);
     EXPECT_EQ(2, result.getManifestId());
     EXPECT_EQ(ScopeUid::shop1, result.getScopeId());
 
-    result = engine->get_scope_id(cookie, keyFruit, meatVbid);
+    result = engine->get_scope_id(*cookie, keyFruit, meatVbid);
     EXPECT_EQ(cb::engine_errc::unknown_collection, result.result);
     EXPECT_EQ(0, result.getManifestId());
 
     // check vbucket that doesnt exist
-    result = engine->get_scope_id(cookie, keyDairy, Vbid(10));
+    result = engine->get_scope_id(*cookie, keyDairy, Vbid(10));
     EXPECT_EQ(cb::engine_errc::not_my_vbucket, result.result);
 }
 
@@ -2687,17 +2687,17 @@ TEST_F(CollectionsTest, GetScopeIdForGivenKeyNoVbid) {
     StoredDocKey keyDairy{"dairy:milk", CollectionEntry::dairy};
     StoredDocKey keyMeat{"meat:beef", CollectionEntry::meat};
 
-    auto result = engine->get_scope_id(cookie, keyDefault, {});
+    auto result = engine->get_scope_id(*cookie, keyDefault, {});
     EXPECT_EQ(cb::engine_errc::success, result.result);
     EXPECT_EQ(0, result.getManifestId());
     EXPECT_EQ(ScopeUid::defaultS, result.getScopeId());
 
-    result = engine->get_scope_id(cookie, keyDairy, {});
+    result = engine->get_scope_id(*cookie, keyDairy, {});
     EXPECT_EQ(cb::engine_errc::success, result.result);
     EXPECT_EQ(2, result.getManifestId());
     EXPECT_EQ(ScopeUid::shop1, result.getScopeId());
 
-    result = engine->get_scope_id(cookie, keyMeat, {});
+    result = engine->get_scope_id(*cookie, keyMeat, {});
     EXPECT_EQ(cb::engine_errc::unknown_collection, result.result);
     EXPECT_EQ(0, result.getManifestId());
 }

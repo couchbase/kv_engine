@@ -409,7 +409,7 @@ cb::engine_errc del(EngineIface* h,
         create_cookie = true;
     }
 
-    auto ret = h->remove(cookie,
+    auto ret = h->remove(*cookie,
                          DocKey(key, DocKeyEncodesCollectionId::No),
                          *cas,
                          vbucket,
@@ -587,12 +587,12 @@ cb::EngineErrorItemPair gat(EngineIface* h,
                             uint32_t exp) {
     auto* cookie = testHarness->create_cookie(h);
     auto ret = h->get_and_touch(
-            cookie, DocKey(key, DocKeyEncodesCollectionId::No), vb, exp, {});
+            *cookie, DocKey(key, DocKeyEncodesCollectionId::No), vb, exp, {});
     testHarness->destroy_cookie(cookie);
 
     if (ret.first == cb::engine_errc::success) {
         item_info info;
-        check(h->get_item_info(ret.second.get(), &info),
+        check(h->get_item_info(*ret.second.get(), info),
               "gat Failed to get item info");
 
         last_body.assign((const char*)info.value[0].iov_base,
@@ -606,7 +606,7 @@ bool get_item_info(EngineIface* h, item_info* info, const char* key, Vbid vb) {
     if (ret.first != cb::engine_errc::success) {
         return false;
     }
-    if (!h->get_item_info(ret.second.get(), info)) {
+    if (!h->get_item_info(*ret.second.get(), *info)) {
         fprintf(stderr, "get_item_info failed\n");
         return false;
     }
@@ -624,7 +624,7 @@ cb::EngineErrorItemPair getl(EngineIface* h,
         cookie = testHarness->create_cookie(h);
         create_cookie = true;
     }
-    auto ret = h->get_locked(cookie,
+    auto ret = h->get_locked(*cookie,
                              DocKey(key, DocKeyEncodesCollectionId::No),
                              vb,
                              lock_timeout);
@@ -652,7 +652,7 @@ bool get_meta(EngineIface* h,
         cookie_create = true;
     }
 
-    out = h->get_meta(cookie, docKey, Vbid(0));
+    out = h->get_meta(*cookie, docKey, Vbid(0));
 
     if (cookie_create) {
         testHarness->destroy_cookie(cookie);
@@ -734,7 +734,7 @@ cb::engine_errc set_param(EngineIface* h,
                           const char* val,
                           Vbid vb) {
     MockCookie cookie;
-    return h->setParameter(&cookie, paramtype, param, val, vb);
+    return h->setParameter(cookie, paramtype, param, val, vb);
 }
 
 bool set_vbucket_state(EngineIface* h,
@@ -744,10 +744,10 @@ bool set_vbucket_state(EngineIface* h,
     MockCookie cookie;
     cb::engine_errc ret;
     if (meta.empty()) {
-        ret = h->setVBucket(&cookie, vb, mcbp::cas::Wildcard, state, nullptr);
+        ret = h->setVBucket(cookie, vb, mcbp::cas::Wildcard, state, nullptr);
     } else {
         auto json = nlohmann::json::parse(meta);
-        ret = h->setVBucket(&cookie, vb, mcbp::cas::Wildcard, state, &json);
+        ret = h->setVBucket(cookie, vb, mcbp::cas::Wildcard, state, &json);
     }
 
     return ret == cb::engine_errc::success;
@@ -1159,10 +1159,10 @@ cb::engine_errc storeCasOut(EngineIface* h,
     auto ret = allocate(h, cookie, key, value.size(), 0, 0, datatype, vb);
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
     item_info info;
-    check(h->get_item_info(ret.second.get(), &info), "Unable to get item_info");
+    check(h->get_item_info(*ret.second.get(), info), "Unable to get item_info");
     memcpy(info.value[0].iov_base, value.data(), value.size());
-    cb::engine_errc res = h->store(cookie,
-                                   ret.second.get(),
+    cb::engine_errc res = h->store(*cookie,
+                                   *ret.second.get(),
                                    out_cas,
                                    StoreSemantics::Set,
                                    {},
@@ -1197,13 +1197,13 @@ cb::EngineErrorItemPair storeCasVb11(
         return rv;
     }
     item_info info;
-    if (!h->get_item_info(rv.second.get(), &info)) {
+    if (!h->get_item_info(*rv.second.get(), info)) {
         abort();
     }
 
     cb_assert(info.value[0].iov_len == vlen);
     std::copy(value, value + vlen, reinterpret_cast<char*>(info.value[0].iov_base));
-    h->item_set_cas(rv.second.get(), casIn);
+    h->item_set_cas(*rv.second.get(), casIn);
 
     bool create_cookie = false;
     if (cookie == nullptr) {
@@ -1212,7 +1212,7 @@ cb::EngineErrorItemPair storeCasVb11(
     }
 
     auto storeRet = h->store(
-            cookie, rv.second.get(), cas, op, durReqs, docState, false);
+            *cookie, *rv.second.get(), cas, op, durReqs, docState, false);
 
     if (create_cookie) {
         testHarness->destroy_cookie(cookie);
@@ -1243,10 +1243,10 @@ cb::engine_errc replace(EngineIface* h,
 
     const auto& item = allocRes.second;
     item_info info;
-    if (!h->get_item_info(item.get(), &info)) {
+    if (!h->get_item_info(*item.get(), info)) {
         abort();
     }
-    h->item_set_cas(allocRes.second.get(), 0);
+    h->item_set_cas(*allocRes.second.get(), 0);
 
     // A predicate that allows the replace.
     // This simulates the behaviour of replace when the doc being updated does
@@ -1258,8 +1258,8 @@ cb::engine_errc replace(EngineIface* h,
         return cb::StoreIfStatus::Continue;
     };
 
-    auto res = h->store_if(cookie,
-                           item.get(),
+    auto res = h->store_if(*cookie,
+                           *item.get(),
                            0 /*cas*/,
                            StoreSemantics::Replace,
                            predicate,
@@ -1273,13 +1273,13 @@ cb::engine_errc replace(EngineIface* h,
 cb::engine_errc touch(EngineIface* h, const char* key, Vbid vb, uint32_t exp) {
     auto* cookie = testHarness->create_cookie(h);
     auto result = h->get_and_touch(
-            cookie, DocKey(key, DocKeyEncodesCollectionId::No), vb, exp, {});
+            *cookie, DocKey(key, DocKeyEncodesCollectionId::No), vb, exp, {});
     testHarness->destroy_cookie(cookie);
 
     // Update the global cas value (used by some tests)
     if (result.first == cb::engine_errc::success) {
         item_info info{};
-        check(h->get_item_info(result.second.get(), &info),
+        check(h->get_item_info(*result.second.get(), info),
               "Failed to get item info");
         last_cas.store(info.cas);
     }
@@ -1298,7 +1298,7 @@ cb::engine_errc unl(EngineIface* h,
         create_cookie = true;
     }
     auto ret = h->unlock(
-            cookie, DocKey(key, DocKeyEncodesCollectionId::No), vb, cas);
+            *cookie, DocKey(key, DocKeyEncodesCollectionId::No), vb, cas);
 
     if (create_cookie) {
         testHarness->destroy_cookie(cookie);
@@ -1312,7 +1312,7 @@ void compact_db(EngineIface* h,
                 const uint64_t purge_before_seq,
                 const uint8_t drop_deletes) {
     MockCookie cookie;
-    auto ret = h->compactDatabase(&cookie,
+    auto ret = h->compactDatabase(cookie,
                                   db_file_id,
                                   purge_before_ts,
                                   purge_before_seq,
@@ -1339,7 +1339,7 @@ void compact_db(EngineIface* h,
 
 cb::engine_errc vbucketDelete(EngineIface* h, Vbid vb, const char* args) {
     MockCookie cookie;
-    return h->deleteVBucket(&cookie, vb, args && strcmp(args, "async=0") == 0);
+    return h->deleteVBucket(cookie, vb, args && strcmp(args, "async=0") == 0);
 }
 
 cb::engine_errc verify_key(EngineIface* h, const char* key, Vbid vbucket) {
@@ -1357,7 +1357,7 @@ std::pair<cb::engine_errc, std::string> get_value(EngineIface* h,
         return {cb::engine_errc(rv.first), ""};
     }
     item_info info;
-    if (!h->get_item_info(rv.second.get(), &info)) {
+    if (!h->get_item_info(*rv.second.get(), info)) {
         return {cb::engine_errc::failed, ""};
     }
     auto value = std::string(reinterpret_cast<char*>(info.value[0].iov_base),
@@ -1377,7 +1377,7 @@ bool verify_vbucket_missing(EngineIface* h, Vbid vb) {
 
     auto* cookie = testHarness->create_cookie(h);
     checkeq(cb::engine_errc::success,
-            h->get_stats(cookie, {}, {}, add_stats),
+            h->get_stats(*cookie, {}, {}, add_stats),
             "Failed to get stats.");
     testHarness->destroy_cookie(cookie);
 
@@ -1398,7 +1398,7 @@ bool verify_vbucket_state(EngineIface* h,
                           vbucket_state_t expected,
                           bool mute) {
     MockCookie cookie;
-    const auto [status, state] = h->getVBucket(&cookie, vb);
+    const auto [status, state] = h->getVBucket(cookie, vb);
     if (status != cb::engine_errc::success) {
         if (!mute) {
             fprintf(stderr,
@@ -1482,7 +1482,7 @@ std::string get_stat(EngineIface* h,
 
     auto* cookie = testHarness->create_cookie(h);
     cb::engine_errc err =
-            h->get_stats(cookie,
+            h->get_stats(*cookie,
                          {statkey, statkey == nullptr ? 0 : strlen(statkey)},
                          {},
                          add_individual_stat);
@@ -1599,7 +1599,7 @@ static void get_histo_stat(EngineIface* h,
     get_stat_context.requested_stat_name.append("_");
 
     auto* cookie = testHarness->create_cookie(h);
-    auto err = h->get_stats(cookie,
+    auto err = h->get_stats(*cookie,
                             {statkey, statkey == nullptr ? 0 : strlen(statkey)},
                             {},
                             add_individual_histo_stat);
@@ -1616,7 +1616,7 @@ statistic_map get_all_stats(EngineIface* h, const char* statset) {
         vals.clear();
     }
     auto* cookie = testHarness->create_cookie(h);
-    auto err = h->get_stats(cookie,
+    auto err = h->get_stats(*cookie,
                             {statset, statset == nullptr ? 0 : strlen(statset)},
                             {},
                             add_stats);
@@ -1863,7 +1863,7 @@ uint64_t get_CAS(EngineIface* h, const std::string& key) {
     checkeq(cb::engine_errc::success, ret.first, "get_CAS: Failed to get key");
 
     item_info info;
-    check(h->get_item_info(ret.second.get(), &info),
+    check(h->get_item_info(*ret.second.get(), info),
           "get_CAS: Failed to get item info for key");
 
     return info.cas;
@@ -1885,7 +1885,7 @@ cb::EngineErrorItemPair allocate(EngineIface* h,
 
     cb::EngineErrorItemPair ret;
     try {
-        auto pair = h->allocateItem(cookie,
+        auto pair = h->allocateItem(*cookie,
                                     DocKey(key, DocKeyEncodesCollectionId::No),
                                     nbytes,
                                     0,
@@ -1917,7 +1917,7 @@ cb::EngineErrorItemPair get(EngineIface* h,
         create_cookie = true;
     }
 
-    auto ret = h->get(cookie,
+    auto ret = h->get(*cookie,
                       DocKey(key, DocKeyEncodesCollectionId::No),
                       vb,
                       documentStateFilter);
@@ -1944,7 +1944,7 @@ bool repeat_till_true(std::function<bool()> functor,
 
 void reset_stats(gsl::not_null<EngineIface*> h) {
     auto* cookie = testHarness->create_cookie(h);
-    h->reset_stats(cookie);
+    h->reset_stats(*cookie);
     testHarness->destroy_cookie(cookie);
 }
 
@@ -1953,7 +1953,7 @@ cb::engine_errc get_stats(gsl::not_null<EngineIface*> h,
                           std::string_view value,
                           const AddStatFn& callback) {
     auto* cookie = testHarness->create_cookie(h);
-    auto ret = h->get_stats(cookie, key, value, callback);
+    auto ret = h->get_stats(*cookie, key, value, callback);
     testHarness->destroy_cookie(cookie);
     return ret;
 }

@@ -28,7 +28,7 @@ void collections_get_collection_id_executor(Cookie& cookie) {
         path = std::string_view{reinterpret_cast<const char*>(value.data()),
                                 value.size()};
     }
-    auto rv = connection.getBucketEngine().get_collection_id(&cookie, path);
+    auto rv = connection.getBucketEngine().get_collection_id(cookie, path);
     if (rv.result == cb::engine_errc::success) {
         auto payload = rv.getPayload();
         cookie.sendResponse(cb::mcbp::Status::Success,

@@ -36,15 +36,14 @@ protected:
         EngineTestsuite::TearDown();
     }
 
-    static cb::EngineErrorItemPair allocateItem(
-            EngineIface& engine,
-            gsl::not_null<const CookieIface*> cookie,
-            const DocKey& key,
-            size_t nbytes,
-            int flags,
-            rel_time_t exptime,
-            uint8_t datatype,
-            Vbid vbucket) {
+    static cb::EngineErrorItemPair allocateItem(EngineIface& engine,
+                                                const CookieIface& cookie,
+                                                const DocKey& key,
+                                                size_t nbytes,
+                                                int flags,
+                                                rel_time_t exptime,
+                                                uint8_t datatype,
+                                                Vbid vbucket) {
         try {
             auto pair = engine.allocateItem(cookie,
                                             key,
@@ -69,7 +68,7 @@ protected:
     void setDocument() {
         DocKey key("key", DocKeyEncodesCollectionId::No);
         auto ret = allocateItem(*engine,
-                                cookie.get(),
+                                *cookie,
                                 key,
                                 1,
                                 1,
@@ -81,8 +80,8 @@ protected:
         // Verify that we can store it with CAS = 0 (override)
         uint64_t cas = 0;
         ASSERT_EQ(cb::engine_errc::success,
-                  engine->store(cookie.get(),
-                                ret.second.get(),
+                  engine->store(*cookie,
+                                *ret.second.get(),
                                 cas,
                                 StoreSemantics::Set,
                                 {},
@@ -93,8 +92,8 @@ protected:
 
         // Verify that CAS replace works
         ASSERT_EQ(cb::engine_errc::success,
-                  engine->store(cookie.get(),
-                                ret.second.get(),
+                  engine->store(*cookie,
+                                *ret.second.get(),
                                 cas,
                                 StoreSemantics::Set,
                                 {},
@@ -113,14 +112,8 @@ protected:
  */
 TEST_F(BasicEngineTestsuite, Allocate) {
     DocKey key("akey", DocKeyEncodesCollectionId::No);
-    auto ret = allocateItem(*engine,
-                            cookie.get(),
-                            key,
-                            1,
-                            1,
-                            1,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            Vbid(0));
+    auto ret = allocateItem(
+            *engine, *cookie, key, 1, 1, 1, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);
     ASSERT_TRUE(ret.second);
 }
@@ -137,20 +130,14 @@ TEST_F(BasicEngineTestsuite, Set) {
  */
 TEST_F(BasicEngineTestsuite, Add) {
     DocKey key("key", DocKeyEncodesCollectionId::No);
-    auto ret = allocateItem(*engine,
-                            cookie.get(),
-                            key,
-                            1,
-                            1,
-                            0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            Vbid(0));
+    auto ret = allocateItem(
+            *engine, *cookie, key, 1, 1, 0, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);
 
     for (int ii = 0; ii < 10; ++ii) {
         uint64_t cas;
-        auto rv = engine->store(cookie.get(),
-                                ret.second.get(),
+        auto rv = engine->store(*cookie,
+                                *ret.second.get(),
                                 cas,
                                 StoreSemantics::Add,
                                 {},
@@ -173,7 +160,7 @@ TEST_F(BasicEngineTestsuite, Replace) {
 
     DocKey key("key", DocKeyEncodesCollectionId::No);
     auto ret = allocateItem(*engine,
-                            cookie.get(),
+                            *cookie,
                             key,
                             sizeof(int),
                             1,
@@ -183,7 +170,7 @@ TEST_F(BasicEngineTestsuite, Replace) {
     ASSERT_EQ(cb::engine_errc::success, ret.first);
 
     item_info item_info;
-    ASSERT_TRUE(engine->get_item_info(ret.second.get(), &item_info));
+    ASSERT_TRUE(engine->get_item_info(*ret.second.get(), item_info));
 
     uint64_t prev_cas;
     uint64_t cas = 0;
@@ -191,8 +178,8 @@ TEST_F(BasicEngineTestsuite, Replace) {
         prev_cas = cas;
         *(int*)(item_info.value[0].iov_base) = ii;
         ASSERT_EQ(cb::engine_errc::success,
-                  engine->store(cookie.get(),
-                                ret.second.get(),
+                  engine->store(*cookie,
+                                *ret.second.get(),
                                 cas,
                                 StoreSemantics::Replace,
                                 {},
@@ -201,9 +188,9 @@ TEST_F(BasicEngineTestsuite, Replace) {
         ASSERT_NE(prev_cas, cas);
     }
 
-    ret = engine->get(cookie.get(), key, Vbid(0), DocStateFilter::Alive);
+    ret = engine->get(*cookie, key, Vbid(0), DocStateFilter::Alive);
     ASSERT_EQ(cb::engine_errc::success, ret.first);
-    ASSERT_TRUE(engine->get_item_info(ret.second.get(), &item_info));
+    ASSERT_TRUE(engine->get_item_info(*ret.second.get(), item_info));
     ASSERT_EQ(sizeof(int), item_info.value[0].iov_len);
     ASSERT_EQ(9, *reinterpret_cast<int*>(item_info.value[0].iov_base));
 }
@@ -215,18 +202,12 @@ TEST_F(BasicEngineTestsuite, Replace) {
 TEST_F(BasicEngineTestsuite, Store) {
     DocKey key("bkey", DocKeyEncodesCollectionId::No);
     uint64_t cas = 0;
-    auto ret = allocateItem(*engine,
-                            cookie.get(),
-                            key,
-                            1,
-                            1,
-                            1,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            Vbid(0));
+    auto ret = allocateItem(
+            *engine, *cookie, key, 1, 1, 1, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);
     ASSERT_EQ(cb::engine_errc::success,
-              engine->store(cookie.get(),
-                            ret.second.get(),
+              engine->store(*cookie,
+                            *ret.second.get(),
                             cas,
                             StoreSemantics::Set,
                             {},
@@ -242,24 +223,18 @@ TEST_F(BasicEngineTestsuite, Store) {
 TEST_F(BasicEngineTestsuite, Get) {
     DocKey key("get_test_key", DocKeyEncodesCollectionId::No);
     uint64_t cas = 0;
-    auto ret = allocateItem(*engine,
-                            cookie.get(),
-                            key,
-                            1,
-                            0,
-                            0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            Vbid(0));
+    auto ret = allocateItem(
+            *engine, *cookie, key, 1, 0, 0, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);
     ASSERT_EQ(cb::engine_errc::success,
-              engine->store(cookie.get(),
-                            ret.second.get(),
+              engine->store(*cookie,
+                            *ret.second.get(),
                             cas,
                             StoreSemantics::Set,
                             {},
                             DocumentState::Alive,
                             false));
-    ret = engine->get(cookie.get(), key, Vbid(0), DocStateFilter::Alive);
+    ret = engine->get(*cookie, key, Vbid(0), DocStateFilter::Alive);
     ASSERT_EQ(cb::engine_errc::success, ret.first);
 }
 
@@ -270,41 +245,35 @@ TEST_F(BasicEngineTestsuite, Get) {
 TEST_F(BasicEngineTestsuite, GetDeleted) {
     DocKey key("get_removed_test_key", DocKeyEncodesCollectionId::No);
     uint64_t cas = 0;
-    auto ret = allocateItem(*engine,
-                            cookie.get(),
-                            key,
-                            1,
-                            0,
-                            0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            Vbid(0));
+    auto ret = allocateItem(
+            *engine, *cookie, key, 1, 0, 0, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);
     ASSERT_EQ(cb::engine_errc::success,
-              engine->store(cookie.get(),
-                            ret.second.get(),
+              engine->store(*cookie,
+                            *ret.second.get(),
                             cas,
                             StoreSemantics::Set,
                             {},
                             DocumentState::Alive,
                             false));
-    ret = engine->get(cookie.get(), key, Vbid(0), DocStateFilter::Alive);
+    ret = engine->get(*cookie, key, Vbid(0), DocStateFilter::Alive);
     EXPECT_EQ(cb::engine_errc::success, ret.first);
 
     // Asking for a dead document should not find it!
-    ret = engine->get(cookie.get(), key, Vbid(0), DocStateFilter::Deleted);
+    ret = engine->get(*cookie, key, Vbid(0), DocStateFilter::Deleted);
     EXPECT_EQ(cb::engine_errc::no_such_key, ret.first);
     EXPECT_FALSE(ret.second);
 
     // remove it
     mutation_descr_t mut_info;
     ASSERT_EQ(cb::engine_errc::success,
-              engine->remove(cookie.get(), key, cas, Vbid(0), {}, mut_info));
-    ret = engine->get(cookie.get(), key, Vbid(0), DocStateFilter::Alive);
+              engine->remove(*cookie, key, cas, Vbid(0), {}, mut_info));
+    ret = engine->get(*cookie, key, Vbid(0), DocStateFilter::Alive);
     EXPECT_EQ(cb::engine_errc::no_such_key, ret.first);
     EXPECT_FALSE(ret.second);
 
     // But we should be able to fetch it if we ask for deleted
-    ret = engine->get(cookie.get(), key, Vbid(0), DocStateFilter::Deleted);
+    ret = engine->get(*cookie, key, Vbid(0), DocStateFilter::Deleted);
     EXPECT_EQ(cb::engine_errc::success, ret.first);
     EXPECT_TRUE(ret.second);
 }
@@ -313,7 +282,7 @@ TEST_F(BasicEngineTestsuite, Expiry) {
     DocKey key("get_test_key", DocKeyEncodesCollectionId::No);
     uint64_t cas = 0;
     auto ret = allocateItem(*engine,
-                            cookie.get(),
+                            *cookie,
                             key,
                             1,
                             0,
@@ -322,15 +291,15 @@ TEST_F(BasicEngineTestsuite, Expiry) {
                             Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);
     ASSERT_EQ(cb::engine_errc::success,
-              engine->store(cookie.get(),
-                            ret.second.get(),
+              engine->store(*cookie,
+                            *ret.second.get(),
                             cas,
                             StoreSemantics::Set,
                             {},
                             DocumentState::Alive,
                             false));
     mock_time_travel(11);
-    ret = engine->get(cookie.get(), key, Vbid(0), DocStateFilter::Alive);
+    ret = engine->get(*cookie, key, Vbid(0), DocStateFilter::Alive);
     ASSERT_EQ(cb::engine_errc::no_such_key, ret.first);
 }
 
@@ -342,18 +311,12 @@ TEST_F(BasicEngineTestsuite, Expiry) {
 TEST_F(BasicEngineTestsuite, Release) {
     DocKey key("release_test_key", DocKeyEncodesCollectionId::No);
     uint64_t cas = 0;
-    auto ret = allocateItem(*engine,
-                            cookie.get(),
-                            key,
-                            1,
-                            0,
-                            0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            Vbid(0));
+    auto ret = allocateItem(
+            *engine, *cookie, key, 1, 0, 0, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);
     ASSERT_EQ(cb::engine_errc::success,
-              engine->store(cookie.get(),
-                            ret.second.get(),
+              engine->store(*cookie,
+                            *ret.second.get(),
                             cas,
                             StoreSemantics::Set,
                             {},
@@ -370,26 +333,20 @@ TEST_F(BasicEngineTestsuite, Remove) {
     uint64_t cas = 0;
     mutation_descr_t mut_info;
 
-    auto ret = allocateItem(*engine,
-                            cookie.get(),
-                            key,
-                            1,
-                            0,
-                            0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            Vbid(0));
+    auto ret = allocateItem(
+            *engine, *cookie, key, 1, 0, 0, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);
     ASSERT_EQ(cb::engine_errc::success,
-              engine->store(cookie.get(),
-                            ret.second.get(),
+              engine->store(*cookie,
+                            *ret.second.get(),
                             cas,
                             StoreSemantics::Set,
                             {},
                             DocumentState::Alive,
                             false));
     ASSERT_EQ(cb::engine_errc::success,
-              engine->remove(cookie.get(), key, cas, Vbid(0), {}, mut_info));
-    ret = engine->get(cookie.get(), key, Vbid(0), DocStateFilter::Alive);
+              engine->remove(*cookie, key, cas, Vbid(0), {}, mut_info));
+    ret = engine->get(*cookie, key, Vbid(0), DocStateFilter::Alive);
     ASSERT_EQ(cb::engine_errc::no_such_key, ret.first);
     EXPECT_FALSE(ret.second);
 }
@@ -404,25 +361,19 @@ TEST_F(BasicEngineTestsuite, Flush) {
 
     mock_time_travel(3);
 
-    auto ret = allocateItem(*engine,
-                            cookie.get(),
-                            key,
-                            1,
-                            0,
-                            0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            Vbid(0));
+    auto ret = allocateItem(
+            *engine, *cookie, key, 1, 0, 0, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);
     ASSERT_EQ(cb::engine_errc::success,
-              engine->store(cookie.get(),
-                            ret.second.get(),
+              engine->store(*cookie,
+                            *ret.second.get(),
                             cas,
                             StoreSemantics::Set,
                             {},
                             DocumentState::Alive,
                             false));
-    ASSERT_EQ(cb::engine_errc::success, engine->flush(cookie.get()));
-    ret = engine->get(cookie.get(), key, Vbid(0), DocStateFilter::Alive);
+    ASSERT_EQ(cb::engine_errc::success, engine->flush(*cookie));
+    ret = engine->get(*cookie, key, Vbid(0), DocStateFilter::Alive);
     ASSERT_EQ(cb::engine_errc::no_such_key, ret.first);
     EXPECT_FALSE(ret.second);
 }
@@ -438,7 +389,7 @@ TEST_F(BasicEngineTestsuite, GetItemInfo) {
     item_info ii;
 
     auto ret = allocateItem(*engine,
-                            cookie.get(),
+                            *cookie,
                             key,
                             1,
                             0,
@@ -447,15 +398,15 @@ TEST_F(BasicEngineTestsuite, GetItemInfo) {
                             Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);
     ASSERT_EQ(cb::engine_errc::success,
-              engine->store(cookie.get(),
-                            ret.second.get(),
+              engine->store(*cookie,
+                            *ret.second.get(),
                             cas,
                             StoreSemantics::Set,
                             {},
                             DocumentState::Alive,
                             false));
     /* Had this been actual code, there'd be a connection here */
-    ASSERT_TRUE(engine->get_item_info(ret.second.get(), &ii));
+    ASSERT_TRUE(engine->get_item_info(*ret.second.get(), ii));
     ASSERT_EQ(cas, ii.cas);
     ASSERT_EQ(0u, ii.flags);
     ASSERT_STREQ(reinterpret_cast<const char*>(key.data()),
@@ -476,7 +427,7 @@ TEST_F(BasicEngineTestsuite, ItemSetCas) {
     item_info ii;
 
     auto ret = allocateItem(*engine,
-                            cookie.get(),
+                            *cookie,
                             key,
                             1,
                             0,
@@ -485,16 +436,16 @@ TEST_F(BasicEngineTestsuite, ItemSetCas) {
                             Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);
     ASSERT_EQ(cb::engine_errc::success,
-              engine->store(cookie.get(),
-                            ret.second.get(),
+              engine->store(*cookie,
+                            *ret.second.get(),
                             cas,
                             StoreSemantics::Set,
                             {},
                             DocumentState::Alive,
                             false));
     newcas = cas + 1;
-    engine->item_set_cas(ret.second.get(), newcas);
-    ASSERT_TRUE(engine->get_item_info(ret.second.get(), &ii));
+    engine->item_set_cas(*ret.second.get(), newcas);
+    ASSERT_TRUE(engine->get_item_info(*ret.second.get(), ii));
     ASSERT_EQ(ii.cas, newcas);
 }
 
@@ -516,7 +467,7 @@ TEST_F(BasicEngineTestsuite, LRU) {
     int jj;
 
     auto ret = allocateItem(*engine,
-                            cookie.get(),
+                            *cookie,
                             hot_key,
                             4096,
                             0,
@@ -525,8 +476,8 @@ TEST_F(BasicEngineTestsuite, LRU) {
                             Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);
     ASSERT_EQ(cb::engine_errc::success,
-              engine->store(cookie.get(),
-                            ret.second.get(),
+              engine->store(*cookie,
+                            *ret.second.get(),
                             cas,
                             StoreSemantics::Set,
                             {},
@@ -536,8 +487,7 @@ TEST_F(BasicEngineTestsuite, LRU) {
     for (ii = 0; ii < 250; ++ii) {
         uint8_t key[1024];
 
-        ret = engine->get(
-                cookie.get(), hot_key, Vbid(0), DocStateFilter::Alive);
+        ret = engine->get(*cookie, hot_key, Vbid(0), DocStateFilter::Alive);
         ASSERT_EQ(cb::engine_errc::success, ret.first);
         DocKey allocate_key(key,
                             snprintf(reinterpret_cast<char*>(key),
@@ -546,7 +496,7 @@ TEST_F(BasicEngineTestsuite, LRU) {
                                      ii),
                             DocKeyEncodesCollectionId::No);
         ret = allocateItem(*engine,
-                           cookie.get(),
+                           *cookie,
                            allocate_key,
                            4096,
                            0,
@@ -555,16 +505,15 @@ TEST_F(BasicEngineTestsuite, LRU) {
                            Vbid(0));
         ASSERT_EQ(cb::engine_errc::success, ret.first);
         ASSERT_EQ(cb::engine_errc::success,
-                  engine->store(cookie.get(),
-                                ret.second.get(),
+                  engine->store(*cookie,
+                                *ret.second.get(),
                                 cas,
                                 StoreSemantics::Set,
                                 {},
                                 DocumentState::Alive,
                                 false));
         ASSERT_EQ(cb::engine_errc::success,
-                  engine->get_stats(
-                          cookie.get(), {}, {}, eviction_stats_handler));
+                  engine->get_stats(*cookie, {}, {}, eviction_stats_handler));
         if (evictions == 2) {
             break;
         }
@@ -580,12 +529,10 @@ TEST_F(BasicEngineTestsuite, LRU) {
                                 jj),
                        DocKeyEncodesCollectionId::No);
         if (jj == 0 || jj == 1) {
-            ret = engine->get(
-                    cookie.get(), get_key, Vbid(0), DocStateFilter::Alive);
+            ret = engine->get(*cookie, get_key, Vbid(0), DocStateFilter::Alive);
             ASSERT_EQ(cb::engine_errc::no_such_key, ret.first);
         } else {
-            ret = engine->get(
-                    cookie.get(), get_key, Vbid(0), DocStateFilter::Alive);
+            ret = engine->get(*cookie, get_key, Vbid(0), DocStateFilter::Alive);
             ASSERT_EQ(cb::engine_errc::success, ret.first);
             ASSERT_TRUE(ret.second);
         }
@@ -598,21 +545,21 @@ TEST_F(BasicEngineTestsuite, Datatype) {
     uint64_t cas = 0;
     item_info ii;
 
-    auto ret = allocateItem(*engine, cookie.get(), key, 1, 0, 0, 1, Vbid(0));
+    auto ret = allocateItem(*engine, *cookie, key, 1, 0, 0, 1, Vbid(0));
     ASSERT_EQ(cb::engine_errc::success, ret.first);
     ASSERT_EQ(cb::engine_errc::success,
-              engine->store(cookie.get(),
-                            ret.second.get(),
+              engine->store(*cookie,
+                            *ret.second.get(),
                             cas,
                             StoreSemantics::Set,
                             {},
                             DocumentState::Alive,
                             false));
 
-    ret = engine->get(cookie.get(), key, Vbid(0), DocStateFilter::Alive);
+    ret = engine->get(*cookie, key, Vbid(0), DocStateFilter::Alive);
     ASSERT_EQ(cb::engine_errc::success, ret.first);
 
-    ASSERT_TRUE(engine->get_item_info(ret.second.get(), &ii));
+    ASSERT_TRUE(engine->get_item_info(*ret.second.get(), ii));
     ASSERT_EQ(1, ii.datatype);
 }
 
@@ -635,7 +582,7 @@ TEST_F(BasicEngineTestsuite, test_n_bucket_destroy) {
             uint64_t cas = 0;
             DocKey allocate_key(ss, DocKeyEncodesCollectionId::No);
             auto ret = allocateItem(*bucket,
-                                    cookie.get(),
+                                    *cookie,
                                     allocate_key,
                                     256,
                                     1,
@@ -644,8 +591,8 @@ TEST_F(BasicEngineTestsuite, test_n_bucket_destroy) {
                                     Vbid(0));
             ASSERT_EQ(cb::engine_errc::success, ret.first);
             ASSERT_EQ(cb::engine_errc::success,
-                      bucket->store(cookie.get(),
-                                    ret.second.get(),
+                      bucket->store(*cookie,
+                                    *ret.second.get(),
                                     cas,
                                     StoreSemantics::Set,
                                     {},
@@ -674,7 +621,7 @@ TEST_F(BasicEngineTestsuite, test_bucket_destroy_interleaved) {
             uint64_t cas = 0;
             DocKey allocate_key(ss, DocKeyEncodesCollectionId::No);
             auto ret = allocateItem(*bucket,
-                                    cookie.get(),
+                                    *cookie,
                                     allocate_key,
                                     111256,
                                     1,
@@ -683,8 +630,8 @@ TEST_F(BasicEngineTestsuite, test_bucket_destroy_interleaved) {
                                     Vbid(0));
             ASSERT_EQ(cb::engine_errc::success, ret.first);
             ASSERT_EQ(cb::engine_errc::success,
-                      bucket->store(cookie.get(),
-                                    ret.second.get(),
+                      bucket->store(*cookie,
+                                    *ret.second.get(),
                                     cas,
                                     StoreSemantics::Set,
                                     {},
@@ -721,7 +668,7 @@ protected:
 // store/replace
 TEST_F(CollectionsTest, Allocate) {
     auto ret = allocateItem(*engine,
-                            cookie.get(),
+                            *cookie,
                             key1,
                             1,
                             1,
@@ -732,7 +679,7 @@ TEST_F(CollectionsTest, Allocate) {
     EXPECT_TRUE(ret.second);
 
     ret = allocateItem(*engine,
-                       cookie.get(),
+                       *cookie,
                        key2,
                        1,
                        1,
@@ -743,7 +690,7 @@ TEST_F(CollectionsTest, Allocate) {
     EXPECT_TRUE(ret.second);
 
     ret = allocateItem(*engine,
-                       cookie.get(),
+                       *cookie,
                        key3,
                        1,
                        1,
@@ -760,7 +707,7 @@ void CollectionsTest::storeTest(const DocKey& keyA, const DocKey& keyB) {
     ASSERT_EQ(keyA.hash(), keyB.hash());
 
     auto ret = allocateItem(*engine,
-                            cookie.get(),
+                            *cookie,
                             keyA,
                             32,
                             0xcafef00d,
@@ -772,19 +719,19 @@ void CollectionsTest::storeTest(const DocKey& keyA, const DocKey& keyB) {
 
     uint64_t cas = 0;
     ASSERT_EQ(cb::engine_errc::success,
-              engine->store(cookie.get(),
-                            ret.second.get(),
+              engine->store(*cookie,
+                            *ret.second.get(),
                             cas,
                             StoreSemantics::Set,
                             {},
                             DocumentState::Alive,
                             false));
 
-    ret = engine->get(cookie.get(), keyB, Vbid(0), DocStateFilter::Alive);
+    ret = engine->get(*cookie, keyB, Vbid(0), DocStateFilter::Alive);
     ASSERT_EQ(cb::engine_errc::success, ret.first);
 
     item_info item_info;
-    ASSERT_TRUE(engine->get_item_info(ret.second.get(), &item_info));
+    ASSERT_TRUE(engine->get_item_info(*ret.second.get(), item_info));
     EXPECT_EQ(0xcafef00d, item_info.flags);
 }
 
@@ -802,7 +749,7 @@ TEST_F(CollectionsTest, Store3) {
     // Expect store(key2) get(key1) to work
     storeTest(key2, key1);
     // and be told to go away if a get with key3 was attempted
-    auto ret = engine->get(cookie.get(), key3, Vbid(0), DocStateFilter::Alive);
+    auto ret = engine->get(*cookie, key3, Vbid(0), DocStateFilter::Alive);
     ASSERT_EQ(cb::engine_errc::unknown_collection, ret.first);
 }
 
@@ -812,7 +759,7 @@ void CollectionsTest::removeTest(const DocKey& keyA, const DocKey& keyB) {
     ASSERT_EQ(keyA.hash(), keyB.hash());
 
     auto allocRes = allocateItem(*engine,
-                                 cookie.get(),
+                                 *cookie,
                                  keyA,
                                  32,
                                  0xcafef00d,
@@ -824,8 +771,8 @@ void CollectionsTest::removeTest(const DocKey& keyA, const DocKey& keyB) {
 
     uint64_t cas = 0;
     ASSERT_EQ(cb::engine_errc::success,
-              engine->store(cookie.get(),
-                            allocRes.second.get(),
+              engine->store(*cookie,
+                            *allocRes.second.get(),
                             cas,
                             StoreSemantics::Set,
                             {},
@@ -834,16 +781,15 @@ void CollectionsTest::removeTest(const DocKey& keyA, const DocKey& keyB) {
 
     mutation_descr_t mut_info;
     cas = 0;
-    auto ret = engine->remove(cookie.get(), keyB, cas, Vbid(0), {}, mut_info);
+    auto ret = engine->remove(*cookie, keyB, cas, Vbid(0), {}, mut_info);
     ASSERT_EQ(cb::engine_errc::success, ret);
 
     // It's gone
-    auto getResult =
-            engine->get(cookie.get(), keyA, Vbid(0), DocStateFilter::Alive);
+    auto getResult = engine->get(*cookie, keyA, Vbid(0), DocStateFilter::Alive);
     ASSERT_EQ(cb::engine_errc::no_such_key, getResult.first);
 
     // It's still gone
-    getResult = engine->get(cookie.get(), keyB, Vbid(0), DocStateFilter::Alive);
+    getResult = engine->get(*cookie, keyB, Vbid(0), DocStateFilter::Alive);
     ASSERT_EQ(cb::engine_errc::no_such_key, getResult.first);
 }
 
@@ -861,105 +807,104 @@ TEST_F(CollectionsTest, RemoveError) {
     // key3 denied
     uint64_t cas = 0;
     mutation_descr_t mut_info;
-    auto ret = engine->remove(cookie.get(), key3, cas, Vbid(0), {}, mut_info);
+    auto ret = engine->remove(*cookie, key3, cas, Vbid(0), {}, mut_info);
     ASSERT_EQ(cb::engine_errc::unknown_collection, ret);
 
     // Still here
-    auto getResult =
-            engine->get(cookie.get(), key1, Vbid(0), DocStateFilter::Alive);
+    auto getResult = engine->get(*cookie, key1, Vbid(0), DocStateFilter::Alive);
     ASSERT_EQ(cb::engine_errc::success, getResult.first);
 }
 
 TEST_F(CollectionsTest, GetFromUnknownCollection) {
-    auto getVal = engine->get_if(cookie.get(), key3, Vbid(0), {});
+    auto getVal = engine->get_if(*cookie, key3, Vbid(0), {});
     EXPECT_EQ(cb::engine_errc::unknown_collection, getVal.first);
-    getVal = engine->get_and_touch(cookie.get(), key3, Vbid(0), 0, {});
+    getVal = engine->get_and_touch(*cookie, key3, Vbid(0), 0, {});
     EXPECT_EQ(cb::engine_errc::unknown_collection, getVal.first);
-    getVal = engine->get_locked(cookie.get(), key3, Vbid(0), 0);
+    getVal = engine->get_locked(*cookie, key3, Vbid(0), 0);
     EXPECT_EQ(cb::engine_errc::unknown_collection, getVal.first);
-    auto getMetaVal = engine->get_meta(cookie.get(), key3, Vbid(0));
+    auto getMetaVal = engine->get_meta(*cookie, key3, Vbid(0));
     EXPECT_EQ(cb::engine_errc::unknown_collection, getMetaVal.first);
     EXPECT_EQ(cb::engine_errc::unknown_collection,
-              engine->unlock(cookie.get(), key3, Vbid(0), 0));
+              engine->unlock(*cookie, key3, Vbid(0), 0));
 }
 
 // Can only ever get to the default collection
 TEST_F(CollectionsTest, CollectionIDLookup) {
-    auto rv = engine->get_collection_id(cookie.get(), ".");
+    auto rv = engine->get_collection_id(*cookie, ".");
     EXPECT_EQ(cb::engine_errc::success, rv.result);
     EXPECT_EQ(0, rv.getManifestId());
     EXPECT_EQ(CollectionID::Default, rv.getCollectionId());
 
-    rv = engine->get_collection_id(cookie.get(), "_default.");
+    rv = engine->get_collection_id(*cookie, "_default.");
     EXPECT_EQ(cb::engine_errc::success, rv.result);
     EXPECT_EQ(0, rv.getManifestId());
     EXPECT_EQ(CollectionID::Default, rv.getCollectionId());
 
-    rv = engine->get_collection_id(cookie.get(), "._default");
+    rv = engine->get_collection_id(*cookie, "._default");
     EXPECT_EQ(cb::engine_errc::success, rv.result);
     EXPECT_EQ(0, rv.getManifestId());
     EXPECT_EQ(CollectionID::Default, rv.getCollectionId());
 
-    rv = engine->get_collection_id(cookie.get(), "_default._default");
+    rv = engine->get_collection_id(*cookie, "_default._default");
     EXPECT_EQ(cb::engine_errc::success, rv.result);
     EXPECT_EQ(0, rv.getManifestId());
     EXPECT_EQ(CollectionID::Default, rv.getCollectionId());
 
-    rv = engine->get_collection_id(cookie.get(), "..");
+    rv = engine->get_collection_id(*cookie, "..");
     EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
-    rv = engine->get_collection_id(cookie.get(), "_default.._default");
+    rv = engine->get_collection_id(*cookie, "_default.._default");
     EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
 
-    rv = engine->get_collection_id(cookie.get(), "unknown.");
+    rv = engine->get_collection_id(*cookie, "unknown.");
     EXPECT_EQ(cb::engine_errc::unknown_scope, rv.result);
     EXPECT_EQ(0, rv.getManifestId());
 }
 
 // Can only ever get to the default scope
 TEST_F(CollectionsTest, ScopeIDLookup) {
-    auto rv = engine->get_scope_id(cookie.get(), "");
+    auto rv = engine->get_scope_id(*cookie, "");
     EXPECT_EQ(cb::engine_errc::success, rv.result);
     EXPECT_EQ(0, rv.getManifestId());
     EXPECT_EQ(ScopeID(ScopeID::Default), rv.getScopeId());
 
-    rv = engine->get_scope_id(cookie.get(), ".");
+    rv = engine->get_scope_id(*cookie, ".");
     EXPECT_EQ(cb::engine_errc::success, rv.result);
     EXPECT_EQ(0, rv.getManifestId());
     EXPECT_EQ(ScopeID(ScopeID::Default), rv.getScopeId());
 
-    rv = engine->get_scope_id(cookie.get(), "_default");
+    rv = engine->get_scope_id(*cookie, "_default");
     EXPECT_EQ(cb::engine_errc::success, rv.result);
     EXPECT_EQ(0, rv.getManifestId());
     EXPECT_EQ(ScopeID(ScopeID::Default), rv.getScopeId());
 
-    rv = engine->get_scope_id(cookie.get(), "blah");
+    rv = engine->get_scope_id(*cookie, "blah");
     EXPECT_EQ(cb::engine_errc::unknown_scope, rv.result);
     EXPECT_EQ(0, rv.getManifestId());
 
-    rv = engine->get_scope_id(cookie.get(), "blah.");
+    rv = engine->get_scope_id(*cookie, "blah.");
     EXPECT_EQ(cb::engine_errc::unknown_scope, rv.result);
     EXPECT_EQ(0, rv.getManifestId());
 
-    rv = engine->get_scope_id(cookie.get(), "blah..");
+    rv = engine->get_scope_id(*cookie, "blah..");
     EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
 
-    rv = engine->get_scope_id(cookie.get(), "..");
+    rv = engine->get_scope_id(*cookie, "..");
     EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
 }
 
 // Can only ever get to the default scope (DocKey lookup)
 TEST_F(CollectionsTest, ScopeIDLookup2) {
-    auto rv = engine->get_scope_id(cookie.get(), key1);
+    auto rv = engine->get_scope_id(*cookie, key1);
     EXPECT_EQ(cb::engine_errc::success, rv.result);
     EXPECT_EQ(0, rv.getManifestId());
     EXPECT_EQ(ScopeID(ScopeID::Default), rv.getScopeId());
 
-    rv = engine->get_scope_id(cookie.get(), key2);
+    rv = engine->get_scope_id(*cookie, key2);
     EXPECT_EQ(cb::engine_errc::success, rv.result);
     EXPECT_EQ(0, rv.getManifestId());
     EXPECT_EQ(ScopeID(ScopeID::Default), rv.getScopeId());
 
-    rv = engine->get_scope_id(cookie.get(), key3);
+    rv = engine->get_scope_id(*cookie, key3);
     EXPECT_EQ(cb::engine_errc::unknown_collection, rv.result);
     EXPECT_EQ(0, rv.getManifestId());
 }
@@ -967,7 +912,7 @@ TEST_F(CollectionsTest, ScopeIDLookup2) {
 // Cannot change collections
 TEST_F(CollectionsTest, SetGetCollections) {
     EXPECT_EQ(cb::engine_errc::not_supported,
-              engine->set_collection_manifest(cookie.get(), "{}"));
+              engine->set_collection_manifest(*cookie, "{}"));
 
     std::string returnedData;
     cb::mcbp::Status returnedStatus;
@@ -1003,7 +948,7 @@ TEST_F(CollectionsTest, SetGetCollections) {
         })";
 
     EXPECT_EQ(cb::engine_errc::success,
-              engine->get_collection_manifest(cookie.get(), addResponseFunc));
+              engine->get_collection_manifest(*cookie, addResponseFunc));
     auto defaultManifestJson = nlohmann::json::parse(defaultManifest);
     auto returnedJson = nlohmann::json::parse(returnedData);
     EXPECT_EQ(defaultManifestJson, returnedJson);

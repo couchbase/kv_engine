@@ -1440,7 +1440,7 @@ void Connection::close() {
 void Connection::propagateDisconnect() const {
     for (auto& cookie : cookies) {
         if (cookie) {
-            getBucket().getEngine().disconnect(cookie.get());
+            getBucket().getEngine().disconnect(*cookie);
         }
     }
 }

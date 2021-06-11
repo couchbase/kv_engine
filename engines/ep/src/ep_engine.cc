@@ -205,15 +205,14 @@ void EventuallyPersistentEngine::destroy(const bool force) {
 }
 
 std::pair<cb::unique_item_ptr, item_info>
-EventuallyPersistentEngine::allocateItem(
-        gsl::not_null<const CookieIface*> cookie,
-        const DocKey& key,
-        size_t nbytes,
-        size_t priv_nbytes,
-        int flags,
-        rel_time_t exptime,
-        uint8_t datatype,
-        Vbid vbucket) {
+EventuallyPersistentEngine::allocateItem(const CookieIface& cookie,
+                                         const DocKey& key,
+                                         size_t nbytes,
+                                         size_t priv_nbytes,
+                                         int flags,
+                                         rel_time_t exptime,
+                                         uint8_t datatype,
+                                         Vbid vbucket) {
     auto [status, item] = acquireEngine(this)->itemAllocate(
             key, nbytes, priv_nbytes, flags, exptime, datatype, vbucket);
 
@@ -223,7 +222,7 @@ EventuallyPersistentEngine::allocateItem(
     }
 
     item_info info;
-    if (!get_item_info(item.get(), &info)) {
+    if (!get_item_info(*item, info)) {
         throw cb::engine_error(cb::engine_errc::failed,
                                "EvpItemAllocateEx: EvpGetItemInfo failed");
     }
@@ -232,7 +231,7 @@ EventuallyPersistentEngine::allocateItem(
 }
 
 cb::engine_errc EventuallyPersistentEngine::remove(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         const DocKey& key,
         uint64_t& cas,
         Vbid vbucket,
@@ -253,24 +252,21 @@ cb::engine_errc EventuallyPersistentEngine::remove(
     }
 
     return acquireEngine(this)->itemDelete(
-            cookie, key, cas, vbucket, durReqs, mut_info);
+            &cookie, key, cas, vbucket, durReqs, mut_info);
 }
 
-void EventuallyPersistentEngine::release(gsl::not_null<ItemIface*> itm) {
-    acquireEngine(this)->itemRelease(itm);
+void EventuallyPersistentEngine::release(ItemIface& itm) {
+    acquireEngine(this)->itemRelease(&itm);
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::get(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
         DocStateFilter documentStateFilter) {
-    auto options = static_cast<get_options_t>(QUEUE_BG_FETCH |
-                                                       HONOR_STATES |
-                                                       TRACK_REFERENCE |
-                                                       DELETE_TEMP |
-                                                       HIDE_LOCKED_CAS |
-                                                       TRACK_STATISTICS);
+    auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS);
 
     switch (documentStateFilter) {
     case DocStateFilter::Alive:
@@ -288,19 +284,19 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get(
         options = static_cast<get_options_t>(options | GET_DELETED_VALUE);
         break;
     }
-    return acquireEngine(this)->getInner(cookie, key, vbucket, options);
+    return acquireEngine(this)->getInner(&cookie, key, vbucket, options);
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
         std::function<bool(const item_info&)> filter) {
-    return acquireEngine(this)->getIfInner(cookie, key, vbucket, filter);
+    return acquireEngine(this)->getIfInner(&cookie, key, vbucket, filter);
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_and_touch(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
         uint32_t expiry_time,
@@ -309,24 +305,23 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_and_touch(
         return cb::makeEngineErrorItemPair(cb::engine_errc::not_supported);
     }
     return acquireEngine(this)->getAndTouchInner(
-            cookie, key, vbucket, expiry_time);
+            &cookie, key, vbucket, expiry_time);
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_locked(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
         uint32_t lock_timeout) {
     return acquireEngine(this)->getLockedInner(
-            cookie, key, vbucket, lock_timeout);
+            &cookie, key, vbucket, lock_timeout);
 }
 
-cb::engine_errc EventuallyPersistentEngine::unlock(
-        gsl::not_null<const CookieIface*> cookie,
-        const DocKey& key,
-        Vbid vbucket,
-        uint64_t cas) {
-    return acquireEngine(this)->unlockInner(cookie, key, vbucket, cas);
+cb::engine_errc EventuallyPersistentEngine::unlock(const CookieIface& cookie,
+                                                   const DocKey& key,
+                                                   Vbid vbucket,
+                                                   uint64_t cas) {
+    return acquireEngine(this)->unlockInner(&cookie, key, vbucket, cas);
 }
 
 /**
@@ -349,7 +344,7 @@ auto makeExitBorderGuard = [](auto&& wrapped) {
 };
 
 cb::engine_errc EventuallyPersistentEngine::get_stats(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         std::string_view key,
         std::string_view value,
         const AddStatFn& add_stat) {
@@ -363,7 +358,7 @@ cb::engine_errc EventuallyPersistentEngine::get_stats(
     auto addStatExitBorderGuard = makeExitBorderGuard(std::cref(add_stat));
 
     return acquireEngine(this)->getStats(
-            cookie, key, value, addStatExitBorderGuard);
+            &cookie, key, value, addStatExitBorderGuard);
 }
 
 cb::engine_errc EventuallyPersistentEngine::get_prometheus_stats(
@@ -399,14 +394,14 @@ cb::engine_errc EventuallyPersistentEngine::get_prometheus_stats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::store(
-        gsl::not_null<const CookieIface*> cookie,
-        gsl::not_null<ItemIface*> itm,
+        const CookieIface& cookie,
+        ItemIface& itm,
         uint64_t& cas,
         StoreSemantics operation,
         const std::optional<cb::durability::Requirements>& durability,
         DocumentState document_state,
         bool preserveTtl) {
-    Item& item = *static_cast<Item*>(itm.get());
+    Item& item = static_cast<Item&>(itm);
 
     if (item.getNBytes() == 0 &&
         item.getDataType() != PROTOCOL_BINARY_RAW_BYTES) {
@@ -428,19 +423,19 @@ cb::engine_errc EventuallyPersistentEngine::store(
     item.increaseDurabilityLevel(kvBucket->getMinDurabilityLevel());
 
     return acquireEngine(this)->storeInner(
-            cookie, item, cas, operation, preserveTtl);
+            &cookie, item, cas, operation, preserveTtl);
 }
 
 cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
-        gsl::not_null<const CookieIface*> cookie,
-        gsl::not_null<ItemIface*> itm,
+        const CookieIface& cookie,
+        ItemIface& itm,
         uint64_t cas,
         StoreSemantics operation,
         const cb::StoreIfPredicate& predicate,
         const std::optional<cb::durability::Requirements>& durability,
         DocumentState document_state,
         bool preserveTtl) {
-    Item& item = static_cast<Item&>(*static_cast<Item*>(itm.get()));
+    Item& item = static_cast<Item&>(itm);
 
     if (item.getNBytes() == 0 &&
         item.getDataType() != PROTOCOL_BINARY_RAW_BYTES) {
@@ -462,11 +457,10 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
     item.increaseDurabilityLevel(kvBucket->getMinDurabilityLevel());
 
     return acquireEngine(this)->storeIfInner(
-            cookie, item, cas, operation, predicate, preserveTtl);
+            &cookie, item, cas, operation, predicate, preserveTtl);
 }
 
-void EventuallyPersistentEngine::reset_stats(
-        gsl::not_null<const CookieIface*> cookie) {
+void EventuallyPersistentEngine::reset_stats(const CookieIface& cookie) {
     acquireEngine(this)->resetStats();
 }
 
@@ -956,13 +950,13 @@ cb::mcbp::Status EventuallyPersistentEngine::evictKey(
 }
 
 cb::engine_errc EventuallyPersistentEngine::setParameter(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         EngineParamCategory category,
         std::string_view key,
         std::string_view value,
         Vbid vbid) {
     return acquireEngine(this)->setParameterInner(
-            cookie, category, key, value, vbid);
+            &cookie, category, key, value, vbid);
 }
 
 cb::engine_errc EventuallyPersistentEngine::setParameterInner(
@@ -1185,15 +1179,13 @@ cb::engine_errc EventuallyPersistentEngine::unknown_command(
     return ret;
 }
 
-void EventuallyPersistentEngine::item_set_cas(gsl::not_null<ItemIface*> itm,
-                                              uint64_t cas) {
-    static_cast<Item*>(itm.get())->setCas(cas);
+void EventuallyPersistentEngine::item_set_cas(ItemIface& itm, uint64_t cas) {
+    static_cast<Item&>(itm).setCas(cas);
 }
 
 void EventuallyPersistentEngine::item_set_datatype(
-        gsl::not_null<ItemIface*> itm,
-        protocol_binary_datatype_t datatype) {
-    static_cast<Item*>(itm.get())->setDataType(datatype);
+        ItemIface& itm, protocol_binary_datatype_t datatype) {
+    static_cast<Item&>(itm).setDataType(datatype);
 }
 
 cb::engine_errc EventuallyPersistentEngine::step(
@@ -1632,44 +1624,40 @@ void destroy_ep_engine() {
     ExecutorPool::shutdown();
 }
 
-bool EventuallyPersistentEngine::get_item_info(
-        gsl::not_null<const ItemIface*> itm,
-        gsl::not_null<item_info*> itm_info) {
-    const Item* it = reinterpret_cast<const Item*>(itm.get());
-    *itm_info = acquireEngine(this)->getItemInfo(*it);
+bool EventuallyPersistentEngine::get_item_info(const ItemIface& itm,
+                                               item_info& itm_info) {
+    const auto& it = static_cast<const Item&>(itm);
+    itm_info = acquireEngine(this)->getItemInfo(it);
     return true;
 }
 
 cb::EngineErrorMetadataPair EventuallyPersistentEngine::get_meta(
-        gsl::not_null<const CookieIface*> cookie,
-        const DocKey& key,
-        Vbid vbucket) {
-    return acquireEngine(this)->getMetaInner(cookie, key, vbucket);
+        const CookieIface& cookie, const DocKey& key, Vbid vbucket) {
+    return acquireEngine(this)->getMetaInner(&cookie, key, vbucket);
 }
 
 cb::engine_errc EventuallyPersistentEngine::set_collection_manifest(
-        gsl::not_null<const CookieIface*> cookie, std::string_view json) {
+        const CookieIface& cookie, std::string_view json) {
     auto engine = acquireEngine(this);
-    auto rv = engine->getKVBucket()->setCollections(json, cookie);
+    auto rv = engine->getKVBucket()->setCollections(json, &cookie);
 
     auto status = cb::engine_errc(rv.code().value());
     if (cb::engine_errc::success != status &&
         status != cb::engine_errc::would_block) {
-        engine->setErrorContext(cookie, rv.what());
+        engine->setErrorContext(&cookie, rv.what());
     }
 
     return status;
 }
 
 cb::engine_errc EventuallyPersistentEngine::get_collection_manifest(
-        gsl::not_null<const CookieIface*> cookie,
-        const AddResponseFn& response) {
+        const CookieIface& cookie, const AddResponseFn& response) {
     auto engine = acquireEngine(this);
     Collections::IsVisibleFunction isVisible =
             [&engine, &cookie](ScopeID sid,
                                std::optional<CollectionID> cid) -> bool {
         const auto status = engine->testPrivilege(
-                cookie, cb::rbac::Privilege::Read, sid, cid);
+                &cookie, cb::rbac::Privilege::Read, sid, cid);
         return status != cb::engine_errc::unknown_collection &&
                status != cb::engine_errc::unknown_scope;
     };
@@ -1687,19 +1675,19 @@ cb::engine_errc EventuallyPersistentEngine::get_collection_manifest(
                          PROTOCOL_BINARY_DATATYPE_JSON,
                          rv.first,
                          0,
-                         cookie));
+                         &cookie));
 }
 
 cb::EngineErrorGetCollectionIDResult
-EventuallyPersistentEngine::get_collection_id(
-        gsl::not_null<const CookieIface*> cookie, std::string_view path) {
+EventuallyPersistentEngine::get_collection_id(const CookieIface& cookie,
+                                              std::string_view path) {
     auto engine = acquireEngine(this);
     auto rv = engine->getKVBucket()->getCollectionID(path);
 
     if (rv.result == cb::engine_errc::success) {
         // Test for any privilege, we are testing if we have visibility which
         // means at least 1 privilege in the bucket.scope.collection 'path'
-        auto status = testPrivilege(cookie,
+        auto status = testPrivilege(&cookie,
                                     cb::rbac::Privilege::Read,
                                     rv.getScopeId(),
                                     rv.getCollectionId());
@@ -1711,21 +1699,20 @@ EventuallyPersistentEngine::get_collection_id(
     }
     if (rv.result == cb::engine_errc::unknown_collection ||
         rv.result == cb::engine_errc::unknown_scope) {
-        engine->setUnknownCollectionErrorContext(cookie,
-                                                 rv.getManifestId());
+        engine->setUnknownCollectionErrorContext(&cookie, rv.getManifestId());
     }
     return rv;
 }
 
 cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
-        gsl::not_null<const CookieIface*> cookie, std::string_view path) {
+        const CookieIface& cookie, std::string_view path) {
     auto engine = acquireEngine(this);
     auto rv = engine->getKVBucket()->getScopeID(path);
     if (rv.result == cb::engine_errc::success) {
         // Test for any privilege, we are testing if we have visibility which
         // means at least 1 privilege in the bucket.scope 'path'
         auto status = testPrivilege(
-                cookie, cb::rbac::Privilege::Read, rv.getScopeId(), {});
+                &cookie, cb::rbac::Privilege::Read, rv.getScopeId(), {});
         if (status == cb::engine_errc::no_access) {
             // This is fine, still visible - back to success
             status = cb::engine_errc::success;
@@ -1734,15 +1721,13 @@ cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
     }
 
     if (rv.result == cb::engine_errc::unknown_scope) {
-        engine->setUnknownCollectionErrorContext(cookie, rv.getManifestId());
+        engine->setUnknownCollectionErrorContext(&cookie, rv.getManifestId());
     }
     return rv;
 }
 
 cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
-        gsl::not_null<const CookieIface*>,
-        const DocKey& key,
-        std::optional<Vbid> vbid) const {
+        const CookieIface&, const DocKey& key, std::optional<Vbid> vbid) const {
     auto engine = acquireEngine(this);
     if (vbid) {
         auto vbucket = engine->getVBucket(*vbid);
@@ -6772,37 +6757,36 @@ void EventuallyPersistentEngine::set_num_storage_threads(
     }
 }
 
-void EventuallyPersistentEngine::disconnect(
-        gsl::not_null<const CookieIface*> cookie) {
-    acquireEngine(this)->handleDisconnect(cookie);
+void EventuallyPersistentEngine::disconnect(const CookieIface& cookie) {
+    acquireEngine(this)->handleDisconnect(&cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::compactDatabase(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         Vbid vbid,
         uint64_t purge_before_ts,
         uint64_t purge_before_seq,
         bool drop_deletes) {
     return acquireEngine(this)->compactDatabaseInner(
-            cookie, vbid, purge_before_ts, purge_before_seq, drop_deletes);
+            &cookie, vbid, purge_before_ts, purge_before_seq, drop_deletes);
 }
 
 std::pair<cb::engine_errc, vbucket_state_t>
-EventuallyPersistentEngine::getVBucket(gsl::not_null<const CookieIface*> cookie,
-                                       Vbid vbid) {
-    return acquireEngine(this)->getVBucketInner(cookie, vbid);
+EventuallyPersistentEngine::getVBucket(const CookieIface& cookie, Vbid vbid) {
+    return acquireEngine(this)->getVBucketInner(&cookie, vbid);
 }
 
 cb::engine_errc EventuallyPersistentEngine::setVBucket(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         Vbid vbid,
         uint64_t cas,
         vbucket_state_t state,
         nlohmann::json* meta) {
-    return acquireEngine(this)->setVBucketInner(cookie, vbid, cas, state, meta);
+    return acquireEngine(this)->setVBucketInner(
+            &cookie, vbid, cas, state, meta);
 }
 
 cb::engine_errc EventuallyPersistentEngine::deleteVBucket(
-        gsl::not_null<const CookieIface*> cookie, Vbid vbid, bool sync) {
-    return acquireEngine(this)->deleteVBucketInner(cookie, vbid, sync);
+        const CookieIface& cookie, Vbid vbid, bool sync) {
+    return acquireEngine(this)->deleteVBucketInner(&cookie, vbid, sync);
 }

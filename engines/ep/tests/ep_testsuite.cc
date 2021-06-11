@@ -779,7 +779,7 @@ static enum test_result test_expiry_with_xattr(EngineIface* h) {
     /* Retrieve the item info and create a new blob out of the data */
     item_info info;
     checkeq(true,
-            h->get_item_info(ret.second.get(), &info),
+            h->get_item_info(*ret.second.get(), info),
             "Unable to retrieve item info");
 
     cb::char_buffer value_buf{static_cast<char*>(info.value[0].iov_base),
@@ -821,14 +821,14 @@ static enum test_result test_expiry(EngineIface* h) {
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h->get_item_info(ret.second.get(), &info)) {
+    if (!h->get_item_info(*ret.second.get(), info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    auto rv = h->store(cookie,
-                       ret.second.get(),
+    auto rv = h->store(*cookie,
+                       *ret.second.get(),
                        cas,
                        StoreSemantics::Set,
                        {},
@@ -885,14 +885,14 @@ static enum test_result test_expiry_loader(EngineIface* h) {
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h->get_item_info(ret.second.get(), &info)) {
+    if (!h->get_item_info(*ret.second.get(), info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    auto rv = h->store(cookie,
-                       ret.second.get(),
+    auto rv = h->store(*cookie,
+                       *ret.second.get(),
                        cas,
                        StoreSemantics::Set,
                        {},
@@ -1049,14 +1049,14 @@ static enum test_result test_expiration_on_warmup(EngineIface* h) {
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h->get_item_info(ret.second.get(), &info)) {
+    if (!h->get_item_info(*ret.second.get(), info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    auto rv = h->store(cookie,
-                       ret.second.get(),
+    auto rv = h->store(*cookie,
+                       *ret.second.get(),
                        cas,
                        StoreSemantics::Set,
                        {},
@@ -1130,14 +1130,14 @@ static enum test_result test_bug3454(EngineIface* h) {
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h->get_item_info(ret.second.get(), &info)) {
+    if (!h->get_item_info(*ret.second.get(), info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    auto rv = h->store(cookie,
-                       ret.second.get(),
+    auto rv = h->store(*cookie,
+                       *ret.second.get(),
                        cas,
                        StoreSemantics::Set,
                        {},
@@ -1162,15 +1162,15 @@ static enum test_result test_bug3454(EngineIface* h) {
                    Vbid(0));
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
-    if (!h->get_item_info(ret.second.get(), &info)) {
+    if (!h->get_item_info(*ret.second.get(), info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     cas = 0;
     // Add a new item with the same key.
-    rv = h->store(cookie,
-                  ret.second.get(),
+    rv = h->store(*cookie,
+                  *ret.second.get(),
                   cas,
                   StoreSemantics::Add,
                   {},
@@ -1220,14 +1220,14 @@ static enum test_result test_bug3522(EngineIface* h) {
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h->get_item_info(ret.second.get(), &info)) {
+    if (!h->get_item_info(*ret.second.get(), info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    auto rv = h->store(cookie,
-                       ret.second.get(),
+    auto rv = h->store(*cookie,
+                       *ret.second.get(),
                        cas,
                        StoreSemantics::Set,
                        {},
@@ -1249,15 +1249,15 @@ static enum test_result test_bug3522(EngineIface* h) {
                    Vbid(0));
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
-    if (!h->get_item_info(ret.second.get(), &info)) {
+    if (!h->get_item_info(*ret.second.get(), info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, new_data, strlen(new_data));
 
     int pager_runs = get_int_stat(h, "ep_num_expiry_pager_runs");
     cas = 0;
-    rv = h->store(cookie,
-                  ret.second.get(),
+    rv = h->store(*cookie,
+                  *ret.second.get(),
                   cas,
                   StoreSemantics::Set,
                   {},
@@ -2441,7 +2441,7 @@ static enum test_result test_key_stats(EngineIface* h) {
     // stat for key "k1" and vbucket "0"
     const char *statkey1 = "key k1 0";
     checkeq(cb::engine_errc::success,
-            h->get_stats(cookie, {statkey1, strlen(statkey1)}, {}, add_stats),
+            h->get_stats(*cookie, {statkey1, strlen(statkey1)}, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2452,7 +2452,7 @@ static enum test_result test_key_stats(EngineIface* h) {
     // stat for key "k2" and vbucket "1"
     const char *statkey2 = "key k2 1";
     checkeq(cb::engine_errc::success,
-            h->get_stats(cookie, {statkey2, strlen(statkey2)}, {}, add_stats),
+            h->get_stats(*cookie, {statkey2, strlen(statkey2)}, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2495,7 +2495,7 @@ static enum test_result test_key_stats_eaccess(EngineIface* h) {
                 return cb::rbac::PrivilegeAccessFail;
             });
 
-    const auto ret = h->get_stats(cookie, "key k1 0"sv, {}, add_stats);
+    const auto ret = h->get_stats(*cookie, "key k1 0"sv, {}, add_stats);
     // Reset priv check function
     mock_set_check_privilege_function({});
     checkeq(cb::engine_errc::no_access,
@@ -2534,7 +2534,7 @@ static enum test_result test_vkey_stats(EngineIface* h) {
     // stat for key "k1" and vbucket "0"
     const char *statkey1 = "vkey k1 0";
     checkeq(cb::engine_errc::success,
-            h->get_stats(cookie, {statkey1, strlen(statkey1)}, {}, add_stats),
+            h->get_stats(*cookie, {statkey1, strlen(statkey1)}, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2546,7 +2546,7 @@ static enum test_result test_vkey_stats(EngineIface* h) {
     // stat for key "k2" and vbucket "1"
     const char *statkey2 = "vkey k2 1";
     checkeq(cb::engine_errc::success,
-            h->get_stats(cookie, {statkey2, strlen(statkey2)}, {}, add_stats),
+            h->get_stats(*cookie, {statkey2, strlen(statkey2)}, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2558,7 +2558,7 @@ static enum test_result test_vkey_stats(EngineIface* h) {
     // stat for key "k3" and vbucket "2"
     const char *statkey3 = "vkey k3 2";
     checkeq(cb::engine_errc::success,
-            h->get_stats(cookie, {statkey3, strlen(statkey3)}, {}, add_stats),
+            h->get_stats(*cookie, {statkey3, strlen(statkey3)}, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2570,7 +2570,7 @@ static enum test_result test_vkey_stats(EngineIface* h) {
     // stat for key "k4" and vbucket "3"
     const char *statkey4 = "vkey k4 3";
     checkeq(cb::engine_errc::success,
-            h->get_stats(cookie, {statkey4, strlen(statkey4)}, {}, add_stats),
+            h->get_stats(*cookie, {statkey4, strlen(statkey4)}, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2582,7 +2582,7 @@ static enum test_result test_vkey_stats(EngineIface* h) {
     // stat for key "k5" and vbucket "4"
     const char *statkey5 = "vkey k5 4";
     checkeq(cb::engine_errc::success,
-            h->get_stats(cookie, {statkey5, strlen(statkey5)}, {}, add_stats),
+            h->get_stats(*cookie, {statkey5, strlen(statkey5)}, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -3214,7 +3214,7 @@ static enum test_result test_datatype(EngineIface* h) {
     checkeq(cb::engine_errc::success, ret.first, "Unable to get stored item");
 
     item_info info;
-    h->get_item_info(ret.second.get(), &info);
+    h->get_item_info(*ret.second.get(), info);
     checkeq(PROTOCOL_BINARY_DATATYPE_JSON, info.datatype, "Invalid datatype");
 
     const char* key1 = "foo";
@@ -3241,7 +3241,7 @@ static enum test_result test_datatype(EngineIface* h) {
     ret = get(h, cookie, key1, Vbid(0));
     checkeq(cb::engine_errc::success, ret.first, "Unable to get stored item");
 
-    h->get_item_info(ret.second.get(), &info);
+    h->get_item_info(*ret.second.get(), info);
     checkeq(PROTOCOL_BINARY_DATATYPE_JSON,
             info.datatype,
             "Invalid datatype, when setWithMeta");
@@ -3282,7 +3282,7 @@ static enum test_result test_datatype_with_unknown_command(EngineIface* h) {
     checkeq(cb::engine_errc::success, ret.first, "Unable to get stored item");
 
     item_info info;
-    h->get_item_info(ret.second.get(), &info);
+    h->get_item_info(*ret.second.get(), info);
     checkeq(PROTOCOL_BINARY_DATATYPE_JSON,
             info.datatype,
             "Invalid datatype, when setWithMeta");
@@ -3758,7 +3758,7 @@ static enum test_result test_cbd_225(EngineIface* h) {
 static enum test_result test_workload_stats(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
     checkeq(cb::engine_errc::success,
-            h->get_stats(cookie, "workload"sv, {}, add_stats),
+            h->get_stats(*cookie, "workload"sv, {}, add_stats),
             "Falied to get workload stats");
     testHarness->destroy_cookie(cookie);
     int num_read_threads =
@@ -3782,7 +3782,7 @@ static enum test_result test_workload_stats(EngineIface* h) {
 static enum test_result test_max_workload_stats(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
     checkeq(cb::engine_errc::success,
-            h->get_stats(cookie, "workload"sv, {}, add_stats),
+            h->get_stats(*cookie, "workload"sv, {}, add_stats),
             "Failed to get workload stats");
     testHarness->destroy_cookie(cookie);
     int num_read_threads =
@@ -3884,7 +3884,7 @@ static enum test_result test_all_keys_api(EngineIface* h) {
                       0,
                       Vbid(0)),
                 "Failed to store a value");
-        h->release(itm);
+        h->release(*itm);
     }
     std::string del_key("key_" + std::to_string(del_key_idx));
     checkeq(cb::engine_errc::success,
@@ -4219,7 +4219,7 @@ static enum test_result test_duplicate_items_disk(EngineIface* h) {
                       0,
                       Vbid(1)),
                 "Failed to store a value");
-        h->release(i);
+        h->release(*i);
     }
     wait_for_flusher_to_settle(h);
 
@@ -4489,7 +4489,7 @@ static enum test_result test_kill9_bucket(EngineIface* h) {
                       0,
                       Vbid(0)),
                 "Failed to store a value");
-        h->release(i);
+        h->release(*i);
     }
     for (it = keys.begin(); it != keys.end(); ++it) {
         check_key_value(h, it->c_str(), it->data(), it->size(), Vbid(0));
@@ -5272,7 +5272,8 @@ static enum test_result test_stats_vkey_valid_field(EngineIface* h) {
     // Check vkey when a key doesn't exist
     const char* stats_key = "vkey key 0";
     checkeq(cb::engine_errc::no_such_key,
-            h->get_stats(cookie, {stats_key, strlen(stats_key)}, {}, add_stats),
+            h->get_stats(
+                    *cookie, {stats_key, strlen(stats_key)}, {}, add_stats),
             "Expected not found.");
 
     stop_persistence(h);
@@ -5283,7 +5284,8 @@ static enum test_result test_stats_vkey_valid_field(EngineIface* h) {
 
     // Check to make sure a non-persisted item is 'dirty'
     checkeq(cb::engine_errc::success,
-            h->get_stats(cookie, {stats_key, strlen(stats_key)}, {}, add_stats),
+            h->get_stats(
+                    *cookie, {stats_key, strlen(stats_key)}, {}, add_stats),
             "Failed to get stats.");
     checkeq("dirty"s, vals.find("key_valid")->second, "Expected 'dirty'");
 
@@ -5291,14 +5293,15 @@ static enum test_result test_stats_vkey_valid_field(EngineIface* h) {
     start_persistence(h);
     wait_for_stat_to_be(h, "ep_total_persisted", 1);
     checkeq(cb::engine_errc::success,
-            h->get_stats(cookie, {stats_key, strlen(stats_key)}, {}, add_stats),
+            h->get_stats(
+                    *cookie, {stats_key, strlen(stats_key)}, {}, add_stats),
             "Failed to get stats.");
     checkeq("valid"s, vals.find("key_valid")->second, "Expected 'valid'");
 
     // Check that an evicted key still returns valid
     evict_key(h, "key", Vbid(0), "Ejected.");
     checkeq(cb::engine_errc::success,
-            h->get_stats(cookie, "vkey key 0"sv, {}, add_stats),
+            h->get_stats(*cookie, "vkey key 0"sv, {}, add_stats),
             "Failed to get stats.");
     checkeq("valid"s, vals.find("key_valid")->second, "Expected 'valid'");
 
@@ -5864,7 +5867,7 @@ static enum test_result test_keyStats_with_item_eviction(EngineIface* h) {
     // stat for key "k1" and vbucket "0"
     const char *statkey1 = "key k1 0";
     checkeq(cb::engine_errc::success,
-            h->get_stats(cookie, {statkey1, strlen(statkey1)}, {}, add_stats),
+            h->get_stats(*cookie, {statkey1, strlen(statkey1)}, {}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -5912,7 +5915,7 @@ static enum test_result test_del_with_item_eviction(EngineIface* h) {
 
     Item *it = reinterpret_cast<Item*>(i);
     uint64_t orig_cas = it->getCas();
-    h->release(i);
+    h->release(*i);
 
     uint64_t cas = 0;
     uint64_t vb_uuid;
