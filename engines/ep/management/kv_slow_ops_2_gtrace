@@ -42,11 +42,16 @@ for line in fileinput.input():
         # Build a trace event from each span in the slow op.
         for span in slow_op['trace'].split():
             (name, value) = span.split('=')
-            (start_us, dur) = value.split(':')
+            (start_us, dur) = map(int, value.split(':'))
+            # MB-43617: Ignore any spans which have zero time and duration;
+            # they are spurious due to missing copy-elision when recording
+            # Spans.
+            if not (start_us or dur):
+                continue
             event = dict()
             event.update(common)
             event['name'] = name
-            event['ts'] = int(start_us) / 1000
+            event['ts'] = start_us / 1000
             event['dur'] = dur
             # For the top-level 'request' event, include additional request
             # details (redundant to repeat for every event).
