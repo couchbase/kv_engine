@@ -149,7 +149,12 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
                            {"ht_locks", 47},
                            {"compression_mode", "off"},
                            {"failpartialwarmup", false},
-                           {"max_num_shards", 4}};
+                           {"max_num_shards", 4},
+                           // flow control static with 1 byte. This will force
+                           // acking of every message and improve our ability to
+                           // catch issues with mismatched acking.
+                           {"dcp_flow_control_policy", "static"},
+                           {"dcp_conn_buffer_size","1"}};
 
     json.update(attributes);
 
@@ -188,7 +193,9 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
                                      cb::mcbp::Feature::XERROR,
                                      cb::mcbp::Feature::SELECT_BUCKET,
                                      cb::mcbp::Feature::JSON,
-                                     cb::mcbp::Feature::SNAPPY});
+                                     cb::mcbp::Feature::SNAPPY,
+                                     // CC onwards, enable collections
+                                     cb::mcbp::Feature::Collections});
             const auto dbname = nodes[node_idx]->directory / name;
             json["dbname"] = dbname.generic_string();
             json["alog_path"] = (dbname / "access.log").generic_string();

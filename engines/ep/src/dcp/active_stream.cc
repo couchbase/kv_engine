@@ -1073,7 +1073,8 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                                                  item->getVBucketId(),
                                                  item->getPrepareSeqno(),
                                                  item->getBySeqno(),
-                                                 item->getKey());
+                                                 item->getKey(),
+                                                 includeCollectionID);
     }
 
     if (item->getOperation() == queue_op::abort_sync_write) {
@@ -1082,7 +1083,8 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                 item->getVBucketId(),
                 item->getKey(),
                 item->getPrepareSeqno(),
-                item->getBySeqno() /*abortSeqno*/);
+                item->getBySeqno() /*abortSeqno*/,
+                includeCollectionID);
     }
 
     if (item->getOperation() != queue_op::system_event) {
