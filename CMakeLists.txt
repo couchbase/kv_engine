@@ -107,6 +107,8 @@ IF (UNIX AND COUCHBASE_KV_BUILD_UNIT_TESTS)
         add_test(memcached-breakpad-test-${VARIANT}
              ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
              ${Memcached_BINARY_DIR}/memcached ${VARIANT} ${test_extra_args})
+        set_tests_properties(memcached-breakpad-test-${VARIANT}
+            PROPERTIES TIMEOUT 60)
     endfunction()
 
     add_breakpad_test(segfault)
