@@ -396,7 +396,9 @@ bool Request::isValid() const {
         return false;
     }
 
-    return (size_t(extlen) + size_t(getKeylen()) <= size_t(getBodylen()));
+    return (size_t(getFramingExtraslen()) + size_t(extlen) +
+                    size_t(getKeylen()) <=
+            size_t(getBodylen()));
 }
 
 } // namespace cb::mcbp
