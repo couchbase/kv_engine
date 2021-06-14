@@ -18,18 +18,14 @@
 #include <platform/base64.h>
 #include <platform/random.h>
 #include <platform/string_hex.h>
-#include <cstring>
-#include <iomanip>
-#include <iostream>
 #include <map>
 #include <memory>
-#include <set>
 #include <sstream>
 #include <string>
 
 namespace cb::sasl::mechanism::scram {
 
-typedef std::map<char, std::string> AttributeMap;
+using AttributeMap = std::map<char, std::string>;
 
 /**
  * Decode the attribute list into a set. The attribute list looks like:
