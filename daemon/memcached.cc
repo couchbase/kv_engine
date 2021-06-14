@@ -23,14 +23,12 @@
 #include "mcaudit.h"
 #include "mcbp_executors.h"
 #include "mcbp_topkeys.h"
-#include "mcbp_validators.h"
 #include "network_interface.h"
 #include "network_interface_manager.h"
 #include "nobucket_taskable.h"
 #include "opentelemetry.h"
 #include "protocol/mcbp/engine_wrapper.h"
 #include "runtime.h"
-#include "server_core_api.h"
 #include "settings.h"
 #include "ssl_utils.h"
 #include "stats.h"
@@ -45,7 +43,6 @@
 #include <gsl/gsl-lite.hpp>
 #include <mcbp/mcbp.h>
 #include <memcached/rbac.h>
-#include <memcached/server_core_iface.h>
 #include <memcached/util.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
@@ -58,19 +55,16 @@
 #include <platform/sysinfo.h>
 #include <statistics/prometheus.h>
 #include <utilities/breakpad.h>
-#include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/openssl_utils.h>
 
 #include <executor/executorpool.h>
 #include <chrono>
 #include <csignal>
-#include <cstddef>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
 #include <memory>
 #include <thread>
-#include <vector>
 
 #if HAVE_LIBNUMA
 #include <numa.h>
