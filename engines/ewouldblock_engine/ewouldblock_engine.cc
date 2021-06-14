@@ -215,7 +215,7 @@ public:
     void initiate_shutdown() override;
 
     void disconnect(const CookieIface& cookie) override {
-        uint64_t id = real_api->cookie->get_connection_id(&cookie);
+        uint64_t id = real_api->cookie->get_connection_id(cookie);
         {
             std::lock_guard<std::mutex> guard(cookie_map_mutex);
             connection_map.erase(id);
@@ -239,7 +239,7 @@ public:
             return true;
         }
 
-        uint64_t id = real_api->cookie->get_connection_id(cookie);
+        uint64_t id = real_api->cookie->get_connection_id(*cookie);
 
         std::lock_guard<std::mutex> guard(cookie_map_mutex);
 
@@ -601,10 +601,10 @@ public:
                     // cookie and throw an exception for the cookie
                     {
                         auto* cookie_api = gsa()->cookie;
-                        cookie_api->reserve(cookie);
+                        cookie_api->reserve(*cookie);
                         std::thread release{[cookie_api, cookie]() {
                             // This will block on the thread mutex
-                            cookie_api->release(cookie);
+                            cookie_api->release(*cookie);
                         }};
                         release.detach();
                     }
@@ -635,7 +635,7 @@ public:
                             new_mode->to_string(),
                             static_cast<const void*>(cookie));
 
-                    uint64_t id = real_api->cookie->get_connection_id(cookie);
+                    uint64_t id = real_api->cookie->get_connection_id(*cookie);
 
                     {
                         std::lock_guard<std::mutex> guard(cookie_map_mutex);
@@ -1442,7 +1442,7 @@ cb::engine_errc EWB_Engine::open(const CookieIface& cookie,
                     std::make_pair(false, std::numeric_limits<uint64_t>::max());
         }
 
-        real_api->cookie->setDcpConnHandler(&cookie, this);
+        real_api->cookie->setDcpConnHandler(cookie, this);
         return cb::engine_errc::success;
     }
 
@@ -1887,7 +1887,7 @@ void EWB_Engine::process_notifications() {
             LOG_DEBUG("EWB_Engine: notify {} status:{}",
                       static_cast<const void*>(op.cookie),
                       op.status);
-            server->cookie->notify_io_complete(op.cookie, op.status);
+            server->cookie->notify_io_complete(*op.cookie, op.status);
             lk.lock();
         }
     }

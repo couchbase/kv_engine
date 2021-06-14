@@ -7669,7 +7669,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
 
     // Priv checking
     mock_set_check_privilege_function(
-            [](gsl::not_null<const CookieIface*> c,
+            [](const CookieIface& c,
                cb::rbac::Privilege priv,
                std::optional<ScopeID> sid,
                std::optional<CollectionID> cid) -> cb::rbac::PrivilegeAccess {
@@ -7682,7 +7682,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
             h, RequestedVBState::Active, cookie, 8, cb::engine_errc::no_access);
     get_all_vb_seqnos(h, RequestedVBState::Active, cookie, 9);
     mock_set_check_privilege_function(
-            [](gsl::not_null<const CookieIface*> c,
+            [](const CookieIface& c,
                cb::rbac::Privilege priv,
                std::optional<ScopeID> sid,
                std::optional<CollectionID> cid) -> cb::rbac::PrivilegeAccess {

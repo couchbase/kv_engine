@@ -1056,7 +1056,7 @@ void default_engine::generate_unknown_collection_response(
     // Default engine does not support collection changes, so is always
     // reporting 'unknown collection' against the epoch manifest (uid 0)
     server.cookie->set_unknown_collection_error_context(
-            const_cast<CookieIface*>(cookie), 0);
+            const_cast<CookieIface&>(*cookie), 0);
 }
 
 std::pair<cb::engine_errc, vbucket_state_t> default_engine::getVBucket(

@@ -75,115 +75,107 @@ public:
     ~WrappedServerCookieIface() override {
         get_mock_server_api()->cookie = wrapped;
     }
-    void setDcpConnHandler(gsl::not_null<const CookieIface*> cookie,
+    void setDcpConnHandler(const CookieIface& cookie,
                            DcpConnHandlerIface* handler) override {
         wrapped->setDcpConnHandler(cookie, handler);
     }
-    DcpConnHandlerIface* getDcpConnHandler(
-            gsl::not_null<const CookieIface*> cookie) override {
+    DcpConnHandlerIface* getDcpConnHandler(const CookieIface& cookie) override {
         return wrapped->getDcpConnHandler(cookie);
     }
-    void setDcpFlowControlBufferSize(gsl::not_null<const CookieIface*> cookie,
+    void setDcpFlowControlBufferSize(const CookieIface& cookie,
                                      std::size_t size) override {
         wrapped->setDcpFlowControlBufferSize(cookie, size);
     }
-    void store_engine_specific(gsl::not_null<const CookieIface*> cookie,
+    void store_engine_specific(const CookieIface& cookie,
                                void* engine_data) override {
         wrapped->store_engine_specific(cookie, engine_data);
     }
-    void* get_engine_specific(
-            gsl::not_null<const CookieIface*> cookie) override {
+    void* get_engine_specific(const CookieIface& cookie) override {
         return wrapped->get_engine_specific(cookie);
     }
-    bool is_datatype_supported(gsl::not_null<const CookieIface*> cookie,
+    bool is_datatype_supported(const CookieIface& cookie,
                                protocol_binary_datatype_t datatype) override {
         return wrapped->is_datatype_supported(cookie, datatype);
     }
-    bool is_mutation_extras_supported(
-            gsl::not_null<const CookieIface*> cookie) override {
+    bool is_mutation_extras_supported(const CookieIface& cookie) override {
         return wrapped->is_mutation_extras_supported(cookie);
     }
-    bool is_collections_supported(
-            gsl::not_null<const CookieIface*> cookie) override {
+    bool is_collections_supported(const CookieIface& cookie) override {
         return wrapped->is_collections_supported(cookie);
     }
     cb::mcbp::ClientOpcode get_opcode_if_ewouldblock_set(
-            gsl::not_null<const CookieIface*> cookie) override {
+            const CookieIface& cookie) override {
         return wrapped->get_opcode_if_ewouldblock_set(cookie);
     }
-    void notify_io_complete(gsl::not_null<const CookieIface*> cookie,
+    void notify_io_complete(const CookieIface& cookie,
                             cb::engine_errc status) override {
         return wrapped->notify_io_complete(cookie, status);
     }
-    void scheduleDcpStep(gsl::not_null<const CookieIface*> cookie) override {
+    void scheduleDcpStep(const CookieIface& cookie) override {
         wrapped->scheduleDcpStep(cookie);
     }
-    void reserve(gsl::not_null<const CookieIface*> cookie) override {
+    void reserve(const CookieIface& cookie) override {
         wrapped->reserve(cookie);
     }
-    void release(gsl::not_null<const CookieIface*> cookie) override {
+    void release(const CookieIface& cookie) override {
         wrapped->release(cookie);
     }
-    void set_priority(gsl::not_null<const CookieIface*> cookie,
+    void set_priority(const CookieIface& cookie,
                       ConnectionPriority priority) override {
         return wrapped->set_priority(cookie, priority);
     }
-    ConnectionPriority get_priority(
-            gsl::not_null<const CookieIface*> cookie) override {
+    ConnectionPriority get_priority(const CookieIface& cookie) override {
         return wrapped->get_priority(cookie);
     }
-    uint64_t get_connection_id(
-            gsl::not_null<const CookieIface*> cookie) override {
+    uint64_t get_connection_id(const CookieIface& cookie) override {
         return wrapped->get_connection_id(cookie);
     }
     cb::rbac::PrivilegeAccess check_privilege(
-            gsl::not_null<const CookieIface*> cookie,
+            const CookieIface& cookie,
             cb::rbac::Privilege privilege,
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) override {
         return wrapped->check_privilege(cookie, privilege, sid, cid);
     }
     cb::rbac::PrivilegeAccess test_privilege(
-            gsl::not_null<const CookieIface*> cookie,
+            const CookieIface& cookie,
             cb::rbac::Privilege privilege,
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) override {
         return wrapped->test_privilege(cookie, privilege, sid, cid);
     }
     uint32_t get_privilege_context_revision(
-            gsl::not_null<const CookieIface*> cookie) override {
+            const CookieIface& cookie) override {
         return wrapped->get_privilege_context_revision(cookie);
     }
-    cb::mcbp::Status engine_error2mcbp(gsl::not_null<const CookieIface*> cookie,
+    cb::mcbp::Status engine_error2mcbp(const CookieIface& cookie,
                                        cb::engine_errc code) override {
         return wrapped->engine_error2mcbp(cookie, code);
     }
     std::pair<uint32_t, std::string> get_log_info(
-            gsl::not_null<const CookieIface*> cookie) override {
+            const CookieIface& cookie) override {
         return wrapped->get_log_info(cookie);
     }
-    std::string get_authenticated_user(
-            gsl::not_null<const CookieIface*> cookie) override {
+    std::string get_authenticated_user(const CookieIface& cookie) override {
         return wrapped->get_authenticated_user(cookie);
     }
-    in_port_t get_connected_port(
-            gsl::not_null<const CookieIface*> cookie) override {
+    in_port_t get_connected_port(const CookieIface& cookie) override {
         return wrapped->get_connected_port(cookie);
     }
-    void set_error_context(gsl::not_null<CookieIface*> cookie,
+    void set_error_context(CookieIface& cookie,
                            std::string_view message) override {
         wrapped->set_error_context(cookie, message);
     }
-    void set_error_json_extras(gsl::not_null<CookieIface*> cookie,
+    void set_error_json_extras(CookieIface& cookie,
                                const nlohmann::json& json) override {
         wrapped->set_error_json_extras(cookie, json);
     }
-    void set_unknown_collection_error_context(
-            gsl::not_null<CookieIface*> cookie, uint64_t manifestUid) override {
+    void set_unknown_collection_error_context(CookieIface& cookie,
+                                              uint64_t manifestUid) override {
         wrapped->set_unknown_collection_error_context(cookie, manifestUid);
     }
     std::string_view get_inflated_payload(
-            gsl::not_null<const CookieIface*> cookie,
+            const CookieIface& cookie,
             const cb::mcbp::Request& request) override {
         throw std::runtime_error("get_inflated_payload not implemented");
     }
@@ -1545,15 +1537,14 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete) {
     size_t notify_count = 0;
     class MockServerCookieApi : public WrappedServerCookieIface {
     public:
-        void scheduleDcpStep(
-                gsl::not_null<const CookieIface*> cookie) override {
+        void scheduleDcpStep(const CookieIface& cookie) override {
             auto* notify_ptr = reinterpret_cast<size_t*>(
                     wrapped->get_engine_specific(cookie));
             (*notify_ptr)++;
         }
     } scapi;
 
-    scapi.store_engine_specific(cookie, &notify_count);
+    scapi.store_engine_specific(*cookie, &notify_count);
 
     // 0. Should start with no notifications.
     ASSERT_EQ(0, notify_count);
@@ -1605,15 +1596,14 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
 
     class MockServerCookieApi : public WrappedServerCookieIface {
     public:
-        void scheduleDcpStep(
-                gsl::not_null<const CookieIface*> cookie) override {
+        void scheduleDcpStep(const CookieIface& cookie) override {
             auto* notify_ptr = reinterpret_cast<size_t*>(
                     get_mock_server_api()->cookie->get_engine_specific(cookie));
             (*notify_ptr)++;
         }
     } scapi;
 
-    scapi.store_engine_specific(cookie, &notify_count);
+    scapi.store_engine_specific(*cookie, &notify_count);
 
     // 0. Should start with no notifications.
     ASSERT_EQ(0, notify_count);
@@ -2268,7 +2258,7 @@ public:
 
         // Save `this` in server-specific so we can retrieve it from
         // dcp_test_notify_io_complete below:
-        get_mock_server_api()->cookie->store_engine_specific(cookie, this);
+        get_mock_server_api()->cookie->store_engine_specific(*cookie, this);
 
         producer = connMap->newProducer(cookie,
                                         "test_producer",
@@ -2288,11 +2278,10 @@ public:
         return callbacks;
     }
 
-    static void dcp_test_notify_io_complete(
-            gsl::not_null<const CookieIface*> cookie, cb::engine_errc status) {
+    static void dcp_test_notify_io_complete(const CookieIface& cookie,
+                                            cb::engine_errc status) {
         const auto* notifyTest = reinterpret_cast<const ConnMapNotifyTest*>(
-                get_mock_server_api()->cookie->get_engine_specific(
-                        cookie.get()));
+                get_mock_server_api()->cookie->get_engine_specific(cookie));
         cb_assert(notifyTest != nullptr);
         const_cast<ConnMapNotifyTest*>(notifyTest)->notify();
     }
@@ -2312,12 +2301,11 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify) {
     // Hook into notify_io_complete
     class MockServerCookieApi : public WrappedServerCookieIface {
     public:
-        void notify_io_complete(gsl::not_null<const CookieIface*> cookie,
+        void notify_io_complete(const CookieIface& cookie,
                                 cb::engine_errc status) override {
             ConnMapNotifyTest::dcp_test_notify_io_complete(cookie, status);
         }
-        void scheduleDcpStep(
-                gsl::not_null<const CookieIface*> cookie) override {
+        void scheduleDcpStep(const CookieIface& cookie) override {
             ConnMapNotifyTest::dcp_test_notify_io_complete(
                     cookie, cb::engine_errc::success);
         }
@@ -2357,12 +2345,11 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify_paused) {
     // Hook into notify_io_complete
     class MockServerCookieApi : public WrappedServerCookieIface {
     public:
-        void notify_io_complete(gsl::not_null<const CookieIface*> cookie,
+        void notify_io_complete(const CookieIface& cookie,
                                 cb::engine_errc status) override {
             ConnMapNotifyTest::dcp_test_notify_io_complete(cookie, status);
         }
-        void scheduleDcpStep(
-                gsl::not_null<const CookieIface*> cookie) override {
+        void scheduleDcpStep(const CookieIface& cookie) override {
             ConnMapNotifyTest::dcp_test_notify_io_complete(
                     cookie, cb::engine_errc::success);
         }

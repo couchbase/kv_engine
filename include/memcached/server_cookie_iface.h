@@ -45,7 +45,7 @@ struct ServerCookieIface {
      * @param cookie The cookie provided by the core for the operation
      * @param handler The new handler (may be nullptr to clear the handler)
      */
-    virtual void setDcpConnHandler(gsl::not_null<const CookieIface*> cookie,
+    virtual void setDcpConnHandler(const CookieIface& cookie,
                                    DcpConnHandlerIface* handler) = 0;
 
     /**
@@ -61,7 +61,7 @@ struct ServerCookieIface {
      *         none is specified)
      */
     virtual DcpConnHandlerIface* getDcpConnHandler(
-            gsl::not_null<const CookieIface*> cookie) = 0;
+            const CookieIface& cookie) = 0;
 
     /**
      * Store engine-specific session data on the given cookie.
@@ -74,7 +74,7 @@ struct ServerCookieIface {
      * @param cookie The cookie provided by the frontend
      * @param engine_data pointer to opaque data
      */
-    virtual void store_engine_specific(gsl::not_null<const CookieIface*> cookie,
+    virtual void store_engine_specific(const CookieIface& cookie,
                                        void* engine_data) = 0;
 
     /**
@@ -85,8 +85,7 @@ struct ServerCookieIface {
      * @return the data provied by store_engine_specific or NULL
      *         if none was provided
      */
-    virtual void* get_engine_specific(
-            gsl::not_null<const CookieIface*> cookie) = 0;
+    virtual void* get_engine_specific(const CookieIface& cookie) = 0;
 
     /**
      * Check if datatype is supported by the connection.
@@ -96,7 +95,7 @@ struct ServerCookieIface {
      *
      * @return true if connection supports the datatype or else false.
      */
-    virtual bool is_datatype_supported(gsl::not_null<const CookieIface*> cookie,
+    virtual bool is_datatype_supported(const CookieIface& cookie,
                                        protocol_binary_datatype_t datatype) = 0;
 
     /**
@@ -106,8 +105,7 @@ struct ServerCookieIface {
      *
      * @return true if supported or else false.
      */
-    virtual bool is_mutation_extras_supported(
-            gsl::not_null<const CookieIface*> cookie) = 0;
+    virtual bool is_mutation_extras_supported(const CookieIface& cookie) = 0;
 
     /**
      * Check if collections are supported by the connection.
@@ -116,8 +114,7 @@ struct ServerCookieIface {
      *
      * @return true if supported or else false.
      */
-    virtual bool is_collections_supported(
-            gsl::not_null<const CookieIface*> cookie) = 0;
+    virtual bool is_collections_supported(const CookieIface& cookie) = 0;
 
     /**
      * Retrieve the opcode of the connection, if
@@ -132,14 +129,14 @@ struct ServerCookieIface {
      * connection.
      */
     virtual cb::mcbp::ClientOpcode get_opcode_if_ewouldblock_set(
-            gsl::not_null<const CookieIface*> cookie) = 0;
+            const CookieIface& cookie) = 0;
 
     /**
      * Let a connection know that IO has completed.
      * @param cookie cookie representing the connection
      * @param status the status for the io operation
      */
-    virtual void notify_io_complete(gsl::not_null<const CookieIface*> cookie,
+    virtual void notify_io_complete(const CookieIface& cookie,
                                     cb::engine_errc status) = 0;
 
     /**
@@ -149,33 +146,32 @@ struct ServerCookieIface {
      * @param cookie cookie representing the connection (MUST be a DCP
      *               connection)
      */
-    virtual void scheduleDcpStep(gsl::not_null<const CookieIface*> cookie) = 0;
+    virtual void scheduleDcpStep(const CookieIface& cookie) = 0;
 
     /**
      * Notify the core that we're holding on to this cookie for
      * future use. (The core guarantees it will not invalidate the
      * memory until the cookie is invalidated by calling release())
      */
-    virtual void reserve(gsl::not_null<const CookieIface*> cookie) = 0;
+    virtual void reserve(const CookieIface& cookie) = 0;
 
     /**
      * Notify the core that we're releasing the reference to the
      * The engine is not allowed to use the cookie (the core may invalidate
      * the memory)
      */
-    virtual void release(gsl::not_null<const CookieIface*> cookie) = 0;
+    virtual void release(const CookieIface& cookie) = 0;
 
     /**
      * Set the priority for this connection
      */
-    virtual void set_priority(gsl::not_null<const CookieIface*> cookie,
+    virtual void set_priority(const CookieIface& cookie,
                               ConnectionPriority priority) = 0;
 
     /**
      * Get the priority for this connection
      */
-    virtual ConnectionPriority get_priority(
-            gsl::not_null<const CookieIface*> cookie) = 0;
+    virtual ConnectionPriority get_priority(const CookieIface& cookie) = 0;
 
     /**
      * Get connection id
@@ -183,8 +179,7 @@ struct ServerCookieIface {
      * @param cookie the cookie sent to the engine for an operation
      * @return a unique identifier for a connection
      */
-    virtual uint64_t get_connection_id(
-            gsl::not_null<const CookieIface*> cookie) = 0;
+    virtual uint64_t get_connection_id(const CookieIface& cookie) = 0;
 
     /**
      * Check if the cookie have the specified privilege in it's active set.
@@ -198,7 +193,7 @@ struct ServerCookieIface {
      *         active set. PrivilegeAccess::Fail/FailNoPrivileges otherwise
      */
     virtual cb::rbac::PrivilegeAccess check_privilege(
-            gsl::not_null<const CookieIface*> cookie,
+            const CookieIface& cookie,
             cb::rbac::Privilege privilege,
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) = 0;
@@ -210,8 +205,8 @@ struct ServerCookieIface {
      * @param cookie the cookie representing the DCP connection
      * @param size The new buffer size
      */
-    virtual void setDcpFlowControlBufferSize(
-            gsl::not_null<const CookieIface*> cookie, std::size_t size) = 0;
+    virtual void setDcpFlowControlBufferSize(const CookieIface& cookie,
+                                             std::size_t size) = 0;
 
     /**
      * Test if the cookie have the specified privilege in it's active set.
@@ -225,7 +220,7 @@ struct ServerCookieIface {
      *         active set. PrivilegeAccess::Fail/FailNoPrivileges otherwise
      */
     virtual cb::rbac::PrivilegeAccess test_privilege(
-            gsl::not_null<const CookieIface*> cookie,
+            const CookieIface& cookie,
             cb::rbac::Privilege privilege,
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) = 0;
@@ -234,7 +229,7 @@ struct ServerCookieIface {
     /// allow the engine to cache the result of a privilege check if locating
     /// the sid / cid is costly.
     virtual uint32_t get_privilege_context_revision(
-            gsl::not_null<const CookieIface*> cookie) = 0;
+            const CookieIface& cookie) = 0;
 
     /**
      * Method to map an engine error code to the appropriate mcbp response
@@ -249,8 +244,8 @@ struct ServerCookieIface {
      *         std::logic_error if the error code doesn't make sense
      *         std::invalid_argument if the code doesn't exist
      */
-    virtual cb::mcbp::Status engine_error2mcbp(
-            gsl::not_null<const CookieIface*> cookie, cb::engine_errc code) = 0;
+    virtual cb::mcbp::Status engine_error2mcbp(const CookieIface& cookie,
+                                               cb::engine_errc code) = 0;
 
     /**
      * Get the log information to be used for a log entry.
@@ -268,13 +263,11 @@ struct ServerCookieIface {
      * from the core) so it should _not_ be cached.
      */
     virtual std::pair<uint32_t, std::string> get_log_info(
-            gsl::not_null<const CookieIface*> cookie) = 0;
+            const CookieIface& cookie) = 0;
 
-    virtual std::string get_authenticated_user(
-            gsl::not_null<const CookieIface*> cookie) = 0;
+    virtual std::string get_authenticated_user(const CookieIface& cookie) = 0;
 
-    virtual in_port_t get_connected_port(
-            gsl::not_null<const CookieIface*> cookie) = 0;
+    virtual in_port_t get_connected_port(const CookieIface& cookie) = 0;
 
     /**
      * Set the error context string to be sent in response. This should not
@@ -291,7 +284,7 @@ struct ServerCookieIface {
      * @param cookie the client cookie (to look up client connection)
      * @param message the message string to be set as the error context
      */
-    virtual void set_error_context(gsl::not_null<CookieIface*> cookie,
+    virtual void set_error_context(CookieIface& cookie,
                                    std::string_view message) = 0;
 
     /**
@@ -310,7 +303,7 @@ struct ServerCookieIface {
      * @param cookie the client cookie (to look up client connection)
      * @param json extra json object to include in a error response.
      */
-    virtual void set_error_json_extras(gsl::not_null<CookieIface*> cookie,
+    virtual void set_error_json_extras(CookieIface& cookie,
                                        const nlohmann::json& json) = 0;
 
     /**
@@ -328,8 +321,8 @@ struct ServerCookieIface {
      * @param cookie the client cookie (to look up client connection)
      * @param manifestUid id to include in response
      */
-    virtual void set_unknown_collection_error_context(
-            gsl::not_null<CookieIface*> cookie, uint64_t manifestUid) = 0;
+    virtual void set_unknown_collection_error_context(CookieIface& cookie,
+                                                      uint64_t manifestUid) = 0;
 
     /**
      * Get the inflated payload associated with this command
@@ -339,6 +332,5 @@ struct ServerCookieIface {
      * @return the inflated payload
      */
     virtual std::string_view get_inflated_payload(
-            gsl::not_null<const CookieIface*> cookie,
-            const cb::mcbp::Request& request) = 0;
+            const CookieIface& cookie, const cb::mcbp::Request& request) = 0;
 };

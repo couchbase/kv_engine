@@ -937,7 +937,7 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
             log.setBufferSize(size);
             NonBucketAllocationGuard guard;
             engine_.getServerApi()->cookie->setDcpFlowControlBufferSize(
-                    getCookie(), size);
+                    *getCookie(), size);
             return cb::engine_errc::success;
         }
     } else if (strncmp(param, "stream_buffer_size", key.size()) == 0) {

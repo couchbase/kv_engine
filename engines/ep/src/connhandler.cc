@@ -47,15 +47,15 @@ ConnHandler::ConnHandler(EventuallyPersistentEngine& e,
       created(ep_current_time()),
       disconnect(false),
       paused(false),
-      authenticatedUser(e.getServerApi()->cookie->get_authenticated_user(c)),
-      connected_port(e.getServerApi()->cookie->get_connected_port(c)),
+      authenticatedUser(e.getServerApi()->cookie->get_authenticated_user(*c)),
+      connected_port(e.getServerApi()->cookie->get_connected_port(*c)),
       idleTimeout(e.getConfiguration().getDcpIdleTimeout()) {
     logger = BucketLogger::createBucketLogger(
             std::to_string(reinterpret_cast<uintptr_t>(this)));
 
     auto* cookie_api = e.getServerApi()->cookie;
-    cookie_api->setDcpConnHandler(c, this);
-    auto connId = cookie_api->get_log_info(c).first;
+    cookie_api->setDcpConnHandler(*c, this);
+    auto connId = cookie_api->get_log_info(*c).first;
     logger->setConnectionId(connId);
 }
 

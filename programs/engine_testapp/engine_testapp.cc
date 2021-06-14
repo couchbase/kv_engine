@@ -194,7 +194,7 @@ public:
 
     void store_engine_specific(const CookieIface* cookie,
                                void* engine_data) override {
-        get_mock_server_api()->cookie->store_engine_specific(cookie,
+        get_mock_server_api()->cookie->store_engine_specific(*cookie,
                                                              engine_data);
     }
 
@@ -267,7 +267,7 @@ public:
 
     void notify_io_complete(const CookieIface* cookie,
                             cb::engine_errc status) override {
-        get_mock_server_api()->cookie->notify_io_complete(cookie, status);
+        get_mock_server_api()->cookie->notify_io_complete(*cookie, status);
     }
 
 private:

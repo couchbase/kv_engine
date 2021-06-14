@@ -299,7 +299,7 @@ void DcpConnMap::disconnect(const CookieIface* cookie) {
                 NonBucketAllocationGuard guard;
                 if (epe) {
                     auto conn_desc = epe->getServerApi()
-                                             ->cookie->get_log_info(cookie)
+                                             ->cookie->get_log_info(*cookie)
                                              .second;
                     connForCookie->getLogger().info("Removing connection {}",
                                                     conn_desc);

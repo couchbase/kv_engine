@@ -99,7 +99,7 @@ TEST_F(StatTest, vbucket_seqno_stats_test) {
 // return does_not_exist.
 TEST_F(StatTest, vbucket_takeover_stats_no_stream) {
     // Create a new Dcp producer, reserving its cookie.
-    get_mock_server_api()->cookie->reserve(cookie);
+    get_mock_server_api()->cookie->reserve(*cookie);
     engine->getDcpConnMap().newProducer(cookie,
                                         "test_producer",
                                         /*flags*/ 0);

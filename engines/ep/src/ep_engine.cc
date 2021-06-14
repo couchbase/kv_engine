@@ -1791,35 +1791,35 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
 
 void EventuallyPersistentEngine::reserveCookie(const CookieIface* cookie) {
     NonBucketAllocationGuard guard;
-    serverApi->cookie->reserve(cookie);
+    serverApi->cookie->reserve(*cookie);
 }
 
 void EventuallyPersistentEngine::releaseCookie(const CookieIface* cookie) {
     NonBucketAllocationGuard guard;
-    serverApi->cookie->release(cookie);
+    serverApi->cookie->release(*cookie);
 }
 
 void EventuallyPersistentEngine::storeEngineSpecific(const CookieIface* cookie,
                                                      void* engine_data) {
     NonBucketAllocationGuard guard;
-    serverApi->cookie->store_engine_specific(cookie, engine_data);
+    serverApi->cookie->store_engine_specific(*cookie, engine_data);
 }
 
 void* EventuallyPersistentEngine::getEngineSpecific(const CookieIface* cookie) {
     NonBucketAllocationGuard guard;
-    return serverApi->cookie->get_engine_specific(cookie);
+    return serverApi->cookie->get_engine_specific(*cookie);
 }
 
 bool EventuallyPersistentEngine::isDatatypeSupported(
         const CookieIface* cookie, protocol_binary_datatype_t datatype) {
     NonBucketAllocationGuard guard;
-    return serverApi->cookie->is_datatype_supported(cookie, datatype);
+    return serverApi->cookie->is_datatype_supported(*cookie, datatype);
 }
 
 bool EventuallyPersistentEngine::isMutationExtrasSupported(
         const CookieIface* cookie) {
     NonBucketAllocationGuard guard;
-    return serverApi->cookie->is_mutation_extras_supported(cookie);
+    return serverApi->cookie->is_mutation_extras_supported(*cookie);
 }
 
 bool EventuallyPersistentEngine::isXattrEnabled(const CookieIface* cookie) {
@@ -1829,26 +1829,26 @@ bool EventuallyPersistentEngine::isXattrEnabled(const CookieIface* cookie) {
 bool EventuallyPersistentEngine::isCollectionsSupported(
         const CookieIface* cookie) {
     NonBucketAllocationGuard guard;
-    return serverApi->cookie->is_collections_supported(cookie);
+    return serverApi->cookie->is_collections_supported(*cookie);
 }
 
 cb::mcbp::ClientOpcode EventuallyPersistentEngine::getOpcodeIfEwouldblockSet(
         const CookieIface* cookie) {
     NonBucketAllocationGuard guard;
-    return serverApi->cookie->get_opcode_if_ewouldblock_set(cookie);
+    return serverApi->cookie->get_opcode_if_ewouldblock_set(*cookie);
 }
 
 void EventuallyPersistentEngine::setErrorContext(const CookieIface* cookie,
                                                  std::string_view message) {
     NonBucketAllocationGuard guard;
-    serverApi->cookie->set_error_context(const_cast<CookieIface*>(cookie),
+    serverApi->cookie->set_error_context(const_cast<CookieIface&>(*cookie),
                                          message);
 }
 
 void EventuallyPersistentEngine::setErrorJsonExtras(
         const CookieIface* cookie, const nlohmann::json& json) const {
     NonBucketAllocationGuard guard;
-    serverApi->cookie->set_error_json_extras(const_cast<CookieIface*>(cookie),
+    serverApi->cookie->set_error_json_extras(const_cast<CookieIface&>(*cookie),
                                              json);
 }
 
@@ -1856,7 +1856,7 @@ void EventuallyPersistentEngine::setUnknownCollectionErrorContext(
         const CookieIface* cookie, uint64_t manifestUid) const {
     NonBucketAllocationGuard guard;
     serverApi->cookie->set_unknown_collection_error_context(
-            const_cast<CookieIface*>(cookie), manifestUid);
+            const_cast<CookieIface&>(*cookie), manifestUid);
 }
 
 template <typename T>
@@ -4616,7 +4616,7 @@ cb::engine_errc EventuallyPersistentEngine::doPrivilegedStats(
         std::string_view key) {
     // Privileged stats - need Stats priv (and not just SimpleStats).
     const auto acc = getServerApi()->cookie->check_privilege(
-            cookie, cb::rbac::Privilege::Stats, {}, {});
+            *cookie, cb::rbac::Privilege::Stats, {}, {});
 
     if (acc.success()) {
         if (cb_isPrefix(key, "_checkpoint-dump")) {
@@ -4865,7 +4865,7 @@ cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
         std::optional<ScopeID> sid,
         std::optional<CollectionID> cid) const {
     try {
-        switch (serverApi->cookie->check_privilege(cookie, priv, sid, cid)
+        switch (serverApi->cookie->check_privilege(*cookie, priv, sid, cid)
                         .getStatus()) {
         case cb::rbac::PrivilegeAccess::Status::Ok:
             return cb::engine_errc::success;
@@ -4892,7 +4892,7 @@ cb::engine_errc EventuallyPersistentEngine::testPrivilege(
         std::optional<ScopeID> sid,
         std::optional<CollectionID> cid) const {
     try {
-        switch (serverApi->cookie->test_privilege(cookie, priv, sid, cid)
+        switch (serverApi->cookie->test_privilege(*cookie, priv, sid, cid)
                         .getStatus()) {
         case cb::rbac::PrivilegeAccess::Status::Ok:
             return cb::engine_errc::success;
@@ -4918,7 +4918,7 @@ cb::engine_errc EventuallyPersistentEngine::testPrivilege(
  */
 uint32_t EventuallyPersistentEngine::getPrivilegeRevision(
         const CookieIface* cookie) const {
-    return serverApi->cookie->get_privilege_context_revision(cookie);
+    return serverApi->cookie->get_privilege_context_revision(*cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::observe(
@@ -6104,14 +6104,14 @@ cb::engine_errc EventuallyPersistentEngine::getAllKeys(
 ConnectionPriority EventuallyPersistentEngine::getDCPPriority(
         const CookieIface* cookie) {
     NonBucketAllocationGuard guard;
-    auto priority = serverApi->cookie->get_priority(cookie);
+    auto priority = serverApi->cookie->get_priority(*cookie);
     return priority;
 }
 
 void EventuallyPersistentEngine::setDCPPriority(const CookieIface* cookie,
                                                 ConnectionPriority priority) {
     NonBucketAllocationGuard guard;
-    serverApi->cookie->set_priority(cookie, priority);
+    serverApi->cookie->set_priority(*cookie, priority);
 }
 
 void EventuallyPersistentEngine::notifyIOComplete(const CookieIface* cookie,
@@ -6121,14 +6121,14 @@ void EventuallyPersistentEngine::notifyIOComplete(const CookieIface* cookie,
     } else {
         HdrMicroSecBlockTimer bt(&stats.notifyIOHisto);
         NonBucketAllocationGuard guard;
-        serverApi->cookie->notify_io_complete(cookie, status);
+        serverApi->cookie->notify_io_complete(*cookie, status);
     }
 }
 
 void EventuallyPersistentEngine::scheduleDcpStep(
         gsl::not_null<const CookieIface*> cookie) {
     NonBucketAllocationGuard guard;
-    serverApi->cookie->scheduleDcpStep(cookie);
+    serverApi->cookie->scheduleDcpStep(*cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::getRandomKey(
@@ -6245,7 +6245,7 @@ cb::engine_errc EventuallyPersistentEngine::dcpAddStream(
 
 ConnHandler* EventuallyPersistentEngine::tryGetConnHandler(
         const CookieIface* cookie) {
-    auto* iface = serverApi->cookie->getDcpConnHandler(cookie);
+    auto* iface = serverApi->cookie->getDcpConnHandler(*cookie);
     if (iface) {
         auto* handler = dynamic_cast<ConnHandler*>(iface);
         if (handler) {
@@ -6420,7 +6420,7 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     // of.
     // If the client IS talking collections but hasn't specified a collection,
     // we'll give them the actual vBucket high seqno.
-    if (!serverApi->cookie->is_collections_supported(cookie) &&
+    if (!serverApi->cookie->is_collections_supported(*cookie) &&
         serverApi->core->isCollectionsEnabled()) {
         reqCollection = CollectionID::Default;
     }

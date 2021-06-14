@@ -119,7 +119,7 @@ cb::engine_errc CBStatCollector::testPrivilegeForStat(
     Expects(serverApi != nullptr);
     try {
         switch (serverApi->cookie
-                        ->test_privilege(cookie,
+                        ->test_privilege(*cookie,
                                          cb::rbac::Privilege::SimpleStats,
                                          sid,
                                          cid)
