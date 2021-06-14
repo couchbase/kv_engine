@@ -41,7 +41,7 @@ part of the server API:
         return ENGINE_EACCESS;
     }
 
-### PrvilegeAccess::Status
+### PrivilegeAccess::Status
 
 The privilege database provides a privilege check method that returns a status
 for the requested privilege, in general a check is either successful or a
