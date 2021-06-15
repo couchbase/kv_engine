@@ -92,6 +92,9 @@ add_executable(gencode tools/gencode.cc)
 kv_enable_pch(gencode)
 add_executable(genconfig tools/genconfig.cc)
 kv_enable_pch(genconfig)
+
+add_executable(pid_runner tools/pid_runner.cc $<TARGET_OBJECTS:ep_objs>)
+
 if (WIN32)
     # windows need getopt
     target_link_libraries(gencode PRIVATE platform)
@@ -127,6 +130,15 @@ target_link_libraries(kvstore_gen PRIVATE
         ${EP_STORAGE_LIBS}
         ${LIBEVENT_LIBRARIES}
 )
+
+target_link_libraries(pid_runner
+        ep-engine_collections
+        mcd_executor
+        mcbp
+        mcd_time
+        mcd_tracing
+        xattr
+        ${EP_STORAGE_LIBS})
 
 ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
                           ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.h
@@ -350,6 +362,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/mutation_log_entry.cc
             src/paging_visitor.cc
             src/persistence_callback.cc
+            src/pid_controller.cc
             src/pre_link_document_context.cc
             src/pre_link_document_context.h
             src/progress_tracker.cc

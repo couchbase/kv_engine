@@ -25,22 +25,40 @@ DefragmenterTask::DefragmenterTask(EventuallyPersistentEngine* e,
                                    EPStats& stats_)
     : GlobalTask(e, TaskId::DefragmenterTask, 0, false),
       stats(stats_),
-      epstore_position(engine->getKVBucket()->startPosition()) {
+      epstore_position(engine->getKVBucket()->startPosition()),
+      pid(engine->getConfiguration().getDefragmenterAutoLowerThreshold(),
+          engine->getConfiguration().getDefragmenterAutoPidP(),
+          engine->getConfiguration().getDefragmenterAutoPidI(),
+          engine->getConfiguration().getDefragmenterAutoPidD(),
+          std::chrono::milliseconds{
+                  engine->getConfiguration().getDefragmenterAutoPidDt()}) {
 }
 
 bool DefragmenterTask::run() {
     TRACE_EVENT0("ep-engine/task", "DefragmenterTask");
+    std::chrono::duration<double> sleepTime;
     if (engine->getConfiguration().isDefragmenterEnabled()) {
-        defrag();
+        sleepTime = defrag();
+    } else {
+        sleepTime = std::chrono::duration<double>{
+                engine->getConfiguration().getDefragmenterInterval()};
     }
-    snooze(getSleepTime());
+    snooze(sleepTime.count());
     if (engine->getEpStats().isShutdown) {
         return false;
     }
     return true;
 }
 
-void DefragmenterTask::defrag() {
+std::chrono::duration<double> DefragmenterTask::defrag() {
+    auto currentFragStats = cb::ArenaMalloc::getFragmentationStats(
+            engine->getArenaMallocClient());
+
+    auto sleepAndRun = calculateSleepTimeAndRunState(currentFragStats);
+    if (!sleepAndRun.runDefragger) {
+        return sleepAndRun.sleepTime;
+    }
+
     // Get our pause/resume visitor. If we didn't finish the previous pass,
     // then resume from where we last were, otherwise create a new visitor
     // starting from the beginning.
@@ -61,11 +79,9 @@ void DefragmenterTask::defrag() {
             ss << " resuming from " << epstore_position << ", ";
             ss << prAdapter->getHashtablePosition() << ".";
         }
-        auto fragStats = cb::ArenaMalloc::getFragmentationStats(
-                engine->getArenaMallocClient());
         ss << " Using chunk_duration=" << getChunkDuration().count() << " ms."
            << " mem_used=" << stats.getEstimatedTotalMemoryUsed() << ", "
-           << fragStats;
+           << currentFragStats;
         EP_LOG_DEBUG("{}", ss.str());
     }
 
@@ -119,13 +135,14 @@ void DefragmenterTask::defrag() {
         std::chrono::microseconds duration =
                 std::chrono::duration_cast<std::chrono::microseconds>(end -
                                                                       start);
-        auto fragStats = cb::ArenaMalloc::getFragmentationStats(
-                engine->getArenaMallocClient());
+
         ss << " Took " << duration.count() << " us."
            << " moved " << visitor.getDefragCount() << "/"
            << visitor.getVisitedCount() << " visited documents."
            << " mem_used=" << stats.getEstimatedTotalMemoryUsed() << ", "
-           << fragStats << ". Sleeping for " << getSleepTime() << " seconds.";
+           << cb::ArenaMalloc::getFragmentationStats(
+                      engine->getArenaMallocClient())
+           << ". Sleeping for " << sleepAndRun.sleepTime.count() << " seconds.";
         EP_LOG_DEBUG("{}", ss.str());
     }
 
@@ -133,6 +150,7 @@ void DefragmenterTask::defrag() {
     if (completed) {
         prAdapter.reset();
     }
+    return sleepAndRun.sleepTime;
 }
 
 void DefragmenterTask::stop() {
@@ -154,8 +172,17 @@ std::chrono::microseconds DefragmenterTask::maxExpectedDuration() const {
     return getChunkDuration() * 10;
 }
 
-double DefragmenterTask::getSleepTime() const {
-    return engine->getConfiguration().getDefragmenterInterval();
+DefragmenterTask::SleepTimeAndRunState
+DefragmenterTask::calculateSleepTimeAndRunState(
+        const cb::FragmentationStats& fragStats) {
+    if (engine->getConfiguration().getDefragmenterMode() == "auto_linear") {
+        return calculateSleepLinear(fragStats);
+    } else if (engine->getConfiguration().getDefragmenterMode() == "auto_pid") {
+        return calculateSleepPID(fragStats);
+    }
+    return {std::chrono::duration<double>{
+                    engine->getConfiguration().getDefragmenterInterval()},
+            true};
 }
 
 size_t DefragmenterTask::getAgeThreshold() const {
@@ -196,4 +223,87 @@ std::chrono::milliseconds DefragmenterTask::getChunkDuration() const {
 
 DefragmentVisitor& DefragmenterTask::getDefragVisitor() {
     return dynamic_cast<DefragmentVisitor&>(prAdapter->getHTVisitor());
+}
+
+float DefragmenterTask::getScoredFragmentation(
+        const cb::FragmentationStats& fragStats) const {
+    auto lowWater = stats.mem_low_wat.load();
+    auto rss = fragStats.getResidentBytes() > lowWater
+                       ? lowWater
+                       : fragStats.getResidentBytes();
+    return fragStats.getFragmentationRatio() * (double(rss) / double(lowWater));
+}
+
+DefragmenterTask::SleepTimeAndRunState DefragmenterTask::calculateSleepLinear(
+        const cb::FragmentationStats& fragStats) {
+    auto score = getScoredFragmentation(fragStats);
+    bool runDefragger = true;
+
+    const auto& conf = engine->getConfiguration();
+    double rv = 0.0;
+    auto maxSleep = conf.getDefragmenterAutoMaxSleep();
+    auto minSleep = conf.getDefragmenterAutoMinSleep();
+    auto lower = conf.getDefragmenterAutoLowerThreshold();
+    auto upper = conf.getDefragmenterAutoUpperThreshold();
+
+    // Is the 'score' in the range where we will look to reduce sleep by
+    // some amount in relation to how 'bad' the score is?
+    if (score > lower && score < upper) {
+        // Calculate the error (distance from lower)
+        auto error = (score - lower);
+
+        // How many % of our error range is that?
+        auto ePerc = (error / (upper - lower)) * 100.0;
+
+        // And now find the % of the sleep range
+        auto t = ((maxSleep - minSleep) / 100) * ePerc;
+
+        // Finally we will return maxSleep - t. As t gets larger the sleep time
+        // is smaller
+        rv = maxSleep - t;
+    } else if (score < lower) {
+        rv = maxSleep;
+        runDefragger = false;
+    } else {
+        rv = minSleep;
+    }
+
+    return {std::chrono::duration<double>{rv}, runDefragger};
+}
+
+DefragmenterTask::SleepTimeAndRunState DefragmenterTask::calculateSleepPID(
+        const cb::FragmentationStats& fragStats) {
+    auto score = getScoredFragmentation(fragStats);
+    const auto& conf = engine->getConfiguration();
+    auto maxSleep = conf.getDefragmenterAutoMaxSleep();
+    auto minSleep = conf.getDefragmenterAutoMinSleep();
+
+    // If fragmentation goes below our set-point (SP), we can't continue to use
+    // the PID. More general usage and it would be used to "speed up/slow down"
+    // to reach the SP. We can't now force defragmentation up, we're just happy
+    // it's below the SP. In this case reset and when we go over again begin
+    // the ramping
+    if (score < conf.getDefragmenterAutoLowerThreshold()) {
+        // Reset the PID ready for the next time fragmentation increases
+        pid.reset();
+        return {std::chrono::duration<double>{maxSleep}, false};
+    }
+
+    // Above setpoint, use the PID to calculate a correction. This will return
+    // a negative value
+    auto correction = stepPid(score);
+
+    // Add the negative to produce a sleep time
+    auto rv = maxSleep + correction;
+
+    // Don't go below the minimum sleep
+    if (rv < minSleep) {
+        rv = minSleep;
+    }
+
+    return {std::chrono::duration<double>{rv}, true};
+}
+
+float DefragmenterTask::stepPid(float pv) {
+    return pid.step(pv);
 }
