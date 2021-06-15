@@ -14,6 +14,7 @@
 #include "checkpoint_manager.h"
 #include "defragmenter.h"
 #include "defragmenter_visitor.h"
+#include "evp_store_single_threaded_test.h"
 #include "item.h"
 #include "test_helpers.h"
 #include "vbucket.h"
@@ -376,6 +377,153 @@ TEST_P(DefragmenterTest, DISABLED_MaxDefragValueSize) {
 #endif
 
     EXPECT_EQ(14336, DefragmenterTask::getMaxValueSize());
+}
+
+class DefragmenterTaskTest : public SingleThreadedKVBucketTest {
+public:
+    void SetUp() override {
+        // Hard wire the PID to these values so we can change the config without
+        // having to fix the PID test.
+        config_string +=
+                "defragmenter_auto_lower_threshold=0.07;"
+                "defragmenter_auto_pid_p=3.0;"
+                "defragmenter_auto_pid_i=0.0000197;"
+                "defragmenter_auto_pid_d=0.0;"
+                "defragmenter_auto_pid_dt=30000;"
+                "defragmenter_auto_max_sleep=10.0;"
+                "defragmenter_auto_max_sleep=2.0";
+        SingleThreadedKVBucketTest::SetUp();
+    }
+};
+
+class MockDefragmenterTask : public DefragmenterTask {
+public:
+    MockDefragmenterTask(EventuallyPersistentEngine* engine, EPStats& stats)
+        : DefragmenterTask(engine, stats),
+          testPid(engine->getConfiguration()
+                          .getDefragmenterAutoLowerThreshold(),
+                  engine->getConfiguration().getDefragmenterAutoPidP(),
+                  engine->getConfiguration().getDefragmenterAutoPidI(),
+                  engine->getConfiguration().getDefragmenterAutoPidD(),
+                  std::chrono::milliseconds{
+                          engine->getConfiguration()
+                                  .getDefragmenterAutoPidDt()}) {
+    }
+
+    DefragmenterTask::SleepTimeAndRunState public_calculateSleepPID(
+            const cb::FragmentationStats& fragStats) {
+        return calculateSleepPID(fragStats);
+    }
+
+    DefragmenterTask::SleepTimeAndRunState public_calculateSleepLinear(
+            const cb::FragmentationStats& fragStats) {
+        return calculateSleepLinear(fragStats);
+    }
+
+    struct MockDefragmenterTaskClock {
+        static std::chrono::time_point<std::chrono::steady_clock> now() {
+            static std::chrono::milliseconds currentTime{0};
+            currentTime += step;
+            return std::chrono::time_point<std::chrono::steady_clock>{
+                    std::chrono::steady_clock::duration{currentTime}};
+        }
+        static std::chrono::milliseconds step;
+    };
+
+    // override stepPid so we can move time
+    float stepPid(float pv) override {
+        return testPid.step(pv);
+    }
+
+    PIDController<MockDefragmenterTaskClock> testPid;
+};
+
+std::chrono::milliseconds MockDefragmenterTask::MockDefragmenterTaskClock::step;
+
+// Test that as the PID runs (and we move time forwards) that it assists in the
+// recalculation of sleep time, reducing whilst fragmentation is above threshold
+TEST_F(DefragmenterTaskTest, autoCalculateSleep_PID) {
+    // set lww to some low number
+    engine->getEpStats().setLowWaterMark(750);
+    auto task = std::make_unique<MockDefragmenterTask>(engine.get(),
+                                                       engine->getEpStats());
+
+    auto& conf = engine->getConfiguration();
+    // Set the step to equal the PID duration - this means each step changes
+    // the output.
+    MockDefragmenterTask::MockDefragmenterTaskClock::step =
+            std::chrono::milliseconds(conf.getDefragmenterAutoPidDt());
+
+    // Fragmentation is 0%, the PID won't adjust sleepTime and it should say
+    // false for run
+    auto state =
+            task->public_calculateSleepPID(cb::FragmentationStats{100, 100});
+    EXPECT_EQ(conf.getDefragmenterAutoMaxSleep(), state.sleepTime.count());
+    EXPECT_FALSE(state.runDefragger);
+
+    // Calculate sleep with "high fragmentation".
+    // We don't just chose simple numbers like 100/130 (30%) as we have to be
+    // closer to the low water mark (750) for the PID to begin calculations
+    state = task->public_calculateSleepPID(cb::FragmentationStats{400, 490});
+    EXPECT_GT(conf.getDefragmenterAutoMaxSleep(), state.sleepTime.count());
+
+    // Don't expect the PID to have pulled below the min in just one call
+    EXPECT_LT(conf.getDefragmenterAutoMinSleep(), state.sleepTime.count());
+    EXPECT_TRUE(state.runDefragger);
+
+    // Now loop a few times with some heavy fragmentation, this will pull down
+    // to min sleep in a number of steps (checked manually and it is 5 steps)
+    std::chrono::duration<double> sleep(conf.getDefragmenterAutoMaxSleep());
+    int iterations = 0;
+    do {
+        state = task->public_calculateSleepPID(
+                cb::FragmentationStats{380, 700});
+        EXPECT_TRUE(state.runDefragger);
+        // Each step should see a reduction
+        EXPECT_LT(state.sleepTime, sleep);
+        sleep = state.sleepTime;
+        iterations++;
+    } while (state.sleepTime.count() > conf.getDefragmenterAutoMinSleep());
+    EXPECT_EQ(iterations, 5);
+
+    // PID never goes below min
+    state = task->public_calculateSleepPID(cb::FragmentationStats{10, 5000});
+    EXPECT_EQ(conf.getDefragmenterAutoMinSleep(), state.sleepTime.count());
+    EXPECT_TRUE(state.runDefragger);
+}
+
+TEST_F(DefragmenterTaskTest, autoCalculateSleep) {
+    // set lww to some low number
+    engine->getEpStats().setLowWaterMark(750);
+    auto task = std::make_unique<MockDefragmenterTask>(engine.get(),
+                                                       engine->getEpStats());
+    auto& conf = engine->getConfiguration();
+
+    // Fragmentation is 0%, no change from max sleep
+    auto state =
+            task->public_calculateSleepLinear(cb::FragmentationStats{100, 100});
+    EXPECT_EQ(conf.getDefragmenterAutoMaxSleep(), state.sleepTime.count());
+    EXPECT_FALSE(state.runDefragger);
+
+    // Set fragmentation to be high, expect to see a reduction in sleep
+    state = task->public_calculateSleepLinear(cb::FragmentationStats{100, 170});
+    // sleep less than max
+    EXPECT_LT(state.sleepTime.count(), conf.getDefragmenterAutoMaxSleep());
+
+    // The numbers chosen, expect to be above min
+    EXPECT_LT(conf.getDefragmenterAutoMinSleep(), state.sleepTime.count());
+    EXPECT_TRUE(state.runDefragger);
+
+    // Now back to max
+    state = task->public_calculateSleepLinear(cb::FragmentationStats{100, 101});
+    EXPECT_EQ(conf.getDefragmenterAutoMaxSleep(), state.sleepTime.count());
+    EXPECT_FALSE(state.runDefragger);
+
+    // Finally dire fragmentation, and we drop to min sleep
+    state = task->public_calculateSleepLinear(
+            cb::FragmentationStats{100, 50000});
+    EXPECT_EQ(conf.getDefragmenterAutoMinSleep(), state.sleepTime.count());
+    EXPECT_TRUE(state.runDefragger);
 }
 
 INSTANTIATE_TEST_SUITE_P(

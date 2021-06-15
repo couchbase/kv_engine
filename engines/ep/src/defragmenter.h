@@ -12,6 +12,11 @@
 
 #include "globaltask.h"
 #include "kv_bucket_iface.h"
+#include "pid_controller.h"
+
+namespace cb {
+class FragmentationStats;
+}
 
 class DefragmentVisitor;
 class EPStats;
@@ -104,12 +109,67 @@ public:
     /// Maximum allocation size the defragmenter should consider
     static size_t getMaxValueSize();
 
-private:
-    /// Main function called from run when defragmenter is enabled
-    void defrag();
+    /// Type returned by auto control
+    struct SleepTimeAndRunState {
+        std::chrono::duration<double> sleepTime{0};
+        bool runDefragger{false};
+    };
 
-    /// Duration (in seconds) defragmenter should sleep for between iterations.
-    double getSleepTime() const;
+protected:
+    /// Main function called from run when defragmenter is enabled
+    std::chrono::duration<double> defrag();
+
+    /**
+     * Calculate the current defragmenter sleep time and run state.
+     * @param fragStats the bucket's current fragmentation state
+     * @return SleepTimeAndRunState based on mode and current fragmentation
+     */
+    SleepTimeAndRunState calculateSleepTimeAndRunState(
+            const cb::FragmentationStats& fragStats);
+
+    /**
+     * Calculate the sleep time using a mapping of fragmentation to the sleep
+     * time.
+     * @param fragStats the bucket's current fragmentation state
+     * @return SleepTimeAndRunState based on current fragmentation
+     */
+    SleepTimeAndRunState calculateSleepLinear(
+            const cb::FragmentationStats& fragStats);
+
+    /**
+     * Calculate the sleep time using a PID controller that will reduce the
+     * sleep time whilst fragmentation is above preferred minimum
+     * @param fragStats the bucket's current fragmentation state
+     * @return SleepTimeAndRunState based on current fragmentation
+     */
+
+    SleepTimeAndRunState calculateSleepPID(
+            const cb::FragmentationStats& fragStats);
+
+    /**
+     *  steps the PID and allows for a test sub-class to override realtime
+     * @param pv The current process-variable the PID is tracking
+     * @return The PID's output
+     */
+    virtual float stepPid(float pv);
+
+    /**
+     * The auto controller modes don't use raw fragmentation, but a 'scored'
+     * value using low-water mark and RSS. This function gets that value from
+     * fragStats.
+     * The current implementation of this returns the following example values
+     * Consider a raw fragmentation of 23% where allocated=500 and rss=650.
+     * Then with a low-water mark of n this function returns (score):
+     *    n    | score
+     *    600  | 23   (note this case, rss exceeds n).
+     *    1000 | 14.95
+     *    2000 | 7.4
+     *    3000 | 4.98
+     *    5000 | 2.99
+     *
+     * @return the scored fragmentation
+     */
+    float getScoredFragmentation(const cb::FragmentationStats& fragStats) const;
 
     // Minimum age (measured in defragmenter task passes) that a document
     // must be to be considered for defragmentation.
@@ -141,4 +201,9 @@ private:
      * complete pass.
      */
     std::unique_ptr<PauseResumeVBAdapter> prAdapter;
+
+    /**
+     * PID which is used for sleep calculations when deframenter_mode==auto_pid
+     */
+    PIDController<> pid;
 };
