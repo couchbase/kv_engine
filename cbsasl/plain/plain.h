@@ -30,9 +30,6 @@ public:
     std::string getName() const override {
         return "PLAIN";
     }
-
-protected:
-    bool try_legacy_user(const std::string& password);
 };
 
 class ClientBackend : public client::MechanismBackend {

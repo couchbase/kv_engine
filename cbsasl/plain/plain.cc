@@ -19,30 +19,6 @@
 
 namespace cb::sasl::mechanism::plain {
 
-/**
- * ns_server creates a legacy bucket user as part of the upgrade
- * process which is used by the XDCR clients when they connect
- * to they system. These clients _always_ connect by using PLAIN
- * authentication so we should look up and try those users first.
- * If it exists and we have a matching password we're good to go,
- * otherwise we'll have to try the "normal" user.
- */
-bool ServerBackend::try_legacy_user(const std::string& password) {
-    const std::string lecacy_username{username + ";legacy"};
-    cb::sasl::pwdb::User user;
-    if (!find_user(lecacy_username, user)) {
-        return false;
-    }
-
-    if (cb::sasl::plain::check_password(&context, user, password) ==
-        Error::OK) {
-        username.assign(lecacy_username);
-        return true;
-    }
-
-    return false;
-}
-
 std::pair<Error, std::string_view> ServerBackend::start(
         std::string_view input) {
     if (input.empty()) {
@@ -80,10 +56,6 @@ std::pair<Error, std::string_view> ServerBackend::start(
 
     this->username.assign(username);
     const std::string userpw(password, pwlen);
-
-    if (try_legacy_user(userpw)) {
-        return std::make_pair<Error, std::string_view>(Error::OK, {});
-    }
 
     cb::sasl::pwdb::User user;
     if (!find_user(username, user)) {

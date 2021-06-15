@@ -152,28 +152,6 @@
         "i": 10
       }
     }, {
-      "n":	"legacy;legacy",
-      "plain":	"yvB+y0qzqfNCXbkuzuiXf52okTZWNVJy8rQTnHqF+QdzLLLl"
-    }, {
-      "n":	"legacy",
-      "plain":	"LWO8xng2gjJ5QbRHCrL6Adg+87yzK8vseSKRGTLEKU3iUsh7",
-      "sha1":	{
-        "h":	"yfhDxQJW/qY9pnjbVZHQ/HUtFEM=",
-        "s":	"PwICG3Sauqikl6j6i2l1S1Rzw+0=",
-        "i":	10
-      },
-      "sha256":	{
-        "h":	"SG0NvatYEvxJSeap0GsA64h3JidPy3daJedOu2oyBGI=",
-        "s":	"amVllupY5Ft5zHRJ2gzqi+rGwQhbEjc3CKPd6M+1SDo=",
-        "i":	10
-      },
-      "sha512":	{
-        "h":	"3PCq8SshbcAanC7kbpnC6eQxYUFCAmV0rLNj0fIGx0rk/O4DjCqVMBfnC/CB7ADTV4qFrdh0RZnFBz/WVntjEQ==",
-        "s":	"7gnuoQjA4xIzAf5LB9mEy/PzdieJqgSyT6rIp09bn6jWFxUdLYw9MmmowOMsFnbLk+NSPcIJeURLWajkVrrqiQ==",
-        "i":	10
-      }
-    },
-    {
       "n": "default",
       "plain": "x7ZPbYpo05MCE6QzC+AIEPLL9XjKZpyLcLX+Xc7+eTEFV9P2"
     }

@@ -50,7 +50,6 @@ set(memcached_testapp_SOURCES
     testapp_interfaces.cc
     testapp_ioctl.cc
     testapp_ipv6.cc
-    testapp_legacy_users.cc
     testapp_lock.cc
     testapp_logging.cc
     testapp_maxconn.cc

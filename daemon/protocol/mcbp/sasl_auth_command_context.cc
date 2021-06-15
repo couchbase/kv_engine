@@ -74,12 +74,7 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk(
 
     /* associate the connection with the appropriate bucket */
     {
-        std::string username = connection.getUser().name;
-        auto idx = username.find(";legacy");
-        if (idx != username.npos) {
-            username.resize(idx);
-        }
-
+        const auto username = connection.getUser().name;
         if (mayAccessBucket(cookie, username)) {
             associate_bucket(cookie, username.c_str());
             // Auth succeeded but the connection may not be valid for the

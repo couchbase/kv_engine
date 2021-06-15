@@ -113,21 +113,5 @@
       "all"
     ],
     "domain": "local"
-  },
-  "legacy;legacy": {
-    "buckets": {
-      "default": [
-        "all"
-      ]
-    },
-    "domain": "local"
-  },
-  "legacy": {
-    "buckets": {
-      "default": [
-        "all"
-      ]
-    },
-    "domain": "local"
   }
 }
