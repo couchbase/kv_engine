@@ -13,7 +13,7 @@
 
 #include "bloomfilter.h"
 
-#include "murmurhash3.h"
+#include <platform/murmurhash3.h>
 
 #include <cmath>
 

@@ -1,6 +1,4 @@
 engines/default_engine/.*
-engines/ep/src/murmurhash3\.h
-engines/ep/src/murmurhash3\.cc
 scripts/jemalloc/jemalloc_analyse\.py
 tests/cbnt_tests/cbnt_test_list\.yml
 tests/cert/create\.sh

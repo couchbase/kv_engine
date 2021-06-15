@@ -346,7 +346,6 @@ ADD_LIBRARY(ep_objs OBJECT
             src/kvstore_config.cc
             src/kv_bucket.cc
             src/kvshard.cc
-            src/murmurhash3.cc
             src/mutation_log.cc
             src/mutation_log_entry.cc
             src/paging_visitor.cc

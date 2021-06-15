@@ -14,8 +14,8 @@
 #include <random>
 
 #include "bloomfilter.h"
-#include "murmurhash3.h"
 #include "tests/module_tests/test_helpers.h"
+#include <platform/murmurhash3.h>
 
 class BloomFilterTest : public ::testing::Test {};
 
