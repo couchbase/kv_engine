@@ -193,7 +193,7 @@ public:
     }
 
     void store_engine_specific(const CookieIface* cookie,
-                               CookieIface* engine_data) override {
+                               void* engine_data) override {
         get_mock_server_api()->cookie->store_engine_specific(cookie,
                                                              engine_data);
     }
