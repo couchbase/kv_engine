@@ -186,6 +186,12 @@ public:
     /// @return the size of the ready queue for the given task type
     size_t getReadyQueueSize(task_type_t type) const;
 
+    /*
+     * Set the stats isShutdown and attempt to drive all tasks to cancel for
+     * the specified engine.
+     */
+    void shutdownAndPurgeTasks(EventuallyPersistentEngine* ep);
+
 protected:
     void SetUp() override;
 
@@ -222,12 +228,6 @@ protected:
                                           vbucket_state_t newState,
                                           const nlohmann::json& meta = {},
                                           TransferVB transfer = TransferVB::No);
-
-    /*
-     * Set the stats isShutdown and attempt to drive all tasks to cancel for
-     * the specified engine.
-     */
-    void shutdownAndPurgeTasks(EventuallyPersistentEngine* ep);
 
     void cancelAndPurgeTasks();
 

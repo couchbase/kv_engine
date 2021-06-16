@@ -54,43 +54,24 @@ static TaskQueue* getLpNonIoQ() {
 }
 
 /**
- * Test fixture which creates two ep-engine (bucket) instances, using one
+ * Test helper which creates two ep-engine (bucket) instances, using one
  * as a source for DCP replication and the second as the destination.
  */
-class DCPLoopbackStreamTest : public SingleThreadedKVBucketTest {
-protected:
+class DCPLoopbackTestHelper : virtual public SingleThreadedKVBucketTest {
+public:
     void SetUp() override {
         SingleThreadedKVBucketTest::SetUp();
-
-        // Paranoia - remove any previous replica disk files.
-        try {
-            cb::io::rmrf(test_dbname + "-node_1");
-            cb::io::rmrf(test_dbname + "-node_2");
-            cb::io::rmrf(test_dbname + "-node_3");
-        } catch (std::system_error& e) {
-            if (e.code() != std::error_code(ENOENT, std::system_category())) {
-                throw e;
-            }
-        }
-
-        auto meta = nlohmann::json{
-                {"topology", nlohmann::json::array({{"active", "replica"}})}};
-        ASSERT_EQ(cb::engine_errc::success,
-                  engine->getKVBucket()->setVBucketState(
-                          vbid, vbucket_state_active, &meta));
-        // Always stash KVBucketTest::engine in engines as Node0
-        engines[Node0] = engine.get();
-
-        // Always create Node1
-        createNode(Node1, vbucket_state_replica);
+        internalSetUp();
     }
 
-    cb::engine_errc getInternalHelper(const DocKey& key) {
-        return getInternal(key,
-                           vbid,
-                           cookie,
-                           ForGetReplicaOp::No,
-                           get_options_t::NONE)
+    void TearDown() override {
+        internalTearDown();
+        SingleThreadedKVBucketTest::TearDown();
+    }
+
+    cb::engine_errc getInternalHelper(
+            const DocKey& key, get_options_t options = get_options_t::NONE) {
+        return getInternal(key, vbid, cookie, ForGetReplicaOp::No, options)
                 .getStatus();
     }
 
@@ -277,7 +258,8 @@ protected:
         }
     }
 
-    void TearDown() override {
+protected:
+    void internalTearDown() {
         for (auto& e : extraEngines) {
             shutdownAndPurgeTasks(e.get());
         }
@@ -300,8 +282,53 @@ protected:
                 }
             }
         }
+    }
 
-        SingleThreadedKVBucketTest::TearDown();
+    void internalSetUp() {
+        // Paranoia - remove any previous replica disk files.
+        try {
+            cb::io::rmrf(test_dbname + "-node_1");
+            cb::io::rmrf(test_dbname + "-node_2");
+            cb::io::rmrf(test_dbname + "-node_3");
+        } catch (std::system_error& e) {
+            if (e.code() != std::error_code(ENOENT, std::system_category())) {
+                throw e;
+            }
+        }
+
+        auto meta = nlohmann::json{
+                {"topology", nlohmann::json::array({{"active", "replica"}})}};
+        ASSERT_EQ(cb::engine_errc::success,
+                  engine->getKVBucket()->setVBucketState(
+                          vbid, vbucket_state_active, &meta));
+        // Always stash KVBucketTest::engine in engines as Node0
+        engines[Node0] = engine.get();
+
+        // Always create Node1
+        createNode(Node1, vbucket_state_replica);
+    }
+
+    // engines is 'map' from Node to an engine pointer, currently Node0 is the
+    // engine created by the parent class and Node1 are created by this
+    // class. Node1 is always created by SetUp and additional nodes created on
+    // demand
+    std::array<SynchronousEPEngine*, 4> engines;
+
+    // Owned pointers to the other engines, created on demand by tests
+    std::vector<SynchronousEPEngineUniquePtr> extraEngines;
+};
+
+class DCPLoopbackStreamTest : public STParameterizedBucketTest,
+                              public DCPLoopbackTestHelper {
+public:
+    void SetUp() override {
+        STParameterizedBucketTest::SetUp();
+        DCPLoopbackTestHelper::internalSetUp();
+    }
+
+    void TearDown() override {
+        DCPLoopbackTestHelper::internalTearDown();
+        STParameterizedBucketTest::TearDown();
     }
 
     void takeoverTest(EnableExpiryOutput enableExpiryOutput);
@@ -352,18 +379,9 @@ protected:
      */
     void testBackfillAndInMemoryDuplicatePrepares(uint32_t flags,
                                                   bool completeFinalSnapshot);
-
-    // engines is 'map' from Node to an engine pointer, currently Node0 is the
-    // engine created by the parent class and Node1 are created by this
-    // class. Node1 is always created by SetUp and additional nodes created on
-    // demand
-    std::array<SynchronousEPEngine*, 4> engines;
-
-    // Owned pointers to the other engines, created on demand by tests
-    std::vector<SynchronousEPEngineUniquePtr> extraEngines;
 };
 
-void DCPLoopbackStreamTest::DcpRoute::destroy() {
+void DCPLoopbackTestHelper::DcpRoute::destroy() {
     if (producer && consumer) {
         producer->cancelCheckpointCreatorTask();
         producer->closeAllStreams();
@@ -382,7 +400,7 @@ void DCPLoopbackStreamTest::DcpRoute::destroy() {
 }
 
 std::unique_ptr<DcpResponse>
-DCPLoopbackStreamTest::DcpRoute::getNextProducerMsg(ActiveStream* stream) {
+DCPLoopbackTestHelper::DcpRoute::getNextProducerMsg(ActiveStream* stream) {
     std::unique_ptr<DcpResponse> producerMsg(stream->next(*producer));
     if (!producerMsg) {
         // Run the next ready task to populate the streams' items. This could
@@ -429,7 +447,7 @@ DCPLoopbackStreamTest::DcpRoute::getNextProducerMsg(ActiveStream* stream) {
 }
 
 std::pair<ActiveStream*, PassiveStream*>
-DCPLoopbackStreamTest::DcpRoute::getStreams() {
+DCPLoopbackTestHelper::DcpRoute::getStreams() {
     auto* pStream =
             dynamic_cast<ActiveStream*>(producer->findStream(vbid).get());
     auto* cStream = consumer->getVbucketStream(vbid).get();
@@ -438,7 +456,7 @@ DCPLoopbackStreamTest::DcpRoute::getStreams() {
     return {pStream, cStream};
 }
 
-void DCPLoopbackStreamTest::DcpRoute::transferMessage() {
+void DCPLoopbackTestHelper::DcpRoute::transferMessage() {
     auto streams = getStreams();
     auto msg = getNextProducerMsg(streams.first);
     ASSERT_TRUE(msg);
@@ -446,7 +464,7 @@ void DCPLoopbackStreamTest::DcpRoute::transferMessage() {
               streams.second->messageReceived(std::move(msg)));
 }
 
-void DCPLoopbackStreamTest::DcpRoute::transferMessage(
+void DCPLoopbackTestHelper::DcpRoute::transferMessage(
         DcpResponse::Event expectedEvent) {
     auto streams = getStreams();
     auto msg = getNextProducerMsg(streams.first);
@@ -456,7 +474,7 @@ void DCPLoopbackStreamTest::DcpRoute::transferMessage(
               streams.second->messageReceived(std::move(msg)));
 }
 
-void DCPLoopbackStreamTest::DcpRoute::transferMutation(
+void DCPLoopbackTestHelper::DcpRoute::transferMutation(
         const StoredDocKey& expectedKey, uint64_t expectedSeqno) {
     auto streams = getStreams();
     auto msg = getNextProducerMsg(streams.first);
@@ -501,7 +519,7 @@ void DCPLoopbackStreamTest::DcpRoute::transferMutation(
               streams.second->messageReceived(std::move(msg)));
 }
 
-void DCPLoopbackStreamTest::DcpRoute::transferDeletion(
+void DCPLoopbackTestHelper::DcpRoute::transferDeletion(
         const StoredDocKey& expectedKey, uint64_t expectedSeqno) {
     auto streams = getStreams();
     auto msg = getNextProducerMsg(streams.first);
@@ -515,7 +533,7 @@ void DCPLoopbackStreamTest::DcpRoute::transferDeletion(
               streams.second->messageReceived(std::move(msg)));
 }
 
-void DCPLoopbackStreamTest::DcpRoute::transferSnapshotMarker(
+void DCPLoopbackTestHelper::DcpRoute::transferSnapshotMarker(
         uint64_t expectedStart, uint64_t expectedEnd, uint32_t expectedFlags) {
     auto streams = getStreams();
     auto msg = getNextProducerMsg(streams.first);
@@ -529,7 +547,7 @@ void DCPLoopbackStreamTest::DcpRoute::transferSnapshotMarker(
               streams.second->messageReceived(std::move(msg)));
 }
 
-void DCPLoopbackStreamTest::DcpRoute::transferResponseMessage() {
+void DCPLoopbackTestHelper::DcpRoute::transferResponseMessage() {
     auto streams = getStreams();
     std::unique_ptr<DcpResponse> consumerMsg(streams.second->next());
 
@@ -549,7 +567,7 @@ void DCPLoopbackStreamTest::DcpRoute::transferResponseMessage() {
 }
 
 std::pair<cb::engine_errc, uint64_t>
-DCPLoopbackStreamTest::DcpRoute::doStreamRequest(int flags) {
+DCPLoopbackTestHelper::DcpRoute::doStreamRequest(int flags) {
     // Do the add_stream
     EXPECT_EQ(cb::engine_errc::success,
               consumer->addStream(/*opaque*/ 0, vbid, flags));
@@ -684,6 +702,14 @@ void DCPLoopbackStreamTest::takeoverTest(
         num_left = 0, expired = 3;
         expectedOutcome = cb::engine_errc::no_such_key;
     }
+
+    if (fullEviction()) {
+        // Under full eviction, vb->getNumItems() only counts items on disk, so
+        // we do a flush.
+        flushNodeIfPersistent(Node0);
+        flushNodeIfPersistent(Node1);
+    }
+
     EXPECT_EQ(num_left, sourceVb->getNumItems());
     EXPECT_EQ(num_left, destVb->getNumItems());
     EXPECT_EQ(expired, sourceVb->numExpiredItems);
@@ -692,14 +718,21 @@ void DCPLoopbackStreamTest::takeoverTest(
     // a takeover.
 
     auto key1 = makeStoredDocKey("key1");
+
+    if (persistent() && fullEviction() &&
+        enableExpiryOutput == EnableExpiryOutput::Yes) {
+        EXPECT_EQ(cb::engine_errc::would_block,
+                  getInternalHelper(key1, get_options_t::QUEUE_BG_FETCH));
+        runBGFetcherTask();
+    }
     EXPECT_EQ(expectedOutcome, getInternalHelper(key1));
 }
 
-TEST_F(DCPLoopbackStreamTest, Takeover) {
+TEST_P(DCPLoopbackStreamTest, Takeover) {
     takeoverTest(EnableExpiryOutput::No);
 }
 
-TEST_F(DCPLoopbackStreamTest, TakeoverWithExpiry) {
+TEST_P(DCPLoopbackStreamTest, TakeoverWithExpiry) {
     takeoverTest(EnableExpiryOutput::Yes);
 }
 
@@ -805,24 +838,24 @@ void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
               replicaVB->failovers->getLatestEntry().by_seqno);
 }
 
-TEST_F(DCPLoopbackStreamTest,
+TEST_P(DCPLoopbackStreamTest,
        BackfillAndInMemoryDuplicatePrepares_partialSnapshot) {
     testBackfillAndInMemoryDuplicatePrepares(0, false);
 }
 
-TEST_F(DCPLoopbackStreamTest,
+TEST_P(DCPLoopbackStreamTest,
        BackfillAndInMemoryDuplicatePreparesTakeover_partialSnapshot) {
     // Variant with takeover stream, which has a different memory-based state.
     testBackfillAndInMemoryDuplicatePrepares(DCP_ADD_STREAM_FLAG_TAKEOVER,
                                              false);
 }
 
-TEST_F(DCPLoopbackStreamTest,
+TEST_P(DCPLoopbackStreamTest,
        BackfillAndInMemoryDuplicatePrepares_completeSnapshot) {
     testBackfillAndInMemoryDuplicatePrepares(0, true);
 }
 
-TEST_F(DCPLoopbackStreamTest,
+TEST_P(DCPLoopbackStreamTest,
        BackfillAndInMemoryDuplicatePreparesTakeover_completeSnapshot) {
     // Variant with takeover stream, which has a different memory-based state.
     testBackfillAndInMemoryDuplicatePrepares(DCP_ADD_STREAM_FLAG_TAKEOVER,
@@ -836,7 +869,7 @@ TEST_F(DCPLoopbackStreamTest,
  * The test scenario is such that there is a duplicate Prepare (same key) in
  * the initial In-Memory and then the Backfill snapshot.
  */
-TEST_F(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
+TEST_P(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
     // First checkpoint 1..2:
     //     1:PRE(a)
     EXPECT_EQ(cb::engine_errc::sync_write_pending, storePrepare("a"));
@@ -923,7 +956,7 @@ TEST_F(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
 // the partial snapshot start point, however the test proved that the way that
 // KV calculates a disk snapshot marker is what ensures the consumer's post
 // failover stream request to be rejected.
-TEST_F(DCPLoopbackStreamTest, MultiReplicaPartialSnapshot) {
+TEST_P(DCPLoopbackStreamTest, MultiReplicaPartialSnapshot) {
     // The keys we will use
     auto k1 = makeStoredDocKey("k1");
     auto k2 = makeStoredDocKey("k2");
@@ -1036,7 +1069,7 @@ TEST_F(DCPLoopbackStreamTest, MultiReplicaPartialSnapshot) {
     route1_3.transferMutation(k5, 5);
 }
 
-TEST_F(DCPLoopbackStreamTest, MB_36948_SnapshotEndsOnPrepare) {
+TEST_P(DCPLoopbackStreamTest, MB_36948_SnapshotEndsOnPrepare) {
     auto k1 = makeStoredDocKey("k1");
     auto k2 = makeStoredDocKey("k2");
     auto k3 = makeStoredDocKey("k3");
@@ -1060,9 +1093,68 @@ TEST_F(DCPLoopbackStreamTest, MB_36948_SnapshotEndsOnPrepare) {
     EXPECT_EQ(2, replicaVB->checkpointManager->getVisibleSnapshotEndSeqno());
 }
 
-class DCPLoopbackSnapshots : public DCPLoopbackStreamTest,
-                             public ::testing::WithParamInterface<int> {
+// Ideally this class would've inherited STParameterizedBucketTest which already
+// covers (bucket type, eviction) as parameters, while an extra flushRatio
+// parameter. But it doesn't for similar reasons as described over
+// EPBucketBloomFilterParameterizedTest.
+class DCPLoopbackSnapshots
+    : public DCPLoopbackTestHelper,
+      public ::testing::WithParamInterface<
+              std::tuple<std::string, std::string, int>> {
 public:
+    int getFlushRatio() {
+        return std::get<2>(GetParam());
+    }
+
+    std::string getBucketType() {
+        return std::get<0>(GetParam());
+    }
+
+    std::string getEvictionPolicy() {
+        return std::get<1>(GetParam());
+    }
+
+    void SetUp() override {
+        if (!config_string.empty()) {
+            config_string += ";";
+        }
+
+        auto bucketType = getBucketType();
+        if (bucketType == "persistentMagma") {
+            config_string += "bucket_type=persistent;backend=magma";
+        } else {
+            config_string += "bucket_type=" + bucketType;
+        }
+
+        auto evictionPolicy = getEvictionPolicy();
+        config_string += ";item_eviction_policy=" + evictionPolicy;
+
+        DCPLoopbackTestHelper::SetUp();
+    }
+
+    static std::string PrintToStringParamName(
+            const ::testing::TestParamInfo<ParamType>& info) {
+        auto bucket = std::get<0>(info.param);
+        auto flushRatio = std::get<2>(info.param);
+        auto evictionPolicy = std::get<1>(info.param);
+
+        return bucket + "_" + evictionPolicy + "_flushRatio" +
+               std::to_string(flushRatio);
+    }
+
+    static auto persistentConfigValues() {
+        using namespace std::string_literals;
+        return ::testing::Combine(
+                ::testing::Values("persistent"s
+#ifdef EP_USE_MAGMA
+                                  ,
+                                  "persistentMagma"s
+#endif
+                                  ),
+                ::testing::Values("value_only"s, "full_eviction"s),
+                ::testing::Range(1, 10));
+    }
+
     void testSnapshots(int flushRatio);
 };
 
@@ -1205,18 +1297,25 @@ void DCPLoopbackSnapshots::testSnapshots(int flushRatio) {
                           // seqno is 6.
 
     EXPECT_EQ(
-            expectedSeqnos[GetParam() - 1].expectedFailoverSeqno,
+            expectedSeqnos[flushRatio - 1].expectedFailoverSeqno,
             replicaKVB->getVBucket(vbid)->failovers->getLatestEntry().by_seqno);
-    const auto& expectedRange = expectedSeqnos[GetParam() - 1].expectedRange;
+    const auto& expectedRange = expectedSeqnos[flushRatio - 1].expectedRange;
     auto range = replicaKVB->getVBucket(vbid)->getPersistedSnapshot();
     EXPECT_EQ(expectedRange.getStart(), range.getStart());
     EXPECT_EQ(expectedRange.getEnd(), range.getEnd());
 }
 
 TEST_P(DCPLoopbackSnapshots, testSnapshots) {
-    testSnapshots(GetParam());
+    int flushRatio = getFlushRatio();
+    testSnapshots(flushRatio);
 }
+
+INSTANTIATE_TEST_SUITE_P(DCPLoopbackStreamTests,
+                         DCPLoopbackStreamTest,
+                         STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_SUITE_P(DCPLoopbackSnapshot,
                          DCPLoopbackSnapshots,
-                         ::testing::Range(1, 10));
+                         DCPLoopbackSnapshots::persistentConfigValues(),
+                         DCPLoopbackSnapshots::PrintToStringParamName);
