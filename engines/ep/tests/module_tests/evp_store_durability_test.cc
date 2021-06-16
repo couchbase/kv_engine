@@ -2405,22 +2405,22 @@ void DurabilityBucketTest::takeoverSendsDurabilityAmbiguous(
     auto mockCookie = cookie_to_mock_cookie(cookie);
     auto mockCookie2 = cookie_to_mock_cookie(cookie2);
 
-    EXPECT_EQ(cb::engine_errc::success, mockCookie->status);
-    EXPECT_EQ(cb::engine_errc::success, mockCookie2->status);
+    EXPECT_EQ(cb::engine_errc::success, mockCookie->getStatus());
+    EXPECT_EQ(cb::engine_errc::success, mockCookie2->getStatus());
 
     // Set state to dead
     EXPECT_EQ(cb::engine_errc::success, store->setVBucketState(vbid, newState));
 
     // We have set state to dead but we have not yet run the notification task
-    EXPECT_EQ(cb::engine_errc::success, mockCookie->status);
-    EXPECT_EQ(cb::engine_errc::success, mockCookie2->status);
+    EXPECT_EQ(cb::engine_errc::success, mockCookie->getStatus());
+    EXPECT_EQ(cb::engine_errc::success, mockCookie2->getStatus());
 
     auto& lpAuxioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
     runNextTask(lpAuxioQ);
 
     // We should have told client the SyncWrite is ambiguous
-    EXPECT_EQ(cb::engine_errc::sync_write_ambiguous, mockCookie->status);
-    EXPECT_EQ(cb::engine_errc::sync_write_ambiguous, mockCookie2->status);
+    EXPECT_EQ(cb::engine_errc::sync_write_ambiguous, mockCookie->getStatus());
+    EXPECT_EQ(cb::engine_errc::sync_write_ambiguous, mockCookie2->getStatus());
 
     destroy_mock_cookie(cookie2);
 }
@@ -2467,7 +2467,7 @@ TEST_F(DurabilityRespondAmbiguousTest, RespondAmbiguousNotificationDeadLock) {
 
         // We don't send cb::engine_errc::sync_write_pending to clients
         auto mockCookie = cookie_to_mock_cookie(cookie);
-        EXPECT_EQ(cb::engine_errc::success, mockCookie->status);
+        EXPECT_EQ(cb::engine_errc::success, mockCookie->getStatus());
 
         // Set state to dead - this will schedule the task
         EXPECT_EQ(cb::engine_errc::success,

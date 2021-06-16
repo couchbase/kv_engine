@@ -28,8 +28,8 @@
 CollectionsDcpTest::CollectionsDcpTest()
     : cookieC(create_mock_cookie(engine.get())),
       cookieP(create_mock_cookie(engine.get())) {
-    mock_set_collections_support(cookieP, true);
-    mock_set_collections_support(cookieC, true);
+    cookieP->setCollectionsSupport(true);
+    cookieC->setCollectionsSupport(true);
     replicaVB = Vbid(1);
 }
 

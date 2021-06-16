@@ -89,8 +89,8 @@ public:
     static cb::engine_errc dcpAddFailoverLog(
             const std::vector<vbucket_failover_t>&);
 
-    CookieIface* cookieC;
-    CookieIface* cookieP;
+    MockCookie* cookieC;
+    MockCookie* cookieP;
     std::unique_ptr<CollectionsDcpTestProducers> producers;
     std::shared_ptr<MockDcpProducer> producer;
     std::shared_ptr<MockDcpConsumer> consumer;

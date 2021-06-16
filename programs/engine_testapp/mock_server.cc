@@ -43,9 +43,6 @@ std::atomic<time_t> process_started;     /* when the mock server was started */
 /* Offset from 'real' time used to test time handling */
 std::atomic<rel_time_t> time_travel_offset;
 
-/// mock_server_cookie_mutex to guard references, and object deletion in
-/// case references becomes zero
-std::mutex mock_server_cookie_mutex;
 spdlog::level::level_enum log_level = spdlog::level::level_enum::info;
 
 /* Forward declarations */
@@ -213,42 +210,34 @@ uint32_t mock_get_privilege_context_revision() {
 struct MockServerCookieApi : public ServerCookieIface {
     void setDcpConnHandler(const CookieIface& cookie,
                            DcpConnHandlerIface* handler) override {
-        auto* c = cookie_to_mock_cookie(&cookie);
-        c->connHandlerIface = handler;
+        cookie_to_mock_cookie(cookie).setConHandler(handler);
     }
     DcpConnHandlerIface* getDcpConnHandler(const CookieIface& cookie) override {
-        auto* c = cookie_to_mock_cookie(&cookie);
-        return c->connHandlerIface;
+        return cookie_to_mock_cookie(cookie).getConHandler();
     }
     void setDcpFlowControlBufferSize(const CookieIface& cookie,
                                      std::size_t size) override {
     }
     void store_engine_specific(const CookieIface& cookie,
                                void* engine_data) override {
-        auto* c = cookie_to_mock_cookie(&cookie);
-        c->engine_data = engine_data;
+        cookie_to_mock_cookie(cookie).setEngineStorage(engine_data);
     }
 
     void* get_engine_specific(const CookieIface& cookie) override {
-        const auto* c = cookie_to_mock_cookie(&cookie);
-        return c->engine_data;
+        return cookie_to_mock_cookie(cookie).getEngineStorage();
     }
 
     bool is_datatype_supported(const CookieIface& cookie,
                                protocol_binary_datatype_t datatype) override {
-        const auto* c = cookie_to_mock_cookie(&cookie);
-        std::bitset<8> in(datatype);
-        return (c->enabled_datatypes & in) == in;
+        return cookie_to_mock_cookie(cookie).isDatatypeSupport(datatype);
     }
 
     bool is_mutation_extras_supported(const CookieIface& cookie) override {
-        const auto* c = cookie_to_mock_cookie(&cookie);
-        return c->handle_mutation_extras;
+        return cookie_to_mock_cookie(cookie).getMutationExtrasHandling();
     }
 
     bool is_collections_supported(const CookieIface& cookie) override {
-        const auto* c = cookie_to_mock_cookie(&cookie);
-        return c->handle_collections_support;
+        return cookie_to_mock_cookie(cookie).isCollectionsSupported();
     }
 
     cb::mcbp::ClientOpcode get_opcode_if_ewouldblock_set(
@@ -258,33 +247,28 @@ struct MockServerCookieApi : public ServerCookieIface {
     }
 
     void reserve(const CookieIface& cookie) override {
-        std::lock_guard<std::mutex> guard(mock_server_cookie_mutex);
-        auto* c = cookie_to_mock_cookie(&cookie);
-        c->references++;
+        const_cast<CookieIface&>(cookie).incrementRefcount();
     }
 
     void release(const CookieIface& cookie) override {
-        std::lock_guard<std::mutex> guard(mock_server_cookie_mutex);
         auto* c = cookie_to_mock_cookie(&cookie);
-
-        const int new_rc = --c->references;
-        if (new_rc == 0) {
+        c->decrementRefcount();
+        if (c->getRefcount() == 0) {
             delete c;
         }
     }
 
     void set_priority(const CookieIface& cookie, ConnectionPriority) override {
-        (void)cookie_to_mock_cookie(&cookie); // validate cookie
+        const_cast<CookieIface&>(cookie).validate();
     }
 
     ConnectionPriority get_priority(const CookieIface& cookie) override {
-        (void)cookie_to_mock_cookie(&cookie); // validate cookie
+        const_cast<CookieIface&>(cookie).validate();
         return ConnectionPriority::Medium;
     }
 
     uint64_t get_connection_id(const CookieIface& cookie) override {
-        auto* c = cookie_to_mock_cookie(&cookie);
-        return c->sfd;
+        return cookie_to_mock_cookie(cookie).getConnectionId();
     }
 
     cb::rbac::PrivilegeAccess check_privilege(
@@ -332,13 +316,11 @@ struct MockServerCookieApi : public ServerCookieIface {
     }
 
     std::string get_authenticated_user(const CookieIface& cookie) override {
-        auto* c = cookie_to_mock_cookie(&cookie);
-        return c->authenticatedUser;
+        return cookie_to_mock_cookie(cookie).getAuthedUser();
     }
 
     in_port_t get_connected_port(const CookieIface& cookie) override {
-        auto* c = cookie_to_mock_cookie(&cookie);
-        return c->parent_port;
+        return cookie_to_mock_cookie(cookie).getParentPort();
     }
 
     void set_error_context(CookieIface& cookie,
@@ -356,31 +338,16 @@ struct MockServerCookieApi : public ServerCookieIface {
     std::string_view get_inflated_payload(
             const CookieIface& cookie,
             const cb::mcbp::Request& request) override {
-        if (!mcbp::datatype::is_snappy(uint8_t(request.getDatatype()))) {
-            return {};
-        }
-
         auto* c = cookie_to_mock_cookie(&cookie);
-        std::lock_guard<std::mutex> guard(c->mutex);
-        auto v = request.getValue();
-        if (cb::compression::inflate(
-                    cb::compression::Algorithm::Snappy,
-                    {reinterpret_cast<const char*>(v.data()), v.size()},
-                    c->inflated_payload)) {
-            return c->inflated_payload;
-        }
-        throw std::runtime_error(
-                "MockServerCookieApi::get_inflated_payload: Failed to inflate "
-                "data");
+        c->inflateInputPayload(
+                reinterpret_cast<const cb::mcbp::Header&>(request));
+        return c->getInflatedInputPayload();
     }
 
     void notify_io_complete(const CookieIface& cookie,
                             cb::engine_errc status) override {
-        auto* c = cookie_to_mock_cookie(&cookie);
-        std::lock_guard<std::mutex> guard(c->mutex);
-        c->status = status;
-        c->num_io_notifications++;
-        c->cond.notify_all();
+        auto& c = cookie_to_mock_cookie(cookie);
+        c.handleIoComplete(status);
     }
 
     void scheduleDcpStep(const CookieIface& cookie) override {

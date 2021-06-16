@@ -267,7 +267,7 @@ TEST_P(CollectionsManifestUpdatePersistent, update_fail_persist) {
 
     auto mockCookie = cookie_to_mock_cookie(cookie);
     EXPECT_EQ(cb::engine_errc::cannot_apply_collections_manifest,
-              cb::engine_errc(mockCookie->status));
+              mockCookie->getStatus());
 }
 
 TEST_P(CollectionsManifestUpdatePersistent, update_fail_warmup) {

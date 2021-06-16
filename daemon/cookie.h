@@ -77,7 +77,7 @@ public:
      * @return Success if the packet was correctly encoded
      * @throw std::runtime_error if an unsupported packet is encountered
      */
-    cb::mcbp::Status validate();
+    cb::mcbp::Status validate() override;
 
     /**
      * Reset the Cookie object to allow it to be reused in the same
@@ -297,14 +297,14 @@ public:
     /**
      * Is the current cookie blocked?
      */
-    bool isEwouldblock() const {
+    bool isEwouldblock() const override {
         return ewouldblock;
     }
 
     /**
      * Set the ewouldblock status for the cookie
      */
-    void setEwouldblock(bool ewouldblock);
+    void setEwouldblock(bool ewouldblock) override;
 
     /**
      *
@@ -404,17 +404,17 @@ public:
      */
     void maybeLogSlowCommand(std::chrono::steady_clock::duration elapsed) const;
 
-    uint8_t getRefcount() {
+    uint8_t getRefcount() override {
         return refcount;
     }
-    void incrementRefcount() {
+    void incrementRefcount() override {
         if (refcount == 255) {
             throw std::logic_error(
                     "Cookie::incrementRefcount(): refcount will wrap");
         }
         refcount++;
     }
-    void decrementRefcount() {
+    void decrementRefcount() override {
         if (refcount == 0) {
             throw std::logic_error(
                     "Cookie::decrementRefcount(): refcount will wrap");
@@ -422,11 +422,11 @@ public:
         refcount--;
     }
 
-    void* getEngineStorage() const {
+    void* getEngineStorage() const override {
         return engine_storage;
     }
 
-    void setEngineStorage(void* value) {
+    void setEngineStorage(void* value) override {
         engine_storage = value;
     }
 
@@ -471,7 +471,7 @@ public:
      * Get the inflated payload (inflated as part of package validation),
      * and if the payload wasn't inflated the packets value is returned.
      */
-    std::string_view getInflatedInputPayload() const;
+    std::string_view getInflatedInputPayload() const override;
 
     /**
      * Inflate the value (if deflated); caching the inflated value inside the
@@ -481,7 +481,7 @@ public:
      * @return true if success, false if an error occurs (the error context
      *         contains the reason why)
      */
-    bool inflateInputPayload(const cb::mcbp::Header& header);
+    bool inflateInputPayload(const cb::mcbp::Header& header) override;
 
     /**
      * Helper function to inflate the specified Snappy-compressed buffer.

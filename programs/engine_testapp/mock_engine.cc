@@ -22,21 +22,16 @@ template <typename T>
 static std::pair<cb::engine_errc, T> do_blocking_engine_call(
         MockCookie* c,
         const std::function<std::pair<cb::engine_errc, T>()>& engine_function) {
-    c->nblocks = 0;
-    std::unique_lock<std::mutex> lock(c->mutex);
+    std::unique_lock<std::mutex> lock(c->getMutex());
 
     auto ret = engine_function();
-    while (ret.first == cb::engine_errc::would_block && c->handle_ewouldblock) {
-        ++c->nblocks;
-        c->cond.wait(lock, [&c] {
-            return c->num_processed_notifications != c->num_io_notifications;
-        });
-        c->num_processed_notifications = c->num_io_notifications;
+    while (ret.first == cb::engine_errc::would_block && c->isEwouldblock()) {
+        c->waitForNotifications(lock);
 
-        if (c->status == cb::engine_errc::success) {
+        if (c->getStatus() == cb::engine_errc::success) {
             ret = engine_function();
         } else {
-            return std::make_pair(cb::engine_errc(c->status), T());
+            return std::make_pair(cb::engine_errc(c->getStatus()), T());
         }
     }
 
@@ -51,22 +46,16 @@ static std::pair<cb::engine_errc, T> do_blocking_engine_call(
 static cb::EngineErrorCasPair call_engine_and_handle_EWOULDBLOCK(
         MockCookie* c,
         const std::function<cb::EngineErrorCasPair()>& engine_function) {
-    c->nblocks = 0;
-    std::unique_lock<std::mutex> lock(c->mutex);
+    std::unique_lock<std::mutex> lock(c->getMutex());
 
     auto ret = engine_function();
-    while (ret.status == cb::engine_errc::would_block &&
-           c->handle_ewouldblock) {
-        ++c->nblocks;
-        c->cond.wait(lock, [&c] {
-            return c->num_processed_notifications != c->num_io_notifications;
-        });
-        c->num_processed_notifications = c->num_io_notifications;
+    while (ret.status == cb::engine_errc::would_block && c->isEwouldblock()) {
+        c->waitForNotifications(lock);
 
-        if (c->status == cb::engine_errc::success) {
+        if (c->getStatus() == cb::engine_errc::success) {
             ret = engine_function();
         } else {
-            return {cb::engine_errc(c->status), 0};
+            return {c->getStatus(), 0};
         }
     }
 
@@ -81,21 +70,16 @@ static cb::EngineErrorCasPair call_engine_and_handle_EWOULDBLOCK(
 static cb::engine_errc call_engine_and_handle_EWOULDBLOCK(
         MockCookie* c,
         const std::function<cb::engine_errc()>& engine_function) {
-    c->nblocks = 0;
-    std::unique_lock<std::mutex> lock(c->mutex);
+    std::unique_lock<std::mutex> lock(c->getMutex());
 
     auto ret = engine_function();
-    while (ret == cb::engine_errc::would_block && c->handle_ewouldblock) {
-        ++c->nblocks;
-        c->cond.wait(lock, [&c] {
-            return c->num_processed_notifications != c->num_io_notifications;
-        });
-        c->num_processed_notifications = c->num_io_notifications;
+    while (ret == cb::engine_errc::would_block && c->isEwouldblock()) {
+        c->waitForNotifications(lock);
 
-        if (c->status == cb::engine_errc::success) {
+        if (c->getStatus() == cb::engine_errc::success) {
             ret = engine_function();
         } else {
-            return cb::engine_errc(c->status);
+            return c->getStatus();
         }
     }
 
@@ -109,8 +93,7 @@ static cb::engine_errc call_engine_and_handle_EWOULDBLOCK(
 MockCookie* get_or_create_mock_connstruct(const CookieIface* cookie,
                                           EngineIface* engine) {
     if (cookie == nullptr) {
-        return cookie_to_mock_cookie(
-                static_cast<CookieIface*>(create_mock_cookie(engine)));
+        return create_mock_cookie(engine);
     }
     return cookie_to_mock_cookie(cookie);
 }
@@ -152,9 +135,8 @@ std::pair<cb::unique_item_ptr, item_info> MockEngine::allocateItem(
         uint8_t datatype,
         Vbid vbucket) {
     auto* c = cookie_to_mock_cookie(&cookie);
-    c->nblocks = 0;
 
-    std::lock_guard<std::mutex> guard(c->mutex);
+    std::unique_lock<std::mutex> lock(c->getMutex());
     try {
         return the_engine->allocateItem(cookie,
                                         key,
@@ -765,7 +747,7 @@ cb::engine_errc MockEngine::setParameter(const CookieIface& cookie,
                                          std::string_view value,
                                          Vbid vbucket) {
     auto* c = cookie_to_mock_cookie(&cookie);
-    auto engine_fn = [this, cookie, category, key, value, vbucket]() {
+    auto engine_fn = [this, &cookie, category, key, value, vbucket]() {
         return the_engine->setParameter(cookie, category, key, value, vbucket);
     };
 

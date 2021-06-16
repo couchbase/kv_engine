@@ -120,9 +120,9 @@ TEST_P(EPBucketTest, test_mb20751_deadlock_on_disconnect_delete) {
     std::thread frontend_thread_handling_disconnect{[this](){
             // Frontend thread always runs with the cookie locked, so
             // lock here to match.
-            lock_mock_cookie(cookie);
+            cookie->lock();
             engine->handleDisconnect(cookie);
-            unlock_mock_cookie(cookie);
+            cookie->unlock();
         }};
 
     // 2. Trigger a bucket deletion.
@@ -493,10 +493,9 @@ TEST_P(EPBucketTest, MB_21976) {
     EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
 
     // Mark the status of the cookie so that we can see if notify is called
-    lock_mock_cookie(cookie);
-    auto* c = (MockCookie*)cookie;
-    c->status = cb::engine_errc::too_big;
-    unlock_mock_cookie(cookie);
+    cookie->lock();
+    cookie->setStatus(cb::engine_errc::too_big);
+    cookie->unlock();
 
     auto* deleteCookie = create_mock_cookie(engine.get());
 
@@ -510,7 +509,7 @@ TEST_P(EPBucketTest, MB_21976) {
 
     // Check the status of the cookie to see if the cookie status has changed
     // to cb::engine_errc::not_my_vbucket, which means the notify was sent
-    EXPECT_EQ(cb::engine_errc::not_my_vbucket, c->status);
+    EXPECT_EQ(cb::engine_errc::not_my_vbucket, cookie->getStatus());
 
     destroy_mock_cookie(deleteCookie);
 }
@@ -936,7 +935,8 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryFindsTempItem) {
     }
     EXPECT_EQ(expectedItems, vb->getNumItems());
 
-    EXPECT_EQ(cb::engine_errc::success, cookie_to_mock_cookie(cookie)->status);
+    EXPECT_EQ(cb::engine_errc::success,
+              cookie_to_mock_cookie(cookie)->getStatus());
 }
 
 TEST_P(EPBucketFullEvictionTest, ExpiryFindsPrepareWithSameCas) {
@@ -1320,7 +1320,7 @@ TEST_P(EPBucketTest, GetNonResidentCompressed) {
     // Check the item is returned compressed (if supported by KVStore)
     const auto Json = PROTOCOL_BINARY_DATATYPE_JSON;
     const auto JsonSnappy = Json | PROTOCOL_BINARY_DATATYPE_SNAPPY;
-    mock_set_datatype_support(cookie, JsonSnappy);
+    cookie->setDatatypeSupport(JsonSnappy);
 
     auto item = doGet();
     if (supportsFetchingAsSnappy()) {
@@ -1331,7 +1331,7 @@ TEST_P(EPBucketTest, GetNonResidentCompressed) {
 
     // Test 2: perform a get when snappy is not supported.
     // Check the item is returned uncompressed.
-    mock_set_datatype_support(cookie, Json);
+    cookie->setDatatypeSupport(Json);
     item = doGet();
     EXPECT_EQ(Json, item->getDataType());
 }
@@ -1739,7 +1739,7 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
     // the task has copied the config and logically compaction is running.
     CompactionConfig config3{300, 3, 0, false};
     task->setRunningCallback([this, &config3, mockEPBucket]() {
-        cookie_to_mock_cookie(cookie)->status = cb::engine_errc::failed;
+        cookie_to_mock_cookie(cookie)->setStatus(cb::engine_errc::failed);
         EXPECT_EQ(cb::engine_errc::would_block,
                   mockEPBucket->scheduleCompaction(
                           vbid, config3, cookie, std::chrono::seconds(0)));
@@ -1749,7 +1749,8 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
     EXPECT_TRUE(task->run());
 
     // Compaction for the cookie not yet executed
-    EXPECT_EQ(cb::engine_errc::failed, cookie_to_mock_cookie(cookie)->status);
+    EXPECT_EQ(cb::engine_errc::failed,
+              cookie_to_mock_cookie(cookie)->getStatus());
 
     // config3 is now the current config
     EXPECT_EQ(config3, task->getCurrentConfig());
@@ -1759,7 +1760,8 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
     // task is now done
     EXPECT_FALSE(task->run());
     EXPECT_FALSE(mockEPBucket->getCompactionTask(vbid));
-    EXPECT_EQ(cb::engine_errc::success, cookie_to_mock_cookie(cookie)->status);
+    EXPECT_EQ(cb::engine_errc::success,
+              cookie_to_mock_cookie(cookie)->getStatus());
 }
 
 class EPBucketTestCouchstore : public EPBucketTest {

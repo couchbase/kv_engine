@@ -14,6 +14,7 @@
 #include <memcached/engine_testapp.h>
 #include <memcached/tracer.h>
 
+#include <platform/compress.h>
 #include <platform/compression/buffer.h>
 #include <atomic>
 #include <bitset>
@@ -23,7 +24,8 @@
 
 class DcpConnHandlerIface;
 
-struct MockCookie : public CookieIface {
+class MockCookie : public CookieIface {
+public:
     /**
      * Create a new cookie which isn't bound to an engine. This cookie won't
      * notify the engine when it disconnects.
@@ -40,66 +42,113 @@ struct MockCookie : public CookieIface {
 
     ~MockCookie() override;
 
+    cb::mcbp::Status validate() override;
+
+    bool isEwouldblock() const override {
+        return handle_ewouldblock;
+    }
+
+    void setEwouldblock(bool ewouldblock) override;
+
+    uint8_t getRefcount() override {
+        return references;
+    }
+
+    void incrementRefcount() override {
+        ++references;
+    }
+
+    void decrementRefcount() override {
+        --references;
+    }
+
+    void* getEngineStorage() const override {
+        return engine_data;
+    }
+
+    void setEngineStorage(void* value) override {
+        engine_data = value;
+    }
+
+    void setConHandler(DcpConnHandlerIface* handler) {
+        connHandlerIface = handler;
+    }
+    DcpConnHandlerIface* getConHandler() const {
+        return connHandlerIface;
+    }
+
+    void setMutationExtrasHandling(bool enable);
+    bool getMutationExtrasHandling() const;
+
+    void setDatatypeSupport(protocol_binary_datatype_t datatypes);
+    bool isDatatypeSupport(protocol_binary_datatype_t datatype) const;
+
+    void setCollectionsSupport(bool enable);
+    bool isCollectionsSupported() const;
+
+    int getConnectionId() const {
+        return sfd;
+    }
+
+    std::mutex& getMutex();
+    void lock();
+    void unlock();
+    void wait();
+
+    /// decrement the ref count and signal the bucket that we're disconnecting
+    void disconnect();
+
+    bool inflateInputPayload(const cb::mcbp::Header& header) override;
+
+    std::string_view getInflatedInputPayload() const override {
+        return {inflated_payload.data(), inflated_payload.size()};
+    }
+
+    uint64_t getNumIoNotifications() const {
+        return num_io_notifications;
+    }
+    void handleIoComplete(cb::engine_errc completeStatus);
+
+    void setStatus(cb::engine_errc newStatus);
+    cb::engine_errc getStatus() const;
+
+    std::string getAuthedUser() const {
+        return authenticatedUser;
+    }
+
+    in_port_t getParentPort() const {
+        return parent_port;
+    }
+
+    void waitForNotifications(std::unique_lock<std::mutex>& lock);
+
+private:
     const uint64_t magic{MAGIC};
-    void* engine_data{};
+    void* engine_data{nullptr};
     int sfd{};
     cb::engine_errc status{cb::engine_errc::success};
-    int nblocks{0}; /* number of ewouldblocks */
     bool handle_ewouldblock{true};
     bool handle_mutation_extras{true};
     std::bitset<8> enabled_datatypes;
     bool handle_collections_support{false};
     std::mutex mutex;
     std::condition_variable cond;
-    int references{1};
+    std::atomic<uint8_t> references{1};
     uint64_t num_io_notifications{};
     uint64_t num_processed_notifications{};
     std::string authenticatedUser{"nobody"};
     in_port_t parent_port{666};
     DcpConnHandlerIface* connHandlerIface = nullptr;
 
-    void validate() const;
-
-    /// decrement the ref count and signal the bucket that we're disconnecting
-    void disconnect() {
-        references--;
-        if (engine) {
-            engine->disconnect(*this);
-        }
-    }
-
     cb::compression::Buffer inflated_payload;
 
-protected:
     static const uint64_t MAGIC = 0xbeefcafecafebeefULL;
-    EngineIface* engine;
+    EngineIface* engine = nullptr;
 };
 
-CookieIface* create_mock_cookie(EngineIface* engine = nullptr);
+MockCookie* create_mock_cookie(EngineIface* engine = nullptr);
 
 void destroy_mock_cookie(CookieIface* cookie);
 
-void mock_set_ewouldblock_handling(const CookieIface* cookie, bool enable);
-
-void mock_set_mutation_extras_handling(const CookieIface* cookie, bool enable);
-
-void mock_set_collections_support(const CookieIface* cookie, bool enable);
-
-bool mock_is_collections_supported(const CookieIface* cookie);
-
-void mock_set_datatype_support(const CookieIface* cookie,
-                               protocol_binary_datatype_t datatypes);
-
-void lock_mock_cookie(const CookieIface* cookie);
-
-void unlock_mock_cookie(const CookieIface* cookie);
-
-void waitfor_mock_cookie(const CookieIface* cookie);
-
-void disconnect_all_mock_connections();
-
-int get_number_of_mock_cookie_references(const CookieIface* cookie);
-
-size_t get_number_of_mock_cookie_io_notifications(const CookieIface* cookie);
-
 MockCookie* cookie_to_mock_cookie(const CookieIface* cookie);
+MockCookie& cookie_to_mock_cookie(const CookieIface& cookie);

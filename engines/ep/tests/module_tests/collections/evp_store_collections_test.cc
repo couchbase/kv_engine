@@ -1259,13 +1259,14 @@ TEST_F(CollectionsWarmupTest, MB_38125) {
     // Cannot set the manifest yet - command follows ewouldblock pattern
     auto status = engine->set_collection_manifest(*cookie, std::string{cm});
     EXPECT_EQ(cb::engine_errc::would_block, status);
-    cookie_to_mock_cookie(cookie)->status = cb::engine_errc::failed;
+    cookie_to_mock_cookie(cookie)->setStatus(cb::engine_errc::failed);
 
     // Now get the engine warmed up
     runReadersUntilWarmedUp();
 
     // cookie now notified and setCollections can go ahead
-    EXPECT_EQ(cb::engine_errc::success, cookie_to_mock_cookie(cookie)->status);
+    EXPECT_EQ(cb::engine_errc::success,
+              cookie_to_mock_cookie(cookie)->getStatus());
     setCollections(cookie, cm);
 
     auto vb = store->getVBucket(vbid);
@@ -2754,7 +2755,7 @@ std::set<std::string> CollectionsTest::generateExpectedKeys(
     for (size_t i = 0; i < numOfItems; i++) {
         std::string currentKey(keyPrefix);
         currentKey += std::to_string(i);
-        if (mock_is_collections_supported(cookie)) {
+        if (cookie->isCollectionsSupported()) {
             StoredDocKey sDocKey{currentKey, cid};
             generatedKeys.insert({reinterpret_cast<const char*>(sDocKey.data()),
                                   sDocKey.size()});
@@ -2825,7 +2826,7 @@ TEST_F(CollectionsTest, GetAllKeysStartHalfWay) {
 
 TEST_F(CollectionsTest, GetAllKeysStartHalfWayForCollection) {
     // Enable collections on mock connection
-    mock_set_collections_support(cookie, true);
+    cookie->setCollectionsSupport(true);
     auto vb = store->getVBucket(vbid);
 
     // Add the meat collection
@@ -2853,7 +2854,7 @@ TEST_F(CollectionsTest, GetAllKeysStartHalfWayForCollection) {
 
 TEST_F(CollectionsTest, GetAllKeysForCollectionEmptyKey) {
     // Enable collections on mock connection
-    mock_set_collections_support(cookie, true);
+    cookie->setCollectionsSupport(true);
     auto vb = store->getVBucket(vbid);
 
     // Add the meat collection
@@ -2899,7 +2900,7 @@ TEST_F(CollectionsTest, GetAllKeysNonCollectionConnectionCidEncodeKey) {
 
 TEST_F(CollectionsTest, GetAllKeysCollectionConnection) {
     // Enable collections on mock connection
-    mock_set_collections_support(cookie, true);
+    cookie->setCollectionsSupport(true);
     auto vb = store->getVBucket(vbid);
 
     // Add the meat collection
@@ -3145,7 +3146,7 @@ public:
 TEST_F(CollectionsRbacTest, GetAllKeysRbacCollectionConnection) {
     // Enable collections for this mock connection and remove
     // privs to access the default and dairy collections
-    mock_set_collections_support(cookie, true);
+    cookie->setCollectionsSupport(true);
     setNoAccess(CollectionEntry::dairy);
     setNoAccess(CollectionEntry::defaultC);
     auto vb = store->getVBucket(vbid);
@@ -3201,7 +3202,7 @@ TEST_F(CollectionsRbacTest, GetAllKeysRbacCollectionConnection) {
 }
 
 TEST_F(CollectionsRbacTest, TestKeyStats) {
-    mock_set_collections_support(cookie, true);
+    cookie->setCollectionsSupport(true);
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
     setCollections(cookie, cm);
@@ -3248,7 +3249,7 @@ TEST_F(CollectionsRbacTest, TestKeyStats) {
 }
 
 TEST_F(CollectionsRbacTest, TestVKeyStats) {
-    mock_set_collections_support(cookie, true);
+    cookie->setCollectionsSupport(true);
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
     setCollections(cookie, cm);

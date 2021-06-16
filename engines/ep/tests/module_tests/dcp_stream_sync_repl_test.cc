@@ -189,14 +189,14 @@ TEST_P(DcpStreamSyncReplTest, NoPendingNotificationWithoutSyncReplication) {
 
     // Verify number of io notification calls for the producer
     connMap.processPendingNotifications();
-    EXPECT_EQ(1, get_number_of_mock_cookie_io_notifications(producerCookie));
+    EXPECT_EQ(1, producerCookie->getNumIoNotifications());
 
     // Store our doc
     storePending(DocumentState::Alive, "key", "value");
 
     // We should not notify the producer as it does not support SyncWrites
     connMap.processPendingNotifications();
-    EXPECT_EQ(1, get_number_of_mock_cookie_io_notifications(producerCookie));
+    EXPECT_EQ(1, producerCookie->getNumIoNotifications());
 
     connMap.disconnect(producerCookie);
     connMap.manageConnections();
@@ -228,14 +228,14 @@ TEST_P(DcpStreamSyncReplTest, PendingNotificationWithSyncReplication) {
 
     // Verify number of io notification calls for the producer
     connMap.processPendingNotifications();
-    EXPECT_EQ(1, get_number_of_mock_cookie_io_notifications(producerCookie));
+    EXPECT_EQ(1, producerCookie->getNumIoNotifications());
 
     // Store our doc
     storePending(DocumentState::Alive, "key", "value");
 
     // We should notify the producer as it supports SyncWrites
     connMap.processPendingNotifications();
-    EXPECT_EQ(2, get_number_of_mock_cookie_io_notifications(producerCookie));
+    EXPECT_EQ(2, producerCookie->getNumIoNotifications());
 
     connMap.disconnect(producerCookie);
     connMap.manageConnections();

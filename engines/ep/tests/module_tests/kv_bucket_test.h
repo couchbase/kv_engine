@@ -24,12 +24,12 @@
 
 #include <folly/portability/GTest.h>
 #include <memcached/protocol_binary.h>
+#include <programs/engine_testapp/mock_cookie.h>
 #include <tests/ep_request_utils.h>
 #include <tests/mock/mock_synchronous_ep_engine.h>
 
 #include <memory>
 
-class CookieIface;
 class CouchKVStoreConfig;
 class FileOpsInterface;
 class ItemMetaData;
@@ -290,5 +290,5 @@ public:
     KVBucket* store;
 
     // The (mock) server cookie.
-    CookieIface* cookie = nullptr;
+    MockCookie* cookie = nullptr;
 };

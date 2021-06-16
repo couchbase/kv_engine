@@ -10,10 +10,7 @@
 #include "mock_cookie.h"
 #include "mock_server.h"
 
-/// mock_server_cookie_mutex to guard references, and object deletion in
-/// case references becomes zero. Not put into the API as people shouldn't
-/// mess around with it!!
-extern std::mutex mock_server_cookie_mutex;
+#include <mcbp/protocol/status.h>
 
 MockCookie::MockCookie(EngineIface* e) : engine(e) {
 }
@@ -24,13 +21,14 @@ MockCookie::~MockCookie() {
     }
 }
 
-void MockCookie::validate() const {
+cb::mcbp::Status MockCookie::validate() {
     if (magic != MAGIC) {
         throw std::runtime_error("MockCookie::validate(): Invalid magic");
     }
+    return cb::mcbp::Status::Success;
 }
 
-CookieIface* create_mock_cookie(EngineIface* engine) {
+MockCookie* create_mock_cookie(EngineIface* engine) {
     return new MockCookie(engine);
 }
 
@@ -45,86 +43,119 @@ void destroy_mock_cookie(CookieIface* cookie) {
                 "destroy_mock_cookie: Provided cookie is not a MockCookie");
     }
 
-    std::lock_guard<std::mutex> guard(mock_server_cookie_mutex);
     c->validate();
     c->disconnect();
-    if (c->references == 0) {
+    if (c->getRefcount() == 0) {
         delete c;
     }
 }
 
-void mock_set_ewouldblock_handling(const CookieIface* cookie, bool enable) {
-    auto* c = cookie_to_mock_cookie(cookie);
-    c->handle_ewouldblock = enable;
+void MockCookie::setEwouldblock(bool ewouldblock) {
+    handle_ewouldblock = ewouldblock;
 }
 
-void mock_set_mutation_extras_handling(const CookieIface* cookie, bool enable) {
-    auto* c = cookie_to_mock_cookie(cookie);
-    c->handle_mutation_extras = enable;
+void MockCookie::setMutationExtrasHandling(bool enable) {
+    handle_mutation_extras = enable;
 }
 
-void mock_set_datatype_support(const CookieIface* cookie,
-                               protocol_binary_datatype_t datatypes) {
-    auto* c = cookie_to_mock_cookie(cookie);
-    c->enabled_datatypes = std::bitset<8>(datatypes);
+bool MockCookie::getMutationExtrasHandling() const {
+    return handle_mutation_extras;
 }
 
-void mock_set_collections_support(const CookieIface* cookie, bool enable) {
-    auto* c = cookie_to_mock_cookie(cookie);
-    c->handle_collections_support = enable;
+void MockCookie::setDatatypeSupport(protocol_binary_datatype_t datatypes) {
+    enabled_datatypes = std::bitset<8>(datatypes);
 }
 
-bool mock_is_collections_supported(const CookieIface* cookie) {
-    auto* c = cookie_to_mock_cookie(cookie);
-    return c->handle_collections_support;
+bool MockCookie::isDatatypeSupport(protocol_binary_datatype_t datatype) const {
+    std::bitset<8> in(datatype);
+    return (enabled_datatypes & in) == in;
 }
 
-void lock_mock_cookie(const CookieIface* cookie) {
-    auto* c = cookie_to_mock_cookie(cookie);
-    c->mutex.lock();
+void MockCookie::setCollectionsSupport(bool enable) {
+    handle_collections_support = enable;
 }
 
-void unlock_mock_cookie(const CookieIface* cookie) {
-    auto* c = cookie_to_mock_cookie(cookie);
-    c->mutex.unlock();
+bool MockCookie::isCollectionsSupported() const {
+    return handle_collections_support;
 }
 
-void waitfor_mock_cookie(const CookieIface* cookie) {
-    auto* c = cookie_to_mock_cookie(cookie);
+std::mutex& MockCookie::getMutex() {
+    return mutex;
+}
 
-    std::unique_lock<std::mutex> lock(c->mutex, std::adopt_lock);
+void MockCookie::lock() {
+    mutex.lock();
+}
+
+void MockCookie::unlock() {
+    mutex.unlock();
+}
+
+void MockCookie::wait() {
+    std::unique_lock<std::mutex> lock(mutex, std::adopt_lock);
     if (!lock.owns_lock()) {
-        throw std::logic_error("waitfor_mock_cookie: cookie should be locked!");
+        throw std::logic_error("MockCookie::wait(): cookie should be locked!");
     }
-
-    c->cond.wait(lock, [&c] {
-        return c->num_processed_notifications != c->num_io_notifications;
-    });
-    c->num_processed_notifications = c->num_io_notifications;
-
+    waitForNotifications(lock);
     lock.release();
 }
 
-void disconnect_all_mock_connections() {
-    // Currently does nothing; we don't track mock_connstructs
+void MockCookie::waitForNotifications(std::unique_lock<std::mutex>& lock) {
+    cond.wait(lock, [this]() {
+        return num_processed_notifications != num_io_notifications;
+    });
+    num_processed_notifications = num_io_notifications;
 }
 
-int get_number_of_mock_cookie_references(const CookieIface* cookie) {
-    if (cookie == nullptr) {
-        return -1;
+void MockCookie::disconnect() {
+    decrementRefcount();
+    if (engine) {
+        engine->disconnect(*this);
     }
-    std::lock_guard<std::mutex> guard(mock_server_cookie_mutex);
-    auto* c = cookie_to_mock_cookie(cookie);
-    return c->references;
 }
 
-size_t get_number_of_mock_cookie_io_notifications(const CookieIface* cookie) {
-    auto* c = cookie_to_mock_cookie(cookie);
-    return c->num_io_notifications;
+bool MockCookie::inflateInputPayload(const cb::mcbp::Header& header) {
+    inflated_payload.reset();
+    if (!mcbp::datatype::is_snappy(header.getDatatype())) {
+        return true;
+    }
+
+    try {
+        auto val = header.getValue();
+        if (!cb::compression::inflate(
+                    cb::compression::Algorithm::Snappy,
+                    {reinterpret_cast<const char*>(val.data()), val.size()},
+                    inflated_payload)) {
+            return false;
+        }
+    } catch (const std::bad_alloc&) {
+        return false;
+    }
+    return true;
+}
+
+void MockCookie::setStatus(cb::engine_errc newStatus) {
+    status = newStatus;
+}
+
+cb::engine_errc MockCookie::getStatus() const {
+    return status;
+}
+void MockCookie::handleIoComplete(cb::engine_errc completeStatus) {
+    lock();
+    setStatus(completeStatus);
+    num_io_notifications++;
+    cond.notify_all();
+    unlock();
 }
 
 MockCookie* cookie_to_mock_cookie(const CookieIface* cookie) {
-    auto* ret = dynamic_cast<const MockCookie*>(cookie);
+    auto* ret =
+            const_cast<MockCookie*>(dynamic_cast<const MockCookie*>(cookie));
     ret->validate();
-    return const_cast<MockCookie*>(ret);
+    return ret;
+}
+
+MockCookie& cookie_to_mock_cookie(const CookieIface& cookie) {
+    return *cookie_to_mock_cookie(&cookie);
 }

@@ -127,7 +127,7 @@ void StreamTest::setupProducerCompression() {
 TEST_P(StreamTest, test_verifyProducerCompressionStats) {
     setupProducerCompression();
 
-    mock_set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY);
+    cookie->setDatatypeSupport(PROTOCOL_BINARY_DATATYPE_SNAPPY);
     setup_dcp_stream();
 
     ASSERT_EQ(cb::engine_errc::success,
@@ -193,7 +193,7 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
 TEST_P(StreamTest, test_verifyProducerCompressionDisabledStats) {
     setupProducerCompression();
 
-    mock_set_datatype_support(cookie, PROTOCOL_BINARY_RAW_BYTES);
+    cookie->setDatatypeSupport(PROTOCOL_BINARY_RAW_BYTES);
     setup_dcp_stream();
 
     ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
@@ -1074,7 +1074,7 @@ TEST_P(StreamTest, MB_25820_callback_not_invoked_on_dead_vb_stream_request) {
 // Test the compression control success case
 TEST_P(StreamTest, validate_compression_control_message_allowed) {
     // For success enable the snappy datatype on the connection
-    mock_set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY);
+    cookie->setDatatypeSupport(PROTOCOL_BINARY_DATATYPE_SNAPPY);
     setup_dcp_stream();
     std::string compressCtrlMsg("force_value_compression");
     std::string compressCtrlValue("true");

@@ -13,4 +13,21 @@
 
 #include <memcached/tracer.h>
 
-class CookieIface : public cb::tracing::Traceable {};
+namespace cb::mcbp {
+class Header;
+enum class Status : uint16_t;
+} // namespace cb::mcbp
+
+class CookieIface : public cb::tracing::Traceable {
+public:
+    virtual cb::mcbp::Status validate() = 0;
+    virtual bool isEwouldblock() const = 0;
+    virtual void setEwouldblock(bool ewouldblock) = 0;
+    virtual uint8_t getRefcount() = 0;
+    virtual void incrementRefcount() = 0;
+    virtual void decrementRefcount() = 0;
+    virtual void* getEngineStorage() const = 0;
+    virtual void setEngineStorage(void* value) = 0;
+    virtual bool inflateInputPayload(const cb::mcbp::Header& header) = 0;
+    virtual std::string_view getInflatedInputPayload() const = 0;
+};

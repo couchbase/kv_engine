@@ -2049,8 +2049,8 @@ TEST_P(CollectionsDcpParameterizedTest, legacy_stream_closes) {
     setCollections(cookie, cm.add(CollectionEntry::meat));
 
     // Make cookie look like a non-collection client
-    mock_set_collections_support(cookieP, false);
-    mock_set_collections_support(cookieC, false);
+    cookieP->setCollectionsSupport(false);
+    cookieC->setCollectionsSupport(false);
     // Setup legacy DCP, it only receives default collection mutation/deletion
     // and should self-close if the default collection were to be deleted
     createDcpObjects({});
@@ -2240,8 +2240,8 @@ TEST_P(CollectionsDcpCloseAfterLosingPrivs, legacy_stream_closes) {
     store_item(vbid, StoredDocKey{"k", CollectionID::Default}, "v");
 
     // Make cookie look like a non-collection client
-    mock_set_collections_support(cookieP, false);
-    mock_set_collections_support(cookieC, false);
+    cookieP->setCollectionsSupport(false);
+    cookieC->setCollectionsSupport(false);
     // Setup legacy DCP, it only receives default collection mutation/deletion
     // and should self-close if the default collection were to be deleted
     createDcpObjects({});

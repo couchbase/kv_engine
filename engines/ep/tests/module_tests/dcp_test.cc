@@ -679,7 +679,7 @@ TEST_P(CompressionStreamTest, connection_snappy_enabled) {
                                      isXattr());
 
     // Enable the snappy datatype on the connection
-    mock_set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY);
+    cookie->setDatatypeSupport(PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
     auto includeValue = isXattr() ? IncludeValue::No : IncludeValue::Yes;
     setup_dcp_stream(0, includeValue, IncludeXattrs::Yes);
@@ -750,7 +750,7 @@ TEST_P(CompressionStreamTest, force_value_compression_enabled) {
                                      isXattr());
 
     // Enable the snappy datatype on the connection
-    mock_set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY);
+    cookie->setDatatypeSupport(PROTOCOL_BINARY_DATATYPE_SNAPPY);
     auto includeValue = isXattr() ? IncludeValue::No : IncludeValue::Yes;
 
     // Setup the producer/stream and request force_value_compression
@@ -850,7 +850,7 @@ TEST_P(CompressionStreamTest,
 TEST_P(CompressionStreamTest,
        NoWithUnderlyingDatatype_CompressionEnabled_ItemCompressed) {
     // Enable the snappy and passive compression on the connection.
-    mock_set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY);
+    cookie->setDatatypeSupport(PROTOCOL_BINARY_DATATYPE_SNAPPY);
     setup_dcp_stream(0,
                      IncludeValue::NoWithUnderlyingDatatype,
                      IncludeXattrs::Yes,
@@ -945,7 +945,7 @@ TEST_P(CompressionStreamTest,
  */
 TEST_P(CompressionStreamTest, CompressionEnabled_NoValue) {
     // Enable the snappy and passive compression on the connection.
-    mock_set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY);
+    cookie->setDatatypeSupport(PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
     // Note: Whatever input, we want to stream a size-0 value
     setup_dcp_stream(0,
@@ -1303,8 +1303,8 @@ TEST_P(ConnectionTest, test_mb17042_duplicate_name_producer_connections) {
 TEST_P(ConnectionTest, test_mb17042_duplicate_name_consumer_connections) {
     MockDcpConnMap connMap(*engine);
     connMap.initialize();
-    auto* cookie1 = (struct MockCookie*)create_mock_cookie(engine);
-    auto* cookie2 = (struct MockCookie*)create_mock_cookie(engine);
+    auto* cookie1 = create_mock_cookie(engine);
+    auto* cookie2 = create_mock_cookie(engine);
     // Create a new Dcp consumer
     DcpConsumer* consumer = connMap.newConsumer(cookie1, "test_consumer");
     EXPECT_NE(nullptr, consumer) << "consumer is null";

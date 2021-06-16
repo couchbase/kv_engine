@@ -20,7 +20,7 @@
 #include <memcached/durability_spec.h>
 #include <memcached/vbucket.h>
 
-class CookieIface;
+class MockCookie;
 
 struct EngineIface;
 class EventuallyPersistentEngine;
@@ -95,7 +95,7 @@ protected:
      */
     int numShards = 2;
 
-    CookieIface* cookie = nullptr;
+    MockCookie* cookie = nullptr;
 };
 
 /* Tests parameterised over ephemeral and persistent buckets

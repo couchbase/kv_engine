@@ -1685,7 +1685,8 @@ TEST_P(CollectionsEraserPersistentOnly, DropManyCompactOnce) {
     std::vector<CookieIface*> cookies;
     for (int ii = 0; ii < nCookies; ii++) {
         cookies.push_back(create_mock_cookie());
-        cookie_to_mock_cookie(cookies.back())->status = cb::engine_errc::failed;
+        cookie_to_mock_cookie(cookies.back())
+                ->setStatus(cb::engine_errc::failed);
         // Now schedule as if a command had requested (i.e. set a cookie)
         store->scheduleCompaction(
                 vbid, {}, cookies.back(), std::chrono::seconds(0));
@@ -1698,7 +1699,7 @@ TEST_P(CollectionsEraserPersistentOnly, DropManyCompactOnce) {
 
     for (auto* cookie : cookies) {
         EXPECT_EQ(cb::engine_errc::success,
-                  cookie_to_mock_cookie(cookie)->status);
+                  cookie_to_mock_cookie(cookie)->getStatus());
         destroy_mock_cookie(cookie);
     }
 }

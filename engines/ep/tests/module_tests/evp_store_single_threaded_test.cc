@@ -458,12 +458,12 @@ cb::engine_errc SingleThreadedKVBucketTest::setCollections(
 
     auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
 
-    cookie_to_mock_cookie(c)->status = cb::engine_errc::failed;
+    cookie_to_mock_cookie(c)->setStatus(cb::engine_errc::failed);
 
     runNextTask(lpAuxioQ);
 
     // Cookie now success
-    EXPECT_EQ(cb::engine_errc::success, cookie_to_mock_cookie(c)->status);
+    EXPECT_EQ(cb::engine_errc::success, cookie_to_mock_cookie(c)->getStatus());
 
     status = engine->set_collection_manifest(*c, json);
     EXPECT_EQ(cb::engine_errc::success, status);
@@ -609,7 +609,7 @@ TEST_P(STParameterizedBucketTest,
     std::thread frontend_thread_streamRequest{[&]() {
         // Frontend thread always runs with the cookie locked, so
         // lock here to match.
-        lock_mock_cookie(cookie);
+        cookie->lock();
 
         uint64_t rollbackSeqno;
         auto result = producer->streamRequest(0,
@@ -624,14 +624,14 @@ TEST_P(STParameterizedBucketTest,
                                               mock_dcp_add_failover_log,
                                               {});
         EXPECT_EQ(cb::engine_errc::success, result);
-        unlock_mock_cookie(cookie);
+        cookie->unlock();
 
         auto stream = producer->findStream(vbid1);
         ASSERT_TRUE(stream->isBackfilling());
 
-        lock_mock_cookie(cookie);
+        cookie->lock();
         engine->handleDisconnect(cookie);
-        unlock_mock_cookie(cookie);
+        cookie->unlock();
     }};
 
     // TEST: Trigger a shutdown. In original bug (with the sequence of

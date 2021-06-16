@@ -162,34 +162,37 @@ public:
 
     void set_ewouldblock_handling(const CookieIface* cookie,
                                   bool enable) override {
-        mock_set_ewouldblock_handling(cookie, enable);
+        const_cast<CookieIface*>(cookie)->setEwouldblock(enable);
     }
 
     void set_mutation_extras_handling(const CookieIface* cookie,
                                       bool enable) override {
-        mock_set_mutation_extras_handling(cookie, enable);
+        dynamic_cast<MockCookie*>(const_cast<CookieIface*>(cookie))
+                ->setMutationExtrasHandling(enable);
     }
 
     void set_datatype_support(const CookieIface* cookie,
                               protocol_binary_datatype_t datatypes) override {
-        mock_set_datatype_support(cookie, datatypes);
+        dynamic_cast<MockCookie*>(const_cast<CookieIface*>(cookie))
+                ->setDatatypeSupport(datatypes);
     }
 
     void set_collections_support(const CookieIface* cookie,
                                  bool enable) override {
-        mock_set_collections_support(cookie, enable);
+        dynamic_cast<MockCookie*>(const_cast<CookieIface*>(cookie))
+                ->setCollectionsSupport(enable);
     }
 
     void lock_cookie(const CookieIface* cookie) override {
-        lock_mock_cookie(cookie);
+        dynamic_cast<MockCookie*>(const_cast<CookieIface*>(cookie))->lock();
     }
 
     void unlock_cookie(const CookieIface* cookie) override {
-        unlock_mock_cookie(cookie);
+        dynamic_cast<MockCookie*>(const_cast<CookieIface*>(cookie))->unlock();
     }
 
     void waitfor_cookie(const CookieIface* cookie) override {
-        waitfor_mock_cookie(cookie);
+        dynamic_cast<MockCookie*>(const_cast<CookieIface*>(cookie))->wait();
     }
 
     void store_engine_specific(const CookieIface* cookie,
@@ -200,8 +203,9 @@ public:
 
     int get_number_of_mock_cookie_references(
             const CookieIface* cookie) override {
-        return ::get_number_of_mock_cookie_references(cookie);
+        return const_cast<CookieIface*>(cookie)->getRefcount();
     }
+
     void set_pre_link_function(PreLinkFunction function) override {
         mock_set_pre_link_function(function);
     }
@@ -260,7 +264,6 @@ public:
                        const std::string& cfg,
                        bool init,
                        bool force) override {
-        disconnect_all_mock_connections();
         destroy_bucket(*h, force);
         currentEngineHandle = *h = create_bucket(init, cfg);
     }

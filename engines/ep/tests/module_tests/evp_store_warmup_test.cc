@@ -265,22 +265,17 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
     auto* statsCookie3 = create_mock_cookie(engine.get());
     auto* delVbCookie = create_mock_cookie(engine.get());
 
-    std::unordered_map<CookieIface*, int> notifications;
-    notifications[setVBStateCookie] =
-            get_number_of_mock_cookie_io_notifications(setVBStateCookie);
-    notifications[setVBStateCookie] =
-            get_number_of_mock_cookie_io_notifications(setVBStateCookie);
+    std::unordered_map<MockCookie*, int> notifications;
+    notifications[setVBStateCookie] = setVBStateCookie->getNumIoNotifications();
+    notifications[setVBStateCookie] = setVBStateCookie->getNumIoNotifications();
     notifications[getFailoverCookie] =
-            get_number_of_mock_cookie_io_notifications(getFailoverCookie);
+            getFailoverCookie->getNumIoNotifications();
     notifications[getFailoverCookie] =
-            get_number_of_mock_cookie_io_notifications(getFailoverCookie);
-    notifications[statsCookie1] =
-            get_number_of_mock_cookie_io_notifications(statsCookie1);
-    notifications[statsCookie2] =
-            get_number_of_mock_cookie_io_notifications(statsCookie2);
-    notifications[statsCookie3] =
-            get_number_of_mock_cookie_io_notifications(statsCookie3);
-    notifications[delVbCookie] = get_number_of_mock_cookie_io_notifications(delVbCookie);
+            getFailoverCookie->getNumIoNotifications();
+    notifications[statsCookie1] = statsCookie1->getNumIoNotifications();
+    notifications[statsCookie2] = statsCookie2->getNumIoNotifications();
+    notifications[statsCookie3] = statsCookie3->getNumIoNotifications();
+    notifications[delVbCookie] = delVbCookie->getNumIoNotifications();
 
     auto dummyAddStats = [](std::string_view, std::string_view, const void*) {
 
@@ -321,9 +316,8 @@ TEST_F(WarmupTest, OperationsInterlockedWithWarmup) {
         executor.runCurrentTask();
     }
 
-    for (const auto& n : notifications) {
-        EXPECT_GT(get_number_of_mock_cookie_io_notifications(n.first),
-                  n.second);
+    for (const auto& [cookie, numIoNotifictions] : notifications) {
+        EXPECT_GT(cookie->getNumIoNotifications(), numIoNotifictions);
     }
 
     EXPECT_NE(nullptr, store->getVBuckets().getBucket(vbid));
