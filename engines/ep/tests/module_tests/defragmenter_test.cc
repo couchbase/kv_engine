@@ -239,9 +239,9 @@ TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
     const size_t current_mapped = mapped_2 - mapped_0;
     const size_t previous_mapped = mapped_1 - mapped_0;
 
-    EXPECT_GE(current_mapped, size_t(0.80 * double(previous_mapped)))
+    EXPECT_GE(current_mapped, size_t(0.70 * double(previous_mapped)))
             << "current_mapped memory (which is " << current_mapped
-            << ") is lower than 80% of previous mapped (which is "
+            << ") is lower than 70% of previous mapped (which is "
             << previous_mapped << "). ";
 
     // 3. Enable defragmenter and trigger defragmentation
