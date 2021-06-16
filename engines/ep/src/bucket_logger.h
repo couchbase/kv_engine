@@ -182,13 +182,6 @@ protected:
                   fmt::format_args args);
 
     /**
-     * Helper function which prefixes the string with the name of the
-     * specified engine, or "No Engine" if engine is null.
-     */
-    std::string prefixStringWithBucketName(
-            const EventuallyPersistentEngine* engine, fmt::string_view fmt);
-
-    /**
      * Connection ID prefix that is printed if set (printed before any other
      * prefix or message)
      */

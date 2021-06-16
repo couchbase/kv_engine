@@ -54,8 +54,30 @@ void BucketLogger::logInner(spdlog::level::level_enum lvl,
     // Instead account any log message memory to "NonBucket" (it is only
     // transient and typically small - of the order of the log message length).
     NonBucketAllocationGuard guard;
-    const auto prefixedFmt = prefixStringWithBucketName(engine, fmt);
-    spdlog::logger::log(lvl, fmt::vformat(prefixedFmt, args));
+
+    // We want to prefix the specified message with the bucket name & optional
+    // prefix, but we cannot be sure that bucket name / prefix
+    // doesn't contain any fmtlib formatting characters. Therefore we build up
+    // the log string here then pass the already-formatted string down to
+    // spdlog directly, not using spdlog's formatting functions.
+    fmt::memory_buffer msg;
+
+    // Append the id (if set)
+    if (connectionId != 0) {
+        fmt::format_to(msg, "{}: ", connectionId);
+    }
+
+    // Append the engine name (if applicable)
+    fmt::format_to(msg, "({}) ", engine ? engine->getName() : "No Engine");
+
+    // Append the given prefix (if set)
+    if (!prefix.empty()) {
+        fmt::format_to(msg, "{} ", prefix);
+    }
+
+    // Finally format the actual user-specified format string & args.
+    fmt::vformat_to(msg, fmt, args);
+    spdlog::logger::log(lvl, {msg.data(), msg.size()});
 }
 
 void BucketLogger::setLoggerAPI(ServerLogIface* api) {
@@ -91,32 +113,6 @@ std::shared_ptr<BucketLogger> BucketLogger::createBucketLogger(
 void BucketLogger::unregister() {
     // Unregister the logger in the logger library registry
     getServerLogIface()->unregister_spdlogger(name());
-}
-
-std::string BucketLogger::prefixStringWithBucketName(
-        const EventuallyPersistentEngine* engine, fmt::string_view fmt) {
-    std::string fmtString;
-
-    // Append the id (if set)
-    if (connectionId != 0) {
-        fmtString.append(std::to_string(connectionId) + ": ");
-    }
-
-    // Append the engine name (if applicable)
-    if (engine) {
-        fmtString.append('(' + std::string(engine->getName().c_str()) + ") ");
-    } else {
-        fmtString.append("(No Engine) ");
-    }
-
-    // Append the given prefix (if set)
-    if (!prefix.empty()) {
-        fmtString.append(prefix + " ");
-    }
-
-    // Append the original format string
-    fmtString.append(fmt.begin(), fmt.end());
-    return fmtString;
 }
 
 ServerLogIface* BucketLogger::getServerLogIface() {

@@ -176,6 +176,24 @@ TEST_F(BucketLoggerTest, CriticalRawMacro) {
 }
 
 /**
+ * Regression test for MB-46900 - don't error if the logger prefix contains
+ * characters which could be interpreted as fmtlib format strings.
+ */
+TEST_F(BucketLoggerTest, FmtlibPrefix) {
+    getGlobalBucketLogger()->prefix = "abc:{def}";
+    EP_LOG_INFO("Test {}", "abc");
+}
+
+/**
+ * Regression test for MB-46900 - don't error if the logger prefix contains
+ * characters which is an invalid fmtlib format string.
+ */
+TEST_F(BucketLoggerTest, IllegalFmtlibPrefix) {
+    getGlobalBucketLogger()->prefix = "abc:{def";
+    EP_LOG_INFO("Test {}", "abc");
+}
+
+/**
  * Test class with ThreadGates that allows us to test the destruction of a
  * BucketLogger when it is owned solely by the background flushing thread.
  */
