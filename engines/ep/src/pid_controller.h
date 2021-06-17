@@ -12,6 +12,7 @@
 #pragma once
 
 #include <chrono>
+#include <functional>
 #include <iosfwd>
 
 /**
@@ -55,16 +56,56 @@ public:
      *
      * @param current The current reading of the process variable
      * @param now The time point for 'now'
+     * @param checkAndMaybeReset a function that is called before the PID
+     *        generates a new output. The purpose of this function is to allow
+     *        the caller to examine SP, P, I, D and dt terms and maybe reset.
      * @return the PID's computed output
      */
     float step(float current,
-               std::chrono::time_point<std::chrono::steady_clock> now);
+               std::chrono::time_point<std::chrono::steady_clock> now,
+               std::function<bool(PIDControllerImpl&)> checkAndMaybeReset);
+
+    /**
+     * Reset the PID state.
+     * The setPoint, P, I, D and dt are all set to the given values
+     * The current integral, previousError and output are all set to zero.
+     */
+    void reset(float setPoint,
+               float kp,
+               float ki,
+               float kd,
+               std::chrono::milliseconds dt);
 
     /**
      * Reset the PID state.
      * The current integral, previousError and output are all set to zero.
      */
     void reset();
+
+    /// @return the current P term
+    float getKp() const {
+        return kp;
+    }
+
+    /// @return the current I term
+    float getKi() const {
+        return ki;
+    }
+
+    /// @return the current D term
+    float getKd() const {
+        return kd;
+    }
+
+    /// @return the current Dt term
+    std::chrono::milliseconds getDt() const {
+        return dt;
+    }
+
+    /// @return the current set point
+    float getSetPoint() const {
+        return setPoint;
+    }
 
 private:
     float kp{0.0};
@@ -101,8 +142,21 @@ public:
      * @param current The current reading of the process variable
      * @return the PID's computed output
      */
-    float step(float current) {
-        return impl.step(current, Clock::now());
+    float step(float current,
+               std::function<bool(PIDControllerImpl&)> checkAndMaybeReset) {
+        return impl.step(current, Clock::now(), checkAndMaybeReset);
+    }
+
+    /**
+     * Reset the PID state.
+     * The current integral, previousError and output are all set to zero.
+     */
+    void reset(float setPoint,
+               float kp,
+               float ki,
+               float kd,
+               std::chrono::milliseconds dt) {
+        impl.reset(setPoint, kp, ki, kd, dt);
     }
 
     /**
@@ -111,6 +165,11 @@ public:
      */
     void reset() {
         impl.reset();
+    }
+
+    bool checkAndMaybeReset(
+            std::function<bool(PIDControllerImpl&)> checkAndMaybeResetFn) {
+        return checkAndMaybeResetFn(impl);
     }
 
 private:

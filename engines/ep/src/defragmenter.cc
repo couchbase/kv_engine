@@ -31,7 +31,22 @@ DefragmenterTask::DefragmenterTask(EventuallyPersistentEngine* e,
           engine->getConfiguration().getDefragmenterAutoPidI(),
           engine->getConfiguration().getDefragmenterAutoPidD(),
           std::chrono::milliseconds{
-                  engine->getConfiguration().getDefragmenterAutoPidDt()}) {
+                  engine->getConfiguration().getDefragmenterAutoPidDt()}),
+      pidReset([this](PIDControllerImpl& pid) {
+          const auto& conf = engine->getConfiguration();
+          // Read and compare the PID against the engine config
+          auto sp = conf.getDefragmenterAutoLowerThreshold();
+          auto p = conf.getDefragmenterAutoPidP();
+          auto i = conf.getDefragmenterAutoPidI();
+          auto d = conf.getDefragmenterAutoPidD();
+          auto dt = std::chrono::milliseconds{conf.getDefragmenterAutoPidDt()};
+          if (sp != pid.getSetPoint() || p != pid.getKp() || i != pid.getKi() ||
+              d != pid.getKd() || dt != pid.getDt()) {
+              pid.reset(sp, p, i, d, dt);
+              return true;
+          }
+          return false;
+      }) {
 }
 
 bool DefragmenterTask::run() {
@@ -284,7 +299,7 @@ DefragmenterTask::SleepTimeAndRunState DefragmenterTask::calculateSleepPID(
     // it's below the SP. In this case reset and when we go over again begin
     // the ramping
     if (score < conf.getDefragmenterAutoLowerThreshold()) {
-        // Reset the PID ready for the next time fragmentation increases
+        // Reset the PID ready for the next time fragmentation increases.
         pid.reset();
         return {std::chrono::duration<double>{maxSleep}, false};
     }
@@ -305,5 +320,5 @@ DefragmenterTask::SleepTimeAndRunState DefragmenterTask::calculateSleepPID(
 }
 
 float DefragmenterTask::stepPid(float pv) {
-    return pid.step(pv);
+    return pid.step(pv, pidReset);
 }

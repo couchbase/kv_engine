@@ -432,7 +432,7 @@ public:
 
     // override stepPid so we can move time
     float stepPid(float pv) override {
-        return testPid.step(pv);
+        return testPid.step(pv, pidReset);
     }
 
     PIDController<MockDefragmenterTaskClock> testPid;
@@ -489,6 +489,20 @@ TEST_F(DefragmenterTaskTest, autoCalculateSleep_PID) {
     // PID never goes below min
     state = task->public_calculateSleepPID(cb::FragmentationStats{10, 5000});
     EXPECT_EQ(conf.getDefragmenterAutoMinSleep(), state.sleepTime.count());
+    EXPECT_TRUE(state.runDefragger);
+
+    // Finally reconfigure.
+    // Test the PID spots a config change - let's set P I D to 0, so the PID
+    // returns 0 on the next step meaning it will now move back to maxSleep
+    conf.setDefragmenterAutoPidP(0.0);
+    conf.setDefragmenterAutoPidI(0.0);
+    conf.setDefragmenterAutoPidD(0.0);
+
+    // High fragmentation yet PID is 'disabled' so returns max sleep
+    state = task->public_calculateSleepPID(cb::FragmentationStats{400, 600});
+    EXPECT_EQ(conf.getDefragmenterAutoMaxSleep(), state.sleepTime.count());
+
+    // The high fragmentation so the defragger should run
     EXPECT_TRUE(state.runDefragger);
 }
 
