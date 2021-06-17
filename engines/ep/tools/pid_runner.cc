@@ -134,7 +134,7 @@ int main(int argc, char* argv[]) {
         PIDController<FauxClock> pid{
                 setpoint, p, i, d, std::chrono::milliseconds{interval}};
         for (int step = 0; step < steps; step++) {
-            auto c = pid.step(pv);
+            auto c = pid.step(pv, [](PIDControllerImpl&) { return false; });
 
             // Compute the sleep like the defragger does
             auto sleep = std::max(max + c, min);

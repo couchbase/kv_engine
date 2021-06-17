@@ -717,6 +717,26 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
                     std::stoull(val));
         } else if (key == "defragmenter_run") {
             runDefragmenterTask();
+        } else if (key == "defragmenter_mode") {
+            getConfiguration().setDefragmenterMode(val);
+        } else if (key == "defragmenter_auto_lower_threshold") {
+            getConfiguration().setDefragmenterAutoLowerThreshold(
+                    std::stof(val));
+        } else if (key == "defragmenter_auto_upper_threshold") {
+            getConfiguration().setDefragmenterAutoUpperThreshold(
+                    std::stof(val));
+        } else if (key == "defragmenter_auto_max_sleep") {
+            getConfiguration().setDefragmenterAutoMaxSleep(std::stof(val));
+        } else if (key == "defragmenter_auto_min_sleep") {
+            getConfiguration().setDefragmenterAutoMinSleep(std::stof(val));
+        } else if (key == "defragmenter_auto_pid_p") {
+            getConfiguration().setDefragmenterAutoPidP(std::stof(val));
+        } else if (key == "defragmenter_auto_pid_i") {
+            getConfiguration().setDefragmenterAutoPidI(std::stof(val));
+        } else if (key == "defragmenter_auto_pid_d") {
+            getConfiguration().setDefragmenterAutoPidD(std::stof(val));
+        } else if (key == "defragmenter_auto_pid_dt") {
+            getConfiguration().setDefragmenterAutoPidDt(std::stof(val));
         } else if (key == "compaction_write_queue_cap") {
             getConfiguration().setCompactionWriteQueueCap(std::stoull(val));
         } else if (key == "chk_expel_enabled") {

@@ -237,8 +237,26 @@ Available params for "set":
                                    upgrade a NormalWrite to SyncWrite.
     defragmenter_enabled         - Enable or disable the defragmenter
                                    (true/false).
+    defragmenter_mode            - The mode the defragmenter is in static, auto_linear or auto_pid
     defragmenter_interval        - How often defragmenter task should be run
-                                   (in seconds).
+                                   when mode is static (in seconds).
+    defragmenter_auto_lower_threshold - When the mode is not static a 'scored'
+                                        threshold for when sleep time is recalculated.
+                                        (parameter is floating point)
+    defragmenter_auto_upper_threshold - When the mode is auto_linear and 'scored' fragmentation
+                                        exceeds this, defragmenter_auto_max_sleep is used.
+                                        (parameter is floating point)
+    defragmenter_auto_max_sleep  - The minimum sleep time when mode is not
+                                   static (fractional seconds, e.g. 0.2)
+    defragmenter_auto_min_sleep  - The maximum sleep time when mode is not
+                                   static (fractional seconds, e.g. 8.5)
+    defragmenter_auto_pid_p      - The P term for when mode is auto_pid
+                                   (parameter is floating point)
+    defragmenter_auto_pid_i      - The I term for when mode is auto_pid
+                                   (parameter is floating point)
+    defragmenter_auto_pid_d      - The D term for when mode is auto_pid
+                                   (parameter is floating point)
+    defragmenter_auto_pid_dt     - The interval term for when mode is auto_pid
     defragmenter_age_threshold   - How old (measured in number of defragmenter
                                    passes) must a document be to be considered
                                    for defragmentation.

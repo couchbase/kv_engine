@@ -206,4 +206,7 @@ protected:
      * PID which is used for sleep calculations when deframenter_mode==auto_pid
      */
     PIDController<> pid;
+
+    /// A function so we can reset the PID on config changes
+    std::function<bool(PIDControllerImpl&)> pidReset;
 };

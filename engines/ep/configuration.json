@@ -356,7 +356,7 @@
         "defragmenter_mode" : {
             "default": "auto_pid",
             "descr": "Determines how the defragmenter controls its sleep interval. When static defragmenter_interval is used. When auto_linear, scale the sleep time using a scored defragmentation when it falls between defragmenter_auto_lower_trigger and defragmenter_auto_upper_trigger. When auto_pid use a PID controller to computer reductions in the sleep interval when scored fragmentation is above defragmenter_auto_lower_trigger.",
-            "dynamic": false,
+            "dynamic": true,
             "type": "std::string",
             "validator": {
                 "enum": [
@@ -369,49 +369,49 @@
         "defragmenter_auto_lower_threshold" : {
             "default": "0.07",
             "descr": "When mode is not static and scored fragmentation is above this value, a sleep time between defragmenter_auto_min_sleep and defragmenter_auto_max_sleep will be used",
-            "dynamic": false,
+            "dynamic": true,
             "type": "float"
         },
         "defragmenter_auto_upper_threshold" : {
             "default": "0.25",
             "descr": "When mode is auto_linear and scored fragmentation is above this value, the defragmenter will use defragmenter_auto_min_sleep",
-            "dynamic": false,
+            "dynamic": true,
             "type": "float"
         },
         "defragmenter_auto_max_sleep" : {
             "default": "10.0",
             "descr": "The maximum sleep that the auto controller can set",
-            "dynamic": false,
+            "dynamic": true,
             "type": "float"
         },
         "defragmenter_auto_min_sleep" : {
             "default": "0.0",
             "descr": "The minimum sleep that the auto controller can set",
-            "dynamic": false,
+            "dynamic": true,
             "type": "float"
         },
         "defragmenter_auto_pid_p" : {
             "default": "0.3",
             "descr": "The p term for the PID controller",
-            "dynamic": false,
+            "dynamic": true,
             "type": "float"
         },
         "defragmenter_auto_pid_i" : {
             "default": "0.0000197",
             "descr": "The i term for the PID controller",
-            "dynamic": false,
+            "dynamic": true,
             "type": "float"
         },
         "defragmenter_auto_pid_d" : {
             "default": "0.0",
             "descr": "The d term for the PID controller",
-            "dynamic": false,
+            "dynamic": true,
             "type": "float"
         },
         "defragmenter_auto_pid_dt" : {
             "default": "30000",
             "descr": "The dt (interval) term for the PID controller. Value represents milliseconds",
-            "dynamic": false,
+            "dynamic": true,
             "type": "size_t"
         },
         "durability_timeout_task_interval": {

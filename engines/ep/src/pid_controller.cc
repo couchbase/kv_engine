@@ -23,7 +23,9 @@ PIDControllerImpl::PIDControllerImpl(
 }
 
 float PIDControllerImpl::step(
-        float current, std::chrono::time_point<std::chrono::steady_clock> now) {
+        float current,
+        std::chrono::time_point<std::chrono::steady_clock> now,
+        std::function<bool(PIDControllerImpl&)> checkAndMaybeReset) {
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
             now - lastStep);
 
@@ -32,6 +34,10 @@ float PIDControllerImpl::step(
     if (duration < dt) {
         return output;
     }
+
+    // Invoke this function now which is intended to allow the PID owner to
+    // reset the PID if configuration has changed.
+    (void)checkAndMaybeReset(*this);
 
     float error = setPoint - current;
 
@@ -44,6 +50,19 @@ float PIDControllerImpl::step(
     previousError = error;
     lastStep = now;
     return output;
+}
+
+void PIDControllerImpl::reset(float setPoint,
+                              float kp,
+                              float ki,
+                              float kd,
+                              std::chrono::milliseconds dt) {
+    this->setPoint = setPoint;
+    this->kp = kp;
+    this->ki = ki;
+    this->kd = kd;
+    this->dt = dt;
+    reset();
 }
 
 void PIDControllerImpl::reset() {
