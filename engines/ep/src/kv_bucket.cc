@@ -133,8 +133,6 @@ public:
             store.setBackfillMemoryThreshold(backfill_threshold);
         } else if (key.compare("compaction_exp_mem_threshold") == 0) {
             store.setCompactionExpMemThreshold(value);
-        } else if (key.compare("replication_throttle_cap_pcnt") == 0) {
-            store.getEPEngine().getReplicationThrottle().setCapPercent(value);
         } else if (key.compare("max_ttl") == 0) {
             store.setMaxTtl(value);
         } else {
@@ -145,8 +143,6 @@ public:
     void ssizeValueChanged(const std::string& key, ssize_t value) override {
         if (key.compare("exp_pager_initial_run_time") == 0) {
             store.setExpiryPagerTasktime(value);
-        } else if (key.compare("replication_throttle_queue_cap") == 0) {
-            store.getEPEngine().getReplicationThrottle().setQueueCap(value);
         }
     }
 
@@ -341,15 +337,6 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     config.addValueChangedListener(
             "replication_throttle_threshold",
             std::make_unique<StatsValueChangeListener>(stats, *this));
-
-    stats.replicationThrottleWriteQueueCap.store(
-                                    config.getReplicationThrottleQueueCap());
-    config.addValueChangedListener(
-            "replication_throttle_queue_cap",
-            std::make_unique<EPStoreValueChangeListener>(*this));
-    config.addValueChangedListener(
-            "replication_throttle_cap_pcnt",
-            std::make_unique<EPStoreValueChangeListener>(*this));
 
     stats.warmupMemUsedCap.store(static_cast<double>
                                (config.getWarmupMinMemoryThreshold()) / 100.0);
@@ -1211,9 +1198,6 @@ void KVBucket::getAggregatedVBucketStats(const BucketStatCollector& collector) {
 
     updateCachedResidentRatio(active->getMemResidentPer(),
                               replica->getMemResidentPer());
-    engine.getReplicationThrottle().adjustWriteQueueCap(active->getNumItems() +
-                                                        replica->getNumItems() +
-                                                        pending->getNumItems());
 
     // And finally actually return the stats using the AddStatFn callback.
     appendAggregatedVBucketStats(*active, *replica, *pending, *dead, collector);
@@ -2530,21 +2514,8 @@ void KVBucket::runVbStatePersistTask(Vbid vbid) {
 }
 
 bool KVBucket::compactionCanExpireItems() {
-    // Process expired items only if memory usage is lesser than
-    // compaction_exp_mem_threshold and disk queue is small
-    // enough (marked by replication_throttle_queue_cap)
-
-    bool isMemoryUsageOk =
-            (stats.getEstimatedTotalMemoryUsed() <
-             (stats.getMaxDataSize() * compactionExpMemThreshold));
-
-    size_t queueSize = stats.diskQueueSize.load();
-    bool isQueueSizeOk =
-            ((stats.replicationThrottleWriteQueueCap == -1) ||
-             (queueSize <
-              static_cast<size_t>(stats.replicationThrottleWriteQueueCap)));
-
-    return (isMemoryUsageOk && isQueueSizeOk);
+    return stats.getEstimatedTotalMemoryUsed() <
+           (stats.getMaxDataSize() * compactionExpMemThreshold);
 }
 
 void KVBucket::setCursorDroppingLowerUpperThresholds(size_t maxSize) {

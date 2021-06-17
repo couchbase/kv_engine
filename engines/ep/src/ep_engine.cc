@@ -472,10 +472,6 @@ cb::engine_errc EventuallyPersistentEngine::setReplicationParam(
         if (key == "replication_throttle_threshold") {
             getConfiguration().setReplicationThrottleThreshold(
                     std::stoull(val));
-        } else if (key == "replication_throttle_queue_cap") {
-            getConfiguration().setReplicationThrottleQueueCap(std::stoll(val));
-        } else if (key == "replication_throttle_cap_pcnt") {
-            getConfiguration().setReplicationThrottleCapPcnt(std::stoull(val));
         } else {
             msg = "Unknown config param";
             rv = cb::engine_errc::no_such_key;

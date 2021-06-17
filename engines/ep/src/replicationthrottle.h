@@ -40,21 +40,6 @@ public:
      */
     virtual bool doDisconnectOnNoMem() const = 0;
 
-    /**
-     * Set the percentage of total items in write queue at which we throttle
-     * replication input.
-     */
-    virtual void setCapPercent(size_t perc) = 0;
-
-    /// Set the max size of write queue to throttle incoming replication input.
-    virtual void setQueueCap(ssize_t cap) = 0;
-
-    /**
-     * Set the writeQueueCap to the specified number of items, adjusting
-     * as appropriate based on CapPercent / QueueCap values.
-     */
-    virtual void adjustWriteQueueCap(size_t totalItems) = 0;
-
     virtual ~ReplicationThrottle() = default;
 };
 
@@ -73,21 +58,9 @@ public:
         return false;
     }
 
-    void setCapPercent(size_t perc) override {
-        capPercent = perc;
-    }
-    void setQueueCap(ssize_t cap) override {
-        queueCap = cap;
-    }
-
-    void adjustWriteQueueCap(size_t totalItems) override;
-
 private:
-    bool persistenceQueueSmallEnough() const;
     bool hasSomeMemory() const;
 
-    cb::RelaxedAtomic<ssize_t> queueCap;
-    cb::RelaxedAtomic<size_t> capPercent;
     EPStats &stats;
 };
 

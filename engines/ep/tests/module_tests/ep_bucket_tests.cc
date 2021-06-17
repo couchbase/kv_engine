@@ -22,6 +22,7 @@
 #include "dcp/backfill-manager.h"
 #include "dcp/response.h"
 #include "failover-table.h"
+#include "replicationthrottle.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/test_task.h"
 #include <executor/executorpool.h>
@@ -303,24 +304,25 @@ TEST_F(SingleThreadedEPBucketTest, MB18452_yield_dcp_processor) {
     const int batchSize =
             engine->getConfiguration()
                     .getDcpConsumerProcessBufferedMessagesBatchSize();
-    const int messages = n * (batchSize * yield);
+    const int numItems = n * (batchSize * yield);
 
     // Force the stream to buffer rather than process messages immediately
-    const ssize_t queueCap =
-            engine->getEpStats().replicationThrottleWriteQueueCap;
-    engine->getEpStats().replicationThrottleWriteQueueCap = 0;
+    auto& stats = engine->getEpStats();
+    stats.replicationThrottleThreshold = 0;
+    ASSERT_EQ(ReplicationThrottle::Status::Pause,
+              engine->getReplicationThrottle().getStatus());
 
     // 1. Add the first message, a snapshot marker.
     consumer->snapshotMarker(/*opaque*/ 1,
                              vbid,
                              /*startseq*/ 0,
-                             /*endseq*/ messages,
+                             /*endseq*/ numItems,
                              /*flags*/ 0,
                              /*HCS*/ {},
                              /*maxVisibleSeqno*/ {});
 
     // 2. Now add the rest as mutations.
-    for (int ii = 0; ii <= messages; ii++) {
+    for (int ii = 1; ii <= numItems; ii++) {
         const std::string key = "key" + std::to_string(ii);
         const DocKey docKey{key, DocKeyEncodesCollectionId::No};
         std::string value = "value";
@@ -341,8 +343,11 @@ TEST_F(SingleThreadedEPBucketTest, MB18452_yield_dcp_processor) {
                            0); // nru
     }
 
-    // Set the throttle back to the original value
-    engine->getEpStats().replicationThrottleWriteQueueCap = queueCap;
+    // Check that all items + snap-marker were buffered
+    ASSERT_EQ(numItems + 1,
+              consumer->getVbucketStream(vbid)->getNumBufferItems());
+    // Unblock consumer
+    stats.replicationThrottleThreshold = 99;
 
     // Get our target stream ready.
     static_cast<MockDcpConsumer*>(consumer.get())

@@ -4013,14 +4013,14 @@ static enum test_result test_dcp_add_stream(EngineIface* h) {
     return SUCCESS;
 }
 
-static enum test_result test_consumer_backoff_stat(EngineIface* h) {
+static enum test_result test_consumer_backoff(EngineIface* h) {
     set_param(h,
               EngineParamCategory::Replication,
-              "replication_throttle_queue_cap",
-              "10");
-    checkeq(10,
-            get_int_stat(h, "ep_replication_throttle_queue_cap"),
-            "Incorrect replication_throttle_queue_cap value.");
+              "replication_throttle_threshold",
+              "0");
+    checkeq(0,
+            get_int_stat(h, "ep_replication_throttle_threshold"),
+            "Incorrect replication_throttle_threshold");
 
     stop_persistence(h);
 
@@ -8618,8 +8618,8 @@ BaseTestCase testsuite_testcases[] = {
                  "dcp_enable_noop=false",
                  prepare,
                  cleanup),
-        TestCase("test consumer backoff stat",
-                 test_consumer_backoff_stat,
+        TestCase("test consumer backoff",
+                 test_consumer_backoff,
                  test_setup,
                  teardown,
                  nullptr,
@@ -8929,8 +8929,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_mb19982,
                  test_setup,
                  teardown,
-                 "replication_throttle_cap_pcnt=0;replication_throttle_queue_"
-                 "cap=0",
+                 "replication_throttle_threshold=0",
                  prepare,
                  cleanup),
         TestCase("test_set_dcp_param",

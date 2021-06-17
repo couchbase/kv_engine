@@ -23,14 +23,4 @@ MockReplicationThrottle::MockReplicationThrottle(ReplicationThrottle* real)
     ON_CALL(*this, doDisconnectOnNoMem())
             .WillByDefault(Invoke(realThrottle.get(),
                                   &ReplicationThrottle::doDisconnectOnNoMem));
-
-    ON_CALL(*this, setCapPercent(_))
-            .WillByDefault(Invoke(realThrottle.get(),
-                                  &ReplicationThrottle::setCapPercent));
-    ON_CALL(*this, setQueueCap(_))
-            .WillByDefault(Invoke(realThrottle.get(),
-                                  &ReplicationThrottle::setQueueCap));
-    ON_CALL(*this, adjustWriteQueueCap(_))
-            .WillByDefault(Invoke(realThrottle.get(),
-                                  &ReplicationThrottle::adjustWriteQueueCap));
 }

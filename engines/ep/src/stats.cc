@@ -29,7 +29,6 @@ EPStats::EPStats()
       warmOOM(0),
       warmupMemUsedCap(0),
       warmupNumReadCap(0),
-      replicationThrottleWriteQueueCap(0),
       diskQueueSize(0),
       flusher_todo(0),
       flusherCommits(0),

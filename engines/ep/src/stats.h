@@ -226,9 +226,6 @@ public:
     //  enable traffic
     std::atomic<double> warmupNumReadCap;
 
-    //! The replication throttle write queue cap
-    std::atomic<ssize_t> replicationThrottleWriteQueueCap;
-
     //! Amount of items waiting for persistence
     cb::NonNegativeCounter<size_t> diskQueueSize;
     //! Size of the in-process (output) queue.

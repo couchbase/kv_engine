@@ -304,11 +304,6 @@ public:
         return PassiveStream::processMutation(mutation);
     }
 
-    size_t getNumBufferItems() const {
-        std::lock_guard<std::mutex> lh(buffer.bufMutex);
-        return buffer.messages.size();
-    }
-
     auto& getBufferMessages() const {
         return buffer.messages;
     }

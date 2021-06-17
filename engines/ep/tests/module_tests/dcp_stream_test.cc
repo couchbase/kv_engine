@@ -2265,9 +2265,10 @@ void SingleThreadedPassiveStreamTest::mb_33773(
 
     // This code is tricking the replication throttle into returning pause so
     // that the mutation's are buffered.
-    engine->getReplicationThrottle().adjustWriteQueueCap(0);
-    const size_t size = engine->getEpStats().getMaxDataSize();
-    engine->getEpStats().setMaxDataSize(1);
+    auto& stats = engine->getEpStats();
+    stats.replicationThrottleThreshold = 0;
+    const size_t originalQuota = stats.getMaxDataSize();
+    stats.setMaxDataSize(1);
     ASSERT_EQ(ReplicationThrottle::Status::Pause,
               engine->getReplicationThrottle().getStatus());
 
@@ -2293,7 +2294,9 @@ void SingleThreadedPassiveStreamTest::mb_33773(
     }
     // and check they were buffered.
     ASSERT_EQ(snapEnd - snapStart, stream->getNumBufferItems());
-    engine->getEpStats().setMaxDataSize(size); // undo the quota adjustment
+    // Unblock consumer
+    stats.replicationThrottleThreshold = 99;
+    stats.setMaxDataSize(originalQuota);
 
     // We expect flowcontrol bytes to increase when the buffered items are
     // discarded.
@@ -2359,7 +2362,7 @@ void SingleThreadedPassiveStreamTest::mb_33773(
     }
     case mb_33773Mode::noMemoryAndClosed: {
         // Undo memory fudge for the rest of the test
-        engine->getEpStats().setMaxDataSize(size);
+        engine->getEpStats().setMaxDataSize(originalQuota);
         break;
     }
     }

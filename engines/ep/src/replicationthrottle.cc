@@ -15,17 +15,7 @@
 
 ReplicationThrottleEP::ReplicationThrottleEP(const Configuration& config,
                                              EPStats& s)
-    : queueCap(config.getReplicationThrottleQueueCap()),
-      capPercent(config.getReplicationThrottleCapPcnt()),
-      stats(s) {
-}
-
-bool ReplicationThrottleEP::persistenceQueueSmallEnough() const {
-    size_t queueSize = stats.diskQueueSize.load();
-    if (stats.replicationThrottleWriteQueueCap == -1) {
-        return true;
-    }
-    return queueSize < static_cast<size_t>(stats.replicationThrottleWriteQueueCap);
+    : stats(s) {
 }
 
 bool ReplicationThrottleEP::hasSomeMemory() const {
@@ -37,22 +27,7 @@ bool ReplicationThrottleEP::hasSomeMemory() const {
 }
 
 ReplicationThrottleEP::Status ReplicationThrottleEP::getStatus() const {
-    return (persistenceQueueSmallEnough() && hasSomeMemory()) ? Status::Process
-                                                              : Status::Pause;
-}
-
-void ReplicationThrottleEP::adjustWriteQueueCap(size_t totalItems) {
-    if (queueCap == -1) {
-        stats.replicationThrottleWriteQueueCap.store(-1);
-        return;
-    }
-    auto qcap = static_cast<size_t>(queueCap);
-    size_t throttleCap = 0;
-    if (capPercent > 0) {
-        throttleCap = (static_cast<double>(capPercent) / 100.0) * totalItems;
-    }
-    stats.replicationThrottleWriteQueueCap.store(throttleCap > qcap ? throttleCap :
-                                         qcap);
+    return hasSomeMemory() ? Status::Process : Status::Pause;
 }
 
 ReplicationThrottleEphe::ReplicationThrottleEphe(const Configuration& config,

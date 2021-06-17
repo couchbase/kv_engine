@@ -274,10 +274,6 @@ For introductory information on stats within Couchbase, start with the
 |                                       | that we should start sending temp oom   |
 |                                       | or oom message when hitting             |
 | ep_pager_active_vb_pcnt               | Active vbuckets paging percentage       |
-| ep_replication_throttle_cap_pcnt      | Percentage of total items in write      |
-|                                       | queue at which we throttle dcp input    |
-| ep_replication_throttle_queue_cap     | Max size of a write queue to throttle   |
-|                                       | incoming dcp input                      |
 | ep_replication_throttle_threshold     | Percentage of max mem at which we       |
 |                                       | begin NAKing dcp input                  |
 | ep_uncommitted_items                  | The amount of items that have not been  |

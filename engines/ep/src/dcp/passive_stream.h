@@ -105,6 +105,11 @@ public:
 
     static std::string to_string(StreamState st);
 
+    size_t getNumBufferItems() const {
+        std::lock_guard<std::mutex> lh(buffer.bufMutex);
+        return buffer.messages.size();
+    }
+
 protected:
     bool transitionState(StreamState newState);
 
