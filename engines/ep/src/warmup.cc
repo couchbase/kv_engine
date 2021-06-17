@@ -989,6 +989,8 @@ void Warmup::initialize() {
                     "retrying");
             std::this_thread::sleep_for(std::chrono::seconds(1));
         }
+    } else {
+        EP_LOG_ERR_RAW("Warmup detected a prior unclean shutdown");
     }
 
     if (!store.getCollectionsManager().warmupLoadManifest(

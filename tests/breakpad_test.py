@@ -301,6 +301,15 @@ if args.breakpad and 'Breakpad caught a crash' not in stderrdata:
     print_stderrdata(stderrdata)
     cleanup_and_exit(3)
 
+# Check a version was written to stderr as part of the crash message.
+# checking for at least "7." (although most tests will run with "0.0.0-0000")
+if args.breakpad:
+    m = re.search('crash \(Couchbase version [0-9]+\.[0-9]+\.[0-9]+\-[0-9]+\)', stderrdata)
+    if not m:
+        logging.error("FAIL - No version included in the crash message.")
+        print_stderrdata(stderrdata)
+        cleanup_and_exit(3)
+
 # Check the message includes the exception what() message (std::exception crash)
 if args.crash_mode.startswith('std_exception') and 'what():' not in stderrdata:
     logging.error("FAIL - No exception what() message written to stderr on crash.")

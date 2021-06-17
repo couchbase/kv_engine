@@ -69,8 +69,8 @@ using namespace google_breakpad;
 // breakpad handler
 static std::unique_ptr<ExceptionHandler> handler;
 
-#if (defined(WIN32) || defined(linux)) && defined(HAVE_BREAKPAD)
-// These methods is called from breakpad when creating
+#if defined(WIN32) && defined(HAVE_BREAKPAD)
+// These methods are called from breakpad when creating
 // the dump. They're inside the #ifdef block to avoid
 // compilers to complain about static functions never
 // being used.
@@ -84,6 +84,37 @@ static void dump_stack() {
     print_backtrace(write_to_logger, nullptr);
     cb::logger::flush();
 }
+
+#elif defined(linux) && defined(HAVE_BREAKPAD)
+
+// dumpCallback is invoked within the signal handler and as such we are limited
+// by POSIX Signal safety as to what can be used. spdlog cannot be called from
+// inside the signal handler so we will write directly to stderr messages with
+// no timestamp (cannot generate timestamps from a signal handler)
+// The write macros are swallowing the return value, if it's not success there's
+// not much we can do.
+#define WRITE_MSG(MSG)                                        \
+    do {                                                      \
+        auto rv = write(STDERR_FILENO, MSG, sizeof(MSG) - 1); \
+        (void)rv;                                             \
+    } while (0)
+
+#define WRITE_CSTR(CSTR)                                    \
+    do {                                                    \
+        auto rv = write(STDERR_FILENO, CSTR, strlen(CSTR)); \
+        (void)rv;                                           \
+    } while (0)
+
+static void write_to_logger(void* ctx, const char* frame) {
+    WRITE_MSG("   ");
+    WRITE_CSTR(frame);
+    WRITE_MSG("\n");
+}
+
+static void dump_stack() {
+    WRITE_MSG("Stack backtrace of crashed thread:\n");
+    print_backtrace(write_to_logger, nullptr);
+}
 #endif
 
 // Unfortunately Breakpad use a different API on each platform,
@@ -96,7 +127,7 @@ static bool dumpCallback(const wchar_t* dump_path,
                          EXCEPTION_POINTERS* exinfo,
                          MDRawAssertionInfo* assertion,
                          bool succeeded) {
-    // Unfortnately the filenames is in wchar's and I got compiler errors
+    // Unfortunately the filenames is in wchar's and I got compiler errors
     // from fmt when trying to print them by using {}. Let's just format
     // it into a string first.
     char file[512];
@@ -112,17 +143,18 @@ static bool dumpCallback(const wchar_t* dump_path,
     return succeeded;
 }
 #elif defined(linux) && defined(HAVE_BREAKPAD)
+
+#define MSG1p1 "CRITICAL Breakpad caught a crash (Couchbase version "
+#define MSG1p2 "). Writing crash dump to "
+#define CAUGHT_CRASH_MSG MSG1p1 PRODUCT_VERSION MSG1p2
+
 static bool dumpCallback(const MinidumpDescriptor& descriptor,
                          void* context,
                          bool succeeded) {
-    LOG_CRITICAL(
-            "Breakpad caught a crash (Couchbase version {}). Writing crash "
-            "dump to {} before terminating.",
-            PRODUCT_VERSION,
-            descriptor.path());
-
+    WRITE_MSG(CAUGHT_CRASH_MSG);
+    WRITE_CSTR(descriptor.path());
+    WRITE_MSG(" before terminating.\n");
     dump_stack();
-    cb::logger::shutdown();
     return succeeded;
 }
 #endif
