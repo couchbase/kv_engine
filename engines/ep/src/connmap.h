@@ -15,15 +15,6 @@
 #include "conn_store_fwd.h"
 #include "dcp/dcp-types.h"
 
-#include <climits>
-#include <iterator>
-#include <list>
-#include <map>
-#include <set>
-#include <string>
-#include <unordered_map>
-#include <vector>
-
 // Forward declaration
 class ConnNotifier;
 class EventuallyPersistentEngine;

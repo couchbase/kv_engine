@@ -9,24 +9,19 @@
  *   the file licenses/APL2.txt.
  */
 
-#include <algorithm>
-#include <limits>
-#include <queue>
-#include <set>
-#include <string>
-#include <vector>
-
-#include <daemon/tracing.h>
-#include <phosphor/phosphor.h>
-
+#include "connmap.h"
 #include "conn_notifier.h"
 #include "conn_store.h"
 #include "connhandler.h"
-#include "connmap.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/consumer.h"
 #include "dcp/producer.h"
+#include <daemon/tracing.h>
 #include <executor/executorpool.h>
+#include <phosphor/phosphor.h>
+#include <limits>
+#include <queue>
+#include <string>
 
 /**
  * A task to manage connections.
