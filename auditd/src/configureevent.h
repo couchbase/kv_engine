@@ -17,10 +17,10 @@ class CookieIface;
 
 class ConfigureEvent : public Event {
 public:
-    const CookieIface* cookie;
+    const CookieIface& cookie;
     const std::string file;
 
-    ConfigureEvent(std::string configfile, const CookieIface* c)
+    ConfigureEvent(std::string configfile, const CookieIface& c)
         : cookie(c), file(std::move(configfile)) {
     }
 

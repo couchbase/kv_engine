@@ -216,7 +216,7 @@ hash_item* item_get(struct default_engine* engine,
  * @return cb::engine_errc::success for success
  */
 cb::engine_errc item_get_locked(struct default_engine* engine,
-                                const CookieIface* cookie,
+                                CookieIface* cookie,
                                 hash_item** it,
                                 const DocKey& key,
                                 rel_time_t locktime);
@@ -232,7 +232,7 @@ cb::engine_errc item_get_locked(struct default_engine* engine,
  * @return cb::engine_errc::success for success
  */
 cb::engine_errc item_get_and_touch(struct default_engine* engine,
-                                   const CookieIface* cookie,
+                                   CookieIface* cookie,
                                    hash_item** it,
                                    const DocKey& key,
                                    rel_time_t exptime);
@@ -247,7 +247,7 @@ cb::engine_errc item_get_and_touch(struct default_engine* engine,
  * @return cb::engine_errc::success for success
  */
 cb::engine_errc item_unlock(struct default_engine* engine,
-                            const CookieIface* cookie,
+                            CookieIface* cookie,
                             const DocKey& key,
                             uint64_t cas);
 
@@ -329,7 +329,7 @@ cb::engine_errc store_item(struct default_engine* engine,
                            hash_item* item,
                            uint64_t* cas,
                            StoreSemantics operation,
-                           const CookieIface* cookie,
+                           CookieIface* cookie,
                            const DocumentState document_state,
                            bool preserveTtl);
 

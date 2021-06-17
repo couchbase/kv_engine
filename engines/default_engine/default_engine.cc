@@ -350,7 +350,7 @@ cb::engine_errc default_engine::remove(
                          deleted,
                          &cas,
                          StoreSemantics::CAS,
-                         &cookie,
+                         const_cast<CookieIface*>(&cookie),
                          DocumentState::Deleted,
                          false);
 
@@ -453,8 +453,11 @@ cb::EngineErrorItemPair default_engine::get_and_touch(
     }
 
     hash_item* it = nullptr;
-    auto ret = item_get_and_touch(
-            this, &cookie, &it, key, server.core->realtime(expiry_time));
+    auto ret = item_get_and_touch(this,
+                                  const_cast<CookieIface*>(&cookie),
+                                  &it,
+                                  key,
+                                  server.core->realtime(expiry_time));
 
     return cb::makeEngineErrorItemPair(
             cb::engine_errc(ret), new ItemHolder(this, it), this);
@@ -486,7 +489,8 @@ cb::EngineErrorItemPair default_engine::get_locked(const CookieIface& cookie,
     lock_timeout += server.core->get_current_time();
 
     hash_item* it = nullptr;
-    auto ret = item_get_locked(this, &cookie, &it, key, lock_timeout);
+    auto ret = item_get_locked(
+            this, const_cast<CookieIface*>(&cookie), &it, key, lock_timeout);
     return cb::makeEngineErrorItemPair(
             cb::engine_errc(ret), new ItemHolder(this, it), this);
 }
@@ -530,7 +534,7 @@ cb::engine_errc default_engine::unlock(const CookieIface& cookie,
     if (!key.getCollectionID().isDefaultCollection()) {
         return cb::engine_errc::unknown_collection;
     }
-    return item_unlock(this, &cookie, key, cas);
+    return item_unlock(this, const_cast<CookieIface*>(&cookie), key, cas);
 }
 
 cb::engine_errc default_engine::get_stats(const CookieIface& cookie,
@@ -621,7 +625,7 @@ cb::engine_errc default_engine::store(
                       it->item,
                       &cas,
                       operation,
-                      &cookie,
+                      const_cast<CookieIface*>(&cookie),
                       document_state,
                       preserveTtl);
 }
@@ -678,7 +682,7 @@ cb::EngineErrorCasPair default_engine::store_if(
                              it->item,
                              &cas,
                              operation,
-                             &cookie,
+                             const_cast<CookieIface*>(&cookie),
                              document_state,
                              preserveTtl);
     return {cb::engine_errc(status), cas};

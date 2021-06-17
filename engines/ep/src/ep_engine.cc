@@ -952,11 +952,11 @@ cb::engine_errc EventuallyPersistentEngine::setParameter(
         std::string_view value,
         Vbid vbid) {
     return acquireEngine(this)->setParameterInner(
-            &cookie, category, key, value, vbid);
+            cookie, category, key, value, vbid);
 }
 
 cb::engine_errc EventuallyPersistentEngine::setParameterInner(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         EngineParamCategory category,
         std::string_view key,
         std::string_view value,
@@ -985,15 +985,15 @@ cb::engine_errc EventuallyPersistentEngine::setParameterInner(
     }
 
     if (ret != cb::engine_errc::success && !msg.empty()) {
-        setErrorContext(cookie, msg);
+        setErrorContext(&cookie, msg);
     }
 
     return ret;
 }
 
 std::pair<cb::engine_errc, vbucket_state_t>
-EventuallyPersistentEngine::getVBucketInner(
-        gsl::not_null<const CookieIface*> cookie, Vbid vbucket) {
+EventuallyPersistentEngine::getVBucketInner(const CookieIface& cookie,
+                                            Vbid vbucket) {
     HdrMicroSecBlockTimer timer(&stats.getVbucketCmdHisto);
 
     auto vb = getVBucket(vbucket);
@@ -1004,14 +1004,13 @@ EventuallyPersistentEngine::getVBucketInner(
 }
 
 cb::engine_errc EventuallyPersistentEngine::setVBucketInner(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         Vbid vbid,
         uint64_t cas,
         vbucket_state_t state,
         nlohmann::json* meta) {
     HdrMicroSecBlockTimer timer(&stats.setVbucketCmdHisto);
-    return setVBucketState(
-            cookie.get(), vbid, state, meta, TransferVB::No, cas);
+    return setVBucketState(&cookie, vbid, state, meta, TransferVB::No, cas);
 }
 
 cb::engine_errc EventuallyPersistentEngine::getReplicaCmd(
@@ -1035,7 +1034,8 @@ cb::engine_errc EventuallyPersistentEngine::getReplicaCmd(
         uint32_t flags = rv.item->getFlags();
         ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
         guardedIface.audit_document_access(
-                cookie, cb::audit::document::Operation::Read);
+                const_cast<CookieIface&>(*cookie),
+                cb::audit::document::Operation::Read);
         return sendResponse(
                 response,
                 rv.item->getKey(), // key
@@ -1053,15 +1053,15 @@ cb::engine_errc EventuallyPersistentEngine::getReplicaCmd(
 }
 
 cb::engine_errc EventuallyPersistentEngine::compactDatabaseInner(
-        gsl::not_null<const CookieIface*> cookie,
+        const CookieIface& cookie,
         Vbid vbid,
         uint64_t purge_before_ts,
         uint64_t purge_before_seq,
         bool drop_deletes) {
-    if (getEngineSpecific(cookie)) {
+    if (getEngineSpecific(&cookie)) {
         // This is a completion of a compaction. Clear the engine-specific
         // part
-        storeEngineSpecific(cookie, nullptr);
+        storeEngineSpecific(&cookie, nullptr);
         return cb::engine_errc::success;
     }
 
@@ -1069,9 +1069,9 @@ cb::engine_errc EventuallyPersistentEngine::compactDatabaseInner(
             purge_before_ts, purge_before_seq, drop_deletes, false};
 
     ++stats.pendingCompactions;
-    storeEngineSpecific(cookie, this);
-    const auto err =
-            cb::engine_errc(scheduleCompaction(vbid, compactionConfig, cookie));
+    storeEngineSpecific(&cookie, this);
+    const auto err = cb::engine_errc(
+            scheduleCompaction(vbid, compactionConfig, &cookie));
 
     switch (err) {
     case cb::engine_errc::success:
@@ -1079,7 +1079,7 @@ cb::engine_errc EventuallyPersistentEngine::compactDatabaseInner(
     case cb::engine_errc::would_block:
         // We don't use the value stored in the engine-specific code, just
         // that it is non-null...
-        storeEngineSpecific(cookie, this);
+        storeEngineSpecific(&cookie, this);
         break;
     default:
         --stats.pendingCompactions;
@@ -1653,7 +1653,7 @@ cb::engine_errc EventuallyPersistentEngine::get_collection_manifest(
             [&engine, &cookie](ScopeID sid,
                                std::optional<CollectionID> cid) -> bool {
         const auto status = engine->testPrivilege(
-                &cookie, cb::rbac::Privilege::Read, sid, cid);
+                cookie, cb::rbac::Privilege::Read, sid, cid);
         return status != cb::engine_errc::unknown_collection &&
                status != cb::engine_errc::unknown_scope;
     };
@@ -1683,7 +1683,7 @@ EventuallyPersistentEngine::get_collection_id(const CookieIface& cookie,
     if (rv.result == cb::engine_errc::success) {
         // Test for any privilege, we are testing if we have visibility which
         // means at least 1 privilege in the bucket.scope.collection 'path'
-        auto status = testPrivilege(&cookie,
+        auto status = testPrivilege(cookie,
                                     cb::rbac::Privilege::Read,
                                     rv.getScopeId(),
                                     rv.getCollectionId());
@@ -1708,7 +1708,7 @@ cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
         // Test for any privilege, we are testing if we have visibility which
         // means at least 1 privilege in the bucket.scope 'path'
         auto status = testPrivilege(
-                &cookie, cb::rbac::Privilege::Read, rv.getScopeId(), {});
+                cookie, cb::rbac::Privilege::Read, rv.getScopeId(), {});
         if (status == cb::engine_errc::no_access) {
             // This is fine, still visible - back to success
             status = cb::engine_errc::success;
@@ -4844,12 +4844,12 @@ cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
 }
 
 cb::engine_errc EventuallyPersistentEngine::testPrivilege(
-        const CookieIface* cookie,
+        const CookieIface& cookie,
         cb::rbac::Privilege priv,
         std::optional<ScopeID> sid,
         std::optional<CollectionID> cid) const {
     try {
-        switch (serverApi->cookie->test_privilege(*cookie, priv, sid, cid)
+        switch (serverApi->cookie->test_privilege(cookie, priv, sid, cid)
                         .getStatus()) {
         case cb::rbac::PrivilegeAccess::Status::Ok:
             return cb::engine_errc::success;
@@ -5403,7 +5403,8 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
     if (ret == cb::engine_errc::success) {
         ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
         guardedIface.audit_document_access(
-                cookie, cb::audit::document::Operation::Modify);
+                const_cast<CookieIface&>(*cookie),
+                cb::audit::document::Operation::Modify);
         ++stats.numOpsSetMeta;
         auto endTime = std::chrono::steady_clock::now();
         auto& traceable = *cookie2traceable(cookie);
@@ -5704,7 +5705,8 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
     if (ret == cb::engine_errc::success) {
         ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
         guardedIface.audit_document_access(
-                cookie, cb::audit::document::Operation::Delete);
+                const_cast<CookieIface&>(*cookie),
+                cb::audit::document::Operation::Delete);
         stats.numOpsDelMeta++;
     } else if (ret == cb::engine_errc::no_memory) {
         return memoryCondition();
@@ -5950,7 +5952,8 @@ cb::engine_errc EventuallyPersistentEngine::returnMeta(
         if (ret == cb::engine_errc::success) {
             ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
             guardedIface.audit_document_access(
-                    cookie, cb::audit::document::Operation::Modify);
+                    const_cast<CookieIface&>(*cookie),
+                    cb::audit::document::Operation::Modify);
             ++stats.numOpsSetRetMeta;
         }
         cas = itm->getCas();
@@ -5968,7 +5971,8 @@ cb::engine_errc EventuallyPersistentEngine::returnMeta(
         if (ret == cb::engine_errc::success) {
             ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
             guardedIface.audit_document_access(
-                    cookie, cb::audit::document::Operation::Delete);
+                    const_cast<CookieIface&>(*cookie),
+                    cb::audit::document::Operation::Delete);
             ++stats.numOpsDelRetMeta;
         }
         flags = itm_meta.flags;
@@ -6082,10 +6086,9 @@ void EventuallyPersistentEngine::notifyIOComplete(const CookieIface* cookie,
     }
 }
 
-void EventuallyPersistentEngine::scheduleDcpStep(
-        gsl::not_null<const CookieIface*> cookie) {
+void EventuallyPersistentEngine::scheduleDcpStep(const CookieIface& cookie) {
     NonBucketAllocationGuard guard;
-    serverApi->cookie->scheduleDcpStep(*cookie);
+    serverApi->cookie->scheduleDcpStep(cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::getRandomKey(
@@ -6266,22 +6269,22 @@ cb::mcbp::Status EventuallyPersistentEngine::startFlusher(const char** msg,
 }
 
 cb::engine_errc EventuallyPersistentEngine::deleteVBucketInner(
-        gsl::not_null<const CookieIface*> cookie, Vbid vbid, bool sync) {
+        const CookieIface& cookie, Vbid vbid, bool sync) {
     HdrMicroSecBlockTimer timer(&stats.delVbucketCmdHisto);
     auto status = cb::engine_errc::success;
-    if (getKVBucket()->maybeWaitForVBucketWarmup(cookie)) {
+    if (getKVBucket()->maybeWaitForVBucketWarmup(&cookie)) {
         return cb::engine_errc::would_block;
     }
 
-    void* es = getEngineSpecific(cookie);
-    storeEngineSpecific(cookie, nullptr);
+    void* es = getEngineSpecific(&cookie);
+    storeEngineSpecific(&cookie, nullptr);
 
     if (sync) {
         if (es) {
             EP_LOG_DEBUG("Completed sync deletion of {}", vbid);
             return cb::engine_errc::success;
         }
-        status = cb::engine_errc(kvBucket->deleteVBucket(vbid, cookie));
+        status = cb::engine_errc(kvBucket->deleteVBucket(vbid, &cookie));
     } else {
         status = cb::engine_errc(kvBucket->deleteVBucket(vbid));
     }
@@ -6302,7 +6305,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteVBucketInner(
                 "state",
                 vbid);
         setErrorContext(
-                cookie,
+                &cookie,
                 "Failed to delete vbucket.  Must be in the dead state.");
         break;
     case cb::engine_errc::would_block:
@@ -6312,11 +6315,11 @@ cb::engine_errc EventuallyPersistentEngine::deleteVBucketInner(
                 vbid);
         // We don't use the actual value in ewouldblock, just the existence
         // of something there.
-        storeEngineSpecific(cookie, static_cast<void*>(this));
+        storeEngineSpecific(&cookie, static_cast<void*>(this));
         break;
     default:
         EP_LOG_WARN("Deletion of {} failed because of unknown reasons", vbid);
-        setErrorContext(cookie, "Failed to delete vbucket.  Unknown reason.");
+        setErrorContext(&cookie, "Failed to delete vbucket.  Unknown reason.");
         status = cb::engine_errc::failed;
         break;
     }
@@ -6725,12 +6728,12 @@ cb::engine_errc EventuallyPersistentEngine::compactDatabase(
         uint64_t purge_before_seq,
         bool drop_deletes) {
     return acquireEngine(this)->compactDatabaseInner(
-            &cookie, vbid, purge_before_ts, purge_before_seq, drop_deletes);
+            cookie, vbid, purge_before_ts, purge_before_seq, drop_deletes);
 }
 
 std::pair<cb::engine_errc, vbucket_state_t>
 EventuallyPersistentEngine::getVBucket(const CookieIface& cookie, Vbid vbid) {
-    return acquireEngine(this)->getVBucketInner(&cookie, vbid);
+    return acquireEngine(this)->getVBucketInner(cookie, vbid);
 }
 
 cb::engine_errc EventuallyPersistentEngine::setVBucket(
@@ -6739,11 +6742,10 @@ cb::engine_errc EventuallyPersistentEngine::setVBucket(
         uint64_t cas,
         vbucket_state_t state,
         nlohmann::json* meta) {
-    return acquireEngine(this)->setVBucketInner(
-            &cookie, vbid, cas, state, meta);
+    return acquireEngine(this)->setVBucketInner(cookie, vbid, cas, state, meta);
 }
 
 cb::engine_errc EventuallyPersistentEngine::deleteVBucket(
         const CookieIface& cookie, Vbid vbid, bool sync) {
-    return acquireEngine(this)->deleteVBucketInner(&cookie, vbid, sync);
+    return acquireEngine(this)->deleteVBucketInner(cookie, vbid, sync);
 }

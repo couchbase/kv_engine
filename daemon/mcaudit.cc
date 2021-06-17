@@ -419,7 +419,7 @@ cb::engine_errc reconfigure_audit(Cookie& cookie) {
             return cb::engine_errc::failed;
         }
         if (handle->configure_auditdaemon(Settings::instance().getAuditFile(),
-                                          &cookie)) {
+                                          cookie)) {
             return cb::engine_errc::would_block;
         }
         return cb::engine_errc::failed;

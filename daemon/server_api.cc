@@ -81,14 +81,13 @@ struct ServerLogApi : public ServerLogIface {
 };
 
 struct ServerDocumentApi : public ServerDocumentIface {
-    cb::engine_errc pre_link(gsl::not_null<const CookieIface*> void_cookie,
+    cb::engine_errc pre_link(CookieIface& void_cookie,
                              item_info& info) override {
         // Sanity check that people aren't calling the method with a bogus
         // cookie
-        auto* cookie = reinterpret_cast<Cookie*>(
-                const_cast<CookieIface*>(void_cookie.get()));
+        auto& cookie = dynamic_cast<Cookie&>(void_cookie);
 
-        auto* context = cookie->getCommandContext();
+        auto* context = cookie.getCommandContext();
         if (context != nullptr) {
             return context->pre_link_document(info);
         }
@@ -100,11 +99,10 @@ struct ServerDocumentApi : public ServerDocumentIface {
         return document_pre_expiry(itm_info);
     }
     void audit_document_access(
-            gsl::not_null<const CookieIface*> void_cookie,
+            CookieIface& void_cookie,
             cb::audit::document::Operation operation) override {
-        auto* cookie = reinterpret_cast<Cookie*>(
-                const_cast<CookieIface*>(void_cookie.get()));
-        cb::audit::document::add(*cookie, operation);
+        auto& cookie = dynamic_cast<Cookie&>(void_cookie);
+        cb::audit::document::add(cookie, operation);
     }
 };
 

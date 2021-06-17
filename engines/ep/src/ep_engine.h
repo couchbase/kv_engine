@@ -527,7 +527,7 @@ public:
     void setDCPPriority(const CookieIface* cookie, ConnectionPriority priority);
 
     void notifyIOComplete(const CookieIface* cookie, cb::engine_errc status);
-    void scheduleDcpStep(gsl::not_null<const CookieIface*> cookie);
+    void scheduleDcpStep(const CookieIface& cookie);
 
     void reserveCookie(const CookieIface* cookie);
     void releaseCookie(const CookieIface* cookie);
@@ -598,7 +598,7 @@ public:
                                  std::string_view value,
                                  Vbid vbucket) override;
 
-    cb::engine_errc setParameterInner(gsl::not_null<const CookieIface*> cookie,
+    cb::engine_errc setParameterInner(const CookieIface& cookie,
                                       EngineParamCategory category,
                                       std::string_view key,
                                       std::string_view value,
@@ -848,7 +848,7 @@ public:
      * This differs from checkPrivilege in that the error case has no side
      * effect, such as setting error extras/logging
      */
-    cb::engine_errc testPrivilege(const CookieIface* cookie,
+    cb::engine_errc testPrivilege(const CookieIface& cookie,
                                   cb::rbac::Privilege priv,
                                   std::optional<ScopeID> sid,
                                   std::optional<CollectionID> cid) const;
@@ -878,21 +878,20 @@ public:
 protected:
     friend class EpEngineValueChangeListener;
 
-    cb::engine_errc compactDatabaseInner(
-            gsl::not_null<const CookieIface*> cookie,
-            Vbid vbid,
-            uint64_t purge_before_ts,
-            uint64_t purge_before_seq,
-            bool drop_deletes);
+    cb::engine_errc compactDatabaseInner(const CookieIface& cookie,
+                                         Vbid vbid,
+                                         uint64_t purge_before_ts,
+                                         uint64_t purge_before_seq,
+                                         bool drop_deletes);
 
     std::pair<cb::engine_errc, vbucket_state_t> getVBucketInner(
-            gsl::not_null<const CookieIface*> cookie, Vbid vbid);
-    cb::engine_errc setVBucketInner(gsl::not_null<const CookieIface*> cookie,
+            const CookieIface& cookie, Vbid vbid);
+    cb::engine_errc setVBucketInner(const CookieIface& cookie,
                                     Vbid vbid,
                                     uint64_t cas,
                                     vbucket_state_t state,
                                     nlohmann::json* meta);
-    cb::engine_errc deleteVBucketInner(gsl::not_null<const CookieIface*> cookie,
+    cb::engine_errc deleteVBucketInner(const CookieIface& cookie,
                                        Vbid vbid,
                                        bool sync);
 

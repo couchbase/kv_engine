@@ -120,7 +120,7 @@ void ConnMap::notifyPausedConnection(const std::shared_ptr<ConnHandler>& conn) {
     {
         std::lock_guard<std::mutex> rlh(releaseLock);
         if (conn.get() && conn->isPaused() && conn->isReserved()) {
-            engine.scheduleDcpStep(conn->getCookie());
+            engine.scheduleDcpStep(*conn->getCookie());
         }
     }
 }
@@ -155,7 +155,7 @@ void ConnMap::processPendingNotifications() {
     while (!queue.empty()) {
         auto conn = queue.front().lock();
         if (conn && conn->isPaused() && conn->isReserved()) {
-            engine.scheduleDcpStep(conn->getCookie());
+            engine.scheduleDcpStep(*conn->getCookie());
         }
         queue.pop();
     }

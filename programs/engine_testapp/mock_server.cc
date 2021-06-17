@@ -173,8 +173,7 @@ struct MockServerLogApi : public ServerLogIface {
 };
 
 struct MockServerDocumentApi : public ServerDocumentIface {
-    cb::engine_errc pre_link(gsl::not_null<const CookieIface*> cookie,
-                             item_info& info) override {
+    cb::engine_errc pre_link(CookieIface& cookie, item_info& info) override {
         if (pre_link_function) {
             pre_link_function(info);
         }
@@ -187,7 +186,7 @@ struct MockServerDocumentApi : public ServerDocumentIface {
     }
 
     void audit_document_access(
-            gsl::not_null<const CookieIface*> cookie,
+            CookieIface& cookie,
             cb::audit::document::Operation operation) override {
         // empty
     }

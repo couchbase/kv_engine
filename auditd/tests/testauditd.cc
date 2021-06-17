@@ -197,7 +197,7 @@ protected:
         // We don't have a real cookie, but configure_auditdaemon won't call
         // notify_io_complete unless it's set to a non-null value..
         // just pass on the ready variable
-        const auto* cookie = (const CookieIface*)&ready;
+        const auto& cookie = (const CookieIface&)ready;
         if (auditHandle->configure_auditdaemon(fname, cookie)) {
             {
                 // we have to wait

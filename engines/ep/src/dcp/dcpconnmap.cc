@@ -383,7 +383,7 @@ void DcpConnMap::manageConnections() {
 
     for (auto& it : toNotify) {
         if (it.get() && it->isReserved()) {
-            engine.scheduleDcpStep(it->getCookie());
+            engine.scheduleDcpStep(*it->getCookie());
         }
     }
 

@@ -49,8 +49,7 @@ struct ServerDocumentIface {
      *                        error codes means that the engine should
      *                        *NOT* link the item
      */
-    virtual cb::engine_errc pre_link(gsl::not_null<const CookieIface*> cookie,
-                                     item_info& info) = 0;
+    virtual cb::engine_errc pre_link(CookieIface& cookie, item_info& info) = 0;
 
     /**
      * This callback is called from the underlying engine right before
@@ -74,6 +73,5 @@ struct ServerDocumentIface {
      * @param operation The type of access for the operation
      */
     virtual void audit_document_access(
-            gsl::not_null<const CookieIface*> cookie,
-            cb::audit::document::Operation operation) = 0;
+            CookieIface& cookie, cb::audit::document::Operation operation) = 0;
 };

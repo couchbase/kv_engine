@@ -44,7 +44,7 @@ MockActiveStream::MockActiveStream(
                    includeXattrs,
                    IncludeDeleteTime::No,
                    includeDeletedUserXattrs,
-                   {jsonFilter, vb.getManifest(), p->getCookie(), *e}) {
+                   {jsonFilter, vb.getManifest(), *p->getCookie(), *e}) {
 }
 
 void MockActiveStream::public_registerCursor(CheckpointManager& manager,

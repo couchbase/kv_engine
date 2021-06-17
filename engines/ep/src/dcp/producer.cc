@@ -341,7 +341,7 @@ cb::engine_errc DcpProducer::streamRequest(
     // Construct the filter before rollback checks so we ensure the client view
     // of collections is compatible with the vbucket.
     Collections::VB::Filter filter(
-            json, vb->getManifest(), getCookie(), engine_);
+            json, vb->getManifest(), *getCookie(), engine_);
 
     if (!filter.getStreamId() &&
         multipleStreamRequests == MultipleStreamRequests::Yes) {

@@ -101,7 +101,7 @@ TEST_F(CollectionsVBFilterTest, junk_in) {
     for (const auto& s : inputs) {
         std::optional<std::string_view> json(s);
         try {
-            Collections::VB::Filter f(json, vbm, cookie, *engine);
+            Collections::VB::Filter f(json, vbm, *cookie, *engine);
             FAIL() << "Should have thrown an exception s:" << s;
         } catch (const cb::engine_error& e) {
             EXPECT_EQ(cb::engine_errc::invalid_arguments, e.code());
@@ -127,7 +127,7 @@ TEST_F(CollectionsVBFilterTest, junk_in_scope) {
     for (const auto& s : inputs) {
         std::optional<std::string_view> json(s);
         try {
-            Collections::VB::Filter f(json, vbm, cookie, *engine);
+            Collections::VB::Filter f(json, vbm, *cookie, *engine);
             FAIL() << "Should have thrown an exception " << s;
         } catch (const cb::engine_error& e) {
             EXPECT_EQ(cb::engine_errc::invalid_arguments, e.code());
@@ -157,7 +157,7 @@ TEST_F(CollectionsVBFilterTest, validation1) {
         std::optional<std::string_view> json(s);
 
         try {
-            Collections::VB::Filter f(json, vbm, cookie, *engine);
+            Collections::VB::Filter f(json, vbm, *cookie, *engine);
         } catch (...) {
             FAIL() << "Exception thrown with input " << s;
         }
@@ -181,7 +181,7 @@ TEST_F(CollectionsVBFilterTest, validation1_scope) {
         std::optional<std::string_view> json(s);
 
         try {
-            Collections::VB::Filter f(json, vbm, cookie, *engine);
+            Collections::VB::Filter f(json, vbm, *cookie, *engine);
         } catch (...) {
             FAIL() << "Exception thrown with input " << s;
         }
@@ -208,7 +208,7 @@ TEST_F(CollectionsVBFilterTest, validation2) {
     for (const auto& s : inputs) {
         std::optional<std::string_view> json(s);
         try {
-            Collections::VB::Filter f(json, vbm, cookie, *engine);
+            Collections::VB::Filter f(json, vbm, *cookie, *engine);
             FAIL() << "Should have thrown an exception with input " << s;
         } catch (const cb::engine_error& e) {
             EXPECT_EQ(cb::engine_errc::unknown_collection, e.code());
@@ -232,7 +232,7 @@ TEST_F(CollectionsVBFilterTest, validation2_scope) {
     for (const auto& s : inputs) {
         std::optional<std::string_view> json(s);
         try {
-            Collections::VB::Filter f(json, vbm, cookie, *engine);
+            Collections::VB::Filter f(json, vbm, *cookie, *engine);
             FAIL() << "Should have thrown an exception with input " << s;
         } catch (const cb::engine_error& e) {
             EXPECT_EQ(cb::engine_errc::unknown_scope, e.code());
@@ -258,7 +258,7 @@ TEST_F(CollectionsVBFilterTest, validation2_collections_and_scope) {
     for (const auto& s : inputs) {
         std::optional<std::string_view> json(s);
         try {
-            Collections::VB::Filter f(json, vbm, cookie, *engine);
+            Collections::VB::Filter f(json, vbm, *cookie, *engine);
             FAIL() << "Should have thrown an exception";
         } catch (const cb::engine_error& e) {
             EXPECT_EQ(cb::engine_errc::invalid_arguments, e.code());
@@ -276,7 +276,7 @@ TEST_F(CollectionsVBFilterTest, validation2_empty_scope) {
     std::string input = R"({"scope":"8"})";
     std::optional<std::string_view> json(input);
     try {
-        Collections::VB::Filter f(json, vbm, cookie, *engine);
+        Collections::VB::Filter f(json, vbm, *cookie, *engine);
     } catch (const cb::engine_error& e) {
         EXPECT_EQ(cb::engine_errc::invalid_arguments, e.code());
     } catch (...) {
@@ -299,7 +299,7 @@ TEST_F(CollectionsVBFilterTest, validation_no_default) {
 
     std::optional<std::string_view> json;
     try {
-        Collections::VB::Filter f(json, vbm, cookie, *engine);
+        Collections::VB::Filter f(json, vbm, *cookie, *engine);
         FAIL() << "Should have thrown an exception";
     } catch (const cb::engine_error& e) {
         EXPECT_EQ(cb::engine_errc::unknown_collection, e.code());
@@ -315,7 +315,7 @@ public:
                           const Collections::VB::Manifest& manifest,
                           const CookieIface* cookie,
                           EventuallyPersistentEngine& engine)
-        : Collections::VB::Filter(jsonFilter, manifest, cookie, engine) {
+        : Collections::VB::Filter(jsonFilter, manifest, *cookie, engine) {
     }
     /// @return is this filter a passthrough (allows every collection)
     bool isPassthrough() const {
@@ -1255,7 +1255,7 @@ TEST_F(CollectionsVBFilterAccessControlTest, no_privilege_for_passthrough) {
     std::optional<std::string_view> json(input);
 
     try {
-        Collections::VB::Filter f(json, vbm, cookie, *engine);
+        Collections::VB::Filter f(json, vbm, *cookie, *engine);
         FAIL() << "Should have thrown an exception";
     } catch (const cb::engine_error& e) {
         EXPECT_EQ(cb::engine_errc::no_access, e.code());
@@ -1283,7 +1283,7 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_for_passthrough) {
     vbm.update(*vb, m);
     std::string input;
     std::optional<std::string_view> json(input);
-    Collections::VB::Filter f(json, vbm, cookie, *engine);
+    Collections::VB::Filter f(json, vbm, *cookie, *engine);
 }
 
 // Test that 1) we cannot create a filter for a collection (9) when we don't
@@ -1317,7 +1317,7 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_check_for_collection) {
 
     // Test 1)
     try {
-        Collections::VB::Filter f(json, vbm, cookie, *engine);
+        Collections::VB::Filter f(json, vbm, *cookie, *engine);
         FAIL() << "Should have thrown an exception";
     } catch (const cb::engine_error& e) {
         EXPECT_EQ(cb::engine_errc::no_access, e.code());
@@ -1327,7 +1327,7 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_check_for_collection) {
 
     // Test 2)
     input = R"({"collections":["c"]})";
-    Collections::VB::Filter f(json, vbm, cookie, *engine);
+    Collections::VB::Filter f(json, vbm, *cookie, *engine);
 }
 
 // Similar to the above test, but here we try to build a multi-collection filter
@@ -1357,7 +1357,7 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_check_for_collections) {
     std::optional<std::string_view> json(input);
 
     try {
-        Collections::VB::Filter f(json, vbm, cookie, *engine);
+        Collections::VB::Filter f(json, vbm, *cookie, *engine);
         FAIL() << "Should have thrown an exception";
     } catch (const cb::engine_error& e) {
         EXPECT_EQ(cb::engine_errc::no_access, e.code());
@@ -1396,7 +1396,7 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_check_for_scope) {
 
     // Test 1)
     try {
-        Collections::VB::Filter f(json, vbm, cookie, *engine);
+        Collections::VB::Filter f(json, vbm, *cookie, *engine);
         FAIL() << "Should have thrown an exception";
     } catch (const cb::engine_error& e) {
         EXPECT_EQ(cb::engine_errc::no_access, e.code());
@@ -1406,5 +1406,5 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_check_for_scope) {
 
     // Test 2)
     input = R"({"scope":"9"})";
-    Collections::VB::Filter f(json, vbm, cookie, *engine);
+    Collections::VB::Filter f(json, vbm, *cookie, *engine);
 }

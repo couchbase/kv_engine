@@ -38,7 +38,7 @@ public:
      * @param item_ The document to operate on
      */
     PreLinkDocumentContext(EventuallyPersistentEngine& engine_,
-                           const CookieIface* cookie_,
+                           CookieIface* cookie_,
                            Item* item_)
         : engine(engine_), cookie(cookie_), item(item_) {
     }
@@ -58,6 +58,6 @@ public:
 
 protected:
     EventuallyPersistentEngine& engine;
-    const CookieIface* cookie;
+    CookieIface* cookie;
     const Item* item;
 };

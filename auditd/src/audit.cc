@@ -351,10 +351,9 @@ bool AuditImpl::put_event(uint32_t event_id, std::string_view payload) {
     return false;
 }
 
-bool AuditImpl::configure_auditdaemon(
-        const std::string& configfile,
-        gsl::not_null<const CookieIface*> cookie) {
-    auto new_event = std::make_unique<ConfigureEvent>(configfile, cookie.get());
+bool AuditImpl::configure_auditdaemon(const std::string& configfile,
+                                      const CookieIface& cookie) {
+    auto new_event = std::make_unique<ConfigureEvent>(configfile, cookie);
     std::lock_guard<std::mutex> guard(producer_consumer_lock);
     filleventqueue.push(std::move(new_event));
     events_arrived.notify_all();
@@ -381,9 +380,9 @@ void AuditImpl::notify_event_state_changed(uint32_t id, bool enabled) const {
     }
 }
 
-void AuditImpl::notify_io_complete(gsl::not_null<const CookieIface*> cookie,
+void AuditImpl::notify_io_complete(const CookieIface& cookie,
                                    cb::engine_errc status) {
-    cookie_api->notify_io_complete(*cookie, status);
+    cookie_api->notify_io_complete(cookie, status);
 }
 
 void AuditImpl::stats(const StatCollector& collector) {

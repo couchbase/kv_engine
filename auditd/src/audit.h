@@ -34,9 +34,8 @@ public:
             cb::audit::EventStateListener listener) override;
     void notify_all_event_states() override;
     void stats(const StatCollector& collector) override;
-    bool configure_auditdaemon(
-            const std::string& config,
-            gsl::not_null<const CookieIface*> cookie) override;
+    bool configure_auditdaemon(const std::string& config,
+                               const CookieIface& cookie) override;
     // End public API
 
     explicit AuditImpl(std::string config_file,
@@ -60,8 +59,7 @@ public:
      */
     bool configure();
 
-    void notify_io_complete(gsl::not_null<const CookieIface*> cookie,
-                            cb::engine_errc status);
+    void notify_io_complete(const CookieIface& cookie, cb::engine_errc status);
 
     /**
      * The entry point for the thread used to drain the generated audit events

@@ -1572,7 +1572,8 @@ cb::engine_errc VBucket::set(
             }
         }
 
-        PreLinkDocumentContext preLinkDocumentContext(engine, cookie, &itm);
+        PreLinkDocumentContext preLinkDocumentContext(
+                engine, const_cast<CookieIface*>(cookie), &itm);
         VBQueueItemCtx queueItmCtx;
         if (itm.isPending()) {
             queueItmCtx.durability =
@@ -1697,7 +1698,7 @@ cb::engine_errc VBucket::replace(
                 }
 
                 PreLinkDocumentContext preLinkDocumentContext(
-                        engine, cookie, &itm);
+                        engine, const_cast<CookieIface*>(cookie), &itm);
                 VBQueueItemCtx queueItmCtx;
                 queueItmCtx.preLinkDocumentContext = &preLinkDocumentContext;
                 if (itm.isPending()) {
@@ -2546,7 +2547,8 @@ cb::engine_errc VBucket::add(
             }
         }
 
-        PreLinkDocumentContext preLinkDocumentContext(engine, cookie, &itm);
+        PreLinkDocumentContext preLinkDocumentContext(
+                engine, const_cast<CookieIface*>(cookie), &itm);
         VBQueueItemCtx queueItmCtx;
         queueItmCtx.preLinkDocumentContext = &preLinkDocumentContext;
         if (itm.isPending()) {
