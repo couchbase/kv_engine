@@ -9,6 +9,19 @@
  *   the file licenses/APL2.txt.
  */
 
+/// clang-tidy runs on a per-file basis and don't like this file and emit
+/// errors like:
+///     error: C++ requires a type specifier for all declarations
+///                [clang-diagnostic-error]
+///     TASK(MultiBGFetcherTask, READER_TASK_IDX, 0)
+///     ^
+///
+/// To work around that, just define an empty macro if not defined.
+#if !defined(TASK) && defined(__clang_analyzer__)
+#warning "TASK should be defined before including tasks.def.h"
+#define TASK(a, b, c)
+#endif
+
 /*
  * Every task within ep-engine is declared in this file
  *
