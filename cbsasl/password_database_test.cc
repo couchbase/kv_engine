@@ -15,6 +15,7 @@
 #include <cbsasl/pwdb.h>
 #include <cbsasl/server.h>
 #include <folly/portability/GTest.h>
+#include <folly/portability/Stdlib.h>
 #include <nlohmann/json.hpp>
 #include <openssl/evp.h>
 #include <platform/base64.h>
@@ -323,8 +324,6 @@ TEST_F(PasswordDatabaseTest, CreateFromJsonDatabaseExtraLabel) {
                  std::runtime_error);
 }
 
-static char environment[1024];
-
 class EncryptedDatabaseTest : public ::testing::Test {
 public:
     void SetUp() override {
@@ -343,31 +342,18 @@ public:
                                              blob.size()));
 
         meta["iv"] = Couchbase::Base64::encode(blob);
-
-        std::string envstr = meta.dump();
-
-        // Add the file to the exec environment
-        checked_snprintf(environment,
-                         sizeof(environment),
-                         "COUCHBASE_CBSASL_SECRETS=%s",
-                         envstr.c_str());
-
+        secrets = meta.dump();
         filename = cb::io::mktemp("./cryptfile.");
     }
 
     void TearDown() override {
-#ifdef _MSC_VER
-        checked_snprintf(
-                environment, sizeof(environment), "COUCHBASE_CBSASL_SECRETS=");
-        putenv(environment);
-#else
         unsetenv("COUCHBASE_CBSASL_SECRETS");
-#endif
         EXPECT_NO_THROW(cb::io::rmrf(filename));
     }
 
 protected:
     std::string filename;
+    std::string secrets;
 };
 
 TEST_F(EncryptedDatabaseTest, WriteReadFilePlain) {
@@ -379,18 +365,10 @@ TEST_F(EncryptedDatabaseTest, WriteReadFilePlain) {
 }
 
 TEST_F(EncryptedDatabaseTest, WriteReadFileEncrypted) {
-    putenv(environment);
+    // Add the file to the exec environment
+    setenv("COUCHBASE_CBSASL_SECRETS", secrets.c_str(), 1);
     const std::string input{"All work and no play makes Jack a dull boy"};
     cb::sasl::pwdb::write_password_file(filename, input);
     auto content = cb::sasl::pwdb::read_password_file(filename);
     EXPECT_EQ(input, content);
-}
-
-int main(int argc, char** argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-
-    // Reduce the iteration cycles in HMAC to be nicer to valgrind ;-)
-    cb::sasl::pwdb::UserFactory::setDefaultHmacIterationCount(10);
-
-    return RUN_ALL_TESTS();
 }

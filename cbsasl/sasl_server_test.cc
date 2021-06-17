@@ -8,26 +8,20 @@
  *   the file licenses/APL2.txt.
  */
 #include <cbcrypto/cbcrypto.h>
-#include <cbsasl/client.h>
 #include <cbsasl/mechanism.h>
 #include <cbsasl/server.h>
 #include <folly/portability/GTest.h>
+#include <folly/portability/Stdlib.h>
 
-#include <gsl/gsl-lite.hpp>
 #include <algorithm>
-#include <array>
-#include <cstdio>
 #include <cstdlib>
-#include <cstring>
-
-char envptr[1024]{"CBSASL_PWFILE=" SOURCE_ROOT "/cbsasl/sasl_server_test.json"};
 
 static std::string mechanisms;
 
 class SaslServerTest : public ::testing::Test {
 protected:
     static void SetUpTestCase() {
-        putenv(envptr);
+        setenv("CBSASL_PWFILE", SOURCE_ROOT "/cbsasl/sasl_server_test.json", 1);
 
         using namespace cb::crypto;
         if (isSupported(Algorithm::SHA512)) {
@@ -47,6 +41,7 @@ protected:
     }
 
     static void TearDownTestCase() {
+        unsetenv("CBSASL_PWFILE");
         cb::sasl::server::shutdown();
     }
 

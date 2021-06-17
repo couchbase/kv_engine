@@ -33,70 +33,29 @@ add_library(cbsasl STATIC
      user.h
      util.h)
 kv_enable_pch(cbsasl)
+cb_enable_unity_build(cbsasl)
 
 target_link_libraries(cbsasl cbcrypto mcd_util platform)
 add_sanitizers(cbsasl)
 
-# Unit tests
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
-    cb_add_test_executable(cbsasl_utils_test strcmp_test.cc
-                   scram-sha/saslprep_test.cc)
-    kv_enable_pch(cbsasl_utils_test)
-    target_link_libraries(cbsasl_utils_test cbsasl gtest gtest_main)
-    add_test(NAME cbsasl_utils_test
-             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-             COMMAND cbsasl_utils_test)
-
-    cb_add_test_executable(cbsasl_pwconv_test
-                   ${Memcached_SOURCE_DIR}/include/cbcrypto/cbcrypto.h
-                   pwconv_test.cc)
-    kv_enable_pch(cbsasl_pwconv_test)
-    target_link_libraries(cbsasl_pwconv_test
-                          gtest_main
-                          gtest
-                          cbsasl
-                          mcd_util
-                          platform)
-    add_test(NAME cbsasl-pwconv-test
-             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-             COMMAND cbsasl_pwconv_test)
-    add_sanitizers(cbsasl_pwconv_test)
-
-    cb_add_test_executable(cbsasl_password_database_test
-                   ${Memcached_SOURCE_DIR}/include/cbcrypto/cbcrypto.h
-                   password_database_test.cc    )
-    kv_enable_pch(cbsasl_password_database_test)
-    target_link_libraries(cbsasl_password_database_test
-                          cbcrypto
-                          cbsasl
-                          gtest
-                          platform
-                          ${OPENSSL_LIBRARIES})
-    add_test(NAME cbsasl-password-database
-             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-             COMMAND cbsasl_password_database_test)
-    add_sanitizers(cbsasl_password_database_test)
-
-    cb_add_test_executable(cbsasl_client_server_test
-                   ${Memcached_SOURCE_DIR}/include/cbcrypto/cbcrypto.h
-                   client_server_test.cc)
-    kv_enable_pch(cbsasl_client_server_test)
-    target_link_libraries(cbsasl_client_server_test cbcrypto cbsasl gtest gtest_main)
-    add_test(NAME cbsasl-client-server
-             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-             COMMAND cbsasl_client_server_test)
-    add_sanitizers(cbsasl_client_server_test)
-
-    cb_add_test_executable(cbsasl_server_test sasl_server_test.cc)
-    kv_enable_pch(cbsasl_server_test)
-    target_link_libraries(cbsasl_server_test
+    cb_add_test_executable(cbsasl_unit_test
+                           client_server_test.cc
+                           password_database_test.cc
+                           pwconv_test.cc
+                           sasl_server_test.cc
+                           scram-sha/saslprep_test.cc
+                           strcmp_test.cc)
+    cb_enable_unity_build(cbsasl_unit_test)
+    kv_enable_pch(cbsasl_unit_test)
+    target_link_libraries(cbsasl_unit_test
                           cbsasl
                           cbcrypto
                           platform
                           gtest
                           gtest_main)
-    add_test(NAME cbsasl-server-sasl
+    add_test(NAME cbsasl_unit_test
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-             COMMAND cbsasl_server_test)
-    add_sanitizers(cbsasl_server_test)
+             COMMAND cbsasl_unit_test)
+    add_sanitizers(cbsasl_unit_test)
 endif (COUCHBASE_KV_BUILD_UNIT_TESTS)

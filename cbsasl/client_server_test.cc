@@ -11,16 +11,12 @@
 #include <cbsasl/client.h>
 #include <cbsasl/server.h>
 #include <folly/portability/GTest.h>
-
-#include <array>
+#include <folly/portability/Stdlib.h>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
 #include <memory>
 
 const char* cbpwfile = "cbsasl_test.pw";
-
-char envptr[256]{"ISASL_PWFILE=cbsasl_test.pw"};
 
 class SaslClientServerTest : public ::testing::Test {
 protected:
@@ -32,11 +28,12 @@ protected:
         fprintf(fp, "mikewied  mik epw \n");
         ASSERT_EQ(0, fclose(fp));
 
-        putenv(envptr);
+        setenv("ISASL_PWFILE", cbpwfile, 1);
         cb::sasl::server::initialize();
     }
 
     static void TearDownTestCase() {
+        unsetenv("ISASL_PWFILE");
         cb::sasl::server::shutdown();
         ASSERT_EQ(0, remove(cbpwfile));
     }
