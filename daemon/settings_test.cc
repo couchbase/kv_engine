@@ -861,10 +861,6 @@ TEST_F(SettingsTest, SslMinimumProtocol) {
     } catch (std::exception& exception) {
         FAIL() << exception.what();
     }
-
-    // But random strings shouldn't be allowed
-    obj["ssl_minimum_protocol"] = "foo";
-    expectFail<std::invalid_argument>(obj);
 }
 
 TEST_F(SettingsTest, Breakpad) {
@@ -1472,7 +1468,6 @@ TEST(SettingsUpdateTest, SslCipherOrderIsDynamic) {
     auto old = settings.isSslCipherOrder();
     updated.setSslCipherOrder(old);
     EXPECT_NO_THROW(settings.updateSettings(updated, false));
-    EXPECT_EQ(SSL_OP_CIPHER_SERVER_PREFERENCE, settings.getSslProtocolMask());
 
     // changing it should work
     updated.setSslCipherOrder(false);
@@ -1480,7 +1475,6 @@ TEST(SettingsUpdateTest, SslCipherOrderIsDynamic) {
     EXPECT_EQ(old, settings.isSslCipherOrder());
     EXPECT_NO_THROW(settings.updateSettings(updated));
     EXPECT_EQ(false, settings.isSslCipherOrder());
-    EXPECT_EQ(0, settings.getSslProtocolMask());
 }
 
 TEST(SettingsUpdateTest, SslMinimumProtocolIsDynamic) {
@@ -1491,10 +1485,7 @@ TEST(SettingsUpdateTest, SslMinimumProtocolIsDynamic) {
     auto old = settings.getSslMinimumProtocol();
     updated.setSslMinimumProtocol(old);
     EXPECT_NO_THROW(settings.updateSettings(updated, false));
-    EXPECT_EQ(decode_ssl_protocol("tlsv1.2"), settings.getSslProtocolMask());
     settings.setSslCipherOrder(true);
-    EXPECT_EQ(SSL_OP_CIPHER_SERVER_PREFERENCE | decode_ssl_protocol("tlsv1.2"),
-              settings.getSslProtocolMask());
 
     // changing it should work
     updated.setSslMinimumProtocol("tlsv1");
@@ -1502,10 +1493,7 @@ TEST(SettingsUpdateTest, SslMinimumProtocolIsDynamic) {
     EXPECT_EQ(old, settings.getSslMinimumProtocol());
     EXPECT_NO_THROW(settings.updateSettings(updated));
     EXPECT_EQ("tlsv1", settings.getSslMinimumProtocol());
-    EXPECT_EQ(SSL_OP_CIPHER_SERVER_PREFERENCE | decode_ssl_protocol("tlsv1"),
-              settings.getSslProtocolMask());
     settings.setSslCipherOrder(false);
-    EXPECT_EQ(decode_ssl_protocol("tlsv1"), settings.getSslProtocolMask());
 }
 
 TEST(SettingsUpdateTest, MaxPacketSizeIsDynamic) {
@@ -1623,35 +1611,4 @@ TEST_F(SettingsTest, ScramshaFallbackSaltIsDynamic) {
     } catch (std::exception& exception) {
         FAIL() << exception.what();
     }
-}
-
-int main(int argc, char** argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    bool verbose = false;
-
-    int cmd;
-    while ((cmd = getopt(argc, argv, "v")) != EOF) {
-        switch (cmd) {
-        case 'v':
-            verbose = true;
-            break;
-        default:
-            std::cerr << "Usage: " << argv[0] << " [-v]" << std::endl
-                      << std::endl
-                      << "  -v Verbose - Print verbose memcached output "
-                      << "to stderr." << std::endl;
-            return EXIT_FAILURE;
-        }
-    }
-
-    if (verbose) {
-        cb::logger::createConsoleLogger();
-    } else {
-        cb::logger::createBlackholeLogger();
-    }
-
-    auto ret = RUN_ALL_TESTS();
-    cb::logger::shutdown();
-
-    return ret;
 }

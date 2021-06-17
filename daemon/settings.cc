@@ -415,14 +415,7 @@ static void handle_ssl_cipher_order(Settings& s, const nlohmann::json& obj) {
  */
 static void handle_ssl_minimum_protocol(Settings& s,
                                         const nlohmann::json& obj) {
-    std::string protocol = obj.get<std::string>();
-    try {
-        decode_ssl_protocol(protocol);
-    } catch (const std::exception& e) {
-        throw std::invalid_argument(
-            "\"ssl_minimum_protocol\"" + std::string(e.what()));
-    }
-    s.setSslMinimumProtocol(protocol);
+    s.setSslMinimumProtocol(obj.get<std::string>());
 }
 
 /**
@@ -1323,8 +1316,8 @@ nlohmann::json Settings::getTlsConfiguration() const {
     if (!tls.empty()) {
         tls["minimum version"] = getSslMinimumProtocol();
         tls["cipher order"] = isSslCipherOrder();
-        tls["cipher list"]["tls 1.2"] = getSslCipherList();
-        tls["cipher list"]["tls 1.3"] = getSslCipherSuites();
+        tls["cipher list"]["TLS 1.2"] = getSslCipherList();
+        tls["cipher list"]["TLS 1.3"] = getSslCipherSuites();
 
         switch (client_cert_mapper.getMode()) {
         case cb::x509::Mode::Disabled:
@@ -1490,27 +1483,12 @@ void Settings::setSslSaslMechanisms(const std::string& mechanisms) {
 void Settings::setSslCipherOrder(bool ordered) {
     ssl_cipher_order.store(ordered,std::memory_order_release);
     has.ssl_cipher_order = true;
-
-    long mask = 0;
-    if (has.ssl_minimum_protocol) {
-        mask = decode_ssl_protocol(ssl_minimum_protocol);
-    }
-    if (ordered) {
-        mask |= SSL_OP_CIPHER_SERVER_PREFERENCE;
-    }
-
-    ssl_protocol_mask.store(mask);
     notify_changed("ssl_cipher_order");
 }
 
 void Settings::setSslMinimumProtocol(std::string protocol) {
     ssl_minimum_protocol = std::move(protocol);
     has.ssl_minimum_protocol = true;
-    auto mask = decode_ssl_protocol(ssl_minimum_protocol);
-    if (has.ssl_cipher_order && ssl_cipher_order) {
-        mask |= SSL_OP_CIPHER_SERVER_PREFERENCE;
-    }
-    ssl_protocol_mask.store(mask);
     notify_changed("ssl_minimum_protocol");
 }
 

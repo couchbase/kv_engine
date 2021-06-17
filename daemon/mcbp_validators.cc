@@ -17,6 +17,7 @@
 #include "memcached.h"
 #include "network_interface_description.h"
 #include "subdocument_validators.h"
+#include "tls_configuration.h"
 #include "xattr/utils.h"
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>
@@ -2086,7 +2087,21 @@ static Status ifconfig_validator(Cookie& cookie) {
         return Status::Success;
     }
 
-    if (key == "delete" || key == "tls") {
+    if (key == "tls") {
+        try {
+            TlsConfiguration::validate(nlohmann::json::parse(value));
+        } catch (const std::invalid_argument& e) {
+            cookie.setErrorContext(e.what());
+            return Status::Einval;
+        } catch (const std::exception&) {
+            cookie.setErrorContext("value is not valid JSON");
+            return Status::Einval;
+        }
+
+        return Status::Success;
+    }
+
+    if (key == "delete") {
         return Status::Success;
     }
 

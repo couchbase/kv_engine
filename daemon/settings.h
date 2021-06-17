@@ -513,11 +513,6 @@ public:
 
     void setSslCipherOrder(bool ordered);
 
-    /// get the configured SSL protocol mask
-    long getSslProtocolMask()const {
-        return ssl_protocol_mask.load();
-    }
-
     /**
      * Get the minimum SSL protocol the node use
      *
@@ -937,10 +932,9 @@ protected:
     std::atomic_bool ssl_cipher_order{true};
 
     /**
-     * The minimum ssl protocol to use (by default this is TLS1)
+     * The minimum ssl protocol to use (by default this is TLS 1)
      */
     std::string ssl_minimum_protocol;
-    std::atomic_long ssl_protocol_mask{0};
 
     /**
      * ssl client authentication

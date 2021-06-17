@@ -29,10 +29,10 @@ A controlling process could implement the logic by doing something like:
         {"certificate chain", "/opt/couchbase/var/lib/couchbase/etc/certificate.cert"},
         {"CA file", "/opt/couchbase/var/lib/couchbase/etc/CAfile.pem"},
         {"password", cb::base64::encode("This is the passphrase")},
-        {"minimum version", "tlsv1"},
+        {"minimum version", "TLS 1.2"},
         {"cipher list",
-         {{"tls 1.2", "HIGH"},
-          {"tls 1.3",
+         {{"TLS 1.2", "HIGH"},
+          {"TLS 1.3",
            "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_"
            "AES_"
            "128_GCM_SHA256:TLS_AES_128_CCM_8_SHA256:TLS_AES_128_CCM_"
@@ -226,24 +226,50 @@ contains more information just like create.
 
 Key - TLS
 
-If a body is provided it contains the new TLS configuration to use
-described as a JSON object with the following layout:
+The body contains the new TLS configuration to use described as a
+JSON object with the following layout:
 
     {
        "private key": "/path/to/file/containing/private/key",
        "certificate chain": "/path/to/file/containing/certificate/chain",
        "CA file", "/opt/couchbase/var/lib/couchbase/etc/CAfile.pem",
        "password" : "base64-encoded version of the password to decrypt private key",
-       "minimum version" "TLS 1.2",
+       "minimum version", "TLS 1.2",
        "cipher list" : {
-          "tls 1.2" : "ciphers for TLS <= 1.2",
-          "tls 1.3" : "ciphers for TLS 1.3"
+          "TLS 1.2" : "ciphers for TLS <= 1.2",
+          "TLS 1.3" : "ciphers for TLS 1.3"
        },
        "cipher order" : true,
        "client cert auth" : "mandatory"
     }
 
 On success the current TLS configuration is returned as JSON.
+
+* `private key` contains the path to a file containing the private key.
+   Memcached will not keep the file open after the content was read (no later
+   than a response was sent for the request)
+* `certificate chain` contains the path to a file containing the certificate
+   chain. Like the `private key` the file will not be held open.
+* `CA file` contains the path to a file containing all the certificate
+   authorities.
+* `password` contains the password to decrypt the password. To make it easier to transfer all kinds of characters the string should be base64 encoded.
+* `minimum version` specifies the minimum TLS version to be used, and may be
+   one of the following values: "TLS 1", "TLS 1.1", "TLS 1.2" and "TLS 1.3".
+   see https://en.wikipedia.org/wiki/Comparison_of_TLS_implementations for
+   more information.
+* `cipher list` is an object containing two keys:
+  * `TLS 1.2` contains the list of ciphers to use for TLS <= 1.2
+  * `TLS 1.3` contains the cipher suites to use for TLS 1.3
+* `cipher order` specifies if the server should choose the cipher to use based
+   on its preferences (order they are specified).
+* `client cert auth` specifies the authentication mode and may be one of the
+   following values:
+  * `disabled` - The client must authenticate using SASL
+  * `enabled` - Try to authenticate the user from the client certificate,
+     but let the user authenticate via SASL if we fail to lookup a user.
+  * `mandatory` - Authenticate the user based upon the content of the
+     certificate, and disconnect the user if we fail to do so. SASL would
+     NOT be possible for these connections.
 
 Note that the mapping rules for client certificate authentication remains
 with the rest of the settings in `memcached.json`.

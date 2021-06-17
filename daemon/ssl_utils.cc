@@ -21,19 +21,16 @@ long decode_ssl_protocol(const std::string& protocol) {
     // MB-41757 - Disable renegotiation
     long disallow = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_RENEGOTIATION;
 
-    std::string minimum(protocol);
-    std::transform(minimum.begin(), minimum.end(), minimum.begin(), tolower);
-
-    if (minimum.empty() || minimum == "tlsv1") {
+    if (protocol.empty() || protocol == "TLS 1") {
         // nothing
-    } else if (minimum == "tlsv1.1" || minimum == "tlsv1_1") {
+    } else if (protocol == "TLS 1.1") {
         disallow |= SSL_OP_NO_TLSv1;
-    } else if (minimum == "tlsv1.2" || minimum == "tlsv1_2") {
+    } else if (protocol == "TLS 1.2") {
         disallow |= SSL_OP_NO_TLSv1_1 | SSL_OP_NO_TLSv1;
-    } else if (minimum == "tlsv1.3" || minimum == "tlsv1_3") {
+    } else if (protocol == "TLS 1.3") {
         disallow |= SSL_OP_NO_TLSv1_2 | SSL_OP_NO_TLSv1_1 | SSL_OP_NO_TLSv1;
     } else {
-        throw std::invalid_argument("Unknown protocol: " + minimum);
+        throw std::invalid_argument("Unknown protocol: " + protocol);
     }
 
     return disallow;

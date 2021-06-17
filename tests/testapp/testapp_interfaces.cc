@@ -270,10 +270,10 @@ TEST_P(InterfacesTest, TlsProperties) {
     nlohmann::json tls_properties = {
             {"private key", SOURCE_ROOT "/tests/cert/testapp.pem"},
             {"certificate chain", SOURCE_ROOT "/tests/cert/testapp.cert"},
-            {"minimum version", "tlsv1"},
+            {"minimum version", "TLS 1"},
             {"cipher list",
-             {{"tls 1.2", "HIGH"},
-              {"tls 1.3",
+             {{"TLS 1.2", "HIGH"},
+              {"TLS 1.3",
                "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_"
                "AES_"
                "128_GCM_SHA256:TLS_AES_128_CCM_8_SHA256:TLS_AES_128_CCM_"
@@ -294,10 +294,10 @@ TEST_P(InterfacesTest, TlsPropertiesEncryptedCert) {
     nlohmann::json tls_properties = {
             {"private key", SOURCE_ROOT "/tests/cert/encrypted-testapp.pem"},
             {"certificate chain", SOURCE_ROOT "/tests/cert/testapp.cert"},
-            {"minimum version", "tlsv1"},
+            {"minimum version", "TLS 1"},
             {"cipher list",
-             {{"tls 1.2", "HIGH"},
-              {"tls 1.3",
+             {{"TLS 1.2", "HIGH"},
+              {"TLS 1.3",
                "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_"
                "AES_"
                "128_GCM_SHA256:TLS_AES_128_CCM_8_SHA256:TLS_AES_128_CCM_"

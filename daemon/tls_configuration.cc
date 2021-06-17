@@ -18,15 +18,15 @@ std::string getString(const nlohmann::json& spec,
     auto iter = spec.find(key);
     if (iter == spec.cend()) {
         if (!optional) {
-            throw std::runtime_error("TLS configuration must contain \"" + key +
-                                     "\" which must be a string");
+            throw std::invalid_argument("TLS configuration must contain \"" +
+                                        key + "\" which must be a string");
         }
         return {};
     }
 
     if (!iter->is_string()) {
-        throw std::runtime_error("TLS configuration for \"" + key +
-                                 "\" must be a string");
+        throw std::invalid_argument("TLS configuration for \"" + key +
+                                    "\" must be a string");
     }
 
     return iter->get<std::string>();
@@ -38,7 +38,7 @@ std::string getCipherList(const nlohmann::json& spec,
     auto cipher = spec.find("cipher list");
     if (cipher == spec.cend()) {
         if (!optional) {
-            throw std::runtime_error(
+            throw std::invalid_argument(
                     "TLS configuration must contain \"cipher list\" which must "
                     "be an object");
         }
@@ -48,7 +48,7 @@ std::string getCipherList(const nlohmann::json& spec,
     auto iter = cipher->find(key);
     if (iter == cipher->cend()) {
         if (!optional) {
-            throw std::runtime_error(
+            throw std::invalid_argument(
                     R"(The TLS configurations "cipher list" section must contain ")" +
                     key + "\" which must be a string");
         }
@@ -56,7 +56,7 @@ std::string getCipherList(const nlohmann::json& spec,
     }
 
     if (!iter->is_string()) {
-        throw std::runtime_error(
+        throw std::invalid_argument(
                 R"(The TLS configurations "cipher list" for ")" + key +
                 "\" must be a string");
     }
@@ -64,16 +64,45 @@ std::string getCipherList(const nlohmann::json& spec,
     return iter->get<std::string>();
 }
 
+std::string getTlsMinVersion(const nlohmann::json& spec) {
+    auto val = getString(spec, "minimum version");
+    for (const auto& v : std::vector<std::string>{
+                 {"TLS 1"}, {"TLS 1.1"}, {"TLS 1.2"}, {"TLS 1.3"}}) {
+        if (val == v) {
+            return val;
+        }
+    }
+    // backwards compat (Should be removed when we nuke the parameters
+    // in memcached.json)
+    if (val == "tlsv1") {
+        return "TLS 1";
+    }
+
+    if (val == "tlsv1.1" || val == "tlsv1_1") {
+        return "TLS 1.1";
+    }
+    if (val == "tlsv1.2" || val == "tlsv1_2") {
+        return "TLS 1.2";
+    }
+
+    if (val == "tlsv1.3" || val == "tlsv1_3") {
+        return "TLS 1.3";
+    }
+
+    throw std::invalid_argument(
+            R"("minimum version" must be one of "TLS 1", "TLS 1.1", "TLS 1.2" or "TLS 1.3")");
+}
+
 bool getBoolean(const nlohmann::json& spec, const std::string key) {
     auto iter = spec.find(key);
     if (iter == spec.cend()) {
-        throw std::runtime_error("TLS configuration must contain \"" + key +
-                                 "\" which must be a boolean value");
+        throw std::invalid_argument("TLS configuration must contain \"" + key +
+                                    "\" which must be a boolean value");
     }
 
     if (!iter->is_boolean()) {
-        throw std::runtime_error("TLS configuration for \"" + key +
-                                 "\" must be a boolean value");
+        throw std::invalid_argument("TLS configuration for \"" + key +
+                                    "\" must be a boolean value");
     }
 
     return iter->get<bool>();
@@ -86,7 +115,7 @@ nlohmann::json TlsConfiguration::to_json() const {
             {"password", password ? "set" : "not set"},
             {"minimum version", minimum_version},
             {"cipher list",
-             {{"tls 1.2", cipher_list}, {"tls 1.3", cipher_suites}}},
+             {{"TLS 1.2", cipher_list}, {"TLS 1.3", cipher_suites}}},
             {"cipher order", cipher_order},
             {"client cert auth", to_string(clientCertMode)}};
 }
@@ -96,9 +125,9 @@ TlsConfiguration::TlsConfiguration(const nlohmann::json& spec)
       certificate_chain(getString(spec, "certificate chain")),
       ca_file(getString(spec, "CA file", true)),
       password(!getString(spec, "password", true).empty()),
-      minimum_version(getString(spec, "minimum version")),
-      cipher_list(getCipherList(spec, "tls 1.2")),
-      cipher_suites(getCipherList(spec, "tls 1.3", false)),
+      minimum_version(getTlsMinVersion(spec)),
+      cipher_list(getCipherList(spec, "TLS 1.2")),
+      cipher_suites(getCipherList(spec, "TLS 1.3", false)),
       cipher_order(getBoolean(spec, "cipher order")),
       clientCertMode(from_string(getString(spec, "client cert auth"))),
       serverContext(createServerContext(spec)) {
@@ -124,6 +153,17 @@ static int my_pem_password_cb(char* buf, int size, int, void* userdata) {
     return decoded.size();
 }
 
+nlohmann::json getOpenSslError() {
+    std::vector<std::string> ret;
+    unsigned long code;
+    while ((code = ERR_get_error()) != 0) {
+        std::vector<char> ssl_err(1024);
+        ERR_error_string_n(code, ssl_err.data(), ssl_err.size());
+        ret.emplace_back(ssl_err.data());
+    }
+    return ret;
+}
+
 cb::openssl::unique_ssl_ctx_ptr TlsConfiguration::createServerContext(
         const nlohmann::json& spec) {
     cb::openssl::unique_ssl_ctx_ptr ret{SSL_CTX_new(SSLv23_server_method())};
@@ -140,21 +180,37 @@ cb::openssl::unique_ssl_ctx_ptr TlsConfiguration::createServerContext(
 
     if (!ca_file.empty() &&
         !SSL_CTX_load_verify_locations(server_ctx, ca_file.c_str(), nullptr)) {
-        throw std::runtime_error("SSL_CTX_load_verify_locations failed");
+        throw CreateSslContextException("Failed to use: " + ca_file,
+                                        "SSL_CTX_load_verify_locations",
+                                        getOpenSslError());
     }
 
     if (password) {
+        // The validator should have already checked that the password must
+        // legal. We _must_ have validated that _before_ doing the callback
+        // as we cannot throw an exception from the callback handler as
+        // that would cause OpenSSL to leak memory
         SSL_CTX_set_default_passwd_cb(server_ctx, my_pem_password_cb);
         SSL_CTX_set_default_passwd_cb_userdata(
                 server_ctx, const_cast<void*>(static_cast<const void*>(&spec)));
     }
 
     if (!SSL_CTX_use_certificate_chain_file(server_ctx,
-                                            certificate_chain.c_str()) ||
-        !SSL_CTX_use_PrivateKey_file(
-                server_ctx, private_key.c_str(), SSL_FILETYPE_PEM)) {
-        throw std::runtime_error("Failed to enable ssl!");
+                                            certificate_chain.c_str())) {
+        throw CreateSslContextException(
+                "Failed to use certificate chain file: " + certificate_chain,
+                "SSL_CTX_use_certificate_chain_file",
+                getOpenSslError());
     }
+
+    if (!SSL_CTX_use_PrivateKey_file(
+                server_ctx, private_key.c_str(), SSL_FILETYPE_PEM)) {
+        throw CreateSslContextException(
+                "Failed to use private key file: " + private_key,
+                "SSL_CTX_use_PrivateKey_file",
+                getOpenSslError());
+    }
+
     if (password) {
         // This might not be necessary, just to make sure that we don't
         // try to use the userdata we set previously in the SSL instance
@@ -173,8 +229,10 @@ cb::openssl::unique_ssl_ctx_ptr TlsConfiguration::createServerContext(
         ssl_flags |= SSL_VERIFY_PEER;
         auto* certNames = SSL_load_client_CA_file(certificate_chain.c_str());
         if (certNames == nullptr) {
-            std::string msg = "Failed to read SSL cert " + certificate_chain;
-            throw std::runtime_error(msg);
+            CreateSslContextException(
+                    "Failed to read SSL cert " + certificate_chain,
+                    "SSL_load_client_CA_file",
+                    getOpenSslError());
         }
         SSL_CTX_set_client_CA_list(server_ctx, certNames);
         SSL_CTX_load_verify_locations(
@@ -223,4 +281,50 @@ std::string to_string(TlsConfiguration::ClientCertMode ccm) {
 std::ostream& operator<<(std::ostream& os,
                          const TlsConfiguration::ClientCertMode& ccm) {
     return os << to_string(ccm);
+}
+
+void TlsConfiguration::validate(const nlohmann::json& spec) {
+    getString(spec, "private key");
+    getString(spec, "certificate chain");
+    getString(spec, "CA file", true);
+    const auto pw = getString(spec, "password", true);
+    if (!pw.empty()) {
+        cb::base64::decode(pw);
+    }
+    getTlsMinVersion(spec);
+    getCipherList(spec, "TLS 1.2");
+    getCipherList(spec, "TLS 1.3", false);
+    getBoolean(spec, "cipher order");
+    from_string(getString(spec, "client cert auth"));
+
+    const std::vector<std::string> keys{{"private key"},
+                                        {"certificate chain"},
+                                        {"CA file"},
+                                        {"password"},
+                                        {"minimum version"},
+                                        {"cipher list"},
+                                        {"cipher order"},
+                                        {"client cert auth"}};
+    auto isLegalKey = [&keys](const std::string& key) {
+        for (const auto& k : keys) {
+            if (k == key) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    // verify that we only accept the legal keys
+    for (const auto& kv : spec.items()) {
+        if (!isLegalKey(kv.key())) {
+            throw std::invalid_argument("Invalid key provided: " + kv.key());
+        }
+    }
+
+    for (const auto& kv : spec["cipher list"].items()) {
+        if (kv.key() != "TLS 1.2" && kv.key() != "TLS 1.3") {
+            throw std::invalid_argument(
+                    "Invalid key for cipher list provided: " + kv.key());
+        }
+    }
 }

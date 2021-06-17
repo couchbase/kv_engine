@@ -273,21 +273,23 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     kv_enable_pch(client_cert_config_test)
 
     cb_add_test_executable(memcached_unit_tests
-                   bucket_validator_test.cc
-                   connection_unit_tests.cc
-                   datatype_filter_test.cc
-                   doc_pre_expiry_test.cc
-                   function_chain_test.cc
-                   mc_time_test.cc
-                   network_interface_description_test.cc
-                   settings_test.cc
-                   ssl_utils_test.cc)
+                           bucket_validator_test.cc
+                           connection_unit_tests.cc
+                           datatype_filter_test.cc
+                           doc_pre_expiry_test.cc
+                           function_chain_test.cc
+                           json_validator_test.cc
+                           memcached_unit_test_main.cc
+                           mc_time_test.cc
+                           network_interface_description_test.cc
+                           settings_test.cc
+                           ssl_utils_test.cc
+                           tls_configuration_test.cc)
     cb_enable_unity_build(memcached_unit_tests)
     add_sanitizers(memcached_unit_tests)
     target_link_libraries(memcached_unit_tests PRIVATE
                           memcached_daemon
-                          gtest
-                          gtest_main)
+                          gtest)
     add_test(NAME memcached_unit_tests
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
              COMMAND memcached_unit_tests)
