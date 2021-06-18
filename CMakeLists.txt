@@ -136,15 +136,16 @@ ENDIF (UNIX AND COUCHBASE_KV_BUILD_UNIT_TESTS)
 # this, users of the pre-compiled header target should include it via one of the
 # below functions
 if (CB_PCH)
-    # Need to give the target a SOURCE to make cmake happy so just including
-    # an empty .cc file.
-    add_library(kv_pch OBJECT precompiled_headers.cc)
-    target_link_libraries(kv_pch PRIVATE Folly::headers gtest)
-    target_precompile_headers(kv_pch PUBLIC precompiled_headers.h)
-
-    add_library(kv_pch_fpic OBJECT precompiled_headers.cc)
-    target_link_libraries(kv_pch_fpic PRIVATE Folly::headers gtest)
-    target_precompile_headers(kv_pch_fpic PUBLIC precompiled_headers.h)
+    # Given consumers of precompiled headers must have the same compile flags,
+    # we need two PCH targets - with and without position-independent code.
+    foreach(pch_lib kv_pch kv_pch_fpic)
+        # Need to give the target a SOURCE to make cmake happy so just including
+        # an empty .cc file.
+        add_library(${pch_lib} OBJECT precompiled_headers.cc)
+        target_link_libraries(${pch_lib} PUBLIC Folly::headers)
+        target_include_directories(${pch_lib} PUBLIC ${gtest_SOURCE_DIR}/include)
+        target_precompile_headers(${pch_lib} PUBLIC precompiled_headers.h)
+    endforeach()
     set_property(TARGET kv_pch_fpic PROPERTY POSITION_INDEPENDENT_CODE 1)
 endif()
 
