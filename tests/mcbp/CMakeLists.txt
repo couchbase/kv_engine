@@ -18,7 +18,11 @@ cb_add_test_executable(memcached_mcbp_test
                xattr_key_validator_test.cc
                ${PROJECT_SOURCE_DIR}/protocol/connection/frameinfo.cc
                ${PROJECT_SOURCE_DIR}/protocol/connection/client_mcbp_commands.cc)
-target_link_libraries(memcached_mcbp_test memcached_daemon platform gtest)
+target_link_libraries(memcached_mcbp_test
+        PRIVATE
+                memcached_daemon
+                platform
+                gtest)
 add_sanitizers(memcached_mcbp_test)
 cb_enable_unity_build(memcached_mcbp_test)
 kv_enable_pch(memcached_mcbp_test)
@@ -36,6 +40,6 @@ kv_enable_pch(memcached_mcbp_bench)
 target_include_directories(memcached_mcbp_bench
     SYSTEM PRIVATE
     ${benchmark_SOURCE_DIR}/include)
-target_link_libraries(memcached_mcbp_bench
+target_link_libraries(memcached_mcbp_bench PRIVATE
                       benchmark memcached_daemon)
 add_sanitizers(memcached_mcbp_bench)

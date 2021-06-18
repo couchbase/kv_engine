@@ -13,7 +13,6 @@
 
 #include "statistics/labelled_collector.h"
 #include <memcached/dockey.h>
-#include <spdlog/fmt/fmt.h>
 #include <utilities/hdrhistogram.h>
 
 #include <string_view>

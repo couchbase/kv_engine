@@ -16,4 +16,11 @@ target_include_directories(statistics
         PUBLIC ${PROMETHEUS_INCLUDE_DIR}
                ${Memcached_BINARY_DIR}/engines/ep/src)
 
-target_link_libraries(statistics mcd_util ${PROMETHEUS_LIBRARIES})
+target_link_libraries(statistics
+        PUBLIC
+                platform
+        PRIVATE
+                Folly::headers
+                mcd_util
+                spdlog
+                ${PROMETHEUS_LIBRARIES})

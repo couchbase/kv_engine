@@ -9,8 +9,8 @@
  *   the file licenses/APL2.txt.
  */
 
+#include <fmt/ostream.h>
 #include <mcbp/protocol/status.h>
-#include <spdlog/fmt/ostr.h>
 
 namespace cb::mcbp {
 

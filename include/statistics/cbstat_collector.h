@@ -13,9 +13,8 @@
 
 #include "collector.h"
 
+#include <fmt/format.h>
 #include <memcached/engine_common.h>
-#include <spdlog/fmt/fmt.h>
-
 #include <string>
 #include <string_view>
 

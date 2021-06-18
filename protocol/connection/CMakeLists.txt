@@ -8,13 +8,15 @@ ADD_LIBRARY(mc_client_connection STATIC
             frameinfo.cc frameinfo.h)
 kv_enable_pch(mc_client_connection)
 
-TARGET_LINK_LIBRARIES(mc_client_connection
+target_link_libraries(mc_client_connection PRIVATE
   PUBLIC
+    Folly::headers
     mcbp
     cbsasl
     cbsocket
     mcd_tracing
     memcached_rbac
+    platform
     ${COUCHBASE_NETWORK_LIBS}
     ${OPENSSL_LIBRARIES}
   PRIVATE

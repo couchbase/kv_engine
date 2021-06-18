@@ -131,7 +131,7 @@ TARGET_INCLUDE_DIRECTORIES(ep-engine_ep_unit_tests
         ${Couchstore_SOURCE_DIR}
         ${EventuallyPersistentEngine_BINARY_DIR}/tests/include)
 
-TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests
+target_link_libraries(ep-engine_ep_unit_tests PRIVATE
         cbcompress
         engine_utilities
         ep-engine_collections
@@ -157,7 +157,7 @@ TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests
         ${LIBEVENT_LIBRARIES})
 
 if (NUMA_FOUND)
-    target_link_libraries(ep-engine_ep_unit_tests ${NUMA_LIBRARIES})
+    target_link_libraries(ep-engine_ep_unit_tests PRIVATE ${NUMA_LIBRARIES})
 endif()
 
 add_sanitizers(ep-engine_ep_unit_tests)
@@ -174,7 +174,7 @@ TARGET_INCLUDE_DIRECTORIES(ep-engine_couch-fs-stats_test
         PRIVATE
         ${Couchstore_SOURCE_DIR}
         ${Couchstore_SOURCE_DIR}/src)
-TARGET_LINK_LIBRARIES(ep-engine_couch-fs-stats_test
+target_link_libraries(ep-engine_couch-fs-stats_test PRIVATE
         gtest
         gtest_main
         gmock
@@ -185,13 +185,13 @@ add_sanitizers(ep-engine_couch-fs-stats_test)
 
 cb_add_test_executable(ep-engine_misc_test module_tests/misc_test.cc)
 kv_enable_pch(ep-engine_misc_test)
-TARGET_LINK_LIBRARIES(ep-engine_misc_test mcbp platform)
+target_link_libraries(ep-engine_misc_test PRIVATE mcbp platform)
 
 cb_add_test_executable(ep-engine_string_utils_test
         module_tests/string_utils_test.cc
         ${EventuallyPersistentEngine_SOURCE_DIR}/src/string_utils.cc)
 kv_enable_pch(ep-engine_string_utils_test)
-TARGET_LINK_LIBRARIES(ep-engine_string_utils_test gtest gtest_main platform)
+target_link_libraries(ep-engine_string_utils_test PRIVATE gtest gtest_main platform)
 
 ADD_TEST(NAME ep-engine_couch-fs-stats_test COMMAND ep-engine_couch-fs-stats_test)
 gtest_discover_tests(ep-engine_ep_unit_tests

@@ -35,7 +35,12 @@ add_library(cbsasl STATIC
 kv_enable_pch(cbsasl)
 cb_enable_unity_build(cbsasl)
 
-target_link_libraries(cbsasl cbcrypto mcd_util platform)
+target_link_libraries(cbsasl
+        PUBLIC
+                platform
+        PRIVATE
+                cbcrypto
+                mcd_util)
 add_sanitizers(cbsasl)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
@@ -49,11 +54,12 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     cb_enable_unity_build(cbsasl_unit_test)
     kv_enable_pch(cbsasl_unit_test)
     target_link_libraries(cbsasl_unit_test
-                          cbsasl
-                          cbcrypto
-                          platform
-                          gtest
-                          gtest_main)
+            PRIVATE
+                    cbsasl
+                    cbcrypto
+                    gtest
+                    gtest_main
+                    platform)
     add_test(NAME cbsasl_unit_test
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
              COMMAND cbsasl_unit_test)

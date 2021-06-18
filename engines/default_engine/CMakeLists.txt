@@ -14,7 +14,7 @@ ADD_LIBRARY(default_engine STATIC
 kv_enable_pch(default_engine)
 cb_enable_unity_build(default_engine)
 
-TARGET_LINK_LIBRARIES(default_engine
+target_link_libraries(default_engine PRIVATE
         memcached_logger
         engine_utilities
         mcbp

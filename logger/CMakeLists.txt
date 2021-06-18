@@ -16,7 +16,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    logger_test.cc
                    logger_test_fixture.cc)
     kv_enable_pch(memcached_logger_test)
-    target_link_libraries(memcached_logger_test gtest gtest_main mcd_util memcached_logger platform)
+    target_link_libraries(memcached_logger_test PRIVATE gtest gtest_main mcd_util memcached_logger platform)
     target_include_directories(memcached_logger_test INTERFACE PRIVATE ${Platform_SOURCE_DIR}/external)
     add_sanitizers(memcached_logger_test)
     add_test(NAME memcached-spdlogger-test
@@ -28,5 +28,5 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     target_include_directories(memcached_logger_benchmark
                                SYSTEM PRIVATE
                                ${benchmark_SOURCE_DIR}/include)
-    target_link_libraries(memcached_logger_benchmark benchmark memcached_logger)
+    target_link_libraries(memcached_logger_benchmark PRIVATE benchmark memcached_logger)
 endif (COUCHBASE_KV_BUILD_UNIT_TESTS)

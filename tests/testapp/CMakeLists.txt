@@ -4,7 +4,7 @@ INCLUDE_DIRECTORIES(AFTER ${Platform_SOURCE_DIR}/external)
 
 cb_add_test_executable(generate_test_cbsaslpw generate_test_cbsaslpw.cc)
 kv_enable_pch(generate_test_cbsaslpw)
-TARGET_LINK_LIBRARIES(generate_test_cbsaslpw cbsasl platform
+target_link_libraries(generate_test_cbsaslpw PRIVATE cbsasl platform
                       ${OPENSSL_LIBRARIES})
 add_sanitizers(generate_test_cbsaslpw)
 
@@ -15,7 +15,13 @@ cb_add_test_executable(testapp_auth_provider_test auth_provider_test.cc
 kv_enable_pch(testapp_auth_provider_test)
 kv_enable_pch(testapp_auth_provider_test)
 target_link_libraries(testapp_auth_provider PUBLIC platform)
-target_link_libraries(testapp_auth_provider_test mcbp cbsasl gtest gtest_main)
+target_link_libraries(testapp_auth_provider_test
+        PRIVATE
+                cbsasl
+                gtest
+                gtest_main
+                mcbp)
+
 add_test(NAME testapp_auth_provider_test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND testapp_auth_provider_test)
@@ -84,7 +90,7 @@ set(memcached_testapp_SOURCES
 cb_add_test_executable(memcached_testapp ${memcached_testapp_SOURCES})
 target_include_directories(memcached_testapp PRIVATE ${Memcached_BINARY_DIR})
 
-target_link_libraries(memcached_testapp
+target_link_libraries(memcached_testapp PRIVATE
     memcached_daemon
     memcached_logger
     mcd_util

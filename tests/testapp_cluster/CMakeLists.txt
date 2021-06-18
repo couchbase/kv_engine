@@ -11,7 +11,7 @@ cb_add_test_executable(cluster_test
                rbac_tests.cc
                upgrade_test.cc
                upgrade_test.h)
-target_link_libraries(cluster_test cluster_framework)
+target_link_libraries(cluster_test PRIVATE cluster_framework)
 add_dependencies(cluster_test memcached)
 add_sanitizers(cluster_test)
 cb_enable_unity_build(cluster_test)

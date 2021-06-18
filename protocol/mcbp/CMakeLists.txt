@@ -25,19 +25,25 @@ add_library(mcbp STATIC
             status.cc
             )
 
-target_link_libraries(mcbp mcd_util platform)
+target_link_libraries(mcbp
+        PUBLIC
+                platform
+        PRIVATE
+                Folly::headers
+                fmt::fmt
+                mcd_util)
 set_property(TARGET mcbp PROPERTY POSITION_INDEPENDENT_CODE 1)
 kv_enable_pch(mcbp)
 cb_enable_unity_build(mcbp)
 
 cb_add_test_executable(mcbp_packet_printer mcbp_packet_printer.cc)
 kv_enable_pch(mcbp_packet_printer)
-target_link_libraries(mcbp_packet_printer mcbp platform)
+target_link_libraries(mcbp_packet_printer PRIVATE mcbp platform)
 add_sanitizers(mcbp_packet_printer)
 
 cb_add_test_executable(mcbp_info mcbp_info.cc)
 kv_enable_pch(mcbp_info)
-target_link_libraries(mcbp_info mcbp)
+target_link_libraries(mcbp_info PRIVATE Folly::headers mcbp platform)
 add_sanitizers(mcbp_info)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
@@ -51,7 +57,12 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    sla_test.cc
                    status_test.cc)
     kv_enable_pch(mcbp_unit_tests)
-    target_link_libraries(mcbp_unit_tests mcbp gtest gtest_main)
+    target_link_libraries(mcbp_unit_tests
+            PRIVATE
+                    Folly::headers
+                    gtest
+                    gtest_main
+                    mcbp)
     add_test(NAME mcbp_unit_tests
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
              COMMAND mcbp_unit_tests)

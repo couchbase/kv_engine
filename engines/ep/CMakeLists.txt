@@ -94,8 +94,8 @@ add_executable(genconfig tools/genconfig.cc)
 kv_enable_pch(genconfig)
 if (WIN32)
     # windows need getopt
-    target_link_libraries(gencode platform)
-    target_link_libraries(genconfig platform)
+    target_link_libraries(gencode PRIVATE platform)
+    target_link_libraries(genconfig PRIVATE platform)
 endif()
 add_sanitizers(genconfig)
 
@@ -109,7 +109,7 @@ cb_add_test_executable(kvstore_gen tools/kvstore_gen.cc
         $<TARGET_OBJECTS:ep_objs>)
 kv_enable_pch(kvstore_gen)
 
-target_link_libraries(kvstore_gen
+target_link_libraries(kvstore_gen PRIVATE
         JSON_checker
         cbcompress
         engine_utilities
@@ -224,7 +224,7 @@ SET_PROPERTY(TARGET ep-engine_collections PROPERTY POSITION_INDEPENDENT_CODE 1)
 
 kv_enable_pch(ep-engine_collections)
 
-TARGET_LINK_LIBRARIES(ep-engine_collections platform)
+target_link_libraries(ep-engine_collections PRIVATE platform)
 
 TARGET_INCLUDE_DIRECTORIES(ep-engine_collections
                            PUBLIC
@@ -409,10 +409,24 @@ if (NOT WIN32)
                         "-ftls-model=initial-exec")
 endif(NOT WIN32)
 
-TARGET_LINK_LIBRARIES(ep JSON_checker ${EP_STORAGE_LIBS}
-                      engine_utilities ep-engine_collections mcd_executor cbcompress
-                      hdr_histogram_static mcbp mcd_util mcd_time platform phosphor
-                      xattr mcd_tracing statistics ${LIBEVENT_LIBRARIES})
+target_link_libraries(ep
+        PRIVATE
+                ${EP_STORAGE_LIBS}
+                ${LIBEVENT_LIBRARIES}
+                JSON_checker
+                cbcompress
+                engine_utilities
+                ep-engine_collections
+                hdr_histogram_static
+                mcbp
+                mcd_executor
+                mcd_time
+                mcd_tracing
+                mcd_util
+                phosphor
+                platform
+                statistics
+                xattr)
 add_sanitizers(ep)
 
 if (NOT EP_BYPASS_TESTS)
@@ -428,17 +442,18 @@ if (NOT EP_BYPASS_TESTS)
       kv_enable_pch(${name})
 
       target_link_libraries(${name}
-        ${LIBEVENT_LIBRARIES}
-        JSON_checker
-        cbcompress
-        engine_testapp_dependencies
-        engine_utilities
-        mcd_executor
-        mcbp
-        mcd_util
-        platform
-        platform_cb_malloc_arena
-        xattr
+        PRIVATE
+            ${LIBEVENT_LIBRARIES}
+            JSON_checker
+            cbcompress
+            engine_testapp_dependencies
+            engine_utilities
+            mcbp
+            mcd_executor
+            mcd_util
+            platform
+            platform_cb_malloc_arena
+            xattr
         )
       add_sanitizers(${name})
     endfunction()
@@ -497,29 +512,30 @@ if (NOT EP_BYPASS_TESTS)
                    ${Memcached_SOURCE_DIR}/engines/ep/tests/module_tests/test_helpers.cc)
     kv_enable_pch(ep_engine_benchmarks)
 
-    TARGET_LINK_LIBRARIES(ep_engine_benchmarks PRIVATE
-            benchmark
-            cbcompress
-            engine_utilities
-            ep-engine_collections
-            mcd_executor
-            gtest
-            gmock
-            hdr_histogram_static
-            JSON_checker
-            mcbp
-            mcd_util
-            mcd_time
-            mcd_tracing
-            memcached_logger
-            phosphor
-            platform
-            platform_cb_malloc_arena
-            statistics
-            xattr
-            ${MALLOC_LIBRARIES}
-            ${EP_STORAGE_LIBS}
-            ${LIBEVENT_LIBRARIES})
+    TARGET_LINK_LIBRARIES(ep_engine_benchmarks
+            PRIVATE
+                    benchmark
+                    cbcompress
+                    engine_utilities
+                    ep-engine_collections
+                    mcd_executor
+                    gtest
+                    gmock
+                    hdr_histogram_static
+                    JSON_checker
+                    mcbp
+                    mcd_util
+                    mcd_time
+                    mcd_tracing
+                    memcached_logger
+                    phosphor
+                    platform
+                    platform_cb_malloc_arena
+                    statistics
+                    xattr
+                    ${MALLOC_LIBRARIES}
+                    ${EP_STORAGE_LIBS}
+                    ${LIBEVENT_LIBRARIES})
     target_include_directories(ep_engine_benchmarks SYSTEM PRIVATE
                                ${benchmark_SOURCE_DIR}/include)
     TARGET_INCLUDE_DIRECTORIES(ep_engine_benchmarks PUBLIC
@@ -533,12 +549,24 @@ if (NOT EP_BYPASS_TESTS)
     cb_add_test_executable(ep-engine_sizes src/sizes.cc
                    $<TARGET_OBJECTS:ep_objs>)
     kv_enable_pch(ep-engine_sizes)
-    TARGET_LINK_LIBRARIES(ep-engine_sizes JSON_checker hdr_histogram_static
-                          engine_utilities ep-engine_collections ${EP_STORAGE_LIBS}
-                          mcd_executor
-                          cbcompress platform mcbp mcd_util mcd_time
-                          mcd_tracing phosphor statistics xattr
-                          ${LIBEVENT_LIBRARIES})
+    target_link_libraries(ep-engine_sizes
+            PRIVATE
+                    ${EP_STORAGE_LIBS}
+                    ${LIBEVENT_LIBRARIES}
+                    JSON_checker
+                    cbcompress
+                    engine_utilities
+                    ep-engine_collections
+                    hdr_histogram_static
+                    mcbp
+                    mcd_executor
+                    mcd_time
+                    mcd_tracing
+                    mcd_util
+                    phosphor
+                    platform
+                    statistics
+                    xattr)
     add_sanitizers(ep-engine_sizes)
 
 

@@ -12,13 +12,13 @@
 #include "programs/hostname_utils.h"
 
 #include <boost/algorithm/string/predicate.hpp>
+#include <fmt/core.h>
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/string_hex.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
-#include <spdlog/fmt/fmt.h>
 #include <utilities/json_utilities.h>
 #include <utilities/terminate_handler.h>
 

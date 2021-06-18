@@ -48,23 +48,31 @@ cb_enable_unity_build(mcd_util)
 
 if (BREAKPAD_FOUND)
   target_include_directories(mcd_util SYSTEM PRIVATE ${BREAKPAD_INCLUDE_DIR})
-  target_link_libraries(mcd_util ${BREAKPAD_LIBRARIES})
+  target_link_libraries(mcd_util PRIVATE ${BREAKPAD_LIBRARIES})
 endif()
-target_link_libraries(mcd_util memcached_logger engine_utilities
-                      hdr_histogram_static platform ${OPENSSL_LIBRARIES})
+target_link_libraries(mcd_util
+        PUBLIC
+                hdr_histogram_static
+        PRIVATE
+                engine_utilities
+                memcached_logger
+                platform
+                ${OPENSSL_LIBRARIES})
 add_sanitizers(mcd_util)
 kv_enable_pch(mcd_util)
 
 add_library(mcd_test_util STATIC test_manifest.h test_manifest.cc)
 set_property(TARGET mcd_test_util PROPERTY POSITION_INDEPENDENT_CODE 1)
-target_link_libraries(mcd_test_util PRIVATE platform_headers spdlog)
+target_link_libraries(mcd_test_util
+        PUBLIC spdlog
+        PRIVATE platform_headers)
 add_sanitizers(mcd_test_util)
 kv_enable_pch(mcd_test_util)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     cb_add_test_executable(utilities_testapp util_test.cc)
     kv_enable_pch(utilities_testapp)
-    target_link_libraries(utilities_testapp
+    target_link_libraries(utilities_testapp PRIVATE
                           mcd_util
                           platform
                           gtest

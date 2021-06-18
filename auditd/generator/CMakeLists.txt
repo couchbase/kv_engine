@@ -16,7 +16,7 @@ add_executable(auditevent_generator
 kv_enable_pch(auditevent_generator)
 add_sanitizers(auditevent_generator)
 
-target_link_libraries(auditevent_generator platform)
+target_link_libraries(auditevent_generator PRIVATE platform)
 
 # When we're running the commit validation for memcached we don't
 # download all of the external modules so we'll just use a
@@ -60,8 +60,12 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    $<TARGET_OBJECTS:audit_generator_utilities>)
     kv_enable_pch(audit_generator_unit_test)
     add_sanitizers(audit_generator_unit_test)
-    target_link_libraries(audit_generator_unit_test platform gtest gtest_main
-                          mcd_util)
+    target_link_libraries(audit_generator_unit_test
+            PRIVATE
+                    gtest
+                    gtest_main
+                    mcd_util
+                    platform)
     add_test(NAME audit_generator_unit_test
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
              COMMAND audit_generator_unit_test)

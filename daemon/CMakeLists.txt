@@ -191,7 +191,7 @@ add_library(memcached_daemon STATIC
 if (NUMA_FOUND)
     target_include_directories(memcached_daemon
                                SYSTEM PRIVATE ${NUMA_INCLUDE_DIR})
-    target_link_libraries(memcached_daemon ${NUMA_LIBRARIES})
+    target_link_libraries(memcached_daemon PRIVATE ${NUMA_LIBRARIES})
 endif()
 
 target_include_directories(memcached_daemon PRIVATE ${Memcached_BINARY_DIR})
@@ -199,7 +199,14 @@ cb_enable_unity_build(memcached_daemon)
 
 ADD_DEPENDENCIES(memcached_daemon generate_audit_descriptors)
 
-TARGET_LINK_LIBRARIES(memcached_daemon
+target_link_libraries(memcached_daemon
+        PUBLIC
+                      hdr_histogram_static
+                      mcd_util
+                      memcached_logger
+                      platform
+                      subjson
+        PRIVATE
                       auditd
                       cbsocket
                       crash_engine
@@ -207,20 +214,16 @@ TARGET_LINK_LIBRARIES(memcached_daemon
                       ep
                       ewouldblock_engine
                       mcd_executor
-                      mcd_util
                       mcd_tracing
                       mcbp
-                      memcached_logger
                       nobucket
                       cbsasl
                       cbcompress
                       engine_utilities
                       gsl_lite
-                      platform
                       platform_cb_malloc_arena
                       JSON_checker
                       memcached_rbac
-                      subjson
                       phosphor
                       xattr
                       ${SNAPPY_LIBRARIES}
@@ -233,7 +236,7 @@ add_sanitizers(memcached_daemon)
 kv_enable_pch(memcached_daemon)
 
 ADD_EXECUTABLE(memcached main.cc)
-TARGET_LINK_LIBRARIES(memcached memcached_daemon)
+target_link_libraries(memcached PRIVATE memcached_daemon)
 add_sanitizers(memcached)
 kv_enable_pch(memcached)
 # Allow 'memcached' to export symbols - i.e. symbols marked as
@@ -281,7 +284,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    ssl_utils_test.cc)
     cb_enable_unity_build(memcached_unit_tests)
     add_sanitizers(memcached_unit_tests)
-    target_link_libraries(memcached_unit_tests
+    target_link_libraries(memcached_unit_tests PRIVATE
                           memcached_daemon
                           gtest
                           gtest_main)

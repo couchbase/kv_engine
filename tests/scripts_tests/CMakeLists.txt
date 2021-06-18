@@ -5,7 +5,8 @@ IF(NOT WIN32)
             jemalloc_allocator_stats.cc)
     kv_enable_pch(jemalloc_allocator_stats)
 
-    TARGET_LINK_LIBRARIES(jemalloc_allocator_stats platform ${JEMALLOC_LIBRARIES})
+    target_link_libraries(jemalloc_allocator_stats
+            PRIVATE platform ${JEMALLOC_LIBRARIES})
 
     ADD_TEST(NAME jemalloc_analyse
                 COMMAND ${CMAKE_COMMAND}
