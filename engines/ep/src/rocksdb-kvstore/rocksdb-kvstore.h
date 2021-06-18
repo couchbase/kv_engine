@@ -417,7 +417,6 @@ private:
      */
     static rocksdb::StatsLevel getStatsLevel(const std::string& stats_level);
 
-    rocksdb::Slice getKeySlice(const DocKey& key);
     rocksdb::Slice getKeySlice(const DiskDocKey& key);
     rocksdb::Slice getSeqnoSlice(const int64_t* seqno);
     int64_t getNumericSeqno(const rocksdb::Slice& seqnoSlice);

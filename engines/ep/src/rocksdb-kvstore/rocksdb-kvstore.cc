@@ -988,11 +988,6 @@ rocksdb::StatsLevel RocksDBKVStore::getStatsLevel(
     }
 }
 
-rocksdb::Slice RocksDBKVStore::getKeySlice(const DocKey& key) {
-    return rocksdb::Slice(reinterpret_cast<const char*>(key.data()),
-                          key.size());
-}
-
 rocksdb::Slice RocksDBKVStore::getKeySlice(const DiskDocKey& key) {
     return rocksdb::Slice(reinterpret_cast<const char*>(key.data()),
                           key.size());
