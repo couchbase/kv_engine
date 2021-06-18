@@ -988,16 +988,17 @@ rocksdb::StatsLevel RocksDBKVStore::getStatsLevel(
     }
 }
 
-rocksdb::Slice RocksDBKVStore::getKeySlice(const DiskDocKey& key) {
+rocksdb::Slice RocksDBKVStore::getKeySlice(const DiskDocKey& key) const {
     return rocksdb::Slice(reinterpret_cast<const char*>(key.data()),
                           key.size());
 }
 
-rocksdb::Slice RocksDBKVStore::getSeqnoSlice(const int64_t* seqno) {
+rocksdb::Slice RocksDBKVStore::getSeqnoSlice(const int64_t* seqno) const {
     return rocksdb::Slice(reinterpret_cast<const char*>(seqno), sizeof(*seqno));
 }
 
-int64_t RocksDBKVStore::getNumericSeqno(const rocksdb::Slice& seqnoSlice) {
+int64_t RocksDBKVStore::getNumericSeqno(
+        const rocksdb::Slice& seqnoSlice) const {
     assert(seqnoSlice.size() == sizeof(int64_t));
     int64_t seqno;
     std::memcpy(&seqno, seqnoSlice.data(), seqnoSlice.size());
@@ -1007,7 +1008,7 @@ int64_t RocksDBKVStore::getNumericSeqno(const rocksdb::Slice& seqnoSlice) {
 std::unique_ptr<Item> RocksDBKVStore::makeItem(Vbid vb,
                                                const DiskDocKey& key,
                                                const rocksdb::Slice& s,
-                                               bool includeValue) {
+                                               bool includeValue) const {
     assert(s.size() >= sizeof(rockskv::MetaData));
 
     const char* data = s.data();

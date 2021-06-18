@@ -714,7 +714,7 @@ protected:
                                    const magma::Slice& keySlice,
                                    const magma::Slice& metaSlice,
                                    const magma::Slice& valueSlice,
-                                   ValueFilter filter);
+                                   ValueFilter filter) const;
 
     GetValue makeGetValue(Vbid vb,
                           const magma::Slice& keySlice,

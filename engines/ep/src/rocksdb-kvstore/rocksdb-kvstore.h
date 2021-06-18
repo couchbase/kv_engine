@@ -417,14 +417,14 @@ private:
      */
     static rocksdb::StatsLevel getStatsLevel(const std::string& stats_level);
 
-    rocksdb::Slice getKeySlice(const DiskDocKey& key);
-    rocksdb::Slice getSeqnoSlice(const int64_t* seqno);
-    int64_t getNumericSeqno(const rocksdb::Slice& seqnoSlice);
+    rocksdb::Slice getKeySlice(const DiskDocKey& key) const;
+    rocksdb::Slice getSeqnoSlice(const int64_t* seqno) const;
+    int64_t getNumericSeqno(const rocksdb::Slice& seqnoSlice) const;
 
     std::unique_ptr<Item> makeItem(Vbid vb,
                                    const DiskDocKey& key,
                                    const rocksdb::Slice& s,
-                                   bool includeValue);
+                                   bool includeValue) const;
 
     GetValue makeGetValue(Vbid vb,
                           const DiskDocKey& key,
@@ -509,16 +509,15 @@ private:
     // commit, potentially losing data.
     std::mutex writeMutex;
 
-
-
     // The number of total hits in the SeqnoCF when executing 'scan()'.
     // Note that it is equal to number of times we perform a point lookup from
-    // the DefaultCF.
-    cb::NonNegativeCounter<size_t> scanTotalSeqnoHits;
+    // the DefaultCF. Mutable as scan is logically const.
+    mutable cb::NonNegativeCounter<size_t> scanTotalSeqnoHits;
     // The number of hits of old seqnos in the SeqnoCF when executing 'scan()'.
     // This is the number of times we perform a "useless" point lookup from the
     // DefaultCF (caused by old seqnos never deleted from the SeqnoCF).
-    cb::NonNegativeCounter<size_t> scanOldSeqnoHits;
+    // Mutable as scan is logically const.
+    mutable cb::NonNegativeCounter<size_t> scanOldSeqnoHits;
 
     struct SnapshotDeleter {
         explicit SnapshotDeleter(rocksdb::DB& db) : db(db) {

@@ -1021,7 +1021,7 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
                                              const Slice& keySlice,
                                              const Slice& metaSlice,
                                              const Slice& valueSlice,
-                                             ValueFilter filter) {
+                                             ValueFilter filter) const {
     auto key = makeDiskDocKey(keySlice);
     auto& meta = *reinterpret_cast<const magmakv::MetaData*>(metaSlice.Data());
 
