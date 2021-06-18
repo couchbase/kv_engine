@@ -34,9 +34,6 @@ struct MockReplicationThrottle : public ReplicationThrottle {
 
     MOCK_CONST_METHOD0(getStatus, Status());
     MOCK_CONST_METHOD0(doDisconnectOnNoMem, bool());
-    MOCK_METHOD1(setCapPercent, void(size_t));
-    MOCK_METHOD1(setQueueCap, void(ssize_t));
-    MOCK_METHOD1(adjustWriteQueueCap, void(size_t));
 
     std::unique_ptr<ReplicationThrottle> realThrottle;
 };

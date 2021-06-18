@@ -4385,9 +4385,10 @@ TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpCommit) {
     EXPECT_EQ(ackBytes, consumer->getFlowControl().getFreedBytes());
 
     // Force consumer to buffer
-    engine->getReplicationThrottle().adjustWriteQueueCap(0);
-    const size_t size = engine->getEpStats().getMaxDataSize();
-    engine->getEpStats().setMaxDataSize(1);
+    auto& stats = engine->getEpStats();
+    stats.replicationThrottleThreshold = 0;
+    const size_t size = stats.getMaxDataSize();
+    stats.setMaxDataSize(1);
     ASSERT_EQ(ReplicationThrottle::Status::Pause,
               engine->getReplicationThrottle().getStatus());
 
@@ -4414,7 +4415,8 @@ TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpCommit) {
     // No change, commit is now buffered
     EXPECT_EQ(ackBytes, consumer->getFlowControl().getFreedBytes());
 
-    // undo the quota adjustment so that processing of buffered items will work
+    // undo the adjustments so that processing of buffered items will work
+    stats.replicationThrottleThreshold = 99;
     engine->getEpStats().setMaxDataSize(size);
 
     // And process buffered items
@@ -4471,9 +4473,10 @@ TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpAbort) {
     EXPECT_EQ(ackBytes, consumer->getFlowControl().getFreedBytes());
 
     // Force consumer to buffer
-    engine->getReplicationThrottle().adjustWriteQueueCap(0);
-    const size_t size = engine->getEpStats().getMaxDataSize();
-    engine->getEpStats().setMaxDataSize(1);
+    auto& stats = engine->getEpStats();
+    stats.replicationThrottleThreshold = 0;
+    const size_t size = stats.getMaxDataSize();
+    stats.setMaxDataSize(1);
     ASSERT_EQ(ReplicationThrottle::Status::Pause,
               engine->getReplicationThrottle().getStatus());
 
@@ -4500,7 +4503,8 @@ TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpAbort) {
     // No change, commit is now buffered
     EXPECT_EQ(ackBytes, consumer->getFlowControl().getFreedBytes());
 
-    // undo the quota adjustment so that processing of buffered items will work
+    // undo the adjustments so that processing of buffered items will work
+    stats.replicationThrottleThreshold = 99;
     engine->getEpStats().setMaxDataSize(size);
 
     // And process buffered items
