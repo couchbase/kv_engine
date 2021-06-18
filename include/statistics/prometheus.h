@@ -12,6 +12,7 @@
 
 #include "cardinality.h"
 
+#include <array>
 #include <functional>
 #include <memory>
 #include <string>
@@ -27,6 +28,22 @@ class Exposer;
 class StatCollector;
 
 namespace cb::prometheus {
+/**
+ * Flag whether a given scrape request should generate and include timestamps.
+ *
+ * Generating timestamps allows KV to minimize the disk space required for
+ * Prometheus to store metric samples.
+ *
+ * However, if ns_server is scraping KV metrics on behalf of an external
+ * Prometheus instance, it is preferred that timestamps are _not_ included,
+ * as ns_server concatenates all component metrics and other components do not
+ * include timestamps.
+ */
+enum class IncludeTimestamps {
+    No,
+    Yes,
+};
+
 using AuthCallback =
         std::function<bool(const std::string&, const std::string&)>;
 
@@ -107,8 +124,10 @@ private:
     class KVCollectable;
 
     // Prometheus exposer takes weak pointers to `Collectable`s
-    std::shared_ptr<KVCollectable> stats;
-    std::shared_ptr<KVCollectable> statsHC;
+    // 4 endpoints are exposed:
+    //    {HighCardinality, LowCardinality}
+    //  x {IncludeTimestamps::Yes, IncludeTimestamps::No}
+    std::array<std::shared_ptr<KVCollectable>, 4> endpoints;
 
     // May be empty if the exposer could not be initialised
     // e.g., port already in use
@@ -116,6 +135,7 @@ private:
 
     static const std::string lowCardinalityPath;
     static const std::string highCardinalityPath;
+    static const std::string excludeTimestampsSuffix;
 
     // Realm name sent to unauthed clients in 401 Unauthorized responses.
     static const std::string authRealm;

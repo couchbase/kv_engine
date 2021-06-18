@@ -21,12 +21,14 @@
 #include <nlohmann/json.hpp>
 #include <platform/uuid.h>
 #include <prometheus/exposer.h>
+#include <chrono>
 #include <utility>
 
 namespace cb::prometheus {
 
 const std::string MetricServer::lowCardinalityPath = "/_prometheusMetrics";
 const std::string MetricServer::highCardinalityPath = "/_prometheusMetricsHigh";
+const std::string MetricServer::excludeTimestampsSuffix = "NoTS";
 const std::string MetricServer::authRealm = "KV Prometheus Exporter";
 
 folly::SynchronizedPtr<std::unique_ptr<MetricServer>> instance;
@@ -86,8 +88,12 @@ nlohmann::json getRunningConfigAsJson() {
 
 class MetricServer::KVCollectable : public ::prometheus::Collectable {
 public:
-    KVCollectable(Cardinality cardinality, GetStatsCallback getStatsCB)
-        : cardinality(cardinality), getStatsCB(std::move(getStatsCB)) {
+    KVCollectable(Cardinality cardinality,
+                  IncludeTimestamps timestamps,
+                  GetStatsCallback getStatsCB)
+        : cardinality(cardinality),
+          timestamps(timestamps),
+          getStatsCB(std::move(getStatsCB)) {
     }
     /**
      * Gathers high or low cardinality metrics
@@ -95,6 +101,22 @@ public:
      */
     [[nodiscard]] std::vector<::prometheus::MetricFamily> Collect()
             const override {
+        using namespace std::chrono;
+        // get current time in seconds as double
+        double timestamp = duration_cast<duration<double>>(
+                                   system_clock::now().time_since_epoch())
+                                   .count();
+        // round to the nearest second. This makes the interval between samples
+        // stored in Prometheus more likely to be consistent to the millisecond.
+        // As a result of Prometheus' timestamp delta-of-delta encoding,
+        // this can reduce the disk space needed to store stats significantly.
+        // See MB-46675.
+        timestamp = std::round(timestamp);
+
+        // convert to ms for prometheus-cpp
+        auto timestampMs = int64_t(timestamp * 1000);
+
+        // collect KV stats
         std::unordered_map<std::string, ::prometheus::MetricFamily> statsMap;
         PrometheusStatCollector collector(statsMap);
         getStatsCB(collector, cardinality);
@@ -108,14 +130,21 @@ public:
         result.reserve(statsMap.size());
 
         for (const auto& statEntry : statsMap) {
-            result.push_back(statEntry.second /* MetricFamily */);
+            result.push_back(std::move(statEntry.second) /* MetricFamily */);
+            // only set timestamps if requested
+            if (timestamps == IncludeTimestamps::Yes) {
+                for (auto& clientMetric : result.back().metric) {
+                    clientMetric.timestamp_ms = timestampMs;
+                }
+            }
         }
 
         return result;
     }
 
 private:
-    Cardinality cardinality;
+    const Cardinality cardinality;
+    const IncludeTimestamps timestamps;
 
     // function to call on every incoming request to generate stats
     GetStatsCallback getStatsCB;
@@ -125,10 +154,7 @@ MetricServer::MetricServer(in_port_t port,
                            sa_family_t family,
                            GetStatsCallback getStatsCB,
                            AuthCallback authCB)
-    : stats(std::make_shared<KVCollectable>(Cardinality::Low, getStatsCB)),
-      statsHC(std::make_shared<KVCollectable>(Cardinality::High, getStatsCB)),
-      family(family),
-      uuid(::to_string(cb::uuid::random())) {
+    : family(family), uuid(::to_string(cb::uuid::random())) {
     try {
         /*
          * The connectionStr should meet the spec for civetweb's
@@ -148,11 +174,30 @@ MetricServer::MetricServer(in_port_t port,
 
         exposer = std::make_unique<::prometheus::Exposer>(connectionStr);
 
-        exposer->RegisterCollectable(stats, lowCardinalityPath);
-        exposer->RegisterCollectable(statsHC, highCardinalityPath);
+        // used to store the newly created KVCollectable into the array
+        auto arrayItr = endpoints.begin();
+        for (auto [cardinality, timestamps] : {
+                     std::make_pair(Cardinality::Low, IncludeTimestamps::No),
+                     std::make_pair(Cardinality::Low, IncludeTimestamps::Yes),
+                     std::make_pair(Cardinality::High, IncludeTimestamps::No),
+                     std::make_pair(Cardinality::High, IncludeTimestamps::Yes),
+             }) {
+            auto ptr = std::make_shared<KVCollectable>(
+                    cardinality, timestamps, getStatsCB);
 
-        exposer->RegisterAuth(authCB, authRealm, lowCardinalityPath);
-        exposer->RegisterAuth(authCB, authRealm, highCardinalityPath);
+            // construct the path this endpoint should listen on
+            auto path = cardinality == Cardinality::High ? highCardinalityPath
+                                                         : lowCardinalityPath;
+
+            if (timestamps == IncludeTimestamps::No) {
+                path += excludeTimestampsSuffix;
+            }
+
+            exposer->RegisterAuth(authCB, authRealm, path);
+            exposer->RegisterCollectable(ptr, path);
+            *arrayItr = std::move(ptr);
+            ++arrayItr;
+        }
     } catch (const std::exception& e) {
         LOG_ERROR("Failed to start Prometheus Exposer: {}", e.what());
         // Kill a partially initialized object

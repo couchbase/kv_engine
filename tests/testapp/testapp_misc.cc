@@ -13,6 +13,7 @@
 #include "testapp_client_test.h"
 
 #include <nlohmann/json.hpp>
+#include <protocol/connection/frameinfo.h>
 
 // Test fixture for new MCBP miscellaneous commands
 class MiscTest : public TestappClientTest {};
@@ -226,4 +227,63 @@ TEST_F(TestappTest, CollectionsSelectBucket) {
                    << to_string(e.getReason());
         }
     }
+}
+
+/**
+ * Encode a Alt Request (0x08) HELO command with framing extras but
+ * too short total length field.
+ *
+ * See MB-46853.
+ */
+class MalformedHelloCommand : public BinprotHelloCommand {
+public:
+    MalformedHelloCommand() : BinprotHelloCommand("client") {
+        // To repro the issue, It does not matter _what_ frame infos are
+        // present, as long as there are two and they are valid.
+        addFrameInfo(BarrierFrameInfo());
+        addFrameInfo(BarrierFrameInfo());
+
+        // _NO_ Features are advertised; the value should be empty.
+    }
+
+    void encode(std::vector<uint8_t>& buf) const override {
+        BinprotHelloCommand::encode(buf);
+        // At this point
+        //   BodyLen = frameExtras + extras + key + value
+        //      8     =     2       +   0    +  6  +  0
+        auto& hdr = *reinterpret_cast<cb::mcbp::Request*>(buf.data());
+        auto realBodyLen = hdr.getBodylen();
+        EXPECT_EQ(8, realBodyLen);
+        // shorten the bodyLen by two bytes. This _should_ fail validation
+        // because now frameExtras + extras + key > BodyLen.
+        // This would mean they key would extend past the end of the
+        // request.
+        // MB-46853 - this was accepted because frameExtras were not counted
+        // leaving extras + key <= BodyLen
+        hdr.setBodylen(realBodyLen - 2);
+    }
+};
+
+TEST_F(TestappTest, MB_46853_TotalBodyLengthValidation) {
+    auto& conn = getConnection();
+
+    MalformedHelloCommand cmd;
+    // MB-46853: memcached segfault, connection reset.
+    // Good behaviour: validation catches malformed packet,
+    //                 memcached fine, connection reset.
+    try {
+        conn.execute(cmd);
+        // connection should be closed, reading the response should throw.
+        // Fail if that didn't happen.
+        FAIL();
+    } catch (const std::system_error& e) {
+        EXPECT_EQ(ECONNRESET, e.code().value());
+    }
+
+    // this will fail if memcached died because of the previous request.
+    conn.reconnect();
+
+    BinprotHelloCommand followup("StillAlive?");
+    const auto rsp = BinprotHelloResponse(conn.execute(followup));
+    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
 }
