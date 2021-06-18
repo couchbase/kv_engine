@@ -391,7 +391,7 @@ static void recalculate_max_connections() {
 }
 
 static void breakpad_changed_listener(const std::string&, Settings &s) {
-    cb::breakpad::initialize(s.getBreakpadSettings());
+    cb::breakpad::initialize(s.getBreakpadSettings(), s.getLoggerConfig());
 }
 
 static void verbosity_changed_listener(const std::string&, Settings &s) {
@@ -919,7 +919,8 @@ int memcached_main(int argc, char** argv) {
     /// Initialize breakpad crash catcher with our just-parsed settings
     Settings::instance().addChangeListener("breakpad",
                                            breakpad_changed_listener);
-    cb::breakpad::initialize(Settings::instance().getBreakpadSettings());
+    cb::breakpad::initialize(Settings::instance().getBreakpadSettings(),
+                             Settings::instance().getLoggerConfig());
 
     LOG_INFO("Using SLA configuration: {}", cb::mcbp::sla::to_json().dump());
 

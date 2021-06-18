@@ -12,6 +12,10 @@
 
 #include "breakpad_settings.h"
 
+namespace cb::logger {
+struct Config;
+}
+
 namespace cb::breakpad {
 /**
  * Initialize breakpad based on the specified settings struct.
@@ -19,15 +23,8 @@ namespace cb::breakpad {
  * The function may be called multiple times and allow for reconfiguration
  * of the breakpad settings.
  */
-void initialize(const cb::breakpad::Settings& settings);
-
-/**
- * Initialize breakpad from use of a command line program.
- *
- * @param directory specifies the dump directory to use (an empty directory
- *                  is accepted and ignored).
- */
-void initialize(const std::string& dumpdir);
+void initialize(const cb::breakpad::Settings& settings,
+                const cb::logger::Config& logConfig);
 
 /**
  * Cleaning up when breakpad no longer needed

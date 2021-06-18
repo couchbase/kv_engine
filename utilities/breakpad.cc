@@ -13,9 +13,13 @@
 #include "terminate_handler.h"
 
 #include <logger/logger.h>
+#include <logger/logger_config.h>
 
 #include <platform/backtrace.h>
 #include <platform/dirutils.h>
+
+#include <sstream>
+#include <string>
 
 #if defined(WIN32) && defined(HAVE_BREAKPAD)
 
@@ -69,6 +73,9 @@ using namespace google_breakpad;
 // breakpad handler
 static std::unique_ptr<ExceptionHandler> handler;
 
+// A path to use for writing data about a crash.
+static std::string crashLogPath;
+
 #if defined(WIN32) && defined(HAVE_BREAKPAD)
 // These methods are called from breakpad when creating
 // the dump. They're inside the #ifdef block to avoid
@@ -93,27 +100,29 @@ static void dump_stack() {
 // no timestamp (cannot generate timestamps from a signal handler)
 // The write macros are swallowing the return value, if it's not success there's
 // not much we can do.
-#define WRITE_MSG(MSG)                                        \
-    do {                                                      \
-        auto rv = write(STDERR_FILENO, MSG, sizeof(MSG) - 1); \
-        (void)rv;                                             \
+#define WRITE_MSG(FD, MSG)                         \
+    do {                                           \
+        auto rv = write(FD, MSG, sizeof(MSG) - 1); \
+        (void)rv;                                  \
     } while (0)
 
-#define WRITE_CSTR(CSTR)                                    \
-    do {                                                    \
-        auto rv = write(STDERR_FILENO, CSTR, strlen(CSTR)); \
-        (void)rv;                                           \
+#define WRITE_CSTR(FD, CSTR)                     \
+    do {                                         \
+        auto rv = write(FD, CSTR, strlen(CSTR)); \
+        (void)rv;                                \
     } while (0)
 
 static void write_to_logger(void* ctx, const char* frame) {
-    WRITE_MSG("   ");
-    WRITE_CSTR(frame);
-    WRITE_MSG("\n");
+    int fd = *reinterpret_cast<int*>(ctx);
+    WRITE_MSG(fd, "   ");
+    WRITE_CSTR(fd, frame);
+    WRITE_MSG(fd, "\n");
 }
 
-static void dump_stack() {
-    WRITE_MSG("Stack backtrace of crashed thread:\n");
-    print_backtrace(write_to_logger, nullptr);
+/// @param fd The file descriptor to write to
+static void dump_stack(int fd) {
+    WRITE_MSG(fd, "Stack backtrace of crashed thread:\n");
+    print_backtrace(write_to_logger, &fd);
 }
 #endif
 
@@ -144,19 +153,50 @@ static bool dumpCallback(const wchar_t* dump_path,
 }
 #elif defined(linux) && defined(HAVE_BREAKPAD)
 
-#define MSG1p1 "CRITICAL Breakpad caught a crash (Couchbase version "
+#define MSG_CRITICAL "CRITICAL "
+#define MSG1p1 "Breakpad caught a crash (Couchbase version "
 #define MSG1p2 "). Writing crash dump to "
 #define CAUGHT_CRASH_MSG MSG1p1 PRODUCT_VERSION MSG1p2
+#define CRITICAL_CAUGHT_CRASH_MSG MSG_CRITICAL CAUGHT_CRASH_MSG
+#define FAILED_OPEN MSG_CRITICAL "dumpCallback failed to open crashLogPath:"
 
 static bool dumpCallback(const MinidumpDescriptor& descriptor,
                          void* context,
                          bool succeeded) {
-    WRITE_MSG(CAUGHT_CRASH_MSG);
-    WRITE_CSTR(descriptor.path());
-    WRITE_MSG(" before terminating.\n");
-    dump_stack();
+    auto writeFn = [&descriptor](int fd) {
+        if (fd == STDERR_FILENO) {
+            WRITE_MSG(fd, CRITICAL_CAUGHT_CRASH_MSG);
+        } else {
+            WRITE_MSG(fd, CAUGHT_CRASH_MSG);
+        }
+        WRITE_CSTR(fd, descriptor.path());
+        WRITE_MSG(fd, " before terminating.\n");
+        dump_stack(fd);
+    };
+
+    writeFn(STDERR_FILENO);
+
+    int logFd =
+            open(crashLogPath.c_str(), O_CREAT | O_TRUNC | O_WRONLY, S_IRUSR);
+    if (logFd < 0) {
+        WRITE_MSG(STDERR_FILENO, FAILED_OPEN);
+        WRITE_CSTR(STDERR_FILENO, crashLogPath.c_str());
+        WRITE_MSG(STDERR_FILENO, "\n");
+    } else {
+        writeFn(logFd);
+        auto rv = close(logFd);
+        (void)rv; // If !success is ignored
+    }
+
     return succeeded;
 }
+
+#undef MSG_CRITICAL
+#undef MSG1p1
+#undef MSG1p2
+#undef CAUGHT_CRASH_MSG
+#undef CRITICAL_CAUGHT_CRASH_MSG
+#undef FAILED_OPEN
 #endif
 
 void create_handler(const std::string& minidump_dir) {
@@ -186,14 +226,51 @@ void create_handler(const std::string& minidump_dir) {
                                        /*install_handler*/ true,
                                        /*server_fd*/ -1));
 #else
-// Not supported on this plaform
+// Not supported on this platform
 #endif
 }
 
-void cb::breakpad::initialize(const cb::breakpad::Settings& settings) {
+void logCrashData() {
+    if (cb::io::isFile(crashLogPath)) {
+#if defined(WIN32)
+        // I'm not reading this.
+        LOG_CRITICAL_RAW("Unexpected crash file found on WIN32");
+#elif defined(linux)
+        LOG_CRITICAL_RAW("Detected previous crash");
+
+        // OK to get a truncated input, 8K is plenty to capture most dumps and
+        // get the CRITICAL messages into the log.
+        const size_t fileReadLimit = 8192;
+        std::string data = cb::io::loadFile(crashLogPath, {}, fileReadLimit);
+        auto ss = std::stringstream{data};
+        const int lineLimit = 70;
+        int lineCount = 0;
+        for (std::string line; std::getline(ss, line) && lineCount < lineLimit;
+             lineCount++) {
+            if (!line.empty()) {
+                LOG_CRITICAL("{}", line);
+            }
+        }
+        if (lineCount == lineLimit) {
+            LOG_INFO("logCrashData reached line count limit {}", lineCount);
+        }
+#endif
+        if (remove(crashLogPath.c_str()) != 0) {
+            LOG_CRITICAL("Failed to remove crashLogPath:{} errno:{}",
+                         crashLogPath,
+                         errno);
+        }
+    }
+}
+
+void cb::breakpad::initialize(const cb::breakpad::Settings& settings,
+                              const cb::logger::Config& logConfig) {
     // We cannot actually change any of breakpad's settings once created, only
     // remove it and re-create with new settings.
     destroy();
+
+    bool checkForCrash = crashLogPath.empty();
+    crashLogPath = logConfig.filename + ".breakpad.crash.txt";
 
     if (settings.enabled) {
         create_handler(settings.minidump_dir);
@@ -212,27 +289,9 @@ void cb::breakpad::initialize(const cb::breakpad::Settings& settings) {
         set_terminate_handler_print_backtrace(true);
         LOG_INFO_RAW("Breakpad disabled");
     }
-}
 
-void cb::breakpad::initialize(const std::string& directory) {
-    // We cannot actually change any of breakpad's settings once created, only
-    // remove it and re-create with new settings.
-    destroy();
-
-    if (directory.empty()) {
-        // No directory provided
-        LOG_INFO_RAW("Breakpad disabled");
-        return;
-    }
-
-    create_handler(directory);
-
-    if (handler) {
-        // Turn off the terminate handler's backtrace - otherwise we
-        // just print it twice.
-        set_terminate_handler_print_backtrace(false);
-    } else {
-        // do we want to notify the user that we don't have access?
+    if (checkForCrash) {
+        logCrashData();
     }
 }
 

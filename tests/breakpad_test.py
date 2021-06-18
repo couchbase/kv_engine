@@ -261,7 +261,8 @@ config = {"interfaces": [{"tag":"plain",
           "stdin_listener": False,
           "root" : os.path.abspath(args.source_root),
           "verbosity" : 2,
-          "rbac_file" : os.path.abspath(rbac_file.name)}
+          "rbac_file" : os.path.abspath(rbac_file.name),
+          "logger" : { "filename" : minidump_dir + "/log"}}
 config_json = json.dumps(config)
 
 # Need a temporary file which can be opened (a second time) by memcached,
@@ -333,14 +334,16 @@ if args.breakpad and 'recursive_crash_function' not in stderrdata:
 
 if args.breakpad:
     # Check there is a minidump path in the output.
-    m = re.search('Writing crash dump to ([\w\\\/\:\-.]+)', stderrdata)
-    if not m:
+    # MB-42657 means there can be multiple "Writing crash" messages, the last
+    # one is the relevant message for this test.
+    matches = re.findall('Writing crash dump to ([\w\\\/\:\-.]+)', stderrdata)
+    if not matches:
         logging.error("FAIL - Unable to find crash filename in stderr.")
         print_stderrdata(stderrdata)
         cleanup_and_exit(4)
 
+    minidump = matches[-1]
     # Check the minidump file exists on disk.
-    minidump = m.group(1)
     if not os.path.exists(minidump):
         logging.error(
             "FAIL - Minidump file '{0}' does not exist.".format(minidump))
