@@ -330,7 +330,7 @@ public:
             ValueFilter valOptions) override;
 
     scan_error_t scan(BySeqnoScanContext& sctx) override;
-    scan_error_t scan(ByIdScanContext& sctx) override;
+    scan_error_t scan(ByIdScanContext& sctx) const override;
 
     std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) override;
 

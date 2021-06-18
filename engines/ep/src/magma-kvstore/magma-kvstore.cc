@@ -1654,7 +1654,7 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) {
     return scan_success;
 }
 
-scan_error_t MagmaKVStore::scan(ByIdScanContext& ctx) {
+scan_error_t MagmaKVStore::scan(ByIdScanContext& ctx) const {
     throw std::runtime_error("MagmaKVStore::scan (by id scan) unimplemented");
     return scan_failed;
 }

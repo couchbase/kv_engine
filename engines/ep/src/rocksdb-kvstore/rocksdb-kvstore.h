@@ -282,7 +282,7 @@ public:
     }
 
     scan_error_t scan(BySeqnoScanContext& sctx) override;
-    scan_error_t scan(ByIdScanContext& sctx) override {
+    scan_error_t scan(ByIdScanContext& sctx) const override {
         throw std::runtime_error("RocksDB no support for byID scan");
     }
 

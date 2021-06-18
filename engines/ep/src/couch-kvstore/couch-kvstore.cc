@@ -2284,7 +2284,7 @@ scan_error_t CouchKVStore::scan(BySeqnoScanContext& ctx) {
     return scan_success;
 }
 
-scan_error_t CouchKVStore::scan(ByIdScanContext& ctx) {
+scan_error_t CouchKVStore::scan(ByIdScanContext& ctx) const {
     TRACE_EVENT_START2("CouchKVStore",
                        "scan by id",
                        "vbid",

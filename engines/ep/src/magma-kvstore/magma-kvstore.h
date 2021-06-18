@@ -360,7 +360,7 @@ public:
             ValueFilter valOptions) override;
 
     scan_error_t scan(BySeqnoScanContext& sctx) override;
-    scan_error_t scan(ByIdScanContext& ctx) override;
+    scan_error_t scan(ByIdScanContext& ctx) const override;
 
     class MagmaKVFileHandle : public ::KVFileHandle {
     public:

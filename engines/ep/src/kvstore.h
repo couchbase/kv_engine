@@ -1091,7 +1091,7 @@ public:
      * @param sctx non-const reference to the context, internal callbacks may
      *        write to the object as progress is made through the scan
      */
-    virtual scan_error_t scan(ByIdScanContext& sctx) = 0;
+    virtual scan_error_t scan(ByIdScanContext& sctx) const = 0;
 
     /**
      * Obtain a KVFileHandle which holds the KVStore implementation's handle
