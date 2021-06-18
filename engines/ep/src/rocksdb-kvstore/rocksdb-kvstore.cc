@@ -495,7 +495,16 @@ void RocksDBKVStore::openDB() {
     rdb->DestroyColumnFamilyHandle(handles.back());
 }
 
-std::shared_ptr<VBHandle> RocksDBKVStore::getVBHandle(Vbid vbid) {
+std::shared_ptr<VBHandle> RocksDBKVStore::getVBHandle(Vbid vbid) const {
+    std::lock_guard<std::mutex> lg(vbhMutex);
+    if (vbHandles[vbid.get()]) {
+        return vbHandles[vbid.get()];
+    }
+
+    return {};
+}
+
+std::shared_ptr<VBHandle> RocksDBKVStore::getOrCreateVBHandle(Vbid vbid) {
     std::lock_guard<std::mutex> lg(vbhMutex);
     if (vbHandles[vbid.get()]) {
         return vbHandles[vbid.get()];
@@ -805,7 +814,7 @@ bool RocksDBKVStore::snapshotVBucket(Vbid vbucketId,
 
     auto start = std::chrono::steady_clock::now();
 
-    const auto vbh = getVBHandle(vbucketId);
+    const auto vbh = getOrCreateVBHandle(vbucketId);
     rocksdb::WriteBatch batch;
     auto status = saveVBStateToBatch(*vbh, vbstate, batch);
     if (!status.ok()) {
@@ -1266,7 +1275,7 @@ rocksdb::Status RocksDBKVStore::saveDocs(
     int64_t maxDBSeqno = 0;
     rocksdb::WriteBatch batch;
 
-    const auto vbh = getVBHandle(vbid);
+    const auto vbh = getOrCreateVBHandle(vbid);
 
     for (const auto& request : commitBatch) {
         int64_t bySeqno = request.getDocMeta().bySeqno;

@@ -384,11 +384,19 @@ private:
 
     /*
      * This function returns an instance of VBHandle for the given vbid.
+     * See also getOrCreateVBHandle.
+     *
+     * @param vbid vbucket id for the vbucket DB to open
+     */
+    std::shared_ptr<VBHandle> getVBHandle(Vbid vbid) const;
+
+    /*
+     * This function returns an instance of VBHandle for the given vbid.
      * The VBHandle for 'vbid' is created if it does not exist.
      *
      * @param vbid vbucket id for the vbucket DB to open
      */
-    std::shared_ptr<VBHandle> getVBHandle(Vbid vbid);
+    std::shared_ptr<VBHandle> getOrCreateVBHandle(Vbid vbid);
 
     /*
      * The DB for each Shard is created in a separated subfolder of
