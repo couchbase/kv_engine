@@ -193,8 +193,9 @@ static void isasl_refresh_executor(Cookie& cookie) {
 }
 
 static void ssl_certs_refresh_executor(Cookie& cookie) {
-    // You need to use the ifconfig command to do this
-    cookie.sendResponse(cb::mcbp::Status::NotSupported);
+    // MB-46983: until ns_server use ifconfig we need to reply with success
+    // @todo Once ns_server supports ifconfig we shall return NotSupported
+    cookie.sendResponse(cb::mcbp::Status::Success);
 }
 
 static void verbosity_executor(Cookie& cookie) {
