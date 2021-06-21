@@ -1077,7 +1077,7 @@ public:
             Vbid vbid,
             const std::vector<ByIdRange>& ranges,
             DocumentFilter options,
-            ValueFilter valOptions) = 0;
+            ValueFilter valOptions) const = 0;
 
     /**
      * Run a BySeqno scan

@@ -357,7 +357,7 @@ public:
             Vbid vbid,
             const std::vector<ByIdRange>& ranges,
             DocumentFilter options,
-            ValueFilter valOptions) override;
+            ValueFilter valOptions) const override;
 
     scan_error_t scan(BySeqnoScanContext& sctx) const override;
     scan_error_t scan(ByIdScanContext& ctx) const override;

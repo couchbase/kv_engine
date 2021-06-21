@@ -2177,7 +2177,7 @@ std::unique_ptr<ByIdScanContext> CouchKVStore::initByIdScanContext(
         Vbid vbid,
         const std::vector<ByIdRange>& ranges,
         DocumentFilter options,
-        ValueFilter valOptions) {
+        ValueFilter valOptions) const {
     auto handle = makeFileHandle(vbid);
 
     if (!handle) {

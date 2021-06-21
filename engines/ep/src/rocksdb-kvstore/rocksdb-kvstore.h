@@ -276,7 +276,7 @@ public:
             Vbid vbid,
             const std::vector<ByIdRange>& ranges,
             DocumentFilter options,
-            ValueFilter valOptions) override {
+            ValueFilter valOptions) const override {
         throw std::runtime_error(
                 "RocksDB no support for byID initByIdScanContext");
     }
