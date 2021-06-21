@@ -656,7 +656,7 @@ public:
      */
     void addStats(const AddStatFn& add_stat,
                   const void* c,
-                  const std::string& args) override;
+                  const std::string& args) const override;
 
     /**
      * Construct a compaction context for use with implicit compactions. Calls

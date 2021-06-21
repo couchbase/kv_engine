@@ -140,7 +140,7 @@ public:
 
     void addStats(const AddStatFn& add_stat,
                   const void* c,
-                  const std::string& args) override;
+                  const std::string& args) const override;
 
     /*
      * Get a RocksDBKVStore specific stat

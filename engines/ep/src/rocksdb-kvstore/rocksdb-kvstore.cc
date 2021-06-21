@@ -1772,7 +1772,7 @@ size_t RocksDBKVStore::getVBucketsCount(
 
 void RocksDBKVStore::addStats(const AddStatFn& add_stat,
                               const void* c,
-                              const std::string& args) {
+                              const std::string& args) const {
     KVStore::addStats(add_stat, c, args);
     const auto prefix = getStatsPrefix();
 

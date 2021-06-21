@@ -648,7 +648,7 @@ public:
      */
     virtual void addStats(const AddStatFn& add_stat,
                           const void* c,
-                          const std::string& args);
+                          const std::string& args) const;
 
     /**
      * Request the specified statistic name from the kvstore.
@@ -678,7 +678,7 @@ public:
      * @param c the cookie to pass to the callback function
      */
     virtual void addTimingStats(const AddStatFn& add_stat,
-                                const CookieIface* c);
+                                const CookieIface* c) const;
 
     /**
      * Resets kvstore specific stats
