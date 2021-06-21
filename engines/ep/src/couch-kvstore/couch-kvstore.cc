@@ -491,7 +491,9 @@ void CouchKVStore::set(queued_item item) {
     pendingReqsQ.emplace_back(std::move(item));
 }
 
-GetValue CouchKVStore::get(const DiskDocKey& key, Vbid vb, ValueFilter filter) {
+GetValue CouchKVStore::get(const DiskDocKey& key,
+                           Vbid vb,
+                           ValueFilter filter) const {
     DbHolder db(*this);
     couchstore_error_t errCode = openDB(vb, db, COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errCode != COUCHSTORE_SUCCESS) {
@@ -634,7 +636,7 @@ void CouchKVStore::getRange(Vbid vb,
                             const DiskDocKey& startKey,
                             const DiskDocKey& endKey,
                             ValueFilter filter,
-                            const KVStore::GetRangeCb& cb) {
+                            const KVStore::GetRangeCb& cb) const {
     DbHolder db(*this);
     auto errCode = openDB(vb, db, COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errCode != COUCHSTORE_SUCCESS) {
@@ -3708,7 +3710,7 @@ cb::engine_errc CouchKVStore::getAllKeys(
         Vbid vbid,
         const DiskDocKey& start_key,
         uint32_t count,
-        std::shared_ptr<StatusCallback<const DiskDocKey&>> cb) {
+        std::shared_ptr<StatusCallback<const DiskDocKey&>> cb) const {
     DbHolder db(*this);
     couchstore_error_t errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
     if(errCode == COUCHSTORE_SUCCESS) {

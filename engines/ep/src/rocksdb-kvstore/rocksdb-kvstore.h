@@ -162,7 +162,9 @@ public:
      */
     void set(queued_item item) override;
 
-    GetValue get(const DiskDocKey& key, Vbid vb, ValueFilter filter) override;
+    GetValue get(const DiskDocKey& key,
+                 Vbid vb,
+                 ValueFilter filter) const override;
 
     GetValue getWithHeader(const KVFileHandle& kvFileHandle,
                            const DiskDocKey& key,
@@ -175,7 +177,7 @@ public:
                   const DiskDocKey& startKey,
                   const DiskDocKey& endKey,
                   ValueFilter filter,
-                  const GetRangeCb& cb) override;
+                  const GetRangeCb& cb) const override;
 
     /**
      * Overrides del().
@@ -256,7 +258,8 @@ public:
             Vbid vbid,
             const DiskDocKey& start_key,
             uint32_t count,
-            std::shared_ptr<StatusCallback<const DiskDocKey&>> cb) override {
+            std::shared_ptr<StatusCallback<const DiskDocKey&>> cb)
+            const override {
         // TODO vmx 2016-10-29: implement
         return cb::engine_errc::success;
     }

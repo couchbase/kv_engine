@@ -740,12 +740,12 @@ public:
      */
     virtual GetValue get(const DiskDocKey& key,
                          Vbid vb,
-                         ValueFilter filter) = 0;
+                         ValueFilter filter) const = 0;
 
     /**
      * Convenience version of get() which fetches the value uncompressed.
      */
-    GetValue get(const DiskDocKey& key, Vbid vb) {
+    GetValue get(const DiskDocKey& key, Vbid vb) const {
         return get(key, vb, ValueFilter::VALUES_DECOMPRESSED);
     }
 
@@ -809,7 +809,7 @@ public:
                           const DiskDocKey& startKey,
                           const DiskDocKey& endKey,
                           ValueFilter filter,
-                          const GetRangeCb& cb) {
+                          const GetRangeCb& cb) const {
         throw std::runtime_error("Backend does not support getRange()");
     }
 
@@ -991,7 +991,7 @@ public:
             Vbid vbid,
             const DiskDocKey& start_key,
             uint32_t count,
-            std::shared_ptr<StatusCallback<const DiskDocKey&>> cb) = 0;
+            std::shared_ptr<StatusCallback<const DiskDocKey&>> cb) const = 0;
 
     /// Does the backend support historical snapshots
     virtual bool supportsHistoricalSnapshots() const {

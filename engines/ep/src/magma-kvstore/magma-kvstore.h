@@ -249,7 +249,9 @@ public:
      */
     void set(queued_item itm) override;
 
-    GetValue get(const DiskDocKey& key, Vbid vb, ValueFilter filter) override;
+    GetValue get(const DiskDocKey& key,
+                 Vbid vb,
+                 ValueFilter filter) const override;
     using KVStore::get;
 
     GetValue getWithHeader(const KVFileHandle& kvFileHandle,
@@ -263,7 +265,7 @@ public:
                   const DiskDocKey& startKey,
                   const DiskDocKey& endKey,
                   ValueFilter filter,
-                  const GetRangeCb& cb) override;
+                  const GetRangeCb& cb) const override;
 
     void del(queued_item itm) override;
 
@@ -340,7 +342,8 @@ public:
             Vbid vbid,
             const DiskDocKey& start_key,
             uint32_t count,
-            std::shared_ptr<StatusCallback<const DiskDocKey&>> cb) override;
+            std::shared_ptr<StatusCallback<const DiskDocKey&>> cb)
+            const override;
 
     std::unique_ptr<BySeqnoScanContext> initBySeqnoScanContext(
             std::unique_ptr<StatusCallback<GetValue>> cb,

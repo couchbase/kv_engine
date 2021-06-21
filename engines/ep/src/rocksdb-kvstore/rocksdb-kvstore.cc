@@ -675,7 +675,7 @@ void RocksDBKVStore::set(queued_item item) {
 
 GetValue RocksDBKVStore::get(const DiskDocKey& key,
                              Vbid vb,
-                             ValueFilter filter) {
+                             ValueFilter filter) const {
     return getWithHeader(key, vb, filter);
 }
 
@@ -733,7 +733,7 @@ void RocksDBKVStore::getRange(Vbid vb,
                               const DiskDocKey& startKey,
                               const DiskDocKey& endKey,
                               ValueFilter filter,
-                              const KVStore::GetRangeCb& cb) {
+                              const KVStore::GetRangeCb& cb) const {
     auto startSlice = getKeySlice(startKey);
     auto endSlice = getKeySlice(endKey);
     rocksdb::ReadOptions rangeOptions;

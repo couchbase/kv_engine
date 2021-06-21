@@ -194,7 +194,9 @@ public:
 
     void set(queued_item item) override;
 
-    GetValue get(const DiskDocKey& key, Vbid vb, ValueFilter filter) override;
+    GetValue get(const DiskDocKey& key,
+                 Vbid vb,
+                 ValueFilter filter) const override;
 
     using KVStore::get;
 
@@ -209,7 +211,7 @@ public:
                   const DiskDocKey& startKey,
                   const DiskDocKey& endKey,
                   ValueFilter filter,
-                  const KVStore::GetRangeCb& cb) override;
+                  const KVStore::GetRangeCb& cb) const override;
 
     void del(queued_item item) override;
 
@@ -306,7 +308,8 @@ public:
             Vbid vbid,
             const DiskDocKey& start_key,
             uint32_t count,
-            std::shared_ptr<StatusCallback<const DiskDocKey&>> cb) override;
+            std::shared_ptr<StatusCallback<const DiskDocKey&>> cb)
+            const override;
 
     bool supportsHistoricalSnapshots() const override {
         return true;

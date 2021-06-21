@@ -750,7 +750,9 @@ void MagmaKVStore::set(queued_item item) {
     pendingReqs->emplace_back(std::move(item), logger);
 }
 
-GetValue MagmaKVStore::get(const DiskDocKey& key, Vbid vb, ValueFilter filter) {
+GetValue MagmaKVStore::get(const DiskDocKey& key,
+                           Vbid vb,
+                           ValueFilter filter) const {
     return getWithHeader(key, vb, filter);
 }
 
@@ -894,7 +896,7 @@ void MagmaKVStore::getRange(Vbid vbid,
                             const DiskDocKey& startKey,
                             const DiskDocKey& endKey,
                             ValueFilter filter,
-                            const GetRangeCb& cb) {
+                            const GetRangeCb& cb) const {
     Slice startKeySlice = {reinterpret_cast<const char*>(startKey.data()),
                            startKey.size()};
     Slice endKeySlice = {reinterpret_cast<const char*>(endKey.data()),
@@ -1924,7 +1926,7 @@ cb::engine_errc MagmaKVStore::getAllKeys(
         Vbid vbid,
         const DiskDocKey& startKey,
         uint32_t count,
-        std::shared_ptr<StatusCallback<const DiskDocKey&>> cb) {
+        std::shared_ptr<StatusCallback<const DiskDocKey&>> cb) const {
     Slice startKeySlice = {reinterpret_cast<const char*>(startKey.data()),
                            startKey.size()};
 
