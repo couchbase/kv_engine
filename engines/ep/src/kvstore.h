@@ -720,7 +720,7 @@ public:
     /**
      * Get the properties of the underlying storage.
      */
-    virtual StorageProperties getStorageProperties() = 0;
+    virtual StorageProperties getStorageProperties() const = 0;
 
     /**
      * Set an item into the kv store. cc

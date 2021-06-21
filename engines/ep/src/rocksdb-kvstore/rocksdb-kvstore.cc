@@ -939,7 +939,7 @@ bool RocksDBKVStore::getStat(std::string_view name, size_t& value) const {
     return false;
 }
 
-StorageProperties RocksDBKVStore::getStorageProperties() {
+StorageProperties RocksDBKVStore::getStorageProperties() const {
     StorageProperties rv(StorageProperties::EfficientVBDump::Yes,
                          StorageProperties::EfficientVBDeletion::Yes,
                          StorageProperties::PersistedDeletion::No,

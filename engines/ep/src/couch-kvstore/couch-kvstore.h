@@ -190,7 +190,7 @@ public:
      *
      * @return properties of the underlying storage system
      */
-    StorageProperties getStorageProperties() override;
+    StorageProperties getStorageProperties() const override;
 
     void set(queued_item item) override;
 

@@ -710,7 +710,7 @@ void MagmaKVStore::rollback() {
     }
 }
 
-StorageProperties MagmaKVStore::getStorageProperties() {
+StorageProperties MagmaKVStore::getStorageProperties() const {
     StorageProperties rv(StorageProperties::EfficientVBDump::Yes,
                          StorageProperties::EfficientVBDeletion::Yes,
                          StorageProperties::PersistedDeletion::No,

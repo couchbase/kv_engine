@@ -229,7 +229,7 @@ public:
      */
     void rollback() override;
 
-    StorageProperties getStorageProperties() override;
+    StorageProperties getStorageProperties() const override;
 
     void setMaxDataSize(size_t size) override;
 

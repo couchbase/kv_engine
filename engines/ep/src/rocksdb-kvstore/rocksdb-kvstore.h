@@ -155,7 +155,7 @@ public:
     /**
      * Query the properties of the underlying storage.
      */
-    StorageProperties getStorageProperties() override;
+    StorageProperties getStorageProperties() const override;
 
     /**
      * Overrides set().

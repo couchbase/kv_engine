@@ -2011,7 +2011,7 @@ bool CouchKVStore::snapshotVBucket(Vbid vbucketId,
     return true;
 }
 
-StorageProperties CouchKVStore::getStorageProperties() {
+StorageProperties CouchKVStore::getStorageProperties() const {
     StorageProperties rv(StorageProperties::EfficientVBDump::Yes,
                          StorageProperties::EfficientVBDeletion::Yes,
                          StorageProperties::PersistedDeletion::Yes,
