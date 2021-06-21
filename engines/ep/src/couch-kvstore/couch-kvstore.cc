@@ -3157,7 +3157,7 @@ CouchKVStore::processVbstateSnapshot(Vbid vb,
                                      int64_t version,
                                      uint64_t snapStart,
                                      uint64_t snapEnd,
-                                     uint64_t highSeqno) {
+                                     uint64_t highSeqno) const {
     ReadVBStateStatus status = ReadVBStateStatus::Success;
 
     // All upgrade paths we now expect start and end
@@ -3189,7 +3189,8 @@ CouchKVStore::processVbstateSnapshot(Vbid vb,
     return {status, snapStart, snapEnd};
 }
 
-CouchKVStore::ReadVBStateResult CouchKVStore::readVBState(Db* db, Vbid vbId) {
+CouchKVStore::ReadVBStateResult CouchKVStore::readVBState(Db* db,
+                                                          Vbid vbId) const {
     sized_buf id;
     LocalDoc *ldoc = nullptr;
     // High sequence number and purge sequence number are stored automatically
@@ -3847,7 +3848,7 @@ uint64_t CouchKVStore::prepareToDeleteImpl(Vbid vbid) {
 }
 
 CouchKVStore::ReadLocalDocResult CouchKVStore::readLocalDoc(
-        Db& db, std::string_view name) {
+        Db& db, std::string_view name) const {
     sized_buf id;
     id.buf = const_cast<char*>(name.data());
     id.size = name.size();
@@ -3957,7 +3958,7 @@ CouchKVStore::getDroppedCollections(Vbid vbid) {
 
 std::pair<couchstore_error_t,
           std::vector<Collections::KVStore::DroppedCollection>>
-CouchKVStore::getDroppedCollections(Db& db) {
+CouchKVStore::getDroppedCollections(Db& db) const {
     auto droppedRes = readLocalDoc(db, Collections::droppedCollectionsName);
 
     if (droppedRes.status == COUCHSTORE_ERROR_DOC_NOT_FOUND) {

@@ -602,7 +602,7 @@ protected:
      * @param name The name of the document to read
      * @return ReadLocalDocResult
      */
-    ReadLocalDocResult readLocalDoc(Db& db, std::string_view name);
+    ReadLocalDocResult readLocalDoc(Db& db, std::string_view name) const;
 
     /**
      * Sync the KVStore::collectionsMeta structures to the database.
@@ -673,7 +673,7 @@ protected:
      */
     std::pair<couchstore_error_t,
               std::vector<Collections::KVStore::DroppedCollection>>
-    getDroppedCollections(Db& db);
+    getDroppedCollections(Db& db) const;
 
     /**
      * Unlink selected couch file, which will be removed by the OS,
@@ -828,12 +828,12 @@ protected:
             int64_t version,
             uint64_t snapStart,
             uint64_t snapEnd,
-            uint64_t highSeqno);
+            uint64_t highSeqno) const;
 
     /**
      * Read the vbucket_state from disk.
      */
-    ReadVBStateResult readVBState(Db* db, Vbid vbid);
+    ReadVBStateResult readVBState(Db* db, Vbid vbid) const;
 
     /**
      * Read the vbucket_state from disk and update the cache if successful
