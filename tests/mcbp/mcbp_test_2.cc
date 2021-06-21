@@ -135,6 +135,7 @@ public:
 
     void SetUp() override {
         ValidatorTest::SetUp();
+        req.setExtlen(4);
         req.setBodylen(32);
     }
 
@@ -193,7 +194,7 @@ TEST_P(SetClusterConfigValidatorTest, Cas) {
 }
 
 TEST_P(SetClusterConfigValidatorTest, InvalidBodylen) {
-    req.setBodylen(0);
+    req.setBodylen(req.getExtlen());
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
