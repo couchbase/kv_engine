@@ -1044,7 +1044,7 @@ public:
             uint64_t startSeqno,
             DocumentFilter options,
             ValueFilter valOptions,
-            SnapshotSource source) = 0;
+            SnapshotSource source) const = 0;
 
     /**
      * Create a KVStore id range Scan Context with the given options.

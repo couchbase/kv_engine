@@ -1354,7 +1354,7 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
         uint64_t startSeqno,
         DocumentFilter options,
         ValueFilter valOptions,
-        SnapshotSource source) {
+        SnapshotSource source) const {
     if (source == SnapshotSource::Historical) {
         throw std::runtime_error(
                 "MagmaKVStore::initBySeqnoScanContext: historicalSnapshot not "

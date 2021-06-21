@@ -349,7 +349,7 @@ public:
             uint64_t startSeqno,
             DocumentFilter options,
             ValueFilter valOptions,
-            SnapshotSource source) override;
+            SnapshotSource source) const override;
 
     std::unique_ptr<ByIdScanContext> initByIdScanContext(
             std::unique_ptr<StatusCallback<GetValue>> cb,

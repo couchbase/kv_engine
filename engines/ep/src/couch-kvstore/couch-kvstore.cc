@@ -2088,7 +2088,7 @@ std::unique_ptr<BySeqnoScanContext> CouchKVStore::initBySeqnoScanContext(
         uint64_t startSeqno,
         DocumentFilter options,
         ValueFilter valOptions,
-        SnapshotSource source) {
+        SnapshotSource source) const {
     auto handle = makeFileHandle(vbid);
 
     if (!handle) {

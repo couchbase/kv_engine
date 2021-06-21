@@ -1432,7 +1432,7 @@ std::unique_ptr<BySeqnoScanContext> RocksDBKVStore::initBySeqnoScanContext(
         uint64_t startSeqno,
         DocumentFilter options,
         ValueFilter valOptions,
-        SnapshotSource source) {
+        SnapshotSource source) const {
     if (source == SnapshotSource::Historical) {
         throw std::runtime_error(
                 "RocksDBKVStore::initBySeqnoScanContext: historicalSnapshot "
