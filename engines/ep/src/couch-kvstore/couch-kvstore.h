@@ -580,13 +580,14 @@ protected:
 
     /// Get the collection stats for the given collection
     std::pair<bool, Collections::VB::PersistedStats> getCollectionStats(
-            const KVFileHandle& kvFileHandle, CollectionID collection) override;
+            const KVFileHandle& kvFileHandle,
+            CollectionID collection) const override;
     std::pair<bool, Collections::VB::PersistedStats> getCollectionStats(
-            Db& db, CollectionID collection);
+            Db& db, CollectionID collection) const;
 
     /// Get the collection stats from the local doc named statDocName
     std::pair<bool, Collections::VB::PersistedStats> getCollectionStats(
-            Db& db, const std::string& statDocName);
+            Db& db, const std::string& statDocName) const;
 
     /**
      * Return value of readLocalDoc. Status indicates if doc is valid or not

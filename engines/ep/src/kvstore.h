@@ -1113,7 +1113,8 @@ public:
      * otherwise.
      */
     virtual std::pair<bool, Collections::VB::PersistedStats> getCollectionStats(
-            const KVFileHandle& kvFileHandle, CollectionID collection) = 0;
+            const KVFileHandle& kvFileHandle,
+            CollectionID collection) const = 0;
 
     /**
      * Prepare for delete of the vbucket file

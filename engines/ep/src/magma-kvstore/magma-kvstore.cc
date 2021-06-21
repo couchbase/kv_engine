@@ -2472,7 +2472,7 @@ magma::Status MagmaKVStore::updateDroppedCollections(
     return Status::OK();
 }
 
-std::string MagmaKVStore::getCollectionsStatsKey(CollectionID cid) {
+std::string MagmaKVStore::getCollectionsStatsKey(CollectionID cid) const {
     return std::string{"|" + cid.to_string() + "|"};
 }
 
@@ -2497,20 +2497,20 @@ MagmaKVStore::getDroppedCollectionStats(Vbid vbid, CollectionID cid) {
 
 std::pair<bool, Collections::VB::PersistedStats>
 MagmaKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
-                                 CollectionID cid) {
+                                 CollectionID cid) const {
     const auto& kvfh = static_cast<const MagmaKVFileHandle&>(kvFileHandle);
     auto vbid = kvfh.vbid;
     return getCollectionStats(vbid, cid);
 }
 
-std::pair<bool, Collections::VB::PersistedStats> MagmaKVStore::getCollectionStats(
-        Vbid vbid, CollectionID cid) {
+std::pair<bool, Collections::VB::PersistedStats>
+MagmaKVStore::getCollectionStats(Vbid vbid, CollectionID cid) const {
     auto key = getCollectionsStatsKey(cid);
     return getCollectionStats(vbid, key);
 }
 
-std::pair<bool, Collections::VB::PersistedStats> MagmaKVStore::getCollectionStats(
-        Vbid vbid, magma::Slice keySlice) {
+std::pair<bool, Collections::VB::PersistedStats>
+MagmaKVStore::getCollectionStats(Vbid vbid, magma::Slice keySlice) const {
     Status status;
     std::string stats;
     std::tie(status, stats) = readLocalDoc(vbid, keySlice);

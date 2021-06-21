@@ -293,7 +293,7 @@ public:
 
     std::pair<bool, Collections::VB::PersistedStats> getCollectionStats(
             const KVFileHandle& kvFileHandle,
-            CollectionID collection) override {
+            CollectionID collection) const override {
         // TODO JWW 2018-07-30 implement this, for testing purposes return dummy
         // values of 0 to imply the function didn't fail
         return {true, Collections::VB::PersistedStats()};

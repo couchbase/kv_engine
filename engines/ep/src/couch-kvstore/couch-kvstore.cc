@@ -3335,13 +3335,13 @@ void CouchKVStore::deleteCollectionStats(CollectionID cid) {
 
 std::pair<bool, Collections::VB::PersistedStats>
 CouchKVStore::getCollectionStats(const KVFileHandle& kvFileHandle,
-                                 CollectionID collection) {
+                                 CollectionID collection) const {
     const auto& db = static_cast<const CouchKVFileHandle&>(kvFileHandle);
     return getCollectionStats(*db.getDb(), collection);
 }
 
 std::pair<bool, Collections::VB::PersistedStats>
-CouchKVStore::getCollectionStats(Db& db, CollectionID collection) {
+CouchKVStore::getCollectionStats(Db& db, CollectionID collection) const {
     if (!collection.isUserCollection()) {
         logger.warn(
                 "CouchKVStore::getCollectionStats stats are not available for "
@@ -3353,7 +3353,7 @@ CouchKVStore::getCollectionStats(Db& db, CollectionID collection) {
 }
 
 std::pair<bool, Collections::VB::PersistedStats>
-CouchKVStore::getCollectionStats(Db& db, const std::string& statDocName) {
+CouchKVStore::getCollectionStats(Db& db, const std::string& statDocName) const {
     sized_buf id;
     id.buf = const_cast<char*>(statDocName.c_str());
     id.size = statDocName.size();
