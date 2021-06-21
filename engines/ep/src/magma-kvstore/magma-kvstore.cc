@@ -2213,7 +2213,7 @@ bool MagmaKVStore::compactDBInternal(std::shared_ptr<CompactionContext> ctx) {
     return true;
 }
 
-std::unique_ptr<KVFileHandle> MagmaKVStore::makeFileHandle(Vbid vbid) {
+std::unique_ptr<KVFileHandle> MagmaKVStore::makeFileHandle(Vbid vbid) const {
     return std::make_unique<MagmaKVFileHandle>(vbid);
 }
 

@@ -286,7 +286,7 @@ public:
         throw std::runtime_error("RocksDB no support for byID scan");
     }
 
-    std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) override;
+    std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) const override;
 
     std::pair<bool, Collections::VB::PersistedStats> getCollectionStats(
             const KVFileHandle& kvFileHandle,
@@ -540,7 +540,7 @@ private:
 
     class RocksDBHandle : public ::KVFileHandle {
     public:
-        RocksDBHandle(RocksDBKVStore& kvstore, rocksdb::DB& db);
+        RocksDBHandle(const RocksDBKVStore& kvstore, rocksdb::DB& db);
         SnapshotPtr snapshot;
     };
 

@@ -21,7 +21,7 @@ class CouchKVStore;
  */
 class DbHolder {
 public:
-    DbHolder(CouchKVStore& kvs) : kvstore(kvs), db(nullptr), fileRev(0) {
+    DbHolder(const CouchKVStore& kvs) : kvstore(kvs), db(nullptr), fileRev(0) {
     }
 
     DbHolder(const DbHolder&) = delete;
@@ -74,7 +74,7 @@ public:
     }
 
 protected:
-    std::reference_wrapper<CouchKVStore> kvstore;
+    std::reference_wrapper<const CouchKVStore> kvstore;
     Db* db;
     uint64_t fileRev;
 };

@@ -332,7 +332,7 @@ public:
     scan_error_t scan(BySeqnoScanContext& sctx) const override;
     scan_error_t scan(ByIdScanContext& sctx) const override;
 
-    std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) override;
+    std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) const override;
 
     /**
      * prepareToCreate will increment the revision number of the vbucket, but is
@@ -381,7 +381,7 @@ public:
      *
      * @param db Database
      */
-    void closeDatabaseHandle(Db* db);
+    void closeDatabaseHandle(Db* db) const;
 
     /**
      * @return the local document name for the collections stats

@@ -369,7 +369,7 @@ public:
         Vbid vbid;
     };
 
-    std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) override;
+    std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) const override;
 
     std::pair<bool, Collections::VB::PersistedStats> getCollectionStats(
             const KVFileHandle& kvFileHandle, CollectionID collection) override;

@@ -1416,12 +1416,12 @@ int64_t RocksDBKVStore::getVbstateKey() {
     return -9999;
 }
 
-RocksDBKVStore::RocksDBHandle::RocksDBHandle(RocksDBKVStore& kvstore,
+RocksDBKVStore::RocksDBHandle::RocksDBHandle(const RocksDBKVStore& kvstore,
                                              rocksdb::DB& rdb)
     : snapshot(rdb.GetSnapshot(), SnapshotDeleter(rdb)) {
 }
 
-std::unique_ptr<KVFileHandle> RocksDBKVStore::makeFileHandle(Vbid vbid) {
+std::unique_ptr<KVFileHandle> RocksDBKVStore::makeFileHandle(Vbid vbid) const {
     return std::make_unique<RocksDBHandle>(*this, *rdb);
 }
 

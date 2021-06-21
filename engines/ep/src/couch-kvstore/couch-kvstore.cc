@@ -233,7 +233,7 @@ struct AllKeysCtx {
 
 class CouchKVFileHandle : public ::KVFileHandle {
 public:
-    explicit CouchKVFileHandle(CouchKVStore& kvstore) : db(kvstore) {
+    explicit CouchKVFileHandle(const CouchKVStore& kvstore) : db(kvstore) {
     }
 
     ~CouchKVFileHandle() override = default;
@@ -3452,7 +3452,7 @@ static int getMultiCallback(Db* db, DocInfo* docinfo, void* ctx) {
     return 0;
 }
 
-void CouchKVStore::closeDatabaseHandle(Db *db) {
+void CouchKVStore::closeDatabaseHandle(Db* db) const {
     couchstore_error_t ret = couchstore_close_file(db);
     if (ret != COUCHSTORE_SUCCESS) {
         logger.warn(
@@ -3818,7 +3818,7 @@ void CouchKVStore::removeCompactFile(const std::string& filename, Vbid vbid) {
     }
 }
 
-std::unique_ptr<KVFileHandle> CouchKVStore::makeFileHandle(Vbid vbid) {
+std::unique_ptr<KVFileHandle> CouchKVStore::makeFileHandle(Vbid vbid) const {
     auto db = std::make_unique<CouchKVFileHandle>(*this);
     // openDB logs errors
     if (openDB(vbid, db->getDbHolder(), COUCHSTORE_OPEN_FLAG_RDONLY) !=

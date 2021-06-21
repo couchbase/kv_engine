@@ -449,7 +449,7 @@ public:
     // the number of open() calls
     mutable cb::RelaxedAtomic<size_t> numOpen;
     // the number of close() calls
-    cb::RelaxedAtomic<size_t> numClose;
+    mutable cb::RelaxedAtomic<size_t> numClose;
     // the number of vbuckets loaded
     cb::RelaxedAtomic<size_t> numLoadedVb;
 
@@ -1100,7 +1100,7 @@ public:
      * @param vbid the vbucket to open
      * @return a unique_ptr to a new KVFileHandle object
      */
-    virtual std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) = 0;
+    virtual std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) const = 0;
 
     /**
      * Retrieve the stored stats for the given collection, does not error
