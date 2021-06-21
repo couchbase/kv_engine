@@ -86,6 +86,6 @@ private:
      */
     std::pair<bool, std::optional<uint64_t>> getHighSeqnoOfCollections(
             const BySeqnoScanContext& seqnoScanCtx,
-            KVStore& kvStore,
+            const KVStore& kvStore,
             const Collections::VB::Filter& filter) const;
 };
