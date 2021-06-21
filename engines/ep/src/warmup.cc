@@ -1239,7 +1239,7 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId) {
         auto itr = warmedUpVbuckets.find(vbid.get());
         if (itr != warmedUpVbuckets.end()) {
             auto& epVb = static_cast<EPVBucket&>(*itr->second);
-            epVb.setNumTotalItems(*store.getROUnderlyingByShard(shardId));
+            epVb.setNumTotalItems(*store.getRWUnderlyingByShard(shardId));
             vbItemCount = epVb.getNumTotalItems();
         }
         item_count += vbItemCount;

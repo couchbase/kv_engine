@@ -6749,7 +6749,7 @@ void EventuallyPersistentEngine::set_num_storage_threads(
         ThreadPoolConfig::StorageThreadCount num) {
     auto* epBucket = dynamic_cast<EPBucket*>(getKVBucket());
     if (epBucket) {
-        epBucket->getOneROUnderlying()->setStorageThreads(num);
+        epBucket->getOneRWUnderlying()->setStorageThreads(num);
     }
 }
 

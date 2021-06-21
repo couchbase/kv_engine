@@ -159,7 +159,7 @@ protected:
         // Magma... we need to run explicit compaction to make sure no
         // implicit compactions run that might use memory.
         if (isMagma()) {
-            auto kvstore = store->getROUnderlyingByShard(0);
+            auto kvstore = store->getRWUnderlyingByShard(0);
             // Force a compaction here to make sure there are no implicit
             // compactions to consume any memory
             CompactionConfig compactionConfig;
