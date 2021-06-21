@@ -1150,7 +1150,7 @@ public:
      *         vbid
      */
     virtual std::pair<bool, Collections::KVStore::Manifest>
-    getCollectionsManifest(Vbid vbid) = 0;
+    getCollectionsManifest(Vbid vbid) const = 0;
 
     /**
      * Return all collections that are dropped, i.e. not open but still exist

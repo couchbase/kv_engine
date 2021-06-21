@@ -3877,7 +3877,7 @@ CouchKVStore::ReadLocalDocResult CouchKVStore::readLocalDoc(
 }
 
 std::pair<bool, Collections::KVStore::Manifest>
-CouchKVStore::getCollectionsManifest(Vbid vbid) {
+CouchKVStore::getCollectionsManifest(Vbid vbid) const {
     DbHolder db(*this);
 
     couchstore_error_t errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
@@ -3894,7 +3894,7 @@ CouchKVStore::getCollectionsManifest(Vbid vbid) {
 }
 
 std::pair<couchstore_error_t, Collections::KVStore::Manifest>
-CouchKVStore::getCollectionsManifest(Db& db) {
+CouchKVStore::getCollectionsManifest(Db& db) const {
     auto manifestRes = readLocalDoc(db, Collections::manifestName);
     if (manifestRes.status != COUCHSTORE_SUCCESS &&
         manifestRes.status != COUCHSTORE_ERROR_DOC_NOT_FOUND) {

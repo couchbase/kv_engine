@@ -426,7 +426,7 @@ public:
      *         vbid
      */
     std::pair<bool, Collections::KVStore::Manifest> getCollectionsManifest(
-            Vbid vbid) override;
+            Vbid vbid) const override;
 
     /**
      * Read local document to get the vector of dropped collections from the

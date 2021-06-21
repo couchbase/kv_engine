@@ -2304,7 +2304,7 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
 }
 
 std::pair<bool, Collections::KVStore::Manifest>
-MagmaKVStore::getCollectionsManifest(Vbid vbid) {
+MagmaKVStore::getCollectionsManifest(Vbid vbid) const {
     Status status;
 
     std::string manifest;

@@ -309,7 +309,7 @@ public:
     }
 
     std::pair<bool, Collections::KVStore::Manifest> getCollectionsManifest(
-            Vbid vbid) override {
+            Vbid vbid) const override {
         // TODO: rocksDb has no collections support, return default manifest
         return {true,
                 Collections::KVStore::Manifest{

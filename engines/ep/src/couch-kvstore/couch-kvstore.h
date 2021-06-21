@@ -358,7 +358,7 @@ public:
      * CouchKVStore implements this method as a read of 3 _local documents
      */
     std::pair<bool, Collections::KVStore::Manifest> getCollectionsManifest(
-            Vbid vbid) override;
+            Vbid vbid) const override;
 
     /**
      * CouchKVStore implements this method as a read of 1 _local document
@@ -665,7 +665,7 @@ protected:
      * CouchKVStore implements this method as a read of 3 _local documents.
      */
     std::pair<couchstore_error_t, Collections::KVStore::Manifest>
-    getCollectionsManifest(Db& db);
+    getCollectionsManifest(Db& db) const;
 
     /**
      * Read local document to get the vector of dropped collections from an
