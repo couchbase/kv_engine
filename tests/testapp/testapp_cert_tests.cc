@@ -43,11 +43,11 @@ protected:
 };
 
 /**
- * Setting the control to "disable" simply means that the server don't
+ * Setting the control to "disabled" simply means that the server don't
  * even ask the client to provide a certificate, and if it end up providing
  * one it'll be ignored.
  *
- * Setting the control to "enable" means that we ask the client to provide
+ * Setting the control to "enabled" means that we ask the client to provide
  * a certificate, and if it does it must be:
  *   * valid
  *   * contain a user-mapping which maps to a user defined in the system
@@ -66,7 +66,7 @@ protected:
  * to connect without one
  */
 TEST_F(SslCertTest, LoginWhenDiabledWithoutCert) {
-    reconfigure_client_cert_auth("disable", "", "", "");
+    reconfigure_client_cert_auth("disabled", "", "", "");
 
     auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
@@ -80,7 +80,7 @@ TEST_F(SslCertTest, LoginWhenDiabledWithoutCert) {
  * a user mapping).
  */
 TEST_F(SslCertTest, LoginWhenDiabledWithCert) {
-    reconfigure_client_cert_auth("disable", "", "", "");
+    reconfigure_client_cert_auth("disabled", "", "", "");
 
     auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
@@ -94,7 +94,7 @@ TEST_F(SslCertTest, LoginWhenDiabledWithCert) {
  * is provided
  */
 TEST_F(SslCertTest, LoginEnabledWithoutCert) {
-    reconfigure_client_cert_auth("enable", "subject.cn", "", " ");
+    reconfigure_client_cert_auth("enabled", "subject.cn", "", " ");
 
     auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
@@ -107,7 +107,7 @@ TEST_F(SslCertTest, LoginEnabledWithoutCert) {
  * mapping defined on the system (only the client certificate is validated)
  */
 TEST_F(SslCertTest, LoginEnabledWithCertNoMapping) {
-    reconfigure_client_cert_auth("enable", "", "", " ");
+    reconfigure_client_cert_auth("enabled", "", "", " ");
 
     auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
@@ -122,7 +122,7 @@ TEST_F(SslCertTest, LoginEnabledWithCertNoMapping) {
  * run select bucket to in order to perform operations.
  */
 TEST_F(SslCertTest, LoginEnabledWithCert) {
-    reconfigure_client_cert_auth("enable", "subject.cn", "", " ");
+    reconfigure_client_cert_auth("enabled", "subject.cn", "", " ");
 
     auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";

@@ -88,13 +88,6 @@ public:
     std::pair<Status, std::string> lookupUser(X509* cert) const;
 
     /**
-     * Get the configured mode
-     */
-    Mode getMode() const {
-        return mode;
-    }
-
-    /**
      * Get a textual representation of this configuration
      */
     std::string to_string() const;
@@ -126,11 +119,8 @@ public:
     const Mapping& getMapping(size_t index) const;
 
 protected:
-    ClientCertConfig() : mode(Mode::Disabled) {
-    }
-    explicit ClientCertConfig(Mode mode_, const nlohmann::json& config);
-
-    const Mode mode;
+    ClientCertConfig() = default;
+    explicit ClientCertConfig(const nlohmann::json& config);
     std::vector<std::unique_ptr<Mapping>> mappings;
 };
 
@@ -138,7 +128,7 @@ protected:
  * The ClientCertMapper allows multiple threads to operate
  * on a ClientCertConfiguration to perform username mappings
  * from the certificate. It provides read-write locks so that
- * some theads may reconfigure the conversion parameters
+ * some threads may reconfigure the conversion parameters
  * and others perform lookup without any problems
  */
 class ClientCertMapper {
@@ -158,11 +148,6 @@ public:
      * @return The status and the username (if found)
      */
     std::pair<Status, std::string> lookupUser(X509* cert) const;
-
-    /**
-     * Get the configured mode
-     */
-    Mode getMode() const;
 
     /**
      * Get a textual representation of this configuration

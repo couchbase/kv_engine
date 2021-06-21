@@ -21,40 +21,8 @@
 
 using namespace cb::x509;
 
-TEST(X509, ValidateStateDisabled) {
-    // When the state is disabled we don't need any more parameters set
-    auto config = ClientCertConfig::create(R"({"state": "disable"})"_json);
-    EXPECT_TRUE(config);
-    EXPECT_EQ(Mode::Disabled, config->getMode());
-}
-
-TEST(X509, ValidateStateEnable) {
-    auto config = ClientCertConfig::create(R"({"state": "enable", "path":
-                                            "subject.cn"})"_json);
-    EXPECT_TRUE(config);
-    EXPECT_EQ(Mode::Enabled, config->getMode());
-}
-
-TEST(X509, ValidateStateMandatory) {
-    auto config = ClientCertConfig::create(R"({"state": "mandatory", "path":
-"subject.cn"})"_json);
-    EXPECT_TRUE(config);
-    EXPECT_EQ(Mode::Mandatory, config->getMode());
-}
-
-TEST(X509, ValidateInvalidStateValue) {
-    EXPECT_THROW(ClientCertConfig::create(R"({"state": 5})"_json),
-                 nlohmann::json::exception);
-}
-
-TEST(X509, ValidateMissingState) {
-    EXPECT_THROW(ClientCertConfig::create(R"({})"_json),
-                 nlohmann::json::exception);
-}
-
 TEST(X509, ParseValidSingleEntryFormat) {
     auto config = ClientCertConfig::create(R"({
-    "state": "enable",
     "path": "san.dnsname",
     "prefix": "www.",
      "delimiter": ".,;"
@@ -69,7 +37,6 @@ TEST(X509, ParseValidSingleEntryFormat) {
 
 TEST(X509, ParseValidMultipleEntryFormat) {
     auto config = ClientCertConfig::create(R"({
-    "state": "enable",
     "prefixes": [
         {
             "path": "san.dnsname",
@@ -106,11 +73,6 @@ TEST(X509, ParseValidMultipleEntryFormat) {
 class SslParseCertTest : public ::testing::Test {
 public:
     static void SetUpTestCase() {
-        OPENSSL_init_ssl(0, nullptr);
-        SSL_load_error_strings();
-        ERR_load_BIO_strings();
-        OpenSSL_add_all_algorithms();
-
         std::string certPath{SOURCE_ROOT};
         certPath.append("/tests/cert/parse-test.pem");
         certPath = cb::io::sanitizePath(certPath);
@@ -127,13 +89,6 @@ public:
     static void TearDownTestCase() {
         // Release the certificate
         cert.reset();
-
-        // Global OpenSSL cleanup:
-        ENGINE_cleanup();
-        CONF_modules_unload(1);
-        ERR_free_strings();
-        EVP_cleanup();
-        CRYPTO_cleanup_all_ex_data();
     }
 
     static cb::openssl::unique_x509_ptr cert;
@@ -150,7 +105,6 @@ cb::openssl::unique_x509_ptr SslParseCertTest::cert;
 
 TEST_F(SslParseCertTest, TestCN_EntireField) {
     auto config = ClientCertConfig::create(R"({
-    "state": "enable",
     "prefixes": [
         {
             "path": "subject.cn",
@@ -167,7 +121,6 @@ TEST_F(SslParseCertTest, TestCN_EntireField) {
 
 TEST_F(SslParseCertTest, TestCN_WithPrefix) {
     auto config = ClientCertConfig::create(R"({
-    "state": "enable",
     "prefixes": [
         {
             "path": "subject.cn",
@@ -185,7 +138,6 @@ TEST_F(SslParseCertTest, TestCN_WithPrefix) {
 
 TEST_F(SslParseCertTest, TestCN_WithPrefixAndDelimiter) {
     auto config = ClientCertConfig::create(R"({
-    "state": "enable",
     "prefixes": [
         {
             "path": "subject.cn",
@@ -203,7 +155,6 @@ TEST_F(SslParseCertTest, TestCN_WithPrefixAndDelimiter) {
 
 TEST_F(SslParseCertTest, TestCN_PrefixAndMultipleDelimiters) {
     auto config = ClientCertConfig::create(R"({
-    "state": "enable",
     "prefixes": [
         {
             "path": "subject.cn",
@@ -221,7 +172,6 @@ TEST_F(SslParseCertTest, TestCN_PrefixAndMultipleDelimiters) {
 
 TEST_F(SslParseCertTest, TestCN_PrefixAndUnknownDelimiters) {
     auto config = ClientCertConfig::create(R"({
-    "state": "enable",
     "prefixes": [
         {
             "path": "subject.cn",
@@ -239,7 +189,6 @@ TEST_F(SslParseCertTest, TestCN_PrefixAndUnknownDelimiters) {
 
 TEST_F(SslParseCertTest, TestCN_PrefixMissing) {
     auto config = ClientCertConfig::create(R"({
-    "state": "enable",
     "prefixes": [
         {
             "path": "subject.cn",
@@ -266,7 +215,6 @@ TEST_F(SslParseCertTest, TestCN_PrefixMissing) {
 
 TEST_F(SslParseCertTest, TestSAN_URI_EntireField) {
     auto config = ClientCertConfig::create(R"({
-    "state": "enable",
     "prefixes": [
         {
             "path": "san.uri",
@@ -285,7 +233,6 @@ TEST_F(SslParseCertTest, TestSAN_URI_EntireField) {
 
 TEST_F(SslParseCertTest, TestSAN_URI_UrnWithoutDelimiter) {
     auto config = ClientCertConfig::create(R"({
-    "state": "enable",
     "prefixes": [
         {
             "path": "san.uri",
@@ -303,7 +250,6 @@ TEST_F(SslParseCertTest, TestSAN_URI_UrnWithoutDelimiter) {
 
 TEST_F(SslParseCertTest, TestSAN_URI_UrnWithDelimiter) {
     auto config = ClientCertConfig::create(R"({
-    "state": "enable",
     "prefixes": [
         {
             "path": "san.uri",
@@ -322,7 +268,6 @@ TEST_F(SslParseCertTest, TestSAN_URI_UrnWithDelimiter) {
 
 TEST_F(SslParseCertTest, TestSAN_URI_MissingPrefix) {
     auto config = ClientCertConfig::create(R"({
-    "state": "enable",
     "prefixes": [
         {
             "path": "san.uri",
@@ -339,7 +284,6 @@ TEST_F(SslParseCertTest, TestSAN_URI_MissingPrefix) {
 
 TEST_F(SslParseCertTest, TestSAN_URI_Email) {
     auto config = ClientCertConfig::create(R"({
-    "state": "enable",
     "prefixes": [
         {
             "path": "san.uri",
@@ -358,7 +302,6 @@ TEST_F(SslParseCertTest, TestSAN_URI_Email) {
 
 TEST_F(SslParseCertTest, TestSAN_DNS_EntireField) {
     auto config = ClientCertConfig::create(R"({
-    "state": "enable",
     "prefixes": [
         {
             "path": "san.dnsname",
@@ -377,7 +320,6 @@ TEST_F(SslParseCertTest, TestSAN_DNS_EntireField) {
 
 TEST_F(SslParseCertTest, TestMatchForMultipleRules) {
     auto config = ClientCertConfig::create(R"({
-  "state": "enable",
   "prefixes": [
     {
       "path": "subject.cn",

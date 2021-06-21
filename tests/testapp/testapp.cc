@@ -295,7 +295,6 @@ void TestappTest::reconfigure_client_cert_auth(const std::string& state,
                                                const std::string& prefix,
                                                const std::string& delimiter) {
     memcached_cfg["client_cert_auth"] = {};
-    memcached_cfg["client_cert_auth"]["state"] = state;
     memcached_cfg["client_cert_auth"]["path"] = path;
     memcached_cfg["client_cert_auth"]["prefix"] = prefix;
     memcached_cfg["client_cert_auth"]["delimiter"] = delimiter;

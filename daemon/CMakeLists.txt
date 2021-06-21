@@ -258,24 +258,9 @@ INSTALL(TARGETS memcached
 #
 # Unit tests
 #
-cb_add_test_executable(client_cert_config_test
-               client_cert_config_test.cc
-               client_cert_config.cc
-               client_cert_config.h)
-target_link_libraries(client_cert_config_test PRIVATE
-                      GTest::gtest
-                      GTest::gtest_main
-                      platform
-                      mcd_util
-                      ${OPENSSL_LIBRARIES})
-add_test(NAME client_cert_config_test
-         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-         COMMAND client_cert_config_test)
-add_sanitizers(client_cert_config_test)
-kv_enable_pch(client_cert_config_test)
-
 cb_add_test_executable(memcached_unit_tests
                        bucket_validator_test.cc
+                       client_cert_config_test.cc
                        connection_unit_tests.cc
                        datatype_filter_test.cc
                        error_map_manager_test.cc

@@ -47,7 +47,7 @@ public:
         copy.close();
         json["descriptors_path"] = descriptor_file;
 
-        reconfigure_client_cert_auth("disable", "", "", "");
+        reconfigure_client_cert_auth("disabled", "", "", "");
         auto logdir = mcd_env->getAuditLogDir();
         EXPECT_NO_THROW(cb::io::rmrf(logdir));
         cb::io::mkdirp(logdir);
@@ -55,7 +55,7 @@ public:
     }
 
     void TearDown() override {
-        reconfigure_client_cert_auth("disable", "", "", "");
+        reconfigure_client_cert_auth("disabled", "", "", "");
         auto& json = mcd_env->getAuditConfig();
         json["descriptors_path"] = org_descriptor_file;
         setEnabled(false);
@@ -334,7 +334,7 @@ TEST_P(AuditTest, AuditFailedAuth) {
 }
 
 TEST_P(AuditTest, AuditX509SuccessfulAuth) {
-    reconfigure_client_cert_auth("enable", "subject.cn", "", " ");
+    reconfigure_client_cert_auth("enabled", "subject.cn", "", " ");
     std::unique_ptr<MemcachedConnection> conn;
     connectionMap.iterate([&conn](const MemcachedConnection& c) {
         if (!conn && c.isSsl()) {

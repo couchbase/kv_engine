@@ -465,15 +465,6 @@ public:
         notify_changed("client_cert_auth");
     }
 
-    /**
-     * Get the ssl client auth
-     *
-     * @return the value of the ssl client auth
-     */
-    cb::x509::Mode getClientCertMode() const {
-        return client_cert_mapper.getMode();
-    }
-
     std::pair<cb::x509::Status, std::string> lookupUser(X509* cert) const {
         return client_cert_mapper.lookupUser(cert);
     }

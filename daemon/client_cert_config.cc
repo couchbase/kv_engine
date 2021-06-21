@@ -149,30 +149,11 @@ static std::unique_ptr<ClientCertConfig::Mapping> createMapping(
 
 std::unique_ptr<cb::x509::ClientCertConfig> ClientCertConfig::create(
         const nlohmann::json& config) {
-    auto mode = cb::jsonGet<std::string>(config, "state");
-
-    std::unique_ptr<cb::x509::ClientCertConfig> ret;
-    if (mode == "disable") {
-        return std::unique_ptr<cb::x509::ClientCertConfig>(
-                new ClientCertConfig());
-    }
-
-    if (mode == "enable") {
-        return std::unique_ptr<cb::x509::ClientCertConfig>(
-                new ClientCertConfig(Mode::Enabled, config));
-    }
-
-    if (mode == "mandatory") {
-        return std::unique_ptr<cb::x509::ClientCertConfig>(
-                new ClientCertConfig(Mode::Mandatory, config));
-    }
-
-    throw std::invalid_argument(
-            "ClientCertConfig::create: Invalid value for state");
+    return std::unique_ptr<cb::x509::ClientCertConfig>(
+            new ClientCertConfig(config));
 }
 
-ClientCertConfig::ClientCertConfig(Mode mode_, const nlohmann::json& config)
-    : mode(mode_) {
+ClientCertConfig::ClientCertConfig(const nlohmann::json& config) {
     auto prefixes = cb::getOptionalJsonObject(config, "prefixes");
     if (!prefixes.has_value()) {
         // this is an old style configuration
@@ -212,23 +193,11 @@ std::pair<Status, std::string> ClientCertConfig::lookupUser(X509* cert) const {
                 "illegal value");
     }
 
-    return std::pair<Status, std::string>(Status::NoMatch, "");
+    return {Status::NoMatch, ""};
 }
 
 std::string ClientCertConfig::to_string() const {
     nlohmann::json root;
-    switch (mode) {
-    case Mode::Disabled:
-        root["state"] = "disable";
-        break;
-    case Mode::Enabled:
-        root["state"] = "enable";
-        break;
-    case Mode::Mandatory:
-        root["state"] = "mandatory";
-        break;
-    }
-
     if (mappings.size() == 1) {
         root["path"] = mappings[0]->path.c_str();
         root["prefix"] = mappings[0]->prefix.c_str();
@@ -296,22 +265,12 @@ std::pair<Status, std::string> ClientCertMapper::lookupUser(X509* cert) const {
     });
 }
 
-Mode ClientCertMapper::getMode() const {
-    return config.withRLock([](auto& c) {
-        if (c) {
-            return c->getMode();
-        } else {
-            return Mode::Disabled;
-        }
-    });
-}
-
 std::string ClientCertMapper::to_string() const {
     return config.withRLock([](auto& c) {
         if (c) {
             return c->to_string();
         } else {
-            return std::string{R"({"state":"disable"})"};
+            return std::string{R"({})"};
         }
     });
 }
