@@ -323,7 +323,7 @@ bool KVStore::snapshotStats(const nlohmann::json& stats) {
     return rv;
 }
 
-nlohmann::json KVStore::getPersistedStats() {
+nlohmann::json KVStore::getPersistedStats() const {
     std::string dbname = getConfig().getDBName();
     const auto fname = cb::io::sanitizePath(dbname + "/stats.json");
     if (!cb::io::isFile(fname)) {

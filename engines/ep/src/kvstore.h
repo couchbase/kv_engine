@@ -687,7 +687,7 @@ public:
         st.reset();
     }
 
-    size_t getMemFootPrint() {
+    size_t getMemFootPrint() const {
         return st.getMemFootPrint();
     }
 
@@ -841,7 +841,7 @@ public:
      * session is stored. If the function fails and empty nlohmann::json will be
      * returned
      */
-    nlohmann::json getPersistedStats();
+    nlohmann::json getPersistedStats() const;
 
     /**
      * Persist a snapshot of a collection of stats.
