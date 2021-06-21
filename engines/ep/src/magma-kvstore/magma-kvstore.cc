@@ -1506,7 +1506,7 @@ std::unique_ptr<ByIdScanContext> MagmaKVStore::initByIdScanContext(
     return {};
 }
 
-scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) {
+scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
     if (ctx.lastReadSeqno == ctx.maxSeqno) {
         logger->TRACE("MagmaKVStore::scan {} lastReadSeqno:{} == maxSeqno:{}",
                       ctx.vbid,

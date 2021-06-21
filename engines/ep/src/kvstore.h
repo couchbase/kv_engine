@@ -1084,7 +1084,7 @@ public:
      * @param sctx non-const reference to the context, internal callbacks may
      *        write to the object as progress is made through the scan
      */
-    virtual scan_error_t scan(BySeqnoScanContext& sctx) = 0;
+    virtual scan_error_t scan(BySeqnoScanContext& sctx) const = 0;
 
     /**
      * Run a ById scan

@@ -2239,7 +2239,7 @@ static couchstore_docinfos_options getDocFilter(const DocumentFilter& filter) {
     throw std::runtime_error(err);
 }
 
-scan_error_t CouchKVStore::scan(BySeqnoScanContext& ctx) {
+scan_error_t CouchKVStore::scan(BySeqnoScanContext& ctx) const {
     if (ctx.lastReadSeqno == ctx.maxSeqno) {
         return scan_success;
     }

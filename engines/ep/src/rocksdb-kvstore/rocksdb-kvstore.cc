@@ -1461,7 +1461,7 @@ std::unique_ptr<BySeqnoScanContext> RocksDBKVStore::initBySeqnoScanContext(
                     /*no collections in rocksdb*/});
 }
 
-scan_error_t RocksDBKVStore::scan(BySeqnoScanContext& ctx) {
+scan_error_t RocksDBKVStore::scan(BySeqnoScanContext& ctx) const {
     if (ctx.lastReadSeqno == ctx.maxSeqno) {
         return scan_success;
     }
