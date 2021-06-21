@@ -447,7 +447,7 @@ public:
     // the number of docs committed
     cb::RelaxedAtomic<size_t> docsCommitted;
     // the number of open() calls
-    cb::RelaxedAtomic<size_t> numOpen;
+    mutable cb::RelaxedAtomic<size_t> numOpen;
     // the number of close() calls
     cb::RelaxedAtomic<size_t> numClose;
     // the number of vbuckets loaded
@@ -458,7 +458,7 @@ public:
     cb::RelaxedAtomic<size_t> numGetFailure;
     cb::RelaxedAtomic<size_t> numSetFailure;
     cb::RelaxedAtomic<size_t> numDelFailure;
-    cb::RelaxedAtomic<size_t> numOpenFailure;
+    mutable cb::RelaxedAtomic<size_t> numOpenFailure;
     cb::RelaxedAtomic<size_t> numVbSetFailure;
 
     /**

@@ -510,24 +510,25 @@ protected:
     couchstore_error_t openDB(Vbid vbucketId,
                               DbHolder& db,
                               couchstore_open_flags options,
-                              FileOpsInterface* ops = nullptr);
+                              FileOpsInterface* ops = nullptr) const;
 
     couchstore_error_t openSpecificDB(Vbid vbucketId,
                                       uint64_t rev,
                                       DbHolder& db,
                                       couchstore_open_flags options,
-                                      FileOpsInterface* ops = nullptr);
+                                      FileOpsInterface* ops = nullptr) const;
 
     /// Open a specific database file identified with dbFileName and store
     /// it in the provided DbHolder. (openSpecificDB will try to determine
     /// the database filename so it cannot be used to open a temporary
     /// database file (currently used in compaction)
-    couchstore_error_t openSpecificDBFile(Vbid vbucketId,
-                                          uint64_t rev,
-                                          DbHolder& db,
-                                          couchstore_open_flags options,
-                                          const std::string& dbFileName,
-                                          FileOpsInterface* ops = nullptr);
+    couchstore_error_t openSpecificDBFile(
+            Vbid vbucketId,
+            uint64_t rev,
+            DbHolder& db,
+            couchstore_open_flags options,
+            const std::string& dbFileName,
+            FileOpsInterface* ops = nullptr) const;
 
     /**
      * save the Documents held in docs to the file associated with vbid/rev

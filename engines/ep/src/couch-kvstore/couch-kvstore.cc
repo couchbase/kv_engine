@@ -2389,7 +2389,7 @@ uint64_t CouchKVStore::getDbRevision(Vbid vbucketId) const {
 couchstore_error_t CouchKVStore::openDB(Vbid vbucketId,
                                         DbHolder& db,
                                         couchstore_open_flags options,
-                                        FileOpsInterface* ops) {
+                                        FileOpsInterface* ops) const {
     // MB-27963: obtain read access whilst we open the file, updateDbFileMap
     // serialises on this mutex so we can be sure the fileRev we read should
     // still be a valid file once we hit sys_open
@@ -2402,7 +2402,7 @@ couchstore_error_t CouchKVStore::openSpecificDB(Vbid vbucketId,
                                                 uint64_t fileRev,
                                                 DbHolder& db,
                                                 couchstore_open_flags options,
-                                                FileOpsInterface* ops) {
+                                                FileOpsInterface* ops) const {
     return openSpecificDBFile(vbucketId,
                               fileRev,
                               db,
@@ -2417,7 +2417,7 @@ couchstore_error_t CouchKVStore::openSpecificDBFile(
         DbHolder& db,
         couchstore_open_flags options,
         const std::string& dbFileName,
-        FileOpsInterface* ops) {
+        FileOpsInterface* ops) const {
     db.setFileRev(fileRev); // save the rev so the caller can log it
 
     if(ops == nullptr) {
