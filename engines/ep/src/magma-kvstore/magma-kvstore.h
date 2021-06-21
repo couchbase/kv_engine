@@ -446,7 +446,7 @@ public:
      */
     std::pair<magma::Status,
               std::vector<Collections::KVStore::DroppedCollection>>
-    getDroppedCollections(Vbid vbid, magma::Magma::Snapshot& snapshot);
+    getDroppedCollections(Vbid vbid, magma::Magma::Snapshot& snapshot) const;
 
     /**
      * This function maintains the set of open collections, adding newly opened
@@ -559,7 +559,7 @@ public:
      * Read from local DB
      */
     std::pair<magma::Status, std::string> readLocalDoc(
-            Vbid vbid, const magma::Slice& keySlice);
+            Vbid vbid, const magma::Slice& keySlice) const;
 
     /**
      * Read local doc from given snapshot
@@ -567,7 +567,7 @@ public:
     std::pair<magma::Status, std::string> readLocalDoc(
             Vbid vbid,
             magma::Magma::Snapshot& snapshot,
-            const magma::Slice& keySlice);
+            const magma::Slice& keySlice) const;
 
     /**
      * Processes the result of readLocalDoc adding information to the returned
@@ -578,7 +578,7 @@ public:
             Vbid vbid,
             const magma::Slice& keySlice,
             std::string_view value,
-            bool found);
+            bool found) const;
 
     /**
      * Encode the cached vbucket_state into a JSON string
@@ -616,13 +616,13 @@ public:
     /**
      * Read the encoded vstate + docCount from the local db.
      */
-    DiskState readVBStateFromDisk(Vbid vbid);
+    DiskState readVBStateFromDisk(Vbid vbid) const;
 
     /**s
      * Read the encoded vbstate from the given snapshot.
      */
-    virtual DiskState readVBStateFromDisk(Vbid vbid,
-                                          magma::Magma::Snapshot& snapshot);
+    virtual DiskState readVBStateFromDisk(
+            Vbid vbid, magma::Magma::Snapshot& snapshot) const;
 
     /**
      * Write the encoded vbstate to localDb.
@@ -636,7 +636,7 @@ public:
      * the MagmaDbStats stats to make the vbstate current. We read
      * the MagmaDbStats stats from magma which are kept on the state file.
      */
-    void mergeMagmaDbStatsIntoVBState(vbucket_state& vbstate, Vbid vbid);
+    void mergeMagmaDbStatsIntoVBState(vbucket_state& vbstate, Vbid vbid) const;
 
     /**
      * Get vbstate from cache.
@@ -791,7 +791,7 @@ protected:
      * @return The MagmaDbStats (default constructed if they don't exist in
      * magma yet)
      */
-    MagmaDbStats getMagmaDbStats(Vbid vbid);
+    MagmaDbStats getMagmaDbStats(Vbid vbid) const;
 
     MagmaKVStoreConfig& configuration;
 

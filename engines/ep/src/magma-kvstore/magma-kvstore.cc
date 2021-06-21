@@ -1660,7 +1660,7 @@ scan_error_t MagmaKVStore::scan(ByIdScanContext& ctx) const {
 }
 
 void MagmaKVStore::mergeMagmaDbStatsIntoVBState(vbucket_state& vbstate,
-                                                Vbid vbid) {
+                                                Vbid vbid) const {
     auto dbStats = getMagmaDbStats(vbid);
     auto lockedStats = dbStats.stats.rlock();
     vbstate.purgeSeqno = lockedStats->purgeSeqno;
@@ -1704,7 +1704,7 @@ uint64_t MagmaKVStore::getKVStoreRevision(Vbid vbid) const {
     return kvstoreRev;
 }
 
-MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(Vbid vbid) {
+MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(Vbid vbid) const {
     Slice keySlice(vbstateKey);
     auto kvstoreRev = getKVStoreRevision(vbid);
     auto [status, valString] = readLocalDoc(vbid, keySlice);
@@ -1735,7 +1735,7 @@ MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(Vbid vbid) {
 }
 
 MagmaKVStore::DiskState MagmaKVStore::readVBStateFromDisk(
-        Vbid vbid, magma::Magma::Snapshot& snapshot) {
+        Vbid vbid, magma::Magma::Snapshot& snapshot) const {
     Slice keySlice(vbstateKey);
     std::string val;
     auto status = Status::OK();
@@ -1822,7 +1822,7 @@ std::pair<Status, std::string> MagmaKVStore::processReadLocalDocResult(
         Vbid vbid,
         const magma::Slice& keySlice,
         std::string_view value,
-        bool found) {
+        bool found) const {
     magma::Status retStatus = Status::OK();
     if (!status) {
         retStatus = magma::Status(
@@ -1850,7 +1850,7 @@ std::pair<Status, std::string> MagmaKVStore::processReadLocalDocResult(
 }
 
 std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
-        Vbid vbid, const Slice& keySlice) {
+        Vbid vbid, const Slice& keySlice) const {
     Slice valSlice;
     Magma::FetchBuffer valBuf;
     bool found{false};
@@ -1864,7 +1864,9 @@ std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
 }
 
 std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
-        Vbid vbid, magma::Magma::Snapshot& snapshot, const Slice& keySlice) {
+        Vbid vbid,
+        magma::Magma::Snapshot& snapshot,
+        const Slice& keySlice) const {
     bool found{false};
     magma::Status retStatus = Status::OK();
     std::string valString;
@@ -1891,7 +1893,7 @@ cb::engine_errc MagmaKVStore::magmaErr2EngineErr(Status::Code err, bool found) {
     return cb::engine_errc::temporary_failure;
 }
 
-MagmaDbStats MagmaKVStore::getMagmaDbStats(Vbid vbid) {
+MagmaDbStats MagmaKVStore::getMagmaDbStats(Vbid vbid) const {
     MagmaDbStats dbStats;
 
     auto userStats = magma->GetKVStoreUserStats(vbid.get());
@@ -2348,7 +2350,7 @@ MagmaKVStore::getDroppedCollections(Vbid vbid) {
 
 std::pair<magma::Status, std::vector<Collections::KVStore::DroppedCollection>>
 MagmaKVStore::getDroppedCollections(Vbid vbid,
-                                    magma::Magma::Snapshot& snapshot) {
+                                    magma::Magma::Snapshot& snapshot) const {
     Slice keySlice(droppedCollectionsKey);
     auto [status, dropped] = readLocalDoc(vbid, snapshot, keySlice);
     return {status,

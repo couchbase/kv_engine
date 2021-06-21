@@ -1078,7 +1078,7 @@ GetValue RocksDBKVStore::makeGetValue(Vbid vb,
 }
 
 RocksDBKVStore::DiskState RocksDBKVStore::readVBStateFromDisk(
-        const VBHandle& vbh) {
+        const VBHandle& vbh) const {
     auto key = getVbstateKey();
     std::string jsonStr;
     vbucket_state vbState;
@@ -1392,7 +1392,7 @@ rocksdb::Status RocksDBKVStore::addRequestToWriteBatch(
     return rocksdb::Status::OK();
 }
 
-int64_t RocksDBKVStore::readHighSeqnoFromDisk(const VBHandle& vbh) {
+int64_t RocksDBKVStore::readHighSeqnoFromDisk(const VBHandle& vbh) const {
     std::unique_ptr<rocksdb::Iterator> it(
             rdb->NewIterator(rocksdb::ReadOptions(), vbh.seqnoCFH.get()));
 
@@ -1409,7 +1409,7 @@ int64_t RocksDBKVStore::readHighSeqnoFromDisk(const VBHandle& vbh) {
     return highSeqno >= 0 ? highSeqno : 0;
 }
 
-int64_t RocksDBKVStore::getVbstateKey() {
+int64_t RocksDBKVStore::getVbstateKey() const {
     // We put the VBState into the SeqnoCF. As items in the SeqnoCF are ordered
     // by increasing-seqno, we reserve a negative special key to VBState so
     // that we can access it in O(1).

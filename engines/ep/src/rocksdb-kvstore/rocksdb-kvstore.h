@@ -452,7 +452,7 @@ private:
         vbucket_state vbstate;
     };
 
-    DiskState readVBStateFromDisk(const VBHandle& vbh);
+    DiskState readVBStateFromDisk(const VBHandle& vbh) const;
 
     // Serialize the vbucket state and add it to the local CF in the specified
     // batch of writes.
@@ -471,9 +471,9 @@ private:
     void commitCallback(rocksdb::Status status,
                         const PendingRequestQueue& commitBatch);
 
-    int64_t readHighSeqnoFromDisk(const VBHandle& db);
+    int64_t readHighSeqnoFromDisk(const VBHandle& db) const;
 
-    int64_t getVbstateKey();
+    int64_t getVbstateKey() const;
 
     // Helper function to retrieve stats from the RocksDB MemoryUtil API.
     bool getStatFromMemUsage(const rocksdb::MemoryUtil::UsageType type,

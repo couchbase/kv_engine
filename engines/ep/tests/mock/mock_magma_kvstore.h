@@ -26,7 +26,7 @@ public:
     }
 
     MagmaKVStore::DiskState readVBStateFromDisk(
-            Vbid vbid, magma::Magma::Snapshot& snapshot) override {
+            Vbid vbid, magma::Magma::Snapshot& snapshot) const override {
         readVBStateFromDiskHook();
 
         return MagmaKVStore::readVBStateFromDisk(vbid, snapshot);
