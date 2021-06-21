@@ -757,13 +757,13 @@ GetValue MagmaKVStore::get(const DiskDocKey& key, Vbid vb, ValueFilter filter) {
 GetValue MagmaKVStore::getWithHeader(const KVFileHandle& kvFileHandle,
                                      const DiskDocKey& key,
                                      Vbid vbid,
-                                     ValueFilter filter) {
+                                     ValueFilter filter) const {
     return getWithHeader(key, vbid, filter);
 }
 
 GetValue MagmaKVStore::getWithHeader(const DiskDocKey& key,
                                      Vbid vbid,
-                                     ValueFilter filter) {
+                                     ValueFilter filter) const {
     Slice keySlice = {reinterpret_cast<const char*>(key.data()), key.size()};
     Slice metaSlice;
     Slice valueSlice;
@@ -1074,7 +1074,7 @@ GetValue MagmaKVStore::makeGetValue(Vbid vb,
                                     const Slice& keySlice,
                                     const Slice& metaSlice,
                                     const Slice& valueSlice,
-                                    ValueFilter filter) {
+                                    ValueFilter filter) const {
     return GetValue(makeItem(vb, keySlice, metaSlice, valueSlice, filter),
                     cb::engine_errc::success,
                     -1,

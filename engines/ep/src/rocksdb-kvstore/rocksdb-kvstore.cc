@@ -682,13 +682,13 @@ GetValue RocksDBKVStore::get(const DiskDocKey& key,
 GetValue RocksDBKVStore::getWithHeader(const KVFileHandle& kvFileHandle,
                                        const DiskDocKey& key,
                                        Vbid vb,
-                                       ValueFilter filter) {
+                                       ValueFilter filter) const {
     return getWithHeader(key, vb, filter);
 }
 
 GetValue RocksDBKVStore::getWithHeader(const DiskDocKey& key,
                                        Vbid vb,
-                                       ValueFilter filter) {
+                                       ValueFilter filter) const {
     const auto vbh = getVBHandle(vb);
     rocksdb::Slice keySlice = getKeySlice(key);
     rocksdb::PinnableSlice value;
@@ -1070,7 +1070,7 @@ std::unique_ptr<Item> RocksDBKVStore::makeItem(Vbid vb,
 GetValue RocksDBKVStore::makeGetValue(Vbid vb,
                                       const DiskDocKey& key,
                                       const rocksdb::Slice& value,
-                                      bool includeValue) {
+                                      bool includeValue) const {
     return GetValue(makeItem(vb, key, value, includeValue),
                     cb::engine_errc::success,
                     -1,

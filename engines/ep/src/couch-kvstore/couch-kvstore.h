@@ -201,7 +201,7 @@ public:
     GetValue getWithHeader(const KVFileHandle& kvFileHandle,
                            const DiskDocKey& key,
                            Vbid vb,
-                           ValueFilter filter) override;
+                           ValueFilter filter) const override;
 
     void getMulti(Vbid vb, vb_bgfetch_queue_t& itms) override;
 
@@ -299,8 +299,8 @@ public:
                                 DocInfo* docinfo,
                                 GetValue& docValue,
                                 Vbid vbId,
-                                ValueFilter filter);
-    cb::engine_errc couchErr2EngineErr(couchstore_error_t errCode);
+                                ValueFilter filter) const;
+    cb::engine_errc couchErr2EngineErr(couchstore_error_t errCode) const;
 
     cb::engine_errc getAllKeys(
             Vbid vbid,
@@ -846,7 +846,7 @@ protected:
     GetValue getWithHeader(DbHolder& db,
                            const DiskDocKey& key,
                            Vbid vb,
-                           ValueFilter filter);
+                           ValueFilter filter) const;
 
     /**
      * Process the given queue of local index updates (pendingLocalReqsQ) and

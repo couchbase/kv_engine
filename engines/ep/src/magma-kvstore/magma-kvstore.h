@@ -255,7 +255,7 @@ public:
     GetValue getWithHeader(const KVFileHandle& kvFileHandle,
                            const DiskDocKey& key,
                            Vbid vb,
-                           ValueFilter filter) override;
+                           ValueFilter filter) const override;
 
     void getMulti(Vbid vb, vb_bgfetch_queue_t& itms) override;
 
@@ -720,7 +720,7 @@ protected:
                           const magma::Slice& keySlice,
                           const magma::Slice& metaSlice,
                           const magma::Slice& valueSlice,
-                          ValueFilter filter);
+                          ValueFilter filter) const;
 
     virtual int saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx);
 
@@ -732,7 +732,7 @@ protected:
     /// private getWithHeader shared with public get and getWithHeader
     GetValue getWithHeader(const DiskDocKey& key,
                            Vbid vbid,
-                           ValueFilter filter);
+                           ValueFilter filter) const;
 
     /**
      * MagmaCompactionCB is the class invoked by magma compactions,

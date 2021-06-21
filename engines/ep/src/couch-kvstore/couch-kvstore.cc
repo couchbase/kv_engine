@@ -509,7 +509,7 @@ GetValue CouchKVStore::get(const DiskDocKey& key, Vbid vb, ValueFilter filter) {
 GetValue CouchKVStore::getWithHeader(const KVFileHandle& kvFileHandle,
                                      const DiskDocKey& key,
                                      Vbid vb,
-                                     ValueFilter filter) {
+                                     ValueFilter filter) const {
     // const_cast away here, the lower level couchstore does not use const
     auto& couchKvHandle = static_cast<CouchKVFileHandle&>(
             const_cast<KVFileHandle&>(kvFileHandle));
@@ -519,7 +519,7 @@ GetValue CouchKVStore::getWithHeader(const KVFileHandle& kvFileHandle,
 GetValue CouchKVStore::getWithHeader(DbHolder& db,
                                      const DiskDocKey& key,
                                      Vbid vb,
-                                     ValueFilter filter) {
+                                     ValueFilter filter) const {
     auto start = std::chrono::steady_clock::now();
     DocInfo *docInfo = nullptr;
     GetValue rv;
@@ -2606,7 +2606,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
                                           DocInfo* docinfo,
                                           GetValue& docValue,
                                           Vbid vbId,
-                                          ValueFilter filter) {
+                                          ValueFilter filter) const {
     couchstore_error_t errCode = COUCHSTORE_SUCCESS;
     const bool fetchCompressed = (filter == ValueFilter::VALUES_COMPRESSED);
     const couchstore_open_options openOptions =
@@ -3473,7 +3473,8 @@ void CouchKVStore::closeDatabaseHandle(Db* db) const {
     st.numClose++;
 }
 
-cb::engine_errc CouchKVStore::couchErr2EngineErr(couchstore_error_t errCode) {
+cb::engine_errc CouchKVStore::couchErr2EngineErr(
+        couchstore_error_t errCode) const {
     switch (errCode) {
     case COUCHSTORE_SUCCESS:
         return cb::engine_errc::success;

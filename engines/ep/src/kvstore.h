@@ -455,7 +455,7 @@ public:
 
     //stats tracking failures
     cb::RelaxedAtomic<size_t> numCompactionFailure;
-    cb::RelaxedAtomic<size_t> numGetFailure;
+    mutable cb::RelaxedAtomic<size_t> numGetFailure;
     cb::RelaxedAtomic<size_t> numSetFailure;
     cb::RelaxedAtomic<size_t> numDelFailure;
     mutable cb::RelaxedAtomic<size_t> numOpenFailure;
@@ -465,12 +465,12 @@ public:
      * Number of documents read (full and meta-only) from disk for background
      * fetch operations.
      */
-    cb::RelaxedAtomic<size_t> io_bg_fetch_docs_read;
+    mutable cb::RelaxedAtomic<size_t> io_bg_fetch_docs_read;
     //! Number of logical write operations (i.e. one per saved doc; not
     //  considering how many actual pwrite() calls were made).
     cb::RelaxedAtomic<size_t> io_num_write;
     //! Document bytes (key+meta+value) read for background fetch operations.
-    cb::RelaxedAtomic<size_t> io_bgfetch_doc_bytes;
+    mutable cb::RelaxedAtomic<size_t> io_bgfetch_doc_bytes;
     //! Number of bytes written (key + value + application rev metadata)
     cb::RelaxedAtomic<size_t> io_document_write_bytes;
 
@@ -478,9 +478,9 @@ public:
      * failure should be tracked in MC-engine  */
 
     // How long it takes us to complete a read
-    Hdr1sfMicroSecHistogram readTimeHisto;
+    mutable Hdr1sfMicroSecHistogram readTimeHisto;
     // How big are our reads?
-    Hdr1sfInt32Histogram readSizeHisto;
+    mutable Hdr1sfInt32Histogram readSizeHisto;
     // How long it takes us to complete a write
     Hdr1sfMicroSecHistogram writeTimeHisto;
     // Number of logical bytes written to disk for each document saved
@@ -761,7 +761,7 @@ public:
     virtual GetValue getWithHeader(const KVFileHandle& kvFileHandle,
                                    const DiskDocKey& key,
                                    Vbid vb,
-                                   ValueFilter filter) = 0;
+                                   ValueFilter filter) const = 0;
 
     /**
      * Set the max bucket quota to the given size.
