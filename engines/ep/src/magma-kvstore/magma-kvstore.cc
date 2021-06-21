@@ -817,7 +817,7 @@ GetValue MagmaKVStore::getWithHeader(const DiskDocKey& key,
 
 using GetOperations = magma::OperationsList<Magma::GetOperation>;
 
-void MagmaKVStore::getMulti(Vbid vbid, vb_bgfetch_queue_t& itms) {
+void MagmaKVStore::getMulti(Vbid vbid, vb_bgfetch_queue_t& itms) const {
     // Convert the vb_bgfetch_queue_t (which is a std::unordered_map
     // under the covers) to a vector of GetOperations.
     // Note: We can't pass vb_bgfetch_queue_t to GetDocs because GetDocs

@@ -212,11 +212,11 @@ CollectionID CouchKVStore::getCollectionIdFromStatsDocId(std::string_view id) {
 }
 
 struct GetMultiCbCtx {
-    GetMultiCbCtx(CouchKVStore& c, Vbid v, vb_bgfetch_queue_t& f)
+    GetMultiCbCtx(const CouchKVStore& c, Vbid v, vb_bgfetch_queue_t& f)
         : cks(c), vbId(v), fetches(f) {
     }
 
-    CouchKVStore &cks;
+    const CouchKVStore& cks;
     Vbid vbId;
     vb_bgfetch_queue_t &fetches;
 };
@@ -573,7 +573,7 @@ GetValue CouchKVStore::getWithHeader(DbHolder& db,
     return rv;
 }
 
-void CouchKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) {
+void CouchKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) const {
     if (itms.empty()) {
         return;
     }
@@ -3405,7 +3405,7 @@ static int getMultiCallback(Db* db, DocInfo* docinfo, void* ctx) {
 
     auto *cbCtx = static_cast<GetMultiCbCtx *>(ctx);
     auto key = makeDiskDocKey(docinfo->id);
-    KVStoreStats& st = cbCtx->cks.getKVStoreStat();
+    const KVStoreStats& st = cbCtx->cks.getKVStoreStat();
 
     auto qitr = cbCtx->fetches.find(key);
     if (qitr == cbCtx->fetches.end()) {

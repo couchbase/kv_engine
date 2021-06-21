@@ -500,13 +500,13 @@ public:
     Hdr1sfMicroSecHistogram snapshotHisto;
 
     // Count and histogram filesystem read()s per getMulti() request
-    cb::RelaxedAtomic<size_t> getMultiFsReadCount;
-    Hdr1sfInt32Histogram getMultiFsReadHisto;
+    mutable cb::RelaxedAtomic<size_t> getMultiFsReadCount;
+    mutable Hdr1sfInt32Histogram getMultiFsReadHisto;
 
     // Histogram of filesystem read()s per getMulti() request, divided by
     // the number of documents fetched; gives an average read() count
     // per fetched document.
-    Hdr1sfInt32Histogram getMultiFsReadPerDocHisto;
+    mutable Hdr1sfInt32Histogram getMultiFsReadPerDocHisto;
 
     /// Histogram of disk Write Amplification ratios for each batch of items
     /// flushed to disk (each saveDocs() call).
@@ -778,7 +778,7 @@ public:
      * @param vb vbucket id of a document
      * @param itms list of items whose documents are going to be retrieved.
      */
-    virtual void getMulti(Vbid vb, vb_bgfetch_queue_t& itms) {
+    virtual void getMulti(Vbid vb, vb_bgfetch_queue_t& itms) const {
         throw std::runtime_error("Backend does not support getMulti()");
     }
 
@@ -973,7 +973,7 @@ public:
         return !isReadOnly();
     }
 
-    KVStoreStats& getKVStoreStat() {
+    const KVStoreStats& getKVStoreStat() const {
         return st;
     }
 

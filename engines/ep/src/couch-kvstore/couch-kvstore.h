@@ -203,7 +203,7 @@ public:
                            Vbid vb,
                            ValueFilter filter) const override;
 
-    void getMulti(Vbid vb, vb_bgfetch_queue_t& itms) override;
+    void getMulti(Vbid vb, vb_bgfetch_queue_t& itms) const override;
 
     void getRange(Vbid vb,
                   const DiskDocKey& startKey,
@@ -372,7 +372,7 @@ public:
     vbucket_state getPersistedVBucketState(Vbid vbid) override;
 
     /// Get the logger used by this bucket
-    BucketLogger& getLogger() {
+    BucketLogger& getLogger() const {
         return logger;
     }
 
