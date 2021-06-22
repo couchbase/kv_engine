@@ -1650,11 +1650,9 @@ void BinprotSetClusterConfigCommand::encode(std::vector<uint8_t>& buf) const {
 }
 
 BinprotSetClusterConfigCommand::BinprotSetClusterConfigCommand(
-        uint64_t token_,
-        std::string config,
-        int revision,
-        const std::string& bucket)
-    : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetClusterConfig, bucket),
+        uint64_t token_, std::string config, int revision, std::string bucket)
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetClusterConfig,
+                            std::move(bucket)),
       config(std::move(config)),
       revision(revision) {
     setCas(token_);
