@@ -2355,7 +2355,6 @@ void KVBucket::addKVStoreStats(const AddStatFn& add_stat,
          */
         std::set<const KVStore*> underlyingSet;
         underlyingSet.insert(shard->getRWUnderlying());
-        underlyingSet.insert(shard->getROUnderlying());
 
         for (auto* store : underlyingSet) {
             store->addStats(add_stat, cookie, args);
@@ -2368,7 +2367,6 @@ void KVBucket::addKVStoreTimingStats(const AddStatFn& add_stat,
     for (const auto& shard : vbMap.shards) {
         std::set<const KVStore*> underlyingSet;
         underlyingSet.insert(shard->getRWUnderlying());
-        underlyingSet.insert(shard->getROUnderlying());
 
         for (auto* store : underlyingSet) {
             store->addTimingStats(add_stat, cookie);
@@ -2401,9 +2399,6 @@ GetStatsMap KVBucket::getKVStoreStats(gsl::span<const std::string_view> keys,
         }
     };
     for (const auto& shard : vbMap.shards) {
-        if (option == KVSOption::RO || option == KVSOption::BOTH) {
-            aggShardStats(shard->getROUnderlying());
-        }
         if (option == KVSOption::RW || option == KVSOption::BOTH) {
             aggShardStats(shard->getRWUnderlying());
         }
@@ -2675,7 +2670,6 @@ size_t KVBucket::getMemFootPrint() {
     for (auto& i : vbMap.shards) {
         KVShard* shard = i.get();
         mem += shard->getRWUnderlying()->getMemFootPrint();
-        mem += shard->getROUnderlying()->getMemFootPrint();
     }
     return mem;
 }
