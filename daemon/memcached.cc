@@ -80,6 +80,10 @@ bool is_memcached_shutting_down() {
     return memcached_shutdown;
 }
 
+void shutdown_server() {
+    memcached_shutdown = true;
+}
+
 /*
  * forward declarations
  */
@@ -95,7 +99,13 @@ struct stats stats;
 
 /** file scope variables **/
 
-static std::unique_ptr<folly::EventBase> main_base;
+std::unique_ptr<folly::EventBase> main_base;
+
+void stop_memcached_main_base() {
+    if (main_base) {
+        main_base->terminateLoopSoon();
+    }
+}
 
 static folly::Synchronized<std::string, std::mutex> reset_stats_time;
 /**
@@ -670,7 +680,7 @@ bool is_bucket_dying(Connection& c) {
 }
 
 static void sigint_handler() {
-    shutdown_server();
+    memcached_shutdown = true;
 }
 
 #ifdef WIN32
@@ -684,7 +694,7 @@ static void release_signal_handlers() {
 #else
 
 static void sigterm_handler(evutil_socket_t, short, void *) {
-    shutdown_server();
+    memcached_shutdown = true;
 }
 
 static struct event* sigterm_event;
@@ -713,28 +723,6 @@ static void release_signal_handlers() {
 
 const char* get_server_version() {
     return PRODUCT_VERSION;
-}
-
-static std::condition_variable shutdown_cv;
-static std::mutex shutdown_cv_mutex;
-static bool memcached_can_shutdown = false;
-void shutdown_server() {
-
-    std::unique_lock<std::mutex> lk(shutdown_cv_mutex);
-    if (!memcached_can_shutdown) {
-        // log and proceed to wait shutdown
-        LOG_INFO_RAW("shutdown_server waiting for can_shutdown signal");
-        shutdown_cv.wait(lk, []{return memcached_can_shutdown;});
-    }
-    memcached_shutdown = true;
-    LOG_INFO_RAW("Received shutdown request");
-    main_base->terminateLoopSoon();
-}
-
-void enable_shutdown() {
-    std::unique_lock<std::mutex> lk(shutdown_cv_mutex);
-    memcached_can_shutdown = true;
-    shutdown_cv.notify_all();
 }
 
 void cleanup_buckets() {
@@ -1031,13 +1019,6 @@ int memcached_main(int argc, char** argv) {
     // Schedule the StaleTraceRemover
     startStaleTraceDumpRemover(std::chrono::minutes(1),
                                std::chrono::minutes(5));
-
-    /*
-     * MB-20034.
-     * Now that all threads have been created, e.g. the audit thread, threads
-     * associated with extensions and the workers, we can enable shutdown.
-     */
-    enable_shutdown();
 
     /* Initialise memcached time keeping */
     mc_time_init(main_base->getLibeventBase());

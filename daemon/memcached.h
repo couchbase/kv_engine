@@ -57,6 +57,7 @@ void scheduleDcpStep(Cookie& cookie);
 void safe_close(SOCKET sfd);
 const char* get_server_version();
 bool is_memcached_shutting_down();
+void stop_memcached_main_base();
 
 /**
  * Connection-related functions

@@ -518,9 +518,11 @@ static void get_errmap_executor(Cookie& cookie) {
 
 static void shutdown_executor(Cookie& cookie) {
     if (session_cas.increment_session_counter(cookie.getRequest().getCas())) {
-        shutdown_server();
         session_cas.decrement_session_counter();
         cookie.sendResponse(cb::mcbp::Status::Success);
+        LOG_INFO("{} Shutdown server requested",
+                 cookie.getConnection().getId());
+        shutdown_server();
     } else {
         cookie.sendResponse(cb::mcbp::Status::KeyEexists);
     }

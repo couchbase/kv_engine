@@ -188,8 +188,8 @@ static void mc_time_clock_event_handler(evutil_socket_t fd, short which, void *a
     t.tv_usec = 0;
 
     if (is_memcached_shutting_down()) {
-        event_base_loopbreak(event_get_base(&clockevent));
-        return ;
+        stop_memcached_main_base();
+        return;
     }
 
     if (initialized) {
