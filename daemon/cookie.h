@@ -70,13 +70,6 @@ public:
         return !packet;
     }
 
-    /**
-     * Validates the packet content, and (possibly) set the error
-     * state and reason.
-     *
-     * @return Success if the packet was correctly encoded
-     * @throw std::runtime_error if an unsupported packet is encountered
-     */
     cb::mcbp::Status validate() override;
 
     /**
@@ -294,16 +287,10 @@ public:
      */
     void setAiostat(cb::engine_errc aiostat);
 
-    /**
-     * Is the current cookie blocked?
-     */
     bool isEwouldblock() const override {
         return ewouldblock;
     }
 
-    /**
-     * Set the ewouldblock status for the cookie
-     */
     void setEwouldblock(bool ewouldblock) override;
 
     /**
@@ -467,20 +454,8 @@ public:
         return reorder;
     }
 
-    /**
-     * Get the inflated payload (inflated as part of package validation),
-     * and if the payload wasn't inflated the packets value is returned.
-     */
     std::string_view getInflatedInputPayload() const override;
 
-    /**
-     * Inflate the value (if deflated); caching the inflated value inside the
-     * cookie.
-     *
-     * @param header The packet header
-     * @return true if success, false if an error occurs (the error context
-     *         contains the reason why)
-     */
     bool inflateInputPayload(const cb::mcbp::Header& header) override;
 
     /**
