@@ -469,7 +469,7 @@ protected:
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
 };
 
-class DurabilityEphemeralBucketTest : public STParameterizedBucketTest {
+class DurabilityEphemeralBucketTest : public DurabilityBucketTest {
 protected:
     template <typename F>
     void testPurgeCompletedPrepare(F& func);
@@ -4822,6 +4822,44 @@ TEST_P(DurabilityBucketTest, MB_46272) {
     EXPECT_EQ(queue_op::abort_sync_write, (*it)->getOperation());
     // 9. Flush the two aborts to disk
     flushVBucketToDiskIfPersistent(vbid, 2);
+}
+
+/**
+ * MB-46787: Test that GET_RANDOM works when finding a complete prepare
+ */
+TEST_P(DurabilityEphemeralBucketTest, GetRandomCompletedPrepare) {
+    using namespace cb::durability;
+
+    setVBucketToActiveWithValidTopology();
+
+    // Need an extra item so that the collection item count > 1
+    auto unrelatedKey = makeStoredDocKey("unrelated");
+    EXPECT_EQ(cb::engine_errc::success,
+              store->set(*makeCommittedItem(unrelatedKey, "value"), cookie));
+
+    // SyncWrite that we will complete
+    auto key = makeStoredDocKey("key");
+    EXPECT_EQ(
+            cb::engine_errc::sync_write_pending,
+            store->set(*makePendingItem(
+                               key, "value", {Level::Majority, Timeout(4000)}),
+                       cookie));
+
+    // Commit it
+    auto vb = store->getVBucket(vbid);
+    ASSERT_EQ(
+            cb::engine_errc::success,
+            vb->commit(key, 2 /*prepareSeqno*/, {}, vb->lockCollections(key)));
+
+    // Delete the committed value (making it in-eligible) which is required
+    // as the commit is earlier in the chain than the prepare
+    mutation_descr_t delInfo;
+    uint64_t cas = 0;
+    ASSERT_EQ(cb::engine_errc::success,
+              store->deleteItem(key, cas, vbid, cookie, {}, nullptr, delInfo));
+
+    auto gv = store->getRandomKey(CollectionID::Default, cookie);
+    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
 }
 
 // Test cases which run against couchstore

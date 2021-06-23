@@ -1315,7 +1315,8 @@ std::unique_ptr<Item> HashTable::getRandomKeyFromSlot(CollectionID cid,
     for (StoredValue* v = values[slot].get().get(); v;
             v = v->getNext().get().get()) {
         if (!v->isTempItem() && !v->isDeleted() && v->isResident() &&
-            v->isCommitted() && v->getKey().getCollectionID() == cid) {
+            !v->isPending() && !v->isPrepareCompleted() &&
+            v->getKey().getCollectionID() == cid) {
             return v->toItem(Vbid(0));
         }
     }
