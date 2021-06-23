@@ -2441,18 +2441,31 @@ magma::Status MagmaKVStore::updateDroppedCollections(
         auto [droppedStatus, droppedStats] =
                 getDroppedCollectionStats(vbid, cid);
 
-        // Step 2) Read the current alive stats on disk, we'll add them to the
-        // dropped stats as the collection is now gone
-        auto [status, currentAliveStats] = getCollectionStats(vbid, cid);
-        if (status) {
-            droppedStats.itemCount += currentAliveStats.itemCount;
-            droppedStats.diskSize += currentAliveStats.diskSize;
-        }
+        // @TODO MB-47055: remove exception handling when we're more confident
+        // in the doc counting here
+        try {
+            // Step 2) Read the current alive stats on disk, we'll add them to
+            // the dropped stats as the collection is now gone
+            auto [status, currentAliveStats] = getCollectionStats(vbid, cid);
+            if (status) {
+                droppedStats.itemCount += currentAliveStats.itemCount;
+                droppedStats.diskSize += currentAliveStats.diskSize;
+            }
 
-        // Step 3) Add the dropped stats from FlushAccounting
-        auto droppedInFlush = collectionsFlush.getDroppedStats(cid);
-        droppedStats.itemCount += droppedInFlush.getItemCount();
-        droppedStats.diskSize += droppedInFlush.getDiskSize();
+            // Step 3) Add the dropped stats from FlushAccounting
+            auto droppedInFlush = collectionsFlush.getDroppedStats(cid);
+            droppedStats.itemCount += droppedInFlush.getItemCount();
+            droppedStats.diskSize += droppedInFlush.getDiskSize();
+        } catch (std::underflow_error& e) {
+            logger->error(
+                    "{} Underflow exception when processing the dropped "
+                    "collection stats for cid:{}",
+                    vbid,
+                    cid);
+
+            // Rethrow the original exception
+            throw;
+        }
 
         // Step 4) Write the new dropped stats back for compaction
         auto key = getDroppedCollectionsStatsKey(cid);
