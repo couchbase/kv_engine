@@ -43,7 +43,6 @@ int main(int argc, char** argv) {
     // spdlog registry when we try to destruct the globalBucketLogger. If we
     // defer the API setup then we won't be able to get to the registry to cause
     // the abort.
-    BucketLogger::setLoggerAPI(get_mock_server_api()->log);
     getGlobalBucketLogger()->set_level(spdlog::level::level_enum::critical);
 
     /*

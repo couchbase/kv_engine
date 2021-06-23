@@ -14,19 +14,15 @@
 #include "enginemap.h"
 #include "environment.h"
 #include "front_end_thread.h"
-#include "log_macros.h"
 #include "mcaudit.h"
 #include "memcached.h"
 #include "server_core_api.h"
-#include "settings.h"
 #include "tracing.h"
-#include <gsl/gsl-lite.hpp>
 #include <memcached/engine.h>
 #include <memcached/rbac/privileges.h>
 #include <memcached/server_bucket_iface.h>
 #include <memcached/server_cookie_iface.h>
 #include <memcached/server_document_iface.h>
-#include <memcached/server_log_iface.h>
 #include <phosphor/phosphor.h>
 #include <utilities/engine_errc_2_mcbp.h>
 
@@ -48,34 +44,6 @@ struct ServerBucketApi : public ServerBucketIface {
             return new_engine_instance(type, get_server_api);
         } catch (const std::exception&) {
             return {};
-        }
-    }
-};
-
-struct ServerLogApi : public ServerLogIface {
-    spdlog::logger* get_spdlogger() override {
-        return cb::logger::get();
-    }
-
-    void register_spdlogger(std::shared_ptr<spdlog::logger> logger) override {
-        cb::logger::registerSpdLogger(logger);
-    }
-
-    void unregister_spdlogger(const std::string& name) override {
-        cb::logger::unregisterSpdLogger(name);
-    }
-
-    void set_level(spdlog::level::level_enum severity) override {
-        switch (severity) {
-        case spdlog::level::level_enum::trace:
-            Settings::instance().setVerbose(2);
-            break;
-        case spdlog::level::level_enum::debug:
-            Settings::instance().setVerbose(1);
-            break;
-        default:
-            Settings::instance().setVerbose(0);
-            break;
         }
     }
 };
@@ -275,7 +243,6 @@ class ServerApiImpl : public ServerApi {
 public:
     ServerApiImpl() : ServerApi() {
         core = &core_api;
-        log = &server_log_api;
         cookie = &server_cookie_api;
         document = &document_api;
         bucket = &bucket_api;
@@ -284,7 +251,6 @@ public:
 protected:
     ServerCoreApi core_api;
     ServerCookieApi server_cookie_api;
-    ServerLogApi server_log_api;
     ServerDocumentApi document_api;
     ServerBucketApi bucket_api;
 };

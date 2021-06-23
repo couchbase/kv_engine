@@ -93,8 +93,7 @@ int main(int argc, char** argv) {
 
     // Enable critical-level logging, so user can see any ep-engine errors.
     cb::logger::createConsoleLogger();
-    BucketLogger::setLoggerAPI(get_mock_server_api()->log);
-    getGlobalBucketLogger()->set_level(spdlog::level::level_enum::debug);
+    cb::logger::get()->set_level(spdlog::level::level_enum::debug);
 
     fmt::print(
             "Creating a vBucket with {} initial documents of size {} bytes, "

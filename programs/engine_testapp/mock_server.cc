@@ -19,8 +19,6 @@
 #include <memcached/server_cookie_iface.h>
 #include <memcached/server_core_iface.h>
 #include <memcached/server_document_iface.h>
-#include <memcached/server_log_iface.h>
-#include <platform/cbassert.h>
 #include <platform/platform_time.h>
 #include <utilities/engine_errc_2_mcbp.h>
 #include <xattr/blob.h>
@@ -29,10 +27,8 @@
 #include <gsl/gsl-lite.hpp>
 #include <array>
 #include <atomic>
-#include <cstdlib>
 #include <cstring>
 #include <ctime>
-#include <iostream>
 #include <list>
 #include <mutex>
 
@@ -148,24 +144,6 @@ struct MockServerCoreApi : public ServerCoreIface {
     }
     bool isCollectionsEnabled() const override {
         return true;
-    }
-};
-
-struct MockServerLogApi : public ServerLogIface {
-    spdlog::logger* get_spdlogger() override {
-        return cb::logger::get();
-    }
-
-    void register_spdlogger(std::shared_ptr<spdlog::logger> l) override {
-        cb::logger::registerSpdLogger(l);
-    }
-
-    void unregister_spdlogger(const std::string& n) override {
-        cb::logger::unregisterSpdLogger(n);
-    }
-
-    void set_level(spdlog::level::level_enum severity) override {
-        log_level = severity;
     }
 };
 
@@ -358,14 +336,12 @@ struct MockServerCookieApi : public ServerCookieIface {
 ServerApi* get_mock_server_api() {
     static MockServerCoreApi core_api;
     static MockServerCookieApi server_cookie_api;
-    static MockServerLogApi log_api;
     static ServerApi rv;
     static MockServerDocumentApi document_api;
     static int init;
     if (!init) {
         init = 1;
         rv.core = &core_api;
-        rv.log = &log_api;
         rv.cookie = &server_cookie_api;
         rv.document = &document_api;
     }

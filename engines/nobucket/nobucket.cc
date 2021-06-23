@@ -13,7 +13,6 @@
 #include <memcached/dcp.h>
 #include <memcached/durability_spec.h>
 #include <memcached/engine.h>
-#include <memcached/server_log_iface.h>
 
 #include <cstdlib>
 #include <stdexcept>

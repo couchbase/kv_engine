@@ -13,8 +13,6 @@
 
 #include "spdlog/logger.h"
 
-#include <memcached/server_log_iface.h>
-
 class EventuallyPersistentEngine;
 
 const std::string globalBucketLoggerName = "globalBucketLogger";
@@ -143,13 +141,6 @@ public:
     void critical(const T& msg);
 
     /**
-     * Informs the BucketLogger class of the current logging API.
-     *
-     * Creates the globalBucketLogger.
-     */
-    static void setLoggerAPI(ServerLogIface* api);
-
-    /**
      * Creates a BucketLogger with the given name and then register it in the
      * spdlog registry within the logging library.
      *
@@ -206,21 +197,12 @@ protected:
      */
     explicit BucketLogger(const std::string& name, std::string prefix = "");
 
-    /// Convenience function to obtain a pointer to the ServerLogIface
-    static ServerLogIface* getServerLogIface();
-
 private:
-    /// Memcached logger API used to construct each instance of the BucketLogger
-    static std::atomic<ServerLogIface*> loggerAPI;
-
     /**
      * Pointer to the underlying spdlogger within the logging library. This
      * logger will log messages to various sinks after we format it.
      */
     spdlog::logger* spdLogger;
-
-    // Mutex guarding globalBucketLogger creation
-    static std::mutex initGuard;
 };
 
 // Global BucketLogger declaration for use in macros

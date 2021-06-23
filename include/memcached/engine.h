@@ -71,7 +71,6 @@ struct DocKey;
 struct ServerBucketIface;
 struct ServerCoreIface;
 struct ServerCallbackIface;
-struct ServerLogIface;
 struct ServerCookieIface;
 struct ServerDocumentIface;
 union protocol_binary_request_header;
@@ -79,7 +78,6 @@ union protocol_binary_request_header;
 struct ServerApi {
     ServerCoreIface* core = nullptr;
     ServerCallbackIface* callback = nullptr;
-    ServerLogIface* log = nullptr;
     ServerCookieIface* cookie = nullptr;
     ServerDocumentIface* document = nullptr;
     ServerBucketIface* bucket = nullptr;

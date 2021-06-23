@@ -39,8 +39,7 @@ void BucketLoggerTest::TearDown() {
     // Set the log level back to the previous level, to respect verbosity
     // setting
     cb::logger::createConsoleLogger();
-    get_mock_server_api()->log->set_level(oldLogLevel);
-    get_mock_server_api()->log->get_spdlogger()->set_level(oldLogLevel);
+    cb::logger::get()->set_level(oldLogLevel);
     getGlobalBucketLogger() =
             BucketLogger::createBucketLogger(globalBucketLoggerName);
     getGlobalBucketLogger()->set_level(oldLogLevel);

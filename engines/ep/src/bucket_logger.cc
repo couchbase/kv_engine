@@ -11,19 +11,17 @@
 
 #include "bucket_logger.h"
 
+#include <logger/logger.h>
 #include <utility>
 
 #include "ep_engine.h"
 #include "objectregistry.h"
 
-std::mutex BucketLogger::initGuard;
-
 // Construct the base logger with a nullptr for the sinks as they will never be
 // used. Requires a unique name for registry
 BucketLogger::BucketLogger(const std::string& name, std::string p)
     : spdlog::logger(name, nullptr), prefix(std::move(p)) {
-    spdLogger = BucketLogger::loggerAPI.load(std::memory_order_relaxed)
-                        ->get_spdlogger();
+    spdLogger = cb::logger::get();
 
     // Take the logging level of the memcached logger so we don't format
     // anything unnecessarily
@@ -89,16 +87,6 @@ void BucketLogger::logInner(spdlog::level::level_enum lvl,
     }
 }
 
-void BucketLogger::setLoggerAPI(ServerLogIface* api) {
-    BucketLogger::loggerAPI.store(api, std::memory_order_relaxed);
-
-    std::unique_lock<std::mutex> lh(initGuard);
-    if (getGlobalBucketLogger() == nullptr) {
-        // Create the global BucketLogger
-        getGlobalBucketLogger() = createBucketLogger(globalBucketLoggerName);
-    }
-}
-
 std::shared_ptr<BucketLogger> BucketLogger::createBucketLogger(
         const std::string& name, const std::string& p) {
     // Create a unique name using the engine name if available
@@ -115,22 +103,17 @@ std::shared_ptr<BucketLogger> BucketLogger::createBucketLogger(
             std::shared_ptr<BucketLogger>(new BucketLogger(uname, p));
 
     // Register the logger in the logger library registry
-    getServerLogIface()->register_spdlogger(bucketLogger);
+    cb::logger::registerSpdLogger(bucketLogger);
     return bucketLogger;
 }
 
 void BucketLogger::unregister() {
     // Unregister the logger in the logger library registry
-    getServerLogIface()->unregister_spdlogger(name());
+    cb::logger::unregisterSpdLogger(name());
 }
-
-ServerLogIface* BucketLogger::getServerLogIface() {
-    return loggerAPI.load(std::memory_order_relaxed);
-}
-
-std::atomic<ServerLogIface*> BucketLogger::loggerAPI;
 
 std::shared_ptr<BucketLogger>& getGlobalBucketLogger() {
-    static std::shared_ptr<BucketLogger> logger = {};
+    static auto logger =
+            BucketLogger::createBucketLogger(globalBucketLoggerName);
     return logger;
 }

@@ -1591,8 +1591,6 @@ cb::engine_errc create_ep_engine_instance(GET_SERVER_API get_server_api,
         return cb::engine_errc::not_supported;
     }
 
-    BucketLogger::setLoggerAPI(api->log);
-
     // Register and track the engine creation
     auto arena = cb::ArenaMalloc::registerClient();
     cb::ArenaMallocGuard trackEngineCreation(arena);

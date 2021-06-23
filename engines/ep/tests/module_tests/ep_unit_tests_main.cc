@@ -25,7 +25,6 @@
 #include <logger/logger.h>
 #include <memcached/config_parser.h>
 #include <memcached/server_core_iface.h>
-#include <memcached/server_log_iface.h>
 #include <phosphor/phosphor.h>
 #include <platform/cb_arena_malloc.h>
 #include <platform/cbassert.h>
@@ -145,8 +144,7 @@ int main(int argc, char **argv) {
     // Create the console logger for test case output
     cb::logger::createConsoleLogger();
     // Set the logging level in the api then setup the BucketLogger
-    get_mock_server_api()->log->get_spdlogger()->set_level(spd_log_level);
-    BucketLogger::setLoggerAPI(get_mock_server_api()->log);
+    cb::logger::get()->set_level(spd_log_level);
 
     // Need to initialize ep_real_time and friends.
     UnitTestServerCore unitTestServerCore;
