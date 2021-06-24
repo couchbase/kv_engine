@@ -1702,6 +1702,7 @@ void Connection::sendResponse(Cookie& cookie,
                               std::string_view value,
                               uint8_t datatype,
                               std::unique_ptr<SendBuffer> sendbuffer) {
+    cookie.setResponseStatus(status);
     if (sendbuffer) {
         if (sendbuffer->getPayload().size() != value.size()) {
             throw std::runtime_error(

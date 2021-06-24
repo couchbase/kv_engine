@@ -404,17 +404,20 @@ void Cookie::maybeLogSlowCommand(
                         "connection_id",
                         c.getId());
 
-        LOG_WARNING(
-                R"({}: Slow operation. {{"cid":"{}/{:x}","duration":"{}","trace":"{}","command":"{}","peer":"{}","bucket":"{}","packet":{}}})",
-                c.getId(),
-                c.getConnectionId().data(),
-                ntohl(getHeader().getOpaque()),
-                cb::time2text(timings),
-                tracer.to_string(),
-                to_string(opcode),
-                c.getPeername(),
-                c.getBucket().name,
-                getHeader().toJSON(validated));
+        nlohmann::json details = {{"cid",
+                                   fmt::format("{}/{:x}",
+                                               c.getConnectionId().data(),
+                                               ntohl(getHeader().getOpaque()))},
+                                  {"duration", cb::time2text(timings)},
+                                  {"trace", tracer.to_string()},
+                                  {"command", to_string(opcode)},
+                                  {"peer", c.getPeername()},
+                                  {"bucket", c.getBucket().name},
+                                  {"packet", getHeader().toJSON(validated)}};
+        if (responseStatus != cb::mcbp::Status::COUNT) {
+            details["response"] = to_string(responseStatus);
+        }
+        LOG_WARNING(R"({}: Slow operation: {})", c.getId(), details.dump());
     }
 }
 
@@ -519,6 +522,7 @@ void Cookie::reset() {
     euid.reset();
     euidPrivilegeContext.reset();
     frame_copy.reset();
+    responseStatus = cb::mcbp::Status::COUNT;
 }
 
 void Cookie::setOpenTracingContext(cb::const_byte_buffer context) {
