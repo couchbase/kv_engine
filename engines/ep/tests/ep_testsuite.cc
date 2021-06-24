@@ -8939,8 +8939,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 // MB-36219: Test intermittently fails under Magma.
-                 prepare_ep_bucket_skip_broken_under_magma,
+                 prepare,
                  cleanup),
         TestCase("test multiple vb compactions with workload",
                  test_multi_vb_compactions_with_workload,
