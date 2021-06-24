@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -8,14 +7,10 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-#include "tests/mcbp/mock_connection.h"
-
 #include <daemon/cookie.h>
-#include <daemon/front_end_thread.h>
 #include <folly/portability/GTest.h>
 #include <memcached/tracer.h>
 #include <chrono>
-#include <string>
 #include <thread>
 
 class TracingTest : public ::testing::Test {
