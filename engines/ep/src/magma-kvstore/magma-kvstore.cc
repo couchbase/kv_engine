@@ -22,17 +22,14 @@
 #include "vb_commit.h"
 #include "vbucket.h"
 #include "vbucket_state.h"
-
-#include <mcbp/protocol/request.h>
+#include <mcbp/protocol/unsigned_leb128.h>
 #include <nlohmann/json.hpp>
 #include <statistics/cbstat_collector.h>
 #include <utilities/logtags.h>
-
-#include <string.h>
 #include <algorithm>
+#include <cstring>
 #include <limits>
 #include <utility>
-#include <mcbp/protocol/unsigned_leb128.h>
 
 class Snapshot;
 
@@ -565,8 +562,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     }
 }
 
-MagmaKVStore::~MagmaKVStore() {
-}
+MagmaKVStore::~MagmaKVStore() = default;
 
 void MagmaKVStore::deinitialize() {
     logger->info("MagmaKVStore: {} deinitializing", configuration.getShardId());
@@ -795,7 +791,7 @@ GetValue MagmaKVStore::getWithHeader(const DiskDocKey& key,
                      cb::UserData{makeDiskDocKey(keySlice).to_string()},
                      status.String());
         st.numGetFailure++;
-        return GetValue{NULL, magmaErr2EngineErr(status.ErrorCode())};
+        return GetValue{nullptr, magmaErr2EngineErr(status.ErrorCode())};
     }
 
     if (!found) {
@@ -1194,7 +1190,6 @@ int MagmaKVStore::saveDocs(VB::Commit& commitData, kvstats_ctx& kvctx) {
 
     auto postWriteDocsCB = [this,
                             &commitData,
-                            &kvctx,
                             &localDbReqs,
                             &lastSeqno,
                             &vbid,
