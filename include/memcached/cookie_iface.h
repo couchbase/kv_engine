@@ -40,9 +40,11 @@ public:
     /// Get the current reference count
     virtual uint8_t getRefcount() = 0;
     /// Add a reference to the cookie
-    virtual void incrementRefcount() = 0;
+    /// returns the incremented ref count
+    virtual uint8_t incrementRefcount() = 0;
     /// Release a reference to the cookie
-    virtual void decrementRefcount() = 0;
+    /// returns the decremented ref count
+    virtual uint8_t decrementRefcount() = 0;
 
     // The underlying engine may store information bound to the given cookie
     // in an opaque pointer. The framework will _NOT_ take ownership of the

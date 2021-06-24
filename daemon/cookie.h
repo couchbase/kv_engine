@@ -393,19 +393,19 @@ public:
     uint8_t getRefcount() override {
         return refcount;
     }
-    void incrementRefcount() override {
+    uint8_t incrementRefcount() override {
         if (refcount == 255) {
             throw std::logic_error(
                     "Cookie::incrementRefcount(): refcount will wrap");
         }
-        refcount++;
+        return ++refcount;
     }
-    void decrementRefcount() override {
+    uint8_t decrementRefcount() override {
         if (refcount == 0) {
             throw std::logic_error(
                     "Cookie::decrementRefcount(): refcount will wrap");
         }
-        refcount--;
+        return --refcount;
     }
 
     void* getEngineStorage() const override {

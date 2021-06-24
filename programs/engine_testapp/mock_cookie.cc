@@ -37,7 +37,7 @@ void destroy_mock_cookie(CookieIface* cookie) {
     }
 
     c->disconnect();
-    if (c->getRefcount() == 0) {
+    if (c->decrementRefcount() == 0) {
         delete c;
     }
 }
@@ -100,7 +100,6 @@ void MockCookie::waitForNotifications(std::unique_lock<std::mutex>& lock) {
 }
 
 void MockCookie::disconnect() {
-    decrementRefcount();
     if (engine) {
         engine->disconnect(*this);
     }

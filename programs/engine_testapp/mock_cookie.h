@@ -52,12 +52,12 @@ public:
         return references;
     }
 
-    void incrementRefcount() override {
-        ++references;
+    uint8_t incrementRefcount() override {
+        return ++references;
     }
 
-    void decrementRefcount() override {
-        --references;
+    uint8_t decrementRefcount() override {
+        return --references;
     }
 
     void* getEngineStorage() const override {

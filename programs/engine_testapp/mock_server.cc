@@ -230,8 +230,7 @@ struct MockServerCookieApi : public ServerCookieIface {
 
     void release(const CookieIface& cookie) override {
         auto* c = cookie_to_mock_cookie(&cookie);
-        c->decrementRefcount();
-        if (c->getRefcount() == 0) {
+        if (c->decrementRefcount() == 0) {
             delete c;
         }
     }
