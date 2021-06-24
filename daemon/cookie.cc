@@ -414,7 +414,8 @@ void Cookie::maybeLogSlowCommand(
                                   {"command", to_string(opcode)},
                                   {"peer", c.getPeername()},
                                   {"bucket", c.getBucket().name},
-                                  {"packet", getHeader().toJSON(validated)}};
+                                  {"packet", getHeader().toJSON(validated)},
+                                  {"worker_tid", folly::getCurrentThreadID()}};
         if (responseStatus != cb::mcbp::Status::COUNT) {
             details["response"] = to_string(responseStatus);
         }

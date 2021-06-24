@@ -162,6 +162,9 @@ TEST_P(TuneMcbpSla, SlowCommandLogging) {
                 auto json = nlohmann::json::parse(entry.substr(idx));
                 EXPECT_EQ("COMPACT_DB", json["command"].get<std::string>());
                 EXPECT_EQ("Success", json["response"].get<std::string>());
+                auto workerTid = json.find("worker_tid");
+                ASSERT_NE(workerTid, json.end());
+                EXPECT_TRUE(workerTid->is_number());
             }
             return;
         }
