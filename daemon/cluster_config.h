@@ -10,47 +10,72 @@
  */
 #pragma once
 
+#include <folly/Synchronized.h>
+#include <nlohmann/json_fwd.hpp>
 #include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
 
+class Connection;
+
+class ClustermapVersion {
+public:
+    ClustermapVersion() : epoch(0), revno(0) {
+    }
+    ClustermapVersion(int64_t epoch, int64_t revno)
+        : epoch(epoch), revno(revno){};
+
+    bool operator==(const ClustermapVersion& other) const {
+        return epoch == other.epoch && revno == other.revno;
+    }
+
+    bool operator<(const ClustermapVersion& other) const {
+        if (epoch < other.epoch) {
+            return true;
+        }
+        if (epoch == other.epoch) {
+            return revno < other.revno;
+        }
+        return false;
+    }
+
+    bool operator>(const ClustermapVersion& other) const {
+        return !(*this == other || *this < other);
+    }
+
+    int64_t getEpoch() const {
+        return epoch;
+    }
+    int64_t getRevno() const {
+        return revno;
+    }
+
+    nlohmann::json to_json() const;
+
+protected:
+    int64_t epoch;
+    int64_t revno;
+};
+
 /**
  * A class to hold a cluster configuration object for a given bucket.
- *
- * Each configuration object contains a revision number identified by
- *
- *    "rev": number
  */
 class ClusterConfiguration {
 public:
-    static const int NoConfiguration = -1;
-    ClusterConfiguration()
-        : config(std::make_shared<std::string>()), revision(NoConfiguration) {
-    }
-
-    void setConfiguration(std::string_view buffer, int rev);
-
-    void setConfiguration(std::string_view buffer);
-
-    /**
-     * Get the current configuration.
-     *
-     * @return a pair where the first element is the revision number, and
-     *         the second element is (a copy) of the configuration.
-     */
-    std::pair<int, std::shared_ptr<std::string>> getConfiguration() const {
-        std::lock_guard<std::mutex> guard(mutex);
-        return std::make_pair(revision, config);
+    struct Configuration {
+        Configuration(ClustermapVersion version, std::string_view config)
+            : version(version), config(config) {
+        }
+        const ClustermapVersion version;
+        const std::string config;
     };
 
-    /**
-     * Pick out the revision number from the provided cluster configuration.
-     *
-     * @param buffer The cluster configuration provided by ns_server
-     * @return the revision number for the cluster configuration
-     */
-    static int getRevisionNumber(std::string_view buffer);
+    void setConfiguration(std::unique_ptr<Configuration> configuration);
+
+    /// Get the configuration if it is newer than the provided version
+    std::unique_ptr<Configuration> maybeGetConfiguration(
+            const ClustermapVersion& version, bool dedupe = true) const;
 
     /**
      * Reset the ClusterConfig object to represent that no configuration
@@ -59,22 +84,8 @@ public:
     void reset();
 
 protected:
-    /**
-     * We use a mutex so that we can get a consistent copy of the revision
-     * number and the configuration. (we cache the revision number to avoid
-     * parsing the JSON every time we have to handle a not my vbucket reply
-     * because we want to be able to avoid sending duplicates of the cluster
-     * configuration map to the clients).
-     */
-    mutable std::mutex mutex;
-
-    /**
-     * The actual config
-     */
-    std::shared_ptr<std::string> config;
-
-    /**
-     * Cached revision so we don't have to parse it every time
-     */
-    int revision;
+    folly::Synchronized<std::unique_ptr<Configuration>, std::mutex> config;
 };
+
+std::string to_string(const ClustermapVersion& version);
+std::ostream& operator<<(std::ostream& os, const ClustermapVersion& version);

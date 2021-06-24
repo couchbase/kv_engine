@@ -56,28 +56,29 @@ void get_cluster_config_executor(Cookie& cookie) {
         return;
     }
 
-    auto pair = bucket.clusterConfiguration.getConfiguration();
-    if (pair.first == ClusterConfiguration::NoConfiguration) {
-        cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
-    } else {
+    auto active = bucket.clusterConfiguration.maybeGetConfiguration({});
+    if (active) {
         cookie.sendResponse(cb::mcbp::Status::Success,
                             {},
                             {},
-                            {pair.second->data(), pair.second->size()},
+                            {active->config.data(), active->config.size()},
                             cb::mcbp::Datatype::JSON,
                             0);
-        connection.setClustermapRevno(pair.first);
+        connection.setPushedClustermapRevno(active->version);
+    } else {
+        cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
     }
 }
 
 /// Push the configuration fot the provided bucket to all clients
 /// bound to the bucket and subscribe to notifications
 /// @param bucketIndex index into the bucket array
-/// @param revision the revision which triggered the callback
+/// @param version the version which triggered the callback
 ///                 (used for logging only.. we'll always push the latest
 ///                  version if there is a "race" where ns_server updates
 ///                  the clustermap while we're pushing a version)
-static void push_cluster_config(int bucketIndex, int revision) {
+static void push_cluster_config(unsigned int bucketIndex,
+                                const ClustermapVersion& version) {
     // We've got a reference to the bucket so we need to disassociate
     // when we're done!
     auto& bucket = BucketManager::instance().at(bucketIndex);
@@ -98,56 +99,89 @@ static void push_cluster_config(int bucketIndex, int revision) {
     }
 
     if (bucket.type == BucketType::NoBucket) {
-        LOG_INFO("Pushing new global cluster config - revision:[{}]", revision);
+        LOG_INFO("Pushing new global cluster config - revision:{}", version);
     } else {
         LOG_INFO(
                 "Pushing new cluster config for bucket:[{}] "
-                "revision:[{}]",
+                "revision:{}",
                 bucket.name,
-                revision);
+                version);
     }
     try {
-        iterate_all_connections([](Connection& connection) -> void {
+        iterate_all_connections([bucketIndex](Connection& connection) -> void {
             if (!connection.isClustermapChangeNotificationSupported()) {
                 // The client hasn't asked to be notified
                 return;
             }
 
-            auto& b = connection.getBucket();
-            auto payload = b.clusterConfiguration.getConfiguration();
-            if (payload.first < connection.getClustermapRevno()) {
-                // The client has a newer revision map, ignore this one
+            if (bucketIndex != 0 &&
+                bucketIndex != connection.getBucketIndex()) {
+                // This isn't the global configuration or the selected bucket
+                // so we shouldn't push the configuration
                 return;
             }
 
-            connection.setClustermapRevno(payload.first);
-            LOG_INFO("{}: Sending Cluster map revision {}",
-                     connection.getId(),
-                     payload.first);
+            std::unique_ptr<ClusterConfiguration::Configuration> active;
+            if (bucketIndex == 0) {
+                active =
+                        all_buckets[0]
+                                .clusterConfiguration.maybeGetConfiguration({});
+            } else {
+                auto& bucket = connection.getBucket();
+                auto pushed = connection.getPushedClustermapRevno();
+                active = bucket.clusterConfiguration.maybeGetConfiguration(
+                        pushed);
+            }
 
-            std::string name = b.name;
-            size_t needed = sizeof(cb::mcbp::Request) + // packet header
-                            4 + // rev number in extdata
+            if (!active) {
+                // We've already pushed the latest version we've got
+                return;
+            }
+
+            std::string name;
+            {
+                std::lock_guard<std::mutex> guard(
+                        all_buckets[bucketIndex].mutex);
+                if (all_buckets[bucketIndex].state == Bucket::State::Ready) {
+                    name = all_buckets[bucketIndex].name;
+                } else {
+                    // The bucket is no longer online
+                    return;
+                }
+            }
+
+            if (bucketIndex == 0) {
+                LOG_INFO("{}: Sending global Cluster map revision:  {}",
+                         connection.getId(),
+                         active->version);
+            } else {
+                connection.setPushedClustermapRevno(active->version);
+                LOG_INFO("{}: Sending Cluster map for bucket:{} revision:{}",
+                         connection.getId(),
+                         name,
+                         active->version);
+            }
+
+            using namespace cb::mcbp;
+            cb::mcbp::request::SetClusterConfigPayload version;
+            version.setEpoch(active->version.getEpoch());
+            version.setRevision(active->version.getRevno());
+            size_t needed = sizeof(Request) + // packet header
+                            sizeof(version) + // rev data in extdata
                             name.size() + // the name of the bucket
-                            payload.second->size(); // The actual payload
+                            active->config.size(); // The actual payload
             std::string buffer;
             buffer.resize(needed);
-            cb::mcbp::RequestBuilder builder(buffer);
-            builder.setMagic(cb::mcbp::Magic::ServerRequest);
+            RequestBuilder builder(buffer);
+            builder.setMagic(Magic::ServerRequest);
             builder.setDatatype(cb::mcbp::Datatype::JSON);
-            builder.setOpcode(
-                    cb::mcbp::ServerOpcode::ClustermapChangeNotification);
-
-            // The extras contains the cluster revision number as an
-            // uint32_t
-            const uint32_t rev = htonl(payload.first);
-            builder.setExtras(
-                    {reinterpret_cast<const uint8_t*>(&rev), sizeof(rev)});
+            builder.setOpcode(ServerOpcode::ClustermapChangeNotification);
+            builder.setExtras(version.getBuffer());
             builder.setKey({reinterpret_cast<const uint8_t*>(name.data()),
                             name.size()});
             builder.setValue(
-                    {reinterpret_cast<const uint8_t*>(payload.second->data()),
-                     payload.second->size()});
+                    {reinterpret_cast<const uint8_t*>(active->config.data()),
+                     active->config.size()});
 
             // Inject our packet into the stream!
             connection.copyToOutputStream(builder.getFrame()->getFrame());
@@ -164,13 +198,7 @@ void set_cluster_config_executor(Cookie& cookie) {
     const auto& req = cookie.getRequest();
     auto& connection = cookie.getConnection();
 
-    int revision;
     int bucketIndex = -1;
-    auto payload = req.getValue();
-    std::string_view clustermap = {
-            reinterpret_cast<const char*>(payload.data()), payload.size()};
-
-    auto extras = req.getExtdata();
     // Locate bucket to operate
     auto key = req.getKey();
     const auto bucketname =
@@ -184,9 +212,6 @@ void set_cluster_config_executor(Cookie& cookie) {
             bucketIndex = int(ii);
         }
     }
-    const auto& ext = *reinterpret_cast<
-            const cb::mcbp::request::SetClusterConfigPayload*>(extras.data());
-    revision = ext.getRevision();
 
     if (bucketIndex == -1) {
         cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
@@ -201,17 +226,40 @@ void set_cluster_config_executor(Cookie& cookie) {
         return;
     }
 
+    ClustermapVersion version;
+
+    // Is this a new or an old-style message
+    auto extras = req.getExtdata();
+    using cb::mcbp::request::DeprecatedSetClusterConfigPayload;
+    using cb::mcbp::request::SetClusterConfigPayload;
+    if (extras.size() == sizeof(DeprecatedSetClusterConfigPayload)) {
+        // @todo remove once ns_server is up to date!
+        const auto& ext = *reinterpret_cast<
+                const cb::mcbp::request::DeprecatedSetClusterConfigPayload*>(
+                extras.data());
+        version = {0, ext.getRevision()};
+    } else {
+        const auto& ext = *reinterpret_cast<
+                const cb::mcbp::request::SetClusterConfigPayload*>(
+                extras.data());
+        version = {ext.getEpoch(), ext.getRevision()};
+    }
+
     bool failed = false;
     try {
+        auto payload = req.getValue();
+        std::string_view clustermap = {
+                reinterpret_cast<const char*>(payload.data()), payload.size()};
         all_buckets[bucketIndex].clusterConfiguration.setConfiguration(
-                clustermap, revision);
+                std::make_unique<ClusterConfiguration::Configuration>(
+                        version, clustermap));
         if (bucketIndex == 0) {
             LOG_INFO(
                     "{}: {} Updated global cluster configuration. New "
                     "revision: {}",
                     connection.getId(),
                     connection.getDescription(),
-                    revision);
+                    version);
         } else {
             LOG_INFO(
                     "{}: {} Updated cluster configuration for bucket [{}]. New "
@@ -219,7 +267,7 @@ void set_cluster_config_executor(Cookie& cookie) {
                     connection.getId(),
                     connection.getDescription(),
                     all_buckets[bucketIndex].name,
-                    revision);
+                    version);
         }
         cookie.setCas(cas);
         cookie.sendResponse(cb::mcbp::Status::Success);
@@ -238,8 +286,8 @@ void set_cluster_config_executor(Cookie& cookie) {
         ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
                 TaskId::Core_PushClustermapTask,
                 "Push clustermap",
-                [bucketIndex, revision]() {
-                    push_cluster_config(bucketIndex, revision);
+                [bucketIndex, version]() {
+                    push_cluster_config((unsigned int)bucketIndex, version);
                 }));
     }
 

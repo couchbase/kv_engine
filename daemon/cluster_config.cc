@@ -12,56 +12,44 @@
 
 #include <subdoc/operations.h>
 
+#include <nlohmann/json.hpp>
 #include <cstdlib>
 #include <stdexcept>
 
-void ClusterConfiguration::setConfiguration(std::string_view buffer, int rev) {
-    std::lock_guard<std::mutex> guard(mutex);
-    revision = rev;
-    config = std::make_shared<std::string>(buffer.begin(), buffer.end());
+nlohmann::json ClustermapVersion::to_json() const {
+    return {{"epoch", epoch}, {"revno", revno}};
 }
 
-void ClusterConfiguration::setConfiguration(std::string_view buffer) {
-    int rev = getRevisionNumber(buffer);
-    if (rev == NoConfiguration) {
-        throw std::invalid_argument(
-                "ClusterConfiguration::setConfiguration: Failed determine map "
-                "revision");
-    }
-
-    std::lock_guard<std::mutex> guard(mutex);
-    revision = rev;
-    config = std::make_shared<std::string>(buffer.begin(), buffer.end());
+std::string to_string(const ClustermapVersion& version) {
+    return version.to_json().dump();
 }
 
-int ClusterConfiguration::getRevisionNumber(std::string_view buffer) {
-    Subdoc::Operation operation;
-    Subdoc::Result result;
-    operation.set_code(Subdoc::Command::GET);
-    operation.set_doc(buffer.data(), buffer.size());
-    operation.set_result_buf(&result);
-
-    if (operation.op_exec("rev") != Subdoc::Error::SUCCESS) {
-        return NoConfiguration;
-    }
-
-    auto loc = result.matchloc();
-    std::string value{loc.at, loc.length};
-
-    try {
-        std::size_t count;
-        auto ret = std::stoi(value, &count);
-        if (count == loc.length) {
-            return ret;
-        }
-    } catch (const std::exception&) {
-    }
-
-    return NoConfiguration;
+std::ostream& operator<<(std::ostream& os, const ClustermapVersion& version) {
+    os << to_string(version);
+    return os;
 }
 
 void ClusterConfiguration::reset() {
-    std::lock_guard<std::mutex> guard(mutex);
-    revision = NoConfiguration;
-    config = std::make_shared<std::string>();
+    config.lock()->reset();
+}
+
+void ClusterConfiguration::setConfiguration(
+        std::unique_ptr<Configuration> configuration) {
+    *config.lock() = std::move(configuration);
+}
+
+std::unique_ptr<ClusterConfiguration::Configuration>
+ClusterConfiguration::maybeGetConfiguration(const ClustermapVersion& version,
+                                            bool dedupe) const {
+    auto locked = config.lock();
+    if (!*locked) {
+        return {};
+    }
+
+    auto& active = *locked->get();
+    if (version < active.version || !dedupe) {
+        return std::make_unique<Configuration>(active.version, active.config);
+    }
+
+    return {};
 }

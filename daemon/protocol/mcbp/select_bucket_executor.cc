@@ -51,6 +51,7 @@ cb::engine_errc select_bucket(Cookie& cookie, const std::string& bucketname) {
             return cb::engine_errc::not_supported;
         }
 
+        connection.setPushedClustermapRevno({});
         return cb::engine_errc::success;
     }
 
