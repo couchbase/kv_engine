@@ -9,9 +9,10 @@
  *   the file licenses/APL2.txt.
  */
 #include "testapp_client_test.h"
+#include <boost/filesystem.hpp>
 #include <mcbp/mcbp.h>
-#include <cctype>
-#include <limits>
+#include <platform/dirutils.h>
+#include <utilities/string_utilities.h>
 #include <thread>
 
 /**
@@ -111,4 +112,61 @@ TEST_P(TuneMcbpSla, Update) {
               getSlowThreshold(cb::mcbp::ClientOpcode::Get));
     EXPECT_EQ(std::chrono::milliseconds(500),
               getSlowThreshold(cb::mcbp::ClientOpcode::Set));
+}
+
+TEST_P(TuneMcbpSla, SlowCommandLogging) {
+    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Couchbase);
+    auto& conn = getAdminConnection();
+    conn.ioctl_set(
+            "sla",
+            R"({"version":1, "compact_db":{"slow":1}, "default":{"slow":500}})");
+    conn.selectBucket("default");
+    const auto rsp = conn.execute(BinprotCompactDbCommand());
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getDataString();
+
+    // "grep" like function to pick out the lines in all the log files
+    // containing ": Slow operation: "
+    auto findLogLines = []() {
+        std::vector<std::string> ret;
+        for (const auto& p :
+             boost::filesystem::directory_iterator(mcd_env->getLogDir())) {
+            if (is_regular_file(p)) {
+                auto lines = split_string(
+                        cb::io::loadFile(p.path().generic_string()), "\n");
+                for (auto& l : lines) {
+                    if (l.find(": Slow operation: ") != std::string::npos) {
+                        ret.emplace_back(std::move(l));
+                    }
+                }
+            }
+        }
+        return ret;
+    };
+
+    // Logging is asynchronous so there are no guarantee that the entry exists
+    // in the logfiles already. We can't wait forever as that would cause
+    // a failing test to hang for a long time. It _should_ be relatively quick
+    // so lets set a timeout for 30 sec (so we don't get false positives on
+    // an overloaded CV slave running too many jobs in parallel)
+    const auto timeout =
+            std::chrono::steady_clock::now() + std::chrono::seconds{30};
+
+    do {
+        const auto entries = findLogLines();
+        if (!entries.empty()) {
+            // Verify that it has the correct format
+            EXPECT_EQ(1, entries.size());
+            for (const auto& entry : entries) {
+                auto idx = entry.find('{');
+                ASSERT_NE(std::string::npos, idx);
+                auto json = nlohmann::json::parse(entry.substr(idx));
+                EXPECT_EQ("COMPACT_DB", json["command"].get<std::string>());
+                EXPECT_EQ("Success", json["response"].get<std::string>());
+            }
+            return;
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds{20});
+    } while (std::chrono::steady_clock::now() < timeout);
+    FAIL() << "Timed out before the slow log appeared in the files";
 }

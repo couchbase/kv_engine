@@ -383,14 +383,6 @@ public:
 
     void setCommandContext(CommandContext* ctx = nullptr);
 
-    /**
-     * Log the current connection if its execution time exceeds the
-     * threshold for the command
-     *
-     * @param elapsed the time elapsed while executing the command
-     */
-    void maybeLogSlowCommand(std::chrono::steady_clock::duration elapsed) const;
-
     uint8_t getRefcount() override {
         return refcount;
     }
@@ -551,7 +543,21 @@ public:
         preserveTtl = val;
     }
 
+    /// Set the response status code we sent for this command (to include
+    /// in the log message for slow command)
+    void setResponseStatus(cb::mcbp::Status status) {
+        responseStatus = status;
+    }
+
 protected:
+    /**
+     * Log the current connection if its execution time exceeds the
+     * threshold for the command
+     *
+     * @param elapsed the time elapsed while executing the command
+     */
+    void maybeLogSlowCommand(std::chrono::steady_clock::duration elapsed) const;
+
     bool doExecute();
 
     /// Check if the current command have the requested privilege for
@@ -712,4 +718,8 @@ protected:
     /// If the request came in with the impersonate frame info set, this
     /// is the privilege context for that user (which we'll also test)
     std::optional<cb::rbac::PrivilegeContext> euidPrivilegeContext;
+
+    /// The response status we sent for this cookie (for a multi-response
+    /// command such as STATS it would be the _last_ status code)
+    cb::mcbp::Status responseStatus = cb::mcbp::Status::COUNT;
 };
