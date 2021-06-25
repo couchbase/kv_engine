@@ -55,8 +55,8 @@ int main(int argc, char** argv) {
     putenv(isasl_env_var.data());
 
 #ifndef WIN32
-    if (sigignore(SIGPIPE) == -1) {
-        std::cerr << "Fatal: failed to ignore SIGPIPE; sigaction" << std::endl;
+    if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
+        std::cerr << "Fatal: failed to ignore SIGPIPE" << std::endl;
         return 1;
     }
 #endif

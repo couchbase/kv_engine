@@ -551,7 +551,7 @@ int main(int argc, char** argv) {
     }
 
 #ifndef WIN32
-    if (sigignore(SIGPIPE) == -1) {
+    if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
         std::cerr << "Fatal: failed to ignore SIGPIPE\n";
         return EXIT_FAILURE;
     }

@@ -999,12 +999,9 @@ int memcached_main(int argc, char** argv) {
     stats_init();
 
 #ifndef WIN32
-    /*
-     * ignore SIGPIPE signals; we can use errno == EPIPE if we
-     * need that information
-     */
-    if (sigignore(SIGPIPE) == -1) {
-        FATAL_ERROR(EXIT_FAILURE, "Failed to ignore SIGPIPE; sigaction");
+    // ignore SIGPIPE signals
+    if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
+        FATAL_ERROR(EXIT_FAILURE, "Failed to ignore SIGPIPE");
     }
 #endif
 
