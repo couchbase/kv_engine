@@ -271,7 +271,7 @@
             }
         },
         "concurrent_pagers": {
-            "default": "1",
+            "default": "2",
             "descr": "Number of eviction pager tasks to create when memory usage is high",
             "dynamic": false,
             "type": "size_t",

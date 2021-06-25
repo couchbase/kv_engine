@@ -291,6 +291,8 @@ protected:
 class STItemPagerTest : public STBucketQuotaTest {
 protected:
     void SetUp() override {
+        config_string += "concurrent_pagers=" +
+                         std::to_string(getNumConcurrentPagers()) + ";";
         STBucketQuotaTest::SetUp();
 
         // For Ephemeral fail_new_data buckets we have no item pager, instead
@@ -361,6 +363,20 @@ protected:
         return (numItems != 0) ? size_t((numResident * 100.0) / numItems) : 100;
     }
 
+    size_t getNumConcurrentPagers() const {
+        return numConcurrentPagers;
+    }
+
+    /**
+     * Set the configured number of PagingVisitors to run concurrently.
+     *
+     * Should be set before calling STItemPagerTest::SetUp()
+     */
+    void setNumConcurrentPagers(size_t num) {
+        numConcurrentPagers = num;
+    }
+
+    size_t numConcurrentPagers = 1;
     /// Has the item pager been scheduled to run?
     bool itemPagerScheduled = false;
 };
@@ -2195,7 +2211,7 @@ TEST_P(MB_36087, DelWithMeta_EvictedKey) {
 class MultiPagingVisitorTest : public STItemPagerTest {
 protected:
     void SetUp() override {
-        config_string += "concurrent_pagers=4;";
+        setNumConcurrentPagers(4);
         STItemPagerTest::SetUp();
     }
 };
