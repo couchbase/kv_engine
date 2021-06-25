@@ -443,8 +443,8 @@ std::chrono::milliseconds MockDefragmenterTask::MockDefragmenterTaskClock::step;
 // Test that as the PID runs (and we move time forwards) that it assists in the
 // recalculation of sleep time, reducing whilst fragmentation is above threshold
 TEST_F(DefragmenterTaskTest, autoCalculateSleep_PID) {
-    // set lww to some low number
-    engine->getEpStats().setLowWaterMark(750);
+    // set hwm to some low number
+    engine->getEpStats().setHighWaterMark(750);
     auto task = std::make_unique<MockDefragmenterTask>(engine.get(),
                                                        engine->getEpStats());
 
@@ -507,8 +507,8 @@ TEST_F(DefragmenterTaskTest, autoCalculateSleep_PID) {
 }
 
 TEST_F(DefragmenterTaskTest, autoCalculateSleep) {
-    // set lww to some low number
-    engine->getEpStats().setLowWaterMark(750);
+    // set hwm to some low number
+    engine->getEpStats().setHighWaterMark(750);
     auto task = std::make_unique<MockDefragmenterTask>(engine.get(),
                                                        engine->getEpStats());
     auto& conf = engine->getConfiguration();

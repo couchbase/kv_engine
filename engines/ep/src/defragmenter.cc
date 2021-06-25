@@ -242,11 +242,12 @@ DefragmentVisitor& DefragmenterTask::getDefragVisitor() {
 
 float DefragmenterTask::getScoredFragmentation(
         const cb::FragmentationStats& fragStats) const {
-    auto lowWater = stats.mem_low_wat.load();
-    auto rss = fragStats.getResidentBytes() > lowWater
-                       ? lowWater
+    const auto highWater = stats.mem_high_wat.load();
+    auto rss = fragStats.getResidentBytes() > highWater
+                       ? highWater
                        : fragStats.getResidentBytes();
-    return fragStats.getFragmentationRatio() * (double(rss) / double(lowWater));
+    return fragStats.getFragmentationRatio() *
+           (double(rss) / double(highWater));
 }
 
 DefragmenterTask::SleepTimeAndRunState DefragmenterTask::calculateSleepLinear(
