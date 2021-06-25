@@ -266,8 +266,15 @@ void PagingVisitor::update() {
 }
 
 bool PagingVisitor::pauseVisitor() {
-    size_t queueSize = stats.diskQueueSize.load();
-    return canPause && queueSize >= MAX_PERSISTENCE_QUEUE_SIZE;
+    if (!canPause) {
+        return false;
+    }
+    bool shouldPause = CappedDurationVBucketVisitor::pauseVisitor();
+    if (owner == EXPIRY_PAGER) {
+        size_t queueSize = stats.diskQueueSize.load();
+        shouldPause |= queueSize >= MAX_PERSISTENCE_QUEUE_SIZE;
+    }
+    return shouldPause;
 }
 
 void PagingVisitor::complete() {

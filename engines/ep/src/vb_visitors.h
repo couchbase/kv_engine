@@ -110,6 +110,7 @@ public:
  * time has been spent executing (maxChunkDuration).
  */
 class CappedDurationVBucketVisitor : public PausableVBucketVisitor {
+public:
     void visitBucket(const VBucketPtr& vb) override = 0;
 
     void begin() override;

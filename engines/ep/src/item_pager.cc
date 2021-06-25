@@ -202,7 +202,7 @@ bool ItemPager::run() {
                                    replicaEvictionRatio},
                     pagerSemaphore,
                     ITEM_PAGER,
-                    false,
+                    true, /* allow pausing between vbuckets */
                     partFilter,
                     cfg.getItemEvictionAgePercentage(),
                     cfg.getItemEvictionFreqCounterAgeThreshold());

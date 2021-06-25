@@ -36,7 +36,8 @@ enum pager_type_t { ITEM_PAGER, EXPIRY_PAGER };
  * As part of the ItemPager, visit all of the objects in memory and
  * eject some within a constrained probability
  */
-class PagingVisitor : public PausableVBucketVisitor, public HashTableVisitor {
+class PagingVisitor : public CappedDurationVBucketVisitor,
+                      public HashTableVisitor {
 public:
     enum class EvictionPolicy : uint8_t {
         lru2Bit, // The original 2-bit LRU policy
