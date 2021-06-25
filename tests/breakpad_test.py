@@ -238,6 +238,7 @@ parser.add_argument('--gdb_exe',
                     help='Path to GDB executable, enables GDB checks. Requires that m2core_exe has been specified.')
 parser.add_argument('--md2core_exe',
                     help='Path to minidump2core executable, enables minidump checks checks')
+parser.add_argument('--source_root', help='Root of the source root used to locate files')
 args = parser.parse_args()
 
 # Given there are multiple breakpad tests which can run in parallel, give
@@ -258,6 +259,7 @@ config = {"interfaces": [{"tag":"plain",
                         "minidump_dir" : minidump_dir
                       },
           "stdin_listener": False,
+          "root" : os.path.abspath(args.source_root),
           "verbosity" : 2,
           "rbac_file" : os.path.abspath(rbac_file.name)}
 config_json = json.dumps(config)

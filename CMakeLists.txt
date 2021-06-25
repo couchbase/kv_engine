@@ -92,7 +92,7 @@ IF (UNIX AND COUCHBASE_KV_BUILD_UNIT_TESTS)
     # On Linux Breakpad unit test relies on examining the minidump -> core
     # file with GDB.
     find_program(GDB_EXECUTABLE gdb)
-    set(test_extra_args)
+    set(test_extra_args --source_root=${Memcached_SOURCE_DIR})
     if (BREAKPAD_FOUND)
         list(APPEND test_extra_args --breakpad)
     endif ()
