@@ -438,7 +438,7 @@ void TestDcpConsumer::run(bool openConn) {
                           << std::endl;
                 std::cerr << "DCP history:" << std::endl;
                 for (auto entry : history) {
-                    std::cerr << entry.first << " " << entry.second
+                    std::cerr << int(entry.first) << " " << entry.second
                               << std::endl;
                 }
                 check(false, "Aborting");
