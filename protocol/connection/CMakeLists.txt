@@ -1,4 +1,4 @@
-ADD_LIBRARY(mc_client_connection STATIC
+add_library(mc_client_connection STATIC
             client_connection.h
             client_connection.cc
             client_connection_map.cc
@@ -7,6 +7,7 @@ ADD_LIBRARY(mc_client_connection STATIC
             client_mcbp_commands.h
             frameinfo.cc frameinfo.h)
 kv_enable_pch(mc_client_connection)
+cb_enable_unity_build(mc_client_connection)
 
 target_link_libraries(mc_client_connection PRIVATE
   PUBLIC
@@ -21,4 +22,3 @@ target_link_libraries(mc_client_connection PRIVATE
     ${OPENSSL_LIBRARIES}
   PRIVATE
     cbcompress)
-kv_enable_pch(mc_client_connection)
