@@ -193,58 +193,60 @@ void PagingVisitor::visitBucket(const VBucketPtr& vb) {
     auto current = static_cast<double>(stats.getEstimatedTotalMemoryUsed());
     auto lower = static_cast<double>(stats.mem_low_wat);
 
-    if (current > lower) {
-        if (vBucketFilter(vb->getId())) {
-            currentBucket = vb;
-            maxCas = currentBucket->getMaxCas();
-            itemEviction.reset();
-            freqCounterThreshold = 0;
-
-            // Percent of items in the hash table to be visited
-            // between updating the interval.
-            const double percentOfItems = 0.1;
-            // Calculate the number of items to visit before updating
-            // the interval
-            uint64_t noOfItems =
-                    std::ceil(vb->getNumItems() * (percentOfItems * 0.01));
-            uint64_t interval = (noOfItems > ItemEviction::learningPopulation)
-                                        ? noOfItems
-                                        : ItemEviction::learningPopulation;
-            itemEviction.setUpdateInterval(interval);
-
-            vb->ht.visit(*this);
-            /**
-             * Note: We are not taking a reader lock on the vbucket state.
-             * Therefore it is possible that the stats could be slightly
-             * out.  However given that its just for stats we don't want
-             * to incur any performance cost associated with taking the
-             * lock.
-             */
-            const bool isActiveOrPending =
-                    ((currentBucket->getState() == vbucket_state_active) ||
-                     (currentBucket->getState() == vbucket_state_pending));
-
-            // Take a snapshot of the latest frequency histogram
-            if (isActiveOrPending) {
-                stats.activeOrPendingFrequencyValuesSnapshotHisto.reset();
-                itemEviction.copyFreqHistogram(
-                        stats.activeOrPendingFrequencyValuesSnapshotHisto);
-            } else {
-                stats.replicaFrequencyValuesSnapshotHisto.reset();
-                itemEviction.copyFreqHistogram(
-                        stats.replicaFrequencyValuesSnapshotHisto);
-            }
-
-            // We have just evicted all eligible items from the hash table
-            // so we now want to reclaim the memory being used to hold
-            // closed and unreferenced checkpoints in the vbucket, before
-            // potentially moving to the next vbucket.
-            removeClosedUnrefCheckpoints(*vb);
-        }
-
-    } else { // stop eviction whenever memory usage is below low watermark
+    if (current <= lower) {
+        // stop eviction whenever memory usage is below low watermark
         isBelowLowWaterMark = true;
+        return;
     }
+
+    if (!vBucketFilter(vb->getId())) {
+        return;
+    }
+
+    currentBucket = vb;
+    maxCas = currentBucket->getMaxCas();
+    itemEviction.reset();
+    freqCounterThreshold = 0;
+
+    // Percent of items in the hash table to be visited
+    // between updating the interval.
+    const double percentOfItems = 0.1;
+    // Calculate the number of items to visit before updating
+    // the interval
+    uint64_t noOfItems = std::ceil(vb->getNumItems() * (percentOfItems * 0.01));
+    uint64_t interval = (noOfItems > ItemEviction::learningPopulation)
+                                ? noOfItems
+                                : ItemEviction::learningPopulation;
+    itemEviction.setUpdateInterval(interval);
+
+    vb->ht.visit(*this);
+    /**
+     * Note: We are not taking a reader lock on the vbucket state.
+     * Therefore it is possible that the stats could be slightly
+     * out.  However given that its just for stats we don't want
+     * to incur any performance cost associated with taking the
+     * lock.
+     */
+    const bool isActiveOrPending =
+            ((currentBucket->getState() == vbucket_state_active) ||
+             (currentBucket->getState() == vbucket_state_pending));
+
+    // Take a snapshot of the latest frequency histogram
+    if (isActiveOrPending) {
+        stats.activeOrPendingFrequencyValuesSnapshotHisto.reset();
+        itemEviction.copyFreqHistogram(
+                stats.activeOrPendingFrequencyValuesSnapshotHisto);
+    } else {
+        stats.replicaFrequencyValuesSnapshotHisto.reset();
+        itemEviction.copyFreqHistogram(
+                stats.replicaFrequencyValuesSnapshotHisto);
+    }
+
+    // We have just evicted all eligible items from the hash table
+    // so we now want to reclaim the memory being used to hold
+    // closed and unreferenced checkpoints in the vbucket, before
+    // potentially moving to the next vbucket.
+    removeClosedUnrefCheckpoints(*vb);
 }
 
 void PagingVisitor::update() {
