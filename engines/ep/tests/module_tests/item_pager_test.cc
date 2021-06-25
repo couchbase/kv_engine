@@ -392,10 +392,6 @@ TEST_P(STItemPagerTest, HighWaterMarkTriggersPager) {
 }
 
 TEST_P(STItemPagerTest, PagerEvictsSomething) {
-    // TODO Temp disable MB-42746
-    if (isMagma()) {
-        return;
-    }
     // Pager can't run in fail_new_data policy so test is invalid
     if ((std::get<1>(GetParam()) == "fail_new_data")) {
         return;
@@ -1444,11 +1440,6 @@ protected:
 };
 
 void STExpiryPagerTest::expiredItemsDeleted() {
-    // TODO Temp disable MB-42746
-    if (isMagma()) {
-        return;
-    }
-
     // Populate bucket with three documents - one with no expiry, one with an
     // expiry in 10 seconds, and one with an expiry in 20 seconds.
     std::string value = createXattrValue("body");
@@ -1547,11 +1538,6 @@ TEST_P(STExpiryPagerTest, ExpiredItemsDeleted) {
 // Test that when an expired system-xattr document is fetched with getMeta
 // it can be successfully expired again
 TEST_P(STExpiryPagerTest, MB_25650) {
-    // TODO Temp disable MB-42746
-    if (isMagma()) {
-        return;
-    }
-
     expiredItemsDeleted();
 
     auto vb = store->getVBucket(Vbid(0));
@@ -1611,10 +1597,6 @@ TEST_P(STExpiryPagerTest, MB_25650) {
 // Test that when an expired system-xattr document is fetched with getMeta
 // deleteWithMeta can be successfully invoked
 TEST_P(STExpiryPagerTest, MB_25671) {
-    // TODO Temp disable MB-42746
-    if (isMagma()) {
-        return;
-    }
     expiredItemsDeleted();
     auto vb = store->getVBucket(vbid);
 
