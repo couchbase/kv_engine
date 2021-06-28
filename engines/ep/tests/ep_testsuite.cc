@@ -8431,7 +8431,7 @@ BaseTestCase testsuite_testcases[] = {
                  "chk_max_items=500;"
                  "chk_remover_stime=1;"
                  "max_num_shards=4;"
-                 "max_size=6291456",
+                 "max_size=10000000",
                  // TODO RDB: This test requires full control and accurate
                  // tracking on how memory is allocated by the underlying
                  // store. We do not have that yet for RocksDB. Depending
@@ -8442,8 +8442,7 @@ BaseTestCase testsuite_testcases[] = {
                  // 'vb_active_perc_mem_resident' stat never goes below the
                  // threshold we expect. Needs to resize 'max_size' to consider
                  // RocksDB pre-allocations.
-                 // TODO magma: similar issue with magma
-                 prepare_skip_broken_under_rocks_and_magma,
+                 prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test set_param message",
                  test_set_param_message,
@@ -9035,7 +9034,7 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  nullptr,
                  // TODO RDB: Implement RocksDBKVStore::getNumPersistedDeletes
-                 // TODO magma: need to add support for persisted deletes
+                 // Magma: no plans to support persisted deletes
                  prepare_skip_broken_under_rocks_and_magma,
                  cleanup),
 
@@ -9280,7 +9279,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 // magma has no support for upgrades
+                 // magma has no support for upgrades at this time
                  prepare_skip_broken_under_magma,
                  cleanup),
 
@@ -9291,7 +9290,7 @@ BaseTestCase testsuite_testcases[] = {
                  // Set a fixed number of shards for stats checking.
                  "max_num_shards=4",
                  // TODO RDB: Needs to fix some missing/unexpected stats
-                 // magma has no support for upgrades
+                 // Magma has no support for upgrades at this time
                  prepare_skip_broken_under_rocks_and_magma,
                  cleanup),
 
@@ -9320,8 +9319,8 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  nullptr,
                  // TODO RDB: Needs the 'ep_item_commit_failed' stat
-                 // TODO magma: Need to add magma functionality similar
-                 // to couchstore specific functionality used by test
+                 // Magma: This test does not apply to magma because magma
+                 // does not close/reopen files while an instance is active.
                  prepare_ep_bucket_skip_broken_under_rocks_and_magma,
                  cleanup),
         TestCase("test_MB-test_mb20943_remove_pending_ops_on_vbucket_delete",
@@ -9337,8 +9336,8 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  nullptr,
                  // TODO RDB: Needs the 'vb_active_ops_reject' stat
-                 // TODO magma: Need to add magma functionality similar
-                 // to couchstore specific functionality used by test
+                 // Magma: Error injection for magma is done as part of
+                 // the magma unit tests.
                  prepare_ep_bucket_skip_broken_under_rocks_and_magma,
                  cleanup),
 
@@ -9362,8 +9361,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 // TODO magma: Need to add magma functionality similar
-                 // to couchstore specific functionality used by test
+                 // TODO Magma: Magma does not support updating the
+                 // data store without going through magma instance.
                  prepare_ep_bucket_skip_broken_under_rocks_and_magma,
                  cleanup),
 
@@ -9373,7 +9372,7 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  nullptr,
                  // couchstore only issue - so skip magma and rocks
-                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
+                 prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),
 
         TestCase("test_mb38031_illegal_json_throws",
@@ -9390,7 +9389,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 // The test logic assumes that the KV BloomFilter is enabled,
+                 // TODO: The test logic assumes that the KV BloomFilter is
+                 // enabled,
                  // but it is currently disabled for Magma
                  prepare_ep_bucket_skip_broken_under_magma,
                  cleanup),

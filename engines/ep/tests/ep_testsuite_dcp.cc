@@ -8534,8 +8534,7 @@ BaseTestCase testsuite_testcases[] = {
                  // TODO RDB: Cannot store any item
                  // (cb::engine_errc::no_memory). Needs to resize 'max_size' to
                  // consider RocksDB pre-allocations.
-                 // TODO magma: Need to recalc for magma
-                 prepare_skip_broken_under_rocks_and_magma,
+                 prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test dcp cursor dropping (replication)",
                  test_dcp_cursor_dropping_replication,
@@ -8561,8 +8560,7 @@ BaseTestCase testsuite_testcases[] = {
                  // TODO RDB: Cannot store any item
                  // (cb::engine_errc::no_memory). Needs to resize 'max_size' to
                  // consider RocksDB pre-allocations.
-                 // TODO magma: Need to recalc for magma
-                 prepare_skip_broken_under_rocks_and_magma,
+                 prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test dcp cursor dropping backfill",
                  test_dcp_cursor_dropping_backfill,
@@ -8574,7 +8572,7 @@ BaseTestCase testsuite_testcases[] = {
                  "cursor_dropping_lower_mark=60;cursor_dropping_upper_mark=70;"
                  "chk_remover_stime=1;max_size=6291456;chk_max_items=8000;"
                  "chk_period=1;max_num_shards=4",
-                 prepare_skip_broken_under_rocks_and_magma,
+                 prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test dcp stream takeover",
                  test_dcp_takeover,
@@ -8679,8 +8677,7 @@ BaseTestCase testsuite_testcases[] = {
                  // TODO RDB: Intermittently failing with SegFault.
                  // Probably we have to implement getItemCount. Needs the
                  // 'vb_replica_curr_items' stat.
-                 // TODO: magma needs collections support
-                 prepare_skip_broken_under_rocks_and_magma,
+                 prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test partial rollback on consumer",
                  test_partialrollback_for_consumer,
