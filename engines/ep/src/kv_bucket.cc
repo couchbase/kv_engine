@@ -1188,9 +1188,9 @@ static void snapshot_add_stat(std::string_view key,
 void KVBucket::snapshotStats(bool shuttingDown) {
     snapshot_add_stat_cookie snap;
     bool rv = engine.getStats(&snap, {}, {}, snapshot_add_stat) ==
-                      cb::engine_errc::success &&
-              engine.getStats(&snap, "dcp", {}, snapshot_add_stat) ==
                       cb::engine_errc::success;
+
+    engine.doDcpStatsInner(&snap, snapshot_add_stat, {});
 
     nlohmann::json snapshotStats(snap.smap);
     if (rv && shuttingDown) {
