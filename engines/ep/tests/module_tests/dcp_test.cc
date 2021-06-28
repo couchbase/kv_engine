@@ -2134,7 +2134,7 @@ TEST_F(DcpConnMapTest, ConnAggStats) {
     };
 
     // get the conn aggregated stats
-    engine->doConnAggStats(
+    engine->doConnAggStatsInner(
             CBStatCollector(addStat, statsCookie, nullptr /* server API */)
                     .forBucket("default"),
             ":");

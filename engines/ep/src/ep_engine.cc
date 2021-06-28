@@ -386,7 +386,7 @@ cb::engine_errc EventuallyPersistentEngine::get_prometheus_stats(
             }
             // do dcp aggregated stats, using ":" as the separator to split
             // connection names to find the connection type.
-            if (status = doConnAggStats(collector, ":");
+            if (status = doConnAggStatsInner(collector, ":");
                 status != cb::engine_errc::success) {
                 return status;
             }
@@ -3843,31 +3843,6 @@ static void showConnAggStat(const std::string& connType,
     }
 }
 
-cb::engine_errc EventuallyPersistentEngine::doConnAggStats(
-        const BucketStatCollector& collector, std::string_view sep) {
-    // The separator is, in all current usage, ":" so the length will
-    // normally be 1
-    const size_t max_sep_len(8);
-    sep = sep.substr(0, max_sep_len);
-
-    ConnAggStatBuilder visitor(sep);
-    dcpConnMap_->each(visitor);
-
-    for (const auto& [connType, counter] : visitor.getCounters()) {
-        // connType may be "replication", "views" etc. or ":total"
-        if (connType == ":total" && !collector.includeAggregateMetrics()) {
-            // Prometheus should not expose aggregations under the same
-            // metric names, as this makes summing across labels
-            // more difficult
-            continue;
-        }
-        showConnAggStat(connType,
-                        counter,
-                        collector);
-    }
-
-    return cb::engine_errc::success;
-}
 
 class StatDCPTask : public GlobalTask {
 public:
@@ -3875,10 +3850,12 @@ public:
             EventuallyPersistentEngine* e, const void* cookie)>;
     StatDCPTask(EventuallyPersistentEngine* e,
                 const void* cookie,
+                std::string_view description,
                 Callback callback)
         : GlobalTask(e, TaskId::StatDCPTask, 0, false),
           e(e),
           cookie(cookie),
+          description(description),
           callback(std::move(callback)) {
     }
     bool run() override {
@@ -3898,7 +3875,7 @@ public:
     }
 
     std::string getDescription() const override {
-        return "bucket-level aggregated DCP stats";
+        return description;
     }
 
     std::chrono::microseconds maxExpectedDuration() const override {
@@ -3910,8 +3887,58 @@ public:
 private:
     EventuallyPersistentEngine* e;
     const void* cookie;
+    const std::string description;
     Callback callback;
 };
+
+cb::engine_errc EventuallyPersistentEngine::doConnAggStats(
+        const void* cookie, const AddStatFn& add_stat, std::string_view sep) {
+    void* engineSpecific = getEngineSpecific(cookie);
+    if (engineSpecific == nullptr) {
+        ExTask task = std::make_shared<StatDCPTask>(
+                this,
+                cookie,
+                "Aggregated DCP stats",
+                [add_stat, separator = std::string(sep)](
+                        EventuallyPersistentEngine* ep, const void* cookie) {
+                    CBStatCollector col(add_stat, cookie, ep->getServerApi());
+                    ep->doConnAggStatsInner(col.forBucket(ep->getName()),
+                                            separator);
+                    return cb::engine_errc::success;
+                });
+        ExecutorPool::get()->schedule(task);
+        storeEngineSpecific(cookie, this);
+        return cb::engine_errc::would_block;
+    } else {
+        storeEngineSpecific(cookie, nullptr);
+    }
+
+    return cb::engine_errc::success;
+}
+
+cb::engine_errc EventuallyPersistentEngine::doConnAggStatsInner(
+        const BucketStatCollector& collector, std::string_view sep) {
+    // The separator is, in all current usage, ":" so the length will
+    // normally be 1
+    const size_t max_sep_len(8);
+    sep = sep.substr(0, max_sep_len);
+
+    ConnAggStatBuilder visitor(sep);
+    dcpConnMap_->each(visitor);
+
+    for (const auto& [connType, counter] : visitor.getCounters()) {
+        // connType may be "replication", "views" etc. or ":total"
+        if (connType == ":total" && !collector.includeAggregateMetrics()) {
+            // Prometheus should not expose aggregations under the same
+            // metric names, as this makes summing across labels
+            // more difficult
+            continue;
+        }
+        showConnAggStat(connType, counter, collector);
+    }
+
+    return cb::engine_errc::success;
+}
 
 cb::engine_errc EventuallyPersistentEngine::doDcpStats(
         const void* cookie, const AddStatFn& add_stat, std::string_view value) {
@@ -3920,6 +3947,7 @@ cb::engine_errc EventuallyPersistentEngine::doDcpStats(
         ExTask task = std::make_shared<StatDCPTask>(
                 this,
                 cookie,
+                "Summarised bucket-wide DCP stats",
                 [add_stat, filter = std::string(value)](
                         EventuallyPersistentEngine* ep, const void* cookie) {
                     ep->doDcpStatsInner(cookie, add_stat, filter);
@@ -4735,7 +4763,7 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
         return doEngineStats(bucketCollector);
     }
     if (key.size() > 7 && cb_isPrefix(key, "dcpagg ")) {
-        return doConnAggStats(bucketCollector, key.substr(7));
+        return doConnAggStats(cookie, add_stat, key.substr(7));
     }
     if (key == "dcp"sv) {
         return doDcpStats(cookie, add_stat, value);

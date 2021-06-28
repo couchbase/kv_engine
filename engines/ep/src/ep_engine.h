@@ -993,8 +993,11 @@ protected:
                          std::string_view value);
     cb::engine_errc doEvictionStats(const void* cookie,
                                     const AddStatFn& add_stat);
-    cb::engine_errc doConnAggStats(const BucketStatCollector& collector,
+    cb::engine_errc doConnAggStats(const void* cookie,
+                                   const AddStatFn& add_stat,
                                    std::string_view sep);
+    cb::engine_errc doConnAggStatsInner(const BucketStatCollector& collector,
+                                        std::string_view sep);
     void doTimingStats(const BucketStatCollector& collector);
     cb::engine_errc doSchedulerStats(const void* cookie,
                                      const AddStatFn& add_stat);
