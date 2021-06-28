@@ -1,6 +1,6 @@
 {
     "version": 1,
-    "revision": 4,
+    "revision": 5,
     "errors": {
         "0": {
             "name": "SUCCESS",
@@ -143,6 +143,41 @@
             "desc": "Server not initialized",
             "attrs": [
                 "conn-state-invalidated"
+            ]
+        },
+        "30": {
+            "name": "RATE_LIMITED_NETWORK_INGRESS",
+            "desc": "Rate limited: Network Ingress",
+            "attrs": [
+                "temp",
+                "retry-later",
+                "rate-limit"
+            ]
+        },
+        "31": {
+            "name": "RATE_LIMITED_NETWORK_EGRESS",
+            "desc": "Rate limited: Network Egress",
+            "attrs": [
+                "temp",
+                "retry-later",
+                "rate-limit"
+            ]
+        },
+        "32": {
+            "name": "RATE_LIMITED_MAX_CONNECTIONS",
+            "desc": "Rate limited: Max Connections",
+            "attrs": [
+                "conn-state-invalidated",
+                "rate-limit"
+            ]
+        },
+        "33": {
+            "name": "RATE_LIMITED_MAX_COMMANDS",
+            "desc": "Rate limited: Max Commands",
+            "attrs": [
+                "temp",
+                "retry-later",
+                "rate-limit"
             ]
         },
         "80": {

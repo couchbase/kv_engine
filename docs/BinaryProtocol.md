@@ -335,6 +335,10 @@ Possible values of this two-byte field:
 | 0x0023 | Rollback required                     |
 | 0x0024 | No access                             |
 | 0x0025 | The node is being initialized         |
+| 0x0030 | The user exceeded network ingress limit |
+| 0x0031 | The user exceeded network egress limit |
+| 0x0032 | The user exceeded max connections limit |
+| 0x0033 | The user exceeded max commands limit  |
 | 0x0081 | Unknown command                       |
 | 0x0082 | Out of memory                         |
 | 0x0083 | Not supported                         |
