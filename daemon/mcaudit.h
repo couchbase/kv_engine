@@ -101,6 +101,12 @@ void audit_privilege_debug(Cookie& cookie,
 
 namespace cb::audit {
 
+/// Enable / disable a given memcached audit event (when set to disabled
+/// the audit event is discarded immediately inside mcaudit before it is
+/// sent to the audit daemon (which allows for unit tests to run code
+/// which performs audit calls without having the audit daemon running)
+void setEnabled(uint32_t id, bool enable);
+
 /**
  *  Add an audit event that the connection is terminated
  *

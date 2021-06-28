@@ -58,7 +58,7 @@ static bool isEnabled(uint32_t id) {
     return true;
 }
 
-void setEnabled(uint32_t id, bool enable) {
+void cb::audit::setEnabled(uint32_t id, bool enable) {
     bool expected = !enable;
 
     if (id == 0) {
@@ -390,7 +390,7 @@ void add(Cookie& cookie, Operation operation) {
 } // namespace cb::audit
 
 static void event_state_listener(uint32_t id, bool enabled) {
-    setEnabled(id, enabled);
+    cb::audit::setEnabled(id, enabled);
 }
 
 void initialize_audit() {

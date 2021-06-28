@@ -451,51 +451,58 @@ void Cookie::initialize(const cb::mcbp::Header& header, bool tracing_enabled) {
 cb::mcbp::Status Cookie::validate() {
     static McbpValidator packetValidator;
 
+    // Note: validate is called after the connection fetched the frame
+    //       off the network, and in order to know when the frame ends
+    //       it needed to validate the frame layout (known magic and
+    //       all the length fields inside the raw header adds up so
+    //       that the bodylen() contains the entire data).
     const auto& header = getHeader();
-
-    if (!header.isValid()) {
-        audit_invalid_packet(connection, getPacket());
-        throw std::runtime_error("Received an invalid packet");
+    if (header.isResponse()) {
+        // We don't have packet validators for responses (yet)
+        validated = true;
+        return cb::mcbp::Status::Success;
     }
 
-    if (header.isRequest()) {
-        const auto& request = header.getRequest();
-        if (cb::mcbp::is_client_magic(request.getMagic())) {
-            auto opcode = request.getClientOpcode();
-            if (!cb::mcbp::is_valid_opcode(opcode)) {
-                // We don't know about this command so we can stop
-                // processing it.
-                return cb::mcbp::Status::UnknownCommand;
-            }
-
-            auto result = packetValidator.validate(opcode, *this);
-            if (result != cb::mcbp::Status::Success) {
-                if (result != cb::mcbp::Status::UnknownCollection &&
-                    result != cb::mcbp::Status::NotMyVbucket) {
-                    LOG_WARNING(
-                            "{}: Packet validation failed for \"{}\" - Status: "
-                            "\"{}\" - Packet:[{}] - Returned payload:[{}]",
-                            connection.getId(),
-                            to_string(opcode),
-                            to_string(result),
-                            request.toJSON(false).dump(),
-                            getErrorJson());
-                    audit_invalid_packet(getConnection(), getPacket());
-                }
-                return result;
-            }
-        } else {
-            // We should not be receiving a server command.
-            // Audit the packet, and close the connection
-            audit_invalid_packet(connection, getPacket());
-            throw std::runtime_error("Received a server command");
+    const auto& request = header.getRequest();
+    if (cb::mcbp::is_server_magic((request.getMagic()))) {
+        // We should not be receiving a server command.
+        auto opcode = request.getServerOpcode();
+        if (!cb::mcbp::is_valid_opcode(opcode)) {
+            return cb::mcbp::Status::UnknownCommand;
         }
 
-        // Add a barrier to the command if we don't support reordering it!
-        if (reorder && !is_reorder_supported(request.getClientOpcode())) {
-            setBarrier();
+        audit_invalid_packet(connection, getPacket());
+        return cb::mcbp::Status::NotSupported;
+    }
+
+    auto opcode = request.getClientOpcode();
+    if (!cb::mcbp::is_valid_opcode(opcode)) {
+        // We don't know about this command. Stop processing
+        // It is legal to send unknown commands, so we don't log or audit this
+        return cb::mcbp::Status::UnknownCommand;
+    }
+
+    auto result = packetValidator.validate(opcode, *this);
+    if (result != cb::mcbp::Status::Success) {
+        if (result != cb::mcbp::Status::UnknownCollection &&
+            result != cb::mcbp::Status::NotMyVbucket) {
+            LOG_WARNING(
+                    "{}: Packet validation failed for \"{}\" - Status: \"{}\" "
+                    "- Packet:[{}] - Returned payload:[{}]",
+                    connection.getId(),
+                    to_string(opcode),
+                    to_string(result),
+                    request.toJSON(false).dump(),
+                    getErrorJson());
+            audit_invalid_packet(getConnection(), getPacket());
         }
-    } // We don't currently have any validators for response packets
+        return result;
+    }
+
+    // Add a barrier to the command if we don't support reordering it!
+    if (reorder && !is_reorder_supported(request.getClientOpcode())) {
+        setBarrier();
+    }
 
     validated = true;
     return cb::mcbp::Status::Success;
