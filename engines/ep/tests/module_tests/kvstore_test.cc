@@ -726,6 +726,71 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
     checkGetValue(gv, cb::engine_errc::no_such_key);
 }
 
+/// Verify that deleting a vBucket while a Scan is open is handled correctly.
+TEST_P(KVStoreParamTest, DelVBucketWhileScanning) {
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+
+    // Store some documents.
+    for (int i = 1; i <= 5; i++) {
+        std::string key("key" + std::to_string(i));
+        auto qi = makeCommittedItem(makeStoredDocKey(key), COMPRESSIBLE_VALUE);
+        qi->setBySeqno(i);
+        kvstore->set(qi);
+    }
+    // Ensure a valid vbstate is committed
+    flush.proposedVBState.lastSnapEnd = 5;
+    ASSERT_TRUE(kvstore->commit(flush));
+
+    // Setup the mock GetValue callback. We want to perform the scan in two
+    // parts, to allow us to delete the vBucket while the scan is in progress.
+    // To do that, setup the callback to temporarily fail for the second item
+    // (return no_memory); which will cause the first scan to pause (and return
+    // ).
+    auto mockGetCB = std::make_unique<MockGetValueCallback>();
+    {
+        ::testing::InSequence s;
+        EXPECT_CALL(
+                *mockGetCB,
+                callback(ResultOf(
+                        [](GetValue& gv) { return gv.item->getKey().c_str(); },
+                        StrEq("key1"))))
+                .WillOnce([mock = mockGetCB.get()](GetValue&) {
+                    mock->setStatus(cb::engine_errc::success);
+                });
+        EXPECT_CALL(*mockGetCB, callback(_))
+                .WillOnce([mock = mockGetCB.get()](GetValue&) {
+                    mock->setStatus(cb::engine_errc::no_memory);
+                });
+        EXPECT_CALL(*mockGetCB, callback(_))
+                .WillRepeatedly([mock = mockGetCB.get()](GetValue&) {
+                    mock->setStatus(cb::engine_errc::success);
+                });
+    }
+
+    // Initalise a scan
+    auto scanCtx = kvstore->initBySeqnoScanContext(
+            std::move(mockGetCB),
+            std::make_unique<KVStoreTestCacheCallback>(1, 5, Vbid(0)),
+            Vbid(0),
+            1,
+            DocumentFilter::ALL_ITEMS,
+            ValueFilter::VALUES_COMPRESSED,
+            SnapshotSource::Head);
+    ASSERT_TRUE(scanCtx);
+
+    // Begin the scan, which should pause after first item, before the second
+    // (so we know the underlying KVStore has definately started iterating on
+    // the disk structures).
+    EXPECT_EQ(scan_again, kvstore->scan(*scanCtx));
+
+    // Delete the vBucket
+    kvstore->delVBucket(vbid, kvstore->prepareToDelete(vbid));
+
+    // Test - attempt to scan again. Permitted to either complete all
+    // items (couchstore) or fail now vBucket has been deleted.
+    kvstore->scan(*scanCtx);
+}
+
 // Verify thread-safeness for 'delVBucket' concurrent operations.
 // Expect ThreadSanitizer to pick this.
 // Rocks has race condition issues

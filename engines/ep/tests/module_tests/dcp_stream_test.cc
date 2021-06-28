@@ -1752,23 +1752,36 @@ TEST_P(SingleThreadedActiveStreamTest, DiskBackfillInitializingItemsRemaining) {
 /// Test that backfill is correctly cancelled if the VBucket is deleted
 /// part-way through the backfill.
 TEST_P(SingleThreadedActiveStreamTest, BackfillDeletedVBucket) {
-    auto vb = engine->getVBucket(vbid);
-    auto& ckptMgr = *vb->checkpointManager;
+    {
+        // Setup: Store items then remove them from checkpoint manager, forcing
+        // DCP Producer to backfill from disk.
+        // In own scope as we don't want to keep VBucketPtr alive
+        // past when we call deleteVBucket.
+        auto vb = engine->getVBucket(vbid);
+        auto& ckptMgr = *vb->checkpointManager;
 
-    // Delete initial stream (so we can re-create after items are only available
-    // from disk.
-    stream.reset();
+        // Delete initial stream (so we can re-create after items are only
+        // available from disk.
+        stream.reset();
 
-    // Store some items, create new checkpoint and flush so we have something to
-    // backfill from disk
-    store_item(vbid, makeStoredDocKey("key1"), "value");
-    store_item(vbid, makeStoredDocKey("key2"), "value");
-    ckptMgr.createNewCheckpoint();
-    flushVBucketToDiskIfPersistent(vbid, 2);
+        // Store some items, create new checkpoint and flush so we have
+        // something to backfill from disk
+        store_item(vbid, makeStoredDocKey("key1"), "value");
+        store_item(vbid, makeStoredDocKey("key2"), "value");
+        ckptMgr.createNewCheckpoint();
+        flushVBucketToDiskIfPersistent(vbid, 2);
 
-    // Close the now unreferenced checkpoint so DCP stream must go to disk.
-    bool newCKptCreated;
-    ASSERT_EQ(2, ckptMgr.removeClosedUnrefCheckpoints(*vb, newCKptCreated));
+        // Close the now unreferenced checkpoint so DCP stream must go to disk.
+        bool newCKptCreated;
+        ASSERT_EQ(2, ckptMgr.removeClosedUnrefCheckpoints(*vb, newCKptCreated));
+    }
+
+    auto* kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
+    if (persistent()) {
+        ASSERT_TRUE(kvstore);
+        // Sanity check - expected number of items are indeed on disk:
+        ASSERT_EQ(2, kvstore->getItemCount(vbid));
+    }
 
     // Re-create producer now we have items only on disk, setting a buffer which
     // can only hold 1 item (so backfill doesn't complete in one scan).
@@ -1783,10 +1796,21 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillDeletedVBucket) {
     ASSERT_EQ(2, *stream->getNumBackfillItemsRemaining());
 
     // Now delete the VBucket.
-    engine->getKVBucket()->deleteVBucket(vbid);
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->getKVBucket()->deleteVBucket(vbid));
+
     // Normally done by DcpConnMap::vBucketStateChanged(), but the producer
     // isn't tracked in DcpConnMap here.
     stream->setDead(cb::mcbp::DcpStreamEndStatus::StateChanged);
+
+    // Ensure background AuxIO task to actually delete VBucket from disk is run.
+    if (persistent()) {
+        auto& auxIoQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+        runNextTask(auxIoQ, "Removing (dead) vb:0 from memory and disk");
+
+        // vBucket should be gone from disk - attempts to read should fail.
+        EXPECT_THROW(kvstore->getItemCount(vbid), std::system_error);
+    }
 
     // Test: run backfillMgr again to actually attempt to read items from disk.
     // Given vBucket has been deleted this should result in the backfill

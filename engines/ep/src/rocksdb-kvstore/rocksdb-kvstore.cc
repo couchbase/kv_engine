@@ -1487,6 +1487,9 @@ scan_error_t RocksDBKVStore::scan(BySeqnoScanContext& ctx) const {
 
     rocksdb::Slice startSeqnoSlice = getSeqnoSlice(&startSeqno);
     const auto vbh = getVBHandle(ctx.vbid);
+    if (!vbh) {
+        return scan_failed;
+    }
     std::unique_ptr<rocksdb::Iterator> it(
             rdb->NewIterator(snapshotOpts, vbh->seqnoCFH.get()));
     if (!it) {
