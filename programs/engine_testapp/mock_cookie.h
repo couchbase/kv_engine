@@ -42,8 +42,6 @@ public:
 
     ~MockCookie() override;
 
-    cb::mcbp::Status validate() override;
-
     bool isEwouldblock() const override {
         return handle_ewouldblock;
     }
@@ -123,7 +121,6 @@ public:
     void waitForNotifications(std::unique_lock<std::mutex>& lock);
 
 private:
-    const uint64_t magic{MAGIC};
     void* engine_data{nullptr};
     int sfd{};
     cb::engine_errc status{cb::engine_errc::success};

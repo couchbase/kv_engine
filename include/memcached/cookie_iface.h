@@ -25,15 +25,6 @@ enum class Status : uint16_t;
  */
 class CookieIface : public cb::tracing::Traceable {
 public:
-    /**
-     * Validates the packet content, and (possibly) set the error
-     * state and reason.
-     *
-     * @return Success if the packet was correctly encoded
-     * @throw std::runtime_error if an unsupported packet is encountered
-     */
-    virtual cb::mcbp::Status validate() = 0;
-
     /// Is the current cookie blocked?
     virtual bool isEwouldblock() const = 0;
 

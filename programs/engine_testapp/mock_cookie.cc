@@ -21,13 +21,6 @@ MockCookie::~MockCookie() {
     }
 }
 
-cb::mcbp::Status MockCookie::validate() {
-    if (magic != MAGIC) {
-        throw std::runtime_error("MockCookie::validate(): Invalid magic");
-    }
-    return cb::mcbp::Status::Success;
-}
-
 MockCookie* create_mock_cookie(EngineIface* engine) {
     return new MockCookie(engine);
 }
@@ -43,7 +36,6 @@ void destroy_mock_cookie(CookieIface* cookie) {
                 "destroy_mock_cookie: Provided cookie is not a MockCookie");
     }
 
-    c->validate();
     c->disconnect();
     if (c->getRefcount() == 0) {
         delete c;
@@ -152,7 +144,10 @@ void MockCookie::handleIoComplete(cb::engine_errc completeStatus) {
 MockCookie* cookie_to_mock_cookie(const CookieIface* cookie) {
     auto* ret =
             const_cast<MockCookie*>(dynamic_cast<const MockCookie*>(cookie));
-    ret->validate();
+    if (ret == nullptr) {
+        throw std::runtime_error(
+                "cookie_to_mock_cookie(): provided cookie is not a MockCookie");
+    }
     return ret;
 }
 

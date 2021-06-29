@@ -237,11 +237,13 @@ struct MockServerCookieApi : public ServerCookieIface {
     }
 
     void set_priority(const CookieIface& cookie, ConnectionPriority) override {
-        const_cast<CookieIface&>(cookie).validate();
+        // Just verify the cookie type
+        cookie_to_mock_cookie(cookie);
     }
 
     ConnectionPriority get_priority(const CookieIface& cookie) override {
-        const_cast<CookieIface&>(cookie).validate();
+        // Just verify the cookie type
+        cookie_to_mock_cookie(cookie);
         return ConnectionPriority::Medium;
     }
 
