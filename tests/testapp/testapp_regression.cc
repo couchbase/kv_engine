@@ -408,3 +408,21 @@ TEST_P(RegressionTest, MB39441) {
     EXPECT_EQ(ssize_t{-1}, nb);
     cb::net::closesocket(socket);
 }
+
+/// Check the subdoc validator also check the size of the internal spec
+/// elements
+TEST_P(RegressionTest, MB47151) {
+    Frame frame;
+    frame.payload = std::vector<uint8_t>{
+            {0x80, 0xd0, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+             0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46,
+             0x46, 0x46, 0x46, 0x46, 0x24, 0x00, 0x09, 0x00, 0x04, 0x00}};
+
+    auto& conn = getConnection();
+    conn.sendFrame(frame);
+    BinprotResponse rsp;
+    conn.recvResponse(rsp);
+    EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus()) << rsp.getDataString();
+    EXPECT_EQ(R"({"error":{"context":"Multi lookup spec truncated"}})",
+              rsp.getDataString());
+}

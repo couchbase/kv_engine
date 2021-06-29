@@ -333,7 +333,7 @@ cb::mcbp::Status subdoc_get_count_validator(Cookie& cookie) {
  * Validate the multipath spec. This may be a multi mutation or lookup
  *
  * @param cookie The cookie representing the command context
- * @param ptr Pointer to the first byte of the encoded spec
+ * @param blob The remainder of the unparsed data
  * @param traits The traits to use to validate the spec
  * @param spec_len [OUT] The number of bytes used by this spec
  * @param xattr [OUT] Did this spec reference an extended attribute
@@ -349,7 +349,7 @@ cb::mcbp::Status subdoc_get_count_validator(Cookie& cookie) {
  */
 static cb::mcbp::Status is_valid_multipath_spec(
         Cookie& cookie,
-        const char* ptr,
+        cb::const_char_buffer blob,
         const SubdocMultiCmdTraits traits,
         size_t& spec_len,
         bool& xattr,
@@ -364,22 +364,38 @@ static cb::mcbp::Status is_valid_multipath_spec(
     size_t pathlen;
     size_t valuelen;
     if (traits.is_mutator) {
-        auto* spec =reinterpret_cast<const protocol_binary_subdoc_multi_mutation_spec*>
-            (ptr);
+        auto* spec = reinterpret_cast<
+                const protocol_binary_subdoc_multi_mutation_spec*>(blob.data());
         headerlen = sizeof(*spec);
+        if (headerlen > blob.size()) {
+            cookie.setErrorContext("Multi mutation spec truncated");
+            return cb::mcbp::Status::Einval;
+        }
         opcode = cb::mcbp::ClientOpcode(spec->opcode);
         flags = protocol_binary_subdoc_flag(spec->flags);
         pathlen = ntohs(spec->pathlen);
         valuelen = ntohl(spec->valuelen);
 
+        if (headerlen + pathlen + valuelen > blob.size()) {
+            cookie.setErrorContext("Multi mutation path and value truncated");
+            return cb::mcbp::Status::Einval;
+        }
     } else {
-        auto* spec = reinterpret_cast<const protocol_binary_subdoc_multi_lookup_spec*>
-            (ptr);
+        auto* spec = reinterpret_cast<
+                const protocol_binary_subdoc_multi_lookup_spec*>(blob.data());
         headerlen = sizeof(*spec);
+        if (headerlen > blob.size()) {
+            cookie.setErrorContext("Multi lookup spec truncated");
+            return cb::mcbp::Status::Einval;
+        }
         opcode = cb::mcbp::ClientOpcode(spec->opcode);
         flags = protocol_binary_subdoc_flag(spec->flags);
         pathlen = ntohs(spec->pathlen);
         valuelen = 0;
+        if (headerlen + pathlen > blob.size()) {
+            cookie.setErrorContext("Multi lookup path truncated");
+            return cb::mcbp::Status::Einval;
+        }
     }
 
     xattr = (flags & SUBDOC_FLAG_XATTR_PATH);
@@ -424,9 +440,8 @@ static cb::mcbp::Status is_valid_multipath_spec(
         return cb::mcbp::Status::Einval;
     }
 
-    cb::const_char_buffer path{ptr + headerlen, pathlen};
-
-    cb::const_char_buffer macro{ptr + headerlen + pathlen, valuelen};
+    cb::const_char_buffer path{blob.data() + headerlen, pathlen};
+    cb::const_char_buffer macro{blob.data() + headerlen + pathlen, valuelen};
 
     const auto status = validate_xattr_section(cookie,
                                                traits.is_mutator,
@@ -541,14 +556,15 @@ static cb::mcbp::Status subdoc_multi_validator(
         // true if the spec command needs to be alone in operating on the body
         bool is_isolationist;
 
-        const auto status = is_valid_multipath_spec(cookie,
-                                                    body_ptr + body_validated,
-                                                    traits,
-                                                    spec_len,
-                                                    is_xattr,
-                                                    xattr_key,
-                                                    doc_flags,
-                                                    is_isolationist);
+        const auto status = is_valid_multipath_spec(
+                cookie,
+                {body_ptr + body_validated, value.size() - body_validated},
+                traits,
+                spec_len,
+                is_xattr,
+                xattr_key,
+                doc_flags,
+                is_isolationist);
         if (status != cb::mcbp::Status::Success) {
             return status;
         }
