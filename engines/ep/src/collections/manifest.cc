@@ -616,11 +616,6 @@ bool Manifest::isEqualContent(const Manifest& other) const {
 }
 
 cb::engine_error Manifest::isSuccessor(const Manifest& successor) const {
-    // if forced return success - anything is permitted to happen
-    if (successor.isForcedUpdate()) {
-        return cb::engine_error(cb::engine_errc::success, "forced update");
-    }
-
     // else must be a > uid and any changes must be valid or equal uid with no
     // changes
     if (successor.getUid() > uid) {

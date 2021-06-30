@@ -288,21 +288,17 @@ public:
      * the bucket Collections::Manifest.
      */
     struct ManifestChanges {
-        explicit ManifestChanges(ManifestUid uid, bool forced)
-            : uid(uid), forced(forced) {
+        explicit ManifestChanges(ManifestUid uid) : uid(uid) {
         }
         std::vector<ScopeCreation> scopesToCreate;
         std::vector<ScopeID> scopesToDrop;
-        std::vector<ScopeID> scopesToForceDrop;
         std::vector<CollectionCreation> collectionsToCreate;
         std::vector<CollectionID> collectionsToDrop;
         const ManifestUid uid{0};
-        const bool forced{false};
 
         bool empty() const {
             return scopesToCreate.empty() && scopesToDrop.empty() &&
-                   scopesToForceDrop.empty() && collectionsToCreate.empty() &&
-                   collectionsToDrop.empty();
+                   collectionsToCreate.empty() && collectionsToDrop.empty();
         }
     };
 
@@ -342,30 +338,25 @@ protected:
      * @param update a function to call (either addCollection or
      *        beginCollectionDelete)
      * @param changes a vector of CollectionIDs to add/delete (based on update)
-     * @param isForce if the change comes from a force=true manifest
      * @return the last element which has been removed from the changes vector
      */
     std::optional<CollectionCreation> applyCreates(
             const WriteHandle& wHandle,
             ::VBucket& vb,
-            std::vector<CollectionCreation>& changes,
-            bool isForce);
+            std::vector<CollectionCreation>& changes);
 
     std::optional<CollectionID> applyDrops(WriteHandle& wHandle,
                                            ::VBucket& vb,
-                                           std::vector<CollectionID>& changes,
-                                           bool isForce);
+                                           std::vector<CollectionID>& changes);
 
     std::optional<ScopeCreation> applyScopeCreates(
             const WriteHandle& wHandle,
             ::VBucket& vb,
-            std::vector<ScopeCreation>& changes,
-            bool isForce);
+            std::vector<ScopeCreation>& changes);
 
     std::optional<ScopeID> applyScopeDrops(const WriteHandle& wHandle,
                                            ::VBucket& vb,
-                                           std::vector<ScopeID>& scopesToDrop,
-                                           bool isForce);
+                                           std::vector<ScopeID>& scopesToDrop);
 
     /**
      * Create a collection in the vbucket
@@ -380,8 +371,6 @@ protected:
      * @param maxTtl An optional maxTTL for the collection
      * @param optionalSeqno Either a seqno to assign to the new collection or
      *        none (none means the checkpoint will assign a seqno).
-     * @param isForcedCreate is the createCollection the result of a forced
-     *        update
      */
     void createCollection(const WriteHandle& wHandle,
                           ::VBucket& vb,
@@ -389,8 +378,7 @@ protected:
                           ScopeCollectionPair identifiers,
                           std::string_view collectionName,
                           cb::ExpiryLimit maxTtl,
-                          OptionalSeqno optionalSeqno,
-                          bool isForcedCreate);
+                          OptionalSeqno optionalSeqno);
 
     /**
      * Drop the collection from the vbucket
@@ -403,14 +391,12 @@ protected:
      * @param cid CollectionID to drop
      * @param optionalSeqno Either a seqno to assign to the delete of the
      *        collection or none (none means the checkpoint assigns the seqno).
-     * @param isForcedDrop is the dropCollection the result of a forced update
      */
     void dropCollection(WriteHandle& wHandle,
                         ::VBucket& vb,
                         ManifestUid newManUid,
                         CollectionID cid,
-                        OptionalSeqno optionalSeqno,
-                        bool isForcedDrop);
+                        OptionalSeqno optionalSeqno);
 
     /**
      * Create a scope in the vbucket.
@@ -424,15 +410,13 @@ protected:
      * @param scopeName Name of the added scope
      * @param optionalSeqno Either a seqno to assign to the new collection or
      *        none (none means the checkpoint will assign a seqno).
-     * @param isForcedAdd is the createScope the result of a forced update
      */
     void createScope(const WriteHandle& wHandle,
                      ::VBucket& vb,
                      ManifestUid newManUid,
                      ScopeID sid,
                      std::string_view scopeName,
-                     OptionalSeqno optionalSeqno,
-                     bool isForcedAdd);
+                     OptionalSeqno optionalSeqno);
 
     /**
      * Drop a scope
@@ -445,14 +429,12 @@ protected:
      * @param sid ScopeID to drop
      * @param optionalSeqno Either a seqno to assign to the drop of the
      *        scope or none (none means the checkpoint will assign the seqno)
-     * @param isForcedDrop is the dropScope the result of a forced update
      */
     void dropScope(const WriteHandle& wHandle,
                    ::VBucket& vb,
                    ManifestUid newManUid,
                    ScopeID sid,
-                   OptionalSeqno optionalSeqno,
-                   bool isForcedDrop);
+                   OptionalSeqno optionalSeqno);
 
     /**
      * Update the manifestUid

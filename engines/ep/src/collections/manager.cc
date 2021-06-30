@@ -125,10 +125,6 @@ cb::engine_error Collections::Manager::applyNewManifest(
         KVBucket& bucket,
         folly::Synchronized<Manifest>::UpgradeLockedPtr& current,
         std::unique_ptr<Manifest> newManifest) {
-    if (newManifest->isForcedUpdate()) {
-        EP_LOG_WARN_RAW("Collections::Manager::update is being forced");
-    }
-
     auto updated = updateAllVBuckets(bucket, *newManifest);
     if (updated.has_value()) {
         return cb::engine_error(
@@ -308,9 +304,8 @@ bool Collections::Manager::warmupLoadManifest(const std::string& dbpath) {
     if (rv.has_value()) {
         EP_LOG_INFO(
                 "Collections::Manager::warmupLoadManifest: starting at "
-                "uid:{:#x} force:{}",
-                rv.value().getUid(),
-                rv.value().isForcedUpdate());
+                "uid:{:#x}",
+                rv.value().getUid());
         *currentManifest.wlock() = std::move(rv.value());
         return true;
     }

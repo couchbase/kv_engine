@@ -96,8 +96,7 @@ public:
     std::optional<Manifest::CollectionCreation> public_applyCreates(
             ::VBucket& vb, Manifest::ManifestChanges& changes) {
         auto wHandle = wlock();
-        return applyCreates(
-                wHandle, vb, changes.collectionsToCreate, changes.forced);
+        return applyCreates(wHandle, vb, changes.collectionsToCreate);
     }
 
     std::optional<std::vector<CollectionID>> public_getCollectionsForScope(
@@ -992,7 +991,7 @@ TEST_F(VBucketManifestTest, replica_add_remove) {
 
 TEST_F(VBucketManifestTest, check_applyChanges) {
     Collections::VB::Manifest::ManifestChanges changes{
-            Collections::ManifestUid(0), false};
+            Collections::ManifestUid(0)};
     auto value = manifest.getActiveManifest().public_applyCreates(
             manifest.getActiveVB(), changes);
     EXPECT_FALSE(value.has_value());

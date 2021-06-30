@@ -804,8 +804,6 @@ TEST(ManifestTest, getCollectionID) {
     EXPECT_EQ(9, cm.getCollectionID(ScopeID(8), "brewerA.beer").value());
     EXPECT_EQ(0xa, cm.getCollectionID(ScopeID(8), "brewerA.meat").value());
 
-    EXPECT_FALSE(cm.isForcedUpdate());
-
     // getCollectionID doesn't care about the scope part, correct usage
     // is always to call getScopeID(path) first which is where scope name errors
     // are caught
