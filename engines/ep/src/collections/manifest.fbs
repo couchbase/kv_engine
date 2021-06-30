@@ -30,9 +30,13 @@ table Scope {
 }
 
 table Manifest {
-   uid:ulong;
-   force:bool;
-   scopes:[Scope];
+    uid:ulong;
+    // The following parameter was previously used to store a "force" flag.
+    // The force flag was never actually used and has now been removed from
+    // the collection code. This bool is now unused and is available for future
+    // use.
+    unused:bool;
+    scopes:[Scope];
 }
 
 table ManifestWithCrc {

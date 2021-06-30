@@ -46,7 +46,6 @@ static constexpr char const* UidKey = "uid";
 static constexpr char const* MaxTtlKey = "maxTTL";
 static constexpr nlohmann::json::value_t MaxTtlType =
         nlohmann::json::value_t::number_unsigned;
-static constexpr char const* ForceUpdateKey = "force";
 
 /**
  * Get json sub-object from the json object for key and check the type.
@@ -94,13 +93,6 @@ Manifest::Manifest(std::string_view json)
     // Read the Manifest UID e.g. "uid" : "5fa1"
     auto jsonUid = getJsonObject(parsed, UidKey, UidType);
     uid = makeUid(jsonUid.get<std::string>());
-
-    auto forcedUpdate =
-            cb::getOptionalJsonObject(parsed, ForceUpdateKey, ForceUpdateType);
-
-    if (forcedUpdate) {
-        force = forcedUpdate.value().get<bool>();
-    }
 
     // Read the scopes within the Manifest
     auto scopes = getJsonObject(parsed, ScopesKey, ScopesType);
@@ -236,12 +228,7 @@ Manifest& Manifest::operator=(Manifest&& other) {
         defaultCollectionExists = other.defaultCollectionExists;
         scopes = std::move(other.scopes);
         collections = std::move(other.collections);
-        if (other.force) {
-            uid.reset(other.uid);
-        } else {
             uid = other.uid;
-        }
-        force = other.force;
     }
 
     return *this;
@@ -313,10 +300,6 @@ nlohmann::json Manifest::toJson(
     manifest["uid"] = fmt::format("{0:x}", uid);
     manifest["scopes"] = nlohmann::json::array();
 
-    if (force) {
-        manifest["force"] = true;
-    }
-
     // scope check is correct to see an empty scope
     // collection check is correct as well, if you have no visible collections
     // and no access to the scope - no scope
@@ -375,7 +358,7 @@ flatbuffers::DetachedBuffer Manifest::toFlatbuffer() const {
 
     auto scopeVector = builder.CreateVector(fbScopes);
     auto toWrite = Collections::Persist::CreateManifest(
-            builder, uid, force, scopeVector);
+            builder, uid, false, scopeVector);
     builder.Finish(toWrite);
     return builder.Release();
 }
@@ -400,7 +383,6 @@ Manifest::Manifest(std::string_view flatbufferData, Manifest::FlatBuffers tag)
             reinterpret_cast<const uint8_t*>(flatbufferData.data()));
 
     uid = manifest->uid();
-    force = manifest->force();
 
     for (const Collections::Persist::Scope* scope : *manifest->scopes()) {
         std::vector<CollectionEntry> scopeCollections;
@@ -470,11 +452,6 @@ void Manifest::addScopeStats(KVBucket& bucket,
         // exposes this too). It reveals nothing about scopes or collections but
         // is useful for assisting in access failures
         collector.addStat(Key::manifest_uid, uid);
-
-        // Add force only when set (should be rare)
-        if (force) {
-            collector.addStat(Key::manifest_force, true);
-        }
 
         for (const auto& entry : scopes) {
             std::string_view scopeName = entry.second.name;
@@ -603,8 +580,7 @@ bool Scope::operator==(const Scope& other) const {
 }
 
 bool Manifest::operator==(const Manifest& other) const {
-    return (uid == other.uid) && (force == other.force) &&
-           isEqualContent(other);
+    return (uid == other.uid) && isEqualContent(other);
 }
 
 // tests the equality of contents, i.e. everything but the uid
@@ -702,7 +678,7 @@ bool Manifest::isEpoch() const {
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
     os << "Collections::Manifest"
        << ", defaultCollectionExists:" << manifest.defaultCollectionExists
-       << ", uid:" << manifest.uid << ", force:" << manifest.force
+       << ", uid:" << manifest.uid
        << ", collections.size:" << manifest.collections.size() << std::endl;
     for (const auto& entry : manifest.scopes) {
         os << "scope:{" << std::hex << entry.first << ", " << entry.second.name

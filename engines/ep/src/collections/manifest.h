@@ -322,7 +322,6 @@ private:
                                  ScopeID::Default}}}}};
     collectionContainer collections;
     ManifestUid uid{0};
-    bool force{false};
 };
 
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
