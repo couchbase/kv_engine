@@ -944,18 +944,3 @@ TEST(ManifestTest, isNotSuccesor) {
     Collections::Manifest incoming3{std::string{cm}};
     EXPECT_NE(cb::engine_errc::success, current.isSuccessor(incoming3).code());
 }
-
-TEST(ManifestTest, forcedUpdate) {
-    std::string manifest = R"({"uid" : "1",
-                "force" : true,
-                "scopes":[{"name":"_default", "uid":"0",
-                                "collections":[
-                                    {"name":"_default", "uid":"0"},
-                                    {"name":"meat", "uid":"8"}]},
-                          {"name":"brewerA", "uid":"8",
-                                "collections":[
-                                    {"name":"beer", "uid":"9"},
-                                    {"name":"meat", "uid":"a"}]}]})";
-    Collections::Manifest cm(manifest);
-    EXPECT_TRUE(cm.isForcedUpdate());
-}

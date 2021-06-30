@@ -128,7 +128,7 @@ public:
      * questions asked?
      */
     bool isForcedUpdate() const {
-        return force;
+        return false;
     }
 
     /**
