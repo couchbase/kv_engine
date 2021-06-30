@@ -162,8 +162,6 @@ def tasks_stats_formatter(stats, sort_by=None, reverse=False, *args):
             stats_formatter(stats)
         else:
             cur_time = int(stats.pop("ep_tasks:cur_time"))
-            uptime = datetime.timedelta(
-                seconds=int(stats.pop("ep_tasks:uptime_s")))
 
             total_tasks = {"Reader":0,
                            "Writer":0,
@@ -208,11 +206,10 @@ def tasks_stats_formatter(stats, sort_by=None, reverse=False, *args):
             total_tasks["Total"] = len(tasks)
 
             headers = (
-                "Tasks     Writer Reader AuxIO  NonIO  Total"
-                "      Uptime: {uptime}\n"
+                "Tasks     Writer Reader AuxIO  NonIO  Total      \n"
                 "Running   {Writer:<6} {Reader:<6} "
                 "{AuxIO:<6} {NonIO:<6} {Total:<6}\n"
-                    .format(uptime=uptime, **running_tasks) +
+                    .format(**running_tasks) +
                 "All       {Writer:<6} {Reader:<6} "
                 "{AuxIO:<6} {NonIO:<6} {Total:<6}\n"
                     .format(**total_tasks)
