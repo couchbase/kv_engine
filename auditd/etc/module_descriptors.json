@@ -65,6 +65,12 @@
                                "file" : "cbbs/audit/audit_descriptor.json",
                                "enterprise": true
                               }
+                },
+                {
+                  "index" : {
+                               "startid" : 49152,
+                               "file" : "goproj/src/github.com/couchbase/indexing/secondary/audit/audit_descriptor.json"
+                            }
                 }
              ]
 }
