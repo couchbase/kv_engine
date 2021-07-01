@@ -6862,6 +6862,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_dcp_items_sent",
               "ep_dcp_max_running_backfills",
               "ep_dcp_num_running_backfills",
+              "ep_dcp_consumer_count",
               "ep_dcp_producer_count",
               "ep_dcp_queue_fill",
               "ep_dcp_total_bytes",

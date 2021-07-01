@@ -35,6 +35,7 @@ enum class ClientOpcode : uint8_t;
 
 class CheckpointConfig;
 struct CompactionConfig;
+struct ConnCounter;
 class ConnHandler;
 enum class ConflictResolutionMode;
 class DcpConnMap;
@@ -991,6 +992,9 @@ protected:
     void doDcpStatsInner(const void* cookie,
                          const AddStatFn& add_stat,
                          std::string_view value);
+
+    void addAggregatedProducerStats(const BucketStatCollector& collector,
+                                    const ConnCounter& aggregator);
     cb::engine_errc doEvictionStats(const void* cookie,
                                     const AddStatFn& add_stat);
     cb::engine_errc doConnAggStats(const void* cookie,

@@ -639,6 +639,34 @@ STAT(connagg_total_uncompressed_data_size,
      bytes,
      dcp_total_uncompressed_data_size, )
 
+// aggregated dcp producer stats
+
+CBSTAT(dcp_count, "ep_dcp_count", count) // redundant in prometheus, is the sum
+                                         // of consumer and producer
+STAT(dcp_consumer_count,
+     "ep_dcp_consumer_count",
+     count,
+     "dcp_count",
+     LABEL(type, consumer))
+STAT(dcp_producer_count,
+     "ep_dcp_producer_count",
+     count,
+     "dcp_count",
+     LABEL(type, producer))
+STAT(dcp_total_data_size, "ep_dcp_total_bytes", bytes, , )
+STAT(dcp_total_uncompressed_data_size,
+     "ep_dcp_total_uncompressed_data_size",
+     bytes,
+     , )
+CBSTAT(dcp_total_queue,
+       "ep_dcp_total_queue",
+       count) // derivable from fill and sent
+STAT(dcp_queue_fill, "ep_dcp_queue_fill", count, , )
+STAT(dcp_items_sent, "ep_dcp_items_sent", count, , )
+STAT(dcp_items_remaining, "ep_dcp_items_remaining", count, , )
+STAT(dcp_num_running_backfills, "ep_dcp_num_running_backfills", count, , )
+STAT(dcp_max_running_backfills, "ep_dcp_max_running_backfills", count, , )
+
 STAT(manifest_uid, , none, , )
 STAT(manifest_force, "force", none, , )
 
