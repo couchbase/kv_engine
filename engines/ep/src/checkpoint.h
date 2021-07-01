@@ -398,7 +398,8 @@ class Checkpoint {
     friend class CheckpointManagerTestIntrospector;
 
 public:
-    Checkpoint(EPStats& st,
+    Checkpoint(CheckpointManager& manager,
+               EPStats& st,
                uint64_t id,
                uint64_t snapStart,
                uint64_t snapEnd,
@@ -486,12 +487,9 @@ public:
     /**
      * Queue an item to be written to persistent layer.
      * @param item the item to be persisted
-     * @param checkpointManager the checkpoint manager to which this checkpoint belongs
-     * @param bySeqno the by sequence number assigned to this mutation
      * @return a result indicating the status of the operation.
      */
-    QueueDirtyResult queueDirty(const queued_item& qi,
-                                CheckpointManager* checkpointManager);
+    QueueDirtyResult queueDirty(const queued_item& qi);
 
     /**
      * @return true if the item can be de-duplicated, false otherwise
@@ -676,6 +674,9 @@ private:
      * the key index(es).
      */
     CheckpointIndexKeyType makeIndexKey(const queued_item& item) const;
+
+    // Reference to the CheckpointManager that owns this Checkpoint
+    CheckpointManager& manager;
 
     EPStats& stats;
     uint64_t                       checkpointId;

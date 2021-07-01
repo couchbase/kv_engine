@@ -135,7 +135,7 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(
             oldOpenCkpt.getHighSeqno());
     queued_item qi = createCheckpointItem(
             oldOpenCkpt.getId(), vbucketId, queue_op::checkpoint_end);
-    oldOpenCkpt.queueDirty(qi, this);
+    oldOpenCkpt.queueDirty(qi);
     ++numItems;
     oldOpenCkpt.setState(CHECKPOINT_CLOSED);
 
@@ -203,7 +203,8 @@ void CheckpointManager::addOpenCheckpoint(
             checkpointList.back()->getState() ==
                     checkpoint_state::CHECKPOINT_CLOSED);
 
-    auto ckpt = std::make_unique<Checkpoint>(stats,
+    auto ckpt = std::make_unique<Checkpoint>(*this,
+                                             stats,
                                              id,
                                              snapStart,
                                              snapEnd,
@@ -217,12 +218,12 @@ void CheckpointManager::addOpenCheckpoint(
     // at creation. So, the cursor will point at the first actual non-meta item
     // after the first cursor-increment.
     queued_item qi = createCheckpointItem(0, Vbid(0xffff), queue_op::empty);
-    ckpt->queueDirty(qi, this);
+    ckpt->queueDirty(qi);
     // Note: We don't include the empty-item in 'numItems'
 
     // This item represents the start of the new checkpoint
     qi = createCheckpointItem(id, vbucketId, queue_op::checkpoint_start);
-    ckpt->queueDirty(qi, this);
+    ckpt->queueDirty(qi);
     ++numItems;
 
     checkpointList.push_back(std::move(ckpt));
@@ -836,7 +837,7 @@ bool CheckpointManager::queueDirty(
         }
     }
 
-    QueueDirtyResult result = openCkpt->queueDirty(qi, this);
+    QueueDirtyResult result = openCkpt->queueDirty(qi);
 
     if (result.status == QueueDirtyStatus::FailureDuplicateItem) {
         // Could not queue into the current checkpoint as it already has a
@@ -857,7 +858,7 @@ bool CheckpointManager::queueDirty(
         // Note this uses the lastBySeqno for snapStart / End.
         checkOpenCheckpoint_UNLOCKED(lh, /*force*/ true, false);
         openCkpt = &getOpenCheckpoint_UNLOCKED(lh);
-        result = openCkpt->queueDirty(qi, this);
+        result = openCkpt->queueDirty(qi);
         if (result.status != QueueDirtyStatus::SuccessNewItem) {
             throw std::logic_error("CheckpointManager::queueDirty(vb:" +
                                    vbucketId.to_string() +
@@ -940,7 +941,7 @@ void CheckpointManager::queueSetVBState(VBucket& vb) {
     vbstate.toItem(*item);
 
     auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
-    const auto result = openCkpt.queueDirty(item, this);
+    const auto result = openCkpt.queueDirty(item);
 
     if (result.status == QueueDirtyStatus::SuccessNewItem) {
         ++numItems;

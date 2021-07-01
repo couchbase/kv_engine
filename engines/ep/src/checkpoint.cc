@@ -156,6 +156,7 @@ std::ostream& operator<<(std::ostream& os, const CheckpointCursor& c) {
 }
 
 Checkpoint::Checkpoint(
+        CheckpointManager& manager,
         EPStats& st,
         uint64_t id,
         uint64_t snapStart,
@@ -165,7 +166,8 @@ Checkpoint::Checkpoint(
         Vbid vbid,
         CheckpointType checkpointType,
         const std::function<void(int64_t)>& memOverheadChangedCallback)
-    : stats(st),
+    : manager(manager),
+      stats(st),
       checkpointId(id),
       snapStartSeqno(snapStart),
       snapEndSeqno(snapEnd),
@@ -206,8 +208,7 @@ Checkpoint::~Checkpoint() {
     memOverheadChangedCallback(-getMemoryOverhead());
 }
 
-QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi,
-                                        CheckpointManager* checkpointManager) {
+QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
     if (getState() != CHECKPOINT_OPEN) {
         throw std::logic_error(
                 "Checkpoint::queueDirty: checkpointState "
@@ -289,7 +290,7 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi,
                 // this Checkpoint and see if the existing item for this key is
                 // to the "left" of the cursor (i.e. has already been
                 // processed).
-                for (auto& cursor : checkpointManager->cursors) {
+                for (auto& cursor : manager.cursors) {
                     if ((*(cursor.second->currentCheckpoint)).get() != this) {
                         // Cursor is in another checkpoint, doesn't need
                         // updating here
@@ -346,20 +347,16 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi,
                     // a single item (we de-dupe below). Track this in an
                     // AggregatedFlushStats in CheckpointManager so that we can
                     // undo these stat updates if the flush fails.
-                    auto backupPCursor = checkpointManager->cursors.find(
+                    auto backupPCursor = manager.cursors.find(
                             CheckpointManager::backupPCursorName);
 
-                    if (backupPCursor == checkpointManager->cursors.end()) {
+                    if (backupPCursor == manager.cursors.end()) {
                         decrCursorIfSameKey();
 
                         // We're not mid-flush, don't need to adjust any stats
                         continue;
                     }
 
-                    // We'd normally use "mutation_id" here which is basically
-                    // the seqno but the backupPCursor may be in a different
-                    // checkpoint and we'd fail a bunch of sanity checks trying
-                    // to read it.
                     auto backupPCursorSeqno =
                             (*(*backupPCursor->second).currentPos)
                                     ->getBySeqno();
@@ -368,8 +365,8 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi,
                         // the stats we'll use the new item and the flush
                         // will pick up the new item too so we have to match
                         // the original (oldItem) increment with a decrement
-                        checkpointManager->persistenceFailureStatOvercounts
-                                .accountItem(*oldItem);
+                        manager.persistenceFailureStatOvercounts.accountItem(
+                                *oldItem);
                     }
 
                     decrCursorIfSameKey();
@@ -457,7 +454,7 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi,
     if (qi->getOperation() == queue_op::checkpoint_start ||
         qi->getOperation() == queue_op::checkpoint_end ||
         qi->getOperation() == queue_op::set_vbucket_state) {
-        checkpointManager->notifyFlusher();
+        manager.notifyFlusher();
     }
 
     return rv;
