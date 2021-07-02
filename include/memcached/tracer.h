@@ -45,6 +45,8 @@ enum class Code : uint8_t {
     SnappyDecompress,
     /// Time spent validating if incoming value is JSON.
     JsonValidate,
+    /// Time spent performing subdoc lookup / mutation (all paths).
+    SubdocOperate,
     /// Time spent waiting for a background fetch operation to be scheduled.
     BackgroundWait,
     /// Time spent performing the actual background load from disk.

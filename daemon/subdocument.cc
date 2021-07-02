@@ -32,6 +32,7 @@
 #include <memcached/durability_spec.h>
 #include <memcached/types.h>
 #include <platform/histogram.h>
+#include <platform/scope_timer.h>
 #include <utilities/engine_errc_2_mcbp.h>
 #include <xattr/blob.h>
 
@@ -1003,8 +1004,11 @@ static bool subdoc_operate(SubdocCmdContext& context) {
         return true;
     }
 
-    HdrMicroSecBlockTimer bt(
-            &context.connection.getBucket().subjson_operation_times);
+    ScopeTimer2<HdrMicroSecStopwatch, cb::tracing::SpanStopwatch> timer(
+            std::forward_as_tuple(
+                    context.connection.getBucket().subjson_operation_times),
+            std::forward_as_tuple(context.cookie,
+                                  cb::tracing::Code::SubdocOperate));
 
     context.overall_status = cb::mcbp::Status::Success;
 
