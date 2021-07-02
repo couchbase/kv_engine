@@ -252,3 +252,16 @@ TEST_F(BasicClusterTest, VerifyDcpSurviesResetOfEngineSpecific) {
         } while (!found);
     }
 }
+
+/// Verify that we can only run a subset of the commands until
+/// the connection is authenticated
+TEST_F(BasicClusterTest, MB_47216) {
+    auto bucket = cluster->getBucket("default");
+    auto conn = bucket->getConnection(Vbid(0));
+    auto rsp =
+            conn->execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop});
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
+    conn->authenticate("@admin", "password", "PLAIN");
+    rsp = conn->execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop});
+    EXPECT_TRUE(rsp.isSuccess());
+}

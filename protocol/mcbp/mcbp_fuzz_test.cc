@@ -13,6 +13,7 @@
 #include <daemon/cookie.h>
 #include <daemon/front_end_thread.h>
 #include <daemon/mcaudit.h>
+#include <daemon/runtime.h>
 #include <daemon/settings.h>
 #include <logger/logger.h>
 #include <cstdint>
@@ -77,6 +78,7 @@ public:
         cb::audit::setEnabled(MEMCACHED_AUDIT_INVALID_PACKET, false);
         cb::logger::createBlackholeLogger();
         Settings::instance().setXattrEnabled(true);
+        set_default_bucket_enabled(true);
         connection.setCollectionsSupported(true);
         connection.enableDatatype(cb::mcbp::Feature::JSON);
         connection.enableDatatype(cb::mcbp::Feature::XATTR);

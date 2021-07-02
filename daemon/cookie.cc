@@ -20,6 +20,7 @@
 #include "mcbp_executors.h"
 #include "memcached.h"
 #include "opentelemetry.h"
+#include "runtime.h"
 #include "settings.h"
 
 #include <logger/logger.h>
@@ -476,6 +477,22 @@ cb::mcbp::Status Cookie::validate() {
     }
 
     auto opcode = request.getClientOpcode();
+
+    if (!connection.isAuthenticated() && !is_default_bucket_enabled()) {
+        // We're not authenticated and the default bucket isn't enabled. To
+        // reduce the attack vector we'll only allow certain commands to
+        // be executed
+        const std::array<cb::mcbp::ClientOpcode, 4> whitelist{
+                {cb::mcbp::ClientOpcode::Hello,
+                 cb::mcbp::ClientOpcode::SaslListMechs,
+                 cb::mcbp::ClientOpcode::SaslAuth,
+                 cb::mcbp::ClientOpcode::SaslStep}};
+        if (std::find(whitelist.begin(), whitelist.end(), opcode) ==
+            whitelist.end()) {
+            return cb::mcbp::Status::Eaccess;
+        }
+    }
+
     if (!cb::mcbp::is_valid_opcode(opcode)) {
         // We don't know about this command. Stop processing
         // It is legal to send unknown commands, so we don't log or audit this
