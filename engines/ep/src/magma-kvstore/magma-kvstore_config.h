@@ -135,6 +135,10 @@ public:
         return magmaBloomFilterAccuracyForBottomLevel;
     }
 
+    bool getMagmaEnableWAL() const {
+        return magmaEnableWAL;
+    }
+
     magma::Magma::Config magmaCfg;
 
 private:
@@ -183,6 +187,10 @@ private:
     // Magma minimum value for key value separation.
     // Values < magmaValueSeparationSize, value remains in key index.
     size_t magmaValueSeparationSize;
+
+    // WAL ensures Magma's atomicity, durability. Disabling it is useful in
+    // performance analysis.
+    bool magmaEnableWAL;
 
     // Magma uses a common skiplist to buffer all items at the shard level
     // called the write cache. The write cache contains items from all the

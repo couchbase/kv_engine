@@ -74,6 +74,7 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaBloomFilterAccuracy = config.getMagmaBloomFilterAccuracy();
     magmaBloomFilterAccuracyForBottomLevel =
             config.getMagmaBloomFilterAccuracyForBottomLevel();
+    magmaEnableWAL = config.isMagmaEnableWal();
 
     config.addValueChangedListener(
             "magma_fragmentation_percentage",

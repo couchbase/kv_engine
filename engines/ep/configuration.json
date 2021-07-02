@@ -1192,6 +1192,12 @@
             "descr": "Couchstore generates a potential commit point at the end of every batch of items. During normal operation, Magma checkpoints are take at every magma_checkpoint_interval. Many of the tests require more frequent checkpoints so this configuration parameter makes sure every batch generates a checkpoint. Should be used for testing only!",
             "type": "bool"
         },
+        "magma_enable_wal": {
+            "default": "true",
+            "dynamic": false,
+            "descr": "WAL ensures Magma's atomicity, durability. Disabling it is useful in performance analysis.",
+            "type": "bool"
+        },
         "magma_enable_upsert": {
             "default": "false",
             "dynamic": false,

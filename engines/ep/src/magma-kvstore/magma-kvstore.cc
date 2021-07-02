@@ -440,6 +440,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     configuration.magmaCfg.WALBufferSize =
             configuration.getMagmaInitialWalBufferSize();
     configuration.magmaCfg.WALSyncTime = 0ms;
+    configuration.magmaCfg.EnableWAL = configuration.getMagmaEnableWAL();
     configuration.magmaCfg.ExpiryFragThreshold =
             configuration.getMagmaExpiryFragThreshold();
     configuration.magmaCfg.KVStorePurgerInterval =
