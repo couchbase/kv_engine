@@ -236,8 +236,7 @@ TEST_F(MagmaKVStoreTest, getStat) {
     ASSERT_TRUE(kvstore->getStat("magma_NSyncs", value));
 }
 
-// TODO: MB-40008: Disabled as the test has started recently failing.
-TEST_F(MagmaKVStoreTest, DISABLED_setMaxDataSize) {
+TEST_F(MagmaKVStoreTest, setMaxDataSize) {
     uint64_t seqno{1};
 
     // Magma's memory quota is recalculated on each commit batch.
