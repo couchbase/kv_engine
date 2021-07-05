@@ -284,7 +284,8 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                            network_interface_description_test.cc
                            settings_test.cc
                            ssl_utils_test.cc
-                           tls_configuration_test.cc)
+                           tls_configuration_test.cc
+                           topkeys_test.cc)
     cb_enable_unity_build(memcached_unit_tests)
     add_sanitizers(memcached_unit_tests)
     target_link_libraries(memcached_unit_tests PRIVATE
@@ -294,4 +295,16 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
              COMMAND memcached_unit_tests)
     kv_enable_pch(memcached_unit_tests)
+
+    if (NOT WIN32)
+        cb_add_test_executable(memcached_topkeys_benchmark topkeys_benchmark.cc)
+        kv_enable_pch(memcached_topkeys_benchmark)
+        target_include_directories(memcached_topkeys_benchmark
+                                   SYSTEM PRIVATE
+                                   ${benchmark_SOURCE_DIR}/include)
+        target_link_libraries(memcached_topkeys_benchmark
+                              PRIVATE memcached_daemon benchmark)
+        add_sanitizers(memcached_topkeys_benchmark)
+    endif (NOT WIN32)
+
 endif (COUCHBASE_KV_BUILD_UNIT_TESTS)

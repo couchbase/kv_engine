@@ -9,7 +9,6 @@ ADD_SUBDIRECTORY(scripts_tests)
 ADD_SUBDIRECTORY(statistics)
 ADD_SUBDIRECTORY(testapp)
 add_subdirectory(testapp_cluster)
-ADD_SUBDIRECTORY(topkeys)
 ADD_SUBDIRECTORY(unsigned_leb128)
 
 add_test(NAME kv-engine-check-header-define-once-guard COMMAND ${PYTHON_EXECUTABLE}
