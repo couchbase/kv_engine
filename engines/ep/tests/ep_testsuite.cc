@@ -1948,6 +1948,11 @@ static enum test_result test_stats_seqno(EngineIface* h) {
     }
     wait_for_flusher_to_settle(h);
 
+    // MB-47105: help identifing if anything related to MB-37920
+    if (isPersistentBucket(h)) {
+        checkeq(0, get_int_stat(h, "ep_item_commit_failed"), "Flush failures");
+    }
+
     checkeq(100,
             get_int_stat(h, "vb_0:high_seqno", "vbucket-seqno"),
             "Invalid seqno");
