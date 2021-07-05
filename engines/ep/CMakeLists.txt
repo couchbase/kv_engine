@@ -13,18 +13,6 @@ CMAKE_DEPENDENT_OPTION(EP_USE_MAGMA "Enable support for Magma" ON
 CMAKE_DEPENDENT_OPTION(EP_USE_ROCKSDB "Enable support for RocksDB" ON
         "ROCKSDB_INCLUDE_DIR;ROCKSDB_LIBRARIES" OFF)
 
-# The test in ep-engine is time consuming (and given that we run some of
-# them with different modes it really adds up). By default we should build
-# and run all of them, but in some cases it would be nice to be able to
-# skip running them (for instance if one is working with the front-end and
-# wants to speed up the test run)
-CMAKE_DEPENDENT_OPTION(EP_BYPASS_TESTS "Bypass tests in ep-engine" OFF
-                       "COUCHBASE_KV_BUILD_UNIT_TESTS" ON)
-
-if (EP_BYPASS_TESTS)
-   message(WARNING "Skipping tests in ep-engine")
-endif()
-
 INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
                            ${CMAKE_CURRENT_SOURCE_DIR}
                            ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -442,148 +430,144 @@ target_link_libraries(ep
                 xattr)
 add_sanitizers(ep)
 
-if (NOT EP_BYPASS_TESTS)
-    # Convenience function to define an ep_testsuite /ep_perfsuite -style
-    # test.
-    function(add_ep_testsuite name source)
-      cb_add_test_executable(${name}
-        ${source}
-        $<TARGET_OBJECTS:ep_testsuite_objs>
-        $<TARGET_OBJECTS:mock_dcp>
-        $<TARGET_OBJECTS:engine_testapp>
-        )
-      kv_enable_pch(${name})
+# Convenience function to define an ep_testsuite /ep_perfsuite -style
+# test.
+function(add_ep_testsuite name source)
+  cb_add_test_executable(${name}
+    ${source}
+    $<TARGET_OBJECTS:ep_testsuite_objs>
+    $<TARGET_OBJECTS:mock_dcp>
+    $<TARGET_OBJECTS:engine_testapp>
+    )
+  kv_enable_pch(${name})
 
-      target_link_libraries(${name}
+  target_link_libraries(${name}
+    PRIVATE
+        ${LIBEVENT_LIBRARIES}
+        JSON_checker
+        cbcompress
+        engine_testapp_dependencies
+        engine_utilities
+        mcbp
+        mcd_executor
+        mcd_util
+        platform
+        platform_cb_malloc_arena
+        xattr
+    )
+  add_sanitizers(${name})
+endfunction()
+
+add_subdirectory(tests)
+
+add_library(ep_mocks OBJECT
+        tests/mock/mock_dcp_conn_map.cc
+        tests/mock/mock_dcp_consumer.cc
+        tests/mock/mock_dcp_producer.cc
+        tests/mock/mock_ep_bucket.cc
+        tests/mock/mock_ephemeral_bucket.cc
+        tests/mock/mock_ephemeral_vb.cc
+        tests/mock/mock_replicationthrottle.cc
+        tests/mock/mock_stream.cc
+        tests/mock/mock_synchronous_ep_engine.cc
+        tests/mock/mock_taskable.cc
+        ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.h)
+set_property(TARGET ep_mocks PROPERTY POSITION_INDEPENDENT_CODE 1)
+target_link_libraries(ep_mocks PUBLIC platform spdlog)
+add_sanitizers(ep_mocks)
+cb_enable_unity_build(ep_mocks)
+kv_enable_pch(ep_mocks)
+
+# While ep_perfsuite is arguably a "test" and hence should live under
+# tests/, we *don't* want optimizations disabled for it hence keep in
+# this directory.
+add_ep_testsuite(ep_perfsuite tests/ep_perfsuite.cc)
+
+cb_add_test_executable(ep_engine_benchmarks
+               benchmarks/access_scanner_bench.cc
+               benchmarks/benchmark_memory_tracker.cc
+               benchmarks/checkpoint_iterator_bench.cc
+               benchmarks/dcp_producer_bench.cc
+               benchmarks/defragmenter_bench.cc
+               benchmarks/engine_fixture.cc
+               benchmarks/ep_engine_benchmarks_main.cc
+               benchmarks/executor_bench.cc
+               benchmarks/hash_table_bench.cc
+               benchmarks/item_bench.cc
+               benchmarks/item_pager_bench.cc
+               benchmarks/item_compressor_bench.cc
+               benchmarks/kvstore_bench.cc
+               benchmarks/vb_ready_queue_bench.cc
+               benchmarks/vbucket_bench.cc
+               benchmarks/probabilistic_counter_bench.cc
+               benchmarks/stats_bench.cc
+               benchmarks/tracing_bench.cc
+               $<TARGET_OBJECTS:mock_dcp>
+               $<TARGET_OBJECTS:ep_objs>
+               $<TARGET_OBJECTS:ep_mocks>
+               $<TARGET_OBJECTS:couchstore_test_fileops>
+               ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_cookie.cc
+               ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
+               ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
+               ${Memcached_SOURCE_DIR}/engines/ep/tests/module_tests/test_helpers.cc)
+kv_enable_pch(ep_engine_benchmarks)
+
+TARGET_LINK_LIBRARIES(ep_engine_benchmarks
         PRIVATE
-            ${LIBEVENT_LIBRARIES}
-            JSON_checker
-            cbcompress
-            engine_testapp_dependencies
-            engine_utilities
-            mcbp
-            mcd_executor
-            mcd_util
-            platform
-            platform_cb_malloc_arena
-            xattr
-        )
-      add_sanitizers(${name})
-    endfunction()
+                benchmark
+                cbcompress
+                engine_utilities
+                ep-engine_collections
+                mcd_executor
+                gtest
+                gmock
+                hdr_histogram_static
+                JSON_checker
+                mcbp
+                mcd_util
+                mcd_time
+                mcd_tracing
+                memcached_logger
+                phosphor
+                platform
+                platform_cb_malloc_arena
+                statistics
+                xattr
+                ${MALLOC_LIBRARIES}
+                ${EP_STORAGE_LIBS}
+                ${LIBEVENT_LIBRARIES})
+target_include_directories(ep_engine_benchmarks SYSTEM PRIVATE
+                           ${benchmark_SOURCE_DIR}/include)
+TARGET_INCLUDE_DIRECTORIES(ep_engine_benchmarks PUBLIC
+                           tests
+                           benchmarks
+                           ${Couchstore_SOURCE_DIR})
 
-    add_subdirectory(tests)
+add_sanitizers(ep_engine_benchmarks)
+cb_enable_unity_build(ep_engine_benchmarks)
 
-    add_library(ep_mocks OBJECT
-            tests/mock/mock_dcp_conn_map.cc
-            tests/mock/mock_dcp_consumer.cc
-            tests/mock/mock_dcp_producer.cc
-            tests/mock/mock_ep_bucket.cc
-            tests/mock/mock_ephemeral_bucket.cc
-            tests/mock/mock_ephemeral_vb.cc
-            tests/mock/mock_replicationthrottle.cc
-            tests/mock/mock_stream.cc
-            tests/mock/mock_synchronous_ep_engine.cc
-            tests/mock/mock_taskable.cc
-            ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.h)
-    set_property(TARGET ep_mocks PROPERTY POSITION_INDEPENDENT_CODE 1)
-    target_link_libraries(ep_mocks PUBLIC platform spdlog)
-    add_sanitizers(ep_mocks)
-    cb_enable_unity_build(ep_mocks)
-    kv_enable_pch(ep_mocks)
-
-    # While ep_perfsuite is arguably a "test" and hence should live under
-    # tests/, we *don't* want optimizations disabled for it hence keep in
-    # this directory.
-    add_ep_testsuite(ep_perfsuite tests/ep_perfsuite.cc)
-
-    cb_add_test_executable(ep_engine_benchmarks
-                   benchmarks/access_scanner_bench.cc
-                   benchmarks/benchmark_memory_tracker.cc
-                   benchmarks/checkpoint_iterator_bench.cc
-                   benchmarks/dcp_producer_bench.cc
-                   benchmarks/defragmenter_bench.cc
-                   benchmarks/engine_fixture.cc
-                   benchmarks/ep_engine_benchmarks_main.cc
-                   benchmarks/executor_bench.cc
-                   benchmarks/hash_table_bench.cc
-                   benchmarks/item_bench.cc
-                   benchmarks/item_pager_bench.cc
-                   benchmarks/item_compressor_bench.cc
-                   benchmarks/kvstore_bench.cc
-                   benchmarks/vb_ready_queue_bench.cc
-                   benchmarks/vbucket_bench.cc
-                   benchmarks/probabilistic_counter_bench.cc
-                   benchmarks/stats_bench.cc
-                   benchmarks/tracing_bench.cc
-                   $<TARGET_OBJECTS:mock_dcp>
-                   $<TARGET_OBJECTS:ep_objs>
-                   $<TARGET_OBJECTS:ep_mocks>
-                   $<TARGET_OBJECTS:couchstore_test_fileops>
-                   ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_cookie.cc
-                   ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
-                   ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
-                   ${Memcached_SOURCE_DIR}/engines/ep/tests/module_tests/test_helpers.cc)
-    kv_enable_pch(ep_engine_benchmarks)
-
-    TARGET_LINK_LIBRARIES(ep_engine_benchmarks
-            PRIVATE
-                    benchmark
-                    cbcompress
-                    engine_utilities
-                    ep-engine_collections
-                    mcd_executor
-                    gtest
-                    gmock
-                    hdr_histogram_static
-                    JSON_checker
-                    mcbp
-                    mcd_util
-                    mcd_time
-                    mcd_tracing
-                    memcached_logger
-                    phosphor
-                    platform
-                    platform_cb_malloc_arena
-                    statistics
-                    xattr
-                    ${MALLOC_LIBRARIES}
-                    ${EP_STORAGE_LIBS}
-                    ${LIBEVENT_LIBRARIES})
-    target_include_directories(ep_engine_benchmarks SYSTEM PRIVATE
-                               ${benchmark_SOURCE_DIR}/include)
-    TARGET_INCLUDE_DIRECTORIES(ep_engine_benchmarks PUBLIC
-                               tests
-                               benchmarks
-                               ${Couchstore_SOURCE_DIR})
-
-    add_sanitizers(ep_engine_benchmarks)
-    cb_enable_unity_build(ep_engine_benchmarks)
-
-    cb_add_test_executable(ep-engine_sizes src/sizes.cc
-                   $<TARGET_OBJECTS:ep_objs>)
-    kv_enable_pch(ep-engine_sizes)
-    target_link_libraries(ep-engine_sizes
-            PRIVATE
-                    ${EP_STORAGE_LIBS}
-                    ${LIBEVENT_LIBRARIES}
-                    JSON_checker
-                    cbcompress
-                    engine_utilities
-                    ep-engine_collections
-                    hdr_histogram_static
-                    mcbp
-                    mcd_executor
-                    mcd_time
-                    mcd_tracing
-                    mcd_util
-                    phosphor
-                    platform
-                    statistics
-                    xattr)
-    add_sanitizers(ep-engine_sizes)
-
-
-endif (NOT EP_BYPASS_TESTS)
+cb_add_test_executable(ep-engine_sizes src/sizes.cc
+               $<TARGET_OBJECTS:ep_objs>)
+kv_enable_pch(ep-engine_sizes)
+target_link_libraries(ep-engine_sizes
+        PRIVATE
+                ${EP_STORAGE_LIBS}
+                ${LIBEVENT_LIBRARIES}
+                JSON_checker
+                cbcompress
+                engine_utilities
+                ep-engine_collections
+                hdr_histogram_static
+                mcbp
+                mcd_executor
+                mcd_time
+                mcd_tracing
+                mcd_util
+                phosphor
+                platform
+                statistics
+                xattr)
+add_sanitizers(ep-engine_sizes)
 
 INSTALL(FILES
         docs/stats.org

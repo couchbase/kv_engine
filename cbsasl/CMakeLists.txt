@@ -43,25 +43,23 @@ target_link_libraries(cbsasl
                 mcd_util)
 add_sanitizers(cbsasl)
 
-if (COUCHBASE_KV_BUILD_UNIT_TESTS)
-    cb_add_test_executable(cbsasl_unit_test
-                           client_server_test.cc
-                           password_database_test.cc
-                           pwconv_test.cc
-                           sasl_server_test.cc
-                           scram-sha/saslprep_test.cc
-                           strcmp_test.cc)
-    cb_enable_unity_build(cbsasl_unit_test)
-    kv_enable_pch(cbsasl_unit_test)
-    target_link_libraries(cbsasl_unit_test
-            PRIVATE
-                    cbsasl
-                    cbcrypto
-                    gtest
-                    gtest_main
-                    platform)
-    add_test(NAME cbsasl_unit_test
-             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-             COMMAND cbsasl_unit_test)
-    add_sanitizers(cbsasl_unit_test)
-endif (COUCHBASE_KV_BUILD_UNIT_TESTS)
+cb_add_test_executable(cbsasl_unit_test
+                       client_server_test.cc
+                       password_database_test.cc
+                       pwconv_test.cc
+                       sasl_server_test.cc
+                       scram-sha/saslprep_test.cc
+                       strcmp_test.cc)
+cb_enable_unity_build(cbsasl_unit_test)
+kv_enable_pch(cbsasl_unit_test)
+target_link_libraries(cbsasl_unit_test
+        PRIVATE
+                cbsasl
+                cbcrypto
+                gtest
+                gtest_main
+                platform)
+add_test(NAME cbsasl_unit_test
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND cbsasl_unit_test)
+add_sanitizers(cbsasl_unit_test)

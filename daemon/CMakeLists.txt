@@ -255,56 +255,53 @@ INSTALL(TARGETS memcached
 #
 # Unit tests
 #
-if (COUCHBASE_KV_BUILD_UNIT_TESTS)
-    cb_add_test_executable(client_cert_config_test
-                   client_cert_config_test.cc
-                   client_cert_config.cc
-                   client_cert_config.h)
-    target_link_libraries(client_cert_config_test PRIVATE
-            gtest
-            gtest_main
-            platform
-            mcd_util
-            ${OPENSSL_LIBRARIES})
-    add_test(NAME client_cert_config_test
-             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-             COMMAND client_cert_config_test)
-    add_sanitizers(client_cert_config_test)
-    kv_enable_pch(client_cert_config_test)
+cb_add_test_executable(client_cert_config_test
+               client_cert_config_test.cc
+               client_cert_config.cc
+               client_cert_config.h)
+target_link_libraries(client_cert_config_test PRIVATE
+        gtest
+        gtest_main
+        platform
+        mcd_util
+        ${OPENSSL_LIBRARIES})
+add_test(NAME client_cert_config_test
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND client_cert_config_test)
+add_sanitizers(client_cert_config_test)
+kv_enable_pch(client_cert_config_test)
 
-    cb_add_test_executable(memcached_unit_tests
-                           bucket_validator_test.cc
-                           connection_unit_tests.cc
-                           datatype_filter_test.cc
-                           doc_pre_expiry_test.cc
-                           function_chain_test.cc
-                           json_validator_test.cc
-                           memcached_unit_test_main.cc
-                           mc_time_test.cc
-                           network_interface_description_test.cc
-                           settings_test.cc
-                           ssl_utils_test.cc
-                           tls_configuration_test.cc
-                           topkeys_test.cc)
-    cb_enable_unity_build(memcached_unit_tests)
-    add_sanitizers(memcached_unit_tests)
-    target_link_libraries(memcached_unit_tests PRIVATE
-                          memcached_daemon
-                          gtest)
-    add_test(NAME memcached_unit_tests
-             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-             COMMAND memcached_unit_tests)
-    kv_enable_pch(memcached_unit_tests)
+cb_add_test_executable(memcached_unit_tests
+                       bucket_validator_test.cc
+                       connection_unit_tests.cc
+                       datatype_filter_test.cc
+                       doc_pre_expiry_test.cc
+                       function_chain_test.cc
+                       json_validator_test.cc
+                       memcached_unit_test_main.cc
+                       mc_time_test.cc
+                       network_interface_description_test.cc
+                       settings_test.cc
+                       ssl_utils_test.cc
+                       tls_configuration_test.cc
+                       topkeys_test.cc)
+cb_enable_unity_build(memcached_unit_tests)
+add_sanitizers(memcached_unit_tests)
+target_link_libraries(memcached_unit_tests PRIVATE
+                      memcached_daemon
+                      gtest)
+add_test(NAME memcached_unit_tests
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND memcached_unit_tests)
+kv_enable_pch(memcached_unit_tests)
 
-    if (NOT WIN32)
-        cb_add_test_executable(memcached_topkeys_benchmark topkeys_benchmark.cc)
-        kv_enable_pch(memcached_topkeys_benchmark)
-        target_include_directories(memcached_topkeys_benchmark
-                                   SYSTEM PRIVATE
-                                   ${benchmark_SOURCE_DIR}/include)
-        target_link_libraries(memcached_topkeys_benchmark
-                              PRIVATE memcached_daemon benchmark)
-        add_sanitizers(memcached_topkeys_benchmark)
-    endif (NOT WIN32)
-
-endif (COUCHBASE_KV_BUILD_UNIT_TESTS)
+if (NOT WIN32)
+    cb_add_test_executable(memcached_topkeys_benchmark topkeys_benchmark.cc)
+    kv_enable_pch(memcached_topkeys_benchmark)
+    target_include_directories(memcached_topkeys_benchmark
+                               SYSTEM PRIVATE
+                               ${benchmark_SOURCE_DIR}/include)
+    target_link_libraries(memcached_topkeys_benchmark
+                          PRIVATE memcached_daemon benchmark)
+    add_sanitizers(memcached_topkeys_benchmark)
+endif (NOT WIN32)

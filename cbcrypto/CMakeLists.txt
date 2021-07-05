@@ -14,18 +14,16 @@ else()
     target_link_libraries(cbcrypto PRIVATE platform phosphor ${OPENSSL_LIBRARIES})
 endif ()
 
-if (COUCHBASE_KV_BUILD_UNIT_TESTS)
-    cb_add_test_executable(cbcrypto_test
-                   cbcrypto_test.cc
-                   ${Memcached_SOURCE_DIR}/include/cbcrypto/cbcrypto.h)
-    kv_enable_pch(cbcrypto_test)
+cb_add_test_executable(cbcrypto_test
+               cbcrypto_test.cc
+               ${Memcached_SOURCE_DIR}/include/cbcrypto/cbcrypto.h)
+kv_enable_pch(cbcrypto_test)
 
-    target_link_libraries(cbcrypto_test PRIVATE
-                          cbcrypto
-                          platform
-                          gtest gtest_main)
+target_link_libraries(cbcrypto_test PRIVATE
+                      cbcrypto
+                      platform
+                      gtest gtest_main)
 
-    add_test(NAME cbcrypto-test
-             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-             COMMAND cbcrypto_test)
-endif(COUCHBASE_KV_BUILD_UNIT_TESTS)
+add_test(NAME cbcrypto-test
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND cbcrypto_test)

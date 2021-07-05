@@ -69,17 +69,15 @@ target_link_libraries(mcd_test_util
 add_sanitizers(mcd_test_util)
 kv_enable_pch(mcd_test_util)
 
-if (COUCHBASE_KV_BUILD_UNIT_TESTS)
-    cb_add_test_executable(utilities_testapp util_test.cc)
-    kv_enable_pch(utilities_testapp)
-    target_link_libraries(utilities_testapp PRIVATE
-                          mcd_util
-                          platform
-                          gtest
-                          gtest_main
-                          gmock)
-    add_sanitizers(utilities_testapp)
-    add_test(NAME memcached-utilities-tests
-             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-             COMMAND utilities_testapp)
-endif (COUCHBASE_KV_BUILD_UNIT_TESTS)
+cb_add_test_executable(utilities_testapp util_test.cc)
+kv_enable_pch(utilities_testapp)
+target_link_libraries(utilities_testapp PRIVATE
+                      mcd_util
+                      platform
+                      gtest
+                      gtest_main
+                      gmock)
+add_sanitizers(utilities_testapp)
+add_test(NAME memcached-utilities-tests
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND utilities_testapp)

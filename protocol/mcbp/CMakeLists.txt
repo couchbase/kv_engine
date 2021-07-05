@@ -46,43 +46,41 @@ kv_enable_pch(mcbp_info)
 target_link_libraries(mcbp_info PRIVATE Folly::headers mcbp platform)
 add_sanitizers(mcbp_info)
 
-if (COUCHBASE_KV_BUILD_UNIT_TESTS)
-    cb_add_test_executable(mcbp_unit_tests
-                   feature_test.cc
-                   framebuilder_test.cc
-                   magic_test.cc
-                   mcbp_dump_parser_test.cc
-                   opcode_test.cc
-                   request_test.cc
-                   sla_test.cc
-                   status_test.cc)
-    kv_enable_pch(mcbp_unit_tests)
-    target_link_libraries(mcbp_unit_tests
-            PRIVATE
-                    Folly::headers
-                    gtest
-                    gtest_main
-                    mcbp)
-    add_test(NAME mcbp_unit_tests
+cb_add_test_executable(mcbp_unit_tests
+               feature_test.cc
+               framebuilder_test.cc
+               magic_test.cc
+               mcbp_dump_parser_test.cc
+               opcode_test.cc
+               request_test.cc
+               sla_test.cc
+               status_test.cc)
+kv_enable_pch(mcbp_unit_tests)
+target_link_libraries(mcbp_unit_tests
+        PRIVATE
+                Folly::headers
+                gtest
+                gtest_main
+                mcbp)
+add_test(NAME mcbp_unit_tests
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND mcbp_unit_tests)
+add_sanitizers(mcbp_unit_tests)
+cb_enable_unity_build(mcbp_unit_tests)
+
+if (CB_LIBFUZZER)
+    cb_add_test_executable(mcbp_fuzz_test mcbp_fuzz_test.cc)
+    target_include_directories(mcbp_fuzz_test SYSTEM PRIVATE ${Memcached_BINARY_DIR})
+    add_sanitizers(mcbp_fuzz_test)
+    target_link_libraries(mcbp_fuzz_test PRIVATE memcached_daemon)
+    cb_link_libfuzzer_main(mcbp_fuzz_test)
+
+    add_test(NAME mcbp_protocol_fuzz:MB-47151
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-             COMMAND mcbp_unit_tests)
-    add_sanitizers(mcbp_unit_tests)
-    cb_enable_unity_build(mcbp_unit_tests)
+             COMMAND mcbp_fuzz_test ${CMAKE_CURRENT_SOURCE_DIR}/regression/crash-1cc3298997828941907db8cc25f038f324191ae1)
 
-    if (CB_LIBFUZZER)
-        cb_add_test_executable(mcbp_fuzz_test mcbp_fuzz_test.cc)
-        target_include_directories(mcbp_fuzz_test SYSTEM PRIVATE ${Memcached_BINARY_DIR})
-        add_sanitizers(mcbp_fuzz_test)
-        target_link_libraries(mcbp_fuzz_test PRIVATE memcached_daemon)
-        cb_link_libfuzzer_main(mcbp_fuzz_test)
-
-        add_test(NAME mcbp_protocol_fuzz:MB-47151
-                 WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-                 COMMAND mcbp_fuzz_test ${CMAKE_CURRENT_SOURCE_DIR}/regression/crash-1cc3298997828941907db8cc25f038f324191ae1)
-
-        cb_add_test_executable(mcbp_network_fuzz_test mcbp_network_fuzz_test.cc)
-        add_sanitizers(mcbp_network_fuzz_test)
-        target_link_libraries(mcbp_network_fuzz_test PUBLIC mc_client_connection mcbp platform)
-        cb_link_libfuzzer_main(mcbp_network_fuzz_test)
-    endif ()
+    cb_add_test_executable(mcbp_network_fuzz_test mcbp_network_fuzz_test.cc)
+    add_sanitizers(mcbp_network_fuzz_test)
+    target_link_libraries(mcbp_network_fuzz_test PUBLIC mc_client_connection mcbp platform)
+    cb_link_libfuzzer_main(mcbp_network_fuzz_test)
 endif ()

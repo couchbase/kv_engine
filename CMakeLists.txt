@@ -5,10 +5,7 @@ INCLUDE(CheckIncludeFiles)
 INCLUDE(CheckIncludeFileCXX)
 INCLUDE(CTest)
 INCLUDE(GenerateExportHeader)
-include(check_unit_test_enabled)
 include(HeaderObjectLibrary)
-
-check_unit_test_enabled(kv_engine COUCHBASE_KV_BUILD_UNIT_TESTS)
 
 # The test program expects to find the output files in
 # the root directory (that's how we built them earlier)
@@ -88,7 +85,7 @@ ENDIF (MEMORY_ALLOCATOR)
 IF (BREAKPAD_FOUND)
     ADD_DEFINITIONS(-DHAVE_BREAKPAD)
 ENDIF (BREAKPAD_FOUND)
-IF (UNIX AND COUCHBASE_KV_BUILD_UNIT_TESTS)
+IF (UNIX)
     # On Linux Breakpad unit test relies on examining the minidump -> core
     # file with GDB.
     find_program(GDB_EXECUTABLE gdb)
@@ -125,7 +122,7 @@ IF (UNIX AND COUCHBASE_KV_BUILD_UNIT_TESTS)
     #          ${PYTHON_EXECUTABLE}
     #          ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
     #          ${Memcached_BINARY_DIR}/memcached)
-ENDIF (UNIX AND COUCHBASE_KV_BUILD_UNIT_TESTS)
+ENDIF (UNIX)
 
 # We commonly use a bunch of expensive headers so pre-compiling them should give
 # us a speed-up. It's simpler to define a single target and just re-use the
@@ -179,11 +176,9 @@ ADD_SUBDIRECTORY(tracing)
 ADD_SUBDIRECTORY(statistics)
 add_subdirectory(cluster_framework)
 
-if (COUCHBASE_KV_BUILD_UNIT_TESTS)
-    ADD_SUBDIRECTORY(testsuite)
-    ADD_SUBDIRECTORY(tests)
-    ENABLE_CODE_COVERAGE_REPORT()
-endif (COUCHBASE_KV_BUILD_UNIT_TESTS)
+add_subdirectory(testsuite)
+add_subdirectory(tests)
+enable_code_coverage_report()
 
 add_subdirectory(programs)
 
