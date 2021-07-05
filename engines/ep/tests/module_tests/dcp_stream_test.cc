@@ -4446,6 +4446,7 @@ TEST_P(STPassiveStreamMagmaTest, InsertOpForInitialDiskSnapshot) {
     }
 
     flushVBucketToDiskIfPersistent(vbid, 3);
+    EXPECT_EQ(vb->getNumItems(), 3);
 
     size_t inserts = 0;
     size_t upserts = 0;
@@ -4476,6 +4477,7 @@ TEST_P(STPassiveStreamMagmaTest, InsertOpForInitialDiskSnapshot) {
     }
 
     flushVBucketToDiskIfPersistent(vbid, 3);
+    EXPECT_EQ(vb->getNumItems(), 6);
 
     inserts = 0;
     upserts = 0;
