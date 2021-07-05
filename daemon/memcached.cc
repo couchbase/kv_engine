@@ -38,8 +38,10 @@
 
 #include <cbsasl/logging.h>
 #include <cbsasl/mechanism.h>
+#include <executor/executorpool.h>
 #include <folly/CpuId.h>
 #include <folly/io/async/EventBase.h>
+#include <folly/portability/Unistd.h>
 #include <gsl/gsl-lite.hpp>
 #include <mcbp/mcbp.h>
 #include <memcached/rbac.h>
@@ -57,7 +59,6 @@
 #include <utilities/breakpad.h>
 #include <utilities/openssl_utils.h>
 
-#include <executor/executorpool.h>
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
@@ -869,14 +870,17 @@ int memcached_main(int argc, char** argv) {
     Settings::instance().addChangeListener("verbosity",
                                            verbosity_changed_listener);
 
-    /* Logging available now extensions have been loaded. */
+    // Logging available now extensions have been loaded.
     LOG_INFO("Couchbase version {} starting.", get_server_version());
-#ifdef ADDRESS_SANITIZER
-    LOG_INFO_RAW("Address sanitizer enabled");
-#endif
-#ifdef THREAD_SANITIZER
-    LOG_INFO_RAW("Thread sanitizer enabled");
-#endif
+    LOG_INFO("Process identifier: {}", getpid());
+
+    if (folly::kIsSanitizeAddress) {
+        LOG_INFO_RAW("Address sanitizer enabled");
+    }
+
+    if (folly::kIsSanitizeThread) {
+        LOG_INFO_RAW("Thread sanitizer enabled");
+    }
 
 #if defined(__x86_64__) || defined(_M_X64)
     if (!folly::CpuId().sse42()) {
