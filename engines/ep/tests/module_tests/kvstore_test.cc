@@ -1270,6 +1270,34 @@ TEST_P(KVStoreParamTest, reuseSeqIterator) {
     EXPECT_EQ(callback->nItems, 2);
 }
 
+// Test to ensure that the CompactionContext::max_purged_seq is correctly set
+// after calling KVStore::compactDB(). Our KVStoreRocksDB implementation
+// currently doesn't set the purge seqno correctly and is hence skipped.
+TEST_P(KVStoreParamTestSkipRocks, purgeSeqnoAfterCompaction) {
+    uint64_t seqno = 1;
+    ASSERT_TRUE(kvstore->begin(std::make_unique<TransactionContext>(vbid)));
+    auto key = makeStoredDocKey("key");
+    auto qi = makeCommittedItem(key, "value");
+    qi->setBySeqno(seqno++);
+    qi->setDeleted();
+    kvstore->del(qi);
+    auto key2 = makeStoredDocKey("key2");
+    auto qi2 = makeCommittedItem(key2, "value");
+    qi2->setBySeqno(seqno++);
+    kvstore->set(qi2);
+    ASSERT_TRUE(kvstore->commit(flush));
+
+    CompactionConfig compactionConfig;
+    compactionConfig.drop_deletes = true;
+    auto cctx = std::make_shared<CompactionContext>(vbid, compactionConfig, 0);
+    {
+        auto lock = getVbLock();
+        EXPECT_TRUE(kvstore->compactDB(lock, cctx));
+    }
+    EXPECT_EQ(1, cctx->stats.tombstonesPurged);
+    EXPECT_EQ(1, cctx->max_purged_seq);
+}
+
 static std::string kvstoreTestParams[] = {
 #ifdef EP_USE_MAGMA
         "magma",
