@@ -19,7 +19,6 @@
 #ifdef EP_USE_ROCKSDB
 #include "rocksdb-kvstore/rocksdb-kvstore_config.h"
 #endif
-#include "collections/collection_persisted_stats.h"
 #ifdef EP_USE_MAGMA
 #include "../mock/mock_magma_kvstore.h"
 #include "magma-kvstore/magma-kvstore_config.h"
@@ -216,8 +215,7 @@ TEST_P(KVStoreParamTestSkipRocks, ZeroSizeValueNotCompressed) {
 
 class PersistenceCallbacks {
 public:
-    virtual ~PersistenceCallbacks() {
-    }
+    virtual ~PersistenceCallbacks() = default;
 
     // Actual operator() methods which will be called by the storage layer.
     // GMock cannot mock these directly, so instead provide named 'callback'
@@ -239,14 +237,6 @@ public:
     // @param value number of items that the underlying storage has deleted
     virtual void callback(TransactionContext& txCtx,
                           KVStore::FlushStateDeletion&) = 0;
-};
-
-class MockPersistenceCallbacks : public PersistenceCallbacks {
-public:
-    MOCK_METHOD2(callback,
-                 void(TransactionContext&, KVStore::FlushStateMutation&));
-    MOCK_METHOD2(callback,
-                 void(TransactionContext&, KVStore::FlushStateDeletion&));
 };
 
 void KVStoreBackend::setup(const std::string& dataDir,
@@ -816,8 +806,8 @@ TEST_P(KVStoreParamTestSkipRocks, DelVBucketConcurrentOperationsTest) {
     tid = std::thread(initScan);
     workers.push_back(std::move(tid));
 
-    for (auto& tid : workers) {
-        tid.join();
+    for (auto& t : workers) {
+        t.join();
     }
     EXPECT_LT(minNumDeletes, deletes);
 }
@@ -863,7 +853,7 @@ TEST_P(KVStoreParamTest, CompactAndScan) {
         config.purge_before_seq = 0;
         config.purge_before_ts = 0;
 
-        config.drop_deletes = 0;
+        config.drop_deletes = false;
         auto cctx = std::make_shared<CompactionContext>(Vbid(0), config, 0);
         for (int i = 0; i < 10; i++) {
             auto lock = getVbLock();
@@ -1241,7 +1231,7 @@ TEST_P(KVStoreParamTest, reuseSeqIterator) {
     CompactionConfig compactionConfig;
     compactionConfig.purge_before_seq = 0;
     compactionConfig.purge_before_ts = 0;
-    compactionConfig.drop_deletes = 0;
+    compactionConfig.drop_deletes = false;
     auto cctx = std::make_shared<CompactionContext>(vbid, compactionConfig, 0);
     {
         auto lock = getVbLock();
