@@ -584,29 +584,6 @@ TEST_F(SettingsTest, StdinListener) {
     }
 }
 
-TEST_F(SettingsTest, TopkeysEnabled) {
-    nonBooleanValuesShouldFail("topkeys_enabled");
-
-    nlohmann::json obj;
-    obj["topkeys_enabled"] = true;
-    try {
-        Settings settings(obj);
-        EXPECT_TRUE(settings.isTopkeysEnabled());
-        EXPECT_TRUE(settings.has.topkeys_enabled);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-
-    obj["topkeys_enabled"] = false;
-    try {
-        Settings settings(obj);
-        EXPECT_FALSE(settings.isTopkeysEnabled());
-        EXPECT_TRUE(settings.has.topkeys_enabled);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-}
-
 TEST_F(SettingsTest, DefaultReqsPerEvent) {
     nonNumericValuesShouldFail("default_reqs_per_event");
 

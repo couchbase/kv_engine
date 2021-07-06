@@ -550,25 +550,6 @@ public:
     }
 
     /**
-     * Get the number of topkeys to track
-     *
-     * @return the number of keys to track
-     */
-    int getTopkeysSize() const {
-        return topkeys_size;
-    }
-
-    /**
-     * Set the number of keys to track
-     *
-     * @param size the new limit
-     */
-    void setTopkeysSize(int size) {
-        topkeys_size = size;
-        has.topkeys_size = true;
-    }
-
-    /**
      * Get the list of available SASL Mechanisms
      *
      * @return all SASL mechanisms the client may use
@@ -709,16 +690,6 @@ public:
     }
 
     void setOpcodeAttributesOverride(const std::string& value);
-
-    bool isTopkeysEnabled() const {
-        return topkeys_enabled.load(std::memory_order_acquire);
-    }
-
-    void setTopkeysEnabled(bool enabled) {
-        Settings::topkeys_enabled.store(enabled, std::memory_order_release);
-        has.topkeys_enabled = true;
-        notify_changed("topkeys_enabled");
-    }
 
     bool isTracingEnabled() const {
         return tracing_enabled.load(std::memory_order_acquire);
@@ -941,11 +912,6 @@ protected:
      */
     cb::x509::ClientCertMapper client_cert_mapper;
 
-    /**
-     * The number of topkeys to track
-     */
-    int topkeys_size = 20;
-
     /// The available sasl mechanism list
     folly::Synchronized<std::string> sasl_mechanisms;
 
@@ -974,11 +940,6 @@ protected:
 
     /// Any settings to override opcode attributes
     folly::Synchronized<std::string> opcode_attributes_override;
-
-    /**
-     * Is topkeys enabled or not
-     */
-    std::atomic_bool topkeys_enabled{false};
 
     /**
      * Is tracing enabled or not
@@ -1072,7 +1033,6 @@ public:
         bool ssl_cipher_suites = false;
         bool ssl_minimum_protocol = false;
         bool client_cert_auth = false;
-        bool topkeys_size = false;
         bool sasl_mechanisms = false;
         bool ssl_sasl_mechanisms = false;
         bool dedupe_nmvb_maps = false;
@@ -1080,7 +1040,6 @@ public:
         bool xattr_enabled = false;
         bool collections_enabled = false;
         bool opcode_attributes_override = false;
-        bool topkeys_enabled = false;
         bool tracing_enabled = false;
         bool stdin_listener = false;
         bool scramsha_fallback_salt = false;

@@ -150,18 +150,6 @@ static void handle_threads(Settings& s, const nlohmann::json& obj) {
     s.setNumWorkerThreads(gsl::narrow_cast<size_t>(obj.get<unsigned int>()));
 }
 
-/**
- * Handle the "topkeys_enabled" tag in the settings
- *
- *  The value must be a  value
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_topkeys_enabled(Settings& s, const nlohmann::json& obj) {
-    s.setTopkeysEnabled(obj.get<bool>());
-}
-
 static void handle_scramsha_fallback_salt(Settings& s,
                                           const nlohmann::json& obj) {
     // Try to base64 decode it to validate that it is a legal value..
@@ -757,7 +745,6 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"num_reader_threads", handle_num_reader_threads},
             {"num_writer_threads", handle_num_writer_threads},
             {"num_storage_threads", handle_num_storage_threads},
-            {"topkeys_enabled", handle_topkeys_enabled},
             {"tracing_enabled", handle_tracing_enabled},
             {"scramsha_fallback_salt", handle_scramsha_fallback_salt},
             {"external_auth_service", handle_external_auth_service},
@@ -825,13 +812,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             throw std::invalid_argument("root can't be changed dynamically");
         }
     }
-    if (other.has.topkeys_size) {
-        if (other.topkeys_size != topkeys_size) {
-            throw std::invalid_argument(
-                "topkeys_size can't be changed dynamically");
-        }
-    }
-
     if (other.has.stdin_listener) {
         if (other.stdin_listener.load() != stdin_listener.load()) {
             throw std::invalid_argument(
@@ -1143,14 +1123,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                     proposed);
             setOpcodeAttributesOverride(proposed);
         }
-    }
-
-    if (other.has.topkeys_enabled) {
-        if (other.isTopkeysEnabled() != isTopkeysEnabled()) {
-            LOG_INFO("{} topkeys support",
-                     other.isTopkeysEnabled() ? "Enable" : "Disable");
-        }
-        setTopkeysEnabled(other.isTopkeysEnabled());
     }
 
     if (other.has.tracing_enabled) {

@@ -352,12 +352,6 @@ providers.
 The *opcode-attributes-override* attribute is an object which follows
 the syntax outlined in etc/couchbase/kv/opcode-attributes.d/README.md
 
-=== topkeys_enabled
-
-The *topkeys_enabled* attribute is a boolean value to enable or disable
-collection of information about the most frequently used keys. If not
-specified its value is set to true.
-
 === max_send_queue_size
 
 The *max_send_queue_size* attribute is an unsigned number used to

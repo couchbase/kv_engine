@@ -22,7 +22,6 @@
 #include "mc_time.h"
 #include "mcaudit.h"
 #include "mcbp_executors.h"
-#include "mcbp_topkeys.h"
 #include "network_interface.h"
 #include "network_interface_manager.h"
 #include "nobucket_taskable.h"
@@ -32,7 +31,6 @@
 #include "settings.h"
 #include "ssl_utils.h"
 #include "stats.h"
-#include "topkeys.h"
 #include "tracing.h"
 #include "utilities/terminate_handler.h"
 
@@ -494,14 +492,6 @@ static void settings_init() {
     settings.setVerbose(0);
     settings.setNumWorkerThreads(get_number_of_worker_threads());
 
-    char *tmp = getenv("MEMCACHED_TOP_KEYS");
-    if (tmp) {
-        int count;
-        if (safe_strtol(tmp, count)) {
-            settings.setTopkeysSize(count);
-        }
-    }
-
     {
         // MB-13642 Allow the user to specify the SSL cipher list
         //    If someone wants to use SSL we should try to be "secure
@@ -524,8 +514,6 @@ static void settings_init() {
     if (getenv("COUCHBASE_ENABLE_PRIVILEGE_DEBUG") != nullptr) {
         settings.setPrivilegeDebug(true);
     }
-
-    settings.setTopkeysEnabled(true);
 
     settings.addChangeListener(
             "num_reader_threads", [](const std::string&, Settings& s) -> void {

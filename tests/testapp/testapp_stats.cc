@@ -462,50 +462,6 @@ TEST_P(StatsTest, TestConnectionsInvalidNumber) {
     }
 }
 
-TEST_P(StatsTest, TestTopkeys) {
-    MemcachedConnection& conn = getConnection();
-
-    for (int ii = 0; ii < 10; ++ii) {
-        Document doc;
-        doc.info.cas = mcbp::cas::Wildcard;
-        doc.info.flags = 0xcaffee;
-        doc.info.id = name;
-        doc.value = memcached_cfg.dump();
-
-        conn.mutate(doc, Vbid(0), MutationType::Set);
-    }
-
-    auto stats = conn.stats("topkeys");
-    EXPECT_NE(stats.end(), stats.find(name));
-}
-
-TEST_P(StatsTest, TestTopkeysJson) {
-    MemcachedConnection& conn = getConnection();
-
-    for (int ii = 0; ii < 10; ++ii) {
-        Document doc;
-        doc.info.cas = mcbp::cas::Wildcard;
-        doc.info.flags = 0xcaffee;
-        doc.info.id = name;
-        doc.value = memcached_cfg.dump();
-
-        conn.mutate(doc, Vbid(0), MutationType::Set);
-    }
-
-    auto stats = conn.stats("topkeys_json").front();
-    bool found = false;
-    for (const auto& i : stats) {
-        for (const auto& j : i) {
-            if (name == j["key"]) {
-                found = true;
-                break;
-            }
-        }
-    }
-
-    EXPECT_TRUE(found);
-}
-
 TEST_P(StatsTest, TestSubdocExecute) {
     MemcachedConnection& conn = getConnection();
     auto stats = conn.stats("subdoc_execute");
@@ -610,14 +566,6 @@ public:
         StatsTest::TearDown();
     }
 };
-
-TEST_P(NoBucketStatsTest, TestTopkeysNoBucket) {
-    MemcachedConnection& conn = getConnection();
-    conn.authenticate("@admin", "password", "PLAIN");
-
-    // The actual request is expected fail with a nobucket exception.
-    EXPECT_THROW(conn.stats("topkeys"), std::runtime_error);
-}
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          NoBucketStatsTest,

@@ -16,7 +16,6 @@
 #include "mcaudit.h"
 #include "mcbp.h"
 #include "mcbp_privileges.h"
-#include "mcbp_topkeys.h"
 #include "protocol/mcbp/appendprepend_context.h"
 #include "protocol/mcbp/arithmetic_context.h"
 #include "protocol/mcbp/audit_configure_context.h"
@@ -50,29 +49,6 @@
 #include <mcbp/protocol/header.h>
 #include <nlohmann/json.hpp>
 #include <utilities/engine_errc_2_mcbp.h>
-
-std::array<bool, 0x100>&  topkey_commands = get_mcbp_topkeys();
-
-/**
- * Triggers topkeys_update (i.e., increments topkeys stats) if called by a
- * valid operation.
- */
-void update_topkeys(const Cookie& cookie) {
-    const auto opcode = cookie.getHeader().getOpcode();
-    if (topkey_commands[opcode]) {
-        auto& bucket = cookie.getConnection().getBucket();
-        const auto key = cookie.getRequestKey();
-        // MB-32828: ChesireCat will deprecate top-keys and until removal
-        // only the default collection will be tracked
-        if (bucket.topkeys && key.isInDefaultCollection()) {
-            // Update top-keys using the un-prefixed key (logical key)
-            const auto defaultKey = key.makeDocKeyWithoutCollectionID();
-            bucket.topkeys->updateKey(defaultKey.data(),
-                                      defaultKey.size(),
-                                      mc_time_get_current_time());
-        }
-    }
-}
 
 static void process_bin_get(Cookie& cookie) {
     cookie.obtainContext<GetCommandContext>(cookie).drive();
@@ -132,7 +108,6 @@ static void process_bin_unknown_packet(Cookie& cookie) {
     ret = cookie.getConnection().remapErrorCode(ret);
     switch (ret) {
     case cb::engine_errc::success: {
-        update_topkeys(cookie);
         break;
     }
     case cb::engine_errc::would_block:

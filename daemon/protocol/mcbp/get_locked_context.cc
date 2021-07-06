@@ -109,7 +109,6 @@ cb::engine_errc GetLockedCommandContext::sendResponse() {
             std::move(sendbuffer));
 
     STATS_INCR(&connection, cmd_lock);
-    update_topkeys(cookie);
 
     state = State::Done;
     return cb::engine_errc::success;

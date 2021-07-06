@@ -43,7 +43,6 @@ cb::engine_errc RemoveCommandContext::step() {
             break;
         case State::Done:
             SLAB_INCR(&connection, delete_hits);
-            update_topkeys(cookie);
             return cb::engine_errc::success;
         }
     } while (ret == cb::engine_errc::success);

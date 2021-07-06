@@ -317,7 +317,6 @@ cb::engine_errc MutationCommandContext::storeItem() {
 }
 
 cb::engine_errc MutationCommandContext::sendResponse() {
-    update_topkeys(cookie);
     state = State::Done;
 
     if (cookie.getRequest().isQuiet()) {

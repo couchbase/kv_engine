@@ -95,7 +95,6 @@ cb::engine_errc GatCommandContext::inflateItem() {
 
 cb::engine_errc GatCommandContext::sendResponse() {
     STATS_HIT(&connection, get);
-    update_topkeys(cookie);
 
     // Audit the modification to the document (change of EXP)
     cb::audit::document::add(cookie, cb::audit::document::Operation::Modify);

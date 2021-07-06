@@ -225,7 +225,6 @@ cb::engine_errc ArithmeticCommandContext::storeItem() {
 }
 
 cb::engine_errc ArithmeticCommandContext::sendResult() {
-    update_topkeys(cookie);
     state = State::Done;
     const auto opcode = cookie.getHeader().getRequest().getClientOpcode();
     if ((opcode == cb::mcbp::ClientOpcode::Increment) ||

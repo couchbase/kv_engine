@@ -71,7 +71,6 @@ cb::engine_errc GetMetaCommandContext::sendResponse() {
                         cb::mcbp::Datatype::Raw,
                         info.cas);
     cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
-    update_topkeys(cookie);
 
     state = State::Done;
     return cb::engine_errc::success;

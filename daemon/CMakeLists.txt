@@ -51,8 +51,6 @@ add_library(memcached_daemon STATIC
             mcbp_executors.h
             mcbp_privileges.cc
             mcbp_privileges.h
-            mcbp_topkeys.cc
-            mcbp_topkeys.h
             mcbp_validators.cc
             mcbp_validators.h
             memcached.cc
@@ -183,8 +181,6 @@ add_library(memcached_daemon STATIC
             timings.h
             tls_configuration.cc
             tls_configuration.h
-            topkeys.cc
-            topkeys.h
             tracing.cc
             tracing.h)
 
@@ -283,8 +279,7 @@ cb_add_test_executable(memcached_unit_tests
                        network_interface_description_test.cc
                        settings_test.cc
                        ssl_utils_test.cc
-                       tls_configuration_test.cc
-                       topkeys_test.cc)
+                       tls_configuration_test.cc)
 cb_enable_unity_build(memcached_unit_tests)
 add_sanitizers(memcached_unit_tests)
 target_link_libraries(memcached_unit_tests PRIVATE
@@ -294,14 +289,3 @@ add_test(NAME memcached_unit_tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_unit_tests)
 kv_enable_pch(memcached_unit_tests)
-
-if (NOT WIN32)
-    cb_add_test_executable(memcached_topkeys_benchmark topkeys_benchmark.cc)
-    kv_enable_pch(memcached_topkeys_benchmark)
-    target_include_directories(memcached_topkeys_benchmark
-                               SYSTEM PRIVATE
-                               ${benchmark_SOURCE_DIR}/include)
-    target_link_libraries(memcached_topkeys_benchmark
-                          PRIVATE memcached_daemon benchmark)
-    add_sanitizers(memcached_topkeys_benchmark)
-endif (NOT WIN32)

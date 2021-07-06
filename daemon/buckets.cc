@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015-Present Couchbase, Inc.
  *
@@ -15,7 +14,6 @@
 #include "log_macros.h"
 #include "memcached.h"
 #include "stats.h"
-#include "topkeys.h"
 #include <daemon/server_core_api.h>
 #include <daemon/settings.h>
 #include <logger/logger.h>
@@ -32,7 +30,6 @@ void Bucket::reset() {
     state = Bucket::State::None;
     name[0] = '\0';
     setEngine(nullptr);
-    topkeys.reset();
     clusterConfiguration.reset();
     max_document_size = default_max_item_size;
     supportedFeatures = {};
@@ -180,14 +177,6 @@ cb::engine_errc BucketManager::create(Cookie& cookie,
         all_buckets[ii].state = Bucket::State::Creating;
         all_buckets[ii].type = type;
         strcpy(all_buckets[ii].name, name.c_str());
-        try {
-            all_buckets[ii].topkeys = std::make_unique<TopKeys>(
-                    Settings::instance().getTopkeysSize());
-        } catch (const std::bad_alloc&) {
-            result = cb::engine_errc::no_memory;
-            LOG_ERROR(
-                    "{}: Create bucket [{}] failed - out of memory", cid, name);
-        }
     }
     all_bucket_lock.unlock();
 

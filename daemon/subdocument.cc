@@ -22,7 +22,6 @@
 #include "subdocument_traits.h"
 #include "subdocument_validators.h"
 #include "timings.h"
-#include "topkeys.h"
 #include "utilities/logtags.h"
 #include "xattr/key_validator.h"
 #include "xattr/utils.h"
@@ -221,7 +220,6 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
 
             STATS_HIT(&cookie.getConnection(), get);
         }
-        update_topkeys(cookie);
         return;
     } while (auto_retry && attempts < MAXIMUM_ATTEMPTS);
 

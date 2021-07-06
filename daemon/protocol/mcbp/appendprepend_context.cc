@@ -188,7 +188,6 @@ cb::engine_errc AppendPrependCommandContext::storeItem() {
                             false);
 
     if (ret == cb::engine_errc::success) {
-        update_topkeys(cookie);
         cookie.setCas(ncas);
         if (connection.isSupportsMutationExtras()) {
             item_info newItemInfo;

@@ -63,12 +63,6 @@ void stop_memcached_main_base();
  * Connection-related functions
  */
 
-/**
- * Increments topkeys count for the key specified within the command context
- * provided by the cookie.
- */
-void update_topkeys(const Cookie& cookie);
-
 struct ServerApi;
 ServerApi* get_server_api();
 

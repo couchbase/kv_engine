@@ -12,7 +12,6 @@
 
 #include <daemon/cookie.h>
 #include <daemon/stats.h>
-#include <daemon/topkeys.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/engine.h>
 #include <platform/compress.h>

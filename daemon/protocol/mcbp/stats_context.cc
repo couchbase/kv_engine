@@ -22,7 +22,6 @@
 #include <daemon/settings.h>
 #include <daemon/stats.h>
 #include <daemon/stats_tasks.h>
-#include <daemon/topkeys.h>
 #include <executor/executorpool.h>
 #include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/framebuilder.h>
@@ -332,57 +331,6 @@ static cb::engine_errc stat_json_validate_executor(const std::string& arg,
 }
 
 /**
- * Handler for the <code>stats topkeys</code> command used to retrieve
- * the most popular keys in the attached bucket.
- *
- * @param arg - should be empty
- * @param cookie the command context
- */
-static cb::engine_errc stat_topkeys_executor(const std::string& arg,
-                                             Cookie& cookie) {
-    if (arg.empty()) {
-        auto& bucket = cookie.getConnection().getBucket();
-        if (bucket.topkeys == nullptr) {
-            return cb::engine_errc::no_bucket;
-        }
-        return bucket.topkeys->stats(
-                &cookie, mc_time_get_current_time(), appendStatsFn);
-    } else {
-        return cb::engine_errc::invalid_arguments;
-    }
-}
-
-/**
- * Handler for the <code>stats topkeys</code> command used to retrieve
- * a JSON document containing the most popular keys in the attached bucket.
- *
- * @param arg - should be empty
- * @param cookie the command context
- */
-static cb::engine_errc stat_topkeys_json_executor(const std::string& arg,
-                                                  Cookie& cookie) {
-    if (arg.empty()) {
-        cb::engine_errc ret;
-
-        nlohmann::json topkeys_doc;
-
-        auto& bucket = cookie.getConnection().getBucket();
-        if (bucket.topkeys == nullptr) {
-            return cb::engine_errc::no_bucket;
-        }
-        ret = bucket.topkeys->json_stats(topkeys_doc,
-                                         mc_time_get_current_time());
-
-        if (ret == cb::engine_errc::success) {
-            append_stats("topkeys_json"sv, topkeys_doc.dump(), &cookie);
-        }
-        return ret;
-    } else {
-        return cb::engine_errc::invalid_arguments;
-    }
-}
-
-/**
  * Handler for the <code>stats snappy_decompress</code> command used to retrieve
  * histograms of how long it took to decompress Snappy compressed values.
  *
@@ -582,9 +530,6 @@ static std::unordered_map<std::string, struct command_stat_handler>
                  {false, false, true, stat_connections_executor}},
                 {"json_validate",
                  {false, true, true, stat_json_validate_executor}},
-                {"topkeys", {false, true, true, stat_topkeys_executor}},
-                {"topkeys_json",
-                 {false, true, true, stat_topkeys_json_executor}},
                 {"snappy_decompress",
                  {false, true, true, stat_snappy_decompress_executor}},
                 {"subdoc_execute",

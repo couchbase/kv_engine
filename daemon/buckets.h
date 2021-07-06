@@ -26,7 +26,6 @@
 
 struct thread_stats;
 struct DcpIface;
-class TopKeys;
 class Connection;
 
 #define MAX_BUCKET_NAME_LENGTH 100
@@ -107,11 +106,6 @@ public:
      * The name of the bucket (and space for the '\0')
      */
     char name[MAX_BUCKET_NAME_LENGTH + 1]{};
-
-    /**
-     * Topkeys
-     */
-    std::unique_ptr<TopKeys> topkeys;
 
     /**
      * Statistics vector, one per front-end thread.

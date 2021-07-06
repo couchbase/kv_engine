@@ -89,11 +89,6 @@ The number of CPU's to use for frontend threads.
 
 The NUMA memory to use.
 
-## `MEMCACHED_TOP_KEYS`
-
-Should be set to the number of "top keys" memcached should collect
-information about
-
 ## `MEMCACHED_UNIT_TESTS`
 
 Set to indicate that we're running unit tests

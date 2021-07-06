@@ -16,7 +16,6 @@
 cb::engine_errc UnlockCommandContext::unlock() {
     auto ret = bucket_unlock(cookie, cookie.getRequestKey(), vbucket, cas);
     if (ret == cb::engine_errc::success) {
-        update_topkeys(cookie);
         cookie.sendResponse(cb::mcbp::Status::Success);
         state = State::Done;
     }
