@@ -1172,9 +1172,8 @@ void KVBucket::snapshotStats(bool shuttingDown) {
     };
     cb::tracing::Traceable traceable;
     bool rv = engine.getStats(&traceable, {}, {}, snapshot_add_stat) ==
-                      cb::engine_errc::success &&
-              engine.getStats(&traceable, "dcp", {}, snapshot_add_stat) ==
                       cb::engine_errc::success;
+    engine.doDcpStatsInner(nullptr, snapshot_add_stat, {});
 
     nlohmann::json snapshotStats(statsMap);
     if (rv && shuttingDown) {
