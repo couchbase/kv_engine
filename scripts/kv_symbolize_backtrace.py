@@ -1,5 +1,11 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+import argparse
+import fileinput
+import re
+import subprocess
+
 """
 Copyright 2021-Present Couchbase, Inc.
 
@@ -27,12 +33,6 @@ Note: Spawns GDB once for each matched line (as it must read the correct
 binary) so can be slow with large numbers of lines. In such as case just pass
 the script the specific lines to symbolify.
 """
-
-from __future__ import print_function
-import argparse
-import fileinput
-import re
-import subprocess
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
