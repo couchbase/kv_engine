@@ -229,13 +229,22 @@ cb::engine_errc BucketManager::create(Cookie& cookie,
         engine.set_num_storage_threads(ThreadPoolConfig::StorageThreadCount(
                 Settings::instance().getNumStorageThreads()));
 
+        bucket.max_document_size = engine.getMaxItemSize();
+        bucket.supportedFeatures = engine.getFeatures();
+
+        // MB-47231: Reported use after free which was most likely caused
+        // by setting the state of the bucket to ready _before_
+        // initializing bucket.supportedFeatures so if another thread
+        // tried to select the bucket and was scheduled in between of these
+        // calls it would fetch the old value for supportedFeature and we're
+        // experiencing undefined behavior (one thread will be writing into
+        // the std::set while another one reads from it. The other thread
+        // could also be traversing freed memory.
         {
             std::lock_guard<std::mutex> guard(bucket.mutex);
             bucket.state = Bucket::State::Ready;
         }
         LOG_INFO("{}: Bucket [{}] created successfully", cid, name);
-        bucket.max_document_size = engine.getMaxItemSize();
-        bucket.supportedFeatures = engine.getFeatures();
     } else {
         {
             std::lock_guard<std::mutex> guard(bucket.mutex);
