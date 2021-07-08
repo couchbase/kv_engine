@@ -483,13 +483,23 @@ cb::mcbp::Status Cookie::validate() {
         // We're not authenticated and the default bucket isn't enabled. To
         // reduce the attack vector we'll only allow certain commands to
         // be executed
-        const std::array<cb::mcbp::ClientOpcode, 4> whitelist{
+        const std::array<cb::mcbp::ClientOpcode, 5> whitelist{
                 {cb::mcbp::ClientOpcode::Hello,
                  cb::mcbp::ClientOpcode::SaslListMechs,
                  cb::mcbp::ClientOpcode::SaslAuth,
-                 cb::mcbp::ClientOpcode::SaslStep}};
+                 cb::mcbp::ClientOpcode::SaslStep,
+                 cb::mcbp::ClientOpcode::GetErrorMap}};
         if (std::find(whitelist.begin(), whitelist.end(), opcode) ==
             whitelist.end()) {
+#if CB_DEVELOPMENT_ASSERTS
+            if (cb::mcbp::is_valid_opcode(opcode)) {
+                LOG_WARNING(
+                        "{}: Trying to execute {} before authentication. "
+                        "Returning eaccess",
+                        getConnection().getId(),
+                        to_string(opcode));
+            }
+#endif
             return cb::mcbp::Status::Eaccess;
         }
     }
