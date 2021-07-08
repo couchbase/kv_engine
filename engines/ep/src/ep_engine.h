@@ -982,10 +982,19 @@ protected:
     cb::engine_errc doDcpStats(const CookieIface* cookie,
                                const AddStatFn& add_stat,
                                std::string_view value);
+    /**
+     * Immediately collect DCP stats, without scheduling a background task.
+     */
+    void doDcpStatsInner(const CookieIface* cookie,
+                         const AddStatFn& add_stat,
+                         std::string_view value);
     cb::engine_errc doEvictionStats(const CookieIface* cookie,
                                     const AddStatFn& add_stat);
-    cb::engine_errc doConnAggStats(const BucketStatCollector& collector,
+    cb::engine_errc doConnAggStats(const CookieIface* cookie,
+                                   const AddStatFn& add_stat,
                                    std::string_view sep);
+    cb::engine_errc doConnAggStatsInner(const BucketStatCollector& collector,
+                                        std::string_view sep);
     void doTimingStats(const BucketStatCollector& collector);
     cb::engine_errc doSchedulerStats(const CookieIface* cookie,
                                      const AddStatFn& add_stat);

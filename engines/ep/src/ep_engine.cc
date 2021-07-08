@@ -382,7 +382,7 @@ cb::engine_errc EventuallyPersistentEngine::get_prometheus_stats(
             }
             // do dcp aggregated stats, using ":" as the separator to split
             // connection names to find the connection type.
-            if (status = doConnAggStats(collector, ":");
+            if (status = doConnAggStatsInner(collector, ":");
                 status != cb::engine_errc::success) {
                 return status;
             }
@@ -3827,7 +3827,82 @@ static void showConnAggStat(const std::string& connType,
     }
 }
 
+class StatDCPTask : public GlobalTask {
+public:
+    using Callback = std::function<cb::engine_errc(
+            EventuallyPersistentEngine* e, const CookieIface* cookie)>;
+    StatDCPTask(EventuallyPersistentEngine* e,
+                const CookieIface* cookie,
+                std::string_view description,
+                Callback callback)
+        : GlobalTask(e, TaskId::StatDCPTask, 0, false),
+          e(e),
+          cookie(cookie),
+          description(description),
+          callback(std::move(callback)) {
+    }
+    bool run() override {
+        TRACE_EVENT0("ep-engine/task", "StatDCPTask");
+        cb::engine_errc result = cb::engine_errc::failed;
+        try {
+            result = callback(e, cookie);
+        } catch (const std::exception& e) {
+            EP_LOG_WARN(
+                    "StatDCPTask: callback threw exception: \"{}\" task "
+                    "desc:\"{}\"",
+                    e.what(),
+                    getDescription());
+        }
+        e->notifyIOComplete(cookie, result);
+        return false;
+    }
+
+    std::string getDescription() const override {
+        return description;
+    }
+
+    std::chrono::microseconds maxExpectedDuration() const override {
+        // Task aggregates all dcp connections, of which there can be many, so
+        // set limit of 100ms.
+        return std::chrono::milliseconds(100);
+    }
+
+private:
+    EventuallyPersistentEngine* e;
+    const CookieIface* cookie;
+    const std::string description;
+    Callback callback;
+};
+
 cb::engine_errc EventuallyPersistentEngine::doConnAggStats(
+        const CookieIface* cookie,
+        const AddStatFn& add_stat,
+        std::string_view sep) {
+    void* engineSpecific = getEngineSpecific(cookie);
+    if (engineSpecific == nullptr) {
+        ExTask task = std::make_shared<StatDCPTask>(
+                this,
+                cookie,
+                "Aggregated DCP stats",
+                [add_stat, separator = std::string(sep)](
+                        EventuallyPersistentEngine* ep,
+                        const CookieIface* cookie) {
+                    CBStatCollector col(add_stat, cookie, ep->getServerApi());
+                    ep->doConnAggStatsInner(col.forBucket(ep->getName()),
+                                            separator);
+                    return cb::engine_errc::success;
+                });
+        ExecutorPool::get()->schedule(task);
+        storeEngineSpecific(cookie, this);
+        return cb::engine_errc::would_block;
+    } else {
+        storeEngineSpecific(cookie, nullptr);
+    }
+
+    return cb::engine_errc::success;
+}
+
+cb::engine_errc EventuallyPersistentEngine::doConnAggStatsInner(
         const BucketStatCollector& collector, std::string_view sep) {
     // The separator is, in all current usage, ":" so the length will
     // normally be 1
@@ -3845,9 +3920,7 @@ cb::engine_errc EventuallyPersistentEngine::doConnAggStats(
             // more difficult
             continue;
         }
-        showConnAggStat(connType,
-                        counter,
-                        collector);
+        showConnAggStat(connType, counter, collector);
     }
 
     return cb::engine_errc::success;
@@ -3857,6 +3930,31 @@ cb::engine_errc EventuallyPersistentEngine::doDcpStats(
         const CookieIface* cookie,
         const AddStatFn& add_stat,
         std::string_view value) {
+    void* engineSpecific = getEngineSpecific(cookie);
+    if (engineSpecific == nullptr) {
+        ExTask task = std::make_shared<StatDCPTask>(
+                this,
+                cookie,
+                "Summarised bucket-wide DCP stats",
+                [add_stat, filter = std::string(value)](
+                        EventuallyPersistentEngine* ep,
+                        const CookieIface* cookie) {
+                    ep->doDcpStatsInner(cookie, add_stat, filter);
+                    return cb::engine_errc::success;
+                });
+        ExecutorPool::get()->schedule(task);
+        storeEngineSpecific(cookie, this);
+        return cb::engine_errc::would_block;
+    } else {
+        storeEngineSpecific(cookie, nullptr);
+    }
+
+    return cb::engine_errc::success;
+}
+
+void EventuallyPersistentEngine::doDcpStatsInner(const CookieIface* cookie,
+                                                 const AddStatFn& add_stat,
+                                                 std::string_view value) {
     ConnStatBuilder dcpVisitor(cookie, add_stat, DcpStatsFilter{value});
     dcpConnMap_->each(dcpVisitor);
 
@@ -3885,7 +3983,6 @@ cb::engine_errc EventuallyPersistentEngine::doDcpStats(
                     cookie);
 
     dcpConnMap_->addStats(add_stat, cookie);
-    return cb::engine_errc::success;
 }
 
 cb::engine_errc EventuallyPersistentEngine::doEvictionStats(
@@ -4648,7 +4745,7 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
         return doEngineStats(bucketCollector);
     }
     if (key.size() > 7 && cb_isPrefix(key, "dcpagg ")) {
-        return doConnAggStats(bucketCollector, key.substr(7));
+        return doConnAggStats(c, add_stat, key.substr(7));
     }
     if (key == "dcp"sv) {
         return doDcpStats(c, add_stat, value);
