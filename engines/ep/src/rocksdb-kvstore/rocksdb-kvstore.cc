@@ -643,6 +643,13 @@ void RocksDBKVStore::commitCallback(rocksdb::Status status,
 
 size_t RocksDBKVStore::getItemCount(Vbid vbid) {
     const auto vbh = getVBHandle(vbid);
+    if (!vbh) {
+        throw std::system_error(
+                std::make_error_code(std::errc::no_such_file_or_directory),
+                fmt::format("RocksDBKVStore::getMagmaDbStats: failed to open "
+                            "database file for {}",
+                            vbid));
+    }
     std::string val;
     // TODO: Maintain an accurate item count, not just an estimate.
     rdb->GetProperty(vbh->defaultCFH.get(), "rocksdb.estimate-num-keys", &val);

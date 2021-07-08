@@ -59,9 +59,7 @@ public:
         locked->reset(docCount, purgeSeqno);
     }
 
-    MagmaDbStats(const MagmaDbStats& other) {
-        *this = other;
-    }
+    MagmaDbStats(const MagmaDbStats& other) = default;
 
     MagmaDbStats& operator=(const MagmaDbStats& other) {
         auto locked = stats.wlock();
@@ -113,10 +111,7 @@ public:
     struct Stats {
         Stats() = default;
 
-        Stats(const Stats& other) {
-            docCount = other.docCount;
-            purgeSeqno = other.purgeSeqno;
-        }
+        Stats(const Stats& other) = default;
 
         void reset(int64_t docCount,
                    uint64_t purgeSeqno) {
@@ -792,10 +787,11 @@ protected:
     /**
      * Get the MagmaDbStats from the Magma::KVStore
      * @param vbid
-     * @return The MagmaDbStats (default constructed if they don't exist in
-     * magma yet)
+     * @return The MagmaDbStats (empty optional returned if they don't exist in
+     * magma).
+     * @throws std::runtime_error if the DbStats are in an invalid format.
      */
-    MagmaDbStats getMagmaDbStats(Vbid vbid) const;
+    std::optional<MagmaDbStats> getMagmaDbStats(Vbid vbid) const;
 
     MagmaKVStoreConfig& configuration;
 

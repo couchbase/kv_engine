@@ -1053,6 +1053,29 @@ TEST_P(KVStoreParamTest, OptimizeWrites) {
     }
 }
 
+// Verify basic functionality of getItemCount.
+TEST_P(KVStoreParamTest, GetItemCount) {
+    ASSERT_EQ(0, kvstore->getItemCount(vbid));
+
+    // Setup: store 3 keys, a, b, c
+    kvstore->begin(std::make_unique<TransactionContext>(vbid));
+    int64_t seqno = 1;
+    for (char k = 'a'; k <= 'c'; k++) {
+        auto item = makeCommittedItem(makeStoredDocKey({k}), "value");
+        item->setBySeqno(seqno++);
+        kvstore->set(item);
+    }
+    kvstore->commit(flush);
+
+    EXPECT_EQ(3, kvstore->getItemCount(vbid));
+}
+
+// Verify the negative behavour of getItemCount - if the given vbucket doens't
+// exist then getItemCount should throw std::system_error.
+TEST_P(KVStoreParamTest, GetItemCountInvalidVBucket) {
+    EXPECT_THROW(kvstore->getItemCount(Vbid{123}), std::system_error);
+}
+
 TEST_P(KVStoreParamTestSkipRocks, GetAllKeysSanity) {
     kvstore->begin(std::make_unique<TransactionContext>(vbid));
     int keys = 20;

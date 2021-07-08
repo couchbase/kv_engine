@@ -1674,7 +1674,11 @@ scan_error_t MagmaKVStore::scan(ByIdScanContext& ctx) const {
 void MagmaKVStore::mergeMagmaDbStatsIntoVBState(vbucket_state& vbstate,
                                                 Vbid vbid) const {
     auto dbStats = getMagmaDbStats(vbid);
-    auto lockedStats = dbStats.stats.rlock();
+    if (!dbStats) {
+        // No stats available from Magma for this vbid, nothing to do.
+        return;
+    }
+    auto lockedStats = dbStats->stats.rlock();
     vbstate.purgeSeqno = lockedStats->purgeSeqno;
 
     // We don't update the number of onDiskPrepares because we can't easily
@@ -1905,30 +1909,35 @@ cb::engine_errc MagmaKVStore::magmaErr2EngineErr(Status::Code err, bool found) {
     return cb::engine_errc::temporary_failure;
 }
 
-MagmaDbStats MagmaKVStore::getMagmaDbStats(Vbid vbid) const {
-    MagmaDbStats dbStats;
-
+std::optional<MagmaDbStats> MagmaKVStore::getMagmaDbStats(Vbid vbid) const {
     auto userStats = magma->GetKVStoreUserStats(vbid.get());
-    if (userStats) {
-        auto otherStats = dynamic_cast<MagmaDbStats*>(userStats.get());
-        if (!otherStats) {
-            throw std::runtime_error(
-                    "MagmaKVStore::getMagmaDbStats: stats retrieved from magma "
-                    "are incorrect type");
-        }
-        dbStats.reset(*otherStats);
+    if (!userStats) {
+        return {};
+    }
+    auto* otherStats = dynamic_cast<MagmaDbStats*>(userStats.get());
+    if (!otherStats) {
+        throw std::runtime_error(
+                "MagmaKVStore::getMagmaDbStats: stats retrieved from magma "
+                "are incorrect type");
     }
     if (logger->should_log(spdlog::level::TRACE)) {
         logger->TRACE("MagmaKVStore::getMagmaDbStats {} dbStats:{}",
                       vbid,
-                      dbStats.Marshal());
+                      otherStats->Marshal());
     }
-    return dbStats;
+    return *otherStats;
 }
 
 size_t MagmaKVStore::getItemCount(Vbid vbid) {
     auto dbStats = getMagmaDbStats(vbid);
-    auto lockedStats = dbStats.stats.rlock();
+    if (!dbStats) {
+        throw std::system_error(
+                std::make_error_code(std::errc::no_such_file_or_directory),
+                fmt::format("MagmaKVStore::getMagmaDbStats: failed to open "
+                            "database file for {}",
+                            vbid));
+    }
+    auto lockedStats = dbStats->stats.rlock();
     return lockedStats->docCount;
 }
 
