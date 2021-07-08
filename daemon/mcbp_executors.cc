@@ -16,6 +16,7 @@
 #include "mcaudit.h"
 #include "mcbp.h"
 #include "mcbp_privileges.h"
+#include "network_interface_manager.h"
 #include "protocol/mcbp/appendprepend_context.h"
 #include "protocol/mcbp/arithmetic_context.h"
 #include "protocol/mcbp/audit_configure_context.h"
@@ -170,6 +171,13 @@ static void isasl_refresh_executor(Cookie& cookie) {
 static void ssl_certs_refresh_executor(Cookie& cookie) {
     // MB-46983: until ns_server use ifconfig we need to reply with success
     // @todo Once ns_server supports ifconfig we shall return NotSupported
+
+    auto tls = Settings::instance().getTlsConfiguration();
+    if (!tls.empty() && networkInterfaceManager &&
+        networkInterfaceManager->allowTlsSettingsInConfigFile()) {
+        networkInterfaceManager->doTlsReconfigure(tls);
+    }
+
     cookie.sendResponse(cb::mcbp::Status::Success);
 }
 
