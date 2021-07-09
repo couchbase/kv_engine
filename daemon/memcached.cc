@@ -870,6 +870,10 @@ int memcached_main(int argc, char** argv) {
         LOG_INFO_RAW("Thread sanitizer enabled");
     }
 
+#if CB_DEVELOPMENT_ASSERTS
+    LOG_INFO_RAW("Development asserts enabled");
+#endif
+
 #if defined(__x86_64__) || defined(_M_X64)
     if (!folly::CpuId().sse42()) {
         // MB-44941: hw crc32 is required, and is part of SSE4.2. If the CPU
