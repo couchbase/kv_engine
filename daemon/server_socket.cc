@@ -108,7 +108,8 @@ void LibeventServerSocketImpl::listen_event_handler(evutil_socket_t,
         // Someone requested memcached to shut down. The listen thread should
         // be stopped immediately to avoid new connections
         LOG_INFO_RAW("Stopping listen thread");
-        event_base_loopbreak(event_get_base(c.ev.get()));
+        event_del(c.ev.get());
+        c.ev.reset();
         return;
     }
 
