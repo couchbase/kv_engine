@@ -575,7 +575,6 @@ void TestDcpConsumer::run(bool openConn) {
                 }
                 break;
             case cb::mcbp::ClientOpcode::DcpNoop:
-                bytes_read += producers.last_packet_size;
                 all_bytes += producers.last_packet_size;
                 break;
             case cb::mcbp::ClientOpcode::DcpSeqnoAdvanced:
