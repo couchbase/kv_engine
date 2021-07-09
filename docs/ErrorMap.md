@@ -107,8 +107,6 @@ attribute.
 
 * `dcp`: The error is related to the DCP subsystem.
 
-* `rate-limit`: The error is related to rate limitation for the client
-
 * `success`: The operation was successful for those situations where the error
   code is indicating successful (i.e. subdocument operations carried out on a
   deleted document)

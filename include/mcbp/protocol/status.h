@@ -72,20 +72,6 @@ enum class Status : uint16_t {
      * node, and the Cluster manager has not yet granted all
      * users access to the cluster. */
     NotInitialized = 0x25,
-
-    // Start error codes for rate limits. Reserve segment [0x30, 0x4f]
-
-    /// The tenant exceeded network ingress limit
-    RateLimitedNetworkIngress = 0x30,
-    /// The tenant exceeded network egress limit
-    RateLimitedNetworkEgress = 0x31,
-    /// The tenant exceeded max number of connections
-    RateLimitedMaxConnections = 0x32,
-    /// The tenant exceeded max number of commands
-    RateLimitedMaxCommands = 0x33,
-
-    // END Rate limit error codes. Next error should be 0x50
-
     /// The server don't know about the frame info, and can't use it
     UnknownFrameInfo = 0x80,
     /** The server have no idea what this command is for */

@@ -18,7 +18,7 @@ TEST(McbpStatusTest, VerifyErrorMap) {
             SOURCE_ROOT "/etc/couchbase/kv/error_maps/error_map_v1.json");
     auto json = nlohmann::json::parse(cb::io::loadFile(filename));
     ASSERT_EQ(1, json["version"].get<int>());
-    ASSERT_EQ(5, json["revision"].get<int>());
+    ASSERT_EQ(4, json["revision"].get<int>());
 
     // Iterate over all status codes and check that they're defined
     for (uint16_t ii = 0; ii < uint16_t(cb::mcbp::Status::COUNT); ++ii) {

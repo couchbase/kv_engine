@@ -40,10 +40,6 @@ bool isStatusSuccess(Status status) {
     case Status::Erange:
     case Status::Eaccess:
     case Status::NotInitialized:
-    case Status::RateLimitedNetworkIngress:
-    case Status::RateLimitedNetworkEgress:
-    case Status::RateLimitedMaxConnections:
-    case Status::RateLimitedMaxCommands:
     case Status::UnknownFrameInfo:
     case Status::UnknownCommand:
     case Status::Enomem:
@@ -158,14 +154,6 @@ std::string to_string(cb::mcbp::Status status) {
         return "No access";
     case Status::NotInitialized:
         return "Node not initialized";
-    case Status::RateLimitedNetworkIngress:
-        return "Rate limit: Network ingress";
-    case Status::RateLimitedNetworkEgress:
-        return "Rate limit: Network Egress";
-    case Status::RateLimitedMaxConnections:
-        return "Rate limit: Max Connections";
-    case Status::RateLimitedMaxCommands:
-        return "Rate limit: Max Commands";
     case Status::UnknownFrameInfo:
         return "Unknown frame info";
     case Status::UnknownCommand:
