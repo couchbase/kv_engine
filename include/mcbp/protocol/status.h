@@ -289,6 +289,9 @@ static inline std::error_condition make_error_condition(Status e) {
     return std::error_condition(int(e), error_category());
 }
 
+/// Is the status code known to the system or not
+bool is_known(Status status);
+
 /**
  * Check if the provided status code represents success or a failure
  *
@@ -305,7 +308,7 @@ std::ostream& operator<<(std::ostream& out, cb::mcbp::Status status);
 /**
  * Get a textual representation of the given error code
  */
-std::string to_string(cb::mcbp::Status status);
+std::string to_string(cb::mcbp::Status status, bool shortname = false);
 
 namespace std {
 
