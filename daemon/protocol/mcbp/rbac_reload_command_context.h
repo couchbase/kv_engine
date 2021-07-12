@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -10,7 +9,7 @@
  */
 #pragma once
 
-#include "steppable_command_context.h"
+#include "file_reload_command_context.h"
 
 /**
  * RbacReloadCommandContext is responsible for handling the
@@ -18,34 +17,15 @@
  * it'll offload the task to another thread to do the
  * actual work which notifies the command cookie when it's done.
  */
-class RbacReloadCommandContext : public SteppableCommandContext {
+class RbacReloadCommandContext : public FileReloadCommandContext {
 public:
-    enum class State { Reload, Done };
-
     explicit RbacReloadCommandContext(Cookie& cookie)
-        : SteppableCommandContext(cookie) {
+        : FileReloadCommandContext(cookie) {
     }
 
 protected:
-    cb::engine_errc step() override {
-        auto ret = cb::engine_errc::success;
-        do {
-            switch (state) {
-            case State::Reload:
-                ret = reload();
-                break;
-            case State::Done:
-                done();
-                return cb::engine_errc::success;
-            }
-        } while (ret == cb::engine_errc::success);
-
-        return ret;
-    }
-
-    cb::engine_errc reload();
-    void done();
+    cb::engine_errc reload() override;
 
 private:
-    State state = State::Reload;
+    cb::engine_errc doRbacReload();
 };

@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -9,7 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 #pragma once
-#include "steppable_command_context.h"
+#include "file_reload_command_context.h"
 
 #include <daemon/memcached.h>
 #include <mcbp/protocol/opcode.h>
@@ -21,38 +20,15 @@
  * it'll offload the task to another thread to do the actual work which
  * notifies the command cookie when it's done.
  */
-class SaslRefreshCommandContext : public SteppableCommandContext {
+class SaslRefreshCommandContext : public FileReloadCommandContext {
 public:
-    enum class State {
-            Refresh,
-            Done
-    };
-
     explicit SaslRefreshCommandContext(Cookie& cookie)
-        : SteppableCommandContext(cookie) {
+        : FileReloadCommandContext(cookie) {
     }
 
 protected:
-    cb::engine_errc step() override {
-        auto ret = cb::engine_errc::success;
-        do {
-            switch (state) {
-            case State::Refresh:
-                ret = refresh();
-                break;
-            case State::Done:
-
-                done();
-                return cb::engine_errc::success;
-            }
-        } while (ret == cb::engine_errc::success);
-
-        return ret;
-    }
-
-    cb::engine_errc refresh();
-    void done();
+    cb::engine_errc reload() override;
 
 private:
-    State state = State::Refresh;
+    cb::engine_errc doSaslRefresh();
 };
