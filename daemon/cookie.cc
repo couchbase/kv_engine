@@ -159,6 +159,10 @@ bool Cookie::doExecute() {
     return true;
 }
 
+uint32_t Cookie::getConnectionId() const {
+    return connection.getId();
+}
+
 bool Cookie::execute(bool useStartTime) {
     auto ts = useStartTime ? start : std::chrono::steady_clock::now();
 
@@ -496,7 +500,7 @@ cb::mcbp::Status Cookie::validate() {
                 LOG_WARNING(
                         "{}: Trying to execute {} before authentication. "
                         "Returning eaccess",
-                        getConnection().getId(),
+                        getConnectionId(),
                         to_string(opcode));
             }
 #endif

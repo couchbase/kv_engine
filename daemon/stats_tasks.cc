@@ -37,7 +37,7 @@ bool StatsTaskConnectionStats::run() {
         LOG_WARNING(
                 "{}: ConnectionStatsTask::execute(): An exception "
                 "occurred: {}",
-                cookie.getConnection().getId(),
+                cookie.getConnectionId(),
                 exception.what());
         cookie.setErrorContext("An exception occurred");
         command_error = cb::engine_errc::failed;

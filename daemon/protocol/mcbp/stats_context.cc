@@ -260,7 +260,7 @@ static cb::engine_errc stat_connections_executor(const std::string& arg,
 
     if (!arg.empty()) {
         if (arg == "self") {
-            fd = int64_t(cookie.getConnection().getId());
+            fd = int64_t(cookie.getConnectionId());
         } else {
             try {
                 fd = std::stoll(arg);
@@ -270,14 +270,14 @@ static cb::engine_errc stat_connections_executor(const std::string& arg,
         }
     }
 
-    if (fd == -1 || fd != int64_t(cookie.getConnection().getId())) {
+    if (fd == -1 || fd != int64_t(cookie.getConnectionId())) {
         if (cookie.checkPrivilege(cb::rbac::Privilege::Stats).failed()) {
             if (fd != -1) {
                 // The client asked for a given file descriptor.
                 return cb::engine_errc::no_access;
             }
             // The client didn't specify a connection, so return "self"
-            fd = int64_t(cookie.getConnection().getId());
+            fd = int64_t(cookie.getConnectionId());
         }
     }
 

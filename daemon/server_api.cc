@@ -206,7 +206,7 @@ struct ServerCookieApi : public ServerCookieIface {
     std::pair<uint32_t, std::string> get_log_info(
             const CookieIface& void_cookie) override {
         auto& cookie = dynamic_cast<const Cookie&>(void_cookie);
-        return std::make_pair(cookie.getConnection().getId(),
+        return std::make_pair(cookie.getConnectionId(),
                               cookie.getConnection().getDescription());
     }
 

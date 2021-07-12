@@ -167,6 +167,8 @@ public:
         return connection;
     }
 
+    uint32_t getConnectionId() const override;
+
     /**
      * Execute the current packet
      *

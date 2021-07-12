@@ -139,7 +139,7 @@ cb::engine_errc BucketManager::create(Cookie& cookie,
                                       BucketType type) {
     // If there is an error I should set the cookie error context
     cb::engine_errc result;
-    auto cid = cookie.getConnection().getId();
+    auto cid = cookie.getConnectionId();
 
     LOG_INFO("{}: Create bucket [{}]", cid, name);
 

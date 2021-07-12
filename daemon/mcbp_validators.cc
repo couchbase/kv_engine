@@ -428,8 +428,7 @@ static Status verify_common_dcp_restrictions(Cookie& cookie) {
     const auto opcode = cookie.getRequest().getClientOpcode();
     if (opcode == ClientOpcode::DcpOpen) {
         if (connection.isDCP()) {
-            LOG_DEBUG("{}: Can't do DCP OPEN twice",
-                      cookie.getConnection().getId());
+            LOG_DEBUG("{}: Can't do DCP OPEN twice", cookie.getConnectionId());
             cookie.setErrorContext(
                     "The connection is already opened as a DCP connection");
             return Status::Einval;
@@ -437,7 +436,7 @@ static Status verify_common_dcp_restrictions(Cookie& cookie) {
     } else if (opcode != ClientOpcode::GetFailoverLog) {
         if (!connection.isDCP()) {
             LOG_DEBUG("{}: Can't send {} on connection before DCP open",
-                      cookie.getConnection().getId(),
+                      cookie.getConnectionId(),
                       to_string(cookie.getRequest().getClientOpcode()));
             cookie.setErrorContext(
                     "The command can only be sent on a DCP connection");

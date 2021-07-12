@@ -55,7 +55,7 @@ cb::engine_errc SaslRefreshCommandContext::refresh() {
                                 "{}: {} - Internal error - Invalid return code "
                                 "from "
                                 "cb::sasl::server::refresh()",
-                                cookie.getConnection().getId(),
+                                cookie.getConnectionId(),
                                 cookie.getEventId());
                         rv = cb::engine_errc::failed;
                     }
@@ -64,14 +64,14 @@ cb::engine_errc SaslRefreshCommandContext::refresh() {
                     std::string error = e.what();
                     cookie.setErrorContext(e.what());
                     LOG_WARNING("{}: Failed to refresh password database: {}",
-                                cookie.getConnection().getId(),
+                                cookie.getConnectionId(),
                                 error);
                 } catch (...) {
                     rv = cb::engine_errc::failed;
                     std::string error = "Unknown error";
                     cookie.setErrorContext(error);
                     LOG_WARNING("{}: Failed to refresh password database: {}",
-                                cookie.getConnection().getId(),
+                                cookie.getConnectionId(),
                                 error);
                 }
 

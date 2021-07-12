@@ -110,7 +110,7 @@ void SaslStartCommandContext::doSaslStart() {
         error = cb::sasl::Error::NO_MECH;
     } catch (const std::bad_alloc&) {
         LOG_WARNING("{}: StartSaslAuthTask::execute(): std::bad_alloc",
-                    cookie.getConnection().getId());
+                    cookie.getConnectionId());
         error = cb::sasl::Error::NO_MEM;
     } catch (const std::exception& exception) {
         // If we generated an error as part of SASL, we should
@@ -121,7 +121,7 @@ void SaslStartCommandContext::doSaslStart() {
         LOG_WARNING(
                 "{}: StartSaslAuthTask::execute(): UUID:[{}] An exception "
                 "occurred: {}",
-                cookie.getConnection().getId(),
+                cookie.getConnectionId(),
                 cookie.getEventId(),
                 exception.what());
         cookie.setErrorContext("An exception occurred");

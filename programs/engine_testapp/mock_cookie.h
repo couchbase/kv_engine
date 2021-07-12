@@ -84,7 +84,7 @@ public:
     void setCollectionsSupport(bool enable);
     bool isCollectionsSupported() const;
 
-    int getConnectionId() const {
+    uint32_t getConnectionId() const override {
         return sfd;
     }
 
@@ -122,7 +122,7 @@ public:
 
 private:
     void* engine_data{nullptr};
-    int sfd{};
+    uint32_t sfd{};
     cb::engine_errc status{cb::engine_errc::success};
     bool handle_ewouldblock{true};
     bool handle_mutation_extras{true};

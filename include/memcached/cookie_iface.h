@@ -25,6 +25,10 @@ enum class Status : uint16_t;
  */
 class CookieIface : public cb::tracing::Traceable {
 public:
+    /// Get the identifier user for logging for all cookies bound to this
+    /// connection.
+    virtual uint32_t getConnectionId() const = 0;
+
     /// Is the current cookie blocked?
     virtual bool isEwouldblock() const = 0;
 

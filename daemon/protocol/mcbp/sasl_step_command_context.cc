@@ -66,7 +66,7 @@ void SaslStepCommandContext::doSaslStep() {
         payload = p;
     } catch (const std::bad_alloc&) {
         LOG_WARNING("{}: StepSaslAuthTask::execute(): std::bad_alloc",
-                    cookie.getConnection().getId());
+                    cookie.getConnectionId());
         error = cb::sasl::Error::NO_MEM;
     } catch (const std::exception& exception) {
         // If we generated an error as part of SASL, we should
@@ -77,7 +77,7 @@ void SaslStepCommandContext::doSaslStep() {
         LOG_WARNING(
                 "{}: StepSaslAuthTask::execute(): UUID:[{}] An exception "
                 "occurred: {}",
-                cookie.getConnection().getId(),
+                cookie.getConnectionId(),
                 cookie.getEventId(),
                 exception.what());
         cookie.setErrorContext("An exception occurred");

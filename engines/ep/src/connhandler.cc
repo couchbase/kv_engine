@@ -15,6 +15,7 @@
 #include "ep_engine.h"
 #include "ep_time.h"
 
+#include <memcached/cookie_iface.h>
 #include <memcached/durability_spec.h>
 #include <memcached/server_cookie_iface.h>
 #include <phosphor/phosphor.h>
@@ -55,8 +56,7 @@ ConnHandler::ConnHandler(EventuallyPersistentEngine& e,
 
     auto* cookie_api = e.getServerApi()->cookie;
     cookie_api->setDcpConnHandler(*c, this);
-    auto connId = cookie_api->get_log_info(*c).first;
-    logger->setConnectionId(connId);
+    logger->setConnectionId(c->getConnectionId());
 }
 
 ConnHandler::~ConnHandler() {

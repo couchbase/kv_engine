@@ -54,7 +54,7 @@ void StartSaslAuthTask::successfull_external_auth() {
         serverContext.setDomain(cb::sasl::Domain::External);
     } catch (const std::exception& e) {
         LOG_WARNING(R"({} successfull_external_auth() failed. UUID[{}] "{}")",
-                    cookie.getConnection().getId(),
+                    cookie.getConnectionId(),
                     cookie.getEventId(),
                     e.what());
         error = cb::sasl::Error::FAIL;
@@ -91,7 +91,7 @@ void StartSaslAuthTask::unsuccessfull_external_auth(
         }
     } catch (const std::exception& e) {
         LOG_WARNING(R"({} successfull_external_auth() failed. UUID[{}] "{}")",
-                    cookie.getConnection().getId(),
+                    cookie.getConnectionId(),
                     cookie.getEventId(),
                     e.what());
         error = cb::sasl::Error::FAIL;

@@ -428,13 +428,13 @@ static void config_reload_executor(Cookie& cookie) {
         return;
     } catch (const std::bad_alloc&) {
         LOG_WARNING("{}: Failed reloading config file. not enough memory",
-                    cookie.getConnection().getId());
+                    cookie.getConnectionId());
         cookie.sendResponse(cb::mcbp::Status::Enomem);
         return;
     } catch (const std::system_error& error) {
         if (error.code() == std::errc::too_many_files_open) {
             LOG_WARNING("{}: Failed reloading config file. too many files open",
-                        cookie.getConnection().getId());
+                        cookie.getConnectionId());
             cookie.sendResponse(cb::mcbp::Status::Etmpfail);
             return;
         }
@@ -446,7 +446,7 @@ static void config_reload_executor(Cookie& cookie) {
     }
 
     LOG_WARNING("{}: {} - Failed reloading config file '{}'. Error: {}",
-                cookie.getConnection().getId(),
+                cookie.getConnectionId(),
                 cookie.getEventId(),
                 get_config_file(),
                 cookie.getErrorContext());
@@ -495,8 +495,7 @@ static void shutdown_executor(Cookie& cookie) {
     if (session_cas.increment_session_counter(cookie.getRequest().getCas())) {
         session_cas.decrement_session_counter();
         cookie.sendResponse(cb::mcbp::Status::Success);
-        LOG_INFO("{} Shutdown server requested",
-                 cookie.getConnection().getId());
+        LOG_INFO("{} Shutdown server requested", cookie.getConnectionId());
         shutdown_server();
     } else {
         cookie.sendResponse(cb::mcbp::Status::KeyEexists);
@@ -517,14 +516,14 @@ static void update_user_permissions_executor(Cookie& cookie) {
         status = cb::mcbp::Status::Einval;
         LOG_WARNING(
                 R"({}: update_user_permissions_executor: Failed to parse provided JSON: {})",
-                cookie.getConnection().getId(),
+                cookie.getConnectionId(),
                 error.what());
     } catch (const std::runtime_error& error) {
         cookie.setErrorContext(error.what());
         status = cb::mcbp::Status::Einval;
         LOG_WARNING(
                 R"({}: update_user_permissions_executor: An error occurred while updating user: {})",
-                cookie.getConnection().getId(),
+                cookie.getConnectionId(),
                 error.what());
     }
 
