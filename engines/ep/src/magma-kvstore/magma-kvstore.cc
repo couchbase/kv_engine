@@ -2390,7 +2390,8 @@ magma::Status MagmaKVStore::updateCollectionsMeta(
         }
     }
 
-    if (collectionsFlush.isDroppedCollectionsChanged()) {
+    if (collectionsFlush.isDroppedCollectionsChanged() ||
+        collectionsFlush.isDroppedStatsChanged()) {
         auto status =
                 updateDroppedCollections(vbid, localDbReqs, collectionsFlush);
         if (!status.IsOK()) {
@@ -2449,38 +2450,48 @@ magma::Status MagmaKVStore::updateDroppedCollections(
                       "Failed to get dropped collections");
     }
 
+    // We may not have dropped a collection but we may have a dropped collection
+    // stat that needs updating if we have changed the state of a document in
+    // a new generation of the collection, as such, we need to update stats
+    // for both dropped collections and changes in state that result in stat
+    // changes
+    std::unordered_set<CollectionID> droppedStats;
+    auto flushDroppedStats = collectionsFlush.getDroppedStats();
+    for (auto [cid, stats] : collectionsFlush.getDroppedStats()) {
+        droppedStats.insert(cid);
+    }
+
     auto flushDroppedCollections = collectionsFlush.getDroppedCollections();
     for (auto [cid, droppedCollection] : flushDroppedCollections) {
+        droppedStats.insert(cid);
+    }
+
+    for (auto cid : droppedStats) {
+        auto droppedInBatch = flushDroppedCollections.find(cid) !=
+                              flushDroppedCollections.end();
+
         // Step 1) Read the dropped stats - they may already exist and we should
         // add to their values if they do.
         auto [droppedStatus, droppedStats] =
                 getDroppedCollectionStats(vbid, cid);
 
-        // @TODO MB-47055: remove exception handling when we're more confident
-        // in the doc counting here
-        try {
-            // Step 2) Read the current alive stats on disk, we'll add them to
-            // the dropped stats as the collection is now gone
+        // Step 2) Read the current alive stats on disk, we'll add them to
+        // the dropped stats as the collection is now gone, provided we dropped
+        // the collection in this flush batch. If we had just adjusted stats due
+        // to a change in doc state then we'd have already tracked this in the
+        // original drop
+        if (droppedInBatch) {
             auto [status, currentAliveStats] = getCollectionStats(vbid, cid);
             if (status) {
                 droppedStats.itemCount += currentAliveStats.itemCount;
                 droppedStats.diskSize += currentAliveStats.diskSize;
             }
-
-            // Step 3) Add the dropped stats from FlushAccounting
-            auto droppedInFlush = collectionsFlush.getDroppedStats(cid);
-            droppedStats.itemCount += droppedInFlush.getItemCount();
-            droppedStats.diskSize += droppedInFlush.getDiskSize();
-        } catch (std::underflow_error& e) {
-            logger->error(
-                    "{} Underflow exception when processing the dropped "
-                    "collection stats for cid:{}",
-                    vbid,
-                    cid);
-
-            // Rethrow the original exception
-            throw;
         }
+
+        // Step 3) Add the dropped stats from FlushAccounting
+        auto droppedInFlush = collectionsFlush.getDroppedStats(cid);
+        droppedStats.itemCount += droppedInFlush.getItemCount();
+        droppedStats.diskSize += droppedInFlush.getDiskSize();
 
         // Step 4) Write the new dropped stats back for compaction
         auto key = getDroppedCollectionsStatsKey(cid);

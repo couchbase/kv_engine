@@ -1710,6 +1710,161 @@ TEST_P(CollectionsEraserPersistentOnly, DropManyCompactOnce) {
     }
 }
 
+TEST_P(CollectionsEraserPersistentOnly, DocAliveCollRecreateDocAliveCollPurge) {
+    // Flush the initial create
+    CollectionsManifest cm;
+    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // DocAlive
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "red");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Collection Drop
+    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::fruit)));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Collection Create
+    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // DocAlive
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "green");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    EXPECT_EQ(1, vb->getNumItems());
+
+    // Collection Purge
+    EXPECT_EQ(1,
+              (*task_executor->getLpTaskQ()[WRITER_TASK_IDX])
+                      .getFutureQueueSize());
+    runCollectionsEraser(vbid);
+    EXPECT_EQ(1, vb->getNumItems());
+}
+
+TEST_P(CollectionsEraserPersistentOnly,
+       DocAliveCollRecreateDocDeleteCollPurge) {
+    // Flush the create
+    CollectionsManifest cm;
+    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // DocAlive
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "red");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Collection Drop
+    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::fruit)));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Collection Create
+    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // DocDelete
+    store_item(vbid,
+               StoredDocKey{"apple", CollectionEntry::fruit},
+               "green",
+               0,
+               {cb::engine_errc::success},
+               PROTOCOL_BINARY_DATATYPE_JSON,
+               {},
+               true);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    EXPECT_EQ(0, vb->getNumItems());
+
+    // Collection Purge
+    EXPECT_EQ(1,
+              (*task_executor->getLpTaskQ()[WRITER_TASK_IDX])
+                      .getFutureQueueSize());
+    runCollectionsEraser(vbid);
+    EXPECT_EQ(0, vb->getNumItems());
+}
+
+TEST_P(CollectionsEraserPersistentOnly,
+       DocDeleteCollRecreateDocAliveCollPurge) {
+    // Flush the create
+    CollectionsManifest cm;
+    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // DocDelete
+    store_item(vbid,
+               StoredDocKey{"apple", CollectionEntry::fruit},
+               "red",
+               0,
+               {cb::engine_errc::success},
+               PROTOCOL_BINARY_DATATYPE_JSON,
+               {},
+               true);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Collection Drop
+    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::fruit)));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Collection Create
+    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // DocAlive
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "green");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    EXPECT_EQ(1, vb->getNumItems());
+
+    // Collection Purge
+    EXPECT_EQ(1,
+              (*task_executor->getLpTaskQ()[WRITER_TASK_IDX])
+                      .getFutureQueueSize());
+    runCollectionsEraser(vbid);
+    EXPECT_EQ(1, vb->getNumItems());
+}
+
+TEST_P(CollectionsEraserPersistentOnly,
+       DocDeleteCollRecreateDocDeleteCollPurge) {
+    // Flush the create
+    CollectionsManifest cm;
+    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // DocDelete
+    store_item(vbid,
+               StoredDocKey{"apple", CollectionEntry::fruit},
+               "red",
+               0,
+               {cb::engine_errc::success},
+               PROTOCOL_BINARY_DATATYPE_JSON,
+               {},
+               true);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Collection Drop
+    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::fruit)));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Collection Create
+    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // DocDelete
+    store_item(vbid,
+               StoredDocKey{"apple", CollectionEntry::fruit},
+               "green",
+               0,
+               {cb::engine_errc::success},
+               PROTOCOL_BINARY_DATATYPE_JSON,
+               {},
+               true);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    EXPECT_EQ(0, vb->getNumItems());
+
+    // Collection Purge
+    EXPECT_EQ(1,
+              (*task_executor->getLpTaskQ()[WRITER_TASK_IDX])
+                      .getFutureQueueSize());
+    runCollectionsEraser(vbid);
+    EXPECT_EQ(0, vb->getNumItems());
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsEraserTests,
                          CollectionsEraserTest,

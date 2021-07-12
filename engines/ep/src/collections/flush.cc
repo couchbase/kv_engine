@@ -606,6 +606,10 @@ FlushAccounting::StatisticsUpdate Flush::getDroppedStats(CollectionID cid) {
     return FlushAccounting::StatisticsUpdate(itr->second);
 }
 
+const FlushAccounting::StatsMap& Flush::getDroppedStats() const {
+    return flushAccounting.getDroppedStats();
+}
+
 bool Flush::isOpen(CollectionID cid) const {
     auto collectionsItr = collections.find(cid);
     if (collectionsItr != collections.end()) {
@@ -644,15 +648,17 @@ void Flush::updateStats(const DocKey& key,
                         IsDeleted oldIsDelete,
                         size_t oldSize,
                         WantsDropped wantsDropped) {
-    flushAccounting.updateStats(key,
-                                seqno,
-                                isCommitted,
-                                isDelete,
-                                size,
-                                oldSeqno,
-                                oldIsDelete,
-                                oldSize,
-                                wantsDropped);
+    if (flushAccounting.updateStats(key,
+                                    seqno,
+                                    isCommitted,
+                                    isDelete,
+                                    size,
+                                    oldSeqno,
+                                    oldIsDelete,
+                                    oldSize,
+                                    wantsDropped)) {
+        setReadyForCommit();
+    }
 }
 
 } // namespace Collections::VB

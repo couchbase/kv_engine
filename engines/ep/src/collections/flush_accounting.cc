@@ -164,7 +164,7 @@ void FlushAccounting::updateStats(const DocKey& key,
     }
 }
 
-void FlushAccounting::updateStats(const DocKey& key,
+bool FlushAccounting::updateStats(const DocKey& key,
                                   uint64_t seqno,
                                   IsCommitted isCommitted,
                                   IsDeleted isDelete,
@@ -173,15 +173,17 @@ void FlushAccounting::updateStats(const DocKey& key,
                                   IsDeleted oldIsDelete,
                                   size_t oldSize,
                                   WantsDropped wantsDropped) {
+    bool updateMeta = false;
+
     // Same logic and comment as updateStats above.
     auto [systemEvent, cid] = getCollectionID(key);
     auto isSystemEvent = systemEvent ? IsSystem::Yes : IsSystem::No;
     if (!cid) {
-        return;
+        return false;
     }
 
     if (isDelete == IsDeleted::Yes && isSystemEvent == IsSystem::Yes) {
-        return;
+        return false;
     }
 
     auto& collsFlushStats = getStatsAndMaybeSetPersistedHighSeqno(
@@ -190,19 +192,36 @@ void FlushAccounting::updateStats(const DocKey& key,
     // Logically deleted items don't update item-count/disk-size
     if (isLogicallyDeleted(cid.value(), seqno) &&
         wantsDropped == WantsDropped::No) {
-        return;
+        return false;
     }
 
     if (isSystemEvent == IsSystem::No && wantsDropped == WantsDropped::Yes &&
-        droppedCollections.find(cid.value()) != droppedCollections.end() &&
-        isLogicallyDeleted(cid.value(), oldSeqno)) {
+        (isLogicallyDeleted(cid.value(), oldSeqno) ||
+         isLogicallyDeletedInStore(cid.value(), oldSeqno))) {
         // When we resurrect a collection and update a stat in it in this flush
         // batch (i.e. the key previously existed on disk for the old generation
         // of the collection) we need to decrement our dropped stats by that
         // value as the key will still exist and isn't going to go away now.
         auto& dropped = getStatsAndMaybeSetPersistedHighSeqno(
                 droppedStats, cid.value(), seqno);
-        dropped.remove(IsSystem::No, IsDeleted::No, IsCommitted::Yes, 50);
+
+        // Item used to contribute towards the item count, and we're now
+        // updating (meaning that it belongs to a new generation of the
+        // collection). If we're here then we haven't purged the original
+        // (dropped) collection yet so we need to "forget" about the old
+        // versions contributions towards the item count.
+        if (oldIsDelete == IsDeleted::No) {
+            dropped.remove(IsSystem::No,
+                           IsDeleted::No,
+                           IsCommitted::Yes,
+                           size - oldSize);
+        }
+
+        // May not have dropped the collection we're concerned with in this
+        // batch but we need to make sure that the stat update makes it to disk,
+        // setting updateMeta does this by telling Collections::Flush that some
+        // metadata must be updated at the end of this flush batch.
+        updateMeta = true;
     }
 
     // Of interest next is the state of old vs new. An update can become an
@@ -259,6 +278,8 @@ void FlushAccounting::updateStats(const DocKey& key,
                     isSystemEvent, isDelete, isCommitted, size - oldSize);
         }
     }
+
+    return updateMeta;
 }
 
 void FlushAccounting::maybeUpdatePersistedHighSeqno(const DocKey& key,

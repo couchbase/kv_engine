@@ -84,8 +84,9 @@ public:
      * @param oldIsDelete alive/delete state of the old 'version' of the item
      * @param oldSize bytes used on disk of the old 'version' of the item
      * @param wantsDropped should we update dropped stats?
+     * @return bool should collections meta be updated due to stats change?
      */
-    void updateStats(const DocKey& key,
+    bool updateStats(const DocKey& key,
                      uint64_t seqno,
                      IsCommitted isCommitted,
                      IsDeleted isDelete,

@@ -162,6 +162,11 @@ public:
         return !flushAccounting.getDroppedCollections().empty();
     }
 
+    // @return if the set of dropped stats is changing
+    bool isDroppedStatsChanged() const {
+        return !flushAccounting.getDroppedStats().empty();
+    }
+
     // @return if the set of open scopes is changing
     bool isScopesChanged() const {
         return !scopes.empty() || isDroppedScopesChanged();
@@ -180,6 +185,9 @@ public:
 
     /// @return the stats for a given dropped collection
     FlushAccounting::StatisticsUpdate getDroppedStats(CollectionID cid);
+
+    /// @return reference to the FlushAccounting droppedStats map
+    const FlushAccounting::StatsMap& getDroppedStats() const;
 
     void recordSystemEvent(const Item& item);
 
