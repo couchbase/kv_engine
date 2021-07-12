@@ -52,6 +52,7 @@
 #include <boost/algorithm/string/trim.hpp>
 #include <logger/logger.h>
 #include <memcached/audit_interface.h>
+#include <memcached/cookie_iface.h>
 #include <memcached/engine.h>
 #include <memcached/limits.h>
 #include <memcached/protocol_binary.h>
@@ -2397,11 +2398,14 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getLockedInner(
         lock_timeout = default_timeout;
     } else if (lock_timeout > static_cast<uint32_t>(getGetlMaxTimeout())) {
         EP_LOG_WARN(
-                "EventuallyPersistentEngine::get_locked: "
-                "Illegal value for lock timeout specified {}. "
-                "Using default value: {}",
+                "{}: EventuallyPersistentEngine::get_locked: Illegal value for "
+                "lock timeout specified for {}: {}. Using default "
+                "value: {}",
+                cookie->getConnectionId(),
+                cb::tagUserData(key.to_string()),
                 lock_timeout,
                 default_timeout);
+
         lock_timeout = default_timeout;
     }
 
