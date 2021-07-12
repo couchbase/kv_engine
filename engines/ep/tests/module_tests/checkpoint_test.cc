@@ -2746,3 +2746,193 @@ INSTANTIATE_TEST_SUITE_P(
                                   VBucketTestBase::VBType::Ephemeral),
                 ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full)),
         VBucketTest::PrintToStringParamName);
+
+void CheckpointMemoryTrackingTest::testEstimatedCheckpointMemUsage() {
+    setVBucketState(vbid, vbucket_state_active);
+    auto vb = store->getVBuckets().getBucket(vbid);
+    auto& manager = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
+
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(2, manager.getNumItems());
+    EXPECT_EQ(0, manager.getNumOpenChkItems());
+    const auto& openQueue =
+            CheckpointManagerTestIntrospector::public_getOpenCheckpointQueue(
+                    manager);
+    const auto initialQueueSize = openQueue.size();
+    // empty + ckpt_start + set_vbstate
+    EXPECT_EQ(3, initialQueueSize);
+
+    auto* checkpoint = manager.getCheckpointList().front().get();
+    const auto& stats = engine->getEpStats();
+
+    // pre-conditions
+    const auto initialQueued = checkpoint->getQueuedItemsMemUsage();
+    const auto initialIndex = checkpoint->getKeyIndexMemUsage();
+    // Some metaitems are already in the queue
+    EXPECT_GT(initialQueued, 0);
+    EXPECT_EQ(0, initialIndex);
+    EXPECT_EQ(initialQueued, stats.getEstimatedCheckpointMemUsage());
+
+    size_t itemsAlloc = 0;
+    size_t keyIndexAlloc = 0;
+    const size_t numItems = 10;
+    for (size_t i = 1; i <= numItems; ++i) {
+        auto item = makeCommittedItem(
+                makeStoredDocKey("key" + std::to_string(i)), "value", vbid);
+        EXPECT_TRUE(vb->checkpointManager->queueDirty(
+                *vb, item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
+        // Our estimated mem-usage must account for the queued item + the
+        // allocation for the key-index
+        itemsAlloc += item->size();
+        keyIndexAlloc += item->getKey().size() + sizeof(IndexEntry);
+    }
+
+    // Load post-conditions
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(numItems, manager.getNumOpenChkItems());
+    EXPECT_EQ(initialQueueSize + numItems, openQueue.size());
+
+    auto queued = checkpoint->getQueuedItemsMemUsage();
+    auto index = checkpoint->getKeyIndexMemUsage();
+    EXPECT_EQ(initialQueued + itemsAlloc, queued);
+    EXPECT_EQ(initialIndex + keyIndexAlloc, index);
+    EXPECT_EQ(queued + index, stats.getEstimatedCheckpointMemUsage());
+}
+
+TEST_F(CheckpointMemoryTrackingTest, EstimatedCheckpointMemUsage) {
+    testEstimatedCheckpointMemUsage();
+}
+
+TEST_F(CheckpointMemoryTrackingTest, EstimatedCheckpointMemUsageAtExpelling) {
+    testEstimatedCheckpointMemUsage();
+
+    auto vb = store->getVBuckets().getBucket(vbid);
+    auto& manager = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    const auto initialNumItems = manager.getNumOpenChkItems();
+    ASSERT_GT(initialNumItems, 0);
+    const auto& openQueue =
+            CheckpointManagerTestIntrospector::public_getOpenCheckpointQueue(
+                    manager);
+    const auto initialQueueSize = openQueue.size();
+    EXPECT_GT(initialQueueSize, initialNumItems);
+
+    auto& checkpoint = *manager.getCheckpointList().front();
+    const auto initialQueued = checkpoint.getQueuedItemsMemUsage();
+    const auto initialIndex = checkpoint.getKeyIndexMemUsage();
+
+    auto& cursor = *manager.getPersistenceCursor();
+    auto pos = (*CheckpointCursorIntrospector::getCurrentPos(cursor));
+    ASSERT_TRUE(pos->isEmptyItem());
+
+    // Move the cursor to the second mutation, we want to expel up to the first
+    // one. Skip ckpt-start, set-vbstate, m:1 and place the cursor on m:2.
+    // As a collateral thing, I need to keep track of sizes of items that we are
+    // going to expel, that's to make our final verification on memory counters.
+    size_t setVBStateSize = 0;
+    size_t m1Size = 0;
+    // While these are helpers for other checks later in the test.
+    size_t emptySize = pos->size();
+    size_t ckptStartSize = 0;
+
+    for (auto i = 0; i < 4; ++i) {
+        CheckpointCursorIntrospector::incrPos(cursor);
+        const auto pos = (*CheckpointCursorIntrospector::getCurrentPos(cursor));
+        if (pos->getOperation() == queue_op::checkpoint_start) {
+            ckptStartSize = pos->size();
+        } else if (pos->getOperation() == queue_op::set_vbucket_state) {
+            setVBStateSize = pos->size();
+        } else if (pos->getOperation() == queue_op::mutation &&
+                   pos->getBySeqno() == 1) {
+            m1Size = pos->size();
+        }
+    }
+
+    ASSERT_GT(setVBStateSize, 0);
+    ASSERT_GT(m1Size, 0);
+    ASSERT_GT(emptySize, 0);
+    ASSERT_GT(ckptStartSize, 0);
+    pos = (*CheckpointCursorIntrospector::getCurrentPos(cursor));
+    ASSERT_FALSE(pos->isCheckPointMetaItem());
+    ASSERT_EQ(2, pos->getBySeqno());
+
+    // Expelling set-vbstate + m:1
+    const auto numExpelled =
+            manager.expelUnreferencedCheckpointItems().expelCount;
+    EXPECT_EQ(2, numExpelled);
+
+    // Expel post-conditions
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    // Note: item-expel doesn't update nonmeta-item counters in checkpoint
+    EXPECT_EQ(initialNumItems, manager.getNumOpenChkItems());
+    // But the actual queue size is accurate
+    EXPECT_EQ(initialQueueSize - numExpelled, openQueue.size());
+
+    const auto queued = checkpoint.getQueuedItemsMemUsage();
+    const auto index = checkpoint.getKeyIndexMemUsage();
+    // Initial - what we expelled
+    EXPECT_EQ(initialQueued - setVBStateSize - m1Size, queued);
+    // Expel doesn't touch the key index
+    EXPECT_EQ(initialIndex, index);
+    EXPECT_EQ(queued + index,
+              engine->getEpStats().getEstimatedCheckpointMemUsage());
+}
+
+TEST_F(CheckpointMemoryTrackingTest, EstimatedCheckpointMemUsageAtRemoval) {
+    testEstimatedCheckpointMemUsage();
+
+    auto vb = store->getVBuckets().getBucket(vbid);
+    auto& manager = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    const auto initialNumItems = manager.getNumOpenChkItems();
+    ASSERT_GT(initialNumItems, 0);
+    const auto& openQueue =
+            CheckpointManagerTestIntrospector::public_getOpenCheckpointQueue(
+                    manager);
+    const auto initialQueueSize = openQueue.size();
+    EXPECT_GT(initialQueueSize, initialNumItems);
+
+    auto& cursor = *manager.getPersistenceCursor();
+    auto pos = CheckpointCursorIntrospector::getCurrentPos(cursor);
+    ASSERT_TRUE((*pos)->isEmptyItem());
+    // These are helpers for other checks later in the test.
+    const auto emptySize = (*pos)->size();
+    ++pos;
+    ASSERT_TRUE((*pos)->isCheckpointStart());
+    const auto ckptStartSize = (*pos)->size();
+
+    // The tracked mem-usage after expel should account only for the
+    // empty + ckpt_start items in the single/open empty checkpoint
+    const auto expectedFinalQueueAllocation = emptySize + ckptStartSize;
+    const auto expectedFinalIndexAllocation = 0;
+
+    auto checkpoint = manager.getCheckpointList().front().get();
+    auto queued = checkpoint->getQueuedItemsMemUsage();
+    auto index = checkpoint->getKeyIndexMemUsage();
+    ASSERT_GT(queued, expectedFinalQueueAllocation);
+    ASSERT_GT(index, expectedFinalIndexAllocation);
+    EXPECT_EQ(queued + index,
+              engine->getEpStats().getEstimatedCheckpointMemUsage());
+
+    manager.createNewCheckpoint(true /*force*/);
+    EXPECT_EQ(2, manager.getNumCheckpoints());
+    // Move cursor to new checkpoint
+    std::vector<queued_item> items;
+    manager.getItemsForCursor(manager.getPersistenceCursor(),
+                              items,
+                              std::numeric_limits<size_t>::max());
+    // Remove closed checkpoint
+    bool newCkptCreated;
+    EXPECT_EQ(initialNumItems,
+              manager.removeClosedUnrefCheckpoints(*vb, newCkptCreated));
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(0, manager.getNumOpenChkItems());
+
+    checkpoint = manager.getCheckpointList().front().get();
+    queued = checkpoint->getQueuedItemsMemUsage();
+    index = checkpoint->getKeyIndexMemUsage();
+    EXPECT_EQ(expectedFinalQueueAllocation, queued);
+    EXPECT_EQ(expectedFinalIndexAllocation, index);
+    EXPECT_EQ(queued + index,
+              engine->getEpStats().getEstimatedCheckpointMemUsage());
+}

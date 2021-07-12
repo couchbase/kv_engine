@@ -39,4 +39,9 @@ public:
     static const auto& getCurrentPos(const CheckpointCursor& cursor) {
         return cursor.currentPos;
     }
+
+    static const auto& incrPos(CheckpointCursor& cursor) {
+        cursor.incrPos();
+        return cursor.currentPos;
+    }
 };

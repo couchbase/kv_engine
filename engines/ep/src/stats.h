@@ -84,6 +84,9 @@ public:
 
     //! Total number of Item objects
     Counter numItem;
+
+    //! Estimate of the total amount of memory used by checkpoints
+    Counter estimatedCheckpointMemUsage;
 };
 
 /**
@@ -166,6 +169,9 @@ public:
 
     /// @returns number of Item objects which exist.
     size_t getNumItem() const;
+
+    /// @returns estimate of the total amount of memory used by checkpoints
+    size_t getEstimatedCheckpointMemUsage() const;
 
     /// @returns total size of stored objects for a single collection.
     size_t getCollectionMemUsed(CollectionID cid) const;

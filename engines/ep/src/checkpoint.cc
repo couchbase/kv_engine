@@ -87,6 +87,12 @@ void CheckpointCursor::decrPos() {
     }
 }
 
+void CheckpointCursor::incrPos() {
+    if (currentPos != (*currentCheckpoint)->end()) {
+        ++currentPos;
+    }
+}
+
 uint64_t CheckpointCursor::getId() const {
     return (*currentCheckpoint)->getId();
 }
@@ -180,8 +186,8 @@ Checkpoint::Checkpoint(
       toWrite(trackingAllocator),
       committedKeyIndex(keyIndexTrackingAllocator),
       preparedKeyIndex(keyIndexTrackingAllocator),
-      keyIndexMemUsage(0),
-      queuedItemsMemUsage(0),
+      keyIndexMemUsage(st),
+      queuedItemsMemUsage(st),
       checkpointType(checkpointType),
       highCompletedSeqno(std::move(highCompletedSeqno)),
       memOverheadChangedCallback(memOverheadChangedCallback) {
@@ -501,7 +507,7 @@ uint64_t Checkpoint::getMinimumCursorSeqno() const {
 void Checkpoint::addItemToCheckpoint(const queued_item& qi) {
     toWrite.push_back(qi);
     // Increase the size of the checkpoint by the item being added
-    queuedItemsMemUsage += (qi->size());
+    queuedItemsMemUsage += qi->size();
 
     if (qi->isCheckPointMetaItem()) {
         // empty items act only as a dummy element for the start of the
@@ -672,4 +678,20 @@ std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {
     }
     os << "]";
     return os;
+}
+
+Checkpoint::MemoryCounter::~MemoryCounter() {
+    stats.coreLocal.get()->estimatedCheckpointMemUsage.fetch_sub(local);
+}
+
+Checkpoint::MemoryCounter& Checkpoint::MemoryCounter::operator+=(size_t size) {
+    local += size;
+    stats.coreLocal.get()->estimatedCheckpointMemUsage.fetch_add(size);
+    return *this;
+}
+
+Checkpoint::MemoryCounter& Checkpoint::MemoryCounter::operator-=(size_t size) {
+    local -= size;
+    stats.coreLocal.get()->estimatedCheckpointMemUsage.fetch_sub(size);
+    return *this;
 }

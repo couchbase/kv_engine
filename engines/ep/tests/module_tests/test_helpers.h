@@ -61,7 +61,9 @@ queued_item makePendingItem(StoredDocKey key,
 queued_item makeAbortedItem(StoredDocKey key, const std::string& value);
 
 /// Make a queued_item representing a commited (normal mutation).
-queued_item makeCommittedItem(StoredDocKey key, std::string value);
+queued_item makeCommittedItem(StoredDocKey key,
+                              std::string value,
+                              Vbid vbid = Vbid(0));
 
 /// Make a queued_item representing a commited SyncWrite.
 queued_item makeCommittedviaPrepareItem(StoredDocKey key, std::string value);

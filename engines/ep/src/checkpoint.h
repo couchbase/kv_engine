@@ -180,6 +180,11 @@ private:
      */
     void decrPos();
 
+    /**
+     * Move the cursor's iterator forward. NOP if pointing to end.
+     */
+    void incrPos();
+
     /*
      * Calculate the number of items (excluding meta-items) remaining to be
      * processed in the checkpoint the cursor is currently in.
@@ -666,6 +671,11 @@ public:
         return queuedItemsMemUsage;
     }
 
+    // see member variable definition for info
+    size_t getKeyIndexMemUsage() const {
+        return keyIndexMemUsage;
+    }
+
     void addStats(const AddStatFn& add_stat, const CookieIface* cookie);
 
 private:
@@ -725,12 +735,34 @@ private:
     checkpoint_index committedKeyIndex;
     checkpoint_index preparedKeyIndex;
 
+    /**
+     * Helper class for local memory-counters that need to reflect their updates
+     * on bucket-level EPStats.
+     */
+    class MemoryCounter {
+    public:
+        MemoryCounter(EPStats& stats) : local(0), stats(stats) {
+        }
+        ~MemoryCounter();
+        MemoryCounter& operator+=(size_t size);
+        MemoryCounter& operator-=(size_t size);
+        operator size_t() const {
+            return local;
+        }
+    private:
+        // Stores this checkpoint mem-usage
+        cb::NonNegativeCounter<size_t> local;
+        // Used to update the "global" bucket counter in EPStats
+        EPStats& stats;
+    };
+
     // Record the memory overhead of maintaining the keyIndex and metaKeyIndex.
     // This includes each item's key size and sizeof(index_entry).
-    cb::NonNegativeCounter<size_t> keyIndexMemUsage;
-    // Records the memory consumption of all items in the checkpoint.
-    // This includes each item's key, metadata and the blob.
-    cb::NonNegativeCounter<size_t> queuedItemsMemUsage;
+    MemoryCounter keyIndexMemUsage;
+
+    // Records the memory consumption of all items in the checkpoint queue.
+    // For every item we include key, metadata and blob sizes.
+    MemoryCounter queuedItemsMemUsage;
 
     // Is this a checkpoint created by a replica from a received disk snapshot?
     CheckpointType checkpointType;

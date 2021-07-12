@@ -94,3 +94,16 @@ public:
     void closeReplicaCheckpointOnMemorySnapshotEnd(bool highMem,
                                                    uint32_t snapshotType);
 };
+
+/**
+ * Test fixture dedicated to the memory tracking of internal structures in
+ * checkpoint.
+ */
+class CheckpointMemoryTrackingTest : public SingleThreadedCheckpointTest {
+public:
+    /**
+     * Verify that the estimated checkpoints mem-usage is tracked correctly
+     * at queueing items into the checkpoints.
+     */
+    void testEstimatedCheckpointMemUsage();
+};

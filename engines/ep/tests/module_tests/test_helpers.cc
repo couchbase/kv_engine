@@ -55,8 +55,9 @@ Item make_item(Vbid vbid,
     return item;
 }
 
-queued_item makeCommittedItem(StoredDocKey key, std::string value) {
+queued_item makeCommittedItem(StoredDocKey key, std::string value, Vbid vbid) {
     queued_item qi{new Item(key, 0, 0, value.data(), value.size())};
+    qi->setVBucketId(vbid);
     return qi;
 }
 
