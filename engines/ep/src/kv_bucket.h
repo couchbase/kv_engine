@@ -922,6 +922,9 @@ protected:
      */
     std::atomic<cb::durability::Level> minDurabilityLevel;
 
+    // Max ratio of the bucket quota that can be allocated in checkpoints.
+    const float checkpointMemoryRatio;
+
     friend class KVBucketTest;
 
 };

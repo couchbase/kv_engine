@@ -285,7 +285,9 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
       lastTransTimePerItem(0),
       collectionsManager(std::make_shared<Collections::Manager>()),
       xattrEnabled(true),
-      maxTtl(engine.getConfiguration().getMaxTtl()) {
+      maxTtl(engine.getConfiguration().getMaxTtl()),
+      checkpointMemoryRatio(
+              engine.getConfiguration().getCheckpointMemoryRatio()) {
     cachedResidentRatio.activeRatio.store(0);
     cachedResidentRatio.replicaRatio.store(0);
 
