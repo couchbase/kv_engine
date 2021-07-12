@@ -767,6 +767,8 @@ class BinprotGetErrorMapCommand
     : public BinprotCommandT<BinprotGetErrorMapCommand,
                              cb::mcbp::ClientOpcode::GetErrorMap> {
 public:
+    BinprotGetErrorMapCommand(uint16_t ver = 2) : version(ver) {
+    }
     void setVersion(uint16_t version_);
 
     void encode(std::vector<uint8_t>& buf) const override;

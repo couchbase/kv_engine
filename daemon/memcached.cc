@@ -14,6 +14,7 @@
 #include "cookie.h"
 #include "enginemap.h"
 #include "environment.h"
+#include "error_map_manager.h"
 #include "external_auth_manager_thread.h"
 #include "front_end_thread.h"
 #include "libevent_locking.h"
@@ -34,6 +35,7 @@
 #include "tracing.h"
 #include "utilities/terminate_handler.h"
 
+#include <boost/filesystem/path.hpp>
 #include <cbsasl/logging.h>
 #include <cbsasl/mechanism.h>
 #include <executor/executorpool.h>
@@ -574,10 +576,10 @@ static void update_settings_from_config()
 
     if (settings.getErrorMapsDir().empty()) {
         // Set the error map dir.
-        std::string error_maps_dir(root + "/etc/couchbase/kv/error_maps");
-        error_maps_dir = cb::io::sanitizePath(error_maps_dir);
-        if (cb::io::isDirectory(error_maps_dir)) {
-            settings.setErrorMapsDir(error_maps_dir);
+        auto path = boost::filesystem::path(root) / "etc" / "couchbase" / "kv" /
+                    "error_maps";
+        if (cb::io::isDirectory(path.generic_string())) {
+            settings.setErrorMapsDir(path.generic_string());
         }
     }
 
@@ -937,11 +939,11 @@ int memcached_main(int argc, char** argv) {
         FATAL_ERROR(EXIT_FAILURE, exception.what());
     }
 
-    LOG_INFO("Loading error maps from [{}]",
-             Settings::instance().getErrorMapsDir());
     try {
-        Settings::instance().loadErrorMaps(
-                Settings::instance().getErrorMapsDir());
+        const auto errormapPath =
+                boost::filesystem::path{Settings::instance().getErrorMapsDir()};
+        LOG_INFO("Loading error maps from [{}]", errormapPath.generic_string());
+        ErrorMapManager::initialize(errormapPath);
     } catch (const std::exception& e) {
         FATAL_ERROR(EXIT_FAILURE, "Failed to load error maps: {}", e.what());
     }
@@ -1106,6 +1108,8 @@ int memcached_main(int argc, char** argv) {
 
     LOG_INFO_RAW("Shutting down logger extension");
     cb::logger::shutdown();
+
+    ErrorMapManager::shutdown();
 
     return EXIT_SUCCESS;
 }

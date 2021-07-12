@@ -50,40 +50,6 @@ Settings& Settings::instance() {
 static void ignore_entry(Settings&, const nlohmann::json&) {
 }
 
-enum class FileError {
-    Missing,
-    Empty,
-    Invalid
-};
-
-static void throw_file_exception(const std::string &key,
-                                 const std::string& filename,
-                                 FileError reason,
-                                 const std::string& extra_reason = std::string()) {
-    std::string message("'" + key + "': '" + filename + "'");
-    if (reason == FileError::Missing) {
-        throw std::system_error(
-                std::make_error_code(std::errc::no_such_file_or_directory),
-                message);
-    } else if (reason == FileError::Empty) {
-        throw std::invalid_argument(message + " is empty ");
-    } else if (reason == FileError::Invalid) {
-        std::string extra;
-        if (!extra_reason.empty()) {
-            extra = " (" + extra_reason + ")";
-        }
-        throw std::invalid_argument(message + " is badly formatted: " +
-                                    extra_reason);
-    } else {
-        throw std::runtime_error(message);
-    }
-}
-
-static void throw_missing_file_exception(const std::string& key,
-                                         const std::string& filename) {
-    throw_file_exception(key, filename, FileError::Missing);
-}
-
 static void handle_always_collect_trace_info(Settings& s,
                                              const nlohmann::json& obj) {
     s.setAlwaysCollectTraceInfo(obj.get<bool>());
@@ -334,7 +300,9 @@ static void handle_root(Settings& s, const nlohmann::json& obj) {
     auto dir = obj.get<std::string>();
 
     if (!cb::io::isDirectory(dir)) {
-        throw_missing_file_exception("root", dir);
+        throw std::system_error(
+                std::make_error_code(std::errc::no_such_file_or_directory),
+                "'root': '" + dir + "'");
     }
 
     s.setRoot(dir);
@@ -1307,101 +1275,6 @@ nlohmann::json Settings::getTlsConfiguration() const {
     }
 
     return tls;
-}
-
-/**
- * Loads a single error map
- * @param filename The location of the error map
- * @param[out] contents The JSON-encoded contents of the error map
- * @return The version of the error map
- */
-static size_t parseErrorMap(const std::string& filename,
-                            std::string& contents) {
-    const std::string errkey(
-            "parseErrorMap: error_maps_dir (" + filename + ")");
-    if (!cb::io::isFile(filename)) {
-        throw_missing_file_exception(errkey, filename);
-    }
-
-    contents = cb::io::loadFile(filename);
-    if (contents.empty()) {
-        throw_file_exception(errkey, filename, FileError::Empty);
-    }
-
-    auto json = nlohmann::json::parse(contents);
-    if (json.empty()) {
-        throw_file_exception(errkey, filename, FileError::Invalid,
-                             "Invalid JSON");
-    }
-
-    if (json.type() != nlohmann::json::value_t::object) {
-        throw_file_exception(errkey, filename, FileError::Invalid,
-                             "Top-level contents must be objects");
-    }
-
-    // Get the 'version' value
-    auto version = cb::jsonGet<unsigned int>(json, "version");
-
-    static const size_t max_version = 200;
-
-    if (version > max_version) {
-        throw_file_exception(errkey, filename, FileError::Invalid,
-                             "'version' too big. Maximum supported is " +
-                             std::to_string(max_version));
-    }
-
-    return version;
-}
-
-void Settings::loadErrorMaps(const std::string& dir) {
-    static const std::string errkey("Settings::loadErrorMaps");
-    if (!cb::io::isDirectory(dir)) {
-        throw_missing_file_exception(errkey, dir);
-    }
-
-    size_t max_version = 1;
-    static const std::string prefix("error_map");
-    static const std::string suffix(".json");
-
-    for (auto const& filename : cb::io::findFilesWithPrefix(dir, prefix)) {
-        // Ensure the filename matches "error_map*.json", so we ignore editor
-        // generated files or "hidden" files.
-        if (filename.size() < suffix.size()) {
-            continue;
-        }
-        if (!std::equal(suffix.rbegin(), suffix.rend(), filename.rbegin())) {
-            continue;
-        }
-
-        std::string contents;
-        size_t version = parseErrorMap(filename, contents);
-        error_maps.resize(std::max(error_maps.size(), version + 1));
-        error_maps[version] = contents;
-        max_version = std::max(max_version, version);
-    }
-
-    // Ensure we have at least one error map.
-    if (error_maps.empty()) {
-        throw std::invalid_argument(errkey +": No valid files found in " + dir);
-    }
-
-    // Validate that there are no 'holes' in our versions
-    for (size_t ii = 1; ii < max_version; ++ii) {
-        if (getErrorMap(ii).empty()) {
-            throw std::runtime_error(errkey + ": Missing error map version " +
-                                     std::to_string(ii));
-        }
-    }
-}
-
-const std::string& Settings::getErrorMap(size_t version) const {
-    const static std::string empty;
-    if (error_maps.empty()) {
-        return empty;
-    }
-
-    version = std::min(version, error_maps.size()-1);
-    return error_maps[version];
 }
 
 spdlog::level::level_enum Settings::getLogLevel() const {

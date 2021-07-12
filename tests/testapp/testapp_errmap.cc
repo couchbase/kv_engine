@@ -15,8 +15,20 @@
 #include <nlohmann/json.hpp>
 
 class ErrmapTest : public TestappClientTest {
-public:
-    static bool validateJson(const nlohmann::json& json, size_t reqversion);
+protected:
+    void checkVersion(uint16_t ver, uint16_t result) {
+        const auto rsp =
+                getConnection().execute(BinprotGetErrorMapCommand{ver});
+        if (ver > 0) {
+            ASSERT_TRUE(rsp.isSuccess());
+            const auto json = nlohmann::json::parse(rsp.getDataString());
+            auto version = json.find("version");
+            ASSERT_NE(json.end(), version);
+            EXPECT_EQ(result, version->get<int>());
+        } else {
+            ASSERT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
+        }
+    }
 };
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
@@ -24,52 +36,21 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          ::testing::Values(TransportProtocols::McbpSsl),
                          ::testing::PrintToStringParamName());
 
-bool ErrmapTest::validateJson(const nlohmann::json& json, size_t reqversion) {
-    // Validate the JSON
-    auto version = json.find("version");
-
-    EXPECT_NE(json.end(), version);
-    EXPECT_GE(reqversion, version->get<int>());
-
-    auto rev = json.find("revision");
-    EXPECT_NE(json.end(), rev);
-    EXPECT_EQ(4, rev->get<int>());
-
-    return !::testing::Test::HasFailure();
+TEST_P(ErrmapTest, GetErrmapV0) {
+    checkVersion(0, 0);
 }
 
-TEST_P(ErrmapTest, GetErrmapOk) {
-    BinprotGetErrorMapCommand cmd;
-
-    const uint16_t version = 1;
-    cmd.setVersion(version);
-
-    const auto resp = getConnection().execute(cmd);
-
-    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    ASSERT_GT(resp.getBodylen(), 0);
-    EXPECT_TRUE(
-            validateJson(nlohmann::json::parse(resp.getDataString()), version));
+TEST_P(ErrmapTest, GetErrmapV1) {
+    checkVersion(1, 1);
 }
 
-TEST_P(ErrmapTest, GetErrmapAnyVersion) {
-    BinprotGetErrorMapCommand cmd;
-    const uint16_t version = 256;
-
-    cmd.setVersion(version);
-    const auto resp = getConnection().execute(cmd);
-
-    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    ASSERT_GT(resp.getBodylen(), 0);
-
-    const auto json = nlohmann::json::parse(resp.getDataString());
-    ASSERT_TRUE(validateJson(json, version));
-    ASSERT_EQ(1, json["version"].get<int>());
+TEST_P(ErrmapTest, GetErrmapV2) {
+    checkVersion(2, 2);
 }
 
-TEST_P(ErrmapTest, GetErrmapBadversion) {
-    BinprotGetErrorMapCommand cmd;
-    cmd.setVersion(0);
-    const auto resp = getConnection().execute(cmd);
-    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, resp.getStatus());
+TEST_P(ErrmapTest, GetErrmapNewer) {
+    // Only two versions exist: 1 and 2.
+    for (uint16_t ii = 3; ii < 10; ++ii) {
+        checkVersion(ii, 2);
+    }
 }

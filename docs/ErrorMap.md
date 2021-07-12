@@ -41,8 +41,10 @@ to their extended information. The top-level format of the file is:
 
 * `version` is the current error map format. The error map is versioned
   in case the file format changes in the future, so that clients can request
-  a version they can understand. There is currently only one version, which is
-  `1`
+  a version they can understand. There is currently two versions, 1 and 2.
+  The difference between version one and two is that two allows for new
+  attributes specified in the `attrs` section for an error code. Clients
+  *MUST* ignore unknown attributes.
 * `revision` is the revision of the error map. The revision is incremented
   whenever a new error code is added. Clients can use this to compare error
   maps from different servers and select the map with the highest revision
@@ -62,7 +64,8 @@ to their extended information. The top-level format of the file is:
 
 _Attributes_ are the most important part of the error map as they convey _how_
 an error code should be handled. An error code may have more than a single
-attribute.
+attribute. As of version 2 clients *must* ignore unknown attributes and only
+deal with the attributes they understand.
 
 * `item-deleted`: This attribute means that the error is related to operating
   on a soft-deleted document.
@@ -106,6 +109,8 @@ attribute.
 * `subdoc`: The error is related to the subdocument subsystem.
 
 * `dcp`: The error is related to the DCP subsystem.
+
+* `rate-limit`: The error is related to rate limitation for the client (version 2)
 
 * `success`: The operation was successful for those situations where the error
   code is indicating successful (i.e. subdocument operations carried out on a

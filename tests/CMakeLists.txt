@@ -2,7 +2,6 @@ add_compile_options_disable_optimization()
 
 ADD_SUBDIRECTORY(dockey)
 ADD_SUBDIRECTORY(engine_error)
-ADD_SUBDIRECTORY(error_map_sanity_check)
 ADD_SUBDIRECTORY(histograms)
 ADD_SUBDIRECTORY(mcbp)
 ADD_SUBDIRECTORY(scripts_tests)

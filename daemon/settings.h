@@ -227,22 +227,6 @@ public:
     }
 
     /**
-     * Load the error map from the given directory
-     * @param path Path to load from.
-     * @throw exception if the file does not exist or cannot be read/parsed
-     */
-    void loadErrorMaps(const std::string& path);
-
-    /**
-     * Get the error map of the requested version
-     * @param version the maximum version of the error map. The returned map
-     *        may be a lower version, but never a higher one.
-     * @return The text of the error map, or the empty string if no error maps
-     *         are loaded.
-     */
-    const std::string& getErrorMap(size_t version) const;
-
-    /**
      * Get the verbosity level for the node
      *
      * @return the verbosity level
@@ -922,11 +906,6 @@ protected:
      * Should we deduplicate the cluster maps from the Not My VBucket messages
      */
     std::atomic_bool dedupe_nmvb_maps{false};
-
-    /**
-     * Map of version -> string for error maps
-     */
-    std::vector<std::string> error_maps;
 
     /**
      * May xattrs be used or not

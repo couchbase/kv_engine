@@ -10,6 +10,7 @@
 
 #include "cmdline.h"
 #include "config_parse.h"
+#include "error_map_manager.h"
 #include "external_auth_manager_thread.h"
 #include "ioctl.h"
 #include "mc_time.h"
@@ -451,14 +452,14 @@ static void get_errmap_executor(Cookie& cookie) {
     auto value = cookie.getRequest().getValue();
     auto* req = reinterpret_cast<const cb::mcbp::request::GetErrmapPayload*>(
             value.data());
-    auto const& errormap = Settings::instance().getErrorMap(req->getVersion());
+    auto errormap = ErrorMapManager::instance().getErrorMap(req->getVersion());
     if (errormap.empty()) {
         cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
     } else {
         cookie.sendResponse(cb::mcbp::Status::Success,
                             {},
                             {},
-                            {errormap.data(), errormap.size()},
+                            errormap,
                             cb::mcbp::Datatype::JSON,
                             0);
     }

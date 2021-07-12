@@ -53,8 +53,7 @@ cb_add_test_executable(mcbp_unit_tests
                mcbp_dump_parser_test.cc
                opcode_test.cc
                request_test.cc
-               sla_test.cc
-               status_test.cc)
+               sla_test.cc)
 kv_enable_pch(mcbp_unit_tests)
 target_link_libraries(mcbp_unit_tests
         PRIVATE

@@ -13,6 +13,8 @@ add_library(memcached_daemon STATIC
             config_parse.h
             connection.cc
             connection.h
+            error_map_manager.cc
+            error_map_manager.h
             nobucket_taskable.cc
             nobucket_taskable.h
             external_auth_manager_thread.cc
@@ -273,6 +275,7 @@ cb_add_test_executable(memcached_unit_tests
                        bucket_validator_test.cc
                        connection_unit_tests.cc
                        datatype_filter_test.cc
+                       error_map_manager_test.cc
                        doc_pre_expiry_test.cc
                        function_chain_test.cc
                        json_validator_test.cc
