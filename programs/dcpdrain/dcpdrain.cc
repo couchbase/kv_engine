@@ -641,7 +641,6 @@ int main(int argc, char** argv) {
                             {{"enable_noop", "true"},
                              {"set_noop_interval", "1"},
                              {"set_priority", "high"},
-                             {"enable_ext_metadata", "true"},
                              {"supports_cursor_dropping_vulcan", "true"},
                              {"supports_hifi_MFU", "true"},
                              {"send_stream_end_on_client_close_stream", "true"},
