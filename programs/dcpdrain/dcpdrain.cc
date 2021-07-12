@@ -729,5 +729,9 @@ int main(int argc, char** argv) {
                   << calculateThroughput(total_bytes, duration.count() / 1000)
                   << ")" << std::endl;
     }
+
+    /// Need to destruct MemcachedConnections before the libevent 'base'
+    /// eventbase as MemcachedConnection refers to the event.
+    vbmap.clear();
     return EXIT_SUCCESS;
 }
