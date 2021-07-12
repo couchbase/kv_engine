@@ -40,6 +40,7 @@
 #include "protocol/mcbp/sasl_start_command_context.h"
 #include "protocol/mcbp/sasl_step_command_context.h"
 #include "protocol/mcbp/session_validated_command_context.h"
+#include "protocol/mcbp/settings_reload_command_context.h"
 #include "protocol/mcbp/stats_context.h"
 #include "protocol/mcbp/unlock_context.h"
 #include "session_cas.h"
@@ -422,43 +423,7 @@ static void config_validate_executor(Cookie& cookie) {
 }
 
 static void config_reload_executor(Cookie& cookie) {
-    // We need to audit that the privilege debug mode changed and
-    // in order to do that we need the "connection" object so we can't
-    // do this by using the common "changed_listener"-interface.
-    try {
-        const bool old_priv_debug = Settings::instance().isPrivilegeDebug();
-        reload_config_file();
-        if (Settings::instance().isPrivilegeDebug() != old_priv_debug) {
-            audit_set_privilege_debug_mode(
-                    cookie, Settings::instance().isPrivilegeDebug());
-        }
-        cookie.sendResponse(cb::mcbp::Status::Success);
-        return;
-    } catch (const std::bad_alloc&) {
-        LOG_WARNING("{}: Failed reloading config file. not enough memory",
-                    cookie.getConnectionId());
-        cookie.sendResponse(cb::mcbp::Status::Enomem);
-        return;
-    } catch (const std::system_error& error) {
-        if (error.code() == std::errc::too_many_files_open) {
-            LOG_WARNING("{}: Failed reloading config file. too many files open",
-                        cookie.getConnectionId());
-            cookie.sendResponse(cb::mcbp::Status::Etmpfail);
-            return;
-        }
-        cookie.setErrorContext(error.what());
-    } catch (const std::exception& exception) {
-        cookie.setErrorContext(exception.what());
-    } catch (...) {
-        cookie.setErrorContext("Unknown error");
-    }
-
-    LOG_WARNING("{}: {} - Failed reloading config file '{}'. Error: {}",
-                cookie.getConnectionId(),
-                cookie.getEventId(),
-                get_config_file(),
-                cookie.getErrorContext());
-    cookie.sendResponse(cb::mcbp::Status::Einternal);
+    cookie.obtainContext<SettingsReloadCommandContext>(cookie).drive();
 }
 
 static void audit_config_reload_executor(Cookie& cookie) {
