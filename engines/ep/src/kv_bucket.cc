@@ -165,6 +165,8 @@ public:
             store.setBfiltersResidencyThreshold(value);
         } else if (key.compare("dcp_min_compression_ratio") == 0) {
             store.getEPEngine().updateDcpMinCompressionRatio(value);
+        } else if (key == "checkpoint_memory_ratio") {
+            store.setCheckpointMemoryRatio(value);
         }
     }
 
@@ -402,6 +404,10 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
             cb::durability::to_level(config.getDurabilityMinLevel());
     config.addValueChangedListener(
             "durability_min_level",
+            std::make_unique<EPStoreValueChangeListener>(*this));
+
+    config.addValueChangedListener(
+            "checkpoint_memory_ratio",
             std::make_unique<EPStoreValueChangeListener>(*this));
 }
 
@@ -2721,4 +2727,18 @@ cb::durability::Level KVBucket::getMinDurabilityLevel() const {
 
 KVShard::id_type KVBucket::getShardId(Vbid vbid) const {
     return vbMap.getShardByVbId(vbid)->getId();
+}
+
+cb::engine_errc KVBucket::setCheckpointMemoryRatio(float ratio) {
+    if (ratio < 0.0 || ratio > 1.0) {
+        EP_LOG_ERR("KVBucket::setCheckpointMemoryRatio: invalid argument {}",
+                   ratio);
+        return cb::engine_errc::invalid_arguments;
+    }
+    checkpointMemoryRatio = ratio;
+    return cb::engine_errc::success;
+}
+
+float KVBucket::getCheckpointMemoryRatio() const {
+    return checkpointMemoryRatio;
 }

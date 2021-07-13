@@ -200,7 +200,7 @@
         "checkpoint_memory_ratio": {
             "default": "1.0",
             "descr": "Max ratio of the bucket quota that can be allocated in checkpoints.",
-            "dynamic": false,
+            "dynamic": true,
             "type": "float",
             "validator": {
                 "range": {

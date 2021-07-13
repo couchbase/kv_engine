@@ -750,6 +750,16 @@ public:
      */
     KVShard::id_type getShardId(Vbid vbid) const;
 
+    /**
+     * Set the max ratio of bucket quota that can be allocated in checkpoints.
+     *
+     * @param ratio
+     * @return success if the operation succeeds, an error code otherwise
+     */
+    cb::engine_errc setCheckpointMemoryRatio(float ratio);
+
+    float getCheckpointMemoryRatio() const;
+
 protected:
     GetValue getInternal(const DocKey& key,
                          Vbid vbucket,
@@ -922,8 +932,11 @@ protected:
      */
     std::atomic<cb::durability::Level> minDurabilityLevel;
 
-    // Max ratio of the bucket quota that can be allocated in checkpoints.
-    const float checkpointMemoryRatio;
+    /**
+     * Max ratio of the bucket quota that can be allocated in checkpoints.
+     * Requires synchronization as it stores a dynamic configuration param.
+     */
+    std::atomic<float> checkpointMemoryRatio;
 
     friend class KVBucketTest;
 

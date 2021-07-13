@@ -504,35 +504,37 @@ cb::engine_errc EventuallyPersistentEngine::setCheckpointParam(
     auto rv = cb::engine_errc::success;
 
     try {
+        auto& config = getConfiguration();
+
         if (key == "chk_max_items") {
             size_t v = std::stoull(val);
             validate(v, size_t(MIN_CHECKPOINT_ITEMS),
                      size_t(MAX_CHECKPOINT_ITEMS));
-            getConfiguration().setChkMaxItems(v);
+            config.setChkMaxItems(v);
         } else if (key == "chk_period") {
             size_t v = std::stoull(val);
             validate(v, size_t(MIN_CHECKPOINT_PERIOD),
                      size_t(MAX_CHECKPOINT_PERIOD));
-            getConfiguration().setChkPeriod(v);
+            config.setChkPeriod(v);
         } else if (key == "max_checkpoints") {
             size_t v = std::stoull(val);
             validate(v, size_t(DEFAULT_MAX_CHECKPOINTS),
                      size_t(MAX_CHECKPOINTS_UPPER_BOUND));
-            getConfiguration().setMaxCheckpoints(v);
+            config.setMaxCheckpoints(v);
         } else if (key == "item_num_based_new_chk") {
-            getConfiguration().setItemNumBasedNewChk(cb_stob(val));
+            config.setItemNumBasedNewChk(cb_stob(val));
         } else if (key == "keep_closed_chks") {
-            getConfiguration().setKeepClosedChks(cb_stob(val));
+            config.setKeepClosedChks(cb_stob(val));
         } else if (key == "cursor_dropping_checkpoint_mem_upper_mark") {
-            getConfiguration().setCursorDroppingCheckpointMemUpperMark(
-                    std::stoull(val));
+            config.setCursorDroppingCheckpointMemUpperMark(std::stoull(val));
         } else if (key == "cursor_dropping_checkpoint_mem_lower_mark") {
-            getConfiguration().setCursorDroppingCheckpointMemLowerMark(
-                    std::stoull(val));
+            config.setCursorDroppingCheckpointMemLowerMark(std::stoull(val));
         } else if (key == "cursor_dropping_lower_mark") {
-            getConfiguration().setCursorDroppingLowerMark(std::stoull(val));
+            config.setCursorDroppingLowerMark(std::stoull(val));
         } else if (key == "cursor_dropping_upper_mark") {
-            getConfiguration().setCursorDroppingUpperMark(std::stoull(val));
+            config.setCursorDroppingUpperMark(std::stoull(val));
+        } else if (key == "checkpoint_memory_ratio") {
+            config.setCheckpointMemoryRatio(std::stof(val));
         } else {
             msg = "Unknown config param";
             rv = cb::engine_errc::no_such_key;
