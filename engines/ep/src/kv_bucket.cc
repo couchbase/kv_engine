@@ -1190,8 +1190,6 @@ void KVBucket::snapshotStats(bool shuttingDown) {
     bool rv = engine.getStats(&snap, {}, {}, snapshot_add_stat) ==
                       cb::engine_errc::success;
 
-    engine.doDcpStatsInner(&snap, snapshot_add_stat, {});
-
     nlohmann::json snapshotStats(snap.smap);
     if (rv && shuttingDown) {
         snapshotStats["ep_force_shutdown"] =
