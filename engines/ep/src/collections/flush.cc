@@ -624,4 +624,35 @@ bool Flush::isOpen(CollectionID cid) const {
     // Not opened in this flush
     return false;
 }
+
+void Flush::updateStats(const DocKey& key,
+                        uint64_t seqno,
+                        IsCommitted isCommitted,
+                        IsDeleted isDelete,
+                        size_t size,
+                        WantsDropped wantsDropped) {
+    flushAccounting.updateStats(
+            key, seqno, isCommitted, isDelete, size, wantsDropped);
+}
+
+void Flush::updateStats(const DocKey& key,
+                        uint64_t seqno,
+                        IsCommitted isCommitted,
+                        IsDeleted isDelete,
+                        size_t size,
+                        uint64_t oldSeqno,
+                        IsDeleted oldIsDelete,
+                        size_t oldSize,
+                        WantsDropped wantsDropped) {
+    flushAccounting.updateStats(key,
+                                seqno,
+                                isCommitted,
+                                isDelete,
+                                size,
+                                oldSeqno,
+                                oldIsDelete,
+                                oldSize,
+                                wantsDropped);
+}
+
 } // namespace Collections::VB

@@ -72,10 +72,7 @@ public:
                      IsCommitted isCommitted,
                      IsDeleted isDelete,
                      size_t size,
-                     WantsDropped wantsDropped = WantsDropped::No) {
-        flushAccounting.updateStats(
-                key, seqno, isCommitted, isDelete, size, wantsDropped);
-    }
+                     WantsDropped wantsDropped = WantsDropped::No);
 
     /**
      * Update collection stats from the flusher when an old 'version' of the
@@ -99,17 +96,7 @@ public:
                      uint64_t oldSeqno,
                      IsDeleted oldIsDelete,
                      size_t oldSize,
-                     WantsDropped wantsDropped = WantsDropped::No) {
-        flushAccounting.updateStats(key,
-                                    seqno,
-                                    isCommitted,
-                                    isDelete,
-                                    size,
-                                    oldSeqno,
-                                    oldIsDelete,
-                                    oldSize,
-                                    wantsDropped);
-    }
+                     WantsDropped wantsDropped = WantsDropped::No);
 
     /**
      * Update the collection high-seqno (only if the flushed item is higher)
