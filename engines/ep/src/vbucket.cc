@@ -60,7 +60,7 @@ const auto MAX_CHK_FLUSH_TIMEOUT = std::chrono::seconds(30);
 
 /* Statics definitions */
 cb::AtomicDuration<> VBucket::chkFlushTimeout(MIN_CHK_FLUSH_TIMEOUT);
-double VBucket::mutationMemThreshold = 0.9;
+std::atomic<double> VBucket::mutationMemThreshold = 0.9;
 
 VBucketFilter VBucketFilter::filter_diff(const VBucketFilter& other) const {
     std::vector<Vbid> tmp(acceptable.size() + other.size());
