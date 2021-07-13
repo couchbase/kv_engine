@@ -78,6 +78,10 @@ static nlohmann::json validateInterfaceDescription(const nlohmann::json& json) {
             if (!kv.value().is_string()) {
                 throw std::invalid_argument("tag must be JSON of type string");
             }
+        } else if (kv.key() == "uuid") {
+            if (!kv.value().is_string()) {
+                throw std::invalid_argument("uuid must be JSON of type string");
+            }
         } else {
             throw std::invalid_argument("Unsupported JSON property " +
                                         kv.key());
@@ -120,5 +124,7 @@ NetworkInterfaceDescription::NetworkInterfaceDescription(
                                                      : Type::Prometheus),
       tag(json.find("tag") == json.cend() ? ""
                                           : json["tag"].get<std::string>()),
-      tls(!(json.find("tls") == json.cend()) && json["tls"].get<bool>()) {
+      tls(!(json.find("tls") == json.cend()) && json["tls"].get<bool>()),
+      uuid(json.find("uuid") == json.cend() ? ""
+                                            : json["uuid"].get<std::string>()) {
 }

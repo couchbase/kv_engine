@@ -53,12 +53,6 @@ public:
     /// Create the bootstrap interface for external users to connect to
     void createBootstrapInterface();
 
-    /**
-     * Signal the network interface from any other thread (by sending
-     * a message over the notification pipe)
-     */
-    void signal();
-
     std::pair<cb::mcbp::Status, std::string> doTlsReconfigure(
             const nlohmann::json& spec);
     std::pair<cb::mcbp::Status, std::string> doDefineInterface(
@@ -110,9 +104,6 @@ protected:
      */
     std::pair<nlohmann::json, nlohmann::json> createInterface(
             const NetworkInterfaceDescription& description);
-
-    /// Update the active interface list
-    void updateDeprecatedInterfaces();
 
     folly::EventBase& eventBase;
     const cb::prometheus::AuthCallback authCallback;

@@ -58,6 +58,10 @@ public:
         return tls;
     }
 
+    std::string getUuid() const {
+        return uuid;
+    }
+
 protected:
     NetworkInterfaceDescription(const nlohmann::json& json, bool);
     const std::string host;
@@ -67,4 +71,5 @@ protected:
     const Type type;
     const std::string tag;
     const bool tls;
+    const std::string uuid;
 };

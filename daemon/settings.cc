@@ -1014,31 +1014,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         }
     }
 
-    if (other.has.interfaces) {
-        auto next = other.getInterfaces();
-        bool change = false;
-
-        {
-            auto locked = interfaces.rlock();
-            if (next.size() == locked->size()) {
-                const auto total = next.size();
-                for (std::size_t ii = 0; ii < total; ++ii) {
-                    if (locked->at(ii) != next[ii]) {
-                        change = true;
-                        break;
-                    }
-                }
-            } else {
-                change = true;
-            }
-        }
-
-        if (change) {
-            interfaces.wlock()->swap(next);
-            notify_changed("interfaces");
-        }
-    }
-
     if (other.has.breakpad) {
         bool changed = false;
         auto& b1 = breakpad;
@@ -1228,14 +1203,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         if (o != m) {
             LOG_INFO(R"(Change Phosphor config from "{}" to "{}")", o, m);
             setPhosphorConfig(o);
-        }
-    }
-
-    // Until we've got everyone moved over to the new ifconfig interface!
-    auto tls = getTlsConfiguration();
-    if (!tls.empty() && networkInterfaceManager) {
-        if (networkInterfaceManager->allowTlsSettingsInConfigFile()) {
-            networkInterfaceManager->doTlsReconfigure(tls);
         }
     }
 }

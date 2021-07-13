@@ -10,6 +10,7 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 #include <platform/base64.h>
+#include <platform/dirutils.h>
 
 /*
  * This test batch verifies that the interface array in the server may
@@ -51,6 +52,12 @@ protected:
                     "getInterfaces(): The returned object should be an array");
         }
         return json;
+    }
+
+    BinprotResponse reconfigure(const nlohmann::json& config) {
+        write_config_to_file(config.dump());
+        return getAdminConnection().execute(BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::ConfigReload, {}, {}});
     }
 };
 
@@ -323,4 +330,121 @@ TEST_P(InterfacesTest, TlsPropertiesEncryptedCert) {
     const auto rsp = conn.execute(cmd);
     ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
                                  << rsp.getDataString();
+}
+
+/// ns_server revoked the commitment to implement MB-46863 for 7.1,
+/// but wanted to keep the interfaces in memcached.json for now.
+/// To work around their limitations we added back backwards compatibility.
+/// Verify that we fail if the address in use
+TEST_P(InterfacesTest, MB46863_NsServerWithoutSupportForIfconfig_AddressInUse) {
+    SOCKET server_socket = cb::net::socket(AF_INET, SOCK_STREAM, 0);
+    ASSERT_NE(INVALID_SOCKET, server_socket);
+    sockaddr_in sin;
+    std::memset(&sin, 0, sizeof(sin));
+    sin.sin_family = AF_INET;
+    sin.sin_addr.s_addr = INADDR_ANY;
+    ASSERT_EQ(0,
+              cb::net::bind(server_socket,
+                            reinterpret_cast<const sockaddr*>(&sin),
+                            sizeof(sin)));
+    ASSERT_EQ(0, cb::net::listen(server_socket, 10));
+    socklen_t len = sizeof(sockaddr_in);
+    ASSERT_EQ(0,
+              getsockname(
+                      server_socket, reinterpret_cast<sockaddr*>(&sin), &len));
+
+    auto interfaces = nlohmann::json::array();
+    interfaces.emplace_back(nlohmann::json{{"system", false},
+                                           {"port", ntohs(sin.sin_port)},
+                                           {"ipv4", "required"},
+                                           {"ipv6", "off"},
+                                           {"host", "*"}});
+    auto config = memcached_cfg;
+    config["interfaces"] = interfaces;
+    auto rsp = reconfigure(config);
+
+    // reload should be rejected because the port is already open
+    ASSERT_FALSE(rsp.isSuccess())
+            << to_string(rsp.getStatus()) << ": " << rsp.getDataString();
+#ifdef WIN32
+    ASSERT_NE(std::string::npos,
+              rsp.getDataString().find(
+                      "An attempt was made to access a socket in a way "
+                      "forbidden by its access permissions"))
+            << rsp.getDataString();
+
+#else
+    ASSERT_NE(std::string::npos,
+              rsp.getDataString().find("Address already in use"))
+            << rsp.getDataString();
+#endif
+
+    cb::net::closesocket(server_socket);
+    reconfigure(memcached_cfg);
+}
+
+/// Verify that we can reload with the new configuration.
+/// We do this in 3 steps
+///    1. Reload with the current configuration
+///    2. Reload with a new interface (should be added)
+///    3. Reload where we remove the new interface (should be removed)
+TEST_P(InterfacesTest, MB46863_NsServerWithoutSupportForIfconfig_ReloadOk) {
+    // build up an interface array containing what we already have defined
+    auto interfaces = nlohmann::json::array();
+    connectionMap.iterate([&interfaces](const MemcachedConnection& c) {
+        auto family = c.getFamily();
+        interfaces.emplace_back(nlohmann::json{
+                {"host", family == AF_INET ? "127.0.0.1" : "::1"},
+                {"ipv4", family == AF_INET ? "required" : "off"},
+                {"ipv6", family == AF_INET6 ? "required" : "off"},
+                {"tag", c.getTag()},
+                {"port", c.getPort()}});
+    });
+
+    auto config = memcached_cfg;
+    config["interfaces"] = interfaces;
+
+    auto rsp = reconfigure(config);
+    ASSERT_TRUE(rsp.isSuccess())
+            << to_string(rsp.getStatus()) << ": " << rsp.getDataString();
+    std::remove(mcd_env->getPortnumberFile().c_str());
+
+    // Add an ephemeral port and verify that it was created
+
+    auto extra_interface = interfaces;
+    extra_interface.emplace_back(nlohmann::json{{"system", false},
+                                                {"port", 0},
+                                                {"ipv4", "required"},
+                                                {"ipv6", "off"},
+                                                {"host", "*"},
+                                                {"tag", "ephemeral"}});
+    config["interfaces"] = extra_interface;
+    rsp = reconfigure(config);
+    ASSERT_TRUE(rsp.isSuccess())
+            << to_string(rsp.getStatus()) << ": " << rsp.getDataString();
+
+    auto portnumbers = nlohmann::json::parse(
+            cb::io::loadFile(mcd_env->getPortnumberFile()));
+    in_port_t actualPort = 0;
+    for (const auto& p : portnumbers["ports"]) {
+        if (p["tag"] == "ephemeral") {
+            actualPort = p["port"].get<in_port_t>();
+        }
+    }
+
+    ASSERT_NE(0, actualPort)
+            << "Looks like reload didn't create an ephemeral port";
+    std::remove(mcd_env->getPortnumberFile().c_str());
+
+    // remove it from the list, reload and verify that its gone
+    config["interfaces"] = interfaces;
+    rsp = reconfigure(config);
+    ASSERT_TRUE(rsp.isSuccess())
+            << to_string(rsp.getStatus()) << ": " << rsp.getDataString();
+    portnumbers = nlohmann::json::parse(
+            cb::io::loadFile(mcd_env->getPortnumberFile()));
+    // verify that the port is gone
+    for (const auto& p : portnumbers["ports"]) {
+        ASSERT_NE("ephemeral", p["tag"].get<std::string>());
+    }
 }

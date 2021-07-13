@@ -53,7 +53,6 @@ TASK(WarmupCompletion, READER_TASK_IDX, 0)
 TASK(VKeyStatBGFetchTask, READER_TASK_IDX, 3)
 TASK(Core_SaslRefreshTask, READER_TASK_IDX, 0)
 TASK(Core_RbacReloadTask, READER_TASK_IDX, 0)
-TASK(Core_SettingsReloadTask, READER_TASK_IDX, 0)
 
 // Aux IO tasks
 TASK(VBucketMemoryAndDiskDeletionTask, AUXIO_TASK_IDX, 0)
@@ -61,6 +60,7 @@ TASK(PersistCollectionsManifest, AUXIO_TASK_IDX, 1)
 TASK(AccessScanner, AUXIO_TASK_IDX, 2)
 TASK(AccessScannerVisitor, AUXIO_TASK_IDX, 2)
 TASK(BackfillManagerTask, AUXIO_TASK_IDX, 4)
+TASK(Core_SettingsReloadTask, AUXIO_TASK_IDX, 0)
 
 // Read/Write IO tasks
 TASK(RollbackTask, WRITER_TASK_IDX, 1)

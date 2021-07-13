@@ -1163,47 +1163,6 @@ TEST(SettingsUpdateTest, ThreadsIsNotDynamic) {
                  std::invalid_argument);
 }
 
-TEST(SettingsUpdateTest, InterfaceIdenticalArraysShouldWork) {
-    Settings updated;
-    Settings settings;
-    // setting it to the same value should work
-
-    NetworkInterface ifc;
-    ifc.host.assign("*");
-    ifc.ssl.key.assign("/etc/opt/couchbase/security/key.pem");
-    ifc.ssl.cert.assign("/etc/opt/couchbase/security/cert.pem");
-
-    updated.addInterface(ifc);
-    settings.addInterface(ifc);
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-}
-
-TEST(SettingsUpdateTest, InterfaceSomeValuesMayChange) {
-    Settings updated;
-    Settings settings;
-    // setting it to the same value should work
-
-    NetworkInterface ifc;
-    ifc.host.assign("*");
-    ifc.ssl.key.assign("/etc/opt/couchbase/security/key.pem");
-    ifc.ssl.cert.assign("/etc/opt/couchbase/security/cert.pem");
-
-    settings.addInterface(ifc);
-
-    ifc.ssl.key.assign("/opt/couchbase/security/key.pem");
-    ifc.ssl.cert.assign("/opt/couchbase/security/cert.pem");
-
-    updated.addInterface(ifc);
-
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-    EXPECT_NE(ifc.ssl.key, settings.getInterfaces()[0].ssl.key);
-    EXPECT_NE(ifc.ssl.cert, settings.getInterfaces()[0].ssl.cert);
-
-    EXPECT_NO_THROW(settings.updateSettings(updated));
-    EXPECT_EQ(ifc.ssl.key, settings.getInterfaces()[0].ssl.key);
-    EXPECT_EQ(ifc.ssl.cert, settings.getInterfaces()[0].ssl.cert);
-}
-
 TEST(SettingsUpdateTest, UpdatingLoggerSettingsShouldFail) {
     Settings settings;
     Settings updated;

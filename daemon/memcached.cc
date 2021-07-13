@@ -257,23 +257,6 @@ static bool prometheus_auth_callback(const std::string& user,
     }
 }
 
-static void prometheus_changed_listener(const std::string&, Settings& s) {
-    try {
-        cb::prometheus::initialize(s.getPrometheusConfig(),
-                                   server_prometheus_stats,
-                                   prometheus_auth_callback);
-        if (networkInterfaceManager) {
-            networkInterfaceManager->signal();
-        }
-    } catch (const std::exception& exception) {
-        // Error message already formatted. Just log the failure but don't
-        // terminate memcached... ns_server could always try to store
-        // a new configuration and we'll try again (once we move over to
-        // ifconfig they will know when it fails)!
-        LOG_CRITICAL("{}", exception.what());
-    }
-}
-
 static void prometheus_init() {
     auto& settings = Settings::instance();
 
@@ -289,9 +272,6 @@ static void prometheus_init() {
     } else {
         LOG_WARNING_RAW("Prometheus config not specified");
     }
-
-    Settings::instance().addChangeListener("prometheus_config",
-                                           prometheus_changed_listener);
 }
 
 struct thread_stats* get_thread_stats(Connection* c) {
@@ -437,12 +417,6 @@ static void opcode_attributes_override_changed_listener(const std::string&,
              cb::mcbp::sla::to_json().dump());
 }
 
-static void interfaces_changed_listener(const std::string&, Settings &s) {
-    if (networkInterfaceManager) {
-        networkInterfaceManager->signal();
-    }
-}
-
 #ifdef HAVE_LIBNUMA
 /** Configure the NUMA policy for memcached. By default will attempt to set to
  *  interleaved polocy, unless the env var MEMCACHED_NUMA_MEM_POLICY is set to
@@ -478,8 +452,6 @@ static void settings_init() {
     auto& settings = Settings::instance();
 
     // Set up the listener functions
-    settings.addChangeListener("interfaces",
-                                           interfaces_changed_listener);
     settings.addChangeListener(
             "scramsha_fallback_salt", scramsha_fallback_salt_changed_listener);
     settings.addChangeListener(
