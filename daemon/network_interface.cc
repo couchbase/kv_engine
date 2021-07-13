@@ -38,33 +38,18 @@ static void handle_interface_tag(NetworkInterface& ifc,
 static void handle_interface_protocol(NetworkInterface::Protocol& proto,
                                       const char* proto_name,
                                       nlohmann::json::const_iterator it) {
-    if (it.value().type() == nlohmann::json::value_t::string) {
-        const std::string value(cb::jsonGet<std::string>(it));
-        if (value == "required") {
-            proto = NetworkInterface::Protocol::Required;
-        } else if (value == "optional") {
-            proto = NetworkInterface::Protocol::Optional;
-        } else if (value == "off") {
-            proto = NetworkInterface::Protocol::Off;
-        } else {
-            throw std::invalid_argument("\"" + std::string(proto_name) +
-                                        "\" has an unrecognized string value "
-                                        "\"" +
-                                        value + R"(")");
-        }
-        // Backwards compatibility - map True -> Optional, False -> Off
-    } else if (it.value().type() == nlohmann::json::value_t::boolean) {
-        bool value = cb::jsonGet<bool>(it);
-        if (value) {
-            proto = NetworkInterface::Protocol::Optional;
-        } else {
-            proto = NetworkInterface::Protocol::Off;
-        }
+    const auto value = cb::jsonGet<std::string>(it);
+    if (value == "required") {
+        proto = NetworkInterface::Protocol::Required;
+    } else if (value == "optional") {
+        proto = NetworkInterface::Protocol::Optional;
+    } else if (value == "off") {
+        proto = NetworkInterface::Protocol::Off;
     } else {
-        // Throw a type error instead of invalid argument for consistency
-        // with other handlers
-        cb::throwJsonTypeError("\"" + std::string(proto_name) +
-                               "\" must be a string or boolean value");
+        throw std::invalid_argument("\"" + std::string(proto_name) +
+                                    "\" has an unrecognized string value "
+                                    "\"" +
+                                    value + R"(")");
     }
 }
 

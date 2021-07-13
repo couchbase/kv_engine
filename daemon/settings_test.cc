@@ -333,8 +333,8 @@ TEST_F(SettingsTest, Interfaces) {
     nlohmann::json obj;
     obj["tag"] = "ssl";
     obj["port"] = 0;
-    obj["ipv4"] = true;
-    obj["ipv6"] = true;
+    obj["ipv4"] = "optional";
+    obj["ipv6"] = "optional";
     obj["host"] = "*";
 
     nlohmann::json ssl;
@@ -377,8 +377,8 @@ TEST_F(SettingsTest, InterfacesMissingSSLFiles) {
     nlohmann::json obj;
     obj["tag"] = "ssl";
     obj["port"] = 0;
-    obj["ipv4"] = true;
-    obj["ipv6"] = true;
+    obj["ipv4"] = "optional";
+    obj["ipv6"] = "optional";
     obj["host"] = "*";
 
     nlohmann::json ssl;
@@ -450,8 +450,8 @@ TEST_F(SettingsTest, InterfacesEphemeralMissingTag) {
 
     nlohmann::json obj;
     obj["port"] = 0;
-    obj["ipv4"] = true;
-    obj["ipv6"] = true;
+    obj["ipv4"] = "optional";
+    obj["ipv6"] = "optional";
     obj["host"] = "*";
 
     nlohmann::json array;
