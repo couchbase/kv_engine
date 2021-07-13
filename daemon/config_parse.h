@@ -28,8 +28,3 @@ void load_config_file(const std::string& filename, Settings& settings);
 std::optional<nlohmann::json> validate_proposed_config_changes(
         const char* new_cfg);
 
-/* perform a reload of the config file initially specified on the command-line.
- * Re-parses the file, and for settings which are permitted to be dynamically
- * changed, update the running memcached settings.
- */
-void reload_config_file();

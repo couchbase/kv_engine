@@ -18,6 +18,7 @@
 #include <daemon/settings.h>
 #include <executor/executorpool.h>
 #include <logger/logger.h>
+#include <platform/dirutils.h>
 
 SettingsReloadCommandContext::SettingsReloadCommandContext(Cookie& cookie)
     : FileReloadCommandContext(cookie) {
@@ -26,7 +27,12 @@ SettingsReloadCommandContext::SettingsReloadCommandContext(Cookie& cookie)
 cb::engine_errc SettingsReloadCommandContext::doSettingsReload() {
     const auto old_priv_debug = Settings::instance().isPrivilegeDebug();
     try {
-        reload_config_file();
+        LOG_INFO("Reloading config file {}", get_config_file());
+        const auto content =
+                cb::io::loadFile(get_config_file(), std::chrono::seconds{5});
+        Settings new_settings(nlohmann::json::parse(content));
+        Settings::instance().updateSettings(new_settings, true);
+
         if (Settings::instance().isPrivilegeDebug() != old_priv_debug) {
             audit_set_privilege_debug_mode(
                     cookie, Settings::instance().isPrivilegeDebug());
