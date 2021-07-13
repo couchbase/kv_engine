@@ -50,6 +50,7 @@ class BucketStatCollector;
 class StatCollector;
 class StorageProperties;
 class Warmup;
+class VBucketFilter;
 namespace Collections {
 class Manager;
 class Manifest;
@@ -522,13 +523,17 @@ public:
      * As a consequence, *DO NOT USE THIS METHOD* if you need to guarantee
      * that all items are visited!
      *
-     * @param visitor The visitor object.
+     * @param visitor   The visitor object.
+     * @param start_pos Position of which vbucket that should visited first
+     * @param filter    An optional VbucketFilter that specifies which vbuckets
+     *                  may be visited
      * @return The final epStore position visited; equal to
      *         EPBucket::end() if all items were visited
      *         otherwise the position to resume from.
      */
     virtual Position pauseResumeVisit(PauseResumeVBVisitor& visitor,
-                                      Position& start_pos) = 0;
+                                      Position& start_pos,
+                                      VBucketFilter* filter) = 0;
 
     /**
      * Return a position at the start of the epStore.

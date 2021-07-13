@@ -12,7 +12,6 @@
 #pragma once
 
 #include "utilities/testing_hook.h"
-#include "utility.h"
 #include "vbucket_fwd.h"
 
 #include <folly/AtomicHashMap.h>
@@ -25,10 +24,10 @@
 #include <iosfwd>
 #include <map>
 #include <mutex>
-#include <string>
 #include <unordered_set>
 #include <vector>
 
+class BySeqnoScanContext;
 class Configuration;
 class EPStats;
 class EPBucket;
@@ -36,11 +35,15 @@ class GetValue;
 class MutationLog;
 class VBucketMap;
 class Vbid;
+enum class ValueFilter;
 
 struct vbucket_state;
 
 template <typename...>
 class StatusCallback;
+
+class GlobalTask;
+using ExTask = std::shared_ptr<GlobalTask>;
 
 /**
  * Class representing the current state (phase) of the warmup process.
@@ -352,12 +355,6 @@ private:
     void populateVBucketMap(uint16_t shardId);
 
     /**
-     * [Value-eviction only]
-     * Loads all keys into memory for each vBucket in the given shard.
-     */
-    void keyDumpforShard(uint16_t shardId);
-
-    /**
      * Checks for the existance of an access log file for each shard:
      * - Checks if traffic should be enabled (i.e. enough data already
      *   loaded) - if true transitions to State::Done
@@ -375,18 +372,6 @@ private:
      */
     void loadingAccessLog(uint16_t shardId);
 
-    /**
-     * [Full-eviction only]
-     * Loads both keys and values into memory for each vBucket in the given
-     * shard.
-     */
-    void loadKVPairsforShard(uint16_t shardId);
-
-    /**
-     * Loads values into memory for each vBucket in the given shard.
-     */
-    void loadDataforShard(uint16_t shardId);
-
     /* Terminal state of warmup. Updates statistics and marks warmup as
      * completed
      */
@@ -396,6 +381,14 @@ private:
     uint16_t getNumKVStores();
 
     void populateShardVbStates();
+
+    using MakeBackfillTaskFn = std::function<ExTask(size_t)>;
+    /**
+     * Helper method to schedule a WarmupBackfillTask for each shard
+     * @param makeBackfillTask function that will be call to create a
+     * WarmupBackfillTask for a given shard based on it's shardId.
+     */
+    void scheduleBackfillTask(MakeBackfillTaskFn makeBackfillTask);
 
     void scheduleInitialize();
     void scheduleCreateVBuckets();
@@ -472,9 +465,11 @@ private:
     friend class WarmupEstimateDatabaseItemCount;
     friend class WarmupLoadPreparedSyncWrites;
     friend class WarmupPopulateVBucketMap;
-    friend class WarmupKeyDump;
     friend class WarmupCheckforAccessLog;
+    friend class WarmupKeyDump;
     friend class WarmupLoadAccessLog;
+    friend class WarmupVbucketVisitor;
+    friend class WarmupBackfillTask;
     friend class WarmupLoadingKVPairs;
     friend class WarmupLoadingData;
     friend class WarmupCompletion;

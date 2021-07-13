@@ -374,7 +374,8 @@ public:
                       std::chrono::microseconds maxExpectedDuration) override;
 
     Position pauseResumeVisit(PauseResumeVBVisitor& visitor,
-                              Position& start_pos) override;
+                              Position& start_pos,
+                              VBucketFilter* filter = nullptr) override;
 
     Position startPosition() const override;
 
@@ -851,6 +852,8 @@ protected:
             cb::durability::Level level) const = 0;
 
     friend class Warmup;
+    friend class WarmupLoadingKVPairs;
+    friend class WarmupLoadingData;
     friend class PersistenceCallback;
 
     EventuallyPersistentEngine     &engine;
