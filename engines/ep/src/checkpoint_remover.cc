@@ -34,7 +34,7 @@
 // ├───────────────────┬───────────────┬───┬───────────┬──┬──────┬────────┤
 // │                   │               │   │           │  │      │        │
 // │                   │               │   │           │  │      │        │
-// └───────────────────▼───────────────▼───▼───────────▼──▼─-────▼────-───┘
+// └───────────────────▼───────────────▼───▼───────────▼──▼──────▼────────┘
 //                     A               B   X           L  Y      H
 //
 // The thresholds used with the current defaults:
@@ -46,8 +46,8 @@
 //
 // The two live statistics:
 //
-//   X = checkpoint memory used, the value returned from
-//       VBucketMap::getVBucketsTotalCheckpointMemoryUsage()
+//   X = checkpoint memory used, the value returned by
+//       stats.getEstimatedCheckpointMemUsage()
 //   Y = 'mem_used' i.e. the value of stats.getEstimatedTotalMemoryUsed()
 //
 // Memory reduction will commence if checkpoint memory usage (X) is greater than
@@ -72,18 +72,16 @@ ClosedUnrefCheckpointRemoverTask::isReductionInCheckpointMemoryNeeded() const {
     const auto bucketQuota = config.getMaxSize();
     const auto memUsed = stats.getEstimatedTotalMemoryUsed();
 
-    const auto vBucketChkptMemSize =
-            engine->getKVBucket()
-                    ->getVBuckets()
-                    .getVBucketsTotalCheckpointMemoryUsage();
-
-    const auto chkptMemLimit =
+    const auto checkpointMemoryUsage = stats.getEstimatedCheckpointMemUsage();
+    const auto checkpointMemoryLimit =
             (bucketQuota * config.getCursorDroppingCheckpointMemUpperMark()) /
             100;
-
     const bool hitCheckpointMemoryThreshold =
-            vBucketChkptMemSize >= chkptMemLimit;
+            checkpointMemoryUsage >= checkpointMemoryLimit;
 
+    // @todo MB-46827: Remove the condition on LWM - checkpoint memory recovery
+    // must trigger if checkpoint mem-usage is high, as defined by checkpoint
+    // threshold and regardless the LWM
     const bool aboveLowWatermark = memUsed >= stats.mem_low_wat.load();
 
     const bool ckptMemExceedsCheckpointMemoryThreshold =
@@ -96,7 +94,7 @@ ClosedUnrefCheckpointRemoverTask::isReductionInCheckpointMemoryNeeded() const {
         // Calculate the lower percentage of quota and subtract that from
         // the current checkpoint memory size to obtain the 'target'.
         amountOfMemoryToClear =
-                vBucketChkptMemSize -
+                checkpointMemoryUsage -
                 ((bucketQuota *
                   config.getCursorDroppingCheckpointMemLowerMark()) /
                  100);
@@ -104,9 +102,9 @@ ClosedUnrefCheckpointRemoverTask::isReductionInCheckpointMemoryNeeded() const {
                 "Triggering memory recovery as checkpoint_memory ({} MB) "
                 "exceeds cursor_dropping_checkpoint_mem_upper_mark ({}%, "
                 "{} MB). Attempting to free {} MB of memory.",
-                toMB(vBucketChkptMemSize),
+                toMB(checkpointMemoryUsage),
                 config.getCursorDroppingCheckpointMemUpperMark(),
-                toMB(chkptMemLimit),
+                toMB(checkpointMemoryLimit),
                 toMB(amountOfMemoryToClear));
 
         // Memory recovery is required.

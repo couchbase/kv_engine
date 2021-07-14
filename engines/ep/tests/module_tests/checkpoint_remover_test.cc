@@ -59,35 +59,6 @@ TEST_F(CheckpointRemoverEPTest, GetVBucketsSortedByChkMgrMem) {
     }
 }
 
-/**
- * Check that the VBucketMap.getVBucketsTotalCheckpointMemoryUsage() returns the
- * total memory usage of the checkpoints of all vbuckets.
- */
-TEST_F(CheckpointRemoverEPTest, GetVBucketsTotalCheckpointMemoryUsage) {
-    const auto numOfCheckpoints{3};
-    for (uint16_t i = 0; i < numOfCheckpoints; i++) {
-        setVBucketStateAndRunPersistTask(Vbid(i), vbucket_state_active);
-        for (uint16_t j = 0; j < i; j++) {
-            std::string doc_key =
-                    "key_" + std::to_string(i) + "_" + std::to_string(j);
-            store_item(Vbid(i), makeStoredDocKey(doc_key), "value");
-        }
-        // Set to different vbucket states (active=1, replica=2 and pending=3).
-        EXPECT_EQ(cb::engine_errc::success,
-                  store->setVBucketState(Vbid(i), vbucket_state_t(i + 1), {}));
-    }
-
-    size_t totalCheckpointMemoryUsage{0};
-    for (size_t i = 0; i < numOfCheckpoints; i++) {
-        VBucketPtr b = store->getVBuckets().getBucket(Vbid(i));
-        if (b) {
-            totalCheckpointMemoryUsage += b->getChkMgrMemUsage();
-        }
-    }
-    EXPECT_EQ(totalCheckpointMemoryUsage,
-              store->getVBuckets().getVBucketsTotalCheckpointMemoryUsage());
-}
-
 #ifndef WIN32
 /**
  * Check that the CheckpointManager memory usage calculation is correct and
@@ -337,7 +308,7 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
 }
 
 // Test that we correctly determine whether to trigger memory recovery.
-TEST_F(CheckpointRemoverEPTest, memoryRecoverTriggerTest) {
+TEST_F(CheckpointRemoverEPTest, MemoryRecoveryTrigger) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto& config = engine->getConfiguration();
     const auto& task = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
@@ -360,16 +331,15 @@ TEST_F(CheckpointRemoverEPTest, memoryRecoverTriggerTest) {
     EXPECT_EQ(0, amountOfMemoryToClear);
 
     /*
-     * Trigger condition for memory recovery:
-     * the total memory used is greater than the upper threshold which is
-     * a percentage of the quota, specified by cursor_dropping_upper_mark
+     * With a small bucket quota but still low memory-usage in checkpoint,
+     * memory recovery doesn't trigger.
      */
     config.setMaxSize(1024);
 
     std::tie(shouldTriggerMemoryRecovery, amountOfMemoryToClear) =
             task->isReductionInCheckpointMemoryNeeded();
-    EXPECT_TRUE(shouldTriggerMemoryRecovery);
-    EXPECT_LT(0, amountOfMemoryToClear);
+    EXPECT_FALSE(shouldTriggerMemoryRecovery);
+    EXPECT_EQ(0, amountOfMemoryToClear);
 
     /*
      * Trigger condition for memory recovery:
@@ -419,12 +389,11 @@ void CheckpointRemoverEPTest::testExpelingOccursBeforeCursorDropping(
             (config.getMaxSize() *
              config.getCursorDroppingCheckpointMemUpperMark()) /
             100;
-    engine->getEpStats().mem_low_wat.store(1);
+    auto& stats = engine->getEpStats();
+    stats.mem_low_wat.store(1);
 
     int ii = 0;
-    while (engine->getKVBucket()
-                   ->getVBuckets()
-                   .getVBucketsTotalCheckpointMemoryUsage() < chkptMemLimit) {
+    while (stats.getEstimatedCheckpointMemUsage() < chkptMemLimit) {
         std::string doc_key = "key_" + std::to_string(ii);
         store_item(vbid, makeStoredDocKey(doc_key), "value");
         ++ii;

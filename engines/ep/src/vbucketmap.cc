@@ -124,17 +124,6 @@ std::vector<std::pair<Vbid, size_t>> VBucketMap::getVBucketsSortedByChkMgrMem() 
     return rv;
 }
 
-size_t VBucketMap::getVBucketsTotalCheckpointMemoryUsage() const {
-    size_t checkpointMemoryUsage = 0;
-    for (size_t i = 0; i < size; ++i) {
-        VBucketPtr b = getBucket(Vbid(i));
-        if (b) {
-            checkpointMemoryUsage += b->getChkMgrMemUsage();
-        }
-    }
-    return checkpointMemoryUsage;
-}
-
 KVShard* VBucketMap::getShardByVbId(Vbid id) const {
     return shards[id.get() % shards.size()].get();
 }
