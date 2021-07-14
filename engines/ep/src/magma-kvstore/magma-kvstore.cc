@@ -2714,7 +2714,7 @@ std::shared_ptr<CompactionContext> MagmaKVStore::makeCompactionContext(
         ctx->highCompletedSeqno = readState.vbstate.persistedCompletedSeqno;
     }
 
-    logger->info(
+    logger->debug(
             "MagmaKVStore::makeCompactionContext {} purge_before_ts:{} "
             "purge_before_seq:{}"
             " drop_deletes:{} retain_erroneous_tombstones:{}",
