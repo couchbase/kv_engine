@@ -31,18 +31,16 @@
 // that are also used in deciding if memory reduction is needed.
 //
 // 0                                                                      #
-// ├───────────────────┬───────────────┬───┬───────────┬──┬─┬────┬────┬───┤
-// │                   │               │   │           │  │ │    │    │   │
-// │                   │               │   │           │  │ │    │    │   │
-// └───────────────────▼───────────────▼───▼───────────▼──▼─▼────▼────▼───┘
-//                     A               B   X           L  Y C    H    D
+// ├───────────────────┬───────────────┬───┬───────────┬──┬──────┬────────┤
+// │                   │               │   │           │  │      │        │
+// │                   │               │   │           │  │      │        │
+// └───────────────────▼───────────────▼───▼───────────▼──▼─-────▼────-───┘
+//                     A               B   X           L  Y      H
 //
 // The thresholds used with the current defaults:
 //
 //   A = cursor_dropping_checkpoint_mem_lower_mark (30%)
 //   B = cursor_dropping_checkpoint_mem_upper_mark (50%)
-//   C = cursor_dropping_lower_mark (80%)
-//   D = cursor_dropping_upper_mark (95%)
 //   L = mem_low_watermark (75%)
 //   H = mem_high_watermark (85%)
 //
@@ -52,17 +50,12 @@
 //       VBucketMap::getVBucketsTotalCheckpointMemoryUsage()
 //   Y = 'mem_used' i.e. the value of stats.getEstimatedTotalMemoryUsed()
 //
-// Memory reduction will commence if any of the following conditions are met:
-// 1) If checkpoint memory usage (X) is greater than
-//    cursor_dropping_checkpoint_mem_upper_mark and 'mem_used' (Y) is greater
-//    than mem_low_watermark (L).
-// 2) If 'mem_used' (Y) is greater than cursor_dropping_upper_mark (D)
+// Memory reduction will commence if checkpoint memory usage (X) is greater than
+// cursor_dropping_checkpoint_mem_upper_mark OR 'mem_used' (Y) is greater than
+// mem_low_watermark (L).
 //
-// If case 1 is the trigger this function will return X - A as the target amount
-// to free.
-//
-// If case 2 is the trigger this function will return Y - C as the target amount
-// to free.
+// If memory reduction triggers then this function will return X - A as the
+// target amount to free.
 //
 // When memory reduction is required two different techniques are applied:
 // 1) First checkpoint expelling. If that technique does not 'free' the required
@@ -96,45 +89,26 @@ ClosedUnrefCheckpointRemoverTask::isReductionInCheckpointMemoryNeeded() const {
     const bool ckptMemExceedsCheckpointMemoryThreshold =
             aboveLowWatermark && hitCheckpointMemoryThreshold;
 
-    const bool memUsedExceedsCursorDroppingUpperMark =
-            memUsed > stats.cursorDroppingUThreshold.load();
-
     auto toMB = [](size_t bytes) { return bytes / (1024 * 1024); };
-    if (memUsedExceedsCursorDroppingUpperMark ||
-        ckptMemExceedsCheckpointMemoryThreshold) {
+    if (ckptMemExceedsCheckpointMemoryThreshold) {
         size_t amountOfMemoryToClear;
 
-        if (ckptMemExceedsCheckpointMemoryThreshold) {
-            // Calculate the lower percentage of quota and subtract that from
-            // the current checkpoint memory size to obtain the 'target'.
-            amountOfMemoryToClear =
-                    vBucketChkptMemSize -
-                    ((bucketQuota *
-                      config.getCursorDroppingCheckpointMemLowerMark()) /
-                     100);
-            EP_LOG_INFO(
-                    "Triggering memory recovery as checkpoint_memory ({} MB) "
-                    "exceeds cursor_dropping_checkpoint_mem_upper_mark ({}%, "
-                    "{} MB). Attempting to free {} MB of memory.",
-                    toMB(vBucketChkptMemSize),
-                    config.getCursorDroppingCheckpointMemUpperMark(),
-                    toMB(chkptMemLimit),
-                    toMB(amountOfMemoryToClear));
+        // Calculate the lower percentage of quota and subtract that from
+        // the current checkpoint memory size to obtain the 'target'.
+        amountOfMemoryToClear =
+                vBucketChkptMemSize -
+                ((bucketQuota *
+                  config.getCursorDroppingCheckpointMemLowerMark()) /
+                 100);
+        EP_LOG_INFO(
+                "Triggering memory recovery as checkpoint_memory ({} MB) "
+                "exceeds cursor_dropping_checkpoint_mem_upper_mark ({}%, "
+                "{} MB). Attempting to free {} MB of memory.",
+                toMB(vBucketChkptMemSize),
+                config.getCursorDroppingCheckpointMemUpperMark(),
+                toMB(chkptMemLimit),
+                toMB(amountOfMemoryToClear));
 
-        } else {
-            amountOfMemoryToClear =
-                    memUsed - stats.cursorDroppingLThreshold.load();
-            EP_LOG_INFO(
-                    "Triggering memory recovery as mem_used ({} MB) "
-                    "exceeds cursor_dropping_upper_mark ({}%, {} MB). "
-                    "current checkpoint consumption is {} MB "
-                    "Attempting to free {} MB of memory.",
-                    toMB(memUsed),
-                    config.getCursorDroppingUpperMark(),
-                    toMB(stats.cursorDroppingUThreshold.load()),
-                    toMB(vBucketChkptMemSize),
-                    toMB(amountOfMemoryToClear));
-        }
         // Memory recovery is required.
         return std::make_pair(true, amountOfMemoryToClear);
     }

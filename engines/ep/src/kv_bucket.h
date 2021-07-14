@@ -606,8 +606,6 @@ public:
 
     bool compactionCanExpireItems() override;
 
-    void setCursorDroppingLowerUpperThresholds(size_t maxSize) override;
-
     bool isAccessScannerEnabled() override {
         std::lock_guard<std::mutex> lh(accessScanner.mutex);
         return accessScanner.enabled;

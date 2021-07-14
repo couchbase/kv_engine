@@ -752,8 +752,6 @@ public:
 
     virtual bool compactionCanExpireItems() = 0;
 
-    virtual void setCursorDroppingLowerUpperThresholds(size_t maxSize) = 0;
-
     virtual bool isAccessScannerEnabled() = 0;
 
     virtual bool isExpPagerEnabled() = 0;

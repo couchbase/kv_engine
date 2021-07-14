@@ -67,10 +67,7 @@ public:
     }
 
     void sizeValueChanged(const std::string& key, size_t value) override {
-        if (key == "cursor_dropping_lower_threshold" ||
-            key == "cursor_dropping_upper_threshold") {
-            store.setCursorDroppingLowerUpperThresholds(stats.getMaxDataSize());
-        } else if (key == "max_size") {
+        if (key == "max_size") {
             store.getEPEngine().setMaxDataSize(value);
         } else if (key.compare("mem_low_wat") == 0) {
             stats.setLowWaterMark(value);
@@ -2511,14 +2508,6 @@ void KVBucket::runVbStatePersistTask(Vbid vbid) {
 bool KVBucket::compactionCanExpireItems() {
     return stats.getEstimatedTotalMemoryUsed() <
            (stats.getMaxDataSize() * compactionExpMemThreshold);
-}
-
-void KVBucket::setCursorDroppingLowerUpperThresholds(size_t maxSize) {
-    Configuration &config = engine.getConfiguration();
-    stats.cursorDroppingLThreshold.store(static_cast<size_t>(maxSize *
-                    ((double)(config.getCursorDroppingLowerMark()) / 100)));
-    stats.cursorDroppingUThreshold.store(static_cast<size_t>(maxSize *
-                    ((double)(config.getCursorDroppingUpperMark()) / 100)));
 }
 
 size_t KVBucket::getActiveResidentRatio() const {

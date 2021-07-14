@@ -529,10 +529,6 @@ cb::engine_errc EventuallyPersistentEngine::setCheckpointParam(
             config.setCursorDroppingCheckpointMemUpperMark(std::stoull(val));
         } else if (key == "cursor_dropping_checkpoint_mem_lower_mark") {
             config.setCursorDroppingCheckpointMemLowerMark(std::stoull(val));
-        } else if (key == "cursor_dropping_lower_mark") {
-            config.setCursorDroppingLowerMark(std::stoull(val));
-        } else if (key == "cursor_dropping_upper_mark") {
-            config.setCursorDroppingUpperMark(std::stoull(val));
         } else if (key == "checkpoint_memory_ratio") {
             config.setCheckpointMemoryRatio(std::stof(val));
         } else {
@@ -3103,10 +3099,6 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStats(
     collector.addStat(Key::ep_item_compressor_num_compressed,
                       epstats.compressorNumCompressed);
 
-    collector.addStat(Key::ep_cursor_dropping_lower_threshold,
-                      epstats.cursorDroppingLThreshold);
-    collector.addStat(Key::ep_cursor_dropping_upper_threshold,
-                      epstats.cursorDroppingUThreshold);
     collector.addStat(Key::ep_cursors_dropped, epstats.cursorsDropped);
     collector.addStat(Key::ep_cursor_memory_freed, epstats.cursorMemoryFreed);
 
@@ -6793,7 +6785,6 @@ void EventuallyPersistentEngine::setMaxDataSize(size_t size) {
     configuration.setMemHighWat(percentOf(size, stats.mem_high_wat_percent));
 
     getDcpConnMap().updateMaxRunningBackfills(size);
-    getKVBucket()->setCursorDroppingLowerUpperThresholds(size);
     getDcpConnMap().updateMaxRunningBackfills(size);
     // Pass the max bucket quota size down to the storage layer.
     for (uint16_t ii = 0; ii < getKVBucket()->getVBuckets().getNumShards();

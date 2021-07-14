@@ -295,10 +295,6 @@ public:
     std::atomic<size_t> mem_high_wat;
     std::atomic<double> mem_high_wat_percent;
 
-    //! Cursor dropping thresholds used by checkpoint remover
-    std::atomic<size_t> cursorDroppingLThreshold;
-    std::atomic<size_t> cursorDroppingUThreshold;
-
     //! Number of cursors dropped by checkpoint remover
     Counter cursorsDropped;
 

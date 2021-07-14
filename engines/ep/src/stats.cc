@@ -55,8 +55,6 @@ EPStats::EPStats()
       mem_low_wat_percent(0),
       mem_high_wat(0),
       mem_high_wat_percent(0),
-      cursorDroppingLThreshold(0),
-      cursorDroppingUThreshold(0),
       cursorsDropped(0),
       cursorMemoryFreed(0),
       pagerRuns(0),

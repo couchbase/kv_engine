@@ -275,30 +275,6 @@
             "dynamic": false,
             "type": "std::string"
         },
-        "cursor_dropping_lower_mark": {
-            "default": "80",
-            "descr": "Percentage of memQuota, below which checkpoint cursor dropping will not continue",
-            "dynamic": true,
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 100,
-                    "min": 0
-                }
-            }
-        },
-        "cursor_dropping_upper_mark": {
-            "default": "95",
-            "descr": "Percentage of memQuota, above which checkpoint cursor dropping will commence",
-            "dynamic": true,
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 100,
-                    "min": 0
-                }
-            }
-        },
         "cursor_dropping_checkpoint_mem_upper_mark": {
             "default": "50",
             "descr": "Percentage of memQuota used by checkpoints, above which checkpoint cursor dropping will commence",
