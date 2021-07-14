@@ -1076,8 +1076,9 @@ static Status set_cluster_config_validator(Cookie& cookie) {
         cookie.setErrorContext("Revision number must not be less than 1");
         return Status::Einval;
     }
-    if (payload.getEpoch() < 1) {
-        cookie.setErrorContext("Epoch must not be less than 1");
+
+    if (payload.getEpoch() < 1 && payload.getEpoch() != -1) {
+        cookie.setErrorContext("Epoch must not be less than 1 (or -1)");
         return Status::Einval;
     }
     return Status::Success;
