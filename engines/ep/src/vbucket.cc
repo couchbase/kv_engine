@@ -25,6 +25,7 @@
 #include "failover-table.h"
 #include "hash_table.h"
 #include "hash_table_stat_visitor.h"
+#include "kv_bucket.h"
 #include "kvshard.h"
 #include "kvstore.h"
 #include "objectregistry.h"
@@ -3294,6 +3295,10 @@ std::pair<MutationStatus, std::optional<VBNotifyCtx>> VBucket::processSetInner(
                 getId().to_string());
     }
 
+    if (bucket && !bucket->hasCapacityInCheckpoints()) {
+        return {MutationStatus::NoMem, {}};
+    }
+
     if (!hasMemoryForStoredValue(stats, itm)) {
         return {MutationStatus::NoMem, {}};
     }
@@ -3440,6 +3445,11 @@ std::pair<AddStatus, std::optional<VBNotifyCtx>> VBucket::processAdd(
         !cHandle.isLogicallyDeleted(committed->getBySeqno())) {
         return {AddStatus::Exists, {}};
     }
+
+    if (bucket && !bucket->hasCapacityInCheckpoints()) {
+        return {AddStatus::NoMem, {}};
+    }
+
     if (!hasMemoryForStoredValue(stats, itm)) {
         return {AddStatus::NoMem, {}};
     }

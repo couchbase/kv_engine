@@ -591,6 +591,16 @@ protected:
      * @param op The operation under test
      */
     void testValidateDatatypeForEmptyPayload(EngineOp op);
+
+    enum class VbucketOp : uint8_t { Set, Add };
+
+    /**
+     * Verifies that checkpoints memory quota threshold is enforced on the given
+     * operation.
+     *
+     * @param op The operation under test
+     */
+    void testCheckpointMemThresholdEnforced(VbucketOp op);
 };
 
 class STParamPersistentBucketTest : public STParameterizedBucketTest {

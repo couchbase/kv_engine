@@ -4290,6 +4290,80 @@ TEST_P(STParameterizedBucketTest, ValidateDatatypeForEmptyPayload_StoreIf) {
     testValidateDatatypeForEmptyPayload(EngineOp::StoreIf);
 }
 
+void STParameterizedBucketTest::testCheckpointMemThresholdEnforced(
+        VbucketOp op) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Checkout default setting
+    ASSERT_EQ(1.0f, store->getCheckpointMemoryRatio());
+
+    setVBucketState(vbid, vbucket_state_active);
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    ASSERT_EQ(0, vb->getNumItems());
+
+    const auto loadUptoOOM = [this, op, vb]() -> size_t {
+        size_t numItems = 0;
+        auto ret = cb::engine_errc::success;
+        const auto value = std::string(1024 * 1024, 'x');
+        do {
+            auto item = make_item(
+                    vbid,
+                    makeStoredDocKey("key_" + std::to_string(++numItems)),
+                    value,
+                    0 /*exp*/,
+                    PROTOCOL_BINARY_RAW_BYTES);
+            switch (op) {
+            case VbucketOp::Set:
+                ret = store->set(item, cookie);
+                break;
+            case VbucketOp::Add:
+                ret = store->add(item, cookie);
+                // Allow running on magma/FE where there's no EP bloomfilter
+                if (ret == cb::engine_errc::would_block) {
+                    runBGFetcherTask();
+                    ret = store->add(item, cookie);
+                    EXPECT_NE(cb::engine_errc::would_block, ret);
+                }
+                break;
+            }
+        } while (ret != cb::engine_errc::no_memory);
+
+        // Persist for allowing the num-items check at full-eviction too
+        if (persistent()) {
+            dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
+        }
+        EXPECT_EQ(numItems - 1, store->getVBucket(vbid)->getNumItems());
+
+        return numItems - 1;
+    };
+
+    const auto initialNumItems = loadUptoOOM();
+    ASSERT_GT(initialNumItems, 0);
+
+    store->deleteVBucket(vbid);
+    ASSERT_FALSE(store->getVBucket(vbid));
+    setVBucketState(vbid, vbucket_state_active);
+    vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    ASSERT_EQ(0, vb->getNumItems());
+
+    // Set ratio to something lower
+    store->setCheckpointMemoryRatio(0.5f);
+    ASSERT_EQ(0.5f, store->getCheckpointMemoryRatio());
+
+    const auto numItems = loadUptoOOM();
+    EXPECT_LT(numItems, initialNumItems);
+}
+
+TEST_P(STParameterizedBucketTest, CheckpointMemThresholdEnforced_Set) {
+    testCheckpointMemThresholdEnforced(VbucketOp::Set);
+}
+
+TEST_P(STParameterizedBucketTest, CheckpointMemThresholdEnforced_Add) {
+    testCheckpointMemThresholdEnforced(VbucketOp::Add);
+}
+
 INSTANTIATE_TEST_SUITE_P(XattrSystemUserTest,
                          XattrSystemUserTest,
                          ::testing::Bool());

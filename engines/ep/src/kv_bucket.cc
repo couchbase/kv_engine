@@ -2731,3 +2731,8 @@ cb::engine_errc KVBucket::setCheckpointMemoryRatio(float ratio) {
 float KVBucket::getCheckpointMemoryRatio() const {
     return checkpointMemoryRatio;
 }
+
+bool KVBucket::hasCapacityInCheckpoints() const {
+    const auto checkpointQuota = stats.getMaxDataSize() * checkpointMemoryRatio;
+    return stats.getEstimatedCheckpointMemUsage() < checkpointQuota;
+}

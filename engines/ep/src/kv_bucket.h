@@ -758,6 +758,12 @@ public:
 
     float getCheckpointMemoryRatio() const;
 
+    /**
+     * @return true if the current mem-usage in checkpoint is below the
+     *  configuration threshold
+     */
+    bool hasCapacityInCheckpoints() const;
+
 protected:
     GetValue getInternal(const DocKey& key,
                          Vbid vbucket,
