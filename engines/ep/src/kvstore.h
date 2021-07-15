@@ -539,8 +539,6 @@ public:
  */
 class StorageProperties {
 public:
-    enum class EfficientVBDeletion : bool { Yes, No };
-
     enum class PersistedDeletion : bool { Yes, No };
 
     enum class EfficientGet : bool { Yes, No };
@@ -553,21 +551,14 @@ public:
 
     enum class ByIdScan : bool { Yes, No };
 
-    StorageProperties(EfficientVBDeletion evd,
-                      PersistedDeletion pd,
+    StorageProperties(PersistedDeletion pd,
                       EfficientGet eget,
                       ConcurrentWriteCompact cwc,
                       ByIdScan byIdScan)
-        : efficientVBDeletion(evd),
-          persistedDeletions(pd),
+        : persistedDeletions(pd),
           efficientGet(eget),
           concWriteCompact(cwc),
           byIdScan(byIdScan) {
-    }
-
-    /* True if we can efficiently delete a vbucket all at once */
-    bool hasEfficientVBDeletion() const {
-        return (efficientVBDeletion == EfficientVBDeletion::Yes);
     }
 
     /* True if we can persist deletions to disk */
@@ -591,7 +582,6 @@ public:
     }
 
 private:
-    EfficientVBDeletion efficientVBDeletion;
     PersistedDeletion persistedDeletions;
     EfficientGet efficientGet;
     ConcurrentWriteCompact concWriteCompact;
