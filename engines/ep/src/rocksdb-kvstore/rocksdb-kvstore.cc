@@ -947,13 +947,12 @@ bool RocksDBKVStore::getStat(std::string_view name, size_t& value) const {
 }
 
 StorageProperties RocksDBKVStore::getStorageProperties() const {
-    StorageProperties rv(StorageProperties::PersistedDeletion::No,
-                         // TODO RDB: Not strictly true, multiGet
-                         // does not yet use the underlying multi get
-                         // of RocksDB
-                         StorageProperties::EfficientGet::Yes,
-                         StorageProperties::ConcurrentWriteCompact::Yes,
-                         StorageProperties::ByIdScan::No);
+    StorageProperties rv( // TODO RDB: Not strictly true, multiGet
+                          // does not yet use the underlying multi get
+                          // of RocksDB
+            StorageProperties::EfficientGet::Yes,
+            StorageProperties::ConcurrentWriteCompact::Yes,
+            StorageProperties::ByIdScan::No);
     return rv;
 }
 

@@ -539,8 +539,6 @@ public:
  */
 class StorageProperties {
 public:
-    enum class PersistedDeletion : bool { Yes, No };
-
     enum class EfficientGet : bool { Yes, No };
 
     /**
@@ -551,19 +549,10 @@ public:
 
     enum class ByIdScan : bool { Yes, No };
 
-    StorageProperties(PersistedDeletion pd,
-                      EfficientGet eget,
+    StorageProperties(EfficientGet eget,
                       ConcurrentWriteCompact cwc,
                       ByIdScan byIdScan)
-        : persistedDeletions(pd),
-          efficientGet(eget),
-          concWriteCompact(cwc),
-          byIdScan(byIdScan) {
-    }
-
-    /* True if we can persist deletions to disk */
-    bool hasPersistedDeletions() const {
-        return (persistedDeletions == PersistedDeletion::Yes);
+        : efficientGet(eget), concWriteCompact(cwc), byIdScan(byIdScan) {
     }
 
     /* True if we can batch-process multiple get operations at once */
@@ -582,7 +571,6 @@ public:
     }
 
 private:
-    PersistedDeletion persistedDeletions;
     EfficientGet efficientGet;
     ConcurrentWriteCompact concWriteCompact;
     ByIdScan byIdScan;
