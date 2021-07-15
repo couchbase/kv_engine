@@ -25,34 +25,24 @@
 // expelling and/or cursor dropping should be invoked, if true a calculated
 // memory reduction 'target' is also returned.
 //
-// The following diagram depicts the bucket memory where # is the max_size and
-// the labelled vertical lines each show a threshold that is used in deciding if
-// memory reduction is needed. Also depicted are two of the 'live' statistics
-// that are also used in deciding if memory reduction is needed.
+// The following diagram depicts the bucket memory where Q is the bucket quota
+// and the labelled vertical lines each show thresholds/stats used in deciding
+// if memory reduction is needed.
 //
-// 0                                                                      #
-// ├───────────────────┬───────────────┬───┬───────────┬──┬──────┬────────┤
-// │                   │               │   │           │  │      │        │
-// │                   │               │   │           │  │      │        │
-// └───────────────────▼───────────────▼───▼───────────▼──▼──────▼────────┘
-//                     A               B   X           L  Y      H
-//
-// The thresholds used with the current defaults:
+// 0                                                                      Q
+// ├───────────────────┬───────────────┬───┬──────────────────────────────┤
+// │                   │               │   │                              │
+// │                   │               │   │                              │
+// └───────────────────▼───────────────▼───▼──────────────────────────────┘
+//                     A               B   X
 //
 //   A = cursor_dropping_checkpoint_mem_lower_mark (30%)
 //   B = cursor_dropping_checkpoint_mem_upper_mark (50%)
-//   L = mem_low_watermark (75%)
-//   H = mem_high_watermark (85%)
-//
-// The two live statistics:
-//
-//   X = checkpoint memory used, the value returned by
-//       stats.getEstimatedCheckpointMemUsage()
-//   Y = 'mem_used' i.e. the value of stats.getEstimatedTotalMemoryUsed()
+//   X = current checkpoint memory used
+//   Q = bucket quota
 //
 // Memory reduction will commence if checkpoint memory usage (X) is greater than
-// cursor_dropping_checkpoint_mem_upper_mark OR 'mem_used' (Y) is greater than
-// mem_low_watermark (L).
+// cursor_dropping_checkpoint_mem_upper_mark (B).
 //
 // If memory reduction triggers then this function will return X - A as the
 // target amount to free.
@@ -68,50 +58,37 @@
 //
 std::pair<bool, size_t>
 ClosedUnrefCheckpointRemoverTask::isReductionInCheckpointMemoryNeeded() const {
-    const auto& config = engine->getConfiguration();
-    const auto bucketQuota = config.getMaxSize();
-    const auto memUsed = stats.getEstimatedTotalMemoryUsed();
-
+    const auto bucketQuota = stats.getMaxDataSize();
     const auto checkpointMemoryUsage = stats.getEstimatedCheckpointMemUsage();
+    const auto& config = engine->getConfiguration();
     const auto checkpointMemoryLimit =
             (bucketQuota * config.getCursorDroppingCheckpointMemUpperMark()) /
             100;
-    const bool hitCheckpointMemoryThreshold =
+    const auto requiresMemoryRecovery =
             checkpointMemoryUsage >= checkpointMemoryLimit;
 
-    // @todo MB-46827: Remove the condition on LWM - checkpoint memory recovery
-    // must trigger if checkpoint mem-usage is high, as defined by checkpoint
-    // threshold and regardless the LWM
-    const bool aboveLowWatermark = memUsed >= stats.mem_low_wat.load();
-
-    const bool ckptMemExceedsCheckpointMemoryThreshold =
-            aboveLowWatermark && hitCheckpointMemoryThreshold;
-
-    auto toMB = [](size_t bytes) { return bytes / (1024 * 1024); };
-    if (ckptMemExceedsCheckpointMemoryThreshold) {
-        size_t amountOfMemoryToClear;
-
-        // Calculate the lower percentage of quota and subtract that from
-        // the current checkpoint memory size to obtain the 'target'.
-        amountOfMemoryToClear =
-                checkpointMemoryUsage -
-                ((bucketQuota *
-                  config.getCursorDroppingCheckpointMemLowerMark()) /
-                 100);
-        EP_LOG_INFO(
-                "Triggering memory recovery as checkpoint_memory ({} MB) "
-                "exceeds cursor_dropping_checkpoint_mem_upper_mark ({}%, "
-                "{} MB). Attempting to free {} MB of memory.",
-                toMB(checkpointMemoryUsage),
-                config.getCursorDroppingCheckpointMemUpperMark(),
-                toMB(checkpointMemoryLimit),
-                toMB(amountOfMemoryToClear));
-
-        // Memory recovery is required.
-        return std::make_pair(true, amountOfMemoryToClear);
+    if (!requiresMemoryRecovery) {
+        return std::make_pair(false, 0);
     }
-    // Memory recovery is not required.
-    return std::make_pair(false, 0);
+
+    // Calculate the lower percentage of quota and subtract that from
+    // the current checkpoint memory size to obtain the 'target'.
+    const size_t amountOfMemoryToClear =
+            checkpointMemoryUsage -
+            ((bucketQuota * config.getCursorDroppingCheckpointMemLowerMark()) /
+             100);
+
+    const auto toMB = [](size_t bytes) { return bytes / (1024 * 1024); };
+    EP_LOG_INFO(
+            "Triggering memory recovery as checkpoint_memory ({} MB) "
+            "exceeds cursor_dropping_checkpoint_mem_upper_mark ({}%, "
+            "{} MB). Attempting to free {} MB of memory.",
+            toMB(checkpointMemoryUsage),
+            config.getCursorDroppingCheckpointMemUpperMark(),
+            toMB(checkpointMemoryLimit),
+            toMB(amountOfMemoryToClear));
+
+    return std::make_pair(true, amountOfMemoryToClear);
 }
 
 size_t ClosedUnrefCheckpointRemoverTask::attemptMemoryRecovery(

@@ -310,50 +310,55 @@ TEST_F(CheckpointRemoverEPTest, CursorDropMemoryFreed) {
 // Test that we correctly determine whether to trigger memory recovery.
 TEST_F(CheckpointRemoverEPTest, MemoryRecoveryTrigger) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
-    auto& config = engine->getConfiguration();
     const auto& task = std::make_shared<ClosedUnrefCheckpointRemoverTask>(
             engine.get(),
             engine->getEpStats(),
             engine->getConfiguration().getChkRemoverStime());
 
-    bool shouldTriggerMemoryRecovery{false};
+    const size_t bucketQuota = 1024 * 1024 * 100;
+    auto& config = engine->getConfiguration();
+    config.setMaxSize(bucketQuota);
+    auto& stats = engine->getEpStats();
+    EXPECT_EQ(bucketQuota, stats.getMaxDataSize());
+
+    // No item stored, no memory condition that triggers mem-recovery
+    const auto checkpointMemoryLimit =
+            (bucketQuota * config.getCursorDroppingCheckpointMemUpperMark()) /
+            100;
+    EXPECT_LT(stats.getEstimatedCheckpointMemUsage(), checkpointMemoryLimit);
+    EXPECT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat);
+    bool hasTriggered{false};
     size_t amountOfMemoryToClear{0};
-
-    /*
-     * With a large max size (with no other changes) we should
-     * conclude the cursor dropping is not required.
-     */
-    config.setMaxSize(engine->getEpStats().getPreciseTotalMemoryUsed() * 2);
-
-    std::tie(shouldTriggerMemoryRecovery, amountOfMemoryToClear) =
+    std::tie(hasTriggered, amountOfMemoryToClear) =
             task->isReductionInCheckpointMemoryNeeded();
-    EXPECT_FALSE(shouldTriggerMemoryRecovery);
+    EXPECT_FALSE(hasTriggered);
     EXPECT_EQ(0, amountOfMemoryToClear);
 
-    /*
-     * With a small bucket quota but still low memory-usage in checkpoint,
-     * memory recovery doesn't trigger.
-     */
-    config.setMaxSize(1024);
+    // Now store some items so that the mem-usage in checkpoint crosses the
+    // checkpoint_upper_mark (default to 50% of the bucket quota as of writing),
+    // but the overall mem-usage in the system doesn't hit the LWM.
+    size_t numItems = 0;
+    do {
+        const auto value = std::string(bucketQuota / 10, 'x');
+        auto item =
+                make_item(vbid,
+                          makeStoredDocKey("key_" + std::to_string(++numItems)),
+                          value,
+                          0 /*exp*/,
+                          PROTOCOL_BINARY_RAW_BYTES);
+        store->set(item, cookie);
+    } while (stats.getEstimatedCheckpointMemUsage() < checkpointMemoryLimit);
+    auto vb = store->getVBucket(vbid);
+    EXPECT_GT(vb->getNumItems(), 0);
+    EXPECT_EQ(numItems, vb->getNumItems());
+    EXPECT_GT(stats.getEstimatedCheckpointMemUsage(), checkpointMemoryLimit);
+    EXPECT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat);
 
-    std::tie(shouldTriggerMemoryRecovery, amountOfMemoryToClear) =
+    // Checkpoint mem-recovery must trigger (regardless of any LWM)
+    std::tie(hasTriggered, amountOfMemoryToClear) =
             task->isReductionInCheckpointMemoryNeeded();
-    EXPECT_FALSE(shouldTriggerMemoryRecovery);
-    EXPECT_EQ(0, amountOfMemoryToClear);
-
-    /*
-     * Trigger condition for memory recovery:
-     * the overall checkpoint memory usage goes above a certain % of the
-     * bucket quota, specified by cursor_dropping_checkpoint_mem_upper_mark
-     * and the checkpoint memory usage is above the memory low watermark.
-     */
-    engine->getEpStats().mem_low_wat.store(1);
-    config.setCursorDroppingCheckpointMemUpperMark(1);
-
-    std::tie(shouldTriggerMemoryRecovery, amountOfMemoryToClear) =
-            task->isReductionInCheckpointMemoryNeeded();
-    EXPECT_TRUE(shouldTriggerMemoryRecovery);
-    EXPECT_LT(0, amountOfMemoryToClear);
+    EXPECT_TRUE(hasTriggered);
+    EXPECT_GT(amountOfMemoryToClear, 0);
 }
 
 void CheckpointRemoverEPTest::testExpelingOccursBeforeCursorDropping(
